@@ -32,7 +32,6 @@ Usage:
   mios-compact --out <path>             # override output path
   mios-compact --stdout                 # print to stdout instead of file
   mios-compact --no-llm                 # skip the CPU summarization step
-                                        # (raw section dumps only)
 
 Exit codes:
   0 = digest written (or printed)
@@ -81,7 +80,6 @@ def _since_to_epoch(since: str) -> int:
         return int(datetime.datetime.utcnow().timestamp()) - 86400
 
 
-# --- 1. recent OWUI chats ----------------------------------------
 
 def section_recent_chats(since_epoch: int, max_chats: int) -> str:
     if not OWUI_DB.is_file():
@@ -106,7 +104,6 @@ def section_recent_chats(since_epoch: int, max_chats: int) -> str:
             continue
         title = (d.get("title") or "(untitled)")[:80]
         messages = d.get("messages") or []
-        # Pair user+assistant pairs (last 3 of each)
         user_msgs = [m for m in messages if isinstance(m, dict)
                      and m.get("role") == "user"][-3:]
         asst_msgs = [m for m in messages if isinstance(m, dict)
@@ -119,7 +116,6 @@ def section_recent_chats(since_epoch: int, max_chats: int) -> str:
             out.append(f"- **user**: {content}")
         for m in asst_msgs:
             content = str(m.get("content") or "").strip()
-            # Strip <details> block (raw reasoning); keep operator-facing
             if "<details" in content:
                 content = content.split("</details>", 1)[-1].strip()
             out.append(f"- **agent**: {content[:400]}")
@@ -127,7 +123,6 @@ def section_recent_chats(since_epoch: int, max_chats: int) -> str:
     return "\n".join(out)
 
 
-# --- 2. launch verifier failures ---------------------------------
 
 def section_launch_failures() -> str:
     if not LAUNCH_FAILURES.is_file():
@@ -146,7 +141,6 @@ def section_launch_failures() -> str:
     return "\n".join(out)
 
 
-# --- 3. daemon classify summaries --------------------------------
 
 def section_daemon_state() -> str:
     if not DAEMON_STATE.is_file():
@@ -176,7 +170,6 @@ def section_daemon_state() -> str:
     return "\n".join(out) or "_state empty_"
 
 
-# --- 4. recent git commits (session work record) -----------------
 
 def section_git_commits(since_epoch: int) -> str:
     if not (REPO_ROOT / ".git").is_dir():
@@ -196,7 +189,6 @@ def section_git_commits(since_epoch: int) -> str:
         return f"_git query failed: {e}_"
 
 
-# --- LLM compaction ----------------------------------------------
 
 def _llm_summarize(raw_digest: str, timeout_s: int = 90) -> str:
     """Send the raw digest to the CPU model with a tight system
@@ -246,7 +238,6 @@ def _llm_summarize(raw_digest: str, timeout_s: int = 90) -> str:
         return raw_digest
 
 
-# --- main ---------------------------------------------------------
 
 def main() -> int:
     ap = argparse.ArgumentParser(prog="mios-compact",

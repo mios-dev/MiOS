@@ -3,54 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-flatpak-init, /etc/mios/mios.toml, /usr/share/mios/mios.toml., /usr/share/mios/mios.toml, mios-flatpak-install, mios-flatpak-init.service
 # AI-functions: _log, _toml_get
 set -euo pipefail
-# /usr/libexec/mios/mios-flatpak-init
-#
-# Apply MiOS's system-wide flatpak override policy at first boot.
-# Operator directive 2026-05-15: "make sure agents can install new
-# flatpaks ... be sure it's bootc immutable compatible and uses
-# mutable/persistent userspace folders (var/home/mios/* where
-# documents, pictures, videos, downloads, etc) at this mutable
-# location(s) for flatpaks".
-#
-# WHAT IT DOES
-# ────────────
-# Writes a system-wide override (via `flatpak override --system`) that
-# grants every installed flatpak read+write access to the operator's
-# XDG user directories:
-#
-#   xdg-documents  ($HOME/Documents)
-#   xdg-download   ($HOME/Downloads)
-#   xdg-pictures   ($HOME/Pictures)
-#   xdg-videos     ($HOME/Videos)
-#   xdg-music      ($HOME/Music)
-#   xdg-desktop    ($HOME/Desktop)
-#   xdg-public-share  ($HOME/Public)
-#
-# Plus the existing icon/theme grants (xdg-data/icons:ro, xdg-data/
-# themes:ro) so apps inherit themes from the host.
-#
-# WHY OPERATOR-VISIBLE FILES, NOT SANDBOXED PRIVATE FOLDERS
-# ─────────────────────────────────────────────────────────
-# Default flatpak sandboxes give apps access to nothing in $HOME except
-# their own ~/.var/app/<id>/ tree. That's secure but useless when the
-# operator wants Save File dialogs in epiphany / chrome / gedit /
-# image-viewer to land in the same Documents/Pictures/Downloads they
-# use from native apps. The MiOS contract is "the operator owns their
-# data; flatpaks borrow it" -- not "every app has its own data island".
-#
-# WHERE OVERRIDES PERSIST
-# ───────────────────────
-# /var/lib/flatpak/overrides/global. /var is mutable on bootc, so the
-# overrides survive image upgrades; operators can also edit them via
-# `sudo flatpak override --system <flags>` after the fact (this script
-# only WRITES the MiOS-managed overrides at first boot, doesn't
-# overwrite operator-customised ones -- detected by a marker comment).
-#
-# IDEMPOTENT
-# ──────────
-# Re-runs check the existing override file for the MiOS marker; if
-# present + the policy already applied, this is a no-op. If the
-# operator removed the marker, this script LEAVES the override alone.
 
 set -eu
 
@@ -67,22 +19,13 @@ if ! command -v flatpak >/dev/null 2>&1; then
     exit 0
 fi
 
-# Marker present + already applied -> skip the override-apply block
-# (the WSLg .desktop bridge below still runs -- new flatpaks installed
-# after firstboot need fresh symlinks even when the override is set).
 SKIP_OVERRIDE_APPLY=0
 if [ -f "$OVERRIDE_FILE" ] && grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
     _log "MiOS XDG-grant override already applied (marker present) -- skipping override-apply, continuing to .desktop bridge"
     SKIP_OVERRIDE_APPLY=1
 fi
 
-# Read appearance from layered mios.toml [appearance]. Operator edits
-# in /etc/mios/mios.toml override the vendor defaults in
-# /usr/share/mios/mios.toml. Falls back to hard-coded defaults if the
-# parser path is missing (defensive only -- mios.toml ships with
-# [appearance] populated).
 _toml_get() {
-    # _toml_get <key> <default>
     local key="$1" default="$2" val=""
     for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
         [ -r "$f" ] || continue
@@ -112,23 +55,6 @@ _xcurs_path=$(_toml_get appearance.xcursor_path '~/.icons:~/.local/share/icons:/
 _log "appearance: GTK_THEME=$_gtk_theme ADW=$_adw_color XCURSOR_THEME=$_curs_theme size=$_curs_size"
 
 if [ "$SKIP_OVERRIDE_APPLY" = 0 ]; then
-# Apply each XDG dir + the existing icons/themes grants + theme env
-# ADDITIVELY. `flatpak override --system --filesystem=X` only appends
-# to the [Context]filesystems= line; existing entries are preserved.
-# Same for --env=X -- each is its own [Environment] line, safe to
-# re-apply on every boot. This is what fixes the "Nautilus rendered in
-# default light Adwaita" drift seen 2026-05-15: bake-time set the
-# theme env, but firstboot was re-applying a subset that didn't
-# include GTK_THEME / XCURSOR_THEME / ADW_DEBUG_COLOR_SCHEME, so the
-# global override drifted off them after the first boot.
-# Explicitly REJECT /usr/share/{themes,icons} -- prior versions of
-# this script tried to add those (commit 8f38451) but flatpak refuses
-# with "Path /usr is reserved by Flatpak" on every app launch
-# (operator-confirmed regression 2026-05-16). adw-gtk3-dark + Bibata
-# theme/icons are available to flatpaks via the FLATHUB RUNTIME
-# EXTENSIONS (org.gtk.Gtk3theme.adw-gtk3-dark already installed) +
-# the xdg-data/themes mount -- no /usr access needed. nofilesystem
-# negates any earlier add of these paths.
 flatpak override --system --nofilesystem=/usr/share/themes 2>/dev/null || true
 flatpak override --system --nofilesystem=/usr/share/icons 2>/dev/null || true
 
@@ -154,19 +80,15 @@ flatpak override --system \
     --env=XCURSOR_SIZE="$_curs_size" \
     --env=XCURSOR_PATH="$_xcurs_path"
 
-# Stamp the marker so the next run knows this is MiOS-managed (and
-# any operator edit that REMOVES the marker will be honoured as
-# "operator took ownership").
 if [ ! -f "$OVERRIDE_FILE" ]; then
     _log "WARN: flatpak override apply succeeded but $OVERRIDE_FILE not present -- skipping marker write"
     exit 0
 fi
 if ! grep -q "$MARKER" "$OVERRIDE_FILE" 2>/dev/null; then
-    # Prepend the marker as a comment block at the top.
     {
         echo "$MARKER"
-        echo "# Edit via: sudo flatpak override --system <flags>"
-        echo "# Delete this marker line to take operator ownership of this file."
+        echo "# Edit via: sudo flatpak override"
+        echo "# Delete this marker line to take operator ownership of this file"
         echo "#"
         cat "$OVERRIDE_FILE"
     } > "${OVERRIDE_FILE}.new"
@@ -177,30 +99,6 @@ else
 fi
 fi   # end SKIP_OVERRIDE_APPLY guard
 
-# ── Flatpak .desktop -> WSLg Start Menu bridge ─────────────────────────
-# Operator directive 2026-05-15: "FIX windows host itself not showing
-# WSL applications and flatpaks apps as native windows applications
-# with Icons (Natively for WSL/Windows)".
-#
-# Root cause: WSLg's .desktop scanner only looks at
-# /usr/share/applications/ (well-known XDG path). Flatpak exports its
-# .desktop files to /var/lib/flatpak/exports/share/applications/ which
-# WSLg never sees. Net effect: ChromeDev / Nautilus.Devel / Epiphany /
-# Ptyxis / Codium / gedit / ExtensionManager / Flatseal are installed
-# + launchable from the operator's session, but DO NOT show as Windows
-# Start Menu entries.
-#
-# Fix: symlink each flatpak .desktop into /usr/share/applications/
-# with a "_flatpak.desktop" suffix to avoid collision with same-named
-# host packages. The icons are auto-found by WSLg via Icon= -> the
-# /var/lib/flatpak/exports/share/icons/hicolor/ tree (WSLg already
-# scans the standard XDG icon paths under /var/lib + /usr/share).
-#
-# Idempotent. Newly-installed flatpaks NOT automatically picked up by
-# this one-shot service -- but mios-flatpak-install (operator's
-# flatpak install wrapper) re-runs this script post-install, AND
-# operators can `sudo systemctl start mios-flatpak-init.service`
-# manually after a flatpak install to refresh.
 FP_EXPORTS=/var/lib/flatpak/exports/share/applications
 SYS_APPS=/usr/share/applications
 if [ -d "$FP_EXPORTS" ] && [ -d "$SYS_APPS" ]; then
@@ -208,16 +106,11 @@ if [ -d "$FP_EXPORTS" ] && [ -d "$SYS_APPS" ]; then
     for desktop in "$FP_EXPORTS"/*.desktop; do
         [ -f "$desktop" ] || continue
         base=$(basename "$desktop" .desktop)
-        # Skip the URL-handler companion files (they have main-app
-        # counterparts already + appear as confusing extras in Start Menu).
         case "$base" in *-url-handler) continue ;; esac
         link="$SYS_APPS/${base}_flatpak.desktop"
-        # Skip if symlink already correct.
         if [ -L "$link" ] && [ "$(readlink "$link")" = "$desktop" ]; then
             continue
         fi
-        # If a non-symlink file exists with the same name, leave it
-        # alone (host package owns that .desktop name).
         if [ -e "$link" ] && [ ! -L "$link" ]; then
             _log "skip $base (host .desktop owns the name)"
             continue
@@ -226,9 +119,6 @@ if [ -d "$FP_EXPORTS" ] && [ -d "$SYS_APPS" ]; then
         bridged=$((bridged + 1))
     done
     _log "WSLg bridge: $bridged flatpak .desktop file(s) symlinked into $SYS_APPS"
-    # Kick the WSLg desktop scanner via systemd's path-units if any
-    # are watching the apps dir. systemd-tmpfiles / update-desktop-
-    # database are no-ops on bootc if absent.
     command -v update-desktop-database >/dev/null 2>&1 && \
         update-desktop-database "$SYS_APPS" 2>/dev/null || true
 fi

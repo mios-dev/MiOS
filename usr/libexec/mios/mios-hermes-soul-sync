@@ -2,44 +2,6 @@
 # AI-hint: Syncs the core hermes-soul.md identity file from system shares to the gateway-service home AND every interactive operator ~/.hermes home, so the agent's persona stays consistent across both the service and the `hermes` CLI REPL while preserving operator-appended runtime context.
 # AI-related: /usr/libexec/mios/mios-hermes-soul-sync, /usr/share/mios/ai/hermes-soul.md, mios-hermes, hermes-agent.service
 # AI-functions: log, sync_one
-# /usr/libexec/mios/mios-hermes-soul-sync
-#
-# Idempotent SOUL.md propagation. The hardened vendor SOUL.md lives at
-# /usr/share/mios/ai/hermes-soul.md and is updated by code changes
-# (commit/rebuild). The agent reads $HERMES_HOME/SOUL.md fresh on every
-# message, but only after firstboot has SEEDED that path. Without this
-# shim, SOUL.md updates between firstboot runs require a manual
-# touch+restart on every operator host (operator-flagged 2026-05-17:
-# WSLg rule didn't propagate after my deploy because cp preserved mtime).
-#
-# TWO classes of target, BOTH refreshed here:
-#   1. The gateway SERVICE home ($HERMES_HOME, default /var/lib/mios/hermes,
-#      owned by mios-hermes) -- what hermes-agent.service reads.
-#   2. INTERACTIVE operator homes (~/.hermes/SOUL.md). A human running the
-#      `hermes` CLI uses THEIR ~/.hermes, NOT the service home. firstboot
-#      seeds these ONCE, so a later SOUL update never reached the REPL --
-#      operator-flagged 2026-06-19: `hermes` kept truncating a stale 47K SOUL
-#      because only the service home was being refreshed. We now sync the
-#      interactive homes on every run too (root-only; writing another user's
-#      home needs privilege -- a no-op when run as the unprivileged service).
-#
-# Per target:
-#   * If target SOUL.md is absent -> seed it from source.
-#   * If target exists but lacks the 'MiOS-managed' marker -> leave it alone
-#     (the operator has taken ownership).
-#   * If the source body (BEFORE any appended runtime-context block) is
-#     byte-identical to the target body -> noop (preserves the operator's
-#     appended Discord/runtime context).
-#   * Otherwise -> rewrite the body from source, preserving the appended
-#     runtime-context block + ownership + permissions.
-#
-# Wired as ExecStartPre to hermes-agent.service via a drop-in so SOUL.md is
-# always fresh when hermes boots. Also runnable from firstboot, the operator
-# console, or an "update SOUL.md" automation.
-#
-# Exit codes:
-#   0 = noop or successful sync (best-effort across homes)
-#   1 = source missing (logged, non-fatal -- hermes still starts)
 
 set -uo pipefail
 
@@ -47,20 +9,16 @@ SRC="${MIOS_HERMES_SOUL_SRC:-/usr/share/mios/ai/hermes-soul.md}"
 HERMES_HOME="${HERMES_HOME:-/var/lib/mios/hermes}"
 SOUL_USER="${MIOS_HERMES_USER:-mios-hermes}"
 SOUL_GROUP="${MIOS_HERMES_GROUP:-mios-hermes}"
-# Match the marker firstboot uses; preserve appended context across syncs.
 SOUL_CTX_MARKER="### MIOS-RUNTIME-CONTEXT-BEGIN"
 
 log() { echo "[mios-hermes-soul-sync] $*"; }
 
 if [ ! -r "$SRC" ]; then
-    log "source missing: $SRC -- nothing to sync"
+    log "Source missing: $SRC"
     exit 1
 fi
 SRC_BYTES=$(wc -c < "$SRC")
 
-# sync_one TARGET OWNER_USER OWNER_GROUP -- idempotent body-sync of $SRC onto
-# one SOUL.md, preserving the operator's appended runtime-context block + the
-# 'MiOS-managed' opt-out + ownership/permissions. Best-effort (never aborts).
 sync_one() {
     target="$1"; o_user="$2"; o_group="$3"
     home_dir="$(dirname "$target")"
@@ -71,33 +29,28 @@ sync_one() {
         cp -f "$SRC" "$target" 2>/dev/null || return 0
         chown "$o_user:$o_group" "$target" 2>/dev/null || true
         chmod 0644 "$target" 2>/dev/null || true
-        log "seeded $target (target absent)"
+        log "Seeded $target"
         return 0
     fi
 
-    # Operator-owned? Don't touch.
     if ! grep -q 'MiOS-managed' "$target" 2>/dev/null; then
-        log "$target lacks 'MiOS-managed' marker -- operator-owned, leaving alone"
+        log "$target lacks 'MiOS-managed' marker"
         return 0
     fi
 
-    # Compare body-only. Target body = everything BEFORE the runtime-context
-    # marker; source is all body (firstboot appends runtime-context after copy).
     tbody=$(mktemp)
     awk -v m="$SOUL_CTX_MARKER" '
         { if (index($0, m) > 0) { exit } else { print } }
     ' "$target" > "$tbody"
-    # Drop the trailing blank line firstboot pads before the marker.
     sed -i -e '$ { /^$/d; }' "$tbody" 2>/dev/null || true
     tbody_bytes=$(wc -c < "$tbody")
 
     if [ "$tbody_bytes" -ge "$SRC_BYTES" ] && cmp -s -n "$SRC_BYTES" "$SRC" "$target"; then
-        log "$target body current ($SRC_BYTES bytes) -- noop"
+        log "$target body current"
         rm -f "$tbody"
         return 0
     fi
 
-    # Body differs -- preserve any appended runtime-context block, rewrite body.
     rctx=$(mktemp)
     awk -v m="$SOUL_CTX_MARKER" '
         BEGIN { keep = 0 }
@@ -115,15 +68,11 @@ sync_one() {
     chown "$o_user:$o_group" "$target" 2>/dev/null || true
     chmod 0644 "$target" 2>/dev/null || true
     rm -f "$tbody" "$rctx" "$newf"
-    log "synced $target (body=$SRC_BYTES bytes, +runtime-context if present)"
+    log "Synced $target"
 }
 
-# 1. Gateway SERVICE home (always).
 sync_one "${HERMES_HOME}/SOUL.md" "$SOUL_USER" "$SOUL_GROUP"
 
-# 2. INTERACTIVE operator homes -- only when privileged (writing another user's
-#    home needs root; a no-op for the unprivileged ExecStartPre). Sync every
-#    EXISTING ~/.hermes (we don't create one for users who never ran hermes).
 if [ "$(id -u)" = 0 ]; then
     for _h in /var/home/*/.hermes /home/*/.hermes /root/.hermes; do
         [ -d "$_h" ] || continue

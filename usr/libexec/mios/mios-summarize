@@ -25,7 +25,7 @@ INPUT (one of):
 USAGE
   mios-summarize --file notes.md
   mios-summarize --text "..." --tiers l0,l1
-  echo "long doc" | mios-summarize --json
+  echo "Long doc" | mios-summarize --json
 
 OUTPUT (--json default true):
   {ok, source, chars_in, l0, l1, l2_chars, model}
@@ -69,8 +69,6 @@ def _chat(sys_prompt: str, doc_body: str) -> str:
             {"role": "user", "content": doc_body}
         ],
         "stream": False,
-        # qwen3 thinking off so the summary isn't polluted (llama.cpp honors this;
-        # the </think> strip below is the robust fallback if it isn't applied).
         "chat_template_kwargs": {"enable_thinking": False},
     }
     req = urllib.request.Request(
@@ -123,8 +121,6 @@ def main() -> int:
         return 2
 
     tiers = {t.strip().lower() for t in args.tiers.split(",") if t.strip()}
-    # Cap the body fed to the model (the small model's context is limited);
-    # L2 keeps the (separately-capped) raw text.
     model_body = body[:12000]
     out: dict = {
         "ok": True, "source": src, "chars_in": len(body),

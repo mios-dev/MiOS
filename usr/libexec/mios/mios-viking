@@ -103,7 +103,6 @@ def _ls_knowledge(limit: int, query: str) -> list:
     if query:
         where = "WHERE position($1 in lower(q)) > 0 "
         params = [query.lower()]
-    # LIMIT stays inline (int-coerced -> not injectable); the query is bound.
     rows = _pg_rows(
         f"SELECT id, q FROM {KNOWLEDGE_TABLE} {where}"
         f"ORDER BY ts DESC LIMIT {int(limit)}", params)

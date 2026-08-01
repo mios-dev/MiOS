@@ -7,20 +7,20 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-mios_log "installing Qt6 build dependencies"
+mios_log "Installing Qt6 build dependencies"
 install_packages_strict "quickshell-build"
 
-mios_log "compiling quickshell from upstream"
+mios_log "Compiling quickshell from upstream"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
 
 PIN_REF="${MIOS_BUILD_BAKE_REFS_QUICKSHELL:-v0.3.0}"
-mios_log "quickshell pin ref: ${PIN_REF}"
+mios_log "Quickshell pin ref: ${PIN_REF}"
 
 BUILD_DIR="/tmp/quickshell-build"
 QUICKSHELL_OK=""
 
 for attempt in 1 2 3; do
-    mios_log "compilation attempt $attempt/3"
+    mios_log "Compilation attempt $attempt/3"
     cd /tmp
     rm -rf "$BUILD_DIR"
     
@@ -65,7 +65,7 @@ fi
 
 record_version quickshell "$PIN_REF" "https://github.com/quickshell-mirror/quickshell/tree/${PIN_REF}"
 
-mios_log "writing default panel /usr/share/mios/quickshell/Config.qml"
+mios_log "Writing default panel /usr/share/mios/quickshell/Config.qml"
 mkdir -p /usr/share/mios/quickshell
 cat << 'EOF' > /usr/share/mios/quickshell/Config.qml
 import QtQuick

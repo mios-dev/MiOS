@@ -4,9 +4,8 @@
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-mios_log "kargs.d render"
+mios_log "Kargs.d render"
 
-# Path to mios.toml
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 KARGS_DIR="${KARGS_DIR:-/usr/lib/bootc/kargs.d}"
 
@@ -26,7 +25,6 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-# Resolve Python executable robustly (preferring py launcher on Windows, fallback to python3/python)
 PYTHON_EXE=""
 if command -v py &>/dev/null; then
     PYTHON_EXE=py
@@ -35,11 +33,9 @@ elif command -v python3 &>/dev/null && python3 --version &>/dev/null; then
 elif command -v python &>/dev/null && python --version &>/dev/null; then
     PYTHON_EXE=python
 else
-    # Default fallback for standard Linux builds
     PYTHON_EXE=python3
 fi
 
-# Run the python generator
 "$PYTHON_EXE" -c '
 import os
 import sys
@@ -53,7 +49,6 @@ with open(mios_toml_path, "rb") as f:
 
 kargs_conf = config.get("kargs", {})
 
-# 1. Modify 01-mios-vfio.toml
 vfio_toml_path = os.path.join(kargs_dir, "01-mios-vfio.toml")
 if os.path.exists(vfio_toml_path):
     with open(vfio_toml_path, "rb") as f:
@@ -61,9 +56,7 @@ if os.path.exists(vfio_toml_path):
     
     kargs_list = vfio_data.get("kargs", [])
     
-    # Process iommu
     iommu = kargs_conf.get("iommu", "on")
-    # Clean existing IOMMU settings from list
     kargs_list = [k for k in kargs_list if k not in ("intel_iommu=on", "amd_iommu=on", "iommu=pt")]
     if iommu == "intel":
         kargs_list.extend(["intel_iommu=on", "iommu=pt"])
@@ -72,13 +65,11 @@ if os.path.exists(vfio_toml_path):
     elif iommu == "on":
         kargs_list.extend(["intel_iommu=on", "amd_iommu=on", "iommu=pt"])
         
-    # Process vfio_ids
     vfio_ids = kargs_conf.get("vfio_ids", "").strip()
     kargs_list = [k for k in kargs_list if not k.startswith("vfio-pci.ids")]
     if vfio_ids:
         kargs_list.append(f"vfio-pci.ids={vfio_ids}")
         
-    # Write back 01-mios-vfio.toml
     lines = [
         "# AI-hint: Configures kernel arguments for IOMMU, VFIO-PCI, and nested virtualization to enable hardware passthrough and virtualization features in the MiOS boot process.",
         "# Generated from mios.toml [kargs] SSOT",
@@ -94,7 +85,6 @@ if os.path.exists(vfio_toml_path):
         f.write("\n".join(lines) + "\n")
     print(f"Updated {vfio_toml_path}")
 
-# 2. Generate 99-mios-kargs.toml for hugepages, isolcpus, nohz_full, rcu_nocbs, THP
 custom_kargs = []
 hugepages = str(kargs_conf.get("hugepages", "")).strip()
 if hugepages:

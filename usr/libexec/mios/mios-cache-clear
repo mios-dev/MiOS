@@ -3,42 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-cache-clear, mios-hermes, mios-owui-apply, mios-open-webui, mios-owui-apply-knowledge, hermes-agent.service, mios-open-webui.service
 # AI-functions: ok, note, sec, size, do_rm, do_find_delete
 set -euo pipefail
-# /usr/libexec/mios/mios-cache-clear [--dry-run] [--all]
-#
-# Safe cache wipe across the MiOS agent / AI / GUI stack. Designed to
-# replace the ad-hoc "delete everything" scripts the agent has been
-# running -- which deleted the OWUI admin user along with the chats
-# (operator-confirmed regression 2026-05-15: post-wipe lockout).
-#
-# WHITELIST -- ALWAYS preserved (never delete from these tables):
-#   OWUI: user, auth, group, group_member, model, function, tool,
-#         api_key, oauth_session
-#   Hermes: config.yaml, SOUL.md, .env (operator API keys),
-#           skills/, hooks/, bin/, cron/
-#   System: model weights (multi-GB), service systemd units,
-#           Quadlets, /etc/mios/* configs, /etc/sudoers.d/10-mios-hermes
-#
-# WIPED -- conversation/cache state, regenerable on demand:
-#   OWUI: chat, message, message_reaction, memory,
-#         feedback, prompt_history, automation_run, calendar_event,
-#         shared_chat, pinned_note, channel_*, tag, chat_file
-#   OWUI selective: file rows + knowledge rows + knowledge_file links
-#         that are NOT MiOS-managed (meta lacks "mios-owui-apply-
-#         knowledge" marker). MiOS Documentation collection survives.
-#   OWUI: cache/, vector_db/, uploads/ directories (vector chunks
-#         re-built from file.data.content on next read)
-#   Hermes: sessions/, response_store.db, kanban.db, plans/, memories/,
-#           cache/, .cache, processes.json, channel_directory.json,
-#           context_length_cache.yaml, models_dev_cache.json,
-#           .skills_prompt_snapshot.json, logs/
-#   Build: build-context, bib-cache, all but newest build-driver-*.log
-#   Chrome flatpak: cache/, GPUCache/, ShaderCache/, Code Cache/
-#                   (preserves prefs, bookmarks, history)
-#   /var/tmp: entries older than 1 day
-#   /tmp: only MiOS-stamped throwaway files
-#
-# --dry-run: print what would be deleted, don't actually delete
-# --all:     also wipe Chrome history/prefs (NOT default; user data loss)
 
 set -u
 
@@ -51,7 +15,7 @@ while [ "$#" -gt 0 ]; do
         -h|--help)
             sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'
             exit 0 ;;
-        *) echo "mios-cache-clear: unknown arg: $1" >&2; exit 1 ;;
+        *) echo "Mios-cache-clear: unknown arg: $1" >&2; exit 1 ;;
     esac
     shift
 done
@@ -59,7 +23,7 @@ done
 ok()    { printf "  ✓  %s\n" "$*"; }
 note()  { printf "     %s\n" "$*"; }
 sec()   { printf "\n── %s ──\n" "$*"; }
-size()  { du -sh "$1" 2>/dev/null | cut -f1 || echo "?"; }
+size()  { du -sh "$1" 2>/dev/null | cut -f1 || echo ""; }
 do_rm() {
     if [ "$DRY_RUN" = "1" ]; then
         note "(dry-run) would: rm -rf $*"
@@ -68,7 +32,6 @@ do_rm() {
     fi
 }
 do_find_delete() {
-    # $1=path; $2=-name pattern; remaining=extra find args
     local path="$1" pattern="$2"; shift 2
     if [ "$DRY_RUN" = "1" ]; then
         find "$path" -mindepth 1 -name "$pattern" "$@" 2>/dev/null | head -5 | \
@@ -82,7 +45,7 @@ do_find_delete() {
 
 if [ "$(id -u)" -ne 0 ]; then
     if ! sudo -n true 2>/dev/null; then
-        echo "mios-cache-clear: needs root or non-interactive sudo" >&2
+        echo "Mios-cache-clear: needs root or non-interactive sudo" >&2
         exit 1
     fi
     exec sudo -n -E "$0" "$@"
@@ -100,11 +63,9 @@ sec "2. Hermes-Agent state (preserve config.yaml, SOUL.md, .env, skills/, hooks/
 for h in /var/lib/mios/hermes /var/home/mios/.hermes /home/mios/.hermes; do
     [ -d "$h" ] || continue
     note "$h before: $(size "$h")"
-    # contents of these dirs (preserve dir itself):
     for d in sessions cache .cache memories plans logs; do
         [ -d "$h/$d" ] && do_find_delete "$h/$d" '*'
     done
-    # specific files:
     for f in response_store.db response_store.db-shm response_store.db-wal \
              kanban.db kanban.db-shm kanban.db-wal \
              processes.json channel_directory.json \
@@ -145,25 +106,11 @@ WIPE = (
     "automation_run", "calendar_event", "calendar_event_attendee", "calendar",
     "tag",
 )
-# NEVER touch: user, auth, group, group_member, model, function, tool,
-#              api_key, oauth_session, channel  (these are config/identity)
-# Selective wipe for file/knowledge: keep MiOS-managed (sourced from
-# mios-owui-apply-knowledge -- meta has 'managed_by' set), wipe only
-# operator-uploaded chat attachments + non-MiOS knowledge collections.
-# Operator-confirmed regression 2026-05-15: a blanket wipe of
-# knowledge + knowledge_file + file blew away the MiOS Documentation
-# collection on every cache-clear; the helper had to be re-run from
-# firstboot to restore.
 SELECTIVE_WIPE_SQL = (
-    # Files: drop only those NOT marked MiOS-managed.
     ("file",
      "DELETE FROM file WHERE coalesce(meta, '') NOT LIKE '%mios-owui-apply-knowledge%'"),
-    # Knowledge collections: drop only those NOT marked MiOS-managed.
     ("knowledge",
      "DELETE FROM knowledge WHERE coalesce(meta, '') NOT LIKE '%mios-owui-apply-knowledge%'"),
-    # knowledge_file links: drop links whose knowledge or file rows were
-    # deleted (cascade FK already does this when ON DELETE CASCADE is
-    # set; explicit cleanup for safety on older OWUI schemas).
     ("knowledge_file",
      "DELETE FROM knowledge_file WHERE knowledge_id NOT IN (SELECT id FROM knowledge) "
      "OR file_id NOT IN (SELECT id FROM file)"),
@@ -239,7 +186,6 @@ if [ -d "$CHR" ]; then
         [ -d "$CHR/$sub" ] && do_find_delete "$CHR/$sub" '*'
     done
     if [ "$ALL" = "1" ]; then
-        # --all also wipes history + cookies (operator-explicit data loss)
         for sub in "config/google-chrome-mios/Default/Cookies"* \
                    "config/google-chrome-mios/Default/History"*; do
             [ -e "$CHR/$sub" ] && do_rm "$CHR/$sub"
@@ -268,11 +214,11 @@ done
 echo
 echo "════════════════════════════════════════════════════════════════"
 if [ "$DRY_RUN" = "1" ]; then
-    echo "  DRY RUN complete. Re-run without --dry-run to actually delete."
+    echo "  DRY RUN complete. Re-run without"
 else
-    echo "  Cache + temp wipe complete."
+    echo "  Cache + temp wipe complete"
     echo "  Preserved: configs, SOUL.md, skills, models, OWUI users +"
     echo "             auth + models + functions + tools, cron jobs, latest"
-    echo "             build log, Chrome bookmarks/prefs."
+    echo "             build log, Chrome bookmarks/prefs"
 fi
 echo "════════════════════════════════════════════════════════════════"

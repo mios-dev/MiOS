@@ -3,25 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-apps, mios-shim, mios-launch, mios-gui, mios-windows, mios-windows-apps, mios-hermes, mios-find, mios-open-url, localhost:9090
 # AI-functions: emit, _jsonesc, _is_wsl, header
 set -euo pipefail
-# /usr/libexec/mios/mios-apps [--json] [--names] [--filter <substr>] [--category <cat>]
-#
-# Inventory of EVERY launchable thing on this MiOS host. One unified
-# surface across:
-#
-#   linux-flatpak    flatpaks installed system-wide (flatpak list --system)
-#   linux-rpm-gui    host-installed GUI RPMs (.desktop files; not NoDisplay)
-#   windows-gui      Windows host apps reachable via WSL interop
-#   mios-shim        MiOS shell helpers under /usr/libexec/mios/ + /usr/local/bin/
-#   agent-cli        agent toolchain CLIs (hermes, opencode, ...)
-#   service-url      known internal-service URLs (Cockpit, OWUI, Forgejo, ...)
-#
-# Operator directive 2026-05-15: "MiOS-Agents should be aware of all
-# systems; and be able to launch apps regardless of environment".
-# This helper is the awareness half; mios-launch is the launch half.
-#
-# Default output is a human-readable table grouped by category. For
-# agent-friendly machine reading, use --json. For piping into other
-# helpers, --names prints bare launch names one per line.
 
 set -eu
 
@@ -59,32 +40,17 @@ USAGE
             exit 0
             ;;
         *)
-            # Agents repeatedly call `mios-apps <query>` positionally
-            # instead of `mios-apps --filter <query>` and then conclude
-            # the tool is broken. Substitute the operator-typed value
-            # into the hint so the next-turn invocation is obvious.
-            echo "mios-apps: unknown positional arg: $1" >&2
-            echo "  did you mean: mios-apps --filter $(printf '%q' "$1")" >&2
+            echo "Mios-apps: unknown positional arg: $1" >&2
+            echo "  did you mean: mios-apps"$1")" >&2
             exit 64
             ;;
     esac
 done
 
-# ─── helpers ─────────────────────────────────────────────────────────
 emit() {
-    # emit <category> <name> <description> <launch-hint>
     local cat="$1" name="$2" desc="$3" launch="$4"
     if [ -n "$CATEGORY" ] && [ "$cat" != "$CATEGORY" ]; then return; fi
     if [ -n "$FILTER" ]; then
-        # Match name/desc OR the CATEGORY (with a trailing-'s' stem) so a
-        # natural-language category word resolves to the right GROUP: "games" ->
-        # the "windows-game" category (ALL stores -- Steam/Epic/GOG/Store -- emit
-        # THERE, not separate per-store cats), "browsers" -> a browser cat, etc.
-        # The old name+desc-only match returned just the lone entry whose NAME
-        # happened to contain the word (e.g. "Wreckfest (NordicGames)") and
-        # DROPPED the Steam/Epic titles whose names lack it -> "what games" listed
-        # 1 of N (operator 2026-05-29). Generic stem match, no hardcoded
-        # keyword->category table.
         _fstem="${FILTER%s}"
         if ! echo "$cat $name $desc" | grep -qiF "$FILTER" \
              && ! { [ -n "$_fstem" ] && echo "$cat" | grep -qiF "$_fstem"; }; then
@@ -111,15 +77,6 @@ _is_wsl() {
     fi
     echo 0
 }
-# Wine-free Steam library scan. The Windows-side PowerShell pass reaches the
-# real host only through WSL-interop, which is silently hijacked when a Wine
-# binfmt handler intercepts .exe (games then invisible). Steam's library is
-# plain-text VDF readable straight off the drvfs /mnt mount -- parse it there,
-# with ZERO .exe execution, and emit "<name>|steam://rungameid/<appid>" lines.
-# The registry SteamPath is the true SSOT but is unreadable from bash; the
-# default install root only BOOTSTRAPS us to libraryfolders.vdf, which then
-# enumerates every real library on any drive (so non-default installs are
-# still covered).
 _steam_scan_native() {
     local def="/mnt/c/Program Files (x86)/Steam/steamapps"
     local -a roots=()
@@ -152,7 +109,6 @@ header() {
     printf '\n== %s ==\n' "$1"
 }
 
-# ─── 1. linux-flatpak ────────────────────────────────────────────────
 header linux-flatpak
 if command -v flatpak >/dev/null 2>&1; then
     flatpak list --system --columns=application,name 2>/dev/null \
@@ -164,17 +120,13 @@ if command -v flatpak >/dev/null 2>&1; then
         done
 fi
 
-# ─── 2. linux-rpm-gui ────────────────────────────────────────────────
 header linux-rpm-gui
 if [ -d /usr/share/applications ]; then
     for f in /usr/share/applications/*.desktop; do
         [ -f "$f" ] || continue
-        # Skip NoDisplay=true (not user-visible) and Hidden=true entries.
         if grep -qE '^NoDisplay=true|^Hidden=true' "$f"; then continue; fi
-        # Only show entries whose Exec= resolves to an actual binary.
         exec_line="$(grep -m1 '^Exec=' "$f" | sed 's/^Exec=//' | awk '{print $1}')"
         [ -z "$exec_line" ] && continue
-        # strip flatpak --command, %F/%U placeholders, env vars
         exec_bin="$(basename "$exec_line")"
         if ! command -v "$exec_bin" >/dev/null 2>&1; then continue; fi
         name_line="$(grep -m1 '^Name=' "$f" | sed 's/^Name=//')"
@@ -183,24 +135,7 @@ if [ -d /usr/share/applications ]; then
     done
 fi
 
-# ─── 3. windows-gui (GENERATIVE: live Start-Menu discovery, NO hardcoded list) ─
-# operator 2026-05-29: "every app is DISCOVERED + executed from its installed
-# path(s), not a hardcoded apps list". The Start Menu (.lnk catalog under
-# %ProgramData% + %APPDATA% Programs) is Windows' canonical registry of what is
-# ACTUALLY installed; each .lnk basename IS the app name, and `mios-windows
-# launch <name>` resolves its real path at launch time (App Paths registry ->
-# System32/Windows -> Start Menu -> Everything). So we enumerate the live menu
-# instead of baking in a fixed list -- an app the operator installs shows up
-# automatically, and one that isn't installed simply isn't listed. Capped +
-# de-duplicated; best-effort (empty if PowerShell isn't exec-able from this uid
-# -- the launch-time fallback still discovers any named app generatively).
 header windows-gui
-# ── Wine-free native enumeration (PRIMARY) ──────────────────────────
-# mios-win-scan reads the REAL host off the /mnt drvfs mount directly
-# (Steam/Epic/GOG/Store-UWP/Start-Menu), so the inventory is correct even when
-# .exe interop is hijacked by a Wine binfmt handler -- the single failure mode
-# that made every Windows game/app invisible. When it yields results, the
-# Wine-dependent PowerShell scans below are SKIPPED (set -e-safe, degrade-open).
 _WIN_NATIVE=""
 if command -v mios-win-scan >/dev/null 2>&1 && [ -d /mnt/c/Windows ]; then
     _WS_CACHE=/var/lib/mios/agent-env/windows-native.cache
@@ -217,7 +152,6 @@ if command -v mios-win-scan >/dev/null 2>&1 && [ -d /mnt/c/Windows ]; then
             _wt="$(printf '%s' "$_wt" | tr -d '\r')"
             _wc="$(printf '%s' "$_wc" | tr -d '\r')"
             [ -n "$_wn" ] && [ -n "$_wt" ] || continue
-            # Skip WSLg-exported loopback shortcuts to avoid self-referential loops
             case "$_wn" in
                 *podman-MiOS-DEV*) continue ;;
             esac
@@ -250,25 +184,11 @@ PSEOF
             esac
             emit windows-gui "$_name" "Windows app (Start Menu)" "mios-windows launch \"$_name\""
         done || true
-    # `|| true`: pwsh.exe returns non-zero when interop is down / hijacked by
 fi
 
 
-# ─── 3a. windows-app (every Start-menu app on the Windows host) ──────
-# Operator directive 2026-05-15: "should automatically detect installed
-# hardware, services and especially; applications GLOBALLY (ALL
-# SYSTEMS, ex: Windows, Linux, etc)". Get-StartApps returns ~every
-# user-launchable app on the Windows side -- Win32 + UWP/MSIX --
-# without the slow Win32_Product WMI walk. Cached for 5 minutes
-# under /tmp/mios-windows-apps.cache to avoid the ~1s round-trip cost
-# on every mios-apps call.
 header windows-app
 if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
-    # Cache under /var/lib/mios/agent-env (shared dir already used for
-    # the games cache; world-writable via tmpfiles.d). Previous path
-    # /tmp/<file> stuck to whichever uid wrote it first, leaving the
-    # other (operator vs mios-hermes) forever blocked from `mv`-ing
-    # the tmp file in. Operator-flagged 2026-05-19.
     CACHE_DIR=/var/lib/mios/agent-env
     CACHE="${CACHE_DIR}/windows-apps.cache"
     if [ ! -d "$CACHE_DIR" ]; then
@@ -279,7 +199,6 @@ if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/
     if [ -f "$CACHE" ] && [ "$(( $(date +%s) - _mtime ))" -lt 300 ]; then
         :  # fresh cache; use as-is
     else
-        # Get-StartApps -> CSV-style "Name|AppID" lines, one per app.
         timeout 6 mios-windows ps 'Get-StartApps | ForEach-Object { $_.Name + "|" + $_.AppID }' \
             2>/dev/null > "$CACHE.tmp" \
             && mv "$CACHE.tmp" "$CACHE" || rm -f "$CACHE.tmp"
@@ -287,29 +206,12 @@ if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/
     if [ -f "$CACHE" ]; then
         while IFS='|' read -r win_name win_id; do
             [ -z "$win_name" ] && continue
-            # Strip CR + trim
             win_name="$(echo "$win_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             win_id="$(echo "$win_id" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
-            # Skip Microsoft.AutoGenerated.{GUID} AppX shims: Windows auto-creates
-            # these for desktop apps that ALSO register App Paths + Clients\
-            # StartMenuInternet (notably browsers like Zen) -- redundant GUID-named
-            # dupes that fuzzy-match real queries ("zen browser" -> the Zen
-            # AutoGenerated shim) and shadow the clean windows-browser / App-Paths
-            # resolution. The real app stays reachable via the windows-browser
-            # section + `mios-windows launch <name>` (App Paths). No hardcoded app
-            # list -- this filters a Windows-internal auto-gen ID pattern only.
             case "$win_id" in
                 *Microsoft.AutoGenerated.*) continue ;;
             esac
-            # short = first word lowercased; not unique but useful for filtering
             short="$(echo "$win_name" | awk '{print tolower($1)}')"
-            # If win_id is a URI handler (uplay://, steam://, epic://,
-            # http://, etc.), pass it DIRECTLY to Start-Process -- the
-            # `shell:AppsFolder\` prefix only works for UWP App-User-Model-
-            # IDs (curly-brace GUIDs + executable path), not URI schemes.
-            # Operator-confirmed regression 2026-05-16: "The Crew Motorfest
-            # (uplay://launch/16732/0)" emitted shell:AppsFolder\uplay://...
-            # which Windows rejects.
             case "$win_id" in
                 *://*)
                     cmd="mios-windows launch \"$win_id\""
@@ -323,15 +225,6 @@ if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/
     fi
 fi
 
-# ─── 3c. windows-browser (GENERATIVE default + registered browsers) ──
-# operator 2026-06-15: the OS DEFAULT browser (e.g. Zen) is a Program Files
-# install + URL-protocol handler, NOT a Get-StartApps / Start-Menu entry, so it
-# was INVISIBLE to the inventory -> `mios-find "zen"` missed and mis-matched a
-# garbage AutoGenerated UWP, and "open a tab" fell to the wrong browser. Discover
-# browsers from Windows' CANONICAL registry (HKLM/HKCU Clients\StartMenuInternet)
-# + the live https UserChoice default -- NO hardcoded browser list. Each resolves
-# to its real exe basename (browsers register App Paths, so `mios-windows launch
-# <name>` opens it); the OS default is marked so the agent can prefer it.
 header windows-browser
 if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     _BR_PS="$(cat <<'PSEOF'
@@ -359,22 +252,8 @@ PSEOF
         [ "$(printf '%s' "$_bdef" | tr -d ' ')" = "1" ] && _bdesc="Windows DEFAULT browser"
         emit windows-browser "$_bn" "$_bdesc" "mios-windows launch \"$_bn\""
     done || true
-    # `|| true`: under `set -o pipefail` a non-zero exit from the Windows-side
-    # PowerShell (interop down / hijacked by Wine) would fail the whole pipe and,
-    # under `set -e`, abort mios-apps entirely before the games section runs.
 fi
 
-# ─── 3b. windows-game (Steam + Epic + GOG library scan) ──────────────
-# Get-StartApps misses many installed games -- Steam games typically
-# don't get individual Start Menu shortcuts (Steam itself does, but
-# not each title). Operator-flagged 2026-05-16: "launch beamng on my
-# pc" returned no match. Steam's library has appmanifest_<APPID>.acf
-# files containing the "installdir" key -- scanning those gives us
-# every installed Steam game.
-#
-# Same for Epic (.item manifests under ProgramData\Epic\
-# EpicGamesLauncher\Data\Manifests) and GOG (Games subdirs under
-# C:\Program Files (x86)\GOG Galaxy\Games\).
 header windows-game
 if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/dev/null 2>&1; then
     GAME_CACHE=/var/lib/mios/agent-env/windows-games.cache
@@ -383,20 +262,8 @@ if [ -z "$_WIN_NATIVE" ] && [ "$(_is_wsl)" = "1" ] && command -v mios-windows >/
     if [ -f "$GAME_CACHE" ] && [ "$(( $(date +%s) - _mtime ))" -lt 600 ]; then
         :  # fresh enough; reuse
     else
-        # Single PowerShell pass over Steam + Epic + GOG library locations.
-        # Output format: "<name>|<exe-path>" one per line. 45s budget: the
-        # COLD pass now also runs Get-AppxPackage + per-title marker Test-Paths
-        # for Game Pass discovery, which exceeds the old 12s on a cold WSL-
-        # interop start -> the && mv chain failed -> cache wiped -> 0 games
-        # (operator 2026-05-27). Result is cached 10 min, so the cost is rare.
         timeout 45 mios-windows ps '
 $out = @()
-# Steam: discover EVERY library folder from Steam itself -- the registry
-# SteamPath + steamapps\libraryfolders.vdf -- so games on ANY drive/path are
-# found, not just 3 guessed drives (operator 2026-05-27 "all the tools and it
-# found 3 games?!! no hardcodes"). libraryfolders.vdf lists each library as a
-# "path" "<dir>" entry (backslashes doubled). [char]34 = a double-quote, to
-# avoid nesting quotes inside this bash-single-quoted PowerShell block.
 $steamRoots = @()
 try {
     $sp = (Get-ItemProperty "HKCU:\Software\Valve\Steam" -Name SteamPath -ErrorAction SilentlyContinue).SteamPath
@@ -425,12 +292,10 @@ foreach ($root in $steamRoots) {
         if ($content -match "`"installdir`"\s+`"([^`"]+)`"" ) { $installdir = $matches[1] }
         if ($content -match "`"appid`"\s+`"([0-9]+)`"" ) { $appid = $matches[1] }
         if ($name -and $appid) {
-            # Steam launch URL bypasses .exe discovery entirely
             $out += "$name|steam://rungameid/$appid"
         }
     }
 }
-# Epic: .item manifests (resolve ProgramData from the env, not a hardcoded C:).
 $epicRoot = Join-Path $env:ProgramData "Epic\EpicGamesLauncher\Data\Manifests"
 if (Test-Path $epicRoot) {
     Get-ChildItem $epicRoot -Filter "*.item" -ErrorAction SilentlyContinue | ForEach-Object {
@@ -446,9 +311,6 @@ if (Test-Path $epicRoot) {
         } catch {}
     }
 }
-# GOG Galaxy: enumerate from the registry -- each installed game has a key
-# carrying its name + install path + exe, so no hardcoded install dirs (works
-# on ANY drive). Both 64- and 32-bit hives.
 foreach ($gogKey in @("HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games",
                       "HKLM:\SOFTWARE\GOG.com\Games")) {
     if (-not (Test-Path $gogKey)) { continue }
@@ -460,21 +322,6 @@ foreach ($gogKey in @("HKLM:\SOFTWARE\WOW6432Node\GOG.com\Games",
         }
     }
 }
-# Microsoft Store / Xbox / UWP / Game Pass titles. These don'\''t
-# expose an .exe at a predictable filesystem path -- Get-StartApps
-# returns them as Name + AppID, where AppID is the canonical
-# `<PackageFamilyName>!<Entry>` format. Launching = `cmd /c start ""
-# shell:appsFolder\<AppID>` (handled by mios-windows shell: branch).
-# Pattern-filter to games-y entries: anything whose Name contains
-# common game-store hint words OR whose PFN matches known game
-# publishers. Avoids dumping every Calculator / Notepad / system
-# UWP app into the games cache (those already appear via mios-apps'\''
-# windows-app section from Get-StartApps).
-# Detect games by the MicrosoftGame.config marker every PC Store/Game Pass
-# title ships in its install dir -- NO name-list, NO publisher-list, NO
-# hardcoded path (operator 2026-05-27 "no hardcodes globally"). Join
-# Get-StartApps (launchable AppID) with Get-AppxPackage (install location) and
-# test for the marker; launch via shell:appsFolder\<AppID>.
 $pkgLoc = @{}
 Get-AppxPackage -ErrorAction SilentlyContinue | ForEach-Object {
     if ($_.InstallLocation -and $_.PackageFamilyName) { $pkgLoc[$_.PackageFamilyName] = $_.InstallLocation }
@@ -486,66 +333,24 @@ Get-StartApps -ErrorAction SilentlyContinue | Where-Object { $_.AppID -match "!"
         $out += "$($_.Name)|shell:appsFolder\$($_.AppID)"
     }
 }
-# Dedup: SteamPath (registry) and libraryfolders.vdf can name the SAME library
-# in different letter-case, scanning it twice; collapse identical entries.
 $out = @($out | Select-Object -Unique)
 $out | ForEach-Object { Write-Output $_ }
 ' 2>/dev/null > "$GAME_CACHE.tmp" || true
-        # `|| true`: the PowerShell pass exits non-zero when WSL-interop is
-        # unavailable or hijacked by Wine; under `set -e` that would abort the
-        # ENTIRE mios-apps (losing games AND every later category). Best-effort.
-        # Merge the Wine-free native Steam scan so Steam games are found even
-        # when .exe interop is broken (the PowerShell pass then yields nothing).
-        # Dedup by line so a game seen by both passes appears once.
         _steam_scan_native >> "$GAME_CACHE.tmp" 2>/dev/null || true
         sort -u "$GAME_CACHE.tmp" -o "$GAME_CACHE.tmp" 2>/dev/null || true
-        # Only cache output with REAL game lines ("name|target"). A garbage/error
-        # pass (e.g. an interop "powershell.exe: Invalid argument" that lands on
-        # stdout with exit 0) has no "|" -> discard so the next call re-scans
-        # instead of serving poison for 10 min (operator 2026-05-30 live-drive).
         if grep -q '|' "$GAME_CACHE.tmp" 2>/dev/null; then
             mv "$GAME_CACHE.tmp" "$GAME_CACHE"
         else
-            # Failed/empty/garbage pass: drop the tmp AND any stale cache so a
-            # previous poison line is never re-served (the file persists otherwise).
             rm -f "$GAME_CACHE.tmp" "$GAME_CACHE"
         fi
     fi
     if [ -f "$GAME_CACHE" ]; then
         while IFS='|' read -r g_name g_path; do
             [ -z "$g_name" ] && continue
-            # A real game line is "name|launch-target". A line with NO launch
-            # target (no "|" -> empty g_path) is scan GARBAGE, e.g. a
-            # "powershell.exe: Invalid argument" interop error that landed on
-            # stdout and got captured -- NOT a game. Skip it so one failed scan
-            # can never poison the games list and make the agent report "no games"
-            # / fail to launch (operator 2026-05-30 live-drive: the error line
-            # became a fake game and broke "launch the best").
             [ -z "$g_path" ] && continue
             g_name="$(echo "$g_name" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
             g_path="$(echo "$g_path" | tr -d '\r' | sed 's/^ *//; s/ *$//')"
-            # Full lowercased name as the lookup key so multi-word queries
-            # (e.g. "wallpaper engine", "microsoft flight simulator") match
-            # via mios-find. Previously this was awk '{print tolower($1)}'
-            # which only kept the first word -- "Wallpaper Engine" became
-            # name="wallpaper" and the agent couldn't match the operator's
-            # natural-language "open wallpaper engine for me" against any
-            # inventory entry (operator-flagged 2026-05-17: "open
-            # wallpaper engine for me" -> "isn'\''t installed on your
-            # system" loop, agent never reached mios-find -> launch).
             short="$(echo "$g_name" | tr '[:upper:]' '[:lower:]')"
-            # For Steam: launch via steam:// URI handler (cleaner than .exe path)
-            # For Epic: launch via com.epicgames.launcher URI handler
-            # For GOG: direct .exe launch
-            # All paths funnel through `mios-windows launch <X>` -- its URI
-            # branch (steam://, com.epicgames.launcher://, shell:appsFolder\)
-            # wraps Start-Process with a snapshot + poll-for-new-window +
-            # center+focus pass so the operator never gets a top-left or
-            # off-screen launch. The MIOS_LAUNCH_TITLE_HINT env var tells
-            # the centerer which new window to pick when the protocol
-            # handler spawns multiple (e.g. Steam: storefront AND game).
-            # Operator directive 2026-05-17: "launching apps should launch
-            # centered too!! ... should always launch centered and focused".
             esc_name="$(printf '%s' "$g_name" | sed "s/'/'\\\\''/g")"
             case "$g_path" in
                 steam://*|com.epicgames.launcher://*|shell:*)
@@ -560,11 +365,9 @@ $out | ForEach-Object { Write-Output $_ }
     fi
 fi
 
-# ─── 4. mios-shim ────────────────────────────────────────────────────
 header mios-shim
 {
     ls -1 /usr/libexec/mios/ 2>/dev/null | grep -E '^mios-' || true
-    # /usr/local/bin shims that aren't already in /usr/libexec/mios
     if [ -d /usr/local/bin ]; then
         for f in /usr/local/bin/mios-*; do
             [ -e "$f" ] || continue
@@ -575,13 +378,11 @@ header mios-shim
     [ -z "$name" ] && continue
     bin="/usr/libexec/mios/$name"
     [ -e "$bin" ] || bin="/usr/local/bin/$name"
-    # Pull the first comment-line description (after the shebang) as the desc
     desc="$(sed -n '2,5p' "$bin" 2>/dev/null | grep -m1 -E '^# ' | sed 's/^# *//' | head -c 80)"
     [ -z "$desc" ] && desc="(MiOS helper)"
     emit mios-shim "$name" "$desc" "$name"
 done
 
-# ─── 5. agent-cli ────────────────────────────────────────────────────
 header agent-cli
 for tool in hermes opencode podman flatpak just bootc skopeo; do
     if command -v "$tool" >/dev/null 2>&1; then
@@ -590,11 +391,7 @@ for tool in hermes opencode podman flatpak just bootc skopeo; do
     fi
 done
 
-# ─── 6. service-url ──────────────────────────────────────────────────
 header service-url
-# Ports from SSOT: install.env bridges mios.toml [ports] -> MIOS_PORT_*.
-# Hardcoded literals here silently break when [ports] is renumbered (T-120/T-121).
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -r /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
@@ -613,8 +410,4 @@ emit service-url "prefilter" "MiOS-Prefilter (delegate-task forced) -> Hermes"  
 emit service-url "searxng"   "MiOS-Search (SearXNG)"                               "mios-open-url http://localhost:${_SVC_PORT_SEARXNG}"
 emit service-url "forgejo"   "MiOS-Forge (local git host)"                          "mios-open-url http://localhost:${_SVC_PORT_FORGE}"
 
-# Always succeed if we ran: this is a best-effort GENERATIVE enumerator across
-# Linux + Windows sources; a non-zero from a probe (e.g. the Windows games PS on
-# a host without Steam) must NOT mark the whole dispatch failed when app data WAS
-# emitted. The dispatch layer reads success from this exit code.
 exit 0

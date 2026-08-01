@@ -2,10 +2,7 @@
 # AI-hint: Xbox VM Secure Boot Fix Script
 set -euo pipefail
 
-# Xbox VM Secure Boot Fix Script
-# Finds correct OVMF files and fixes VM configuration
 
-# set -e already covered by set -euo pipefail above
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -17,7 +14,6 @@ echo -e "${GREEN}╔════════════════════
 echo -e "${GREEN}║   Xbox VM Secure Boot Fix Script      ║${NC}"
 echo -e "${GREEN}╚════════════════════════════════════════╝${NC}\n"
 
-# Check if running as root/sudo
 if [ "$EUID" -eq 0 ]; then
     SUDO=""
     USER_HOME=$(getent passwd "${SUDO_USER}" | cut -d: -f6)
@@ -30,7 +26,6 @@ fi
 
 echo -e "${BLUE}[1/6] Checking for OVMF firmware files...${NC}"
 
-# Find OVMF files
 OVMF_LOCATIONS=(
     "/usr/share/edk2/x64"
     "/usr/share/edk2-ovmf/x64"
@@ -41,7 +36,6 @@ OVMF_LOCATIONS=(
 OVMF_CODE=""
 OVMF_VARS=""
 
-# Search for Secure Boot OVMF files
 for location in "${OVMF_LOCATIONS[@]}"; do
     if [ -f "$location/OVMF_CODE.secboot.fd" ]; then
         OVMF_CODE="$location/OVMF_CODE.secboot.fd"
@@ -66,7 +60,6 @@ if [ -z "$OVMF_CODE" ]; then
     echo -e "${YELLOW}Installing edk2-ovmf package...${NC}"
     $SUDO pacman -S --noconfirm edk2-ovmf
     
-    # Re-search after installation
     for location in "${OVMF_LOCATIONS[@]}"; do
         if [ -f "$location/OVMF_CODE.secboot.fd" ]; then
             OVMF_CODE="$location/OVMF_CODE.secboot.fd"
@@ -77,7 +70,7 @@ if [ -z "$OVMF_CODE" ]; then
     
     if [ -z "$OVMF_CODE" ]; then
         echo -e "${RED}[x] Still can't find OVMF files after installation!${NC}"
-        echo "Please check package installation manually."
+        echo "Please check package installation manually"
         exit 1
     fi
 fi
@@ -85,7 +78,6 @@ fi
 echo -e "  CODE: $OVMF_CODE"
 echo -e "  VARS: $OVMF_VARS"
 
-# Check if VARS template actually exists
 if [ ! -f "$OVMF_VARS" ]; then
     echo -e "${RED}[x] OVMF_VARS template doesn't exist: $OVMF_VARS${NC}"
     echo "Available files in directory:"
@@ -123,7 +115,6 @@ fi
 
 echo -e "\n${BLUE}[4/6] Creating corrected VM XML configuration...${NC}"
 
-# Create the fixed XML with actual OVMF paths
 cat > /tmp/Xbox-fixed.xml << 'XMLEOF'
 <domain type="kvm">
   <name>Xbox</name>
@@ -376,11 +367,9 @@ cat > /tmp/Xbox-fixed.xml << 'XMLEOF'
 </domain>
 XMLEOF
 
-# Replace placeholders with actual paths
 sed -i "s|OVMF_CODE_PLACEHOLDER|$OVMF_CODE|g" /tmp/Xbox-fixed.xml
 sed -i "s|OVMF_VARS_PLACEHOLDER|$OVMF_VARS|g" /tmp/Xbox-fixed.xml
 
-# Resolve UUID and MAC (parameterized or random fallback)
 _UUID="${MIOS_VM_UUID:-$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "45463e80-2ca6-4467-bd36-0ed899018e17")}"
 _MAC="${MIOS_VM_MAC:-52:54:00:9d:56:d9}" # Keep stable default if not provided
 

@@ -32,8 +32,6 @@ import urllib.error
 import urllib.request
 import uuid
 
-# Same SSOT-derived endpoint every A2A tool uses (Law 5 default endpoint); the
-# real value arrives via MIOS_AGENT_PIPE_URL from install.env on a booted host.
 PIPE_URL = os.environ.get("MIOS_AGENT_PIPE_URL", "http://127.0.0.1:8640")
 DEFAULT_TIMEOUT = float(os.environ.get("MIOS_A2A_TEST_TIMEOUT", "120"))
 _SUCCESS_LINE = "Task completed, Artifact received"
@@ -147,7 +145,6 @@ def _run_loopback(text: str, timeout_s: float) -> dict:
                 "error": f"jsonrpc {resp['error']}"}
     task = ((resp.get("result") or {}).get("task")) or {}
     verdict = classify_task(task)
-    # Confirm via tasks/get that the task is durably retrievable by id.
     if verdict["task_id"]:
         get = _http_post("/a2a", jsonrpc_envelope(
             "tasks/get", {"id": verdict["task_id"]}, uuid.uuid4().hex), timeout_s)

@@ -3,10 +3,6 @@
 # AI-related: mios-build-assessment
 # AI-functions: show_banner, show_menu, show_help, run_quick_summary, run_iommu_analyzer, run_full_profiler, run_all_tools, view_results, compare_profiles, open_output_dir, check_system_status, main
 
-################################################################################
-# Interactive Profiler Menu
-# Choose which profilers to run with an interactive menu
-################################################################################
 
 set -euo pipefail
 
@@ -21,7 +17,6 @@ readonly NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Detect real user and home directory (even when running with sudo)
 if [ -n "${SUDO_USER:-}" ]; then
     REAL_USER="$SUDO_USER"
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
@@ -32,7 +27,6 @@ fi
 
 readonly OUTPUT_DIR="$REAL_HOME/profiler-output"
 
-# Track what's been run
 QUICK_SUMMARY_DONE=false
 IOMMU_DONE=false
 FULL_PROFILE_DONE=false
@@ -55,7 +49,6 @@ show_menu() {
     echo -e "${BOLD}                    MAIN MENU${NC}"
     echo -e "${BOLD}${CYAN}****************************************************************${NC}\n"
     
-    # Show status indicators
     if [ "$QUICK_SUMMARY_DONE" = true ]; then
         echo -e "  ${GREEN}[OK]${NC} 1) Quick System Summary        ${CYAN}[COMPLETED]${NC}"
     else
@@ -109,7 +102,7 @@ show_help() {
     echo ""
     
     echo -e "${BOLD}${CYAN}3) Full System Profiler${NC}"
-    echo "   System documentation (22+ sections)"
+    echo "   System documentation"
     echo "   Collects: hardware, drivers, packages, BIOS, sensors"
     echo "   Use when: pre-installation baseline, troubleshooting, documentation"
     echo ""
@@ -136,7 +129,6 @@ run_quick_summary() {
     
     mkdir -p "$OUTPUT_DIR"
     
-    # Set proper ownership if running with sudo
     if [ -n "${SUDO_USER:-}" ]; then
         chown "$SUDO_USER:$(id -gn "$SUDO_USER")" "$OUTPUT_DIR"
     fi
@@ -161,7 +153,6 @@ run_iommu_analyzer() {
     
     mkdir -p "$OUTPUT_DIR"
     
-    # Set proper ownership if running with sudo
     if [ -n "${SUDO_USER:-}" ]; then
         chown "$SUDO_USER:$(id -gn "$SUDO_USER")" "$OUTPUT_DIR"
     fi
@@ -188,7 +179,6 @@ run_full_profiler() {
     if [ -f "$SCRIPT_DIR/system-profiler.sh" ]; then
         "$SCRIPT_DIR/system-profiler.sh"
         
-        # Get the latest profile
         LATEST_PROFILE=$(ls -t ~/system-profile/system-profile-*.txt 2>/dev/null | head -1)
         
         if [ -f "$LATEST_PROFILE" ]; then
@@ -235,7 +225,7 @@ run_all_tools() {
     else
         echo -e "${RED}[ERR] Error: run-all-profilers.sh not found!${NC}"
         echo ""
-        echo "Running tools individually instead..."
+        echo "Running tools individually instead"
         echo ""
         run_quick_summary
         run_iommu_analyzer
@@ -251,7 +241,6 @@ view_results() {
     show_banner
     echo -e "${BOLD}${YELLOW}Latest Results${NC}\n"
     
-    # Check for recent files
     local has_results=false
     
     if [ -d "$OUTPUT_DIR" ] && [ "$(ls -A $OUTPUT_DIR 2>/dev/null)" ]; then
@@ -277,7 +266,7 @@ view_results() {
     
     if [ "$has_results" = false ]; then
         echo -e "${YELLOW}No results found yet.${NC}"
-        echo "Run a profiler first!"
+        echo "Run a profiler first"
     else
         echo ""
         echo -e "${CYAN}View a file:${NC}"
@@ -296,23 +285,22 @@ compare_profiles() {
     show_banner
     echo -e "${BOLD}${YELLOW}Compare Two System Profiles${NC}\n"
     
-    # List available profiles
     if [ -d ~/system-profile ]; then
         local profiles=($(ls -t ~/system-profile/system-profile-*.txt 2>/dev/null))
         
         if [ ${#profiles[@]} -lt 2 ]; then
             echo -e "${YELLOW}Need at least 2 profiles to compare.${NC}"
-            echo "Only ${#profiles[@]} profile(s) found."
+            echo "Only ${#profiles[@]} profile found"
             echo ""
-            echo "Run the full system profiler multiple times to create profiles."
+            echo "Run the full system profiler multiple times to create profiles"
             read -p "Press Enter to return to menu..." -r
             return
         fi
         
         echo -e "${BOLD}Available Profiles:${NC}\n"
         for i in "${!profiles[@]}"; do
-            local date=$(python3 -c "import os, sys, datetime; print(datetime.date.fromtimestamp(os.path.getmtime(sys.argv[1])))" "${profiles[$i]}" 2>/dev/null || stat -c %y "${profiles[$i]}" 2>/dev/null | cut -d' ' -f1 || stat -f "%Sm" -t "%Y-%m-%d" "${profiles[$i]}" 2>/dev/null || echo "unknown")
-            echo "  $((i+1))) $(basename "${profiles[$i]}") ($date)"
+            local date=$(python3 -c "import os, sys, datetime; print(datetime.date.fromtimestamp(os.path.getmtime(sys.argv[1])))" "${profiles[$i]}" 2>/dev/null || stat -c %y "${profiles[$i]}" 2>/dev/null | cut -d' ' -f1 || stat -f "%Sm" -t "%Y-%m-%d" "${profiles[$i]}" 2>/dev/null || echo "Unknown")
+            echo "  $)) $(basename "${profiles[$i]}") ($date)"
         done
         
         echo ""
@@ -337,7 +325,7 @@ compare_profiles() {
         fi
     else
         echo -e "${YELLOW}No profiles found.${NC}"
-        echo "Run the full system profiler first."
+        echo "Run the full system profiler first"
     fi
     
     echo ""

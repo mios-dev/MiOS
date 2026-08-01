@@ -34,9 +34,6 @@ import sys
 import time
 import urllib.request
 
-# Output (rendered) avahi service file + the source template. Law 1: the static
-# template ships read-only under /usr/lib; the rendered copy is admin/runtime
-# state under /etc. Both overridable for tests / non-standard layouts.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 AVAHI_SERVICE = os.environ.get(
     "MIOS_A2A_AVAHI_SERVICE", "/etc/avahi/services/mios-a2a.service")
@@ -44,10 +41,6 @@ AVAHI_TEMPLATE = os.environ.get(
     "MIOS_A2A_AVAHI_TEMPLATE",
     os.path.normpath(os.path.join(_HERE, "..", "..", "lib", "mios",
                                   "avahi", "mios-a2a.service.in")))
-# Browse-result cache backing the [a2a].mdns_refresh_sec throttle FLOOR: a browse
-# within the window reuses this instead of re-hitting avahi, so discovery never
-# loses peers between live scans. /run/mios is the tmpfiles-declared volatile
-# runtime dir (cleared each boot). Overridable for tests / non-standard layouts.
 MDNS_CACHE = os.environ.get(
     "MIOS_A2A_MDNS_CACHE", "/run/mios/a2a-mdns-candidates.json")
 
@@ -92,8 +85,6 @@ def advertise(cfg, log=print):
     want = _truthy(a2a.get("mdns_advertise"))
     try:
         if not want:
-            # Withdraw: remove the rendered file so avahi de-registers. Absent
-            # already = success (idempotent).
             if os.path.exists(AVAHI_SERVICE):
                 os.remove(AVAHI_SERVICE)
                 log(f"  mdns advertise OFF -> withdrew {AVAHI_SERVICE}")
@@ -106,8 +97,6 @@ def advertise(cfg, log=print):
             return False
         with open(AVAHI_TEMPLATE, "r", encoding="utf-8") as f:
             tpl = f.read()
-        # Substitute ONLY the two SSOT-driven placeholders; everything else in
-        # the template is an A2A protocol constant.
         rendered = (tpl.replace("${MIOS_PORT_AGENT_PIPE}", port)
                        .replace("${MIOS_A2A_MDNS_SERVICE_TYPE}", stype))
         os.makedirs(os.path.dirname(AVAHI_SERVICE), exist_ok=True)
@@ -156,13 +145,10 @@ def _parse_resolved(line):
         host = f"[{ip}]" if ip.version == 6 else str(ip)
         return f"http://{host}:{p}"
 
-    # Primary: documented positions.
     if len(f) > 8:
         url = _ok(f[7], f[8])
         if url:
             return url
-    # Fallback: first parseable IP, first valid port at/after it (version-drift
-    # robust; purely structural).
     ip_idx = None
     for i, val in enumerate(f):
         try:
@@ -244,8 +230,6 @@ def browse(cfg, log=print):
             f"(< {floor}s since last live browse)")
         return cached
     try:
-        # -p parse-friendly, -r resolve, -t terminate (one-shot). Bounded so a
-        # wedged daemon can't hang the refresh timer.
         out = subprocess.run(
             ["avahi-browse", "-p", "-r", "-t", stype],
             capture_output=True, text=True, timeout=15, check=False).stdout
@@ -295,8 +279,6 @@ def main(argv):
     elif cmd == "reload":
         reload_peers(cfg)
     elif cmd == "refresh":
-        # advertise + browse (print candidates) + reload -- the all-in-one an
-        # operator or a timer can call directly.
         advertise(cfg)
         for u in browse(cfg):
             print(u)

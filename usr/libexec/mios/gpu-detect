@@ -2,7 +2,7 @@
 # AI-hint: Detects virtualization status to automatically toggle NVIDIA driver blacklisting and configure the GSK_RENDERER environment for optimal software fallback in VMs or hardware acceleration on bare metal.
 # AI-related: mios-gpu-detect, mios-virt-gpu, mios-renderer, mios-nvidia-blacklist, mios-gpu-detected
 set -euo pipefail
-VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "None")
 echo "[mios-gpu-detect] Virtualization: $VIRT"
 
 NVIDIA_CONF="/etc/modprobe.d/99-mios-virt-gpu.conf"
@@ -11,16 +11,12 @@ RENDERER_CONF="${ENV_DIR}/60-mios-renderer.conf"
 mkdir -p "$ENV_DIR"
 
 if [ "$VIRT" != "none" ]; then
-    # Install-robustness 2026-06-21: a VM with a REAL passed-through NVIDIA GPU
-    # (VFIO/SR-IOV on KVM/qemu, or the WSL2 /dev/dxg paravirt-CUDA surface) must
-    # NOT have nvidia blacklisted -- that kills the very GPU the AI lanes need.
-    # Only blacklist on a genuinely GPU-less VM (the paravirt-display-only case).
     if { command -v lspci >/dev/null 2>&1 && lspci -nn 2>/dev/null | grep -qiE '\[10de:'; } \
        || [ -e /dev/nvidia0 ] || [ -e /dev/dxg ]; then
-        echo "[mios-gpu-detect] VM ($VIRT) with a real NVIDIA device present -- NOT blacklisting nvidia"
+        echo "[mios-gpu-detect] VM with a real NVIDIA device present"
         rm -f "$NVIDIA_CONF" 2>/dev/null || true
     else
-        echo "[mios-gpu-detect] GPU-less VM detected ($VIRT) -- blocking NVIDIA"
+        echo "[mios-gpu-detect] GPU-less VM detected"
         cat > "$NVIDIA_CONF" <<'EOMOD'
 install nvidia /bin/false
 install nvidia_drm /bin/false
@@ -33,7 +29,6 @@ EOMOD
     fi
 
     cat > "$RENDERER_CONF" <<'EORENDER'
-# GTK 4.16+ removed the cairo renderer. ngl via llvmpipe is the optimal VM fallback.
 GSK_RENDERER=ngl
 EORENDER
 
@@ -43,29 +38,26 @@ EORENDER
         vmware)        modprobe vmwgfx 2>/dev/null || true ;;
     esac
 else
-    echo "[mios-gpu-detect] Bare metal -- NVIDIA enabled, hardware renderer"
+    echo "[mios-gpu-detect] Bare metal"
     rm -f "$NVIDIA_CONF"
     rm -f /etc/modprobe.d/mios-nvidia-blacklist.conf
-    # Load nvidia now that blacklist is removed
     modprobe nvidia_drm 2>/dev/null || true
     rm -f "$RENDERER_CONF"
 
-    # RTX 50-series (Blackwell) VFIO reset bug detection
     if command -v lspci &>/dev/null; then
         if lspci -nn | grep -iE '\[10de:(2900|2901|2903|2904|2905|2b80|2b85)\]' &>/dev/null; then
-            echo "[mios-gpu-detect] WARNING: RTX 50-series GPU detected!"
-            echo "[mios-gpu-detect] VFIO passthrough may require full host reboot after VM shutdown."
+            echo "[mios-gpu-detect] WARNING: RTX 50-series GPU detected"
+            echo "[mios-gpu-detect] VFIO passthrough may require full host reboot after VM shutdown"
             wall "MiOS: RTX 50-series VFIO reset bug detected." 2>/dev/null || true
         fi
     fi
 fi
 
-# VRAM check for dGPU heavy lane auto-enablement (>8GB VRAM)
 export PATH="/usr/lib/wsl/lib:/usr/local/cuda/bin:/usr/local/bin:/usr/bin:$PATH"
 if command -v nvidia-smi &>/dev/null; then
     VRAM_MIB=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -n1 | tr -d ' ' || echo "0")
     if [ "${VRAM_MIB:-0}" -ge 8192 ]; then
-        echo "[mios-gpu-detect] dGPU with >8GB VRAM detected (${VRAM_MIB} MiB) -- auto-preparing heavy lane"
+        echo "[mios-gpu-detect] dGPU with >8GB VRAM detected"
         touch /run/mios-gpu-vram-gt-8gb
         mkdir -p /var/lib/mios/vllm/model /usr/share/mios/vllm
         [ -L /usr/share/mios/vllm/model ] || ln -sf /var/lib/mios/vllm/model /usr/share/mios/vllm/model 2>/dev/null || true

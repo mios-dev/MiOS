@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
 # AI-hint: Generates mdevctl persistent configuration JSON drop-ins for SR-IOV VFs and vendor mediated devices from mios.toml [mdev] SSOT.
-#          NOTE: Mediated SR-IOV and vendor devices ONLY. Whole-GPU-per-guest architecture. Driver-free GPU fractioning is unsupported.
 set -euo pipefail
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
 OUTPUT_DIR="${MDEVCTL_CONF_DIR:-/etc/mdevctl.d}"
 
 if [[ ! -f "$TOML_FILE" ]]; then
-    echo "[mdev-define-gen] SSOT configuration $TOML_FILE not found -- exiting."
+    echo "[mdev-define-gen] SSOT configuration $TOML_FILE not found"
     exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-    echo "[mdev-define-gen] python3 missing -- skipped generator."
+    echo "[mdev-define-gen] python3 missing"
     exit 0
 fi
 

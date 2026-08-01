@@ -1,31 +1,25 @@
 #!/usr/bin/env bash
 # AI-hint: Firstboot setup script for CephFS mount/automount systemd template units and login profiles.
-#          Renders environment variables into templates and enables user automounts.
 # AI-related: /usr/share/mios/systemd/home-@.mount.tmpl, /usr/share/mios/systemd/home-@.automount.tmpl, /usr/share/mios/profile.d/mios-xdg-cephfs.sh
 
 set -euo pipefail
 
-# 1. Gate execution on CephFS being enabled
 if [ "${MIOS_CEPHFS_ENABLE:-false}" != "true" ]; then
-    echo "[cephfs-mount-setup] CephFS integration disabled in SSOT -- exiting."
+    echo "[cephfs-mount-setup] CephFS integration disabled in SSOT"
     exit 0
 fi
 
-echo "[cephfs-mount-setup] Initializing systemd mount templates for CephFS..."
+echo "[cephfs-mount-setup] Initializing systemd mount templates for CephFS"
 
-# Ensure target directories exist
 mkdir -p /etc/systemd/system
 mkdir -p /etc/profile.d
 
-# 2. Render templates
-# Use envsubst if available, fallback to basic sed rendering
 render_template() {
     local src="$1"
     local dest="$2"
     if command -v envsubst >/dev/null 2>&1; then
         envsubst < "$src" > "$dest"
     else
-        # Fallback sed rendering for mapped variables
         sed -e "s|\${MIOS_CEPHFS_ENABLE}|${MIOS_CEPHFS_ENABLE:-false}|g" \
             -e "s|\${MIOS_CEPHFS_MONITORS}|${MIOS_CEPHFS_MONITORS:-127.0.0.1:6789}|g" \
             -e "s|\${MIOS_CEPHFS_FS_NAME}|${MIOS_CEPHFS_FS_NAME:-cephfs}|g" \
@@ -44,29 +38,24 @@ render_template "/usr/share/mios/systemd/home-@.mount.tmpl" "/etc/systemd/system
 render_template "/usr/share/mios/systemd/home-@.automount.tmpl" "/etc/systemd/system/home-@.automount"
 render_template "/usr/share/mios/profile.d/mios-xdg-cephfs.sh" "/etc/profile.d/mios-xdg-cephfs.sh"
 
-# Make profile script executable
 chmod +x /etc/profile.d/mios-xdg-cephfs.sh 2>/dev/null || true
 
-# 3. Apply CephFS client-side caching configs
 if [ -x /usr/libexec/mios/mios-ceph-configure ]; then
-    echo "[cephfs-mount-setup] Running mios-ceph-configure..."
+    echo "[cephfs-mount-setup] Running mios-ceph-configure"
     /usr/libexec/mios/mios-ceph-configure || true
 fi
 
-# 4. Reload systemd and enable services
 if command -v systemctl >/dev/null 2>&1; then
-    echo "[cephfs-mount-setup] Reloading systemd daemon..."
+    echo "[cephfs-mount-setup] Reloading systemd daemon"
     systemctl daemon-reload || true
     
-    # Enable cachefilesd for client-side caching (fsc)
-    echo "[cephfs-mount-setup] Enabling cachefilesd service..."
+    echo "[cephfs-mount-setup] Enabling cachefilesd service"
     systemctl enable --now cachefilesd || true
 
-    # Enable automount for the default 'mios' user
-    echo "[cephfs-mount-setup] Enabling CephFS automount for mios user..."
+    echo "[cephfs-mount-setup] Enabling CephFS automount for mios user"
     systemctl enable "home-mios.automount" || true
 else
-    echo "[cephfs-mount-setup] systemctl not available (offline/chroot environment) -- skipped reload."
+    echo "[cephfs-mount-setup] systemctl not available"
 fi
 
-echo "[cephfs-mount-setup] Setup completed successfully."
+echo "[cephfs-mount-setup] Setup completed successfully"

@@ -54,36 +54,25 @@ EVENT_BUFFER_SIZE = 20
 EVENT_MAX_AGE_S = 300
 WRITE_DEBOUNCE_S = 0.5    # never write more than 2x/sec
 
-# ─── Patterns the script extracts from hermes-agent journal ───────────
-# Hermes-Agent 0.13.x logs format varies; these patterns are tuned to
-# match the most visible activity markers. Add more as the hermes
-# logging evolves (or as the operator wants surfaced).
 PATTERNS = [
-    # delegate_task spawning N subagents
     (re.compile(r"delegate_task.*tasks=\[(.+?)\]", re.I),
      "delegate_spawn",
      lambda m: f"delegate_task fanout"),
-    # tool invocation lines (Hermes logs "Tool X invoked" or similar)
     (re.compile(r"Tool (\w+) (?:returned|invoked|called)", re.I),
      "tool_call",
      lambda m: f"tool: {m.group(1)}"),
-    # subagent completion
     (re.compile(r"(?:subagent|child).+(?:completed|finished|done)", re.I),
      "subagent_done",
      lambda m: "subagent returned"),
-    # synthesis / final response generation
     (re.compile(r"(?:synth|aggregat|final answer|orchestrat)", re.I),
      "synthesis",
      lambda m: "synthesizing"),
-    # empty-response retry loop (the operator's chronic frustration)
     (re.compile(r"Empty response.*retry (\d+)/(\d+)", re.I),
      "retry",
      lambda m: f"empty-response retry {m.group(1)}/{m.group(2)}"),
-    # max-retries exceeded (the give-up signal)
     (re.compile(r"Max retries \((\d+)\) for invalid tool calls exceeded", re.I),
      "max_retries",
      lambda m: f"max retries hit ({m.group(1)})"),
-    # invalid tool call (the chronic SOUL-violation signal)
     (re.compile(r"invalid tool call:\s*(\S+)", re.I),
      "invalid_tool",
      lambda m: f"invalid tool call: {m.group(1)}"),
@@ -97,8 +86,6 @@ class Tail:
         self.last_write = 0.0
         self.write_pending = False
         STATE_DIR.mkdir(parents=True, exist_ok=True)
-        # World-readable so mios-open-webui (the OWUI service user) can
-        # read it without group membership shenanigans.
         os.chmod(STATE_DIR, 0o755)
 
     def _push(self, kind: str, detail: str) -> None:
@@ -131,7 +118,6 @@ class Tail:
                 "inflight_subagents": _count_recent("delegate_spawn", self.events) -
                                        _count_recent("subagent_done", self.events),
             }
-        # Atomic write: tmp + rename.
         tmp = STATE_FILE.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(payload, separators=(",", ":")))
         os.chmod(tmp, 0o644)
@@ -154,7 +140,6 @@ class Tail:
             text=True,
             bufsize=1,
         )
-        # Periodic flush even if no new events (so stale state ages out).
         signal.signal(signal.SIGALRM, lambda *_: self._write_now())
         signal.setitimer(signal.ITIMER_REAL, 5.0, 5.0)
         try:

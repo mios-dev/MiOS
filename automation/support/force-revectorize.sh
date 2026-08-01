@@ -1,11 +1,6 @@
 #!/bin/bash
 # AI-hint: Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata-only updates and trigger full chunking/embedding.
 # AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, localhost:3030
-# Force OWUI to re-vectorize every file in every MiOS knowledge
-# collection. OWUI's /api/v1/knowledge/reindex only refreshes
-# metadata (returns 200 in ~4ms even for 32 files). The actual
-# chunk + embed pipeline fires on /api/v1/knowledge/{id}/file/add.
-# We remove each file then add it back -- forcing the embed call.
 set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'
@@ -19,7 +14,6 @@ PYEOF
 [[ -z "$TOKEN" ]] && { echo "  no admin api_key"; exit 1; }
 export TOKEN
 
-# Walk every collection + its file_ids.
 python3 - <<'PYEOF'
 import json
 import os
@@ -45,8 +39,6 @@ for kid, name, kdata in collections:
     print(f"\n  === {name} ({kid}) -- {len(file_ids)} files ===")
     for fid in file_ids:
         body = json.dumps({"file_id": fid}).encode("utf-8")
-        # POST file/add -- triggers process_file_content() which
-        # chunks + embeds via the configured embedding model.
         req = urllib.request.Request(
             f"http://localhost:3030/api/v1/knowledge/{kid}/file/add",
             data=body,
@@ -73,8 +65,6 @@ for kid, name, kdata in collections:
             total_ok += 1
             print(f"    + {fid[:12]}.. ({elapsed:.1f}s) OK")
         else:
-            # 400 with "already exists" is fine -- already linked,
-            # just means the embed didn't re-run.
             if "already exists" in resp.lower():
                 print(f"    = {fid[:12]}.. already linked, "
                       f"skip ({elapsed:.1f}s)")

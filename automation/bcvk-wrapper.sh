@@ -3,12 +3,6 @@
 # AI-related: mios-serial
 # AI-functions: cleanup
 set -euo pipefail
-# 'MiOS' - Ephemeral QEMU boot test
-# Usage: bcvk-wrapper.sh <qcow2-path> [serial-log-path]
-#
-# Boots a QCOW2 image in headless QEMU with KVM, captures serial console,
-# waits for systemd to reach a login target, then exits.
-# Returns 0 on success, non-zero on timeout or boot failure.
 
 QCOW="${1:-}"
 SERIAL_LOG="${2:-/tmp/mios-serial.log}"
@@ -27,7 +21,7 @@ fi
 
 : > "$SERIAL_LOG"
 
-echo "[bcvk] Booting $QCOW (timeout: ${TIMEOUT_SECS}s)"
+echo "[bcvk] Booting $QCOW"
 
 QEMU_ARGS=(
     qemu-system-x86_64
@@ -52,7 +46,7 @@ trap cleanup EXIT
 ELAPSED=0
 while [[ $ELAPSED -lt $TIMEOUT_SECS ]]; do
     if grep -qE "(Reached target (Graphical|Multi-User)|login:)" "$SERIAL_LOG" 2>/dev/null; then
-        echo "[bcvk] Boot successful (${ELAPSED}s)"
+        echo "[bcvk] Boot successful"
         exit 0
     fi
     if grep -qi "kernel panic" "$SERIAL_LOG" 2>/dev/null; then
@@ -64,7 +58,7 @@ while [[ $ELAPSED -lt $TIMEOUT_SECS ]]; do
     ELAPSED=$((ELAPSED + POLL_INTERVAL))
 done
 
-echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s -- boot did not reach target"
+echo "[bcvk] TIMEOUT after ${TIMEOUT_SECS}s"
 echo "[bcvk] Last 100 lines of serial log:"
 tail -100 "$SERIAL_LOG"
 exit 4

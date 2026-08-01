@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # AI-hint: Virt-V2V guest import wrapper resolving storage pool, network, and output format from mios.toml [virt.v2v] SSOT.
-#          NOTE: Virt-V2V guest import on-ramp for local KVM. Ships inert by default.
 set -euo pipefail
 
 TOML_FILE="${MIOS_TOML:-/usr/share/mios/mios.toml}"
@@ -15,8 +14,8 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "Usage: mios-v2v-import [--dry-run] <guest-name> <input-path>"
-            echo "Resolves [virt.v2v] SSOT settings and imports VM guest into local KVM via virt-v2v."
+            echo "Usage: mios-v2v-import ["
+            echo "Resolves [virt.v2v] SSOT settings and imports VM guest into local KVM via virt-v2v"
             exit 0
             ;;
         *)
@@ -31,7 +30,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if ! command -v python3 >/dev/null 2>&1; then
-    echo "[mios-v2v-import] python3 missing -- skipped virt-v2v import."
+    echo "[mios-v2v-import] python3 missing"
     exit 0
 fi
 
@@ -78,7 +77,6 @@ if not enabled:
     print("[mios-v2v-import] [virt.v2v].enabled is false -- skipping live virt-v2v import.")
     sys.exit(0)
 
-# Degrade open if virt-v2v binary is absent
 import shutil
 if not shutil.which("virt-v2v"):
     print("[mios-v2v-import] virt-v2v binary absent -- skipped live import.")

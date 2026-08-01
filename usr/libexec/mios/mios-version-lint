@@ -11,7 +11,6 @@ import os
 import re
 import sys
 
-# Ensure sys.path finds mios_toml in usr/lib/mios
 _here = os.path.dirname(os.path.abspath(__file__))
 _root_lib = os.path.abspath(os.path.join(_here, "../../lib/mios"))
 if _root_lib not in sys.path:
@@ -69,17 +68,13 @@ def scan_file(filepath, root_dir, pinned_refs):
                 if not sline or sline.startswith("#") or sline.startswith("//"):
                     continue
 
-                # Class 1: URL version pin
                 if _URL_VER_PIN.search(sline):
-                    # Check if line corresponds to an allowlisted bake_ref
                     if not any(pref in sline.lower() for pref in pinned_refs):
                         violations.append((lineno, f"URL version literal: {sline[:80]}"))
 
-                # Class 2: Package install pin (pip / npm / bun)
                 if _PIP_NPM_PIN.search(sline):
                     violations.append((lineno, f"pip/npm/bun pinned version: {sline[:80]}"))
 
-                # Class 3: @sha256 digest pin in scripts/containers
                 if _DIGEST_PIN.search(sline):
                     violations.append((lineno, f"Hardcoded @sha256 image digest: {sline[:80]}"))
 
@@ -96,7 +91,6 @@ def main():
     all_violations = []
 
     for dirpath, dirnames, filenames in os.walk(root):
-        # Skip git/cache/venv dirs
         dirnames[:] = [d for d in dirnames if d not in (".git", ".gemini", "node_modules", "venv", "__pycache__", ".tox", "target", "build")]
 
         for filename in filenames:

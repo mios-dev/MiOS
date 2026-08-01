@@ -2,12 +2,6 @@
 # AI-hint: Always-latest container image resolver. Resolves :latest image refs to exact tag and SHA256 digest for SBOM feed.
 # AI-related: /usr/share/mios/mios.toml, /usr/lib/mios/bake/plan.d/, MiOS-SBOM.csv
 # AI-functions: resolve_image_digest, update_sbom_manifest
-# ============================================================================
-# usr/libexec/mios/mios-resolve-latest - 'MiOS' v0.3.0
-# ----------------------------------------------------------------------------
-# Resolves floating :latest container image references in mios.toml and plan.d
-# to their exact OCI digest and records them to MiOS-SBOM.csv.
-# ============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -42,14 +36,14 @@ resolve_ref() {
         fi
     fi
 
-    log "Resolved ${ref} -> tag:${resolved_tag} digest:${digest:0:19}..."
+    log "Resolved ${ref} -> tag:${resolved_tag} digest:${digest:0:19}"
     if [[ -f "${SBOM_CSV}" ]] && ! grep -q "^${ref}," "${SBOM_CSV}"; then
-        echo "${ref},${resolved_tag},${digest},container_image,$(date -u +'%Y-%m-%d')" >> "${SBOM_CSV}"
+        echo "${ref},${resolved_tag},${digest},container_image,$" >> "${SBOM_CSV}"
     fi
 }
 
 main() {
-    log "Starting container image resolution for floating refs..."
+    log "Starting container image resolution for floating refs"
     
     local refs=(
         "docker.io/vllm/vllm-openai:latest"
@@ -67,7 +61,7 @@ main() {
         resolve_ref "$r"
     done
 
-    log "Container image resolution complete."
+    log "Container image resolution complete"
 }
 
 main "$@"

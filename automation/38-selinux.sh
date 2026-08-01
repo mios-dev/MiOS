@@ -1,23 +1,19 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Executes build-time SELinux policy fixes by applying specific booleans, fcontexts, and compiling custom policy modules to resolve known Fedora Rawhide and systemd 260 denials.
-# 'MiOS' - 37-selinux: Build-time SELinux policy fixes
-# Custom per-rule modules for known Fedora Rawhide / systemd 260 denials.
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-mios_log "applying SELinux build-time fixes"
+mios_log "Applying SELinux build-time fixes"
 
-# ═══ Restorecon -- fix labels for all major trees ═══
 if command -v restorecon &>/dev/null; then
-    mios_log "running restorecon on /boot /etc /usr /var"
+    mios_log "Running restorecon on /boot /etc /usr /var"
     restorecon -R /boot /etc /usr /var 2>/dev/null || true
 fi
 
-# ═══ Semanage import -- atomic booleans + fcontexts ═══
 if command -v semanage &>/dev/null; then
-    mios_log "applying SELinux booleans and fcontexts"
+    mios_log "Applying SELinux booleans and fcontexts"
     semanage import <<'EOSEM' 2>/dev/null || true
 boolean -m --on container_manage_cgroup
 boolean -m --on container_use_cephfs
@@ -40,9 +36,8 @@ EOSEM
     mios_ok "booleans and fcontexts applied"
 fi
 
-# ═══ Custom policy modules ═══
 if command -v checkmodule &>/dev/null && command -v semodule_package &>/dev/null; then
-    mios_log "building custom SELinux policy modules"
+    mios_log "Building custom SELinux policy modules"
 
     SELINUX_OK=0
     SELINUX_FAIL=0
@@ -179,16 +174,6 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
     mios_log "${SELINUX_OK} policies staged in /usr/share/selinux/packages/mios/, ${SELINUX_FAIL} skipped"
 fi
 
-# ─── Persistent SELinux booleans applied at first boot ─────────────────────
-# usr/libexec/mios/selinux-init reads booleans.conf next to the staged .pp
-# modules and applies each entry via 'setsebool -P'. semanage is typically
-# inoperative inside an OCI build (no running policy / read-only contexts),
-# so booleans MUST be applied at runtime; this file is the manifest the
-# runtime service consults.
-#
-# container_use_devices=on  -- required by 23-gpu-passthrough.sh / GPU
-#   container CDI flow (NVIDIA, ROCm, Intel xe). Without it, the first
-#   GPU container start is denied by SELinux on enforcing hosts.
 mkdir -p /usr/share/selinux/packages/mios
 cat > /usr/share/selinux/packages/mios/booleans.conf <<'EOBOOL'
 container_use_devices=on

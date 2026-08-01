@@ -2,14 +2,11 @@
 # AI-hint: Executes targeted Day-0 cleanup of PostgreSQL/pgvector tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent state when standard cache clearing is insufficient.
 # AI-related: mios-cache-clear, mios-daemon, mios-skills-miner, mios-passport-provision, mios-skills-miner.timer, mios-passport-provision.service
 # AI-functions: pgvector, daemon, skills, passports, agentpipe, audit, ttyd, pycache
-# Day-0 readiness: surfaces NOT covered by mios-cache-clear.
-# Run via: wsl.exe ... bash /mnt/c/MiOS/automation/support/day0-extras.sh <section>
-# Sections: pgvector | daemon | skills | passports | agentpipe | audit | ttyd | pycache | all
 set -euo pipefail
 SECTION="${1:-all}"
 
 pgvector() {
-    echo "── PostgreSQL/pgvector row-level wipe (schema preserved) ──"
+    echo "── PostgreSQL/pgvector row-level wipe ──"
     local TABLES="knowledge agent_memory event tool_call session skill skill_invocation sys_env pending_action run_template scratch kanban app_install alias resolves_to directory_entry log_digest person agent_keypair mios_rag"
     for t in $TABLES; do
         if /usr/libexec/mios/mios-db --pg "TRUNCATE TABLE $t RESTART IDENTITY CASCADE;" >/dev/null 2>&1; then
@@ -29,7 +26,7 @@ daemon() {
 }
 
 skills() {
-    echo "── skills catalog + mined patterns (regen via mios-skills-miner.timer) ──"
+    echo "── skills catalog + mined patterns ──"
     if [[ -d /var/lib/mios/skills ]]; then
         find /var/lib/mios/skills -type f \
             \( -name '*.json' -o -name '*.jsonl' \) -print -delete
@@ -40,17 +37,14 @@ skills() {
 }
 
 passports() {
-    # SSOT: [passport].dir in mios.toml -> /var/lib/mios/agent-passports/
-    # (NOT /var/lib/mios/passports/ -- that's a typo trap that has
-    # caught me before).
-    echo "── passport keys (regen via mios-passport-provision.service) ──"
+    echo "── passport keys ──"
     local DIR=/var/lib/mios/agent-passports
     if [[ -d $DIR ]]; then
         find "$DIR" -mindepth 1 -print -delete
         echo "  -> systemctl restart mios-passport-provision.service"
         systemctl restart mios-passport-provision.service 2>&1 | tail -3
     else
-        echo "  (no $DIR yet)"
+        echo ""
     fi
 }
 
@@ -59,7 +53,7 @@ agentpipe() {
     if [[ -d /var/lib/mios/agent-pipe ]]; then
         find /var/lib/mios/agent-pipe -type f -print -delete
     else
-        echo "  (no /var/lib/mios/agent-pipe/)"
+        echo ""
     fi
 }
 
@@ -67,10 +61,10 @@ audit() {
     echo "── audit + gui logs ──"
     [[ -d /var/log/mios/ai/audit ]] && \
         find /var/log/mios/ai/audit -type f -print -delete || \
-        echo "  (no audit logs)"
+        echo ""
     [[ -d /var/log/mios/gui ]] && \
         find /var/log/mios/gui -type f -print -delete || \
-        echo "  (no gui logs)"
+        echo ""
 }
 
 ttyd() {
@@ -80,7 +74,7 @@ ttyd() {
             \( -name '.bash_history' -o -name '.psreadline_history' \
                -o -name '*.history' \) -print -delete
     else
-        echo "  (no /var/lib/mios/ttyd/)"
+        echo ""
     fi
 }
 
@@ -109,5 +103,5 @@ case "$SECTION" in
         ttyd
         pycache
         ;;
-    *)  echo "unknown section: $SECTION" >&2; exit 64 ;;
+    *)  echo "Unknown section: $SECTION" >&2; exit 64 ;;
 esac

@@ -2,20 +2,6 @@
 # AI-hint: One-shot migration script that identifies Flatpaks from the flathub remote and reinstalls them from flathub-beta to update the origin while preserving user data.
 # AI-related: /usr/libexec/mios/mios-flatpak-beta-migrate, mios-flatpak
 set -euo pipefail
-# /usr/libexec/mios/mios-flatpak-beta-migrate [--dry-run]
-#
-# For every installed flatpak whose origin is `flathub`, check whether
-# `flathub-beta` exposes the same id. When it does, reinstall from
-# beta (preserves user data under ~/.var/app/<id>/, only the runtime +
-# code bytes get swapped). Operator binding 2026-05-19: "target betas
-# for all flatpaks" -- this is the one-shot migration; future installs
-# go through mios-flatpak[-install] which already prefers beta via
-# mios.toml [flatpak].prefer_beta = true SSOT.
-#
-# SAFE: bears the same data-preservation guarantee as `flatpak update`
-# (per-app state under ~/.var/app/<id> is untouched). Reinstall is the
-# only way to flip the origin remote -- there's no `flatpak set-remote`
-# command in mainline flatpak.
 set -u
 
 DRY=0
@@ -25,8 +11,8 @@ if [ "${1:-}" = "--dry-run" ]; then
 fi
 
 if ! flatpak remotes 2>/dev/null | grep -q "^flathub-beta"; then
-    echo "mios-flatpak-beta-migrate: flathub-beta remote not configured" >&2
-    echo "  add via: flatpak remote-add --if-not-exists flathub-beta \\"
+    echo "Mios-flatpak-beta-migrate: flathub-beta remote not configured" >&2
+    echo "  add via: flatpak remote-add"
     echo "    https://flathub.org/beta-repo/flathub-beta.flatpakrepo" >&2
     exit 2
 fi
@@ -43,33 +29,32 @@ absent=0
 while IFS=$'\t' read -r app_id origin; do
     [ -z "$app_id" ] && continue
     if [ "$origin" != "flathub" ]; then
-        # Not on flathub stable -- nothing to migrate from.
         skipped=$((skipped + 1))
-        echo "  skip   $app_id (origin=$origin)"
+        echo "  skip   $app_id"
         continue
     fi
     if flatpak remote-info flathub-beta "$app_id" >/dev/null 2>&1; then
         if [ "$DRY" = "1" ]; then
-            echo "  WOULD  $app_id (flathub -> flathub-beta)"
+            echo "  WOULD  $app_id"
         else
-            echo "  migrate $app_id ..."
+            echo "  migrate $app_id "
             if "${SUDO[@]}" flatpak install --system --noninteractive \
                     --reinstall --assumeyes flathub-beta "$app_id" >/dev/null 2>&1; then
-                echo "  ✓  $app_id  (flathub -> flathub-beta)"
+                echo "  ✓  $app_id"
                 migrated=$((migrated + 1))
             else
-                echo "  ✗  $app_id  (install from flathub-beta failed -- stable retained)"
+                echo "  ✗  $app_id"
             fi
         fi
     else
         absent=$((absent + 1))
-        echo "  absent $app_id (no flathub-beta build available -- stable kept)"
+        echo "  absent $app_id"
     fi
 done < <(flatpak list --app --columns=application,origin 2>/dev/null)
 
 echo
 if [ "$DRY" = "1" ]; then
-    echo "[dry-run] would migrate apps marked WOULD; no changes made."
+    echo "[dry-run] would migrate apps marked WOULD; no changes made"
 else
     echo "[migrated=$migrated absent=$absent skipped=$skipped]"
 fi

@@ -1,8 +1,6 @@
 #!/bin/bash
 # AI-hint: Validates ttyd service drop-ins, triggers the mios-hermes-firstboot service to apply systemd configurations, and verifies filesystem permissions for hermes-related directories.
 # AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-hermes, mios-ttyd-bash, mios-ttyd-powershell, mios-user, mios-hermes-firstboot.service
-# Verify the ttyd User= drop-in is in place and the units restart
-# cleanly running as the SSOT [identity].username.
 set -euo pipefail
 
 echo "── deploy fixed firstboot + tmpfiles ──"
@@ -38,7 +36,7 @@ for u in mios-ttyd-bash mios-ttyd-powershell; do
     state=$(systemctl is-active "${u}.service" 2>&1)
     main_pid=$(systemctl show -p MainPID --value "${u}.service" 2>&1)
     if [[ "$main_pid" != "0" && -n "$main_pid" ]]; then
-        uid=$(stat -c %U "/proc/${main_pid}" 2>/dev/null || echo "?")
+        uid=$(stat -c %U "/proc/${main_pid}" 2>/dev/null || echo "")
         printf '  %-26s active=%-10s running-as=%s\n' "$u" "$state" "$uid"
     else
         printf '  %-26s active=%s\n' "$u" "$state"

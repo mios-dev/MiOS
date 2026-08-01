@@ -2,46 +2,20 @@
 # AI-hint: Initializes the Hermes gateway and web-ui components by generating /etc/mios/hermes/api.env and seeding /var/lib/mios/hermes/config.yaml based on mios.toml configurations during first boot.
 # AI-related: /etc/mios/hermes/api.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-dashboard.sh, /etc/mios/hermes, /etc/mios/hermes/discord.env, /usr/lib/mios/agents/.venv., /usr/lib/mios/agents/.venv/bin/hermes, /usr/lib/mios/hermes-agent/.venv/bin/hermes, /usr/libexec/mios/mios-pc-vision
 # AI-functions: _log, _mios_toml_layers, _mios_toml_value, _mios_toml_catalog, _sync_discord_env_var, _op_cfg_should_reseed, _soul_should_seed, _build_soul_runtime_ctx, _refresh_soul_ctx, _skill_should_seed, _seed_one_skill, _wait_for_owui
-# MiOS -- mios-hermes-firstboot: generate /etc/mios/hermes/api.env if missing
-# AND seed /var/lib/mios/hermes/config.yaml with the model selected in
-# mios.toml [ai] + [ai.host_thresholds] auto-pick.
-#
-# The same key is read by both mios-hermes (gateway) and
-# mios-open-webui (chat front-end) via EnvironmentFile= in their
-# Quadlets. Idempotent: re-runs are no-ops once API_SERVER_KEY exists
-# and the seeded config.yaml's MiOS-seeded sentinel + model match the
-# resolved mios.toml [ai].model.
 set -euo pipefail
 
-# Defined here (not just inside the seeded config.yaml) so unquoted
-# heredocs that reference ${HERMES_HOME} in their commentary expand
-# cleanly under `set -u`. Hermes-Agent 0.13.x reads
-# ${HERMES_HOME}/config.yaml; the gateway service sets the same value
-# via Environment= in mios-gateway-agent.service.
 HERMES_HOME="/var/lib/mios/hermes"
 
 ENV_FILE="/etc/mios/hermes/api.env"
 
 _log() { logger -t mios-hermes-firstboot "$*" 2>/dev/null || true; echo "[hermes-firstboot] $*" >&2; }
 
-# ─── firstboot idempotency sentinel (AGY-38) ────────────────────────────────
-# Once a full firstboot run has completed, skip the whole provision on every
-# subsequent boot. The sentinel lives under /var/lib/mios (persists across
-# bootc upgrades). To force a re-provision, delete it:
-#   rm -f /var/lib/mios/.hermes-firstboot.done && systemctl restart mios-hermes-firstboot
 _FIRSTBOOT_SENTINEL="/var/lib/mios/.hermes-firstboot.done"
 if [[ -f "$_FIRSTBOOT_SENTINEL" ]]; then
     _log "sentinel $_FIRSTBOOT_SENTINEL present -- firstboot already completed, skipping"
     exit 0
 fi
 
-# ─── mios.toml layered overlay reader ───────────────────────────────────────
-#
-# Reads [section].key from ~/.config/mios/mios.toml -> /etc/mios/mios.toml
-# -> /usr/share/mios/mios.toml, returning the FIRST non-empty match
-# (operator overlay wins). Same arity + semantics as the bash resolver
-# in /usr/libexec/mios/mios-dashboard.sh -- copied here so this script
-# can run before mios-dashboard's helper is sourced.
 _mios_toml_layers() {
     local home="${HOME:-/root}"
     printf '%s\n' \
@@ -50,16 +24,9 @@ _mios_toml_layers() {
         "/usr/share/mios/mios.toml"
 }
 
-# Drop-in over the shared layered resolver (usr/lib/mios/mios_toml.py via the
-# mios-toml-get shell CLI). Same signature/semantics as the retired awk scanner.
 _MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
 _mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
 
-# Read an array-of-tables [[ai.catalog]] and emit id<TAB>label<TAB>ram_gb
-# per row. Layered overlay: rows from the highest-precedence file that
-# has ANY [[ai.catalog]] entries win wholesale (no merging across layers
-# -- TOML AoT semantics don't merge, and operator editing the dropdown
-# means they want their list, not the vendor's appended).
 _mios_toml_catalog() {
     local toml
     while IFS= read -r toml; do
@@ -99,16 +66,8 @@ _mios_toml_catalog() {
     done < <(_mios_toml_layers)
 }
 
-# ─── Resolve the model to seed ──────────────────────────────────────────────
-#
-# Start from [ai].model (the operator's chosen / vendor-default value).
-# Then apply [ai.host_thresholds] auto-pick: if the host has enough RAM,
-# roll up to mid_ram_model or big_ram_model. Auto-pick only runs when
-# the operator hasn't overlaid [ai].model in /etc/mios/mios.toml or
-# ~/.config/mios/mios.toml (operator override wins).
 _AI_MODEL_DEFAULT="$(_mios_toml_value 'ai' 'model' 'granite4.1:3b')"
 
-# Is [ai].model overlaid by an operator layer? (any non-vendor layer)
 _overlaid=0
 for _layer in "${HOME:-/root}/.config/mios/mios.toml" "/etc/mios/mios.toml"; do
     [[ -r "$_layer" ]] || continue
@@ -119,27 +78,11 @@ for _layer in "${HOME:-/root}/.config/mios/mios.toml" "/etc/mios/mios.toml"; do
     fi
 done
 
-# Resolve tier model lookups from mios.toml [ai.host_thresholds].
 _big_m="$(_mios_toml_value 'ai.host_thresholds' 'big_ram_model' 'granite4.1:30b')"
 _mid_m="$(_mios_toml_value 'ai.host_thresholds' 'mid_ram_model' 'qwen3.5:9b')"
 _small_m="$(_mios_toml_value 'ai.host_thresholds' 'small_ram_model' "$_AI_MODEL_DEFAULT")"
 
-# Detect actual GPU VRAM. Operator directive 2026-05-16 (mios.toml
-# [ai.host_thresholds] comment, line ~651): "if detected GPU has more
-# than 8GB of VRAM it deploys with medium sized models ... ALL AGENTS
-# DEFAULTS TO CPU models -- across all hardware". So promotion is
-# driven by VRAM, NOT system RAM. nvidia-smi (NVIDIA, incl. WSL2
-# passthrough) and rocm-smi (AMD) are the canonical probes; if
-# neither exists or returns 0, the host is CPU-only and we stay
-# on small_ram_model.
 _vram_gb=0
-# WSL2 ships nvidia-smi at /usr/lib/wsl/lib/nvidia-smi, which is NOT on the
-# systemd unit PATH (/usr/local/bin:/usr/bin). So `command -v nvidia-smi`
-# returned nothing under firstboot's systemd context and a 24 GB RTX 4090 was
-# mis-detected as 0 GB -> small tier instead of mid (operator-confirmed
-# 2026-06-21: "WHAT ARE YOU TALKING ABOUT CPU-ONLY"). Probe explicit
-# locations (incl. the WSL path) so detection works regardless of PATH.
-# install-robustness 2026-06-21.
 _nvsmi=""
 for _c in nvidia-smi /usr/lib/wsl/lib/nvidia-smi /usr/bin/nvidia-smi /opt/cuda/bin/nvidia-smi; do
     if command -v "$_c" >/dev/null 2>&1; then _nvsmi="$_c"; break; fi
@@ -155,7 +98,6 @@ if [[ -n "$_nvsmi" ]]; then
 elif [[ -n "$_rocmsmi" ]]; then
     _vram_mib="$("$_rocmsmi" --showmeminfo vram --csv 2>/dev/null \
         | awk -F, 'NR>1 {gsub(/[^0-9]/,"",$2); if ($2+0 > m) m=$2+0} END{print m+0}')"
-    # rocm-smi reports bytes; convert
     _vram_gb=$(( ${_vram_mib:-0} / 1024 / 1024 / 1024 ))
 fi
 
@@ -165,9 +107,6 @@ if [[ "$_overlaid" -eq 1 ]]; then
 else
     _big_vram="$(_mios_toml_value 'ai.host_thresholds' 'big_vram_gb' '16')"
     _mid_vram="$(_mios_toml_value 'ai.host_thresholds' 'mid_vram_gb' '8')"
-    # Auto-pick model tier based on GPU VRAM.
-    # Operators can still override via mios.html (sets [ai].model in
-    # /etc/mios/mios.toml, triggering the _overlaid=1 branch above).
     if (( _vram_gb >= _big_vram )); then
         _AI_MODEL_RESOLVED="$_big_m"
         _log "auto-pick: detected GPU VRAM ${_vram_gb} GB >= ${_big_vram} -> big tier ${_AI_MODEL_RESOLVED}"
@@ -180,47 +119,19 @@ else
     fi
 fi
 
-# ─── Hermes role model (operator 2026-05-21) ────────────────────────────────
-# "EVERY Agent and Sub-Agent should have an equivalent MiOS Modelfile for each
-# role." Hermes (the general orchestrator) runs its role model
-# mios-hermes:latest -- a Modelfile built FROM the auto-picked base with MiOS
-# params; SOUL.md still drives behaviour at runtime. HERMES-SPECIFIC: the
-# global [ai].model (10+ other consumers -- mios-micro-llm, mios-pc-vision,
-# mios-doctor, ...) stays UNTOUCHED. Safe by construction: the tier-walk below
-# validates this tag against Ollama's tags and falls back to the auto-picked
-# base tier if mios-hermes wasn't built, and the base-model fallback_model
-# chain backs it at runtime. Override with MIOS_HERMES_ROLE_MODEL=none to keep
-# the bare auto-picked base, or =<tag> to pin a different role model.
 _HERMES_ROLE_MODEL="${MIOS_HERMES_ROLE_MODEL:-gemma4:12b}"
 if [[ "$_HERMES_ROLE_MODEL" != "none" ]]; then
     _AI_MODEL_RESOLVED="$_HERMES_ROLE_MODEL"
     _log "hermes role model: pinning Hermes to ${_AI_MODEL_RESOLVED} (auto-picked base kept as fallback)"
 fi
 
-# Backend endpoint for the generated config -- SSOT-derived from mios.toml
-# [ai].backend (the mios-llm-light front; ollama :11434 retired). Default matches the
-# vendor value so a missing/unreadable toml still yields a working endpoint
-# (operator 2026-06-07: firstboot previously HARDCODED the port, so a stale REPL
-# config survived the ollama->mios-llm-light migration; now it follows the SSOT).
 _AI_BACKEND="$(_mios_toml_value ai backend 'http://localhost:8450')"
 _AI_BACKEND="${_AI_BACKEND%/}"
 
-# ── Agent-surface (orchestrator) endpoint + model for THIN clients ──────────────
-# The interactive `hermes` CLI REPL must be a THIN client to the agent-pipe
-# ORCHESTRATOR on :8640 (served model "MiOS-Agent"), exactly like the @/mios CLI
-# and the Hermes DESKTOP app -- NOT a direct leaf granite native tool-loop on
-# :11450. A leaf tool-loop fabricates (granite emits tool-call JSON it can't
-# broker-execute -> "typed into chat" LIAR + same_tool_failure_halt). The
-# orchestrator runs the loop SERVER-SIDE (refine -> route -> broker-exec +
-# read-back verify -> polish), so a thin client never fabricates. Both values
-# flow from the [ai] SSOT (operator "UNIFY THE MiOS AI PIPELINE" / "NO HARDCODES").
 _AGENT_ENDPOINT="$(_mios_toml_value ai endpoint 'http://localhost:8640/v1')"
 _AGENT_ENDPOINT="${_AGENT_ENDPOINT%/}"
 _AGENT_MODEL="$(_mios_toml_value ai agent_model 'MiOS-Agent')"
 
-# Make sure the directory exists with the right ownership. tmpfiles.d
-# should have done this already, but be defensive in case the .service
-# fires before tmpfiles for some reason.
 mkdir -p /etc/mios/hermes
 chown -h mios-ai:mios-ai /etc/mios/hermes 2>/dev/null || true
 chmod 0750 /etc/mios/hermes 2>/dev/null || true
@@ -233,22 +144,14 @@ else
 fi
 
 if [[ "$_skip_keygen" -eq 0 ]]; then
-    # Generate a 64-char hex key. openssl is in @core on Fedora CoreOS so
-    # this is always available; fall back to /dev/urandom if it isn't.
     if command -v openssl >/dev/null 2>&1; then
         api_key="$(openssl rand -hex 32)"
     else
         api_key="$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')"
     fi
 
-    # Write the env file with secure perms BEFORE chowning to mios-hermes
-    # so the Quadlet's EnvironmentFile= read-as-root can succeed even if
-    # the per-uid mios-hermes login is denied (`/usr/sbin/nologin`).
     umask 0077
     cat > "$ENV_FILE" <<EOF
-# /etc/mios/hermes/api.env -- generated by mios-hermes-firstboot.service
-# at $(date -Iseconds) on $(hostname).
-# Rotate by deleting this file and restarting mios-hermes-firstboot.
 
 API_SERVER_ENABLED=true
 API_SERVER_HOST=0.0.0.0
@@ -256,24 +159,8 @@ API_SERVER_KEY=${api_key}
 API_SERVER_CORS_ORIGINS=*
 OPENAI_API_KEY=${api_key}
 
-# Hermes's "gateway run" mode bundles a messaging-platform router
-# (Telegram / Discord / Slack) that enforces a USER ALLOWLIST on every
-# request -- chat-completions included. Without an allowlist, the
-# gateway DENIES all requests with the cryptic "No user allowlists
-# configured. All unauthorized users will be denied" warning, then
-# 401s the chat. MiOS isn't running messaging platforms (Workspace
-# UI is the only frontend), so we opt out of the allowlist gate to
-# let any caller with a valid API_SERVER_KEY through.
-# Operator-flagged 2026-05-11: "all messages get Retry".
 GATEWAY_ALLOW_ALL_USERS=true
 
-# Hermes Workspace consumes these via the SAME EnvironmentFile= mount.
-# Systemd Quadlet Environment= directives do NOT expand \${API_SERVER_KEY}
-# from sibling EnvironmentFile= contents, so we have to write the
-# explicit duplicates here. The workspace falls back to a legacy HTML-
-# scrape token flow when CLAUDE_DASHBOARD_TOKEN is unset, which fails
-# against our minimal gateway image and triggers a client-side
-# redirect to /error. Operator-flagged 2026-05-11.
 HERMES_API_TOKEN=${api_key}
 CLAUDE_DASHBOARD_TOKEN=${api_key}
 EOF
@@ -284,35 +171,10 @@ EOF
     _log "wrote $ENV_FILE (64-char API_SERVER_KEY)"
 fi
 
-# ─── /etc/mios/hermes/discord.env (Discord bot token, operator-managed) ─
-# Empty stub seeded so that:
-#   * mios-gateway-agent.service's EnvironmentFile=- finds a readable file
-#     (no "file not found" warnings in the journal)
-#   * the operator has a known location to drop a token, with inline
-#     instructions on how to obtain one
-# Discord toolset reads DISCORD_BOT_TOKEN from this file. If unset, the
-# tool surfaces a clear "missing token" error to the agent on first
-# call, which the agent then asks the operator about.
 DISCORD_ENV="/etc/mios/hermes/discord.env"
 if [[ ! -f "$DISCORD_ENV" ]]; then
     umask 0077
     cat > "$DISCORD_ENV" <<'DISCORDEOF'
-# /etc/mios/hermes/discord.env -- operator-managed.
-#
-# Drop a Discord bot token here for Hermes-Agent's `discord` toolset:
-#   DISCORD_BOT_TOKEN=<your-bot-token>
-#
-# How to obtain a bot token (one-time):
-#   1. https://discord.com/developers/applications -> New Application
-#   2. Bot tab -> Reset Token -> copy the token (shown once)
-#   3. OAuth2 -> URL Generator -> tick `bot` + `applications.commands`
-#      + the permissions your agent needs (Send Messages, Read Message
-#      History, Manage Threads, ...). Open the resulting URL and
-#      authorise the bot into your guild.
-#   4. Paste the token below as DISCORD_BOT_TOKEN=<token>, save, then:
-#        sudo systemctl restart mios-gateway-agent.service
-#
-# Permissions: 0640 root:mios-hermes (root edits, mios-hermes reads).
 DISCORDEOF
     umask 0022
     chown root:mios-ai "$DISCORD_ENV" 2>/dev/null || true
@@ -320,43 +182,16 @@ DISCORDEOF
     _log "seeded empty $DISCORD_ENV (operator drops DISCORD_BOT_TOKEN here)"
 fi
 
-# ─── /usr/local/bin/chrome -- shim so mios-gui chrome / launch_app chrome ──
-# routes through mios-chrome (CDP on :9222 + Wayland + persistent profile)
-# instead of the bare flatpak-launch path the generic shim generator
-# would produce. mios-gui detects this shim by the "MiOS shim for the"
-# string in its first 3 lines. Idempotent: rewritten every boot so a
-# stale generator-output gets superseded. Required for Hermes'
-# browser_navigate / browser_snapshot / etc. to attach to the
-# operator's actual visible Chrome instance (operator-flagged
-# 2026-05-17).
 install -d -m 0755 /usr/local/bin
 cat > /usr/local/bin/chrome <<'CHROMEEOF'
-#!/bin/sh
-# /usr/local/bin/chrome -- MiOS shim for the com.google.ChromeDev flatpak.
-# Routes through /usr/bin/mios-chrome which wraps the flatpak launch
-# with --remote-debugging-port=9222 + Wayland args + persistent
-# --user-data-dir so Hermes' browser_navigate connects to the SAME
-# browser instance the operator drives (shared cookies, logged-in
-# state). mios-gui detects this shim via the "MiOS shim for the"
-# string in its first 3 lines and exec's it.
 exec /usr/bin/mios-chrome "$@"
 CHROMEEOF
 chmod 0755 /usr/local/bin/chrome
 
-# ─── Reconcile MIOS_DISCORD_DEFAULT_* env from mios.toml [identity] ─────
-# Operator sets [identity].discord_channel_default + .discord_guild_default
-# in the layered mios.toml overlay (vendor < /etc < ~/.config). We sync
-# those values into /etc/mios/hermes/discord.env so the running
-# hermes-agent process has them in os.environ alongside DISCORD_BOT_TOKEN.
-# The chat model is told about them via the seeded SOUL.md so it has
-# the default channel as authoritative context when the operator says
-# "send to discord" without naming a channel. Idempotent: the
-# assignment line is REPLACED on every firstboot run if it drifts.
 _discord_channel="$(_mios_toml_value 'identity' 'discord_channel_default' '')"
 _discord_guild="$(_mios_toml_value   'identity' 'discord_guild_default'   '')"
 _sync_discord_env_var() {
     local _key="$1" _val="$2"
-    # Strip any existing line; append new (only when value non-empty).
     local _tmp
     _tmp="$(mktemp)"
     grep -v "^${_key}=" "$DISCORD_ENV" 2>/dev/null > "$_tmp" || true
@@ -372,49 +207,6 @@ if [[ -n "$_discord_channel" || -n "$_discord_guild" ]]; then
     _log "synced MIOS_DISCORD_DEFAULT_{CHANNEL,GUILD} from mios.toml [identity] into $DISCORD_ENV"
 fi
 
-# ─── /var/lib/mios/hermes/config.yaml (Hermes-Agent main config) ────────
-#
-# Hermes-Agent 0.13.x reads $HERMES_HOME/config.yaml. The direct host
-# install (automation/72-hermes-agent.sh + mios-gateway-agent.service) sets
-# HERMES_HOME=/var/lib/mios/hermes, so the agent's config lives at
-# /var/lib/mios/hermes/config.yaml. NOTE: 0.13.x ignores the
-# HERMES_CONFIG_PATH env var entirely -- HERMES_HOME is authoritative.
-#
-# SCHEMA -- load-bearing. Hermes-Agent 0.13.x resolves the inference
-# provider via hermes_cli/runtime_provider.py::resolve_requested_provider:
-# it reads config["model"], and ONLY honours a `provider:` key when
-# `model` is a DICT. If `model` is a bare string the provider is
-# unknown -> falls through to "auto" -> tries openrouter -> HTTP 401
-# "Missing Authentication header" (no OPENROUTER_API_KEY).
-# Operator-confirmed 2026-05-14. So `model` MUST be a mapping:
-#   model:
-#     provider: custom:<name>     # matches a custom_providers[].name
-#     default:  <ollama-model-id>
-#     base_url: ${_AI_BACKEND}/v1
-# `provider: custom:local-llm` then resolves against the
-# `custom_providers:` list entry named `local-llm`. The pre-0.13
-# `backend:` block is genuinely unused by 0.13.x -- we drop it (the
-# re-seed detection below treats a leftover `backend:` as stale).
-#
-# Architectural Law 5 (UNIFIED-AI-REDIRECTS): the agent loop stays
-# fully local -- custom_providers[local-llm] points at the on-box
-# Ollama OpenAI surface, no cloud calls.
-# ─── Auto-recover Hermes-Agent venv if missing ───────────────────────
-# automation/72-hermes-agent.sh installs Hermes-Agent directly onto
-# the host (NOT a container) at /usr/lib/mios/agents/.venv. That
-# script runs at OCI build time. But:
-#   * stale OCI images pre-2026-05 don't have it baked in
-#   * if the build-time install failed silently (network, PyPI hiccup),
-#     the venv won't be there post-install either
-# In both cases mios-gateway-agent.service silently no-ops at boot via:
-#   ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes
-# and the operator gets a "Hermes won't work" surprise hours later.
-#
-# Detect the missing venv here and re-run the installer if we can find
-# it. The installer is itself idempotent + safe to re-run -- worst case
-# it re-pulls + re-installs the package. Operator-confirmed regression
-# 2026-05-15: fresh MiOS install came up with hermes-agent inactive
-# because the build never installed the venv.
 if [[ ! -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
     _hermes_installer=""
     for _c in /var/lib/mios/build/mios-bootstrap/automation/72-hermes-agent.sh \
@@ -431,9 +223,6 @@ if [[ ! -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
         if [[ -x /usr/lib/mios/agents/.venv/bin/python3 ]]; then
             _log "gateway-agent venv installed; daemon-reload + start the service"
             systemctl daemon-reload || true
-            # --no-block: firstboot must not WAIT on mios-gateway-agent settling
-            # (it has its own readiness deps + can deadlock against this very
-            # service in the early-boot ordering -- the ~23min hang, 2026-06-14).
             systemctl restart --no-block mios-gateway-agent.service 2>&1 | sed 's/^/  /' \
                 | while IFS= read -r _line; do _log "$_line"; done || true
         else
@@ -453,35 +242,9 @@ HERMES_RESEARCH=/var/lib/mios/ai/research
 HERMES_DATA_CFG="${HERMES_DATA}/config.yaml"
 mkdir -p "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH"
 
-# Ownership: mios-gateway-agent.service runs as the mios-hermes sysuser
-# (uid 820). The pre-2026-05-14 mios-hermes CONTAINER ran with an
-# in-container uid (10000) and bind-mounted this dir, leaving it
-# orphan-owned 10000:10000 mode 0700 -- the direct-install service
-# (uid 820) then cannot write its own state dir and chat completions
-# die with "Permission denied: /var/lib/mios/hermes/cron". Force the
-# whole tree to 820:820 on every run -- cheap, idempotent, and heals
-# the container -> direct-install migration.
 chown -R 850:850 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
 chmod 0750 "$HERMES_DATA" "$HERMES_ARTIFACTS" "$HERMES_RESEARCH" 2>/dev/null || true
 
-# Validate the resolved model against what the LIVE BACKEND actually serves.
-# The [ai.host_thresholds] auto-pick can resolve to a model that was never
-# baked or pulled on this host -- pointing Hermes at a missing model breaks
-# chat just as hard as a stale schema.
-#
-# G5/G8: ollama (:11434) is RETIRED. The canonical front is mios-llm-light
-# (the llama-swap proxy at $_AI_BACKEND, default :11450), which exposes the
-# served set via the OpenAI-compat `GET /v1/models` ({"data":[{"id":...}]}).
-# Probe THAT and key every model decision (primary validation + fallback
-# chain) on the REAL served ids -- never on hardcoded qwen3* literals (the
-# old `localhost:11434` probe + qwen3.5:4b/qwen3:1.7b literals were the
-# stale-config root cause; 2026-06-14).
-#
-# Fallback policy still walks the TIER chain (small -> mid -> big), NOT
-# whatever happens to be first in the served list. Operator directive
-# 2026-05-16: never silently upgrade past the operator's tier choice. If
-# the chosen tier is missing, prefer the SMALLER safer option first so the
-# host stays responsive; only escalate if nothing smaller is available.
 _served_ids="$(curl -fsS --max-time 5 "${_AI_BACKEND}/v1/models" 2>/dev/null \
     | grep -oE '"id":"[^"]+"' | sed 's/"id":"//;s/"$//' || true)"
 if [[ -n "$_served_ids" ]]; then
@@ -495,8 +258,6 @@ if [[ -n "$_served_ids" ]]; then
             fi
         done
         if [[ -z "$_picked" ]]; then
-            # Last-resort: any non-embed served id. Better than a 401 loop,
-            # but flag it loudly so the operator catches the gap.
             _picked="$(grep -viE 'embed' <<< "$_served_ids" | head -1)"
             [[ -n "$_picked" ]] && _log "WARN: no tier model in the served set -- using arbitrary '${_picked}'"
         fi
@@ -509,14 +270,6 @@ if [[ -n "$_served_ids" ]]; then
     fi
 fi
 
-# Build the fallback chain Hermes walks if the primary model emits invalid
-# tool calls / empty bodies. Policy: never escalate ABOVE the resolved
-# primary tier (the operator's tier ceiling is binding). Candidates are
-# keyed on the REAL served set (no qwen3* literals): the resolved tier
-# models (small -> mid) followed by the smallest served non-embed id as a
-# universal safety net, so the chat NEVER silently fails over to an
-# unreachable cloud provider. Emit only candidates the backend actually
-# serves; skip duplicates of the primary.
 _safety_net=""
 if [[ -n "$_served_ids" ]]; then
     _safety_net="$(grep -viE 'embed' <<< "$_served_ids" | head -1)"
@@ -537,25 +290,13 @@ for _m in "${_FALLBACK_CHAIN[@]}"; do
       model: ${_m}
 "
 done
-# Trim trailing newline so heredoc doesn't get a blank line at the end
 _FALLBACK_YAML="${_FALLBACK_YAML%$'\n'}"
 if [[ -z "$_FALLBACK_YAML" ]]; then
     _FALLBACK_YAML="    # (no tier-safe fallback models in the backend served set)"
 fi
 _log "fallback chain (tier-safe): ${_FALLBACK_CHAIN[*]:-<none>}"
 
-# Auxiliary + delegation model names -- pulled from the REAL served set
-# (G5/G8: no qwen3* literals). The auxiliary lanes (compression, title-gen,
-# triage, curator, mcp, web_extract, approval, skills_hub, session_search)
-# and the delegate workers should run on a SMALL fast model: prefer the
-# resolved small tier, then the smallest served non-embed id, finally the
-# resolved primary (always valid). Both names are validated against
-# $_served_ids when the backend is reachable; when it isn't (air-gapped
-# firstboot) we trust the tier resolution. The big GPU model stays the
-# primary; these keep auxiliary/delegate fan-out off the big lane.
 _aux_validate() {
-    # echo the first arg that is in the served set (or first arg if the
-    # backend is unreachable / served set unknown).
     local _c
     for _c in "$@"; do
         [[ -z "$_c" ]] && continue
@@ -563,71 +304,41 @@ _aux_validate() {
             printf '%s' "$_c"; return 0
         fi
     done
-    # nothing served matched -> fall back to the primary (guaranteed valid)
     printf '%s' "$_AI_MODEL_RESOLVED"
 }
 _AUX_MODEL="$(_aux_validate "$_small_m" "$_safety_net" "$_AI_MODEL_RESOLVED")"
 _DELEGATION_MODEL="$(_aux_validate "$_small_m" "$_safety_net" "$_AI_MODEL_RESOLVED")"
 _log "auxiliary model: ${_AUX_MODEL}; delegation model: ${_DELEGATION_MODEL}"
 
-# Bump this in lockstep with the _config_version: NN literal in the seeded
-# heredoc below. Existing hosts whose config carries an older version re-seed
-# automatically (so the ollama->served-set probe + family-diverse model names
-# propagate without a manual delete; 2026-06-14).
 _CONFIG_VERSION=24
 _should_seed=0
 if [[ ! -f "$HERMES_DATA_CFG" ]]; then
     _should_seed=1
 elif ! grep -qxF "_config_version: ${_CONFIG_VERSION}" "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the current schema version -- re-seed to pick up the
-    # latest model resolution + block layout.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- _config_version drift (want ${_CONFIG_VERSION})"
 elif grep -qE '^backend:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Leftover pre-0.13 `backend:` block -- stale schema, rewrite.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- detected pre-0.13 container-era schema"
 elif ! grep -qE '^auxiliary:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the auxiliary-services mapping -- 0.13.x would
-    # log "No auxiliary LLM provider configured" and drop compression
-    # summaries. Rewrite to add the auxiliary: + web: blocks.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing auxiliary endpoint mapping"
 elif ! grep -qE '^display:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the display block -- the agent then narrates tool
-    # results instead of showing them verbatim, which is the dominant
-    # vector for fabricated "status" reports on local models. Rewrite
-    # to add the display: knobs (tool_progress: verbose, etc.).
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing display block (counter-fabrication)"
 elif ! grep -qE '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the delegation block -- the orchestrator can't
-    # spawn parallel child agents, and auxiliary services still serialize
-    # through the big GPU model instead of fanning out to a small CPU
-    # model. Rewrite to add delegation: + swap auxiliary models.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing delegation block (multi-agent parallelism)"
 elif grep -q 'model: qwen3:1.7b' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # qwen3:1.7b reports 40,960 tokens which is below the Hermes v0.15+
-    # 64k floor. Re-seed to promote to qwen3.5:4b or add overrides.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- detected legacy qwen3:1.7b (below 64k floor)"
 elif ! grep -qE '^approvals:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the autonomy alignment -- without explicit
-    # approvals.mode=auto the agent pauses for per-call approval,
-    # making the broad sudo grant + multi-agent delegation pointless.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing approvals/autonomy block"
 elif ! grep -A 15 '^delegation:' "$HERMES_DATA_CFG" 2>/dev/null | grep -q 'ollama_num_ctx:'; then
-    # Config missing context-window overrides in the delegation block --
-    # Hermes v0.15+ will refuse tool use on parallel child agents if the
-    # model (like qwen3:1.7b) reports < 64k.
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing delegation ollama_num_ctx overrides"
 elif ! grep -qE '^mcp_servers:' "$HERMES_DATA_CFG" 2>/dev/null; then
-    # Config predates the MCP-client block -- Hermes can't consume the global
-    # mios-mcp-server (no verbs/recipes/skills via MCP). Re-seed to add it
-    # (operator 2026-06-07: Hermes must have all Global MiOS MCP surfaces).
     _should_seed=1
     _log "re-seeding $HERMES_DATA_CFG -- missing mcp_servers (global MCP surface)"
 elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/null; then
@@ -636,55 +347,18 @@ elif ! grep -qE "^  default: ${_AI_MODEL_RESOLVED}$" "$HERMES_DATA_CFG" 2>/dev/n
 fi
 
 if [[ "$_should_seed" -eq 1 ]]; then
-    # Unquoted heredoc so ${_AI_MODEL_RESOLVED} / ${_AI_MODEL_DEFAULT}
-    # expand. No ${API_SERVER_KEY}-style values referenced here (those
-    # live in api.env, loaded separately via mios-gateway-agent.service
-    # EnvironmentFile=).
     umask 0077
     cat > "$HERMES_DATA_CFG" <<EOF
-# /var/lib/mios/hermes/config.yaml -- MiOS-seeded (Hermes-Agent 0.13.x schema)
-# Generated by mios-hermes-firstboot.service. Hermes-Agent reads
-# \$HERMES_HOME/config.yaml; HERMES_HOME=/var/lib/mios/hermes.
-#
-# AI chain: ollama (:11434, raw inference) -> Hermes-Agent (:8642/v1,
-# OpenAI gateway + agent loop) -> Open WebUI (:3030). The gateway's own
-# API key lives in /etc/mios/hermes/api.env (API_SERVER_KEY), loaded by
-# mios-gateway-agent.service via EnvironmentFile=.
-#
-# Resolved values:
-#   [ai].model            -> ${_AI_MODEL_DEFAULT}
-#   validated vs Ollama   -> ${_AI_MODEL_RESOLVED}
 _config_version: ${_CONFIG_VERSION}
 
-# Primary model. MUST be a mapping (not a bare string) so
-# resolve_requested_provider() sees the provider= key. provider=
-# "custom:local-llm" resolves against the custom_providers entry
-# below. Architectural Law 5: local Ollama only, no cloud calls.
 model:
   provider: custom:local-llm
   default: ${_AI_MODEL_RESOLVED}
   base_url: ${_AI_BACKEND}/v1
   api_key: ""
-  # Hermes v0.15 PREFLIGHTS the runtime context window and REFUSES tool use
-  # under 64k ("Ollama runtime context is too small for Hermes tool use"),
-  # which silently failed EVERY agent:hermes swarm node (operator 2026-05-29).
-  # The gateway must REQUEST 64k from ollama on each call -- the model's own
-  # Modelfile num_ctx is not enough because the gateway sends its own
-  # options.num_ctx. Pin both: ollama_num_ctx (the per-request num_ctx the
-  # gateway passes through to ollama) + context_length (the window Hermes
-  # advertises to itself). 65536 matches mios-hermes.Modelfile PARAMETER
-  # num_ctx 65536 (9b @ 64k q8_0 KV ~10.6 GB, fits the 4090).
   ollama_num_ctx: 65536
   context_length: 65536
 
-# Fallback chain (Hermes-Agent 0.13.x: model.fallback_model accepts
-# a list of {provider, model} dicts and walks left-to-right when the
-# primary returns invalid tool calls, empty bodies, or 3xx retries
-# exceeded -- preserving conversation history across the swap).
-# Walks DOWN the tier, never UP -- operator directive 2026-05-16:
-# auto-selection must never escalate past the operator's chosen tier
-# (e.g. a CPU-only host stuck with primary=4B should fall back to
-# 1.7B / 0.6B safety nets, not climb to 30B and freeze).
   fallback_model:
 ${_FALLBACK_YAML}
 
@@ -693,22 +367,7 @@ custom_providers:
     base_url: ${_AI_BACKEND}/v1
     api_key: ""
 
-# Auxiliary LLM services (context compression / summarization, memory
-# flush, title + triage + curation, MCP reasoning, web-extract,
-# approvals, skills-hub). 0.13.x does NOT inherit the main provider for
-# these -- left unmapped it logs "No auxiliary LLM provider configured"
-# and silently drops context-compression summaries. Map every one at
-# the same on-box Ollama provider so the agent is fully self-contained.
 auxiliary:
-  # ALL auxiliary lanes need >= 64K context window or Hermes refuses
-  # to start chat completions ("Auxiliary <lane> model X has a context
-  # window of N tokens, which is below the minimum 64,000 required by
-  # Hermes Agent" -- operator-confirmed 2026-05-15 & re-confirmed
-  # 2026-05-17 when qwen3:1.7b @ 40,960 tokens was wired here and
-  # every delegate spawn 503'd). qwen3.5:4b @ 262,144 tokens is the
-  # safe default: small (~3GB), CPU-friendly, comfortably above the
-  # floor. Compression stays on the main model for context-fill
-  # events (infrequent).
   compression:
     provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
@@ -763,63 +422,15 @@ auxiliary:
     model: ${_AUX_MODEL}
     ollama_num_ctx: 65536
     context_length: 65536
-  # Vision-grounding lane for screenshot -> click-coordinate
-  # translation. Used by /usr/libexec/mios/mios-pc-vision (the
-  # PC-Control vision-grounded loop, Path B in the pc-control
-  # skill). qwen3-vl:4b has native 2D coordinate grounding;
-  # UI-TARS-1.5-7B is the upgrade-path candidate (PC-specific).
-  # Architecture: /usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md.
   vision_grounding:
     provider: custom:local-llm
     base_url: ${_AI_BACKEND}/v1
     model: qwen3-vl:4b
 
-# Web SEARCH -> the on-box SearXNG (mios-searxng, SEARXNG_URL). Web EXTRACT ->
-# \`miosfetch\`, MiOS's OWN offline direct-fetch provider (stdlib urllib +
-# readability HTML->text; plugins/web/miosfetch, deployed by 72-hermes-agent.sh
-# from /usr/share/mios/hermes/plugins). WHY NOT firecrawl: hermes pins firecrawl
-# -py v4 (firecrawl API v2, POST /v2/scrape) but MiOS self-hosts firecrawl
-# v1.0.0 (v1 API) -> every web_extract 404s (operator-confirmed 2026-05-31:
-# research turns could never drill past search-result homepages). extract_backend
-# MUST be set EXPLICITLY -- without it web_extract errors "No web extract provider
-# configured". The firecrawl plugin is still registered (dormant fallback); flip
-# this back to \`firecrawl\` if the self-hosted container is ever upgraded to the
-# v2 API. Law 5 unaffected -- retrieval, not inference.
 web:
   search_backend: searxng
   extract_backend: miosfetch
 
-# Display: surface real tool output in the chat (counter-fabrication).
-# Toolset trim. Hermes by default exposes ~30+ tool definitions to the
-# main agent (browser_navigate/click/type/scroll/back/snapshot/...,
-# cronjob, image_generate, video_generate, vision_analyze, text_to_speech,
-# rl tools, ...). Each tool's full JSON schema sits in EVERY prompt --
-# operator-confirmed regression 2026-05-15: the same chat completion
-# went from 163,742 prompt tokens to 13,017 prompt tokens (92% reduction)
-# after trimming to only the toolsets MiOS actually uses. Less context
-# bloat = stronger signal-to-noise for the actual rules in SOUL.md +
-# the parallel-fanout skill nudge -- the model is more likely to pick
-# delegate_task when there's room for it to think about the choice.
-#
-# Operators can ADD toolsets back here (in the operator overlay
-# /etc/mios/mios.toml or by editing /etc/mios/hermes/config.yaml and
-# clearing the MiOS-managed sentinel).
-#
-# browser is enabled by default (operator directive 2026-05-15
-# "Hermes-Browser isn't enabled!! Should be using the locally
-# installed ChromeDev flatpak install"). The CDP endpoint at
-# browser.cdp_url (http://localhost:9222) is served by
-# mios-hermes-browser.service, which launches the ChromeDev flatpak
-# headless with --remote-debugging-port=9222 + a dedicated
-# user-data-dir under /var/lib/mios/hermes-browser/profile.
-#
-# discord is enabled by default (operator directive 2026-05-15
-# "hermes-discord-tool too!! must be enabled--agents can ask for
-# credentials"). The discord_tool reads DISCORD_BOT_TOKEN from the
-# environment; it isn't set here. The agent surfaces "missing token"
-# errors back to the operator on first call so they can drop a token
-# into /etc/mios/hermes/discord.env (which the systemd unit picks up
-# via EnvironmentFile=).
 platform_toolsets:
   api_server:
     - terminal       # shell commands
@@ -839,13 +450,6 @@ platform_toolsets:
     - kanban         # kanban_create / _show / _list / _complete / _block / _comment / _link / _heartbeat (SQLite board at \$HERMES_HOME/kanban.db, surfaced in TUI via \`hermes kanban\` and in dashboard plugin at /api/plugins/kanban/)
 
 
-# Top-level toolsets list = orchestrator-mode gating read by
-# tool check_fn (e.g. tools.kanban_tools._profile_has_kanban_toolset).
-# Without "kanban" present here, kanban_* tools register against the
-# global registry but their check_fn returns False -- the gateway hides
-# them from the agent's tool surface and the LLM never sees them, even
-# with platform_toolsets.api_server listing "kanban" above. Mirror the
-# api_server list verbatim so gating + surfacing stay in lockstep.
 toolsets:
   - terminal
   - file
@@ -863,22 +467,7 @@ toolsets:
   - code_execution
   - kanban
 
-# Hooks: NONE. Operator directive 2026-05-15: "no context injection
-# for environment detection!!!! it WILL ONLY do it in code". The
-# agent learns its environment by CALLING \`mios-env-probe\`,
-# \`mios-apps\`, \`skill_view name=mios-environment\`, etc. as TOOL
-# calls when it needs the data -- not by having text auto-prepended
-# to every turn. The earlier pre_llm_call injection was disabled.
-#
-# Re-enable per-host by adding a hooks: block to /etc/mios/hermes/
-# config.local.yaml (operator-overlay; vendor stays clean).
 
-# When the agent narrates "the build succeeded" instead of pasting
-# what it actually saw, the operator can't tell truth from fiction.
-# These knobs make Hermes show the verbatim tool result inline -- in
-# the TUI as a panel, in Open WebUI as a syntax-highlighted code block
-# (the "terminal output in chat" experience). The model SOUL.md rules
-# require it; these settings make it the default rendering.
 display:
   tool_progress: verbose             # show full args + result for every tool call
   tool_progress_command: true        # show the command itself (e.g. \`mios build\`)
@@ -892,44 +481,10 @@ display:
   show_reasoning: false              # flip to true if you want the chain-of-thought visible
   show_cost: false
 
-# Web browsing via local com.google.ChromeDev flatpak. The chrome shim at
-# /usr/local/bin/chrome launches Chrome with --remote-debugging-port=9222
-# + --remote-allow-origins=* + --user-data-dir=... so CDP is bound on
-# 127.0.0.1:9222 and accepts callers from outside the sandbox. Hermes's
-# browser_navigate / browser_snapshot / browser_click / browser_press /
-# browser_type / browser_scroll / browser_back / browser_get_images /
-# browser_vision / browser_console / browser_cdp / browser_dialog tools
-# all read this URL via tools/browser_cdp_tool.py. Operator launches
-# chrome via \`mios-gui chrome\`; CDP is up within ~5s and stays bound
-# until the window closes.
 browser:
   cdp_url: http://localhost:9222     # local ChromeDev flatpak (mios-gui chrome)
 
-# NOTE: web.search_backend is already declared above (the on-box
-# SearXNG block). YAML mapping merge would silently drop the earlier
-# entry; ruamel-yaml strict loaders (hermes_cli.config.load_config)
-# raise DuplicateKeyError outright. Keep this section as documentation
-# only -- the operative \`web:\` block is the earlier one.
 
-# Multi-agent delegation. Hermes 0.13.x's orchestrator can spawn child
-# agents (delegate_task tool) -- typically used to fan out discrete
-# subtasks (search this file, lint that path, write a test) in parallel
-# while the main agent stays focused on the high-level plan.
-#
-# Architecture for this host (9950X3D 16-core / 40 GB RAM / RTX 4090
-# 24 GB VRAM): the MAIN agent runs the big tool-calling model on the
-# GPU (model.default = qwen3-coder:30b, MoE, ~19 GB), while DELEGATES
-# and the AUXILIARY services (compression, title-gen, session_search,
-# triage, curator, mcp, web_extract, approval, skills_hub) run on the
-# small fast qwen3.5:4b model -- ollama keeps it warm alongside the
-# big one (OLLAMA_MAX_LOADED_MODELS=4) and serves up to 4 concurrent
-# requests per model (OLLAMA_NUM_PARALLEL=4, set in ollama.container).
-# Result: the orchestrator's children + auxiliary lanes actually run
-# in parallel instead of serializing through one slot.
-#
-# subagent_auto_approve: true -- consistent with the operator's broad
-# sudo grant for mios-hermes (10-mios-hermes); the agent is
-# operator-authorized to act, including spawning its own children.
 delegation:
   provider: custom:local-llm
   base_url: ${_AI_BACKEND}/v1
@@ -943,22 +498,6 @@ delegation:
   orchestrator_enabled: true
   subagent_auto_approve: true       # operator-authorized broad sudo grant covers self-spawned children
 
-# Agent autonomy. Hermes's default approvals.mode = "manual" gates
-# EVERY tool call behind a per-call operator OK -- which makes the
-# whole stack we've built incoherent:
-#   * the operator-authorized broad sudo grant for mios-hermes
-#     (/etc/sudoers.d/10-mios-hermes) is wasted if every sudo call
-#     still pauses for click-to-approve,
-#   * delegation.subagent_auto_approve: true above is meaningless if
-#     the parent's tool calls (which is what spawns delegates) still
-#     need approval,
-#   * Open WebUI chat becomes a per-call clicking grind with no agent.
-# auto = tool calls execute without per-call prompts. Destructive
-# slash commands (/reset, /delete) still confirm, MCP reloads still
-# confirm, cron-triggered runs are denied (the operator must launch
-# cron jobs explicitly). To revoke autonomy: switch to "manual" here,
-# or simply delete /etc/sudoers.d/10-mios-hermes (which then trips
-# the build driver's privilege preflight too -- belt + suspenders).
 approvals:
   mode: auto
   timeout: 60
@@ -966,19 +505,6 @@ approvals:
   mcp_reload_confirm: true
   destructive_slash_confirm: true
 
-# Tool-loop guardrails. The agent can loop forever on bad tool calls;
-# hard_stop_enabled aborts after N consecutive same-kind failures so
-# a stuck delegate doesn't burn the whole agent budget.
-#
-# Operator-flagged 2026-05-17: chats hitting 19-24 tool calls were
-# below upstream's 5/8/5 thresholds (because each call was a
-# DIFFERENT tool -- agent thrashing across browser/web_extract/
-# skill_view rather than failing the same one repeatedly). The
-# total-call cap (agent.max_turns: 20 above) handles thrashing
-# across different tools; the per-failure thresholds below are now
-# tightened so the agent backs off SOONER on a single tool that
-# keeps erroring (web_extract returning "searxng is search-only"
-# four times before the agent gives up was the original incident).
 tool_loop_guardrails:
   warnings_enabled: true
   hard_stop_enabled: true
@@ -991,40 +517,19 @@ tool_loop_guardrails:
     same_tool_failure: 4
     idempotent_no_progress: 3
 
-# Sessions: prune old sessions automatically. Keeps $HERMES_HOME clean
-# without manual \`hermes session prune\` after every long-running build
-# leaves a fat session file behind. retention_days=30 is a reasonable
-# window; the operator can \`mios hermes wipe\` (TODO future verb) for
-# a hard reset.
 sessions:
   auto_prune: true
   retention_days: 30
   vacuum_after_prune: true
   min_interval_hours: 24
 
-# Goals — configuration for /goal command continuations.
 goals:
-  # Max continuation turns before Hermes auto-pauses the goal and
-  # asks the user to /goal resume.
   max_turns: 100
 
-# Agent: per-agent runtime tuning. reasoning_effort=xhigh is set
 agent:
   restart_drain_timeout: 20
-  # Hard cap on tool-call iterations per chat. Upstream default is 90;
-  # operator-flagged 2026-05-17 had chats running 19-24 tool calls
-  # before giving up. For an OWUI conversational agent 100 is plenty
-  # (most asks resolve in 1-3 calls; multi-step in ~10). Sub-agents
-  # spawned via delegate_task still get their own 90-turn budget --
-  # this cap is for the OPERATOR-facing turn, not the children.
   max_turns: 100
 
-# MCP CLIENT (operator 2026-06-07: "Hermes should have access to all Global MiOS
-# MCP surfaces"). Hermes consumes the global mios-mcp-server so its tool registry
-# auto-extends with the COMPLETE MiOS surface -- all verbs + recipes + promoted
-# skills (tools/list), every call routed through the launcher broker. Needs the
-# \`mcp\` SDK in the venv (installed by automation/72-hermes-agent.sh). stdio = the
-# MCP-canonical transport; the spawned relay forwards to the agent-pipe.
 mcp_servers:
   mios:
     command: /usr/libexec/mios/mios-mcp-server
@@ -1043,17 +548,6 @@ else
     _log "$HERMES_DATA_CFG already current (default=${_AI_MODEL_RESOLVED}) -- not overwriting"
 fi
 
-# ── UNIFY THE GATEWAY -> THIN :8640 CLIENT (operator 2026-06-18 "UNIFY THE WHOLE
-# MIOS AI"). The Hermes gateway serves :8642 AND runs every platform bot (Discord =
-# the api_server platform). Left as the leaf granite tool-loop, Discord replies were
-# the verbose templated scaffold + couldn't use the orchestrator's vision/grounding.
-# Repoint the gateway's MAIN model at the agent-pipe ORCHESTRATOR (:8640 MiOS-Agent)
-# and EMPTY its toolsets/platform_toolsets so :8640 owns the tool loop SERVER-SIDE --
-# Discord + OWUI + every platform now get the polished/grounded answer. LOOP-SAFE:
-# [agents.hermes] is fanout=false/default=false (mios.toml) so the orchestrator never
-# calls :8642 back (Discord->:8642->:8640->council->:8642 cycle is structurally cut).
-# Aux lanes (compression/title/...) stay on :11450 -- they don't shape the answer.
-# Runs every boot (idempotent); degrade-open (no python/yaml -> leaf config, still works).
 if command -v python3 >/dev/null 2>&1; then
     if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
        python3 - "$HERMES_DATA_CFG" <<'PYEOF'
@@ -1096,51 +590,6 @@ PYEOF
     fi
 fi
 
-# ── Operator CLI config (~/.hermes/config.yaml) ─────────────────────────
-# The `hermes` CLI runs as the operator (not the mios-hermes sysuser)
-# and reads ~/.hermes/config.yaml. Seed it with the SAME TOML-derived
-# config as the gateway so the CLI is pre-configured against local
-# Ollama and never drops into the interactive `hermes setup` wizard.
-# Resolve the operator from mios.toml [identity].username; this is a
-# plain copy of the gateway config -- one SSOT, two consumers.
-#
-# Re-seed conditions:
-#   1. file missing
-#   2. carries the broken `hermes setup` wizard placeholder
-#      (0.0.0.0:11434 / 127.0.0.1:11434 / https://localhost without TLS)
-#   3. the gateway config was just (re)written this run (_should_seed=1)
-#   4. fails YAML parse (corrupted / hand-edited badly)
-#   5. missing critical top-level schema keys (model:, auxiliary:, delegation:) --
-#      stock `hermes setup` writes a minimal stub that drops every MiOS
-#      customisation, then Hermes falls back to default config and the
-#      operator's TUI session has# ── Operator CLI config (~/.hermes/config.yaml) ─────────────────────────
-# The `hermes` CLI runs as the operator (not the mios-hermes sysuser)
-# and reads ~/.hermes/config.yaml. Seed it with the SAME TOML-derived
-# config as the gateway so the CLI is pre-configured against local
-# Ollama and never drops into the interactive `hermes setup` wizard.
-# Resolve the operator from mios.toml [identity].username; this is a
-# plain copy of the gateway config -- one SSOT, two consumers.
-# We seed it for the configured user, the default 'mios' user, and 'root'
-# to ensure it is always configured no matter how the operator connects.
-#
-# Re-seed conditions:
-#   1. file missing
-#   2. carries the broken `hermes setup` wizard placeholder
-#      (0.0.0.0:11434 / 127.0.0.1:11434 / https://localhost without TLS)
-#   3. the gateway config was just (re)written this run (_should_seed=1)
-#   4. fails YAML parse (corrupted / hand-edited badly)
-#   5. missing critical top-level schema keys (model:, auxiliary:, delegation:) --
-#      stock `hermes setup` writes a minimal stub that drops every MiOS
-#      customisation, then Hermes falls back to default config and the
-#      operator's TUI session has no auxiliary lanes, no delegation, no
-#      reasoning_effort, etc. (operator-confirmed 2026-05-15: setup wizard
-#      replaced /var/home/mios/.hermes/config.yaml with a 69-line stub
-#      after a YAML parse error; Hermes then ignored every MiOS override).
-#
-# Operator customisation that must survive belongs in mios.toml, not
-# hand-edits to this generated file. To take ownership of the operator
-# CLI config, edit it AND remove the file's "MiOS-managed" marker
-# comment -- firstboot then leaves it alone.
 _op_user="$(_mios_toml_value 'identity' 'username' 'mios')"
 
 _op_cfg_should_reseed() {
@@ -1148,10 +597,6 @@ _op_cfg_should_reseed() {
     [[ ! -f "$f" ]] && return 0
     grep -qE '0\.0\.0\.0:11434|127\.0\.0\.1:11434|https://localhost:11434' "$f" 2>/dev/null && return 0
     [[ "$_should_seed" -eq 1 ]] && return 0
-    # YAML parse + minimum-schema + THIN-CLIENT-invariant check via python3
-    # (Hermes itself bundles python). The thin-client checks force a one-time
-    # re-seed of any legacy REPL config that still points at a leaf (model.base_url
-    # :11450 / non-empty toolsets) -> rewrites it as a :8640 orchestrator client.
     MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
     python3 - "$f" <<'EOF' 2>/dev/null || return 0
 import sys, os, yaml
@@ -1163,13 +608,9 @@ except Exception:
     sys.exit(2)
 if not isinstance(d, dict):
     sys.exit(2)
-# Critical MiOS-managed top-level keys -- if any are missing the file is
-# probably a stock-wizard stub that dropped our customisations.
 for k in ("model", "auxiliary", "delegation", "approvals", "agent"):
     if k not in d:
         sys.exit(3)
-# THIN-CLIENT invariant: the REPL must target the agent-pipe ORCHESTRATOR
-# surface (:8640 MiOS-Agent), never a leaf -- a leaf granite tool-loop fabricates.
 m = d.get("model") if isinstance(d.get("model"), dict) else {}
 want_ep = (os.environ.get("MIOS_AGENT_ENDPOINT") or "").rstrip("/")
 want_model = os.environ.get("MIOS_AGENT_MODEL") or ""
@@ -1184,28 +625,6 @@ EOF
     return 1
 }
 
-# ── Operator CLI key material (~/.hermes/.env) ──────────────────────
-# config.yaml above seeds the PROVIDER half (custom:local-llm). But
-# the bare interactive `hermes` CLI ALSO has a startup config-detection
-# gate that trips with "no API keys or providers found -- run: hermes
-# setup" when it sees no API_SERVER_KEY / OPENAI_API_KEY in its
-# environment (operator-confirmed 2026-06-14: `hermes` -> setup wizard
-# despite a seeded config.yaml at /var/home/mios/.hermes/config.yaml).
-#
-# WHY the gateway service didn't hit this: mios-gateway-agent.service loads
-# /etc/mios/hermes/api.env via EnvironmentFile=, so API_SERVER_KEY /
-# OPENAI_API_KEY are in the SERVICE's os.environ. The interactive CLI
-# runs as the operator and does NOT read /etc/mios/hermes/api.env --
-# it auto-loads ~/.hermes/.env. Seed THAT with the SAME key material
-# the service uses (single SSOT: the api.env this script generated
-# above) so the CLI's "configured?" gate passes and it never drops
-# into `hermes setup`.
-#
-# Architectural Law 5 (UNIFIED-AI-REDIRECTS) is preserved: the seeded
-# config.yaml pins provider=custom:local-llm at ${_AI_BACKEND}/v1
-# with api_key:"" (the local lane is keyless). This .env carries only
-# the gateway's OWN key (so the CLI can also auth to the local :8642
-# gateway) -- NO cloud provider, NO vendor URL is introduced.
 _api_key_val=""
 if [[ -r "$ENV_FILE" ]]; then
     _api_key_val="$(awk -F= '/^API_SERVER_KEY=/{print $2; exit}' "$ENV_FILE" 2>/dev/null)"
@@ -1214,28 +633,10 @@ _op_env_should_seed() {
     local f="$1"
     [[ ! -f "$f" ]] && return 0
     grep -q 'MiOS-managed' "$f" 2>/dev/null || return 1        # operator-owned, leave alone
-    # Re-seed if the current key isn't present (rotation/drift).
     [[ -n "$_api_key_val" ]] && ! grep -qF "API_SERVER_KEY=${_api_key_val}" "$f" 2>/dev/null && return 0
     return 1
 }
 
-# ── Hermes persona / grounding (SOUL.md) ────────────────────────────────
-# Hermes-Agent reloads $HERMES_HOME/SOUL.md fresh on EVERY message -- it
-# is the live lever for the agent's persona AND its operating discipline.
-# Stock Hermes ships an EMPTY SOUL.md (just a comment template), which
-# left the local model ungrounded: it made up tool output, invented
-# config flags, and claimed success on commands that errored or returned
-# nothing (operator-confirmed 2026-05-14). MiOS ships a hardened SOUL.md
-# at /usr/share/mios/ai/hermes-soul.md -- strong rules against
-# fabricated output, full-shell-usage guidance, and pointers to the MiOS AI
-# reference docs. Seed it for BOTH the gateway service (HERMES_HOME) and
-# the operator's `hermes` CLI (~/.hermes), exactly like config.yaml.
-#
-# Re-seed when the target is missing OR still the stock template (no
-# "MiOS-managed" marker) OR the source content has changed (so updates
-# to /usr/share/mios/ai/hermes-soul.md propagate without a manual
-# delete). An operator who wants their own persona just deletes the
-# "MiOS-managed" marker line; MiOS then leaves the file alone forever.
 SOUL_SRC=""
 for _c in /usr/share/mios/ai/hermes-soul.md \
           "${MIOS_REPO:-}/usr/share/mios/ai/hermes-soul.md"; do
@@ -1245,31 +646,14 @@ _soul_should_seed() {
     local target="$1"
     [[ ! -f "$target" ]] && return 0
     if ! grep -q 'MiOS-managed' "$target" 2>/dev/null; then
-        # NOT MiOS-managed. Distinguish the Hermes BINARY's STOCK DEFAULT identity
-        # (the framework writes "You are Hermes Agent ... created by Nous Research"
-        # when SOUL.md is absent at first CLI launch) from a GENUINE operator-authored
-        # SOUL. The stock default left the operator's `hermes` CLI UNGROUNDED -- it
-        # answered "I am Hermes Agent by Nous Research" with no MiOS identity (operator
-        # 2026-06-16 "NOT GROUNDED IN MIOS / HAS NO IDEA WHO THEY ARE") because this
-        # gate treated it as operator-owned and never seeded the MiOS SOUL. SEED
-        # (replace) the vendor stock default; LEAVE a real operator SOUL alone. The
-        # signature matched is the vendor's OWN identity line, not a MiOS routing word.
         grep -qiE 'created by Nous Research|You are Hermes Agent' "$target" 2>/dev/null && return 0
         return 1   # genuine operator-authored SOUL -> leave alone
     fi
-    # Compare ONLY the source body against the head of target -- our
-    # appended runtime-context block lives AFTER the SOUL_SRC bytes;
-    # cmp -n SRC_LEN matches when the body is current regardless of
-    # the appended context.
     local _src_bytes
     _src_bytes="$(wc -c < "$SOUL_SRC")"
     cmp -s -n "$_src_bytes" "$SOUL_SRC" "$target" && return 1
     return 0
 }
-# Build a runtime-context block we append to SOUL.md so the model has
-# operator-specific defaults (Discord channel/guild, etc.) as
-# authoritative context without us having to wedge them into the
-# vendor SOUL source. Empty values are simply omitted.
 SOUL_CTX_MARKER="### MIOS-RUNTIME-CONTEXT-BEGIN (managed by mios-hermes-firstboot; do not edit between markers)"
 SOUL_CTX_END="### MIOS-RUNTIME-CONTEXT-END"
 _build_soul_runtime_ctx() {
@@ -1309,7 +693,6 @@ _refresh_soul_ctx() {
     rm -f "$_tmp"
 }
 
-# ─── MiOS-managed Hermes skills ────────────────────────────────────────────
 SKILLS_SRC_DIR=""
 for _c in /usr/share/mios/hermes/skills \
           "${MIOS_REPO:-}/usr/share/mios/hermes/skills"; do
@@ -1336,7 +719,6 @@ _seed_one_skill() {
     fi
 }
 
-# ─── Seed Gateway Copies ───────────────────────────────────────────────────
 _soul_ctx="$(_build_soul_runtime_ctx)"
 _soul_svc="${HERMES_DATA}/SOUL.md"
 if [[ -n "$SOUL_SRC" ]]; then
@@ -1361,8 +743,6 @@ if [[ -n "$SKILLS_SRC_DIR" ]]; then
     done
 fi
 
-# ─── Seed Operator/User CLI Copies ──────────────────────────────────────────
-# Seed for all operator users (the configured user, mios, and root)
 for _u in $(printf '%s\n' "$_op_user" "mios" "root" | sort -u); do
     _u_home="$(getent passwd "$_u" 2>/dev/null | cut -d: -f6)"
     [[ -z "$_u_home" || ! -d "$_u_home" ]] && continue
@@ -1372,7 +752,6 @@ for _u in $(printf '%s\n' "$_op_user" "mios" "root" | sort -u); do
     _u_env="${_u_cfg_dir}/.env"
     _soul_op="${_u_cfg_dir}/SOUL.md"
 
-    # Seed config.yaml
     if _op_cfg_should_reseed "$_u_cfg"; then
         mkdir -p "$_u_cfg_dir"
         if MIOS_AGENT_ENDPOINT="$_AGENT_ENDPOINT" MIOS_AGENT_MODEL="$_AGENT_MODEL" \
@@ -1422,20 +801,12 @@ EOF
         _log "operator CLI config $_u_cfg already current (thin :8640 client) -- not overwriting"
     fi
 
-    # Seed .env
     if [[ -z "$_api_key_val" ]]; then
         _log "WARN: no API_SERVER_KEY in $ENV_FILE -- skipping operator CLI .env seed for $_u"
     elif _op_env_should_seed "$_u_env"; then
         mkdir -p "$_u_cfg_dir"
         umask 0077
         cat > "$_u_env" <<EOF
-# ${_u_env} -- MiOS-managed by mios-hermes-firstboot.
-# Auto-loaded by the interactive \`hermes\` CLI so it never drops into the
-# \`hermes setup\` wizard ("no API keys or providers found"). Mirrors the
-# key material in /etc/mios/hermes/api.env (the gateway service's
-# EnvironmentFile=). The provider itself is the LOCAL lane -- see
-# ${_u_cfg} (provider: custom:local-llm -> ${_AI_BACKEND}/v1).
-# To take ownership: delete this "MiOS-managed" marker line and edit.
 API_SERVER_KEY=${_api_key_val}
 OPENAI_API_KEY=${_api_key_val}
 EOF
@@ -1447,7 +818,6 @@ EOF
         _log "operator CLI .env $_u_env already current -- not overwriting"
     fi
 
-    # Seed SOUL.md
     if [[ -n "$SOUL_SRC" ]]; then
         if _soul_should_seed "$_soul_op"; then
             mkdir -p "$_u_cfg_dir"
@@ -1461,7 +831,6 @@ EOF
         _refresh_soul_ctx "$_soul_op" "$_soul_ctx"
     fi
 
-    # Seed skills
     if [[ -n "$SKILLS_SRC_DIR" ]]; then
         for _skill_src in "${SKILLS_SRC_DIR}"/*/SKILL.md; do
             [[ -e "$_skill_src" ]] || continue
@@ -1473,54 +842,19 @@ EOF
     fi
 done
 
-# Tell hermes to drop its in-process skills-prompt cache so the
-# newly-seeded skills appear in the next chat turn's system prompt
-# without a service restart. The cache key is mtime/size of every
-# SKILL.md in $HERMES_HOME/skills, so touching a marker file in the
-# skills dir invalidates the disk snapshot. The simpler hammer: if
-# any skill was actually seeded above, restart the service.
 if [[ -n "$SKILLS_SRC_DIR" ]]; then
     if systemctl is-active --quiet mios-gateway-agent.service \
        && find "${HERMES_DATA}/skills" -newer "${HERMES_DATA}/SOUL.md" -name SKILL.md 2>/dev/null | grep -q .; then
         _log "skill content changed -- restarting mios-gateway-agent.service to refresh skills index"
-        # --no-block: don't wait on the restart settling (avoids the firstboot
-        # <-> hermes-agent start deadlock / ~23min hang, 2026-06-14).
         systemctl restart --no-block mios-gateway-agent.service || _log "WARN: mios-gateway-agent restart failed"
     fi
 fi
 
-# ─── Global flatpak override (theming + portal) ─────────────────────────
-# Seed the GTK_USE_PORTAL=1 + xdg-config/data/themes/icons filesystem
-# mounts so libadwaita / GTK4 flatpaks (Epiphany, Nautilus, Files,
-# Calendar, Extensions Manager) pick up the operator's color-scheme
-# (prefer-dark) and theme (adw-gtk3-dark) via xdg-portal-desktop. Without
-# this, every flatpak boots with a generic white-mode GTK3 default.
-# Operator-confirmed regression 2026-05-15: "epiphany has older GTK now"
-# was because the global override was missing the xdg-data/themes mount.
-#
-# Idempotent + harmless if flatpak isn't installed (the helper exits 0).
 if [[ -x /usr/libexec/mios/mios-flatpak-overrides-apply ]]; then
     /usr/libexec/mios/mios-flatpak-overrides-apply 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Open WebUI: bootstrap first admin user if the user table is empty ──
-# The OWUI Quadlet ships with ENABLE_SIGNUP=False (single-tenant lockdown)
-# AND no built-in flow to seed the first admin. On a fresh install OR
-# after an over-aggressive cache wipe (operator-confirmed regression
-# 2026-05-15: my own mios-cache-clear deleted the user row alongside
-# chats), there's no way for the operator to log in -- the signup form
-# refuses ("You do not have permission to access this resource") and
-# there's no recovery path short of editing the Quadlet by hand.
-#
-# Run mios-owui-bootstrap-admin which writes the admin row directly to
-# webui.db with a bcrypt-hashed password. Idempotent (skips if any user
-# row exists). Reads identity from mios.toml [identity].{username,email}
-# and password from secrets.env's MIOS_OPERATOR_PASSWORD (or generates
-# one and saves to /etc/mios/owui-admin-password mode 0600).
-#
-# Wait briefly for OWUI to have created its tables -- the first start
-# runs alembic migrations.
 if [[ -x /usr/libexec/mios/mios-owui-bootstrap-admin ]]; then
     for _i in 1 2 3 4 5 6; do
         [[ -f /var/lib/mios/open-webui/webui.db ]] && break
@@ -1529,13 +863,8 @@ if [[ -x /usr/libexec/mios/mios-owui-bootstrap-admin ]]; then
     /usr/libexec/mios/mios-owui-bootstrap-admin 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 
-    # Once an admin exists, remove any temporary signup-enable drop-in
-    # (operator-confirmed live recovery 2026-05-15: I dropped a
-    # 99-enable-signup-once.conf during the lockout fix; needs cleanup).
     _signup_dropin=/etc/containers/systemd/mios-open-webui.container.d/99-enable-signup-once.conf
     if [[ -f "$_signup_dropin" ]]; then
-        # Only remove if a user actually exists (safety -- don't lock
-        # the operator out a second time).
         if python3 -c 'import sqlite3,sys; c=sqlite3.connect("/var/lib/mios/open-webui/webui.db"); n=c.execute("SELECT COUNT(*) FROM user").fetchone()[0]; sys.exit(0 if n>0 else 1)' 2>/dev/null; then
             rm -f "$_signup_dropin"
             systemctl daemon-reload
@@ -1544,62 +873,21 @@ if [[ -x /usr/libexec/mios/mios-owui-bootstrap-admin ]]; then
     fi
 fi
 
-# ─── Open WebUI: enable built-in web search via local SearXNG ──────────
-# OWUI's built-in web-search augmentation is OFF in upstream defaults.
-# Operator directive 2026-05-15: should be ENABLED + pointed at the
-# local SearXNG (mios-searxng on :8888) so chat turns can be augmented
-# with retrieved web results without leaving the host. Idempotent.
 if [[ -x /usr/libexec/mios/mios-owui-apply-websearch ]]; then
     /usr/libexec/mios/mios-owui-apply-websearch 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Open WebUI: register MiOS docs as a Knowledge collection ──────────
-# Walks /usr/share/mios/{ai,docs,cookbooks,hermes,prompts},
-# /etc/mios/system-prompts, /CLAUDE.md, /AGENTS.md and registers each
-# as an OWUI File row with path = absolute FHS path + a snapshot of
-# content in file.data.content. Idempotent (sha256-keyed). Updates
-# the MiOS-Agent model row's meta.knowledge to attach the collection
-# so it becomes per-chat searchable context. Operator directive
-# 2026-05-15: "OWUI's MiOS-Agent model have knowledge files (use
-# exactly the current MiOS AI Files / Markdown files / Documentation
-# / EVERYTHING ETC)".
 if [[ -x /usr/libexec/mios/mios-owui-apply-knowledge ]]; then
     /usr/libexec/mios/mios-owui-apply-knowledge 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Open WebUI: apply the MiOS AI system prompt ({{USER_LOCATION}}) ───
-# E1 (operator 2026-06-22): recreate the "MiOS AI" model row with the
-# location/time-aware system prompt ({{USER_LOCATION}} / {{CURRENT_TIMEZONE}} /
-# {{CURRENT_DATE}}) on EVERY firstboot, so the OWUI-native location grounding
-# survives a rebuild/reinstall (it was applied live-only and would otherwise be
-# lost). Idempotent (the script upserts the model row). Runs after
-# apply-knowledge so the model row exists for the prompt to attach to. Browser
-# geolocation needs a SECURE CONTEXT (https://...ts.net or http://localhost:3030,
-# NOT http://<LAN-IP>) -- documented in the script + the roadmap E1 note.
 if [[ -x /usr/libexec/mios/mios-owui-apply-system-prompt ]]; then
     /usr/libexec/mios/mios-owui-apply-system-prompt 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Auto-install MiOS-Agent OWUI Pipe ────────────────────────────────
-# Operator directive 2026-05-16: "OWUIs MiOS-Agent is the model that
-# users speak to ... should be using OWUIs emitter function". The
-# pipe at /usr/share/mios/owui/pipes/mios_agent_pipe.py is the
-# canonical user-facing entry. mios-owui-install-pipe (vendored at
-# /usr/libexec/mios) idempotently registers/updates it in OWUIs
-# functions table. Runs after mios-owui-apply-knowledge so the pipe
-# inherits the knowledge bindings on first chat.
-# Wait for OWUI's HTTP backend to be reachable. On a fresh boot OWUI
-# Quadlet says "active" the moment podman launches the container, but
-# the python uvicorn server inside takes ~5-15s to bind :8080. If
-# install-pipe runs before then it gets connection-refused and the
-# WHOLE firstboot script exits 7/NOTRUNNING (set -e + subprocess
-# failure), which strands the SUBSEQUENT steps (install-tools,
-# apply-suggestions, pre-warm, mios-daemon start) un-run. Wait up to
-# 90s with 2s polls. Operator-flagged 2026-05-17 regression after the
-# full reboot test.
 _wait_for_owui() {
     local port=8033
     if [[ -f /etc/mios/install.env ]]; then
@@ -1623,9 +911,6 @@ _wait_for_owui() {
 }
 if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
     if _wait_for_owui; then
-        # Each helper's failure is wrapped so a single misfire doesn't
-        # strand the rest of firstboot. The helpers are themselves
-        # idempotent; next firstboot run will pick up anything skipped.
         /usr/libexec/mios/mios-owui-install-pipe 2>&1 | sed 's/^/  /' \
             | while IFS= read -r _line; do _log "$_line"; done \
             || _log "WARN: mios-owui-install-pipe failed (non-fatal, continuing)"
@@ -1634,78 +919,29 @@ if [[ -x /usr/libexec/mios/mios-owui-install-pipe ]]; then
     fi
 fi
 
-# ─── Seed MiOS-specific default prompt suggestions ────────────────────
-# Replaces upstream OWUI's generic chatbot cards with MiOS-relevant
-# defaults (launch / find / system status / inventory apps / etc.).
-# Idempotent: re-running with the same content is a no-op. Operator
-# directive 2026-05-17: "suggested is not generated and relevant".
 if [[ -x /usr/libexec/mios/mios-owui-apply-suggestions ]]; then
     /usr/libexec/mios/mios-owui-apply-suggestions 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Install native MiOS verbs OWUI Tools class ──────────────────────
-# Exposes launch_app / everything_search / mios_apps / mios_find as
-# typed native tool_calls so the chat model invokes them with a
-# proper JSON schema instead of going through `terminal: mios-<verb>`
-# indirection. Idempotent (sha256 content compare). Operator
-# directive 2026-05-17: "AI-stack native (Hermes tools???!!)".
 if [[ -x /usr/libexec/mios/mios-owui-install-tools ]]; then
     /usr/libexec/mios/mios-owui-install-tools 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Install the WS-4 computer-use OWUI Native tool (cu_* + docgen_*) ─────
-# Registers the desktop-control + doc-gen surface as ONE OWUI Native tool.
-# Idempotent (sha256 content compare); ships WRITE_ACTIONS_ENABLED=false so the
-# agent can't drive desktop input until the operator opts in. Runs after
-# install-tools so the OWUI functions/tools table exists.
 if [[ -x /usr/libexec/mios/mios-owui-install-computer-use ]]; then
     /usr/libexec/mios/mios-owui-install-computer-use 2>&1 | sed 's/^/  /' \
         | while IFS= read -r _line; do _log "$_line"; done
 fi
 
-# ─── Pre-warm model WEIGHTS only (NO chat completion, NO prompt) ──────
-# Operator directive 2026-05-16: "the system prompt should run in the
-# background upon installation/MiOS images deployments". CRITICAL
-# clarification from operator: "MiOS-Agent Init has poisoned data and
-# is opening apps/flatpaks during init--should be initializing and
-# understanding its environment--user THEN dictates what it does".
-#
-# The previous "warmup" chat prompt was being INTERPRETED by hermes
-# as a real request -- the agent then took unprompted actions
-# (launched apps, ran tools, fabricated). Switched to /api/generate
-# with prompt="" + num_predict=0: loads the model weights into VRAM,
-# parses the SYSTEM prompt template, exits WITHOUT producing a single
-# token of output OR receiving a real user message.
-#
-# Skip hermes warmup entirely -- it goes through the OpenAI-compat
-# gateway which always runs a full chat turn. Only warm the bare
-# Ollama models via /api/generate (load-only path).
 if command -v curl >/dev/null 2>&1; then
     _log "pre-warming model weights (load-only, NO prompts)..."
 
-    # CPU pre-warm: mios-sys-agent IS the prompt refiner the
-    # mios-delegation-prefilter calls before forwarding to hermes.
-    # Operator architecture 2026-05-17: "the message should have
-    # NEVER BEEN SENT TO HERMES" if the refiner fails -- so the
-    # prefilter HARD-GATES on refine success. Cold-loading a 4 GB
-    # CPU model from disk takes 60-90s; if the FIRST chat after
-    # boot pays that, it times out and gets a 503 refiner_unavail
-    # back. Pre-warming with the SAME options (/api/chat + num_gpu=0
-    # + num_thread=8 + keep_alive=-1) the refiner uses guarantees
-    # the model is already resident in CPU memory + the right runner
-    # is bound when the first chat hits. ALL backgrounded -- firstboot
-    # doesn't block on it.
     (curl -sf --max-time 240 \
         http://localhost:11434/api/chat \
         -d '{"model":"mios-sys-agent","messages":[{"role":"user","content":"ok"}],"stream":false,"keep_alive":-1,"options":{"num_gpu":0,"num_thread":8,"num_predict":1}}' \
         >/dev/null 2>&1 &) || true
 
-    # GPU pre-warm: every model the chat path or fallback chain
-    # might land on, loaded into VRAM via /api/generate's load-only
-    # path (num_predict=0 short-circuits before token generation).
-    # Stays warm via keep_alive=-1; first chat skips the cold load.
     for _wmodel in qwen3.5:4b qwen3:1.7b qwen2.5-coder:7b; do
         (curl -sf --max-time 180 \
             http://localhost:11434/api/generate \
@@ -1715,15 +951,6 @@ if command -v curl >/dev/null 2>&1; then
     _log "  pre-warm dispatched: mios-sys-agent (CPU) + 4 chat-path models (GPU/load-only)"
 fi
 
-# ─── Consolidated mios-daemon (replaces log-watcher + nudger + cron-director) ─
-# Operator directive 2026-05-17: "ALL to be consolidated to one
-# mios daemon/agent". The new mios-daemon.service holds a single
-# qwen3:0.6b-cpu client + dispatches log-classify / refusal-detect /
-# cron-gate handlers off a unified journal subscription. The three
-# predecessor services are stopped + disabled here so we don't double-
-# emit + double-load the micro-LLM. The mios_sidecar Filter has been
-# updated to poll the unified /var/lib/mios/daemon/state.json
-# (legacy paths still in SIBLING_AGENTS as a migration fallback).
 for _legacy in mios-log-watcher mios-agent-nudger mios-cron-director; do
     if systemctl is-active --quiet "${_legacy}.service" 2>/dev/null; then
         systemctl stop "${_legacy}.service" 2>/dev/null || true
@@ -1734,17 +961,7 @@ for _legacy in mios-log-watcher mios-agent-nudger mios-cron-director; do
         _log "  disabled legacy ${_legacy}.service"
     fi
 done
-# Start the consolidated daemon (idempotent -- systemctl restart on a
-# running unit is a no-op when ExecStart hasn't changed).
 if [[ -x /usr/libexec/mios/mios-daemon ]]; then
-    # STATE dir must be owned by mios-ai (the daemon's User=) -- it writes
-    # state.json/launch_failures.json there. Creating it root:root (the old
-    # behaviour) crash-looped the mios-ai daemon on EVERY firstboot/rebuild
-    # ("PermissionError: '/var/lib/mios/daemon/state.json.tmp'", 315 restarts,
-    # operator 2026-06-01) -- contradicting the mios.conf tmpfiles decl. The
-    # /etc CONFIG dir stays root (daemon only READS it). chown -R repairs a dir
-    # that a prior root-run instance already created + any stale root-owned
-    # state files inside it (tmpfiles 'd' does NOT re-chown an existing dir).
     install -d -o mios-ai -g mios-ai -m 0755 /var/lib/mios/daemon
     chown -R mios-ai:mios-ai /var/lib/mios/daemon 2>/dev/null || true
     install -d -o root -g root -m 0755 /etc/mios/daemon
@@ -1754,39 +971,14 @@ if [[ -x /usr/libexec/mios/mios-daemon ]]; then
         || _log "  WARN: mios-daemon.service failed to start; legacy services left disabled"
 fi
 
-# ─── Pin Windows-host tailscale IP for mios-windows helper ─────────────
-# When the host is a WSL distro running inside Windows, the Tailscale CLI
-# on the Windows side knows its own tailnet IP. mios-windows (the
-# agent->Windows SSH helper) reads this IP from /etc/mios/windows-host
-# instead of re-deriving it from `ip route` every call (which would just
-# give the Hyper-V vSwitch gateway, not the Tailscale interface). We
-# query the Windows tailscale.exe via wsl interop and write the file
-# once on every firstboot. Idempotent.
-# ─── Enable opt-in units per mios.toml [ttyd].enable + mining timer ───
-# These are listed-but-not-installed-enabled by the bootc image (so
-# operators on minimal hosts aren't paying for them), but mios.toml's
-# vendor default opts in. Firstboot reads the toml SSOT and enables.
-# Idempotent: systemctl enable on an already-enabled unit is a no-op.
 _ttyd_enabled="$(_mios_toml_value ttyd enable false)"
 if [[ "$_ttyd_enabled" == "true" ]]; then
-    # Read [identity].username from the SSOT mios.toml. The vendor
-    # ttyd unit ships `User=mios` as a convention placeholder, but
-    # on hosts where the operator chose a different username during
-    # install, the vendor value would target a non-existent account
-    # + ttyd would fail with "user does not exist". The drop-in
-    # below replaces single-value User=/Group= without modifying
-    # the vendor file. Read directly from toml so firstboot doesn't
-    # need EnvironmentFile= for userenv.sh.
     _ttyd_user="$(_mios_toml_value identity username mios)"
     _ttyd_group="$_ttyd_user"
     for _ttyd_unit in mios-ttyd-bash mios-ttyd-powershell; do
         _ttyd_dropdir="/etc/systemd/system/${_ttyd_unit}.service.d"
         mkdir -p "$_ttyd_dropdir"
         cat > "$_ttyd_dropdir/10-mios-user.conf" <<EOF
-# /etc/systemd/system/${_ttyd_unit}.service.d/10-mios-user.conf
-# Render-time override of the vendor User=/Group=. Source of truth:
-# [identity].username in /usr/share/mios/mios.toml (read by
-# mios-hermes-firstboot through userenv.sh \$MIOS_USER).
 [Service]
 User=${_ttyd_user}
 Group=${_ttyd_group}
@@ -1801,8 +993,6 @@ EOF
         fi
     done
 fi
-# Skills miner: catalogs + mines tool-call patterns. Vendor default
-# is enable -- the timer fires every [skills.mine_interval_minutes].
 if [[ -f /usr/lib/systemd/system/mios-skills-miner.timer ]]; then
     if systemctl enable --now mios-skills-miner.timer 2>/dev/null; then
         _log "  enabled+started mios-skills-miner.timer"
@@ -1810,7 +1000,6 @@ if [[ -f /usr/lib/systemd/system/mios-skills-miner.timer ]]; then
         _log "  WARN: mios-skills-miner.timer failed to enable/start"
     fi
 fi
-# Embedding backfill: off-hot-path vector backfiller.
 if [[ -f /usr/lib/systemd/system/mios-embed-backfill.timer ]]; then
     if systemctl enable --now mios-embed-backfill.timer 2>/dev/null; then
         _log "  enabled+started mios-embed-backfill.timer"
@@ -1818,9 +1007,6 @@ if [[ -f /usr/lib/systemd/system/mios-embed-backfill.timer ]]; then
         _log "  WARN: mios-embed-backfill.timer failed to enable/start"
     fi
 fi
-# Starter-chip refresh: generates MiOS-aware revolving chips for
-# OWUI's new-chat starter row, driven off recent operator state.
-# Fires on a 10-min cadence (operator-tunable via the timer drop-in).
 if [[ -f /usr/lib/systemd/system/mios-suggestion-refresh.timer ]]; then
     if systemctl enable --now mios-suggestion-refresh.timer 2>/dev/null; then
         _log "  enabled+started mios-suggestion-refresh.timer"
@@ -1830,13 +1016,6 @@ if [[ -f /usr/lib/systemd/system/mios-suggestion-refresh.timer ]]; then
 fi
 
 if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
-    # Best-effort: tailscale.exe can fail transiently at firstboot
-    # time (just-booted Windows + tailscaled not yet responsive),
-    # and the WHOLE firstboot script would exit 1 because of set
-    # -euo pipefail. Wrap in a subshell with the strict flags
-    # locally relaxed so a probe failure doesn't kill firstboot.
-    # The cached file at /etc/mios/windows-host from any previous
-    # successful firstboot remains usable in the meantime.
     (
         set +e +o pipefail
         _ts_ip="$(/mnt/c/Program\ Files/Tailscale/tailscale.exe ip -4 2>/dev/null \
@@ -1853,7 +1032,6 @@ if [[ -x /mnt/c/Program\ Files/Tailscale/tailscale.exe ]]; then
     ) || true
 fi
 
-# ── CephFS automount setup (Part 9 T-087) ──
 _cephfs_setup=""
 for _c in /var/lib/mios/build/mios-bootstrap/automation/firstboot/mios-cephfs-mount-setup.sh \
           /opt/mios-bootstrap/automation/firstboot/mios-cephfs-mount-setup.sh \
@@ -1877,7 +1055,6 @@ else
     _log "WARN: CephFS automount setup script not found"
 fi
 
-# ── CephFS XDG and User Directories setup (Part 9 T-090, T-091) ──
 _xdg_setup=""
 for _c in /var/lib/mios/build/mios-bootstrap/automation/firstboot/mios-xdg-setup.sh \
           /opt/mios-bootstrap/automation/firstboot/mios-xdg-setup.sh \
@@ -1901,16 +1078,9 @@ else
     _log "WARN: CephFS XDG setup script not found"
 fi
 
-# ── sentinel: firstboot reached completion -- gate re-runs on later boots (AGY-38)
-# Degrade-open: the touch never hard-fails boot (|| true under set -e).
 install -d -m 0755 /var/lib/mios 2>/dev/null || true
 touch "$_FIRSTBOOT_SENTINEL" 2>/dev/null || true
 _log "wrote sentinel $_FIRSTBOOT_SENTINEL -- firstboot complete"
 
-# Explicit exit 0 so the script's exit status doesn't depend on the
-# last sub-block's truthiness under set -e (the Tailscale block
-# always reaches here non-failing now, but a future maintainer
-# adding a new tail block shouldn't have to think about set -e
-# arithmetic).
 exit 0
 

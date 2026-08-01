@@ -2,22 +2,7 @@
 # AI-hint: Initializes SR-IOV Virtual Functions on Physical Functions (PFs) by parsing /etc/mios/sriov.conf and writing to /sys/bus/pci/devices/ paths during early boot to enable multi-device networking.
 # AI-related: /usr/lib/mios/paths.sh, /etc/mios/sriov.conf, mios-sriov-init.service, network-pre.target
 # AI-functions: _log
-# 'MiOS' Universal SR-IOV initialization.
-# Run by mios-sriov-init.service early in boot (After=network-pre.target).
-# Reads operator config from /etc/mios/sriov.conf, configures the requested
-# number of Virtual Functions on every listed PF (Physical Function).
-#
-# Config format -- one PF per line:
-#     <pci_addr>  <num_vfs>
-# Example /etc/mios/sriov.conf:
-#     0000:01:00.0  4
-#     0000:01:00.1  4
-#
-# When the config file is absent OR no PFs support SR-IOV, this is a
-# no-op. Re-running is safe: it writes the same num_vfs and ignores
-# "device or resource busy" if VFs are already configured.
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-sriov-init "$*" 2>/dev/null || true; echo "[sriov-init] $*" >&2; }
@@ -52,7 +37,6 @@ while IFS=$' \t' read -r pci numvfs _rest; do
         configured=$((configured + 1))
         continue
     fi
-    # Setting numvfs requires zero first if non-zero (kernel requirement)
     if (( current != 0 )); then
         echo 0 > "$sriov_path" 2>/dev/null || true
     fi
@@ -67,10 +51,10 @@ done < "$CONF"
 
 install -d -m 0755 /run/mios
 {
-    echo "timestamp=$(date -Is)"
-    echo "configured=$configured"
-    echo "skipped=$skipped"
-    echo "errored=$errored"
+    echo "Timestamp=$"
+    echo "Configured=$configured"
+    echo "Skipped=$skipped"
+    echo "Errored=$errored"
 } > /run/mios/sriov-init.status
 
 _log "configured=$configured skipped=$skipped errored=$errored"

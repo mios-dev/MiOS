@@ -9,28 +9,22 @@ import re
 from datetime import datetime
 
 TEMPLATES_DIR = os.environ.get("MIOS_TEMPLATES_DIR", "/usr/share/mios/templates")
-# Support local development fallback
 if not os.path.exists(TEMPLATES_DIR):
-    # Try repository-relative path
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
     TEMPLATES_DIR = os.path.join(repo_root, "usr/share/mios/templates")
 
 def to_pascal_case(s):
-    # e.g., my-helper-module -> MyHelperModule
     return "".join(w.capitalize() for w in re.split(r"[-_]", s))
 
 def render_template(content, name, type_name):
     date_str = datetime.now().strftime("%Y-%m-%d")
     pascal_name = to_pascal_case(name)
     
-    # Simple substitution
     content = content.replace("{{name}}", name)
     content = content.replace("{{PascalName}}", pascal_name)
     content = content.replace("{{date}}", date_str)
     
-    # Handle specific types' defaults
     if type_name == "adr":
-        # Extract next ID if name matches digit pattern
         match = re.match(r"^(\d+)", name)
         adr_id = match.group(1) if match else "0000"
         title = name[len(adr_id):].strip("-_ ").replace("-", " ").replace("_", " ").capitalize()
@@ -170,10 +164,8 @@ def main():
         
     rendered = render_template(template_content, name, type_name)
     
-    # Determine destination root
     repo_root = os.environ.get("MIOS_DRIFT_CHECK_ROOT")
     if not repo_root:
-        # Try finding repo root based on this script location
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
         
     dest_path = get_dest_path(name, type_name, repo_root)
@@ -185,7 +177,6 @@ def main():
             sys.exit(1)
         with open(dest_path, "w", encoding="utf-8", newline="\n") as f:
             f.write(rendered)
-        # If it's a script/verb, make it executable
         if type_name in ("bash-verb", "bash-tool", "bash"):
             try:
                 os.chmod(dest_path, 0o755)
@@ -193,7 +184,6 @@ def main():
                 pass
         print(f"Scaffolded new {type_name} at: {dest_path}")
     else:
-        # Output to stdout for drift-check and roadmap-ws if destination is None
         print(rendered)
 
 if __name__ == "__main__":

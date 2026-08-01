@@ -2,34 +2,10 @@
 # AI-hint: Purges volatile runtime data (sessions, tool_calls, knowledge, logs) from the pgvector agent DB (via parameterized mios-db --pg) plus OWUI's sqlite chats and filesystem caches, while preserving core system configurations and identity keys to reset the AI's operational state to a clean "day-0" baseline.
 # AI-related: /usr/libexec/mios/mios-day0-reset, mios-db, mios-pg-query, mios-agent-pipe, mios-hermes-tail, mios-daemon, mios-mcp, mios-pgvector, mios-daemon-state, mios-ai, mios-agent-pipe.service, hermes-agent.service
 # AI-functions:
-# mios-day0-reset
-#
-# Clear MiOS runtime + AI state back to a day-0 starting point.
-# Operator-invoked: drops chat history, every tool_call/event/knowledge
-# row, scratchpads, sessions, OWUI chats, SearXNG/crawl caches. KEEPS
-# /etc, /usr, agent definitions, person/skill/app_install inventories,
-# the ed25519 passport keypairs, MCP + A2A registries (operator config).
-#
-# Backend: pgvector is the SOLE agent datastore (the legacy :8000 DB is retired).
-# pg runtime tables are TRUNCATEd through mios-db --pg; the table list is a
-# trusted constant (config identifiers, never request data) so the names stay
-# inline. OWUI chat history lives in webui.db (sqlite).
-#
-# Why a script: a chat-turn through Claude can't perform mass deletes
-# (the auto-mode classifier blocks named-target destructive ops without
-# explicit per-target authorization). This script bundles the canonical
-# target set so a human operator can re-run it as needed without
-# re-debating scope each time.
-#
-# Idempotent enough to re-run; not a "factory reset" -- the host stays
-# fully provisioned. For a deeper reset (passport keys, agents, skills),
-# extend the PG_DROP / KEEP lists below.
-#
-# Usage: sudo /usr/libexec/mios/mios-day0-reset
 set -uo pipefail
 
 if [[ $EUID -ne 0 ]]; then
-  echo "must be root (use sudo)" >&2
+  echo "Must be root" >&2
   exit 1
 fi
 
@@ -38,22 +14,8 @@ systemctl stop mios-agent-pipe.service hermes-agent.service \
   mios-hermes-tail.service mios-daemon.service hermes-dashboard.service \
   mios-mcp.service 2>/dev/null
 
-# ── pgvector is the SOLE agent store since the legacy->pgvector migration.
-# Clear the runtime/AI tables in pg. KEEP the definitional/operator-curated
-# tables (alias, app_install, resolves_to, run_template, skill) AND mios_rag
-# (the docs-index RAG = baked SYSTEM knowledge, regenerated from /usr/share/doc
-# -- leave it so "full AI systems knowledge" stays baked). TRUNCATE keeps
-# schema + indexes; one statement so FK order never bites.
-#
-# PG_DROP is a trusted CONSTANT list (config identifiers, never request data),
-# so the table NAMES stay inline in the SQL -- parameterization binds VALUES,
-# not identifiers, and pg can't bind a table name out-of-band. Routed through
-# mios-db --pg so creds + connection come from the SSOT [pgvector] section.
 PG_DROP="knowledge session tool_call scratch skill_invocation log_digest event directory_entry agent_memory kanban pending_action sys_env"
-echo "==> clearing pgvector runtime/AI tables (db=mios)"
-# Resolve the table names that actually exist (to_regclass returns NULL for a
-# missing table) so a schema-drifted host still resets the rest. Degrade-open:
-# any mios-db failure (DB down) leaves _pglist empty and we skip, never crash.
+echo "==> clearing pgvector runtime/AI tables"
 _pglist=$(for T in $PG_DROP; do
   [[ -n "$T" ]] || continue
   if mios-db --pg "SELECT to_regclass('public.$T');" 2>/dev/null \
@@ -66,7 +28,7 @@ if [[ -n $_pglist ]]; then
   mios-db --pg "TRUNCATE TABLE $_pglist RESTART IDENTITY;" 2>&1 | sed 's/^/   /'
   printf "   truncated: %s\n" "$_pglist"
 else
-  echo "   (no matching pg tables found -- pgvector down or schema empty)"
+  echo ""
 fi
 
 echo "==> clearing filesystem runtime dirs"
@@ -94,11 +56,6 @@ for D in "${DIRS[@]}"; do
     printf "   cleared %s\n" "$D"
 done
 
-# Day-0 reset also resets dir OWNERSHIP that drifted (the agent-plane
-# user consolidation left some dirs owned by the legacy `mios` user).
-# Without this, mcp-init.sh + mios-daemon-state fail with EPERM after
-# clearing because tmpfiles 'd' does not re-chown EXISTING dirs (only
-# creates missing). Make every service-owned dir mios-ai:mios-ai 0750.
 echo "==> reasserting mios-ai ownership on service dirs"
 for D in /var/lib/mios/mcp /var/lib/mios/daemon \
          /var/lib/mios/agent-pipe /var/lib/mios/ai \
@@ -153,4 +110,4 @@ systemctl is-active mios-mcp.service mios-daemon.service \
   | paste <(echo -e "mios-mcp\nmios-daemon\nhermes-agent\nhermes-dashboard\nagent-pipe\nhermes-tail") -
 
 echo
-echo "Day-0 reset complete."
+echo "Day-0 reset complete"

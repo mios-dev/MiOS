@@ -2,56 +2,16 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Installs operator-selected Flatpaks into the system image during the build process to ensure the final deployment (ISO, VHDX, etc.) contains the user's chosen desktop applications without requiring a network connection on first boot.
 # AI-related: 57-gnome.sh, /usr/share/mios/flatpak-list, /usr/share/mios/vendored/, /usr/lib/mios/state, /usr/lib/mios/state/flatpak-bake.env, mios-flatpak-install
-# 40-flatpak-bake: install operator-selected Flatpaks AT BUILD TIME so
-# every deploy shape (raw, vhdx, qcow2, ISO, WSL2 distro, Podman-WSL OCI
-# host) carries them baked into the image. Replaces the first-boot
-# install model -- the deployed system no longer needs network on first
-# boot to render the user's selected Flatpak surface.
-#
-# The Flatpak set comes from the operator's configurator-saved mios.toml
-# `[desktop].flatpaks` array, which build-mios.{sh,ps1} threads through
-# the pipeline as:
-#
-#   mios.toml [desktop].flatpaks
-#     -> --build-arg MIOS_FLATPAKS=<csv>
-#     -> /tmp/build/usr/share/mios/flatpak-list (newline-separated)
-#     -> THIS script reads either source and runs `flatpak install --system`
-#
-# Ordering: runs after 57-gnome.sh which adds the flathub remote, and
-# before 94-cleanup.sh which strips dnf/build caches. NON_FATAL_SCRIPTS
-# in build.sh marks this non-fatal so a transient network blip during
-# bake doesn't tank the whole build -- the first-boot mios-flatpak-install
-# service still picks up any uninstalled refs as a fallback.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
 
-# Resolve the selection list. Explicit env wins; build-arg-staged file
-# is the fallback. Both encode the same comma- (env) or newline-
-# (file) separated set of Flatpak refs.
 FLATPAK_LIST="${MIOS_FLATPAKS:-}"
 if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/usr/share/mios/flatpak-list ]]; then
     FLATPAK_LIST="$(tr '\n' ',' < /tmp/build/usr/share/mios/flatpak-list | sed 's/,*$//')"
 fi
-# Fall back to the canonical mios.toml in the build context if neither
-# env nor flatpak-list provided refs (e.g., when build was kicked off
-# without the wrapper that propagates the build-arg).
 if [[ -z "$FLATPAK_LIST" ]] && [[ -r /tmp/build/mios.toml ]]; then
-    # Scrape [desktop].flatpaks array out of mios.toml. The configurator
-    # (usr/share/mios/configurator/mios.html) emits multi-line arrays
-    # for >4 entries so awk's section bracket includes the
-    # multi-line continuation; grep -oE pulls every quoted string and
-    # the trailing flatpak-id regex filters out any non-ref strings
-    # (e.g. session/color_scheme values).
-    #
-    # The leading-char class is [A-Za-z] (case-insensitive) so extras
-    # entered through the configurator's "extra flatpaks" textarea --
-    # which validates against /^[A-Za-z][A-Za-z0-9_-]*(\.[A-Za-z][A-Za-z0-9_-]*){2,}$/
-    # -- are accepted by this scrape too. Previous [a-z]-only anchor
-    # silently dropped capital-leading IDs, breaking parity between
-    # configurator validation and bake-time scraping.
     FLATPAK_LIST="$(awk '/^\[desktop\]/,/^\[/{ if ($0 ~ /^\[desktop\]/) next; if ($0 ~ /^\[/) exit; print }' \
                    /tmp/build/mios.toml \
         | grep -oE '"[^"]+"' \
@@ -71,19 +31,12 @@ if ! command -v flatpak >/dev/null 2>&1; then
     exit 0
 fi
 
-# Ensure flathub remote is present at the system installation. 57-gnome.sh
-# adds it earlier; idempotent here for cases where 10-gnome was skipped
-# (e.g., headless variant, or a re-run from this phase forward).
 flatpak remote-add --system --if-not-exists flathub \
     https://dl.flathub.org/repo/flathub.flatpakrepo 2>/dev/null || true
 
-mios_log "selected refs: ${FLATPAK_LIST}"
-mios_log "system-wide install (may take several minutes)"
+mios_log "Selected refs: ${FLATPAK_LIST}"
+mios_log "System-wide install"
 
-# Per-remote install: mios.toml accepts `<remote>:<appid>` entries so
-# the operator can pull Nautilus.Devel from gnome-nightly and Epiphany
-# from fedora's flatpak registry rather than the stale Flathub copy.
-# Bare `<appid>` still defaults to flathub.
 INSTALLED=0
 FAILED=0
 IFS=',' read -ra REFS <<< "$FLATPAK_LIST"
@@ -91,15 +44,10 @@ for raw in "${REFS[@]}"; do
     ref="$(echo "$raw" | xargs)"
     [[ -z "$ref" ]] && continue
 
-    # Skip empty / comment-shaped entries (a stray `# ...` slipped through
-    # the configurator save would otherwise trip the install).
     case "$ref" in
         \#*) continue ;;
     esac
 
-    # Split on first colon -- `gnome-nightly:org.gnome.Nautilus.Devel`
-    # -> remote=gnome-nightly, app=org.gnome.Nautilus.Devel. No colon
-    # means bare app id -> flathub.
     case "$ref" in
         *:*)
             remote="${ref%%:*}"
@@ -111,8 +59,6 @@ for raw in "${REFS[@]}"; do
             ;;
     esac
 
-    # Ensure the remote exists. flathub is added above; other remotes
-    # are added on-demand here (the standard URLs are well-known).
     if ! flatpak remote-list --system --columns=name 2>/dev/null | grep -qw "$remote"; then
         case "$remote" in
             flathub)
@@ -137,9 +83,9 @@ for raw in "${REFS[@]}"; do
         local_flatpak="/usr/share/mios/vendored/${app}.flatpak"
     fi
 
-    mios_log "installing ${app} (from ${remote})"
+    mios_log "Installing ${app}"
     if [ -n "$local_flatpak" ]; then
-        mios_log "offline vendored flatpak file: ${local_flatpak}"
+        mios_log "Offline vendored flatpak file: ${local_flatpak}"
         install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${local_flatpak}"
     else
         install_cmd="flatpak install --system --noninteractive --assumeyes --or-update ${remote} ${app}"
@@ -164,9 +110,6 @@ done
 
 mios_ok "${INSTALLED} refs attempted, ${FAILED} reported non-zero"
 
-# Mark the bake state so the first-boot service can short-circuit when
-# everything's already present, and the postcheck can verify that the
-# image actually carries the installed refs.
 install -d -m 0755 /usr/lib/mios/state
 {
     printf 'MIOS_FLATPAK_BAKE_DATE=%s\n' "$(date -u +%FT%TZ)"

@@ -1,22 +1,6 @@
 #!/bin/sh
 # AI-hint: Executes a polling loop to identify and center newly mapped windows (WSLg/Flatpak) by comparing current HWNDs against a pre-launch snapshot via the os_control executor to ensure correct placement of main application windows.
 # AI-related: /usr/libexec/mios/mios-autocenter
-# /usr/libexec/mios/mios-autocenter <executor-endpoint> <before-hwnds-csv>
-#
-# Honour the operator rule "all apps launch CENTERED ALWAYS!" for WSLg /
-# flatpak windows, which ignore Win32 launch-time placement (the Windows
-# executor only sees them AFTER the compositor maps them).
-#
-# Strategy: the CALLER snapshots the set of visible window hwnds BEFORE
-# firing the launch and passes that CSV as $2. We then poll the Windows
-# OS-control executor (:11437, [os_control].executor_endpoint) for a hwnd
-# that was NOT in the before-set -- i.e. the freshly-mapped window -- and
-# center it by HWND. Centering by hwnd (not title) is robust for apps whose
-# window title doesn't carry the app-id: Nautilus="Files", Epiphany="GNOME
-# Web", gnome-text-editor="Untitled Document", etc.
-#
-# Backgrounded with setsid by the caller so it outlives the launch shim.
-# No-op (exit 0) when no executor endpoint, no curl, or no python3.
 set -u
 
 ep="${1:-}"; ep="${ep%/}"
@@ -35,10 +19,6 @@ try:
     d = json.load(sys.stdin)
 except Exception:
     raise SystemExit
-# Pick the LARGEST new window (max w*h) -- the MAIN app window, not a tiny
-# tooltip/popup/PopupHost that a Store/Win32 app also spawns (operator
-# 2026-05-29: notepad opened with 11 popup windows; centering must hit the
-# real document window). Falls back gracefully when sizes are absent.
 best_h, best_area = "", -1
 for w in d.get("windows", []):
     h = str(w.get("hwnd"))

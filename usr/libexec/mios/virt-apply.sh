@@ -2,8 +2,6 @@
 # AI-hint: Apply Xbox VM Config + Manual Secure Boot Key Enrollment
 set -euo pipefail
 
-# Apply Xbox VM Config + Manual Secure Boot Key Enrollment
-# Uses virt-firmware to directly enroll Vendor keys
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -13,7 +11,6 @@ CYAN='\033[0;36m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-# set -e covered by set -euo pipefail at top
 
 echo -e "${BOLD}${GREEN}══════════════════════════════════════════════════════════${NC}"
 echo -e "${BOLD}${GREEN}    Xbox VM: Final Configuration + Secure Boot Fix${NC}"
@@ -54,7 +51,7 @@ else
 fi
 
 echo -e "\n${BLUE}[2/6] Stopping VM...${NC}"
-VM_STATE=$(virsh domstate Xbox 2>/dev/null || echo "not found")
+VM_STATE=$(virsh domstate Xbox 2>/dev/null || echo "Not found")
 if [ "$VM_STATE" == "running" ]; then
     virsh shutdown Xbox
     sleep 5
@@ -74,7 +71,6 @@ echo -e "${GREEN}[ok] Backup: $BACKUP_DIR${NC}"
 
 echo -e "\n${BLUE}[4/6] Applying new configuration...${NC}"
 
-# Resolve UUID and MAC (parameterized or random fallback)
 _UUID="${MIOS_VM_UUID:-$(cat /proc/sys/kernel/random/uuid 2>/dev/null || echo "67c67c35-3da2-4595-a578-e0ef1998ae43")}"
 _MAC="${MIOS_VM_MAC:-52:54:00:e4:0a:3f}" # Keep stable default if not provided
 
@@ -94,7 +90,7 @@ echo -e "\n${BLUE}[5/6] Starting VM to create fresh NVRAM...${NC}"
 virsh start Xbox
 sleep 3
 virsh shutdown Xbox
-echo "Waiting for clean shutdown..."
+echo "Waiting for clean shutdown"
 sleep 5
 
 if [ ! -f "$NVRAM" ]; then
@@ -106,16 +102,13 @@ echo -e "${GREEN}[ok] Fresh NVRAM created${NC}"
 echo -e "\n${BLUE}[6/6] Enrolling Vendor Secure Boot keys...${NC}"
 echo -e "${CYAN}Using virt-fw-vars to inject Vendor keys...${NC}"
 
-# Create temporary work file
 TEMP_NVRAM="/tmp/xbox-nvram-temp.fd"
 cp "$NVRAM" "$TEMP_NVRAM"
 
-# Enroll keys
 if virt-fw-vars --input "$TEMP_NVRAM" \
                 --output "$TEMP_NVRAM" \
                 --enroll-redhat \
                 --secure-boot 2>&1 | tee /tmp/enrollment.log; then
-    # Copy back
     cp "$TEMP_NVRAM" "$NVRAM"
     rm "$TEMP_NVRAM"
     echo -e "${GREEN}[ok] Vendor keys enrolled!${NC}"

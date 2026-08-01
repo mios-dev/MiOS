@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: iommu-groups -- list IOMMU groups and the PCIe devices in each.
 # AI-functions: check_enabled, list_groups, show_device
-# iommu-groups -- list IOMMU groups and the PCIe devices in each.
-# Read-only; safe for non-root invocation. Reports whether IOMMU is
-# enabled (intel_iommu=on / amd_iommu=on must be in kargs *and* the
-# CPU+chipset must support VT-d / AMD-Vi -- no VT-d means no /sys/kernel/
-# iommu_groups regardless of kargs).
-#
-#   iommu-groups                    list every group
-#   iommu-groups --device <BDF>     show the group containing <BDF>
-#   iommu-groups --check            print yes/no on IOMMU enablement
 set -euo pipefail
 
 iommu_root="/sys/kernel/iommu_groups"
@@ -20,7 +11,7 @@ check_enabled() {
         return 0
     fi
     echo "IOMMU: NOT enabled"
-    echo "  - confirm CPU+chipset support VT-d (Intel) / AMD-Vi (AMD)"
+    echo "  - confirm CPU+chipset support VT-d / AMD-Vi"
     echo "  - confirm kargs include 'intel_iommu=on iommu=pt' or 'amd_iommu=on iommu=pt'"
     echo "  - on bare-metal: BIOS 'VT-d' / 'IOMMU' / 'SVM' must be Enabled"
     return 1
@@ -33,7 +24,7 @@ list_groups() {
         for d in "$iommu_root/$g/devices/"*; do
             local bdf="${d##*/}"
             local desc
-            desc="$(lspci -nns "$bdf" 2>/dev/null || echo "$bdf (lspci unavailable)")"
+            desc="$(lspci -nns "$bdf" 2>/dev/null || echo "$bdf")"
             echo "    $desc"
         done
     done
@@ -44,7 +35,7 @@ show_device() {
     local link
     link="$(readlink -f /sys/bus/pci/devices/"$bdf"/iommu_group 2>/dev/null || true)"
     if [[ -z "$link" ]]; then
-        echo "iommu-groups: device '$bdf' not found or not in an IOMMU group" >&2
+        echo "Iommu-groups: device '$bdf' not found or not in an IOMMU group" >&2
         return 1
     fi
     local g="${link##*/}"
@@ -57,8 +48,8 @@ show_device() {
 
 case "${1:-}" in
     --check) check_enabled ;;
-    --device) [[ -n "${2:-}" ]] || { echo "iommu-groups --device <BDF>" >&2; exit 2; }; show_device "$2" ;;
+    --device) [[ -n "${2:-}" ]] || { echo "Iommu-groups" >&2; exit 2; }; show_device "$2" ;;
     --help|-h) sed -n '2,12p' "$0" | sed 's/^# \?//' ;;
     "") check_enabled >/dev/null && list_groups ;;
-    *) echo "iommu-groups: unknown flag '$1' (try --help)" >&2; exit 2 ;;
+    *) echo "Iommu-groups: unknown flag '$1'" >&2; exit 2 ;;
 esac

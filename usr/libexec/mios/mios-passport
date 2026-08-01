@@ -91,7 +91,6 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
 
-# ─── SSOT env knobs ───────────────────────────────────────────────
 ENABLE = os.environ.get("MIOS_PASSPORT_ENABLE", "true").lower() \
     not in {"false", "0", "no"}
 ALGO = os.environ.get("MIOS_PASSPORT_ALGO", "ed25519")
@@ -108,16 +107,12 @@ if _env_agents:
 else:
     AGENTS = list(DEFAULT_AGENTS)
 
-# pgvector store via the pure-python mios-pg-query wire client (the legacy
-# BSL 1.1 store is retired). Loopback trust -- no auth/psql/podman; works for the
-# confined mios-ai service user. Same client mios-rag / mios-db --pg use.
 PG_QUERY_BIN = os.environ.get(
     "MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
 
 _AGENT_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,62}$")
 
 
-# ─── pgvector helper (mios-pg-query, pure-python pg wire client) ──────
 def _pg(sql: str, *, timeout: float = 15.0) -> list:
     """Run one SQL statement on pgvector via mios-pg-query. Returns rows as
     lists of string columns (psql -At: tab-separated, newline rows).
@@ -142,7 +137,6 @@ def sq(s: str) -> str:
     return "'" + str(s).replace("'", "''") + "'"
 
 
-# ─── canonical-JSON op_hash (same algorithm as agent-pipe) ────────
 def canonical_json(obj) -> str:
     """Deterministic JSON for hashing. Sorts object keys + uses
     compact separators so the same logical record always hashes to
@@ -162,7 +156,6 @@ def op_hash(table: str, fields: dict) -> str:
     return "sha256:" + hashlib.sha256(canon.encode("utf-8")).hexdigest()
 
 
-# ─── key material ──────────────────────────────────────────────────
 def _agent_dir(agent: str) -> str:
     if not _AGENT_NAME_RE.match(agent):
         raise ValueError(f"invalid agent name: {agent!r}")
@@ -184,9 +177,6 @@ def _load_public(agent: str) -> ed25519.Ed25519PublicKey:
     if os.path.exists(fs_path):
         with open(fs_path, "rb") as f:
             return serialization.load_pem_public_key(f.read())
-    # DB fallback (pgvector agent_keypair). The PEM is multi-line; select it
-    # with newlines folded to a sentinel so mios-pg-query's one-row-per-line
-    # output stays parseable, then restore them before parsing.
     sql = (
         f"SELECT replace(public_key_pem, E'\\n', E'\\x01') "
         f"FROM agent_keypair "
@@ -215,7 +205,6 @@ def _kid_for(agent: str) -> str:
     return f"{agent}-v1"
 
 
-# ─── signing + verification ────────────────────────────────────────
 def _sign_bytes(agent: str, ts: str, nonce_b64: str,
                 op_hash_str: str) -> bytes:
     """The canonical payload-to-sign. Newline-separated 4-tuple --
@@ -290,7 +279,6 @@ def verify_envelope(envelope: dict,
     return True, "ok"
 
 
-# ─── provisioning ─────────────────────────────────────────────────
 def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
     """Create the agent's keypair on disk if absent (or always when
     `force`). Returns (kid, rotated_flag)."""
@@ -302,8 +290,6 @@ def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
     if os.path.exists(priv_path) and not force:
         kid = _kid_for(agent)
         return kid, False
-    # Determine the new kid. v1 on first provision; on --force we
-    # increment past the existing kid.
     if os.path.exists(kid_path):
         with open(kid_path) as f:
             current = f.read().strip()
@@ -322,8 +308,6 @@ def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo,
     )
-    # Write atomically. Private key 0600; public key world-readable
-    # so any agent can verify without ACL coordination.
     tmp_priv = priv_path + ".new"
     with open(tmp_priv, "wb") as f:
         f.write(priv_pem)
@@ -336,7 +320,6 @@ def _write_keypair(agent: str, *, force: bool) -> Tuple[str, bool]:
     os.replace(tmp_pub, pub_path)
     with open(kid_path, "w") as f:
         f.write(new_kid)
-    # Register in pgvector (agent_keypair). Retire any prior live row first.
     _pg(
         f"UPDATE agent_keypair SET retired = true, "
         f"rotated_at = now() "
@@ -387,12 +370,10 @@ def cmd_list(args: argparse.Namespace) -> int:
         "FROM agent_keypair ORDER BY agent, provisioned_at;")
     rows = []
     for r in raw:
-        # psql -At columns, in SELECT order; pad short rows (trailing NULLs).
         r = (r + [""] * 6)[:6]
         rows.append({
             "agent": r[0], "kid": r[1], "alg": r[2],
             "provisioned_at": r[3], "rotated_at": r[4],
-            # pg renders booleans as 't'/'f' in -At output.
             "retired": r[5] == "t",
         })
     if args.json:
@@ -503,7 +484,6 @@ def cmd_hash(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── argparse wiring ──────────────────────────────────────────────
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="mios-passport",

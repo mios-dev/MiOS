@@ -20,7 +20,6 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-# Resolve Python executable robustly
 PYTHON_EXE=""
 if command -v py &>/dev/null; then
     PYTHON_EXE=py
@@ -52,7 +51,6 @@ desc = str(ups_conf.get("desc", "MiOS Uninterruptible Power Supply")).strip()
 
 os.makedirs(conf_dir, exist_ok=True)
 
-# 1. nut.conf
 nut_lines = [
     "# AI-hint: NUT framework mode. Generated from mios.toml [power.ups] SSOT.",
     "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
@@ -65,7 +63,6 @@ else:
 with open(os.path.join(conf_dir, "nut.conf"), "w", encoding="utf-8") as f:
     f.write("\n".join(nut_lines) + "\n")
 
-# 2. ups.conf
 ups_lines = [
     "# AI-hint: NUT drivers configuration. Generated from mios.toml [power.ups] SSOT.",
     "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
@@ -82,7 +79,6 @@ if name:
 with open(os.path.join(conf_dir, "ups.conf"), "w", encoding="utf-8") as f:
     f.write("\n".join(ups_lines) + "\n")
 
-# 3. upsd.conf
 upsd_lines = [
     "# AI-hint: NUT daemon settings. Generated from mios.toml [power.ups] SSOT.",
     "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",
@@ -96,7 +92,6 @@ if name:
 with open(os.path.join(conf_dir, "upsd.conf"), "w", encoding="utf-8") as f:
     f.write("\n".join(upsd_lines) + "\n")
 
-# 4. upsmon.conf
 upsmon_lines = [
     "# AI-hint: NUT monitor settings. Generated from mios.toml [power.ups] SSOT.",
     "# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh",

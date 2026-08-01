@@ -3,73 +3,9 @@
 # AI-related: /usr/libexec/mios/mios-windows, /etc/mios/windows-host, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-autocenter, mios-autocenter, mios-find, mios-oscontrol-server, mios-pc-control, mios-hermes-firstboot
 # AI-functions: _app_paths_resolve, _start_menu_resolve, _startapps_resolve, _mios_executor_endpoint, _mios_launch_via_executor, _mios_arm_autocenter, usage, do_ssh_ps, _build_uri_center_ps
 set -euo pipefail
-# /usr/libexec/mios/mios-windows <subcommand> [args...]
-#
-# Reach the Windows host from inside this WSL2 distro. The agent uses
-# this when it needs to launch a Windows app, run a PowerShell command,
-# or otherwise touch the host the WSL VM lives inside.
-#
-# TWO BACKENDS, ONE FRONTEND
-# ──────────────────────────
-#
-# WSL interop (default; no setup, no SSH, no Tailscale required):
-#   /init -- the program PID 1 inside this WSL2 distro -- transparently
-#   exec's any /mnt/c/.../*.exe directly on the Windows host, with
-#   stdout/stderr piped back into the Linux side. Works for every
-#   GUI app + any non-elevated cmd.exe / powershell.exe one-liner.
-#
-# Tailscale SSH (subcommand: `ssh-ps`; opt-in for remote / elevated):
-#   For commands that need to run AS the host's interactive operator
-#   account (not the SYSTEM-context interop spawns), or that need to
-#   reach a different machine on the tailnet, the legacy Tailscale-SSH
-#   path is preserved. Requires Tailscale SSH enabled host-side
-#   (`tailscale set --ssh`); see /etc/mios/windows-host (pinned
-#   tailnet IP) and the [identity] block in mios.toml.
-#
-# OPERATOR DIRECTIVE 2026-05-15
-# ─────────────────────────────
-# "didn't create a skill or tool to use--should be able to ssh in to
-# the hosts' shell environment via loopback (or similar)". The "or
-# similar" turned out to be plain WSL interop -- no SSH needed for
-# the common case (launching notepad, running ipconfig, querying a
-# service status). The Tailscale-SSH path stays for the cases where
-# interop's SYSTEM-spawned context isn't what's wanted.
-#
-# SUBCOMMANDS
-#   launch <app>      Launch a Windows GUI app by short name (notepad,
-#                     explorer, calc, mspaint, snipping-tool, taskmgr,
-#                     regedit, control, cmd, powershell, pwsh) or by
-#                     full /mnt/c/.../*.exe path. Detached; returns
-#                     immediately.
-#
-#   ps "<cmd>"        Run a Windows PowerShell command via interop.
-#                     Output captured + returned. Default PowerShell
-#                     5.1 (System32\WindowsPowerShell\v1.0). Override
-#                     via MIOS_WINDOWS_PWSH=<absolute path> for pwsh 7.
-#
-#   cmd "<cmd>"       Run a Windows cmd.exe command via interop.
-#
-#   ssh-ps [-e] "<cmd>"   Run a PowerShell command via Tailscale SSH
-#                          (preserves the legacy logic for elevated /
-#                          remote-tailnet cases). -e wraps in a
-#                          SYSTEM-level Task Scheduler trigger
-#                          (placeholder; not yet wired).
-#
-#   list              Print known short-name -> .exe mappings.
-#
-#   help              Print this help.
 
 set -eu
 
-# GENERATIVE Windows-app name resolution -- NO hardcoded short-name->exe table
-# (operator "NO HARDCODES"; research 2026-05-29). The canonical exe-name->path
-# map on Windows is the App Paths registry: HKCU/HKLM \SOFTWARE\Microsoft\
-# Windows\CurrentVersion\App Paths\<name>.exe whose (Default) value is the
-# fully-qualified path (per-user installs under HKCU, all-users under HKLM, so
-# scan BOTH). Resolve a bare name straight from the live registry via reg.exe;
-# returns a WSL path on stdout, or non-zero if not registered (caller then
-# tries System32 / mios-find). This covers notepad/calc/mspaint/regedit/... and
-# every operator-installed app that registers App Paths -- without a baked list.
 _app_paths_resolve() {  # <name> -> WSL path of the registered exe, or empty
     local name="$1" reg="/mnt/c/Windows/System32/reg.exe" win hive
     [ -x "$reg" ] || return 1
@@ -88,14 +24,6 @@ _app_paths_resolve() {  # <name> -> WSL path of the registered exe, or empty
 PWSH="${MIOS_WINDOWS_PWSH:-/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
 CMD="/mnt/c/Windows/System32/cmd.exe"
 
-# GENERATIVE Start-Menu .lnk resolution (research 2026-05-29 open-Q1: App Paths
-# is INSTALLER-OPTIONAL + incomplete, and the Everything index is install-gated,
-# so a name in neither would fail). The Start Menu is the canonical, always-
-# present app catalog on Windows: scan both the all-users (%ProgramData%) and
-# per-user (%APPDATA%) Programs trees for a .lnk whose name matches, pick the
-# shortest (closest) match, and return its WSL path -- Start-Process opens a
-# .lnk directly (covers Store/UWP shortcuts too, which have no plain exe path).
-# Everything-INDEPENDENT (pure filesystem scan); the fallback before mios-find.
 _start_menu_resolve() {  # <name> -> WSL path of the matching Start-Menu .lnk
     local name="${1//\'/}" out
     [ -n "$name" ] || return 1
@@ -111,23 +39,10 @@ if(\$h){ \$h.FullName }
     return 1
 }
 
-# GENERATIVE UWP/Store app resolution (operator 2026-06-04 "no hardcodes for
-# application detections"). UWP built-ins (Calculator, Settings, Photos, Camera,
-# Clock, ...) register NO App Paths exe and NO Start-Menu .lnk -- they live ONLY
-# in the AppsFolder, enumerable via Get-StartApps (Name + AppID). Fuzzy-match the
-# requested name to a Start app and echo `shell:appsFolder\<AppID>` (the exact
-# form the launch dispatch + the in-session executor already open via explorer's
-# appsFolder handler). No baked app list -- the LIVE Get-StartApps catalog is the
-# source of truth, so this resolves ANY installed UWP app, not a fixed set.
 _startapps_resolve() {  # <name> -> shell:appsFolder\<AppID>, or empty
     local name="${1//\'/}" out
     [ -n "$name" ] || return 1
     [ -x "$PWSH" ] || return 1
-    # Match SPACE/PUNCTUATION/CASE-insensitively: agents routinely mangle a
-    # display name ("Character Map" -> "CharacterMap", "Task Manager" ->
-    # "TaskManager"), so normalise BOTH the query and each candidate to
-    # alphanumerics-lowercase before substring-matching. >=2 chars guards the
-    # empty/degenerate query from matching everything (operator 2026-06-04).
     out="$("$PWSH" -NoProfile -NonInteractive -Command "
 \$n=('$name' -replace '[^A-Za-z0-9]','').ToLower()
 \$a=\$null
@@ -138,10 +53,7 @@ if(\$a){ 'shell:appsFolder\\' + \$a.AppID }
     return 1
 }
 
-# Resolve the Windows OS-control executor endpoint from SSOT: the
 # MIOS_OSCONTROL_EXECUTOR env override first, else [os_control].executor_endpoint
-# in /etc (host overlay wins) then /usr mios.toml. Echoes the trimmed URL (no
-# trailing slash) or nothing. No hardcoded host/port (operator binding).
 _mios_executor_endpoint() {
     _ep="${MIOS_OSCONTROL_EXECUTOR:-}"
     if [ -z "$_ep" ]; then
@@ -151,14 +63,6 @@ _mios_executor_endpoint() {
             [ -n "$_ep" ] && break
         done
     fi
-    # WSL2 local auto-discovery (operator 2026-06-07): no env override + no
-    # configured endpoint, but the in-session executor (mios-oscontrol-server.ps1)
-    # listens on :11437. Reach it over the WSL NAT default-route gateway (the
-    # Windows host) so VISIBLE launches work WITHOUT Tailscale -- otherwise the
-    # WSL-interop fallback lands in a Session-0 window station (no visible window).
-    # The caller curls /launch, so an unreachable gateway simply falls back to the
-    # legacy route -- no regression, and it self-heals once the host firewall
-    # admits the WSL subnet. Same resolver shape as mios-pc-control.
     if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
         _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
         [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_PORT_OSCONTROL:-11437}"
@@ -166,24 +70,10 @@ _mios_executor_endpoint() {
     printf '%s' "${_ep%/}"
 }
 
-# Launch a Windows GUI app THROUGH the in-session executor (operator 2026-05-29:
-# the canonical fix). A Windows process spawned via WSL interop / the launcher
-# broker lands in a NON-INTERACTIVE window station -- simple Win32 apps may still
-# surface, but multi-process Electron apps (Discord, Slack, Teams, VS Code)
-# spawn their processes there and their window NEVER reaches the operator's
-# visible desktop (proven live: Discord -> 6 procs, MainWindowHandle=0, ZERO
-# top-level windows). The executor (:11437) runs as a scheduled task INSIDE the
-# operator's interactive session, so its Start-Process shows the window on the
-# real desktop + verifies it + centers it. Returns 0 on a confirmed launch (so
-# the caller exits), non-zero to fall through to the legacy broker route.
 _mios_launch_via_executor() {  # <app-name-or-windows-path> [args...]
     command -v curl >/dev/null 2>&1 || return 1
     _xe="$(_mios_executor_endpoint)"
     [ -z "$_xe" ] && return 1
-    # Fast reachability pre-check: a configured-but-unreachable executor (e.g. the
-    # auto-resolved WSL-gateway endpoint before the host firewall admits the WSL
-    # subnet) must fall back to the legacy interop path in ~2s, NOT stall the whole
-    # launch on the 45s POST timeout below (operator 2026-06-07).
     curl -fsS -m 2 "$_xe/health" >/dev/null 2>&1 || return 1
     _app="$1"
     shift
@@ -200,7 +90,6 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path> [args...]
                 if [ -n "$_entry" ] && [ "$_entry" != "$_part" ] && [ "$_entry" != "App" ] && [ "$_entry" != "app" ]; then
                     _hint="$_entry"
                 else
-                    # Extract clean token: e.g. WindowsCalculator, SpotifyMusic
                     _hint="$(echo "$_part" | cut -d! -f1 | cut -d. -f2 | cut -d_ -f1)"
                 fi
                 ;;
@@ -214,10 +103,6 @@ _mios_launch_via_executor() {  # <app-name-or-windows-path> [args...]
                 ;;
         esac
     fi
-    # `verify` = the human title hint (MIOS_LAUNCH_TITLE_HINT, e.g. "Forza
-    # Horizon 6") so the executor matches the WINDOW by title, not by a steam://
-    # URI / shell:appsFolder string that never appears in a window title
-    # (operator 2026-05-30). Falls back to `app` when no hint is set.
     _resp="$(python3 - "$_app" "$_xe" "$_args" "$_hint" <<'PYEOF'
 import sys, os, json, urllib.request
 try:
@@ -230,25 +115,15 @@ except Exception:
 PYEOF
     )"
     [ -z "$_resp" ] && return 1
-    # launched:true (window confirmed present) OR fired:true (process started --
-    # the executor's in-session Start-Process succeeded; honest about windowless
-    # apps via launched). Either means we used the correct in-session path.
     case "$_resp" in
         *'"launched": true'*|*'"launched":true'*|*'"fired": true'*|*'"fired":true'*)
             echo "[mios-windows] launched via in-session executor: $_resp"
             return 0 ;;
     esac
-    echo "[mios-windows] executor launch did not confirm ($_resp) -- falling back" >&2
+    echo "[mios-windows] executor launch did not confirm" >&2
     return 1
 }
 
-# Arm the executor-based auto-center (operator 2026-05-29: "launches are ALWAYS
-# centered"). The in-PowerShell center loop relies on the launched process's
-# MainWindowHandle, which is 0 for Store apps (the stub process doesn't own the
-# window) -> notepad et al. open top-left. mios-autocenter instead snapshots the
-# window hwnds BEFORE the launch + centers the LARGEST NEW window afterward via
-# the Windows executor -- robust for Store/native/WSLg alike. No-op without an
-# executor endpoint. Same mechanism flatpak-launch uses for Linux GUIs.
 _mios_arm_autocenter() {
     [ -x /usr/libexec/mios/mios-autocenter ] || return 0
     command -v curl >/dev/null 2>&1 || return 0
@@ -298,7 +173,6 @@ elevated commands and reaching other tailnet hosts.
 USAGE
 }
 
-# ─── Tailscale SSH path (legacy; preserved verbatim from prior version) ──
 do_ssh_ps() {
     local elevated=0
     if [ "${1:-}" = "-e" ] || [ "${1:-}" = "--elevated" ]; then
@@ -306,15 +180,11 @@ do_ssh_ps() {
         shift
     fi
     if [ "$#" -eq 0 ]; then
-        echo "mios-windows ssh-ps: missing <command>" >&2
+        echo "Mios-windows ssh-ps: missing <command>" >&2
         return 64
     fi
     local cmd="$*"
 
-    # Resolve Windows tailscale IP. Single-tenant dev VM contract: there's
-    # exactly one Windows host on the tailnet that this distro runs inside.
-    # IP is stored once in /etc/mios/windows-host (created by
-    # mios-hermes-firstboot if Tailscale is detected).
     local win_host_file=/etc/mios/windows-host
     local win_host=""
     if [ -r "$win_host_file" ]; then
@@ -322,12 +192,11 @@ do_ssh_ps() {
     else
         win_host="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
         if [ -z "$win_host" ]; then
-            echo "mios-windows ssh-ps: cannot determine Windows host (no $win_host_file, no default gateway)" >&2
+            echo "Mios-windows ssh-ps: cannot determine Windows host" >&2
             return 1
         fi
     fi
 
-    # Resolve operator username -- the agent's identity for the SSH session.
     local win_user=""
     if [ -r /usr/share/mios/mios.toml ]; then
         win_user="$(awk -F\" '/^\s*windows_user\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
@@ -369,8 +238,6 @@ shift
 
 case "$sub" in
     list)
-        # GENERATIVE: enumerate the live Windows App Paths registry (the real
-        # exe-name -> path map) instead of a hardcoded short-name table.
         printf '%-28s %s\n' "NAME" "EXE (App Paths registry)"
         _reg="/mnt/c/Windows/System32/reg.exe"
         if [ -x "$_reg" ]; then
@@ -384,22 +251,14 @@ case "$sub" in
                     done
             done | sort -u
         else
-            echo "(reg.exe unavailable -- not on WSL2? resolution is generative via App Paths at launch time)"
+            echo ""
         fi
         ;;
     launch)
         if [ "$#" -lt 1 ]; then
-            echo "mios-windows launch: missing <app>" >&2
+            echo "Mios-windows launch: missing <app>" >&2
             exit 64
         fi
-        # Stdin mode: `mios-windows launch -` reads the path from
-        # stdin. Sidesteps bash paren-parsing on paths like
-        # C:\Program Files (x86)\Steam\steam.exe where the unquoted
-        # `(x86)` triggers a subshell-syntax error before the script
-        # is even invoked. Operator-confirmed regression 2026-05-16:
-        # agent emitted `mios-windows launch C:\Program Files
-        # (x86)\Steam\steam.exe` without quoting -- bash errored
-        # "syntax error near unexpected token `('".
         if [ "$1" = "-" ]; then
             shift
             app="$(cat)"
@@ -408,54 +267,12 @@ case "$sub" in
             app="$1"
             shift
         fi
-        # URI passthrough: `mios-windows launch uplay://launch/16732/0`
-        # (or steam://, epic://, http://, etc.) re-dispatches to the
-        # ps subcommand with Start-Process -- Windows registers
-        # protocol handlers per scheme. Without this, the existence
-        # check below rejects URIs as "unknown app" and the agent
-        # spirals into refusal. Operator-confirmed regression
-        # 2026-05-16: agent saw `mios-find "the crew motorfest"`
-        # return `mios-windows ps "Start-Process uplay://..."` but
-        # then called `mios-windows launch uplay://...` (wrong
-        # subcommand) and got "unknown app", concluding the URL was
-        # invalid. Now both subcommands accept URIs.
-        # ─── URI / UWP launches: center+focus the resulting window ───
-        # Direct .exe launches center via Start-Process -PassThru +
-        # MainWindowHandle polling on $p (the launched process). URI
-        # launches (steam://, com.epicgames.launcher://, http://, ...) and
-        # UWP shell:appsFolder\ launches DON'T return the game's process
-        # -- they return the protocol handler (steam.exe, explorer.exe).
-        # Without explicit post-launch window discovery, these never get
-        # centered. Operator directive 2026-05-17: "launching apps should
-        # launch centered too!! MiOS Agents must have launch param/args
-        # tools for launching applications(should always launch centered
-        # and focused)".
-        #
-        # Strategy for URI/UWP: snapshot the current top-level window
-        # handles, run Start-Process, poll for new top-level windows for
-        # up to MIOS_LAUNCH_CENTER_TIMEOUT seconds (default 15), then
-        # center+focus the first new window matching MIOS_LAUNCH_TITLE_HINT
-        # (case-insensitive substring) -- or the first new window if no
-        # hint. mios-find sets the hint to the app name from the
-        # inventory so multi-window protocol handlers (Steam launches
-        # both the storefront AND the game) center the right one.
         _build_uri_center_ps() {
-            # $1 = Start-Process invocation, e.g. "Start-Process 'steam://...'"
-            #      OR "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\...'"
-            # $2 = title hint (may be empty)
             local sp="$1"
             local hint="${2:-}"
             local timeout="${MIOS_LAUNCH_CENTER_TIMEOUT:-15}"
-            # PowerShell here-doc: snapshot -> launch -> poll new windows.
-            # Single-line for the broker's "CAPTURE: <cmdline>\n" wire.
             cat <<PSEOF
 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
-# UNIFIED window source (operator 2026-06-22 "unify MiOS systems"): center+detect
-# the launched window via the SAME EnumWindows + IsWindowVisible enumeration the
-# window_list verb (mios-pc-control.ps1) uses -- NOT Get-Process MainWindowHandle,
-# which is 0 for Electron / child-process windows (Spotify, Steam) so the old code
-# reported "[no new window]" + skipped centering on apps that DID open. Full C#
-# class (-TypeDefinition) so the EnumWindowsProc delegate is a normal nested type.
 if (-not ([System.Management.Automation.PSTypeName]'MiosLW').Type) {
   Add-Type -ErrorAction SilentlyContinue -TypeDefinition @'
 using System;
@@ -524,7 +341,6 @@ while ((Get-Date) -lt \$deadline) {
     Start-Sleep -Milliseconds 250
 }
 if (\$targetHwnd -ne [IntPtr]::Zero) {
-    # Un-minimize if needed (SW_RESTORE = 9, SW_SHOW = 5), then center + focus.
     [MiosLW]::ShowWindow(\$targetHwnd, 9) | Out-Null
     [MiosLW]::ShowWindow(\$targetHwnd, 5) | Out-Null
     \$r = New-Object MiosLW+RECT
@@ -556,37 +372,11 @@ PSEOF
 
         case "$app" in
             *://*)
-                # In-session executor FIRST: Start-Process invokes the protocol
-                # handler for steam:// / epic:// / uplay:// etc. natively + shows
-                # the window on the operator's desktop. The old broker/WSL-interop
-                # `ps` path fails "powershell.exe: Invalid argument" (the broker
-                # CWD isn't Windows-translatable) AND lands in a non-interactive
-                # window station (operator 2026-05-30: "play a game" -> steam:// ->
-                # Invalid argument). Fall back to the ps path only with no executor.
                 if _mios_launch_via_executor "$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process '$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
-            # UWP / Microsoft Store / Xbox / Game Pass apps. AppIDs come
-            # in two shapes:
-            #   1. shell:appsFolder\<PackageFamilyName>!<Entry>
-            #      -- canonical full URI (what mios-apps writes to the
-            #         windows-games cache for UWP entries)
-            #   2. <PackageFamilyName>!<Entry>
-            #      -- bare AppID as Get-StartApps returns
-            #         (e.g. "Microsoft.Limitless_8wekyb3d8bbwe!App")
-            # Both dispatch via explorer's shell:appsFolder URI handler
-            # -- the standard Windows mechanism to launch a UWP package
-            # by its package-family-name. Operator-flagged 2026-05-17:
-            # "Microsoft Flight Simulator 2024 ... launching it directly
-            # hasn'\''t been working" because the .exe doesn'\''t exist
-            # at a predictable filesystem path for UWP packages.
             shell:appsFolder*|shell:AppsFolder*)
-                # UWP / Store / Xbox apps. In-session executor first (it launches
-                # shell: URIs via explorer.exe + shows the window on the desktop);
-                # the broker/interop ps path is the fallback (Start-Process can't
-                # grok shell: URIs, so explorer.exe is the handler there too).
-                # Auto-heal dropped backslashes (e.g. shell:appsFolderSpotifyAB... -> shell:appsFolder\SpotifyAB...)
                 if [[ "$app" != *'\'* && "$app" != */* ]]; then
                     app="$(echo "$app" | sed -E 's/^(shell:appsFolder)(.*)/\1\\\2/I')"
                 fi
@@ -595,21 +385,11 @@ PSEOF
                 exec "$0" ps "$_PS"
                 ;;
             *_[0-9a-z]*\!*)
-                # Bare AppID (PackageFamilyName!Entry) from Get-StartApps --
-                # prepend shell:appsFolder\ then launch via the in-session
-                # executor first (explorer.exe handler), broker ps as fallback.
                 if _mios_launch_via_executor "shell:appsFolder\\$app" "$@"; then exit 0; fi
                 _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList 'shell:appsFolder\\$app'" "${MIOS_LAUNCH_TITLE_HINT:-}")"
                 exec "$0" ps "$_PS"
                 ;;
         esac
-        # Translate Windows-style paths (C:\... or D:\...) to WSL paths
-        # before the existence check. Operator-confirmed regression
-        # 2026-05-16: mios-find returns Windows-style paths (intended
-        # for Start-Process on the Windows side) -- mios-windows
-        # launch was rejecting them with "unknown app" because the
-        # bash `[ -e <C:\...> ]` test cant resolve a literal backslash
-        # path from WSL. wslpath -u handles the translation.
         case "$app" in
             [A-Za-z]:\\*|[A-Za-z]:/*)
                 if _wsl="$(wslpath -u "$app" 2>/dev/null)" && [ -n "$_wsl" ]; then
@@ -620,12 +400,7 @@ PSEOF
         if [ -e "$app" ]; then
             target="$app"
         elif _saf="$(_startapps_resolve "$app")" && [ -n "$_saf" ]; then
-            # UWP/Store built-in (Calculator, Notepad, Settings, Photos, ...) -- no exe,
-            # no .lnk; resolved generatively via Get-StartApps -> AppID. Launch
-            # the shell:appsFolder URI via the in-session executor (explorer
-            # handler) first, broker ps as the fallback. Tried BEFORE the
-            # System32 fallback so Windows 11 UWP AppX apps (Notepad/Calc) use shell:appsFolder.
-            echo "mios-windows launch: '$app' -> $_saf (Get-StartApps)" >&2
+            echo "Mios-windows launch: '$app' -> $_saf" >&2
             if _mios_launch_via_executor "$_saf" "$@"; then exit 0; fi
             _PS="$(_build_uri_center_ps "Start-Process -FilePath explorer.exe -ArgumentList '$_saf'" "${MIOS_LAUNCH_TITLE_HINT:-$app}")"
             exec "$0" ps "$_PS"
@@ -640,26 +415,10 @@ PSEOF
         elif target="$(_start_menu_resolve "$app")" && [ -n "$target" ] && [[ "$target" != *"WindowsApps"* ]]; then
             :   # resolved from a Start-Menu .lnk (generative, Everything-free)
         else
-            # Last-resort: ask mios-find. Operator-confirmed regression
-            # 2026-05-16 night: agent called `mios-windows launch beamng`
-            # (just the name) and got "unknown app", then FABRICATED a
-            # nonexistent "mios-windows install" subcommand to suggest.
-            # If mios-find returns ONE runnable line, exec it -- this
-            # is the canonical chain anyway (mios-find -> launch), now
-            # done implicitly so the helper is forgiving.
             if command -v mios-find >/dev/null 2>&1; then
                 _resolved="$(mios-find "$app" 2>/dev/null | head -1)"
                 if [ -n "$_resolved" ]; then
-                    echo "mios-windows launch: '$app' resolved via mios-find -> $_resolved" >&2
-                    # The mios-find line is a raw `mios-windows ps` INTEROP command
-                    # (Start-Process in a NON-INTERACTIVE station -> the window opens
-                    # where the operator never sees it -> "nothing launched" for Store
-                    # games / URIs; operator 2026-05-30 Wreckfest: fired:true but
-                    # presented_to_operator:false). Extract the launch TARGET (first
-                    # single-quoted token: a shell:appsFolder URI, a protocol:// URI,
-                    # or a path) and RE-LAUNCH it through THIS script's executor-first
-                    # path so it lands on the REAL interactive desktop. Fall back to
-                    # the interop line only if nothing usable extracts.
+                    echo "Mios-windows launch: '$app' resolved via mios-find -> $_resolved" >&2
                     _tgt="$(printf '%s' "$_resolved" | sed -n "s/[^']*'\([^']*\)'.*/\1/p" | head -1)"
                     if [ -n "$_tgt" ] && [ "$_tgt" != "$app" ]; then
                         MIOS_LAUNCH_TITLE_HINT="${MIOS_LAUNCH_TITLE_HINT:-$app}" \
@@ -668,60 +427,29 @@ PSEOF
                     exec sh -c "$_resolved"
                 fi
             fi
-            echo "mios-windows launch: unknown app '$app' -- run 'mios-find $app' or pass a full .exe path" >&2
+            echo "Mios-windows launch: unknown app '$app'" >&2
             exit 1
         fi
         if [ ! -e "$target" ]; then
-            echo "mios-windows launch: $target not found on disk -- is the Windows side missing the app?" >&2
+            echo "Mios-windows launch: $target not found on disk" >&2
             exit 1
         fi
 
-        # ALWAYS-CENTER: snapshot windows + center the new one post-launch via
-        # the executor (operator 2026-05-29 "launches are ALWAYS centered").
         _mios_arm_autocenter
 
-        # ── PRIMARY: in-session executor launch ───────────────────────
-        # Fire through the Windows executor (:11437), which runs in the
-        # operator's INTERACTIVE desktop session, so the window appears on the
-        # real screen + is verified + centered. The broker/interop route below
-        # leaves multi-process Electron apps (Discord/Slack/Teams) WINDOWLESS --
-        # their window is created in a non-interactive station the operator never
-        # sees (operator 2026-05-29: "discord NEVER OPENED" -- proven: executor
-        # /launch shows it, broker cmd/start does not). Falls through to the
-        # legacy broker route when no executor is configured / it didn't confirm.
         if _mios_launch_via_executor "$app" "$@"; then
             exit 0
         fi
 
-        # ── Service-user broker route (fallback) ──────────────────────
-        # Operator-confirmed regression 2026-05-16: agent ran
-        # `mios-windows launch ...` -> process succeeded, returned PID,
-        # but operator saw NOTHING on screen. Cause: direct setsid+nohup
-        # from mios-hermes (uid 820) launches the .exe in the WSL
-        # SERVICE session, not the operator's interactive Windows
-        # session. The window opens in session-0 (invisible) instead
-        # of session-1 (operator's desktop).
-        #
-        # Fix: route through the operator-side launcher broker. The
-        # broker runs as the operator (uid 992) inside their WSLg
-        # session; Start-Process there pops the window in the
-        # operator's interactive desktop where it's actually visible.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
         if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
-            # Translate /mnt/c/... back to C:\... for Start-Process
             _target_win="$(wslpath -w "$target" 2>/dev/null)"
             [ -z "$_target_win" ] && _target_win="$target"
             MIOS_LIB_DIR="$(cd "$(dirname "$0")" && pwd)/../../lib/mios" python3 - "$_target_win" "$@" <<'PYEOF'
 import socket, sys, shlex
 target = sys.argv[1]
 extra_args = sys.argv[2:]
-# Build the PowerShell Start-Process call + auto-center post-launch.
-# Operator directive 2026-05-16: "MiOS apps STILL don't center launch
-# and don't self center". Default Win32 placement is top-left or
-# last-position; centering here means every launched window appears
-# in the middle of the operator's primary monitor working area.
-# -PassThru returns the Process object so we can read MainWindowHandle.
 start = f"Start-Process -FilePath {shlex.quote(target)} -PassThru | Out-Null;\n"
 if extra_args:
     arglist = ", ".join(shlex.quote(a) for a in extra_args)
@@ -830,7 +558,6 @@ if ($targetHwnd -ne [IntPtr]::Zero) {
     $x = $s.X + [int](($s.Width - $w) / 2);
     $y = $s.Y + [int](($s.Height - $h) / 2);
     [MiosLW]::MoveWindow($targetHwnd, $x, $y, $w, $h, $true) | Out-Null;
-    # Win11 DWMWA_WINDOW_CORNER_PREFERENCE = 33; DWMCSP_ROUND = 2.
     $cp = 2; [MiosLW]::DwmSetWindowAttribute($targetHwnd, 33, [ref]$cp, 4) | Out-Null;
     try { [System.Windows.Forms.SendKeys]::SendWait('%') } catch {};
     $tpid = [uint32]0; $tt = [MiosLW]::GetWindowThreadProcessId($targetHwnd, [ref]$tpid);
@@ -844,17 +571,11 @@ if ($targetHwnd -ne [IntPtr]::Zero) {
 """.replace('<HINT>', hint_val)
 
 ps = pre_snapshot + start + post_center
-# PowerShell path resolution order (operator directive 2026-05-16:
-# environment args first):
-#   1. $WINDOWS_POWERSHELL env (set by hermes-agent.service.d drop-in)
-#   2. mios.toml [paths].powershell_exe
-#   3. canonical default
 import os
 def _resolve_powershell():
     env = os.environ.get("WINDOWS_POWERSHELL")
     if env:
         return env
-    # Shared layered mios.toml resolver (vendor < host < user); lib dir via env.
     _lib = os.environ.get("MIOS_LIB_DIR")
     if _lib and _lib not in sys.path:
         sys.path.insert(0, _lib)
@@ -867,14 +588,6 @@ def _resolve_powershell():
         pass
     return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 PWSH_PATH = _resolve_powershell()
-# FIRE-AND-FORGET dispatch, NOT a CAPTURE (operator 2026-05-29 "MULTIPLE
-# FAILURES": "open notepad" returned exit -1 "capture timeout >45s" though the
-# window opened). A GUI launch is long-running -- the CAPTURE protocol made the
-# broker WAIT for the whole PowerShell (Start-Process + the 5s center loop) and
-# the agent-pipe's 45s capture wrapped THAT, so a slow/Store-app launch tripped
-# the timeout + reported a false failure. The broker's plain dispatch Popens the
-# command in a NEW session (detached) + returns "OK" instantly; the agent-pipe
-# verifies via the window-diff / global pgrep. Mirrors the flatpak-launch detach.
 line = PWSH_PATH + " -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command " + shlex.quote(ps)
 s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(10.0)
@@ -889,27 +602,6 @@ PYEOF
             exit 0
         fi
 
-        # Operator-flagged 2026-05-18 (round 2): Start-Process still
-        # produced no window. Root cause: mios-launcher.service runs
-        # under user@992.service (systemd user manager = session c2
-        # `manager-early`), NOT the operator's interactive desktop
-        # session c11 (`user`). When PowerShell.exe is exec'd via
-        # WSL interop from c2, its Start-Process inherits the user-
-        # manager session context -- new process has no window
-        # station/desktop, MainWindowHandle stays 0.
-        #
-        # Bulletproof Win32-from-WSL pattern: cmd.exe /c start "" ...
-        # `start` uses ShellExecute, which goes through HKEY_CURRENT_
-        # USER associations + uses the interactive shell's window
-        # station regardless of the launching session. cmd.exe runs
-        # via the WSL interop bridge and attaches to session 1 (the
-        # operator's interactive). Resulting process surfaces on the
-        # operator's desktop.
-        #
-        # PowerShell is still used for the post-launch place/center
-        # step -- that's pure Win32 API (MoveWindow / SetForeground
-        # Window) on an existing hwnd, not a process spawn, so the
-        # session-context issue doesn't apply.
         _target_win="$(wslpath -w "$target" 2>/dev/null)"
         [ -z "$_target_win" ] && _target_win="$target"
         if [ -x "$CMD" ] || [ -x /mnt/c/Windows/System32/cmd.exe ]; then
@@ -919,39 +611,15 @@ target = sys.argv[1]
 pwsh = sys.argv[2]
 cmd_exe = sys.argv[3] or "/mnt/c/Windows/System32/cmd.exe"
 extra_args = sys.argv[4:]
-# cmd.exe /c start "" "<target>" [args...] is the canonical
-# session-1 spawn for any Windows program from WSL.
 start_args = [cmd_exe, "/c", "start", "", target] + extra_args
-# Operator directive 2026-05-18: "MiOS-Agent(s) MUST also KNOW
-# window launch params/args to be able to launch and move
-# precisely!!!". Three env-driven knobs the caller can set BEFORE
-# invoking mios-windows launch:
-#   MIOS_LAUNCH_POSITION   left|right|top|bottom|center|none
-#                          (default: center; "none" leaves WHERE the
-#                          OS placed the window)
-#   MIOS_LAUNCH_SIZE       <W>x<H>  (e.g. 1280x720; default: keep
-#                          the size Start-Process gave the window)
-#   MIOS_LAUNCH_PLACE      <X>,<Y>  (absolute top-left, takes
-#                          precedence over MIOS_LAUNCH_POSITION)
 import os
-# Operator directive 2026-05-18: "always default launched perfectly
-# centered as a 16:10 window centered at the screens current
-# resolutions bounds--centered and sized centered and ratioed at the
-# golden ratio + centered per 3x3 screen grid". Default position is
-# now "default": 16:10 window sized at W = screen_W / phi, centered
-# on the primary monitor's WorkingArea.
 position = os.environ.get("MIOS_LAUNCH_POSITION", "default").lower()
 size_env = os.environ.get("MIOS_LAUNCH_SIZE", "")
 place_env = os.environ.get("MIOS_LAUNCH_PLACE", "")
-# Compute the placement PowerShell snippet from those knobs.
-# NOTE: place_block uses $wh for window-HEIGHT to avoid colliding
-# with $h which is the hwnd in the post-launch script below.
 place_block = (
     "$x = $r.L; $y = $r.T; $w = $r.R - $r.L; $wh = $r.B - $r.T; "
     "$s = [System.Windows.Forms.Screen]::PrimaryScreen.WorkingArea; "
 )
-# Size override (parse "WxH"); applied before position so position
-# uses the NEW geometry.
 if "x" in size_env.lower():
     try:
         sw, sh = size_env.lower().split("x", 1)
@@ -959,7 +627,6 @@ if "x" in size_env.lower():
         place_block += f"$w = {sw}; $wh = {sh}; "
     except (ValueError, TypeError):
         pass
-# Absolute placement override.
 if "," in place_env:
     try:
         px, py = place_env.split(",", 1)
@@ -968,16 +635,11 @@ if "," in place_env:
         position = "_explicit"
     except (ValueError, TypeError):
         pass
-# Otherwise apply named position relative to PrimaryScreen WorkingArea.
 if position == "default":
-    # 16:10 window sized at W = screen_W / golden_ratio,
-    # H = W * 10/16, centered both axes. The PowerShell-side
-    # [Math]::Round + integer cast keeps the numbers clean.
     place_block += (
         "$phi = 1.6180339887; "
         "$w = [int]([Math]::Round($s.Width / $phi)); "
         "$wh = [int]([Math]::Round($w * 10.0 / 16.0)); "
-        # Don't exceed working area
         "if ($w  -gt $s.Width)  { $w = $s.Width }; "
         "if ($wh -gt $s.Height) { $wh = $s.Height }; "
         "$x = $s.X + [int](($s.Width  - $w)  / 2); "
@@ -1012,11 +674,7 @@ elif position == "maximize":
     place_block += "$x = $s.X; $y = $s.Y; $w = $s.Width; $wh = $s.Height; "
 elif position in ("none", "as-is", "_explicit"):
     pass  # keep existing $x/$y (no reposition for as-is/none;
-          # explicit values already in place for "_explicit")
 
-# 1. Spawn via cmd.exe /c start "" -- session-1 attach via WSL
-#    interop + ShellExecute. The "" empty title slot is required
-#    so `start` doesn't treat the next arg as a window title.
 subprocess.Popen(
     start_args,
     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -1024,34 +682,13 @@ subprocess.Popen(
 )
 print(f"[mios-windows] launched via cmd /c start: {target}")
 
-# 2. Post-launch FOCUS (always) + optional placement (if not as-is).
-#    Operator-flagged 2026-05-18: open_app(name="notepad") with
-#    position="as-is" (the new typed-tool default) succeeded -- but
-#    notepad opened BEHIND Windows Xbox Fullscreen Experience and
-#    was never brought to the foreground because the placement
-#    script was gated on `position != "none"` and skipped focus too.
-#    Fix: split focus from placement. ALWAYS bring the new window to
-#    the foreground (works around XFSE / Game Bar / any active full-
-#    screen overlay); only call MoveWindow when position changes.
-#
-#    Bulletproof Win32 focus pattern: AttachThreadInput (attach our
-#    thread to the target's; SetForegroundWindow always succeeds
-#    once attached) + ShowWindow SW_RESTORE (handles minimized) +
-#    BringWindowToTop + SetForegroundWindow + a SendKeys nudge to
-#    grant the foreground-window permission Windows otherwise
-#    restricts.
 if pwsh:
     proc_name = target.rsplit("\\", 1)[-1]
     if proc_name.lower().endswith(".exe"):
         proc_name = proc_name[:-4]
-    # Move only when position changes geometry. "as-is" and "none"
-    # leave the window where the OS put it; "default" applies the
-    # golden-16:10 centered geometry (the new MiOS global default).
     do_move = position not in ("none", "as-is")
     move_block = ""
     if do_move:
-        # place_block already uses $wh for window-height (clean
-        # naming -- no $h shadowing of the hwnd variable).
         move_block = (
             "$r = New-Object MX.W32D+RECT; "
             "[MX.W32D]::GetWindowRect($h, [ref]$r) | Out-Null; "
@@ -1111,9 +748,7 @@ if pwsh:
         "  Start-Sleep -Milliseconds 150 "
         "}; "
         "if ($h -and $h -ne [IntPtr]::Zero) { "
-        # ── optional move (only when position changed) ──
         f"{move_block}"
-        # ── optional focus (skipped for background / as-is) ──
         f"{focus_block}"
         "}"
     )
@@ -1125,26 +760,15 @@ if pwsh:
     )
 PYEOF
         else
-            # Last-resort fallback if PowerShell is unreachable.
-            # Operator should never hit this path on a healthy MiOS;
-            # window will almost certainly be invisible. Logged so
-            # post-mortem can identify the missing-PWSH cause.
             setsid nohup "$target" "$@" >/dev/null 2>&1 < /dev/null &
-            echo "[mios-windows] WARN: PowerShell unreachable; setsid fallback used (window likely invisible)" >&2
+            echo "[mios-windows] WARN: PowerShell unreachable; setsid fallback used" >&2
         fi
         ;;
     ps|powershell)
         if [ "$#" -lt 1 ]; then
-            echo "mios-windows ps: missing <command>" >&2
+            echo "Mios-windows ps: missing <command>" >&2
             exit 64
         fi
-        # Service-user routing: mios-hermes (uid 820) cannot exec
-        # /mnt/c/.../powershell.exe directly because of the WSL
-        # metadata-perm wall. Route through the operator-side
-        # launcher broker's CAPTURE protocol -- broker runs the
-        # PS command in its own (operator) context, captures
-        # stdout+stderr via subprocess.PIPE, sends bytes back to
-        # us inline. No tempfile; no cross-user write.
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
         if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
@@ -1160,7 +784,6 @@ s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
 s.settimeout(60.0)
 s.connect("/run/mios-launcher/launcher.sock")
 s.sendall((line + "\n").encode())
-# Read until EOF (broker closes after capture done).
 buf = b""
 while True:
     chunk = s.recv(8192)
@@ -1172,17 +795,16 @@ PYEOF
             exit 0
         fi
         if [ ! -x "$PWSH" ]; then
-            echo "mios-windows ps: PowerShell not at $PWSH -- set MIOS_WINDOWS_PWSH=<path>" >&2
+            echo "Mios-windows ps: PowerShell not at $PWSH" >&2
             exit 1
         fi
         exec "$PWSH" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$*"
         ;;
     cmd)
         if [ "$#" -lt 1 ]; then
-            echo "mios-windows cmd: missing <command>" >&2
+            echo "Mios-windows cmd: missing <command>" >&2
             exit 64
         fi
-        # Same CAPTURE route for service users (no tempfile dance).
         _my_uid="$(id -u)"
         _op_uid="$(id -u mios 2>/dev/null || echo 1000)"
         if [ "$_my_uid" -lt "$_op_uid" ] && [ -S /run/mios-launcher/launcher.sock ]; then
@@ -1205,7 +827,7 @@ PYEOF
             exit 0
         fi
         if [ ! -x "$CMD" ]; then
-            echo "mios-windows cmd: cmd.exe not at $CMD" >&2
+            echo "Mios-windows cmd: cmd.exe not at $CMD" >&2
             exit 1
         fi
         exec "$CMD" /c "$*"
@@ -1217,17 +839,13 @@ PYEOF
         usage
         ;;
     *)
-        # Backwards-compat: if the first arg looks like a PowerShell
-        # command (starts with a verb like Get-/Set-/New-/Restart-),
-        # treat the whole call as the legacy "ssh-ps <cmd>" form to
-        # keep operator muscle memory working.
         case "$sub" in
             Get-*|Set-*|New-*|Remove-*|Start-*|Stop-*|Restart-*|Test-*|Invoke-*|*'-'*)
-                echo "[mios-windows] legacy form -- routing to ssh-ps; use 'mios-windows ps' for non-Tailscale interop" >&2
+                echo "[mios-windows] legacy form" >&2
                 do_ssh_ps "$sub" "$@"
                 ;;
             *)
-                echo "mios-windows: unknown subcommand: $sub" >&2
+                echo "Mios-windows: unknown subcommand: $sub" >&2
                 usage >&2
                 exit 64
                 ;;

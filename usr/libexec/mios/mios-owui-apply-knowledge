@@ -51,10 +51,6 @@ from typing import Iterable
 DB = Path(os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db"))
 MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "MiOS AI")
 
-# Knowledge collection identity. The id is a stable v5-uuid derived from
-# a fixed MiOS namespace + name so every host that runs this helper
-# generates the same id (lets operators move their webui.db between
-# hosts without losing the link).
 KNOWLEDGE_NAME = "MiOS Documentation"
 KNOWLEDGE_DESCRIPTION = (
     "MiOS canonical documentation -- system surface map, architectural "
@@ -64,26 +60,17 @@ KNOWLEDGE_DESCRIPTION = (
 MIOS_NAMESPACE = uuid.UUID("00000000-0000-0000-0000-4d694f53000d")  # arbitrary stable
 KNOWLEDGE_ID = str(uuid.uuid5(MIOS_NAMESPACE, "mios-documentation/v1"))
 
-# Per-file collection ids (`file-{file_id}`) are what OWUI keys its
-# vector chunks under. We derive each file's id deterministically too,
-# so re-runs reuse the same chunk collection (no re-vectoring noise on
-# every apply).
 def _file_id_for(path: str) -> str:
     return str(uuid.uuid5(MIOS_NAMESPACE, f"mios-doc-file/{path}"))
 
 
-# Curated corpus. Anything not on disk is silently skipped. Add new
-# entries here when new authoritative docs ship.
 CORPUS: list[str] = [
-    # The agent's own canonical surface (prose docs)
     "/usr/share/mios/ai/system.md",
     "/usr/share/mios/ai/INDEX.md",
     "/usr/share/mios/ai/audit-prompt.md",
     "/usr/share/mios/ai/hermes-soul.md",
     "/usr/share/mios/ai/hermes-soul-full.md",
     "/usr/share/mios/open-webui/system-prompts/mios-agent.md",
-    # Versioned data surface (machine-readable manifests; ALSO useful
-    # as RAG so the agent can introspect its own /v1 surface).
     "/usr/share/mios/ai/v1/models.json",
     "/usr/share/mios/ai/v1/agents.json",
     "/usr/share/mios/ai/v1/tools.json",
@@ -92,28 +79,22 @@ CORPUS: list[str] = [
     "/usr/share/mios/ai/v1/context.json",
     "/usr/share/mios/ai/v1/config.json",
     "/usr/share/mios/ai/v1/system-prompts.json",
-    # Day-0 / day-n operator docs
     "/usr/share/mios/docs/day-0/BOOTSTRAP.md",
     "/usr/share/mios/docs/day-0/FIRST-BOOT.md",
     "/usr/share/mios/docs/day-n/SELF-REPLICATION.md",
     "/usr/share/mios/docs/root-origin/DUAL-WHITELIST.md",
     "/usr/share/mios/docs/root-origin/REPO-IS-ROOT.md",
     "/usr/share/mios/docs/terminal/INVOCATIONS.md",
-    # Cookbooks (worked examples)
     "/usr/share/mios/cookbooks/local-rag-day0.md",
     "/usr/share/mios/cookbooks/ingest-kb.md",
     "/usr/share/mios/cookbooks/finetune-flow.md",
-    # Hermes skills (the agent's own playbook)
     "/usr/share/mios/hermes/skills/mios-environment/SKILL.md",
     "/usr/share/mios/hermes/skills/parallel-fanout/SKILL.md",
-    # Role prompts (host overrides for engineer / reviewer / troubleshoot)
     "/etc/mios/system-prompts/mios-engineer.md",
     "/etc/mios/system-prompts/mios-reviewer.md",
     "/etc/mios/system-prompts/mios-troubleshoot.md",
-    # Architectural laws + agent guidance at repo root
     "/CLAUDE.md",
     "/AGENTS.md",
-    # The SSOT
     "/usr/share/mios/mios.toml",
     "/usr/share/doc/mios/reference/PACKAGES.md",
 ]
@@ -207,8 +188,6 @@ def main() -> int:
 
     conn = sqlite3.connect(str(DB))
     try:
-        # Schema sanity -- log any unexpected absence so operator can
-        # tell whether OWUI got upgraded out from under us.
         for tbl in ("file", "knowledge", "knowledge_file", "model"):
             try:
                 conn.execute(f"SELECT 1 FROM {tbl} LIMIT 1")
@@ -223,12 +202,9 @@ def main() -> int:
 
         now = int(time.time())
 
-        # Per-file knowledge_file table layout differs slightly across
-        # OWUI 0.9.x patch versions; introspect at runtime.
         kf_cols = _table_columns(conn, "knowledge_file")
         file_cols = _table_columns(conn, "file")
 
-        # Ensure knowledge row exists.
         kn_existing = conn.execute(
             "SELECT id FROM knowledge WHERE id = ?", (KNOWLEDGE_ID,)
         ).fetchone()
@@ -252,7 +228,6 @@ def main() -> int:
         rehashed_files: list[str] = []
         no_op_files: list[str] = []
 
-        # Upsert files.
         for src_path, content, content_hash in sources:
             file_id = _file_id_for(src_path)
             existing = conn.execute(
@@ -289,7 +264,6 @@ def main() -> int:
                 else:
                     no_op_files.append(src_path)
 
-            # Link file <-> knowledge if not already linked.
             link = conn.execute(
                 "SELECT id FROM knowledge_file WHERE knowledge_id = ? AND file_id = ?",
                 (KNOWLEDGE_ID, file_id),
@@ -305,7 +279,6 @@ def main() -> int:
                         (kf_id, KNOWLEDGE_ID, file_id, admin, now, now),
                     )
 
-        # Refresh knowledge.data.file_ids.
         kn_data = json.loads(
             conn.execute("SELECT data FROM knowledge WHERE id = ?", (KNOWLEDGE_ID,))
             .fetchone()[0] or "{}"
@@ -317,16 +290,12 @@ def main() -> int:
             (json.dumps(kn_data), now, KNOWLEDGE_ID),
         )
 
-        # Attach knowledge ID to MiOS-Agent model row's meta.knowledge.
-        # Schema: meta.knowledge is a list of {type, id, name, ...} dicts.
         mrow = conn.execute(
             "SELECT meta FROM model WHERE id = ?", (MODEL_ID,)
         ).fetchone()
         if mrow:
             meta = json.loads(mrow[0]) if mrow[0] else {}
             kl = meta.get("knowledge") or []
-            # remove any pre-existing entry with our id (prevents
-            # duplicates if the helper runs after operator-side edits)
             kl = [e for e in kl if (e.get("id") if isinstance(e, dict) else None) != KNOWLEDGE_ID]
             kl.append({
                 "type": "collection",
@@ -355,15 +324,6 @@ def main() -> int:
         for x in rehashed_files:
             _log(f"  ~ {x}")
 
-        # Post-commit: verify vector_db actually has chunks for the
-        # collection. The day-0 wipe (mios-cache-clear --all) drops
-        # chroma.sqlite3 contents but the knowledge_file links here
-        # see hash-unchanged and skip the vector-clear branch, so
-        # vectors stay missing + knowledge_search returns 0 hits.
-        # Detect-and-heal: count chroma rows; if zero but file
-        # content is present, force re-add of every file via OWUI's
-        # /api/v1/knowledge/{kid}/file/add (the only endpoint that
-        # actually triggers chunk + embed).
         try:
             _heal_missing_vectors(KNOWLEDGE_ID)
         except Exception as e:
@@ -396,9 +356,6 @@ def _heal_missing_vectors(knowledge_id: str) -> None:
     if n_emb > 0:
         return  # vectors present, nothing to heal
 
-    # Re-open the operator-side webui.db to enumerate file_ids and
-    # mint a request token. Read-only handle so we don't race the
-    # main mutation path above.
     wc = _sql.connect(
         "file:/var/lib/mios/open-webui/webui.db?mode=ro", uri=True)
     row = wc.execute(

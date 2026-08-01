@@ -24,8 +24,6 @@ import xml.etree.ElementTree as ET
 
 
 def _win_root() -> str:
-    # The Windows system drive as mounted in WSL. Honour a non-default mount
-    # (wsl.conf `root=`), falling back to the drvfs default.
     for cand in (os.environ.get("MIOS_WIN_C"), "/mnt/c", "/c"):
         if cand and os.path.isdir(os.path.join(cand, "Windows")):
             return cand
@@ -60,10 +58,6 @@ def _emit(name: str, target: str, cat: str) -> None:
     target = (target or "").strip()
     if not (name and target) or "|" in name:
         return
-    # Dedup by name (Store packages ship several versions with the same AUMID;
-    # a game may also have both a store entry and a Start-Menu shortcut). First
-    # source wins -- sources are ordered store/game-authoritative before the
-    # generic Start-Menu sweep.
     key = name.lower()
     if key in _SEEN:
         return
@@ -71,7 +65,6 @@ def _emit(name: str, target: str, cat: str) -> None:
     print(f"{name}|{target}|{cat}")
 
 
-# ── Steam ──────────────────────────────────────────────────────────
 def _scan_steam(root: str) -> None:
     default = f"{root}/Program Files (x86)/Steam/steamapps"
     roots = [default] if os.path.isdir(default) else []
@@ -101,7 +94,6 @@ def _scan_steam(root: str) -> None:
                 _emit(nm.group(1), f"steam://rungameid/{aid.group(1)}", "windows-game")
 
 
-# ── Epic ───────────────────────────────────────────────────────────
 def _scan_epic(root: str) -> None:
     import json
     d = f"{root}/ProgramData/Epic/EpicGamesLauncher/Data/Manifests"
@@ -116,21 +108,17 @@ def _scan_epic(root: str) -> None:
             _emit(name, f"com.epicgames.launcher://apps/{app}?action=launch", "windows-game")
 
 
-# ── GOG ────────────────────────────────────────────────────────────
 def _scan_gog(root: str) -> None:
     for d in glob.glob(f"{root}/Program Files (x86)/GOG Galaxy/Games/*/"):
         name = os.path.basename(d.rstrip("/"))
         exes = glob.glob(f"{d}*.exe")
-        # Prefer the largest .exe (the game, not an updater/redistributable).
         exes = [e for e in exes if not re.search(r'(?i)unins|redist|setup|crash|launcher', os.path.basename(e))]
         if name and exes:
             best = max(exes, key=lambda e: os.path.getsize(e) if os.path.exists(e) else 0)
             _emit(name, _mnt_to_win(best), "windows-game")
 
 
-# ── Store / UWP / Game Pass ────────────────────────────────────────
 def _pfn_from_folder(folder: str):
-    # <Name>_<version>_<arch>__<PublisherHash>  ->  <Name>_<PublisherHash>
     m = re.match(r'^(.+?)_[0-9][^_]*_[^_]+__([a-z0-9]+)$', folder)
     return f"{m.group(1)}_{m.group(2)}" if m else None
 
@@ -139,7 +127,6 @@ def _manifest_app_and_name(mani: str):
     """Return (app_id, display_name) for the FIRST launchable <Application>, or
     (None, None) when the package declares no launchable app (DLC/framework)."""
     try:
-        # Namespace-agnostic parse (AppxManifest uses several xmlns).
         root = ET.parse(mani).getroot()
     except Exception:
         return None, None
@@ -171,7 +158,6 @@ def _scan_uwp(root: str) -> None:
     except Exception:
         return
     for folder in folders:
-        # Skip obvious non-user frameworks/runtimes/DLC-trackers early.
         if re.search(r'(?i)\.DLC|GameStub|LaunchTracker|VCLibs|\.NET|Framework|Runtime|Redist|WebView', folder):
             continue
         mani = f"{wa}/{folder}/AppxManifest.xml"
@@ -182,12 +168,10 @@ def _scan_uwp(root: str) -> None:
         if not (pfn and app_id):
             continue  # no launchable Application -> not a user-launchable app
         if not disp:
-            # Fallback name: the Identity Name's last dotted segment, spaced.
             disp = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', folder.split('_')[0].split('.')[-1])
         _emit(disp, f"shell:AppsFolder\\{pfn}!{app_id}", "windows-app")
 
 
-# ── Start Menu shortcuts ───────────────────────────────────────────
 def _scan_startmenu(root: str) -> None:
     bases = [
         f"{root}/ProgramData/Microsoft/Windows/Start Menu/Programs",
@@ -200,13 +184,9 @@ def _scan_startmenu(root: str) -> None:
             key = name.lower()
             if key in seen:
                 continue
-            # Skip uninstallers / docs / update shims -- not launch targets.
             if re.search(r'(?i)uninstall|readme|setup|website|help|documentation|license|update', name):
                 continue
             seen.add(key)
-            # Launch by the .lnk's WINDOWS path: the real-host executor
-            # Start-Process'es it, resolving whatever the shortcut points at
-            # (exe / UWP / URI).
             _emit(name, _mnt_to_win(lnk), "windows-gui")
 
 

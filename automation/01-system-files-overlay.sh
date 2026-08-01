@@ -2,40 +2,22 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/local to /var/usrlocal symlink logic and syncing the system version file.
 # AI-related: /usr/share/mios/VERSION, /usr/libexec/mios/motd, /usr/libexec/mios/mios-dashboard.sh, /usr/share/mios/mios.toml, mios-dashboard, mios-infra, mios-bootstrap, wsl-init.service
-# ============================================================================
-# automation/01-system-files-overlay.sh - 'MiOS' - 
-# ----------------------------------------------------------------------------
-# Overlay /ctx/ onto the rootfs during the Containerfile build,
-# correctly handling the /usr/local -> /var/usrlocal symlink.
-#
-# Architecture: Rootfs-Native
-#   - Sources now directly from /ctx/usr, /ctx/etc, /ctx/var, /ctx/home
-# ============================================================================
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
 CTX="${CTX:-/ctx}"
 
 mios_step "rootfs-native overlay"
 
-# Derive /usr/share/mios/VERSION from the canonical top-level VERSION
-# file. The MOTD (/usr/libexec/mios/motd) and the dashboard runtime
-# (/usr/libexec/mios/mios-dashboard.sh) both read this path to render
-# `MiOS v<version>` -- having a single overlay-time emit step here
-# means the source of truth stays at the repo-root VERSION file and
-# can never drift from /usr/share/mios/mios.toml [meta].mios_version
-# or the Containerfile LABEL.
 if [[ -f "${CTX}/VERSION" ]]; then
     install -d -m 0755 /usr/share/mios
     install -m 0644 "${CTX}/VERSION" /usr/share/mios/VERSION
     mios_ok "staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
 fi
 
-# Stage canonical MiOS branding PNG icons in system icon directories
 if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
     install -d -m 0755 /usr/share/pixmaps /usr/share/icons/hicolor/256x256/apps
     if [[ -f "${CTX}/usr/share/mios/branding/icon.png" ]]; then
@@ -45,64 +27,34 @@ if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
     fi
 fi
 
-# --- Stage 1: /usr (everything except /usr/local) --------------------------
 if [[ -d "${CTX}/usr" ]]; then
-    mios_log "stage 1: overlay usr (excluding /usr/local)"
+    mios_log "Stage 1: overlay usr"
     tar -C "${CTX}/usr" -cf - --exclude='./local' . | tar -C /usr --no-overwrite-dir -xf -
 fi
 
-# --- Stage 2: /usr/local via /var/usrlocal ---------------------------------
-# LAW 5: /var/usrlocal must NOT be mkdir'd during OCI build.
-# It is declared in /usr/lib/tmpfiles.d/mios-infra.conf and created at boot.
-# If /usr/local is a symlink to /var/usrlocal (typical FCOS layout), skip the
-# tar write -- the content will be available after first-boot tmpfiles.d runs.
-# If /usr/local is a real directory (non-FCOS base), write directly.
 if [[ -d "${CTX}/usr/local" ]]; then
-    mios_log "stage 2: overlay /usr/local"
+    mios_log "Stage 2: overlay /usr/local"
     if [[ -L /usr/local ]]; then
         local_target="$(readlink -f /usr/local 2>/dev/null || true)"
-        mios_log "/usr/local symlink -> ${local_target}; skip /var write (tmpfiles.d creates at boot)"
+        mios_log "/usr/local symlink -> ${local_target}; skip /var write"
     else
         mios_log "/usr/local real directory; write directly"
         tar -C "${CTX}/usr/local" -cf - . | tar -C /usr/local --no-overwrite-dir -xf -
     fi
 fi
 
-# --- Stage 3: /etc (System Config Templates) -------------------------------
 if [[ -d "${CTX}/etc" ]]; then
-    mios_log "stage 3: overlay etc"
+    mios_log "Stage 3: overlay etc"
     tar -C "${CTX}/etc" -cf - --exclude='./containers/systemd' --exclude='./systemd' . | tar -C /etc --no-overwrite-dir -xf -
 fi
 
-# --- Stage 3a: /etc/wsl.conf force-install ---------------------------------
-# WSL2's wsl.conf parser is unforgiving -- a single malformed byte takes down
-# systemd-as-PID1, which cascades into a broken user session and home dir.
-# Force-install from the canonical reference with explicit perms instead of
-# trusting the tar overlay (which can be defeated by a base-image-shipped
-# copy or by tar metadata quirks). install -T treats the destination as a
-# filename, not a directory, and overwrites unconditionally.
-#
-# CRLF DEFENSE: when the build context is checked out on a Windows host
-# with core.autocrlf=true, .gitattributes 'eol=lf' can be silently
-# overridden in the working tree (git stores LF in the index but writes
-# CRLF on checkout). The CRLF leaks into podman's COPY-mounted context
-# and ends up in /etc/wsl.conf -- WSL2's parser then reports
-# "Expected ' ' or '\n' in /etc/wsl.conf:N" at the line just past the
-# last LF. Strip CR bytes and any UTF-8 BOM here before installing so
-# the build resists the working-tree state on the host.
 if [[ -f "${CTX}/etc/wsl.conf" ]]; then
     tmp_wsl=$(mktemp)
-    # Drop UTF-8 BOM (0xEF 0xBB 0xBF) on the first line, strip CR bytes
-    # on every line. Use printf+tr instead of sed to avoid sed-version
-    # divergence in CR handling.
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/etc/wsl.conf" > "$tmp_wsl"
     install -m 0644 -o root -g root -T "$tmp_wsl" /etc/wsl.conf
     rm -f "$tmp_wsl"
     mios_ok "stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root, CRLF-stripped)"
 fi
-# Mirror the same treatment for /usr/lib/wsl.conf -- wsl-init.service
-# uses it as the drift-restore reference and would otherwise re-introduce
-# CRLF on the next boot if it slipped through.
 if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     tmp_wsl=$(mktemp)
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/usr/lib/wsl.conf" > "$tmp_wsl"
@@ -111,40 +63,17 @@ if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     mios_ok "stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
 fi
 
-# --- Stage 4: /var (intentionally empty) ----------------------------------
-# Removed in - . /var population at build time violated LAW 2
-# (NO /VAR WRITES AT BUILD); all mandatory /var structure is now
-# declared in /usr/lib/tmpfiles.d/*.conf and realized by
-# systemd-tmpfiles --create at first boot. See:
-#   /usr/lib/tmpfiles.d/mios-infra.conf
-#   /usr/lib/tmpfiles.d/mios-bootstrap.conf
-# If /ctx/var content needs to ship in the image, declare it in a
-# tmpfiles.d C-line; do not write directly here.
 
-# --- Stage 5: /home (User Space Templates) ---------------------------------
-# LAW 5: Writing to /var/home during OCI build violates the immutability contract --
-# /var is a persistent volume that is NOT populated from the OCI image on deployment.
-# Home directory dotfile templates must live in /etc/skel/ and are copied by
-# systemd-sysusers when the user is first created at boot.
-# This stage is intentionally a no-op; see /etc/skel/ for the skel overlay.
 if [[ -d "${CTX}/home" ]]; then
-    mios_log "stage 5: /ctx/home detected -- seeding /etc/skel instead of /var/home (LAW 5)"
+    mios_log "Stage 5: /ctx/home detected"
     install -d -m 0755 /etc/skel
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
 
-# Normalize permissions on systemd unit and config files.
 mios_step "normalize systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
-# Normalize permissions on udev rules, tmpfiles.d, sysusers.d, modprobe.d.
-# When the build context is checked out on Windows (NTFS via 9p in MiOS-DEV
-# WSL2), every file inherits 0755 + world-writable. udev rejects executable
-# rules files at every boot ("99-kvmfr.rules is marked executable. Please
-# remove executable permission bits"), and the "world-writable" warning is
-# raised on the same files. Force 0644 across every declarative-config
-# directory in /usr/lib/. Mirrors the systemd-units normalization above.
 mios_step "normalize udev/tmpfiles/sysusers/modprobe permissions"
 for d in \
     /usr/lib/udev/rules.d \
@@ -164,38 +93,23 @@ do
     find "$d" -type d -exec chmod 0755 {} + 2>/dev/null || true
 done
 
-# Dev VM Quadlet network mode -- mios.toml [wsl2.dev_vm].quadlet_network_mode
-# decides whether the *-host-network.conf dropins under
-# /etc/containers/systemd/<unit>.container.d/ stay installed (host mode,
-# NAT default) or get removed (bridge mode, mirrored-safe). Reads the
-# already-exported MIOS_QUADLET_DEV_NETWORK_MODE from userenv.sh; falls
-# back to "host" if userenv hasn't been sourced (vanilla bootc-only path).
 _dev_net_mode="${MIOS_QUADLET_DEV_NETWORK_MODE:-host}"
 if [[ "${_dev_net_mode}" == "bridge" ]]; then
-    mios_log "[wsl2.dev_vm].quadlet_network_mode=bridge -- removing *-host-network.conf dropins"
+    mios_log "[wsl2.dev_vm].quadlet_network_mode=bridge"
     shopt -s nullglob
     for d in /etc/containers/systemd/*.container.d/*-host-network.conf; do
-        mios_log "removed (bridge mode): $d"
+        mios_log "Removed: $d"
         rm -f "$d"
     done
     shopt -u nullglob
 fi
 
-# Logically Bound Images -- bind every Quadlet from both vendor and admin paths
-# (see ARCHITECTURAL LAW 3 -- BOUND-IMAGES), EXCEPT the firstboot tier.
 BDIR="/usr/lib/bootc/bound-images.d"
 install -d -m 0755 "${BDIR}"
 if command -v miosd >/dev/null 2>&1; then
     miosd overlay-bind-images --dest "${BDIR}"
     mios_ok "LBI binding completed via miosd"
 else
-    # firstboot tier (mios.toml [build.bake].firstboot_tokens): a Quadlet whose Image=
-    # ref substring-matches a token is NOT logically bound -- it is a multi-GB GPU-
-    # engine whale evicted from the bake (generate-bake-plan.py -> plan.d/firstboot.list).
-    # Binding it would make bootc DEPLOY-pull ~47GB at install (breaking an offline USB
-    # deploy); instead its Quadlet web-pulls the image on first start (mios-ai-firstboot
-    # seeds the weights into /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data
-    # partition). Degrade-open: if the token list can't be read, bind everything.
     _MIOS_TOML="${MIOS_TOML:-/usr/share/mios/mios.toml}"
     FB_TOKENS="$(grep -E '^[[:space:]]*firstboot_tokens[[:space:]]*=' "${_MIOS_TOML}" 2>/dev/null | sed -E 's/^[^=]*=//; s/[][",]/ /g')"
     shopt -s nullglob
@@ -216,28 +130,18 @@ else
                 fi
             fi
             ln -sf "${q}" "${BDIR}/${name}"
-            mios_log "LBI: bound ${name} (${q})"
+            mios_log "LBI: bound ${name}"
         done
     done
     shopt -u nullglob
 
-    # bootc install to-disk requires bound-images.d to contain ONLY symlinks --
-    # a regular file there aborts the install with "Querying bound images: Not a
-    # symlink: .gitkeep". The committed .gitkeep only exists to track the otherwise-
-    # empty dir in git; the build creates the dir + populates the symlinks above, so
-    # the placeholder is redundant in the image and MUST NOT ship. (Found via a
-    # bootc install to-disk boot-verify of the Day-0 image.)
     rm -f "${BDIR}/.gitkeep"
-    mios_log "LBI: stripped git-tracking .gitkeep (bootc install requires symlinks-only)"
+    mios_log "LBI: stripped git-tracking .gitkeep"
 fi
 
-# ═══ Pathing Compatibility ═══
 mios_step "pathing compatibility symlinks"
 
-# /etc/wsl.conf is deployed as a real file via Stage 3 overlay (etc/wsl.conf in repo).
-# /usr/lib/wsl.conf is a reference stub; do not symlink it over /etc/wsl.conf.
 
-# 1. Standardize /home to /var/home (FCOS/bootc style)
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
     rm -rf /home
     ln -sf /var/home /home
@@ -247,21 +151,17 @@ elif [ ! -e /home ]; then
     mios_ok "path: created /home -> /var/home symlink"
 fi
 
-# Ensure all files under /usr/libexec/mios are executable.
-# Files authored on Windows or checked out without core.filemode will lose the executable bit.
 if [[ -d /usr/libexec/mios ]]; then
-    mios_log "set executable bit on /usr/libexec/mios/*"
+    mios_log "Set executable bit on /usr/libexec/mios/*"
     find /usr/libexec/mios -type f -exec chmod +x {} + || true
 fi
 
-# 2. Link k3s-manifests to k3s/generated directory (ONLY in container/nested deployment mode, NOT in FHS mode)
 if [[ "${MIOS_INSTALL_MODE:-}" != "fhs" ]]; then
     if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
         ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
         mios_ok "path: symlinked /usr/share/mios/k3s-manifests -> k3s/generated"
     fi
 else
-    # In FHS mode, ensure it's a clean, non-symlinked directory to prevent duplicate pod execution in K3s
     if [[ -L "/usr/share/mios/k3s-manifests" ]]; then
         rm -f "/usr/share/mios/k3s-manifests"
     fi

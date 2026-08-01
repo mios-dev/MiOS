@@ -35,7 +35,6 @@ SRC_PATH = Path("/usr/share/mios/openwebui/tools/mios_computer_use.py")
 TOOL_ID = "mios_computer_use"
 TOOL_NAME = "MiOS Computer Use"
 
-# Same model-row ids as mios-owui-install-tools (registration order varies).
 ATTACH_TO_MODEL_IDS = ["mios-agent", "MiOS-Agent", "mios_agent.mios-agent"]
 
 
@@ -50,7 +49,6 @@ def _admin_user_id(c: sqlite3.Connection) -> str | None:
     return row[0] if row else None
 
 
-# JSONSchema specs -- in lockstep with Tools methods in mios_computer_use.py.
 SPECS = [
     {
         "name": "cu_screenshot",
@@ -187,7 +185,6 @@ def main() -> int:
         _log(f"tool table schema unexpected ({cols!r}) -- aborting")
         return 1
 
-    # Auto-attach to the MiOS-Agent model rows so the chat model SEES it.
     attached = 0
     for mid in ATTACH_TO_MODEL_IDS:
         row = c.execute("SELECT meta FROM model WHERE id=?", (mid,)).fetchone()

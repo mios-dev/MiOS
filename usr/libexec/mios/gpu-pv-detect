@@ -2,18 +2,7 @@
 # AI-hint: Detects Hyper-V GPU paravirtualization, WSLg, and NVIDIA guest status to write /run/mios/gpu-pv.status, enabling the MiOS GPU stack to toggle between hardware-accelerated rendering and llvmpipe.
 # AI-related: /usr/lib/mios/paths.sh, mios-gpu-pv-detect, mios-gpu-pv-detect.service
 # AI-functions: _log
-# 'MiOS' Hyper-V GPU paravirt guest detection.
-# Run by mios-gpu-pv-detect.service (gated ConditionVirtualization=microsoft;
-# only fires inside Hyper-V/WSL2 guests). Writes a status file the rest of
-# the GPU stack reads to decide whether to enable hardware-accelerated
-# rendering vs llvmpipe software rendering.
-#
-# Status file: /run/mios/gpu-pv.status  (KEY=VALUE)
-#   gpu_pv_present=1|0     -- /dev/dxg present (DirectX kernel passthrough)
-#   wslg_active=1|0        -- /mnt/wslg/.X11-unix exists (WSLg display)
-#   nvidia_in_guest=1|0    -- nvidia-smi succeeds inside the guest
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-gpu-pv-detect "$*" 2>/dev/null || true; echo "[gpu-pv-detect] $*" >&2; }
@@ -27,10 +16,10 @@ fi
 
 install -d -m 0755 /run/mios
 {
-    echo "timestamp=$(date -Is)"
-    echo "gpu_pv_present=$DXG"
-    echo "wslg_active=$WSLG"
-    echo "nvidia_in_guest=$NV"
+    echo "Timestamp=$"
+    echo "Gpu_pv_present=$DXG"
+    echo "Wslg_active=$WSLG"
+    echo "Nvidia_in_guest=$NV"
 } > /run/mios/gpu-pv.status
 
 _log "dxg=$DXG wslg=$WSLG nvidia=$NV"

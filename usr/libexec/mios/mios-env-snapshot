@@ -2,19 +2,8 @@
 # AI-hint: Captures a clean-environment snapshot of resolved MIOS_* environment variables for lossless diffing.
 # AI-related: /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /tools/lib/userenv.sh
 # AI-functions: main
-# ============================================================================
-# usr/libexec/mios/mios-env-snapshot - 'MiOS' v0.3.0
-# ----------------------------------------------------------------------------
-# Resolves the full layered mios.toml configuration in a clean environment and
-# outputs all resolved MIOS_* environment variables sorted deterministically.
-# ============================================================================
 set -euo pipefail
 
-# Deterministic collation regardless of the caller's locale. The final `| sort`
-# runs in THIS process's environment (outside the env -i), so without a pinned
-# LC_ALL the baseline line order follows the host locale (C vs en_US.UTF-8 reorder
-# ~454 lines) -> check_resolved_env_lossless drifts between the capture host and the
-# CI runner. Pin C collation so the sorted snapshot is byte-stable everywhere.
 export LC_ALL=C LANG=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,12 +21,6 @@ fi
 
 VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
 
-# Pin HOME + the user-layer paths to a nonexistent location so ONLY the
-# version-controlled vendor SSOT (+ in-tree mios.d fragments) resolves -- never a
-# host-specific ~/.config/mios overlay. Then exclude the self-referential config-path
-# meta-keys (HOME-derived, not SSOT) so the snapshot is byte-identical across hosts/CI.
-# Without this the baseline bakes host-relative paths -> check_resolved_env_lossless
-# fails "after restoration" on any runner whose $HOME differs from where it was captured.
 env -i \
     PATH="${PATH}:/usr/bin:/bin" \
     HOME=/nonexistent \

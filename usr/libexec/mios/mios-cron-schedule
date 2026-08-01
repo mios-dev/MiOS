@@ -26,11 +26,6 @@ import subprocess
 import sys
 import tomllib
 
-# Operator-scheduled jobs live in the USER rules file inside the group-writable
-# state dir -- the launcher broker runs as `mios` (uid 1000) and CANNOT write
-# root-owned /etc/mios/cron-rules.toml (that stays for root-managed SYSTEM rules).
-# The daemon merges both + reloads on mtime change, so no privileged SIGHUP is
-# needed (operator 2026-05-26).
 RULES_PATH = os.environ.get("MIOS_CRON_USER_RULES",
                             "/var/lib/mios/cron-director/user-rules.toml")
 PROMPT_DIR = "/var/lib/mios/cron-director/prompts"
@@ -38,7 +33,6 @@ PROMPT_DIR = "/var/lib/mios/cron-director/prompts"
 
 def _interval_to_cron(every: str) -> str:
     e = (every or "").strip().lower()
-    # Raw 5-field cron passes through.
     parts = e.split()
     if len(parts) == 5 and all(re.fullmatch(r"[\d*/,\-]+", p) for p in parts):
         return every.strip()
@@ -88,9 +82,6 @@ def _write_all(rules: list) -> None:
 
 
 def _reload_daemon() -> None:
-    # Best-effort instant nudge; the daemon ALSO mtime-watches the rules file, so
-    # the change applies within a minute even when (as `mios`) we can't signal the
-    # mios-ai daemon. Failures here are non-fatal.
     for cmd in (["systemctl", "kill", "-s", "HUP", "mios-cron-director.service"],
                 ["pkill", "-HUP", "-f", "mios-cron-director"]):
         try:

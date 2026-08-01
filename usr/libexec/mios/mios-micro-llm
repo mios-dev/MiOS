@@ -57,9 +57,6 @@ def _toml_layered(section: str, key: str):
 
 
 def _resolve() -> tuple[str, str, str]:
-    # micro_* lives in [ai.host_thresholds] per the vendored mios.toml.
-    # Probe [ai] first (operator restructure), fall back to
-    # [ai.host_thresholds] (vendor default).
     model = (
         os.environ.get("MIOS_MICRO_MODEL")
         or _toml_layered("ai", "micro_model")
@@ -92,8 +89,6 @@ def _post_chat(endpoint: str, model: str, system: str, user: str,
         "max_tokens": max_tokens,
         "temperature": 0.1,
         "stream": False,
-        # keep_alive residency hint (llama-swap honours its own TTL; a lane that
-        # doesn't recognise it ignores the extra field).
         "keep_alive": keep_alive,
     }
     req = urllib.request.Request(
@@ -155,9 +150,6 @@ def cmd_warm(args, *, model, endpoint, keep_alive) -> int:
 
 
 def cmd_status(args, *, model, endpoint, keep_alive) -> int:
-    # /v1-only: there is no residency-listing endpoint on the OpenAI surface, so
-    # gauge readiness with a 1-token latency probe -- a fast reply means the model
-    # is warm on the lane; a failure means it is unreachable/cold.
     started = time.monotonic()
     try:
         _post_chat(endpoint, model, "", "ok", max_tokens=1, keep_alive=keep_alive)

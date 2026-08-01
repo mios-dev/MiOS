@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Automated client cache configuration utility for CephFS, rendering performance options into /etc/ceph/ceph.conf.
-#          Called by firstboot mount setups to minimize MDS workload under desktop GUI sessions.
 # AI-related: /etc/ceph/ceph.conf, /usr/share/mios/mios.toml, automation/firstboot/mios-cephfs-mount-setup.sh
 # AI-functions: load_cephfs_config, configure_client, main
 """mios-ceph-configure -- CephFS client cache config generator."""
@@ -32,7 +31,6 @@ def load_cephfs_config() -> dict:
     for k in cfg.keys():
         if k in cephfs:
             v = cephfs[k]
-            # Convert to string format for INI writing
             if isinstance(v, bool):
                 cfg[k] = "true" if v else "false"
             else:
@@ -68,7 +66,6 @@ def configure_client(cfg: dict, ceph_conf_path: str):
 
 def main() -> int:
     cephfs_enable = os.environ.get("MIOS_CEPHFS_ENABLE", "false").lower() in ("true", "1", "yes", "on")
-    # Also load from TOML layers in case environment variable is not active
     cfg = load_cephfs_config()
     
     ceph_conf_path = os.environ.get("MIOS_CEPH_CONF", "/etc/ceph/ceph.conf")

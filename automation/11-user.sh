@@ -2,16 +2,12 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Configures PAM via authselect, creates the primary system user with fixed UID 1000, and assigns group memberships (wheel, libvirt, docker) to ensure proper session permissions and container access.
 # AI-related: mios-custom, mios-home, mios-wheel, mios-nfs
-# 'MiOS' - 31-user: PAM, user creation, groups, sudoers
-# Must run AFTER skel is populated (31-locale-theme writes skel/.bashrc)
-# and BEFORE any service that references the user.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 mios_log "'MiOS' ${MIOS_VERSION:-} user & authentication"
 
-# -- PAM FIX --
-mios_log "configuring PAM via authselect"
+mios_log "Configuring PAM via authselect"
 if command -v authselect &>/dev/null; then
     authselect select local --force 2>/dev/null || authselect select minimal --force 2>/dev/null || {
         mios_warn "authselect select failed -- using overlay fallback"
@@ -19,16 +15,10 @@ if command -v authselect &>/dev/null; then
     authselect apply-changes --force 2>/dev/null || authselect opt-out 2>/dev/null || true
 fi
 
-# -- USER CREATION --
-# Password is pre-hashed (SHA-512) by the orchestrator -- plaintext NEVER in build log.
-# Defaults for CI builds or when environment variables are not provided:
 C_USER="${MIOS_USER:-mios}"
-# Note: MIOS_PASSWORD_HASH should be a SHA-512 crypt-style hash
 
-mios_log "creating user ${C_USER} via sysusers"
+mios_log "Creating user ${C_USER} via sysusers"
 if [[ "${C_USER}" != "mios" ]]; then
-    # CRITICAL: If C_USER is customized (e.g. 'user'), purge the default 'mios' sysusers rule
-    # and existing account so UID 1000 / GID 1000 is released for the customized username.
     rm -f /usr/lib/sysusers.d/10-mios.conf /etc/sysusers.d/10-mios.conf 2>/dev/null || true
     if getent passwd mios >/dev/null 2>&1; then
         userdel -f mios 2>/dev/null || true
@@ -37,10 +27,6 @@ if [[ "${C_USER}" != "mios" ]]; then
         groupdel mios 2>/dev/null || true
     fi
 
-    # Generate dynamic sysusers for custom username.
-    # CRITICAL: pin UID to 1000. systemd-sysusers' '-' UID allocator uses the
-    # SYSTEM range (<UID_MIN), which makes logind skip XDG_RUNTIME_DIR creation
-    # and cascades into dbus/dconf/Wayland session-service failures.
     cat <<EOF > /usr/lib/sysusers.d/15-mios-custom.conf
 g ${C_USER} 1000
 u ${C_USER} 1000:${C_USER} "'MiOS' Custom User" /var/home/${C_USER} /bin/bash
@@ -55,12 +41,10 @@ m ${C_USER} docker
 EOF
 fi
 
-# Apply sysusers declarative config
 systemd-sysusers --root=/ 2>/dev/null || true
 
-# Imperative fallback if sysusers failed to materialize the account
 if ! getent passwd "${C_USER}" >/dev/null 2>&1; then
-    mios_log "sysusers did not create ${C_USER} -- trying useradd fallback"
+    mios_log "Sysusers did not create ${C_USER}"
     groupadd -g 1000 "${C_USER}" 2>/dev/null || groupadd "${C_USER}" 2>/dev/null || true
     useradd -u 1000 -g "${C_USER}" -m -d "/var/home/${C_USER}" -s /bin/bash "${C_USER}" 2>/dev/null || useradd -m -s /bin/bash "${C_USER}" 2>/dev/null || true
     for g in wheel libvirt kvm video render input dialout docker; do
@@ -70,37 +54,19 @@ fi
 
 if getent passwd "${C_USER}" >/dev/null; then
     home=$(getent passwd "${C_USER}" | cut -d: -f6)
-    # Architectural Law 2 -- NO-MKDIR-IN-VAR. The home directory lives
-    # under /var/home/<user> and the build-time /var cleanup (in the
-    # Containerfile final RUN) wipes anything written there at build
-    # time. Home creation + skel copy is materialized at first boot
-    # by usr/lib/tmpfiles.d/mios-home.conf (a declarative `C` rule
-    # that copies /etc/skel into /var/home/<user> with correct perms),
-    # not by ad-hoc shell in wsl-firstboot.
     passwd -u "${C_USER}" 2>/dev/null || true
 
-    # ── subuid / subgid for rootless containers ──
-    # Bake the rootless-user namespace allocation at IMAGE BUILD TIME
-    # (overlay layer) instead of patching it from wsl-firstboot. This
-    # follows Fedora's standard /etc/subuid and /etc/subgid format and
-    # uses the same 100000:65536 range that `useradd -m` would assign
-    # on a regular Fedora install.
     for subfile in /etc/subuid /etc/subgid; do
         if ! grep -qE "^${C_USER}:" "$subfile" 2>/dev/null; then
             echo "${C_USER}:100000:65536" >> "$subfile"
-            mios_log "added ${C_USER} -> ${subfile}"
+            mios_log "Added ${C_USER} -> ${subfile}"
         fi
     done
 
-    # ── Password hash baked into /etc/shadow at build time ──
-    # Reads MIOS_USER_PASSWORD_HASH from the build environment (set by
-    # build-mios.{sh,ps1} from mios.toml [auth].password_hash, or by
-    # bootstrap install.env). If absent, default to 'mios' so a fresh
-    # CI/dev image is immediately usable.
     pw_hash="${MIOS_USER_PASSWORD_HASH:-}"
     if [[ -z "$pw_hash" ]]; then
         pw_hash=$(openssl passwd -6 'mios' 2>/dev/null || true)
-        mios_log "no MIOS_USER_PASSWORD_HASH provided; defaulting to 'mios'"
+        mios_log "No MIOS_USER_PASSWORD_HASH provided; defaulting to 'mios'"
     fi
     if [[ "$pw_hash" =~ ^\$6\$ ]]; then
         echo "${C_USER}:${pw_hash}" | chpasswd -e
@@ -112,15 +78,10 @@ else
     mios_err "failed to create user ${C_USER}"
 fi
 
-# -- GROUP INJECTION --
-# Groups are pre-created and memberships injected via /usr/lib/sysusers.d/*.conf
-# and processed by systemd-sysusers above. Imperative calls removed.
 
-# -- SUDOERS & SECURITY FILE PERMISSIONS --
 chmod 440 /usr/lib/sudoers.d/10-mios-wheel 2>/dev/null || true
 chmod 0644 /etc/sudoers.d/* /etc/fapolicyd/fapolicyd.rules 2>/dev/null || true
 
-# -- LOCALE --
 localedef -i C -f UTF-8 C.UTF-8 2>/dev/null || true
 localedef -i en_US -f UTF-8 en_US.UTF-8 2>/dev/null || true
 if [ -d /usr/lib/locale/C.utf8 ]; then
@@ -131,15 +92,10 @@ if [ -f /usr/share/locale/locale.alias ]; then
     grep -q "C.UTF-8" /usr/share/locale/locale.alias 2>/dev/null || echo "C.UTF-8 C.utf8" >> /usr/share/locale/locale.alias
 fi
 
-# -- CLOUD-INIT --
-# Managed via usr/lib/cloud/cloud.cfg.d/10-mios.cfg
 
-# -- MULTIPATH --
-# Managed via usr/lib/multipath.conf
 
-# -- FIX HOME DIRECTORY OWNERSHIP & PERMISSIONS --
-mios_log "fixing home directory ownership"
-{ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "mios"; } | sort -u | while read -r u; do
+mios_log "Fixing home directory ownership"
+{ awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd; echo "Mios"; } | sort -u | while read -r u; do
     if getent passwd "$u" >/dev/null 2>&1; then
         home=$(getent passwd "$u" | cut -d: -f6)
         if [ -d "$home" ]; then
@@ -150,7 +106,5 @@ mios_log "fixing home directory ownership"
     fi
 done
 
-# -- NFS STATE DIRECTORY --
-# Managed via usr/lib/tmpfiles.d/mios-nfs.conf
 
 mios_ok "user & authentication configured"

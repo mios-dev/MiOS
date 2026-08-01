@@ -2,58 +2,6 @@
 # AI-hint: Provides a JSON-formatted status of a specific application's window state, used by MiOS Agents to verify if a process is actually visible and presented to the operator rather than just running in the background.
 # AI-related: /usr/libexec/mios/mios-window-active, mios-windows
 set -euo pipefail
-# /usr/libexec/mios/mios-window-active <name-pattern>
-#
-# Reports whether the named app's window is actually PRESENTED to
-# the operator -- not just whether the process is alive. Operator
-# directive 2026-05-16: "if MiOS Agents detect the launched
-# process(es) as alive or present -- MiOS Agents should understand
-# that simply having the application live isn't enough and that it
-# needs to present the active window to the user(s)".
-#
-# A process can be alive but its window:
-#   * never created (MainWindowHandle == 0)
-#   * minimized to the taskbar (IsIconic == true)
-#   * hidden (IsWindowVisible false)
-#   * sized off-screen
-# Any of these means the operator does NOT see the app, even
-# though `pgrep` / `Get-Process` would say "running".
-#
-# Output: ONE-LINE JSON to stdout. Single source of truth -- agents
-# parse this instead of running their own ad-hoc Get-Process check.
-#
-# {
-#   "query": "epiphany",
-#   "process_alive": true,
-#   "process_id": 12345,
-#   "process_name": "epiphany",
-#   "window_handle": 1248892,
-#   "window_title": "Welcome to Web - Epiphany",
-#   "window_visible": true,
-#   "window_minimized": false,
-#   "window_foreground": true,
-#   "window_rect": {"x": 720, "y": 232, "w": 1280, "h": 720},
-#   "on_screen": true,
-#   "presented_to_operator": true,
-#   "summary": "presented"
-# }
-#
-# `presented_to_operator` is the bottom-line bool the agent should
-# trust: TRUE iff process_alive AND window_handle != 0 AND
-# window_visible AND NOT window_minimized AND window rect is
-# on-screen with positive area.
-#
-# `summary` is one of:
-#   presented        -- visible + not minimized + on-screen (success)
-#   not-running      -- process_alive false
-#   no-window        -- process alive but MainWindowHandle == 0 (still spawning OR pure CLI)
-#   minimized        -- process + window exist but iconic
-#   hidden           -- process + window exist but IsWindowVisible false
-#   off-screen       -- window rect outside every monitor work area
-#
-# Works for both Windows apps and WSLg-hosted Linux apps -- WSLg
-# wraps each Linux Wayland surface in a Win32 top-level owned by
-# msrdc.exe / mstsc.exe, so the Win32 API sees them identically.
 
 set -eu
 
@@ -93,15 +41,7 @@ USAGE
 fi
 
 QUERY="$*"
-# Multi-pattern support: caller may pass a comma-separated list of
-# patterns ("epiphany,web,gnome web"). We try each in order against
-# both process name AND window title. First match wins.
-# Operator-flagged 2026-05-16: Win32 windows hosted by WSLg msrdc.exe
-# show the LINUX-app display name in MainWindowTitle (e.g., Epiphanys
-# .desktop Name= is "Web", not "Epiphany"), so a single-pattern
-# "epiphany" search misses the window.
 IFS=',' read -ra PATTERNS_ARR <<< "$QUERY"
-# Build the PowerShell pattern list as a quoted comma-joined string.
 PS_PATTERNS=""
 for p in "${PATTERNS_ARR[@]}"; do
     p_trim=$(echo "$p" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
@@ -113,29 +53,15 @@ for p in "${PATTERNS_ARR[@]}"; do
         PS_PATTERNS="$PS_PATTERNS, '$p_escaped'"
     fi
 done
-# First pattern is the canonical query (for output JSON + pgrep).
 PS_QUERY=$(printf '%s' "${PATTERNS_ARR[0]:-$QUERY}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | sed "s/'/''/g")
 
-# Stringify the --present flag for embedding in the PowerShell literal.
 if [ "$PRESENT" = "1" ]; then PS_PRESENT='$true'; else PS_PRESENT='$false'; fi
 
-# ─── Linux-side pre-check: pgrep across all patterns ──────────────────
-# WSLg-hosted Linux flatpaks (Epiphany, Nautilus, Ptyxis, etc.) are
-# wrapped in msrdc.exe on the Windows side -- the Win32 Get-Process
-# loop sees "msrdc.exe", not "epiphany". So a Win32-only check reports
-# "not-running" even when the Linux process IS alive. Run pgrep
-# (against ANY of the patterns) first; if the Linux process exists,
-# surface process_alive=true in the JSON even if no Win32 window is
-# found yet.
 _lin_pid=""
 if command -v pgrep >/dev/null 2>&1; then
     for p in "${PATTERNS_ARR[@]}"; do
         p_trim=$(echo "$p" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         [ -z "$p_trim" ] && continue
-        # pgrep -f matches FULL cmdlines, so it SELF-MATCHES this verifier
-        # (its own argv contains the search pattern) -> a false process_alive
-        # for an app that isn't running. Drop any matched pid whose cmdline
-        # mentions mios-window-active (the verifier's own process tree).
         _lin_pid=$(pgrep -if "$p_trim" 2>/dev/null | while read -r _pid; do
             _cl=$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null)
             case "$_cl" in *mios-window-active*) continue ;; esac
@@ -145,9 +71,6 @@ if command -v pgrep >/dev/null 2>&1; then
     done
 fi
 
-# PowerShell snippet -- the query is embedded as a single-quoted
-# literal so it survives broker dispatch (no env var inheritance
-# needed).
 PS_SNIPPET=$(cat <<PWSHEOF
 \$query = '$PS_QUERY'
 \$present = $PS_PRESENT
@@ -180,15 +103,6 @@ foreach (\$p in \$patterns) { \$patterns_lower += \$p.ToLowerInvariant() }
     \$title_lower = if (\$_.MainWindowTitle) { \$_.MainWindowTitle.ToLowerInvariant() } else { '' }
     \$matched = \$false
     foreach (\$pat in \$patterns_lower) {
-        # Word-boundary regex match instead of bare substring.
-        # Substring matching gave false positives: e.g. pattern
-        # "web" hit "WebUI" in an unrelated browser's title bar,
-        # causing the launch verifier to report "presented" for
-        # Epiphany when Epiphany never actually opened (the verifier
-        # latched onto the operator's Zen window with title
-        # "MiOS Agent (Open WebUI) - Zen Twilight"). Word-boundary
-        # \b<pat>\b requires non-word chars on both sides, so "web"
-        # matches "open web" or "the web" but NOT "WebUI".
         \$pat_re = "\b" + [regex]::Escape(\$pat) + "\b"
         if (\$proc_name_lower -match \$pat_re -or \$title_lower -match \$pat_re) {
             \$matched = \$true
@@ -199,9 +113,6 @@ foreach (\$p in \$patterns) { \$patterns_lower += \$p.ToLowerInvariant() }
 }
 
 if (\$procs.Count -eq 0) {
-    # If pgrep on the Linux side found the process, report that fact
-    # so the caller can distinguish "process exists but no Win32 window
-    # yet" from "process not even running".
     \$lin_pid = '$_lin_pid'
     if (\$lin_pid -ne '') {
         @{ query = \$query; process_alive = \$true; process_id = [int]\$lin_pid; process_name = \$query; window_handle = 0; presented_to_operator = \$false; summary = 'no-window'; via = 'linux-pgrep' } | ConvertTo-Json -Compress
@@ -220,16 +131,6 @@ if (\$h -eq [IntPtr]::Zero) {
     return
 }
 
-# --present mode: actuate before re-measuring. FORCEFUL foreground
-# (operator 2026-05-26 "Xbox-mode focus didn't work" -- a fullscreen
-# Game Pass game stayed window_foreground:false after a plain
-# SetForegroundWindow because Windows blocks foreground changes from a
-# background caller, only flashing the taskbar). Bypass the foreground
-# lock the standard way: tap Alt, AttachThreadInput to the current
-# foreground window's thread, THEN SetForegroundWindow, and toggle
-# TOPMOST to force z-order. SW_RESTORE=9 / SW_SHOWNORMAL=1 un-minimise
-# first. Works for normal + borderless-fullscreen windows (true
-# EXCLUSIVE-fullscreen can still resist -- a hard Windows limit).
 if (\$present) {
     \$fg = [W]::GetForegroundWindow()
     \$fgpid = 0

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: systemd capability drop-in fan-out script (WS-BLADE).
-# Reads mios.toml [blade.requires] and maps cap drop-ins to service directories.
 # AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/mios.toml, /usr/lib/systemd/system/
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
@@ -9,7 +8,6 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-# Call python interpreter to perform the parsing and file copying
 python3 - <<'EOF' "$ROOT"
 import os
 import sys
@@ -67,7 +65,6 @@ for service, caps in requires.items():
     if isinstance(caps, str):
         caps = [caps]
     
-    # Ensure service ends with .service or another unit extension
     svc_name = service if service.endswith((".service", ".socket", ".timer", ".path", ".target")) else f"{service}.service"
     
     for cap in caps:

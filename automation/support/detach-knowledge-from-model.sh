@@ -1,14 +1,6 @@
 #!/bin/bash
 # AI-hint: Removes pre-LLM RAG knowledge attachments from Open WebUI models in the database to disable automatic search-query decomposition, ensuring the agent-pipe handles all logic via tool calls.
 # AI-related: mios-agent, mios-open-webui, mios-open-webui.service
-# Remove the knowledge collection attachments from the mios-agent
-# OWUI model. With knowledge attached, OWUI runs a pre-LLM RAG
-# pre-call that decomposes the user prompt into search queries and
-# fires "Searching Knowledge / Querying" status events BEFORE the
-# prompt reaches agent-pipe -- even for prompts that have nothing
-# to do with the MiOS docs (e.g. "find games"). agent-pipe is the
-# canonical orchestrator now; knowledge stays reachable via tool
-# calls inside the agent flow.
 set -euo pipefail
 python3 - <<'PYEOF'
 import json
@@ -33,8 +25,6 @@ for mid, name, meta in rows:
     if not before:
         print(f"  skip {mid!r} ({name!r}): no knowledge attached")
         continue
-    # Drop knowledge entirely; OWUI's pre-call only fires when
-    # m["knowledge"] is a non-empty list.
     m.pop("knowledge", None)
     new_meta = json.dumps(m)
     c.execute("UPDATE model SET meta = ? WHERE id = ?",

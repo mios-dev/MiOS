@@ -71,7 +71,6 @@ A2A_PROTOCOL_VERSION = os.environ.get("MIOS_A2A_PROTOCOL_VERSION", "0.3.0")
 MCP_PROTOCOL_VERSION = "2025-06-18"
 
 
-# ── config ────────────────────────────────────────────────────────────────────
 def _toml() -> dict:
     """Layered mios.toml overlay (vendor < /etc < ~/.config) via the shared resolver."""
     return mios_toml.load_merged()
@@ -99,7 +98,6 @@ def _allowed_origins() -> list[str]:
     return [s.strip() for s in str(v).split(",") if s.strip()]
 
 
-# ── local executor bridge (async; never blocks the event loop) ────────────────
 async def _run(args: list[str], timeout=30) -> tuple[int, str, str]:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -142,7 +140,6 @@ async def _screenshot_b64() -> dict:
             pass
 
 
-# ── tool catalog (MCP inputSchema == A2A skill detail == executor map) ─────────
 def _tools() -> list[dict]:
     num = {"type": "integer"}
     txt = {"type": "string"}
@@ -187,7 +184,6 @@ async def _call_tool(name: str, a: dict) -> dict:
     return {"error": f"unknown tool {name}"}
 
 
-# ── A2A agent card ─────────────────────────────────────────────────────────────
 def _agent_card(base: str) -> dict:
     host = os.environ.get("MIOS_HOSTNAME") or socket.gethostname()
     return {
@@ -215,7 +211,6 @@ def _agent_card(base: str) -> dict:
     }
 
 
-# ── A2A message/send: execute a delegated desktop op ───────────────────────────
 _CONTEXTS: dict[str, list] = {}
 
 
@@ -261,7 +256,6 @@ async def _a2a_handle_send(params: dict) -> dict:
     }
 
 
-# ── FastAPI app ────────────────────────────────────────────────────────────────
 app = FastAPI(title="mios-computer-use-server", docs_url=None, redoc_url=None)
 
 
@@ -292,7 +286,6 @@ def _auth_ok(request: Request) -> bool:
     return hdr == f"Bearer {token}" or request.headers.get("x-mios-token", "") == token
 
 
-# ---- MCP Streamable HTTP ----
 @app.post("/mcp")
 async def mcp_post(request: Request):
     if not _origin_ok(request):
@@ -306,7 +299,6 @@ async def mcp_post(request: Request):
     method = req.get("method")
     params = req.get("params") or {}
 
-    # Notifications/responses -> 202 Accepted, no body (spec).
     if method and method.startswith("notifications/") or (rid is None and "result" in req):
         return Response(status_code=202)
 
@@ -357,11 +349,9 @@ async def mcp_get(request: Request):
 
 @app.delete("/mcp")
 async def mcp_delete():
-    # Stateless: no session to terminate.
     return Response(status_code=405)
 
 
-# ---- A2A ----
 @app.get("/.well-known/agent-card.json")
 @app.get("/.well-known/agent.json")
 @app.get("/v1/agent-card")
@@ -402,8 +392,6 @@ async def a2a_rpc(request: Request):
                                  "error": {"code": -32001, "message": "unauthorized"}}, status_code=401)
 
         async def stream():
-            # Emit a working status, then the completed Task as terminal SSE events
-            # (A2A streaming shape: incremental status-update -> final task).
             yield _sse({"jsonrpc": "2.0", "id": rid,
                         "result": {"kind": "status-update",
                                    "status": {"state": "working"},
@@ -422,7 +410,6 @@ def _sse(obj: dict) -> str:
     return f"data: {json.dumps(obj)}\n\n"
 
 
-# ---- REST executor contract ----
 @app.get("/health")
 async def health():
     return JSONResponse({"status": "ok", "prog": PROG, "tools": [t["name"] for t in _tools()],
@@ -499,7 +486,6 @@ async def _safe_json(request: Request) -> dict:
         return {}
 
 
-# ── entrypoint ─────────────────────────────────────────────────────────────────
 def _port() -> int:
     try:
         return int(_cu_cfg("server_port", 11438))

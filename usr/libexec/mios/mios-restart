@@ -2,43 +2,23 @@
 # AI-hint: Executes smart restarts for MiOS services, handling specific logic for Podman Quadlets (systemctl-based), standard systemd units, and hermes-agent soft restarts to clear in-process skill caches.
 # AI-related: /usr/libexec/mios/mios-restart, /usr/share/mios/hermes/skills/, /usr/share/mios/hermes/skills, /usr/share/mios/hermes/skills/., /usr/share/mios/ai/hermes-soul.md, mios-open-webui, mios-searxng, mios-forge, mios-forgejo-runner
 # AI-functions: usage
-# /usr/libexec/mios/mios-restart <service-or-quadlet>
-#
-# Smart restart for any MiOS-managed service. Knows the difference between:
-#
-#   * a podman Quadlet (lives at /etc/containers/systemd/<name>.container,
-#     systemd unit name is <name>.service) -- restart MUST go through
-#     `systemctl restart <name>.service`. `podman restart <name>` desyncs
-#     systemd's view and the unit gets ExecStop'd ~1 minute later
-#     (operator-confirmed regression 2026-05-15: podman restart killed
-#     mios-open-webui repeatedly).
-#
-#   * a regular systemd service (hermes-agent, sshd, etc.) -- normal
-#     `systemctl restart`.
-#
-#   * a hermes-agent gateway "soft restart" -- restart the service AND
-#     drop the in-process skills-prompt cache so newly-edited SOUL.md /
-#     SKILL.md takes effect on the very next chat.
-#
-# Accepts either short name (open-webui, hermes, llm-light) or full unit
-# name (mios-open-webui.service). Doesn't accept ambiguous matches.
 
 set -eu
 
 usage() {
-    echo "usage: mios-restart <service>"
+    echo "Usage: mios-restart <service>"
     echo
-    echo "shortcuts:"
-    echo "  hermes              -> mios-agent-pipe.service (+ drops skill cache)"
+    echo "Shortcuts:"
+    echo "  hermes              -> mios-agent-pipe.service"
     echo "  llm-light           -> mios-llm-light.service"
     echo "  pgvector            -> mios-pgvector.service"
     echo "  open-webui          -> mios-open-webui.service"
     echo "  searxng             -> mios-searxng.service"
     echo "  forge               -> mios-forge.service"
     echo "  forge-runner        -> mios-forgejo-runner.service"
-    echo "  code-server         -> mios-agents.service (replaces code-server)"
+    echo "  code-server         -> mios-agents.service"
     echo
-    echo "or pass a full unit name (e.g. mios-k3s.service)"
+    echo "Or pass a full unit name"
 }
 
 if [ "$#" -eq 0 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -48,7 +28,6 @@ fi
 
 SVC="$1"
 
-# Map short names to full unit names. Lowercase + alias-expand.
 case "$SVC" in
     hermes|hermes-agent|gateway-agent)  UNIT="mios-agent-pipe.service" ;;
     llm-light|llmlight)             UNIT="mios-llm-light.service" ;;
@@ -61,7 +40,6 @@ case "$SVC" in
     crowdsec)                       UNIT="mios-crowdsec.service" ;;
     k3s)                            UNIT="mios-k3s.service" ;;
     *)
-        # Pass through with .service appended if absent.
         case "$SVC" in
             *.service|*.target|*.socket) UNIT="$SVC" ;;
             *) UNIT="${SVC}.service" ;;
@@ -69,10 +47,9 @@ case "$SVC" in
         ;;
 esac
 
-# Privilege check.
 if [ "$(id -u)" -ne 0 ]; then
     if ! sudo -n true 2>/dev/null; then
-        echo "mios-restart: need root (or non-interactive sudo)" >&2
+        echo "Mios-restart: need root" >&2
         exit 1
     fi
     SUDO="sudo -n"
@@ -80,19 +57,8 @@ else
     SUDO=""
 fi
 
-# Hermes-specific PRE-restart: rsync vendor skill set from
-# /usr/share/mios/hermes/skills/ into HERMES_HOME/skills so newly
-# vendored skills appear without requiring a full mios-hermes-firstboot
-# re-run. firstboot owns the initial seed; this re-syncs on demand for
-# the operator's `mios-restart hermes` flow. Idempotent (rsync skips
-# unchanged files). Operator directive 2026-05-15: skill staleness
-# bit us when pc-control + windows-control + mios-environment were
-# added vendor-side but never appeared in HERMES_HOME because
-# firstboot only runs once.
 if [ "$UNIT" = "mios-agent-pipe.service" ]; then
     if [ -d /usr/share/mios/hermes/skills ]; then
-        # Try every plausible HERMES_HOME -- the service one is canonical
-        # but operator CLI homes also benefit. Owner per-target.
         for _target in \
             "/var/lib/mios/hermes/skills:mios-hermes:mios-hermes" \
             "/var/home/mios/.hermes/skills:mios:mios" \
@@ -106,8 +72,6 @@ if [ "$UNIT" = "mios-agent-pipe.service" ]; then
             [ -d "$_parent" ] || continue
             $SUDO mkdir -p "$_dest"
             $SUDO chown "$_own:$_grp" "$_dest" 2>/dev/null || true
-            # rsync if available; cp -a fallback. -u keeps newer dest
-            # files (operator's local edits) untouched.
             if command -v rsync >/dev/null 2>&1; then
                 $SUDO rsync -au --chown="$_own:$_grp" \
                     /usr/share/mios/hermes/skills/ "$_dest/" 2>/dev/null || true
@@ -119,13 +83,6 @@ if [ "$UNIT" = "mios-agent-pipe.service" ]; then
         echo "  hermes: re-synced vendor skills into HERMES_HOME"
     fi
 
-    # SOUL.md follows the SAME pattern: vendor edit at
-    # /usr/share/mios/ai/hermes-soul.md, gateway-side firstboot stamps
-    # to $HERMES_HOME/SOUL.md once, operator-CLI ~/.hermes/SOUL.md once.
-    # Between firstboots, edits don't propagate -- and operator's CLI
-    # gets a stale prompt with old refusal-fix language. Mirror the
-    # skills behaviour: re-sync if the MiOS-managed marker is still
-    # present (operator took ownership iff they removed it).
     SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
     if [ -f "$SOUL_SRC" ]; then
         for _entry in \
@@ -139,8 +96,6 @@ if [ "$UNIT" = "mios-agent-pipe.service" ]; then
             _grp="${_rest#*:}"
             _parent_dir=$(dirname "$_dest")
             [ -d "$_parent_dir" ] || continue
-            # If existing file doesn't carry the MiOS-managed marker,
-            # operator has taken ownership -- leave it alone.
             if [ -f "$_dest" ] && ! grep -q "MiOS-managed:" "$_dest" 2>/dev/null; then
                 continue
             fi
@@ -152,11 +107,6 @@ fi
 
 echo "── restarting $UNIT ──"
 $SUDO systemctl restart "$UNIT"
-# Bounded readiness poll instead of a fixed `sleep 2` + single is-active: a
-# slow-starting unit (a container Quadlet, the SGLang heavy lane, OWUI) is still
-# 'activating' 2 s in, so the old code reported a transient/incorrect state.
-# Poll every 1 s up to 30 s (well under TimeoutStartSec), break on a TERMINAL
-# state, and report elapsed time so the result is honest.
 _poll_start="$(date +%s)"
 state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
 for _ in $(seq 1 30); do
@@ -166,11 +116,8 @@ for _ in $(seq 1 30); do
     sleep 1
     state="$($SUDO systemctl is-active "$UNIT" 2>&1 || true)"
 done
-echo "  state: $state (after $(( $(date +%s) - _poll_start ))s)"
+echo "  state: $state - _poll_start ))s)"
 
-# Hermes-specific POST-restart: drop the in-process skills-prompt cache
-# so SOUL.md / SKILL.md edits take effect immediately on the very next
-# chat (without a second restart).
 if [ "$UNIT" = "mios-agent-pipe.service" ]; then
     for d in /var/lib/mios/hermes /home/mios/.hermes /var/home/mios/.hermes; do
         [ -d "$d" ] || continue
@@ -179,9 +126,6 @@ if [ "$UNIT" = "mios-agent-pipe.service" ]; then
     echo "  hermes: dropped skills-prompt cache snapshots"
 fi
 
-# Quadlet-aware tail of the unit's recent journal so the operator/agent
-# sees immediate evidence the unit actually came up (vs hung in
-# 'activating' or restart-loop).
 echo
 echo "── last 8 lines of journal ──"
 $SUDO journalctl -u "$UNIT" --no-pager --no-hostname -n 8 2>&1 | tail -8

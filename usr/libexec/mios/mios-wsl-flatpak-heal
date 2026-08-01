@@ -2,36 +2,9 @@
 # AI-hint: Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments.
 # AI-related: /usr/libexec/mios/mios-wsl-flatpak-heal, mios-wsl-flatpak-heal.timer, dbus-broker.service, xdg-desktop-portal.service, xdg-document-portal.service, flatpak-portal.service
 set -euo pipefail
-# /usr/libexec/mios/mios-wsl-flatpak-heal
-#
-# Pre-emptively ensure the user-side flatpak portal stack is alive
-# so the next flatpak launch doesn't die at sandbox-credential
-# bootstrap. WSL2g sessions consistently let flatpak-portal idle
-# out (~10-18min observed) without dbus auto-activation re-firing
-# it; the result is `Connection: failed to receive credentials`
-# from any flatpak the operator/agent invokes.
-#
-# Operator-flagged 2026-05-18: every flatpak (epiphany, nautilus,
-# gnome-software, ...) failed identically because flatpak-portal
-# was inactive even though every OTHER portal service (dbus-broker,
-# xdg-desktop-portal*, xdg-document-portal) was active.
-#
-# This script is the heal helper. It:
-#   1. Checks the user-bus + portal services we know flatpak needs.
-#   2. Starts any that are inactive.
-#   3. Pings flatpak-portal via dbus to confirm responsiveness.
-#
-# Run by:
-#   * mios-wsl-flatpak-heal.timer (user-side, every 5 min)
-#   * any operator/agent before a flatpak launch they need to land
-#
-# Idempotent: starting an already-active service is a no-op.
 
 set -u
 
-# Services we manage. xdg-document-portal + flatpak-portal are
-# what bubblewrap sandboxes actually need; the others are present
-# for completeness but rarely the failure point.
 SERVICES=(
     "dbus-broker.service"
     "xdg-desktop-portal.service"
@@ -55,9 +28,6 @@ for svc in "${SERVICES[@]}"; do
     fi
 done
 
-# Verify flatpak-portal responds to a dbus ping. The portal accepts
-# Introspect on its well-known path which is the cheapest probe
-# that proves the activation chain works end-to-end.
 portal_ok=0
 if command -v gdbus >/dev/null 2>&1; then
     if gdbus introspect --session \
@@ -68,10 +38,6 @@ if command -v gdbus >/dev/null 2>&1; then
     fi
 fi
 
-# Emit JSON envelope so agents can consume the result + decide.
-# Non-zero exit when the portal still doesn't respond after all
-# heals -- caller surfaces "flatpak portal not reachable" rather
-# than attempting a doomed launch.
 python3 - "$started" "$already_active" "$failed" "$portal_ok" <<'PYEOF'
 import json, sys
 started, already_active, failed, portal_ok = (int(x) for x in sys.argv[1:5])

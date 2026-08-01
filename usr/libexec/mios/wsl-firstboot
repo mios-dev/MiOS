@@ -2,65 +2,29 @@
 # AI-hint: Executes runtime-specific WSL initialization by syncing the hostname from install.env and verifying systemd-linger markers to bridge the gap between build-time configuration and WSL-specific boot behavior.
 # AI-related: /usr/lib/mios/paths.sh, mios-user, mios-wsl-firstboot
 # AI-functions: _log
-# MiOS -- wsl-firstboot: minimal WSL-specific first-boot bridge.
-#
-# Everything that can be declared at IMAGE BUILD TIME has been moved
-# out of this script per the "native Fedora user creation at overlay
-# time" principle:
-#
-#   * /etc/passwd, /etc/group, /etc/shadow              -> automation/11-user.sh
-#                                                          + /usr/lib/sysusers.d/10-mios.conf
-#   * /etc/subuid, /etc/subgid                          -> automation/11-user.sh
-#   * /var/home/mios + skel copy + ownership            -> /usr/lib/tmpfiles.d/mios-user.conf
-#   * /var/lib/systemd/linger/mios marker               -> /usr/lib/tmpfiles.d/mios-user.conf
-#
-# What's left here is the genuinely WSL-runtime-bound work that has
-# no native Fedora declarative equivalent:
-#
-#   * /etc/hostname  -- comes from install.env which is only readable
-#                       at boot, not at the cross-platform build phase
-#   * loginctl-shaped warnings if the marker didn't materialize
-#                       (defensive; tmpfiles.d should already have
-#                       handled it but logind being condition-gated
-#                       off on WSL means we can't verify via varlink)
-#
-# Runs once (guarded by ConditionPathExists=!/var/lib/mios/.wsl-firstboot-done).
-# Safe to re-run: all operations are idempotent.
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 MARKER="${MIOS_VAR_DIR}/.wsl-firstboot-done"
 
-# logger may fail if journald isn't up yet -- never fatal
 _log() { logger -t mios-wsl-firstboot "$*" 2>/dev/null || true; echo "[wsl-firstboot] $*" >&2; }
 
 _log "Starting WSL2 first-boot bridge (substrate already provisioned at overlay time)"
 
-# ── Load identity from install.env (written at bootstrap time) ──
 MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 if [[ -f ${MIOS_ETC_DIR}/install.env ]]; then
-    # shellcheck disable=SC1091
     set +u
     source ${MIOS_ETC_DIR}/install.env 2>/dev/null || true
     set -u
     MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 fi
 
-# ── Hostname ──
-# hostnamectl requires logind which is condition-gated off on WSL,
-# so write /etc/hostname directly. The kernel call is best-effort.
 if [[ -n "$MIOS_HOSTNAME" ]]; then
     echo "$MIOS_HOSTNAME" > /etc/hostname
     hostname "$MIOS_HOSTNAME" 2>/dev/null || true
     _log "Hostname set to $MIOS_HOSTNAME"
 fi
 
-# ── Defensive verification (no-op when overlay-time setup worked) ──
-# tmpfiles.d/mios-user.conf and automation/11-user.sh should have
-# already handled all of these. The blocks below are defensive logging
-# only -- they never repair, just warn so a broken image is loud rather
-# than quietly degraded.
 if id mios &>/dev/null; then
     if [[ -d /var/home/mios ]]; then
         chown -R mios:mios /var/home/mios 2>/dev/null || true
@@ -79,7 +43,6 @@ else
     _log "ERROR: 'mios' user does not exist -- /usr/lib/sysusers.d/10-mios.conf was not materialized"
 fi
 
-# ── Mark done ──
 mkdir -p "$(dirname "$MARKER")"
 touch "$MARKER"
 _log "WSL2 first-boot bridge complete"

@@ -2,29 +2,6 @@
 # AI-hint: A shim script that constructs and opens Google Maps URLs for locations or directions, providing a single-call interface for agents to bypass complex URL construction and browser-launch logic.
 # AI-related: /usr/libexec/mios/mios-map, mios-open-url
 # AI-functions: usage, urlencode
-# /usr/libexec/mios/mios-map <query> [--directions [<from>]] [--browser <name>]
-#
-# Open Google Maps for a query / address / "directions to X" in the
-# operator's default browser. Operator-flagged 2026-05-17: agent
-# refused "Open a map with directions to Chotto Matte Toronto" with
-# "the browser can't launch in this environment" -- it had access to
-# mios-open-url all along. This shim collapses the whole flow to one
-# call so the agent stops reinventing the URL.
-#
-# Examples:
-#   mios-map "Chotto Matte Toronto"
-#       -> https://www.google.com/maps/search/Chotto+Matte+Toronto
-#
-#   mios-map --directions "Toronto Congress Centre"
-#       -> https://www.google.com/maps/dir/?api=1&destination=Toronto+Congress+Centre
-#
-#   mios-map --directions "650 Dixon Road Toronto" --from "downtown Toronto"
-#       -> https://www.google.com/maps/dir/?api=1&origin=downtown+Toronto&destination=650+Dixon+Road+Toronto
-#
-# Exit codes:
-#   0 = URL constructed + opened in browser
-#   1 = mios-open-url failed
-#   64 = bad usage
 
 set -uo pipefail
 
@@ -61,13 +38,10 @@ while [ "$#" -gt 0 ]; do
         --directions) DIRECTIONS=1; shift ;;
         --from)       FROM="${2:-}"; shift 2 ;;
         --browser)    BROWSER="${2:-}"; shift 2 ;;
-        *) echo "mios-map: unknown arg: $1" >&2; exit 64 ;;
+        *) echo "Mios-map: unknown arg: $1" >&2; exit 64 ;;
     esac
 done
 
-# URL-encode helper: rfc 3986 percent-encode anything that's not
-# unreserved (A-Z a-z 0-9 - . _ ~). Single-pass; relies on `od` for
-# byte iteration so multi-byte UTF-8 is handled correctly.
 urlencode() {
     local s="$1" out=""
     local LANG=C LC_ALL=C
@@ -100,7 +74,7 @@ echo "[mios-map] url=$URL"
 OPEN_ARGS=("$URL")
 [ -n "$BROWSER" ] && OPEN_ARGS+=("$BROWSER")
 if ! mios-open-url "${OPEN_ARGS[@]}"; then
-    echo "mios-map: mios-open-url failed for $URL" >&2
+    echo "Mios-map: mios-open-url failed for $URL" >&2
     exit 1
 fi
 exit 0

@@ -1,14 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner
 # AI-related: /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, /etc/mios/forge/runner-token, mios-forgejo-runner-firstboot, mios-forgejo-runner, mios-forge-firstboot, mios-self-hosted, mios-forge, mios-forgejo-runner.service, mios-forge.service, localhost:3000
-# /usr/libexec/mios/mios-forgejo-runner-firstboot.sh
-#
-# Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner
-# exists before mios-forgejo-runner.service starts the daemon. v7+ no
-# longer auto-registers from FORGEJO_RUNNER_REGISTRATION_TOKEN env --
-# the daemon subcommand strictly requires .runner on disk.
-#
-# Idempotent: if .runner already present, exit 0 immediately.
 set -euo pipefail
 
 SENTINEL=/srv/mios/forge-runner/.runner
@@ -28,7 +20,6 @@ if [[ ! -r "$TOKEN_FILE" ]]; then
     exit 0
 fi
 
-# shellcheck source=/dev/null
 . "$TOKEN_FILE"
 
 if [[ -z "${FORGEJO_RUNNER_REGISTRATION_TOKEN:-}" ]]; then
@@ -43,19 +34,6 @@ RUNNER_IMAGE="${MIOS_FORGE_RUNNER_IMAGE:-code.forgejo.org/forgejo/runner:7}"
 
 install -d -m 0750 -o root -g root /srv/mios/forge-runner
 
-# The register call must reach the Forgejo instance, and crucially the
-# .runner file it writes records the instance URL the *daemon* will
-# later connect to. Both have to agree on a network:
-#   * bridge shapes (real OCI builds): forge is on mios.network, the
-#     daemon Quadlet is on mios.network, and FORGEJO_INSTANCE_URL is
-#     http://mios-forge:<port>/ -- so register must ALSO join that
-#     bridge or the `mios-forge` container-DNS name won't resolve.
-#   * WSL / dev-VM testbed: build-mios.ps1 drops forge AND the runner
-#     daemon to Network=host; FORGEJO_INSTANCE_URL is http://localhost:
-#     <port>/ -- so register runs --network host.
-# forge is up by now (After=mios-forge.service), so inspect its live
-# network and mirror it. This keeps register, the .runner URL, and the
-# daemon all on one consistent network without hard-coding the shape.
 FORGE_NET=$(podman inspect mios-forge \
     --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null \
     | awk '{print $1}')
@@ -64,16 +42,9 @@ if [[ "$FORGE_NET" == "host" || -z "$FORGE_NET" ]]; then
 else
     NET_ARG=(--network "$FORGE_NET")
 fi
-echo "[runner-firstboot] forge network: ${FORGE_NET:-host(fallback)}; register net: ${NET_ARG[*]}"
+echo "[runner-firstboot] forge network: ${FORGE_NET:-host}; register net: ${NET_ARG[*]}"
 
 echo "[runner-firstboot] registering $RUNNER_NAME against $INSTANCE_URL"
-# --user 0:0 so the in-container forgejo-runner can write
-# /data/.runner. The host /srv/mios/forge-runner is root-owned
-# (Law-6 exception alongside ceph + k3s), and the daemon Quadlet
-# also runs User=0, so root-owned .runner is the consistent
-# ownership across register + daemon. Without --user 0:0 the
-# image's default uid 1000 hits "permission denied" on the
-# .runner write.
 podman run --rm \
     -v /srv/mios/forge-runner:/data:Z \
     "${NET_ARG[@]}" \

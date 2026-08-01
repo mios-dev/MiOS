@@ -1,15 +1,6 @@
 #!/bin/sh
 # AI-hint: Provides a summary of the most recent build's status, log location, and success state by analyzing /var/log/mios/build-driver-*.log files and active build-driver processes.
 # AI-related: /usr/libexec/mios/mios-build-status, mios-build-driver
-# /usr/libexec/mios/mios-build-status [N]
-#
-# Print the state of the most recent `mios build` run: log path, age,
-# size, last-line tail, exit summary if completed. Optional N = show
-# the last N lines of the log (default 30).
-#
-# Designed for the agent to answer "how's the build going" without
-# having to remember /var/log/mios/build-driver-*.log naming or write
-# its own shell pipeline.
 
 set -eu
 
@@ -17,13 +8,10 @@ N="${1:-30}"
 
 LOG_DIR="/var/log/mios"
 if [ ! -d "$LOG_DIR" ]; then
-    echo "mios-build-status: $LOG_DIR does not exist (no builds have run)"
+    echo "Mios-build-status: $LOG_DIR does not exist"
     exit 0
 fi
 
-# Find the most recent build-driver log. There may be a tmp fallback at
-# /tmp/mios-build-driver-*.log when the driver couldn't write to /var/log
-# (e.g. inside a restricted namespace before the systemd-run escape fired).
 LATEST=""
 for d in "$LOG_DIR" /tmp; do
     cand="$(ls -1tr "$d"/mios-build-driver-*.log 2>/dev/null | tail -1)"
@@ -34,11 +22,10 @@ for d in "$LOG_DIR" /tmp; do
     fi
 done
 if [ -z "$LATEST" ]; then
-    echo "mios-build-status: no build-driver-*.log found under /var/log/mios or /tmp"
+    echo "Mios-build-status: no build-driver-*.log found under /var/log/mios or /tmp"
     exit 0
 fi
 
-# Header: which log, age, size.
 size=$(wc -c <"$LATEST")
 mtime=$(date -r "$LATEST" '+%Y-%m-%d %H:%M:%S')
 echo "── most recent build log ──"
@@ -46,29 +33,21 @@ echo "  path:  $LATEST"
 echo "  size:  $size bytes"
 echo "  mtime: $mtime"
 
-# Is the driver still running for this log?
-# Match any build-driver process whose log path argv resembles ours, OR
-# any build-driver that's currently active at all (best-effort).
 if pgrep -af 'mios-build-driver' >/dev/null 2>&1; then
-    echo "  state: RUNNING (build-driver process alive)"
+    echo "  state: RUNNING"
     pgrep -af 'mios-build-driver' | head -3 | sed 's/^/    /'
 else
-    # If the log ends with FATAL/Error/Failed, call it failed; else assume
-    # finished (driver exited, no failure markers in the tail).
     if tail -50 "$LATEST" 2>/dev/null | grep -qE 'FATAL|^Error|exit status [1-9]|\[fail\]'; then
-        echo "  state: FAILED (FATAL / Error / non-zero exit in last 50 lines)"
+        echo "  state: FAILED"
     else
-        echo "  state: completed (no driver process, no failure markers)"
+        echo "  state: completed"
     fi
 fi
 
-# OCI build artifacts produced this run (if any). The build context lives
-# under /var/lib/mios/build/build-context; final OCI image goes into
-# rootful podman storage as localhost/mios:latest.
 echo
-echo "── most recent OCI image (if produced) ──"
+echo "── most recent OCI image ──"
 sudo -n podman images localhost/mios --format '  {{.Repository}}:{{.Tag}}  {{.CreatedSince}}  {{.Size}}' 2>/dev/null | head -3 || \
-    echo "  (podman query failed -- needs sudo)"
+    echo ""
 
 echo
 echo "── last $N lines of the log ──"

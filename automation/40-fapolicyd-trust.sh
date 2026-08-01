@@ -6,9 +6,8 @@ set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-mios_log "set fapolicyd trust = file,rpmdb in /usr/lib and /etc fapolicyd.conf"
+mios_log "Set fapolicyd trust = file,rpmdb in /usr/lib and /etc fapolicyd.conf"
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
 if command -v miosd >/dev/null 2>&1; then
@@ -17,17 +16,11 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-# Configure fapolicyd to use the file trust backend (fs-verity)
-# This allows 0-second boot delays while maintaining rigid application whitelisting
-# in immutable ComposeFS environments.
-#
-# : USR-OVER-ETC alignment. Update both /usr/lib and /etc.
 for config in /usr/lib/fapolicyd/fapolicyd.conf /etc/fapolicyd/fapolicyd.conf; do
     if [[ -f "$config" ]]; then
         sed -i 's/^trust =.*/trust = file,rpmdb/' "$config" || true
     fi
 done
 
-# Enable the service
 systemctl enable fapolicyd.service
 mios_ok "trust = file,rpmdb set in fapolicyd.conf, fapolicyd.service enabled"

@@ -42,15 +42,8 @@ import urllib.error
 from pathlib import Path
 
 DEFAULT_MODEL = "qwen3-vl:4b"
-# :8450 = mios-llm-light (the live OpenAI /v1 serving). Serve a VLM
-# GGUF (qwen3-vl:4b + mmproj) on :8450 to activate vision grounding (operator dl).
 DEFAULT_ENDPOINT = f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1"
 DEFAULT_TIMEOUT_S = 60
-# Grounding output format. qwen3-vl & most VLMs emit the JSON the SYSTEM_PROMPT
-# below asks for ("json"). UI-TARS / GUI-Actor emit an Action DSL carrying
-# coordinates ("uitars"). "auto" picks by model name (a vLLM lane served as
-# "mios-grounding" / "ui-tars*" -> uitars). coord_space: "image" = absolute
-# pixels (UI-TARS-1.5), "thousand" = 0..1000 per-mille (rescaled to image dims).
 DEFAULT_FORMAT = "auto"
 DEFAULT_COORD_SPACE = "image"
 
@@ -115,7 +108,6 @@ Rules:
 - Return ONLY the JSON object, no markdown fences, no extra prose.
 """
 
-# UI-TARS / GUI-Actor grounding -- these models emit an Action DSL, not JSON.
 UITARS_SYSTEM = """You are a GUI grounding agent. You are given a screenshot and
 an instruction naming a target UI element. Output ONE action pointing at the
 centre of that element, in exactly this format and nothing else:
@@ -213,7 +205,6 @@ def ground(image_path: Path, query: str, *, model: str, endpoint: str,
         w, h = _png_size(image_path)
         return _parse_uitars(content, w, h, coord_space)
 
-    # JSON path: tolerate code-fence wrapping or trailing prose.
     m = re.search(r"\{[^{}]*\}", content)
     if not m:
         raise RuntimeError(f"could not parse JSON from model reply:\n{content}")

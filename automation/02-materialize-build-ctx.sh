@@ -14,14 +14,12 @@ if [[ -z "$TOML_PATH" ]]; then
     exit 0
 fi
 
-# Check if build_catalog_authoritative is true
 AUTH=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
     if ($0 ~ /=[[:space:]]*true/) print "true"
 }' "$TOML_PATH" 2>/dev/null)
 
 if [[ "$AUTH" == "true" ]]; then
-    mios_log "build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
-    # The default location of materialized files is next to mios.toml
+    mios_log "Build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
     export MIOS_BUILD_CTX="${MIOS_BUILD_CTX:-$(dirname "$TOML_PATH")}"
     if /usr/libexec/mios/materialize-build-ctx.py; then
         mios_ok "materialized to ${MIOS_BUILD_CTX}"

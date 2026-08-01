@@ -1,16 +1,9 @@
 #!/bin/bash
 # AI-hint: Universal CPU Core Isolation Configurator
 # AI-functions: log_info, log_success, log_warning, log_error, log_header, check_root, detect_cpu_topology, detect_amd_ccds, detect_intel_hybrid, display_cpu_topology, display_ccd_layout, display_numa_layout
-###############################################################################
-# Universal CPU Core Isolation Configurator
-# For MiOS-Build Professional Virtualization Hosts
-# Optimized for: AMD Ryzen X3D (dual-CCD), Intel Hybrid (P/E-cores), NUMA
-# Compatible with: systemd-boot, GRUB, dynamic affinity management
-###############################################################################
 
 set -euo pipefail
 
-# Colors
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
@@ -21,17 +14,14 @@ readonly BOLD='\033[1m'
 readonly DIM='\033[2m'
 readonly NC='\033[0m'
 
-# Configuration
 readonly BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"
 
-# CPU Topology Data
 declare -A CPU_INFO
 declare -a ISOLATED_CPUS=()
 declare -a HOST_CPUS=()
 declare -a CCD_MAP=()
 declare -A NUMA_MAP
 
-# Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[[OK]]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[[WARN]]${NC} $1"; }
@@ -44,7 +34,6 @@ log_header() {
     echo ""
 }
 
-# Check root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root"
@@ -52,11 +41,9 @@ check_root() {
     fi
 }
 
-# Detect CPU topology
 detect_cpu_topology() {
     log_header "CPU Topology Detection"
     
-    # Basic CPU info
     CPU_INFO[vendor]=$(lscpu | grep "Vendor ID" | awk '{print $3}')
     CPU_INFO[model]=$(lscpu | grep "Model name" | sed 's/Model name:[[:space:]]*//')
     CPU_INFO[cores]=$(lscpu | grep "^Core(s) per socket:" | awk '{print $4}')
@@ -67,36 +54,29 @@ detect_cpu_topology() {
     log_success "CPU: ${CPU_INFO[model]}"
     log_info "Topology: ${CPU_INFO[sockets]} socket(s), ${CPU_INFO[cores]} cores, ${CPU_INFO[threads]} threads"
     
-    # Detect NUMA
     CPU_INFO[numa_nodes]=$(lscpu | grep "NUMA node(s):" | awk '{print $3}')
     log_info "NUMA nodes: ${CPU_INFO[numa_nodes]}"
     
-    # Build NUMA map
     for ((node=0; node<${CPU_INFO[numa_nodes]}; node+=1)); do
         local cpus=$(lscpu | grep "NUMA node${node} CPU(s):" | awk '{print $4}')
         NUMA_MAP[$node]="$cpus"
     done
     
-    # Detect AMD CCD architecture (Ryzen X3D)
     detect_amd_ccds
     
-    # Detect Intel Hybrid (P-cores/E-cores)
     detect_intel_hybrid
     
     echo ""
 }
 
-# Detect AMD CCD layout (for Ryzen 9950X3D, 7950X3D, etc.)
 detect_amd_ccds() {
     if [[ "${CPU_INFO[vendor]}" != "AuthenticAMD" ]]; then
         return
     fi
     
-    # Check for X3D CPUs
     if [[ "${CPU_INFO[model]}" =~ (9950X3D|7950X3D|7900X3D) ]]; then
         log_info "Detected AMD X3D CPU with dual-CCD architecture"
         
-        # For 9950X3D and 7950X3D: 16 cores split into 2 CCDs
         local cores_per_ccd=$((${CPU_INFO[cores]} / 2))
         local threads_per_ccd=$((cores_per_ccd * ${CPU_INFO[threads_per_core]}))
         
@@ -104,15 +84,12 @@ detect_amd_ccds() {
         CPU_INFO[ccd_count]=2
         CPU_INFO[cores_per_ccd]=$cores_per_ccd
         
-        # CCD0: Usually has V-Cache
         CCD_MAP[0]="0-$((threads_per_ccd - 1))"
-        # CCD1: Usually higher frequency
         CCD_MAP[1]="$threads_per_ccd-$((${CPU_INFO[threads]} - 1))"
         
         log_success "CCD0 (V-Cache): CPUs ${CCD_MAP[0]}"
         log_success "CCD1 (High Freq): CPUs ${CCD_MAP[1]}"
         
-        # Check for V-Cache indicator
         if [[ -f /sys/devices/system/cpu/cpu0/cache/index3/size ]]; then
             local l3_size=$(cat /sys/devices/system/cpu/cpu0/cache/index3/size)
             log_info "L3 Cache detected: $l3_size"
@@ -120,24 +97,19 @@ detect_amd_ccds() {
     fi
 }
 
-# Detect Intel Hybrid architecture (12th gen+)
 detect_intel_hybrid() {
     if [[ "${CPU_INFO[vendor]}" != "GenuineIntel" ]]; then
         return
     fi
     
-    # Check for hybrid architecture markers
     if lscpu | grep -q "Core(s) per socket:.*P-core\|E-core"; then
         log_info "Detected Intel Hybrid architecture (P-cores + E-cores)"
         CPU_INFO[has_hybrid]=1
         
-        # Parse P-core and E-core counts (requires detailed lscpu parsing)
-        # This is a simplified detection
         log_warning "Intel Hybrid detected - manual verification recommended"
     fi
 }
 
-# Visual CPU topology display
 display_cpu_topology() {
     log_header "CPU Topology Visualization"
     
@@ -159,7 +131,6 @@ display_cpu_topology() {
     echo -e "${CYAN}+****************************************************************+${NC}"
     echo ""
     
-    # Visual CPU grid
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
         display_ccd_layout
     elif [[ ${CPU_INFO[numa_nodes]} -gt 1 ]]; then
@@ -169,7 +140,6 @@ display_cpu_topology() {
     fi
 }
 
-# Display CCD-based layout (AMD X3D)
 display_ccd_layout() {
     echo -e "${BOLD}CPU Layout by CCD:${NC}"
     echo ""
@@ -206,7 +176,6 @@ display_ccd_layout() {
     echo ""
 }
 
-# Display NUMA-based layout
 display_numa_layout() {
     echo -e "${BOLD}CPU Layout by NUMA Node:${NC}"
     echo ""
@@ -218,7 +187,6 @@ display_numa_layout() {
     done
 }
 
-# Display linear layout
 display_linear_layout() {
     echo -e "${BOLD}CPU Layout:${NC}"
     echo ""
@@ -234,18 +202,17 @@ display_linear_layout() {
     echo ""
 }
 
-# Interactive isolation mode selection
 select_isolation_mode() {
     log_header "Isolation Mode Selection"
     
     echo "Choose isolation strategy:"
     echo ""
-    echo "  ${BOLD}1)${NC} Quick Presets (Recommended)"
-    echo "     - Gaming VM (isolate V-Cache CCD)"
-    echo "     - Balanced (50/50 split)"
-    echo "     - Host Priority (minimal isolation)"
+    echo "  ${BOLD}1)${NC} Quick Presets"
+    echo "     - Gaming VM"
+    echo "     - Balanced"
+    echo "     - Host Priority"
     echo ""
-    echo "  ${BOLD}2)${NC} CCD-Based Selection (AMD X3D)"
+    echo "  ${BOLD}2)${NC} CCD-Based Selection"
     echo "     - Select entire CCDs"
     echo ""
     echo "  ${BOLD}3)${NC} NUMA-Based Selection"
@@ -254,7 +221,7 @@ select_isolation_mode() {
     echo "  ${BOLD}4)${NC} Custom Core Selection"
     echo "     - Manually select cores/threads"
     echo ""
-    echo "  ${BOLD}5)${NC} Advanced (Hybrid P/E-cores, ranges)"
+    echo "  ${BOLD}5)${NC} Advanced"
     echo ""
     
     read -p "Selection [1-5]: " mode
@@ -269,7 +236,6 @@ select_isolation_mode() {
     esac
 }
 
-# Quick presets
 select_quick_preset() {
     log_header "Quick Presets"
     
@@ -277,33 +243,33 @@ select_quick_preset() {
     echo ""
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
-        echo "  ${BOLD}1)${NC} Gaming VM Optimized ${GREEN}(Recommended for X3D)${NC}"
-        echo "     - Isolate: CCD0 (V-Cache) for VM"
-        echo "     - Host: CCD1 (High Freq)"
+        echo "  ${BOLD}1)${NC} Gaming VM Optimized ${GREEN}${NC}"
+        echo "     - Isolate: CCD0 for VM"
+        echo "     - Host: CCD1"
         echo ""
         echo "  ${BOLD}2)${NC} Render/Compute Optimized"
-        echo "     - Isolate: CCD1 (High Freq) for VM"
-        echo "     - Host: CCD0 (V-Cache)"
+        echo "     - Isolate: CCD1 for VM"
+        echo "     - Host: CCD0"
         echo ""
-        echo "  ${BOLD}3)${NC} Balanced (50/50)"
+        echo "  ${BOLD}3)${NC} Balanced"
         echo "     - Isolate: Half of each CCD"
         echo "     - Host: Remaining half"
         echo ""
-        echo "  ${BOLD}4)${NC} Host Priority ${DIM}(Minimal Host - Maximum VM Performance)${NC}"
-        echo "     - Host: Cores 0,1,8,9 + SMT (8 threads)"
-        echo "     - VMs: Cores 2-7,10-15 + SMT (24 threads)"
+        echo "  ${BOLD}4)${NC} Host Priority ${DIM}${NC}"
+        echo "     - Host: Cores 0,1,8,9 + SMT"
+        echo "     - VMs: Cores 2-7,10-15 + SMT"
         echo "     - ${GREEN}Maximizes V-Cache availability${NC}"
         echo ""
     else
-        echo "  ${BOLD}1)${NC} Balanced (50/50)"
+        echo "  ${BOLD}1)${NC} Balanced"
         echo "     - Isolate: Half of cores"
         echo "     - Host: Half of cores"
         echo ""
-        echo "  ${BOLD}2)${NC} VM Priority (75/25)"
+        echo "  ${BOLD}2)${NC} VM Priority"
         echo "     - Isolate: 75% of cores"
         echo "     - Host: 25% of cores"
         echo ""
-        echo "  ${BOLD}3)${NC} Host Priority (25/75)"
+        echo "  ${BOLD}3)${NC} Host Priority"
         echo "     - Isolate: 25% of cores"
         echo "     - Host: 75% of cores"
         echo ""
@@ -329,18 +295,15 @@ select_quick_preset() {
     fi
 }
 
-# X3D Gaming preset (isolate CCD0)
 preset_x3d_gaming() {
     log_info "Applying Gaming VM preset (CCD0 isolation)..."
     
     local threads_per_ccd=$((${CPU_INFO[threads]} / 2))
     
-    # Isolate CCD0 (0 to threads_per_ccd-1)
     for ((cpu=0; cpu<threads_per_ccd; cpu+=1)); do
         ISOLATED_CPUS+=($cpu)
     done
     
-    # Host gets CCD1
     for ((cpu=threads_per_ccd; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         HOST_CPUS+=($cpu)
     done
@@ -349,18 +312,15 @@ preset_x3d_gaming() {
     log_success "Host CCD1 (High Freq): CPUs ${HOST_CPUS[*]}"
 }
 
-# X3D Compute preset (isolate CCD1)
 preset_x3d_compute() {
     log_info "Applying Compute preset (CCD1 isolation)..."
     
     local threads_per_ccd=$((${CPU_INFO[threads]} / 2))
     
-    # Host gets CCD0
     for ((cpu=0; cpu<threads_per_ccd; cpu+=1)); do
         HOST_CPUS+=($cpu)
     done
     
-    # Isolate CCD1
     for ((cpu=threads_per_ccd; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         ISOLATED_CPUS+=($cpu)
     done
@@ -369,7 +329,6 @@ preset_x3d_compute() {
     log_success "Isolated CCD1 (High Freq): CPUs ${ISOLATED_CPUS[*]}"
 }
 
-# Balanced preset
 preset_balanced() {
     log_info "Applying Balanced preset (50/50 split)..."
     
@@ -387,38 +346,27 @@ preset_balanced() {
     log_success "Host: CPUs ${HOST_CPUS[*]}"
 }
 
-# Host priority preset (optimized for dual-CCD systems)
 preset_host_priority() {
     log_info "Applying Host Priority preset (Minimal host cores)..."
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
-        # Dual-CCD optimization: Physical cores 0,1 from CCD0 and cores 8,9 from CCD1
-        # With SMT, this is CPUs: 0,1,8,9 (first threads) + 16,17,24,25 (SMT siblings)
         local total_cores=${CPU_INFO[cores]}
         local threads_per_core=${CPU_INFO[threads_per_core]}
         
-        # Host gets: Physical cores 0, 1, 8, 9 and their SMT siblings
-        # For 16 physical cores with SMT: cores 0-7 map to CPUs 0-7,16-23 and cores 8-15 map to CPUs 8-15,24-31
         
-        # CCD0 core 0 and core 1: CPUs 0, 1 (first thread)
         HOST_CPUS+=(0 1)
-        # CCD1 core 8 and core 9: CPUs 8, 9 (first thread)  
         HOST_CPUS+=(8 9)
         
-        # Add SMT siblings if SMT is enabled
         if [[ $threads_per_core -eq 2 ]]; then
-            # SMT siblings are typically at +cores offset
             HOST_CPUS+=(16 17 24 25)
         fi
         
-        # VMs get everything else
         for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
             if [[ ! " ${HOST_CPUS[*]} " =~ " $cpu " ]]; then
                 ISOLATED_CPUS+=($cpu)
             fi
         done
         
-        # Sort the arrays for cleaner display
         HOST_CPUS=($(printf '%s\n' "${HOST_CPUS[@]}" | sort -n))
         ISOLATED_CPUS=($(printf '%s\n' "${ISOLATED_CPUS[@]}" | sort -n))
         
@@ -426,15 +374,12 @@ preset_host_priority() {
         log_success "VM CPUs (remaining cores): ${ISOLATED_CPUS[*]}"
         log_success "Total: Host ${#HOST_CPUS[@]} threads (4 cores), VMs ${#ISOLATED_CPUS[@]} threads (12 cores)"
     else
-        # Generic CPU: Reserve minimum 8 threads for host
         local vm_cores=$((${CPU_INFO[threads]} - 8))
         
-        # First threads for host
         for ((cpu=0; cpu<8; cpu+=1)); do
             HOST_CPUS+=($cpu)
         done
         
-        # Rest for VMs
         for ((cpu=8; cpu<${CPU_INFO[threads]}; cpu+=1)); do
             ISOLATED_CPUS+=($cpu)
         done
@@ -444,18 +389,15 @@ preset_host_priority() {
     fi
 }
 
-# VM priority preset
 preset_vm_priority() {
     log_info "Applying VM Priority preset (75/25)..."
     
     local host_cores=$((${CPU_INFO[threads]} / 4))
     
-    # Host gets 25%
     for ((cpu=0; cpu<host_cores; cpu+=1)); do
         HOST_CPUS+=($cpu)
     done
     
-    # VMs get 75%
     for ((cpu=host_cores; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         ISOLATED_CPUS+=($cpu)
     done
@@ -464,7 +406,6 @@ preset_vm_priority() {
     log_success "Isolated: CPUs ${ISOLATED_CPUS[*]}"
 }
 
-# CCD-based selection
 select_by_ccd() {
     if [[ -z "${CPU_INFO[has_ccds]}" ]]; then
         log_error "CCD detection not available for this CPU"
@@ -475,13 +416,13 @@ select_by_ccd() {
     
     echo "Select CCDs to isolate for VMs:"
     echo ""
-    echo "  CCD0: ${CCD_MAP[0]} ${GREEN}(V-Cache - Gaming)${NC}"
-    echo "  CCD1: ${CCD_MAP[1]} ${YELLOW}(High Freq - Compute)${NC}"
+    echo "  CCD0: ${CCD_MAP[0]} ${GREEN}${NC}"
+    echo "  CCD1: ${CCD_MAP[1]} ${YELLOW}${NC}"
     echo ""
     echo "Options:"
     echo "  1) Isolate CCD0 only"
     echo "  2) Isolate CCD1 only"
-    echo "  3) Isolate both CCDs (host uses minimal cores)"
+    echo "  3) Isolate both CCDs"
     echo ""
     
     read -p "Selection [1-3]: " ccd_choice
@@ -506,7 +447,6 @@ select_by_ccd() {
             done
             ;;
         3)
-            # Reserve first 4 threads for host, rest isolated
             for ((cpu=0; cpu<4; cpu+=1)); do
                 HOST_CPUS+=($cpu)
             done
@@ -524,7 +464,6 @@ select_by_ccd() {
     log_success "Host CPUs: ${HOST_CPUS[*]}"
 }
 
-# NUMA-based selection
 select_by_numa() {
     if [[ ${CPU_INFO[numa_nodes]} -eq 1 ]]; then
         log_error "Single NUMA node system - use other selection methods"
@@ -543,10 +482,8 @@ select_by_numa() {
     echo ""
     read -p "Isolate which NUMA node(s)? (e.g., '0' or '0 1'): " numa_selection
     
-    # Parse selected nodes
     for node in $numa_selection; do
         local cpus="${NUMA_MAP[$node]}"
-        # Expand range (e.g., "0-7" to individual CPUs) safely without eval
         local cpu_list
         cpu_list=$(python3 -c "
 import sys
@@ -565,7 +502,6 @@ print(' '.join(map(str, parts)))
         ISOLATED_CPUS+=("${cpu_array[@]}")
     done
     
-    # Remaining CPUs for host
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${ISOLATED_CPUS[*]} " =~ " $cpu " ]]; then
             HOST_CPUS+=($cpu)
@@ -576,13 +512,12 @@ print(' '.join(map(str, parts)))
     log_success "Host CPUs: ${HOST_CPUS[*]}"
 }
 
-# Custom core selection
 select_custom_cores() {
     log_header "Custom Core Selection"
     
     display_cpu_topology
     
-    echo "Enter CPU numbers to isolate for VMs."
+    echo "Enter CPU numbers to isolate for VMs"
     echo "Formats supported:"
     echo "  - Individual: 0 1 2 3"
     echo "  - Ranges: 0-7 16-23"
@@ -591,25 +526,20 @@ select_custom_cores() {
     
     read -p "CPUs to isolate: " cpu_input
     
-    # Parse input
     for token in $cpu_input; do
         if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
-            # Range
             local start="${BASH_REMATCH[1]}"
             local end="${BASH_REMATCH[2]}"
             for ((cpu=start; cpu<=end; cpu+=1)); do
                 ISOLATED_CPUS+=($cpu)
             done
         elif [[ "$token" =~ ^[0-9]+$ ]]; then
-            # Individual CPU
             ISOLATED_CPUS+=($token)
         fi
     done
     
-    # Validate and deduplicate
     ISOLATED_CPUS=($(printf '%s\n' "${ISOLATED_CPUS[@]}" | sort -nu))
     
-    # Remaining for host
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${ISOLATED_CPUS[*]} " =~ " $cpu " ]]; then
             HOST_CPUS+=($cpu)
@@ -625,15 +555,14 @@ select_custom_cores() {
     log_success "Host CPUs (${#HOST_CPUS[@]}): ${HOST_CPUS[*]}"
 }
 
-# Advanced selection
 select_advanced() {
     log_header "Advanced Selection"
     
     echo "Advanced options:"
     echo ""
-    echo "  1) SMT-aware (isolate physical cores + siblings)"
-    echo "  2) Exclude specific cores (e.g., keep core 0 for host)"
-    echo "  3) Performance cores only (Intel Hybrid)"
+    echo "  1) SMT-aware"
+    echo "  2) Exclude specific cores"
+    echo "  3) Performance cores only"
     echo "  4) Import from file"
     echo ""
     
@@ -648,10 +577,9 @@ select_advanced() {
     esac
 }
 
-# SMT-aware selection
 select_smt_aware() {
     echo ""
-    echo "Enter physical core numbers (SMT siblings will be included automatically):"
+    echo "Enter physical core numbers:"
     read -p "Physical cores: " cores_input
     
     local cores_per_socket=$((${CPU_INFO[threads]} / ${CPU_INFO[threads_per_core]}))
@@ -662,20 +590,16 @@ select_smt_aware() {
             exit 1
         fi
         
-        # Add physical core
         ISOLATED_CPUS+=($core)
         
-        # Add SMT sibling if exists
         if [[ ${CPU_INFO[threads_per_core]} -eq 2 ]]; then
             local sibling=$((core + cores_per_socket))
             ISOLATED_CPUS+=($sibling)
         fi
     done
     
-    # Sort and deduplicate
     ISOLATED_CPUS=($(printf '%s\n' "${ISOLATED_CPUS[@]}" | sort -nu))
     
-    # Remaining for host
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${ISOLATED_CPUS[*]} " =~ " $cpu " ]]; then
             HOST_CPUS+=($cpu)
@@ -686,15 +610,13 @@ select_smt_aware() {
     log_success "Host CPUs: ${HOST_CPUS[*]}"
 }
 
-# Exclude specific cores
 select_exclude_cores() {
     echo ""
-    echo "This will isolate all cores EXCEPT the ones you specify."
-    echo "Common: Keep CPU 0 for host (kernel interrupts)"
+    echo "This will isolate all cores EXCEPT the ones you specify"
+    echo "Common: Keep CPU 0 for host"
     echo ""
     read -p "CPUs to keep for host: " host_input
     
-    # Parse host CPUs
     for token in $host_input; do
         if [[ "$token" =~ ^([0-9]+)-([0-9]+)$ ]]; then
             local start="${BASH_REMATCH[1]}"
@@ -709,7 +631,6 @@ select_exclude_cores() {
     
     HOST_CPUS=($(printf '%s\n' "${HOST_CPUS[@]}" | sort -nu))
     
-    # Remaining for VMs
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${HOST_CPUS[*]} " =~ " $cpu " ]]; then
             ISOLATED_CPUS+=($cpu)
@@ -720,14 +641,13 @@ select_exclude_cores() {
     log_success "Isolated CPUs: ${ISOLATED_CPUS[*]}"
 }
 
-# Performance cores (Intel Hybrid)
 select_performance_cores() {
     if [[ -z "${CPU_INFO[has_hybrid]}" ]]; then
         log_warning "Hybrid architecture not detected - using generic selection"
     fi
     
     echo ""
-    echo "Enter range for Performance cores (e.g., 0-15):"
+    echo "Enter range for Performance cores:"
     read -p "P-core range: " pcore_range
     
     if [[ "$pcore_range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
@@ -738,7 +658,6 @@ select_performance_cores() {
         done
     fi
     
-    # Remaining for host
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${ISOLATED_CPUS[*]} " =~ " $cpu " ]]; then
             HOST_CPUS+=($cpu)
@@ -749,7 +668,6 @@ select_performance_cores() {
     log_success "Host CPUs: ${HOST_CPUS[*]}"
 }
 
-# Import from file
 select_from_file() {
     echo ""
     read -p "Path to CPU list file: " file_path
@@ -769,7 +687,6 @@ select_from_file() {
     
     ISOLATED_CPUS=($(printf '%s\n' "${ISOLATED_CPUS[@]}" | sort -nu))
     
-    # Remaining for host
     for ((cpu=0; cpu<${CPU_INFO[threads]}; cpu+=1)); do
         if [[ ! " ${ISOLATED_CPUS[*]} " =~ " $cpu " ]]; then
             HOST_CPUS+=($cpu)
@@ -779,7 +696,6 @@ select_from_file() {
     log_success "Loaded from file: ${ISOLATED_CPUS[*]}"
 }
 
-# Review selection
 review_selection() {
     log_header "Review Selection"
     
@@ -794,7 +710,6 @@ review_selection() {
     echo "  CPUs: ${HOST_CPUS[*]}"
     echo ""
     
-    # Validate
     local total=$((${#ISOLATED_CPUS[@]} + ${#HOST_CPUS[@]}))
     if [[ $total -ne ${CPU_INFO[threads]} ]]; then
         log_error "CPU count mismatch: $total vs ${CPU_INFO[threads]}"
@@ -814,13 +729,12 @@ review_selection() {
     fi
 }
 
-# Configure isolation method
 configure_isolation() {
     log_header "Isolation Method Configuration"
     
     echo "Choose isolation implementation:"
     echo ""
-    echo "  ${BOLD}1)${NC} Kernel isolcpus (Recommended)"
+    echo "  ${BOLD}1)${NC} Kernel isolcpus"
     echo "     - Boot-time CPU isolation"
     echo "     - Maximum performance"
     echo "     - Requires reboot"
@@ -830,7 +744,7 @@ configure_isolation() {
     echo "     - No reboot needed"
     echo "     - Slightly lower isolation"
     echo ""
-    echo "  ${BOLD}3)${NC} Both (Maximum isolation)"
+    echo "  ${BOLD}3)${NC} Both"
     echo "     - Kernel isolcpus + systemd"
     echo "     - Best for production"
     echo ""
@@ -844,22 +758,17 @@ configure_isolation() {
         *) log_error "Invalid selection"; exit 1 ;;
     esac
     
-    # Always create libvirt hooks
     create_libvirt_hooks
     
-    # Create helper scripts
     create_helper_scripts
 }
 
-# Configure kernel isolcpus
 configure_isolcpus() {
     log_info "Configuring kernel isolcpus parameter..."
     
-    # Build isolcpus range
     local isolcpus_param=$(printf '%s,' "${ISOLATED_CPUS[@]}")
     isolcpus_param=${isolcpus_param%,}  # Remove trailing comma
     
-    # Detect bootloader
     if [[ -d /boot/loader/entries ]] && command -v bootctl &>/dev/null; then
         configure_isolcpus_systemd_boot "$isolcpus_param"
     elif [[ -f /etc/default/grub ]]; then
@@ -871,7 +780,6 @@ configure_isolcpus() {
     fi
 }
 
-# Configure isolcpus for systemd-boot
 configure_isolcpus_systemd_boot() {
     local isolcpus="$1"
     local params="isolcpus=$isolcpus nohz_full=$isolcpus rcu_nocbs=$isolcpus"
@@ -896,12 +804,10 @@ configure_isolcpus_systemd_boot() {
     for entry in $selected; do
         cp "$entry" "${entry}${BACKUP_SUFFIX}"
         
-        # Remove old isolcpus parameters
         sed -i 's/isolcpus=[^ ]* //g' "$entry"
         sed -i 's/nohz_full=[^ ]* //g' "$entry"
         sed -i 's/rcu_nocbs=[^ ]* //g' "$entry"
         
-        # Add new parameters
         sed -i "/^options / s/$/ $params/" "$entry"
         
         log_success "Updated: $(basename $entry)"
@@ -910,7 +816,6 @@ configure_isolcpus_systemd_boot() {
     bootctl update
 }
 
-# Configure isolcpus for GRUB
 configure_isolcpus_grub() {
     local isolcpus="$1"
     local params="isolcpus=$isolcpus nohz_full=$isolcpus rcu_nocbs=$isolcpus"
@@ -920,15 +825,12 @@ configure_isolcpus_grub() {
     local grub_conf="/etc/default/grub"
     cp "$grub_conf" "${grub_conf}${BACKUP_SUFFIX}"
     
-    # Remove old parameters
     sed -i 's/isolcpus=[^ "]* //g' "$grub_conf"
     sed -i 's/nohz_full=[^ "]* //g' "$grub_conf"
     sed -i 's/rcu_nocbs=[^ "]* //g' "$grub_conf"
     
-    # Add new parameters
     sed -i "/GRUB_CMDLINE_LINUX_DEFAULT/ s/\"$/ $params\"/" "$grub_conf"
     
-    # Regenerate GRUB config
     if command -v grub-mkconfig &>/dev/null; then
         grub-mkconfig -o /boot/grub/grub.cfg
     elif command -v grub2-mkconfig &>/dev/null; then
@@ -938,7 +840,6 @@ configure_isolcpus_grub() {
     log_success "GRUB configuration updated"
 }
 
-# Configure systemd CPUAffinity
 configure_systemd_affinity() {
     log_info "Configuring systemd CPUAffinity..."
     
@@ -948,26 +849,20 @@ configure_systemd_affinity() {
     local systemd_conf="/etc/systemd/system.conf"
     cp "$systemd_conf" "${systemd_conf}${BACKUP_SUFFIX}"
     
-    # Handle both commented and uncommented CPUAffinity lines
     if grep -q "^CPUAffinity=" "$systemd_conf"; then
-        # Already uncommented, just update value
         sed -i "s/^CPUAffinity=.*/CPUAffinity=$host_cpus/" "$systemd_conf"
     elif grep -q "^#CPUAffinity=" "$systemd_conf"; then
-        # Commented out, uncomment and set value
         sed -i "s/^#CPUAffinity=.*/CPUAffinity=$host_cpus/" "$systemd_conf"
     else
-        # Doesn't exist at all, append to [Manager] section
         sed -i '/^\[Manager\]/a CPUAffinity='"$host_cpus" "$systemd_conf"
     fi
     
     log_success "systemd CPUAffinity configured: $host_cpus"
     
-    # Reload systemd daemon immediately
     log_info "Reloading systemd daemon..."
     systemctl daemon-reexec
     log_success "systemd daemon reloaded"
     
-    # Move all existing processes to host cores immediately
     log_info "Moving all processes to host cores..."
     local moved=0
     local failed=0
@@ -984,18 +879,13 @@ configure_systemd_affinity() {
     log_info "CPU affinity is now active - check with 'htop' to verify"
 }
 
-# Create libvirt hooks for VM CPU pinning
 create_libvirt_hooks() {
     log_info "Creating libvirt hooks for automatic VM CPU pinning..."
     
     local hook_dir="/etc/libvirt/hooks"
     mkdir -p "$hook_dir"
     
-    # Create qemu hook
     cat > "$hook_dir/qemu" << 'EOFHOOK'
-#!/bin/bash
-# Libvirt hook for CPU affinity management
-# Auto-pins VMs to isolated CPUs
 
 GUEST_NAME="$1"
 HOOK_NAME="$2"
@@ -1007,7 +897,6 @@ HOST_CPUS="HOST_CPUS_PLACEHOLDER"
 
 case "$STATE_NAME" in
     prepare/begin)
-        # Move host processes to host CPUs before VM starts
         echo "Moving host processes to CPUs: $HOST_CPUS"
         for pid in $(ps -eo pid=); do
             taskset -cp $HOST_CPUS $pid 2>/dev/null || true
@@ -1015,7 +904,6 @@ case "$STATE_NAME" in
         ;;
         
     release/end)
-        # Restore CPU affinity after VM stops
         echo "VM $GUEST_NAME stopped - restoring CPU affinity"
         ;;
 esac
@@ -1023,7 +911,6 @@ esac
 exit 0
 EOFHOOK
     
-    # Replace placeholders
     local isolated_range=$(printf '%s,' "${ISOLATED_CPUS[@]}")
     isolated_range=${isolated_range%,}
     local host_range=$(printf '%s,' "${HOST_CPUS[@]}")
@@ -1037,13 +924,10 @@ EOFHOOK
     log_success "Libvirt hooks created"
 }
 
-# Create helper scripts
 create_helper_scripts() {
     log_info "Creating helper scripts..."
     
-    # CPU topology viewer
     cat > /usr/local/bin/cpu-topology << 'EOFSCRIPT'
-#!/bin/bash
 echo "CPU Topology:"
 lscpu --extended
 echo ""
@@ -1057,15 +941,12 @@ EOFSCRIPT
     chmod +x /usr/local/bin/cpu-topology
     log_success "Created: cpu-topology"
     
-    # Dynamic affinity switcher
     local isolated_range=$(printf '%s,' "${ISOLATED_CPUS[@]}")
     isolated_range=${isolated_range%,}
     local host_range=$(printf '%s,' "${HOST_CPUS[@]}")
     host_range=${host_range%,}
     
     cat > /usr/local/bin/cpu-isolate << EOFSCRIPT
-#!/bin/bash
-# Dynamic CPU isolation toggle
 
 ISOLATED_CPUS="$isolated_range"
 HOST_CPUS="$host_range"
@@ -1073,7 +954,7 @@ HOST_CPUS="$host_range"
 case "\$1" in
     on)
         echo "Enabling CPU isolation. Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
-        echo "Moving all processes to host cores..."
+        echo "Moving all processes to host cores"
         
         moved=0
         failed=0
@@ -1086,7 +967,6 @@ case "\$1" in
                 failed=$((failed + 1))
             fi
             
-            # Show progress every 100 processes
             if (( (moved + failed) % 100 == 0 )); then
                 echo -ne "\rProgress: \$((moved + failed))/\$total processes processed..."
             fi
@@ -1095,12 +975,12 @@ case "\$1" in
         echo -e "\rProgress: \$((moved + failed))/\$total processes processed... Done!"
         echo ""
         echo "[OK] Successfully moved \$moved processes to host cores"
-        echo "  (Failed: \$failed - expected for kernel threads)"
         echo ""
-        echo "Isolation active. Check with 'htop' to verify."
+        echo ""
+        echo "Isolation active. Check with 'htop' to verify"
         ;;
     off)
-        echo "Disabling CPU isolation -- allowing all processes to use all CPUs..."
+        echo "Disabling CPU isolation"
         
         all_cpus="0-\$(($(nproc) - 1))"
         moved=0
@@ -1115,18 +995,18 @@ case "\$1" in
         done
         
         echo "[OK] Restored access to all CPUs for \$moved processes"
-        echo "  (Failed: \$failed - expected for kernel threads)"
+        echo ""
         ;;
     status)
-        echo "CPU isolation status -- Isolated: \$ISOLATED_CPUS  Host: \$HOST_CPUS"
+        echo "CPU isolation status"
         echo ""
         echo "Kernel parameters:"
         cat /proc/cmdline | grep -o "isolcpus=[^ ]*" || echo "  No isolcpus parameter"
         echo ""
-        echo "systemd CPUAffinity:"
+        echo "Systemd CPUAffinity:"
         grep "^CPUAffinity=" /etc/systemd/system.conf 2>/dev/null || echo "  Not configured"
         echo ""
-        echo "Current shell affinity (PID \$\$):"
+        echo "Current shell affinity:"
         taskset -cp \$\$
         echo ""
         echo "Sample of running processes:"
@@ -1135,8 +1015,8 @@ case "\$1" in
     *)
         echo "Usage: cpu-isolate {on|off|status}"
         echo ""
-        echo "  on     - Move all processes to host cores (enable isolation)"
-        echo "  off    - Allow all processes to use all CPUs (disable isolation)"
+        echo "  on     - Move all processes to host cores"
+        echo "  off    - Allow all processes to use all CPUs"
         echo "  status - Show current isolation configuration"
         exit 1
         ;;
@@ -1146,9 +1026,7 @@ EOFSCRIPT
     chmod +x /usr/local/bin/cpu-isolate
     log_success "Created: cpu-isolate"
     
-    # Verification script
     cat > /usr/local/bin/cpu-verify << EOFSCRIPT
-#!/bin/bash
 echo "CPU Isolation Verification"
 echo "Kernel Parameters:"
 cat /proc/cmdline | grep -o "isolcpus=[^ ]*\|nohz_full=[^ ]*\|rcu_nocbs=[^ ]*"
@@ -1156,7 +1034,7 @@ echo ""
 echo "Isolated CPUs: $isolated_range"
 echo "Host CPUs: $host_range"
 echo ""
-echo "systemd CPUAffinity:"
+echo "Systemd CPUAffinity:"
 grep "^CPUAffinity=" /etc/systemd/system.conf 2>/dev/null || echo "  Not configured"
 echo ""
 echo "Current process affinity:"
@@ -1167,7 +1045,6 @@ EOFSCRIPT
     log_success "Created: cpu-verify"
 }
 
-# Generate summary
 generate_summary() {
     log_header "Configuration Summary"
     
@@ -1184,13 +1061,13 @@ generate_summary() {
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
         echo -e "${BOLD}CCD Assignment:${NC}"
-        echo "  CCD0 (V-Cache): ${CCD_MAP[0]}"
-        echo "  CCD1 (High Freq): ${CCD_MAP[1]}"
+        echo "  CCD0: ${CCD_MAP[0]}"
+        echo "  CCD1: ${CCD_MAP[1]}"
         echo ""
     fi
     
     echo -e "${BOLD}Configuration Files:${NC}"
-    echo "  Bootloader: Updated (backed up)"
+    echo "  Bootloader: Updated"
     echo "  systemd: /etc/systemd/system.conf"
     echo "  Libvirt hooks: /etc/libvirt/hooks/qemu"
     echo ""
@@ -1201,10 +1078,9 @@ generate_summary() {
     echo "  cpu-verify    - Verify configuration"
     echo ""
     
-    # Check if systemd affinity was configured
     if grep -q "^CPUAffinity=" /etc/systemd/system.conf 2>/dev/null; then
         echo -e "${GREEN}[OK] systemd CPUAffinity is active (processes already moved)${NC}"
-        echo "  You can verify with: htop (press 't' for tree view)"
+        echo "  You can verify with: htop"
         echo "  Host cores should show activity, VM cores should be idle"
         echo ""
     fi
@@ -1212,11 +1088,11 @@ generate_summary() {
     echo -e "${BOLD}Next Steps:${NC}"
     if grep -q "^CPUAffinity=" /etc/systemd/system.conf 2>/dev/null; then
         echo "  1. ${GREEN}Verify with htop${NC} - host cores should be active"
-        echo "  2. Reboot system (for kernel isolcpus to take full effect)"
+        echo "  2. Reboot system"
         echo "  3. Run 'cpu-verify' after reboot to confirm"
         echo "  4. Configure VMs with CPU pinning in virt-manager"
     else
-        echo "  1. Reboot system (for isolcpus to take effect)"
+        echo "  1. Reboot system"
         echo "  2. Run 'cpu-verify' to confirm configuration"
         echo "  3. Configure VMs with CPU pinning in virt-manager"
         echo "  4. Use 'cpu-isolate on' before starting VMs"
@@ -1232,12 +1108,11 @@ generate_summary() {
         cpu_index=$((cpu_index + 1))
         [[ $cpu_index -ge 4 ]] && break  # Show only first 4 as example
     done
-    [[ ${#ISOLATED_CPUS[@]} -gt 4 ]] && echo "    <!-- ... additional pins ... -->"
+    [[ ${#ISOLATED_CPUS[@]} -gt 4 ]] && echo "    <"
     echo "  </cputune>"
     echo ""
 }
 
-# Main execution
 main() {
     log_header "Universal CPU Core Isolation Configurator"
     

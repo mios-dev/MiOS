@@ -66,10 +66,6 @@ def _resolve_bin(name: str, extra_paths: list[str]) -> Optional[str]:
 
 def _probe_gpu() -> list[dict]:
     out: list[dict] = []
-    # WSL2 GPU passthrough installs nvidia-smi to /usr/lib/wsl/lib --
-    # that directory isn't on the default user PATH so shutil.which()
-    # alone misses it. Operator-flagged 2026-05-17: broker-side probe
-    # returned gpu=[] even though nvidia-smi works for root.
     nvsmi = _resolve_bin("nvidia-smi", ["/usr/lib/wsl/lib", "/usr/bin", "/usr/local/bin"])
     if nvsmi:
         rc, stdout, _ = _run([
@@ -198,8 +194,6 @@ def _probe_services() -> dict:
                           "--state=active", "--no-legend", "--plain"])
     if rc == 0:
         info["active_count"] = len([l for l in stdout.splitlines() if l.strip()])
-    # MiOS-specific health roll-up. is-active returns the state string
-    # (active / inactive / failed) for each unit, one per line.
     mios_units = [
         "mios-open-webui.service",
         "mios-hermes-tail.service",
@@ -283,8 +277,6 @@ def _probe_os() -> dict:
                         break
         except OSError:
             pass
-        # Windows HOST OS -- best-effort; null (with no fabrication) when WSL
-        # interop / the launcher broker is unreachable.
         mw = _resolve_bin("mios-windows", ["/usr/libexec/mios", "/usr/local/bin"])
         if mw:
             rc, out, _ = _run([

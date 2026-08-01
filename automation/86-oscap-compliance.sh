@@ -7,18 +7,11 @@ set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=automation/lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
-# shellcheck source=automation/lib/packages.sh
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-# Resolve the layered mios.toml the same way every build step does (honors
-# $MIOS_TOML). No toml at all -> treat as disabled (degrade-open, never fail a build
-# because config is unreadable).
 TOML="$(_resolve_mios_toml)" || { mios_skip "no mios.toml resolved -- gate disabled (no-op)"; exit 0; }
 
-# _toml_get <dotted.key> [default] -- scalar read via tomllib (booleans normalized
-# to true/false). Missing key / parse error -> default. No awk TOML guessing.
 _toml_get() {
     python3 - "$TOML" "$1" "${2:-}" <<'PY'
 import sys, tomllib
@@ -43,7 +36,6 @@ if [[ "$ENABLED" != "true" ]]; then
     exit 0
 fi
 
-# ── Opted in: from here a failure FAILS the build (fail-closed) ──────────────
 command -v oscap >/dev/null 2>&1 \
     || die "[39-oscap] [compliance].enabled=true but 'oscap' not found (openscap-scanner missing from [packages.security]?)"
 
@@ -54,17 +46,11 @@ REMEDIATE="$(_toml_get compliance.remediate false)"
 FETCH="$(_toml_get compliance.fetch_remote_resources false)"
 REPORT_DIR="$(_toml_get compliance.report_path /usr/share/mios/compliance)"
 
-# Remediation is deliberately out of scope for this scan-only gate. Warn (don't act)
-# if an operator flipped remediate on -- wiring oscap-im / `--remediate` is a future
-# opt-in step that needs openscap-utils + CentOS-shaped remediation content.
 if [[ "$REMEDIATE" == "true" ]]; then
     mios_warn "[compliance].remediate=true is IGNORED: this is the scan-only gate."
     mios_warn "Remediation (oscap-im / --remediate) is a future operator-opt-in step."
 fi
 
-# Resolve the datastream path. Explicit path wins; otherwise derive the filename
-# from the OS id and LOCATE it via the scap-security-guide RPM manifest (no
-# hardcoded SSG content directory).
 if [[ -n "$DS_CFG" ]]; then
     DS_PATH="$DS_CFG"
 else
@@ -76,11 +62,8 @@ fi
 [[ -n "$DS_PATH" && -f "$DS_PATH" ]] \
     || die "[39-oscap] SSG datastream not found (configured='${DS_CFG}', derived from os-release ID). Is scap-security-guide installed?"
 
-# SSG profile-id namespace is a structural constant of the SSG content format; the
-# operator picks only the suffix via [compliance].profile.
 PROFILE_ID="xccdf_org.ssgproject.content_profile_${PROFILE}"
 
-# Reports bake into the image (/usr), never /var. Build-time mkdir under /usr is fine.
 mkdir -p "$REPORT_DIR"
 ARF="${REPORT_DIR}/oscap-results-arf.xml"
 HTML="${REPORT_DIR}/oscap-report.html"
@@ -89,20 +72,16 @@ OSCAP_ARGS=(xccdf eval --profile "$PROFILE_ID" --results-arf "$ARF" --report "$H
 [[ "$FETCH" == "true" ]] && OSCAP_ARGS+=(--fetch-remote-resources)
 OSCAP_ARGS+=("$DS_PATH")
 
-mios_log "scanning: profile=${PROFILE_ID} severity_gate=${SEVERITY} ds=${DS_PATH}"
+mios_log "Scanning: profile=${PROFILE_ID} severity_gate=${SEVERITY} ds=${DS_PATH}"
 set +e
 oscap "${OSCAP_ARGS[@]}"
 RC=$?
 set -e
-# oscap exit codes: 0 = all pass, 2 = >=1 rule failed (NORMAL -> the severity parser
-# decides if those fails gate the build), 1/anything>2 = oscap could not evaluate
-# (tool error) -> fail the build.
 if [[ "$RC" -gt 2 ]]; then
     die "[39-oscap] oscap tool error (rc=${RC}) -- scan could not complete"
 fi
 [[ -f "$ARF" ]] || die "[39-oscap] oscap produced no ARF (rc=${RC}) -- scan could not complete"
 
-# Severity-gated verdict. Prefer the installed gate; fall back to the source tree.
 GATE_BIN="/usr/libexec/mios/mios-oscap-gate"
 [[ -f "$GATE_BIN" ]] || GATE_BIN="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios/mios-oscap-gate"
 [[ -f "$GATE_BIN" ]] || die "[39-oscap] severity parser missing: ${GATE_BIN}"
@@ -111,7 +90,7 @@ set +e
 FAILS="$(python3 "$GATE_BIN" "$ARF" "$SEVERITY")"
 GRC=$?
 set -e
-mios_log "reports baked: ${ARF} , ${HTML}"
+mios_log "Reports baked: ${ARF} , ${HTML}"
 if [[ "$GRC" -ne 0 ]]; then
     die "[39-oscap] compliance gate FAILED: ${FAILS} rule(s) at/above severity '${SEVERITY}' (see ${HTML})"
 fi

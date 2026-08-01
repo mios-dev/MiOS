@@ -3,28 +3,8 @@
 # AI-related: /usr/libexec/mios/mios-env-probe, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-apps, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/hermes/skills/, mios-apps, mios-hermes-init-hook, mios-delegation-prefilter, mios-open-webui
 # AI-functions: _toml_get, _svc_active, _count
 set -euo pipefail
-# /usr/libexec/mios/mios-env-probe [--brief|--full|--markdown|--json]
-#
-# Snapshot the agent's CURRENT environment as deterministic facts.
-# Designed to be injected into a Hermes session's first turn via the
-# pre_llm_call hook (see mios-hermes-init-hook), AND callable
-# explicitly when an agent realises mid-conversation that it doesn't
-# know what's around it.
-#
-# Operator directive 2026-05-15: "make sure the AI stack has an
-# understanding of its environment when initialized -- MiOS AI's
-# should have an understanding of the MiOS codebase/stack -- the
-# Agents dispatched Globally Should be informed of the environment
-# via an agent init/probe pass on first query".
-#
-# Modes:
-#   --brief      ~10-line summary (used as init context; cheap to inject)
-#   --full       all sections; longer
-#   --markdown   markdown formatting (default for --full)
-#   --json       machine-readable
 set -eu
 
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -r /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
@@ -56,9 +36,7 @@ USAGE
         ;;
 esac
 
-# ─── facts gathering ─────────────────────────────────────────────────
 _toml_get() {
-    # _toml_get <section> <key> -- read mios.toml [section].key (vendor)
     awk -v sec="[$1]" -v key="$2" '
         $0==sec { in_sec=1; next }
         /^\[/ { in_sec=0 }
@@ -76,7 +54,6 @@ OPERATOR_FULL="$(_toml_get identity fullname)"
 HOSTNAME_TOML="$(_toml_get identity hostname)"
 HOSTNAME_LIVE="$(hostname 2>/dev/null || echo unknown)"
 
-# WSL detection
 IS_WSL=false
 WSL_DISTRO=""
 if [ -r /proc/version ]; then
@@ -89,17 +66,14 @@ if [ -r /proc/version ]; then
     esac
 fi
 
-# Hardware
 CPU_MODEL="$(grep -m1 'model name' /proc/cpuinfo 2>/dev/null | sed 's/^.*: //' | head -c 60)"
 CPU_CORES="$(nproc 2>/dev/null || echo ?)"
 RAM_GB="$(awk '/MemTotal/ {printf "%.1f", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo ?)"
 GPU_LINE="$(lspci 2>/dev/null | grep -iE 'vga|3d|display' | head -1 | sed 's/.*: //' | head -c 70)"
 [ -z "$GPU_LINE" ] && GPU_LINE="(no GPU detected via lspci; on WSL2 GPU goes through /dev/dxg)"
 
-# OS
 OS_PRETTY="$(grep -m1 PRETTY_NAME= /etc/os-release 2>/dev/null | sed 's/^.*=//; s/"//g')"
 
-# Services
 _svc_active() {
     if systemctl is-active --quiet "$1"; then echo up; else echo down; fi
 }
@@ -112,7 +86,6 @@ SVC_BROWSER=$(_svc_active mios-hermes-browser.service)
 SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
-# Models loaded on the /v1 lane
 LLM_MODELS="$( (curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/v1/models 2>/dev/null || true) \
     | python3 -c 'import sys, json
 try:
@@ -122,7 +95,6 @@ except Exception:
   print("?")' 2>/dev/null)"
 [ -z "$LLM_MODELS" ] && LLM_MODELS="(unreachable)"
 
-# App counts via mios-apps (cheap; just --names | wc -l per category)
 _count() {
     /usr/libexec/mios/mios-apps --names --category "$1" 2>/dev/null | wc -l
 }
@@ -134,12 +106,8 @@ N_SHIM=$(_count mios-shim)
 N_CLI=$(_count agent-cli)
 N_URL=$(_count service-url)
 
-# ─── render ─────────────────────────────────────────────────────────
 case "$MODE" in
 brief)
-    # Windows-host facts ONLY when on WSL2 (best-effort; never blocks).
-    # Single-quoted PS expression so bash leaves the $vars alone; the
-    # PowerShell child receives literal $os / $cpu / $mem.
     WIN_LINE=""
     if [ "$IS_WSL" = true ] && command -v mios-windows >/dev/null 2>&1; then
         WIN_LINE="$(timeout 4 mios-windows ps 'try { $o=Get-CimInstance Win32_OperatingSystem; $c=Get-CimInstance Win32_Processor | Select-Object -First 1; $m=[math]::Round($o.TotalVisibleMemorySize/1024/1024,1); "$($o.Caption) on $($o.CSName), $($c.Name), $($c.NumberOfLogicalProcessors) cores, $m GB RAM" } catch { "?" }' 2>/dev/null | tr -d '\r' | head -1)"
@@ -147,7 +115,7 @@ brief)
     fi
     cat <<EOF
 **MiOS environment** ($(date -Iseconds))
-- Linux host: $OS_PRETTY on $HOSTNAME_LIVE ($(if [ "$IS_WSL" = true ]; then echo "WSL2 distro"; else echo "bare/VM"; fi))
+- Linux host: $OS_PRETTY on $HOSTNAME_LIVE ($(if [ "$IS_WSL" = true ]; then echo "WSL2 distro"; else echo "Bare/VM"; fi))
 - Linux HW: $CPU_CORES cores / ${RAM_GB} GB RAM / GPU: $GPU_LINE${WIN_LINE:+
 - Windows host (via WSL interop): $WIN_LINE}
 - Operator (mios.toml [identity]): $OPERATOR_FULL ($OPERATOR_NAME) on $HOSTNAME_TOML
@@ -158,21 +126,16 @@ brief)
 EOF
     ;;
 full|markdown)
-    # Full Windows-host probe (computer info + GPU) when on WSL2.
-    # Single-quoted PS expression so bash leaves $vars alone.
     WIN_BLOCK=""
     if [ "$IS_WSL" = true ] && command -v mios-windows >/dev/null 2>&1; then
         WIN_BLOCK="$(timeout 6 mios-windows ps 'try { $o=Get-CimInstance Win32_OperatingSystem; $c=Get-CimInstance Win32_Processor | Select-Object -First 1; $m=[math]::Round($o.TotalVisibleMemorySize/1024/1024,2); $g=(Get-CimInstance Win32_VideoController | Select-Object -First 1 -ExpandProperty Name); "- Hostname (Windows): $($o.CSName)`n- OS: $($o.Caption) $($o.Version)`n- CPU: $($c.Name) ($($c.NumberOfLogicalProcessors) logical cores)`n- RAM: $m GB`n- GPU: $g" } catch { "(Windows probe error: $_)" }' 2>/dev/null | tr -d '\r')"
         [ -z "$WIN_BLOCK" ] && WIN_BLOCK="(Windows-host probe failed; mios-windows ps unreachable)"
     fi
     cat <<EOF
-# MiOS environment probe ($(date -Iseconds))
 
-## Identity
 - Operator (mios.toml [identity]): **$OPERATOR_FULL** (\`$OPERATOR_NAME\`)
 - Hostname (toml / live): \`$HOSTNAME_TOML\` / \`$HOSTNAME_LIVE\`
 
-## Linux host (the MiOS distro)
 - OS: $OS_PRETTY
 - WSL2: $IS_WSL${WSL_DISTRO:+ (distro: $WSL_DISTRO)}
 - CPU: $CPU_MODEL ($CPU_CORES cores)
@@ -180,7 +143,6 @@ full|markdown)
 - GPU: $GPU_LINE
 $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives inside)\n%s\n' "$WIN_BLOCK"; fi)
 
-## MiOS stack services
 | service                              | state |
 |--------------------------------------|-------|
 | mios-agent-pipe.service              | $SVC_AGENT_PIPE |
@@ -192,12 +154,10 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 | crond.service                        | $SVC_CROND |
 | atd.service                          | $SVC_ATD |
 
-## AI inference
 - Models loaded (llm-light): \`$LLM_MODELS\`
 - Agent-Pipe gateway: http://localhost:${_PORT_AGENT_PIPE}/v1
 - Backend llm-light: http://localhost:${_PORT_LLM_LIGHT}
 
-## Launchable inventory
 - $N_FLATPAK flatpaks
 - $N_HOST_GUI host RPM GUIs
 - $N_WIN_GUI Windows shortcut shorts (notepad, explorer, calc, ...)
@@ -208,7 +168,6 @@ $(if [ -n "$WIN_BLOCK" ]; then printf '\n## Windows host (the machine WSL lives 
 
 Full inventory: \`mios-apps\`. Launch by name: \`mios-launch <name>\`.
 
-## Pointers (for any deeper question)
 - /usr/share/mios/ai/system.md         -- canonical agent system prompt
 - /usr/share/mios/ai/INDEX.md          -- system interface reference
 - /usr/share/mios/mios.toml            -- vendor SSOT for configuration
@@ -218,10 +177,6 @@ Full inventory: \`mios-apps\`. Launch by name: \`mios-launch <name>\`.
 EOF
     ;;
 json)
-    # Pass every value through the ENVIRONMENT (not source interpolation) so a
-    # quote/special char in a field -- or a bash boolean like $IS_WSL=true,
-    # which is NOT valid Python -- can't break the JSON. The heredoc is
-    # single-quoted so bash leaves the python untouched; python reads os.environ.
     export EP_TS="$(date -Iseconds)" \
         EP_OP_USER="$OPERATOR_NAME" EP_OP_FULL="$OPERATOR_FULL" \
         EP_HOST_TOML="$HOSTNAME_TOML" EP_HOST_LIVE="$HOSTNAME_LIVE" \

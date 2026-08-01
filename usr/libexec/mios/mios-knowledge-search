@@ -51,12 +51,6 @@ DEFAULT_TOP_K = int(os.environ.get("MIOS_KNOWLEDGE_SEARCH_TOP_K", "5"))
 DEFAULT_THRESHOLD = float(
     os.environ.get("MIOS_KNOWLEDGE_SEARCH_THRESHOLD", "0.0"))
 
-# ── pgvector knowledge fallback ──────────────────────────────────────
-# When the OWUI admin api_key is unreachable (the agent user can't read it and
-# granting it is a security-gated change), degrade-open to the LOCAL pgvector
-# `knowledge` store (the same MiOS Q+A knowledge `recall` uses) so
-# knowledge_search still returns relevant results instead of hard-failing. The
-# OWUI-memory backend resumes automatically once a token is available.
 _KB_EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
                                     f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}").rstrip("/")
 _KB_EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
@@ -106,7 +100,6 @@ def _pgvector_knowledge_fallback(query: str, top_k: int, threshold: float,
         if not emb:
             raise RuntimeError("embed_failed")
         qv = "[" + ",".join(f"{float(x):.6f}" for x in emb) + "]"
-        # Ensure single quotes in query are escaped for the PL/pgSQL function call
         escaped_query = query.replace("'", "''")
         rows = _kb_pg(
             "SELECT translate(coalesce(q,''), E'\\n\\t\\r', '   '), "
@@ -115,12 +108,6 @@ def _pgvector_knowledge_fallback(query: str, top_k: int, threshold: float,
             f"FROM hindsight_search('{escaped_query}', '{qv}'::vector, {int(top_k)})"
         )
         hits = []
-        # Independent relevance FLOOR for this degrade-open fallback. The pg
-        # `knowledge` table holds agent CHAT Q&A memories, NOT the curated doc
-        # corpus this verb claims to search, so an unrelated query can surface
-        # low-score off-topic rows (~0.51-0.53 observed) and present them as an
-        # answer. Gate on max(caller threshold, floor) so an unrelated query
-        # returns an honest empty result. Tunable via MIOS_KNOWLEDGE_FALLBACK_FLOOR.
         try:
             import os as _os
             _floor = float(_os.environ.get("MIOS_KNOWLEDGE_FALLBACK_FLOOR", "0.62"))
@@ -206,7 +193,6 @@ def _list_collections(token: str = "") -> list[dict]:
                 headers={"Authorization": f"Bearer {token}"})
             with urllib.request.urlopen(req, timeout=15) as r:
                 data = json.loads(r.read().decode("utf-8", "replace"))
-            # OWUI 0.9.6 returns {"items":[...], "total":N}; older returns a list.
             if isinstance(data, dict):
                 data = data.get("items") or data.get("data") or []
             if isinstance(data, list):
@@ -247,9 +233,6 @@ def _resolve_collection(name_or_id: str, token: str = "") -> str:
     for c in cols:
         if c["name"].lower() == name_or_id.lower():
             return c["id"]
-    # No match: return verbatim so the OWUI endpoint produces a
-    # clear "collection not found" error instead of silently using
-    # the wrong one.
     return name_or_id
 
 
@@ -296,7 +279,6 @@ def _format_hits(resp: dict, limit: int) -> list[dict]:
     docs = resp.get("documents") or []
     metas = resp.get("metadatas") or []
     dists = resp.get("distances") or []
-    # OWUI nests one level deep when querying multiple collections.
     if docs and isinstance(docs[0], list):
         docs = docs[0]
     if metas and isinstance(metas[0], list):
@@ -367,9 +349,6 @@ def main() -> int:
 
     token = _admin_token()
     if not token:
-        # OWUI admin key unreachable -> degrade-open to the pgvector knowledge
-        # store so knowledge_search still returns results (helpers above). The
-        # OWUI-memory backend takes over automatically once a token exists.
         return _pgvector_knowledge_fallback(args.query, args.top_k,
                                             args.threshold, args.json)
 
@@ -377,8 +356,6 @@ def main() -> int:
         cid = _resolve_collection(args.collection, token)
         collection_ids = [cid] if cid else []
     else:
-        # No scope -> search across ALL collections (listed via the OWUI API,
-        # since the broker can't read webui.db). An empty list searches nothing.
         collection_ids = [c["id"] for c in _list_collections(token)]
     resp = _query(token, collection_ids, args.query,
                   args.top_k, args.threshold)

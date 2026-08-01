@@ -1,32 +1,11 @@
 #!/usr/bin/env python3
 # AI-hint: Projects the canonical-owned, drift-prone sections of mios.toml into the two
-# derived copies (curated root <checkout>/mios.toml + the bootstrap repo's mios.toml) so
-# they can never hand-drift. The toml sibling of mios-sync-theme: one command, and a
-# [ports]/[colors] edit in the canonical SSOT reaches both repo copies verbatim -- which
-# is exactly what keeps drift-gate 22 (bootstrap [ports] parity) and gate 48 (root subset)
-# green by construction. Owned sections ([autounattend], [smoke_tests], [mios_app], and the
-# gate-48 ignored_prefixes) and the derived copies' own [ports.lan_firewall] sub-table are
-# NEVER touched. Source of truth: usr/share/mios/mios.toml.
 # AI-related: usr/share/mios/mios.toml, mios.toml, ../mios-bootstrap/mios.toml,
-#   usr/lib/mios/mios_toml.py, usr/libexec/mios/mios-sync-theme, automation/98-drift-checks.sh,
-#   usr/lib/systemd/system/mios-sync-theme.service
-#
-# Usage: mios-sync-toml            # regenerate the projected sections in both derived copies
-#        mios-sync-toml --check    # report drift, write nothing, exit 1 if any copy is stale
-#
-# Same layering doctrine as mios-sync-theme: the canonical VENDOR copy
-# (usr/share/mios/mios.toml) is the source; the two committed derived copies are pure
-# projections of its PROJECTED sections. The Portal still writes only the user layer.
 
 import os
 import re
 import sys
 
-# Sections that are PURE PROJECTIONS from canonical -- safe to regenerate verbatim into the
-# derived copies. Verified (superset, no key drops, scalar-value parity): [ports] (35 canonical
-# scalars; the derived copies' [ports.lan_firewall] sub-table is preserved) and [colors]
-# (28 keys, identical sets). Extend this list only after confirming canonical ⊇ derived for the
-# section, so a projection can never DROP a key a consumer reads.
 PROJECTED = ["ports", "colors"]
 
 
@@ -83,7 +62,6 @@ def section_span(lines, section):
         if lines[j].lstrip().startswith("["):
             end = j
             break
-    # Trim the trailing comment/blank run (the next section's header comment).
     while end - 1 > start and (lines[end - 1].lstrip().startswith("#") or lines[end - 1].strip() == ""):
         end -= 1
     return (start, end)

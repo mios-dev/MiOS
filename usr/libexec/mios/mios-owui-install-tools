@@ -32,10 +32,6 @@ SRC_PATH = Path("/usr/share/mios/owui/tools/mios_verbs.py")
 TOOL_ID = "mios_verbs"
 TOOL_NAME = "MiOS Verbs"
 
-# Models that should auto-attach this tool. id matches the OWUI model
-# row id from mios-owui-install-pipe (both the canonical id "mios-agent"
-# and the pipe-derived id "MiOS-Agent" / "mios_agent.mios-agent" can
-# exist on a single host depending on registration order).
 ATTACH_TO_MODEL_IDS = ["mios-agent", "MiOS-Agent", "mios_agent.mios-agent"]
 
 
@@ -64,18 +60,11 @@ def main() -> int:
 
     c = sqlite3.connect(str(DB_PATH))
 
-    # Confirm tool table schema (matches what we probed: id user_id name
-    # content specs meta created_at updated_at valves).
     cols = [r[1] for r in c.execute("PRAGMA table_info(tool)")]
     if not cols or "content" not in cols or "specs" not in cols:
         _log(f"tool table schema unexpected ({cols!r}) -- aborting")
         return 1
 
-    # Auto-attach the tool to the MiOS-Agent model rows so the chat
-    # model actually SEES it in its tool_calls list. Without this the
-    # tool sits in the tool table unbound and OWUI never passes it to
-    # the upstream chat-completions call. Self-healing: re-runs that
-    # find the tool already in meta.toolIds are no-ops.
     attached = 0
     for mid in ATTACH_TO_MODEL_IDS:
         row = c.execute("SELECT meta FROM model WHERE id=?", (mid,)).fetchone()
@@ -97,20 +86,6 @@ def main() -> int:
     if attached:
         c.commit()
 
-    # Build specs JSON. OWUI's chat-completion path indexes into
-    # spec["parameters"] (open_webui.main:process_chat) so every spec
-    # MUST carry a JSONSchema parameters block -- a partial spec list
-    # (missing `parameters`) crashes the entire chat with KeyError:
-    # 'parameters'. Keep this list in lockstep with the actual Tools
-    # class methods in /usr/share/mios/owui/tools/mios_verbs.py.
-    # Operator directive 2026-05-17: "FIX EVERYTHING-CLI SEARCHING FOR
-    # WINDOWS SIDE OPERATIONS AND LAUNCHING ... should be the default
-    # windows launching assist tool/skill(s)". The Tools class exposes
-    # 5 methods; specs MUST be in lockstep with the source AND every
-    # spec MUST carry a JSONSchema parameters block (process_chat
-    # KeyError otherwise -- operator-flagged 2026-05-17). everything_
-    # search is THE first call for any Windows-launch ambiguity: it
-    # hits Voidtools NTFS index sub-100ms across every mounted drive.
     specs = [
         {
             "name": "everything_search",
@@ -325,12 +300,6 @@ def main() -> int:
                 "required": ["name"],
             },
         },
-        # ── PHASE-3 typed window/launch surface ────────────────────
-        # Operator directive 2026-05-18 (native OpenAI strict
-        # function-calling with enum positions; replaces SOUL.md
-        # prose + env-var preludes). The `position` enum is the
-        # SAME shape as the PositionLiteral in mios_verbs.py source
-        # -- the model's tool_call surface becomes the rule book.
         {
             "name": "open_app",
             "description": "Open a desktop app on the operator's screen, optionally placing the window. Use this instead of launch_app when ALSO controlling position. Works for Windows apps (Steam/Epic/Xbox/protocol-handlers/.exe) and Linux GUI apps via WSLg.",
@@ -452,12 +421,6 @@ def main() -> int:
         },
     }
 
-    # Change detection. Cover BOTH the module content AND the generated
-    # specs (the model-visible tool surface). A spec-only change -- e.g.
-    # adding a new function spec without editing the module body -- MUST
-    # still trigger an UPDATE, else the new tool stays invisible to the
-    # chat model (2026-05-21: web_search method shipped in content but the
-    # content hash matched, so the new spec was silently skipped).
     new_specs_json = json.dumps(specs)
     new_hash = hashlib.sha256(
         (content + new_specs_json).encode("utf-8")

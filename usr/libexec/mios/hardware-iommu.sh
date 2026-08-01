@@ -2,10 +2,6 @@
 # AI-hint: IOMMU Group Visualizer
 # AI-functions: print_banner, check_iommu, get_device_color, visualize_groups, show_gpu_details, show_usb_controllers, export_to_file, interactive_menu, main
 
-################################################################################
-# IOMMU Group Visualizer
-# Quick tool to visualize IOMMU groups for GPU passthrough planning
-################################################################################
 
 set -euo pipefail
 
@@ -73,17 +69,14 @@ visualize_groups() {
             n=${n%%/*}
             device_info=$(lspci -nns "${d##*/}")
             
-            # Get device color based on type
             color=$(get_device_color "$device_info")
             
             printf "${BOLD}Group %2s:${NC} ${color}%s${NC}\n" "$n" "$device_info"
 
             group_count=$((group_count + 1))
             
-            # Track GPU groups
             if echo "$device_info" | grep -qi "VGA\|3D"; then
                 gpu_groups+=("$n")
-                # Check if GPU is alone in group
                 device_count=$(find /sys/kernel/iommu_groups/$n/devices/ -type l | wc -l)
                 if [ "$device_count" -eq 2 ]; then  # GPU + its audio typically
                     isolated_gpus+=("Group $n")
@@ -128,14 +121,12 @@ show_gpu_details() {
         echo -e "${BOLD}GPU:${NC} $gpu_name"
         echo -e "${BOLD}PCI Address:${NC} $pci_id"
         
-        # Find IOMMU group
         for d in /sys/kernel/iommu_groups/*/devices/*; do
             if [ -e "$d" ] && [[ "$d" == *"$pci_id"* ]]; then
                 n=${d#*/iommu_groups/*}
                 n=${n%%/*}
                 echo -e "${BOLD}IOMMU Group:${NC} $n"
                 
-                # List all devices in this group
                 echo -e "${BOLD}Group Members:${NC}"
                 for member in /sys/kernel/iommu_groups/$n/devices/*; do
                     if [ -e "$member" ]; then
@@ -146,7 +137,6 @@ show_gpu_details() {
                     fi
                 done
                 
-                # Check if suitable for passthrough
                 device_count=$(find /sys/kernel/iommu_groups/$n/devices/ -type l | wc -l)
                 if [ "$device_count" -le 2 ]; then
                     echo -e "  ${GREEN}[ok] Good for passthrough (isolated or with audio only)${NC}"
@@ -159,7 +149,6 @@ show_gpu_details() {
             fi
         done
         
-        # PCIe link info
         echo -e "${BOLD}PCIe Link:${NC}"
         lspci -vv -s "$pci_id" 2>/dev/null | grep -E "LnkCap|LnkSta" | sed 's/^/  /'
         
@@ -182,7 +171,6 @@ show_usb_controllers() {
         local pci_id=$(echo "$controller" | awk '{print $1}')
         local ctrl_name=$(echo "$controller" | cut -d: -f3-)
         
-        # Find IOMMU group
         for d in /sys/kernel/iommu_groups/*/devices/*; do
             if [ -e "$d" ] && [[ "$d" == *"$pci_id"* ]]; then
                 n=${d#*/iommu_groups/*}
@@ -201,9 +189,9 @@ export_to_file() {
     
     {
         echo "IOMMU Topology Report"
-        echo "Generated: $(date)"
-        echo "Hostname: $(hostname)"
-        echo "Kernel: $(uname -r)"
+        echo "Generated: $"
+        echo "Hostname: $"
+        echo "Kernel: $"
         echo ""
         echo ""
         
@@ -239,7 +227,7 @@ interactive_menu() {
             3) show_usb_controllers ;;
             4) export_to_file ;;
             5) print_banner; check_iommu; visualize_groups ;;
-            q|Q) echo "Goodbye!"; exit 0 ;;
+            q|Q) echo "Goodbye"; exit 0 ;;
             *) echo -e "${RED}Invalid option${NC}" ;;
         esac
     done

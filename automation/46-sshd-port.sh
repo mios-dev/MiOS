@@ -5,41 +5,17 @@
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-# Pin the host ADMIN sshd to the SSOT port (mios.toml [ports] ssh -> MIOS_PORT_SSH).
-#
-# MiOS hardens the admin sshd OFF the default :22 -- :22 on the host is the
-# Forgejo container's git-ssh (see mios-forge.container; forge_ssh=2222 is the
-# intended host port, but the container historically squats :22). The admin
-# sshd therefore listens on MIOS_PORT_SSH (e.g. 49955), and automation/
-# 44-firewall-ports.sh + 45-firewall.sh open exactly that port.
-#
-# The stock /etc/ssh/sshd_config carries only `#Port 22` (commented) and an
-# `Include /etc/ssh/sshd_config.d/*.conf` near the top. Without an explicit
-# Port a CLEAN build's sshd binds :22 -- which the firewall does NOT open and
-# which Forgejo occupies -> the admin sshd is unreachable = total SSH lockout
-# (the incident). We ship the port as a drop-in so it is reproducible
-# and stays the single SSOT value, not an out-of-band edit to the main file.
-#
-# Port values resolve through the layered SSOT (mios.toml [ports] ->
-# tools/lib/userenv.sh -> MIOS_PORT_* env vars -> automation/lib/globals.sh
-# fallbacks). Hardcoded port literals are bugs; lift them.
 
-mios_log "pin host admin sshd to MIOS_PORT_SSH=${MIOS_PORT_SSH} via drop-in"
+mios_log "Pin host admin sshd to MIOS_PORT_SSH=${MIOS_PORT_SSH} via drop-in"
 
 install -d -m 0755 /etc/ssh/sshd_config.d
 cat > /etc/ssh/sshd_config.d/09-mios-ssh-port.conf <<EOF
-# MiOS: host admin sshd port. SSOT = mios.toml [ports] ssh (MIOS_PORT_SSH).
-# Baked at build by automation/46-sshd-port.sh -- do not hand-edit.
-# Hardened off :22 (Forgejo git-ssh); the firewall opens this port.
 Port ${MIOS_PORT_SSH}
 EOF
 chmod 0644 /etc/ssh/sshd_config.d/09-mios-ssh-port.conf
 
-# Best-effort sanity check. `sshd -t` needs host keys, which are usually absent
-# in the OCI build container, so this must NEVER fail the build.
 if command -v sshd >/dev/null 2>&1; then
     sshd -t 2>/dev/null \
         && mios_ok "sshd config valid; admin sshd will bind ${MIOS_PORT_SSH}" \

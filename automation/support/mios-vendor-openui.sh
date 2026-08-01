@@ -1,20 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Build-time script that fetches and installs the OpenUI generative-UI bundle (JS/CSS) into /usr/share/mios/openui to ensure offline-first availability for the OWUI Tool.
 # AI-related: /usr/share/mios/openui, /usr/share/mios/openui/., /usr/share/mios/vendored/, mios-vendor-openui
-# automation/support/mios-vendor-openui.sh
-#
-# One-shot at IMAGE BUILD time: download the OpenUI generative-UI
-# bundle (used by the OpenUI OWUI Tool) from jsDelivr and stash under
-# /usr/share/mios/openui/. The Tool's iframe inlines these files at
-# render time so no CDN fetch ever happens at runtime (Law 7
-# OFFLINE-FIRST).
-#
-# Operator directive "NO!!!! FULL OFFLINE".
-#
-# Re-runnable: skips the download if files already present + non-zero.
-# Network-best-effort: warns and exits 0 if jsDelivr is unreachable
-# (the OWUI Tool falls back to a friendly "bundle missing" panel and
-# the operator can re-run this script later).
 set -euo pipefail
 
 DEST=/usr/share/mios/openui
@@ -46,11 +32,10 @@ for f in "${FILES[@]}"; do
         fi
     else
         rm -f "$out.tmp"
-        echo "[mios-vendor-openui] WARN: $URL_BASE/$f unreachable -- OpenUI panel will be unavailable" >&2
+        echo "[mios-vendor-openui] WARN: $URL_BASE/$f unreachable" >&2
     fi
 done
 
-# License notice (MIT, thesysdev/vishxrad)
 cat > "$DEST/LICENSE.MIT" <<'EOF'
 The OpenUI generative-UI bundle is licensed under the MIT License.
 Source: https://github.com/thesysdev/openui (npm: @openuidev/browser-bundle)

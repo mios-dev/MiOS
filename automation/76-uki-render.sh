@@ -5,27 +5,16 @@ set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-mios_log "render kernel cmdline from bootc kargs.d/*.toml for the UKI"
+mios_log "Render kernel cmdline from bootc kargs.d/*.toml for the UKI"
 
-# shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
-# [packages.boot] already pulls systemd-ukify; reinstall via the SSOT
-# [packages.uki] section as a safety net in case --skip-unavailable dropped
-# it on a constrained mirror.
 if ! rpm -q systemd-ukify >/dev/null 2>&1; then
-    mios_log "systemd-ukify not found; reinstalling via mios.toml [packages.uki]"
+    mios_log "Systemd-ukify not found; reinstalling via mios.toml [packages.uki]"
     install_packages_strict "uki"
 fi
 
-# SINGLE SOURCE OF TRUTH: tools/generate-uki-cmdline.py is the ONE
-# authoritative flattener of usr/lib/bootc/kargs.d/*.toml -> usr/lib/kernel/cmdline.
-# The post-build drift-gate (98-drift-checks check 93) validates the tree against
-# `generate-uki-cmdline.py --check` (ROOT=/tmp/build), so the build MUST render via
-# the SAME generator here -- a divergent `bootc container render-kargs` or a
-# hand-rolled TOML flatten would order/dedup/space the kargs differently and fail
-# the gate. cmdline must be correct BEFORE the UKI is built, so render it here.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 GEN_SCRIPT="${ROOT}/tools/generate-uki-cmdline.py"
@@ -46,7 +35,7 @@ if [[ ! -f "$GEN_SCRIPT" ]]; then
     exit 1
 fi
 
-mios_log "render UKI cmdline via authoritative generator (${GEN_SCRIPT})"
+mios_log "Render UKI cmdline via authoritative generator"
 python3 "$GEN_SCRIPT"
 
 if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" ]]; then
@@ -59,5 +48,4 @@ if [ -z "$CMDLINE" ]; then
 fi
 
 mios_ok "rendered UKI cmdline: $CMDLINE"
-# The actual UKI generation (`ukify build`) occurs in the final CI/CD pipeline
 mios_ok "UKI cmdline rendered"

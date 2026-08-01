@@ -2,9 +2,6 @@
 # AI-hint: This script is the primary build runner for MiOS, managing the build lifecycle by parsing `mios.toml` configurations, enforcing environment constraints, and rendering a TTY-safe ASCII progress UI for the build process.
 # AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-bootstrap, mios-build, mios-step, packagekit.service
 # AI-functions: _pad, _hline, _row, _progress_bar, _step_header, _step_result, _section_header, _progress_frame, _fail_report, _warn_report, _final_summary
-# 'MiOS' - Master build runner
-# Framed ASCII console UI: progress bar, stage tracking, health metrics,
-# per-step timing, and consolidated failure/warn report at end.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,25 +9,16 @@ source "${SCRIPT_DIR}/lib/common.sh"
 source "${SCRIPT_DIR}/lib/packages.sh"
 register_common_masks
 
-# SSOT: mios.toml is the only runtime source for [packages.<section>].pkgs.
-# Legacy PACKAGES.md is documentation under usr/share/doc/mios/reference/
-# and is no longer consulted at build time. Resolution chain (highest first):
-#   $MIOS_TOML override, ~/.config/mios/mios.toml, /etc/mios/mios.toml,
-#   /ctx/mios-bootstrap/mios.toml, /usr/share/mios/mios.toml,
-#   /ctx/usr/share/mios/mios.toml -- see _resolve_mios_toml in lib/packages.sh.
 export MIOS_TOML="${MIOS_TOML:-/ctx/usr/share/mios/mios.toml}"
 export MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-$MIOS_TOML}"
 BUILD_LOG="/tmp/mios-build.log"
 VERSION_STR="$(cat "${SCRIPT_DIR}/../VERSION" 2>/dev/null || cat /ctx/VERSION 2>/dev/null || grep -m1 -E '^[[:space:]]*mios_version' "${MIOS_TOML:-${SCRIPT_DIR}/../usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/')"
 
-# ── Redirect all output through mask filter and tee to log ──────────────────
 exec > >(mask_filter | tee -a "$BUILD_LOG") 2>&1
 
-# ── TTY UI: pure ASCII, 72-char wide, CI/tty0/container-safe ───────────────
 W=72  # frame width (inner content = W-4 chars)
 
 _pad() {
-    # Left-pad or right-pad a string to exactly $1 chars
     local width=$1 str=${2:-} dir=${3:-left}
     local len=${#str}
     if [[ $len -ge $width ]]; then printf '%s' "${str:0:$width}"; return; fi
@@ -50,15 +38,12 @@ _hline() {
 }
 
 _row() {
-    # Print a frame row: | content |
     local content="$1"
     local inner=$(( W - 4 ))
     printf '| %-*s |\n' "$inner" "${content:0:$inner}"
 }
 
 _progress_bar() {
-    # | [====>    ] NNN/NNN (NNN%) |
-    # prefix "| [" = 3, suffix "] NNN/NNN (NNN%) |" = 18 => bar_w = W-21
     local current=$1 total=$2
     local bar_w=$(( W - 21 ))
     [[ $bar_w -lt 4 ]] && bar_w=4
@@ -79,7 +64,6 @@ _progress_bar() {
 }
 
 _step_header() {
-    # +- STEP NN/NN : name --------- HH:MM -+  (W total; prefix=3, suffix=3 => inner=W-6)
     local step=$1 total=$2 name=$3 elapsed_total=$4
     local elapsed_fmt
     elapsed_fmt=$(printf '%02d:%02d' $(( elapsed_total / 60 )) $(( elapsed_total % 60 )))
@@ -95,7 +79,6 @@ _step_header() {
 }
 
 _step_result() {
-    # +-- [STATUS] name -------- Ns --+  (W total; prefix=4, suffix=4 => inner=W-8)
     local status=$1 name=$2 elapsed=$3
     local tag
     case "$status" in
@@ -180,14 +163,13 @@ _final_summary() {
 export SYSTEMD_OFFLINE=1
 export container=podman
 
-# Ensure build environment is initialized as a valid git location for CI/CD parity (sourced from SSOT mios.toml [identity])
 _build_root="$(cd "${SCRIPT_DIR}/.." && pwd)"
 if [[ ! -d "${_build_root}/.git" ]] && command -v git >/dev/null 2>&1; then
     (
         cd "${_build_root}"
         git init -q 2>/dev/null || true
         _ssot_name="$(grep -m1 -E '^[[:space:]]*fullname[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || echo "User")"
-        _ssot_email="$(grep -m1 -E '^[[:space:]]*email[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || echo "user@localhost")"
+        _ssot_email="$(grep -m1 -E '^[[:space:]]*email[[:space:]]*=' "${MIOS_TOML:-/usr/share/mios/mios.toml}" 2>/dev/null | sed -E 's/[^"]*"([^"]*)".*/\1/' || echo "User@localhost")"
         git config user.name "${_ssot_name:-User}" 2>/dev/null || true
         git config user.email "${_ssot_email:-user@localhost}" 2>/dev/null || true
         git add -A 2>/dev/null || true
@@ -201,25 +183,6 @@ if [[ ! -f "$MIOS_TOML" ]]; then
     exit 1
 fi
 
-# ── Script classification ────────────────────────────────────────────────────
-# CONTAINERFILE_SCRIPTS are explicitly skipped from the main loop because
-# they're invoked elsewhere in the build flow:
-#   01-system-files-overlay.sh -- called explicitly by the OCI overlay step
-#   97-ssot-lint.sh            -- POST-BUILD validator, called explicitly below
-#   98-drift-checks.sh         -- POST-BUILD validator, called explicitly below
-#   99-postcheck.sh            -- called explicitly below after the loop
-# 97-ssot-lint + 98-drift-checks are read-only SOURCE validators, not build
-# stages. Their names sort into the 38-* band, so the [0-9][0-9]-*.sh glob
-# would ALSO run them mid-loop -- double-executing them, and worse: the in-loop
-# 98-drift-checks runs BEFORE the post-loop SSOT re-projection step, so the
-# gitignored projections (etc/mios/ipa-enroll.env / usr/lib/kernel/cmdline /
-# etc/cockpit/cockpit.conf) are still absent at $ROOT and checks 92/93/95
-# spuriously FAIL -> the bake aborts (the post-build run passes fine). Skip both
-# from the loop; they run once, authoritatively, after the loop (below).
-# A legacy inference-prep step used to be skipped here but was orphaned
-# (never called). Model baking is now a regular pipeline step
-# (73-model-prep.sh -> /usr/share/mios/llamacpp/models), so it runs in
-# the main loop.
 CONTAINERFILE_SCRIPTS="01-system-files-overlay.sh 97-ssot-lint.sh 98-drift-checks.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
@@ -249,12 +212,10 @@ NON_FATAL_SCRIPTS="
   67-bake-surfer.sh
 "
 
-# Check if build_catalog_authoritative is true
 auth=$(awk '/^[[:space:]]*build_catalog_authoritative[[:space:]]*=/ {
     if ($0 ~ /=[[:space:]]*true/) print "true"
 }' "$MIOS_TOML" 2>/dev/null || true)
 
-# Count total runnable scripts
 ALL_SCRIPTS=()
 if command -v miosd >/dev/null 2>&1; then
     mapfile -t PHASE_SCRIPTS < <(miosd build --list 2>/dev/null | awk -F':' '{print $1}')
@@ -270,7 +231,6 @@ fi
 
 if (( ${#ALL_SCRIPTS[@]} == 0 )); then
     if [[ "$auth" == "true" && -f "$(dirname "$MIOS_TOML")/build_phases.json" ]]; then
-        # Read scripts from build_phases.json
         mapfile -t PHASE_SCRIPTS < <(python3 -c "import json, os; d = json.load(open('$(dirname "$MIOS_TOML")/build_phases.json')); [print(os.path.basename(p['script'])) for p in d]" 2>/dev/null)
         for _n in "${PHASE_SCRIPTS[@]}"; do
             echo "$CONTAINERFILE_SCRIPTS" | grep -qF "$_n" && continue
@@ -288,17 +248,11 @@ if (( ${#ALL_SCRIPTS[@]} == 0 )); then
 fi
 TOTAL_SCRIPTS=${#ALL_SCRIPTS[@]}
 
-# ── Header ───────────────────────────────────────────────────────────────────
 _section_header
 echo ""
 
 TOTAL_START=$SECONDS
 
-# ── Build-time version manifest (records :latest -> observed-version) ────────
-# Project policy: every dependency tracks :latest from upstream. To make
-# day-0 images reproducible-after-the-fact, every script that resolves a
-# floating tag calls record_version (lib/common.sh). build.sh seeds the
-# manifest with image-level metadata; phase scripts append component rows.
 rm -f "$MIOS_VERSION_MANIFEST"
 record_version mios       "$VERSION_STR"                               "git:$(cat /ctx/VERSION 2>/dev/null || echo unknown)"
 record_version base-image "${BASE_IMAGE:-ghcr.io/ublue-os/ucore-hci:stable-nvidia}" "build-time floating tag"
@@ -313,7 +267,6 @@ FAIL_LOG=()
 WARN_LOG=()
 WARNED_JSON=()
 
-# ── Execute all numbered scripts ─────────────────────────────────────────────
 for script in "${ALL_SCRIPTS[@]}"; do
     SCRIPT_NAME="$(basename "$script")"
     SCRIPT_COUNT=$(( SCRIPT_COUNT + 1 ))
@@ -322,7 +275,6 @@ for script in "${ALL_SCRIPTS[@]}"; do
 
     STEP_START=$SECONDS
 
-    # Capture per-script log to individual file
     STEP_LOG="/tmp/mios-step-${SCRIPT_COUNT}-${SCRIPT_NAME%.sh}.log"
 
     set +e
@@ -352,13 +304,12 @@ for script in "${ALL_SCRIPTS[@]}"; do
     echo ""
 done
 
-# ── Bloat removal ───────────────────────────────────────────────────────────
 _hline '-' '+' '+'
 _row " POST-BUILD: Bloat removal"
 _hline '-' '+' '+'
 BLOAT_PACKAGES=$(get_packages "bloat" 2>/dev/null || true)
 if [[ -n "${BLOAT_PACKAGES:-}" ]]; then
-    echo "  Removing bloat packages..."
+    echo "  Removing bloat packages"
     $DNF_BIN "${DNF_SETOPT[@]}" remove -y --no-autoremove $BLOAT_PACKAGES 2>/dev/null || true
 fi
 systemctl mask packagekit.service 2>/dev/null || true
@@ -372,7 +323,6 @@ for app in gnome-tour gnome-initial-setup; do
     fi
 done
 
-# ── Package validation ───────────────────────────────────────────────────────
 echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Package Health Check"
@@ -393,7 +343,6 @@ if [[ ${#CRITICAL_PACKAGES[@]} -gt 0 ]]; then
         fi
     done
 fi
-# Hardware spot-checks
 if rpm -qa 'kmod-nvidia*' 2>/dev/null | grep -q . ; then
     printf '|  %-38s [ OK ] |\n' "NVIDIA kmod(s)"
 else
@@ -410,7 +359,6 @@ else
 fi
 _hline '-' '+' '+'
 
-# ── Technical invariant validation ──────────────────────────────────────────
 echo ""
 _row " POST-BUILD: Technical Invariant Validation (99-postcheck.sh)"
 _hline '-' '+' '+'
@@ -420,11 +368,6 @@ else
     _row "  WARNING: 99-postcheck.sh not found -- skipping"
 fi
 
-# ── SSOT-render conformance lint (97-ssot-lint.sh) ──────────────────────────
-# WS-0A drift-gate: every ${MIOS_*} placeholder in a Quadlet must be wired on
-# BOTH ends (typed slot in userenv.sh + render allowlist). The lint exited 1 on
-# orphans but was never invoked by the build, so dead keys accumulated silently.
-# Wire it in as a hard gate (set -euo pipefail aborts the build on exit 1).
 echo ""
 _row " POST-BUILD: SSOT-render conformance lint (97-ssot-lint.sh)"
 _hline '-' '+' '+'
@@ -434,23 +377,10 @@ else
     _row "  WARNING: 97-ssot-lint.sh not found -- skipping"
 fi
 
-# ── AI-plane source drift fitness-functions (98-drift-checks.sh) ────────────
-# WS-0A drift-gate: source-tree checks that 99-postcheck cannot run on a bare
-# checkout (retired :11434 lane, retired model-id in a consumer, dangling
-# [nodes.*] lane, broken ai/v1 manifest). Hard gate (exit 1 aborts the build).
 echo ""
 _row " POST-BUILD: AI-plane source drift checks (98-drift-checks.sh)"
 _hline '-' '+' '+'
 if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
-    # repo = ROOT = git tree -- THAT is MiOS. The build root ships .git, so
-    # restore the pristine committed tree here: materialize every tracked file
-    # (incl. installation/, cat/, docs/ that were not cp'd into /tmp/build) and
-    # revert any build-time mutations, so the source-drift checks see the exact
-    # committed source -- identical to the drift-gate CI job on the pristine
-    # checkout. safe.directory: the tree is root-owned under rootful podman
-    # (avoid a "dubious ownership" abort of git ls-files). The checkout's
-    # ephemeral auth extraheader is stripped from the local .git first (hygiene;
-    # /tmp/build is rm'd and never enters the final image regardless).
     _drift_root="$(cd "${SCRIPT_DIR}/.." && pwd)"
     git config --global --add safe.directory "${_drift_root}" 2>/dev/null || true
     git config --global --add safe.directory '*' 2>/dev/null || true
@@ -458,66 +388,33 @@ if [[ -f "${SCRIPT_DIR}/98-drift-checks.sh" ]]; then
         git -C "${_drift_root}" config --local --unset-all http.https://github.com/.extraheader 2>/dev/null || true
         git -C "${_drift_root}" reset --hard HEAD -q 2>/dev/null || true
     fi
-    # Re-project the GITIGNORED SSOT projections -- etc/mios/ipa-enroll.env,
-    # usr/lib/kernel/cmdline, etc/cockpit/cockpit.conf -- UNCONDITIONALLY,
-    # NOT gated on the git work tree. checks 92/93/95 (generate-X.py --check, ROOT=_drift_root)
-    # require these files to EXIST at ${_drift_root} and match the committed SSOT. They are
-    # gitignored so they are never cp'd into /tmp/build, and the build stages render them into
-    # the LIVE image (/etc,/usr) not ${_drift_root}. In the OCI bake the copied .git is an
-    # INCOMPLETE work tree ("tracked files not materialized"), so `git rev-parse` / `reset --hard`
-    # are unreliable; when they are, gating the re-projection on them left these files ABSENT and
-    # FAILED the bake (checks 92/93/95: "MISSING -- SSOT projection absent"). Generate them here,
-    # ALWAYS, straight from mios.toml -- the generators derive root from __file__ (= ${_drift_root})
-    # and only need usr/share/mios/mios.toml (always cp'd). Log the outcome so CI shows it landed.
     if command -v python3 >/dev/null 2>&1; then
         for _proj in generate-ipa-enroll-env.py generate-uki-cmdline.py generate-cockpit-conf.py; do
             if [ -f "${_drift_root}/tools/${_proj}" ]; then
                 if python3 "${_drift_root}/tools/${_proj}" >/dev/null 2>&1; then
                     echo "[reproject] ${_proj}: OK"
                 else
-                    echo "[reproject] WARN: ${_proj} failed -- checks 92/93/95 may flag its projection"
+                    echo "[reproject] WARN: ${_proj} failed"
                 fi
             else
-                echo "[reproject] WARN: ${_drift_root}/tools/${_proj} not found -- cannot refresh projection"
+                echo "[reproject] WARN: ${_drift_root}/tools/${_proj} not found"
             fi
         done
     else
-        echo "[reproject] WARN: python3 unavailable -- cannot refresh SSOT projections"
+        echo "[reproject] WARN: python3 unavailable"
     fi
     bash "${SCRIPT_DIR}/98-drift-checks.sh"
 else
     _row "  WARNING: 98-drift-checks.sh not found -- skipping"
 fi
 
-# ── Agent-pipe deterministic unit tests ─────────────────────────────────────
-# WS-0A drift-gate: the standalone test_mios_*.py scripts (pure stdlib + the
-# sibling mios_*.py module under test -- no server.py / DB) cover the extracted
-# orchestration leaves. They ran nowhere in the build, so regressions in the
-# decision logic shipped unnoticed. Run each as `python3 <script>` (they are
-# assert-scripts with a main() exit code, NOT pytest-collectable) and fail the
-# build if any returns non-zero.
 echo ""
 _row " POST-BUILD: Agent-pipe unit tests (test_mios_*.py)"
 _hline '-' '+' '+'
 _agent_pipe_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/lib/mios/agent-pipe"
-# REQUIRE the agent-plane venv python (built by 72-hermes-agent.sh): the sibling
-# mios_*.py modules transitively import fastapi/pydantic/psycopg/mcp/httpx via the
-# federation routers, so the bare SYSTEM python3 raises ModuleNotFoundError before
-# any assertion runs. Do NOT fall back to system python3 -- 72-hermes-agent.sh is
-# NON_FATAL and deletes the partial venv on pip failure ("retry next boot"), and a
-# fallback here would convert that tolerated venv miss into a HARD build die on a
-# fresh Day-0 host with cold pip caches. When the venv is absent, SKIP the gate
-# (mirroring the non-fatal venv contract) instead of running under system python3.
 _test_py="/usr/lib/mios/agents/.venv/bin/python3"
 if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
     _test_fails=0
-    # DB-integration tests are NOT hermetic: they need a LIVE pgvector on
-    # localhost:${MIOS_PORT_PGVECTOR} which does not exist during an OFFLINE OCI
-    # image build (no services run). test_mios_db_config connects live; the
-    # build-catalog materialization asserts against a live/seeded DB. They run in
-    # the DB-present runtime/CI phase + the standalone `just drift-gate` test
-    # suite, NOT in the offline image build. Skipping them here keeps the build
-    # gate to hermetic unit tests. (Proper self-skip/mocking tracked for AGY.)
     _DB_INTEGRATION_TESTS=" test_mios_db_config.py test_mios_build_catalog.py test_mios_config_audit.py test_mios_redact.py test_mios_vector.py "
     shopt -s nullglob
     for _t in "$_agent_pipe_dir"/test_mios_*.py; do
@@ -526,20 +423,10 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
             _row "  [SKIP] $_tb (DB-integration -- needs live pgvector; runs in CI/runtime)"
             continue
         fi
-        # Capture output so a red test is DEBUGGABLE from the build log (the
-        # old >/dev/null discarded the traceback -> a mystery FAIL). Assign in the
-        # `if` condition so a failing test never trips set -e.
-        # CLEAN ENV: build.sh has already sourced userenv.sh, whose ~700 MIOS_*
-        # exports (real routing/verb/config values) LEAK into the test subprocess and
-        # override the tests' OWN fixtures -- e.g. a config value flips an expected
-        # verb/route result -- failing hermetic tests that PASS in the drift-gate's
-        # clean env. Unset MIOS_* for the test subprocess only (matching the
-        # drift-gate + the tests' hermetic design); the parent build env is untouched.
         if _tout="$( cd "$_agent_pipe_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); "$_test_py" "$_tb"; } 2>&1 | tr -d '\0' )"; then
             _row "  [ OK ] $_tb"
         else
             _row "  [FAIL] $_tb"
-            # FULL output (not tail-8) so a build-venv-specific failure is diagnosable.
             printf '%s\n' "$_tout" | sed 's/^/      /' >&2
             _test_fails=$((_test_fails + 1))
         fi
@@ -553,21 +440,12 @@ else
     _row "  WARNING: agent venv absent (or agent-pipe dir missing) -- skipping agent-pipe unit tests (non-fatal; venv retries next boot)"
 fi
 
-# ── libexec/mios unit tests (live outside the agent-pipe glob) ───────────────
-# WS-0A(2b)/WS-A3: the standalone test_mios_*.py assert-scripts under
-# usr/libexec/mios cover CLI tools that are NOT in the agent-pipe dir --
-# test_mios_docgen (mios-docgen), test_mios_pgwire (mios-pg-query extended-
-# protocol param binding), test_mios_cli_sqlsafety (the parameterized memory
-# CLIs). Glob them all so a new libexec test is picked up automatically; fail on
-# any red.
 _libexec_dir="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios"
 if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
     _lx_fails=0
     shopt -s nullglob
     for _t in "$_libexec_dir"/test_mios_*.py; do
-        # Clean env (same rationale as the agent-pipe gate above): strip the leaked
         # MIOS_* resolver exports so hermetic libexec tests match the drift-gate.
-        # Capture output so a failure is logged in FULL (diagnosable) below.
         if _lxout="$( cd "$_libexec_dir" && { unset $(compgen -v MIOS_ 2>/dev/null); PYTHONIOENCODING=utf-8 python3 "$(basename "$_t")"; } 2>&1 )"; then
             _row "  [ OK ] $(basename "$_t")"
         else
@@ -584,11 +462,6 @@ else
     _row "  WARNING: libexec dir or python3 missing -- skipping libexec unit tests"
 fi
 
-# ── Quadlet image digest capture (build-day :latest snapshot) ───────────────
-# Quadlets are pulled by bootc at deploy time, not at OCI-build time, so
-# their :latest will re-resolve on every deploy. Record the digest skopeo
-# sees right now, so the shipped image carries a precise snapshot of what
-# build day's :latest pointed at -- even though deploys may differ later.
 echo ""
 _hline '-' '+' '+'
 _row " POST-BUILD: Capturing Quadlet image digests"
@@ -608,7 +481,6 @@ else
     warn "skopeo not available -- Quadlet image digests not captured"
 fi
 
-# ── Log preservation (flatten all chain logs + version manifest into /usr) ──
 echo ""
 _hline '-' '+' '+'
 _row " LOG CHAIN: Flattening logs + version manifest -> ${MIOS_LOG_DIR}/"
@@ -616,21 +488,19 @@ _hline '-' '+' '+'
 mkdir -p "$MIOS_LOG_DIR"
 cp -v /var/log/dnf5.log* /var/log/hawkey.log "$MIOS_LOG_DIR/" 2>/dev/null || true
 
-# Promote machine-readable version manifest (TSV, kept uncompressed for grep/awk)
 if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
     install -m 0644 "$MIOS_VERSION_MANIFEST" "$MIOS_VERSION_MANIFEST_FINAL"
     _row "  Version manifest: ${MIOS_VERSION_MANIFEST_FINAL} ($(wc -l < "$MIOS_VERSION_MANIFEST") rows)"
 fi
 
-# Flatten per-step logs + manifest + main build log into single unified chain
 {
-    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain -- $(date '+%Y-%m-%d %H:%M:%S')"
+    echo "# 'MiOS' ${VERSION_STR} Unified Build Log Chain"
     echo ""
     echo "# ====== build-time :latest -> observed-version manifest ======"
     if [[ -f "$MIOS_VERSION_MANIFEST" ]]; then
         cat "$MIOS_VERSION_MANIFEST"
     else
-        echo "(no manifest produced)"
+        echo ""
     fi
     for step_log in /tmp/mios-step-*.log; do
         [[ -f "$step_log" ]] || continue
@@ -644,17 +514,11 @@ fi
 } > "$MIOS_BUILD_CHAIN_LOG"
 cp "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 
-# Compress the bulky logs; keep the TSV manifest uncompressed for direct query.
 gzip -9f "$MIOS_BUILD_CHAIN_LOG" "$MIOS_BUILD_LOG" 2>/dev/null || true
 gzip -9f "$MIOS_LOG_DIR"/dnf5.log* "$MIOS_LOG_DIR/hawkey.log" 2>/dev/null || true
 _row "  Unified chain log: ${MIOS_BUILD_CHAIN_LOG}.gz"
-# WS-NUMBER AGY-641: single progress count. Was an INDEPENDENT recount
-# (ls /tmp/mios-step-*.log | wc -l) that duplicated SCRIPT_COUNT -- the two
-# were computed by different code paths and only coincidentally equal, which is
-# exactly the "two different 66s in one log" the operator flagged. One source now.
 _row "  Step count in chain: ${SCRIPT_COUNT}"
 
-# Write machine-readable marker of non-fatal failures under SBOM artifacts dir
 SBOM_ARTIFACTS_DIR="${MIOS_USR_DIR:-/usr/share/mios}/artifacts/sbom"
 mkdir -p "$SBOM_ARTIFACTS_DIR" 2>/dev/null || true
 MARKER_FILE="${SBOM_ARTIFACTS_DIR}/non-fatal-failures.json"
@@ -680,7 +544,6 @@ if [[ -d "$SBOM_ARTIFACTS_DIR" ]]; then
     _row "  Non-fatal failures marker: ${MARKER_FILE}"
 fi
 
-# ── Cleanup ─────────────────────────────────────────────────────────────────
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/dnf /var/cache/libdnf5 /tmp/geist-font /tmp/*.tar* /tmp/*.rpm 2>/dev/null || true
 rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* 2>/dev/null || true
@@ -689,7 +552,6 @@ rm -f /var/log/dnf5.log* /var/log/hawkey.log 2>/dev/null || true
 rm -rf /run/ceph /run/cockpit /run/k3s /tmp/mios-step-*.log 2>/dev/null || true
 rm -f /var/lib/systemd/random-seed /tmp/mios-build.log "$MIOS_VERSION_MANIFEST" 2>/dev/null || true
 
-# ── Final summary + failure/warn report ──────────────────────────────────────
 TOTAL_ELAPSED=$(( SECONDS - TOTAL_START ))
 echo ""
 _final_summary "$SCRIPT_COUNT" "$SCRIPT_FAIL" "$WARN_FAIL" "$VALIDATION_FAIL" "$TOTAL_ELAPSED"

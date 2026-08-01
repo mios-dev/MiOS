@@ -1,13 +1,6 @@
 #!/bin/sh
 # AI-hint: Retrieves and streams the most recent raw build log from /var/log/mios or /tmp, used by agents to inspect real-time or historical build output from the mios-build-driver.
 # AI-related: /usr/libexec/mios/mios-build-tail, mios-build-driver, mios-build-status
-# /usr/libexec/mios/mios-build-tail [-f] [N]
-#
-# Stream / tail the most recent build log. With -f, follows live (tail -f).
-# Without -f, prints the last N lines (default 100) and exits.
-#
-# Companion to mios-build-status (which adds metadata + state). Use this
-# when you just want the raw log content.
 
 set -eu
 
@@ -18,9 +11,9 @@ while [ "$#" -gt 0 ]; do
         -f|--follow) FOLLOW=1; shift ;;
         -n) N="$2"; shift 2 ;;
         -h|--help)
-            echo "usage: mios-build-tail [-f] [-n N]"
-            echo "  -f       follow the log live (tail -f)"
-            echo "  -n N     print last N lines and exit (default 100)"
+            echo "Usage: mios-build-tail [-f] [-n N]"
+            echo "  -f       follow the log live"
+            echo "  -n N     print last N lines and exit"
             exit 0 ;;
         *) N="$1"; shift ;;
     esac
@@ -36,7 +29,7 @@ for d in /var/log/mios /tmp; do
     fi
 done
 if [ -z "$LATEST" ]; then
-    echo "mios-build-tail: no build-driver-*.log found" >&2
+    echo "Mios-build-tail: no build-driver-*.log found" >&2
     exit 1
 fi
 

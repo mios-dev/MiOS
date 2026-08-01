@@ -56,8 +56,6 @@ def _gateway():
 
 _GW = _gateway()
 
-# Compute nodes. cpu = orchestrator host (always up, CPU-only); light(dGPU)+igpu =
-# fast worker nodes; heavy(SGLang) is usually down (VRAM) -> simply never healthy.
 _DEFAULT_DEPLOYMENTS = [
     {"name": "cpu",   "base": f"http://localhost:{os.environ.get('MIOS_PORT_CPU_NODE', '8458')}/v1", "model": "mios-cpu"},
     {"name": "light", "base": f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1", "model": "qwen3:1.7b"},
@@ -71,15 +69,6 @@ except Exception:
 
 DEP = {d["name"]: d for d in DEPLOYMENTS}
 
-# logical model -> (mode, ordered lane names). failover = preference order;
-# roundrobin = rotate per request so concurrent children spread across nodes.
-# NOTE (2026-06-08 measured): the tool-laden requests Hermes sends (~17K tokens of
-# 113 MCP tools) are ONLY fast on the dGPU (4090, 2.2s); CPU/iGPU are ~100 tok/s ->
-# 169-180s+ and time out. So with a single fast GPU, delegated children must PREFER
-# the dGPU and SERIALIZE there (2s each, prefix-cached) rather than scatter across
-# slow nodes (180s each). True cross-node parallelism needs per-child tool-surface
-# reduction (AIOS Context Manager) so children are small enough for the slow lanes —
-# a follow-up. Until then fanout is failover(light-first), not roundrobin.
 ROUTES = {
     "mios-orchestrator": ("failover",   ["light", "igpu", "cpu"]),
     "mios-cpu":          ("failover",   ["cpu", "light", "igpu"]),
@@ -89,12 +78,6 @@ ROUTES = {
 DEFAULT_ROUTE = ("failover", ["light", "igpu", "cpu"])
 LOGICALS = ["mios-orchestrator", "mios-fanout", "mios-heavy", "mios-cpu"]
 
-# GAMING MODE: when ON, the front door (mios-orchestrator / default) must NOT touch
-# the RTX 4090 (a chat turn would stutter the game). The CPU node never touches it
-# (and the iGPU is a separate GPU), so route there instead — slow (~169s on the tool
-# surface) but contention-free. dGPU(light) stays only as an absolute last resort if
-# both are down. Toggle via POST /gaming {"on":true|false} (off by default); from
-# Windows: curl 127.0.0.1:11442/gaming -d '{"on":true}'. Wire it to your game launcher.
 GAMING_FRONT = ["cpu", "igpu", "light"]
 _gaming = {"on": False}
 
@@ -107,8 +90,6 @@ _client: httpx.AsyncClient = None
 def _candidates(requested):
     """Lanes to try for the requested logical model, healthy+non-cooled first."""
     mode, names = ROUTES.get(requested, DEFAULT_ROUTE)
-    # Gaming mode reroutes the front door + delegated children off the dGPU
-    # (see GAMING_FRONT note). mios-cpu/mios-heavy keep their explicit routes.
     if _gaming["on"] and requested in ("mios-orchestrator", "mios-fanout"):
         mode, names = "failover", GAMING_FRONT
     now = time.time()

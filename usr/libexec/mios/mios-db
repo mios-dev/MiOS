@@ -1,55 +1,6 @@
 #!/bin/bash
 # AI-hint: Unified MiOS shared-state CLI fronting the agent backends: PostgreSQL/pgvector for cross-cutting state (--pg), Open WebUI's SQLite webui.db (--owui), and local OpenAI-compat embeddings on mios-llm-light (--embed).
 # AI-related: userenv.sh, /usr/libexec/mios/mios-db, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/libexec/mios/mios-pg-query, mios-pg-query, mios-env, mios-open-webui
-# /usr/libexec/mios/mios-db --pg '<sql>' [-f <file.sql>] [--json]
-#                            [--owui '<sql>']
-#                            [--embed '<text>'] [--embed-model <m>]
-#
-# Unified MiOS shared-state CLI -- one tool that fronts every
-# local backend agents need to query.
-#
-# Operator directives 2026-05-18 stacked:
-#   * "make sure this is all OpenSource Alternatives /
-#      Local Endpoints / Self-Hosted Endpoints) and Open WebUI Native
-#      DB(s) for knowledge/memory/context/scratch/skills/functions/
-#      tools/etc-etc"
-#   * "unify all AI Surfaces!!"
-#
-# The three backends + which data lives where:
-#
-#   --owui <sql>      Read/write Open WebUI's webui.db (SQLite).
-#                     SOURCE OF TRUTH for: chat / message / memory /
-#                     knowledge / file / tool / function / model /
-#                     user / group / channel.
-#
-#   --embed <text>    /v1/embeddings via the canonical
-#                     MiOS embedding model (nomic-embed-text).
-#                     Returns the float[] vector. SOURCE OF TRUTH
-#                     for: embeddings. Switch model via --embed-model.
-#
-#   --pg <sql>        PostgreSQL/pgvector at MIOS_PG_*. SOURCE OF TRUTH for:
-#                     agent / session / tool_call / event /
-#                     kanban / scratch / agent_metric.
-#                     Cross-cutting state OWUI doesn't natively have.
-#
-# Env (with defaults). All envs source from the layered mios.toml chain
-# via tools/lib/userenv.sh -- vendor (/usr/share/mios/mios.toml) <
-# host (/etc/mios/mios.toml) < user (~/.config/mios/mios.toml). A shell
-# `export` always wins (`:=` form). To change the defaults globally,
-# edit [pgvector] / [ports] / paths in mios.toml -- DO NOT
-# hardcode values here. See the SSOT directive in
-# automation/34-render-quadlets.sh.
-#
-#   MIOS_PG_HOST         localhost        [pgvector].host
-#   MIOS_PORT_PGVECTOR   8432             [ports].pgvector
-#   MIOS_PG_USER         mios             [pgvector].user
-#   MIOS_PG_PASS         mios             [pgvector].pass
-#   MIOS_PG_DB           mios             [pgvector].database
-#   MIOS_OWUI_DB         /var/lib/mios/open-webui/webui.db
-#   MIOS_LLM_URL         http://localhost:${MIOS_PORT_LLM_LIGHT:-11450}
-#   MIOS_EMBED_MODEL     nomic-embed-text [pgvector].embed_model
-#
-# Exits 0 on success, 1 on backend unreachable, 2 on missing binary.
 
 set -uo pipefail
 
@@ -80,19 +31,13 @@ if [ "${1:-}" = "--config" ]; then
         /usr/libexec/mios/mios-db --pg "SELECT key, value FROM system_config;"
         exit $?
     else
-        echo "Usage: mios-db --config [get <key> | set <key> <value> | show]" >&2
+        echo "Usage: mios-db" >&2
         exit 1
     fi
 fi
 
-# Source the SSOT-layered env first so MIOS_* envs reflect the operator's
-# mios.toml overrides without callers having to source userenv.sh themselves.
-# Canonical deployed paths mirror /etc/profile.d/mios-env.sh; silent no-op
-# if the helper isn't present (e.g. a fresh host pre-image-rebuild). The
-# script still works with raw env-var exports either way.
 for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
     if [ -r "$_ue" ]; then
-        # shellcheck disable=SC1090
         . "$_ue"
         break
     fi
@@ -101,9 +46,6 @@ done
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
-# WS-9 PostgreSQL + pgvector unified agent DB (--pg mode). SSOT [pgvector] /
-# [ports].pgvector via userenv.sh; local-only defaults. Callers route through
-# THIS tool so creds live in one SSOT place (no hardcoded root:root copies).
 PG_HOST="${MIOS_PG_HOST:-localhost}"
 PG_PORT="${MIOS_PORT_PGVECTOR:-8432}"
 PG_USER="${MIOS_PG_USER:-mios}"
@@ -139,10 +81,9 @@ while [ "$#" -gt 0 ]; do
     esac
 done
 
-# ── MODE: --owui  (OWUI webui.db via sqlite3 over the bind-mount) ──
 if [ "$MODE" = "owui" ]; then
     if [ ! -r "$OWUI_DB" ]; then
-        echo "mios-db: OWUI webui.db not readable at $OWUI_DB" >&2
+        echo "Mios-db: OWUI webui.db not readable at $OWUI_DB" >&2
         exit 1
     fi
     if command -v sqlite3 >/dev/null 2>&1; then
@@ -152,10 +93,6 @@ if [ "$MODE" = "owui" ]; then
             exec sqlite3 -header -column "$OWUI_DB" "$OWUI_SQL"
         fi
     fi
-    # Container-exec fallback: OWUI image ships python3 + sqlite.
-    # Pass SQL via stdin (sys.argv[1] = SQL); use a CURSOR for
-    # .description (Connection.execute returns a cursor but the
-    # description attr lives on the cursor, not the connection).
     if command -v podman >/dev/null 2>&1 \
        && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-open-webui$'; then
         exec podman exec -i mios-open-webui python3 -c '
@@ -169,19 +106,15 @@ out = [dict(zip(cols, r)) for r in rows]
 print(json.dumps(out, default=str, indent=2))
 ' <<<"$OWUI_SQL"
     fi
-    echo "mios-db: no sqlite3 + no mios-open-webui container" >&2
+    echo "Mios-db: no sqlite3 + no mios-open-webui container" >&2
     exit 2
 fi
 
-# ── MODE: --embed  (/v1/embeddings, OpenAI-compat) ──
 if [ "$MODE" = "embed" ]; then
     if ! command -v curl >/dev/null 2>&1; then
-        echo "mios-db: curl required for --embed" >&2
+        echo "Mios-db: curl required for" >&2
         exit 2
     fi
-    # OpenAI-compat shape -- the canonical /v1 embeddings schema.
-    # Pass model + text as argv (NOT spliced into the -c source) so a model name
-    # or text containing a quote can't break out into the python program.
     PAYLOAD=$(python3 -c '
 import json, sys
 print(json.dumps({"model": sys.argv[1], "input": sys.argv[2]}))
@@ -192,12 +125,8 @@ print(json.dumps({"model": sys.argv[1], "input": sys.argv[2]}))
         --data "$PAYLOAD"
 fi
 
-# ── MODE: --pg  (PostgreSQL + pgvector unified agent DB, WS-9) ──
-# The unified agent DB (pgvector is the sole datastore). Creds from the
-# SSOT [pgvector] section (above) -- no hardcoded values here.
 if [ "$MODE" = "pg" ]; then
     export PGPASSWORD="$PG_PASS"
-    # 1. local psql client (faster).
     if command -v psql >/dev/null 2>&1; then
         pa=(-h "$PG_HOST" -p "$PG_PORT" -U "$PG_USER" -d "$PG_DB" -w)
         [ "$JSON" = "1" ] && pa+=(-At)
@@ -207,7 +136,6 @@ if [ "$MODE" = "pg" ]; then
             exec psql "${pa[@]}" -c "$PG_SQL"
         fi
     fi
-    # 2. container-exec fallback: psql inside the mios-pgvector container.
     if command -v podman >/dev/null 2>&1 \
        && podman ps --format '{{.Names}}' 2>/dev/null | grep -q '^mios-pgvector$'; then
         pa=(exec -i -e "PGPASSWORD=$PG_PASS" mios-pgvector
@@ -219,10 +147,6 @@ if [ "$MODE" = "pg" ]; then
             exec podman "${pa[@]}" -c "$PG_SQL"
         fi
     fi
-    # 3. pure-python TCP fallback (no psql binary AND no podman access -- e.g.
-    #    the confined mios-ai service user running mios-daemon / dispatched
-    #    verbs). Speaks the pg v3 wire protocol over loopback trust (pg_hba
-    #    127.0.0.1/32 trust). Offline, zero deps -- the universal path. (R15)
     if [ -x /usr/libexec/mios/mios-pg-query ]; then
         export MIOS_PG_HOST="$PG_HOST" MIOS_PG_PORT="$PG_PORT" \
                MIOS_PG_USER="$PG_USER" MIOS_PG_DB="$PG_DB"
@@ -232,33 +156,23 @@ if [ "$MODE" = "pg" ]; then
             exec /usr/libexec/mios/mios-pg-query "$PG_SQL"
         fi
     fi
-    echo "mios-db: no psql + no mios-pgvector container + no mios-pg-query" >&2
+    echo "Mios-db: no psql + no mios-pgvector container + no mios-pg-query" >&2
     echo "  check: systemctl start mios-pgvector.service" >&2
     exit 2
 fi
 
-# ── MODE: --pg-json  (parameterized pgvector via the extended wire protocol) ──
-# Reads a {"sql","params"} / {"statements":[...]} envelope on STDIN and binds the
-# values OUT-OF-BAND (SQL-injection-safe). Only mios-pg-query can bind from an
-# envelope (psql/podman exec take raw SQL), so this routes straight there with
-# the SSOT-mapped connection env. (WS-A3 CLI SQL-safety -- the parameterized path
-# the python memory tools call instead of f-string-splicing values into SQL.)
 if [ "$MODE" = "pgjson" ]; then
     if [ -x /usr/libexec/mios/mios-pg-query ]; then
         export MIOS_PG_HOST="$PG_HOST" MIOS_PG_PORT="$PG_PORT" \
                MIOS_PG_USER="$PG_USER" MIOS_PG_DB="$PG_DB"
         exec /usr/libexec/mios/mios-pg-query --exec-json
     fi
-    echo "mios-db: --pg-json needs mios-pg-query (not found/executable)" >&2
+    echo "Mios-db:" >&2
     exit 2
 fi
 
-# ── No backend flag matched ──
-# The legacy no-flag DB default is RETIRED -- cross-cutting agent state
-# lives in PostgreSQL/pgvector now. Route explicitly so a bare invocation
-# can't silently hit a dead backend; tell the caller which flag to use.
-echo "mios-db: no backend flag (the legacy DB is retired -> pgvector is the agent DB)." >&2
-echo "  mios-db --pg    '<sql>'    -- agent/session/event/scratch/skill (pgvector)" >&2
-echo "  mios-db --owui  '<sql>'    -- Open WebUI webui.db (SQLite)" >&2
-echo "  mios-db --embed '<text>'   -- embeddings via mios-llm-light (port ${MIOS_PORT_LLM_LIGHT:-8450})" >&2
+echo "Mios-db: no backend flag" >&2
+echo "  mios-db" >&2
+echo "  mios-db" >&2
+echo "  mios-db" >&2
 exit 2

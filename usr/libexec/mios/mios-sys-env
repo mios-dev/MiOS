@@ -41,25 +41,12 @@ import os
 import subprocess
 import sys
 
-# ── pgvector store (FOSS-pure replacement for the retired legacy agent DB).
-# The singleton lives in the shared `sys_env` table (schema-init.sql): one row
-# id='current', the whole envelope under the `data` jsonb column. Reached via
-# the pure-python mios-pg-query client -- the same pattern mios-rag uses. ─────
 PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN",
                           "/usr/libexec/mios/mios-pg-query")
 TABLE = os.environ.get("MIOS_SYS_ENV_TABLE", "sys_env")
-# Fixed singleton key (was the legacy record id `sys_env:current`).
 RECORD = "current"
-# Per-category cap so a huge host can't bloat the stored row.
 APPS_CAP = int(os.environ.get("MIOS_SYS_ENV_APPS_CAP", "300"))
-# Per-category sample size for the COMPACT `get` envelope (the agent-facing
-# read). The dispatch broker truncates a verb's stdout at ~6 KB, which would
-# corrupt a larger JSON mid-string; the full inventory lives in the DB row +
-# `get --full`, while agents read counts + a small sample (and use app_search /
-# mios_apps to resolve a specific app). Keeps the read parseable + lean.
 APPS_SAMPLE = int(os.environ.get("MIOS_SYS_ENV_SAMPLE", "15"))
-# Categories mirror mios-env-probe's launchable inventory (kept in sync with
-# mios-apps' own category set; passed straight through, no semantic hardcode).
 APP_CATEGORIES = (os.environ.get("MIOS_SYS_ENV_APP_CATEGORIES", "")
                   or "linux-flatpak,linux-rpm-gui,windows-gui,windows-app,"
                      "mios-shim,agent-cli,service-url").split(",")
@@ -88,10 +75,6 @@ def _run_json(cmd: list[str], timeout: float = 20.0):
                              timeout=timeout).stdout
         return json.loads(out) if out.strip() else None
     except subprocess.TimeoutExpired:
-        # Do NOT swallow silently: a timed-out env-probe returns None, which
-        # empties the entire `env` envelope (identity / host HW / services) --
-        # the most valuable part of sys_env. Surface it loudly so an empty env
-        # is never mistaken for "no data available".
         sys.stderr.write(
             f"mios-sys-env: {cmd[0]} timed out after {timeout:.0f}s\n")
         return None
@@ -112,10 +95,6 @@ def _run_lines(cmd: list[str], timeout: float = 20.0) -> list[str]:
 def _probe() -> dict:
     """Gather the live environment: the env-probe envelope + the launchable
     app inventory (names per category, capped)."""
-    # The env-probe is the slow leg (~24 s on a busy box -- seven sequential
-    # service/HW probes), so give it a generous, env-tunable budget instead of
-    # the 20 s _run_json default. A too-short timeout silently empties `env`
-    # (host='', env_sections=[]) even on a successful refresh.
     env = _run_json(
         ["mios-env-probe", "--json"],
         timeout=float(os.environ.get("MIOS_SYS_ENV_PROBE_TIMEOUT", "60")),
@@ -144,11 +123,6 @@ def cmd_refresh(json_out: bool) -> int:
         "env": payload["env"], "apps": payload["apps"],
         "host": host, "source": "mios-sys-env", "indexed_at": now,
     }
-    # Single ATOMIC upsert of the fixed singleton key. ON CONFLICT (vs
-    # DELETE+INSERT) is race-safe when the refresh timer and an agent's
-    # sys_env_refresh fire concurrently -- last-write-wins, O(1), one row, no
-    # history bloat. The envelope is json.dumps'd into a jsonb literal; quotes
-    # are doubled ('' ) so app names/paths can't break out (no injection).
     data = json.dumps(row, default=str).replace("'", "''")
     rid = RECORD.replace("'", "''")
     res = _pg(
@@ -176,9 +150,6 @@ def cmd_refresh(json_out: bool) -> int:
 
 
 def _read_current() -> dict | None:
-    # The whole envelope is stored under the `data` jsonb column of the
-    # singleton row; unwrap it back to a top-level dict (env/apps/host/...)
-    # so _compact / cmd_get see the same shape the database row had.
     rid = RECORD.replace("'", "''")
     rows = _pg(f"SELECT data FROM {TABLE} WHERE id = '{rid}';")
     if not rows:
@@ -217,9 +188,6 @@ def cmd_get(json_out: bool, full: bool) -> int:
                **_compact(row, full)}
         print(json.dumps(out, indent=None if json_out else 2, default=str))
         return 0
-    # Row missing (e.g. first boot, before the timer/refresh ran): live
-    # fallback so a READ is never empty. NOT persisted -- get stays read-only;
-    # sys_env_refresh / the timer own the write.
     live = _probe()
     out = {"ok": True, "verb": "sys_env", "source": "live-fallback",
            "indexed_at": _now(),

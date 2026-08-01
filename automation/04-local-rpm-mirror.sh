@@ -4,7 +4,6 @@
 
 set -euo pipefail
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
     printf '[MiOS Offline] WARN: lib/common.sh unavailable -- skipping\n' >&2
     exit 0
@@ -14,7 +13,7 @@ MIRROR_DIR="${MIOS_RPM_MIRROR_DIR:-/usr/share/mios/vendored/rpm-mirror}"
 OFFLINE_BUILD="${MIOS_OFFLINE_BUILD:-0}"
 
 if [[ "$OFFLINE_BUILD" == "1" ]] || [[ -d "$MIRROR_DIR" ]]; then
-    mios_log "configuring local DNF RPM mirror from $MIRROR_DIR"
+    mios_log "Configuring local DNF RPM mirror from $MIRROR_DIR"
     mkdir -p /etc/yum.repos.d/
     cat > /etc/yum.repos.d/mios-local-mirror.repo <<EOF
 [mios-local-mirror]
@@ -26,5 +25,5 @@ priority=1
 EOF
     mios_ok "local DNF RPM mirror configured"
 else
-    mios_log "offline RPM mirror not active (online build or no vendored mirror found)"
+    mios_log "Offline RPM mirror not active"
 fi

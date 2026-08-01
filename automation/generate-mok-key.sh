@@ -1,19 +1,5 @@
 #!/usr/bin/bash
 # AI-hint: One-shot script to generate a 2048-bit RSA MOK key with specific code-signing EKU extensions for kernel module signing, outputting to /etc/pki/mios/ for use in secure boot verification.
-# generate-mok-key.sh -- one-shot 'MiOS' MOK key generator.
-#
-# Generates a 2048-bit RSA key (NOT 4096: shim compatibility) with:
-#   - codeSigning EKU
-#   - 1.3.6.1.5.5.7.3.3 (Standard Code Signing)
-#   - 1.3.6.1.4.1.311.61.1.1 (MS Kernel Module Code Signing)
-#   - 1.3.6.1.4.1.311.10.3.5 (WHQL Driver Verification)
-#   - 10-year validity
-#
-# Output: /etc/pki/mios/mok.{priv,der,pem,pub.b64,sha256}
-# Refuses to overwrite an existing key.
-#
-# Store the encrypted private key in GitHub secret MIOS_MOK_KEY_B64
-# and the passphrase in MIOS_MOK_KEY_PASSWORD. Never regenerate per-build.
 set -euo pipefail
 
 KEY_DIR=/etc/pki/mios
@@ -24,23 +10,22 @@ B64_PRIV="${KEY_DIR}/mok.priv.b64"
 SHA256_OUT="${KEY_DIR}/mok.sha256"
 
 if [[ -f "$DER_CERT" ]]; then
-    echo "ERROR: $DER_CERT already exists. MOK keys are generated once."
+    echo "ERROR: $DER_CERT already exists. MOK keys are generated once"
     echo "If you need to rotate, delete the old key files first, re-enroll with mokutil,"
-    echo "and then re-run this script."
+    echo "And then re-run this script"
     exit 1
 fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
-    echo "ERROR: run as root (sudo automation/generate-mok-key.sh)"
+    echo "ERROR: run as root"
     exit 1
 fi
 
 install -d -m 0700 "$KEY_DIR"
 
-echo "'MiOS' MOK key generation -- 2048-bit RSA, 10-year validity."
-echo "Set passphrase prompt: store in GitHub secret MIOS_MOK_KEY_PASSWORD."
+echo "'MiOS' MOK key generation"
+echo "Set passphrase prompt: store in GitHub secret MIOS_MOK_KEY_PASSWORD"
 
-# Create EKU extension config
 EXTFILE=$(mktemp /tmp/mok-ext.XXXXXX.conf)
 cat >"$EXTFILE" <<'EOF'
 [req]
@@ -61,7 +46,6 @@ subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always
 EOF
 
-# Generate encrypted key + self-signed cert
 openssl req \
     -newkey rsa:2048 \
     -nodes \
@@ -72,20 +56,16 @@ openssl req \
     -days 3650 \
     -config "$EXTFILE"
 
-# Convert cert to DER (the format mokutil needs)
 openssl x509 -in "$PEM_CERT" -outform DER -out "$DER_CERT"
 
-# Encrypt the private key
-echo "Enter passphrase to encrypt the private key (for GitHub secret storage):"
+echo "Enter passphrase to encrypt the private key:"
 openssl pkcs8 -topk8 -inform PEM -outform PEM \
     -in "${PRIV_KEY}.plain" \
     -out "$PRIV_KEY"
 rm -f "${PRIV_KEY}.plain"
 
-# Base64-encode encrypted PEM for GitHub secret
 base64 -w0 "$PRIV_KEY" > "$B64_PRIV"
 
-# SHA-256 fingerprint of the DER cert
 FINGERPRINT=$(openssl x509 -inform DER -in "$DER_CERT" -fingerprint -sha256 -noout | sed 's/.*=//')
 echo "$FINGERPRINT" > "$SHA256_OUT"
 

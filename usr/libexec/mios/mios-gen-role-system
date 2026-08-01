@@ -30,13 +30,6 @@ AGENT_PIPE = os.environ.get("MIOS_AGENT_PIPE", "http://127.0.0.1:8640").rstrip("
 OUT_DIR = os.environ.get("MIOS_ROLE_SYSTEMS_DIR", "/etc/mios/ai/v1/role-systems")
 A2A_PEERS = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
 
-# ── The AIOS-node IDENTITY (static principle -- IDENTITY, not live env) ───────
-# This is what makes a model "implicit of the MiOS stack": it knows it is an
-# AIOS node in a federated fleet and that decompose+delegate is its default
-# posture. Everything role/tool/fleet-specific below is rendered from the SSOT.
-# AIOS_IDENTITY was lifted out to /MiOS.md on 2026-06-10 -- the global SYSTEM
-# identity is now ONE root source (OpenAI-pattern), injected by agent-pipe. The
-# role overlays below carry only the per-role DELTA and reference /MiOS.md.
 
 
 sys.path.insert(0, os.path.join(
@@ -87,11 +80,6 @@ def _fleet() -> list:
 
 
 def _render_surface(surface: list, focus: list) -> str:
-    # OpenAI pattern: tools are the function-calling SURFACE (delivered as the
-    # `tools=` array on the request), NOT inlined as prose. Emit only a focus
-    # pointer; the full live catalog is discovered on demand via tool_search.
-    # (Dropping the old ~60-entry inline name dump is the single biggest per-hop
-    # token cut -- operator 2026-06-10 "lighten + consolidate".)
     if focus:
         return ("Tool focus: " + ", ".join(str(f) for f in focus)
                 + ". The FULL live MiOS verb/skill/recipe catalog is callable on "
@@ -111,9 +99,6 @@ def _render_fleet(fleet: list) -> str:
 
 
 def render_role(name: str, cfg: dict, surface: list, fleet: list) -> str:
-    # Per-role DEVELOPER overlay (OpenAI developer-message pattern). The global
-    # SYSTEM identity lives in /MiOS.md (injected separately, once) -- this layers
-    # ONLY the role delta on top, never a copy of the posture (lifted out 2026-06-10).
     role = cfg.get("role") or "general"
     parts = ["# Role overlay (operate under the /MiOS.md system identity)"]
     line = f"You are acting as the **{name}** ({role}) node of this MiOS host."

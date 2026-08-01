@@ -17,7 +17,7 @@ DEST_DIR="${2:-/mnt/mios-repo}"
 DEST_TAR="${DEST_DIR}/mios-latest.tar"
 
 if [[ ! -f "$SRC_TAR" ]]; then
-    echo "[mios-stage-oci-archive] Error: Source archive $SRC_TAR not found." >&2
+    echo "[mios-stage-oci-archive] Error: Source archive $SRC_TAR not found" >&2
     exit 1
 fi
 

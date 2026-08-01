@@ -79,9 +79,6 @@ async def _read(ws_url, max_chars):
             return ((resp or {}).get("result", {})
                     .get("result", {}).get("value"))
 
-        # wait up to ~20s for ACTUAL body text to appear -- readyState can read
-        # 'complete' before a big JS-rendered page (e.g. Wikipedia) populates the
-        # body, which gave an empty innerText. Poll the body length instead.
         for _ in range(40):
             r = await cmd("Runtime.evaluate",
                           {"expression": "(document.body && document.body.innerText"
@@ -94,9 +91,6 @@ async def _read(ws_url, max_chars):
         title = _val(await cmd("Runtime.evaluate",
                                {"expression": "document.title",
                                 "returnByValue": True})) or ""
-        # Prefer the MAIN article content (skip nav/menus/footers) so the first
-        # chars are the actual article -- a generic selector chain that falls back
-        # to <body>. Keeps the useful text within a small char budget.
         _expr = ("(function(){var e=document.querySelector("
                  "'#mw-content-text .mw-parser-output,main,article,#content,"
                  "[role=main]')||document.body;"

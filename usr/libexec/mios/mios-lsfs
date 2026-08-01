@@ -40,7 +40,7 @@ case "$verb" in
     search)
         query="${1:-}"
         echo "[mios-lsfs] Searching LSFS for: $query"
-        grep -rn "$query" "$LSFS_ROOT" 2>/dev/null || echo "No matches found."
+        grep -rn "$query" "$LSFS_ROOT" 2>/dev/null || echo "No matches found"
         ;;
     rollback)
         file="${1:-}"

@@ -7,7 +7,7 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
-mios_log "symlinking mios-copy-build-log.service into ${WANTS}"
+mios_log "Symlinking mios-copy-build-log.service into ${WANTS}"
 
 install -d -m 0755 "${WANTS}"
 

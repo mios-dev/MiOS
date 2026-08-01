@@ -2,77 +2,24 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Installs the core GNOME 50 desktop environment, including GDM, Wayland portals, and theme consistency for GTK/Qt, while configuring dconf profiles and disabling tracker indexing.
 # AI-related: mios-qt-adwaita, mios-cursor-ensure, mios-flatpak-install, mios-flatpak-install.service
-# 'MiOS' - 10-gnome: GNOME 50 desktop -- PURE BUILD-UP
-#
-# STRATEGY: ucore has ZERO GNOME packages. We install exactly what we need.
-# With install_weak_deps=False (set globally in 05-repos.sh), only hard deps
-# get pulled in. This means:
-#   - malcontent-libs comes in (gnome-control-center hard dep) -- CORRECT
-#   - malcontent-control/pam/tools do NOT come in (weak deps) -- CORRECT
-#   - No GNOME bloat apps get installed -- nothing to remove
-#
-# The ~25 core packages from the docs produce a fully functional GNOME 50
-# Wayland desktop with GDM, all portals, audio, Bluetooth, networking,
-# security, and proper theming across GTK3/GTK4/Qt.
-#
-# CHANGELOG - :
-#   - MANDATORY Bibata cursor download -- retries 3x, FAILS BUILD if missing
-#   - dconf profiles for user + GDM added to 
-#   - Flatpak: 7 apps (added Flatseal + LocalSend)
-#   - adw-gtk3 theme for GTK3 visual consistency
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-# ═════════════════════════════════════════════════════════════════════════════
-# GNOME 50 -- Install from mios.toml [packages.gnome] (build-up, NOT strip-down)
-# ═════════════════════════════════════════════════════════════════════════════
-mios_log "install GNOME 50 packages from mios.toml [packages.gnome]"
+mios_log "Install GNOME 50 packages from mios.toml [packages.gnome]"
 install_packages "gnome"
 
-# Optional GNOME Core Apps (empty pkgs[] in [packages.gnome-core-apps] by default)
 install_packages_optional "gnome-core-apps"
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Localsearch/tracker -- disable indexing without removing
-# Removing localsearch breaks Nautilus search + Activities Overview.
-# Hide via autostart overrides in usr/share/xdg/autostart/
-# ═════════════════════════════════════════════════════════════════════════════
-mios_log "localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay (package retained)"
+mios_log "Localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay"
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Qt Adwaita theming -- required for Qt apps to match GNOME look
-# Managed via usr/lib/environment.d/60-mios-qt-adwaita.conf
-# ═════════════════════════════════════════════════════════════════════════════
 mios_log "Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"
 
-# Geist + Symbols-Only Nerd Font now install via automation/56-fonts.sh
-# UNCONDITIONALLY (BEFORE this script runs). The font fetch was moved
-# out of 57-gnome.sh because headless deployments and the Windows-side
-# MiOS-DEV podman backend (which excludes the gnome section in
-# [packages.dev_overlay].sections) need the same Geist + Nerd glyphs
-# for the dashboard + oh-my-posh prompt to render correctly. See
-# automation/56-fonts.sh for the canonical fetch.
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Bibata Cursor Theme -- MANDATORY (build fails if download fails)
-#
-# The cursor shows as a SQUARE when:
-#   - /usr/share/icons/Bibata-Modern-Classic/ doesn't exist (download failed)
-#   - /usr/share/icons/default/index.theme points to nonexistent theme
-#   - dconf cursor-theme references a theme with no files
-#
-# FIX: Retry download 3 times. VERIFY the cursors directory exists.
-#      FAIL THE BUILD if cursors are missing -- a square cursor is unacceptable.
-# ═════════════════════════════════════════════════════════════════════════════
-mios_log "install Bibata-Modern-Classic cursor (MANDATORY)"
+mios_log "Install Bibata-Modern-Classic cursor"
 
-# Resolve latest release from upstream. Project policy: every dependency
-# tracks :latest from its source, so no fallback pin -- if api.github.com is
-# unreachable, fail loud rather than silently shipping a stale version.
 BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
     -H "Accept: application/vnd.github+json" "${MIOS_URL_BIBATA_API:-https://api.github.com/repos/ful1e5/Bibata_Cursor/releases/latest}" \
     | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/') 2>/dev/null || true)
@@ -80,34 +27,26 @@ BIBATA_VER=$( (scurl -sL --connect-timeout 15 --max-time 30 \
 [[ -n "$BIBATA_VER" ]] || die "Bibata: api.github.com release-latest lookup returned empty"
 record_version bibata "v${BIBATA_VER}" "https://github.com/ful1e5/Bibata_Cursor/releases/tag/v${BIBATA_VER}"
 
-# The {} placeholder must be substituted OUTSIDE the ${VAR:-default} expansion:
-# bash's ${:-} does not nest bare braces, so a literal '{}' in the default value
-# terminates the expansion at the first '}' and yields a mangled URL
-# (.../download/v{/Bibata-Modern-Classic.tar.xz}) -- the {}->version sub then finds
-# no adjacent '{}' and every download fails. Resolve the default into a plain var
-# first (no braces in the ${:-} default position), then substitute {}.
 _bibata_dl_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/Bibata-Modern-Classic.tar.xz"
 BIBATA_URL="${MIOS_URL_BIBATA_DL:-$_bibata_dl_default}"
 BIBATA_URL="${BIBATA_URL//"{}"/${BIBATA_VER}}"
 BIBATA_DIR="/usr/share/icons/Bibata-Modern-Classic"
 mkdir -p /usr/share/icons
 
-# Download with retries + sha256 verification
 BIBATA_OK=0
 _bibata_sum_default="https://github.com/ful1e5/Bibata_Cursor/releases/download/v{}/sha256-{}.txt"
 BIBATA_SUM_URL="${MIOS_URL_BIBATA_SUM:-$_bibata_sum_default}"
 BIBATA_SUM_URL="${BIBATA_SUM_URL//"{}"/${BIBATA_VER}}"
 
 if [ -f "/usr/share/mios/vendored/cursors/bibata.tar.xz" ]; then
-    mios_log "found offline vendored bibata.tar.xz, extracting"
+    mios_log "Found offline vendored bibata.tar.xz, extracting"
     if tar -xf "/usr/share/mios/vendored/cursors/bibata.tar.xz" -C /usr/share/icons/; then
         BIBATA_OK=1
     fi
 else
     for attempt in 1 2 3; do
-        mios_log "download attempt $attempt/3"
+        mios_log "Download attempt $attempt/3"
         if scurl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$BIBATA_URL" -o /tmp/bibata.tar.xz; then
-        # Attempt sha256 verification -- non-fatal if sidecar unavailable
         if scurl -fsSL --connect-timeout 15 --max-time 30 "$BIBATA_SUM_URL" -o /tmp/bibata.sha256 2>/dev/null; then
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
                 mios_ok "Bibata sha256 verified"
@@ -119,7 +58,6 @@ else
             mios_warn "Bibata sha256 sidecar unavailable -- skipping integrity check"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
-            # Record to binaries SBOM (RELTOP-01 / T-251)
             sbom_dir="/usr/share/mios/artifacts/sbom"
             mkdir -p "$sbom_dir"
             sha=""
@@ -138,71 +76,42 @@ else
     done
 fi
 
-# VERIFY cursor files actually exist -- FAIL THE BUILD if missing.
-# Operator trace this check had been softened to non-fatal
-# and an image shipped with NO Bibata at all -- /usr/share/icons had no
-# Bibata-Modern-Classic, so dconf + environment.d + gtk settings.ini +
-# the flatpak override all pointed XCURSOR_THEME at a theme that did not
-# exist on disk, and EVERY surface fell back to the default cursor
-# ("NOT BIBATA CURSOR ANYWHERE STILL"). A square/default cursor is
-# unacceptable per the original - MANDATORY policy -- restore it.
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
     die "Bibata cursor download FAILED after 3 attempts ($BIBATA_URL) -- refusing to ship an image with a broken cursor. (Already-shipped images self-heal at runtime via mios-cursor-ensure into ~/.local/share/icons, but the BUILD must seed /usr/share/icons.)"
 fi
 mios_ok "Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 
-# Cursor default -- covers every layer that reads cursor theme.
-# Managed via usr/share/icons/default/index.theme
-# and usr/share/X11/icons/default/index.theme.
 
-# 3. update-alternatives for x-cursor-theme (Fedora cursor resolution)
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
     mios_ok "x-cursor-theme alternative set to Bibata"
 fi
 
-# 4. Symlink into /usr/share/cursors/xorg-x11 (legacy X11 cursor path)
 mkdir -p /usr/share/cursors/xorg-x11
 ln -sf /usr/share/icons/Bibata-Modern-Classic /usr/share/cursors/xorg-x11/Bibata-Modern-Classic 2>/dev/null || true
 
-# 5. GDM user cursor -- ensure cursor files are world-readable
 chmod -R a+rX "$BIBATA_DIR" 2>/dev/null || true
 
-# 6. Xresources fallback (oldest X11 cursor method)
-# Managed via usr/lib/X11/Xresources
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Phosh -- Mobile session for portrait/tablet remote access
-# ═══════════════════════════════════════════════════════════════════════════════
-mios_log "install Phosh mobile session"
+mios_log "Install Phosh mobile session"
 install_packages_optional "phosh"
-# Make session wrapper executable
 chmod +x /usr/local/bin/phosh-session-wrapper 2>/dev/null || true
-# ═════════════════════════════════════════════════════════════════════════════
-# Flatpak Remotes
-# Disable filtered Fedora remote, use unfiltered Flathub for full catalog
-# ═════════════════════════════════════════════════════════════════════════════
-mios_log "configure Flatpak remotes"
+mios_log "Configure Flatpak remotes"
 if command -v flatpak &>/dev/null; then
     if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]]; then
         flatpak remote-add --system --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || true
         flatpak remote-add --system --if-not-exists flathub-beta https://flathub.org/beta-repo/flathub-beta.flatpakrepo || true
         flatpak remote-add --system --if-not-exists gnome-nightly https://nightly.gnome.org/gnome-nightly.flatpakrepo 2>/dev/null || true
     else
-        mios_log "offline build: skipping flatpak remote-add, assuming OCI baked archives"
+        mios_log "Offline build: skipping flatpak remote-add, assuming OCI baked archives"
     fi
     flatpak remote-modify --system --disable fedora 2>/dev/null || true
 else
     mios_warn "flatpak binary not found, skipping remote configuration"
 fi
 
-# ═════════════════════════════════════════════════════════════════════════════
-# Essential Flatpaks
-# ═════════════════════════════════════════════════════════════════════════════
-mios_log "Flatpaks installed on first boot (mios-flatpak-install.service)"
-# NOTE: mios-flatpak-install.service is enabled in Containerfile STEP D
-# (unit file lives in , not available during script execution)
+mios_log "Flatpaks installed on first boot"
 
 exit 0
 

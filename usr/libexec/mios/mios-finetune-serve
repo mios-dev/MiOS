@@ -161,7 +161,6 @@ class H(BaseHTTPRequestHandler):
             dt = round(time.time() - t0, 2)
         except Exception as e:  # noqa: BLE001
             return self._send(500, {"error": f"generation failed: {e}"})
-        # OpenAI /v1 shape (MiOS is /v1-only)
         self._send(200, {
             "id": f"ftchat-{int(time.time())}", "object": "chat.completion",
             "created": int(time.time()), "model": req.get("model", TAG),

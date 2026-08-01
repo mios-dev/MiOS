@@ -2,39 +2,13 @@
 # AI-hint: Provides a centralized, idempotent source of truth for MiOS-wide constants including versioning, service UIDs/GIDs, OCI image references, network ports, and API endpoints for use across all automation scripts.
 # AI-related: /usr/share/mios/VERSION, mios-services, mios-forge, mios-searxng, mios-ceph, mios-hermes, mios-open-webui, mios-dev, mios-guacamole
 # AI-functions: _mios_resolve_version
-# automation/lib/globals.sh
-#
-# Single-source-of-truth registry for MiOS-wide constants. Source this
-# (transitively via common.sh) instead of hardcoding values in every
-# script. Every variable is :-default assigned so an environment
-# override always wins -- making this safe to source from any script
-# without surprising existing callers.
-#
-# Categories:
-#   VERSION   -- derived from the canonical /VERSION file (or
-#                /ctx/VERSION at build time, or /usr/share/mios/VERSION
-#                on a deployed host) so a single bump propagates.
-#   USERS     -- mios + sidecar service accounts. UIDs/GIDs pinned in
-#                /usr/lib/sysusers.d/*.conf; centralized here so shell
-#                scripts and Quadlet User= directives can reference
-#                the same numbers without re-grepping.
-#   IMAGES    -- OCI refs (this image, base image, bib image, the
-#                local-build tag).
-#   PORTS     -- host loopback ports for every Quadlet/host service,
-#                so URL constants below can be derived once.
-#   URLS      -- common endpoints (AI, Forgejo, Cockpit).
-#   REPOS     -- git remotes for the self-replication loop.
-#
-# Idempotent. Safe to source multiple times.
 
-# ── VERSION ──────────────────────────────────────────────────────────
 _mios_resolve_version() {
     local v=""
     if   [[ -n "${MIOS_VERSION:-}" ]];        then v="$MIOS_VERSION"
     elif [[ -f /ctx/VERSION ]];               then v="$(cat /ctx/VERSION)"
     elif [[ -f /usr/share/mios/VERSION ]];    then v="$(cat /usr/share/mios/VERSION)"
     else
-        # Walk up from this lib file to find the repo-root VERSION.
         local _root
         _root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
         if [[ -n "$_root" && -f "${_root}/VERSION" ]]; then
@@ -46,12 +20,6 @@ _mios_resolve_version() {
 : "${MIOS_VERSION:=$(_mios_resolve_version)}"
 export MIOS_VERSION
 
-# ── USERS / GROUPS ───────────────────────────────────────────────────
-# Service-account UIDs are reserved in the 800-829 range per
-# /usr/lib/sysusers.d/50-mios-services.conf. The login user is uid 1000
-# (pinned in /usr/lib/sysusers.d/10-mios.conf so logind XDG_RUNTIME_DIR
-# allocation works -- system-uid auto-allocation under 1000 silently
-# breaks the Wayland/dbus user session).
 : "${MIOS_USER:=mios}"
 : "${MIOS_GROUP:=mios}"
 : "${MIOS_UID:=1000}"
@@ -77,9 +45,6 @@ export MIOS_VERSION
 : "${MIOS_OPEN_WEBUI_UID:=817}"
 : "${MIOS_OPEN_WEBUI_GID:=817}"
 
-# Rootless-container subuid/subgid range. Standard Fedora useradd -m
-# allocates 100000:65536; we keep the same so /etc/subuid + /etc/subgid
-# stay consistent with stock Fedora workflows.
 : "${MIOS_SUBUID_START:=100000}"
 : "${MIOS_SUBUID_COUNT:=65536}"
 
@@ -91,10 +56,7 @@ export MIOS_HERMES_USER MIOS_HERMES_UID MIOS_HERMES_GID
 export MIOS_OPEN_WEBUI_USER MIOS_OPEN_WEBUI_UID MIOS_OPEN_WEBUI_GID
 export MIOS_SUBUID_START MIOS_SUBUID_COUNT
 
-# ── IMAGES ───────────────────────────────────────────────────────────
-# Credential-driven registry-selection logic (RELTOP-01)
 if [[ -r "/etc/mios/secrets.env" ]]; then
-    # shellcheck disable=SC1090
     source "/etc/mios/secrets.env" 2>/dev/null || true
 fi
 : "${MIOS_IMAGE_NAME:=ghcr.io/mios-dev/mios}"
@@ -107,11 +69,6 @@ fi
 export MIOS_IMAGE_NAME MIOS_IMAGE_TAG MIOS_IMAGE_REF
 export MIOS_LOCAL_IMAGE MIOS_BASE_IMAGE MIOS_BIB_IMAGE
 
-# ── PORTS ────────────────────────────────────────────────────────────
-# Defaults below are fallbacks. mios.toml [ports].* (resolved through
-# tools/lib/userenv.sh — sourced ahead of this file by common.sh) is
-# the SSOT; these `:=` assignments are no-ops when userenv.sh has
-# already exported the same names from the layered TOML.
 : "${MIOS_PORT_SSH:=8222}"
 : "${MIOS_PORT_FORGE_HTTP:=8300}"
 : "${MIOS_PORT_FORGE_SSH:=8301}"
@@ -134,18 +91,12 @@ export MIOS_PORT_COCKPIT MIOS_PORT_LLM_LIGHT MIOS_PORT_PGVECTOR
 export MIOS_PORT_SEARXNG MIOS_PORT_CRAWL4AI MIOS_PORT_AGENT_PIPE MIOS_PORT_HERMES MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_COCKPIT_LINK
 export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_PORT
 
-# ── URLS ─────────────────────────────────────────────────────────────
-# Derived from PORTS. MIOS_AI_ENDPOINT is the canonical Architectural
-# Law 5 surface: agent-pipe on :8640.
 : "${MIOS_AI_ENDPOINT:=http://localhost:${MIOS_PORT_AGENT_PIPE}/v1}"
 : "${MIOS_FORGE_URL:=http://localhost:${MIOS_PORT_FORGE_HTTP}}"
 : "${MIOS_COCKPIT_URL:=https://localhost:${MIOS_PORT_COCKPIT}}"
 : "${MIOS_LLM_LIGHT_URL:=http://localhost:${MIOS_PORT_LLM_LIGHT}}"
 : "${MIOS_PGVECTOR_URL:=postgresql://mios:mios@localhost:${MIOS_PORT_PGVECTOR}/mios}"
 : "${MIOS_SEARXNG_URL:=http://localhost:${MIOS_PORT_SEARXNG}}"
-# crawl engine = loopback venv service (mios-crawl4ai.service); the helper +
-# service read MIOS_CRAWL_SERVICE_URL. Bind 127.0.0.1 (never LAN). Renamed
-# from MIOS_CRAWL4AI_URL when the container was scrapped.
 : "${MIOS_CRAWL_SERVICE_URL:=http://127.0.0.1:${MIOS_PORT_CRAWL4AI}}"
 : "${MIOS_HERMES_URL:=http://localhost:${MIOS_PORT_HERMES}/v1}"
 : "${MIOS_OPEN_WEBUI_URL:=http://localhost:${MIOS_PORT_OPEN_WEBUI}/}"
@@ -153,14 +104,11 @@ export MIOS_K3S_API_PORT MIOS_GUACAMOLE_PORT MIOS_CEPH_DASHBOARD_PORT MIOS_RDP_P
 export MIOS_AI_ENDPOINT MIOS_FORGE_URL MIOS_COCKPIT_URL MIOS_LLM_LIGHT_URL MIOS_PGVECTOR_URL
 export MIOS_SEARXNG_URL MIOS_CRAWL_SERVICE_URL MIOS_HERMES_URL MIOS_OPEN_WEBUI_URL MIOS_CODE_SERVER_URL
 
-# ── REPOS ────────────────────────────────────────────────────────────
 : "${MIOS_REPO_URL:=https://github.com/mios-dev/MiOS.git}"
 : "${MIOS_BOOTSTRAP_REPO_URL:=https://github.com/mios-dev/mios-bootstrap.git}"
 : "${MIOS_LOCAL_FORGE_REPO:=http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git}"
 export MIOS_REPO_URL MIOS_BOOTSTRAP_REPO_URL MIOS_LOCAL_FORGE_REPO
 
-# ── PATHS / DIRECTORIES ──────────────────────────────────────────────
-# /usr/share/mios/* -- vendor, immutable, image-baked
 : "${MIOS_SHARE_AI_DIR:=${MIOS_SHARE_DIR}/ai}"
 : "${MIOS_SHARE_DISTROBOX_DIR:=${MIOS_SHARE_DIR}/distrobox}"
 : "${MIOS_SHARE_BRANDING_DIR:=${MIOS_SHARE_DIR}/branding}"
@@ -169,18 +117,15 @@ export MIOS_REPO_URL MIOS_BOOTSTRAP_REPO_URL MIOS_LOCAL_FORGE_REPO
 : "${MIOS_SHARE_CONFIGURATOR_DIR:=${MIOS_SHARE_DIR}/configurator}"
 : "${MIOS_SHARE_K3S_MANIFESTS_DIR:=${MIOS_SHARE_DIR}/k3s-manifests}"
 
-# /etc/mios/* -- admin override surface
 : "${MIOS_ETC_AI_DIR:=${MIOS_ETC_DIR}/ai}"
 : "${MIOS_ETC_FORGE_DIR:=${MIOS_ETC_DIR}/forge}"
 : "${MIOS_ETC_ENVD_DIR:=${MIOS_ETC_DIR}/env.d}"
 
-# /var/lib/mios/* -- runtime mutable
 : "${MIOS_VAR_AI_DIR:=${MIOS_VAR_DIR}/ai}"
 : "${MIOS_VAR_MCP_DIR:=${MIOS_VAR_DIR}/mcp}"
 : "${MIOS_VAR_BACKUPS_DIR:=${MIOS_VAR_DIR}/backups}"
 : "${MIOS_VAR_CACHE_DIR:=${MIOS_VAR_DIR}/cache}"
 
-# /srv/ai/* -- AI inference bind targets (model store, generated outputs)
 : "${MIOS_SRV_AI_DIR:=/srv/ai}"
 : "${MIOS_SRV_AI_MODELS_DIR:=${MIOS_SRV_AI_DIR}/models}"
 : "${MIOS_SRV_AI_OUTPUTS_DIR:=${MIOS_SRV_AI_DIR}/outputs}"
@@ -195,8 +140,6 @@ export MIOS_VAR_AI_DIR MIOS_VAR_MCP_DIR MIOS_VAR_BACKUPS_DIR MIOS_VAR_CACHE_DIR
 export MIOS_SRV_AI_DIR MIOS_SRV_AI_MODELS_DIR MIOS_SRV_AI_OUTPUTS_DIR
 export MIOS_SRV_AI_COLLECTIONS_DIR MIOS_SRV_AI_MCP_DIR
 
-# ── NETWORK ──────────────────────────────────────────────────────────
-# internal podman bridge for sidecar containers.
 : "${MIOS_QUADLET_NETWORK:=mios.network}"
 : "${MIOS_QUADLET_SUBNET:=10.89.0.0/24}"
 : "${MIOS_CORE_NET_SUBNET:=10.89.0.0/24}"
@@ -205,31 +148,23 @@ export MIOS_SRV_AI_COLLECTIONS_DIR MIOS_SRV_AI_MCP_DIR
 export MIOS_QUADLET_NETWORK MIOS_QUADLET_SUBNET
 export MIOS_CORE_NET_SUBNET MIOS_CORE_NET_GATEWAY
 
-# ── FILES ────────────────────────────────────────────────────────────
-# mios.toml chain (vendor < host < user; resolved by tools/lib/userenv.sh)
 : "${MIOS_TOML_VENDOR:=${MIOS_SHARE_DIR}/mios.toml}"
 : "${MIOS_TOML_HOST:=${MIOS_ETC_DIR}/mios.toml}"
 : "${MIOS_TOML_USER:=${HOME:-/root}/.config/mios/mios.toml}"
 
-# install.env -- bootstrap-staged identity + AI defaults sourced at runtime
 : "${MIOS_INSTALL_ENV:=${MIOS_ETC_DIR}/install.env}"
 
-# Sentinel files (presence => first-boot work already done)
 : "${MIOS_FIRSTBOOT_SENTINEL:=${MIOS_VAR_DIR}/.wsl-firstboot-done}"
 
-# AI system prompt + MCP registry
 : "${MIOS_AI_SYSTEM_PROMPT:=${MIOS_SHARE_AI_DIR}/system.md}"
 : "${MIOS_MCP_REGISTRY:=${MIOS_SHARE_AI_DIR}/v1/mcp.json}"
 
-# Bootstrap-time saved env (persists operator selections between runs)
 : "${MIOS_BUILD_ENV_FILE:=${HOME:-/root}/.config/mios/mios-build.env}"
 
 export MIOS_TOML_VENDOR MIOS_TOML_HOST MIOS_TOML_USER
 export MIOS_INSTALL_ENV MIOS_FIRSTBOOT_SENTINEL
 export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 
-# ── SYSTEMD UNITS ────────────────────────────────────────────────────
-# Quadlet-generated service names (one per .container/.build/.image file)
 : "${MIOS_UNIT_FORGE:=mios-forge.service}"
 : "${MIOS_UNIT_FORGE_RUNNER:=mios-forgejo-runner.service}"
 : "${MIOS_UNIT_LLM_LIGHT:=mios-llm-light.service}"
@@ -244,7 +179,6 @@ export MIOS_AI_SYSTEM_PROMPT MIOS_MCP_REGISTRY MIOS_BUILD_ENV_FILE
 : "${MIOS_UNIT_HERMES_FIRSTBOOT:=mios-hermes-firstboot.service}"
 : "${MIOS_UNIT_CODE_SERVER:=mios-code-server.service}"
 
-# Hand-written units
 : "${MIOS_UNIT_FIRSTBOOT_TARGET:=mios-firstboot.target}"
 : "${MIOS_UNIT_WSL_FIRSTBOOT:=mios-wsl-firstboot.service}"
 : "${MIOS_UNIT_USER_SESSION:=user@${MIOS_UID}.service}"
@@ -255,7 +189,6 @@ export MIOS_UNIT_COCKPIT_LINK MIOS_UNIT_SEARXNG MIOS_UNIT_FIRSTBOOT_TARGET
 export MIOS_UNIT_HERMES MIOS_UNIT_OPEN_WEBUI MIOS_UNIT_HERMES_FIRSTBOOT MIOS_UNIT_CODE_SERVER
 export MIOS_UNIT_WSL_FIRSTBOOT MIOS_UNIT_USER_SESSION
 
-# ── CONTAINER IMAGES ─────────────────────────────────────────────────
 : "${MIOS_CONTAINER_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
 : "${MIOS_CONTAINER_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_CONTAINER_HERMES_IMAGE:=docker.io/nousresearch/hermes-agent:latest}"
@@ -267,13 +200,6 @@ export MIOS_CONTAINER_SEARXNG_IMAGE
 export MIOS_CONTAINER_HERMES_IMAGE MIOS_CONTAINER_OPEN_WEBUI_IMAGE
 export MIOS_CONTAINER_CODE_SERVER_IMAGE
 
-# ── COLOR PALETTE ────────────────────────────────────────────────────
-# Hokusai + operator-neutrals palette. Resolved from mios.toml [colors]
-# at runtime by tools/lib/userenv.sh (operator overrides win); these are
-# the vendor defaults so any consumer that doesn't go through userenv
-# still gets a coherent palette. The configurator HTML, profile.d color
-# emitter (/etc/profile.d/mios-colors.sh), and fastfetch all reference
-# these names.
 : "${MIOS_COLOR_BG:=#282262}"        # deep indigo  (Hokusai sky)
 : "${MIOS_COLOR_FG:=#E7DFD3}"        # foam cream
 : "${MIOS_COLOR_ACCENT:=#1A407F}"    # operator blue

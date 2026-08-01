@@ -2,38 +2,17 @@
 # AI-hint: Parses mios.toml to arm concurrent llama-server instances in swarm mode, enforcing vram_budget_mb limits to prevent OOM on shared GPUs and generating per-worker environment files in /run/mios/swarm/.
 # AI-related: /usr/share/mios/llamacpp/models, /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-llm-worker, mios-swarm-pack
 # AI-functions: log
-# mios-swarm-pack-firstboot
-#
-# SWARM Phase-2 (operator 2026-06-12): arm the dGPU/CPU small-model SERVER pack so
-# 3-4 single-model llama-server instances run CONCURRENTLY (the mios-llm-worker@
-# template). Reads the SSOT, ENFORCES Sigma(vram_mb) <= vram_budget_mb so it can
-# NEVER oversubscribe the shared 4090 (the documented OOM-cascade), writes a
-# per-worker /run/mios/swarm/<name>.env, and starts the armed workers.
-#
-# OPERATOR-GATED (Phase-3): does NOTHING unless [dispatch].gpu_profile == "swarm".
-# Default "orchestrator" => inert (the single SGLang heavy lane keeps running).
-# Idempotent + degrade-open: any parse error or oversubscription => arm NOTHING +
-# log, never wedge boot.
-#
-# SSOT (mios.toml, layered /usr/share <- /etc <- ~/.config):
-#   [dispatch].gpu_profile      "orchestrator" | "swarm"
-#   [dispatch].vram_budget_mb   the agent-lane VRAM ceiling (e.g. 11000)
-#   [nodes.<name>] with serve=true + gguf=<file under /usr/share/mios/llamacpp/models>
-#                  + endpoint (port is parsed from it) + ngl/ctx/vram_mb
 set -uo pipefail
 log(){ logger -t mios-swarm-pack "$*" 2>/dev/null; echo "[mios-swarm-pack] $*"; }
 
 RUNDIR=/run/mios/swarm
 MODELS=/usr/share/mios/llamacpp/models
 
-# Emit the arming plan as shell-evalable lines, or "PROFILE_OFF" / "REFUSE ...".
 PLAN="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY'
 import os, sys, glob
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 
-# Layered read: vendor < /etc < ~/.config (highest wins) via the shared resolver.
 cfg = mios_toml.load_merged()
 
 disp = cfg.get("dispatch", {}) if isinstance(cfg.get("dispatch"), dict) else {}
@@ -50,7 +29,6 @@ for name, n in nodes.items():
     gguf = str(n.get("gguf", "")).strip()
     if not gguf: continue
     ep = str(n.get("endpoint", ""))
-    # parse :PORT from the endpoint, else explicit port
     port = ""
     for tok in ep.replace("/", " ").split(":"):
         t = tok.split("/")[0].strip()
@@ -65,7 +43,6 @@ for name, n in nodes.items():
 
 if not workers:
     print("PROFILE_OFF"); sys.exit(0)
-# Hard oversubscription guard.
 if budget and total > budget:
     print(f"REFUSE oversubscribed total={total}mb budget={budget}mb workers={len(workers)}")
     sys.exit(0)
@@ -77,21 +54,21 @@ PY
 
 head="$(printf '%s\n' "$PLAN" | head -1)"
 case "$head" in
-  PROFILE_OFF*) log "gpu_profile != swarm (or no serve workers) -- pack inert"; exit 0 ;;
-  REFUSE*)      log "REFUSING to arm: ${head#REFUSE }  -- fix mios.toml vram budget/workers"; exit 0 ;;
-  OK*)          log "arming swarm pack: ${head#OK }" ;;
-  *)            log "no arming plan (${head:-empty}) -- inert"; exit 0 ;;
+  PROFILE_OFF*) log "Gpu_profile != swarm"; exit 0 ;;
+  REFUSE*)      log "REFUSING to arm: ${head#REFUSE }"; exit 0 ;;
+  OK*)          log "Arming swarm pack: ${head#OK }" ;;
+  *)            log "No arming plan"; exit 0 ;;
 esac
 
 if [ ! -f "${MODELS}/.ready" ]; then
-  log "GGUF store not provisioned (${MODELS}/.ready missing) -- not arming"; exit 0
+  log "GGUF store not provisioned"; exit 0
 fi
 
 mkdir -p "$RUNDIR" 2>/dev/null
 printf '%s\n' "$PLAN" | while read -r tag name gguf port ngl ctx vram; do
   [ "$tag" = "WORKER" ] || continue
   if [ ! -s "${MODELS}/${gguf}" ]; then
-    log "worker ${name}: GGUF ${gguf} missing under ${MODELS} -- skipping"; continue
+    log "Worker ${name}: GGUF ${gguf} missing under ${MODELS}"; continue
   fi
   {
     echo "WORKER_MODEL=${gguf}"
@@ -103,10 +80,10 @@ printf '%s\n' "$PLAN" | while read -r tag name gguf port ngl ctx vram; do
       "/var/lib/mios/llamacpp/slots/${name}" 2>/dev/null
   systemctl daemon-reload 2>/dev/null
   if systemctl start "mios-llm-worker@${name}.service" 2>/dev/null; then
-    log "armed worker ${name} -> ${gguf} :${port} ngl=${ngl} (~${vram}MB)"
+    log "Armed worker ${name} -> ${gguf} :${port} ngl=${ngl}"
   else
-    log "WARN: worker ${name} failed to start (check journal) -- continuing"
+    log "WARN: worker ${name} failed to start"
   fi
 done
-log "swarm pack arming complete"
+log "Swarm pack arming complete"
 exit 0

@@ -1,28 +1,16 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Automates the compilation and installation of the Looking Glass client binary to /usr/bin/ if not already present, handling version detection and toolchain checks during the MiOS build process.
-# 69-bake-lookingglass-client.sh - git clone Looking Glass B7, cmake/make,
-# install looking-glass-client binary to /usr/bin/. BAKED IN - WHEN POSSIBLE.
-#
-# fix:
-#   - SKIP (don't fail) when cmake or required dev libraries are missing.
-#     21-virt.sh already builds Looking Glass as part of its virtualization
-#     stack and then removes cmake/gcc/*-devel to shrink the image. By the
-#     time this script runs the toolchain is gone. Skipping here is safe
-#     because the binary is already installed by 21-virt.sh; a hard-fail
-#     aborted the whole build for a redundant second build attempt.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# --- If 21-virt.sh already baked it in, declare success and exit -----------
 if [[ -x /usr/bin/looking-glass-client ]]; then
     mios_ok "looking-glass-client already present (21-virt.sh)"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
     exit 0
 fi
 
-# --- Check toolchain availability ------------------------------------------
 MISSING=""
 for tool in cmake make gcc git; do
     if ! command -v "$tool" >/dev/null 2>&1; then
@@ -38,9 +26,6 @@ if [[ -n "$MISSING" ]]; then
     exit 0
 fi
 
-# Resolve latest Looking Glass release branch from upstream. Project policy:
-# every dependency tracks :latest from its source. LG uses letter-numbered
-# release branches (B6, B7, ...); pick the highest by version sort.
 LG_BRANCH="${MIOS_BUILD_BAKE_REFS_LOOKINGGLASS:-B7}"
 if [[ -z "$LG_BRANCH" ]]; then
     LG_BRANCH=$(git ls-remote --heads https://github.com/gnif/LookingGlass.git 'B*' 2>/dev/null \
@@ -52,12 +37,9 @@ fi
 record_version looking-glass "$LG_BRANCH" "https://github.com/gnif/LookingGlass/tree/${LG_BRANCH}"
 BUILD_DIR="/tmp/LookingGlass-build"
 
-# --- Ensure the LG client build deps (21-virt.sh usually provides these; if the *-devel packages
-# were stripped, the fallback cmake dies on a missing pkg-config module -- e.g. fontconfig). Install
-# the documented Fedora LG-client set so the build can actually configure. -------------------------
 if command -v dnf5 >/dev/null 2>&1; then _DNF=dnf5; elif command -v dnf >/dev/null 2>&1; then _DNF=dnf; else _DNF=""; fi
 if [[ -n "$_DNF" ]]; then
-    mios_log "ensure Looking Glass client build deps (fontconfig-devel, etc.)"
+    mios_log "Ensure Looking Glass client build deps"
     "$_DNF" install -y --setopt=install_weak_deps=False \
         fontconfig-devel spice-protocol nettle-devel libglvnd-devel libdecor-devel libsamplerate-devel \
         pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
@@ -66,10 +48,9 @@ if [[ -n "$_DNF" ]]; then
         >/dev/null 2>&1 || mios_warn "some LG client build deps could not be installed (cmake will report specifics)"
 fi
 
-# --- Clone + Build ----------------------------------------------------------
 LG_OK=""
 for attempt in 1 2 3; do
-    mios_log "compile attempt $attempt/3"
+    mios_log "Compile attempt $attempt/3"
     cd /                 # leave any prior attempt's build dir BEFORE removing it -- otherwise the
     rm -rf "$BUILD_DIR"  # next git clone runs from a deleted CWD ("Unable to read current working directory").
 
@@ -80,12 +61,9 @@ for attempt in 1 2 3; do
         continue
     fi
     
-    mios_log "configure client build"
+    mios_log "Configure client build"
     mkdir -p "$BUILD_DIR/client/build"
     cd "$BUILD_DIR/client/build"
-    # GCC 16 flags a -Wmaybe-uninitialized in the bundled nanosvg.h submodule, and Looking Glass
-    # builds with -Werror -> fatal. Neutralise -Werror (and belt-and-braces silence that specific
-    # warning) via CMAKE_C_FLAGS so a newer compiler's stricter warnings can't fail a clean build.
     if ! cmake -DCMAKE_INSTALL_PREFIX=/usr \
                -DCMAKE_INSTALL_LIBDIR=/usr/lib \
                -DCMAKE_BUILD_TYPE=Release \
@@ -100,14 +78,14 @@ for attempt in 1 2 3; do
         continue
     fi
     
-    mios_log "build looking-glass-client (jobs=$(nproc))"
+    mios_log "Build looking-glass-client)"
     if ! make -j"$(nproc)"; then
         mios_warn "make failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
-    mios_log "install binary to /usr/bin/looking-glass-client"
+    mios_log "Install binary to /usr/bin/looking-glass-client"
     install -Dm0755 looking-glass-client /usr/bin/looking-glass-client
     
     if [[ -x /usr/bin/looking-glass-client ]]; then
@@ -121,7 +99,6 @@ if [[ -z "$LG_OK" ]]; then
     exit 1
 fi
 
-# Ship a .desktop entry
 install -Dm0644 /dev/stdin /usr/share/applications/looking-glass.desktop <<'DESK'
 [Desktop Entry]
 Type=Application
@@ -134,12 +111,10 @@ Categories=System;Utility;
 Keywords=KVM;VFIO;Passthrough;
 DESK
 
-# --- Cleanup build tree (keep toolchain in image per self-building principle) ---
-mios_log "cleanup source tree"
+mios_log "Cleanup source tree"
 cd /
 rm -rf "$BUILD_DIR"
 
-# --- Verify ----------------------------------------------------------------
 if [[ -x /usr/bin/looking-glass-client ]]; then
     mios_ok "looking-glass-client baked in at /usr/bin/looking-glass-client"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
@@ -148,4 +123,4 @@ else
     exit 0
 fi
 
-mios_log "looking-glass-client installed at /usr/bin/looking-glass-client"
+mios_log "Looking-glass-client installed at /usr/bin/looking-glass-client"

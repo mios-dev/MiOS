@@ -1,10 +1,9 @@
 #!/bin/bash
 # AI-hint: A smoke-test script to verify the MCP server's health by validating HTTP endpoints (/v1/verbs, /v1/dispatch) and stdio JSON-RPC interactions (initialize, tools/list, tools/call) for integration testing.
 # AI-related: /usr/libexec/mios/mios-mcp-server, mios-mcp-server, localhost:8640
-# Smoke-test the new MCP server stack: /v1/verbs + /v1/dispatch + stdio JSON-RPC.
 set -euo pipefail
 
-echo "== /v1/verbs (HTTP) =="
+echo "== /v1/verbs =="
 curl -sf http://localhost:8640/v1/verbs > /tmp/mcp-verbs.json
 python3 - <<'PY'
 import json
@@ -14,7 +13,7 @@ print(f"sample: {d['tools'][0]['name']} -- {d['tools'][0]['description'][:60]}")
 print(f"schema keys: {list(d['tools'][0]['inputSchema'].keys())}")
 PY
 echo
-echo "== /v1/dispatch (list_windows) =="
+echo "== /v1/dispatch =="
 curl -sf -X POST http://localhost:8640/v1/dispatch \
     -H "Content-Type: application/json" \
     -d '{"tool":"list_windows","args":{}}' > /tmp/mcp-disp.json

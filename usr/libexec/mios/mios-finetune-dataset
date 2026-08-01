@@ -46,9 +46,6 @@ ETC_TOML = "/etc/mios/mios.toml"
 USER_TOML = os.path.expanduser("~/.config/mios/mios.toml")
 
 
-# --------------------------------------------------------------------------- #
-# config (layered TOML + MIOS_FINETUNE_* env)
-# --------------------------------------------------------------------------- #
 def load_cfg() -> dict:
     cfg = mios_toml.load_merged(layers=[VENDOR_TOML, ETC_TOML, USER_TOML])
     ft = dict(mios_toml.section(cfg, "finetune"))
@@ -67,9 +64,6 @@ def _cint(v, d):  # tolerant int
         return d
 
 
-# --------------------------------------------------------------------------- #
-# HTTP helpers (stdlib only)
-# --------------------------------------------------------------------------- #
 def _post(url: str, payload: dict, timeout: float) -> dict:
     req = urllib.request.Request(
         url, data=json.dumps(payload).encode("utf-8"),
@@ -109,9 +103,6 @@ def teacher_chat(endpoint: str, model: str, system: str, user: str,
     return (msg or "").strip()
 
 
-# --------------------------------------------------------------------------- #
-# live capability surface
-# --------------------------------------------------------------------------- #
 def fetch_catalog(pipe_url: str, timeout: float = 10.0) -> list[dict]:
     """[{name, description}] from the live OpenAI-tools verb catalog."""
     try:
@@ -150,10 +141,6 @@ def fetch_knowledge_queries(pipe_url: str, limit: int, timeout: float = 10.0) ->
     return []
 
 
-# --------------------------------------------------------------------------- #
-# refine label schema (mirrors agent-pipe _REFINE_SYSTEM_LITE; the CATALOG is
-# fetched live, never hardcoded -- this is the contract the pipe parses)
-# --------------------------------------------------------------------------- #
 def label_system(catalog: list[dict]) -> str:
     names = ", ".join(c["name"] for c in catalog)
     return (
@@ -216,8 +203,6 @@ def _find_first_list(o):
 
 def _parse_json_array(text: str) -> list:
     t = (text or "").strip()
-    # A bare array parses as-is; an object ({"requests":[...]}) parses directly;
-    # a bracket-less fragment gets wrapped so the loose parser can recover it.
     obj = _parse_json_loose(t if t[:1] in ("[", "{") else f'{{"a":{t}}}')
     r = _find_first_list(obj)
     return r if r is not None else []
@@ -257,9 +242,6 @@ def keep_example(lab: dict) -> bool:
             or bool(lab.get("tool")))
 
 
-# --------------------------------------------------------------------------- #
-# query generation (teacher writes ALL the English)
-# --------------------------------------------------------------------------- #
 GEN_SYS = (
     "You generate TRAINING DATA: realistic first-person user requests someone would\n"
     "actually type to a local AI operating system. Vary phrasing, length, and\n"
@@ -294,7 +276,6 @@ def gen_for_intent(endpoint, model, label: str, definition: str, n: int) -> list
         return []
 
 
-# intent-class seeds are the SCHEMA's own definitions (not topic lists)
 INTENT_SEEDS = [
     ("PURE CONVERSATION (no lookup, fetch, computation, or machine action needed)",
      "Greetings, opinions, explanations of general knowledge, chit-chat."),
@@ -307,7 +288,6 @@ INTENT_SEEDS = [
 ]
 
 
-# --------------------------------------------------------------------------- #
 def build(cfg: dict, limit: int | None) -> dict:
     endpoint = str(cfg.get("teacher_endpoint") or f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
     model = str(cfg.get("teacher_model") or "gemma4:12b")
@@ -328,14 +308,10 @@ def build(cfg: dict, limit: int | None) -> dict:
 
     names_lc = {c["name"].lower(): c["name"] for c in catalog}
 
-    # 1) collect (query, source_verb) -- teacher writes the English, seeded by the
-    # live surface; source_verb lets us GROUND each label in the real catalog later.
     seeded: list = []
     for cap in caps:
         for q in gen_for_capability(endpoint, model, cap, isz):
             seeded.append((q, cap["name"]))
-    # intent-class BALANCE: more chat / web / multi_task so the corpus isn't all-agent
-    # (the old run skewed 171/4/5). Source verb is None -> the teacher picks the tools.
     bal = isz if limit is not None else max(isz, 8)
     for label, definition in intents:
         for q in gen_for_intent(endpoint, model, label, definition, bal):
@@ -346,7 +322,6 @@ def build(cfg: dict, limit: int | None) -> dict:
             print(f"[finetune-dataset] + {len(kn)} real operator queries (knowledge)", flush=True)
             seeded += [(q, None) for q in kn]
 
-    # dedup by query text, keep order
     seen_q, uniq = set(), []
     for q, src in seeded:
         k = re.sub(r"\s+", " ", q.lower()).strip()
@@ -355,7 +330,6 @@ def build(cfg: dict, limit: int | None) -> dict:
             uniq.append((q, src))
     print(f"[finetune-dataset] {len(uniq)} unique queries -> label + catalog-validate", flush=True)
 
-    # 2) label (teacher) -> validate/ground against the live catalog -> keep
     examples, fails, dropped = [], 0, 0
     for i, (q, src) in enumerate(uniq, 1):
         try:
@@ -386,7 +360,6 @@ def build(cfg: dict, limit: int | None) -> dict:
         for ex in examples:
             fh.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
-    # honest intent histogram
     hist: dict = {}
     for ex in examples:
         try:

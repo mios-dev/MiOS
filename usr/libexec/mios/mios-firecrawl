@@ -49,11 +49,6 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     """POST /v1/scrape -> clean markdown of the page. Firecrawl renders the
     page (JS) server-side and strips chrome/nav, so the markdown is article
     text ready to ground on."""
-    # Gate ONLY on the Firecrawl API port this CLI actually talks to. Redis
-    # (6379) is the firecrawl pod's INTERNAL job queue -- reachable only by the
-    # firecrawl-api/worker containers inside the pod netns, never from this
-    # host-side CLI -- so probing it here ALWAYS failed and wrongly forced the
-    # healthy Firecrawl primary down to web_extract_fallback after deploy.
     if not _is_port_open(3002):
         raise ConnectionError("Firecrawl (3002) port is closed")
 
@@ -70,7 +65,6 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     with urllib.request.urlopen(req, timeout=timeout) as r:
         d = json.loads(r.read().decode("utf-8", "replace"))
 
-    # Check if this is an async job
     job_id = None
     if isinstance(d, dict):
         for k in ("jobId", "job_id", "id"):
@@ -81,11 +75,6 @@ def scrape(url: str, max_chars: int, timeout: float) -> dict:
     if job_id:
         poll_start = time.time()
         while time.time() - poll_start < timeout:
-            # A scrape job_id polls the SCRAPE-status endpoint (v1.0.0:
-            # GET /v1/scrape/{job_id}), NOT the crawl-status one -- a scrape job
-            # is not a crawl job. v1.0.0 may also return the scraped data
-            # directly (no crawl-style status=="completed"), so treat a payload
-            # that already carries data/markdown as complete.
             status_req = urllib.request.Request(f"{FIRECRAWL_URL}/v1/scrape/{job_id}")
             try:
                 with urllib.request.urlopen(status_req, timeout=10.0) as r:

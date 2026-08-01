@@ -3,25 +3,10 @@
 # AI-related: /usr/libexec/mios/mios-doctor, /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-build-driver, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /etc/mios/cron-rules.toml, /usr/share/mios/hermes/skills, /usr/share/mios/hermes/skills/, /usr/share/mios/ai/hermes-soul.md, mios-build-driver
 # AI-functions: _run_as, ok, fail, warn, info
 set -euo pipefail
-# /usr/libexec/mios/mios-doctor
-#
-# One-shot health check for the MiOS host. Probes the things that have
-# silently broken in operator sessions: privilege grants, mount-namespace
-# escapability, GUI plumbing, podman additionalimagestores perms, hermes
-# session state, OWUI registration, primary services.
-#
-# Designed to be run by the agent at the start of any "something's wrong"
-# investigation -- it's the structured equivalent of all the throwaway
-# diagnostic scripts I keep writing. Output is human-readable + grep-able
-# (each section starts with `── ── ── `).
 
 set -u
 
-# Resolve service ports from SSOT: install.env bridges mios.toml [ports] ->
 # MIOS_PORT_*. Hardcoded literals here silently broke when [ports] was
-# renumbered -- probing a dead :${LLM_LIGHT_PORT} while the lane serves :8450 reported a
-# false "unreachable" (T-120/T-121). Read the SSOT; defaults track [ports].
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -r /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
@@ -30,7 +15,6 @@ fi
 LLM_LIGHT_PORT="${MIOS_PORT_LLM_LIGHT:-8450}"
 OWUI_PORT="${MIOS_PORT_OPEN_WEBUI:-8033}"
 
-# Run subcommands as a specified user without a TTY trap.
 _run_as() { sudo -u "$1" -- "${@:2}"; }
 
 ok()   { printf "  \033[32mok\033[0m    %s\n" "$*"; }
@@ -41,7 +25,7 @@ info() { printf "        %s\n" "$*"; }
 FAIL_COUNT=0
 
 echo "════════════════════════════════════════════════════════════════"
-echo "  mios-doctor -- $(date '+%Y-%m-%d %H:%M:%S')"
+echo "  mios-doctor"
 echo "════════════════════════════════════════════════════════════════"
 
 echo
@@ -81,12 +65,7 @@ else
 fi
 
 echo
-echo "── ── ──  vision grounding (computer-use perceive->act->verify; WS-8)"
-# WS-8: the UIA(Windows)/AT-SPI(Linux) + VLM hybrid -- cu_ground / pc_ground / cu_act
-# fall back to a grounding VLM when the accessibility tree has no match. The lane
-# (the qwen3-vl:4b slot -> Holo1.5 GGUF + mmproj in mios-llm-light.yaml; SSOT
-# [ai].vision_grounding_*) is provisioned-but-INERT until the operator places both
-# GGUFs under /models. Report readiness + the one activation step.
+echo "── ── ──  vision grounding"
 _vis_model=$(grep -E '^vision_grounding_model' /usr/share/mios/mios.toml 2>/dev/null \
     | head -1 | sed -E 's/.*=[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')
 _vis_probe="${_vis_model:-qwen3-vl:4b}"
@@ -114,7 +93,7 @@ else
 fi
 
 echo
-echo "── ── ──  baked-image store (additionalimagestores)"
+echo "── ── ──  baked-image store"
 if [ -d /usr/lib/containers/storage ]; then
     ok "/usr/lib/containers/storage exists"
     if [ -d /usr/lib/containers/storage/overlay-images ]; then
@@ -145,7 +124,7 @@ elif [ -e /run/user/$(id -u)/wayland-0 ]; then ok "WSLg Wayland socket present (
 else warn "no WSLg Wayland (wayland GUIs may fall back to X11)"; fi
 
 echo
-echo "── ── ──  GUI shims (flatpak shortcuts)"
+echo "── ── ──  GUI shims"
 shims=0
 if [ -d /usr/local/bin ]; then
     for f in /usr/local/bin/*; do
@@ -174,8 +153,7 @@ else
 fi
 
 echo
-echo "── ── ──  observability layer (micro-LLM daemon)"
-# Micro-LLM model name from the layered mios.toml [ai].micro_model.
+echo "── ── ──  observability layer"
 micro_model=$(grep -hE '^\s*micro_model\s*=' \
     /etc/mios/mios.toml /usr/share/mios/mios.toml 2>/dev/null | \
     head -1 | sed -E 's/.*=\s*"([^"]+)".*/\1/')
@@ -188,7 +166,7 @@ else
 fi
 
 for svc in mios-daemon; do
-    state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "unknown")
+    state=$(systemctl is-active "$svc.service" 2>/dev/null || echo "Unknown")
     if [ "$state" = "active" ]; then
         ok "$svc.service active"
     else
@@ -196,7 +174,6 @@ for svc in mios-daemon; do
     fi
 done
 
-# Daemon state freshness: state.json should be <600s old when active.
 if [ -f /var/lib/mios/daemon/state.json ]; then
     _mtime=$(python3 -c "import os, sys; print(int(os.path.getmtime(sys.argv[1])))" /var/lib/mios/daemon/state.json 2>/dev/null || stat -c %Y /var/lib/mios/daemon/state.json 2>/dev/null || stat -f %m /var/lib/mios/daemon/state.json 2>/dev/null || echo 0)
     age=$(( $(date +%s) - _mtime ))
@@ -207,14 +184,11 @@ if [ -f /var/lib/mios/daemon/state.json ]; then
     fi
 fi
 
-# Cron-director rules: /etc/mios/cron-rules.toml exists + parses?
 if [ -f /etc/mios/cron-rules.toml ]; then
     rules=$(grep -c '^\[\[rule\]\]' /etc/mios/cron-rules.toml 2>/dev/null || echo 0)
     info "cron-rules: $rules rule(s) configured at /etc/mios/cron-rules.toml"
 fi
 
-# Agent-nudger alert count: high count means the model is hitting
-# refusal patterns.
 if [ -f /var/lib/mios/daemon/state.json ]; then
     n_alerts=$(python3 -c 'import json; print(json.load(open("/var/lib/mios/daemon/state.json")).get("agent_nudger", {}).get("total_alerts", 0))' 2>/dev/null)
     if [ -z "$n_alerts" ] || [ "$n_alerts" = "0" ]; then
@@ -224,8 +198,6 @@ if [ -f /var/lib/mios/daemon/state.json ]; then
     fi
 fi
 
-# Broker socket: agent-side cross-context dispatch (window-list,
-# windows launch, mios-open-url) all route through this.
 if [ -S /run/mios-launcher/launcher.sock ]; then
     sock_perm=$(stat -c '%a' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%A' /run/mios-launcher/launcher.sock 2>/dev/null || stat -f '%Lp' /run/mios-launcher/launcher.sock 2>/dev/null || echo 000)
     if [ "$sock_perm" = "666" ] || [ "$sock_perm" = "777" ]; then
@@ -238,16 +210,7 @@ else
 fi
 
 echo
-echo "── ── ──  skill sync (vendor vs HERMES_HOME)"
-# Compare /usr/share/mios/hermes/skills (vendor truth) against
-# /var/lib/mios/hermes/skills (gateway HERMES_HOME). Surfaces:
-#   * MISSING -- vendor has it but HERMES_HOME doesn't; will appear on
-#                next `mios-restart hermes` (the rsync step we added)
-#   * STALE   -- HERMES_HOME has it but vendor doesn't. Could be operator-
-#                customised (no marker) OR genuinely abandoned (had a
-#                marker once but vendor removed). NOT auto-removed --
-#                an operator-customised skill should NEVER be silently
-#                deleted. Doctor just reports.
+echo "── ── ──  skill sync"
 if [ -d /usr/share/mios/hermes/skills ] && [ -d /var/lib/mios/hermes/skills ]; then
     vendor_names=$(ls /usr/share/mios/hermes/skills/ 2>/dev/null | sort -u)
     home_names=$(ls /var/lib/mios/hermes/skills/ 2>/dev/null | sort -u)
@@ -276,14 +239,7 @@ else
 fi
 
 echo
-echo "── ── ──  SOUL.md sync (vendor vs HERMES_HOMEs)"
-# Vendor prompt at /usr/share/mios/ai/hermes-soul.md drives the
-# gateway's per-message system prompt. Like skills, it's stamped to
-# each HERMES_HOME once at firstboot + needs re-sync on vendor edits.
-# Surfaces drift if the operator-CLI ~/.hermes/SOUL.md (different home
-# than the gateway) is stale -- caused real refusal-pattern divergence
-# 2026-05-15 where the operator-side prompt was missing the latest
-# narrative-scaffolding guardrails. Fix: `mios-restart hermes`.
+echo "── ── ──  SOUL.md sync"
 SOUL_SRC=/usr/share/mios/ai/hermes-soul.md
 if [ -f "$SOUL_SRC" ]; then
     src_size=$(wc -c < "$SOUL_SRC" | tr -d ' ' 2>/dev/null || echo 0)
@@ -321,9 +277,9 @@ done
 echo
 echo "════════════════════════════════════════════════════════════════"
 if [ "$FAIL_COUNT" -eq 0 ]; then
-    echo "  RESULT: HEALTHY ($FAIL_COUNT failures)"
+    echo "  RESULT: HEALTHY"
 else
-    echo "  RESULT: $FAIL_COUNT failures -- see [FAIL] lines above"
+    echo "  RESULT: $FAIL_COUNT failures"
 fi
 echo "════════════════════════════════════════════════════════════════"
 exit "$FAIL_COUNT"

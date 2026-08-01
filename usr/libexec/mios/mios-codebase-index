@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Comprehensive codebase discovery index -- harvests the AI-hint/header
 # AI-related: mios-docs-index, mios-ai-tag
-#   of EVERY MiOS-authored file (docs, scripts, configs, units, source) across
-#   all roots into one grep-able index so any agent can DISCOVER the whole
-#   codebase, then read_file/run the specific file on demand. Superset of
-#   mios-docs-index (which is .md-only). Filesystem-discoverable (no RAG drip).
 """'MiOS' codebase index -- one descriptive line per file, for AI-agent discovery.
 
 The operator directive (2026-06-13): "MiOS AI should be able to use the WHOLE
@@ -41,7 +37,6 @@ DEFAULT_ROOTS = [
     "/usr/lib/mios", "/usr/libexec/mios", "/usr/share/mios", "/etc/mios",
     "/srv/mios",
 ]
-# Extensions we index (text / source / config). Plus exact basenames below.
 EXT = {
     ".md", ".sh", ".bash", ".py", ".toml", ".yaml", ".yml", ".json",
     ".container", ".service", ".path", ".timer", ".socket", ".mount",
@@ -52,12 +47,10 @@ BASENAMES = {
     "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
     "VERSION", "README", "LICENSE",
 }
-# Never descend into vendored / generated / binary trees.
 SKIP_DIR = re.compile(
     r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|"
     r"web_dist|dist|assets|\.cache|\.mypy_cache|\.pytest_cache|"
     r"base-qwen[^/]*|model[^/]*|models|\.ruff_cache)(/|$)")
-# Skip obviously binary / huge-artifact suffixes even if matched above.
 SKIP_SUFFIX = re.compile(
     r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|"
     r"woff2?|ttf|otf|so|o|a|zip|gz|tar|whl|pyc|wasm|pdf|mp4|mp3)$", re.I)
@@ -79,12 +72,10 @@ def describe(path: str) -> tuple[str, str]:
     except OSError:
         return ("", "none")
     lines = head.splitlines()
-    # 1. explicit AI-hint: marker (may wrap onto continuation comment lines)
     for i, ln in enumerate(lines[:40]):
         m = AI_HINT_RE.search(ln)
         if m:
             desc = m.group(1).strip()
-            # absorb immediate comment-continuation lines (indented under the hint)
             for cont in lines[i + 1:i + 4]:
                 c = cont.strip().lstrip("#/*-").strip()
                 if cont.lstrip().startswith(("#", "//", "*")) and c and ":" not in c[:14]:
@@ -92,7 +83,6 @@ def describe(path: str) -> tuple[str, str]:
                 else:
                     break
             return (_clean(desc), "ai-hint")
-    # 2. YAML frontmatter description: (md)
     if lines and lines[0].strip() == "---":
         for ln in lines[1:60]:
             if ln.strip() == "---":
@@ -100,12 +90,10 @@ def describe(path: str) -> tuple[str, str]:
             m = re.match(r"\s*description:\s*(.+)", ln)
             if m:
                 return (_clean(m.group(1).strip().strip("\"'")), "frontmatter")
-    # 3. python module docstring
     if path.endswith(".py"):
         m = re.search(r'^\s*(?:[ru]?)("""|\x27\x27\x27)(.+?)\1', head, re.S | re.M)
         if m:
             return (_clean(m.group(2)), "docstring")
-    # 4. header comment block (after optional shebang) for #/// commented files
     started = False
     for ln in lines[:30]:
         s = ln.strip()
@@ -117,19 +105,16 @@ def describe(path: str) -> tuple[str, str]:
         if s.startswith(("# ", "#\t", "// ", "* ", ";; ", "-- ")) or s in ("#", "//"):
             started = True
             txt = s.lstrip("#/*;-").strip()
-            # skip pure path/separator/marker lines
             if (txt and not txt.startswith(("/", "=", "-")) and "://" not in txt
                     and not re.match(r"^[A-Za-z0-9_./-]+\s*$", txt)):
                 return (_clean(txt), "comment")
             continue
         if started:
             break
-    # 5. first markdown H1
     for ln in lines[:60]:
         m = re.match(r"#\s+(.+)", ln)
         if m and path.endswith(".md"):
             return (_clean(m.group(1)), "h1")
-    # 6. first meaningful non-comment line
     for ln in lines[:40]:
         s = ln.strip()
         if s and not s.startswith(("#", "//", "---", "<!--", "{", "[")):
@@ -153,7 +138,6 @@ def indexable(path: str) -> bool:
     ext = ext.lower()
     if ext in EXT or base in BASENAMES:
         return True
-    # Extensionless shebang scripts (mios-* libexec/bin) -- the bulk of the tree.
     return ext == "" and _has_shebang(path)
 
 

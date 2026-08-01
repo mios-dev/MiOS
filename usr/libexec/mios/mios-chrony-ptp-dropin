@@ -15,8 +15,6 @@ DROPIN_FILE="${CHRONY_D}/10-ptp.conf"
 TMP_FILE="${DROPIN_FILE}.tmp"
 
 cat <<'EOF' > "$TMP_FILE"
-# PTP hardware clock tuning for Chrony
-# Automatically generated when /dev/ptp0 is present
 refclock PHC /dev/ptp0 poll 3 dpoll -2 offset 0 minsamples 4 prefer trust
 EOF
 

@@ -2,42 +2,7 @@
 # AI-hint: Provides high-speed fuzzy lookup against the cached environment inventory to resolve "launch <app>" requests into executable commands in <100ms, bypassing slow filesystem crawls.
 # AI-related: /usr/libexec/mios/mios-find, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-apps, mios-everything, mios-gui, mios-windows, mios-find-err, mios-hermes-browser, mios-shim
 set -euo pipefail
-# /usr/libexec/mios/mios-find <query>
-#
-# Fast fuzzy lookup against the cached environment inventory. Use this
-# as the FIRST step whenever the operator says "launch <app>" --
-# returns a ready-to-execute launch command in <100 ms, without any
-# Get-ChildItem -Recurse over the Windows drive.
-#
-# Output (single line on stdout when match is unambiguous):
-#   <launch-command>
-#
-# Output (multiple matches, top 5 to stderr + nothing to stdout):
-#   N matches for "<query>" (top 5):
-#     1. [<category>] <name>  ->  <launch>
-#     ...
-#
-# Output (no match, exit 1):
-#   no match for "<query>" in inventory; try `mios-apps --filter <substr>`
-#
-# Operator directive 2026-05-16: "MiOS-Hermes should be given the
-# opportunity to map out it's environment for faster follow-up
-# questions like ex; 'launch this app for me' should be snappy
-# because MiOS-Agent(s) initialize and understand the environment
-# and where everything already is".
-#
-# Implementation: shells out to `mios-apps --json` which returns
-# JSONL of every known launchable thing across Linux + Windows. The
-# Windows side is pre-cached for 5 minutes inside mios-apps (via
-# Get-StartApps), so mios-find inherits that speed.
 
-# `set -u` only -- catches unset variables but tolerates non-zero
-# exits from sub-commands. Fast-path A's `mios-everything -ext exe`
-# CAN return non-zero on no-match, which under `set -e` aborted the
-# whole script before fast-path B (the inventory python) ever ran --
-# operator-flagged 2026-05-17: "open wallpaper engine for me" failed
-# because mios-find silently exit-0'\''d with no output. Fall-through
-# resolution is the design intent; errexit defeats it.
 set -u
 
 if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
@@ -64,12 +29,6 @@ USAGE
     exit 0
 fi
 
-# --json flag flips emit mode. Operator directive 2026-05-18 (task
-# #148): shims that the planner / polish-grounding consume should
-# emit structured envelopes so the agent reads typed fields, not
-# prose. The existing dual-emit paths (fast-path A es.exe / fast-
-# path B inventory-rank) are preserved; this flag wraps their
-# output post-hoc.
 JSON_OUT=0
 if [ "$1" = "--json" ]; then
     JSON_OUT=1
@@ -80,10 +39,6 @@ QUERY="$*"
 QUERY="${QUERY#\"}"
 QUERY="${QUERY%\"}"
 
-# If --json was passed, re-exec ourselves WITHOUT the flag, capture
-# stdout+stderr+exit, then emit a structured envelope. Cleanest way
-# to wrap the dual-emit fast-paths below without duplicating their
-# logic.
 if [ "$JSON_OUT" -eq 1 ]; then
     _OUT="$("$0" "$QUERY" 2>/tmp/.mios-find-err.$$)"
     _RC=$?
@@ -103,10 +58,6 @@ envelope = {
 }
 if rc == 0 and out:
     envelope["resolved"] = {"launch": out}
-    # The fast-path A path prints '(found via mios-everything; ...'
-    # to stderr; the fast-path B path leaves stderr empty. Use that
-    # to attribute the source so polish knows where the launch came
-    # from.
     if "via mios-everything" in err:
         envelope["resolved"]["source"] = "mios-everything"
     elif "alias:" in err:
@@ -124,17 +75,9 @@ PYEOF
     exit "$_RC"
 fi
 
-# ─── Alias resolution: generic queries -> specific apps ───────────────
-# Operator directive 2026-05-16: "open a browser to URL" returns
-# mios-hermes-browser (headless agent CDP) instead of chromedev
-# (visible operator browser) because "browser" is in the agent
-# binary's name. Add a TOML-first alias table so operators can
-# remap generic words ("browser", "web browser", "the browser") to
-# their preferred concrete app. Read from mios.toml [mios-find.aliases].
 ALIAS_TARGET=""
 ALIAS_TARGET="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF' 2>/dev/null
 import sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 q = sys.argv[2].strip().lower()
@@ -149,33 +92,20 @@ if isinstance(aliases, dict):
 PYEOF
 )"
 if [ -n "$ALIAS_TARGET" ]; then
-    # Re-run mios-find with the alias target as the query (single-level;
-    # an alias value is a concrete app name, not another alias).
-    echo "(alias: '$QUERY' -> '$ALIAS_TARGET')" >&2
+    echo "" >&2
     QUERY="$ALIAS_TARGET"
 fi
 
-# ─── WS-D: App-type resolution ───────────────────────────────────────
 if command -v mios-app-type >/dev/null 2>&1; then
     _app_type_resolved="$(mios-app-type "$QUERY" 2>/dev/null || true)"
     if [ -n "$_app_type_resolved" ] && [ "$_app_type_resolved" != "$QUERY" ]; then
-        echo "(app-type: '$QUERY' -> '$_app_type_resolved')" >&2
+        echo "" >&2
         QUERY="$_app_type_resolved"
     fi
 fi
 
-# ─── Specific-before-role reduction ──────────────────────────────────
-# Operator 2026-06-19 "open edge browser opened zen randomly": "<app> <role>"
-# (e.g. "edge browser") -> the scorer can't substring-match the FULL query to
-# "Microsoft Edge" (no "browser" in the name), so Edge fell to the Levenshtein
-# tier where Zen (windows-browser, the default) tied + won. When the LAST word is
-# a [desktop.apps] ROLE and the HEAD is a SPECIFIC (non-role) app, reduce the
-# query to the head so the scorer resolves the NAMED app. A BARE role ("browser")
-# is left alone -> the windows-browser default (Zen) still wins. SSOT = mios.toml
-# roles; no hardcoded English app names.
 _REDUCED="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF' 2>/dev/null
 import sys, re
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 q = re.sub(r"\s+", "-", sys.argv[2].strip().lower())
@@ -188,41 +118,26 @@ for a in (d.get("desktop", {}).get("apps", []) or []):
         roles.add(str(a["role"]).lower().rstrip("s"))
 last = q.split("-")[-1].rstrip("s")
 head = re.sub(r"^(my|the|a|an)-", "", "-".join(q.split("-")[:-1]))
-# Require a SUBSTANTIVE head (>=4 chars) so generic browser synonyms ("web") stay
-# a bare-role ask (-> default browser), while a real app name ("edge"/"chrome"/
-# "firefox") reduces to the specific app.
 if (last in roles and head and len(head.replace("-", "")) >= 4
         and head.rstrip("s") not in roles):
     print(head.replace("-", " "))
 PYEOF
 )"
 if [ -n "$_REDUCED" ]; then
-    echo "(specific-before-role: '$QUERY' -> '$_REDUCED')" >&2
+    echo "" >&2
     QUERY="$_REDUCED"
 fi
 
-# ─── Fast path A: delegate to mios-everything ─────────────────────────
-# Operator directive 2026-05-16: "WE HAVE EVERYTHING CLI STILL DOING
-# NOTHING AS A TOOL FOR THE ENTIRE MIOS AGENTIC STACKS" -- promoted
-# the es.exe probe + invocation out of this script into the
-# first-class mios-everything helper. Any agent can now use
-# mios-everything directly; mios-find just calls it as one of its
-# resolution sources.
 if command -v mios-everything >/dev/null 2>&1; then
-    # `|| true`: mios-everything exits NON-ZERO when es.exe is dead/unreachable
-    # (the common case -- v1.1 es.exe vs v1.4 IPC mismatch). Without this, the
-    # command substitution fails under `set -e` and ABORTS mios-find before
-    # fast-path B (the mios-apps inventory) can resolve the app -- so EVERY
-    # lookup died on hosts with a degraded Everything. Tolerate it; fall through.
     ES_OUT="$(mios-everything -n 5 -ext exe "$QUERY" 2>/dev/null || true)"
     if [ -n "$ES_OUT" ]; then
         FIRST_EXE="$(printf '%s\n' "$ES_OUT" | head -1)"
         if [ -n "$FIRST_EXE" ]; then
             ESCAPED="$(printf '%s' "$FIRST_EXE" | sed 's/\\/\\\\/g')"
-            echo "mios-windows launch \"$ESCAPED\""
+            echo "Mios-windows launch \"$ESCAPED\""
             n_alt="$(printf '%s\n' "$ES_OUT" | wc -l)"
             if [ "$n_alt" -gt 1 ]; then
-                echo "(found via mios-everything; $((n_alt - 1)) other .exe matches:)" >&2
+                echo ") other .exe matches:)" >&2
                 printf '%s\n' "$ES_OUT" | tail -n +2 | sed 's/^/  /' >&2
             fi
             exit 0
@@ -230,14 +145,12 @@ if command -v mios-everything >/dev/null 2>&1; then
     fi
 fi
 
-# ─── Fast path B: mios-apps inventory (Linux + Windows Start Menu + games) ─
 python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$QUERY" <<'PYEOF'
 import json
 import os
 import re
 import subprocess
 import sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 
@@ -246,12 +159,6 @@ if not query:
     print("mios-find: empty query", file=sys.stderr)
     sys.exit(2)
 
-# ── Ranker SSOT: read the scoring weights / tier ordering / fuzzy bounds from
-# mios.toml [mios-find.ranker] + [mios-find.category_priority] (three-layer
-# override; first file that defines a key wins). A hand-rolled weight map baked
-# in code is a hardcode -- these live in config. The documented defaults below
-# equal the historical in-code values, so a missing/partial config degrades
-# open to the exact prior behaviour rather than to any keyword gate.
 _DEFAULT_TIERS = [
     "name_exact", "name_prefix", "name_word", "name_substr",
     "desc_word", "desc_substr", "fuzzy",
@@ -272,8 +179,6 @@ def _load_ranker_cfg():
     fuzzy_min = None
     fuzzy_cap = None
     fuzzy_ratio = None
-    # Merged layered read (vendor < host < user, highest wins) via the shared
-    # resolver -- replaces the hand-rolled MIOS_TOML/etc/usr layer loop.
     d = mios_toml.load_merged()
     mf = d.get("mios-find", {})
     if isinstance(mf, dict):
@@ -307,16 +212,8 @@ def _load_ranker_cfg():
 
 
 TIERS, CAT_PRIORITY, FUZZY_MIN_TOKEN_LEN, FUZZY_MAX_EDIT_DISTANCE, FUZZY_MAX_EDIT_RATIO = _load_ranker_cfg()
-# Tier name -> rank index (position in the SSOT ordering). A check whose tier
-# name is absent from the configured list is disabled (returns None below).
 _TIER_RANK = {name: i for i, name in enumerate(TIERS)}
 
-# Use run() not check_output(): mios-apps exits NON-ZERO when ANY sub-scanner
-# fails (e.g. Everything es.exe dead, or the Windows side unreachable) even
-# though it still emits a perfectly good Linux/flatpak inventory on stdout.
-# check_output discarded that stdout on the non-zero exit -> EVERY app
-# resolution failed on hosts with a degraded scanner. Consume stdout
-# regardless of returncode; only give up if stdout is genuinely empty.
 try:
     proc = subprocess.run(
         ["mios-apps", "--json"], capture_output=True, text=True, timeout=15
@@ -355,9 +252,6 @@ for line in out.splitlines():
     })
 
 def _lev(a, b, cap=3):
-    # Bounded Levenshtein: returns cap+1 when distance exceeds cap, so the
-    # caller short-circuits without computing further. Iterative DP with a
-    # rolling row -- O(len(a) * len(b)) time, O(min) space.
     if a == b:
         return 0
     la, lb = len(a), len(b)
@@ -381,11 +275,6 @@ def _lev(a, b, cap=3):
     return prev[lb]
 
 def rank(e):
-    # Score = (tier-rank, category-priority, length-tiebreak); LOWER wins.
-    # tier-rank is the candidate's position in the SSOT match ordering
-    # (TIERS); _r(name) yields that index, or None when the tier is disabled
-    # (absent from the configured ordering) -- so a check for a disabled tier
-    # is skipped entirely.
     n = e["lname"]
     d = e["ldesc"]
     cat_w = CAT_PRIORITY.get(e["cat"], 99)
@@ -411,11 +300,6 @@ def rank(e):
     t = _r("desc_substr")
     if t is not None and query in d:
         return (t, cat_w, len(d))
-    # Fuzzy tier: bounded Levenshtein on individual name tokens. Catches
-    # operator typos like "wreakfest" -> "wreckfest", "discrod" -> "discord",
-    # "wallpapr engine" -> "wallpaper engine". Bounds (min token length, max
-    # edit distance) come from the ranker SSOT so we don't match every short
-    # word; short queries stay too ambiguous to fuzzy-match.
     t = _r("fuzzy")
     if t is not None:
         q_tokens = [tok for tok in query.split()
@@ -426,9 +310,6 @@ def rank(e):
             for qt in q_tokens:
                 dists = [_lev(qt, nt, cap=FUZZY_MAX_EDIT_DISTANCE) for nt in n_tokens]
                 best_for_token = min(dists, default=99)
-                # Proportional bound: allow at most a token-length fraction of
-                # edits (SSOT ratio), capped by the flat max -- so a short query
-                # can't match a different app at the flat cap ("forza"/"forge").
                 allowed = min(FUZZY_MAX_EDIT_DISTANCE,
                               int(len(qt) * FUZZY_MAX_EDIT_RATIO))
                 if best_for_token <= allowed:
@@ -451,13 +332,6 @@ if not scored:
           file=sys.stderr)
     sys.exit(1)
 
-# Auto-resolve ambiguity by picking the highest-priority CATEGORY
-# match at the best tier. The sort already orders by
-# (tier, category-priority, length), so scored[0] is always the
-# "best" by our rules. Print it. If there are >1 matches, also
-# emit a brief "n other candidates" note to stderr for transparency
-# -- but DO NOT bounce back to the operator demanding re-query
-# (operator directive 2026-05-16: "should be snappy").
 best = scored[0][1]
 print(best["launch"].replace("\\", "\\\\"))
 if len(scored) > 1:

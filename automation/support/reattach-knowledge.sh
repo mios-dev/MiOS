@@ -1,14 +1,6 @@
 #!/bin/bash
 # AI-hint: This script updates the `webui.db` database to link "MiOS Session Memory" and "MiOS Documentation" knowledge IDs to the `mios-agent` model metadata, enabling full RAG capabilities for the OWUI interface.
 # AI-related: mios-agent, mios-open-webui, mios-open-webui.service
-# Re-attach the canonical MiOS knowledge collections to the
-# mios-agent OWUI model. Operator directive: "WE DO WANT FULL
-# RAG CAPABILITIES USING OWUI ... WITH FULL MEMORY, KNOWLEDGE,
-# AND ALL OTHER RELATED FUNCTIONALITIES MUST WORK IN THE STACK
-# NATIVELY".
-#
-# Looks up the existing knowledge rows by name + re-attaches by
-# id+name (the shape OWUI's middleware expects in model.meta).
 set -euo pipefail
 python3 - <<'PYEOF'
 import json
@@ -19,7 +11,6 @@ WANTED_NAMES = ["MiOS Session Memory", "MiOS Documentation"]
 
 c = sqlite3.connect(DB)
 
-# Build the canonical knowledge entries from the knowledge table.
 knowledge_entries = []
 for name in WANTED_NAMES:
     cur = c.execute(
@@ -42,7 +33,6 @@ if not knowledge_entries:
     c.close()
     raise SystemExit(0)
 
-# Attach to every mios-agent model row.
 cur = c.execute(
     "SELECT id, name, meta FROM model "
     "WHERE id LIKE '%mios%' OR name LIKE '%MiOS%';"

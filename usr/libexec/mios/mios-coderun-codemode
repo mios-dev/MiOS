@@ -42,9 +42,6 @@ import shutil
 import subprocess
 import sys
 
-# The pure helpers (sibling-module pattern) -- argv/result/gating decisions live
-# in mios_codemode so they are unit-tested without podman. Add the agent-pipe lib
-# to the path so this libexec CLI can import it regardless of CWD.
 sys.path.insert(0, "/usr/lib/mios/agent-pipe")
 try:
     import mios_codemode as cm
@@ -75,8 +72,6 @@ def _resolve_workspace_root(cfg: dict) -> str:
     v = cfg.get("workspace_root")
     if v:
         return str(v)
-    # fall through to the shared coderun workspace root ([paths]; /etc wins
-    # over vendor, no per-user layer -- same order as the former inline reader).
     r = mios_toml.get("paths", "coderun_workspace_root", None,
                       data=mios_toml.load_merged(["/usr/share/mios/mios.toml",
                                                   "/etc/mios/mios.toml"]))
@@ -103,7 +98,6 @@ def main() -> int:
         return _fail("mios_codemode helper unavailable -- refusing to run", 126)
 
     cfg = _toml_code_mode()
-    # DEFAULT-OFF gate (degrade CLOSED for code execution).
     if not cm.is_enabled(cfg):
         return _fail("code_mode disabled ([code_mode].enable not set)", 0)
 
@@ -137,7 +131,6 @@ def main() -> int:
     except OSError as e:
         return _fail(f"workspace mkdir failed: {e}")
 
-    # Write the snippet into the bind-mounted /work (mapped to <ws_root>/<sid>).
     fname = "snippet.py" if lang == "python" else (
         "snippet.sh" if lang == "bash" else "snippet.sh")
     host_src = os.path.join(workdir, fname)
@@ -148,9 +141,6 @@ def main() -> int:
     except OSError as e:
         return _fail(f"snippet write failed: {e}")
 
-    # Ensure the session sandbox is UP (idempotent start). Best-effort: if the
-    # orchestrator or unit is missing we still try `podman exec` and surface its
-    # error -- but we never run the code outside the container.
     if shutil.which(session_bin):
         try:
             subprocess.run([session_bin, "start", sid],
@@ -158,7 +148,6 @@ def main() -> int:
         except Exception:  # noqa: BLE001 -- exec below will report if not up
             pass
 
-    # Confirm the container is actually running before exec'ing into it.
     try:
         chk = subprocess.run(
             [podman, "container", "inspect", "-f", "{{.State.Running}}", container],
@@ -173,9 +162,6 @@ def main() -> int:
     init = os.environ.get("MIOS_CODERUN_INIT", "/usr/local/bin/exec-init")
     init = init if init and init.lower() not in ("none", "off", "") else ""
     argv = cm.podman_exec_argv(container, lang, in_src, podman=podman, init=init)
-    # NETWORK posture: the Quadlet pins Network=none, so `net` here is advisory --
-    # log the requested+effective state in the envelope. (A net-enabled sandbox
-    # would be a separate unit; out of scope for this scaffold.)
     try:
         proc = subprocess.run(argv, capture_output=True, text=True,
                               timeout=timeout + 15)

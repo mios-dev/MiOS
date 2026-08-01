@@ -133,7 +133,6 @@ def main() -> int:
 
     model, endpoint, enable = _resolve_config()
     
-    # "returns {ok:false} honestly when the lane is down (no fabrication)"
     if not enable:
         print(json.dumps({"ok": False, "reasoning": "vision_grounding_enable is false"}))
         return 1
@@ -142,7 +141,6 @@ def main() -> int:
         shot = tf.name
 
     try:
-        # Take a screenshot using mios-computer-use
         subprocess.run(["mios-computer-use", "screenshot", shot], capture_output=True, check=True)
         result = verify(Path(shot), args.query, model=model, endpoint=endpoint)
     except Exception as e:

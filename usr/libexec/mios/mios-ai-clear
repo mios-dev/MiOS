@@ -3,32 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-ai-clear, /usr/libexec/mios/mios-rag, mios-rag, mios-ai-reset, mios-agent-pipe, mios-daemon, mios-log-watcher, mios-cron-director, mios-hermes-browser, mios-open-webui
 # AI-functions: sec, ok, note, run
 set -euo pipefail
-# /usr/libexec/mios/mios-ai-clear [--dry-run] [--yes]
-#
-# DAY-0 GLOBAL CLEAN SLATE for the MiOS AI stack. Wipes ALL accumulated
-# runtime state and rebuilds the databases to Day-0 values:
-#   * Hermes scheduled jobs (cron/jobs.json + output)  <- stops Discord spam
-#   * Hermes state: sessions, kanban, response_store, memories, logs
-#   * OWUI: chat / message / memory / feedback / tags  (via mios-ai-reset)
-#   * Observability: log-watcher + cron-director batches
-#   * Browser sidecar profile, opencode subagent caches
-#   * pgvector agent state: events, sessions, tool_call, metrics, skill
-#     index, directory cache, AND the doc RAG (mios_rag) -- re-ingested
-#   * agent-env inventory caches (windows-apps, suggestions)
-#
-# PRESERVED (identity / config / models -- NOT regenerable):
-#   * OWUI: user, auth, group, model, function, tool, api_key
-#   * Hermes: config.yaml, SOUL.md, .env, skills/, bin/, hooks/
-#   * pgvector: agent_keypair, agent, person  (crypto identity + registry)
-#   * models, /etc/mios/* configs, vendor /usr/share/mios/*
-#
-# Operator directive 2026-05-20: "clear ... EVERYTHING to Day-0 ... constant
-# discord reports daily and want a completely clean slate". Root cause of the
-# Discord spam: scheduled posters in Hermes cron/jobs.json (AMD stock +
-# trending-topic posts every 15 min) -- this clears them.
-#
-# Run as `mios ai clear` from any MiOS shell, or `mios-ai-clear` directly.
-# --dry-run shows what would be cleared. --yes skips the confirm prompt.
 
 set -u
 
@@ -38,42 +12,37 @@ while [ "$#" -gt 0 ]; do
         --dry-run|-n) DRY_RUN=1 ;;
         --yes|-y|--force) ASSUME_YES=1 ;;
         -h|--help) sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'; exit 0 ;;
-        *) echo "mios-ai-clear: unknown arg: $1" >&2; exit 1 ;;
+        *) echo "Mios-ai-clear: unknown arg: $1" >&2; exit 1 ;;
     esac
     shift
 done
 
-# Root (re-exec via non-interactive sudo if available).
 if [ "$(id -u)" -ne 0 ]; then
     if ! sudo -n true 2>/dev/null; then
-        echo "mios-ai-clear: need root (or non-interactive sudo)" >&2
+        echo "Mios-ai-clear: need root" >&2
         exit 1
     fi
     exec sudo -n -E "$0" "$@"
 fi
 
-# WS-9: agent state lives in PostgreSQL+pgvector now (the legacy BSL store
-# retired). Reset via the pure-python pg wire client (loopback trust, no
-# auth/psql/podman needed) -- same path mios-rag / mios-db --pg use.
 PG_QUERY="${MIOS_PG_QUERY_BIN:-/usr/libexec/mios/mios-pg-query}"
 HCRON=/var/lib/mios/hermes/cron
 
 sec()  { printf "\n── %s ──\n" "$*"; }
 ok()   { printf "  ✓  %s\n" "$*"; }
 note() { printf "     %s\n" "$*"; }
-# TD-1: eval-safe, input=internal hardcoded commands, not agent-controlled
 run()  { if [ "$DRY_RUN" = 1 ]; then printf "  [dry-run] %s\n" "$*"; else eval "$@"; fi; }
 
 echo "════════════════════════════════════════════════════════════════"
 printf "  mios ai clear -- DAY-0 GLOBAL CLEAN SLATE%s\n" "$([ "$DRY_RUN" = 1 ] && echo '  (DRY RUN)')"
 echo "  Wipes chats, history, kanban, tasks, Hermes jobs, pgvector"
-echo "  state + RAG to Day-0. Preserves identity/config/models."
-echo "  NOT reversible."
+echo "  state + RAG to Day-0. Preserves identity/config/models"
+echo "  NOT reversible"
 echo "════════════════════════════════════════════════════════════════"
 if [ "$DRY_RUN" = 0 ] && [ "$ASSUME_YES" = 0 ]; then
     printf "  Type 'clear' to proceed: "
     read -r _ans
-    [ "$_ans" = "clear" ] || { echo "  aborted."; exit 0; }
+    [ "$_ans" = "clear" ] || { echo "  aborted"; exit 0; }
 fi
 
 sec "1. stop AI writers (pgvector stays up so we can clear it)"
@@ -92,14 +61,6 @@ fi
 [ -d "$HCRON/output" ] && { run "find '$HCRON/output' -mindepth 1 -delete 2>/dev/null"; ok "cron/output cleared"; }
 
 sec "3. pgvector agent state -> Day-0 (preserve knowledge identity tables)"
-# TRUNCATE the runtime/event/cache tables -- the schema-init.sql definitions
-# stay so agents don't error on a missing table. RESTART IDENTITY resets the
-# bigint id sequences to Day-0; CASCADE clears the natural-key edge
-# (resolves_to <- app_install). IF EXISTS tolerates tables not yet created
-# at runtime (e.g. mios_rag before first ingest). Each statement is wrapped
-# so a missing table can't abort the batch. agent_memory (mios-remember's
-# operator/agent facts) is PRESERVED as identity-adjacent, mirroring the old
-# pgvector preserve of agent/person/agent_keypair.
 _CLEAR="alias app_install directory_entry event kanban log_digest mios_rag \
         pending_action resolves_to run_template scratch session skill \
         skill_invocation sys_env tool_call"
@@ -113,9 +74,6 @@ run "find /var/lib/mios/agent-env -mindepth 1 -delete 2>/dev/null || true"
 ok "agent-env caches cleared (windows-apps / suggestions regenerate on demand)"
 
 sec "5. conversational clean-slate (Hermes state / OWUI chats / observ / browser / opencode)"
-# Delegate to the existing guardrailed clean-slate -- it re-stops (no-op),
-# wipes the conversational state, and RESTARTS hermes/owui/log-watcher/
-# cron-director/hermes-browser.
 if command -v mios-ai-reset >/dev/null 2>&1; then
     if [ "$DRY_RUN" = 1 ]; then mios-ai-reset --dry-run; else mios-ai-reset; fi
 else
@@ -138,9 +96,9 @@ fi
 echo
 echo "════════════════════════════════════════════════════════════════"
 if [ "$DRY_RUN" = 1 ]; then
-    echo "  DRY RUN complete. Re-run without --dry-run (or: mios ai clear) to apply."
+    echo "  DRY RUN complete. Re-run without"
 else
     echo "  Day-0 clean slate complete. Scheduled Discord posters cleared;"
-    echo "  chats/kanban/tasks/pgvector state wiped; identity + config kept."
+    echo "  chats/kanban/tasks/pgvector state wiped; identity + config kept"
 fi
 echo "════════════════════════════════════════════════════════════════"

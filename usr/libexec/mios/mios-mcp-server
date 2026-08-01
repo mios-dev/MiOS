@@ -88,11 +88,6 @@ def _ssot_protocol_version() -> str:
 PROTOCOL_VERSION = _ssot_protocol_version()
 SERVER_INFO = {"name": "mios-mcp-server", "version": "0.1.0"}
 TIMEOUT_S = 60
-# Streamable-HTTP session id. The relay is stateless (it just dispatches
-# verbs), but the MCP spec lets a server assign a session at initialize, and
-# strict clients (Hermes treats a missing/empty Mcp-Session-Id as a FATAL
-# session fault and abandons the connection -- issue #13383) require a
-# non-empty value. One id per server process is sufficient.
 SESSION_ID = uuid.uuid4().hex
 
 
@@ -145,16 +140,6 @@ def _err(mid, code: int, message: str, data=None) -> dict:
 
 
 def _handle_initialize(mid, params: dict) -> dict:
-    # Version negotiation (MCP lifecycle): this relay is version-agnostic -- it only
-    # lists verbs + dispatches, using no revision-specific features -- so it HONORS the
-    # client's requested protocolVersion when present (liberal-in: an older client
-    # agrees on its own revision and is never forced to abort) and otherwise advertises
-    # the declared current revision (strict-out).
-    # tools.listChanged=True: the background refresher pushes
-    # notifications/tools/list_changed over the standalone SSE channel when the
-    # catalog recovers (SSOT floor / degraded set -> full surface), so clients that
-    # honor it (Hermes) re-list mid-session instead of staying degraded for life.
-    # resources.listChanged stays False (no resource watcher yet).
     requested = (params or {}).get("protocolVersion")
     negotiated = (requested if isinstance(requested, str) and requested.strip()
                   else PROTOCOL_VERSION)
@@ -168,34 +153,12 @@ def _handle_initialize(mid, params: dict) -> dict:
     })
 
 
-# Last-good tools/list cache. tools/list proxies agent-pipe /v1/verbs (/v1/tools);
-# when agent-pipe is momentarily down (a restart), an UNCACHED relay returns 0 tools
-# -> a fresh Hermes/OpenCode session registers NO MiOS tools and stays toolless for
-# its ENTIRE life (MCP tools load only at session start, no mid-session reload). That
-# is exactly the recurring "desktop app can't launch/type" failure (operator
-# 2026-06-15). Caching the catalog (mem + disk) lets the relay ride out the blip.
-# Must live under the unit's ReadWritePaths (mios-mcp.service: ProtectSystem=strict
-# + ReadWritePaths=/var/lib/mios/mcp) -- /var/lib/mios/agent-env is sandbox-blocked.
 _TOOLS_CACHE_FILE = os.environ.get(
     "MIOS_MCP_TOOLS_CACHE", "/var/lib/mios/mcp/tools.cache.json")
 _TOOLS_CACHE_MEM = None
-# Resilience tunables. A background thread keeps the catalog warm (mem+disk) every
-# _REFRESH_INTERVAL_S, INDEPENDENT of when a client connects -- so a client that
-# handshakes moments after an agent-pipe restart still receives the full last-good
-# set instead of the empty/partial catalog agent-pipe serves mid-warmup. The
-# per-request tools/list fetch uses a SHORT timeout so a hung/slow agent-pipe can
-# never stall the client's handshake; the warm cache covers the gap.
 _REFRESH_INTERVAL_S = int(os.environ.get("MIOS_MCP_REFRESH_INTERVAL", "30"))
 _LIST_TIMEOUT_S = int(os.environ.get("MIOS_MCP_LIST_TIMEOUT", "8"))
 
-# Open standalone-SSE connections (the GET /mcp channel). Each holds a private
-# threading.Event; the background refresher SETS every event on catalog recovery,
-# and each connection's own do_GET loop wakes, writes notifications/tools/list_changed,
-# and resumes keepalive. All socket writes happen in the owning handler thread -- the
-# refresher only signals -- so there are no cross-thread writes to one socket. This is
-# how an ALREADY-CONNECTED client (Hermes honors tools/list_changed, auto-re-lists
-# mid-session) recovers the full catalog after connecting during an outage, with no
-# app restart.
 _SSE_EVENTS: set = set()
 _SSE_LOCK = threading.Lock()
 
@@ -420,31 +383,15 @@ def _refresh_loop() -> None:
 
 
 def _handle_tools_list(mid, _params: dict) -> dict:
-    # /v1/tools is the UNIFIED capability feed: every verb + every OS recipe +
-    # every promoted skill. It is served in OpenAI function-tool shape
-    # ({type:function, function:{name,description,parameters}}); MCP tools/list
-    # REQUIRES {name, description, inputSchema}. Convert here so strict MCP
-    # clients (Hermes, Claude Desktop, Cursor) parse the full surface -- without
-    # this the tools arrive nameless and unusable. A row already in MCP shape
-    # (top-level `name`) passes through untouched.
     cached = _tools_cache_load()
     try:
-        # SHORT timeout: a hung/slow agent-pipe must never stall the client's
-        # handshake -- the warm cache (kept fresh by the background refresher)
-        # covers the gap.
         live = _fetch_live_tools(timeout=_LIST_TIMEOUT_S)
     except Exception as e:  # noqa: BLE001 -- URLError or any transport failure
-        # agent-pipe momentarily down/slow. Returning 0 tools would leave a fresh
-        # session PERMANENTLY toolless (MCP tools load once at session start, no
-        # mid-session reload). Serve the last-good warm cache across the blip.
         if cached:
             sys.stderr.write(
                 f"[mios-mcp] /v1/tools unreachable ({e}); served "
                 f"{len(cached)} CACHED tools\n")
             return _ok(mid, {"tools": cached})
-        # Cold cache AND agent-pipe down: build the verb+recipe FLOOR straight from
-        # mios.toml so a client is NEVER handed zero tools (it would be toolless for
-        # its whole life -- the recurring "can't launch/type" failure).
         floor = _build_catalog_from_ssot()
         if floor:
             sys.stderr.write(
@@ -453,11 +400,6 @@ def _handle_tools_list(mid, _params: dict) -> dict:
             return _ok(mid, {"tools": floor})
         return _err(mid, -32000,
                     f"agent-pipe unreachable + no cache + no SSOT floor: {e}")
-    # agent-pipe can answer 200 with an EMPTY/partial catalog for a few seconds after
-    # a restart (verb catalog still loading). The catalog only grows in normal use, so
-    # an empty or >50%-shrunk live feed => warmup, not a real removal: serve the
-    # last-good cache instead. (A genuine large reduction lands via a rebuild, which
-    # restarts this server and re-seeds the cache.) Closes the restart toolless window.
     if cached and _is_poisoned(live, cached):
         sys.stderr.write(
             f"[mios-mcp] /v1/tools returned a partial set ({len(live)} tools vs "
@@ -474,11 +416,6 @@ def _handle_tools_call(mid, params: dict) -> dict:
     args = (params or {}).get("arguments") or {}
     if not name:
         return _err(mid, -32602, "missing tool name")
-    # Route by name prefix -- the SAME mangling the unified /v1/tools feed
-    # applies. mios_skill__<name> executes via the skill runner; a
-    # mios_recipe__<name> wraps the opaque os_recipe verb; a bare name is a
-    # plain verb. All three land on the launcher-broker path eventually, but
-    # via the correct endpoint/envelope. Discover at /v1/tools, execute here.
     try:
         if name.startswith("mios_skill__"):
             real = name[len("mios_skill__"):]
@@ -499,9 +436,6 @@ def _handle_tools_call(mid, params: dict) -> dict:
         return _err(mid, -32000, f"agent-pipe unreachable: {e.reason}")
     except Exception as e:
         return _err(mid, -32000, f"dispatch failed: {e}")
-    # MCP wraps tool results as content blocks. We surface the JSON
-    # envelope as a single text block; modern clients (Claude Desktop,
-    # Cursor) parse JSON-shaped text content automatically.
     is_error = not result.get("success", False)
     return _ok(mid, {
         "content": [{
@@ -513,11 +447,6 @@ def _handle_tools_call(mid, params: dict) -> dict:
 
 
 def _handle_resources_list(mid, _params: dict) -> dict:
-    # /v1/resources is the COMPLETE read-only surface: every verb (script),
-    # every recipe, and EVERY skill (promoted AND not), as MCP Resources --
-    # the progressive-disclosure half of the catalog. Browse here; fetch via
-    # resources/read. The curated CALLABLE half is tools/list. (operator
-    # 2026-06-04 "port all skills/tools/recipes/scripts to MCP")
     try:
         data = _http_get("/v1/resources")
     except urllib.error.URLError as e:
@@ -541,7 +470,6 @@ def _handle_resources_read(mid, params: dict) -> dict:
     except Exception as e:
         return _err(mid, -32000, f"resource read failed: {e}")
     if data.get("error"):
-        # MCP resource-not-found is -32002.
         return _err(mid, -32002, str(data.get("error")))
     return _ok(mid, {"contents": data.get("contents") or []})
 
@@ -562,7 +490,6 @@ def _dispatch_rpc(msg: dict):
     method = msg.get("method", "")
     mid = msg.get("id")
     params = msg.get("params") or {}
-    # Notifications carry no id and expect no response.
     if mid is None and method.startswith("notifications/"):
         return None
     if method == "initialize":
@@ -584,16 +511,6 @@ def _dispatch_rpc(msg: dict):
     return None
 
 
-# ── Streamable-HTTP transport (MCP spec §transports) ─────────────────────────
-# A stdio server cannot be a standalone daemon -- with no client on stdin it
-# reads EOF and exits. This transport lets mios-mcp.service actually SERVE the
-# verb relay as a persistent service. Bound to 127.0.0.1 ONLY: tools/call
-# dispatches MiOS verbs, so unauthenticated tailnet exposure is deliberately
-# withheld until an auth gate ships (operator no-live-launch rule).
-# POST a JSON-RPC request -> application/json response (with an Mcp-Session-Id
-# assigned at initialize); GET /mcp -> an idle keepalive SSE stream so strict
-# clients that open the server->client channel during the handshake don't hang;
-# GET /health for liveness. Stdlib only (offline-safe).
 class _MCPHTTP(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -634,8 +551,6 @@ class _MCPHTTP(http.server.BaseHTTPRequestHandler):
             self.send_header("Content-Length", "0")
             self.end_headers()
             return
-        # Assign a session id on initialize so strict clients get a non-empty
-        # Mcp-Session-Id (the relay itself is stateless).
         extra = ({"Mcp-Session-Id": SESSION_ID}
                  if msg.get("method") == "initialize" else None)
         self._json(resp, extra_headers=extra)
@@ -645,20 +560,12 @@ class _MCPHTTP(http.server.BaseHTTPRequestHandler):
             self._json({"status": "ok", "server": SERVER_INFO,
                         "protocolVersion": PROTOCOL_VERSION})
             return
-        # Streamable-HTTP standalone SSE stream (server->client). This tools-only
-        # relay emits no server-initiated messages, but strict clients (Hermes's
-        # streamable_http client) OPEN this stream during the handshake and HANG
-        # then abandon if it 405s -- so hold an idle, keepalive'd event stream
-        # open instead of refusing it. Per-connection thread (ThreadingHTTPServer
-        # + daemon_threads), reaped when the client disconnects.
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.send_header("Cache-Control", "no-cache")
         self.send_header("Connection", "keep-alive")
         self.send_header("Mcp-Session-Id", SESSION_ID)
         self.end_headers()
-        # Register so the refresher can wake this connection to push
-        # notifications/tools/list_changed; otherwise emit a keepalive every 15s.
         ev = threading.Event()
         with _SSE_LOCK:
             _SSE_EVENTS.add(ev)
@@ -716,23 +623,17 @@ def _run_http(port: int) -> None:
 
 
 def main() -> int:
-    # Transport select: HTTP (persistent daemon, via the service) vs stdio
-    # (a client spawns us as a subprocess and talks over our stdin/stdout).
     if ("--http" in sys.argv[1:]
             or os.environ.get("MIOS_MCP_HTTP", "").strip().lower()
             in {"1", "true", "yes"}):
         port = int(os.environ.get("MIOS_PORT_MCP")
                    or os.environ.get("MIOS_MCP_PORT")
                    or os.environ.get("MIOS_PORTS_MCP"))
-        # Warm the catalog (disk last-good, else mios.toml SSOT floor) BEFORE
-        # serving, then keep it warm in the background -- so tools/list is never
-        # empty/partial regardless of how soon a client connects after a restart.
         _ensure_warm()
         threading.Thread(target=_refresh_loop, name="mcp-tools-refresh",
                          daemon=True).start()
         _run_http(port)
         return 0
-    # Line-delimited JSON-RPC over stdio.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     if hasattr(sys.stdin, "reconfigure"):

@@ -50,8 +50,6 @@ def verify(app: str, timeout: float) -> dict:
         return {"success": False, "app": app, "launched": False,
                 "error": "daemon returned non-object"}
     d.setdefault("app", app)
-    # success here = "the check ran", not "the app launched"; callers read
-    # `launched` for the actual verdict.
     d["success"] = True
     return d
 
@@ -75,8 +73,6 @@ def main() -> int:
                "error": f"daemon-agent verify unavailable: {e}",
                "checked_by": "mios-verify-launch"}
     print(json.dumps(out, ensure_ascii=False))
-    # exit 0 only when the launch is CONFIRMED; 1 otherwise so a shell
-    # ground-loop can branch on it.
     return 0 if out.get("launched") else 1
 
 

@@ -2,36 +2,21 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Configures and enables systemd units for NVIDIA CDI (Container Device Interface) auto-refresh, removes legacy oci-nvidia-hook.json to prevent conflicts, and ensures the GPU runtime environment is correctly wired for container orchestration.
 # AI-related: mios-gpu, mios-nvidia-cdi, nvidia-cdi-refresh.service, nvidia-persistenced.service, multi-user.target
-# 26-nvidia-cdi-refresh.sh - wire up NVIDIA CDI auto-refresh services.
-# Package installs live in mios.toml [packages.gpu-nvidia].
-#
-# Key invariants:
-#   - nvidia-container-toolkit ≥ 1.18 for nvidia-cdi-refresh.service/path.
-#   - Avoid NCT 1.16.2: "unresolvable CDI devices" regression. Use 1.16.1 or 1.18+.
-#   - Remove oci-nvidia-hook.json: dual injection with CDI causes conflicts.
-#   - CDI canonical path: /var/run/cdi/nvidia.yaml (runtime) or /etc/cdi/nvidia.yaml (persistent).
-#   - NVIDIA kmods blacklisted by default; 34-gpu-detect.sh removes blacklist on bare metal.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# Remove legacy OCI hook -- conflicts with CDI when both are present.
 OCI_HOOK=/usr/share/containers/oci/hooks.d/oci-nvidia-hook.json
 if [[ -f "$OCI_HOOK" ]]; then
-    mios_log "removing legacy OCI nvidia hook (conflicts with CDI)"
+    mios_log "Removing legacy OCI nvidia hook"
     rm -f "$OCI_HOOK"
 fi
 
-# /etc/nvidia-container-toolkit/cdi-refresh.env is created at first boot via
-# usr/lib/tmpfiles.d/mios-gpu.conf (`f` create-if-missing). nvidia-container-
-# toolkit's upstream systemd unit reads from /etc/ by hard-coded path, so this
-# file lives in the upstream-contract /etc/ surface, not /usr/lib/.
 
-# Enable units using build-safe symlinks
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-mios_log "symlinking nvidia-cdi-refresh.path, nvidia-cdi-refresh.service, nvidia-persistenced.service into multi-user.target.wants"
+mios_log "Symlinking nvidia-cdi-refresh.path, nvidia-cdi-refresh.service, nvidia-persistenced.service into multi-user.target.wants"
 for unit in \
     nvidia-cdi-refresh.path \
     nvidia-cdi-refresh.service \
@@ -45,7 +30,5 @@ do
     fi
 done
 
-# /etc/cdi and /var/run/cdi are declared in usr/lib/tmpfiles.d/mios-gpu.conf
-# (LAW 2 -- NO-MKDIR-IN-VAR; admin-override surface for /etc/cdi).
 
 mios_ok "CDI refresh pipeline configured"

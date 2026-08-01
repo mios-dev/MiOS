@@ -2,34 +2,6 @@
 # AI-hint: Ensures the global system cursor theme (Bibata) is correctly installed and linked in /usr/share/icons or ~/.local/share/icons based on available privileges to guarantee consistent cursor rendering across X11, Wayland, and Flatpak apps.
 # AI-related: /usr/libexec/mios/mios-cursor-ensure, /etc/mios/mios.toml, /usr/share/mios/mios.toml
 # AI-functions: _toml_get, _write_default_pointer, _wire
-# /usr/libexec/mios/mios-cursor-ensure
-#
-# Make the MiOS cursor theme the ACTUAL, GLOBAL Linux cursor.
-#
-# Operator trace 2026-05-19:
-#   * "Bibata NEEDS to be set in Linux too" -- not just the Windows-side
-#     cursor; the X11/Xwayland default cursor must resolve to Bibata.
-#   * "Cursor is only partially applied to MiOS-DEV -- not GLOBALLY set"
-#     -- a per-user ~/.local/share/icons copy only covers ONE user. When
-#     we can write /usr (the build, or a dev VM whose /usr tree is
-#     writable as root) the theme belongs in /usr/share/icons so EVERY
-#     user, GDM, and every app inherits it.
-#
-# Mode (by privilege):
-#   GLOBAL  (root + /usr/share/icons writable): install to
-#           /usr/share/icons/<theme> + /usr/share/icons/default/index.theme.
-#           Host apps + GDM resolve it directly; flatpaks resolve it via
-#           the global override's --filesystem=host-os (/run/host/usr/...).
-#   USER    (otherwise -- e.g. a sealed bootc host with RO /usr): install
-#           to ~/.local/share/icons (flatpak xdg-data/icons mount) + symlink
-#           into ~/.icons (default libXcursor path) + gsettings.
-#
-# The DEFAULT cursor pointer (.../icons/default/index.theme ->
-# Inherits=<theme>) is the key piece for the x11 backend: an app that
-# doesn't pin XCURSOR_THEME resolves its cursor from there.
-#
-# Idempotent + offline-safe. Theme name + size + upstream repo come from
-# mios.toml [theme.cursor_linux] (SSOT).
 
 set -uo pipefail
 
@@ -64,7 +36,6 @@ SIZE="$(_toml_get theme.cursor_linux.size "16")"
 REPO="$(_toml_get theme.cursor_linux.source_repo "ful1e5/Bibata_Cursor")"
 MARKER_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/mios"
 
-# ── Mode + install target ──────────────────────────────────────────────────
 if [ "$(id -u)" = "0" ] && { [ -w /usr/share/icons ] || [ ! -e /usr/share/icons ]; }; then
     MODE=global
     DEST=/usr/share/icons
@@ -88,11 +59,8 @@ _wire() {   # $1 = dir that contains <theme>/cursors
     local src="$1"
     _write_default_pointer "$src"
     if [ "$MODE" = global ]; then
-        # World-readable for GDM + every user.
         chmod -R a+rX "$src/$THEME" "$src/default" 2>/dev/null || true
     else
-        # Per-user: also expose on the DEFAULT libXcursor path (~/.icons)
-        # for host apps that don't inherit our XCURSOR_PATH.
         mkdir -p "$HOME/.icons" 2>/dev/null || true
         [ -e "$HOME/.icons/$THEME" ] || ln -s "$src/$THEME" "$HOME/.icons/$THEME" 2>/dev/null || true
         _write_default_pointer "$HOME/.icons"
@@ -103,12 +71,6 @@ _wire() {   # $1 = dir that contains <theme>/cursors
     fi
 }
 
-# ── Already present anywhere? (re)wire + exit ──────────────────────────────
-# A global /usr install satisfies user mode too -- but flatpaks reach /usr
-# only via host-os, so in USER mode we still want a ~/.local/share/icons
-# copy. Therefore: in global mode, accept /usr; in user mode, only accept
-# a copy already at DEST or ~/.icons (NOT /usr, which a flatpak can't see
-# without host-os).
 if [ "$MODE" = global ]; then
     _search=("/usr/share/icons")
 else
@@ -118,20 +80,19 @@ for base in "${_search[@]}"; do
     if [ -d "$base/$THEME/cursors" ]; then
         _wire "$base"
         mkdir -p "$MARKER_DIR" 2>/dev/null && : > "$MARKER_DIR/cursor-ensured" 2>/dev/null || true
-        echo "mios-cursor-ensure: [$MODE] '$THEME' present ($base); default-cursor pointer wired"
+        echo "Mios-cursor-ensure: [$MODE] '$THEME' present; default-cursor pointer wired"
         exit 0
     fi
 done
 
-# ── Fetch into DEST, then wire ─────────────────────────────────────────────
-command -v curl >/dev/null 2>&1 || { echo "mios-cursor-ensure: curl missing -- cannot fetch '$THEME'" >&2; exit 1; }
+command -v curl >/dev/null 2>&1 || { echo "Mios-cursor-ensure: curl missing" >&2; exit 1; }
 
 VER=$(curl -sL --connect-timeout 15 --max-time 30 \
         -H "Accept: application/vnd.github+json" \
         "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null \
       | grep -m1 '"tag_name"' | sed 's/.*"v\?\([^"]*\)".*/\1/')
 if [ -z "$VER" ]; then
-    echo "mios-cursor-ensure: could not resolve latest release for $REPO (offline?) -- skipping" >&2
+    echo "Mios-cursor-ensure: could not resolve latest release for $REPO" >&2
     exit 1
 fi
 
@@ -140,24 +101,24 @@ URL="https://github.com/$REPO/releases/download/v${VER}/${ARCHIVE}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-echo "mios-cursor-ensure: [$MODE] fetching $THEME v$VER -> $DEST"
+echo "Mios-cursor-ensure: [$MODE] fetching $THEME v$VER -> $DEST"
 if ! curl -fSL --connect-timeout 20 --max-time 120 --retry 2 --retry-delay 5 "$URL" -o "$TMP/$ARCHIVE"; then
-    echo "mios-cursor-ensure: download failed ($URL)" >&2
+    echo "Mios-cursor-ensure: download failed" >&2
     exit 1
 fi
 
 mkdir -p "$DEST"
 if ! tar -xf "$TMP/$ARCHIVE" -C "$DEST"; then
-    echo "mios-cursor-ensure: extract failed" >&2
+    echo "Mios-cursor-ensure: extract failed" >&2
     exit 1
 fi
 if [ ! -d "$DEST/$THEME/cursors" ]; then
-    echo "mios-cursor-ensure: extracted but '$DEST/$THEME/cursors' missing -- archive layout unexpected" >&2
+    echo "Mios-cursor-ensure: extracted but '$DEST/$THEME/cursors' missing" >&2
     exit 1
 fi
 
 chmod -R a+rX "$DEST/$THEME" 2>/dev/null || true
 _wire "$DEST"
 mkdir -p "$MARKER_DIR" 2>/dev/null && : > "$MARKER_DIR/cursor-ensured" 2>/dev/null || true
-echo "mios-cursor-ensure: [$MODE] installed $THEME ($(find "$DEST/$THEME/cursors" -mindepth 1 -maxdepth 1 | wc -l) cursors) into $DEST + wired default-cursor pointer"
+echo "Mios-cursor-ensure: [$MODE] installed $THEME ($(find "$DEST/$THEME/cursors" -mindepth 1 -maxdepth 1 | wc -l) cursors) into $DEST + wired default-cursor pointer"
 exit 0

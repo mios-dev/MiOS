@@ -73,8 +73,6 @@ def main() -> int:
         _log("no stale prompt_suggestions present -- OWUI is already on LLM-generated path")
         return 0
 
-    # Wipe -> OWUI falls back to ENABLE_SUGGESTION_GENERATION + the
-    # task model produces suggestions per session in the user's locale.
     ui["prompt_suggestions"] = []
     data["ui"] = ui
     now_iso = datetime.datetime.utcnow().isoformat()

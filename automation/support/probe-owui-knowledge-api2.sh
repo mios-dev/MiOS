@@ -8,7 +8,7 @@ c = sqlite3.connect('/var/lib/mios/open-webui/webui.db')
 r = c.execute(\"SELECT a.key FROM api_key a JOIN user u ON u.id=a.user_id WHERE u.role='admin' ORDER BY a.created_at DESC LIMIT 1\").fetchone()
 print(r[0] if r else '')
 ")
-echo "TOKEN=${TOKEN:0:12}..."
+echo "TOKEN=${TOKEN:0:12}"
 
 COL_ID="8c721cc0-3dd4-5e8d-ad9c-5913a7368dfe"
 
@@ -21,7 +21,7 @@ head -c 200 /tmp/k.json
 echo
 
 echo
-echo "=== probe endpoints (POST + GET) ==="
+echo "=== probe endpoints ==="
 for method in GET POST; do
     for p in \
         /api/v1/retrieval/process/query \

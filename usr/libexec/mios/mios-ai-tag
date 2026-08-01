@@ -1,12 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Codebase tagger -- writes a rich, structured AI header (AI-hint purpose
 # AI-related: mios-codebase-index, mios-bootstrap, localhost:11450
-#   + AI-related files/services/verbs + AI-functions) on every MiOS-authored file
-#   so agents grasp each file's use, purpose, dependencies and entrypoints at a
-#   glance, and mios-codebase-index can harvest it. Reuses an existing AI-hint
-#   (no re-LLM), generates a fresh purpose line via the local teacher when absent,
-#   and regex-extracts related-files + functions (accurate, no hallucination).
-#   Idempotent, resumable (--manifest), comment/shebang/line-ending safe.
 """'MiOS' AI-tagger -- a rich, agent-useful AI header on every file.
 
 Goal (operator 2026-06-13): every file in both MiOS repos carries a header that
@@ -57,7 +51,6 @@ SKIP_SUFFIX = re.compile(
     r"ttf|otf|so|o|a|zip|gz|xz|zst|tar|whl|pyc|wasm|pdf|mp4|mp3|lock)$", re.I)
 JSON_EXT = {".json", ".jsonl", ".map", ".csv", ".tsv"}
 
-# strip ALL AI-* header lines on retag (hint/related/functions), any comment style
 AI_LINE_RE = re.compile(r"^[#/<!;\-*\s]*AI-(?:hint|related|functions):.*?(-->)?\s*$", re.I)
 AI_HINT_TXT_RE = re.compile(r"AI-hint:\s*(.+?)\s*(?:-->)?\s*$", re.I)
 
@@ -103,7 +96,6 @@ def _clean(s: str, n: int = 260) -> str:
     return re.sub(r'^["\'\s]+|["\'\s]+$', "", s)[:n]
 
 
-# ---- existing-hint reuse + extraction ---------------------------------------
 def existing_hint(head: str) -> str:
     for ln in head.splitlines()[:40]:
         m = AI_HINT_TXT_RE.search(ln)
@@ -142,7 +134,6 @@ def extract_desc(head: str, path: str) -> str:
     return ""
 
 
-# ---- regex structure extraction (accurate, grounded) ------------------------
 def extract_functions(content: str, path: str) -> str:
     names: list[str] = []
     if path.endswith(".py"):
@@ -168,10 +159,7 @@ def extract_related(content: str, path: str) -> str:
     rel += re.findall(r"(?:source|\.)\s+([/\w.\-]+\.(?:sh|bash))", content)
     rel += re.findall(r"(/usr/(?:lib|libexec|share)/mios/[\w./\-]+|/etc/mios/[\w./\-]+)", content)
     rel += re.findall(r"\b(mios-[\w-]+)\b", content)
-    # systemd units -- NOT '.path' (it false-matches os.path/request.path etc.);
-    # real .path units are rare and still caught as mios-* / quadlet names.
     rel += re.findall(r"\b([\w-]+\.(?:service|container|timer|socket|target|mount))\b", content)
-    # ports -> labelled 'localhost:NNNN' so the hint reads as an endpoint, not a bare int
     rel += [f"localhost:{p}" for p in re.findall(r"localhost:(\d{2,5})", content)]
     seen, out = set(), []
     self_base = os.path.basename(path)
@@ -182,7 +170,6 @@ def extract_related(content: str, path: str) -> str:
     return ", ".join(out[:10])
 
 
-# ---- teacher (purpose line; only when no existing hint) ----------------------
 GEN_SYS = (
     "You document a codebase FOR AI AGENTS. Write ONE dense line (<=240 chars) "
     "stating WHAT THE FILE IS and its ROLE/USE in the MiOS system -- for a "
@@ -208,12 +195,6 @@ def teacher_hint(endpoint, model, path, head, timeout=90.0) -> str:
     return _clean(txt.splitlines()[0] if txt else "")
 
 
-# ---- safe (re)insertion -----------------------------------------------------
-# A leading UTF-8 BOM (EF BB BF) MUST stay at byte 0: irm|iex and `irm | iex`
-# style canonical installs parse Get-MiOS.ps1 only if the BOM (when present) is
-# the very first byte. Strip it off the body before we splice the AI header in,
-# then re-prepend it to the FINAL bytes -- otherwise the header lands ABOVE the
-# BOM and strands U+FEFF mid-file (the Get-MiOS.ps1 install break, 2026-06-14).
 _BOM = b"\xef\xbb\xbf"
 
 
@@ -242,7 +223,6 @@ def retag(raw: bytes, style: str, block: list[str]) -> bytes:
     return bom + body
 
 
-# ---- selection --------------------------------------------------------------
 def _has_shebang(path):
     try:
         with open(path, "rb") as fh:

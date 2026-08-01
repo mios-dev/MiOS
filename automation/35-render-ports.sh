@@ -7,7 +7,7 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 TOML_FILE="/usr/share/mios/mios.toml"
 ENV_FILE="/etc/mios/install.env"
 
-mios_log "extract ports from $TOML_FILE to $ENV_FILE"
+mios_log "Extract ports from $TOML_FILE to $ENV_FILE"
 
 mkdir -p "$(dirname "$ENV_FILE")"
 touch "$ENV_FILE"
@@ -18,7 +18,6 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-# Clean up old port definitions
 sed -i '/^MIOS_PORT_/d' "$ENV_FILE"
 
 awk '
@@ -26,30 +25,25 @@ BEGIN { stack_id = 0 }
 /^\[ports\]/ {flag=1; next}
 /^\[/ {flag=0}
 flag && /=/ {
-    # Extract key and value
     split($0, arr, "=")
     key = arr[1]
     val = arr[2]
     
-    # Trim whitespace and comments
     sub(/^[ \t]+/, "", key)
     sub(/[ \t]+$/, "", key)
     sub(/^[ \t]+/, "", val)
     sub(/[ \t]+#.*$/, "", val)
     sub(/[ \t]+$/, "", val)
     
-    # Capture stack_id
     if (key == "stack_id") {
         stack_id = val + 0
         next
     }
     
-    # Apply 8-Block mathematical offset, excluding port 53 (DNS)
     if (val ~ /^[0-9]+$/ && val != "53") {
         val = val + (stack_id * 10000)
     }
     
-    # Uppercase the key
     key = toupper(key)
     
     print "MIOS_PORT_" key "=" val

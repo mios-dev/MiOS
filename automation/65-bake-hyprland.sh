@@ -7,20 +7,15 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-mios_log "installing Hyprland compositor & tools"
+mios_log "Installing Hyprland compositor & tools"
 install_packages_strict "hyprland"
 
-mios_log "generating baseline Hyprland configuration"
+mios_log "Generating baseline Hyprland configuration"
 mkdir -p /usr/share/mios/hyprland
 cat << 'EOF' > /usr/share/mios/hyprland/hyprland.conf
-# =============================================================================
-# MiOS Tiling Display Compositor Settings (Hyprland 0.46+)
-# =============================================================================
 
-# Monitors (automatic resolution and HiDPI scaling resolution translation)
 monitor=,preferred,auto,1
 
-# Input devices
 input {
     kb_layout = us
     follow_mouse = 1
@@ -30,7 +25,6 @@ input {
     }
 }
 
-# General layout behavior
 general {
     gaps_in = 5
     gaps_out = 12
@@ -41,7 +35,6 @@ general {
     allow_tearing = false
 }
 
-# Frosted glass aesthetics / transparency (multi-layer "liquid glass")
 decoration {
     rounding = 12
     active_opacity = 1.0
@@ -72,11 +65,6 @@ decoration {
     dim_strength = 0.05
 }
 
-# Dynamic micro-animations -- overshoot beziers approximate a spring/"liquid"
-# feel and are safe on Hyprland 0.46+ (native spring curves are 0.55+, adopt
-# once the baked Hyprland reaches it). Layer animations glide the Quickshell
-# shell surfaces in. NOTE: borderangle is intentionally NOT looped -- looping it
-# defeats VFR and drains battery even when the window is obscured (Hyprland wiki).
 animations {
     enabled = true
     bezier = liquid,    0.25, 1.30, 0.35, 1.00
@@ -98,10 +86,6 @@ animations {
     animation = layersOut,   1, 4, smoothOut, slide
 }
 
-# Liquid-glass on the shell's OWN layer surfaces (Quickshell bar + rail, rofi,
-# notifications, drop-downs). Compositor blur is what actually frosts them --
-# the QML only sets a translucent fill. Closes the gap documented in the header
-# of usr/share/mios/quickshell/Sidebar.qml (`layerrule = blur, quickshell`).
 layerrule = blur, quickshell
 layerrule = ignorealpha 0.2, quickshell
 layerrule = blur, rofi
@@ -109,26 +93,19 @@ layerrule = ignorealpha 0.5, rofi
 layerrule = blur, notifications
 layerrule = ignorealpha 0.3, notifications
 
-# Window Rules (promoting native GUI wrappers)
 windowrulev2 = suppressevent maximize, class:.*
 windowrulev2 = float, class:^(mios-webshell)$
 windowrulev2 = size 1200 800, class:^(mios-webshell)$
 
-# Cockpit (real, already wired -- usr/lib/systemd/system/cockpit.socket.d/
-# listen.conf + usr/share/containers/systemd/mios-cockpit-link.container),
-# opened via the $mainMod, C keybind below or the Quickshell Sidebar.qml tile.
 windowrulev2 = float, class:^(cockpit)$
 windowrulev2 = size 1400 900, class:^(cockpit)$
 
-# Startup applications (Quickshell Status Bar)
 exec-once = quickshell --config /usr/share/mios/quickshell/Config.qml
 
-# Environment setup for systemd user session
 exec-once = systemctl --user import-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 exec-once = dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP
 exec-once = systemctl --user start graphical-session.target
 
-# Window management keybindings (Mod key = Super/Windows key)
 $mainMod = SUPER
 
 bind = $mainMod, Q, killactive,
@@ -140,20 +117,17 @@ bind = $mainMod, P, pseudo, # dwindle
 bind = $mainMod, J, togglesplit, # dwindle
 bind = $mainMod, C, exec, xdg-open http://localhost:9090 # Cockpit -- real, see mios-cockpit-link.container
 
-# Focus movements
 bind = $mainMod, left, movefocus, l
 bind = $mainMod, right, movefocus, r
 bind = $mainMod, up, movefocus, u
 bind = $mainMod, down, movefocus, d
 
-# Workspace switching
 bind = $mainMod, 1, workspace, 1
 bind = $mainMod, 2, workspace, 2
 bind = $mainMod, 3, workspace, 3
 bind = $mainMod, 4, workspace, 4
 bind = $mainMod, 5, workspace, 5
 
-# Move active window to workspace
 bind = $mainMod SHIFT, 1, movetoworkspace, 1
 bind = $mainMod SHIFT, 2, movetoworkspace, 2
 bind = $mainMod SHIFT, 3, movetoworkspace, 3
@@ -161,16 +135,6 @@ bind = $mainMod SHIFT, 4, movetoworkspace, 4
 bind = $mainMod SHIFT, 5, movetoworkspace, 5
 EOF
 
-# SSOT color substitution (Law 7): tools/lib/userenv.sh (sourced above via
-# lib/packages.sh -> lib/common.sh, the same convention every other
-# automation/*.sh script uses) already exports MIOS_COLOR_* from mios.toml
-# [colors]. The heredoc above stays single-quoted on purpose -- it also
-# contains literal Hyprland variable references ($mainMod) that must NOT be
-# shell-expanded -- so the brand palette is substituted here via placeholder
-# tokens instead of inline interpolation. Previously this file hardcoded a
-# neon cyan/green gradient (rgba(33ccffee)/rgba(00ff99ee)) with no
-# relationship to the rest of the OS; see design spec
-# usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-*.md §7/§12.
 : "${MIOS_COLOR_ACCENT:=#1A407F}"
 : "${MIOS_COLOR_INFO:=#1A407F}"
 : "${MIOS_COLOR_MUTED:=#948E8E}"

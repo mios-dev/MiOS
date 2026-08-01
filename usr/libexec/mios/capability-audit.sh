@@ -2,31 +2,15 @@
 # AI-hint: A diagnostic script that audits hardware topology, IOMMU groups, VFIO bindings, and PCIe layout to determine device passthrough readiness for the MiOS virtualization layer.
 # AI-related: cockpit.socket, cockpit.service
 # AI-functions: print_section, print_subsection, cmd_exists, run_if_exists, read_file_if_exists, check_privileges, check_pass
-#
-# system-assess.sh - System layout / hardware / topology assessment.
-# Captures CPU topology, IOMMU groups, VFIO bindings, PCIe layout, and
-# passthrough readiness into a text report under the user's home directory.
-#
-# Usage: ./system-assess.sh [OUTPUT_FILE]
-#   OUTPUT_FILE - Optional custom path for the assessment report
-#                 Default: ~/system-assessment_YYYYMMDD_HHMMSS.txt
-#
-# Examples:
-#   ./system-assess.sh                              # Default output to ~/
-#   ./system-assess.sh ~/my-assessment.txt          # Custom output path
-#   sudo ./system-assess.sh                         # Run as root for full details
-#
 
 set -euo pipefail
 
-# Trap errors to help debug
 trap 'echo "Error on line $LINENO" >&2' ERR
 
-# Show help
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     echo "Usage: $0 [OUTPUT_FILE]"
     echo ""
-    echo "System assessment for hardware, topology, IOMMU, VFIO, and passthrough."
+    echo "System assessment for hardware, topology, IOMMU, VFIO, and passthrough"
     echo ""
     echo "Arguments:"
     echo "  OUTPUT_FILE    Optional custom path for assessment report"
@@ -39,42 +23,36 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
     exit 0
 fi
 
-# Configuration
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 
-# Get the real user's home directory (even when running with sudo)
 if [[ -n "${SUDO_USER:-}" ]]; then
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
 else
     REAL_HOME="$HOME"
 fi
 
-# Allow custom output path as argument, otherwise default to Documents folder
 if [[ -n "${1:-}" ]]; then
     OUTPUT_FILE="$1"
 else
     OUTPUT_FILE="${REAL_HOME}/Documents/system-assessment_${TIMESTAMP}.txt"
 fi
 
-# Ensure output directory exists
 OUTPUT_DIR=$(dirname "$OUTPUT_FILE")
 if [[ ! -d "$OUTPUT_DIR" ]]; then
     mkdir -p "$OUTPUT_DIR" 2>/dev/null || {
-        echo "Error: Cannot create output directory '$OUTPUT_DIR'."
+        echo "Error: Cannot create output directory '$OUTPUT_DIR'"
         exit 1
     }
 fi
 SEPARATOR="================================================================================"
 SUBSEP="--------------------------------------------------------------------------------"
 
-# Colors for terminal output (not written to file)
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-# Helper functions
 print_section() {
     echo -e "\n${SEPARATOR}"
     echo "  $1"
@@ -109,48 +87,44 @@ read_file_if_exists() {
     fi
 }
 
-# Check for root (some info requires it)
 check_privileges() {
     if [[ $EUID -eq 0 ]]; then
         echo "Running as root - full information available"
     else
-        echo "Running as user - some information may be limited (run with sudo for complete data)"
+        echo "Running as user - some information may be limited"
     fi
 }
 
-# Begin assessment
 {
     echo "${SEPARATOR}"
     echo "  SYSTEM ASSESSMENT REPORT"
-    echo "  Generated: $(date)"
-    echo "  Hostname: $(hostname)"
+    echo "  Generated: $"
+    echo "  Hostname: $"
     echo "  User: ${USER}"
     echo "${SEPARATOR}"
     
     check_privileges
 
-    #---------------------------------------------------------------------------
     print_section "SYSTEM OVERVIEW"
-    #---------------------------------------------------------------------------
     
     print_subsection "Operating System"
     if [[ -f /etc/os-release ]]; then
         cat /etc/os-release
     fi
     echo ""
-    echo "Kernel: $(uname -r)"
-    echo "Architecture: $(uname -m)"
-    echo "Kernel Version: $(uname -v)"
+    echo "Kernel: $"
+    echo "Architecture: $"
+    echo "Kernel Version: $"
     
     print_subsection "System Information (DMI)"
     if cmd_exists dmidecode && [[ $EUID -eq 0 ]]; then
-        echo "--- System ---"
+        echo ""
         dmidecode -t system 2>/dev/null | grep -E "Manufacturer|Product Name|Version|Serial|UUID" | sed 's/^[\t ]*//'
         echo ""
-        echo "--- Baseboard ---"
+        echo ""
         dmidecode -t baseboard 2>/dev/null | grep -E "Manufacturer|Product Name|Version|Serial" | sed 's/^[\t ]*//'
         echo ""
-        echo "--- BIOS ---"
+        echo ""
         dmidecode -t bios 2>/dev/null | grep -E "Vendor|Version|Release Date|BIOS Revision" | sed 's/^[\t ]*//'
     else
         echo "[dmidecode requires root privileges]"
@@ -162,11 +136,7 @@ check_privileges() {
         read_file_if_exists /sys/class/dmi/id/board_name
     fi
 
-    #---------------------------------------------------------------------------
     print_section "HARDWARE PARTITIONING MAP"
-    #---------------------------------------------------------------------------
-    # This section provides structured data for creating block/flow diagrams
-    # of how hardware is partitioned between host and VMs
     
     print_subsection "=== CPU PARTITIONING ==="
     
@@ -174,24 +144,22 @@ check_privileges() {
     echo "Total Cores: $(grep -c "^processor" /proc/cpuinfo)"
     echo ""
     
-    # Detect isolated vs host CPUs
     isolated_cpus=$(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo "")
-    online_cpus=$(cat /sys/devices/system/cpu/online 2>/dev/null || echo "0-$(($(nproc)-1))")
+    online_cpus=$(cat /sys/devices/system/cpu/online 2>/dev/null || echo "0-$-1))")
     
-    echo "+------------------------------------------------------------------------------+"
+    echo "+"
     echo "|                           CPU CORE ALLOCATION                              |"
-    echo "+------------------------------------------------------------------------------+"
+    echo "+"
     
     if [[ -n "$isolated_cpus" && "$isolated_cpus" != "" ]]; then
         echo "| HOST CORES (housekeeping):     $(comm -23 <(echo "$online_cpus" | tr ',' '\n' | sort -n) <(echo "$isolated_cpus" | tr ',' '\n' | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//' || echo "$online_cpus")"
-        echo "| ISOLATED CORES (VM-reserved):  $isolated_cpus"
+        echo "| ISOLATED CORES:  $isolated_cpus"
     else
-        echo "| HOST CORES:     $online_cpus (no isolation configured)"
+        echo "| HOST CORES:     $online_cpus"
         echo "| ISOLATED CORES: [none]"
     fi
-    echo "+------------------------------------------------------------------------------+"
+    echo "+"
     
-    # CCD/Chiplet breakdown for AMD (like 9950X3D)
     echo ""
     echo "CCD/CHIPLET TOPOLOGY:"
     declare -A ccd_cpus
@@ -203,7 +171,7 @@ check_privileges() {
                     level=$(cat "${cache}/level" 2>/dev/null)
                     if [[ "$level" == "3" ]]; then
                         l3_id=$(cat "${cache}/id" 2>/dev/null || echo "0")
-                        l3_size=$(cat "${cache}/size" 2>/dev/null || echo "?")
+                        l3_size=$(cat "${cache}/size" 2>/dev/null || echo "")
                         ccd_cpus["$l3_id"]="${ccd_cpus[$l3_id]:-}${cpu_num},"
                         ccd_sizes["$l3_id"]="$l3_size"
                     fi
@@ -215,18 +183,16 @@ check_privileges() {
     for ccd_id in $(echo "${!ccd_cpus[@]}" | tr ' ' '\n' | sort -n); do
         cpus="${ccd_cpus[$ccd_id]%,}"
         size="${ccd_sizes[$ccd_id]:-unknown}"
-        # Determine if this is V-Cache CCD (larger L3)
         vcache_marker=""
         size_num=$(echo "$size" | grep -oE "[0-9]+" | head -1)
         if [[ -n "$size_num" && "$size_num" -gt 32000 ]]; then
             vcache_marker=" [V-Cache]"
         fi
-        echo "  CCD $ccd_id (L3: $size)$vcache_marker: CPUs $cpus"
+        echo "  CCD $ccd_id$vcache_marker: CPUs $cpus"
     done
     
-    # Detect libvirt VM CPU pinning
     echo ""
-    echo "VM CPU PINNING (from libvirt):"
+    echo "VM CPU PINNING:"
     if cmd_exists virsh; then
         vm_list=$(virsh list --all --name 2>/dev/null | grep -v "^$" || true)
         if [[ -n "$vm_list" ]]; then
@@ -241,12 +207,10 @@ check_privileges() {
                     else
                         echo "  │   [no CPU pinning configured]"
                     fi
-                    # Get emulator pinning
                     emulator_pin=$(virsh emulatorpin "$vm_name" 2>/dev/null | grep -E "^[[:space:]]*\*" || true)
                     if [[ -n "$emulator_pin" ]]; then
                         echo "  │   Emulator: $emulator_pin"
                     fi
-                    # Get iothreads pinning
                     iothread_pin=$(virsh iothreadinfo "$vm_name" 2>/dev/null | grep -E "^[[:space:]]*[0-9]" || true)
                     if [[ -n "$iothread_pin" ]]; then
                         echo "  │   IOThreads:"
@@ -267,9 +231,9 @@ check_privileges() {
     print_subsection "=== MEMORY PARTITIONING ==="
     
     total_mem=$(free -b | awk '/^Mem:/ {print $2}')
-    total_mem_gb=$(echo "scale=1; $total_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "?")
+    total_mem_gb=$(echo "scale=1; $total_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
     available_mem=$(free -b | awk '/^Mem:/ {print $7}')
-    available_mem_gb=$(echo "scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "?")
+    available_mem_gb=$(echo "scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
     
     echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                         MEMORY ALLOCATION                                  │"
@@ -278,7 +242,6 @@ check_privileges() {
     echo "│ HOST AVAILABLE:         ${available_mem_gb} GB"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
-    # Hugepages
     echo ""
     echo "HUGEPAGE RESERVATIONS:"
     if [[ -d /sys/kernel/mm/hugepages ]]; then
@@ -288,10 +251,9 @@ check_privileges() {
                 nr=$(cat "${hp}/nr_hugepages" 2>/dev/null || echo "0")
                 free_hp=$(cat "${hp}/free_hugepages" 2>/dev/null || echo "0")
                 if [[ "$nr" != "0" ]]; then
-                    # Calculate total reserved memory
                     size_kb=$(echo "$size" | grep -oE "[0-9]+")
                     total_hp_mb=$((nr * size_kb / 1024))
-                    echo "  ${size}: ${nr} pages reserved (${total_hp_mb} MB total), ${free_hp} free"
+                    echo "  ${size}: ${nr} pages reserved, ${free_hp} free"
                 fi
             fi
         done
@@ -299,7 +261,6 @@ check_privileges() {
         [[ "$total_hp" == "0" || -z "$total_hp" ]] && echo "  [No hugepages reserved]"
     fi
     
-    # NUMA memory distribution
     echo ""
     echo "NUMA MEMORY DISTRIBUTION:"
     if [[ -d /sys/devices/system/node ]]; then
@@ -308,14 +269,13 @@ check_privileges() {
                 node_id=$(basename "$node")
                 mem_total=$(grep "MemTotal" "${node}/meminfo" 2>/dev/null | awk '{print $4}')
                 mem_free=$(grep "MemFree" "${node}/meminfo" 2>/dev/null | awk '{print $4}')
-                cpus=$(cat "${node}/cpulist" 2>/dev/null || echo "?")
-                mem_total_gb=$(echo "scale=1; ${mem_total:-0} / 1024 / 1024" | bc 2>/dev/null || echo "?")
+                cpus=$(cat "${node}/cpulist" 2>/dev/null || echo "")
+                mem_total_gb=$(echo "scale=1; ${mem_total:-0} / 1024 / 1024" | bc 2>/dev/null || echo "")
                 echo "  ${node_id}: ${mem_total_gb} GB total, CPUs: $cpus"
             fi
         done
     fi
     
-    # VM Memory allocations
     echo ""
     echo "VM MEMORY ALLOCATIONS:"
     if cmd_exists virsh; then
@@ -335,7 +295,6 @@ check_privileges() {
     echo "│                          GPU ALLOCATION                                    │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
-    # Find all GPUs and their assignment
     gpu_count=0
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
@@ -343,13 +302,12 @@ check_privileges() {
             if [[ "$class" == 0x030000 || "$class" == 0x030200 || "$class" == 0x0300* || "$class" == 0x0302* ]]; then
                 gpu_count=$((gpu_count + 1))
                 pci_addr=$(basename "$dev")
-                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                 vendor=$(cat "${dev}/vendor" 2>/dev/null | sed 's/0x//')
                 device_id=$(cat "${dev}/device" 2>/dev/null | sed 's/0x//')
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //')
-                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
                 
-                # Determine allocation
                 allocation="HOST"
                 if [[ "$driver" == "vfio-pci" ]]; then
                     allocation="PASSTHROUGH (vfio-pci)"
@@ -376,7 +334,6 @@ check_privileges() {
     [[ $gpu_count -eq 0 ]] && echo "│ [No GPUs detected]"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
-    # Check which VM uses passthrough GPU
     echo ""
     echo "GPU PASSTHROUGH TO VMs:"
     if cmd_exists virsh; then
@@ -386,7 +343,6 @@ check_privileges() {
                 if [[ -n "$hostdevs" ]]; then
                     echo "  $vm_name:"
                     virsh dumpxml "$vm_name" 2>/dev/null | grep -B2 -A10 "<hostdev.*pci" | grep -E "domain=|bus=|slot=|function=" | while read -r line; do
-                        # Extract PCI address
                         domain=$(echo "$line" | grep -oP "domain='0x\K[^']+")
                         bus=$(echo "$line" | grep -oP "bus='0x\K[^']+")
                         slot=$(echo "$line" | grep -oP "slot='0x\K[^']+")
@@ -420,7 +376,6 @@ check_privileges() {
     done
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
-    # VM storage
     echo ""
     echo "VM STORAGE ALLOCATIONS:"
     if cmd_exists virsh; then
@@ -429,10 +384,9 @@ check_privileges() {
                 echo "  ├─ VM: $vm_name"
                 virsh domblklist "$vm_name" 2>/dev/null | grep -vE "^Target|^-" | while read -r target source; do
                     if [[ -n "$source" && "$source" != "-" ]]; then
-                        # Get disk size if possible
                         if [[ -f "$source" ]]; then
                             size=$(du -h "$source" 2>/dev/null | awk '{print $1}')
-                            echo "  │   $target: $source ($size)"
+                            echo "  │   $target: $source"
                         else
                             echo "  │   $target: $source"
                         fi
@@ -443,13 +397,11 @@ check_privileges() {
         done
     fi
     
-    # Passthrough storage devices
     echo ""
-    echo "STORAGE PASSTHROUGH (NVMe/SATA to VMs):"
+    echo "STORAGE PASSTHROUGH:"
     if [[ -d /sys/bus/pci/drivers/vfio-pci ]]; then
         for pci_addr in $(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -E "^[0-9a-f]{4}:"); do
             class=$(cat "/sys/bus/pci/devices/${pci_addr}/class" 2>/dev/null || echo "")
-            # NVMe class = 0x010802, SATA/AHCI = 0x010601
             if [[ "$class" == "0x010802" || "$class" == "0x010601" ]]; then
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //')
                 echo "  $pci_addr: $desc [PASSTHROUGH via vfio-pci]"
@@ -465,38 +417,35 @@ check_privileges() {
     
     echo "│ HOST INTERFACES:"
     ip -br link show 2>/dev/null | while read -r iface state mac; do
-        driver=$(basename "$(readlink "/sys/class/net/${iface}/device/driver" 2>/dev/null)" 2>/dev/null || echo "virtual")
-        echo "│   $iface: $state (driver: $driver)"
+        driver=$(basename "$(readlink "/sys/class/net/${iface}/device/driver" 2>/dev/null)" 2>/dev/null || echo "Virtual")
+        echo "│   $iface: $state"
     done
     
     echo "│"
-    echo "│ BRIDGES (for VM networking):"
+    echo "│ BRIDGES:"
     if cmd_exists brctl; then
         brctl show 2>/dev/null | grep -v "^bridge" | while read -r line; do
             echo "│   $line"
         done
     fi
     
-    # libvirt networks
     echo "│"
     echo "│ LIBVIRT NETWORKS:"
     if cmd_exists virsh; then
         virsh net-list --all 2>/dev/null | grep -vE "^Name|^-" | while read -r name state autostart persistent; do
             if [[ -n "$name" ]]; then
-                echo "│   $name: $state (autostart: $autostart)"
+                echo "│   $name: $state"
             fi
         done
     fi
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
-    # NIC Passthrough
     echo ""
     echo "NIC PASSTHROUGH:"
     if [[ -d /sys/bus/pci/drivers/vfio-pci ]]; then
         found_nic=0
         for pci_addr in $(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -E "^[0-9a-f]{4}:"); do
             class=$(cat "/sys/bus/pci/devices/${pci_addr}/class" 2>/dev/null || echo "")
-            # Network class = 0x020000
             if [[ "$class" == 0x0200* ]]; then
                 found_nic=1
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //')
@@ -506,7 +455,6 @@ check_privileges() {
         [[ $found_nic -eq 0 ]] && echo "  [No NICs passed through]"
     fi
     
-    # VM Network interfaces
     echo ""
     echo "VM NETWORK ATTACHMENTS:"
     if cmd_exists virsh; then
@@ -529,21 +477,19 @@ check_privileges() {
     echo "│                      USB CONTROLLER ALLOCATION                             │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
-    # Find USB controllers and their assignment
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             class=$(cat "${dev}/class" 2>/dev/null || echo "")
-            # USB controller class = 0x0c03xx
             if [[ "$class" == 0x0c03* ]]; then
                 pci_addr=$(basename "$dev")
-                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //' | cut -c1-50)
-                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
                 
                 allocation="HOST"
                 [[ "$driver" == "vfio-pci" ]] && allocation="PASSTHROUGH"
                 
-                echo "│ $pci_addr (Group $iommu_group): $desc"
+                echo "│ $pci_addr: $desc"
                 echo "│   Driver: $driver | ALLOCATION: $allocation"
             fi
         fi
@@ -556,28 +502,25 @@ check_privileges() {
     echo "│                        AUDIO ALLOCATION                                    │"
     echo "├─────────────────────────────────────────────────────────────────────────────┤"
     
-    # Audio devices
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             class=$(cat "${dev}/class" 2>/dev/null || echo "")
-            # Audio class = 0x0403xx (HD Audio), 0x0401xx
             if [[ "$class" == 0x0403* || "$class" == 0x0401* ]]; then
                 pci_addr=$(basename "$dev")
-                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //')
-                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
                 
                 allocation="HOST"
                 [[ "$driver" == "vfio-pci" ]] && allocation="PASSTHROUGH"
                 
-                echo "│ $pci_addr (Group $iommu_group):"
+                echo "│ $pci_addr:"
                 echo "│   $desc"
                 echo "│   Driver: $driver | ALLOCATION: $allocation"
             fi
         fi
     done
     
-    # Check PipeWire/PulseAudio
     echo "│"
     echo "│ HOST AUDIO SERVER:"
     if pgrep -x pipewire &>/dev/null; then
@@ -589,7 +532,6 @@ check_privileges() {
     fi
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
-    # VM Audio
     echo ""
     echo "VM AUDIO CONFIGURATION:"
     if cmd_exists virsh; then
@@ -606,7 +548,7 @@ check_privileges() {
     
     print_subsection "=== COMPLETE IOMMU GROUP DEVICE MAP ==="
     
-    echo "All PCI devices organized by IOMMU group (for passthrough planning):"
+    echo "All PCI devices organized by IOMMU group:"
     echo ""
     
     if [[ -d /sys/kernel/iommu_groups ]]; then
@@ -614,14 +556,13 @@ check_privileges() {
             group_id=$(basename "$g")
             device_count=$(ls "${g}/devices/" 2>/dev/null | wc -l)
             
-            # Determine group status
             group_status="HOST"
             all_vfio=1
             any_vfio=0
             for d in "${g}"/devices/*; do
                 if [[ -L "$d" ]]; then
                     pci_addr=$(basename "$d")
-                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                     if [[ "$driver" == "vfio-pci" ]]; then
                         any_vfio=1
                     else
@@ -636,12 +577,12 @@ check_privileges() {
                 group_status="MIXED (warning!)"
             fi
             
-            echo "├─ IOMMU Group $group_id [$group_status] ($device_count device(s))"
+            echo "├─ IOMMU Group $group_id [$group_status])"
             for d in "${g}"/devices/*; do
                 if [[ -L "$d" ]]; then
                     pci_addr=$(basename "$d")
                     desc=$(lspci -nns "${pci_addr}" 2>/dev/null || echo "Unknown")
-                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                     echo "│   $desc"
                     echo "│      └─ Driver: $driver"
                 fi
@@ -662,7 +603,6 @@ check_privileges() {
     echo "│  │                              HOST SYSTEM                                │  │"
     echo "│  ├─────────────────────────────────────────────────────────────────────────┤  │"
     
-    # Host CPUs
     if [[ -n "$isolated_cpus" && "$isolated_cpus" != "" ]]; then
         host_cpus=$(comm -23 <(seq 0 $(($(nproc)-1)) | sort -n) <(echo "$isolated_cpus" | tr ',' '\n' | while read range; do
             if [[ "$range" == *-* ]]; then
@@ -673,12 +613,11 @@ check_privileges() {
                 echo "$range"
             fi
         done | sort -n) 2>/dev/null | tr '\n' ',' | sed 's/,$//')
-        echo "│  │  CPUs: ${host_cpus:-0-$(($(nproc)-1))}"
+        echo "│  │  CPUs: ${host_cpus:-0-$-1))}"
     else
-        echo "│  │  CPUs: 0-$(($(nproc)-1)) (all cores)"
+        echo "│  │  CPUs: 0-$-1))"
     fi
     
-    # Host GPU
     host_gpu="none"
     for dev in /sys/bus/pci/devices/*; do
         class=$(cat "${dev}/class" 2>/dev/null || echo "")
@@ -695,14 +634,13 @@ check_privileges() {
     echo "│  └─────────────────────────────────────────────────────────────────────────┘  │"
     echo "│                                                                               │"
     
-    # VMs section
     if cmd_exists virsh; then
         vm_list=$(virsh list --all --name 2>/dev/null | grep -v "^$")
         if [[ -n "$vm_list" ]]; then
             echo "$vm_list" | while read -r vm_name; do
                 if [[ -n "$vm_name" ]]; then
                     state=$(virsh domstate "$vm_name" 2>/dev/null | head -1)
-                    vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "?")
+                    vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "")
                     mem=$(virsh dominfo "$vm_name" 2>/dev/null | grep "Max memory" | awk '{print $3/1024/1024 " GB"}')
                     
                     echo "  │  ├─────────────────────────────────────────────────────────────────────────┤  │"
@@ -710,9 +648,8 @@ check_privileges() {
                     echo "  │  ├─────────────────────────────────────────────────────────────────────────┤  │"
                     echo "  │  │  vCPUs: $vcpus | Memory: ${mem:-?}"
                     
-                    # Check for GPU passthrough
                     gpu_pt=$(virsh dumpxml "$vm_name" 2>/dev/null | grep -c "hostdev.*pci" || echo "0")
-                    [[ "$gpu_pt" -gt 0 ]] && echo "│  │  GPU Passthrough: Yes ($gpu_pt device(s))"
+                    [[ "$gpu_pt" -gt 0 ]] && echo "│  │  GPU Passthrough: Yes)"
                     
                     echo "  │  └─────────────────────────────────────────────────────────────────────────┘  │"
                 fi
@@ -723,16 +660,14 @@ check_privileges() {
     echo "│                                                                               │"
     echo "└───────────────────────────────────────────────────────────────────────────────┘"
 
-    #---------------------------------------------------------------------------
     print_section "CPU INFORMATION & TOPOLOGY"
-    #---------------------------------------------------------------------------
     
     print_subsection "CPU Model & Specifications"
     grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^ //'
     echo ""
-    echo "Physical CPUs (Sockets): $(grep "physical id" /proc/cpuinfo | sort -u | wc -l)"
+    echo "Physical CPUs: $(grep "physical id" /proc/cpuinfo | sort -u | wc -l)"
     echo "Total Cores: $(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | tr -d ' ')"
-    echo "Total Threads: $(nproc)"
+    echo "Total Threads: $"
     echo "Threads per Core: $(lscpu | grep "Thread(s) per core" | awk '{print $NF}')"
     
     print_subsection "CPU Flags & Capabilities"
@@ -755,10 +690,10 @@ check_privileges() {
     echo ""
     echo "Nested Virtualization:"
     if [[ -f /sys/module/kvm_intel/parameters/nested ]]; then
-        echo "  Intel nested: $(cat /sys/module/kvm_intel/parameters/nested)"
+        echo "  Intel nested: $"
     fi
     if [[ -f /sys/module/kvm_amd/parameters/nested ]]; then
-        echo "  AMD nested: $(cat /sys/module/kvm_amd/parameters/nested)"
+        echo "  AMD nested: $"
     fi
     
     print_subsection "CPU Topology (lscpu)"
@@ -800,10 +735,10 @@ check_privileges() {
     
     print_subsection "CPU Frequency & Governors"
     if [[ -d /sys/devices/system/cpu/cpu0/cpufreq ]]; then
-        echo "Current Governor: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || echo 'N/A')"
-        echo "Available Governors: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors 2>/dev/null || echo 'N/A')"
-        echo "Min Frequency: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq 2>/dev/null || echo 'N/A') kHz"
-        echo "Max Frequency: $(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2>/dev/null || echo 'N/A') kHz"
+        echo "Current Governor: $"
+        echo "Available Governors: $"
+        echo "Min Frequency: $ kHz"
+        echo "Max Frequency: $ kHz"
         echo ""
         echo "Per-CPU Frequencies:"
         for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
@@ -816,9 +751,7 @@ check_privileges() {
         echo "[cpufreq not available]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "MEMORY INFORMATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "Memory Summary"
     free -h
@@ -849,9 +782,7 @@ check_privileges() {
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "PCI DEVICES & TOPOLOGY"
-    #---------------------------------------------------------------------------
     
     print_subsection "PCI Device Tree"
     run_if_exists lspci -tv
@@ -860,21 +791,19 @@ check_privileges() {
     run_if_exists lspci -nnk
     
     print_subsection "PCIe Link Speed & Width"
-    echo "PCIe devices with link status (important for passthrough performance):"
+    echo "PCIe devices with link status:"
     echo ""
     echo "PCI Address      Speed      Width   Max Speed  Max Width  Device"
-    echo "---------------  ---------  ------  ---------  ---------  ------"
+    echo ""
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             pci_addr=$(basename "$dev")
             
-            # Read current and max link status
             cur_speed=$(cat "${dev}/current_link_speed" 2>/dev/null || echo "N/A")
             cur_width=$(cat "${dev}/current_link_width" 2>/dev/null || echo "N/A")
             max_speed=$(cat "${dev}/max_link_speed" 2>/dev/null || echo "N/A")
             max_width=$(cat "${dev}/max_link_width" 2>/dev/null || echo "N/A")
             
-            # Only show devices with PCIe link info
             if [[ "$cur_speed" != "N/A" || "$max_speed" != "N/A" ]]; then
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //' | cut -c1-35)
                 printf "%-16s %-10s %-7s %-10s %-10s %s\n" "$pci_addr" "$cur_speed" "x${cur_width}" "$max_speed" "x${max_width}" "$desc"
@@ -887,33 +816,31 @@ check_privileges() {
     run_if_exists lspci -tv
     
     print_subsection "GPU Information"
-    echo "--- Video Controllers ---"
+    echo ""
     lspci -nnk | grep -A3 -E "VGA|3D|Display" || echo "[No GPU found]"
     
     if cmd_exists nvidia-smi; then
         echo ""
-        echo "--- NVIDIA GPU Details ---"
+        echo ""
         nvidia-smi --query-gpu=name,driver_version,pci.bus_id,memory.total,memory.free,utilization.gpu,temperature.gpu --format=csv
     fi
     
     if [[ -d /sys/class/drm ]]; then
         echo ""
-        echo "--- DRM Devices ---"
+        echo ""
         for card in /sys/class/drm/card[0-9]*; do
             if [[ -d "$card" && ! -L "${card}/device/driver" ]]; then
                 continue
             fi
             card_name=$(basename "$card")
-            driver=$(basename "$(readlink "${card}/device/driver" 2>/dev/null)" 2>/dev/null || echo "unknown")
-            vendor=$(cat "${card}/device/vendor" 2>/dev/null || echo "unknown")
-            device=$(cat "${card}/device/device" 2>/dev/null || echo "unknown")
+            driver=$(basename "$(readlink "${card}/device/driver" 2>/dev/null)" 2>/dev/null || echo "Unknown")
+            vendor=$(cat "${card}/device/vendor" 2>/dev/null || echo "Unknown")
+            device=$(cat "${card}/device/device" 2>/dev/null || echo "Unknown")
             echo "  ${card_name}: driver=${driver}, vendor=${vendor}, device=${device}"
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "CPU ISOLATION & PINNING"
-    #---------------------------------------------------------------------------
     
     print_subsection "Kernel Isolation Parameters (from cmdline)"
     CMDLINE=$(cat /proc/cmdline)
@@ -923,7 +850,6 @@ check_privileges() {
     echo ""
     
     echo "Parsed Isolation Parameters:"
-    # isolcpus
     if echo "$CMDLINE" | grep -qoE "isolcpus=[^ ]+"; then
         isolcpus_val=$(echo "$CMDLINE" | grep -oE "isolcpus=[^ ]+" | cut -d= -f2)
         echo "  isolcpus: ${isolcpus_val}"
@@ -931,7 +857,6 @@ check_privileges() {
         echo "  isolcpus: [not set]"
     fi
     
-    # nohz_full
     if echo "$CMDLINE" | grep -qoE "nohz_full=[^ ]+"; then
         nohz_val=$(echo "$CMDLINE" | grep -oE "nohz_full=[^ ]+" | cut -d= -f2)
         echo "  nohz_full: ${nohz_val}"
@@ -939,7 +864,6 @@ check_privileges() {
         echo "  nohz_full: [not set]"
     fi
     
-    # rcu_nocbs
     if echo "$CMDLINE" | grep -qoE "rcu_nocbs=[^ ]+"; then
         rcu_val=$(echo "$CMDLINE" | grep -oE "rcu_nocbs=[^ ]+" | cut -d= -f2)
         echo "  rcu_nocbs: ${rcu_val}"
@@ -947,14 +871,12 @@ check_privileges() {
         echo "  rcu_nocbs: [not set]"
     fi
     
-    # rcu_nocb_poll
     if echo "$CMDLINE" | grep -q "rcu_nocb_poll"; then
         echo "  rcu_nocb_poll: enabled"
     else
         echo "  rcu_nocb_poll: [not set]"
     fi
     
-    # irqaffinity
     if echo "$CMDLINE" | grep -qoE "irqaffinity=[^ ]+"; then
         irqaff_val=$(echo "$CMDLINE" | grep -oE "irqaffinity=[^ ]+" | cut -d= -f2)
         echo "  irqaffinity: ${irqaff_val}"
@@ -962,7 +884,6 @@ check_privileges() {
         echo "  irqaffinity: [not set]"
     fi
     
-    # kthread_cpus
     if echo "$CMDLINE" | grep -qoE "kthread_cpus=[^ ]+"; then
         kthread_val=$(echo "$CMDLINE" | grep -oE "kthread_cpus=[^ ]+" | cut -d= -f2)
         echo "  kthread_cpus: ${kthread_val}"
@@ -971,16 +892,16 @@ check_privileges() {
     fi
     
     print_subsection "CPU Isolation Status (sysfs)"
-    echo "Isolated CPUs: $(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo '[none]')"
-    echo "Online CPUs: $(cat /sys/devices/system/cpu/online 2>/dev/null || echo 'N/A')"
-    echo "Offline CPUs: $(cat /sys/devices/system/cpu/offline 2>/dev/null || echo '[none]')"
-    echo "Present CPUs: $(cat /sys/devices/system/cpu/present 2>/dev/null || echo 'N/A')"
-    echo "Possible CPUs: $(cat /sys/devices/system/cpu/possible 2>/dev/null || echo 'N/A')"
-    echo "Kernel Max CPUs: $(cat /sys/devices/system/cpu/kernel_max 2>/dev/null || echo 'N/A')"
+    echo "Isolated CPUs: $"
+    echo "Online CPUs: $"
+    echo "Offline CPUs: $"
+    echo "Present CPUs: $"
+    echo "Possible CPUs: $"
+    echo "Kernel Max CPUs: $"
     
     print_subsection "Per-CPU Status"
     echo "CPU  Online  Governor        Cur_Freq    Isolated  NUMA"
-    echo "---  ------  --------        --------    --------  ----"
+    echo ""
     isolated_cpus=$(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo "")
     for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
         if [[ -d "$cpu_path" ]]; then
@@ -995,10 +916,8 @@ check_privileges() {
             cur_freq_mhz="$((cur_freq/1000))MHz"
             [[ "$cur_freq" == "0" ]] && cur_freq_mhz="N/A"
             
-            # Check if this CPU is in isolated list
             is_isolated="no"
             if [[ -n "$isolated_cpus" ]]; then
-                # Expand ranges and check
                 for range in $(echo "$isolated_cpus" | tr ',' ' '); do
                     if [[ "$range" == *-* ]]; then
                         start=$(echo "$range" | cut -d- -f1)
@@ -1014,8 +933,7 @@ check_privileges() {
                 done
             fi
             
-            # Get NUMA node
-            numa_node=$(cat "${cpu_path}/topology/physical_package_id" 2>/dev/null || echo "?")
+            numa_node=$(cat "${cpu_path}/topology/physical_package_id" 2>/dev/null || echo "")
             
             printf "%-4s %-7s %-15s %-11s %-9s %s\n" "$cpu_num" "$online" "$governor" "$cur_freq_mhz" "$is_isolated" "$numa_node"
         fi
@@ -1025,16 +943,16 @@ check_privileges() {
     if [[ -d /sys/devices/system/cpu/cpu0/topology ]]; then
         echo "Core ID / Physical Package / Die / Cluster mapping:"
         echo "CPU   Core_ID  Pkg_ID  Die_ID  Cluster  Thread_Siblings  Core_Siblings"
-        echo "----  -------  ------  ------  -------  ---------------  -------------"
+        echo ""
         for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
             if [[ -d "${cpu_path}/topology" ]]; then
                 cpu_num=$(basename "$cpu_path" | sed 's/cpu//')
-                core_id=$(cat "${cpu_path}/topology/core_id" 2>/dev/null || echo "?")
-                pkg_id=$(cat "${cpu_path}/topology/physical_package_id" 2>/dev/null || echo "?")
-                die_id=$(cat "${cpu_path}/topology/die_id" 2>/dev/null || echo "?")
-                cluster_id=$(cat "${cpu_path}/topology/cluster_id" 2>/dev/null || echo "?")
-                thread_sibs=$(cat "${cpu_path}/topology/thread_siblings_list" 2>/dev/null || echo "?")
-                core_sibs=$(cat "${cpu_path}/topology/core_siblings_list" 2>/dev/null || echo "?")
+                core_id=$(cat "${cpu_path}/topology/core_id" 2>/dev/null || echo "")
+                pkg_id=$(cat "${cpu_path}/topology/physical_package_id" 2>/dev/null || echo "")
+                die_id=$(cat "${cpu_path}/topology/die_id" 2>/dev/null || echo "")
+                cluster_id=$(cat "${cpu_path}/topology/cluster_id" 2>/dev/null || echo "")
+                thread_sibs=$(cat "${cpu_path}/topology/thread_siblings_list" 2>/dev/null || echo "")
+                core_sibs=$(cat "${cpu_path}/topology/core_siblings_list" 2>/dev/null || echo "")
                 printf "%-5s %-8s %-7s %-7s %-8s %-16s %s\n" "$cpu_num" "$core_id" "$pkg_id" "$die_id" "$cluster_id" "$thread_sibs" "$core_sibs"
             fi
         done
@@ -1042,7 +960,7 @@ check_privileges() {
     
     print_subsection "L3 Cache Domains (CCD Detection)"
     if [[ -d /sys/devices/system/cpu/cpu0/cache ]]; then
-        echo "L3 Cache to CPU mapping (each L3 = one CCD on AMD):"
+        echo "L3 Cache to CPU mapping:"
         declare -A l3_map
         for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
             cpu_num=$(basename "$cpu_path" | sed 's/cpu//')
@@ -1050,9 +968,9 @@ check_privileges() {
                 if [[ -d "$cache" ]]; then
                     level=$(cat "${cache}/level" 2>/dev/null)
                     if [[ "$level" == "3" ]]; then
-                        l3_id=$(cat "${cache}/id" 2>/dev/null || echo "?")
-                        l3_size=$(cat "${cache}/size" 2>/dev/null || echo "?")
-                        shared_cpus=$(cat "${cache}/shared_cpu_list" 2>/dev/null || echo "?")
+                        l3_id=$(cat "${cache}/id" 2>/dev/null || echo "")
+                        l3_size=$(cat "${cache}/size" 2>/dev/null || echo "")
+                        shared_cpus=$(cat "${cache}/shared_cpu_list" 2>/dev/null || echo "")
                         l3_map["$l3_id"]="${l3_size}|${shared_cpus}"
                     fi
                 fi
@@ -1064,39 +982,36 @@ check_privileges() {
         done
     fi
     
-    #---------------------------------------------------------------------------
     print_section "IRQ AFFINITY & INTERRUPTS"
-    #---------------------------------------------------------------------------
     
     print_subsection "IRQ Balance Service"
     if cmd_exists systemctl; then
-        irqbalance_status=$(systemctl is-active irqbalance 2>/dev/null || echo "unknown")
-        irqbalance_enabled=$(systemctl is-enabled irqbalance 2>/dev/null || echo "unknown")
-        echo "irqbalance service: ${irqbalance_status} (enabled: ${irqbalance_enabled})"
+        irqbalance_status=$(systemctl is-active irqbalance 2>/dev/null || echo "Unknown")
+        irqbalance_enabled=$(systemctl is-enabled irqbalance 2>/dev/null || echo "Unknown")
+        echo "Irqbalance service: ${irqbalance_status}"
     fi
     
     if [[ -f /etc/default/irqbalance ]]; then
         echo ""
-        echo "irqbalance config (/etc/default/irqbalance):"
+        echo "Irqbalance config:"
         grep -v "^#" /etc/default/irqbalance | grep -v "^$" || echo "[empty/default]"
     fi
     
     if [[ -f /etc/sysconfig/irqbalance ]]; then
         echo ""
-        echo "irqbalance config (/etc/sysconfig/irqbalance):"
+        echo "Irqbalance config:"
         grep -v "^#" /etc/sysconfig/irqbalance | grep -v "^$" || echo "[empty/default]"
     fi
     
     print_subsection "IRQ to CPU Affinity (Non-default)"
     echo "IRQs with specific CPU affinity:"
     echo "IRQ      Affinity_Mask    CPUs              Device"
-    echo "-------  ---------------  ----------------  ------"
+    echo ""
     for irq_path in /proc/irq/[0-9]*; do
         if [[ -d "$irq_path" ]]; then
             irq_num=$(basename "$irq_path")
-            affinity=$(cat "${irq_path}/smp_affinity" 2>/dev/null | sed 's/^0*//' || echo "?")
-            affinity_list=$(cat "${irq_path}/smp_affinity_list" 2>/dev/null || echo "?")
-            # Get device names from subdirectories
+            affinity=$(cat "${irq_path}/smp_affinity" 2>/dev/null | sed 's/^0*//' || echo "")
+            affinity_list=$(cat "${irq_path}/smp_affinity_list" 2>/dev/null || echo "")
             devices=""
             for dev in "${irq_path}"/*; do
                 if [[ -d "$dev" && "$(basename "$dev")" != "." ]]; then
@@ -1107,7 +1022,6 @@ check_privileges() {
             devices=${devices%,}
             [[ -z "$devices" ]] && devices="[kernel]"
             
-            # Only show if not default (all CPUs)
             if [[ "$affinity_list" != *"-"* ]] || [[ $(echo "$affinity_list" | tr ',' '\n' | wc -l) -gt 1 ]]; then
                 printf "%-8s %-16s %-17s %s\n" "$irq_num" "$affinity" "$affinity_list" "$devices"
             fi
@@ -1117,7 +1031,7 @@ check_privileges() {
     
     print_subsection "Interrupt Counts by CPU"
     head -5 /proc/interrupts
-    echo "..."
+    echo ""
     echo "[Full interrupt table truncated - see /proc/interrupts for complete data]"
     
     print_subsection "MSI/MSI-X Status for PCI Devices"
@@ -1125,8 +1039,8 @@ check_privileges() {
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             pci_addr=$(basename "$dev")
-            msi=$(cat "${dev}/msi_bus" 2>/dev/null || echo "?")
-            irq=$(cat "${dev}/irq" 2>/dev/null || echo "?")
+            msi=$(cat "${dev}/msi_bus" 2>/dev/null || echo "")
+            irq=$(cat "${dev}/irq" 2>/dev/null || echo "")
             if [[ -d "${dev}/msi_irqs" ]]; then
                 msi_irqs=$(ls "${dev}/msi_irqs" 2>/dev/null | tr '\n' ',' | sed 's/,$//')
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //' | cut -c1-50)
@@ -1135,9 +1049,7 @@ check_privileges() {
         fi
     done | head -30
     
-    #---------------------------------------------------------------------------
     print_section "IOMMU CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "IOMMU Kernel Parameters"
     echo "IOMMU-related cmdline parameters:"
@@ -1148,13 +1060,12 @@ check_privileges() {
         fi
     done
     
-    # Check for specific flags
     echo ""
     echo "IOMMU Flags Detected:"
     echo "$CMDLINE" | grep -qoE "intel_iommu=on" && echo "  Intel IOMMU: ENABLED" || true
     echo "$CMDLINE" | grep -qoE "amd_iommu=on" && echo "  AMD IOMMU: ENABLED" || true
     echo "$CMDLINE" | grep -qoE "iommu=pt" && echo "  IOMMU Passthrough Mode: ENABLED" || true
-    echo "$CMDLINE" | grep -qoE "pcie_acs_override" && echo "  PCIe ACS Override: ENABLED (WARNING: security implications)" || true
+    echo "$CMDLINE" | grep -qoE "pcie_acs_override" && echo "  PCIe ACS Override: ENABLED" || true
     
     print_subsection "IOMMU Status"
     if [[ -d /sys/kernel/iommu_groups ]]; then
@@ -1162,7 +1073,7 @@ check_privileges() {
         num_groups=$(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d | wc -l)
         echo "Total IOMMU Groups: ${num_groups}"
     else
-        echo "IOMMU: NOT ENABLED (enable intel_iommu=on or amd_iommu=on in kernel cmdline)"
+        echo "IOMMU: NOT ENABLED"
     fi
     
     print_subsection "Interrupt Remapping"
@@ -1170,7 +1081,7 @@ check_privileges() {
         echo "Interrupt Remapping: ENABLED"
         dmesg 2>/dev/null | grep -i "interrupt remapping" | tail -5
     else
-        echo "Interrupt Remapping: Status unknown (check dmesg with root)"
+        echo "Interrupt Remapping: Status unknown"
     fi
     
     print_subsection "IOMMU Kernel Messages"
@@ -1184,7 +1095,7 @@ check_privileges() {
     print_subsection "DMA Configuration"
     echo "IOMMU DMA Mode:"
     if echo "$CMDLINE" | grep -q "iommu=pt"; then
-        echo "  Passthrough mode (iommu=pt): ENABLED - devices bypass IOMMU for DMA"
+        echo "  Passthrough mode: ENABLED - devices bypass IOMMU for DMA"
     else
         echo "  Passthrough mode: DISABLED - all DMA goes through IOMMU translation"
     fi
@@ -1194,10 +1105,9 @@ check_privileges() {
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             pci_addr=$(basename "$dev")
-            iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "none")
+            iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "None")
             dma_alias=$(cat "${dev}/dma_alias_devid" 2>/dev/null || echo "")
             
-            # Only show interesting devices (GPUs, NICs, NVMe, USB controllers)
             class=$(cat "${dev}/class" 2>/dev/null || echo "")
             case "$class" in
                 0x030*|0x020*|0x010802|0x0c03*)
@@ -1218,9 +1128,8 @@ check_privileges() {
                 if [[ -L "$d" ]]; then
                     pci_addr=$(basename "$d")
                     desc=$(lspci -nns "${pci_addr}" 2>/dev/null || echo "Unknown device")
-                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                    driver=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                     
-                    # Check for reset support
                     reset_methods=""
                     [[ -f "/sys/bus/pci/devices/${pci_addr}/reset" ]] && reset_methods="${reset_methods}sysfs,"
                     [[ -f "/sys/bus/pci/devices/${pci_addr}/reset_method" ]] && reset_methods="${reset_methods}$(cat /sys/bus/pci/devices/${pci_addr}/reset_method 2>/dev/null),"
@@ -1237,9 +1146,7 @@ check_privileges() {
         echo "[IOMMU not enabled - no groups available]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "VFIO & PASSTHROUGH CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "VFIO Kernel Parameters"
     echo "VFIO-related cmdline parameters:"
@@ -1250,7 +1157,6 @@ check_privileges() {
         fi
     done
     
-    # Check for vfio-pci.ids
     if echo "$CMDLINE" | grep -qoE "vfio-pci.ids=[^ ]+"; then
         ids=$(echo "$CMDLINE" | grep -oE "vfio-pci.ids=[^ ]+" | cut -d= -f2)
         echo ""
@@ -1263,17 +1169,16 @@ check_privileges() {
     
     print_subsection "VFIO Modules Status"
     echo "VFIO Module              Loaded    Parameters"
-    echo "----------------------   ------    ----------"
+    echo ""
     for mod in vfio vfio_pci vfio_iommu_type1 vfio_virqfd vfio_mdev; do
         if lsmod | grep -q "^${mod}[[:space:]]"; then
             loaded="YES"
-            # Get module parameters
             params=""
             if [[ -d "/sys/module/${mod}/parameters" ]]; then
                 for p in /sys/module/${mod}/parameters/*; do
                     if [[ -f "$p" ]]; then
                         pname=$(basename "$p")
-                        pval=$(cat "$p" 2>/dev/null || echo "?")
+                        pval=$(cat "$p" 2>/dev/null || echo "")
                         params="${params}${pname}=${pval}, "
                     fi
                 done
@@ -1293,12 +1198,12 @@ check_privileges() {
         vfio_devices=$(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -E "^[0-9a-f]{4}:" || true)
         if [[ -n "$vfio_devices" ]]; then
             echo "PCI Address      Vendor:Device    Description"
-            echo "---------------  ---------------  -----------"
+            echo ""
             for pci_addr in $vfio_devices; do
                 vendor=$(cat "/sys/bus/pci/devices/${pci_addr}/vendor" 2>/dev/null | sed 's/0x//')
                 device=$(cat "/sys/bus/pci/devices/${pci_addr}/device" 2>/dev/null | sed 's/0x//')
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //')
-                iommu_group=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+                iommu_group=$(basename "$(readlink "/sys/bus/pci/devices/${pci_addr}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
                 printf "%-16s %s:%s        %s (IOMMU Group %s)\n" "$pci_addr" "$vendor" "$device" "$desc" "$iommu_group"
             done
         else
@@ -1309,25 +1214,22 @@ check_privileges() {
     fi
     
     print_subsection "PCI Device Reset Capabilities"
-    echo "Devices with reset support (important for passthrough):"
+    echo "Devices with reset support:"
     echo ""
     echo "PCI Address      Reset Methods                    Device"
-    echo "---------------  -------------------------------  ------"
+    echo ""
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             pci_addr=$(basename "$dev")
             reset_methods=""
             
-            # Check various reset capabilities
             [[ -f "${dev}/reset" ]] && reset_methods="${reset_methods}sysfs "
             if [[ -f "${dev}/reset_method" ]]; then
                 methods=$(cat "${dev}/reset_method" 2>/dev/null)
                 reset_methods="${reset_methods}[${methods}] "
             fi
             
-            # Check for FLR support in config space (requires root)
             if [[ $EUID -eq 0 ]] && cmd_exists setpci; then
-                # Check PCIe capability for FLR
                 pcie_cap=$(setpci -s "$pci_addr" CAP_EXP+8.w 2>/dev/null || echo "")
                 if [[ -n "$pcie_cap" ]]; then
                     flr_bit=$(( 16#${pcie_cap} & 0x8000 ))
@@ -1335,7 +1237,6 @@ check_privileges() {
                 fi
             fi
             
-            # Only show devices with reset capabilities
             if [[ -n "$reset_methods" ]]; then
                 desc=$(lspci -s "$pci_addr" 2>/dev/null | cut -d: -f3- | sed 's/^ //' | cut -c1-40)
                 printf "%-16s %-32s %s\n" "$pci_addr" "$reset_methods" "$desc"
@@ -1344,15 +1245,14 @@ check_privileges() {
     done
     
     print_subsection "ACS (Access Control Services) Status"
-    echo "ACS is important for proper IOMMU group isolation."
+    echo "ACS is important for proper IOMMU group isolation"
     echo ""
     if cmd_exists setpci && [[ $EUID -eq 0 ]]; then
         echo "PCI Address      ACS Cap    ACS Ctrl   Device"
-        echo "---------------  ---------  ---------  ------"
+        echo ""
         for dev in /sys/bus/pci/devices/*; do
             if [[ -d "$dev" ]]; then
                 pci_addr=$(basename "$dev")
-                # Try to find ACS capability
                 acs_cap=$(setpci -s "$pci_addr" ECAP_ACS+4.w 2>/dev/null || echo "")
                 acs_ctrl=$(setpci -s "$pci_addr" ECAP_ACS+6.w 2>/dev/null || echo "")
                 if [[ -n "$acs_cap" && "$acs_cap" != "0000" ]]; then
@@ -1362,15 +1262,14 @@ check_privileges() {
             fi
         done
     else
-        echo "[ACS detection requires root and setpci (pciutils)]"
+        echo "[ACS detection requires root and setpci]"
     fi
     
-    # Check for ACS override in use
     if echo "$CMDLINE" | grep -q "pcie_acs_override"; then
         echo ""
-        echo "⚠  WARNING: pcie_acs_override is enabled!"
-        echo "  This bypasses hardware ACS and may have security implications."
-        echo "  Only use if you understand the risks and need to separate devices."
+        echo "⚠  WARNING: pcie_acs_override is enabled"
+        echo "  This bypasses hardware ACS and may have security implications"
+        echo "  Only use if you understand the risks and need to separate devices"
     fi
     
     print_subsection "GPU Passthrough Readiness"
@@ -1386,22 +1285,21 @@ check_privileges() {
         if [[ -d "$dev" ]]; then
             pci_addr=$(basename "$dev")
             class=$(cat "${dev}/class" 2>/dev/null || echo "")
-            # VGA class = 0x030000, 3D class = 0x030200
             if [[ "$class" == "0x030000" || "$class" == "0x030200" || "$class" == 0x0300* || "$class" == 0x0302* ]]; then
                 iommu_group_path=$(readlink "${dev}/iommu_group" 2>/dev/null)
                 if [[ -n "$iommu_group_path" ]]; then
                     iommu_group=$(basename "$iommu_group_path")
                     group_members=$(ls "/sys/kernel/iommu_groups/${iommu_group}/devices/" 2>/dev/null | wc -l)
                     desc=$(lspci -s "$pci_addr" 2>/dev/null)
-                    driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
+                    driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
                     
                     echo "  ${desc}"
-                    echo "    IOMMU Group: ${iommu_group} (${group_members} device(s) in group)"
+                    echo "    IOMMU Group: ${iommu_group} in group)"
                     echo "    Current Driver: ${driver}"
                     if [[ $group_members -eq 1 ]]; then
-                        echo "    Passthrough: ✔ Clean isolation (single device in group)"
+                        echo "    Passthrough: ✔ Clean isolation"
                     elif [[ $group_members -le 3 ]]; then
-                        echo "    Passthrough: ~ Acceptable (check if other devices are related)"
+                        echo "    Passthrough: ~ Acceptable"
                     else
                         echo "    Passthrough: ⚠  May need ACS override or all devices passed together"
                     fi
@@ -1418,9 +1316,7 @@ check_privileges() {
         journalctl -k 2>/dev/null | grep -iE "vfio" | tail -15 || echo "[Requires root for kernel log access]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "STORAGE DEVICES"
-    #---------------------------------------------------------------------------
     
     print_subsection "Block Devices"
     lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,MODEL,SERIAL,ROTA,DISC-MAX,TRAN
@@ -1476,9 +1372,7 @@ check_privileges() {
     print_subsection "Filesystem Details (/etc/fstab)"
     grep -v "^#" /etc/fstab | grep -v "^$" || echo "[Empty or unreadable]"
 
-    #---------------------------------------------------------------------------
     print_section "ZFS CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "ZFS Module Status"
     if lsmod | grep -q "^zfs"; then
@@ -1502,7 +1396,7 @@ check_privileges() {
     if cmd_exists zfs; then
         zfs list 2>/dev/null | head -30 || echo "[No datasets or zfs not available]"
         echo ""
-        echo "Dataset properties (key ones):"
+        echo "Dataset properties:"
         zfs list -o name,used,avail,refer,mountpoint,compression,recordsize 2>/dev/null | head -20 || true
     fi
     
@@ -1517,18 +1411,16 @@ check_privileges() {
         echo "[ZFS ARC stats not available]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "COCKPIT WEB MANAGEMENT"
-    #---------------------------------------------------------------------------
     
     print_subsection "Cockpit Service Status"
     if cmd_exists systemctl; then
-        echo "cockpit.socket: $(systemctl is-active cockpit.socket 2>/dev/null || echo 'not installed')"
-        echo "cockpit.service: $(systemctl is-active cockpit.service 2>/dev/null || echo 'not active')"
+        echo "Cockpit.socket: $"
+        echo "Cockpit.service: $"
         
         if systemctl is-active cockpit.socket &>/dev/null; then
             echo ""
-            echo "Cockpit is accessible at: https://$(hostname):9090"
+            echo "Cockpit is accessible at: https://$:9090"
         fi
     fi
     
@@ -1543,14 +1435,12 @@ check_privileges() {
     
     print_subsection "Cockpit Machines (VM Management)"
     if [[ -d /usr/share/cockpit/machines ]]; then
-        echo "cockpit-machines: installed"
+        echo "Cockpit-machines: installed"
     else
-        echo "cockpit-machines: [not installed - needed for VM management]"
+        echo "Cockpit-machines: [not installed - needed for VM management]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "NETWORK INTERFACES"
-    #---------------------------------------------------------------------------
     
     print_subsection "Network Devices"
     ip -br link show
@@ -1585,9 +1475,7 @@ check_privileges() {
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "USB DEVICES"
-    #---------------------------------------------------------------------------
     
     print_subsection "USB Device Tree"
     run_if_exists lsusb -t
@@ -1598,9 +1486,7 @@ check_privileges() {
     print_subsection "USB Controllers"
     lspci -nnk | grep -A2 -i usb || echo "[None found]"
 
-    #---------------------------------------------------------------------------
     print_section "INPUT DEVICES"
-    #---------------------------------------------------------------------------
     
     print_subsection "Input Devices"
     if [[ -f /proc/bus/input/devices ]]; then
@@ -1609,13 +1495,11 @@ check_privileges() {
         echo "[Input device info not available]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "KERNEL & MODULES"
-    #---------------------------------------------------------------------------
     
     print_subsection "Kernel Information"
-    echo "Kernel: $(uname -r)"
-    echo "Version: $(uname -v)"
+    echo "Kernel: $"
+    echo "Version: $"
     echo "Compiled: $(uname -v | grep -oE "#[0-9]+" || echo 'N/A')"
     
     print_subsection "Kernel Command Line"
@@ -1627,21 +1511,18 @@ check_privileges() {
     print_subsection "All Loaded Modules"
     lsmod | sort
 
-    #---------------------------------------------------------------------------
     print_section "VIRTUALIZATION STATUS"
-    #---------------------------------------------------------------------------
     
     print_subsection "Virtualization Type Detection"
     if cmd_exists systemd-detect-virt; then
-        virt_type=$(systemd-detect-virt 2>/dev/null || echo "none")
+        virt_type=$(systemd-detect-virt 2>/dev/null || echo "None")
         echo "Detected virtualization: ${virt_type}"
     fi
     
     if [[ -f /sys/hypervisor/type ]]; then
-        echo "Hypervisor type: $(cat /sys/hypervisor/type)"
+        echo "Hypervisor type: $"
     fi
     
-    # Check if we're a VM or bare metal
     if [[ -d /sys/hypervisor ]] || grep -qE "hypervisor|VMware|VirtualBox|KVM|Xen|QEMU" /proc/cpuinfo 2>/dev/null; then
         echo "System appears to be: VIRTUAL MACHINE"
     else
@@ -1652,33 +1533,30 @@ check_privileges() {
     echo "CPU Virtualization Extensions:"
     if grep -q "vmx" /proc/cpuinfo; then
         echo "  Intel VT-x: SUPPORTED"
-        # Check if enabled in BIOS
         if [[ -c /dev/kvm ]]; then
-            echo "  VT-x Status: ENABLED (KVM available)"
+            echo "  VT-x Status: ENABLED"
         else
             echo "  VT-x Status: May be disabled in BIOS"
         fi
     fi
     if grep -q "svm" /proc/cpuinfo; then
-        echo "  AMD-V (SVM): SUPPORTED"
+        echo "  AMD-V: SUPPORTED"
         if [[ -c /dev/kvm ]]; then
-            echo "  AMD-V Status: ENABLED (KVM available)"
+            echo "  AMD-V Status: ENABLED"
         else
             echo "  AMD-V Status: May be disabled in BIOS"
         fi
     fi
     
-    # Extended Page Tables
     if grep -q "ept" /proc/cpuinfo; then
-        echo "  Intel EPT (Extended Page Tables): SUPPORTED"
+        echo "  Intel EPT: SUPPORTED"
     fi
     if grep -q "npt" /proc/cpuinfo; then
-        echo "  AMD NPT (Nested Page Tables): SUPPORTED"
+        echo "  AMD NPT: SUPPORTED"
     fi
     
-    # AVIC/APICv
     if grep -q "avic" /proc/cpuinfo; then
-        echo "  AMD AVIC (Virtual Interrupt Controller): SUPPORTED"
+        echo "  AMD AVIC: SUPPORTED"
     fi
     
     print_subsection "KVM Configuration"
@@ -1687,39 +1565,36 @@ check_privileges() {
         ls -la /dev/kvm
         echo ""
         
-        # KVM module parameters
         echo "KVM Module Parameters:"
         if [[ -d /sys/module/kvm/parameters ]]; then
             for p in /sys/module/kvm/parameters/*; do
                 if [[ -f "$p" ]]; then
                     pname=$(basename "$p")
-                    pval=$(cat "$p" 2>/dev/null || echo "?")
+                    pval=$(cat "$p" 2>/dev/null || echo "")
                     echo "  kvm.${pname} = ${pval}"
                 fi
             done
         fi
         
-        # Intel-specific
         if [[ -d /sys/module/kvm_intel/parameters ]]; then
             echo ""
             echo "KVM Intel Parameters:"
             for p in /sys/module/kvm_intel/parameters/*; do
                 if [[ -f "$p" ]]; then
                     pname=$(basename "$p")
-                    pval=$(cat "$p" 2>/dev/null || echo "?")
+                    pval=$(cat "$p" 2>/dev/null || echo "")
                     echo "  kvm_intel.${pname} = ${pval}"
                 fi
             done
         fi
         
-        # AMD-specific
         if [[ -d /sys/module/kvm_amd/parameters ]]; then
             echo ""
             echo "KVM AMD Parameters:"
             for p in /sys/module/kvm_amd/parameters/*; do
                 if [[ -f "$p" ]]; then
                     pname=$(basename "$p")
-                    pval=$(cat "$p" 2>/dev/null || echo "?")
+                    pval=$(cat "$p" 2>/dev/null || echo "")
                     echo "  kvm_amd.${pname} = ${pval}"
                 fi
             done
@@ -1760,8 +1635,8 @@ check_privileges() {
     
     print_subsection "libvirt/QEMU Status"
     if cmd_exists virsh; then
-        echo "libvirt version: $(virsh --version 2>/dev/null || echo 'error')"
-        echo "libvirtd status: $(systemctl is-active libvirtd 2>/dev/null || echo 'not installed')"
+        echo "Libvirt version: $"
+        echo "Libvirtd status: $"
         if [[ $EUID -eq 0 ]] || groups | grep -qE "libvirt|kvm"; then
             echo ""
             echo "Virtual Networks:"
@@ -1771,30 +1646,28 @@ check_privileges() {
             virsh pool-list --all 2>/dev/null || echo "[Cannot list pools]"
         fi
     else
-        echo "libvirt: [not installed]"
+        echo "Libvirt: [not installed]"
     fi
     
     if cmd_exists qemu-system-x86_64; then
         echo ""
-        echo "QEMU version: $(qemu-system-x86_64 --version 2>/dev/null | head -1 || echo 'error')"
+        echo "QEMU version: $"
     fi
     
     print_subsection "Container Runtimes"
-    echo "Docker: $(docker --version 2>/dev/null || echo '[not installed]')"
-    echo "Podman: $(podman --version 2>/dev/null || echo '[not installed]')"
-    echo "LXC: $(lxc-info --version 2>/dev/null || echo '[not installed]')"
-    echo "containerd: $(containerd --version 2>/dev/null || echo '[not installed]')"
+    echo "Docker: $"
+    echo "Podman: $"
+    echo "LXC: $"
+    echo "Containerd: $"
     
-    #---------------------------------------------------------------------------
     print_section "CGROUPS & RESOURCE CONTROL"
-    #---------------------------------------------------------------------------
     
     print_subsection "Cgroup Version"
     if [[ -f /sys/fs/cgroup/cgroup.controllers ]]; then
-        echo "Cgroup Version: v2 (unified hierarchy)"
-        echo "Available Controllers: $(cat /sys/fs/cgroup/cgroup.controllers)"
+        echo "Cgroup Version: v2"
+        echo "Available Controllers: $"
     elif [[ -d /sys/fs/cgroup/cpu ]]; then
-        echo "Cgroup Version: v1 (legacy hierarchy)"
+        echo "Cgroup Version: v1"
         echo "Mounted Controllers:"
         ls /sys/fs/cgroup/ | grep -v "unified" | tr '\n' ' '
         echo ""
@@ -1804,47 +1677,43 @@ check_privileges() {
     
     print_subsection "CPU Cgroup Configuration"
     if [[ -d /sys/fs/cgroup/cpu ]]; then
-        echo "CPU Cgroup (v1):"
-        echo "  cpu.cfs_period_us: $(cat /sys/fs/cgroup/cpu/cpu.cfs_period_us 2>/dev/null || echo 'N/A')"
-        echo "  cpu.cfs_quota_us: $(cat /sys/fs/cgroup/cpu/cpu.cfs_quota_us 2>/dev/null || echo 'N/A')"
+        echo "CPU Cgroup:"
+        echo "  cpu.cfs_period_us: $"
+        echo "  cpu.cfs_quota_us: $"
     fi
     
     if [[ -f /sys/fs/cgroup/cpuset.cpus.effective ]]; then
-        echo "Cpuset (v2):"
-        echo "  Effective CPUs: $(cat /sys/fs/cgroup/cpuset.cpus.effective 2>/dev/null || echo 'N/A')"
-        echo "  Effective Mems: $(cat /sys/fs/cgroup/cpuset.mems.effective 2>/dev/null || echo 'N/A')"
+        echo "Cpuset:"
+        echo "  Effective CPUs: $"
+        echo "  Effective Mems: $"
     elif [[ -d /sys/fs/cgroup/cpuset ]]; then
-        echo "Cpuset (v1):"
-        echo "  cpuset.cpus: $(cat /sys/fs/cgroup/cpuset/cpuset.cpus 2>/dev/null || echo 'N/A')"
-        echo "  cpuset.mems: $(cat /sys/fs/cgroup/cpuset/cpuset.mems 2>/dev/null || echo 'N/A')"
+        echo "Cpuset:"
+        echo "  cpuset.cpus: $"
+        echo "  cpuset.mems: $"
     fi
     
     print_subsection "Memory Cgroup"
     if [[ -f /sys/fs/cgroup/memory.max ]]; then
-        echo "Memory limit (v2): $(cat /sys/fs/cgroup/memory.max 2>/dev/null || echo 'N/A')"
-        echo "Memory current (v2): $(cat /sys/fs/cgroup/memory.current 2>/dev/null || echo 'N/A')"
+        echo "Memory limit: $"
+        echo "Memory current: $"
     elif [[ -d /sys/fs/cgroup/memory ]]; then
-        echo "Memory limit (v1): $(cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo 'N/A')"
+        echo "Memory limit: $"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "SECURITY & KERNEL FEATURES"
-    #---------------------------------------------------------------------------
     
     print_subsection "Security Modules"
-    echo "LSM (Linux Security Modules):"
+    echo "LSM:"
     if [[ -f /sys/kernel/security/lsm ]]; then
-        echo "  Active LSMs: $(cat /sys/kernel/security/lsm)"
+        echo "  Active LSMs: $"
     fi
     
-    # SELinux
     if cmd_exists getenforce; then
-        echo "  SELinux: $(getenforce 2>/dev/null || echo 'error')"
+        echo "  SELinux: $"
     elif [[ -d /sys/fs/selinux ]]; then
         echo "  SELinux: present but getenforce not available"
     fi
     
-    # AppArmor
     if [[ -d /sys/kernel/security/apparmor ]]; then
         echo "  AppArmor: enabled"
         if cmd_exists aa-status && [[ $EUID -eq 0 ]]; then
@@ -1853,17 +1722,16 @@ check_privileges() {
     fi
     
     print_subsection "Kernel Security Features"
-    echo "Kernel Lockdown: $(cat /sys/kernel/security/lockdown 2>/dev/null || echo '[not available]')"
-    echo "Secure Boot: $(cat /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | od -An -tu1 | awk '{print ($NF == 1) ? "Enabled" : "Disabled"}' || echo '[Cannot detect]')"
+    echo "Kernel Lockdown: $"
+    echo "Secure Boot: $ ? "Enabled" : "Disabled"}' || echo '[Cannot detect]')"
     echo "KASLR: $(grep -q "nokaslr" /proc/cmdline && echo 'Disabled' || echo 'Enabled (default)')"
     
-    # Kernel hardening
     echo ""
     echo "Kernel Hardening Settings:"
-    echo "  kernel.randomize_va_space: $(cat /proc/sys/kernel/randomize_va_space 2>/dev/null || echo 'N/A')"
-    echo "  kernel.dmesg_restrict: $(cat /proc/sys/kernel/dmesg_restrict 2>/dev/null || echo 'N/A')"
-    echo "  kernel.kptr_restrict: $(cat /proc/sys/kernel/kptr_restrict 2>/dev/null || echo 'N/A')"
-    echo "  kernel.yama.ptrace_scope: $(cat /proc/sys/kernel/yama/ptrace_scope 2>/dev/null || echo 'N/A')"
+    echo "  kernel.randomize_va_space: $"
+    echo "  kernel.dmesg_restrict: $"
+    echo "  kernel.kptr_restrict: $"
+    echo "  kernel.yama.ptrace_scope: $"
     
     print_subsection "Spectre/Meltdown Mitigations"
     if [[ -d /sys/devices/system/cpu/vulnerabilities ]]; then
@@ -1877,13 +1745,11 @@ check_privileges() {
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "POWER MANAGEMENT"
-    #---------------------------------------------------------------------------
     
     print_subsection "Power State"
     if [[ -f /sys/power/state ]]; then
-        echo "Supported sleep states: $(cat /sys/power/state)"
+        echo "Supported sleep states: $"
     fi
     
     if cmd_exists acpi; then
@@ -1895,16 +1761,14 @@ check_privileges() {
         echo "C-states available:"
         for state in /sys/devices/system/cpu/cpu0/cpuidle/state*; do
             if [[ -d "$state" ]]; then
-                name=$(cat "${state}/name" 2>/dev/null || echo "unknown")
+                name=$(cat "${state}/name" 2>/dev/null || echo "Unknown")
                 desc=$(cat "${state}/desc" 2>/dev/null || echo "N/A")
                 echo "  ${name}: ${desc}"
             fi
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "SENSORS & THERMAL"
-    #---------------------------------------------------------------------------
     
     print_subsection "Temperature Sensors"
     if cmd_exists sensors; then
@@ -1915,7 +1779,7 @@ check_privileges() {
             echo "Thermal zones from sysfs:"
             for tz in /sys/class/thermal/thermal_zone*; do
                 if [[ -d "$tz" ]]; then
-                    type=$(cat "${tz}/type" 2>/dev/null || echo "unknown")
+                    type=$(cat "${tz}/type" 2>/dev/null || echo "Unknown")
                     temp=$(cat "${tz}/temp" 2>/dev/null || echo "0")
                     echo "  $(basename "$tz"): ${type} = $((temp/1000))Â°C"
                 fi
@@ -1923,14 +1787,12 @@ check_privileges() {
         fi
     fi
 
-    #---------------------------------------------------------------------------
     print_section "FIRMWARE & BOOT"
-    #---------------------------------------------------------------------------
     
     print_subsection "Boot Mode"
     if [[ -d /sys/firmware/efi ]]; then
         echo "Boot Mode: UEFI"
-        echo "Secure Boot: $(cat /sys/firmware/efi/efivars/SecureBoot-* 2>/dev/null | od -An -tu1 | awk '{print $NF}' || echo 'Unknown')"
+        echo "Secure Boot: $"
     else
         echo "Boot Mode: Legacy BIOS"
     fi
@@ -1942,9 +1804,7 @@ check_privileges() {
         echo "[efibootmgr requires root]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "SYSTEM SERVICES & PROCESSES"
-    #---------------------------------------------------------------------------
     
     print_subsection "System Uptime & Load"
     uptime
@@ -1952,25 +1812,23 @@ check_privileges() {
     print_subsection "Running Services (systemd)"
     if cmd_exists systemctl; then
         systemctl list-units --type=service --state=running --no-pager | head -30
-        echo "... [truncated - $(systemctl list-units --type=service --state=running --no-pager | wc -l) total running services]"
+        echo "... [truncated - $ total running services]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "LIBVIRT & VM CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "libvirt Daemon Status"
     if cmd_exists systemctl; then
-        echo "libvirtd: $(systemctl is-active libvirtd 2>/dev/null || echo 'not installed')"
-        echo "virtlogd: $(systemctl is-active virtlogd 2>/dev/null || echo 'not running')"
-        echo "virtlockd: $(systemctl is-active virtlockd 2>/dev/null || echo 'not running')"
+        echo "Libvirtd: $"
+        echo "Virtlogd: $"
+        echo "Virtlockd: $"
     fi
     
     print_subsection "libvirt Version & Capabilities"
     if cmd_exists virsh; then
-        echo "libvirt version: $(virsh --version 2>/dev/null || echo 'error')"
+        echo "Libvirt version: $"
         echo ""
-        echo "Hypervisor capabilities (summary):"
+        echo "Hypervisor capabilities:"
         virsh capabilities 2>/dev/null | grep -E "<arch>|<domain|<machine" | head -20 || echo "[Cannot get capabilities]"
     fi
     
@@ -2003,7 +1861,7 @@ check_privileges() {
             echo "  Emulator Pinning:"
             virsh emulatorpin "$vm_name" 2>/dev/null || echo "    [No emulator pinning]"
             echo ""
-            echo "  Memory (NUMA):"
+            echo "  Memory:"
             virsh numatune "$vm_name" 2>/dev/null || echo "    [No NUMA tuning]"
             echo ""
             echo "  Disks:"
@@ -2027,9 +1885,9 @@ check_privileges() {
         echo ""
         for hook in /etc/libvirt/hooks/*; do
             if [[ -f "$hook" && -x "$hook" ]]; then
-                echo "--- $(basename "$hook") hook (first 30 lines) ---"
+                echo ""$hook") hook (first 30 lines) ---"
                 head -30 "$hook" 2>/dev/null
-                echo "..."
+                echo ""
                 echo ""
             fi
         done
@@ -2061,20 +1919,18 @@ check_privileges() {
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "LOOKING GLASS CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "Looking Glass Installation"
     if cmd_exists looking-glass-client; then
-        echo "looking-glass-client: $(looking-glass-client --version 2>&1 | head -1 || echo 'installed')"
+        echo "Looking-glass-client: $"
     else
-        echo "looking-glass-client: [not installed]"
+        echo "Looking-glass-client: [not installed]"
     fi
     
     print_subsection "KVMFR (Shared Memory) Module"
     if lsmod | grep -q kvmfr; then
-        echo "kvmfr module: LOADED"
+        echo "Kvmfr module: LOADED"
         echo ""
         echo "Module parameters:"
         for p in /sys/module/kvmfr/parameters/*; do
@@ -2083,7 +1939,7 @@ check_privileges() {
             fi
         done
     else
-        echo "kvmfr module: [not loaded]"
+        echo "Kvmfr module: [not loaded]"
     fi
     
     print_subsection "KVMFR Devices"
@@ -2096,7 +1952,7 @@ check_privileges() {
     ls -la /dev/shm/looking-glass* 2>/dev/null || echo "[No /dev/shm/looking-glass* files]"
     
     echo ""
-    echo "tmpfs mounts:"
+    echo "Tmpfs mounts:"
     mount | grep tmpfs | grep -E "shm|hugepages" || echo "[No relevant tmpfs mounts]"
     
     print_subsection "Looking Glass Config Files"
@@ -2121,9 +1977,7 @@ check_privileges() {
         done
     fi
 
-    #---------------------------------------------------------------------------
     print_section "DISPLAY & GRAPHICS CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "Display Server"
     echo "XDG_SESSION_TYPE: ${XDG_SESSION_TYPE:-[not set]}"
@@ -2148,7 +2002,7 @@ check_privileges() {
         for conn in /sys/class/drm/card*/card*-*; do
             if [[ -d "$conn" ]]; then
                 name=$(basename "$conn")
-                status=$(cat "${conn}/status" 2>/dev/null || echo "unknown")
+                status=$(cat "${conn}/status" 2>/dev/null || echo "Unknown")
                 if [[ "$status" == "connected" ]]; then
                     modes=$(cat "${conn}/modes" 2>/dev/null | head -3 | tr '\n' ', ')
                     echo "  ${name}: ${status} [${modes}]"
@@ -2161,19 +2015,17 @@ check_privileges() {
     for card in /sys/class/drm/card[0-9]*; do
         if [[ -d "$card" ]]; then
             card_name=$(basename "$card")
-            driver=$(basename "$(readlink "${card}/device/driver" 2>/dev/null)" 2>/dev/null || echo "unknown")
-            pci_addr=$(basename "$(readlink "${card}/device" 2>/dev/null)" 2>/dev/null || echo "unknown")
+            driver=$(basename "$(readlink "${card}/device/driver" 2>/dev/null)" 2>/dev/null || echo "Unknown")
+            pci_addr=$(basename "$(readlink "${card}/device" 2>/dev/null)" 2>/dev/null || echo "Unknown")
             
             echo "Card: ${card_name}"
             echo "  PCI: ${pci_addr}"
             echo "  Driver: ${driver}"
             
-            # NVIDIA specific
             if [[ "$driver" == "nvidia" ]] && cmd_exists nvidia-smi; then
                 nvidia-smi --query-gpu=name,memory.total,memory.used,temperature.gpu,power.draw --format=csv,noheader -i "${pci_addr}" 2>/dev/null | sed 's/^/  /'
             fi
             
-            # AMD specific
             if [[ "$driver" == "amdgpu" ]]; then
                 [[ -f "${card}/device/gpu_busy_percent" ]] && echo "  GPU Busy: $(cat "${card}/device/gpu_busy_percent" 2>/dev/null)%"
                 [[ -f "${card}/device/mem_info_vram_total" ]] && echo "  VRAM Total: $(cat "${card}/device/mem_info_vram_total" 2>/dev/null)"
@@ -2183,19 +2035,17 @@ check_privileges() {
         fi
     done
 
-    #---------------------------------------------------------------------------
     print_section "AUDIO SUBSYSTEM (Detailed)"
-    #---------------------------------------------------------------------------
     
     print_subsection "Audio Server Status"
-    echo "PipeWire: $(pgrep -x pipewire &>/dev/null && echo 'running' || echo 'not running')"
-    echo "WirePlumber: $(pgrep -x wireplumber &>/dev/null && echo 'running' || echo 'not running')"
-    echo "PulseAudio: $(pgrep -x pulseaudio &>/dev/null && echo 'running' || echo 'not running')"
-    echo "JACK: $(pgrep -x jackd &>/dev/null && echo 'running' || echo 'not running')"
+    echo "PipeWire: $"
+    echo "WirePlumber: $"
+    echo "PulseAudio: $"
+    echo "JACK: $"
     
     print_subsection "PipeWire Configuration"
     if cmd_exists pw-cli; then
-        echo "PipeWire version: $(pw-cli --version 2>/dev/null | head -1)"
+        echo "PipeWire version: $"
         echo ""
         echo "PipeWire info:"
         pw-cli info 0 2>/dev/null | head -20 || echo "[Cannot get PipeWire info]"
@@ -2216,9 +2066,7 @@ check_privileges() {
     print_subsection "Audio PCI Devices"
     lspci -nnk | grep -A3 -iE "audio|sound|hda" || echo "[No audio PCI devices]"
 
-    #---------------------------------------------------------------------------
     print_section "SYSTEMD UNITS (VM Related)"
-    #---------------------------------------------------------------------------
     
     print_subsection "VM/Virtualization Services"
     if cmd_exists systemctl; then
@@ -2235,30 +2083,28 @@ check_privileges() {
         ls -la /etc/systemd/system/*vm* /etc/systemd/system/*vfio* /etc/systemd/system/*passthrough* 2>/dev/null || echo "[None found]"
     fi
 
-    #---------------------------------------------------------------------------
     print_section "KERNEL BOOT & MODULE CONFIGURATION"
-    #---------------------------------------------------------------------------
     
     print_subsection "All Kernel Command Line Parameters (Parsed)"
     echo "Boot parameters categorized:"
     echo ""
-    echo "--- IOMMU/Passthrough ---"
+    echo ""
     echo "$CMDLINE" | tr ' ' '\n' | grep -iE "iommu|vfio|pcie|acs" | sed 's/^/  /' || echo "  [none]"
     echo ""
-    echo "--- CPU/Isolation ---"
+    echo ""
     echo "$CMDLINE" | tr ' ' '\n' | grep -iE "isolcpus|nohz|rcu_|irqaffinity|kthread|nosmt|mitigations" | sed 's/^/  /' || echo "  [none]"
     echo ""
-    echo "--- Memory ---"
+    echo ""
     echo "$CMDLINE" | tr ' ' '\n' | grep -iE "hugepage|mem|numa|transparent" | sed 's/^/  /' || echo "  [none]"
     echo ""
-    echo "--- Security ---"
+    echo ""
     echo "$CMDLINE" | tr ' ' '\n' | grep -iE "selinux|apparmor|security|lockdown|kaslr|module.sig" | sed 's/^/  /' || echo "  [none]"
     echo ""
-    echo "--- Graphics ---"
+    echo ""
     echo "$CMDLINE" | tr ' ' '\n' | grep -iE "video|drm|nvidia|amdgpu|nouveau|i915|nomodeset" | sed 's/^/  /' || echo "  [none]"
     
     print_subsection "Module Blacklist"
-    echo "Blacklisted modules (from modprobe.d):"
+    echo "Blacklisted modules:"
     if [[ -d /etc/modprobe.d ]]; then
         grep -rh "^blacklist" /etc/modprobe.d/ 2>/dev/null | sort -u | sed 's/^/  /' || echo "  [none found]"
     fi
@@ -2275,45 +2121,39 @@ check_privileges() {
     
     if [[ -f /etc/mkinitcpio.conf ]]; then
         echo ""
-        echo "mkinitcpio MODULES/HOOKS (Arch-based):"
+        echo "Mkinitcpio MODULES/HOOKS:"
         grep -E "^MODULES=|^HOOKS=" /etc/mkinitcpio.conf | sed 's/^/  /'
     fi
 
-    #---------------------------------------------------------------------------
     print_section "COMPLETE HARDWARE INVENTORY (For Block Diagrams)"
-    #---------------------------------------------------------------------------
     
     echo ""
     echo "This section provides a complete structured inventory of all hardware"
-    echo "for creating block/flow diagrams of your Cloud WS configuration."
+    echo "For creating block/flow diagrams of your Cloud WS configuration"
     echo ""
     
     print_subsection "=== CPU CORES INVENTORY ==="
     echo ""
     echo "CORE#  SMT_PAIR  CCD  L3_CACHE      ISOLATED  ASSIGNMENT"
-    echo "-----  --------  ---  ------------  --------  ----------"
+    echo ""
     
-    # Build core inventory
     for cpu_path in /sys/devices/system/cpu/cpu[0-9]*; do
         if [[ -d "$cpu_path" ]]; then
             cpu_num=$(basename "$cpu_path" | sed 's/cpu//')
             
-            # Get SMT pair
-            smt_pair=$(cat "${cpu_path}/topology/thread_siblings_list" 2>/dev/null || echo "?")
+            smt_pair=$(cat "${cpu_path}/topology/thread_siblings_list" 2>/dev/null || echo "")
             
-            # Get CCD (via L3 cache ID)
             ccd="?"
             l3_size="?"
             for cache in "${cpu_path}"/cache/index*; do
                 level=$(cat "${cache}/level" 2>/dev/null || echo "")
                 if [[ "$level" == "3" ]]; then
-                    ccd=$(cat "${cache}/id" 2>/dev/null || echo "?")
-                    l3_size=$(cat "${cache}/size" 2>/dev/null || echo "?")
+                    ccd=$(cat "${cache}/id" 2>/dev/null || echo "")
+                    l3_size=$(cat "${cache}/size" 2>/dev/null || echo "")
                     break
                 fi
             done
             
-            # Check isolation
             isolated_list=$(cat /sys/devices/system/cpu/isolated 2>/dev/null || echo "")
             is_isolated="HOST"
             if [[ -n "$isolated_list" ]]; then
@@ -2332,7 +2172,6 @@ check_privileges() {
                 done
             fi
             
-            # Determine assignment
             assignment="Host OS"
             if [[ "$is_isolated" == "ISOLATED" ]]; then
                 assignment="VM Pool"
@@ -2345,7 +2184,7 @@ check_privileges() {
     print_subsection "=== PCI DEVICES INVENTORY ==="
     echo ""
     echo "PCI_ADDR         CLASS           VENDOR:DEV  IOMMU  DRIVER       ASSIGNMENT"
-    echo "---------------  --------------  ----------  -----  -----------  ----------"
+    echo ""
     
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
@@ -2353,10 +2192,9 @@ check_privileges() {
             class_code=$(cat "${dev}/class" 2>/dev/null || echo "0x000000")
             vendor=$(cat "${dev}/vendor" 2>/dev/null | sed 's/0x//')
             device_id=$(cat "${dev}/device" 2>/dev/null | sed 's/0x//')
-            driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
-            iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+            driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
+            iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
             
-            # Decode class
             class_name="Other"
             case "$class_code" in
                 0x030000|0x030200) class_name="GPU" ;;
@@ -2378,7 +2216,6 @@ check_privileges() {
                 0x1101*) class_name="Crypto" ;;
             esac
             
-            # Determine assignment
             assignment="Host"
             if [[ "$driver" == "vfio-pci" ]]; then
                 assignment="PASSTHROUGH"
@@ -2397,7 +2234,6 @@ check_privileges() {
     echo "Total System Memory: ${total_mem_gb} GB"
     echo ""
     
-    # Get DIMM info if available
     if cmd_exists dmidecode && [[ $EUID -eq 0 ]]; then
         echo "DIMM Inventory:"
         dmidecode -t memory 2>/dev/null | grep -A20 "Memory Device" | grep -E "Size:|Locator:|Type:|Speed:|Manufacturer:|Part Number:" | paste - - - - - - 2>/dev/null | head -20 || true
@@ -2405,12 +2241,12 @@ check_privileges() {
     
     echo ""
     echo "Memory Allocation:"
-    echo "  Host Reserved: ~4-8 GB (typical)"
+    echo "  Host Reserved: ~4-8 GB"
     hugepages_total=$(grep HugePages_Total /proc/meminfo | awk '{print $2}')
     hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
     if [[ -n "$hugepages_total" && "$hugepages_total" != "0" ]]; then
-        hugepages_gb=$(echo "scale=1; $hugepages_total * $hugepage_size_kb / 1024 / 1024" | bc 2>/dev/null || echo "?")
-        echo "  Hugepages Reserved: ${hugepages_gb} GB (${hugepages_total} pages x ${hugepage_size_kb}KB)"
+        hugepages_gb=$(echo "scale=1; $hugepages_total * $hugepage_size_kb / 1024 / 1024" | bc 2>/dev/null || echo "")
+        echo "  Hugepages Reserved: ${hugepages_gb} GB"
     else
         echo "  Hugepages Reserved: 0"
     fi
@@ -2418,7 +2254,7 @@ check_privileges() {
     print_subsection "=== STORAGE INVENTORY ==="
     echo ""
     echo "DEVICE     SIZE      TYPE   MODEL                          ASSIGNMENT"
-    echo "---------  --------  -----  -----------------------------  ----------"
+    echo ""
     
     lsblk -d -o NAME,SIZE,TYPE,MODEL 2>/dev/null | tail -n +2 | while read -r name size type model; do
         assignment="Host"
@@ -2428,7 +2264,7 @@ check_privileges() {
     print_subsection "=== NETWORK INVENTORY ==="
     echo ""
     echo "INTERFACE      MAC                DRIVER      SPEED      ASSIGNMENT"
-    echo "-------------  -----------------  ----------  ---------  ----------"
+    echo ""
     
     for iface in /sys/class/net/*; do
         if [[ -d "$iface" ]]; then
@@ -2436,7 +2272,7 @@ check_privileges() {
             [[ "$name" == "lo" ]] && continue
             
             mac=$(cat "${iface}/address" 2>/dev/null || echo "N/A")
-            driver=$(basename "$(readlink "${iface}/device/driver" 2>/dev/null)" 2>/dev/null || echo "virtual")
+            driver=$(basename "$(readlink "${iface}/device/driver" 2>/dev/null)" 2>/dev/null || echo "Virtual")
             speed=$(cat "${iface}/speed" 2>/dev/null || echo "N/A")
             [[ "$speed" != "N/A" ]] && speed="${speed}Mbps"
             
@@ -2452,17 +2288,16 @@ check_privileges() {
     print_subsection "=== USB CONTROLLERS INVENTORY ==="
     echo ""
     echo "PCI_ADDR         TYPE       IOMMU  DRIVER    ASSIGNMENT"
-    echo "---------------  ---------  -----  --------  ----------"
+    echo ""
     
     for dev in /sys/bus/pci/devices/*; do
         if [[ -d "$dev" ]]; then
             class=$(cat "${dev}/class" 2>/dev/null || echo "")
             if [[ "$class" == 0x0c03* ]]; then
                 pci_addr=$(basename "$dev")
-                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "none")
-                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "?")
+                driver=$(basename "$(readlink "${dev}/driver" 2>/dev/null)" 2>/dev/null || echo "None")
+                iommu_group=$(basename "$(readlink "${dev}/iommu_group" 2>/dev/null)" 2>/dev/null || echo "")
                 
-                # Decode USB type
                 usb_type="USB"
                 case "$class" in
                     0x0c0300) usb_type="UHCI" ;;
@@ -2483,14 +2318,13 @@ check_privileges() {
     echo ""
     if cmd_exists virsh; then
         echo "VM_NAME                  STATE     vCPUs  MEMORY     GPU_PT  USB_PT"
-        echo "-----------------------  --------  -----  ---------  ------  ------"
+        echo ""
         
         for vm_name in $(virsh list --all --name 2>/dev/null | grep -v "^$"); do
             state=$(virsh domstate "$vm_name" 2>/dev/null | head -1)
-            vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "?")
+            vcpus=$(virsh vcpucount "$vm_name" --current 2>/dev/null || echo "")
             mem=$(virsh dominfo "$vm_name" 2>/dev/null | grep "Max memory" | awk '{printf "%.1f GB", $3/1024/1024}')
             
-            # Count passthrough devices by type
             xml=$(virsh dumpxml "$vm_name" 2>/dev/null || echo "")
             gpu_pt=$(echo "$xml" | grep -c "hostdev.*subsys='pci'" 2>/dev/null || echo "0")
             usb_pt=$(echo "$xml" | grep -c "hostdev.*subsys='usb'" 2>/dev/null || echo "0")
@@ -2501,9 +2335,7 @@ check_privileges() {
         echo "[virsh not available - cannot enumerate VMs]"
     fi
     
-    #---------------------------------------------------------------------------
     print_section "SUMMARY"
-    #---------------------------------------------------------------------------
     
     echo ""
     echo "───────────────────────────────────────────────────────────────────────────────"
@@ -2513,44 +2345,39 @@ check_privileges() {
     echo "├─ HARDWARE ─────────────────────────────────────────────────────────────────┤"
     echo "│ CPU: $(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | sed 's/^ //' | cut -c1-60)"
     echo "│ Cores/Threads: $(grep "cpu cores" /proc/cpuinfo | head -1 | cut -d: -f2 | tr -d ' ')/$(nproc)"
-    echo "│ Memory: $(free -h | awk '/^Mem:/ {print $2}')"
-    echo "│ GPUs: $(lspci | grep -cE 'VGA|3D|Display') detected"
+    echo "│ Memory: $"
+    echo "│ GPUs: $ detected"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
     echo "├─ SYSTEM ───────────────────────────────────────────────────────────────────┤"
     echo "│ OS: $(grep PRETTY_NAME /etc/os-release 2>/dev/null | cut -d= -f2 | tr -d '"' | cut -c1-55)"
-    echo "│ Kernel: $(uname -r)"
-    echo "│ Boot Mode: $([ -d /sys/firmware/efi ] && echo 'UEFI' || echo 'Legacy BIOS')"
+    echo "│ Kernel: $"
+    echo "│ Boot Mode: $"
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     echo ""
     echo "├─ VIRTUALIZATION READINESS ─────────────────────────────────────────────────┤"
     
-    # CPU Virtualization
     virt_hw="NOT DETECTED"
     grep -qE 'vmx|svm' /proc/cpuinfo && virt_hw="SUPPORTED"
     echo "│ Hardware Virtualization: ${virt_hw}"
     
-    # KVM
     kvm_status="NOT AVAILABLE"
     [[ -c /dev/kvm ]] && kvm_status="AVAILABLE"
     echo "│ KVM: ${kvm_status}"
     
-    # IOMMU
     iommu_status="DISABLED"
     iommu_groups=0
     if [[ -d /sys/kernel/iommu_groups ]]; then
         iommu_status="ENABLED"
         iommu_groups=$(find /sys/kernel/iommu_groups/ -maxdepth 1 -mindepth 1 -type d 2>/dev/null | wc -l)
     fi
-    echo "│ IOMMU: ${iommu_status} (${iommu_groups} groups)"
+    echo "│ IOMMU: ${iommu_status}"
     
-    # VFIO
     vfio_status="NOT LOADED"
     lsmod | grep -q "^vfio " && vfio_status="LOADED"
     vfio_devices=$(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -cE "^[0-9a-f]{4}:" || echo "0")
-    echo "│ VFIO: ${vfio_status} (${vfio_devices} device(s) bound)"
+    echo "│ VFIO: ${vfio_status} bound)"
     
-    # Nested
     nested="DISABLED"
     [[ "$(cat /sys/module/kvm_intel/parameters/nested 2>/dev/null)" == "Y" ]] && nested="ENABLED"
     [[ "$(cat /sys/module/kvm_amd/parameters/nested 2>/dev/null)" == "1" ]] && nested="ENABLED"
@@ -2566,7 +2393,6 @@ check_privileges() {
         echo "│ Isolated CPUs: [none]"
     fi
     
-    # Check for isolation params
     isolcpus_set="no"
     echo "$CMDLINE" | grep -q "isolcpus=" && isolcpus_set="yes"
     nohz_set="no"
@@ -2583,9 +2409,8 @@ check_privileges() {
     echo ""
     echo "├─ PASSTHROUGH CHECKLIST ────────────────────────────────────────────────────┤"
     
-    # Check each requirement
     check_pass() {
-        [[ $1 == "yes" ]] && echo "✔" || echo "✔--"
+        [[ $1 == "yes" ]] && echo "✔" || echo "✔"
     }
     
     hw_virt="no"; grep -qE 'vmx|svm' /proc/cpuinfo && hw_virt="yes"
@@ -2594,16 +2419,14 @@ check_privileges() {
     vfio_mod="no"; lsmod | grep -q "^vfio " && vfio_mod="yes"
     vfio_iommu="no"; lsmod | grep -q "vfio_iommu_type1" && vfio_iommu="yes"
     
-    echo "│ $(check_pass $hw_virt) CPU Virtualization Extensions (VT-x/AMD-V)"
-    echo "│ $(check_pass $kvm_ok) KVM Module Loaded (/dev/kvm exists)"
-    echo "│ $(check_pass $iommu_ok) IOMMU Enabled (intel_iommu=on / amd_iommu=on)"
-    echo "│ $(check_pass $vfio_mod) VFIO Core Module Loaded"
-    echo "│ $(check_pass $vfio_iommu) VFIO IOMMU Type1 Driver Loaded"
+    echo "│ $ CPU Virtualization Extensions"
+    echo "│ $ KVM Module Loaded"
+    echo "│ $ IOMMU Enabled"
+    echo "│ $ VFIO Core Module Loaded"
+    echo "│ $ VFIO IOMMU Type1 Driver Loaded"
     
-    # GPU isolation check
     gpu_isolated="no"
     if [[ $vfio_devices -gt 0 ]]; then
-        # Check if any GPU is bound to vfio
         for addr in $(ls /sys/bus/pci/drivers/vfio-pci/ 2>/dev/null | grep -E "^[0-9a-f]{4}:"); do
             class=$(cat "/sys/bus/pci/devices/${addr}/class" 2>/dev/null || echo "")
             if [[ "$class" == 0x030* ]]; then
@@ -2612,19 +2435,18 @@ check_privileges() {
             fi
         done
     fi
-    echo "│ $(check_pass $gpu_isolated) GPU Bound to VFIO (for GPU passthrough)"
+    echo "│ $ GPU Bound to VFIO"
     
     echo "└─────────────────────────────────────────────────────────────────────────────┘"
     
     echo ""
     echo "${SEPARATOR}"
-    echo "  Assessment complete: $(date)"
+    echo "  Assessment complete: $"
     echo "  Output saved to: ${OUTPUT_FILE}"
     echo "${SEPARATOR}"
 
 } > "${OUTPUT_FILE}" 2>&1
 
-# Terminal output
 echo -e "${GREEN}✔ System assessment complete${NC}"
 echo -e "${CYAN}Output saved to:${NC} ${OUTPUT_FILE}"
 echo ""

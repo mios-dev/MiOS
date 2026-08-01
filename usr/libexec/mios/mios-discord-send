@@ -24,7 +24,6 @@ import argparse, json, os, sys, urllib.request, urllib.error, urllib.parse
 DISCORD_ENV = os.environ.get("MIOS_DISCORD_ENV", "/etc/mios/hermes/discord.env")
 API = "https://discord.com/api/v10"
 
-# ── Named constants (no magic numbers) ──
 DISCORD_MAX_CONTENT_LEN = 2000  # Discord hard message-length limit
 DEFAULT_TIMEOUT = 12.0          # 2× typical Discord API latency
 MEMBER_SEARCH_LIMIT = 5         # max members returned per guild search
@@ -40,7 +39,6 @@ def _load_env(path: str) -> None:
                 if line and not line.startswith("#") and "=" in line:
                     k, v = line.split("=", 1)
                     v = v.strip()
-                    # Strip surrounding quotes so TOKEN="abc" works as TOKEN=abc
                     if len(v) >= 2 and v[0] == v[-1] and v[0] in ('"', "'"):
                         v = v[1:-1]
                     os.environ.setdefault(k.strip(), v)
@@ -65,7 +63,6 @@ def _resolve_user(tok: str, name: str, timeout: float):
     uname = name.lstrip("@").strip()
     if uname.isdigit():            # already a user id
         return uname, uname
-    # Try local channel_directory.json cache first (bypasses GUILD_MEMBERS intent restriction)
     try:
         home_dir = os.environ.get("HERMES_HOME") or os.environ.get("MIOS_HERMES_HOME") or "/var/lib/mios/hermes"
         dir_path = os.environ.get("MIOS_HERMES_CHANNEL_DIR") or os.path.join(home_dir, "channel_directory.json")
@@ -125,7 +122,6 @@ def main() -> int:
     if not content:
         print(json.dumps({"success": False, "error": "empty message"})); return 64
 
-    # DM target: explicit --user, OR a non-numeric --channel (a @username).
     dm_target = user or (ch if (ch and not ch.isdigit()) else "")
     is_dm = bool(dm_target)
     if is_dm:

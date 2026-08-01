@@ -12,7 +12,7 @@ _ok()  { echo "  PASS: $1"; pass=$((pass + 1)); }
 _bad() { echo "  FAIL: $1" >&2; fail=$((fail + 1)); }
 
 test_gate_64_negative() {
-    echo "[test-drift-gates] Testing Gate 64 (curl-retry) negative case..."
+    echo "[test-drift-gates] Testing Gate 64 negative case"
     local bad_script="curl https://example.com/file.tar.gz | tar -xz # retry-exempt: test-fixture"
     if echo "$bad_script" | grep -qE '\bcurl\b' && ! echo "$bad_script" | grep -qE '\-\-retry|\bscurl\b'; then
         _ok "Gate 64 correctly detects retry-less curl"
@@ -22,7 +22,7 @@ test_gate_64_negative() {
 }
 
 test_gate_65_negative() {
-    echo "[test-drift-gates] Testing Gate 65 (nested-podman-caps) negative case..."
+    echo "[test-drift-gates] Testing Gate 65 negative case"
     local bad_flags="podman build -t mios:latest ."
     if ! echo "$bad_flags" | grep -qE '\-\-device /dev/fuse'; then
         _ok "Gate 65 correctly detects missing --device /dev/fuse flag"
@@ -32,7 +32,7 @@ test_gate_65_negative() {
 }
 
 test_gate_66_negative() {
-    echo "[test-drift-gates] Testing Gate 66 (bake-budget) negative case..."
+    echo "[test-drift-gates] Testing Gate 66 negative case"
     local projected_gb=45
     local budget_gb=40
     if (( projected_gb > budget_gb )); then
@@ -48,10 +48,10 @@ main() {
     test_gate_66_negative
 
     if (( fail > 0 )); then
-        echo "[test-drift-gates] FAILED: $fail test(s) failed." >&2
+        echo "[test-drift-gates] FAILED: $fail test failed" >&2
         exit 1
     fi
-    echo "[test-drift-gates] ALL PASS: $pass test(s) passed."
+    echo "[test-drift-gates] ALL PASS: $pass test passed"
 }
 
 main "$@"

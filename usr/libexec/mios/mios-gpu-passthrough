@@ -2,62 +2,6 @@
 # AI-hint: Syncs Quadlet container configurations with live CDI specifications in /run/cdi/ to automatically map NVIDIA, AMD, or Intel GPUs to background AI service Quadlets (mios-llm-light, vLLM heavy lanes) based on detected hardware.
 # AI-related: /usr/libexec/mios/mios-gpu-passthrough, /etc/mios/gpu-passthrough.conf, /etc/mios/gpu-passthrough.conf., mios-cdi-detect, mios-daemon, mios-igpu, mios-open-webui, mios-mycustom, mios-doctor, mios-system-status
 # AI-functions: log, build_dropin
-# /usr/libexec/mios/mios-gpu-passthrough
-#
-# Reconcile the AddDevice= drop-ins for every "background AI"
-# Quadlet against the live CDI specs in /run/cdi/. Runs as the
-# ExecStartPost of mios-cdi-detect.service so the moment iGPU
-# specs land, AI containers get the right `--device` wiring on
-# their next start.
-#
-# Operator directive 2026-05-17: "ALL background agents work on
-# iGPUs detected in the environment!! Setup AMD iGPU and Intel
-# iGPU capabilities in to ALL MiOS Deployment types!! Should be
-# OCI GPU-PV for ALL Background AI Agents from the host".
-#
-# Vendor coverage:
-#   NVIDIA  -- /run/cdi/nvidia.yaml | nvidia-wsl.yaml | wsl2-nvidia.yaml
-#              -> AddDevice=nvidia.com/gpu=all
-#   AMD     -- /run/cdi/amd.json    (amd-ctk generated)
-#              -> AddDevice=amd.com/gpu=all
-#   Intel   -- /run/cdi/intel.yaml  (intel-cdi-specs-generator)
-#              -> AddDevice=intel.com/gpu=all
-#
-# AI Quadlet list (extend by editing MIOS_AI_QUADLETS below or
-# overriding via /etc/mios/gpu-passthrough.conf):
-#
-# Operator directive 2026-05-17 (two-step clarification):
-#   first: "iGPU's are ONLY micro-llms"
-#   then:  "JUST ONLY USES Micro-llms in MiOS stack"
-#
-# Resolution: MiOS-stack consumers of the light lane only ask for
-# small models (mios-daemon -> qwen3:0.6b-cpu,
-# pipe refine/polish -> qwen2.5-coder:7b, prefilter -> small).
-# The big-model tags on disk (qwen3-coder:30b, gpt-oss:20b) are
-# parked for ad-hoc operator use; the backend's auto-scheduling lands
-# the small MiOS-stack models on whichever device has room. With
-# NVIDIA dGPU + AMD iGPU both registered as CDI devices, the backend
-# spreads load across them; small models fit on the iGPU's WSL
-# DXG path (no VRAM contention with the dGPU), bigger ad-hoc
-# loads keep the dGPU free.
-#
-# Add a new Quadlet -> one line in the list; helper writes the
-# correct drop-in on next boot. Per operator directive
-# 2026-05-17: "make sure ALL is in code and can deploy Day-0 from
-# clone on any machine" -- everything below ships in the image;
-# fresh clone + bootc upgrade reproduces the wiring.
-#
-# Idempotent + non-destructive: if /run/cdi has no AMD or Intel
-# spec, the corresponding drop-in is REMOVED so a stale spec from a
-# prior host configuration doesn't break the container. The base
-# Quadlet (with hardcoded NVIDIA AddDevice) keeps working unchanged
-# on hosts without iGPUs.
-#
-# Exit codes:
-#   0 = drop-ins reconciled (any change triggered systemctl
-#       daemon-reload + optional Quadlet service restart)
-#   1 = systemd reload failed
-#   2 = drop-in directory not writable
 
 set -uo pipefail
 
@@ -67,43 +11,25 @@ CONF_FILE="${MIOS_GPU_PASSTHROUGH_CONF:-/etc/mios/gpu-passthrough.conf}"
 DROPIN_NAME="20-mios-igpu.conf"
 RESTART_ON_CHANGE="${MIOS_GPU_RESTART_ON_CHANGE:-0}"
 
-# Default list of background-AI Quadlets that should consume iGPU
-# CDI specs when available. Each entry MUST correspond to a base
-# Quadlet at /etc/containers/systemd/<name>.container OR
-# /usr/share/containers/systemd/<name>.container.
 MIOS_AI_QUADLETS_DEFAULT=(
     "mios-open-webui"
-    # Install-robustness 2026-06-21: the FRONT-DOOR brain lanes + workers also
-    # hardcode AddDevice=nvidia.com/gpu=all, so on a non-NVIDIA host (AMD/Intel/
-    # CPU-only) podman hard-FAILS to start them ("CDI device nvidia.com/gpu=all
-    # not found") and the AI plane's primary lane dies. Reconcile them here too so
-    # the device line is authoritative-per-detected-hardware, not baked NVIDIA.
     "mios-llm-light"
     "mios-llm-worker@"
     "mios-llm-heavy"
     "mios-llm-heavy-alt"
 )
 
-# Operator override: drop a one-liner here:
-#   MIOS_AI_QUADLETS=(mios-llm-light mios-open-webui mios-mycustom)
-# or comment out an entry to skip wiring.
 if [ -r "$CONF_FILE" ]; then
-    # shellcheck source=/dev/null
     source "$CONF_FILE"
 fi
 MIOS_AI_QUADLETS=("${MIOS_AI_QUADLETS[@]:-${MIOS_AI_QUADLETS_DEFAULT[@]}}")
 
 log() { logger -t mios-gpu-passthrough "$*" 2>/dev/null || true; echo "[gpu-passthrough] $*" >&2; }
 
-# --- 1. Detect which vendor specs are live ---------------------
 
 NVIDIA_PRESENT=0
 AMD_PRESENT=0
 INTEL_PRESENT=0
-# Match every spec layout mios-cdi-detect can emit:
-#   * <vendor>.yaml / .json  -- bare-metal vendor toolkit output
-#   * wsl2-<vendor>.yaml      -- WSL2 hand-rolled (/dev/dxg + WSL libs)
-#   * nvidia-wsl.yaml         -- legacy nvidia-ctk WSL output naming
 for spec in "$CDI_DIR"/nvidia.yaml \
             "$CDI_DIR"/nvidia-wsl.yaml \
             "$CDI_DIR"/wsl2-nvidia.yaml; do
@@ -122,7 +48,6 @@ done
 
 log "CDI present: nvidia=$NVIDIA_PRESENT amd=$AMD_PRESENT intel=$INTEL_PRESENT"
 
-# Snapshot for `mios-doctor` / `mios-system-status` downstream readers.
 install -d -m 0755 /run/mios
 cat > /run/mios/gpu-passthrough.status <<EOF
 {
@@ -134,35 +59,12 @@ cat > /run/mios/gpu-passthrough.status <<EOF
 }
 EOF
 
-# --- 2. Build the AddDevice block content ----------------------
 
 build_dropin() {
     local quadlet="$1"
     cat <<EOF
-# /etc/containers/systemd/${quadlet}.container.d/${DROPIN_NAME}
-#
-# MiOS-managed iGPU CDI device wiring. Generated by
-# mios-gpu-passthrough (called from mios-cdi-detect.service
-# ExecStartPost). Do not edit by hand -- changes here are
-# overwritten on every CDI re-detect. To OPT OUT for this
-# Quadlet, remove the entry from MIOS_AI_QUADLETS in
-# /etc/mios/gpu-passthrough.conf.
-#
-# CDI device names follow CNCF CDI convention vendor.com/class=id.
-# Missing-spec lines are NOT emitted so podman doesn't fail to
-# resolve them at container start.
 
 [Container]
-# Install-robustness 2026-06-21: RESET the inherited AddDevice list first.
-# The base Quadlets hardcode AddDevice=nvidia.com/gpu=all; a drop-in can only
-# APPEND, so without this empty reset a non-NVIDIA host would STILL request the
-# absent nvidia device and podman would hard-fail container start. The empty
-# assignment clears the merged list (systemd list-reset semantics), then we
-# re-add ONLY the device whose CDI spec is actually present -> the drop-in is the
-# authoritative, hardware-adaptive source. No vendor present (CPU-only) -> the
-# reset alone -> the container starts with NO GPU device (CPU mode) instead of
-# dying on a missing nvidia spec. (Worst case if Quadlet ignores the reset: an
-# NVIDIA host gets a benign duplicate nvidia line -- never a regression.)
 AddDevice=
 EOF
     if [ "$NVIDIA_PRESENT" = "1" ]; then
@@ -176,19 +78,12 @@ EOF
     fi
 }
 
-# --- 3. Reconcile drop-ins for each AI Quadlet -----------------
 
 changed_quadlets=()
 for quadlet in "${MIOS_AI_QUADLETS[@]}"; do
     dropin_parent="${SD_DIR}/${quadlet}.container.d"
     dropin_file="${dropin_parent}/${DROPIN_NAME}"
 
-    # Install-robustness 2026-06-21: ALWAYS write the drop-in now -- it is the
-    # AUTHORITATIVE, hardware-adaptive device source (reset + the detected vendor,
-    # or just the reset on CPU-only). The old "delete when no iGPU" path left the
-    # base quadlet's hardcoded nvidia AddDevice in force, which hard-failed every
-    # non-NVIDIA host. (The base quadlet's static line stays as a no-CDI fallback
-    # but is overridden by this drop-in whenever the reconciler has run.)
     install -d -m 0755 "$dropin_parent" || {
         log "$quadlet: cannot create $dropin_parent"; exit 2;
     }
@@ -205,27 +100,26 @@ for quadlet in "${MIOS_AI_QUADLETS[@]}"; do
     changed_quadlets+=("$quadlet")
 done
 
-# --- 4. systemd reload + optional restart ----------------------
 
 if [ "${#changed_quadlets[@]}" -gt 0 ]; then
     if ! systemctl daemon-reload; then
-        log "systemctl daemon-reload failed"
+        log "Systemctl daemon-reload failed"
         exit 1
     fi
-    log "reloaded systemd (changed: ${changed_quadlets[*]})"
+    log "Reloaded systemd"
 
     if [ "$RESTART_ON_CHANGE" = "1" ]; then
         for q in "${changed_quadlets[@]}"; do
             svc="${q}.service"
             if systemctl is-active --quiet "$svc"; then
-                log "restarting $svc to pick up new device wiring"
+                log "Restarting $svc to pick up new device wiring"
                 systemctl restart "$svc" || \
-                    log "$svc restart failed (continuing)"
+                    log "$svc restart failed"
             fi
         done
     fi
 else
-    log "no Quadlets needed reconciliation"
+    log "No Quadlets needed reconciliation"
 fi
 
 exit 0

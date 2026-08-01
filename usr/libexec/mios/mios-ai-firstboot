@@ -2,29 +2,9 @@
 # AI-hint: Provisioning script that installs the hermes-agent Python venv and extracts llama.cpp GGUF models to enable AI services, creating a sentinel file to gate network-less boot retries.
 # AI-related: /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/lib/mios/agents/.venv, /usr/share/mios/llamacpp/models, /usr/libexec/mios/72-hermes-agent.sh, /etc/mios/containers/coderun-sandbox, mios-coderun-sandbox, mios-coderun-session, mios-ai, mios-agent-pipe, mios-llm-light
 # AI-functions: log
-# 'MiOS' AI first-boot provisioning.
-#
-# Completes the build-time AI setup on deployments where it wasn't baked into
-# the image (overlay-provisioned MiOS-DEV, WSL imports, any non-bootc-built
-# host). Two pieces, both idempotent + best-effort:
-#   1. the shared agent venv (hermes-agent + agent-pipe), via the canonical
-#      builder automation/72-hermes-agent.sh (checked out at / by the overlay);
-#   2. the llama.cpp GGUFs for the mios-llm-light lane, downloaded as HF-native
-#      GGUFs (the tags come from /usr/share/mios/llamacpp/mios-llm-light.yaml).
-# Then it (re)starts the AI services so they pick up the new prerequisites.
-#
-# The sentinel /var/lib/mios/.ai-firstboot-done is written ONLY when the venv,
-# the GGUFs AND (if opted-in) the vLLM weights are all in place; until then the
-# script degrades open (exit 0) and mios-ai-firstboot.timer re-fires it on a
-# ~10min cadence (the .service carries ConditionPathExists=!<sentinel> so the
-# timer-fired run no-ops once complete). Retry is owned by the TIMER, not a
-# Restart=on-failure storm.
-#
-# NO `set -e` -- every step is guarded; a partial provision must not wedge boot.
 set +eu
 log(){ logger -t mios-ai-firstboot "$*" 2>/dev/null; echo "[mios-ai-firstboot] $*"; }
 
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -f /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
@@ -34,7 +14,6 @@ fi
 VENV=/usr/lib/mios/agents/.venv
 MODELS=/usr/share/mios/llamacpp/models
 
-# WSL persistence link logic (preserves downloaded weights across developer env refreshes)
 if [ "$(systemd-detect-virt 2>/dev/null)" = "wsl" ]; then
     install -d -m 0755 /var/lib/mios/llamacpp/models /var/lib/mios/vllm/model 2>/dev/null
     if [ -d "$MODELS" ] && [ ! -L "$MODELS" ]; then
@@ -58,20 +37,12 @@ if [ "$(systemd-detect-virt 2>/dev/null)" = "wsl" ]; then
     fi
 fi
 
-# ── 1. shared agent venv (hermes pins Python <3.14) ──────────────────────────
 if [ ! -x "${VENV}/bin/hermes" ]; then
     if ! command -v python3.13 >/dev/null 2>&1; then
-        log "installing python3.13 (hermes-agent requires >=3.11,<3.14)"
+        log "Installing python3.13"
         dnf install -y python3.13 python3.13-devel >/dev/null 2>&1 || log "WARN: python3.13 install failed"
     fi
-    # The canonical venv builder lives in automation/ (build-time). The overlay
-    # checks out usr/etc/var to / but NOT automation/, so find it across the
-    # locations it can actually be: a runtime copy, the / git working tree
-    # (materialize on demand), or the mounted Windows mios.git clone on the dev VM.
     HSCRIPT=""
-    # Require lib/common.sh ALONGSIDE the script: 72-hermes-agent.sh sources it
-    # and exits 0 (no venv) if absent -- exactly what a script-only /automation
-    # checkout yields. Prefer the full /mnt/m mios.git clone (has lib/).
     for p in /mnt/m/automation/72-hermes-agent.sh /mnt/c/MiOS/automation/72-hermes-agent.sh /usr/libexec/mios/72-hermes-agent.sh /automation/72-hermes-agent.sh; do
         [ -f "$p" ] && [ -f "$(dirname "$p")/lib/common.sh" ] && HSCRIPT="$p" && break
     done
@@ -80,36 +51,23 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
         [ -f /automation/72-hermes-agent.sh ] && [ -f /automation/lib/common.sh ] && HSCRIPT=/automation/72-hermes-agent.sh
     fi
     if [ -n "$HSCRIPT" ]; then
-        log "building shared agent venv via $HSCRIPT"
+        log "Building shared agent venv via $HSCRIPT"
         bash "$HSCRIPT" 2>&1 | tail -12
     else
-        log "WARN: 72-hermes-agent.sh not found (/, git, /mnt/m) -- agent venv NOT built"
+        log "WARN: 72-hermes-agent.sh not found"
     fi
-    # BROKEN-VENV CLEANUP (AGY-38): if the builder ran but left a partial/broken
-    # venv (dir present but no working hermes entrypoint), rm -rf it so the
-    # image-seed fallback below -- and any next-boot retry -- start from a clean
-    # slate instead of layering onto a half-built tree that merely LOOKS present.
-    # Degrade-open: never hard-fail boot on the cleanup (set +eu + || true).
     if [ ! -x "${VENV}/bin/hermes" ] && [ -d "${VENV}" ]; then
-        log "agent venv build incomplete/broken -- removing ${VENV} for a clean retry"
+        log "Agent venv build incomplete/broken"
         rm -rf "${VENV}" 2>/dev/null || true
     fi
-    # HARDENING (install-robustness): if the pip build failed or its builder was
-    # absent (air-gapped host / dev-VM overlay where automation/ isn't checked out),
-    # SEED the venv from the deployed OCI image. 38-hermes-agent ran WITH build-time
-    # egress during the OCI build, so localhost/mios:latest ALWAYS carries a working
-    # venv -- extracting it needs NO network. (A bare-metal bootc host already has
-    # the venv baked into its rootfs, so this whole block is skipped there.) Without
-    # this, an offline agent-venv build left mios-agent-pipe/hermes DOWN after every
-    # install -> the operator-reported "outages / must deploy every time".
     if [ ! -x "${VENV}/bin/hermes" ] && command -v podman >/dev/null 2>&1; then
         for _img in localhost/mios:latest localhost/mios:day0 "${MIOS_IMAGE_REF:-ghcr.io/mios-dev/mios:latest}"; do
             podman image exists "$_img" 2>/dev/null || continue
-            log "agent venv build unavailable -- seeding from OCI image ${_img} (offline)"
+            log "Agent venv build unavailable"
             install -d -m 0755 /usr/lib/mios/agents
             if podman run --rm --entrypoint="" "$_img" tar -C /usr/lib/mios/agents -cf - .venv 2>/dev/null \
                  | tar -C /usr/lib/mios/agents -xf - 2>/dev/null && [ -x "${VENV}/bin/hermes" ]; then
-                log "agent venv seeded from ${_img}"
+                log "Agent venv seeded from ${_img}"
                 break
             fi
         done
@@ -117,30 +75,16 @@ if [ ! -x "${VENV}/bin/hermes" ]; then
     if [ -x "${VENV}/bin/hermes" ]; then log "agent venv ready: ${VENV}"; else log "WARN: agent venv still missing"; fi
 fi
 
-# ── 2. llama.cpp GGUFs (llama.cpp-NATIVE -- HF download; G5/G8) ─
-# GGUFs are normally BAKED at build by automation/73-model-prep.sh (the
-# offline-correct path). This firstboot block is the ONLINE retry for hosts that
-# didn't bake them: it fetches the SAME MIOS_LLAMACPP_BAKE_MODELS spec
-# (dest.gguf=hf_repo:file, FOSS pre-quantized) directly from Hugging Face via a
-# plain curl of the resolve URL -- NO legacy-backend dependency (G5) and NO
-# huggingface_hub/pip dependency (G8: the runtime pip install failed on
-# air-gapped/locked hosts). When air-gapped + unbaked the lane stays inert
-# (operator sets [llamacpp].bake_models + rebuilds, or seeds ${MODELS} manually)
-# -- it never blocks boot.
 if [ ! -f "${MODELS}/.ready" ]; then
     install -d -m 0755 "${MODELS}" /var/lib/mios/llamacpp/slots 2>/dev/null
     SPEC="${MIOS_LLAMACPP_BAKE_MODELS:-}"
     if [ -z "$SPEC" ]; then
-        log "GGUFs not baked + [llamacpp].bake_models empty -- using Day-0 default post-deploy model (lfm2-700m.gguf + embeddinggemma-300m-qat-q8_0.gguf) to ensure embeddings + basic inference function"
-        # VRAM/size tradeoffs:
-        # - lfm2-700m (micro/CPU lane reasoning, ~0.7GB size, ~0.7GB VRAM): Extremely lightweight and fast, but python-specific tool call formatting.
-        # - embeddinggemma-300m-qat-q8_0 (Google EmbeddingGemma QAT, ~0.5GB size, ~0.5GB VRAM): Tiny footprint, native 768d vector compatibility.
-        # - granite-4.1-8b (brain, ~5.5GB size, ~8GB VRAM with 32k KV): Full tool-use reasoning capabilities, but heavy to download/run on low-end.
+        log "GGUFs not baked + [llamacpp].bake_models empty"
         SPEC="lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf"
     fi
 
     if [ -z "$SPEC" ]; then
-        log "GGUFs not baked + [llamacpp].bake_models empty -- mios-llm-light lane stays inert (set bake_models + rebuild, or seed ${MODELS} manually)"
+        log "GGUFs not baked + [llamacpp].bake_models empty"
     else
         fetched=0; total=0
         IFS=',' read -ra _ents <<< "$SPEC"
@@ -149,15 +93,9 @@ if [ ! -f "${MODELS}/.ready" ]; then
             total=$((total + 1))
             dest="${entry%%=*}"; rest="${entry#*=}"; repo="${rest%%:*}"; file="${rest#*:}"
             if [ -z "$dest" ] || [ -z "$repo" ] || [ -z "$file" ] || [ "$dest" = "$entry" ]; then
-                log "malformed GGUF entry '${entry}' (want dest.gguf=repo:file) -- skipping"; continue
+                log "Malformed GGUF entry '${entry}'"; continue
             fi
             if [ -s "${MODELS}/${dest}" ]; then fetched=$((fetched + 1)); continue; fi
-            # Direct HF resolve URL -- NO huggingface_hub / pip dependency
-            # (G8: the runtime pip install was the firstboot failure on
-            # air-gapped/locked hosts). curl --fail (no 200 -> non-zero),
-            # -L (follow the CDN redirect), -C - (resume a partial .part).
-            # Download to a .part then atomic-rename so a truncated file
-            # never trips the .ready gate.
             _url="https://huggingface.co/${repo}/resolve/main/${file}"
             success=0
             for attempt in 1 2 3; do
@@ -176,20 +114,19 @@ if [ ! -f "${MODELS}/.ready" ]; then
                 fi
             done
             if [ "$success" -eq 1 ]; then
-                fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF (${_url})"
+                fetched=$((fetched + 1)); log "GGUF ${dest} fetched from HF"
             else
-                log "GGUF ${dest} fetch failed after 3 attempts (no egress / upstream) -- will retry"
+                log "GGUF ${dest} fetch failed after 3 attempts"
             fi
         done
         if [ "$total" -gt 0 ] && [ "$fetched" -ge "$total" ]; then
-            touch "${MODELS}/.ready"; log "GGUFs provisioned (${fetched}/${total}) -- mios-llm-light lane eligible"
+            touch "${MODELS}/.ready"; log "GGUFs provisioned"
         else
-            log "WARN: GGUFs incomplete (${fetched}/${total}) -- mios-llm-light lane idle until next retry"
+            log "WARN: GGUFs incomplete"
         fi
     fi
 fi
 
-# ── 2b. vLLM model weights (vLLM-NATIVE -- HF download; opt-in, off-by-default) ──
 VLLM_MODEL="${MIOS_VLLM_BAKE_MODEL:-}"
 if [ -z "$VLLM_MODEL" ] && [ -x /usr/libexec/mios/mios-toml-get ]; then
     _vram_gb=0
@@ -223,7 +160,7 @@ VLLM_DIR="/usr/share/mios/vllm/model"
 if [ -n "$VLLM_MODEL" ] && [ ! -f "/var/lib/mios/.vllm-firstboot-done" ]; then
     install -d -m 0755 "$VLLM_DIR" 2>/dev/null
     if [ -x "${VENV}/bin/python3" ]; then
-        log "fetching vLLM model weights for ${VLLM_MODEL} -> ${VLLM_DIR} via agent venv"
+        log "Fetching vLLM model weights for ${VLLM_MODEL} -> ${VLLM_DIR} via agent venv"
         if "${VENV}/bin/python3" - "$VLLM_MODEL" "$VLLM_DIR" <<'PY' 2>/dev/null; then
 import sys
 import time
@@ -250,77 +187,54 @@ else:
     sys.exit(1)
 PY
             touch /var/lib/mios/.vllm-firstboot-done
-            log "vLLM model weights provisioned for ${VLLM_MODEL}"
+            log "VLLM model weights provisioned for ${VLLM_MODEL}"
             systemctl reset-failed mios-llm-heavy 2>/dev/null
             systemctl restart mios-llm-heavy 2>/dev/null || true
         else
-            log "WARN: vLLM model weights fetch failed -- will retry"
+            log "WARN: vLLM model weights fetch failed"
         fi
     else
-        log "WARN: agent venv python not available -- vLLM model weights NOT fetched"
+        log "WARN: agent venv python not available"
     fi
 fi
 
-# ── 2c. code-run sandbox: the dry-run sandbox Quadlet (mios-coderun-sandbox@)
-# is a USER unit -- it uses %t (XDG_RUNTIME_DIR) + is started via
-# `systemctl --user` by mios-coderun-session. For the mios-ai SERVICE account
-# (agent-pipe) to start it headless, mios-ai needs LINGER so a persistent user
-# systemd manager + the podman user generator run without an interactive login.
-# Without this, run_sandboxed_code fails (systemctl --user: no bus / unit not
-# found) and the agent reports a sandbox permission error (operator 2026-06-12).
 if command -v loginctl >/dev/null 2>&1 && id mios-ai >/dev/null 2>&1; then
-    # (a) subuid/subgid: the sandbox Quadlet uses UserNS=keep-id, which needs a
-    # rootless sub-id range for mios-ai. Build-time canonical is
-    # automation/11-user.sh; this is the runtime retry for overlay/WSL hosts where
-    # mios-ai was added without a range. Allocate the next free block after
-    # user/mios (524288:65536) -> 589824:65536, idempotently.
     if ! grep -qE '^mios-ai:' /etc/subuid 2>/dev/null; then
         echo 'mios-ai:589824:65536' >> /etc/subuid
         echo 'mios-ai:589824:65536' >> /etc/subgid
         sudo -u mios-ai podman system migrate 2>/dev/null || true
-        log "added mios-ai subuid/subgid 589824:65536 (rootless keep-id for sandbox)"
+        log "Added mios-ai subuid/subgid 589824:65536"
     fi
-    # (b) linger: persistent user manager so `systemctl --user` (used by
-    # mios-coderun-session) works headless for the mios-ai service account.
     if [ "$(loginctl show-user mios-ai -p Linger --value 2>/dev/null)" != "yes" ]; then
         if loginctl enable-linger mios-ai 2>/dev/null; then
-            log "enabled linger for mios-ai (code-run sandbox user manager)"
+            log "Enabled linger for mios-ai"
         else
-            log "WARN: enable-linger mios-ai failed -- code-run sandbox stays disabled"
+            log "WARN: enable-linger mios-ai failed"
         fi
     fi
 fi
 
-# ── 2d. code-run sandbox IMAGE: the user-scope Quadlet starts
-# localhost/mios-coderun-sandbox:latest, which must exist in mios-ai's ROOTLESS
-# store (rootless has its own image store, separate from rootful). Build it from
-# the shipped context if missing -- a network build (alpine + toolkit),
-# best-effort, retries next boot on failure. Needs the linger+subids above.
 if id mios-ai >/dev/null 2>&1 && command -v podman >/dev/null 2>&1; then
     _aiuid="$(id -u mios-ai 2>/dev/null)"
     if ! sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" podman image exists localhost/mios-coderun-sandbox:latest 2>/dev/null; then
         _ctx=/etc/mios/containers/coderun-sandbox
         if [ -f "${_ctx}/Dockerfile" ]; then
-            log "building code-run sandbox image (rootless mios-ai) -- network build"
+            log "Building code-run sandbox image"
             if sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" \
                     podman build -t localhost/mios-coderun-sandbox:latest "${_ctx}" >/dev/null 2>&1; then
-                log "code-run sandbox image built"
+                log "Code-run sandbox image built"
             else
-                log "WARN: sandbox image build failed (no egress?) -- run_sandboxed_code disabled until retry"
+                log "WARN: sandbox image build failed"
                 sudo -u mios-ai env XDG_RUNTIME_DIR="/run/user/${_aiuid}" podman image prune --force >/dev/null 2>&1 || true
             fi
         fi
     fi
 fi
 
-# ── 2e. seed accounts into pgvector datastore ──────────────────────────────────
-# Waits up to 90 seconds for pgvector to accept connections, then parses
-# mios.toml configurations to seed database accounts.
 python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
 import os, sys, json, subprocess, socket, time
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 
-# 1. Wait for pgvector socket
 PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "5432")
 db_ready = False
 for _ in range(45):
@@ -336,7 +250,6 @@ if not db_ready:
     sys.stderr.write("seeder: pgvector port not ready, skipping seeding\n")
     sys.exit(0)
 
-# 2. Parse layered TOML files
 merged = mios_toml.load_merged()
 
 env_pwhash = os.environ.get("MIOS_USER_PASSWORD_HASH")
@@ -352,7 +265,6 @@ def pg_array(lst):
         escaped.append(f'"{item_str}"')
     return "{" + ",".join(escaped) + "}"
 
-# 3. Add default 'user'/'user' account first (vendor default)
 user_pw = "user"
 user_hash = subprocess.run(["openssl", "passwd", "-6", user_pw], capture_output=True, text=True).stdout.strip()
 accounts.append({
@@ -376,7 +288,6 @@ accounts.append({
     "strengths": []
 })
 
-# 4. Extract identity account
 ident = merged.get("identity", {})
 user_sec = merged.get("user", {})
 if isinstance(ident, dict) and ident.get("username"):
@@ -417,7 +328,6 @@ if isinstance(ident, dict) and ident.get("username"):
         "strengths": []
     })
 
-# 5. Extract additional accounts
 autounattend = merged.get("autounattend", {})
 if isinstance(autounattend, dict):
     accts_list = autounattend.get("accounts", [])
@@ -464,7 +374,6 @@ if isinstance(autounattend, dict):
                 "strengths": []
             })
 
-# 5b. Extract AI agents from [agents] section
 agents = merged.get("agents", {})
 if isinstance(agents, dict):
     for agent_name, agent_cfg in agents.items():
@@ -505,7 +414,6 @@ if isinstance(agents, dict):
             "strengths": strengths
         })
 
-# 6. Build statements for mios-pg-query
 statements = []
 for a in accounts:
     sql = """
@@ -536,7 +444,6 @@ for a in accounts:
     ]
     statements.append({"sql": sql, "params": params})
 
-    # Generate NTLM hash
     raw_pwd = a.get("raw_password")
     ntlm_hash = "31D6CFE0D16AE931B73C59D7E0C089C0"
     if raw_pwd:
@@ -604,10 +511,8 @@ for a in accounts:
     ]
     statements.append({"sql": sql_identity, "params": params_identity})
 
-# Execute bulk statements via mios-pg-query --exec-json
 if statements:
     envelope = {"statements": statements}
-    # Try multiple paths for mios-pg-query
     pgq_path = "/usr/libexec/mios/mios-pg-query"
     if not os.path.isfile(pgq_path):
         pgq_path = "/mnt/c/MiOS/usr/libexec/mios/mios-pg-query"
@@ -626,24 +531,22 @@ if statements:
         sys.stderr.write("seeder: mios-pg-query not found\n")
 PY_SEED
 
-# Seeding system configurations and verbs into database
 if [ -f "/usr/libexec/mios/seed-db-config.py" ]; then
     python3 /usr/libexec/mios/seed-db-config.py || true
 fi
 
-# ── 2b. pre-stage firstboot-tier images degrade-open ─────────────────────────
 FBLIST="/usr/lib/mios/bake/plan.d/firstboot.list"
 if [ -f "$FBLIST" ] && command -v podman >/dev/null 2>&1; then
-    log "pre-staging firstboot-tier images from $FBLIST"
+    log "Pre-staging firstboot-tier images from $FBLIST"
     STORE="${STORE:-/usr/lib/containers/storage}"
     while IFS= read -r fb_img; do
         fb_img="$(echo "$fb_img" | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
         [ -z "$fb_img" ] && continue
         if podman --root "$STORE" image exists "$fb_img" 2>/dev/null; then
-            log "firstboot-tier image $fb_img already present in store -- skipping pull"
+            log "Firstboot-tier image $fb_img already present in store"
             continue
         fi
-        log "pulling firstboot-tier image: $fb_img"
+        log "Pulling firstboot-tier image: $fb_img"
         _fb_pulled=0
         for _fb_try in 1 2 3; do
             if podman --root "$STORE" pull "$fb_img" >/dev/null 2>&1; then
@@ -653,19 +556,13 @@ if [ -f "$FBLIST" ] && command -v podman >/dev/null 2>&1; then
             sleep $((_fb_try * 2))
         done
         if [ "$_fb_pulled" -eq 1 ]; then
-            log "pre-staged firstboot-tier image $fb_img successfully"
+            log "Pre-staged firstboot-tier image $fb_img successfully"
         else
-            log "WARN: could not pre-stage firstboot-tier image $fb_img (degrade open)"
+            log "WARN: could not pre-stage firstboot-tier image $fb_img"
         fi
     done < "$FBLIST"
 fi
 
-# ── 3. (re)start the AI services now their prerequisites exist ────────────────
-# --no-block on hermes-agent + mios-agent-pipe: firstboot must NOT wait on them
-# settling. They have their own readiness deps and can deadlock against the
-# firstboot ordering -- the ~23min early-boot hang (2026-06-14). mios-llm-light
-# is the inference lane (no firstboot ordering dependency) so a plain restart is
-# fine there.
 systemctl daemon-reload 2>/dev/null
 for s in mios-gateway-agent mios-agent-pipe; do
     systemctl reset-failed "${s}" 2>/dev/null
@@ -674,7 +571,6 @@ done
 systemctl reset-failed mios-llm-light 2>/dev/null
 systemctl restart mios-llm-light 2>/dev/null || true
 
-# ── sentinel: only when fully provisioned, so failures retry next boot ────────
 install -d -m 0755 /var/lib/mios 2>/dev/null
 _ggufs_ok=0; [ -f "${MODELS}/.ready" ] && _ggufs_ok=1
 _vllm_ok=1
@@ -684,13 +580,9 @@ fi
 
 if [ -x "${VENV}/bin/hermes" ] && [ "$_ggufs_ok" -eq 1 ] && [ "$_vllm_ok" -eq 1 ]; then
     touch /var/lib/mios/.ai-firstboot-done
-    log "complete -- agent venv + GGUFs + vLLM weights provisioned"
+    log "Complete"
     exit 0
 else
-    # DEGRADE-OPEN (R8): a partial provision must NOT crash-loop the unit or hold
-    # the AI plane hostage. Log a WARNING and exit 0 so the unit shows success;
-    # the sentinel above is deliberately NOT touched, so mios-ai-firstboot.timer
-    # re-fires this script (~10min cadence) until the venv+GGUFs+vLLM are all in.
     log "WARNING: incomplete (venv=$( [ -x "${VENV}/bin/hermes" ] && echo ok || echo missing ) ggufs=$( [ "$_ggufs_ok" -eq 1 ] && echo ok || echo missing ) vllm=$( [ "$_vllm_ok" -eq 1 ] && echo ok || echo missing )) -- degrading open (exit 0); mios-ai-firstboot.timer retries until the sentinel lands"
     exit 0
 fi

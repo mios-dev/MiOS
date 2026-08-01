@@ -3,38 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-flatpak-install, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-flatpak-init, mios-flatpak-init
 # AI-functions: _resolve_remote_for
 set -euo pipefail
-# /usr/libexec/mios/mios-flatpak-install <flatpak-id> [<flatpak-id> ...]
-#
-# Agent-friendly wrapper around `sudo flatpak install --system`. Lets
-# Hermes (or any operator) install new flatpaks from flathub
-# non-interactively, without dragging the agent through the standard
-# install prompts ("This application is not signed by ... Continue?
-# [y/n]").
-#
-# Operator directive 2026-05-15: "make sure agents can install new
-# flatpaks ... and ALL works".
-#
-# WHY A WRAPPER (vs. just telling the agent "run sudo flatpak install ...")
-# ────────────────────────────────────────────────────────────────────────
-# Three sharp edges the wrapper hides:
-#   1. `flatpak install` is INTERACTIVE by default. Without --noninteractive,
-#      it stalls on the "OK to install? [Y/n]" prompt forever -- the agent
-#      sees a hung tool call.
-#   2. `flatpak install <id>` ambiguously matches multiple remotes when the
-#      same id exists on flathub + flathub-beta + gnome-nightly; it prompts
-#      "Which one? [1-3]" -- another silent hang. Force the remote with
-#      `--from <remote>` (default: flathub).
-#   3. After a fresh install, the new app inherits MiOS's system-wide
-#      override policy (XDG dirs etc.) automatically -- but the
-#      MiOS-managed override file at /var/lib/flatpak/overrides/global
-#      MUST exist first; if it doesn't (atypical install where mios-
-#      flatpak-init didn't run), this wrapper kicks it off so the new
-#      app comes up with the right grants from the very first launch.
-#
-# USAGE
-#   mios-flatpak-install org.gnome.gedit
-#   mios-flatpak-install org.gnome.Calendar org.gnome.Calculator
-#   MIOS_FLATPAK_REMOTE=flathub-beta mios-flatpak-install com.example.App
 set -eu
 
 if [ "$#" -lt 1 ]; then
@@ -52,15 +20,6 @@ USAGE
     exit 64
 fi
 
-# Remote resolution priority (operator-binding 2026-05-19 "target
-# betas for all flatpaks"):
-#   1. Explicit MIOS_FLATPAK_REMOTE env override (per-call)
-#   2. mios.toml [flatpak].prefer_beta = true: pick PER-APP -- if
-#      flathub-beta exposes the id, use beta; else fall back to the
-#      default_remote (stable flathub)
-#   3. mios.toml [flatpak].default_remote
-#   4. Hardcoded fallback: flathub
-# Shared layered mios.toml resolver (vendor < host < user) via the mios-toml-get CLI.
 _MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/mios-toml-get"
 _default_remote=$("$_MIOS_TOML_GET" flatpak default_remote flathub 2>/dev/null)
 _default_remote="${_default_remote:-flathub}"
@@ -74,69 +33,53 @@ _resolve_remote_for() {
         return
     fi
     if [ "$_prefer_beta" = "true" ] && flatpak remotes 2>/dev/null | grep -q "^flathub-beta"; then
-        # Probe whether flathub-beta has this id
         if flatpak remote-info flathub-beta "$_id" >/dev/null 2>&1; then
-            echo "flathub-beta"
+            echo "Flathub-beta"
             return
         fi
     fi
     echo "$_default_remote"
 }
 
-# Legacy single REMOTE var retained for the log line; the actual
-# install loop below resolves PER-ID via _resolve_remote_for.
 REMOTE="${MIOS_FLATPAK_REMOTE:-$_default_remote}"
 
-# Make sure the override policy is in place before we install -- a
-# new flatpak picks up overrides at first launch, so applying them
-# AFTER the install would still work, but doing it first is cleaner
-# (and prevents a transient "first launch with no XDG access" window
-# when the operator clicks the new app immediately).
 if [ -x /usr/libexec/mios/mios-flatpak-init ]; then
     /usr/libexec/mios/mios-flatpak-init >/dev/null 2>&1 || true
 fi
 
-# Resolve to sudo if we're not already root.
 SUDO=()
 if [ "$(id -u)" -ne 0 ]; then
     SUDO=(sudo -n)
 fi
 
-# Default runtime branch used to disambiguate multi-branch refs (e.g. the
-# Vulkan-layer extensions like MangoHud publish several //<branch>s). Under
-# --noninteractive, `flatpak install <bare-id>` errors "Multiple refs match
-# ... must specify one" instead of prompting -- so on that specific failure
-# we retry once with //<branch> appended. Operator-overridable per call.
 _default_branch="${MIOS_FLATPAK_DEFAULT_BRANCH:-24.08}"
 
 failed=0
 for id in "$@"; do
     _id_remote=$(_resolve_remote_for "$id")
-    echo "[mios-flatpak-install] installing $id from $_id_remote..."
+    echo "[mios-flatpak-install] installing $id from $_id_remote"
     _out=$("${SUDO[@]}" flatpak install \
             --system --noninteractive --assumeyes \
             "$_id_remote" "$id" 2>&1) && _rc=0 || _rc=$?
     printf '%s\n' "$_out"
-    # Ambiguous-branch fallback: retry once with a default //<branch> appended
-    # (only if the id doesn't already carry one).
     if [ "$_rc" -ne 0 ] && [ "${id#*//}" = "$id" ] \
             && printf '%s' "$_out" | grep -qiE 'multiple refs|must specify.*branch|multiple branches'; then
-        echo "[mios-flatpak-install] ambiguous branch for $id -- retrying with //${_default_branch}"
+        echo "[mios-flatpak-install] ambiguous branch for $id"
         _out=$("${SUDO[@]}" flatpak install \
                 --system --noninteractive --assumeyes \
                 "$_id_remote" "${id}//${_default_branch}" 2>&1) && _rc=0 || _rc=$?
         printf '%s\n' "$_out"
     fi
     if [ "$_rc" -eq 0 ]; then
-        echo "[mios-flatpak-install] ✓ $id installed (remote=$_id_remote)"
+        echo "[mios-flatpak-install] ✓ $id installed"
     else
-        echo "[mios-flatpak-install] ✗ $id failed (remote=$_id_remote)"
+        echo "[mios-flatpak-install] ✗ $id failed"
         failed=$((failed + 1))
     fi
 done
 
 if [ "$failed" -ne 0 ]; then
-    echo "[mios-flatpak-install] ${failed}/$# install(s) failed" >&2
+    echo "[mios-flatpak-install] ${failed}/$# install failed" >&2
     exit 1
 fi
 exit 0

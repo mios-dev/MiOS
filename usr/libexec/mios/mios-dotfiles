@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: The operator-facing `mios dotfiles` verb backend (ADR-0010) -- projects
 # AI-related: usr/bin/mios, usr/libexec/mios/mios-theme-render, usr/share/mios/mios.toml
-# the SSOT dotfiles (the theme surfaces + settings surfaces derived from
-# mios.toml: btop, oh-my-posh, quickshell, fastfetch, VS Code colors, the live
-# gitconfig, Windows Terminal, the Windows registry) to the operator's LIVE HOME by
-# ORCHESTRATING usr/libexec/mios/mios-theme-render (the projection engine, which
-# owns the surface registry, the per-platform apply.target map, timestamped RAW
-# backups, json-/ini-merge, and the HOME-scope refusal backstop). This wrapper
-# RENDERS NOTHING itself and NEVER writes: `status`/`diff` shell the engine's
-# dry-run (`mios-theme-render diff`), `sync`/`apply` delegate every write + its
-# backup to the engine (`mios-theme-render apply`). It only adds a friendly
-# per-surface OK/skip/changed summary + a final tally on top of the engine's
-# authoritative output. Degrade-open: a surface with no apply.target for THIS
-# platform is a clean skip (the engine reports "no <os> HOME target -- skipping",
-# rc unaffected), never a failure. Paired with mios-sync-theme (`--apply-home`
-# chains into `sync`) + etc/profile.d/mios-verbs.sh (the `mios dotfiles` verb).
 # AI-related: ./mios-theme-render, ./mios-sync-theme, ../../share/mios/mios.toml, ../../../etc/profile.d/mios-verbs.sh, ../../share/doc/mios/adr/0010-ssot-as-system-dotfiles.md
 # AI-functions: _run_engine, _classify, _dest_of, _print_summary, cmd_status, cmd_diff, cmd_sync, main
 """mios dotfiles: project the mios.toml SSOT dotfiles to the operator's live HOME (ADR-0010).
@@ -38,19 +24,12 @@ import sys
 
 _SELF = os.path.abspath(__file__)
 _DIR = os.path.dirname(_SELF)
-# Same repo/system root convention as mios-theme-render: MIOS_THEME_ROOT wins,
-# else three dirs up from usr/libexec/mios/ (i.e. "/" in a deployed system, the
-# worktree root in the repo). Propagated to the engine child so BOTH sides
-# resolve the identical mios.toml overlay + repo-relative templates.
 ROOT = os.environ.get("MIOS_THEME_ROOT") or os.path.abspath(
     os.path.join(_DIR, "..", "..", ".."))
 _ENGINE = os.path.join(_DIR, "mios-dotfiles-render")
 
-# Every per-surface engine line is "[mios-dotfiles-render] <diff|apply> <surface>: <rest>".
-# (Surface names are [A-Za-z0-9_-]; the registry never emits a dotted surface.)
 _LINE = re.compile(r"^\[mios-dotfiles-render\] (?:diff|apply) ([A-Za-z0-9_-]+): (.*)$")
 
-# Per-surface outcome classes (derived from the engine's own wording).
 OK, SKIP, CHANGE, REFUSE, UNKNOWN = "ok", "skip", "change", "refuse", "unknown"
 
 
@@ -111,8 +90,6 @@ def _dest_of(rests):
     return ""
 
 
-# Human labels per class, per mode. `change` reads differently for a dry-run
-# (would-change) vs a real apply (applied); everything else is mode-neutral.
 _LABEL = {
     "diff":  {OK: "up-to-date", SKIP: "skip", CHANGE: "would-change",
               REFUSE: "REFUSED", UNKNOWN: "?"},
@@ -133,7 +110,6 @@ def _print_summary(surfaces, mode):
         dest = _dest_of(rests)
         note = ""
         if cls == SKIP:
-            # Surface the engine's reason (e.g. "no windows HOME target").
             joined = " ".join(rests)
             note = joined.split(" -- ")[0] if " -- " in joined else joined
         elif cls == REFUSE:

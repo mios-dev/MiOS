@@ -3,82 +3,11 @@
 # AI-related: /usr/libexec/mios/mios-steamcmd, mios-installer, mios-windows
 # AI-functions: _steamcmd_path, _ensure_steamcmd, _run_steamcmd, _install_uri, _install_cmd, _uninstall_cmd, _update_cmd, _status_cmd, _info_cmd, _login_cmd, _list_installed, _search_store
 set -euo pipefail
-# /usr/libexec/mios/mios-steamcmd <subcommand> [args...]
-#
-# Native MiOS wrapper around Valve's SteamCMD (the official command-line
-# Steam client) + the steam:// URI protocol handler. Operators (and
-# agents) get one verb for any Steam-side install / update / info /
-# status operation without having to remember which path to call.
-#
-# TWO install routes -- pick by your situation:
-#
-#   uri     - Operator-owned game, Steam client running.
-#             Dispatches `steam://install/<appid>` to the Steam GUI.
-#             Steam pops the install dialog; operator confirms.
-#             Works for ANY game the operator owns. No credentials
-#             needed in MiOS -- Steam already knows the user.
-#
-#   cmd     - Headless / scripted install via SteamCMD.
-#             Works for: free apps, anonymous-installable content
-#             (dedicated servers like CSGO srcds, Valheim server,
-#             etc.). For owned single-player games SteamCMD requires
-#             the operator's Steam username + Steam Guard 2FA at
-#             first install -- run `mios-steamcmd login <user>` once.
-#
-# Auto-bootstrap: if SteamCMD isn't installed, this shim runs
-# `mios-installer install Valve.SteamCMD --backend winget --no-confirm`
-# the first time you ask for the `cmd` route. ~3 MB install, takes
-# 10-20 s on first run.
-#
-# SUBCOMMANDS
-#
-#   install <appid> [--route uri|cmd] [--dir <path>] [--user <steam-user>]
-#       Default route auto-picks: `uri` (operator-friendly) unless
-#       --user is set, then `cmd`. Override with --route.
-#
-#   uninstall <appid> [--route uri|cmd]
-#
-#   update    <appid> [--route cmd] [--validate]
-#       SteamCMD `app_update <appid> validate` -- updates + verifies
-#       file integrity. Anonymous login by default.
-#
-#   validate  <appid>
-#       Same as update --validate but without re-downloading missing
-#       files; just verifies hashes.
-#
-#   status    <appid>
-#       SteamCMD `app_status <appid>` -- prints install status,
-#       buildid, size, last-updated.
-#
-#   info      <appid>
-#       SteamCMD `app_info_print <appid>` -- full appinfo blob
-#       (name, depots, branches, install scripts).
-#
-#   login     <steam-user>
-#       Interactive SteamCMD login. Opens the operator's Steam Guard
-#       prompt on Windows. SteamCMD caches credentials so subsequent
-#       cmd-route operations don't re-prompt.
-#
-#   list
-#       Print known installed apps from Steam's libraryfolders.vdf.
-#
-#   search    <query>
-#       Search the Steam store (no SteamCMD needed; uses store API).
-#
-#   path
-#       Print the resolved SteamCMD .exe path (Windows-side).
-#
-# Operator directive 2026-05-17: "make a steamCMD a native tool for
-# handling steam CMD commands GLOBALLY". This shim is that surface.
 
 set -u
 
-# ─── helpers ─────────────────────────────────────────────────────────
 
 _steamcmd_path() {
-    # Resolve steamcmd.exe on the Windows side. winget installs to a
-    # versioned dir under Microsoft/WinGet/Packages/. Cache the resolved
-    # path in /var/lib/mios/steamcmd.path so repeated calls are O(1).
     local cache=/var/lib/mios/steamcmd.path
     if [[ -r "$cache" ]]; then
         local p
@@ -89,7 +18,6 @@ _steamcmd_path() {
         fi
     fi
 
-    # Probe known locations + winget --info
     local probe
     probe="$(mios-windows cmd "
         if exist C:\\steamcmd\\steamcmd.exe (echo C:\\steamcmd\\steamcmd.exe & exit /b 0)
@@ -110,13 +38,12 @@ _ensure_steamcmd() {
     if _steamcmd_path >/dev/null 2>&1; then
         return 0
     fi
-    echo "[mios-steamcmd] SteamCMD not found -- installing via winget..." >&2
+    echo "[mios-steamcmd] SteamCMD not found" >&2
     if mios-installer install Valve.SteamCMD --backend winget --no-confirm 2>&1 | tail -3 >&2; then
-        # invalidate cache + re-probe
         rm -f /var/lib/mios/steamcmd.path 2>/dev/null
         sleep 2
         if _steamcmd_path >/dev/null 2>&1; then
-            echo "[mios-steamcmd] SteamCMD installed at $(_steamcmd_path)" >&2
+            echo "[mios-steamcmd] SteamCMD installed at $" >&2
             return 0
         fi
     fi
@@ -124,35 +51,28 @@ _ensure_steamcmd() {
     return 1
 }
 
-# Run steamcmd with the given +commands and quit. $* should be the
-# entire `+cmd arg +cmd arg ...` string. SteamCMD's exit code is
-# returned; output goes to stdout.
 _run_steamcmd() {
     local exe
     exe="$(_steamcmd_path)" || {
-        echo "mios-steamcmd: SteamCMD not installed (run with subcommand 'cmd' to auto-install, or install manually: mios-installer install Valve.SteamCMD --backend winget)" >&2
+        echo "Mios-steamcmd: SteamCMD not installed" >&2
         return 2
     }
-    # Quote-safe dispatch via mios-windows ps. The args MUST be on the
-    # SteamCMD command line, separated by spaces, each starting with `+`.
     mios-windows ps "& '$exe' $* +quit"
 }
 
-# ─── subcommand handlers ─────────────────────────────────────────────
 
 _install_uri() {
     local appid="$1"
-    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "mios-steamcmd: appid must be numeric (got '$appid')" >&2; return 64; }
-    echo "[mios-steamcmd] dispatching steam://install/$appid to Steam GUI..." >&2
+    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "Mios-steamcmd: appid must be numeric" >&2; return 64; }
+    echo "[mios-steamcmd] dispatching steam://install/$appid to Steam GUI" >&2
     mios-windows ps "Start-Process 'steam://install/$appid'"
 }
 
 _install_cmd() {
     local appid="$1" dir="$2" user="$3"
-    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "mios-steamcmd: appid must be numeric" >&2; return 64; }
+    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "Mios-steamcmd: appid must be numeric" >&2; return 64; }
     _ensure_steamcmd || return 2
 
-    # Default install dir: C:\SteamCMDLibrary\<appid>
     [[ -z "$dir" ]] && dir="C:\\SteamCMDLibrary\\$appid"
 
     local login="+login anonymous"
@@ -164,14 +84,14 @@ _install_cmd() {
 
 _uninstall_cmd() {
     local appid="$1"
-    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "mios-steamcmd: appid must be numeric" >&2; return 64; }
+    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "Mios-steamcmd: appid must be numeric" >&2; return 64; }
     _ensure_steamcmd || return 2
     _run_steamcmd "+login anonymous +app_uninstall $appid"
 }
 
 _update_cmd() {
     local appid="$1" validate="$2"
-    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "mios-steamcmd: appid must be numeric" >&2; return 64; }
+    [[ ! "$appid" =~ ^[0-9]+$ ]] && { echo "Mios-steamcmd: appid must be numeric" >&2; return 64; }
     _ensure_steamcmd || return 2
     local v=""
     [[ "$validate" == "1" ]] && v="validate"
@@ -192,21 +112,19 @@ _info_cmd() {
 
 _login_cmd() {
     local user="$1"
-    [[ -z "$user" ]] && { echo "mios-steamcmd login: missing <steam-user>" >&2; return 64; }
+    [[ -z "$user" ]] && { echo "Mios-steamcmd login: missing <steam-user>" >&2; return 64; }
     _ensure_steamcmd || return 2
-    echo "[mios-steamcmd] SteamCMD interactive login for $user -- Steam Guard 2FA prompt will appear on Windows" >&2
+    echo "[mios-steamcmd] SteamCMD interactive login for $user" >&2
     _run_steamcmd "+login $user"
 }
 
 _list_installed() {
-    # Read Steam's libraryfolders.vdf (Windows side) to find all install paths.
     mios-windows ps "
         \$vdf = 'C:\\Program Files (x86)\\Steam\\steamapps\\libraryfolders.vdf'
         if (-not (Test-Path \$vdf)) {
             Write-Output '[mios-steamcmd] Steam not installed at default location'
             exit 0
         }
-        # Parse each library root + enumerate appmanifest_*.acf
         \$content = Get-Content \$vdf -Raw
         \$roots = [regex]::Matches(\$content, '\"path\"\s+\"([^\"]+)\"') | ForEach-Object { \$_.Groups[1].Value -replace '\\\\\\\\', '\\' }
         foreach (\$root in \$roots) {
@@ -225,8 +143,6 @@ _list_installed() {
 
 _search_store() {
     local query="$1"
-    # Use Steam store search API (no auth, no rate limit on light use).
-    # cc=US, l=english -- can be parameterized later.
     local url="https://store.steampowered.com/api/storesearch/?cc=US&l=english&term=$(printf %s "$query" | sed 's/ /%20/g')"
     curl -sS --max-time 10 "$url" | python3 -c "
 import sys, json
@@ -283,7 +199,6 @@ Examples:
 USAGE
 }
 
-# Source guard
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     return 0 2>/dev/null || true
 fi
@@ -315,39 +230,38 @@ arg="${positional[0]:-}"
 
 case "$sub" in
     install)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd install: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd install: missing <appid>" >&2; exit 64; }
         if [[ -z "$route" ]]; then
-            # --user implies cmd; otherwise default to uri (Steam GUI)
             [[ -n "$user" ]] && route="cmd" || route="uri"
         fi
         case "$route" in
             uri) _install_uri "$arg" ;;
             cmd) _install_cmd "$arg" "$dir" "$user" ;;
-            *)   echo "mios-steamcmd: unknown route: $route" >&2; exit 64 ;;
+            *)   echo "Mios-steamcmd: unknown route: $route" >&2; exit 64 ;;
         esac
         ;;
     uninstall|remove)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd uninstall: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd uninstall: missing <appid>" >&2; exit 64; }
         [[ -z "$route" ]] && route="cmd"
         case "$route" in
-            uri) echo "mios-steamcmd uninstall via URI not supported; use --route cmd" >&2; exit 64 ;;
+            uri) echo "Mios-steamcmd uninstall via URI not supported; use" >&2; exit 64 ;;
             cmd) _uninstall_cmd "$arg" ;;
         esac
         ;;
     update)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd update: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd update: missing <appid>" >&2; exit 64; }
         _update_cmd "$arg" "$validate"
         ;;
     validate)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd validate: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd validate: missing <appid>" >&2; exit 64; }
         _update_cmd "$arg" 1
         ;;
     status)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd status: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd status: missing <appid>" >&2; exit 64; }
         _status_cmd "$arg"
         ;;
     info)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd info: missing <appid>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd info: missing <appid>" >&2; exit 64; }
         _info_cmd "$arg"
         ;;
     login)
@@ -357,17 +271,17 @@ case "$sub" in
         _list_installed
         ;;
     search)
-        [[ -z "$arg" ]] && { echo "mios-steamcmd search: missing <query>" >&2; exit 64; }
+        [[ -z "$arg" ]] && { echo "Mios-steamcmd search: missing <query>" >&2; exit 64; }
         _search_store "$arg"
         ;;
     path)
-        _steamcmd_path || { echo "(not installed)" >&2; exit 2; }
+        _steamcmd_path || { echo "" >&2; exit 2; }
         ;;
     help|-h|--help)
         usage
         ;;
     *)
-        echo "mios-steamcmd: unknown subcommand: $sub" >&2
+        echo "Mios-steamcmd: unknown subcommand: $sub" >&2
         usage
         exit 64
         ;;

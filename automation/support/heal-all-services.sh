@@ -1,9 +1,6 @@
 #!/bin/bash
 # AI-hint: Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for mios-gateway-agent, restart the agent, and verify the status of ttyd and skills-miner services.
 # AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-paths-env, mios-ttyd-bash, mios-ttyd-powershell, mios-skills-miner, mios-gateway-agent.service, skills-miner.timer, mios-hermes-firstboot.service, mios-skills-miner.timer
-# Final heal: redeploy firstboot + env drop-in, restart mios-gateway-agent
-# to pick up the new env, re-run firstboot to enable opt-in units,
-# verify everything is green.
 set -euo pipefail
 
 echo "── deploy firstboot + env drop-in ──"
@@ -20,7 +17,7 @@ systemctl restart mios-gateway-agent.service 2>&1 &
 RESTART_PID=$!
  
 echo
-echo "── re-run firstboot (idempotent; enables ttyd + skills-miner.timer) ──"
+echo "── re-run firstboot ──"
 systemctl reset-failed mios-hermes-firstboot.service 2>&1 || true
 systemctl start --no-block mios-hermes-firstboot.service
 sleep 6
@@ -41,12 +38,12 @@ for t in mios-skills-miner.timer mios-embed-backfill.timer; do
 done
  
 echo
-echo "── env drop-in parse re-check (no rejected lines) ──"
+echo "── env drop-in parse re-check ──"
 wait $RESTART_PID 2>/dev/null || true
 sleep 2
 journalctl -u mios-gateway-agent.service --since '20 sec ago' --no-pager \
     | grep -E 'Invalid environment assignment' | head -3 \
-    || echo "  (none -- drop-in parses cleanly)"
+    || echo ""
 
 echo
 echo "── final listening-port summary ──"

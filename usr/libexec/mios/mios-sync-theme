@@ -1,27 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Regenerates the /etc/mios/theme/ bridge (theme.json + mios-theme.css)
-# from mios.toml [colors] + [theme] + [theme.font] -- the SAME three-layer
-# vendor/host/user overlay tools/lib/userenv.sh already resolves for shell
-# consumers. This is the CSS/QML-facing sibling of the existing
-# /etc/mios/install.env bridge: one command, one regenerated artifact, so a
-# palette edit in mios.toml reaches the Portal, the Configurator, the
-# Quickshell panel, and (via automation/67-bake-surfer.sh /
-# automation/65-bake-hyprland.sh at build time) the browser shell and
-# compositor borders, without hand-editing hex codes in five different files.
 # AI-related: usr/share/mios/mios.toml, usr/share/mios/quickshell/Theme.qml,
-# usr/share/mios/branding/mios-app-shell.css, tools/lib/userenv.sh,
-# usr/lib/tmpfiles.d/mios-theme.conf, usr/lib/systemd/system/mios-sync-theme.service
-#
-# Usage: mios-sync-theme               # regenerate from the resolved TOML layers
-#        mios-sync-theme --check       # print what would be written, don't write
-#        mios-sync-theme --apply-home  # regenerate AND push the dotfile surfaces
-#                                      # to the operator's LIVE HOME (via
-#                                      # mios-dotfiles sync -- backup-safe,
-#                                      # HOME-scoped). Combine with --check for a
-#                                      # dry-run (mios-dotfiles diff).
-#
-# Same layering as userenv.sh: /usr/share/mios/mios.toml (vendor, lowest)
-# < /etc/mios/mios.toml (host) < ~/.config/mios/mios.toml (user, highest).
 set -euo pipefail
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
@@ -32,9 +11,6 @@ MIOS_USER_TOML="${MIOS_USER_TOML:-${MIOS_CONFIG_DIR}/mios.toml}"
 OUT_DIR="${MIOS_THEME_OUT_DIR:-/etc/mios/theme}"
 CHECK_ONLY=0
 APPLY_HOME=0
-# Lenient flag parse (backward-compatible: the sole caller, the systemd unit,
-# passes no args; unrecognized args are ignored just as the old single-$1 test
-# ignored $2+). --apply-home is additive and off by default.
 for _arg in "$@"; do
     case "$_arg" in
         --check)      CHECK_ONLY=1 ;;
@@ -44,7 +20,7 @@ for _arg in "$@"; do
 done
 
 command -v python3 >/dev/null 2>&1 || {
-    echo "[mios-sync-theme] python3 not found -- cannot resolve mios.toml, aborting" >&2
+    echo "[mios-sync-theme] python3 not found" >&2
     exit 1
 }
 
@@ -69,18 +45,12 @@ merged = mios_toml.load_merged(layers)
 theme = merged.get("theme", {})
 font = theme.get("font", {})
 
-# Palette from the shared resolver (single source; SSOT over the canonical defaults).
 _SEMANTIC = ["bg", "fg", "accent", "cursor", "success", "warning", "error",
              "info", "muted", "subtle", "earth", "silver"]
 _pal = mios_toml.colors(merged)
 resolved = {k: _pal[k] for k in _SEMANTIC}
 resolved["font_family"] = font.get("family", "GeistMono Nerd Font Mono")
 resolved["font_size"] = font.get("size", 12)
-# [theme] acrylic/opacity/scrollbar_state are the operator's standing
-# "frameless / borderless / 50% acrylic" directive (mios.toml [theme],
-# originally a Windows Terminal setting) -- carried here so the web/QML
-# surfaces can honor the SAME frosted-glass intent instead of inventing a
-# separate opacity value.
 resolved["acrylic"] = bool(theme.get("acrylic", True))
 resolved["opacity_pct"] = int(theme.get("opacity", 50))
 resolved["radius_px"] = 10  # matches usr/share/mios/hyprland/hyprland.conf decoration.rounding
@@ -134,11 +104,6 @@ with open(css_path, "w") as f:
 print(f"[mios-sync-theme] wrote {theme_json_path} + {css_path}")
 PY
 
-# Project every OTHER committed theme surface (btop, oh-my-posh, quickshell,
-# fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the SAME palette
-# SSOT, so this single command is the GLOBAL runtime theme refresh. The surface
-# registry + templates live in mios-theme-render; --check mirrors ours (diff, no
-# write). A projection error warns but never aborts the bridge write above.
 _render="$(dirname "$0")/mios-theme-render"
 if [[ -f "$_render" ]] && command -v python3 >/dev/null 2>&1; then
     if [[ "$CHECK_ONLY" == "1" ]]; then
@@ -147,40 +112,30 @@ if [[ -f "$_render" ]] && command -v python3 >/dev/null 2>&1; then
         python3 "$_render" render || echo "[mios-sync-theme] WARNING: surface projection reported errors" >&2
     fi
 else
-    echo "[mios-sync-theme] note: mios-theme-render/python3 unavailable -- extended surfaces not projected" >&2
+    echo "[mios-sync-theme] note: mios-theme-render/python3 unavailable" >&2
 fi
 
-# Optional: also push the projected dotfile surfaces to the operator's LIVE HOME
-# via the mios-dotfiles verb backend (the SAME engine apply path), so the one
-# global theme refresh can ALSO land the dotfiles in $HOME. Off by default:
-# without --apply-home, sync-theme only refreshes the build-tree artifacts
-# (unchanged behavior). --check + --apply-home = a HOME dry-run (no writes).
 if [[ "$APPLY_HOME" == "1" ]]; then
     _dotfiles="$(dirname "$0")/mios-dotfiles"
     if [[ -f "$_dotfiles" ]] && command -v python3 >/dev/null 2>&1; then
         if [[ "$CHECK_ONLY" == "1" ]]; then
             python3 "$_dotfiles" diff || true
         else
-            python3 "$_dotfiles" sync || echo "[mios-sync-theme] WARNING: --apply-home (mios-dotfiles sync) reported issues" >&2
+            python3 "$_dotfiles" sync || echo "[mios-sync-theme] WARNING:" >&2
         fi
     else
-        echo "[mios-sync-theme] note: mios-dotfiles/python3 unavailable -- --apply-home skipped" >&2
+        echo "[mios-sync-theme] note: mios-dotfiles/python3 unavailable" >&2
     fi
 fi
 
-# Regenerate the MiOS XDG icon theme (SVGs for all branded surfaces) whenever
-# the palette changes. mios-generate-icons reads theme.json first (just written
-# above), so it always uses the freshly resolved palette.
-# Skip in --check mode (icons are write-only outputs, not inputs to check).
 if [[ "$CHECK_ONLY" != "1" ]]; then
     _icons="$(dirname "$0")/mios-generate-icons"
     if [[ -f "$_icons" ]] && command -v python3 >/dev/null 2>&1; then
         python3 "$_icons" || echo "[mios-sync-theme] WARNING: mios-generate-icons reported errors" >&2
-        # Refresh the GTK icon cache so apps pick up the new SVGs immediately
         if command -v gtk-update-icon-cache >/dev/null 2>&1; then
             gtk-update-icon-cache -f -t /usr/share/icons/MiOS 2>/dev/null || true
         fi
     else
-        echo "[mios-sync-theme] note: mios-generate-icons/python3 unavailable -- icon theme not refreshed" >&2
+        echo "[mios-sync-theme] note: mios-generate-icons/python3 unavailable" >&2
     fi
 fi

@@ -2,35 +2,11 @@
 # AI-hint: Documented in INDEX.md sec 4 as the canonical CLI for inspecting the
 # AI-related: /etc/mios/env.d/, /etc/mios/install.env, /etc/mios/env.d, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/tools/lib/userenv.sh, mios-env
 # AI-functions: _load_layers, _load_toml_layers, _print_kv, _print_json, _print_explain, _print_unset, _help
-# /usr/bin/mios-env -- print the resolved MIOS_* environment surface.
-#
-# Documented in INDEX.md sec 4 as the canonical CLI for inspecting the
-# layered environment overlay (legacy env-style files /etc/mios/env.d/*.env ->
-# /etc/mios/env.d/*.env -> /etc/mios/install.env -> ~/.env.mios ->
-# ~/.config/mios/env). Wraps /etc/profile.d/mios-env.sh + the
-# tools/lib/userenv.sh TOML resolver and reports the consolidated values
-# the running session would actually see.
-#
-# Usage:
-#   mios-env                  # all MIOS_* vars, sorted (KEY=VALUE)
-#   mios-env <NAME>           # one var, value only (suitable for $(...) capture)
-#   mios-env --json           # machine-readable JSON
-#   mios-env --unset          # POSIX 'unset' lines (for re-evaluating in a parent shell)
-#   mios-env --explain        # show which layer supplied each value
-#   mios-env --help
-#
-# Architectural Law 5: MIOS_AI_ENDPOINT / MIOS_AI_MODEL / MIOS_AI_KEY
-# resolved here are the canonical values for every OpenAI-API-shaped
-# client on the system.
 set -euo pipefail
 
-# Canonical layer paths (mirrors mios-env.sh). The mios.toml overlay
-# is loaded LAST via _load_toml_layers below so TOML overrides every
-# legacy env-style file. mios.toml is THE singular SSOT.
 LAYERS=(
     "${HOME}/.env.mios"
 )
-# /etc/mios/env.d/*.env (alphabetical)
 if [[ -d /etc/mios/env.d ]]; then
     while IFS= read -r -d '' f; do
         LAYERS+=("$f")
@@ -45,20 +21,14 @@ _load_layers() {
     local layer
     for layer in "${LAYERS[@]}"; do
         [[ -r "$layer" ]] || continue
-        # shellcheck disable=SC1090
         . "$layer"
     done
 }
 
-# Also fold in the TOML resolver (tools/lib/userenv.sh) which deep-merges
-# /usr/share/mios/mios.toml -> /etc/mios/mios.toml -> ~/.config/mios/mios.toml.
-# That library exports a richer set of typed MIOS_* slots derived from the
-# unified mios.toml schema.
 _load_toml_layers() {
     local userenv_lib
     for userenv_lib in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
         if [[ -r "$userenv_lib" ]]; then
-            # shellcheck disable=SC1090
             . "$userenv_lib"
             return 0
         fi
@@ -66,7 +36,6 @@ _load_toml_layers() {
 }
 
 _print_kv() {
-    # Print all currently-set MIOS_* variables sorted by name.
     while IFS= read -r line; do
         printf '%s\n' "$line"
     done < <(compgen -A variable | grep -E '^MIOS_' | sort | while read -r v; do
@@ -79,7 +48,6 @@ _print_json() {
     local first=1
     while IFS= read -r v; do
         local val="${!v-}"
-        # JSON-escape the value: backslash, double-quote, control chars.
         val=${val//\\/\\\\}
         val=${val//\"/\\\"}
         val=${val//$'\n'/\\n}
@@ -91,12 +59,10 @@ _print_json() {
 }
 
 _print_explain() {
-    # For each MIOS_* variable, identify the highest layer that set it.
     declare -A SOURCE_OF
     local layer
     for layer in "${LAYERS[@]}"; do
         [[ -r "$layer" ]] || continue
-        # Parse KEY=... lines from this layer (env-file format).
         while IFS= read -r key; do
             [[ -n "$key" ]] && SOURCE_OF["$key"]="$layer"
         done < <(grep -oE '^[[:space:]]*MIOS_[A-Z0-9_]+(?==)' "$layer" 2>/dev/null \
@@ -110,8 +76,6 @@ _print_explain() {
 }
 
 _print_unset() {
-    # Emit 'unset' lines for every MIOS_* var. Useful for callers that
-    # want to clear and re-source the resolver in their own shell.
     while IFS= read -r v; do
         printf 'unset %s\n' "$v"
     done < <(compgen -A variable | grep -E '^MIOS_' | sort)
@@ -150,7 +114,6 @@ case "${1:-}" in
         _load_layers
         _load_toml_layers 2>/dev/null || true
         var="$1"
-        # Only echo the value (no name=); suitable for $(mios-env MIOS_AI_ENDPOINT).
         printf '%s\n' "${!var-}"
         ;;
     *)

@@ -55,14 +55,9 @@ PORT = int(os.environ.get("MIOS_PG_PORT") or os.environ.get("MIOS_PORT_PGVECTOR"
 USER = os.environ.get("MIOS_PG_USER") or "mios"
 DB = os.environ.get("MIOS_PG_DB") or "mios"
 
-# T-068 DB-side Row-Level-Security owner binding (the confined-CLI seam). The
-# session var the schema-init.sql RLS policies read (current_setting(
-# 'mios.owner_user', true)); a schema-contract constant that MUST match
-# postgres/schema-init.sql + mios_pg._RLS_OWNER_GUC (NOT an SSOT mios.toml value).
 RLS_OWNER_GUC = "mios.owner_user"
 
 
-# ── wire-format builders (pure; unit-tested by test_mios_pgwire.py) ───────────
 def _cstr(s: str) -> bytes:
     """A protocol String: UTF-8 bytes + NUL terminator."""
     return s.encode("utf-8") + b"\x00"
@@ -160,7 +155,6 @@ def parse_envelope(text: str):
     raise ValueError('envelope must be {"sql","params"} or {"statements":[...]}')
 
 
-# ── low-level read helpers ────────────────────────────────────────────────────
 def _recv_exact(sock: socket.socket, n: int) -> bytes:
     buf = b""
     while len(buf) < n:
@@ -201,7 +195,6 @@ def _parse_datarow(body: bytes) -> str:
     return "\t".join(fields)
 
 
-# ── connection ────────────────────────────────────────────────────────────────
 def _connect() -> "socket.socket | None":
     """Open the socket and drain the StartupMessage exchange up to the first
     ReadyForQuery. Returns the live socket, or None on a non-trust auth / startup
@@ -241,8 +234,6 @@ def _drain_to_ready(s: socket.socket, out: list) -> int:
             rc = 1
         elif t == b"Z":                     # ReadyForQuery -> this query done
             return rc
-        # ParseComplete(1)/BindComplete(2)/RowDescription(T)/CommandComplete(C)/
-        # ParameterStatus(S)/NoData(n)/EmptyQuery(I) -> ignore.
 
 
 def _simple_query(s: socket.socket, sql: str, out: list) -> int:
@@ -259,7 +250,6 @@ def _terminate(s: socket.socket) -> None:
     s.close()
 
 
-# ── T-068 DB-side RLS owner scoping (the confined-consumer seam) ───────────────
 def _rls_owner(argv) -> "str | None":
     """The owner to scope THIS invocation's rows to, or None to emit NO scope.
     Gated by MIOS_DB_RLS_ENABLE (SSOT [pgvector].rls_enable, bridged by userenv.sh),
@@ -310,7 +300,6 @@ def _apply_owner_scope(s: socket.socket, owner: "str | None") -> None:
         sys.stderr.write(f"mios-pg-query: RLS owner scope error: {e}\n")
 
 
-# ── modes ─────────────────────────────────────────────────────────────────────
 def run_simple(sql: str, owner: "str | None" = None) -> int:
     """Legacy path: one simple-Query with the verbatim SQL (unchanged). When an RLS
     owner is supplied (flag-gated) it is SET on the connection first (param-bound)."""
@@ -360,10 +349,6 @@ def run_extended(stmts, in_txn: bool, owner: "str | None" = None) -> int:
 
 def main() -> int:
     argv = sys.argv[1:]
-    # T-068: resolve the optional RLS owner (flag-gated) BEFORE consuming argv, then
-    # drop `--owner [value]` / `--owner=value` so the value is never mistaken for the
-    # SQL positional in the simple path. Default-off / no --owner -> owner is None ->
-    # no scope -> byte-identical.
     owner = _rls_owner(argv)
     cleaned: list = []
     skip = False

@@ -132,7 +132,6 @@ def _read_password():
             gen = "".join(secrets.choice(alphabet) for _ in range(24))
             return gen, f"generated ({source}=__random__)"
         return pw, source
-    # Unreachable (the vendor default always matches), but keep a safety net.
     alphabet = string.ascii_letters + string.digits + "_-"
     return "".join(secrets.choice(alphabet) for _ in range(24)), "generated"
 
@@ -163,8 +162,6 @@ def _bcrypt_hash(password: str) -> str:
     try:
         import bcrypt  # noqa
     except ImportError:
-        # System Python may not have bcrypt; OWUI's container does. Fall
-        # back to invoking python3 inside the running container if needed.
         return _bcrypt_hash_via_container(password)
     salt = bcrypt.gensalt(rounds=12)
     return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
@@ -231,10 +228,6 @@ def main():
 
     conn = sqlite3.connect(str(DB))
     try:
-        # OWUI's user-table schema DRIFTS across releases (api_key dropped,
-        # oauth_sub -> oauth, scim/profile/presence columns added). Introspect
-        # the live columns once; a fixed column list breaks on every schema bump
-        # (observed live: "table user has no column named api_key").
         try:
             user_cols = {row[1] for row in conn.execute("PRAGMA table_info(user)")}
         except sqlite3.OperationalError as e:
@@ -249,13 +242,6 @@ def main():
         now = int(time.time())
         password_hash = _bcrypt_hash(password)
 
-        # Is our SSOT-managed admin already present? Identify by the SSOT
-        # [identity].email. If so, RECONCILE its login password to the SSOT
-        # (non-destructive UPDATE) on every run -- the same lock-step model as
-        # usr/libexec/mios/forge-firstboot.sh, so ONE operator password backs
-        # OWUI / Forge / Portal / Cockpit / RDP alike. An operator who wants a
-        # different OWUI password changes the SSOT field, not the OWUI profile
-        # UI (which a reboot would otherwise silently revert).
         row = conn.execute("SELECT id FROM user WHERE email = ? LIMIT 1", (email,)).fetchone()
         if row:
             uid = row[0]
@@ -278,17 +264,12 @@ def main():
             _log(f"reconciled OWUI admin {email!r} password to SSOT (source: {source})")
             return 0
 
-        # Other user(s) exist but none match the MiOS admin email -- be
-        # conservative and do not inject a second admin into someone's setup.
         existing = conn.execute("SELECT COUNT(*) FROM user").fetchone()[0]
         if existing > 0:
             _log(f"OWUI has {existing} user(s), none with the MiOS admin email "
                  f"{email!r} -- leaving as-is")
             return 0
 
-        # Fresh install: create the admin from the SSOT. Only `id` is NOT NULL,
-        # so the column intersection is always insertable. role=admin per the
-        # Quadlet's DEFAULT_USER_ROLE.
         uid = str(uuid.uuid4())
         _log(f"creating first OWUI admin: name={name!r} email={email!r} (password source: {source})")
         candidate = {

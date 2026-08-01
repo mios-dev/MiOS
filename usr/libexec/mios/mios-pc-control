@@ -53,7 +53,6 @@ def _get_executor_endpoint():
     else:
         ep = _read_toml_endpoint()
 
-    # WSL detection and dynamic gateway routing for loopback targets
     try:
         with open("/proc/sys/kernel/osrelease", "r") as f:
             content = f.read().lower()
@@ -364,7 +363,6 @@ def main():
             resp = _http_request(f"{exec_ep}/input/key-combo", "POST", {"combo": " ".join(args)}, 15)
             print(resp); _exit_on_verdict(resp)
 
-    # Fallback to mios-windows ps
     ps1_helper = "/usr/share/mios/windows/mios-pc-control.ps1"
     try:
         win_ps1 = subprocess.check_output(["wslpath", "-w", ps1_helper], text=True, stderr=subprocess.DEVNULL).strip()

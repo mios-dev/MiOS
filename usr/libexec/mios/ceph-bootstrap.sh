@@ -2,35 +2,6 @@
 # AI-hint: Initializes the Ceph cluster on first boot by running cephadm bootstrap with single-host defaults and creating a sentinel file to prevent re-execution; use this to trigger or debug the initial Ceph cluster setup.
 # AI-related: mios-ceph-bootstrap, mios-ceph, ceph-bootstrap.service, mios-ceph-bootstrap.service
 # AI-functions: _log
-# usr/libexec/mios/ceph-bootstrap.sh
-#
-# 'MiOS' Ceph cluster bootstrap (first-boot only). Targeted by both
-# usr/lib/systemd/system/ceph-bootstrap.service (legacy name) and
-# mios-ceph-bootstrap.service (canonical MiOS name) -- the two units
-# share this single ExecStart so the bootstrap is consistent regardless
-# of which one fires first. Sentinel-guarded so re-runs are no-ops.
-#
-# Path: /usr/libexec/mios/ -- the MiOS-private libexec tree, immutable
-# composefs surface. The previous /usr/local/bin path was wrong: on
-# bootc/FCOS layouts /usr/local is a symlink to /var/usrlocal which is
-# mutable per-host, so a binary written there at build time gets
-# wiped by the standard /var-cleanup at image commit (Architectural
-# Law 2 -- NO-MKDIR-IN-VAR).
-#
-# Operation:
-#   1. Skip if /var/lib/ceph/.bootstrapped sentinel exists.
-#   2. Skip if cephadm is missing (Ceph stack not installed -- the
-#      mios-ceph Quadlet is gated by ConditionPathExists=/etc/ceph/
-#      ceph.conf so the cluster only comes up after this script
-#      writes that file).
-#   3. Resolve the host's primary IP via 'ip route get 1.1.1.1'.
-#   4. Run 'cephadm bootstrap --single-host-defaults' (workstation-
-#      friendly defaults: replication=1, no monmap, single OSD).
-#   5. Drop the sentinel.
-#
-# References:
-#   - https://docs.ceph.com/en/latest/cephadm/install/
-#   - https://docs.ceph.com/en/latest/cephadm/install/#single-host
 set -euo pipefail
 
 SENTINEL_DIR="/var/lib/ceph"
@@ -50,17 +21,12 @@ if ! command -v cephadm >/dev/null 2>&1; then
     exit 0
 fi
 
-# Resolve the bootstrap monitor IP. 'ip route get' returns the source
-# address the kernel would use for outbound traffic to 1.1.1.1, which
-# is the right answer for a single-host workstation deployment.
 MON_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '/src/{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1 || true)"
 if [[ -z "$MON_IP" ]]; then
     _log "WARN: could not resolve a usable IPv4 source address; skipping bootstrap"
     exit 0
 fi
 
-# Render a temporary bootstrap config to apply MDS cache tuning limits (4 GiB)
-# to prevent MDS OOM and memory leaks under heavy AI tool loop walks.
 BOOTSTRAP_CONFIG="/tmp/ceph-bootstrap-config.conf"
 cat <<EOF > "$BOOTSTRAP_CONFIG"
 [global]

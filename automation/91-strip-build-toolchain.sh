@@ -1,32 +1,13 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Removes build-toolchain packages (gcc, g++, cmake, etc.) from the final image via dnf to minimize attack surface, ensuring no compilers remain in the PATH after the build phase.
-# 'MiOS' - 91-strip-build-toolchain
-#
-# Removes the build toolchain (compilers, build-system headers) from the
-# image after every build-phase that needs them has finished. Runs after
-# 90-generate-sbom.sh (so the SBOM still records what was used to build
-# the image) and before 94-cleanup.sh / 99-postcheck.sh.
-#
-# Why: a deployed MiOS host carrying gcc/g++/cmake/golang is unnecessary
-# attack surface for any process that obtains a shell. Per the project
-# invariant (VM | Container | Flatpak only), runtime application code
-# does not compile on the host -- it ships in containers/Flatpaks/VMs
-# that bring their own toolchains where needed.
-#
-# Block resolved from mios.toml [packages.build-toolchain]. The strip is
-# best-effort: a missing package is fine (host already lean), but a
-# failed dnf transaction is logged loud since it leaves the toolchain in
-# place.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
-# shellcheck source=lib/packages.sh
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-mios_log "resolving build-toolchain package list"
+mios_log "Resolving build-toolchain package list"
 TOOLCHAIN_STR="$(get_packages "build-toolchain")"
 
 if [[ -z "${TOOLCHAIN_STR// /}" ]]; then
@@ -34,17 +15,11 @@ if [[ -z "${TOOLCHAIN_STR// /}" ]]; then
     exit 0
 fi
 
-mios_log "removing ${TOOLCHAIN_STR}"
-# --noautoremove keeps system libs that the toolchain pulled but other
-# runtime packages also depend on (libstdc++, libgcc); we only want to
-# remove the toolchain itself, not cascade-delete shared libraries.
-# shellcheck disable=SC2086 # word-splitting is intentional
+mios_log "Removing ${TOOLCHAIN_STR}"
 $DNF_BIN "${DNF_SETOPT[@]}" remove -y --noautoremove $TOOLCHAIN_STR 2>&1 \
     | grep -E '^\s*(Removing|Error|Warning|Nothing)' || true
 
-# Verification: assert no compiler binary is left in PATH. If any survive,
-# clean up orphan wrapper symlinks/stubs.
-mios_log "verifying toolchain removal"
+mios_log "Verifying toolchain removal"
 for bin in gcc g++ cc cmake make go; do
     p="$(command -v "$bin" 2>/dev/null || true)"
     if [[ -n "$p" && -L "$p" ]]; then

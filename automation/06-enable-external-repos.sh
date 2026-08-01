@@ -2,46 +2,21 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Enables external DNF repositories (Terra, Kubernetes, ublue-os COPR) for MiOS by fetching .repo files into /etc/yum.repos.d; use this to ensure availability of non-standard packages like kubectl and uupd.
 # AI-functions: try_fetch
-# ============================================================================
-# automation/06-enable-external-repos.sh
-# ----------------------------------------------------------------------------
-# Enable external DNF repositories for 'MiOS' (Fedora 44 / Rawhide).
-# Idempotent; fails fast; uses ${DNF_SETOPT[@]} from automation/lib/common.sh.
-# RPM Fusion is intentionally NOT handled here -- see 05-repos.sh.
-#
-# v2.3 CHANGES:
-#   - Added Kubernetes stable v1.32 repo (kubectl not in Fedora repos).
-#   - Added ublue-os/packages COPR (uupd + greenboot; required by 50-uupd-installer.sh).
-#
-# CHANGES:
-#   - removed redundant RPM Fusion install block (was using `rpm -E %fedora`
-#     which yielded 41/43 from the base image and clobbered 05-repos.sh's
-#     explicit F44 pin).
-#   - replaced dnf5 with dnf throughout (consistency with 05-repos.sh and
-#     lib/packages.sh; on F44 `dnf` is dnf5 via symlink anyway).
-#   - adopted ${DNF_SETOPT[@]} for every mutating invocation.
-# ============================================================================
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-# enable_copr <repo-name> [<fallback-chroot>]
-# Enables a COPR repository. Auto-detects the active Fedora version to handle
-# custom OS ID (MiOS) modifications gracefully.
 enable_copr() {
     local repo="$1"
     local fallback_chroot="${2:-}"
     
     mios_log "COPR enable: $repo"
-    # 1. Try native auto-detection first
     if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" 2>/dev/null; then
         return 0
     fi
     
-    # 2. If it fails (e.g. because ID=mios), try to detect the underlying Fedora version
     local fedora_ver=""
     if [ -f /etc/os-release ]; then
         fedora_ver=$(grep -oP 'platform:f\K[0-9]+' /etc/os-release || true)
@@ -50,17 +25,15 @@ enable_copr() {
         fedora_ver=$(rpm -q --qf '%{VERSION}' fedora-release 2>/dev/null | grep -oE '[0-9]+' | head -1 || true)
     fi
     
-    # 3. If we found a version, retry with that chroot
     if [ -n "$fedora_ver" ]; then
-        mios_log "detected Fedora $fedora_ver, retrying COPR with explicit chroot"
+        mios_log "Detected Fedora $fedora_ver, retrying COPR with explicit chroot"
         if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "fedora-${fedora_ver}-x86_64" 2>/dev/null; then
             return 0
         fi
     fi
     
-    # 4. If a default fallback was provided, try that
     if [ -n "$fallback_chroot" ]; then
-        mios_log "retrying COPR with fallback chroot: $fallback_chroot"
+        mios_log "Retrying COPR with fallback chroot: $fallback_chroot"
         if $DNF_BIN "${DNF_SETOPT[@]}" copr enable -y "$repo" "$fallback_chroot" 2>/dev/null; then
             return 0
         fi
@@ -72,15 +45,7 @@ enable_copr() {
 REPO_DIR=/etc/yum.repos.d
 _fver="${FEDORA_VERSION:-44}"
 
-# Best-effort policy. Every external repo enable here is non-critical:
-# downstream installs already pass --skip-unavailable, so a missing repo
-# silently drops its packages rather than failing the build. Wrap every
-# external fetch / dnf op in warn-on-failure + clean partials, and keep
-# the script's overall exit at 0 (warnings are tracked separately by the
-# build chain summary).
 
-# Try a curl fetch into a target file. On failure: warn, delete partial,
-# return 1 so callers can short-circuit downstream key import / sed.
 try_fetch() {
     local url="$1" out="$2" label="$3"
     if scurl -fsSL --connect-timeout 20 --max-time 60 "$url" -o "$out" 2>/dev/null; then
@@ -91,35 +56,23 @@ try_fetch() {
     return 1
 }
 
-# --- 1. Terra (fyralabs) ----------------------------------------------------
-# Patched WINE/Mesa/miscellaneous packages missing from Fedora + RPM Fusion.
 if [[ ! -f "${REPO_DIR}/terra.repo" ]]; then
-    mios_log "enabling Terra repo (fyralabs)"
+    mios_log "Enabling Terra repo"
     if [[ "${MIOS_ONLINE_BUILD:-0}" == "1" ]] || [[ ! -f "/usr/share/mios/repos/terra.repo" ]]; then
         try_fetch "${MIOS_URL_TERRA_REPO:-https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}" \
                   "${REPO_DIR}/terra.repo" "Terra repo" || true
     else
-        mios_log "using vendored Terra repo"
+        mios_log "Using vendored Terra repo"
         cp "/usr/share/mios/repos/terra.repo" "${REPO_DIR}/terra.repo"
     fi
 else
     mios_skip "Terra repo already present"
 fi
 
-# --- 2. (removed) VSCodium ---------------------------------------------------
-# PROJECT INVARIANT: applications ship as Flatpaks, only system dependencies
-# ship as RPMs. VSCodium is an application -- it ships from Flathub via
 # MIOS_FLATPAKS / the Flatpak install path, never from an RPM repo. The
-# previous VSCodium .repo / gpg-import block was removed for this reason.
-# If any other app RPM repo creeps into this script, delete it the same way.
 
-# --- 7. Kubernetes stable v1.32 (kubectl) -----------------------------------
-# kubectl is NOT in standard Fedora repos -- must come from the Kubernetes
-# project's own RPM repository. Pinned to v1.32 (current stable).
-# Only kubectl is installed from here; kubeadm/kubelet are intentionally
-# excluded (k3s is used for the cluster runtime, not kubeadm).
 if [[ ! -f "${REPO_DIR}/kubernetes.repo" ]]; then
-    mios_log "enabling Kubernetes stable v1.32 repo"
+    mios_log "Enabling Kubernetes stable v1.32 repo"
     cat > "${REPO_DIR}/kubernetes.repo" <<'EOF'
 [kubernetes]
 name=Kubernetes
@@ -134,16 +87,11 @@ else
     mios_skip "Kubernetes repo already present"
 fi
 
-# --- 8. ublue-os/packages COPR (uupd + greenboot) ---------------------------
-# uupd and greenboot ship from the Universal Blue packages COPR.
-# 50-uupd-installer.sh explicitly requires this repo to be present first.
-# Using Fedora dynamic repo endpoint; COPR auto-publishes new packages as they land.
 if [[ ! -f "${REPO_DIR}/ublue-os-packages.repo" ]]; then
-    mios_log "enabling ublue-os/packages COPR (uupd + greenboot)"
+    mios_log "Enabling ublue-os/packages COPR"
     _fver="${FEDORA_VERSION:-44}"
     if try_fetch "${MIOS_URL_UBLUE_REPO:-https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-${_fver}/ublue-os-packages-fedora-${_fver}.repo}" \
                  "${REPO_DIR}/ublue-os-packages.repo" "ublue-os/packages COPR"; then
-        # Lower priority than Fedora base so Fedora wins on conflicting packages.
         if ! grep -q '^priority=' "${REPO_DIR}/ublue-os-packages.repo"; then
             sed -i '/^\[/a priority=75' "${REPO_DIR}/ublue-os-packages.repo"
         fi
@@ -152,41 +100,28 @@ else
     mios_skip "ublue-os/packages COPR already present"
 fi
 
-# ── Waydroid (Aleasto) ───────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo ]; then
     enable_copr "aleasto/waydroid" "fedora-${_fver}-x86_64" || mios_warn "aleasto/waydroid COPR enable failed (GNOME 50 fix unavailable)"
 else
     mios_skip "aleasto/waydroid COPR already present"
 fi
 
-# ── Hyprland (nett00n) ───────────────────────────────────────────────────
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:nett00n:hyprland.repo ]; then
     enable_copr "nett00n/hyprland" "fedora-${_fver}-x86_64" || mios_warn "nett00n/hyprland COPR enable failed"
 else
     mios_skip "nett00n/hyprland COPR already present"
 fi
 
-# ── Tailscale ────────────────────────────────────────────────────────────
-# ucore:stable ships tailscale but its version can lag. Using the official
-# Tailscale repo keeps it at the latest stable regardless of ucore cadence.
 if [[ ! -f "${REPO_DIR}/tailscale.repo" ]]; then
-    mios_log "enabling Tailscale official repo"
+    mios_log "Enabling Tailscale official repo"
     try_fetch "${MIOS_URL_TAILSCALE_REPO:-https://pkgs.tailscale.com/stable/fedora/tailscale.repo}" \
               "${REPO_DIR}/tailscale.repo" "Tailscale repo" || true
 else
     mios_skip "Tailscale repo already present"
 fi
 
-# ── CrowdSec ─────────────────────────────────────────────────────────────
-# crowdsec ships its own RPM repo; not in Fedora or RPM Fusion.
 if [[ ! -f "${REPO_DIR}/crowdsec.repo" ]]; then
-    mios_log "enabling CrowdSec repo"
-    # URL must be quoted -- the unquoted '&' is parsed as a job-control
-    # background, which silently splits '-o "${REPO_DIR}/crowdsec.repo"'
-    # onto its own command line and yields 'line N: -o: command not found'.
-    # The 'dist' query parameter pins the packagecloud distro release;
-    # crowdsec ships a single fedora repo across releases (the value is
-    # only used for substituting $releasever in baseurl).
+    mios_log "Enabling CrowdSec repo"
     _fver="${FEDORA_VERSION:-44}"
     try_fetch "${MIOS_URL_CROWDSEC_REPO:-https://packagecloud.io/crowdsec/crowdsec/config_file.repo?os=fedora&dist=${_fver}&source=script}" \
               "${REPO_DIR}/crowdsec.repo" "CrowdSec repo" || true
@@ -194,15 +129,12 @@ else
     mios_skip "CrowdSec repo already present"
 fi
 
-mios_log "external repos enabled; refreshing metadata"
-# makecache is best-effort: if a single repo's metadata is unreachable
-# the next dnf install in this build will retry it. Hard-failing here
-# wastes the entire build for a transient mirror hiccup.
+mios_log "External repos enabled; refreshing metadata"
 if ! $DNF_BIN "${DNF_SETOPT[@]}" makecache -y 2>&1 | tail -20; then
     mios_warn "dnf makecache returned non-zero; continuing (downstream installs will retry per-repo)"
 fi
 
-mios_log "installing CrowdSec packages"
+mios_log "Installing CrowdSec packages"
 $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable crowdsec crowdsec-firewall-bouncer-nftables 2>&1 || mios_warn "CrowdSec packages install deferred"
 
 mios_ok "external repos enabled"

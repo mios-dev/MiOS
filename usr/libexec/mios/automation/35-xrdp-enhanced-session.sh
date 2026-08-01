@@ -2,45 +2,10 @@
 # AI-hint: Install + configure GNOME Remote Desktop in system/headless mode so
 # AI-related: /usr/libexec/mios/automation/35-xrdp-enhanced-session.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-route, gdm.service, gnome-remote-desktop.service
 # AI-functions: _log, _mios_toml_value
-# /usr/libexec/mios/automation/35-xrdp-enhanced-session.sh
-#
-# Install + configure GNOME Remote Desktop in system/headless mode so
-# the operator can connect from Windows via mstsc.exe and get a FULL
-# GNOME desktop (rounded corners, libadwaita-consistent theming,
-# Bibata cursor, single mutter compositor). Complements WSLg-per-window
-# forwarding -- both launch paths remain available.
-#
-# Operator directive
-#   "Full Enhanced Session is an alternate launch option installed at
-#    irm|iex invoke and installation"
-#
-# Why GNOME Remote Desktop, not xrdp:
-#   * xrdp's xorgxrdp Xorg backend SIGSEGVs on WSL2 ("X server failed
-#     to start", display :10 unavailable)
-#   * xrdp's Xvnc backend hits the same WSL2-can't-start-display issue
-#   * GNOME Remote Desktop in --system mode uses gdm + per-user
-#     headless gnome-session over a virtual fb provided by mutter
-#     itself. No Xorg-on-WSL2 chicken-and-egg.
-#
-# Why port 13389 (not 3389):
-#   Windows blocks RDP via loopback on 3389 with error 0x708
-#   "console session in progress" -- bypassed by an alternate port.
-#
-# Why dual-stack via mios-route:
-#   wslrelay's localhost forwarding only proxies IPv6 (::1) when the
-#   server binds to `*:` without an explicit family. grdctl --system
-#   set-port + binding via mutter's RDP server picks dual-stack
-#   (we verified `LISTEN *:13389` shows up after gdm.service is up).
-#
-# Idempotent. Safe to re-run.
 set -euo pipefail
 
 _log() { printf '[grd-enhanced] %s\n' "$*" >&2; }
 
-# ─── mios.toml resolver ──────────────────────────────────────────────
-# Drop-in over the shared layered resolver (usr/lib/mios/mios_toml.py via the
-# mios-toml-get shell CLI): vendor < host < user overlay, highest wins. This
-# script lives in usr/libexec/mios/automation/, so mios-toml-get is one dir up.
 _MIOS_TOML_GET="$(cd "$(dirname "$0")" && pwd)/../mios-toml-get"
 _mios_toml_value() { "$_MIOS_TOML_GET" "$1" "$2" "${3:-}"; }
 
@@ -54,7 +19,6 @@ if [ "$ENABLED" != "true" ]; then
     exit 0
 fi
 
-# ─── Install packages (dnf) ──────────────────────────────────────────
 _log "installing gnome-remote-desktop + gdm + winpr-utils + freerdp"
 sudo dnf install -y --skip-unavailable \
     gnome-remote-desktop \
@@ -68,10 +32,6 @@ sudo dnf install -y --skip-unavailable \
     pipewire-pulseaudio \
     >/dev/null
 
-# ─── Generate TLS cert as the gnome-remote-desktop user ─────────────
-# winpr-makecert is FreeRDP's certificate utility -- writes a cert
-# that mstsc.exe will accept (sefl-signed warning on first connect
-# is fine; operator clicks "Yes" to trust the loopback cert).
 CERT_DIR="/var/lib/gnome-remote-desktop"
 if [ ! -f "$CERT_DIR/rdp-tls.crt" ] || [ ! -f "$CERT_DIR/rdp-tls.key" ]; then
     _log "generating TLS cert at $CERT_DIR/rdp-tls.{crt,key}"
@@ -81,7 +41,6 @@ if [ ! -f "$CERT_DIR/rdp-tls.crt" ] || [ ! -f "$CERT_DIR/rdp-tls.key" ]; then
         rdp-tls 2>/dev/null
 fi
 
-# ─── Configure --system grd via grdctl ──────────────────────────────
 _log "configuring grd --system: port=$PORT user=$USER_NAME tls=$CERT_DIR/rdp-tls.*"
 sudo grdctl --system rdp set-tls-cert "$CERT_DIR/rdp-tls.crt"
 sudo grdctl --system rdp set-tls-key  "$CERT_DIR/rdp-tls.key"
@@ -89,18 +48,12 @@ sudo grdctl --system rdp set-credentials "$USER_NAME" "$PASSWORD"
 sudo grdctl --system rdp set-port "$PORT"
 sudo grdctl --system rdp enable
 
-# ─── Enable gdm + grd services ──────────────────────────────────────
-# gdm.service is the prerequisite -- without it, the grd daemon
-# initializes but never binds the RDP port (no session manager to
-# hand the per-user gnome-session over to).
 _log "enabling gdm.service + gnome-remote-desktop.service"
 sudo systemctl daemon-reload
 sudo systemctl enable --now gdm.service gnome-remote-desktop.service
 
-# Wait briefly for grd to actually bind the port
 sleep 4
 
-# ─── Verify ──────────────────────────────────────────────────────────
 if ss -tlnp 2>/dev/null | grep -q ":$PORT "; then
     _log "gnome-remote-desktop listening on *:$PORT  (connect via mstsc /v:localhost:$PORT)"
 else

@@ -2,11 +2,6 @@
 # AI-hint: Executes the MiOS Unified Initialization and Role Engine to configure system identity, manage user home directories, and detect hardware/virtualization profiles to determine the system's operational role.
 # AI-related: /usr/lib/mios/paths.sh, mios-role, mios-headless, mios-desktop, mios-k3s-master, mios-ha-node, mios-pxe-hub, waydroid-container.service, mios-pxe-hub.service, mios-headless.target
 # AI-functions: log
-# ============================================================================
-# mios role-apply: MiOS Unified Initialization & Role Engine
-# ============================================================================
-# : FORMAL TARGET TRANSITION. Uses systemd .target units for roles.
-# ============================================================================
 set -euo pipefail
 if [[ -f "/usr/lib/mios/paths.sh" ]]; then
     source /usr/lib/mios/paths.sh
@@ -22,9 +17,6 @@ mkdir -p "$BLADE_D"
 
 log() { printf '[mios-role] %s\n' "$*"; }
 
-# ----------------------------------------------------------------------------
-# PHASE 1: System-wide Initialization
-# ----------------------------------------------------------------------------
 MAC=$(cat /sys/class/net/e*/address /sys/class/net/w*/address 2>/dev/null | head -1 || echo "")
 MACH_ID=$(cat /etc/machine-id 2>/dev/null || echo "")
 
@@ -37,7 +29,6 @@ if [[ -n "$MACH_ID" ]]; then
     fi
 fi
 
-# Standard user home management
 if [[ -f /etc/passwd ]]; then
     for u in $(awk -F: '$3 >= 1000 && $3 < 65000 {print $1}' /etc/passwd); do
         home=$(getent passwd "$u" | cut -d: -f6)
@@ -53,14 +44,8 @@ if [[ -f /etc/passwd ]]; then
     done
 fi
 
-# ----------------------------------------------------------------------------
-# PHASE 2: Environment & Hardware Detection
-# ----------------------------------------------------------------------------
-VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "None")
 
-# ARCHITECTURAL SAFEGUARD: OCI Container Optimization
-# If running inside a container, skip the role engine. Containers are
-# implicitly "headless" and specialized via ENTRYPOINT/CMD.
 if [[ "$VIRT" == "container" ]]; then
     log "Container environment detected - bypassing Role Engine for stability"
     exit 0
@@ -72,9 +57,6 @@ if lspci -d 10de: 2>/dev/null | grep -qi "GB20\|GB10"; then
     log "RTX 50 Blackwell detected - enforcing safety parameters"
 fi
 
-# ----------------------------------------------------------------------------
-# PHASE 3: Role & Capability Resolution
-# ----------------------------------------------------------------------------
 ROLE=""
 FEATURES=""
 
@@ -82,7 +64,6 @@ if [[ -r /proc/cmdline ]]; then
     for tok in $(< /proc/cmdline); do
         case "$tok" in
             mios.blade=*)   ROLE="${tok#mios.blade=}" ;;
-            # Backwards compatibility kargs
             mios.role=*)     ROLE="${tok#mios.role=}" ;;
             mios.features=*) FEATURES="${tok#mios.features=}" ;;
         esac
@@ -90,16 +71,13 @@ if [[ -r /proc/cmdline ]]; then
 fi
 
 if [[ -z "$ROLE" && -r "$ROLE_CONF" ]]; then
-    # shellcheck disable=SC1090
     . "$ROLE_CONF"
 fi
 
-# If ROLE is still empty, load default type from mios.toml [blade].type
 if [[ -z "$ROLE" ]]; then
     ROLE=$(python3 -c "import sys, os; sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios')); import mios_toml; print(mios_toml.get('blade', 'type', default='hybrid'))" 2>/dev/null || echo "")
 fi
 
-# Auto-Role selection based on environment
 if [[ -z "$ROLE" ]]; then
     if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
         ROLE="headless"
@@ -116,10 +94,8 @@ fi
 ROLE="${ROLE:-hybrid}"
 log "Resolved blade archetype role: $ROLE"
 
-# Clean up existing markers
 rm -f "$BLADE_D"/* 2>/dev/null || true
 
-# Resolve capabilities from mios.toml [blade.archetypes]
 CAPS=$(python3 -c "
 import sys, os
 sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios'))
@@ -139,7 +115,6 @@ for cap in $CAPS; do
     fi
 done
 
-# Touch additional features requested via config
 if [[ -n "$FEATURES" ]]; then
     IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
     for f in "${FEAT_ARR[@]}"; do
@@ -150,22 +125,17 @@ if [[ -n "$FEATURES" ]]; then
     done
 fi
 
-# Gather all active markers for env writing
 ALL_CAPS=""
 if [[ -d "$BLADE_D" ]]; then
     ALL_CAPS=$(ls -A "$BLADE_D" | tr '\n' ',' | sed 's/,$//')
 fi
 
-# Write /run/mios/blade.env
 mkdir -p /run/mios
 cat > /run/mios/blade.env <<EOF
 MIOS_BLADE_TYPE="$ROLE"
 MIOS_BLADE_CAPS="$ALL_CAPS"
 EOF
 
-# ----------------------------------------------------------------------------
-# PHASE 4: Target Selection & Execution
-# ----------------------------------------------------------------------------
 TARGET="mios-headless.target"
 case "$ROLE" in
     hybrid)     TARGET="mios-hybrid.target" ;;
@@ -174,7 +144,6 @@ case "$ROLE" in
     controller) TARGET="mios-controller.target" ;;
     headless)   TARGET="mios-headless.target" ;;
     desktop)    TARGET="mios-desktop.target" ;;
-    # Backwards compatibility names
     k3s*)       TARGET="mios-k3s-master.target" ;;
     ha*)        TARGET="mios-ha-node.target" ;;
     *)          log "WARN: unknown role '$ROLE' - defaulting to headless" ;;
@@ -185,7 +154,6 @@ systemctl set-default --no-block "$TARGET" 2>/dev/null || true
 log "Triggering role target: $TARGET"
 systemctl start --no-block "$TARGET" 2>/dev/null || true
 
-# Record active state for diagnostics
 cat > "$STATE_DIR/role.active" <<EOF
 ROLE=$ROLE
 FEATURES=$ALL_CAPS
@@ -195,4 +163,4 @@ TARGET=$TARGET
 APPLIED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
-log "role apply complete; system is transitioning to $TARGET"
+log "Role apply complete; system is transitioning to $TARGET"

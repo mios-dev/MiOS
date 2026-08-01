@@ -5,10 +5,9 @@
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-# shellcheck source=lib/common.sh
 source "$(dirname "$0")/lib/common.sh"
 
-mios_log "configuring firewalld ports for 'MiOS' services"
+mios_log "Configuring firewalld ports for 'MiOS' services"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd firewall-ports
@@ -16,22 +15,7 @@ if command -v miosd >/dev/null 2>&1; then
     exit 0
 fi
 
-# During an OCI container build, the firewalld daemon is not running.
-# We MUST use firewall-offline-cmd to write directly to the XML policy files.
-#
-# Access surface contract: every 'MiOS' service binds 0.0.0.0 inside its
-# Quadlet so it is reachable from
-#   - 127.0.0.1 / ::1                 local loopback
-#   - host LAN IP                     remote LAN access (bare-metal, VM, WSL2 mirrored)
-#   - Podman bridge / cni0 / virbr0   sibling-container access
-# Container PublishPort=HOST:CONTAINER directives default to 0.0.0.0 on
-# the host port, so the firewall is what actually gates LAN reachability.
-#
-# Port values resolve through the layered SSOT (mios.toml [ports] →
-# tools/lib/userenv.sh → MIOS_PORT_* env vars → automation/lib/globals.sh
-# fallbacks). Hardcoded port literals are bugs; lift them.
 
-# Open essential ports for local/LAN access
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp          # mios-hermes (Hermes-Agent /v1)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp     # mios-open-webui (rich chat UI)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8800}/tcp # mios-code-server (VS Code in a browser)

@@ -2,60 +2,14 @@
 # AI-hint: Entry point for the MiOS-DEV build pipeline; executes the full multi-format build process (OCI, WSL, QEMU, etc.) and renders the interactive dashboard within a Windows-hosted terminal session.
 # AI-related: /etc/profile.d/mios-env.sh, /usr/libexec/mios/mios-build-driver, /etc/mios/install.env, /etc/mios/secrets.env, /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, /usr/share/mios/mios.toml, /usr/share/mios/lib/userenv.sh, mios-env, mios-configurator-launch
 # AI-functions: _log, _fail, _hash_password
-# /usr/libexec/mios/mios-build-driver
-#
-# Entry point for the inside-MiOS-DEV phase of the MiOS build pipeline.
-#
-# This script is INVOKED FROM WINDOWS (via `wt.exe new-tab wsl.exe -d
-# MiOS-DEV ... bash /usr/libexec/mios/mios-build-driver`) AFTER the
-# Windows-side bootstrap finishes:
-#
-#   Day-0 split (per the self-replication architecture):
-#     * Windows side  irm | iex -> ack -> MiOS-DEV podman machine setup
-#     * <handoff>     Show-PostBootstrapMenu choice "Continue to build"
-#                     spawns a fresh Windows Terminal hosting `wsl.exe
-#                     -d MiOS-DEV` running THIS driver
-#     * MiOS-DEV side fetch + overlay + identity + FULL build pipeline
-#                     for all output formats (OCI, WSL2/g, Hyper-V,
-#                     QEMU, Live-CD/USB, USB installer, RAW)
-#
-# The Windows side does NOT stream the build dashboard back -- the
-# dashboard renders on MiOS-DEV's tty inside the SSH/wsl session, and
-# the Windows Terminal is the host of that tty. That keeps the
-# multi-GB, multi-image build off the WSL2/Windows boundary.
-#
-# Idempotent: re-running picks up where the previous attempt left off
-# (clone is shallow; build cache is podman-managed; identity is
-# already-saved-to-/etc/mios/install.env on second run).
 set -euo pipefail
 
-# ── MiOS dashboard (banner + fastfetch + motd stats) ─────────────────────────
-# The operator's expectation per the architecture memo is that the
-# Windows-Terminal-hosted SSH window shows the unified MiOS dashboard,
-# not just plain build output. /etc/issue.d/ has the live banner
-# rendered by mios-dashboard-issue.service; printing it once here
-# anchors the operator in the MiOS context before the build noise
-# starts.
 if command -v mios-dashboard >/dev/null 2>&1; then
     mios-dashboard 2>/dev/null || true
 elif [[ -f /etc/motd ]]; then
     cat /etc/motd 2>/dev/null || true
 fi
 
-# ── Logging ──────────────────────────────────────────────────────────────────
-# When invoked as the mios user (the canonical handoff path from
-# Windows: `wsl.exe -d podman-MiOS-DEV --user mios`), /var/log/mios
-# is root-owned (FHS) and the tee write fails with "Permission denied".
-# Combined with `set -euo pipefail` that silently kills the driver
-# before it prints anything useful, dropping the operator to an
-# interactive login bash prompt -- exactly the regression operator
-# flagged 2026-05-09: "[mios@CloudWS-602 ~]$ ... random invisible
-# square window... NOTHING actually happening".
-#
-# Fix: fall back to $XDG_STATE_HOME (or $HOME/.local/state/mios) when
-# /var/log/mios isn't writable.  Root invocations still get the
-# canonical /var/log path; non-root land in $HOME and can rotate /
-# tail without sudo.
 if [[ "$(id -u)" -eq 0 ]]; then
     LOG_DIR="/var/log/mios"
 else
@@ -64,36 +18,22 @@ else
 fi
 LOG_FILE="${LOG_DIR}/build-driver-$(date +%Y%m%d-%H%M%S).log"
 mkdir -p "$LOG_DIR" 2>/dev/null || true
-# Probe write access -- if mkdir failed or the dir isn't writable,
-# fall through to /tmp so the driver still emits visible output.
 if ! ( : >> "$LOG_FILE" ) 2>/dev/null; then
     LOG_DIR="/tmp"
     LOG_FILE="$LOG_DIR/mios-build-driver-$(date +%Y%m%d-%H%M%S).log"
 fi
-echo "[mios-build-driver] starting at $(date -Iseconds)" | tee -a "$LOG_FILE"
+echo "[mios-build-driver] starting at $" | tee -a "$LOG_FILE"
 echo "[mios-build-driver] logging to $LOG_FILE"
 
 _log() { echo "[mios-build-driver] $*" | tee -a "$LOG_FILE"; }
 _fail() { _log "FATAL: $*"; exit 1; }
 
-# ── curl fallback build-trigger ──────────────────────────────────────────────
-# The PRIMARY build trigger is the local `sudo podman build` further down. When
-# podman is unavailable the OCI image cannot be built here; rather than dead-end,
-# TRIGGER the Forgejo CI build over HTTP with curl -- the same self-replication
-# loop `git push` drives, reached through the workflow's own workflow_dispatch
-# entrypoint (.forgejo/workflows/build-mios.yml). Endpoints resolve from the SSOT
-# bridge install.env (MIOS_HOSTNAME + MIOS_PORT_FORGE_HTTP, sourced via
-# userenv.sh) -- never a literal host:port. Gated by [build].curl_trigger_fallback:
-# degrade-open (enabled when the key is ABSENT so a runtime with no podman still
-# self-heals via CI); set false to keep the historical hard-fail.
 _build_curl_fallback_enabled() {
     python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
 import sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 b = mios_toml.section(mios_toml.load_merged(), "build")
-# Degrade-open: absent key -> enabled (exit 0); honor the highest layer that sets it.
 val = bool(b["curl_trigger_fallback"]) if "curl_trigger_fallback" in b else True
 sys.exit(0 if val else 1)
 PYEOF
@@ -115,9 +55,6 @@ _curl_build_trigger() {
     fi
     ref="$(git -C "${MIOS_REPO:-/}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)"
     url="$(git -C "${MIOS_REPO:-/}" remote get-url origin 2>/dev/null || echo '')"
-    # Derive <owner>/<repo> from the origin URL (http or scp-like), .git-stripped.
-    # URL passed as argv (NOT piped stdin): `python3 - <<HEREDOC` reads its program
-    # from stdin, which would shadow a pipe and leave the parse empty.
     read -r owner repo < <(python3 - "$url" <<'PYEOF'
 import re, sys
 u = re.sub(r'\.git$', '', sys.argv[1].strip())
@@ -134,7 +71,6 @@ PYEOF
         _log "curl fallback: could not derive owner/repo from origin ('$url')"
         return 1
     fi
-    # Workflow-dispatch needs an API token; read from env or the secrets bridge.
     token="${MIOS_FORGE_TOKEN:-}"
     if [[ -z "$token" && -r /etc/mios/secrets.env ]]; then
         token="$(grep -E '^MIOS_FORGE_TOKEN=' /etc/mios/secrets.env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'\''')"
@@ -157,20 +93,6 @@ PYEOF
     return 1
 }
 
-# ── Privilege preflight ──────────────────────────────────────────────────────
-# The build pipeline writes /etc, overlays /, sets up accounts, persists
-# /etc/mios/secrets.env, and runs rootful `podman build` -- it MUST run
-# as root or as a user with NON-interactive sudo. Locked-down service
-# users (notably mios-hermes, uid 820 -- the user the MiOS/Hermes agent
-# runs as) have neither: nologin, not in wheel, no sudoers entry.
-#
-# Without this check the driver gets several steps in -- prints a
-# dashboard, clones mios-bootstrap, enters unattended mode -- then dies
-# mid-stream on the first `sudo` with the cryptic "sudo: a password is
-# required". Agents then invent a fake success around that partial
-# output (operator-confirmed 2026-05-14). Detect the privilege gap UP
-# FRONT, before any work, and fail with ONE clear, honest, actionable
-# message so the caller (human or agent) knows exactly what to do.
 if [[ "$(id -u)" -ne 0 ]] && ! sudo -n true 2>/dev/null; then
     _log "FATAL: 'mios build' needs root or passwordless sudo, and has neither."
     _log "  running as: $(id -un) (uid $(id -u)) -- no non-interactive sudo available"
@@ -186,63 +108,13 @@ if [[ "$(id -u)" -ne 0 ]] && ! sudo -n true 2>/dev/null; then
     exit 1
 fi
 
-# ── Sandbox escape (mount-namespace) ─────────────────────────────────────────
-# Even with root + a sudo grant, the build still fails when invoked from
-# inside a hardened service's mount namespace (e.g., the agent's
-# hermes-agent.service has ProtectSystem=strict, which remounts /usr,
-# /boot, and most of / read-only INSIDE the service's mount namespace).
-# sudo elevates UID/GID and capabilities -- it does NOT call setns(),
-# so the child inherits the parent's mount namespace and sees the same
-# read-only view. The build then dies on the first write outside
-# ReadWritePaths:
-#   "Error: open /var/lib/containers/storage/storage.lock: read-only file system"
-#   "error: cannot open '.git/FETCH_HEAD': Read-only file system"
-# Operators (and agents) blame "WSL" or "permissions" and chase the
-# wrong fix (operator-confirmed 2026-05-15).
-#
-# Fix: detect the read-only-namespace condition (root sees a known
-# root-writable dir as read-only) and re-exec via `systemd-run --scope`,
-# which spawns a transient unit OUTSIDE the calling service's namespace
-# with a fresh, default mount view. This is the only way to escape a
-# parent service's namespace short of explicit setns() with CAP_SYS_ADMIN.
-# Preserves all CLI args; the re-exec inherits stdin/stdout/stderr via --pty.
 _MIOS_BUILD_ESCAPED="${_MIOS_BUILD_ESCAPED:-0}"   # guard against re-exec loop
-# Probe BOTH cases: agent might invoke us as root (after sudo wrap), OR as
-# the unprivileged service user with a passwordless sudo grant. Both are
-# affected identically by the parent service's mount namespace -- read-only
-# is read-only regardless of UID. Earlier the probe only ran when id==0,
-# so non-root invocations slipped past the escape and died later on `sudo
-# podman build` (operator-confirmed 2026-05-15: agent dropped the `sudo`
-# from `sudo mios build`, ran the driver as uid 820, escape never fired,
-# build hit storage.lock read-only mid-pipeline).
 if [[ "$_MIOS_BUILD_ESCAPED" != "1" && -d /var/lib/containers/storage ]]; then
     if ! ( : > /var/lib/containers/storage/.mios-sandbox-probe ) 2>/dev/null; then
         if command -v systemd-run >/dev/null 2>&1; then
             _log "detected restricted mount namespace (parent service has ProtectSystem=strict);"
             _log "re-executing via 'systemd-run --pipe --wait' to escape into a fresh mount namespace"
             export _MIOS_BUILD_ESCAPED=1
-            # KEY POINT: --service mode (the default; do NOT pass --scope) is
-            # what escapes the mount namespace. --scope only registers the
-            # existing systemd-run process in a new cgroup; the exec happens
-            # in systemd-run's own namespace, which is the caller's restricted
-            # one (verified empirically -- /.git stays read-only with --scope).
-            # --service mode causes PID 1 to FORK the unit fresh, so the new
-            # process inherits PID 1's default mount namespace -- the host
-            # root view, not the agent's sandbox.
-            #
-            # --pipe:    forward stdin/stdout/stderr via anonymous pipes
-            #            (works without a tty; agent invocations are headless)
-            # --wait:    block until the unit exits, propagate exit code
-            # --collect: drop failed transient unit instead of keeping it
-            # --quiet:   no "Running as unit:" preamble in stderr
-            # --uid=0:   run as root explicitly (we already are, but be loud)
-            # --same-dir:keep CWD instead of jumping to /
-            #
-            # Wrap with sudo when we're NOT already root -- systemd-run needs
-            # CAP_SYS_ADMIN/root to register the transient unit with PID 1.
-            # The privilege preflight above guarantees `sudo -n true` works
-            # for the calling user when uid != 0 (else we'd have FATAL'd
-            # before reaching here).
             if [[ "$(id -u)" -eq 0 ]]; then
                 exec systemd-run --pipe --wait --collect --quiet --uid=0 --same-dir \
                     /usr/libexec/mios/mios-build-driver "$@"
@@ -262,14 +134,6 @@ if [[ "$_MIOS_BUILD_ESCAPED" != "1" && -d /var/lib/containers/storage ]]; then
     fi
 fi
 
-# ── Pre-flight ───────────────────────────────────────────────────────────────
-# WORKDIR follows the same root-vs-user split the LOG_DIR section above
-# uses: root invocations get the canonical /var/lib/mios/build (FHS),
-# non-root land under $XDG_STATE_HOME so `mkdir -p` doesn't fail with
-# "Permission denied" -- which was killing the driver under `set -euo
-# pipefail` before it printed anything useful (regression caught by
-# operator 2026-05-09: build chained from Windows-side auto-build,
-# handed off as user `mios`, died at this mkdir).
 if [[ -n "${MIOS_BUILD_WORKDIR:-}" ]]; then
     WORKDIR="${MIOS_BUILD_WORKDIR}"
 elif [[ "$(id -u)" -eq 0 ]]; then
@@ -280,11 +144,6 @@ else
 fi
 mkdir -p "$WORKDIR" 2>/dev/null || _fail "mkdir $WORKDIR failed (uid=$(id -u))"
 
-# Resolve the MiOS repo location. Three candidates in priority order:
-#   1. /.git -- live working tree (canonical when running on a real
-#      MiOS host where `.git IS /` per the self-replication contract)
-#   2. /var/lib/mios/build/mios -- the dedicated build workspace
-#   3. /ctx -- the build-context bind mount inside `podman build`
 MIOS_REPO=""
 if [[ -d /.git ]]; then
     MIOS_REPO="/"
@@ -292,12 +151,6 @@ if [[ -d /.git ]]; then
 elif [[ -d "$WORKDIR/mios/.git" ]]; then
     MIOS_REPO="$WORKDIR/mios"
     _log "MiOS repo: $MIOS_REPO (build workspace) -- fetching latest"
-    # Fetch + reset --hard origin/main so the cached clone tracks the
-    # latest mios.git fixes. Without this, fixes pushed since the
-    # initial clone never reach the build (driver bugs, userenv.sh
-    # fixes, Containerfile updates -- all stale until manual rm).
-    # `|| true` so transient network errors don't kill the build --
-    # falling back to the cached version is better than no build.
     git -C "$MIOS_REPO" fetch --depth=1 origin main 2>&1 | tee -a "$LOG_FILE" || true
     git -C "$MIOS_REPO" reset --hard FETCH_HEAD 2>&1 | tee -a "$LOG_FILE" || true
 else
@@ -309,7 +162,6 @@ else
     MIOS_REPO="$WORKDIR/mios"
 fi
 
-# mios-bootstrap is needed for build helper scripts under automation/lib/.
 BOOT_REPO=""
 if [[ -d "$WORKDIR/mios-bootstrap/.git" ]]; then
     BOOT_REPO="$WORKDIR/mios-bootstrap"
@@ -328,7 +180,6 @@ else
 fi
 _log "mios-bootstrap repo: $BOOT_REPO"
 
-# ── SSOT preflight drift hardening gate ──
 _log "running SSOT preflight drift hardening (Quadlets, bake plan, naming registry)..."
 if [[ -f "$MIOS_REPO/tools/generate-pod-quadlets.py" ]]; then
     python3 "$MIOS_REPO/tools/generate-pod-quadlets.py" 2>&1 | tee -a "$LOG_FILE" || true
@@ -343,28 +194,7 @@ if [[ -f "$MIOS_REPO/automation/98-drift-checks.sh" ]]; then
     bash "$MIOS_REPO/automation/98-drift-checks.sh" 2>&1 | tee -a "$LOG_FILE" || _log "WARN: drift check reported minor drift; proceeding with auto-aligned SSOT"
 fi
 
-# ── Unattended-mode detection: strictly automated when non-interactive ───────
-# `mios build` MUST run end-to-end with ZERO operator prompts whenever it
-# is invoked without a real terminal -- by the Hermes/MiOS agent, by CI,
-# by the Forgejo runner, or by any `bash -c`. The TOML-first invariant
-# already makes mios.toml the SSOT for every value; historically the
-# only things that blocked were two `read` prompts -- the configurator
-# "press Enter" and the password prompt -- each gated by a SEPARATE
-# env var (MIOS_SKIP_CONFIGURATOR vs MIOS_NONINTERACTIVE). That split is
-# the "confusion": operators/agents could not find one switch, so agents
-# fabricated fake build logs and invented non-existent flags
-# (`interactive_password`, `MIOS_SKIP_PROMPTS`) trying to get past it
-# (operator-confirmed 2026-05-14).
-#
-# Fix: detect a non-TTY stdin -- or an explicit MIOS_NONINTERACTIVE /
 # MIOS_AUTO opt-in -- and force BOTH unattended switches on at once, so
-# the rest of the driver takes its already-existing no-prompt paths:
-#   * MIOS_SKIP_CONFIGURATOR=1 -> skip the Epiphany launch + its Enter prompt
-#   * MIOS_NONINTERACTIVE=1    -> password resolves from /etc/mios/secrets.env
-#                                or the mios.toml [identity].default_password,
-#                                never `read`
-# An interactive operator on a real TTY still gets the full guided flow
-# unless they opt out explicitly.
 if [[ ! -t 0 || "${MIOS_NONINTERACTIVE:-0}" == "1" || "${MIOS_AUTO:-0}" == "1" ]]; then
     MIOS_NONINTERACTIVE=1
     MIOS_SKIP_CONFIGURATOR="${MIOS_SKIP_CONFIGURATOR:-1}"
@@ -373,24 +203,6 @@ if [[ ! -t 0 || "${MIOS_NONINTERACTIVE:-0}" == "1" || "${MIOS_AUTO:-0}" == "1" ]
     _log "  configurator prompt skipped; password resolves from secrets.env / mios.toml -- ZERO prompts"
 fi
 
-# ── Always-pull-from-origin (default) ────────────────────────────────────────
-# Operator standing rule: the build always pulls the latest source from
-# origin before building. Stale local trees produced repeated
-# "the bound-images bake never ran" / "the cd / fix isn't deployed" /
-# "wrong Containerfile" surprises -- every build now starts from
-# origin/HEAD by default.
-#
-# Mechanism: `git -C "$MIOS_REPO" pull --ff-only origin <branch>` over
-# whatever protocol the remote is configured for (HTTPS uses libcurl
-# under the hood, which is what the operator meant by "via curl").
-# Retries 3 times with backoff on transient failure (network blip,
-# remote unreachable). On a real TTY the operator gets a 30-second
-# countdown with Ctrl+C to abort and use the local tree as-is; in
-# unattended mode the pull just runs (no one to press Ctrl+C anyway).
-# Skipped entirely when MIOS_NO_PULL=1 (CI / offline / dev-iter).
-#
-# If the pull fails after retries: WARN and continue with the local
-# tree (a stale build is better than no build -- the warning is loud).
 if [[ "${MIOS_NO_PULL:-0}" == "1" ]]; then
     _log "MIOS_NO_PULL=1 -- skipping origin pull, using local $MIOS_REPO as-is"
 elif [[ ! -d "${MIOS_REPO:-/}/.git" ]]; then
@@ -424,31 +236,7 @@ else
     unset _branch _remote_url _pull_ok _attempt _i
 fi
 
-# CRITICAL ORDERING: Configurator FIRST (operator edits the toml in
-# Epiphany), then Resolve (sources the edited toml). Don't reverse;
-# resolving before the operator has edited would lock in stale values.
 
-# ── Configurator step: Epiphany on /configurator.html ────────────────────────
-# Per the self-replication-vision memo:
-#
-#   "MiOS setup requires Epiphany for editing the SSOT TOML/HTML file
-#    that's locally present and used to overwrite overlay global defaults"
-#
-# Launch the HTML configurator in Epiphany (via WSLg if MiOS-DEV is the
-# WSL distro, native Wayland if running on bare-metal MiOS) BEFORE the
-# build pipeline starts. The operator edits their identity, model
-# choice, package toggles, etc., saves the resulting mios.toml from the
-# browser's File System Access API, then presses Enter here to proceed.
-#
-# The mios-configurator-launch helper handles the browser plumbing:
-#   * stages mios.toml in ~/Downloads where the FSA portal can bind it
-#   * stages the HTML next to it (so file:// URLs resolve relative paths)
-#   * tries Epiphany flatpak first (best FSA support, WSLg-native)
-#   * falls back to xdg-open if Epiphany isn't installed
-#   * last-resort prints the URL for manual copy/paste
-#
-# Skipped if MIOS_SKIP_CONFIGURATOR=1 (CI / unattended runs that already
-# have a populated /etc/mios/mios.toml from a prior session).
 if [[ "${MIOS_SKIP_CONFIGURATOR:-0}" == "1" ]]; then
     _log "MIOS_SKIP_CONFIGURATOR=1 -- skipping Epiphany configurator launch"
 elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
@@ -460,10 +248,10 @@ elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
     echo "  ┌─ MiOS Configurator launched ──────────────────────────────┐"
     echo "  │                                                            │"
     echo "  │  Epiphany should now be visible on your Windows desktop    │"
-    echo "  │  (via WSLg's Wayland portal). It's loading the MiOS HTML   │"
+    echo "  │. It's loading the MiOS HTML   │"
     echo "  │  configurator backed by your layered mios.toml chain:      │"
     echo "  │                                                            │"
-    echo "  │    ~/.config/mios/mios.toml   highest priority (per-user)  │"
+    echo "  │    ~/.config/mios/mios.toml   highest priority  │"
     echo "  │    /etc/mios/mios.toml        host overrides               │"
     echo "  │    /usr/share/mios/mios.toml  vendor defaults              │"
     echo "  │                                                            │"
@@ -472,43 +260,20 @@ elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
     echo "  │  press Enter to start the build with your settings.        │"
     echo "  │                                                            │"
     echo "  │  Set MIOS_SKIP_CONFIGURATOR=1 to skip this step on next    │"
-    echo "  │  invocation (uses whatever mios.toml is already saved).    │"
+    echo "  │  invocation.    │"
     echo "  └────────────────────────────────────────────────────────────┘"
     echo
-    # Defensive: only block on Enter when stdin is a real TTY. The
-    # unattended-mode block above already forces MIOS_SKIP_CONFIGURATOR=1
-    # on a non-TTY so this branch is normally unreachable when automated,
-    # but guard the `read` anyway so a non-TTY caller can never hang here.
     if [[ -t 0 ]]; then
         read -r -p "  Press Enter when you've saved the configurator (or Ctrl-C to abort)..." _ || true
     else
         _log "non-interactive stdin -- not waiting on configurator Enter prompt"
     fi
 
-    # If the operator saved to ~/Downloads/mios.toml (the FSA portal's
-    # default landing point), promote it to BOTH:
-    #   1. /etc/mios/mios.toml      -- inside MiOS-DEV, where the build
-    #                                  pipeline + dev-VM runtime read
-    #   2. /mnt/m/etc/mios/mios.toml -- the M:\ overlay, so Windows-side
-    #                                  Get-MiOS.ps1 + build-mios.ps1
-    #                                  Pass-2 also see the operator's
-    #                                  edits the next time the bootstrap
-    #                                  is re-run from WinKey+R
-    #
-    # Per operator "ALL Global packages SOURCE FROM THE TOML/HTML
-    # FILE!!!" + "now how does changing the html change the toml
-    # thats read by multiple scripts and components" -- this two-way
-    # promote closes the SSOT loop: HTML edits → ~/Downloads/mios.toml
-    # → /etc/mios/ (Linux side) AND /mnt/m/etc/mios/ (Windows side).
     DL_TOML="${HOME}/Downloads/mios.toml"
     if [[ -f "$DL_TOML" ]]; then
         sudo install -d -m 0755 /etc/mios
         sudo install -m 0644 "$DL_TOML" /etc/mios/mios.toml
         _log "Promoted ~/Downloads/mios.toml -> /etc/mios/mios.toml"
-        # Promote to M:\ overlay for Windows-side bootstrap consumers.
-        # /mnt/m is the WSL automount of the M:\ drive; if it isn't
-        # writable (rare, but possible on a stale automount), warn but
-        # don't fail -- the Linux side still has the canonical edit.
         if [[ -d /mnt/m ]]; then
             if sudo install -d -m 0755 /mnt/m/etc/mios 2>/dev/null && \
                sudo install -m 0644 "$DL_TOML" /mnt/m/etc/mios/mios.toml 2>/dev/null; then
@@ -517,9 +282,7 @@ elif [[ -x /usr/libexec/mios/mios-configurator-launch ]]; then
                 _log "WARN: could not write /mnt/m/etc/mios/mios.toml -- Windows-side bootstrap will keep using vendor defaults"
             fi
         fi
-        # Re-source the env layering so subsequent steps see the new values.
         if [[ -r /etc/profile.d/mios-env.sh ]]; then
-            # shellcheck disable=SC1091
             . /etc/profile.d/mios-env.sh || true
         fi
     else
@@ -529,28 +292,6 @@ else
     _log "WARN: /usr/libexec/mios/mios-configurator-launch not present -- skipping configurator step"
 fi
 
-# ── Resolve all settings from the layered mios.toml chain ───────────────────
-# Runs AFTER the configurator step so the operator's edits in Epiphany
-# (now landed at /etc/mios/mios.toml) are sourced into env.
-#
-# CANONICAL: identity, AI choices, locale, image, network, desktop,
-# packages-to-layer (every [packages.*] enable flag), hosting/dev/build/
-# run profile flags -- EVERY operator-visible setting comes from the
-# layered mios.toml, edited via /configurator.html. The driver does NOT
-# prompt for any of these values; they're set in the toml.
-#
-# Layer chain (highest wins):
-#   /usr/share/mios/mios.toml      vendor defaults baked into the image
-#   /etc/mios/mios.toml            host overlay (configurator promotes
-#                                  ~/Downloads/mios.toml here when the
-#                                  operator clicks Save in Epiphany)
-#   ~/.config/mios/mios.toml       per-user XDG overlay
-#
-# tools/lib/userenv.sh resolves the chain, exports MIOS_* env vars, and
-# is the single canonical reader. Source it so the entire build pipeline
-# downstream (automation/build.sh, sysusers, tmpfiles, profile.d,
-# Containerfile build args) inherits the resolved values without
-# re-parsing toml in 12 different ways.
 USERENV_SH=""
 for cand in \
     /tools/lib/userenv.sh \
@@ -561,15 +302,11 @@ for cand in \
 done
 if [[ -n "$USERENV_SH" ]]; then
     _log "Sourcing layered config: $USERENV_SH"
-    # shellcheck disable=SC1090
     source "$USERENV_SH"
 else
     _log "WARN: tools/lib/userenv.sh not found -- using vendor-default env"
 fi
 
-# Vendor-shipped fallbacks for any MIOS_* the toml didn't define. Never
-# prompt -- the principle is "configurator is SSOT". Missing means the
-# operator hasn't edited that field and the vendor default applies.
 : "${MIOS_USER:=mios}"
 : "${MIOS_HOSTNAME:=mios}"
 : "${MIOS_AI_MODEL:=qwen2.5-coder:7b}"
@@ -578,23 +315,6 @@ fi
 export MIOS_USER MIOS_HOSTNAME MIOS_AI_MODEL MIOS_AI_EMBED_MODEL \
        MIOS_PASSWORD_POLICY
 
-# Password handling. The toml schema says password_hash is NEVER
-# tracked in a checked-in copy. Three policies:
-#   * interactive: prompt once if no /etc/mios/secrets.env exists --
-#     the ONLY operator prompt; everything else came from the toml
-#   * hashed     : use literal MIOS_USER_PASSWORD_HASH already in env
-#                  (operator pasted a sha512crypt hash into the
-#                  configurator's password field)
-#   * none       : skip password setup; useful for kiosk / CI
-# Hash a plaintext password to sha512crypt. Python 3.13+ removed the
-# `crypt` stdlib module (PEP 594), so we use mkpasswd (whois) / openssl
-# / passlib instead. Per feedback_mios_dev_equals_mios.md the dev VM is
-# MiOS in full parity -- so mkpasswd, openssl, AND passlib are ALL
-# expected to be present. If any one is missing it means the dev VM
-# was provisioned from a stripped machine-os image rather than the
-# canonical MiOS-flavored machine-os; surface that as a loud failure
-# so the build pipeline (or the operator) fixes the provisioning, not
-# the driver.
 _hash_password() {
     local plain="$1"
     if command -v mkpasswd >/dev/null 2>&1; then
@@ -622,27 +342,14 @@ case "${MIOS_PASSWORD_POLICY}" in
     interactive|*)
         if [[ -r /etc/mios/secrets.env ]] && grep -q '^MIOS_USER_PASSWORD_HASH=' /etc/mios/secrets.env; then
             _log "password hash loaded from /etc/mios/secrets.env"
-            # `source` performs parameter expansion inside double-quoted
-            # values, and a sha512crypt hash starts with `$6$...$...$...`
-            # -- under `set -euo pipefail`, $6 triggers "unbound variable"
-            # and kills the driver. Parse the file with grep + manual
-            # stripping instead of `source` so $6 stays literal.
             _line=$(grep -E '^MIOS_USER_PASSWORD_HASH=' /etc/mios/secrets.env | head -1)
             _val="${_line#MIOS_USER_PASSWORD_HASH=}"
-            # Strip surrounding quotes (single OR double).
             if [[ "$_val" == \"*\" || "$_val" == \'*\' ]]; then
                 _val="${_val:1:${#_val}-2}"
             fi
             MIOS_USER_PASSWORD_HASH="$_val"
             unset _line _val
         elif [[ "${MIOS_NONINTERACTIVE:-0}" == "1" ]]; then
-            # Unattended: NEVER prompt. Resolve the password from the
-            # TOML-first SSOT -- [identity].default_password, exported by
-            # userenv.sh as MIOS_DEFAULT_PASSWORD -- falling back to the
-            # vendor default 'mios' only if the toml didn't set one. Then
-            # persist the hash to /etc/mios/secrets.env exactly like the
-            # interactive path does, so re-runs are idempotent and the
-            # built image carries a deterministic credential.
             _pw_plain="${MIOS_DEFAULT_PASSWORD:-mios}"
             _log "MIOS_NONINTERACTIVE=1 -- password from mios.toml [identity].default_password (vendor default 'mios' if unset)"
             MIOS_USER_PASSWORD_HASH=$(_hash_password "$_pw_plain")
@@ -655,19 +362,15 @@ case "${MIOS_PASSWORD_POLICY}" in
             unset _q_hash
         else
             echo
-            echo "  password_policy=interactive and no /etc/mios/secrets.env yet."
-            echo "  This is the ONLY operator prompt -- everything else came from"
-            echo "  /mios.toml (edited via the Epiphany configurator above)."
+            echo "  password_policy=interactive and no /etc/mios/secrets.env yet"
+            echo "  This is the ONLY operator prompt"
+            echo "  /mios.toml"
             read -rsp "  Set password for ${MIOS_USER} (default: 'mios'): " _pw_plain
             echo
             : "${_pw_plain:=mios}"
             MIOS_USER_PASSWORD_HASH=$(_hash_password "$_pw_plain")
             unset _pw_plain
             sudo install -d -m 0755 /etc/mios
-            # SINGLE-quote the hash so $6$ in sha512crypt format is
-            # treated as a literal, not as "$6 (param 6) followed by $".
-            # Embedded single quotes are unlikely in a sha512crypt hash
-            # but escape defensively just in case.
             _q_hash=${MIOS_USER_PASSWORD_HASH//\'/\'\\\'\'}
             printf "MIOS_USER_PASSWORD_HASH='%s'\n" "$_q_hash" |
                 sudo tee /etc/mios/secrets.env >/dev/null
@@ -678,19 +381,6 @@ case "${MIOS_PASSWORD_POLICY}" in
 esac
 export MIOS_USER_PASSWORD_HASH
 
-# Persist a flat install.env SEED for downstream consumers that don't grok
-# layered toml directly: /etc/profile.d/mios-env.sh, automation/build.sh
-# during `podman build`, sysusers/tmpfiles generators. mios-sync-env later
-# regenerates the full file from mios.toml; this seed only covers the few
-# keys needed before the resolver runs.
-#
-# BARE `KEY=value` only (no double quotes): install.env is read by systemd
-# EnvironmentFile=, bash `.`-source (under set -u), AND podman --env-file,
-# whose quoting rules are mutually incompatible -- bare is the only safe
-# form. The password HASH is NOT written here: a `$6$salt$digest` value is
-# unrepresentable in a bare env file and previously detonated `. install.env`
-# under set -u ("$6: unbound variable"). It lives ONLY in /etc/shadow and
-# /etc/mios/secrets.env (0600, written above). install-robustness.
 sudo install -d -m 0755 /etc/mios
 {
     printf 'MIOS_USER=%s\n'           "$MIOS_USER"
@@ -702,32 +392,6 @@ sudo chmod 0640 /etc/mios/install.env
 
 _log "Resolved settings: user=$MIOS_USER host=$MIOS_HOSTNAME ai=$MIOS_AI_MODEL embed=$MIOS_AI_EMBED_MODEL pwpolicy=$MIOS_PASSWORD_POLICY"
 
-# ── Build invocation ─────────────────────────────────────────────────────────
-# automation/build.sh expects to run inside a `podman build` against the
-# Containerfile. Outside that context it's a no-op driver entry. The
-# canonical way to drive the build from here is:
-#
-#     cd <MIOS_REPO> && podman build -t localhost/mios:latest .
-#
-# The Containerfile then RUNs automation/build.sh with /ctx bind-mounted
-# at the repo root, which in turn exec's every automation/[0-9][0-9]-*.sh
-# step in order, masking secrets, capturing logs, etc.
-#
-# For now this driver is a SCAFFOLD. Subsequent migration chunks will
-# wire in:
-#   * Multi-format output via bootc-image-builder (vhdx, qcow2, iso, raw)
-#   * Identity-prompt migration from build-mios.ps1 Phase 6
-#   * Dashboard renderer matching the Windows-side ASCII-frame UI
-#   * WSLg/Wayland verification for Epiphany SSOT-config editing
-# When MIOS_REPO=/, podman build with `.` as context fails with:
-#   "Error: mounting an overlay over build context directory: ...
-#    mount overlay:..., data: lowerdir=/,upperdir=...: invalid argument"
-# Buildah's overlay storage driver cannot stack an overlay on top of /
-# (the root mount itself). We materialize the tracked tree into a fresh
-# tmpdir via `git archive | tar -x`, then build from there. Operates
-# on native ext4 (the cache or repo workspace), avoids overlay-on-/,
-# and excludes everything outside the git index (no /proc, /sys,
-# /var/lib state, etc. leaking into the build context).
 BUILD_CTX="$MIOS_REPO"
 if [[ "$MIOS_REPO" = "/" ]]; then
     BUILD_CTX="$WORKDIR/build-context"
@@ -741,10 +405,6 @@ if [[ "$MIOS_REPO" = "/" ]]; then
     _log "build context staged: $(find "$BUILD_CTX" -type f | wc -l) files"
 fi
 
-# Primary build trigger = local podman build (below). If podman is missing, the
-# curl fallback triggers the Forgejo CI build instead (SSOT endpoints, no literal
-# host:port). Only intercepts when podman is ABSENT and the fallback is enabled
-# (default), so a podman-present host or an explicitly-disabled gate is unchanged.
 if ! command -v podman >/dev/null 2>&1 && _build_curl_fallback_enabled; then
     _log "podman not found -- primary local build trigger unavailable; attempting curl CI fallback"
     if _curl_build_trigger; then
@@ -758,26 +418,6 @@ fi
 _log "starting podman build at $BUILD_CTX"
 _log "  podman build -t localhost/mios:latest -f Containerfile $BUILD_CTX"
 
-# `sudo podman build` -- LOAD-BEARING: the image MUST land in the
-# ROOTFUL container storage (/var/lib/containers/storage). The
-# bootc-image-builder step below runs `sudo podman run` (rootful,
-# --privileged) and mounts that rootful storage to find the image. A
-# plain (rootless) `podman build` here puts the image in the invoking
-# user's ~/.local/share/containers/storage instead, so BIB then fails
-# every format with "localhost/mios:latest: image not known"
-# (operator-confirmed 2026-05-14). The privilege preflight at the top
-# already guaranteed root or non-interactive sudo, so this always works.
-#
-# --network=host -- ALSO load-bearing. The Containerfile's RUN steps do
-# `dnf5 install` and need working DNS. Rootful podman build's default
-# netavark/aardvark-dns bridge is not wired for name resolution on the
-# WSL2 podman-machine-os, so the build dies with "Could not resolve
-# hostname for mirrors.fedoraproject.org" / "[packages.sh] FATAL:
-# Mandatory 'base' packages failed to install" (operator-confirmed
-# 2026-05-14). The dev VM's HOST netns resolves fine (it pulls OCI
-# images, model weights, etc.), so run the build's RUN steps in the
-# host network namespace. This affects only build-time network access;
-# nothing about --network is baked into the resulting image.
 if cd "$BUILD_CTX" && sudo podman build \
         --network=host \
         -t localhost/mios:latest \
@@ -788,51 +428,11 @@ else
     _fail "podman build failed -- see $LOG_FILE"
 fi
 
-# ── Multi-format deployment artifacts ────────────────────────────────────────
-# Per the self-replication architecture, the build pipeline produces
-# every deployment-shape MiOS targets. We use bootc-image-builder
-# (BIB) -- the upstream-canonical tool from the bootc project -- to
-# render the just-built OCI image into:
-#
-#   * vhdx          Hyper-V disk
-#   * qcow2         QEMU / virt-manager
-#   * iso           Live-CD / Live-USB / Anaconda installer media
-#   * raw           dd-able to any block device (USB stick, SD card)
-#   * wsl           tar.zst usable with `wsl --import` on Windows
-#
-# All artifacts go to /var/lib/mios/build/output/ inside MiOS-DEV.
-# When MiOS-DEV is hosting on M:\, that path is on the dedicated
-# 256 GB partition (junctioned via the mount setup in Windows entry).
-# Multi-GB artifact set comfortably fits.
-#
-# BIB is invoked via `podman run --rm --privileged --pull=newer` per
-# its documented invocation pattern. Each format runs separately so
-# a transient failure in one (e.g. ISO bootloader signing on a
-# locked-down host) doesn't kill the whole batch -- partial success
-# is logged and the operator can re-run with --type=<missing> to
-# fill gaps.
-#
-# Skipped if MIOS_SKIP_BIB=1 is set (useful for fast-iter dev cycles
-# where the operator only cares about the OCI image -- the bootc
-# switch above is the actual self-replication closure; BIB outputs
-# are for distributing the image to other machines).
 if [[ "${MIOS_SKIP_BIB:-0}" == "1" ]]; then
     _log "MIOS_SKIP_BIB=1 -- skipping multi-format artifact build"
 else
     _log ""
     _log "── Multi-format deployment artifacts (bootc-image-builder) ──"
-    # Same root-vs-user split the LOG_DIR + WORKDIR sections use: when
-    # invoked as the mios user (the canonical handoff path from
-    # Windows: `wsl.exe -d podman-MiOS-DEV --user mios`),
-    # /var/lib/mios is root-owned (FHS) and `mkdir -p` fails with
-    # "Permission denied" -- killing the driver under set -euo
-    # pipefail BEFORE the bootc switch can run, so the dev VM stays
-    # on its previous deployment. Operator-flagged 2026-05-10:
-    # build succeeded, bootc deploy stayed un-switched, auto-chain
-    # correctly reported "service succeeded but bootc deployment
-    # is NOT localhost/mios". Honor explicit MIOS_BIB_OUT override,
-    # else root -> /var/lib/mios/build/output, else non-root ->
-    # $XDG_STATE_HOME/mios/build/output.
     if [[ -n "${MIOS_BIB_OUT:-}" ]]; then
         BIB_OUT="${MIOS_BIB_OUT}"
     elif [[ "$(id -u)" -eq 0 ]]; then
@@ -847,11 +447,6 @@ else
     _log "BIB image: $BIB_IMG"
     _log "Output dir: $BIB_OUT"
 
-    # Build BIB_FORMATS from [deployment].target_<key> in the layered
-    # mios.toml -- the configurator HTML's "Deployment targets" section
-    # toggles these. Operator override via $MIOS_BIB_FORMATS="vhdx qcow2"
-    # still wins for fast-iter dev cycles. Final fallback to the
-    # historical 5-format default if the toml is missing entirely.
     if [[ -n "${MIOS_BIB_FORMATS:-}" ]]; then
         BIB_FORMATS="$MIOS_BIB_FORMATS"
         _log "Formats from MIOS_BIB_FORMATS env: $BIB_FORMATS"
@@ -880,14 +475,6 @@ else
             _log "Formats from $DEP_TOML [deployment]: ${BIB_FORMATS:-<none enabled>}"
         fi
         if [[ -z "${BIB_FORMATS// }" ]]; then
-            # Fallback default -- ONLY names bootc-image-builder actually
-            # accepts. Verified against `bootc-image-builder build --help`
-            # (2026-05-14): valid --type values are ami, anaconda-iso,
-            # bootc-installer, gce, iso, ova, pxe-tar-xz, qcow2, raw, vhd,
-            # vmdk. NOTE: `vhd` (not `vhdx`) is the Hyper-V type, and
-            # there is NO `wsl` type -- the WSL rootfs tarball is produced
-            # separately, not by BIB. The per-format loop below normalizes
-            # a stray `vhdx`/`wsl` from the toml just in case.
             BIB_FORMATS="vhd qcow2 iso raw"
             _log "Formats fallback to BIB-valid default: $BIB_FORMATS"
         fi
@@ -895,27 +482,9 @@ else
 
     BIB_OK=()
     BIB_FAIL=()
-    # `cd /` -- LOAD-BEARING. The BIB loop below does `sudo podman run`
-    # for each format. conmon (podman's container monitor) does a
-    # double-fork and then a `getcwd()` of its own; if the inherited CWD
-    # is the build-context dir (which sudo'd-root may not be able to
-    # read in its elevated mount/namespace context), conmon fails with
-    # "[conmon:e]: Failed to get working directory" / "Error: conmon
-    # failed: exit status 1" -- and EVERY BIB format dies instantly
-    # before BIB itself even runs (operator-confirmed 2026-05-14).
-    # `/` is always present and always accessible to root.
     cd /
     for fmt in $BIB_FORMATS; do
-        # toml field names use underscores (target_anaconda_iso); BIB
-        # --type uses hyphens (anaconda-iso). Translate.
         bib_type="${fmt//_/-}"
-        # Normalize names that are NOT in bootc-image-builder's --type
-        # vocabulary (verified against `bootc-image-builder build --help`):
-        #   vhdx -> vhd  : BIB's Hyper-V disk type is `vhd`; `vhdx` is
-        #                  rejected outright ("unsupported image type").
-        #   wsl          : not a BIB type at all -- the WSL rootfs tarball
-        #                  is produced by a separate step, never by BIB.
-        #                  Skip it here so it doesn't show as a hard fail.
         case "$bib_type" in
             vhdx)
                 _log "note: 'vhdx' is not a BIB --type -- using 'vhd' (Hyper-V)"
@@ -928,11 +497,6 @@ else
         esac
         _log ""
         _log "→ building $fmt (BIB --type $bib_type) …"
-        # --local dropped: newer BIB makes local-storage lookup the
-        # default and warns "--local is now the default behavior". The
-        # image is found because `sudo podman build` above placed it in
-        # the rootful /var/lib/containers/storage that this --privileged
-        # `sudo podman run` mounts in below.
         if sudo podman run --rm --privileged \
                 --pull=newer \
                 --security-opt label=type:unconfined_t \
@@ -954,14 +518,6 @@ else
     _log "  succeeded: ${BIB_OK[*]:-(none)}"
     _log "  failed:    ${BIB_FAIL[*]:-(none)}"
     _log "  artifacts: $(ls -1 "$BIB_OUT" 2>/dev/null | tr '\n' ' ')"
-    # Any failed deployment format makes the whole build a failure.
-    # Building the OCI image is necessary but NOT sufficient: an
-    # operator who asked for vhd/qcow2/iso/raw and got none of them had
-    # a failed build, and `mios build` must exit non-zero so callers
-    # that chain on it -- the agent, CI, the Forgejo runner, `&&`
-    # chains -- actually see it. The completion banner below still
-    # prints either way (the log stays readable); the non-zero exit is
-    # applied once, at end-of-script, via _BIB_EXIT.
     if (( ${#BIB_FAIL[@]} > 0 )); then
         _BIB_EXIT=1
         _log "FAILURE: ${#BIB_FAIL[@]} deployment format(s) failed: ${BIB_FAIL[*]}"
@@ -969,24 +525,6 @@ else
     fi
 fi
 
-# ── Build complete: artifacts ready for deployment to OTHER substrates ──────
-# Operator 2026-05-10 (feedback_mios_dev_vm_is_builder_only.md):
-# podman-MiOS-DEV is the BUILDER, not a deploy target. We do NOT
-# bootc-switch the dev VM to localhost/mios:latest. The dev VM stays
-# on its podman-machine-os Fedora base + MiOS overlay (Quadlets, RPM
-# layer, flatpaks, branding) -- that's all the operator-facing UX
-# they need to drive the build pipeline. The artifacts produced here
-# are for OTHER hosts:
-#   * localhost/mios:latest      OCI image -> bare-metal bootc, OCI registry push
-#   * vhdx                       Hyper-V import
-#   * qcow2                      QEMU / virt-manager
-#   * iso                        Live-CD / Anaconda installer media
-#   * raw                        dd-able to USB / SD card / disk
-#   * wsl tarball                wsl --import on any Windows host
-#
-# All artifacts land under $BIB_OUT (defaulted to $XDG_STATE_HOME/mios/
-# build/output for non-root, /var/lib/mios/build/output for root).
-# Operator copies / pushes / flashes from there to the target machine.
 _log ""
 _log "── MiOS build complete ──"
 
@@ -1012,10 +550,4 @@ cat <<EOF | tee -a "$LOG_FILE"
 EOF
 _log "build-driver complete"
 
-# Exit status: non-zero if any bootc-image-builder deployment format
-# failed (see the BIB summary above). Building the OCI image alone is
-# not "success" -- callers that chain on `mios build` (the agent, CI,
-# the Forgejo runner) must see a real failure when artifacts didn't
-# build. _BIB_EXIT defaults to 0: BIB skipped (MIOS_SKIP_BIB=1) or
-# every requested format succeeded.
 exit "${_BIB_EXIT:-0}"

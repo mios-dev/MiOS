@@ -2,20 +2,6 @@
 # AI-hint: Resolves the DB-driven LOGIN account the dashboards advertise -- the globally-controlled account SSOT (pgvector), NOT the operator DISPLAY name ([user].name). Shared by the Linux dashboard and the Windows dashboard (via wsl) so the two never drift. Interim consumer ahead of the full WS-ACCT control plane (T-150..T-153).
 # AI-related: /usr/libexec/mios/mios-dashboard.sh, powershell/profile.ps1, mios-pg-query, account (pgvector table)
 # AI-functions: _db_name, main
-#
-# Resolution order (degrade-open, so a stale display name never appears):
-#   1. pgvector `person` singleton (the operator account) -- the intended DB source.
-#   2. pgvector `account` real user row (kind=user, excluding ephemeral
-#      mios-cli-* session rows) -- the account control plane.
-#   3. the live primary human system account (lowest uid in [1000,65000) with a
-#      real login shell) -- what the OS actually provisioned.
-#   4. the vendor default `user`.
-# The operator DISPLAY name ([user].name / MIOS_USER) is DELIBERATELY never
-# consulted: it is a display label, not a login account, and must not land in a
-# credential slot. Full DB<->OS account control is WS-ACCT (T-150..T-153).
-#
-# Usage:  mios-login-account          -> the login account NAME
-#         mios-login-account password -> the advertised login password
 set -uo pipefail
 
 PGQ=/usr/libexec/mios/mios-pg-query
@@ -37,13 +23,6 @@ fi
 [ -z "$name" ] && name="user"
 
 if [ "${1:-}" = "password" ]; then
-    # Advertised login password = the fresh-seed convention (initial password
-    # equals the account name), which the dashboard shows as a first-boot HINT.
-    # We deliberately do NOT read any stored secret: passwords live hashed
-    # (account.password_hash, WS-ACCT), never plaintext, and a dashboard must
-    # never materialize a credential. Once an operator personalizes their
-    # password they already know it, so the hint is only meaningful on a fresh
-    # vendor seed -- where it correctly reads "<name>/<name>".
     printf '%s' "$name"
     exit 0
 fi

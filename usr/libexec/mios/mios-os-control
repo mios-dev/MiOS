@@ -55,10 +55,6 @@ _TOML_PATHS = (
 )
 _SKILLS_DIR = os.environ.get("MIOS_SKILLS_DIR", "/usr/share/mios/skills")
 
-# Window-placement fallbacks. These are the LAST resort only -- the
-# real values live in mios.toml [os_control] (SSOT). Kept here purely so
-# `window-defaults` still answers on a host whose TOML predates the
-# section; they are not authoritative and never override TOML.
 _WINDOW_DEFAULT_FALLBACK = {
     "default_position": "center",
     "default_monitor": 0,
@@ -81,9 +77,6 @@ def _load_section(section: str) -> dict:
 
 
 def _load_verbs() -> dict:
-    # A verb is any [verbs.<name>] dict carrying a description -- mirrors
-    # agent-pipe _load_verb_catalog (which also keys on the metadata
-    # block) so this export and the dispatcher never disagree.
     raw = _load_section("verbs")
     return {k: v for k, v in raw.items()
             if isinstance(v, dict) and (v.get("desc") or v.get("description"))}
@@ -133,8 +126,6 @@ def _params_schema(spec: dict) -> dict:
             if "default" in pcfg:
                 prop["default"] = pcfg["default"]
             if ptype == "array":
-                # OpenAI requires `items` for array params; default to
-                # string items unless the verb declares otherwise.
                 prop["items"] = pcfg.get("items") or {"type": "string"}
             props[pname] = prop
     return {
@@ -180,7 +171,6 @@ def cmd_schema(args: list[str]) -> int:
     if fmt == "owui":
         print(json.dumps(specs, indent=2))
         return 0
-    # Standard OpenAI tools array.
     tools = [{"type": "function", "function": s} for s in specs]
     print(json.dumps(tools, indent=2))
     return 0
@@ -231,7 +221,6 @@ def cmd_skills(_args: list[str]) -> int:
 def cmd_window_defaults(_args: list[str]) -> int:
     block = _load_section("os_control") or {}
     out = dict(_WINDOW_DEFAULT_FALLBACK)
-    # Only the scalar window keys belong here; ignore any nested tables.
     for k, v in block.items():
         if not isinstance(v, dict):
             out[k] = v
@@ -252,10 +241,6 @@ def cmd_doctor(_args: list[str]) -> int:
         if not (spec.get("desc") or spec.get("description")):
             problems.append(f"{name}: missing desc")
         params = spec.get("params") or {}
-        # A zero-arg verb (ai, dash, help, ...) legitimately has no sig and
-        # no params. Only a verb that HAS params but NO sig is a problem:
-        # without the sig, required-arg detection silently treats every
-        # param as optional.
         if isinstance(params, dict) and params and "sig" not in spec:
             problems.append(f"{name}: has params but no sig (required args undeterminable)")
         for pname, pcfg in (params.items() if isinstance(params, dict) else []):
@@ -266,7 +251,6 @@ def cmd_doctor(_args: list[str]) -> int:
             if enum is not None and dflt is not None and dflt not in enum:
                 problems.append(
                     f"{name}.{pname}: default {dflt!r} not in enum {enum}")
-        # Required params (from sig) must each have a params entry.
         for r in _required_from_sig(spec.get("sig", "")):
             if isinstance(params, dict) and r not in params:
                 problems.append(f"{name}: required arg {r!r} has no params block")
@@ -314,8 +298,6 @@ def cmd_launch(args: list[str]) -> int:
             continue
         rest.append(a)
         i += 1
-    # Reconstruct multi-word app names whether the dispatcher quoted {app}
-    # (arrives as one token) or not (arrives split).
     app = " ".join(rest).strip()
     if not app:
         print(json.dumps({"success": False, "fired": False, "launched": False,
@@ -345,7 +327,6 @@ def cmd_launch(args: list[str]) -> int:
                         f"(fall back to open_app + verify_launch)",
                "checked_by": "mios-os-control"}
     print(json.dumps(out, ensure_ascii=False))
-    # exit 0 only when the launch is CONFIRMED; 1 otherwise.
     return 0 if out.get("launched") else 1
 
 

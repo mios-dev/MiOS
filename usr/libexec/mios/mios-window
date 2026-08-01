@@ -3,49 +3,12 @@
 # AI-related: /usr/libexec/mios/mios-window, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-pc-control, mios-windows, mios-oscontrol-server
 # AI-functions: _resolve_hwnd, _show_window, usage, _exec_post, _exec_get, _json_str, _fp
 set -euo pipefail
-# /usr/libexec/mios/mios-window <subcommand> [args...]
-#
-# Title-pattern-driven wrapper around mios-pc-control's window-* verbs.
-# Lets agents + operators say "center Notepad" or "move Discord to
-# (100,100)" instead of having to first call window-list, parse hwnds,
-# then dispatch a second verb with the numeric handle.
-#
-# SUBCOMMANDS
-#
-#   list
-#       Print all visible top-level windows (delegates to
-#       `mios-pc-control window-list`).
-#
-#   center  <title-pattern>
-#   focus   <title-pattern>
-#   move    <title-pattern> <x> <y>
-#   resize  <title-pattern> <w> <h>
-#   minimize <title-pattern>
-#   maximize <title-pattern>
-#   restore <title-pattern>
-#       Each resolves the pattern to a window handle (case-insensitive
-#       substring match against MainWindowTitle from window-list) and
-#       forwards to `mios-pc-control window-<verb> <hwnd> [args...]`.
-#       Ambiguous matches: takes the first match and lists alternatives
-#       to stderr.
-#
-# Operator directive 2026-05-17: "make sure window moving is active/
-# functional and can launch things centered by default and that it can
-# be told to move the windows". Launch-time centering is in mios-windows
-# launch (URI + .exe branches). Post-launch move/center/focus/resize
-# now flow through this single ergonomic shim.
 
 set -u
 
-# ─── helpers ─────────────────────────────────────────────────────────
 _resolve_hwnd() {
     local pat="$1"
-    [[ -z "$pat" ]] && { echo "(empty pattern)" >&2; return 1; }
-    # Parse mios-pc-control window-list output (column-aligned). The window list
-    # is passed via the MIOS_WL env var, NOT a pipe: `python3 - <<HEREDOC` reads
-    # its PROGRAM from stdin, so a pipe on the same fd would be shadowed by the
-    # heredoc and sys.stdin would arrive empty (every lookup then "no match").
-    # Same env-var-carries-the-data idiom mios-everything uses for RAW_LINES.
+    [[ -z "$pat" ]] && { echo "" >&2; return 1; }
     MIOS_WL="$(mios-pc-control window-list 2>/dev/null)" python3 - "$pat" <<'PYEOF'
 import re, sys, os
 
@@ -53,11 +16,9 @@ pat = sys.argv[1].lower()
 hits = []
 for line in os.environ.get("MIOS_WL", "").splitlines():
     line = line.rstrip()
-    # Header / divider / blank
     if not line.strip(): continue
     if re.match(r"^\s*hwnd\s+pid\b", line): continue
     if re.match(r"^\s*-+\s+-+", line): continue
-    # 7 columns: hwnd pid x y w h title (title may contain spaces)
     m = re.match(r"^\s*(\d+)\s+(\d+)\s+(-?\d+)\s+(-?\d+)\s+(\d+)\s+(\d+)\s+(.*)$", line)
     if not m: continue
     hwnd, pid, x, y, w, h, title = m.groups()
@@ -68,7 +29,6 @@ if not hits:
     print(f"mios-window: no window title matches {sys.argv[1]!r}", file=sys.stderr)
     sys.exit(1)
 
-# Print primary hwnd to stdout; alternatives to stderr
 print(hits[0][0])
 if len(hits) > 1:
     print(f"mios-window: {len(hits)} matches; picked '{hits[0][1]}'. Others:", file=sys.stderr)
@@ -77,10 +37,6 @@ if len(hits) > 1:
 PYEOF
 }
 
-# ─── show/restore/minimize/maximize via ShowWindow ───────────────────
-# mios-pc-control doesn't have these natively, so we shell out to
-# PowerShell directly. SW_NORMAL=1, SW_MINIMIZE=6, SW_MAXIMIZE=3,
-# SW_RESTORE=9.
 _show_window() {
     local hwnd="$1" cmd="$2"
     mios-windows ps "
@@ -121,31 +77,19 @@ Examples:
 USAGE
 }
 
-# Source guard: lets tests `source mios-window; _resolve_hwnd discord`
-# without firing the dispatch + usage exit.
 if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
     return 0 2>/dev/null || true
 fi
 
-# Directory this script lives in -- so the half-screen region actuator can find
-# its sibling pure-geometry helper (mios_window_region.py) whether invoked by
-# absolute path, PATH lookup, or symlink.
 _SELF="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
 SCRIPT_DIR="$(cd "$(dirname "$_SELF")" 2>/dev/null && pwd || echo /usr/libexec/mios)"
 
-# [os_control].region_snap_halves gate. The half-screen snap regions
-# (left-half / right-half / top-half / bottom-half) are ADDITIVE region names;
-# degrade-open -> enabled when the key is ABSENT so they work without a
-# mios.toml edit. Set false to restrict to the historical region vocabulary
-# (the new names then behave exactly like any other unknown subcommand).
 _region_snap_enabled() {
     python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
 import sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 oc = mios_toml.section(mios_toml.load_merged(), "os_control")
-# Degrade-open: absent key -> enabled (exit 0); honor the highest layer that sets it.
 val = bool(oc["region_snap_halves"]) if "region_snap_halves" in oc else True
 sys.exit(0 if val else 1)
 PYEOF
@@ -155,31 +99,12 @@ sub="${1:-}"
 [[ -z "$sub" ]] && { usage; exit 64; }
 shift
 
-# ─── Cross-desktop executor routing (operator 2026-05-29 OS-control train) ───
-# focus/close/move/center failed with "no window title matches" because this
-# tool enumerates + acts LOCALLY in the WSL session, which is BLIND to the
-# operator's actual windows (WSLg flatpaks + Windows-host apps both appear as
-# top-level windows on the WINDOWS desktop, not the WSL X11 session). The
-# Windows-side executor (mios-oscontrol-server.ps1 @ [os_control].executor_
-# endpoint) SEES them all + has /window/<op> endpoints. When that endpoint is
-# configured, route the window OP there (the same surface _enumerate_windows
-# already reads). Falls through to the local mios-pc-control path when no
-# executor is set (bare-metal Linux desktop). Semantic positions (left/right/
-# top/...) map to the executor's center/move; 'center' has a direct endpoint.
 _OSC_EP="${MIOS_OSCONTROL_EXECUTOR:-}"
 if [ -z "$_OSC_EP" ] && [ -r /etc/mios/mios.toml ]; then
     _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /etc/mios/mios.toml 2>/dev/null)"
 fi
 [ -z "$_OSC_EP" ] && [ -r /usr/share/mios/mios.toml ] && \
     _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
-# WSL2 local auto-discovery (operator 2026-06-07): no env/toml endpoint, but the
-# in-session executor listens on :11437, reachable over the WSL NAT gateway with
-# Tailscale OFF. WITHOUT this, _OSC_EP stays empty -> the executor routing below is
-# SKIPPED -> window ops fall to the BLIND local enumeration -> "no window title
-# matches" (the close_window failure the operator hit on "close spotify": the
-# executor SEES the window via case-insensitive -like, the local WSL path does not).
-# Same resolver shape as mios-windows / mios-pc-control. Fixes close/focus/move/
-# minimize/maximize/restore all at once.
 if [ -z "$_OSC_EP" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
     _osc_gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
     [ -n "$_osc_gw" ] && _OSC_EP="http://${_osc_gw}:${MIOS_PORT_OSCONTROL:-11437}"
@@ -193,16 +118,6 @@ _exec_post() {  # <path> <json-body>
 _exec_get() { curl -s --connect-timeout 2 --max-time 12 "${_OSC_EP}$1"; }
 _json_str() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))'; }
 
-# Executor health-gate -- mirror mios-pc-control's guard (its python L141-145
-# probes "<exec_ep>/health" with a 3s timeout and clears the endpoint on any
-# failure). mios-window historically LACKED this: on a default WSL dev VM the
-# auto-discovery above sets _OSC_EP=http://<gw>:11437 even though no executor
-# is listening there, so every window op POSTed to a dead socket and the branch
-# ended in `exit $?` (curl's timeout rc) -- the working LOCAL mios-pc-control
-# window-* fallback (the case block below) was dead code. Probing /health and
-# clearing _OSC_EP on failure makes a down/absent executor fall through to the
-# local path, while a real, reachable executor (federation / bare-metal-with-
-# server) still wins. Fixes focus/move/position/resize/close/window_state at once.
 if [ -n "$_OSC_EP" ] && ! curl -sf --connect-timeout 2 --max-time 3 -o /dev/null "${_OSC_EP}/health" 2>/dev/null; then
     _OSC_EP=""
 fi
@@ -216,7 +131,6 @@ if [ -n "$_OSC_EP" ]; then
     _h=""
 
     if [[ "$sub" =~ ^(center|left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos|focus|close|quit|x|minimize|min|maximize|max|restore)$ ]]; then
-        # Parse title and optional monitor
         while [ "$#" -gt 0 ]; do
             if [ "$1" = "--monitor" ] && [ "$#" -gt 1 ]; then
                 _monitor="$2"
@@ -255,14 +169,6 @@ if [ -n "$_OSC_EP" ]; then
         _t="$(_json_str "$_title")"
     fi
 
-    # flatpak instances are PER-USER. The agent dispatches window ops through
-    # the launcher broker, which runs as ROOT -- so a bare `flatpak ps` here
-    # sees NONE of the operator's running apps (operator 2026-05-29 train:
-    # the flatpak-kill close fired fine when run directly as the operator but
-    # the broker/root path saw no instance + fell through). Run flatpak AS the
-    # operator: directly when we already are them, else switch user (runuser
-    # when root, sudo otherwise) WITH the operator's XDG_RUNTIME_DIR so flatpak
-    # finds the per-user instance registry under $XDG_RUNTIME_DIR/.flatpak/.
     _op_user="$(awk -F\" '/^[[:space:]]*username[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
     [ -z "$_op_user" ] && _op_user="mios"
     _op_uid="$(id -u "$_op_user" 2>/dev/null)"
@@ -285,17 +191,6 @@ if [ -n "$_OSC_EP" ]; then
         list|ls)   _exec_get /windows; exit $? ;;
         focus)     _exec_post /window/focus "{\"title\": $_t}"; exit $? ;;
         close|quit|x)
-            # WSLg/flatpak windows are hosted on the Windows side by msrdc
-            # (the RAIL/RDP client); a Windows-side WM_CLOSE does NOT
-            # propagate into the Linux app -- the executor returns ok:true
-            # but the window stays open (operator 2026-05-29 OS-control
-            # train: close_window matched gedit, ok:true, window-diff 18->18,
-            # never closed). MiOS GUI apps are flatpaks, so close them from
-            # the WSL side via `flatpak kill <app-id>` (reliable + offline).
-            # Map the title needle to a RUNNING flatpak instance (substring
-            # either direction vs the app-id last segment OR full id). Fall
-            # through to the executor WM_CLOSE for NATIVE Windows apps
-            # (notepad, taskmgr, ...) which DO honour it.
             _needle_lc="$(printf '%s' "${_title}" | tr '[:upper:]' '[:lower:]')"
             _fp_id=""
             if command -v flatpak >/dev/null 2>&1 && [ -n "$_needle_lc" ]; then
@@ -334,7 +229,6 @@ case "$sub" in
         usage
         ;;
     list|ls)
-        # Pass through --json if present so agents get structured output.
         if [ "${1:-}" = "--json" ]; then
             mios-pc-control window-list --json
         else
@@ -342,47 +236,46 @@ case "$sub" in
         fi
         ;;
     center)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window center: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window center: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         mios-pc-control window-center "$hwnd"
         ;;
     focus)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window focus: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window focus: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         mios-pc-control window-focus "$hwnd"
         ;;
     move)
         pat="${1:-}"; x="${2:-}"; y="${3:-}"
-        [[ -z "$pat" || -z "$x" || -z "$y" ]] && { echo "mios-window move: usage: mios-window move <title-pattern> <x> <y>" >&2; exit 64; }
+        [[ -z "$pat" || -z "$x" || -z "$y" ]] && { echo "Mios-window move: usage: mios-window move <title-pattern> <x> <y>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         mios-pc-control window-move "$hwnd" "$x" "$y"
         ;;
     resize)
         pat="${1:-}"; w="${2:-}"; h="${3:-}"
-        [[ -z "$pat" || -z "$w" || -z "$h" ]] && { echo "mios-window resize: usage: mios-window resize <title-pattern> <w> <h>" >&2; exit 64; }
+        [[ -z "$pat" || -z "$w" || -z "$h" ]] && { echo "Mios-window resize: usage: mios-window resize <title-pattern> <w> <h>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         mios-pc-control window-resize "$hwnd" "$w" "$h"
         ;;
     minimize|min)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window minimize: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window minimize: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         _show_window "$hwnd" 6
         ;;
     maximize|max)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window maximize: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window maximize: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         _show_window "$hwnd" 3
         ;;
     restore)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window restore: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window restore: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         _show_window "$hwnd" 9
         ;;
     left|right|top|bottom|top-left|top-right|bottom-left|bottom-right|maximize-pos)
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         export LAYOUT_JSON="$_layout"
-        # TD-1: eval-safe, input=internal integers and layout bounds, not agent-controlled
         eval "$(python3 - "$sub" "$hwnd" <<'PYEOF'
 import sys, json, os
 try:
@@ -413,38 +306,27 @@ PYEOF
         unset LAYOUT_JSON
         ;;
     left-half|right-half|top-half|bottom-half)
-        # Half-screen snap regions. The rectangle is derived LIVE from the
-        # monitor work area (queried via `mios-pc-control screen-layout`) by the
-        # sibling pure-geometry helper -- no pixel constants (Law 7). window-move
-        # + window-resize route through mios-pc-control, so this works whether an
-        # OS-control executor is present or not.
         if ! _region_snap_enabled; then
-            echo "mios-window: unknown subcommand: $sub" >&2
+            echo "Mios-window: unknown subcommand: $sub" >&2
             usage
             exit 64
         fi
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window $sub: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         _rect="$(mios-pc-control screen-layout 2>/dev/null | python3 "$SCRIPT_DIR/mios_window_region.py" "$sub")" \
-            || { echo "mios-window $sub: could not resolve region geometry from screen-layout" >&2; exit 1; }
+            || { echo "Mios-window $sub: could not resolve region geometry from screen-layout" >&2; exit 1; }
         read -r _rx _ry _rw _rh <<<"$_rect"
-        [[ -z "${_rw:-}" || -z "${_rh:-}" ]] && { echo "mios-window $sub: empty region rectangle" >&2; exit 1; }
+        [[ -z "${_rw:-}" || -z "${_rh:-}" ]] && { echo "Mios-window $sub: empty region rectangle" >&2; exit 1; }
         mios-pc-control window-move "$hwnd" "$_rx" "$_ry" >/dev/null
         mios-pc-control window-resize "$hwnd" "$_rw" "$_rh"
         ;;
     close|quit|x)
-        # Graceful close via WM_CLOSE -- the same as the operator
-        # clicking the X. NOT a kill; apps with unsaved state get to
-        # prompt. Operator-flagged 2026-05-17: agent ran
-        # `pkill -f hermes-agent` thinking "close the crew" meant
-        # "close the agent crew" and self-terminated. window-close on
-        # the matched window is the correct verb every time.
-        pat="${1:-}"; [[ -z "$pat" ]] && { echo "mios-window close: missing <title-pattern>" >&2; exit 64; }
+        pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window close: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         mios-pc-control window-close "$hwnd"
         ;;
     *)
-        echo "mios-window: unknown subcommand: $sub" >&2
+        echo "Mios-window: unknown subcommand: $sub" >&2
         usage
         exit 64
         ;;

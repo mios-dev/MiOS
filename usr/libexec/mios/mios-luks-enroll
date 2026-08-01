@@ -8,7 +8,6 @@ import subprocess
 import tomllib
 
 def main():
-    # 1. Read config
     toml_path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
     if not os.path.exists(toml_path):
         print("No mios.toml found, no-op.")
@@ -29,13 +28,11 @@ def main():
         print("LUKS enrollment disabled in configuration (mode=none).")
         return 0
         
-    # 2. Check for TPM2 availability (WS-A5: "proven no-op on TPM-less VM")
     if mode == "tpm2":
         if not os.path.exists("/dev/tpmrm0") and not os.path.exists("/dev/tpm0"):
             print("TPM2 hardware device not detected (/dev/tpmrm0 or /dev/tpm0 missing). No-op.")
             return 0
             
-    # 3. Find LUKS device
     crypttab_path = "/etc/crypttab"
     if not os.path.exists(crypttab_path):
         print("No /etc/crypttab found. Root filesystem is likely not encrypted with LUKS. No-op.")
@@ -67,7 +64,6 @@ def main():
         print("No active/valid LUKS source devices found in /etc/crypttab. No-op.")
         return 0
         
-    # 4. Enroll keys
     backend = de.get("backend", "systemd-cryptenroll")
     pcrs = de.get("pcrs", [7])
     pcr_str = ",".join(str(p) for p in pcrs)

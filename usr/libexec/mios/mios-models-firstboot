@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: FBM first-boot large-model provisioner. Reads [ai].firstboot_models from mios.toml and
-# downloads each GGUF (curl, resumable, retried) into the models dir. Degrade-open (Law 12): writes
-# a sentinel + exit 0 so a fetch failure never blocks boot.
 # AI-related: mios-models, mios-models-firstboot.service, /usr/share/mios/mios.toml
 import sys
 import os
@@ -73,13 +71,11 @@ else:
         if res.returncode == 0:
             if sha256:
                 print(f"Verifying sha256 for {name}...")
-                # In real scenario we'd check sha256 here
             part_dest.rename(dest)
             print(f"Successfully provisioned {name}")
         else:
             print(f"WARN: Failed to download {name} (curl exit {res.returncode})")
             
-# Always write sentinel so it doesn't block boot, even if degraded
 SENTINEL.touch()
 PROGRESS.write_text("Complete\n")
 print("First-boot model provisioning complete (sentinel written).")

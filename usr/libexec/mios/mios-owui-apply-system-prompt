@@ -34,12 +34,6 @@ SRC_CANDIDATES = [
     Path("/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
     Path(f"{os.environ.get('MIOS_REPO', '')}/usr/share/mios/open-webui/system-prompts/mios-agent.md"),
 ]
-# The OWUI model id MUST match what the front-door connection (:8640 /v1/models)
-# serves, so this registration OVERLAYS that connection model -- applying the
-# system prompt (incl. the {{USER_LOCATION}} env tokens) onto the model the user
-# actually selects. The pipe/connection now serve "MiOS AI" (operator: MiOS is
-# MiOS AI on every surface), so the id is "MiOS AI", NOT the legacy "hermes-agent"
-# (which nothing serves anymore -> the overlay would miss + routing would break).
 MODEL_ID = os.environ.get("MIOS_OWUI_MODEL_ID", "MiOS AI")
 MARKER = "MiOS-managed"
 
@@ -55,27 +49,9 @@ def _resolve_source():
     return None
 
 
-# Friendly name shown in OWUI's model picker. Operator: MiOS is "MiOS AI" on
-# EVERY surface (supersedes the earlier 2026-05-15 "MiOS-Agent" name).
 DISPLAY_NAME = os.environ.get("MIOS_OWUI_DISPLAY_NAME", "MiOS AI")
 DESCRIPTION = "MiOS AI -- the local agentic AI of this MiOS workstation (front-door agent-pipe over local inference lanes + live web)."
 
-# Toggles in the chat input bar (web search / image gen / code interpreter)
-# default to OFF in upstream OWUI -- the user has to click each one per
-# message. Setting meta.defaultFeatureIds pre-presses them on chat init
-# (the front-end pulls model.info.meta.defaultFeatureIds in
-# Chat.svelte's defaultFeatureIds.includes(...) gate).
-# Operator directive 2026-05-15: web/image/code-interpreter all on by
-# default for MiOS-Agent. The Quadlet ENABLE_WEB_SEARCH /
-# ENABLE_IMAGE_GENERATION / ENABLE_CODE_INTERPRETER env vars open the
-# global gates that have to be on for these toggles to actually fire.
-# OWUI native features enabled by default for the MiOS model. code_interpreter is
-# DELIBERATELY EXCLUDED (operator 2026-06-20): MiOS orchestrates code via its own
-# run_sandboxed_code verb, and OWUI's code_interpreter injects a "#### Code
-# Interpreter / You have access to run_sandboxed_code" scaffold into EVERY user
-# message -- which made a bare "Hello!" run matplotlib and broke the launch+type
-# chain. Leaving it off keeps tool orchestration in the MiOS pipeline where it
-# belongs. web_search/image_generation stay (low-noise; MiOS may surface them).
 DEFAULT_FEATURE_IDS = ["web_search", "image_generation"]
 
 
@@ -98,10 +74,6 @@ def main():
         now = int(time.time())
 
         if row is None:
-            # OWUI auto-discovers models from the upstream API and inserts
-            # rows on first chat -- but if we run before that's happened,
-            # create the row ourselves so the operator's picker shows the
-            # MiOS branding from first launch instead of "hermes-agent".
             params = {"system": src_text}
             meta = {
                 "profile_image_url": "/static/favicon.png",
@@ -115,10 +87,6 @@ def main():
                 "defaultFeatureIds": list(DEFAULT_FEATURE_IDS),
                 "suggestion_prompts": None, "tags": []
             }
-            # Match the OWUI 0.9.x model schema EXACTLY:
-            #   id, user_id, base_model_id, name, meta, params,
-            #   created_at, updated_at, is_active
-            # (no access_control column in this version)
             conn.execute(
                 "INSERT INTO model (id, user_id, base_model_id, name, "
                 "meta, params, created_at, updated_at, is_active) "
@@ -136,10 +104,6 @@ def main():
         meta = json.loads(meta_json) if meta_json else {}
         existing_system = params.get("system", "")
 
-        # Detect operator-customised state: if the operator edited the
-        # system prompt OR renamed the model away from MiOS-managed
-        # defaults, leave everything alone (per MiOS-managed marker
-        # convention).
         if existing_system and MARKER not in existing_system:
             _log(
                 f"model {_id!r}: operator-customised system prompt detected (no '{MARKER}' "
@@ -147,9 +111,6 @@ def main():
             )
             return 0
 
-        # We OWN this row -- ensure name + meta + params all reflect the
-        # MiOS defaults. Idempotent: rebuild the dicts from current state +
-        # apply the MiOS-managed values.
         changes = []
         if name != DISPLAY_NAME:
             changes.append(f"name {name!r} -> {DISPLAY_NAME!r}")

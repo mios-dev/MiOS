@@ -15,8 +15,6 @@ import tokenize
 
 _DATE = re.compile(r'\b20[0-9]{2}-[01][0-9]-[0-3][0-9]\b')
 _BOM = b'\xef\xbb\xbf'
-# Repo-relative path fragments that are exempt (data/snapshots/vendored docs where a
-# date in text is legitimate content, not a code comment). Kept minimal + named.
 _EXEMPT = (
     '/var/lib/mios/', '/.git/', '/__pycache__/', '/node_modules/',
     '/usr/share/mios/knowledge/',          # generated knowledge snapshots
@@ -77,8 +75,6 @@ def _date_in_string_py(text: str):
         s = t.string
         for m in _DATE.finditer(s):
             i = m.start()
-            # Exempt a value date: at the head of the literal, or quote-/joiner-led
-            # (slug/URL/version). Flag only a whitespace-led date -- prose/attribution.
             if i == 0 or not s[i - 1].isspace():
                 continue
             ln = t.start[0] + s[:i].count('\n')
@@ -110,13 +106,8 @@ def _header_risk(raw: bytes, path: str):
     """A header crash-risk: a STRANDED file-BOM (PS1 byte-0 rule), or a header line
     ABOVE a shebang the file actually declares. NOT flagged: a U+FEFF inside a string
     literal (legit, e.g. BOM-stripping code), or a sourced script with no shebang."""
-    # PS1 irm|iex parse needs the BOM (when present) at byte 0; a BOM in the head
-    # bytes but not at offset 0 is the Get-MiOS.ps1 stranding bug. Restrict to .ps1
-    # so a U+FEFF in a .py/.sh string is never misread as a file-BOM.
     if path.endswith('.ps1') and not raw.startswith(_BOM) and _BOM in raw[:256]:
         return "UTF-8 BOM stranded in PS1 head (must be byte 0 -- breaks irm|iex parse)"
-    # A shebang, IF the file declares one, must be line 1. A sourced script with no
-    # shebang is fine (header comment first is correct for it).
     if path.endswith(('.sh', '.bash')):
         head = raw.decode('utf-8', 'ignore').split('\n')[:40]
         sb = [i for i, l in enumerate(head) if l.startswith('#!')]
@@ -181,7 +172,6 @@ def _check_ports_ips_py(text: str, filename: str, exempt_patterns: list[str]) ->
         if is_line_exempt:
             continue
             
-        # Check ports
         for pat in _PORT_PATTERNS:
             for m in pat.finditer(s):
                 port_num_str = m.group(1)
@@ -201,7 +191,6 @@ def _check_ports_ips_py(text: str, filename: str, exempt_patterns: list[str]) ->
                 
                 violations.append((ln, m.group(0)))
                 
-        # Check IPs
         for m in _IP_PATTERN.finditer(s):
             ip_str = m.group(0)
             if _is_routable_ip(ip_str):
@@ -273,10 +262,6 @@ def _load_allowlist(roots):
     for r in roots:
         toml_path = os.path.join(r, "usr/share/mios/mios.toml")
         if os.path.isfile(toml_path):
-            # Vendor-only, ROOT-RELATIVE read: this offline drift-gate scans a
-            # SOURCE tree (roots), so it must parse THIS root's vendor mios.toml,
-            # not the deployed /usr path -- a single explicit layer is the
-            # vendor-only view. (load_vendor() would read the fixed system path.)
             data = mios_toml.load_merged(layers=[toml_path])
             sec = mios_toml.section(data, "security.nohc_allowlist")
             exempt_files.extend(sec.get("exempt_files", []))

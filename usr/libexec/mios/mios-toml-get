@@ -58,7 +58,6 @@ def main(argv):
             print(f"{k}={_scalar(sect.get(k))}")
         return 0
 
-    # scalar: <section> <key> [default]
     if len(args) < 2:
         sys.stderr.write("mios-toml-get needs <section> <key>\n")
         return 2

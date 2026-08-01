@@ -1,24 +1,8 @@
 #!/bin/bash
 # AI-hint: Enumerate every visible .desktop entry inside the WSL distro
 set -euo pipefail
-# Enumerate every visible .desktop entry inside the WSL distro --
-# flatpak apps + every /usr/share/applications/ entry that isn't
-# explicitly hidden -- so Windows Start Menu shows the full Linux
-# app surface. Operator-flagged "I want all the Linux
-# apps icons visible in windows".
-#
-# Filter: only NoDisplay=true entries are skipped (those are explicitly
-# hidden per the freedesktop spec -- internal MIME handlers, portal
-# helpers, OAuth providers, GNOME Settings sub-panels). Terminal=true
-# entries (btop++, nvtop, etc.) ARE included since wslg.exe can launch
-# them in a Linux terminal that surfaces on the Windows side.
-# Operator-flagged "not seeing ALL apps in windows sise".
-# Everything else is emitted as one pipe-delimited record:
-#   Name|Exec|Icon|NoDisplay|Terminal|Categories|file
 shopt -s nullglob
 
-# De-dup by basename: prefer the flatpak version when an rpm + flatpak
-# ship the same app (e.g. Fedora's nautilus vs flatpak Nautilus.Devel).
 declare -A _seen
 
 for f in /var/lib/flatpak/exports/share/applications/*.desktop \

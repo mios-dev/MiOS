@@ -10,7 +10,6 @@ import pwd
 import grp
 import logging
 
-# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] mios-account-sync: %(message)s")
 logger = logging.getLogger("mios-account-sync")
 
@@ -106,7 +105,6 @@ def query_db_accounts() -> list[dict]:
             if len(parts) < 10:
                 continue
             
-            # Map string outputs to types
             name = parts[0].strip()
             pwhash = parts[1].strip() if parts[1].strip() != "None" else ""
             uid = int(parts[2].strip()) if parts[2].strip() and parts[2].strip() != "None" else None
@@ -201,7 +199,6 @@ def sync_accounts():
         name = db_user["name"]
         active_db_users.add(name)
 
-        # Dynamic DB sequence allocation for NULL GID / UID (AGY-340)
         gid = db_user["gid"]
         if gid is None:
             alloc_gid_str = query_db_scalar("SELECT allocate_gid();")
@@ -222,7 +219,6 @@ def sync_accounts():
                 logger.error(f"Failed to allocate UID for user {name}")
                 continue
 
-        # Check if primary group exists, if not create it
         try:
             grp.getgrgid(gid)
         except KeyError:
@@ -233,7 +229,6 @@ def sync_accounts():
                 logger.error(f"Failed to create group {name}: {e}")
                 continue
 
-        # Check if local user exists
         try:
             local_user = pwd.getpwnam(name)
             user_exists = True
@@ -244,7 +239,6 @@ def sync_accounts():
         local_hash = shadow_hashes.get(name, "")
         last_seen_hash = state.get(name)
 
-        # Bidirectional password write-back logic
         if user_exists and last_seen_hash and local_hash and local_hash != last_seen_hash:
             logger.info(f"Local password hash change detected for {name}. Writing back to DB...")
             update_db_password(name, local_hash)
@@ -255,7 +249,6 @@ def sync_accounts():
             pass
 
         if not user_exists:
-            # Create user account
             cmd = ["useradd", "-m", "-u", str(uid), "-g", str(gid)]
             if db_user["home_dir"]:
                 cmd += ["-d", db_user["home_dir"]]
@@ -274,7 +267,6 @@ def sync_accounts():
                 logger.error(f"Failed to useradd {name}: {e}")
                 continue
 
-        # Sync secondary groups
         groups_str = db_user["groups"]
         if groups_str:
             target_groups = [g.strip() for g in groups_str.split(",") if g.strip()]
@@ -285,7 +277,6 @@ def sync_accounts():
                 except subprocess.CalledProcessError as e:
                     logger.error(f"Failed to add user {name} to group {group}: {e}")
 
-        # Update shadow password hash if different
         if db_hash and db_hash != local_hash:
             try:
                 logger.info(f"Updating shadow password hash for {name}")
@@ -325,34 +316,29 @@ def sync_accounts():
             except subprocess.CalledProcessError as e:
                     logger.error(f"Failed to update user {name}: {e}")
 
-        # Sync first-time seen existing users into state
         if user_exists and name not in state and local_hash:
             state[name] = local_hash
             state_changed = True
 
         
-        # Synchronize supplementary groups
         target_groups = set()
         if db_user["groups"]:
             target_groups.update([g.strip() for g in db_user["groups"].split(",") if g.strip()])
         if db_user["is_admin"]:
             target_groups.add("wheel")
             
-        # Strip primary group from supplementary list if present
         try:
             primary_group_name = grp.getgrgid(gid).gr_name
             target_groups.discard(primary_group_name)
         except KeyError:
             pass
             
-        # Verify supplementary groups exist before adding, create if missing (e.g. wheel, libvirt)
         valid_groups = []
         for gname in target_groups:
             try:
                 grp.getgrnam(gname)
                 valid_groups.append(gname)
             except KeyError:
-                # Attempt to create missing group dynamically
                 try:
                     logger.info(f"Creating missing supplementary group: {gname}")
                     subprocess.run(["groupadd", gname], check=True)
@@ -364,17 +350,14 @@ def sync_accounts():
         if set(valid_groups) != current_groups:
             try:
                 logger.info(f"Syncing supplementary group memberships for {name} -> {valid_groups}")
-                # usermod -G replaces supplementary group list
                 subprocess.run(["usermod", "-G", ",".join(valid_groups), name], check=True)
             except subprocess.CalledProcessError as e:
                 logger.error(f"Failed to set groups for user {name}: {e}")
 
-    # Lock accounts that are no longer active/enabled in pgvector (ignoring system/service accounts < 1000)
     for local_user in pwd.getpwall():
         if local_user.pw_uid < 1000 or local_user.pw_name in ("nobody", "nfsnobody"):
             continue
         if local_user.pw_name not in active_db_users:
-            # Check if account is already locked
             pwd_hash = shadow_hashes.get(local_user.pw_name, "")
             if pwd_hash and not (pwd_hash.startswith("!") or pwd_hash.startswith("*")):
                 try:
@@ -389,7 +372,6 @@ def sync_accounts():
 def main():
     if "--daemon" in sys.argv:
         logger.info("Starting mios-account-sync in daemon mode (15s polling loop)...")
-        # Wait on startup for pgvector socket
         time.sleep(2)
         while True:
             try:

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: FBM CLI -- 'mios models {list,sync}' lists local GGUF models and (re)runs the first-boot
-# model provisioner; reads [ai].firstboot_models from the mios.toml SSOT.
 # AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml
 import sys
 import os
@@ -28,12 +27,10 @@ def do_list():
             print(f"  - {f.name} ({f.stat().st_size / (1024*1024):.2f} MB)")
 
 def do_sync():
-    # Call the firstboot provisioner to sync models
     fb = pathlib.Path("/usr/libexec/mios/mios-models-firstboot")
     if os.name == 'nt':
         fb = pathlib.Path("C:/MiOS/usr/libexec/mios/mios-models-firstboot")
     
-    # Remove sentinel temporarily to force sync
     sentinel = pathlib.Path("/var/lib/mios/.models-firstboot-done")
     if os.name == 'nt':
         sentinel = pathlib.Path("C:/var/lib/mios/.models-firstboot-done")
@@ -45,7 +42,6 @@ def do_sync():
     print("Running mios-models-firstboot...")
     os.system(f"python3 {fb}")
     
-    # Sentinel is written back by the script
 
 def do_add(name):
     print(f"Adding model {name} (Not implemented in stub)")

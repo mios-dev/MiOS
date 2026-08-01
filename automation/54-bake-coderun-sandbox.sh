@@ -5,10 +5,10 @@
 set -euo pipefail
 source "$(dirname "$0")/lib/common.sh"
 
-log "54-bake: Baking mios-coderun-sandbox container image..."
+log "54-bake: Baking mios-coderun-sandbox container image"
 
 if ! command -v podman >/dev/null 2>&1; then
-    log "  [!] podman not found, skipping image bake (OK in chroot if deferred)"
+    log "  [!] podman not found, skipping image bake"
     exit 0
 fi
 
@@ -20,17 +20,9 @@ if [[ ! -d "${SRC_DIR}" ]]; then
     die "missing ${SRC_DIR}"
 fi
 
-# Stage the shim into the build directory so Dockerfile can COPY it
 cp "${SHIM_SRC}" "${SRC_DIR}/mios_tools.py"
 
-log "  Building localhost/mios-coderun-sandbox:latest..."
-# This podman build runs NESTED inside the OCI bake RUN step and the coderun-sandbox
-# Dockerfile is itself multi-stage (its own apk/gcc RUN steps), so crun must set up
-# doubly-nested containers -- it needs the same caps the working mios-sys/-cuda bake
-# passes (see usr/libexec/mios/57-mios-sys-build.sh), else podman aborts with exit 125.
-# Retry for transient registry flakiness; on persistent failure DEFER to firstboot/runtime
-# rather than failing the entire publish -- the sandbox is rebuildable on the target and
-# code_mode degrades gracefully until it exists.
+log "  Building localhost/mios-coderun-sandbox:latest"
 _crs_built=0
 for _attempt in 1 2 3; do
     if podman build \
@@ -48,6 +40,6 @@ done
 if [[ "${_crs_built}" == 1 ]] && podman image exists localhost/mios-coderun-sandbox:latest; then
     log "  baked localhost/mios-coderun-sandbox:latest"
 else
-    log "  [!] coderun-sandbox bake failed after 3 attempts -- DEFERRED to firstboot/runtime (code_mode degrades gracefully until then)"
+    log "  [!] coderun-sandbox bake failed after 3 attempts"
 fi
 exit 0

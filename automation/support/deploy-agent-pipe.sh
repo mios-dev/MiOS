@@ -1,28 +1,18 @@
 #!/bin/bash
 # AI-hint: Automates the deployment of the agent-pipe service by copying source files, stripping CRLF, performing a pre-restart import check in the service venv, and rolling back to backups if the import fails.
 # AI-related: /usr/lib/mios/agent-pipe, /usr/lib/mios/agents/.venv/bin/python3, /usr/lib/mios/agent-pipe/, /usr/share/mios/mios.toml, /usr/share/mios/mios.toml.bak-, mios-agent-pipe, mios-agent-pipe.service
-# Deploy + import-check + restart agent-pipe after edits.
-# Lives as a bash file path to avoid the wsl.exe->pwsh->bash quoting hellscape.
-#
-# Deploys the FULL runtime: server.py + every sibling module it imports +
-# mios.toml. CR-strips each file (the Windows checkout carries CRLF). SAFETY
-# GATE: an IMPORT CHECK with the service's own venv runs BEFORE the restart -- if
-# the new server.py fails to import (missing sibling / bad API / syntax) we
-# RESTORE the backups and SKIP the restart, so a bad deploy can't crash the
-# running service. Backups land at <name>.bak-<epoch>.
 set -euo pipefail
 
 SRC=/mnt/c/MiOS
 AP=/usr/lib/mios/agent-pipe
 VENV=/usr/lib/mios/agents/.venv/bin/python3
 TS=$(date +%s)
-# server.py LAST so its siblings are already in place for the import check.
 MODS="mios_sched.py mios_evict.py mios_hitl.py mios_aci.py mios_pg.py mios_codemode.py mios_kvfork.py mios_stress.py server.py"
 
-echo "[deploy] $SRC -> $AP  (backup tag $TS)"
+echo "[deploy] $SRC -> $AP"
 for f in $MODS; do
     s="$SRC/usr/lib/mios/agent-pipe/$f"
-    [ -f "$s" ] || { echo "[deploy] MISSING source: $s -- ABORT"; exit 1; }
+    [ -f "$s" ] || { echo "[deploy] MISSING source: $s"; exit 1; }
     [ -f "$AP/$f" ] && sudo cp -a "$AP/$f" "$AP/$f.bak-$TS"
     tr -d '\r' < "$s" | sudo tee "$AP/$f" >/dev/null
     echo "[deploy]   + $f"
@@ -31,20 +21,19 @@ done
 tr -d '\r' < "$SRC/usr/share/mios/mios.toml" | sudo tee /usr/share/mios/mios.toml >/dev/null
 echo "[deploy]   + mios.toml"
 
-echo "[deploy] import check (service venv)..."
+echo "[deploy] import check"
 if "$VENV" -c "import sys; sys.path.insert(0,'$AP'); import server; print('IMPORT_OK')"; then
-    echo "[deploy] import OK -- restarting mios-agent-pipe.service"
+    echo "[deploy] import OK"
     sudo systemctl restart mios-agent-pipe.service
     sleep 4
-    echo "[deploy] state=$(systemctl is-active mios-agent-pipe.service) NRestarts=$(systemctl show -p NRestarts --value mios-agent-pipe.service)"
+    echo "[deploy] state=$ NRestarts=$"
 else
-    echo "[deploy] IMPORT FAILED -- restoring backups, NOT restarting"
+    echo "[deploy] IMPORT FAILED"
     for f in $MODS; do [ -f "$AP/$f.bak-$TS" ] && sudo cp -a "$AP/$f.bak-$TS" "$AP/$f"; done
     [ -f "/usr/share/mios/mios.toml.bak-$TS" ] && sudo cp -a "/usr/share/mios/mios.toml.bak-$TS" /usr/share/mios/mios.toml
     exit 1
 fi
 
-# verify the NEW code is live (the WS-1/WS-3 observability blocks)
 "$VENV" - <<'PY'
 import json, urllib.request
 try:

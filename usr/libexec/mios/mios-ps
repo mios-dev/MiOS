@@ -2,15 +2,6 @@
 # AI-hint: Displays a list of all MiOS containers by reading the root-owned podman-ps.json snapshot, allowing non-root users to view container status and images without direct podman socket access.
 # AI-related: /usr/libexec/mios/mios-ps, mios-podman-ps, mios-podman-ps.timer
 set -euo pipefail
-# /usr/libexec/mios/mios-ps -- show ALL MiOS containers from ANY shell or
-# context (interactive or scripted, rootless or not, Termius / ttyd / cron).
-#
-# Containers run ROOTFUL; a non-root `podman ps` sees nothing. This reads the
-# root-written, WORLD-READABLE snapshot (/var/lib/mios/podman-ps.json, refreshed
-# by mios-podman-ps.timer -- the same SSOT the dashboard, the container_status
-# verb, and the interactive `podman ps` augmentation use) so containers are
-# universally visible WITHOUT granting rootful-socket control. Falls back to a
-# live `podman ps` when the snapshot is absent.
 set -u
 SNAP="${MIOS_PODMAN_PS_SNAPSHOT:-/var/lib/mios/podman-ps.json}"
 if [ -r "$SNAP" ]; then
@@ -32,5 +23,5 @@ sys.stderr.write(f"\n{len(rows)} container(s) -- MiOS rootful snapshot "
 PY
 else
     command -v podman >/dev/null 2>&1 && exec podman ps -a || {
-        echo "mios-ps: no snapshot at $SNAP and podman not on PATH" >&2; exit 1; }
+        echo "Mios-ps: no snapshot at $SNAP and podman not on PATH" >&2; exit 1; }
 fi

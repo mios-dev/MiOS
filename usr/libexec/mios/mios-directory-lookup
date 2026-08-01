@@ -35,9 +35,6 @@ import sys
 MIOS_DB = "/usr/libexec/mios/mios-db"
 DEFAULT_LIMIT = int(os.environ.get(
     "MIOS_DIRECTORY_LOOKUP_LIMIT", "20"))
-# Per-hit summary cap + a hard envelope cap so the --json output ALWAYS stays
-# parseable under the dispatch broker's ~6 KB stdout truncation (a larger blob
-# would be cut mid-string -> invalid JSON for the calling agent).
 SUMMARY_CHARS = int(os.environ.get("MIOS_DIRECTORY_LOOKUP_SUMMARY_CHARS", "100"))
 OUT_CAP = int(os.environ.get("MIOS_DIRECTORY_LOOKUP_OUT_CAP", "5800"))
 
@@ -111,13 +108,9 @@ def lookup(query: str, root: str, ext: str, kind: str,
     if not q:
         return []
     ql = q.lower()
-    # pgvector is the unconditional path (the legacy DB is retired). A None return
-    # means the backend was unreachable -> degrade open to an empty result.
     rows = _pg_lookup(ql, root, ext, kind, limit)
     if not isinstance(rows, list):
         return []
-    # Rank in-process: we pulled 3x the requested limit so the
-    # rank pass can prune.
     def _score(e: dict) -> float:
         bn = (e.get("basename") or "").lower()
         s = 0.0
@@ -127,10 +120,8 @@ def lookup(query: str, root: str, ext: str, kind: str,
             s += 50
         elif ql in bn:
             s += 20
-        # Bonus for filename containing the query as a whole word.
         if f" {ql} " in f" {bn} ":
             s += 10
-        # Penalise deep paths slightly so top-of-tree wins ties.
         s -= (e.get("path") or "").count("/") * 0.1
         return -s   # negative -- higher score sorts first
     rows.sort(key=_score)
@@ -162,8 +153,6 @@ def main() -> int:
             },
             "hits": [_trim_hit(h) for h in hits],
         }
-        # Hard envelope guard: drop lowest-ranked hits until under the cap so
-        # the agent always receives COMPLETE, parseable JSON (top hits kept).
         s = json.dumps(env)
         while len(s) > OUT_CAP and env["hits"]:
             env["hits"].pop()

@@ -2,25 +2,17 @@
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Finalizes the build by applying systemd presets, setting the default boot target, scrubbing credential leaks, purging DNF caches, and generating the MiOS version metadata files in /usr/lib/mios/.
 # AI-related: /usr/lib/mios/., /etc/mios/role.conf, /etc/mios/version, mios-version, graphical.target, multi-user.target
-# 88-finalize.sh - final cleanup, systemd preset application, image linting
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# Apply all shipped presets now (so `systemctl is-enabled` reflects intent)
 systemctl preset-all 2>/dev/null || true
 
-# Set a safe build-time default target. Containers will reach this quickly.
-# Bare-metal/VM roles will switch this to graphical.target/etc. at runtime.
 systemctl set-default multi-user.target 2>/dev/null || true
 
-# LAW 4: /etc/mios is for Day-2 admin overrides and is created by tmpfiles.d at boot.
-# Stage the example role.conf in /usr/share/mios/ so tmpfiles.d can seed it
-# to /etc/mios/role.conf on first boot via the C (copy-if-missing) directive.
 install -d -m 0755 ${MIOS_SHARE_DIR}
 
-# Scrub potential credential leaks from build-time placeholder injections
-mios_log "scrubbing build-time credentials and override scripts"
+mios_log "Scrubbing build-time credentials and override scripts"
 rm -f /etc/containers/auth.json \
       /root/.docker/config.json \
       /root/.containers/auth.json \
@@ -28,13 +20,10 @@ rm -f /etc/containers/auth.json \
       /usr/local/bin/99-overrides.sh \
       /usr/bin/99-overrides.sh 2>/dev/null || true
 
-# Trim dnf caches
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/libdnf5 /var/cache/dnf /var/log/dnf5.log* 2>/dev/null || true
 
-# Set image metadata -- LAW 4: write to /usr/lib/mios/, not /etc/
-# /etc/mios-version and /etc/mios/version are Day-2 admin paths.
-MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "unknown")
+MIOS_VERSION=$(cat /ctx/VERSION 2>/dev/null || echo "Unknown")
 install -d -m 0755 ${MIOS_USR_DIR}
 if [[ -n "${SOURCE_DATE_EPOCH:-}" ]]; then
     MIOS_BUILT=$(date -u -d "@${SOURCE_DATE_EPOCH}" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -48,11 +37,6 @@ MIOS_BUILT=${MIOS_BUILT}
 EOF
 ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 
-# LAW 7/8: project the single SSOT version onto every version-bearing os-release
-# field so the shipped OS identity DERIVES from mios.toml [meta].mios_version
-# (carried here via /ctx/VERSION -> MIOS_VERSION) and is never an independent
-# hardcode. The overlay ships os-release with values already == SSOT (drift-check
-# 42 enforces it); this is the authoritative build-time re-projection.
 OSR=/usr/lib/os-release
 if command -v miosd >/dev/null 2>&1; then
     miosd finalize-osrelease --path "$OSR" --version "$MIOS_VERSION"

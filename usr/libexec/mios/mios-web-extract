@@ -21,18 +21,10 @@ import re
 import sys
 import urllib.request
 
-# Boilerplate containers stripped WITH their contents (never the article body).
 _DROP = re.compile(r"(?is)<(script|style|head|nav|footer|aside|svg|noscript|form|button|select|dialog|iframe|template)\b[^>]*>.*?</\1>")
-# Main-content containers: when a page marks its <article>/<main>, extract ONLY
-# that subtree so site chrome (header menus, section lists, promos, newsletters)
-# is dropped -- the readability win for news pages (operator 2026-05-24: the AP
-# page came back full of menu/section nav instead of the actual stories).
 _MAIN = re.compile(r"(?is)<(?:article|main)\b[^>]*>(.*?)</(?:article|main)>")
 _TAGS = re.compile(r"(?s)<[^>]+>")
 def _unent(s: str) -> str:
-    # stdlib html.unescape resolves ALL named + numeric entities (decimal AND
-    # hex, e.g. &#x27;) correctly -- the old hand-rolled map missed hex entities,
-    # so apostrophes/quotes leaked as "&#x27;" into the extracted text.
     return _html.unescape(s)
 
 
@@ -44,9 +36,6 @@ def extract(url: str, limit: int, timeout: float) -> str:
         raw = r.read(3_000_000)  # cap the download
     html = raw.decode("utf-8", "replace")
     html = _DROP.sub(" ", html)
-    # Prefer the largest <article>/<main> subtree (the real content) when the
-    # page marks it; fall back to the whole stripped page when it doesn't, or
-    # when the marked region is too thin to be the body.
     mains = _MAIN.findall(html)
     if mains:
         biggest = max(mains, key=len)
@@ -75,8 +64,6 @@ def main() -> int:
         out = {"success": bool(content), "url": url,
                "chars": len(content), "content": content}
     except Exception as e:
-        # Be HONEST -- never fabricate page content. The caller surfaces this
-        # so the agent says it couldn't read the page instead of inventing.
         out = {"success": False, "url": url,
                "error": f"extract failed: {e}", "content": ""}
     print(json.dumps(out, ensure_ascii=False))

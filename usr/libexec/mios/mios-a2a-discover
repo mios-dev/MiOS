@@ -28,10 +28,6 @@ from importlib.machinery import SourceFileLoader
 
 PEERS_OUT = os.environ.get("MIOS_A2A_PEERS", "/etc/mios/ai/v1/a2a-peers.json")
 CARD_PATHS = ("/.well-known/agent-card.json", "/.well-known/agent.json")
-# The agent-pipe port comes from the SSOT ([ports].agent_pipe), never a literal:
-# resolved per run in main() (env MIOS_A2A_PORT / MIOS_PORT_AGENT_PIPE override).
-# The mDNS browse helper is a sibling file with a hyphenated (extensionless) name,
-# loaded by path below.
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _MDNS_PATH = os.path.join(_HERE, "mios-a2a-mdns")
 
@@ -99,7 +95,6 @@ def _cidr_hosts(cidr, port):
         net = ipaddress.ip_network(cidr, strict=False)
     except ValueError:
         return []
-    # bound the sweep so a /16 typo can't scan 65k hosts
     return [f"http://{ip}:{port}" for ip in list(net.hosts())[:256]]
 
 
@@ -117,9 +112,6 @@ def main():
         for u in _cidr_hosts(a2a["discover_cidr"], port):
             if u not in cands:
                 cands.append(u)
-    # mDNS-discovered candidates (FED-G5): browse the LAN for the A2A service type
-    # when [a2a].mdns_discovery is on. Each is card-probed below before being
-    # trusted, so this only ever ADDS verified peers (degrade-open when off/absent).
     for u in _mdns_candidates(cfg):
         if u and u not in cands:
             cands.append(u)

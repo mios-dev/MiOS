@@ -2,28 +2,7 @@
 # AI-hint: Bash oneshot run by mios-freeipa-enroll.service that joins the host to a FreeIPA domain via ipa-client-install; gated on /etc/mios/ipa-enroll.env existing (operator opt-in) and /etc/ipa/default.conf absent (not already enrolled).
 # AI-related: /usr/lib/mios/paths.sh, /etc/mios/ipa-enroll.env, mios-freeipa-enroll, mios-freeipa-enroll.service
 # AI-functions: _log
-# 'MiOS' FreeIPA Zero-Touch Enrollment.
-# Run by mios-freeipa-enroll.service (gated by:
-#   ConditionPathExists=/etc/mios/ipa-enroll.env       <- operator opt-in
-#   ConditionPathExists=!/etc/ipa/default.conf         <- not already enrolled
-# ).
-#
-# Reads enrollment parameters from /etc/mios/ipa-enroll.env (sourced as
-# shell). Required:
-#     MIOS_IPA_REALM        e.g. EXAMPLE.COM
-#     MIOS_IPA_DOMAIN       e.g. example.com
-#     MIOS_IPA_SERVER       e.g. ipa.example.com
-#     MIOS_IPA_PRINCIPAL    enrollment principal (e.g. admin)
-#     MIOS_IPA_PASSWORD     enrollment password (read at exec time only)
-# Optional:
-#     MIOS_IPA_HOSTNAME     (defaults to current hostname)
-#     MIOS_IPA_NTP          (defaults to true)
-#     MIOS_IPA_AUTOMOUNT    (defaults to false)
-#
-# Service unit hardens UMask=0077 so the env file isn't world-readable
-# during sourcing.
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-freeipa-enroll "$*" 2>/dev/null || true; echo "[freeipa-enroll] $*" >&2; }
@@ -43,7 +22,6 @@ if ! command -v ipa-client-install >/dev/null 2>&1; then
 fi
 
 umask 0077
-# shellcheck disable=SC1090
 . "$CONF"
 
 for v in MIOS_IPA_REALM MIOS_IPA_DOMAIN MIOS_IPA_SERVER MIOS_IPA_PRINCIPAL MIOS_IPA_PASSWORD; do

@@ -70,9 +70,6 @@ def _cb(v, d=False):
     return str(v).strip().lower() in ("1", "true", "yes", "on") if v is not None else d
 
 
-# --------------------------------------------------------------------------- #
-# hardware detection (the agnostic core)
-# --------------------------------------------------------------------------- #
 def detect_device(pref: str) -> tuple[str, str]:
     """Return (device, note). pref in auto|cuda|rocm|mps|cpu."""
     try:
@@ -89,7 +86,6 @@ def detect_device(pref: str) -> tuple[str, str]:
         return (pref, "forced") if has_cuda else ("error", f"Missing GPU: {pref} requested but no GPU detected")
     if pref == "mps":
         return ("mps", "forced") if has_mps else ("error", "Missing GPU: mps requested but unavailable")
-    # auto
     if has_cuda:
         return ("rocm" if is_rocm else "cuda", "auto-detected")
     if has_mps:
@@ -111,7 +107,6 @@ def use_4bit(device: str, want: str) -> bool:
         return False
 
 
-# --------------------------------------------------------------------------- #
 def check_deps() -> tuple[bool, list[str]]:
     missing = []
     for mod in ("torch", "transformers", "peft", "trl", "datasets"):
@@ -172,7 +167,6 @@ def load_model(hf_base: str, quant_cfg, dtype, device: str):
     raise RuntimeError(f"could not load {hf_base} ({last})")
 
 
-# --------------------------------------------------------------------------- #
 def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
     import torch
     from datasets import load_dataset
@@ -262,7 +256,6 @@ def train(cfg: dict, device: str, fourbit: bool, adapter_dir: str) -> dict:
             "dtype": str(dtype), "fourbit": fourbit}
 
 
-# --------------------------------------------------------------------------- #
 def export_gguf(cfg: dict, adapter_dir: str) -> dict:
     """Convert the trained LoRA adapter to GGUF for the llama.cpp / mios-llm-light
     lane (MiOS is /v1-only -- there is no legacy packaging step). Best-effort:
@@ -289,14 +282,11 @@ def export_gguf(cfg: dict, adapter_dir: str) -> dict:
     tag = str(cfg.get("output_tag") or "mios-sys-agent-ft")
     if not tag or tag.startswith("-") or "/" in tag:
         return {"gguf": lora_gguf, "model": "invalid or unsafe output_tag"}
-    # llama.cpp serves the adapter directly (base model + --lora <gguf>); wire it
-    # into the mios-llm-light.yaml model map under the base model's cmd.
     return {"gguf": lora_gguf, "model": tag,
             "serve": "add '--lora adapter.gguf' to the base model cmd in "
                      "mios-llm-light.yaml"}
 
 
-# --------------------------------------------------------------------------- #
 def main() -> int:
     ap = argparse.ArgumentParser(prog="mios-finetune")
     ap.add_argument("--dry-run", action="store_true",
@@ -340,7 +330,6 @@ def main() -> int:
         return 1
 
     os.makedirs(adapter_dir, exist_ok=True)
-    # optional Unsloth fast-path (CUDA only); falls through to portable TRL path.
     if device == "cuda" and _cb(cfg.get("prefer_unsloth"), True):
         try:
             import unsloth  # noqa: F401

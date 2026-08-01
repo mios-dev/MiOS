@@ -52,19 +52,11 @@ sys.path.insert(0, os.path.join(
 import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 OWUI_DB = os.environ.get("MIOS_OWUI_DB", "/var/lib/mios/open-webui/webui.db")
-# Suggestion generation needs a MORE capable model than the micro
-# refiner -- a 1.7b produced repetitive, id-leaking chips ("Open
-# directory lookup", operator 2026-05-20). qwen2.5-coder:7b is
-# non-thinking + instruction-capable + warm on the dGPU lane; this is a
-# periodic BACKGROUND task so its latency doesn't touch chat turns.
 REFINE_ENDPOINT = os.environ.get(
     "MIOS_SUGGESTION_ENDPOINT", f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
 REFINE_MODEL = os.environ.get("MIOS_SUGGESTION_MODEL", "granite4.1:8b")
 REFINE_TIMEOUT_S = int(os.environ.get(
     "MIOS_SUGGESTION_TIMEOUT_S", "60"))
-# Vast out-of-the-box set (operator 2026-05-20: "a vast set of defaults
-# out of the box" covering MiOS functionality, that also iterates per
-# use-case). Tunable via env.
 NUM_CHIPS = int(os.environ.get("MIOS_SUGGESTION_COUNT", "28"))
 
 
@@ -126,7 +118,6 @@ def _mios_verbs_sample() -> list[str]:
     "<name>: <desc>" descriptors the model turns into natural, localised
     starter chips. Falls back to concrete baseline seeds if the catalog
     can't be read."""
-    # [verbs]+[recipes] across vendor + /etc (etc wins) via the shared resolver.
     doc = mios_toml.load_merged(layers=["/usr/share/mios/mios.toml",
                                         "/etc/mios/mios.toml"])
     caps: list[str] = []
@@ -138,7 +129,6 @@ def _mios_verbs_sample() -> list[str]:
             desc = str(cfg.get("desc")
                        or cfg.get("description") or "").strip()
             caps.append(f"{name}: {desc[:90]}" if desc else str(name))
-    # De-dupe, keep order, cap so the prompt stays bounded.
     seen: set[str] = set()
     out: list[str] = []
     for c in caps:
@@ -168,9 +158,6 @@ def _recent_kanban(limit: int = 4) -> list[str]:
     """Read recent operator-relevant kanban entries from the pgvector
     `kanban` table (authoritative; retired the legacy shadow). These
     are real queued tasks the operator opened; ideal chip seeds."""
-    # pg `kanban.status` is todo|doing|done|blocked (+ tolerate a legacy
-    # 'completed'); exclude the finished states. Ordered by ts (the shadow's
-    # synced_at has no pg equivalent).
     sql = (
         f"SELECT title FROM kanban "
         f"WHERE status NOT IN ('done', 'completed') "
@@ -289,10 +276,6 @@ def _ask_model(prompt: str) -> list[str]:
     chip array out. Returns [] on any failure (caller keeps the
     previous suggestions, so a transient model issue doesn't blank
     the chip row)."""
-    # llama.cpp OpenAI /v1 (MiOS is /v1-only): qwen3 (incl. 1.7b) otherwise dumps
-    # the JSON into message.reasoning with EMPTY content (operator test 2026-05-20),
-    # so disable the thinking channel to emit the chips JSON straight to
-    # message.content. max_tokens has room for ~28 chips of JSON.
     payload = {
         "model": REFINE_MODEL,
         "messages": [
@@ -321,24 +304,16 @@ def _ask_model(prompt: str) -> list[str]:
     except Exception as e:
         sys.stderr.write(f"  refine call failed: {e}\n")
         return []
-    # OpenAI /v1 shape {"choices":[{"message":{"content"}}]}.
     choices = body.get("choices") or []
     msg = (choices[0].get("message") if choices else {}) or {}
     content = str(msg.get("content") or "").strip()
-    # qwen3-family reasoning models sometimes burn the entire token
-    # budget in the `reasoning` field with empty `content` (operator-
-    # observed on a cold-restart probe). Fall back to reasoning when
-    # content is empty -- the chip extractor below strips <think>
-    # tags + code fences so either field's payload works.
     if not content:
         content = str(msg.get("reasoning") or "").strip()
-    # Strip qwen3 <think> tails + code fences.
     import re
     content = re.sub(r"<think>.*?</think>\s*", "", content,
                      flags=re.DOTALL | re.IGNORECASE)
     content = re.sub(r"<think>.*$", "", content,
                      flags=re.DOTALL | re.IGNORECASE)
-    # Extract JSON object substring
     m_json = re.search(r"\{.*\}", content, re.DOTALL)
     if m_json:
         content = m_json.group(0)
@@ -350,8 +325,6 @@ def _ask_model(prompt: str) -> list[str]:
     chips = parsed.get("chips") if isinstance(parsed, dict) else None
     if not isinstance(chips, list):
         return []
-    # De-dupe case-insensitively, preserve order -- small models repeat
-    # (operator test 2026-05-20 saw "Query system state" x3 in one batch).
     out: list[str] = []
     seen: set[str] = set()
     for c in chips:
@@ -435,9 +408,6 @@ def main() -> int:
     recent_intents = _recent_refine_intents(limit=5)
     kanban_titles = _recent_kanban(limit=5)
     verbs_sample = _mios_verbs_sample()
-    # Shuffle so a different slice of the real capability library leads
-    # each refresh -> the set genuinely rotates/iterates over time
-    # (variety sourced from real capabilities, never a hardcoded pool).
     random.shuffle(verbs_sample)
     prompt = _build_prompt(args.num, status, nudges, recent_intents,
                            kanban_titles, verbs_sample)

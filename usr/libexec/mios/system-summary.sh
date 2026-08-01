@@ -2,10 +2,6 @@
 # AI-hint: Standalone diagnostic that prints a colorized terminal report of the build/dev host - distro, kernel, uptime, CPU+virt flags, memory, GPU/NVIDIA, storage/disks, and IOMMU group isolation; run manually for a fast hardware overview, not part of boot.
 # AI-functions: print_header, check_status, main
 
-################################################################################
-# Quick System Summary
-# Fast overview of critical system information for MiOS-Build
-################################################################################
 
 set -euo pipefail
 
@@ -41,14 +37,12 @@ main() {
 EOF
     echo -e "${NC}\n"
     
-    # System basics
     print_header "SYSTEM"
     echo -e "${BOLD}Host:${NC}     $(hostname)"
     echo -e "${BOLD}Distro:${NC}   $(grep PRETTY_NAME /etc/os-release | cut -d'"' -f2)"
     echo -e "${BOLD}Kernel:${NC}   $(uname -r)"
     echo -e "${BOLD}Uptime:${NC}   $(uptime -p)"
     
-    # CPU
     print_header "CPU"
     local cpu_model=$(grep -m1 "model name" /proc/cpuinfo | cut -d: -f2 | xargs)
     local cpu_cores=$(nproc)
@@ -56,7 +50,6 @@ EOF
     echo -e "${BOLD}Model:${NC}    $cpu_model"
     echo -e "${BOLD}Cores:${NC}    $cpu_cores physical, $cpu_threads threads"
     
-    # Check virtualization
     if grep -q -E '(vmx|svm)' /proc/cpuinfo; then
         local virt_type=$(grep -o -E '(vmx|svm)' /proc/cpuinfo | head -1)
         echo -e "${BOLD}Virt:${NC}     ${GREEN}[ok]${NC} Enabled ($virt_type)"
@@ -64,7 +57,6 @@ EOF
         echo -e "${BOLD}Virt:${NC}     ${RED}[x]${NC} Not detected"
     fi
     
-    # Memory
     print_header "MEMORY"
     local mem_total=$(free -h | awk '/^Mem:/ {print $2}')
     local mem_used=$(free -h | awk '/^Mem:/ {print $3}')
@@ -73,7 +65,6 @@ EOF
     echo -e "${BOLD}Used:${NC}     $mem_used"
     echo -e "${BOLD}Avail:${NC}    $mem_avail"
     
-    # GPU
     print_header "GRAPHICS"
     local gpu_count=$(lspci | grep -c -E "VGA|3D" || echo "0")
     if [ "$gpu_count" -gt 0 ]; then
@@ -81,7 +72,6 @@ EOF
             echo -e "${BOLD}GPU:${NC}      ${line#*: }"
         done
         
-        # NVIDIA check
         if command -v nvidia-smi >/dev/null 2>&1; then
             echo -e "${BOLD}NVIDIA:${NC}   ${GREEN}[ok]${NC} Driver loaded"
         fi
@@ -89,21 +79,17 @@ EOF
         echo -e "${BOLD}GPU:${NC}      No discrete GPU detected"
     fi
     
-    # Storage
     print_header "STORAGE"
     df -h / | tail -1 | awk '{printf "'"${BOLD}"'Root:'"${NC}"'     %s total, %s used, %s free (%s)\n", $2, $3, $4, $5}'
     
-    # Count disks
     local disk_count=$(lsblk -d -o TYPE | grep -c disk || echo "0")
     echo -e "${BOLD}Disks:${NC}    $disk_count detected"
     
-    # IOMMU
     print_header "VIRTUALIZATION"
     if [ -d /sys/kernel/iommu_groups ]; then
         local iommu_groups=$(ls -1 /sys/kernel/iommu_groups/ | wc -l)
         echo -e "${BOLD}IOMMU:${NC}    ${GREEN}[ok]${NC} Enabled ($iommu_groups groups)"
         
-        # Quick GPU isolation check
         if [ "$gpu_count" -gt 0 ]; then
             echo -e "${BOLD}GPU Grp:${NC}  Checking isolation..."
             local isolated=0
@@ -131,31 +117,26 @@ EOF
         echo -e "${BOLD}IOMMU:${NC}    ${RED}[x]${NC} Not available"
     fi
     
-    # KVM
     if [ -e /dev/kvm ]; then
         echo -e "${BOLD}KVM:${NC}      ${GREEN}[ok]${NC} Available"
     else
         echo -e "${BOLD}KVM:${NC}      ${RED}[x]${NC} Not available"
     fi
     
-    # Security
     print_header "SECURITY"
     
-    # Boot mode
     if [ -d /sys/firmware/efi ]; then
         echo -e "${BOLD}Boot:${NC}     ${GREEN}[ok]${NC} UEFI"
     else
         echo -e "${BOLD}Boot:${NC}     ${YELLOW}[!]${NC} Legacy BIOS"
     fi
     
-    # TPM
     if [ -e /dev/tpm0 ]; then
         echo -e "${BOLD}TPM:${NC}      ${GREEN}[ok]${NC} Present (/dev/tpm0)"
     else
         echo -e "${BOLD}TPM:${NC}      ${RED}[x]${NC} Not detected"
     fi
     
-    # Secure Boot
     if command -v mokutil >/dev/null 2>&1; then
         if mokutil --sb-state 2>/dev/null | grep -q "SecureBoot enabled"; then
             echo -e "${BOLD}SecBoot:${NC}  ${GREEN}[ok]${NC} Enabled"
@@ -164,7 +145,6 @@ EOF
         fi
     fi
     
-    # Network
     print_header "NETWORK"
     local iface_count=$(ls /sys/class/net/ | grep -v lo | wc -l)
     echo -e "${BOLD}Ifaces:${NC}   $iface_count detected"
@@ -179,13 +159,11 @@ EOF
         fi
     done
     
-    # Recommendations
     print_header "MiOS-Build READINESS"
     
     local ready=true
     local warnings=0
     
-    # Check critical components
     echo -e "\n${BOLD}Critical Components:${NC}"
     
     if grep -q -E '(vmx|svm)' /proc/cpuinfo; then
@@ -232,7 +210,6 @@ EOF
         warnings=$((warnings + 1))
     fi
     
-    # Final verdict
     echo ""
     if [ "$ready" = true ]; then
         echo -e "${GREEN}${BOLD}[ok] System ready for MiOS-Build setup!${NC}"

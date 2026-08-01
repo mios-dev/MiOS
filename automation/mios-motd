@@ -2,9 +2,6 @@
 # AI-hint: Displays a dynamic MOTD dashboard on TTY login, providing status indicators for system services (Cockpit, SSH, RDP, Guacamole, K3s) and clickable terminal links for remote management.
 # AI-related: mios-guacamole, cockpit.socket, mios-guacamole.service, podman.socket, libvirtd.socket, k3s.service
 # AI-functions: _ip, _l, _s
-# MiOS - MOTD Dashboard
-# Shows management interfaces, service statuses, and clickable links.
-# Displayed on TTY login and terminal open via profile.d.
 [[ $- != *i* ]] && exit 0
 [[ -n "$MIOS_NO_MOTD" ]] && exit 0
 
@@ -24,7 +21,6 @@ printf "${W}  Management${N}\n"
 printf "  $(_s cockpit.socket)  Cockpit           $(_l "https://${IP}:9090" "https://${IP}:9090")\n"
 printf "  $(_s sshd)  SSH               $(_l "ssh://${IP}" "${IP}:22")\n"
 
-# RDP -- check both GRD and xRDP
 if systemctl is-active --quiet gnome-remote-desktop 2>/dev/null; then
     printf "  ${G}●${N}  Remote Desktop    $(_l "rdp://${IP}:3389" "${IP}:3389") ${D}(GRD)${N}\n"
 elif systemctl is-active --quiet xrdp 2>/dev/null; then
@@ -33,7 +29,6 @@ else
     printf "  ${D}○${N}  Remote Desktop    ${D}inactive${N}\n"
 fi
 
-# Guacamole
 if systemctl is-active --quiet mios-guacamole.service 2>/dev/null || \
    podman ps --format '{{.Names}}' 2>/dev/null | grep -q mios-guacamole; then
     printf "  ${G}●${N}  Browser Desktop   $(_l "http://${IP}:8080/guacamole/" "http://${IP}:8080/guacamole/")\n"
@@ -45,7 +40,6 @@ printf "  $(_s firewalld)  Firewall          ${D}firewall-cmd --list-all${N}\n"
 printf "  $(_s podman.socket)  Podman            ${D}$(podman ps -q 2>/dev/null | wc -l) containers${N}\n"
 printf "  $(_s libvirtd.socket)  Libvirt           ${D}virt-manager / virsh${N}\n"
 
-# Optional services -- only show if enabled
 systemctl is-active --quiet k3s.service 2>/dev/null && \
     printf "  ${G}●${N}  K3s API           $(_l "https://${IP}:6443" "https://${IP}:6443")\n"
 systemctl is-active --quiet ceph-mgr@*.service 2>/dev/null && \
@@ -53,8 +47,7 @@ systemctl is-active --quiet ceph-mgr@*.service 2>/dev/null && \
 systemctl is-active --quiet avahi-daemon 2>/dev/null && \
     printf "  ${G}●${N}  mDNS             ${D}${HN}.local${N}\n"
 
-# Hyper-V enhanced session
-VIRT=$(systemd-detect-virt 2>/dev/null || echo "none")
+VIRT=$(systemd-detect-virt 2>/dev/null || echo "None")
 if [ "$VIRT" = "microsoft" ]; then
     systemctl is-active --quiet xrdp 2>/dev/null && \
         printf "  ${G}●${N}  Hyper-V Enhanced  ${D}vsock:3389${N}\n"

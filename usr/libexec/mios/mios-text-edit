@@ -83,22 +83,14 @@ from typing import Optional
 MAX_LIST_DEPTH = 2
 MAX_LIST_ENTRIES = 500
 DEFAULT_HEAD_LINES = 200
-# Hardening: read + write size caps. Operator override via env so
-# legitimate large-doc edits still work but the default refuses
-# pathological inputs that would balloon agent context.
 MAX_READ_BYTES = int(os.environ.get(
     "MIOS_TEXT_EDIT_MAX_READ_BYTES", "1048576"))   # 1 MiB
 MAX_WRITE_BYTES = int(os.environ.get(
     "MIOS_TEXT_EDIT_MAX_WRITE_BYTES", "1048576"))  # 1 MiB
 
-# Path hardening: WRITE-class operations refuse these prefixes so
-# a confused agent can't overwrite system files. Operator override
-# via env (CSV of forbidden write prefixes). READS are unrestricted
-# -- they only contribute to taint, not damage.
 _DEFAULT_WRITE_DENIED_PREFIXES = [
     "/etc/", "/usr/", "/boot/", "/sys/", "/proc/", "/dev/",
     "/run/", "/lib/", "/lib64/", "/sbin/", "/bin/",
-    # Windows-side: the OS dirs + Program Files are out of bounds.
     "/mnt/c/Windows/", "/mnt/c/Program Files/",
     "/mnt/c/Program Files (x86)/",
 ]
@@ -123,19 +115,14 @@ def _validate_write_path(path: str) -> Optional[str]:
         return "empty_path"
     if "\x00" in path:
         return "null_byte_in_path"
-    # Resolve symlinks. If the path doesn't exist yet (create case),
-    # realpath returns the would-be path with intermediate symlinks
-    # resolved -- still useful for the prefix check.
     try:
         resolved = os.path.realpath(path)
     except OSError as e:
         return f"realpath_failed:{e}"
     resolved_lower = resolved.lower()
     for prefix in WRITE_DENIED_PREFIXES:
-        # Check standard and case-insensitive
         if resolved.startswith(prefix) or resolved_lower.startswith(prefix.lower()):
             return f"write_denied_prefix:{prefix}"
-        # If on Windows, translate WSL /mnt/c/ prefixes in the blocklist to Windows C:\ paths
         if os.name == "nt" and prefix.lower().startswith("/mnt/c/"):
             win_prefix = "c:\\" + prefix[7:].replace("/", "\\")
             if resolved_lower.startswith(win_prefix.lower()):
@@ -197,8 +184,6 @@ def cmd_view(args: argparse.Namespace) -> int:
         return _emit({"ok": False, "verb": "view", "path": path,
                       "error": "null_byte_in_path"})
     if not os.path.exists(path):
-        # Resilience: surface Everything-suggested matches so the
-        # planner can retry with the real path instead of giving up.
         candidates = _suggest_candidates(path)
         payload = {"ok": False, "verb": "view", "path": path,
                    "error": "not_found"}
@@ -208,9 +193,6 @@ def cmd_view(args: argparse.Namespace) -> int:
                 "path missing; mios-everything matched these -- "
                 "retry text_view on one of them")
         return _emit(payload)
-    # Hardening: enforce a max read size BEFORE pulling the file
-    # into memory -- agents asking to view /var/log/giant.log
-    # should fail fast rather than OOM the process.
     if os.path.isfile(path):
         size = os.path.getsize(path)
         if size > MAX_READ_BYTES:
@@ -230,7 +212,6 @@ def cmd_view(args: argparse.Namespace) -> int:
             if depth >= max_depth:
                 dirs[:] = []
             if depth < max_depth:
-                # Skip hidden dirs in-place so the walk doesn't recurse.
                 dirs[:] = [d for d in dirs if not d.startswith(".")]
                 rel = os.path.relpath(root, path)
                 if rel == ".":
@@ -247,7 +228,6 @@ def cmd_view(args: argparse.Namespace) -> int:
                 break
         return _emit({"ok": True, "verb": "view", "path": path,
                       "kind": "dir", "entries": sorted(entries)})
-    # File path.
     try:
         with open(path, "r", encoding="utf-8") as f:
             lines = f.readlines()

@@ -2,21 +2,7 @@
 # AI-hint: Initializes libvirt infrastructure by ensuring modular sockets are active, defining the 'mios' network and 'images' storage pool, and configuring autostart for first-boot deployment.
 # AI-related: /usr/lib/mios/paths.sh, mios-libvirtd-setup, mios-libvirtd-firstboot, mios-br0, mios-libvirtd-setup.service, libvirtd.service, virtqemud.socket, virtnetworkd.socket, virtstoraged.socket, virtnodedevd.socket
 # AI-functions: _log
-# 'MiOS' libvirtd first-boot wiring.
-# Run by mios-libvirtd-setup.service once per deploy (sentinel:
-# /var/lib/mios/libvirtd-setup.done, written by ExecStartPost in the
-# unit). After=libvirtd.service so the daemon is up.
-#
-# What it does:
-#   * Defines the default 'mios' libvirt network if missing
-#   * Defines the default 'images' storage pool at /var/lib/libvirt/images
-#   * Autostarts both
-#   * Joins the mios user to the libvirt group (idempotent)
-#
-# All steps are idempotent: skipping when already-defined, autostart-
-# already-on, member-already-of-group.
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-libvirtd-firstboot "$*" 2>/dev/null || true; echo "[libvirtd-firstboot] $*" >&2; }
@@ -26,7 +12,6 @@ if ! command -v virsh >/dev/null 2>&1; then
     exit 0
 fi
 
-# Wait briefly for libvirtd socket
 MODULAR_SOCKETS=(
     virtqemud.socket
     virtnetworkd.socket
@@ -55,7 +40,6 @@ if ! virsh -c qemu:///system list >/dev/null 2>&1; then
     exit 0
 fi
 
-# Default network 'mios'
 if ! virsh -c qemu:///system net-info mios >/dev/null 2>&1; then
     NET_XML=$(mktemp)
     cat > "$NET_XML" <<'XML'
@@ -78,7 +62,6 @@ fi
 virsh -c qemu:///system net-autostart mios >/dev/null 2>&1 || true
 virsh -c qemu:///system net-start     mios >/dev/null 2>&1 || true
 
-# Default storage pool 'images'
 if ! virsh -c qemu:///system pool-info images >/dev/null 2>&1; then
     install -d -m 0711 /var/lib/libvirt/images
     POOL_XML=$(mktemp)
@@ -104,8 +87,6 @@ virsh -c qemu:///system pool-autostart images >/dev/null 2>&1 || true
 virsh -c qemu:///system pool-start     images >/dev/null 2>&1 || true
 virsh -c qemu:///system pool-build     images >/dev/null 2>&1 || true
 
-# Join the mios user to libvirt group (sysusers.d already does this, but
-# be defensive for distros that didn't pick up the m-line)
 if id mios >/dev/null 2>&1 && getent group libvirt >/dev/null 2>&1; then
     if ! id -nG mios | tr ' ' '\n' | grep -qx libvirt; then
         usermod -aG libvirt mios 2>/dev/null \

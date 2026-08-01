@@ -4,19 +4,13 @@
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
-mios_log "compiling k3s.pp SELinux policy for Fedora 44"
+mios_log "Compiling k3s.pp SELinux policy for Fedora 44"
 
-# shellcheck source=lib/packages.sh
 source "$(dirname "$0")/lib/packages.sh"
 source "$(dirname "$0")/lib/common.sh"
 
 install_packages "k3s-selinux-build"
 
-# Pin to a specific stable release tag -- HEAD clones pick up unreviewed commits.
-# Update K3S_SELINUX_TAG when bumping K3s to stay in sync with its SELinux policy.
-# Audit v1.5.stable.2 was deleted upstream; resolve "the latest
-# v* tag" dynamically and fall back to the override or master if discovery
-# fails.
 K3S_SELINUX_REPO="https://github.com/k3s-io/k3s-selinux.git"
 if [[ -z "${K3S_SELINUX_TAG:-}" ]]; then
     K3S_SELINUX_TAG=$(git ls-remote --tags --refs "$K3S_SELINUX_REPO" 'v*' 2>/dev/null \
@@ -28,11 +22,11 @@ fi
 record_version k3s-selinux "$K3S_SELINUX_TAG" "https://github.com/k3s-io/k3s-selinux/tree/${K3S_SELINUX_TAG}"
 
 if [ -f "/usr/share/mios/vendored/k3s/k3s-selinux.tar.gz" ]; then
-    mios_log "offline vendored k3s-selinux.tar.gz found"
+    mios_log "Offline vendored k3s-selinux.tar.gz found"
     mkdir -p /tmp/k3s-selinux
     tar -xf "/usr/share/mios/vendored/k3s/k3s-selinux.tar.gz" -C /tmp/k3s-selinux --strip-components=1 2>/dev/null || true
 else
-    mios_log "cloning k3s-selinux at ${K3S_SELINUX_TAG}"
+    mios_log "Cloning k3s-selinux at ${K3S_SELINUX_TAG}"
     git clone --depth 1 --branch "${K3S_SELINUX_TAG}" \
         "$K3S_SELINUX_REPO" /tmp/k3s-selinux 2>/dev/null \
         || git clone --depth 1 "$K3S_SELINUX_REPO" /tmp/k3s-selinux
@@ -40,8 +34,6 @@ fi
 
 cd /tmp/k3s-selinux
 
-# K3s SELinux repo stores policies in subdirectories (e.g., policy/coreos or policy/centos9)
-# We find the best matching policy source files for Fedora.
 POLICY_DIR=""
 if [ -d "policy/coreos" ]; then
     POLICY_DIR="policy/coreos"
@@ -58,19 +50,14 @@ if [ -z "$POLICY_DIR" ]; then
     exit 1
 fi
 
-mios_log "policy source $POLICY_DIR"
+mios_log "Policy source $POLICY_DIR"
 cp -p "$POLICY_DIR"/k3s.* .
 
-# Compile the policy using the Fedora 44 SELinux Makefile
 make -f /usr/share/selinux/devel/Makefile k3s.pp
 
-# ARCHITECTURAL FIX: Instead of installing at build-time with 'semodule -i',
-# we ship the compiled policy in the immutable /usr tree.
-# This ensures that 'bootc upgrade' doesn't create opaque policy layers.
 mkdir -p /usr/share/selinux/packages/mios
 install -m 0644 k3s.pp /usr/share/selinux/packages/mios/k3s.pp
 
-# Clean up
 cd /
 rm -rf /tmp/k3s-selinux
 mios_ok "k3s.pp staged in /usr/share/selinux/packages/mios/"

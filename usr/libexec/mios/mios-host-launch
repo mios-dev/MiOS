@@ -1,64 +1,28 @@
 #!/bin/sh
 # AI-hint: Wraps host GUI binaries (e.g., gnome-software) to inject the operator's session environment (DISPLAY, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS) via systemd-run when invoked by service-level agents.
 # AI-related: /usr/libexec/mios/mios-host-launch, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-as-operator, mios-as-operator, mios-hermes, mios-hostgui
-# /usr/libexec/mios/mios-host-launch <binary> [args...]
-#
-# Operator-session escape + GUI-env injector for HOST-installed GUI
-# RPMs (gnome-software, gnome-system-monitor, gnome-disks, baobab,
-# gnome-control-center, ...). Mirrors the design of flatpak-launch
-# but exec's the host binary directly instead of `flatpak run`.
-#
-# WHY THIS EXISTS
-# ───────────────
-# Operator directive 2026-05-15: agents kept failing to open
-# gnome-software with messages like "we're likely in a headless
-# environment" / "needs a graphical display" / "let me suggest dnf
-# instead". WSLg DOES provide DISPLAY=:0 + WAYLAND_DISPLAY=wayland-0
-# automatically, but ONLY in a real login session -- the moment a
-# call comes in via Hermes-Agent's terminal tool (running as
-# mios-hermes uid 820, no login session, no $HOME, no DBUS_SESSION_
-# BUS_ADDRESS), GUI launches die with "Cannot autolaunch D-Bus
-# without X11 $DISPLAY" and the agent then HALLUCINATES a
-# "headless environment" diagnosis instead of fixing the env.
-#
-# This wrapper does what the agent should: re-exec into the
-# operator's real session via systemd-run --uid=<operator>,
-# carrying the right env. Identical operator-escape logic to
-# flatpak-launch (intentional: same shape so future env additions
-# only need to change one mental model).
 
 set -eu
 
 if [ "$#" -lt 1 ]; then
-    echo "usage: mios-host-launch <binary> [args...]" >&2
+    echo "Usage: mios-host-launch <binary> [args...]" >&2
     exit 64
 fi
 
 BIN="$1"
 shift
 
-# Resolve to absolute path so the operator-session re-exec doesn't
-# get bitten by a $PATH difference under sudo / systemd-run.
 if [ -x "$BIN" ]; then
     :  # already absolute
 elif command -v "$BIN" >/dev/null 2>&1; then
     BIN="$(command -v "$BIN")"
 else
-    echo "mios-host-launch: binary not found: $BIN" >&2
+    echo "Mios-host-launch: binary not found: $BIN" >&2
     exit 127
 fi
 
-# Step 0 ── Service-user re-exec.
-#
-# Identical pattern to flatpak-launch (see that file's header for the
-# full rationale + ProtectSystem=strict caveat). When invoked under a
-# service user (uid < 1000), re-exec via systemd-run into the
-# operator's real session so DISPLAY/WAYLAND_DISPLAY/DBUS work.
 _HL_REEXEC="${_MIOS_HOST_LAUNCH_REEXEC:-0}"
 
-# Resolve operator UID -- only re-exec for SERVICE users (uid <
-# operator's uid), not the operator themselves. Bug fix 2026-05-15:
-# previous `id < 1000` test mis-fired for operator (uid 992).
 _op_user=""
 if [ -r /usr/share/mios/mios.toml ]; then
     _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
@@ -74,8 +38,6 @@ if [ "$_HL_REEXEC" != "1" ] \
     _NEED_REEXEC=1
 fi
 
-# WSLg path: prefer mios-as-operator (broker socket -> wsl.exe --user)
-# for service users only.
 if [ "$_NEED_REEXEC" = "1" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
@@ -96,10 +58,6 @@ if [ "$_NEED_REEXEC" = "1" ]; then
         _op_home="$(getent passwd "$_op_user" | cut -d: -f6)"
         export _MIOS_HOST_LAUNCH_REEXEC=1
         if command -v systemd-run >/dev/null 2>&1; then
-            # Same as flatpak-launch: NOT --wait. GUI apps run for minutes
-            # to hours; --wait would block the caller (and time out OWUI).
-            # systemd-run returns instantly after the transient unit is
-            # registered; --collect cleans it up when the GUI exits.
             _unit_name="mios-hostgui-$(basename "$BIN" | tr ./ --)-$$"
             exec sudo -n systemd-run \
                 --collect --quiet \
@@ -124,7 +82,6 @@ if [ "$_NEED_REEXEC" = "1" ]; then
     fi
 fi
 
-# Step 1 ── WSL detection (namespace-stable via /proc/version).
 IS_WSL=0
 if [ -r /proc/version ]; then
     case "$(cat /proc/version 2>/dev/null)" in
@@ -132,7 +89,6 @@ if [ -r /proc/version ]; then
     esac
 fi
 
-# Step 2 ── XDG_RUNTIME_DIR.
 if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     uid="$(id -u)"
     if [ -d "/run/user/$uid" ]; then
@@ -143,7 +99,6 @@ if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     [ -n "${XDG_RUNTIME_DIR:-}" ] && export XDG_RUNTIME_DIR
 fi
 
-# Step 3 ── Wayland / X11 / Pulse defaults (WSL).
 if [ "$IS_WSL" = "1" ]; then
     : "${WAYLAND_DISPLAY:=wayland-0}"
     : "${DISPLAY:=:0}"
@@ -158,7 +113,6 @@ if [ "$IS_WSL" = "1" ]; then
     [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
 fi
 
-# Step 4 ── D-Bus session bus.
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
    && [ -n "${XDG_RUNTIME_DIR:-}" ] \
    && [ -S "$XDG_RUNTIME_DIR/bus" ]; then

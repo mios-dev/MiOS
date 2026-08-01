@@ -156,7 +156,6 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    # 1) Read the shared inter-agent context.
     ctx = _get(f"/a2a/contexts/{args.context_id}")
     if isinstance(ctx, dict) and ctx.get("error"):
         ctx_history = ""
@@ -165,7 +164,6 @@ def main() -> int:
         ctx_history = _format_context_history(ctx or {})
         ctx_err = ""
 
-    # 2) Frame the take-over message.
     target_label = args.to or f"skill:{args.skill}"
     src_label = args.src or "previous-agent"
     goal = args.goal.strip() or "Continue the workflow from where it left off."
@@ -190,8 +188,6 @@ def main() -> int:
         f"GET {PIPE_URL.rstrip('/')}/a2a/contexts/{args.context_id} .")
     body_text = "\n".join(parts)
 
-    # 3) Dispatch through the existing A2A surface (carries contextId so
-    #    the peer's scratchpad joins this thread).
     dispatch_body: dict = {
         "text": body_text,
         "contextId": args.context_id,

@@ -2,23 +2,14 @@
 # AI-hint: This script is the primary installation and ignition tool for MiOS; an agent uses it to clone the MiOS repository and merge its components into the Fedora Server root filesystem.
 # AI-related: /usr/share/mios/mios.toml.example., /etc/mios/install.env, mios-ignition, localhost:8080
 # AI-functions: log, log_warn, log_error, log_info, show_banner, collect_user_config, check_prerequisites, install_dependencies, fetch_mios_repo, queue_environment_files, merge_mios_structure, create_user_account
-# 'MiOS' Fedora Server Ignition Script
-# Fetches 'MiOS' repository and merges onto Fedora Server root (FHS-compliant, NO deletions)
-# Version: -
-# Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/build-mios.sh | sudo bash
-#        OR: sudo bash build-mios.sh
 
 set -euo pipefail
 
-# ============================================================================
-# Configuration
-# ============================================================================
 MIOS_REPO_URL="${MIOS_REPO_URL:-https://github.com/MiOS-DEV/MiOS-bootstrap.git}"
 MIOS_REPO_BRANCH="${MIOS_REPO_BRANCH:-main}"
 MIOS_TMP_DIR="/tmp/mios-ignition-$$"
 MIOS_INSTALL_LOG="/var/log/mios-ignition.log"
 
-# FHS path constants (override via env). Mirrors automation/lib/paths.sh.
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
@@ -27,16 +18,12 @@ MIOS_INSTALL_LOG="/var/log/mios-ignition.log"
 MIOS_CONFIG_DIR="${MIOS_ETC_DIR}"
 MIOS_USER_CONFIG_DIR="" # Will be set after user is determined
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# ============================================================================
-# Logging Functions
-# ============================================================================
 log() {
     echo -e "${GREEN}[$(date '+%Y-%m-%d %H:%M:%S')]${NC} $*" | tee -a "$MIOS_INSTALL_LOG"
 }
@@ -53,9 +40,6 @@ log_info() {
     echo -e "${BLUE}[$(date '+%Y-%m-%d %H:%M:%S')] INFO:${NC} $*" | tee -a "$MIOS_INSTALL_LOG"
 }
 
-# ============================================================================
-# Banner
-# ============================================================================
 show_banner() {
     cat << 'EOF'
 â*"â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*â*--
@@ -74,18 +58,13 @@ This script will:
 EOF
 }
 
-# ============================================================================
-# User Configuration Prompts
-# ============================================================================
 collect_user_config() {
     log_info "Collecting user configuration..."
     echo ""
 
-    # Username
     read -p "Enter username (default: mios): " MIOS_USERNAME
     MIOS_USERNAME="${MIOS_USERNAME:-mios}"
 
-    # Password
     while true; do
         read -sp "Enter password for ${MIOS_USERNAME}: " MIOS_PASSWORD
         echo ""
@@ -93,7 +72,6 @@ collect_user_config() {
         echo ""
 
         if [[ "$MIOS_PASSWORD" == "$MIOS_PASSWORD_CONFIRM" ]]; then
-            # Generate SHA-512 hash
             MIOS_PASSWORD_HASH=$(openssl passwd -6 "${MIOS_PASSWORD}")
             break
         else
@@ -101,17 +79,15 @@ collect_user_config() {
         fi
     done
 
-    # Hostname
     read -p "Enter hostname (default: mios): " MIOS_HOSTNAME
     MIOS_HOSTNAME="${MIOS_HOSTNAME:-mios}"
 
-    # Base image
     echo ""
     echo "Select base image:"
-    echo "  1) ghcr.io/ublue-os/ucore-hci:stable-nvidia (NVIDIA GPU, recommended)"
-    echo "  2) ghcr.io/ublue-os/ucore-hci:stable (No NVIDIA)"
-    echo "  3) ghcr.io/ublue-os/ucore:stable (Minimal)"
-    echo "  4) Custom (enter manually)"
+    echo "  1) ghcr.io/ublue-os/ucore-hci:stable-nvidia"
+    echo "  2) ghcr.io/ublue-os/ucore-hci:stable"
+    echo "  3) ghcr.io/ublue-os/ucore:stable"
+    echo "  4) Custom"
     read -p "Choice [1-4] (default: 1): " BASE_IMAGE_CHOICE
     BASE_IMAGE_CHOICE="${BASE_IMAGE_CHOICE:-1}"
 
@@ -125,12 +101,10 @@ collect_user_config() {
         *) MIOS_BASE_IMAGE="ghcr.io/ublue-os/ucore-hci:stable-nvidia" ;;
     esac
 
-    # Flatpak apps
     echo ""
     read -p "Enter Flatpak app IDs (comma-separated, optional): " MIOS_FLATPAKS_INPUT
     MIOS_FLATPAKS="${MIOS_FLATPAKS_INPUT}"
 
-    # AI Configuration
     echo ""
     read -p "Configure AI settings? (y/N): " CONFIGURE_AI
     if [[ "$CONFIGURE_AI" =~ ^[Yy]$ ]]; then
@@ -148,7 +122,6 @@ collect_user_config() {
         MIOS_AI_KEY=""
     fi
 
-    # Summary
     echo ""
     log_info "Configuration Summary:"
     echo "  Username:     $MIOS_USERNAME"
@@ -166,19 +139,14 @@ collect_user_config() {
     fi
 }
 
-# ============================================================================
-# Prerequisites Check
-# ============================================================================
 check_prerequisites() {
     log_info "Checking prerequisites..."
 
-    # Check if running as root
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root (use sudo)"
         exit 1
     fi
 
-    # Check OS
     if [[ ! -f /etc/fedora-release ]]; then
         log_warn "This script is designed for Fedora Server. Detected OS: $(cat /etc/os-release | grep PRETTY_NAME || echo 'Unknown')"
         read -p "Continue anyway? (y/N): " CONTINUE
@@ -187,7 +155,6 @@ check_prerequisites() {
         fi
     fi
 
-    # Check internet connection
     if ! curl -fsSL --retry 3 --max-time 5 -o /dev/null https://github.com/; then
         log_error "No internet connection. Please check your network."
         exit 1
@@ -196,9 +163,6 @@ check_prerequisites() {
     log "Prerequisites check passed"
 }
 
-# ============================================================================
-# Install Dependencies
-# ============================================================================
 install_dependencies() {
     log_info "Installing required dependencies..."
 
@@ -213,7 +177,6 @@ install_dependencies() {
         util-linux \
         || { log_error "Failed to install dependencies"; exit 1; }
 
-    # Optional: Install just
     if ! command -v just &>/dev/null; then
         log_info "Installing 'just' command runner..."
         if command -v cargo &>/dev/null; then
@@ -226,17 +189,12 @@ install_dependencies() {
     log "Dependencies installed successfully"
 }
 
-# ============================================================================
-# Fetch 'MiOS' Repository
-# ============================================================================
 fetch_mios_repo() {
     log_info "Fetching 'MiOS' repository from ${MIOS_REPO_URL}..."
 
-    # Create temporary directory
     mkdir -p "$MIOS_TMP_DIR"
     cd "$MIOS_TMP_DIR"
 
-    # Clone repository
     git clone --depth 1 --branch "$MIOS_REPO_BRANCH" "$MIOS_REPO_URL" mios \
         || { log_error "Failed to clone 'MiOS' repository"; exit 1; }
 
@@ -245,13 +203,9 @@ fetch_mios_repo() {
     log "'MiOS' repository fetched successfully"
 }
 
-# ============================================================================
-# Queue Environment Files
-# ============================================================================
 queue_environment_files() {
     log_info "Queuing environment files and dotfiles..."
 
-    # Determine user home directory
     if [[ "$MIOS_USERNAME" == "root" ]]; then
         MIOS_USER_HOME="/root"
     else
@@ -260,29 +214,26 @@ queue_environment_files() {
 
     MIOS_USER_CONFIG_DIR="${MIOS_USER_HOME}/.config/mios"
 
-    # Create user configuration directory structure
     mkdir -p "$MIOS_USER_CONFIG_DIR"
 
-    # Create the unified mios.toml. Schema documented in
-    # /usr/share/mios/mios.toml.example. Read by tools/lib/userenv.sh.
     {
-        echo "# ~/.config/mios/mios.toml -- generated by build-mios.sh"
-        echo "# Generated: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "# ~/.config/mios/mios.toml"
+        echo "# Generated: $"
         echo ""
         echo "[user]"
-        echo "name     = \"${MIOS_USERNAME}\""
-        echo "hostname = \"${MIOS_HOSTNAME}\""
+        echo "Name     = \"${MIOS_USERNAME}\""
+        echo "Hostname = \"${MIOS_HOSTNAME}\""
         echo ""
         echo "[image]"
-        echo "base = \"${MIOS_BASE_IMAGE}\""
-        echo "bib  = \"quay.io/centos-bootc/bootc-image-builder:latest\""
+        echo "Base = \"${MIOS_BASE_IMAGE}\""
+        echo "Bib  = \"quay.io/centos-bootc/bootc-image-builder:latest\""
         echo ""
         echo "[build]"
-        echo "local_tag = \"localhost/mios:latest\""
+        echo "Local_tag = \"localhost/mios:latest\""
         echo ""
         echo "[flatpaks]"
         if [[ -n "$MIOS_FLATPAKS" ]]; then
-            echo "install = ["
+            echo "Install = ["
             echo "$MIOS_FLATPAKS" | tr ',' '\n' | while read -r f; do
                 f="$(echo "$f" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
                 [[ -z "$f" ]] && continue
@@ -294,68 +245,50 @@ queue_environment_files() {
         fi
         echo ""
         echo "[ai]"
-        echo "model    = \"${MIOS_AI_MODEL}\""
-        echo "endpoint = \"${MIOS_AI_ENDPOINT}\""
+        echo "Model    = \"${MIOS_AI_MODEL}\""
+        echo "Endpoint = \"${MIOS_AI_ENDPOINT}\""
     } > "$MIOS_USER_CONFIG_DIR/mios.toml"
 
-    # Create ai.env (secrets - not committed)
     if [[ -n "$MIOS_AI_KEY" ]]; then
         cat > "$MIOS_USER_CONFIG_DIR/ai.env" <<EOF
-# 'MiOS' AI Configuration (SECRETS - DO NOT COMMIT)
 MIOS_AI_KEY="${MIOS_AI_KEY}"
 EOF
         chmod 600 "$MIOS_USER_CONFIG_DIR/ai.env"
     fi
 
-    # /etc/mios/install.env carries identity at install-time; runtime.env was
-    # written here historically but never read by anything. Dropped during
-    # the user-config consolidation -- the canonical surfaces are now:
-    #   ~/.config/mios/mios.toml  (user)
-    #   /etc/mios/install.env     (host)
     log "Environment files queued successfully"
 }
 
-# ============================================================================
-# Merge 'MiOS' Structure (FHS-Compliant, NO Deletions)
-# ============================================================================
 merge_mios_structure() {
     log_info "Merging 'MiOS' structure onto Fedora Server root (FHS-compliant)..."
 
     cd "$MIOS_TMP_DIR/mios"
 
-    # Merge directories with rsync (--ignore-existing = NO overwrites)
-    # This ensures existing Fedora files are PRESERVED
 
-    # 1. Merge /usr (system binaries, libraries, data)
     log_info "Merging /usr..."
     rsync -av --ignore-existing usr/ /usr/ \
         || log_warn "Some files in /usr were skipped (already exist)"
 
-    # 2. Merge /etc (configuration templates)
     log_info "Merging /etc..."
     rsync -av --ignore-existing etc/ /etc/ \
         || log_warn "Some files in /etc were skipped (already exist)"
 
-    # 3. Declare /var directories via tmpfiles.d (NO direct mkdir)
     log_info "Declaring /var directories via tmpfiles.d..."
     if [[ -f usr/lib/tmpfiles.d/mios.conf ]]; then
         cp -n usr/lib/tmpfiles.d/mios.conf /usr/lib/tmpfiles.d/ || true
         systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios.conf || log_warn "tmpfiles creation had warnings"
     fi
 
-    # 4. Merge /home skeleton
     log_info "Merging /home skeleton..."
     if [[ -d home/mios ]]; then
         mkdir -p /etc/skel/.config/mios
         rsync -av --ignore-existing home/mios/ /etc/skel/ || true
     fi
 
-    # 5. Copy tools and automation (for building)
     log_info "Installing tools and automation..."
     rsync -av tools/ ${MIOS_SHARE_DIR}/tools/ || true
     rsync -av automation/ ${MIOS_SHARE_DIR}/automation/ || true
 
-    # 6. Make all scripts executable
     log_info "Setting executable permissions..."
     chmod +x /usr/bin/mios* /usr/bin/iommu-groups 2>/dev/null || true
     chmod +x /usr/libexec/mios* 2>/dev/null || true
@@ -363,22 +296,17 @@ merge_mios_structure() {
     chmod +x ${MIOS_SHARE_DIR}/tools/*.sh 2>/dev/null || true
     chmod +x ${MIOS_SHARE_DIR}/automation/*.sh 2>/dev/null || true
 
-    # 7. Copy Containerfile and Justfile to /usr/share/mios for building
     log_info "Installing build files..."
     cp -n Containerfile ${MIOS_SHARE_DIR}/ || true
     cp -n Justfile ${MIOS_SHARE_DIR}/ || true
     cp -n VERSION ${MIOS_SHARE_DIR}/ || true
 
-    # 8. Create /usr/src/mios symlink (for mios rebuild command)
     log_info "Creating source symlink..."
     ln -sf ${MIOS_SHARE_DIR} /usr/src/mios || true
 
-    log "'MiOS' structure merged successfully (NO deletions)"
+    log "'MiOS' structure merged successfully"
 }
 
-# ============================================================================
-# Create User Account & Initialize User-Space
-# ============================================================================
 create_user_account() {
     log_info "Creating user account: ${MIOS_USERNAME}..."
 
@@ -386,19 +314,16 @@ create_user_account() {
         log_warn "User ${MIOS_USERNAME} already exists, updating password..."
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
     else
-        # Create user using the same MiOS host conventions as automation/11-user.sh.
         EXTRA_GROUPS="wheel,libvirt,kvm,video,render,input,dialout"
         if getent group docker >/dev/null 2>&1; then EXTRA_GROUPS="$EXTRA_GROUPS,docker"; fi
         useradd -m -G "$EXTRA_GROUPS" -s /bin/bash "$MIOS_USERNAME"
         echo "${MIOS_USERNAME}:${MIOS_PASSWORD}" | chpasswd
 
-        # Set up sudo access in the same style as the normal MiOS build.
         install -d -m 0750 /etc/sudoers.d
-        echo "${MIOS_USERNAME} ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/${MIOS_USERNAME}"
+        echo "${MIOS_USERNAME} ALL= NOPASSWD:ALL" > "/etc/sudoers.d/${MIOS_USERNAME}"
         chmod 0440 "/etc/sudoers.d/${MIOS_USERNAME}"
     fi
 
-    # Ensure the account has the expected home and shell context for a MiOS host.
     install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}"
     install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.ssh"
     install -d -o "$MIOS_USERNAME" -g "$MIOS_USERNAME" -m 0755 "${MIOS_USER_HOME}/.config"
@@ -408,12 +333,10 @@ create_user_account() {
 
     log_info "Initializing user-space directories and configuration..."
 
-    # XDG Base Directory variables
     MIOS_USER_DATA_DIR="${MIOS_USER_HOME}/.local/share/mios"
     MIOS_USER_CACHE_DIR="${MIOS_USER_HOME}/.cache/mios"
     MIOS_USER_STATE_DIR="${MIOS_USER_HOME}/.local/state/mios"
 
-    # Create XDG directory structure
     mkdir -p "${MIOS_USER_CONFIG_DIR}/credentials/ssh-keys"
     mkdir -p "${MIOS_USER_DATA_DIR}/artifacts"
     mkdir -p "${MIOS_USER_DATA_DIR}/images"
@@ -424,35 +347,27 @@ create_user_account() {
     mkdir -p "${MIOS_USER_CACHE_DIR}/build-cache"
     mkdir -p "${MIOS_USER_STATE_DIR}/logs"
 
-    # Setup dotfiles directory for build-time injection
     mkdir -p "${MIOS_USER_CONFIG_DIR}/dotfiles"
     if [[ ! -f "${MIOS_USER_CONFIG_DIR}/dotfiles/.bashrc.user" ]]; then
         cat > "${MIOS_USER_CONFIG_DIR}/dotfiles/.bashrc.user" <<'DOTFILE_EOF'
-# 'MiOS' User-Space .bashrc extension
-# This file is injected into the image during build-time.
 alias ll='ls -alF'
 export EDITOR=vim
 DOTFILE_EOF
     fi
 
-    # Create credentials .gitignore
     cat > "${MIOS_USER_CONFIG_DIR}/credentials/.gitignore" <<'GITIGNORE_EOF'
-# 'MiOS' Credentials - Ignore Everything
-# This directory should NEVER be committed to version control
 
 *
 !.gitignore
 !README.md
 GITIGNORE_EOF
 
-    # Initialize Python virtual environment
     if command -v python3 &>/dev/null; then
         if [[ ! -d "${MIOS_USER_DATA_DIR}/venv" ]]; then
             python3 -m venv "${MIOS_USER_DATA_DIR}/venv" 2>/dev/null || log_warn "Failed to create Python venv"
         fi
     fi
 
-    # Copy environment files to user's home and fix ownership
     chown -R "${MIOS_USERNAME}:${MIOS_USERNAME}" "${MIOS_USER_HOME}/.config" 2>/dev/null || true
     chown -R "${MIOS_USERNAME}:${MIOS_USERNAME}" "${MIOS_USER_HOME}/.local" 2>/dev/null || true
     chown -R "${MIOS_USERNAME}:${MIOS_USERNAME}" "${MIOS_USER_HOME}/.cache" 2>/dev/null || true
@@ -460,9 +375,6 @@ GITIGNORE_EOF
     log "User account and user-space configured successfully"
 }
 
-# ============================================================================
-# Set Hostname
-# ============================================================================
 set_hostname() {
     log_info "Setting hostname to: ${MIOS_HOSTNAME}..."
 
@@ -471,12 +383,9 @@ set_hostname() {
     log "Hostname set successfully"
 }
 
-# ============================================================================
-# Build 'MiOS' Image (Optional)
-# ============================================================================
 build_mios_image() {
     log_info "Would you like to build the 'MiOS' OCI image now?"
-    echo "  This will take 15-25 minutes on first build."
+    echo "  This will take 15-25 minutes on first build"
     echo "  You can also build later with: cd ${MIOS_SHARE_DIR} && just build"
     echo ""
     read -p "Build now? (y/N): " BUILD_NOW
@@ -486,21 +395,18 @@ build_mios_image() {
 
         cd ${MIOS_SHARE_DIR}
 
-        # Load user environment
         export MIOS_BASE_IMAGE
         export MIOS_FLATPAKS
         export MIOS_USER="${MIOS_USERNAME}"
         export MIOS_PASSWORD_HASH
         export MIOS_HOSTNAME
 
-        # Compute deterministic SOURCE_DATE_EPOCH from git tree commit time
         SOURCE_DATE_EPOCH=$(git -C "${MIOS_SHARE_DIR:-.}" log -1 --format=%ct 2>/dev/null || date +%s)
         export SOURCE_DATE_EPOCH
 
         if command -v just &>/dev/null; then
             just build || { log_error "Build failed"; return 1; }
         else
-            # Fallback to direct podman build
             podman build --no-cache \
                 --timestamp "$SOURCE_DATE_EPOCH" \
                 --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
@@ -515,7 +421,6 @@ build_mios_image() {
 
         log "'MiOS' OCI image built successfully: localhost/mios:latest"
 
-        # Ask about deployment
         echo ""
         read -p "Deploy to this system now? (y/N): " DEPLOY_NOW
         if [[ "$DEPLOY_NOW" =~ ^[Yy]$ ]]; then
@@ -529,9 +434,6 @@ build_mios_image() {
     fi
 }
 
-# ============================================================================
-# Cleanup
-# ============================================================================
 cleanup() {
     log_info "Cleaning up temporary files..."
 
@@ -542,9 +444,6 @@ cleanup() {
     log "Cleanup complete"
 }
 
-# ============================================================================
-# Final Summary
-# ============================================================================
 show_summary() {
     cat << EOF
 
@@ -593,11 +492,7 @@ For more information:
 EOF
 }
 
-# ============================================================================
-# Main Execution
-# ============================================================================
 main() {
-    # Initialize log
     mkdir -p "$(dirname "$MIOS_INSTALL_LOG")"
     touch "$MIOS_INSTALL_LOG"
 
@@ -615,11 +510,9 @@ main() {
     cleanup
     show_summary
 
-    log "'MiOS' Fedora Server ignition completed successfully!"
+    log "'MiOS' Fedora Server ignition completed successfully"
 }
 
-# Trap errors
 trap 'log_error "Installation failed at line $LINENO. Check $MIOS_INSTALL_LOG for details."' ERR
 
-# Run main
 main "$@"

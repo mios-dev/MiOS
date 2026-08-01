@@ -3,35 +3,18 @@
 # AI-related: /usr/libexec/mios/install-ai-clis.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml
 # AI-functions: _resolve_npm_globals
 set -euo pipefail
-# /usr/libexec/mios/install-ai-clis.sh
-#
-# Install MiOS-default AI assistant CLIs (Claude Code + Gemini CLI) as
-# global npm packages. Both are Node.js CLIs distributed via npm, so
-# they don't fit RPM packaging. This script is invoked once by the
-# build-mios.ps1 overlay phase and is also operator-re-runnable any
-# time (idempotent: `npm install -g <pkg>` upgrades or installs as
-# needed).
-#
-# Reads the npm_globals list from mios.toml [packages.ai] -- operator
-# can extend by editing the list before `mios update`.
-#
-# Operator override: MIOS_SKIP_AI_CLIS=1 skips entirely.
 
-# set -e covered by set -euo pipefail at top
 
 if [ "${MIOS_SKIP_AI_CLIS:-0}" = "1" ]; then
-    echo "  [skip] MIOS_SKIP_AI_CLIS=1; not installing AI CLIs."
+    echo "  [skip] MIOS_SKIP_AI_CLIS=1; not installing AI CLIs"
     exit 0
 fi
 
 if ! command -v npm >/dev/null 2>&1; then
-    echo "  [warn] npm not installed; cannot install AI CLIs. Add 'nodejs' + 'npm' to [packages.ai].pkgs."
+    echo "  [warn] npm not installed; cannot install AI CLIs. Add 'nodejs' + 'npm' to [packages.ai].pkgs"
     exit 0
 fi
 
-# Pull npm_globals from layered mios.toml (~/.config > /etc/mios > /usr/share/mios).
-# Vendor fallback if the toml lookup fails: the two operator-canonical
-# AI CLIs.
 _resolve_npm_globals() {
     local toml extracted
     for toml in \
@@ -39,12 +22,6 @@ _resolve_npm_globals() {
         /etc/mios/mios.toml \
         /usr/share/mios/mios.toml; do
         [ -r "$toml" ] || continue
-        # Extract npm_globals = [ "...", "..." ] from [packages.ai] section.
-        # Capture into a var so we can check if any content was produced.
-        # Previous form `awk | grep | tr && return 0` always returned 0
-        # because tr (last cmd in the pipe) exits 0 on empty input -- the
-        # function short-circuited before reaching the vendor fallback,
-        # leaving the install loop with zero packages to install.
         extracted=$(awk '
             /^\[/ {
                 line=$0; sub(/[[:space:]]*#.*$/, "", line)
@@ -69,33 +46,21 @@ _resolve_npm_globals() {
             return 0
         fi
     done
-    # Vendor fallback -- claude-code + gemini-cli are the operator-canonical
-    # AI CLIs (defaults ON per mios.toml [packages.ai].npm_globals).
     echo "@anthropic-ai/claude-code"
     echo "@google/gemini-cli"
 }
 
-# Ensure npm prefix is a system path that's on $PATH for all users.
-# Default `npm -g` prefix on Fedora is /usr/local; install bins land
-# at /usr/local/bin/ which IS on PATH (in /etc/login.defs's PATH +
-# /etc/profile + /etc/skel default shells).
 mkdir -p /usr/local/lib/node_modules
 
-# Force npm prefix explicitly so installed binstubs ALWAYS land in
-# /usr/local/bin (some NodeSource RPMs ship a per-user default of
-# ~/.npm-global which would put the binaries outside the operator's
-# default PATH).
 npm config set prefix /usr/local 2>/dev/null || true
 
-echo "  npm version: $(npm --version 2>/dev/null || echo NOT-INSTALLED)"
-echo "  node version: $(node --version 2>/dev/null || echo NOT-INSTALLED)"
-echo "  installing AI CLIs (npm -g, target prefix /usr/local) ..."
+echo "  npm version: $"
+echo "  node version: $"
+echo "  installing AI CLIs "
 _failed=0
 _resolve_npm_globals | while read -r pkg; do
     [ -z "$pkg" ] && continue
     echo "    -> $pkg"
-    # NOT --silent so operator sees download progress / failure detail.
-    # Capture exit via process-subst-friendly form.
     if npm install -g "$pkg" 2>&1 | tail -8; then
         echo "      [ok] $pkg installed"
     else
@@ -106,7 +71,7 @@ done
 
 echo
 echo "  installed binaries in /usr/local/bin:"
-ls -la /usr/local/bin/claude /usr/local/bin/gemini 2>/dev/null || echo "    (neither claude nor gemini found -- npm install above must have failed)"
-echo "  PATH (must include /usr/local/bin): $PATH"
+ls -la /usr/local/bin/claude /usr/local/bin/gemini 2>/dev/null || echo ""
+echo "  PATH: $PATH"
 echo
-echo "  done.  Try: claude --version  /  gemini --version"
+echo "  done.  Try: claude"

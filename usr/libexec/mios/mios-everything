@@ -3,24 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-everything, /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-find, mios-es-err, hermes-agent.service
 # AI-functions: usage
 set -euo pipefail
-# /usr/libexec/mios/mios-everything <query> [-n <max>] [-ext <csv>]
-#
-# First-class wrapper around Voidtools Everything CLI (es.exe) for
-# the entire MiOS agentic stack. Operator directive 2026-05-16:
-# "WE HAVE EVERYTHING CLI STILL DOING NOTHING AS A TOOL FOR THE
-# ENTIRE MIOS AGENTIC STACKS" -- previously the es.exe probe was
-# siloed inside mios-find; promoting to its own helper so any
-# agent (Hermes, sys-agent, opencode, micro-LLMs) can search the
-# Windows NTFS index in <100 ms without going through mios-find.
-#
-# Returns matching paths (one per line) sorted by Everything's
-# default relevance ranking. Empty stdout + exit 1 on no-match.
-#
-# Env-args-first path resolution (no hardcoded paths):
-#   1. $EVERYTHING_CLI env (colon-separated probe list -- set by
-#      hermes-agent.service.d drop-in or /etc/mios/install.env)
-#   2. mios.toml [paths].everything_cli  (operator-edited)
-#   3. compiled-in /mnt/m/Programs/Everything/es.exe fallback
 
 set -eu
 
@@ -50,7 +32,6 @@ if [ "$#" -lt 1 ] || [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
     exit 0
 fi
 
-# ─── Parse args ───────────────────────────────────────────────────
 MAX=10
 EXT=""
 QUERY=""
@@ -64,16 +45,14 @@ while [ "$#" -gt 0 ]; do
         *)      QUERY="$1"; shift ;;
     esac
 done
-[ -z "$QUERY" ] && { echo "mios-everything: missing <query>" >&2; usage >&2; exit 64; }
+[ -z "$QUERY" ] && { echo "Mios-everything: missing <query>" >&2; usage >&2; exit 64; }
 
-# ─── Resolve es.exe path (env-args-first) ─────────────────────────
 ES_PROBE_LIST=""
 if [ -n "${EVERYTHING_CLI:-}" ]; then
     ES_PROBE_LIST="$(printf '%s\n' "$EVERYTHING_CLI" | tr ':' '\n')"
 else
     ES_PROBE_LIST="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PYEOF' 2>/dev/null
 import sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 paths = mios_toml.section(mios_toml.load_merged(), "paths").get("everything_cli")
@@ -94,11 +73,7 @@ while IFS= read -r p; do
 done <<< "$ES_PROBE_LIST"
 
 if [ -z "$ES_BIN" ]; then
-    # es.exe (Everything CLI) not installed. A PowerShell recursive fallback was
-    # tried (2026-06-09) but a non-indexed walk of C:\Windows/Program Files is too
-    # slow (times out) -- the NTFS index is the whole point. everything_search
-    # needs es.exe; meanwhile the agent uses fs_search / mios_find / app_search.
-    echo "mios-everything: es.exe not found in probe list" >&2
+    echo "Mios-everything: es.exe not found in probe list" >&2
     echo "  install Everything CLI es.exe + set EVERYTHING_CLI / mios.toml [paths].everything_cli" >&2
     if [ "$JSON" -eq 1 ]; then
         printf '{"ok":false,"verb":"everything_search","error":"es_cli_missing","hint":"install Everything CLI es.exe; agent can use fs_search/mios_find/app_search meanwhile","results":[]}\n'
@@ -106,8 +81,6 @@ if [ -z "$ES_BIN" ]; then
     exit 1
 fi
 
-# ─── Build the es.exe invocation ──────────────────────────────────
-# Extension filter via OR-of-wildcards (Everything's native syntax).
 if [ -n "$EXT" ]; then
     EXT_FILTER=""
     IFS=',' read -ra EXT_ARR <<< "$EXT"
@@ -123,32 +96,12 @@ if [ -n "$EXT" ]; then
     [ -n "$EXT_FILTER" ] && QUERY="$QUERY $EXT_FILTER"
 fi
 
-# es.exe normally returns in <100ms native, but a COLD WSL-interop spawn can be
-# slower -- 8s ceiling so a cold first call isn't killed mid-spawn. stderr is
-# CAPTURED (not discarded) so a connection failure is reported, not silenced.
 _ES_ERR="$(mktemp 2>/dev/null || echo /tmp/mios-es-err.$$)"
-# `|| true`: this script runs under `set -euo pipefail`, and a nonzero es.exe
-# (e.g. exit 8 "IPC window not found" when es.exe is version-mismatched to the
-# running Everything) would otherwise abort the WHOLE script here -- BEFORE the
-# unreachable-vs-no-match JSON envelope below runs -- so the agent got a bare
-# exit code instead of the structured error. stderr is captured separately into
-# $_ES_ERR, so the IPC-detection grep + both envelopes still fire correctly.
 RAW=$(timeout 8 "$ES_BIN" -n "$MAX" "$QUERY" 2>"$_ES_ERR" | tr -d '\r') || true
 _ES_STDERR="$(tr -d '\r' < "$_ES_ERR" 2>/dev/null)"; rm -f "$_ES_ERR"
 
 if [ -z "$RAW" ]; then
-    # Distinguish "Everything UNREACHABLE" (es.exe can't find the IPC window --
-    # es.exe version mismatched to the running Everything, Everything not
-    # running, or an elevation/session split) from a genuine 0-result match, so
-    # agents + the operator get an ACTIONABLE signal instead of a silent "no
-    # match". Operator 2026-05-27: FS search was silently dead -- es.exe
-    # v1.1.0.30 vs Everything v1.4.x IPC mismatch returned "Error 8: IPC window
-    # not found" which the old code swallowed as "no match".
     if printf '%s' "$_ES_STDERR" | grep -qiE 'IPC window not found|make sure Everything is running|Error 8'; then
-        # Surface the SSOT-recommended ES release ([paths].everything_cli_version)
-        # so the actionable hint names WHICH es.exe to install (a stale es.exe vs
-        # the running Everything is the usual cause of this IPC error). Degrade-open:
-        # if the key is absent the hint just omits the version.
         _ES_VER="$("$(cd "$(dirname "$0")" && pwd)/mios-toml-get" paths everything_cli_version "" 2>/dev/null)"
         _REC=""
         [ -n "$_ES_VER" ] && _REC=" (recommended: es.exe $_ES_VER)"
@@ -158,7 +111,7 @@ if [ -z "$RAW" ]; then
                 "$(printf '%s' "$QUERY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')" \
                 "$(printf '%s' "$_MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
         else
-            echo "mios-everything: $_MSG" >&2
+            echo "Mios-everything: $_MSG" >&2
         fi
         exit 3
     fi
@@ -166,18 +119,12 @@ if [ -z "$RAW" ]; then
         printf '{"ok":false,"verb":"everything_search","query":%s,"error":"no_match","results":[]}\n' \
             "$(printf '%s' "$QUERY" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
     else
-        echo "mios-everything: no match for '$QUERY'" >&2
+        echo "Mios-everything: no match for '$QUERY'" >&2
     fi
     exit 1
 fi
 
 if [ "$JSON" -eq 1 ]; then
-    # Machine-mode JSON: array of {path, name, ext, drive} so the
-    # agent can filter/sort without re-parsing prose. Operator
-    # directive 2026-05-18 'shim machine-mode JSON sweep' (task #148).
-    # Pass RAW via env (RAW_LINES) -- heredoc + pipe stdin conflict
-    # made `printf '$RAW' | python3 - <<PYEOF` deliver the heredoc
-    # text to python's stdin, dropping the RAW data.
     RAW_LINES="$RAW" python3 - "$QUERY" <<'PYEOF'
 import json, os, sys, re
 query = sys.argv[1]
@@ -187,8 +134,6 @@ for line in raw.splitlines():
     line = line.strip()
     if not line:
         continue
-    # Windows paths use backslash separator; posix os.path doesn't
-    # split on it. Split on both / and \ for basename extraction.
     base = line.replace("\\", "/").rsplit("/", 1)[-1]
     name, ext = os.path.splitext(base)
     drive = re.match(r'^[A-Za-z]:', line)

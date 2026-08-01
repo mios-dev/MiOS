@@ -62,16 +62,9 @@ def _pg_json(envelope: dict):
         return False, ""
 
 
-# P1 AIOS Memory Manager: embed agent-memory facts ON WRITE so they're
-# semantically RECALLABLE (the self-edit tier was write-only -> inert: nothing
-# embedded the rows, so the HNSW recall never surfaced them). Embed via the live
-# dGPU /v1 lane; degrade-open -- the row still writes without emb on any miss.
 _EMBED_ENDPOINT = os.environ.get("MIOS_RAG_EMBED_ENDPOINT",
                                  f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}").rstrip("/")
 _EMBED_MODEL = os.environ.get("MIOS_RAG_EMBED_MODEL", "nomic-embed-text")
-# WS-A2 embedding-version hygiene: stamp the embedding identity alongside every
-# stored vector so a model/dim change is detectable + re-embeddable (matches the
-# agent-pipe EMB_VERSION). Bump MIOS_EMB_VERSION when the model/dims change.
 _EMB_VERSION = os.environ.get("MIOS_EMB_VERSION", "nomic-768-v1")
 
 
@@ -117,9 +110,6 @@ def main() -> int:
     try:
         if args.cmd == "add":
             fact = args.fact.strip()
-            # Strip leading conversational filler so the STORED fact is clean
-            # ("Please remember this fact: I prefer X" -> "I prefer X"); the refine
-            # extraction sometimes keeps the "this fact:" prefix (Claude 2026-06-15).
             _lf = fact.lower()
             for _pre in ("please remember this fact:", "remember this fact:",
                          "please remember that ", "remember that ",
@@ -132,15 +122,11 @@ def main() -> int:
                 print(json.dumps({"ok": False, "error": "empty fact"}))
                 return 2
             key = args.key.strip() or f"m{abs(hash(fact)) % (10**10)}"
-            # Upsert by (key, scope): DELETE then INSERT in ONE atomic batch
-            # (BEGIN/COMMIT). All values are BOUND params ($1..$n) -- TABLE is a
-            # trusted config identifier, never request data.
             _emb = _embed_vec(fact)
             cols = ["fact", "scope", "mem_key", "source"]
             phs = ["$1", "$2", "$3", "$4"]
             ins_params = [fact, args.scope, key, args.source]
             if _emb:
-                # WS-A2: stamp the embedding identity (model + version) too.
                 cols += ["emb", "emb_model", "emb_version"]
                 phs += ["$5::vector", "$6", "$7"]
                 ins_params += [_emb, _EMBED_MODEL, _EMB_VERSION]
@@ -160,7 +146,6 @@ def main() -> int:
             if args.scope:
                 where = "WHERE scope = $1 "
                 params = [args.scope]
-            # LIMIT stays inline (int-coerced -> not injectable); scope is bound.
             inner = (f"SELECT mem_key AS key, scope, fact, source FROM {TABLE} "
                      f"{where}ORDER BY ts DESC LIMIT {int(args.limit)}")
             ok, out = _pg_json({
@@ -179,11 +164,6 @@ def main() -> int:
             print(json.dumps({"ok": ok, "op": "forget", "key": args.key}))
             return 0 if ok else 1
         if args.cmd == "update":
-            # A bare UPDATE returns rc 0 even when it matches ZERO rows, so the
-            # old code reported ok/updated:1 for a key that doesn't exist. Confirm
-            # the key exists first (same proven json_agg SELECT path as `list`) and
-            # report the real match status so a no-op update is never a phantom
-            # success.
             _ck_ok, _ck_out = _pg_json({
                 "sql": (f"SELECT coalesce(json_agg(1),'[]') FROM {TABLE} "
                         f"WHERE mem_key = $1;"),

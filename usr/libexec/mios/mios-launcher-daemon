@@ -53,26 +53,8 @@ logging.basicConfig(level=logging.INFO, format="[mios-launcher] %(message)s")
 log = logging.getLogger("mios-launcher")
 
 UID = os.getuid()
-# /run/mios-launcher/launcher.sock is the canonical path. Why not /tmp:
-# hermes-agent.service has PrivateTmp=true -> the agent's terminal
-# tool sees its own private /tmp namespace and can't reach a
-# socket placed in the host's /tmp at all (operator-confirmed
-# regression 2026-05-15: agent saw "PowerShell not at..." even
-# after broker socket was bind-confirmed at /tmp because its
-# PrivateTmp namespace had no such file). /run is NOT affected
-# by PrivateTmp; both the operator's broker AND the agent's
-# private-tmp shell see the same /run/mios-launcher/launcher.sock.
-#
-# /run/mios/ is created at boot by /usr/lib/tmpfiles.d/
-# mios-launcher.conf (mode 0755 root:root so all uids can
-# traverse); the socket file itself carries mode 0666.
 SOCK_PATH = os.environ.get("MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock")
 
-# Capture-mode (CAPTURE / CAPTURE_JSON) subprocess timeout. Raised from a
-# hardcoded 45s + made env-configurable (WS-4) so slow SYNCHRONOUS verbs --
-# docgen via LibreOffice cold-start (~60s), package installs -- aren't killed
-# mid-run. A hung verb is still bounded. env MIOS_LAUNCHER_CAPTURE_TIMEOUT_S
-# (default 120). Fire-and-forget dispatch (the other protocol) is unaffected.
 CAPTURE_TIMEOUT_S = int(os.environ.get("MIOS_LAUNCHER_CAPTURE_TIMEOUT_S", "120") or 120)
 
 
@@ -90,27 +72,6 @@ def handle(conn: socket.socket) -> None:
             conn.sendall(b"ERROR: empty request\n")
             return
 
-        # Protocol:
-        #   <command>             -> fire-and-forget; reply "OK\n"
-        #   CAPTURE: <command>    -> run synchronously; capture stdout+stderr
-        #                            CONCATENATED as bytes (legacy form;
-        #                            kept for backward compat).
-        #   CAPTURE_JSON: <command> -> run synchronously; reply with a
-        #                            single-line JSON object:
-        #                            {"stdout":"...","stderr":"...","exit_code":N}
-        #                            Lets the agent envelope split stdout
-        #                            from stderr cleanly -- English narrative
-        #                            from downstream tools (mios-find, mios-
-        #                            launch, ...) buckets into the stderr
-        #                            field instead of mixing with the
-        #                            tool_result.output structured data.
-        # CAPTURE removes the cross-user tempfile dance: broker runs the
-        # command in its own context, captures via subprocess.PIPE, sends
-        # the bytes back to the caller. No file in /tmp or /run/mios-
-        # launcher/ that another user has to write to. Operator-debug
-        # 2026-05-15 found that mios cross-user-write to a mios-hermes-
-        # owned mode 0666 file fails -- root cause unknown, fix unneeded
-        # via this protocol.
         if line.startswith("CAPTURE_JSON: "):
             cmd = line[len("CAPTURE_JSON: "):]
             log.info("capture_json: %s", cmd[:200])
@@ -132,7 +93,6 @@ def handle(conn: socket.socket) -> None:
                 payload["stderr"] = f"ERROR: capture timeout (>{CAPTURE_TIMEOUT_S}s)"
             except OSError as e:
                 payload["stderr"] = f"ERROR: {e}"
-            # Send as a single JSON line for unambiguous parsing.
             import json as _json
             conn.sendall((_json.dumps(payload) + "\n").encode("utf-8"))
             return
@@ -150,7 +110,6 @@ def handle(conn: socket.socket) -> None:
                     timeout=CAPTURE_TIMEOUT_S,
                     env=env,
                 )
-                # stderr concatenated after stdout (single capture stream).
                 conn.sendall(result.stdout)
                 if result.stderr:
                     conn.sendall(result.stderr)
@@ -161,26 +120,8 @@ def handle(conn: socket.socket) -> None:
             return
 
         log.info("dispatch: %s", line[:200])
-        # Override env per-dispatch:
-        #   GDK_BACKEND=wayland: /etc/profile.d/mios-wslg.sh sets x11
-        #     by default (operator-pinned for compat). Wayland is
-        #     required for libadwaita dark theme rendering on flatpaks
-        #     like Nautilus.Devel; without it, apps fall back to
-        #     unthemed X11 even though GTK_THEME / ADW_DEBUG_COLOR_
-        #     SCHEME are set in the operator's user@992 env (operator-
-        #     confirmed regression 2026-05-15: "Nautilus has OLD GTK
-        #     AGAIN").
         env = dict(os.environ)
         env.setdefault("GDK_BACKEND", "wayland")
-        # Per-dispatch log -- BEST-EFFORT, must NEVER block the launch. The
-        # daemon runs as the operator (uid 992) and CANNOT create under
-        # /var/log (root-owned); the old StateDirectory= assumption is gone, so
-        # os.makedirs("/var/log/mios-launcher") raised Permission denied and
-        # aborted the WHOLE dispatch -> no app ever launched (operator
-        # 2026-06-21 "open notepad" -> broker logged "dispatch: notepad.exe"
-        # then died "Permission denied: /var/log/mios-launcher"). Log to the
-        # operator-writable runtime dir, and fall back to DEVNULL on ANY error
-        # so the app still launches. install-robustness 2026-06-21.
         log_fp = None
         log_path = "(none)"
         try:
@@ -221,7 +162,6 @@ def handle(conn: socket.socket) -> None:
 
 
 def main() -> int:
-    # Cleanup stale socket; mode 0666 so cross-user connects work.
     try:
         os.unlink(SOCK_PATH)
     except FileNotFoundError:

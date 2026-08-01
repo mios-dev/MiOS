@@ -45,8 +45,6 @@ def _agent_pipe_dir() -> str:
     return os.path.normpath(os.path.join(here, "..", "..", "lib", "mios", "agent-pipe"))
 
 
-# Import the SSOT chain algorithm. mios_audit's web-stack import is shimmed, so the
-# pure verifier loads here WITHOUT fastapi installed (confined-user safe).
 sys.path.insert(0, _agent_pipe_dir())
 try:
     from mios_audit import verify_chain, _VERIFY_COLS, verify_session_chain, _SESSION_VERIFY_COLS

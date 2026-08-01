@@ -3,46 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-flatpak, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-flatpaks, mios-launch, mios-fp-out-XXXXXX, mios-fp-err-XXXXXX
 # AI-functions: usage, _run_flatpak, _emit_envelope, _emit_json_error, _resolve_scope
 set -euo pipefail
-# /usr/libexec/mios/mios-flatpak <subcommand> [args...]
-#
-# Phase D.4 of the AgentOS roadmap: Linux-side package management
-# surface for the MiOS agent stack. Singular `mios-flatpak` is
-# the agent-facing JSON-envelope wrapper -- the existing
-# `flatpaks-manage.sh` (alias `mios-flatpaks`) remains the
-# operator-facing pretty-print version.
-#
-# Output is structured JSON by default. Pass --plain for the raw
-# flatpak stdout for interactive use.
-#
-# SUBCOMMANDS
-#
-#   search <query> [-n LIMIT]    Search the configured remotes.
-#                                Returns {results:[{Application,
-#                                Name, Description, Origin}]}.
-#   list  [--filter F]           Installed flatpaks.
-#   show  <id>                   Detailed flatpak info.
-#   install <id> [--system|--user]
-#                                Install. Default scope follows
-#                                MIOS_FLATPAK_DEFAULT_SCOPE env
-#                                (default "system"). High-priv
-#                                verb; tainted sessions refused.
-#   upgrade [<id>]               Update one flatpak, or -- with no arg
-#                                / "all" / --all -- all of them.
-#   uninstall <id>               Uninstall.
-#   remotes                      List configured flatpak remotes.
-#   run <id>                     Launch a flatpak (forks detached).
-#                                Same path mios-launch uses; the
-#                                explicit verb is exposed for
-#                                agents that prefer it over the
-#                                semantic open_app launcher.
-#   help                         This message.
-#
-# Hardening:
-#   * Install/upgrade go through `flatpak install --noninteractive
-#     --assumeyes` so they can't prompt + hang the broker.
-#   * Output truncated to MIOS_FLATPAK_MAX_OUTPUT_BYTES (default
-#     256 KiB).
-#   * Auto-sudo when EUID != 0 for system-scope writes.
 set -u
 
 MAX_OUTPUT_BYTES="${MIOS_FLATPAK_MAX_OUTPUT_BYTES:-262144}"
@@ -66,7 +26,6 @@ fi
 
 sub="$1"; shift
 
-# ─── output capture + truncation ──────────────────────────────────
 _run_flatpak() {
     local out_file err_file size rc=0
     out_file="$(mktemp -t mios-fp-out-XXXXXX)"
@@ -82,9 +41,6 @@ _run_flatpak() {
             mv "${f}.tr" "$f"
         fi
     done
-    # EXPORT so _emit_envelope's python child sees them via os.environ (shell-local
-    # vars are invisible to the subprocess -> the long-standing empty-stdout bug
-    # that made list/search/show return "" despite flatpak returning data). 2026-06-10.
     export _FP_OUT="$(cat "$out_file")"
     export _FP_ERR="$(cat "$err_file")"
     _FP_RC=$rc
@@ -114,15 +70,14 @@ print(json.dumps({'ok': False, 'verb': sys.argv[1], 'error': sys.argv[2]}))
 " "$1" "$2"
 }
 
-# ─── scope resolver ───────────────────────────────────────────────
 _resolve_scope() {
     case "${1:-}" in
-        --system|system) echo "--system" ;;
-        --user|user)     echo "--user" ;;
+        --system|system) echo "" ;;
+        --user|user)     echo "" ;;
         *)
             case "$DEFAULT_SCOPE" in
-                user) echo "--user" ;;
-                *)    echo "--system" ;;
+                user) echo "" ;;
+                *)    echo "" ;;
             esac
             ;;
     esac
@@ -141,7 +96,6 @@ case "$sub" in
                 *) shift ;;
             esac
         done
-        # Use --columns so the column order is deterministic for parsing.
         _run_flatpak search --columns=application,name,description,version,branch,remotes "$query"
         if [[ "${PLAIN:-0}" -eq 1 ]]; then
             printf '%s\n' "$_FP_OUT"
@@ -196,14 +150,9 @@ PYEOF
         [[ -z "$id" ]] && { _emit_json_error "install" "id required"; exit 2; }
         shift
         scope="$(_resolve_scope "${1:-}")"
-        # Auto-sudo for system scope when not root.
         if [[ "$scope" == "--system" ]] && [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
             exec sudo -E "$0" install "$id" "$scope"
         fi
-        # SSOT remote resolution: mios.toml [flatpak].prefer_beta=true
-        # routes to flathub-beta when that remote exposes the id, else
-        # falls back to default_remote (flathub). Operator binding
-        # 2026-05-19: "target betas for all flatpaks".
         _remote=$(python3 - "$id" <<'PYEOF' 2>/dev/null
 import sys, subprocess, tomllib
 app_id = sys.argv[1]
@@ -234,9 +183,6 @@ PYEOF
         _emit_envelope "install" "$id"
         ;;
     upgrade|update)
-        # No id, the literal keyword "all" (any case), or --all all mean
-        # "upgrade everything" -- the helper OWNS this contract so the
-        # agent-pipe dispatch template stays a clean `upgrade{id?}` (P3).
         id="${1:-}"
         if [[ -z "$id" ]] || [[ "$id" == "--all" ]] || [[ "${id,,}" == "all" ]]; then
             if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
@@ -272,10 +218,6 @@ PYEOF
     run|launch)
         id="${1:-}"
         [[ -z "$id" ]] && { _emit_json_error "run" "id required"; exit 2; }
-        # Run flatpak in foreground (the broker captures stdout/stderr).
-        # For GUI apps the operator typically uses open_app -> mios-launch
-        # which forks detached; explicit run is for CLI flatpaks the
-        # agent invokes synchronously.
         _run_flatpak run "$id"
         _emit_envelope "run" "$id"
         ;;

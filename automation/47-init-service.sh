@@ -2,16 +2,12 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Enables core MiOS systemd units (mios-role.service and mios-podman-gc.timer) by creating symlinks in multi-user.target.wants to ensure the Unified Role Engine and podman garbage collection are active.
 # AI-related: /usr/libexec/mios/role-apply, mios-role, mios-podman-gc, mios-role.service, mios-podman-gc.timer, multi-user.target
-# 'MiOS' - 35-init-service: Bridge to Unified Role Engine
-# This script ensures mios-role.service is correctly enabled.
-# The actual logic lives in /usr/libexec/mios/role-apply (system_files overlay).
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-mios_log "symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"
+mios_log "Symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"
 
-# Enable units using build-safe symlinks
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 

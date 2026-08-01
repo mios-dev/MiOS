@@ -15,7 +15,6 @@ failed rule with no/unknown severity counts only under the "any" gate.
 import sys
 import xml.etree.ElementTree as ET
 
-# Structural severity ordering (XCCDF severity vocabulary). Not operator config.
 _RANK = {"low": 1, "medium": 2, "high": 3}
 
 
@@ -28,7 +27,6 @@ def evaluate(path, gate):
     """Return (count, total_fails). count = failed rules at/above `gate`. Raises on
     parse error (the caller turns that into a fail-closed exit)."""
     root = ET.parse(path).getroot()
-    # Rule id -> severity (fallback when a rule-result omits its own @severity).
     rule_sev = {}
     fails = []  # (idref, own_severity)
     for el in root.iter():
@@ -66,15 +64,12 @@ def main(argv):
     gate = (argv[2].strip().lower() if len(argv) > 2 and argv[2].strip()
             else "high")
     if gate not in _RANK and gate != "any":
-        # Unknown threshold -> strictest meaningful gate (fail-safe, never silently
-        # widen). "any" must be requested explicitly.
         gate = "high"
     try:
         count, total = evaluate(path, gate)
     except Exception as e:  # noqa: BLE001
         sys.stderr.write(f"[mios-oscap-gate] ERROR: cannot parse {path}: {e}\n")
         return 2
-    # The count is the gate verdict; total is context for the log.
     print(count)
     sys.stderr.write(
         f"[mios-oscap-gate] {count} failed rule(s) at/above '{gate}' "

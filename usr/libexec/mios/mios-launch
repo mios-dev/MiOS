@@ -3,30 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-launch, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-open-url, mios-windows, mios-doctor, mios-flatpak-install, mios-skill-clone, mios-tool-clone, mios-gui
 # AI-functions: _alias_resolve, _pf_flatpak, _broker_dispatch, _launcher_override
 set -euo pipefail
-# /usr/libexec/mios/mios-launch <name> [args...]
-#
-# Universal launcher. Resolves <name> across every available
-# environment in priority order:
-#
-#   1. Internal-service URL alias (cockpit, owui, hermes, prefilter,
-#      inference, searxng, forgejo) -> mios-open-url <url>
-#   2. URL/IRI literal (http://, https://, file://) -> mios-open-url
-#   3. Windows GUI app (notepad, explorer, calc, mspaint, snipping-
-#      tool, taskmgr, regedit, control, cmd, powershell, pwsh, OR a
-#      /mnt/c/.../*.exe path) -> mios-windows launch
-#   4. MiOS shim (mios-doctor, mios-windows, mios-flatpak-install,
-#      mios-open-url, mios-skill-clone, mios-tool-clone, ...)
-#      -> exec the shim directly
-#   5. Linux GUI (flatpak app id, fuzzy flatpak match, host RPM with a
-#      .desktop entry) -> mios-gui
-#   6. Plain CLI on PATH -> exec
-#
-# If no resolution matches, list candidates from `mios-apps --filter`.
-#
-# Operator directive 2026-05-15: "MiOS-Agents should be aware of all
-# systems; and be able to launch apps regardless of environment
-# (including its own apps and using them too)". mios-apps is the
-# discovery half; this is the launch half.
 
 set -eu
 
@@ -55,46 +31,24 @@ fi
 NAME="$1"
 shift
 
-# Refuse empty query: previously a shlex-quoted '' from a kwarg
-# mismatch upstream fell through to the games-cache substring scan
-# and produced "ambiguous '' -- 10 matches" output that bubbled
-# back to the operator as a misleading "doing something failed"
-# DAG node. Fail fast instead so the caller sees the empty-arg bug.
-# Operator-flagged 2026-05-18.
 if [ -z "${NAME// }" ]; then
-    echo "mios-launch: empty target -- caller passed no name/query" >&2
+    echo "Mios-launch: empty target" >&2
     exit 2
 fi
 
-# ─── 0. mios.toml [mios-find.aliases] role -> concrete app ───────────
-# Operator-binding SSOT: when the operator types a freedesktop role
-# name ("files", "web", "terminal", "editor"), translate it to the
-# concrete app id BEFORE the rest of the resolution chain runs.
-# mios-find consults this same table; mios-launch was missing it,
-# which is why launch_app("files") returned "no resolution for
-# 'files'" even though [mios-find.aliases].files="nautilus" was set.
 _alias_resolve() {
     python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" <<'PYEOF' 2>/dev/null
 import sys, re
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 raw = sys.argv[2]
-# Normalised lookup key: lowercase, collapse whitespace to single
-# hyphens. Lets "File Explorer", "file_explorer", "FILE-EXPLORER"
-# match the same SSOT row.
 norm = re.sub(r"\s+", "-", raw.strip().lower())
-# Strip "my " / "the " possessives so "my web browser" -> "web-browser"
-# normalised, then drop word "browser" tail to hit role match.
 norm_stripped = re.sub(r"^(my|the)-", "", norm)
 candidates = [raw, raw.lower(), norm, norm_stripped]
-# Also try the LAST word of multi-word input ("my web browser" -> "browser",
-# "the file explorer" -> "explorer") so role-only names hit.
 last = norm.split("-")[-1] if norm else ""
 if last and last not in candidates:
     candidates.append(last)
 
-# Merged layered read (vendor < host < user, highest wins) via the shared resolver.
 d = mios_toml.load_merged()
 aliases = d.get("mios-find", {}).get("aliases", {})
 if isinstance(aliases, dict):
@@ -103,14 +57,6 @@ if isinstance(aliases, dict):
         if isinstance(v, str) and v:
             print(v)
             sys.exit(0)
-# ── Role-aware fallback: consult [[desktop.apps]] for the default app of a
-# role. SPECIFIC-APP-BEFORE-ROLE (operator 2026-06-19 "open edge browser
-# opened zen randomly"): when the input is "<specific> <role>" (e.g. "edge
-# browser"), the LAST word is a role but the HEAD names a SPECIFIC app --
-# resolve the head downstream (-> Microsoft Edge) instead of the role default
-# (-> the operator's default browser, Zen). The role default fires ONLY for a
-# BARE role ("browser", "my browser") whose head is empty or itself a role.
-# SSOT = mios.toml; NO hardcoded English app-name mappings.
 apps = d.get("desktop", {}).get("apps", [])
 if isinstance(apps, list):
     roles = set()
@@ -128,11 +74,9 @@ if isinstance(apps, list):
     last_word = norm.split("-")[-1] if norm else ""
     head = "-".join(norm.split("-")[:-1])
     head = re.sub(r"^(my|the|a|an)-", "", head)
-    # "<specific> <role>" -> resolve the SPECIFIC head downstream, not the role.
     if last_word.rstrip("s") in roles and head and head.rstrip("s") not in roles:
         print(head)
         sys.exit(0)
-    # Bare role -> the operator's default app for that role.
     for c in (norm, norm_stripped, last_word):
         cn = c.rstrip("s")
         if cn in role_app:
@@ -140,33 +84,21 @@ if isinstance(apps, list):
             sys.exit(0)
 PYEOF
 }
-# Preserve the user's ACTUAL term BEFORE the Linux freedesktop alias rewrites
-# it. A Linux-role alias (step 0, e.g. calculator->gnome-calculator) must NOT
-# poison the GENERATIVE resolvers below: on WSL the live mios-apps inventory +
-# the Windows side know "Calculator", not the absent Linux app id. So the
-# desc-chain (7) and the Windows fallback (7b) ALSO try this original term --
-# generative detection from the live environment, no hardcoded app list
-# (operator 2026-06-04: "no hardcodes for application detections").
 _ORIG_NAME="$NAME"
 _alias="$(_alias_resolve "$NAME")"
 if [ -n "$_alias" ] && [ "$_alias" != "$NAME" ]; then
-    echo "mios-launch: alias '$NAME' -> '$_alias'" >&2
+    echo "Mios-launch: alias '$NAME' -> '$_alias'" >&2
     NAME="$_alias"
 fi
 
-# ─── WS-D: App-type resolution ───────────────────────────────────────
 if command -v mios-app-type >/dev/null 2>&1; then
     _app_type_resolved="$(mios-app-type "$NAME" 2>/dev/null || true)"
     if [ -n "$_app_type_resolved" ] && [ "$_app_type_resolved" != "$NAME" ]; then
-        echo "mios-launch: app-type '$NAME' -> '$_app_type_resolved'" >&2
+        echo "Mios-launch: app-type '$NAME' -> '$_app_type_resolved'" >&2
         NAME="$_app_type_resolved"
     fi
 fi
 
-# ─── 1. Internal-service URL alias ───────────────────────────────────
-# Ports from SSOT: install.env bridges mios.toml [ports] -> MIOS_PORT_*.
-# Hardcoded literals here silently break when [ports] is renumbered (T-120/T-121).
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -r /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
@@ -187,14 +119,6 @@ case "$NAME" in
     forgejo|forge)             exec mios-open-url "http://localhost:${_PORT_FORGE}" "$@" ;;
 esac
 
-# ─── 2. URL / URI literal ────────────────────────────────────────────
-# http / https / file / chrome / about -> open in the default browser
-# via mios-open-url (the canonical opener). Any OTHER scheme (steam://,
-# epicgames://, uplay://, ms-xbox-game://, vscode://, slack://, etc.)
-# is delegated to mios-windows launch -- it already dispatches ANY URI
-# through Windows Start-Process which invokes the registered protocol
-# handler. Don't maintain a hardcoded list of game-launcher schemes
-# here; mios-windows is the universal URI dispatcher.
 case "$NAME" in
     http://*|https://*|file://*|chrome://*|about:*)
         exec mios-open-url "$NAME" "$@"
@@ -204,21 +128,6 @@ case "$NAME" in
         ;;
 esac
 
-# ─── 2b. PREFLIGHT: already running? -> raise to foreground + succeed ─
-# Operator 2026-05-20 + 2026-05-29: launching an ALREADY-RUNNING app made the
-# attempt "fail" (no NEW window) even though it's on-screen; the operator wants
-# an already-open app FOCUSED + brought to the foreground (+centered) instead.
-#
-# RELIABLE + GENERATIVE detection (research 2026-05-29: flatpak apps are a
-# first-class discovery surface keyed by reverse-DNS app-id via `flatpak ps`/
-# `flatpak list`): query the RUNNING flatpak instances and fuzzy-match NAME to
-# an app-id. The old mios-window-active probe was WSLg-unreliable here. Because
-# flatpak instances are PER-USER and this preflight runs in the broker (root)
-# context, query flatpak AS THE OPERATOR (same escape the close path uses).
-# If a match is running, RAISE it -- `flatpak run <app-id>` on a single-instance
-# GApplication activates/foregrounds the existing window -- and report
-# already_running:true so the verify treats "no new window" as success.
-# Bypass with MIOS_LAUNCH_NO_PREFLIGHT=1 (force a fresh instance).
 if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && command -v flatpak >/dev/null 2>&1; then
     _pf_op="$(awk -F\" '/^[[:space:]]*username[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
     [ -z "$_pf_op" ] && _pf_op="mios"
@@ -237,38 +146,18 @@ if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && command -v flatpak >/dev/null 2>&1;
         { id=$1; seg=id; sub(/.*\./,"",seg); slc=tolower(seg); ilc=tolower(id);
           if (index(n,slc)>0 || index(slc,n)>0 || index(ilc,n)>0) { print id; exit } }')"
     if [ -n "$_pf_id" ]; then
-        # Raise the existing window to the foreground (single-instance activate),
-        # in the operator's WSLg session, then center it (best-effort).
         if command -v mios-as-operator >/dev/null 2>&1; then
             mios-as-operator flatpak run "$_pf_id" >/dev/null 2>&1 || true
         fi
         command -v mios-window >/dev/null 2>&1 && mios-window center "$NAME" >/dev/null 2>&1 || true
         echo "{\"success\": true, \"target\": \"$NAME\", \"already_running\": true, \"app\": \"$_pf_id\", \"action\": \"raised existing window to foreground\"}"
-        echo "mios-launch: '$NAME' already running ($_pf_id) -- raised it (preflight)" >&2
+        echo "Mios-launch: '$NAME' already running" >&2
         exit 0
     fi
 fi
 
-# ─── 2c. PREFLIGHT (Windows): app already open? -> focus + succeed ────
-# operator 2026-06-04: re-launching an ALREADY-RUNNING Windows app (Everything,
-# Task Manager, a browser, ...) opens no NEW window, so the agent-pipe verify
-# polled out + reported "not opened" though it's on-screen. The in-session
-# executor (:11437) /windows enumerates the REAL desktop with app-name-bearing
-# titles (native Windows windows carry their name, unlike WSLg), so match the
-# request to an existing window, FOCUS it (mios-window focus -> executor
-# /window/focus), and emit already_running:true -- the agent-pipe honours that
-# as success (no duplicate launch, honest "already open"). Generative: the live
-# window list is the SoT, no app-name table. Inert off-WSL / when no executor
-# endpoint is set. Bypass with MIOS_LAUNCH_NO_PREFLIGHT=1. Window JSON passed by
-# env (not stdin) so it can't collide with `python3 -`'s heredoc script.
 if [ -z "${MIOS_LAUNCH_NO_PREFLIGHT:-}" ] && [ -e /mnt/c/Windows/System32/cmd.exe ] \
    && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
-    # Read the executor endpoint from the layered toml. GUARD each file with
-    # `[ -r ]` + `|| true`: awk on a MISSING file exits 2 (even with 2>/dev/null
-    # the EXIT CODE survives), which under `set -e` aborts the whole launcher --
-    # and /etc/mios/mios.toml is an OPTIONAL overlay, absent until bootstrap (or
-    # the operator) writes it (operator 2026-06-07: a missing /etc overlay made
-    # EVERY launch exit 2 before reaching resolution).
     _wxe=""
     for _t in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
         [ -r "$_t" ] || continue
@@ -293,7 +182,6 @@ best = None
 for w in wins:
     t = w.get("title") or ""
     tn = norm(t)
-    # Skip browser tabs that merely MENTION the app in a page title (OWUI etc.)
     if "openwebui" in tn or "miosai" in tn:
         continue
     if any(q in tn for q in qs):
@@ -308,25 +196,12 @@ PYEOF
             _pf_safe="$(printf '%s' "$_pf_title" | tr -d '\\"')"
             _on_safe="$(printf '%s' "$_ORIG_NAME" | tr -d '\\"')"
             printf '{"success": true, "target": "%s", "already_running": true, "window": "%s", "action": "focused existing window"}\n' "$_on_safe" "$_pf_safe"
-            echo "mios-launch: '$_ORIG_NAME' already open ('$_pf_title') -- focused it (Windows preflight)" >&2
+            echo "Mios-launch: '$_ORIG_NAME' already open" >&2
             exit 0
         fi
     fi
 fi
 
-# ─── 3. Windows GUI (GENERATIVE -- NO hardcoded app-name list) ───────
-# operator 2026-05-29: "NO HARDCODES". A baked-in English allowlist of
-# Windows builtins (notepad|calc|taskmgr|...) is exactly the anti-pattern.
-# Route to the Windows side ONLY on GENERATIVE signals, then let WINDOWS
-# (Start-Process resolving via the App Paths registry + System32 -- i.e. the
-# REAL Windows install) resolve the concrete target:
-#   * a /mnt/c/...exe path                    -- an unambiguous Windows binary
-#   * an explicit "windows "/"win " qualifier -- the request named a Win app
-#   * a ".exe" suffix                         -- a Windows executable by name
-# Everything ELSE falls through to LINUX-FIRST resolution below (operator
-# preference). Names only Windows knows (Task Manager, regedit, ...) are still
-# found generatively by the mios-apps desc-chain (step 7), which inventories
-# windows-app / windows-gui entries from the LIVE environment -- no list here.
 case "$NAME" in
     /mnt/c/*.exe|/mnt/c/*.EXE)
         exec mios-windows launch "$NAME" "$@"
@@ -335,28 +210,13 @@ esac
 _nlc="$(printf '%s' "$NAME" | tr '[:upper:]' '[:lower:]')"
 case "$_nlc" in
     "windows "*|"win "*|*.exe)
-        # Strip the qualifier/suffix; hand the bare name to Windows to resolve.
         _wname="$(printf '%s' "$NAME" | sed -E 's/\.[Ee][Xx][Ee]$//; s/^[Ww]indows[ -]+//; s/^[Ww]in[ -]+//')"
         exec mios-windows launch "$_wname" "$@"
         ;;
 esac
 
-# ─── 3a. Browser (chromedev with CDP) ────────────────────────────────
-# Hermes's browser_* tools all connect to a Chrome instance with
-# --remote-debugging-port=9222. The bare `flatpak run com.google.
-# ChromeDev` path leaves CDP unexposed -- mios-chrome wraps the
-# flatpak launch with the right Wayland args + --remote-debugging-
-# port=9222 + a persistent --user-data-dir so the operator AND Hermes
-# drive the SAME browser instance (shared cookies, shared logged-in
-# state). Dispatched through the launcher broker because the agent
-# uid (mios-hermes) has NO WAYLAND_DISPLAY -- the broker runs in
-# user@<uid>.service with the operator's full WSLg env so the window
-# actually surfaces. Operator-flagged 2026-05-17: "make sure it
-# opens the actual chromedev instance graphically for the user to
-# watch".
 _LAUNCHER_SOCK=/run/mios-launcher/launcher.sock
 _broker_dispatch() {
-    # Fire-and-forget single-line dispatch; broker replies OK + detaches.
     if command -v python3 >/dev/null 2>&1 && [ -S "$_LAUNCHER_SOCK" ]; then
         printf '%s\n' "$1" | python3 -c '
 import socket, sys
@@ -370,18 +230,9 @@ s.close()
     fi
     return 1
 }
-# ─── 3a. App-specific launcher override (SSOT-driven) ────────────────
-# Some flatpak apps need a wrapper launcher (e.g. mios-chrome wraps
-# com.google.ChromeDev with --remote-debugging-port=9222 so Hermes's
-# browser_* tools can connect via CDP). Each [[desktop.apps]] entry
-# can declare `launcher = "<shim>"`; when the resolved app id has one,
-# we dispatch through it instead of bare `flatpak run`. NO hardcoded
-# English mappings in this file -- the override list comes from
-# mios.toml SSOT. Operator binding 2026-05-19.
 _launcher_override() {
     python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" <<'PYEOF' 2>/dev/null
 import sys, re
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 name = sys.argv[2].strip()
@@ -410,16 +261,10 @@ if [ -n "$_override_cmd" ]; then
     exec $_override_cmd "$@"
 fi
 
-# ─── 3a2. WINDOWS executor FIRST ─────────────────────────────────────
-# Operator binding 2026-06-17: "We want windows native apps to ALWAYS have precedence."
-# Try Windows resolution BEFORE Linux flatpak/RPM/CLI. `mios-windows launch` posts
-# to the OS-control executor which checks Start Menu/App Paths. If it resolves, it
-# launches the real Windows app and exits 0. If not, it returns non-zero fast and
-# we fall through to the Linux resolution below.
 if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 2>&1; then
     for _wt in "$_ORIG_NAME" "$NAME"; do
         [ -z "$_wt" ] && continue
-        echo "mios-launch: Windows precedence -> mios-windows launch '$_wt'" >&2
+        echo "Mios-launch: Windows precedence -> mios-windows launch '$_wt'" >&2
         if mios-windows launch "$_wt" "$@"; then
             exit 0
         fi
@@ -427,51 +272,14 @@ if [ -e /mnt/c/Windows/System32/cmd.exe ] && command -v mios-windows >/dev/null 
     done
 fi
 
-# ─── 3aa. Exact .exe lookup via Everything CLI ───────────────────────
-# For launcher / client names that don't live in the Windows-GUI
-# builtin allowlist (notepad/calc/etc.) but DO ship as a single
-# canonical .exe on Windows -- steam.exe, discord.exe, spotify.exe,
-# epicgameslauncher.exe, slack.exe, etc. -- query the live filesystem
-# (via Everything CLI: mios-everything -ext exe <name>) and prefer an
-# EXACT basename match. This is generative-of-environment: the path
-# comes from the operator's actual install, not a hardcoded mapping.
-#
-# Operator directive 2026-05-18: "Detected hardcoded variable!!! NOT
-# GENERATIVE OF THE ACTUAL ENVIRONMENT/OFFLINE FIRST" -- this step
-# fixes the case where `launch steam` previously fell through to
-# the MiOS shim `mios-steamcmd` instead of resolving the actual
-# operator-installed Steam client.
-#
-# Only acts on UNAMBIGUOUS matches (exactly one path whose basename
-# equals "<name>.exe" case-insensitively). Multiple matches +
-# multiple drives = ambiguity -> fall through to games-cache, which
-# has display-name priority + can prompt the operator.
 if command -v mios-everything >/dev/null 2>&1; then
-    # Query "<name>.exe" as a substring -- mios-everything's `-ext exe`
-    # filter relies on Everything's `ext:exe` colon-syntax which returns
-    # empty on some Everything CLI versions (operator-confirmed 2026-05-18
-    # on Everything 1.5+: `steam ext:exe` returned 0 hits while bare
-    # `steam.exe` returned the canonical C:\Program Files (x86)\Steam\
-    # steam.exe path). Falling through to the bare substring is more
-    # portable + gives us all candidates whose path contains "<name>.exe"
-    # which the awk filter below narrows to basename-exact matches.
     _ES_HITS="$(mios-everything -n 24 "${NAME}.exe" 2>/dev/null || true)"
     if [ -n "$_ES_HITS" ]; then
         _NAME_LC="$(printf %s "$NAME" | tr '[:upper:]' '[:lower:]')"
-        # Filter to paths whose basename (lowercased, sans .exe) == NAME.
-        # Drops noise like <name>.exe.old, STEAM.EXE-XXX.pf (Windows
-        # prefetch), etc. -- those have a trailing suffix that survives
-        # the .exe$ sub() and so don't match $n.
         _EXACT="$(printf '%s\n' "$_ES_HITS" | awk -v n="$_NAME_LC" '
             { b = $0; sub(/.*\\/,"",b); sub(/.*\//,"",b); blc = tolower(b);
               sub(/\.exe$/,"",blc); if (blc == n) print $0 }
         ')"
-        # Count non-empty lines (a path is just a non-empty string at
-        # this point; previous heuristic used `grep -c '/\|\\\\'` to
-        # require either a forward-slash or backslash anchor but the
-        # bash double-quoting + grep BRE-alternation collapsed
-        # silently to "0 matches" on real Windows-only-backslash paths,
-        # which is the operator-observed bug).
         _EXACT_COUNT="$(printf '%s' "$_EXACT" | grep -c . || true)"
         if [ "$_EXACT_COUNT" = "1" ]; then
             _EXACT_PATH="$(printf '%s' "$_EXACT" | head -1)"
@@ -480,12 +288,6 @@ if command -v mios-everything >/dev/null 2>&1; then
     fi
 fi
 
-# ─── 3b. Windows games inventory (Steam/Epic/Xbox/Microsoft Store) ───
-# mios-apps writes /var/lib/mios/agent-env/windows-games.cache with
-# one line per detected installed game: "Display Name|launch-cmd".
-# Resolves fuzzy substrings -- "beamng" matches "BeamNG.drive";
-# "marvel" matches "Marvel Rivals". Single hit -> launch.
-# Multiple hits -> list and exit so the model can disambiguate.
 _GAMES_CACHE=/var/lib/mios/agent-env/windows-games.cache
 if [ -r "$_GAMES_CACHE" ]; then
     _matches="$(awk -F'|' -v q="$(printf %s "$NAME" | tr '[:upper:]' '[:lower:]')" '
@@ -496,14 +298,9 @@ if [ -r "$_GAMES_CACHE" ]; then
         _hit_name="${_matches%%|*}"
         _hit_cmd="${_matches#*|}"
         printf 'mios-launch: %s -> %s\n' "$_hit_name" "$_hit_cmd" >&2
-        # All three shapes converge through mios-windows launch:
-        #   * URI (steam://, epicgames://, etc.) -- Start-Process dispatch
-        #   * /mnt/c/.../*.exe or *.lnk -- direct exec via interop
-        #   * full `mios-windows launch ...` command line -- already shaped
         case "$_hit_cmd" in
             mios-windows*)
                 export MIOS_LAUNCH_TITLE_HINT="$_hit_name"
-                # TD-1: eval-safe, input=internal games cache formatted commands (e.g. mios-windows launch ...), not agent-controlled
                 eval exec "$_hit_cmd" '"$@"'
                 ;;
             *)
@@ -515,12 +312,11 @@ if [ -r "$_GAMES_CACHE" ]; then
         printf 'mios-launch: ambiguous "%s" -- %d matches in games cache:\n' "$NAME" "$_hit_count" >&2
         printf '%s\n' "$_matches" | sed 's/|.*$//' | sed 's/^/  /' >&2
         echo >&2
-        echo "Re-run with the exact display name (or a more specific substring)." >&2
+        echo "Re-run with the exact display name" >&2
         exit 2
     fi
 fi
 
-# ─── 4. MiOS shim ────────────────────────────────────────────────────
 case "$NAME" in
     mios-*)
         if command -v "$NAME" >/dev/null 2>&1; then
@@ -529,18 +325,6 @@ case "$NAME" in
         ;;
 esac
 
-# ─── 5. WSL Windows-host: in-session executor with the CLEAN name FIRST ──────
-# operator 2026-06-07: "open notepad" must open WINDOWS Notepad, not the wine
-# wrapper. MUST run BEFORE the Plain-CLI section below: a same-named Linux/wine
-# shim on PATH (there IS a `notepad` wine wrapper) would otherwise `exec` first and
-# shadow the Windows app. The in-session executor (mios-oscontrol-server.ps1) does
-# Windows-native resolution (Start Menu / App Paths) -- "notepad" -> Windows Notepad
-# -- and returns FAST (fired:false, ~0s) for names with no Windows app, so Linux-only
-# names fall straight through to the Plain-CLI + inventory sections. We hit /launch
-# DIRECTLY (not full `mios-windows launch`) to skip its slow Start-Menu/Everything
-# fallbacks, and pass the CLEAN original name (NOT the inventory's flaky windows-app
-# AppX-GUID whose interop Start-Process can hang). Reachable over the WSL gateway
-# with Tailscale OFF. Real Linux GUI flatpaks are already caught at section 4 above.
 if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
    && command -v curl >/dev/null 2>&1 && command -v python3 >/dev/null 2>&1; then
     _xep=""
@@ -560,17 +344,13 @@ if grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
             _xresp="$(curl -s --connect-timeout 5 --max-time 30 -X POST "$_xep/launch" -H 'Content-Type: application/json' -d "$_xbody" 2>/dev/null || true)"
             case "$_xresp" in
                 *'"launched": true'*|*'"launched":true'*|*'"fired": true'*|*'"fired":true'*)
-                    echo "mios-launch: launched '$_ORIG_NAME' via in-session executor (Windows-native)" >&2
+                    echo "Mios-launch: launched '$_ORIG_NAME' via in-session executor" >&2
                     exit 0 ;;
             esac
         fi
     fi
 fi
 
-# ─── 5b. Linux GUI (delegate the shim/flatpak/host-RPM resolution to mios-gui) ─
-# mios-gui already does all three steps with .desktop-presence as the
-# host-RPM gating signal. Only call it if we have something it might
-# actually handle.
 if [ -f "/usr/share/applications/${NAME}.desktop" ] \
    || [ -x /usr/local/bin/"$NAME" ] || [ -x /usr/bin/"$NAME" ] \
    || flatpak list --system --columns=application 2>/dev/null \
@@ -585,17 +365,6 @@ if [ -f "/usr/share/applications/${NAME}.desktop" ] \
     fi
 fi
 
-# ─── 6. Plain CLI ────────────────────────────────────────────────────
-# operator 2026-06-14 ("everything is native"; flagged the wine launch a
-# LIE): a Windows-only app name (notepad, mspaint, ...) resolves on PATH
-# to a WINE wrapper -- e.g. /usr/sbin/notepad -> /usr/bin/wine64 -- when
-# the in-session Windows executor (section 5b) is DOWN. exec'ing it opens
-# the wine LOOK-ALIKE, not the native Windows app. Detect a wine-backed
-# binary GENERATIVELY (the resolved real path is/lives-in wine; NO
-# hardcoded app list) and, on WSL where the Windows-native interop
-# fallback (7b) exists, SKIP it so the REAL Windows app launches via
-# interop instead. A genuine Linux CLI (htop, jq, ...) is not wine and
-# execs normally; Linux GUI flatpaks were already caught at section 5.
 if command -v "$NAME" >/dev/null 2>&1; then
     _bin_path="$(command -v "$NAME" 2>/dev/null || true)"
     _bin_real="$(readlink -f "$_bin_path" 2>/dev/null || true)"
@@ -609,33 +378,16 @@ if command -v "$NAME" >/dev/null 2>&1; then
     if [ "$_is_wine" = "1" ] \
        && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null \
        && [ -e /mnt/c/Windows/System32/cmd.exe ]; then
-        echo "mios-launch: '$NAME' on PATH is a WINE wrapper ($_bin_real) -- skipping for a NATIVE Windows launch (operator: everything native); falling through to the Windows interop fallback" >&2
-        # do NOT exec; fall through to section 7b (mios-windows launch -> native interop)
+        echo "Mios-launch: '$NAME' on PATH is a WINE wrapper" >&2
     else
         exec "$NAME" "$@"
     fi
 fi
 
-# ─── 7. Description-fallback via mios-apps inventory ─────────────────
-# Walk the full app inventory (mios-apps --json) and match against
-# the description / display-name (not just the app-id short). This
-# catches cases like "files" -> Nautilus.Devel (whose .desktop Name=
-# is "Files" but app-id-last-segment is "Devel"). Rank candidates
-# by category priority: linux-flatpak > linux-rpm-gui > linux-cli >
-# windows-app > windows-gui (Linux-native wins over WSL-interop).
-# The top match's `launch` field is exec'd via eval (the launch line
-# is a verb call like `mios-gui devel` or `mios-windows ps "..."`).
-# Returns one launch line per stdout line, ranked from best to
-# worst. Caller iterates: try each in order, fall through to the
-# next when one fails. Generalizes the browser fallback chain
-# (already in mios-open-url) to ALL launches.
 _DESC_CHAIN="$(python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$NAME" "$_ORIG_NAME" <<'PYEOF' 2>/dev/null
 import json, subprocess, sys
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 q = sys.argv[2].lower().strip()
-# Also match the user's ORIGINAL term (pre Linux-alias) so a role alias that
-# points at an absent Linux app still resolves the real app from the LIVE
-# inventory -- generative, Linux-first, no hardcoded app list.
 _q2 = (sys.argv[3].lower().strip() if len(sys.argv) > 3 else "")
 _queries = [x for x in (q, _q2) if x]
 if not _queries:
@@ -646,12 +398,6 @@ try:
                          timeout=10).stdout
 except Exception:
     sys.exit(0)
-# Category priority (lower = better). SSOT: mios.toml [os_control].
-# launch_category_priority (a list; index = rank), /etc overlay winning over
-# vendor. Default prefers NATIVE Windows apps over the wine wrapper on a Windows
-# host -- operator 2026-06-07: "open notepad" must open Windows Notepad, not the
-# wine notepad. Falls back to the built-in order if the toml is unreadable;
-# unknown categories sort last (PRIORITY.get(cat, 9) below).
 def _load_launch_priority():
     _default = ["windows-app", "windows-gui", "linux-flatpak", "linux-rpm-gui", "linux-cli"]
     _lst = [str(x).strip() for x in (mios_toml.get("os_control", "launch_category_priority", []) or []) if str(x).strip()]
@@ -672,9 +418,6 @@ for line in raw.splitlines():
     launch = e.get("launch") or ""
     if not launch:
         continue
-    # Match quality: 0=exact name, 1=name substring, 2=description substring.
-    # Sort by (category_priority, match_quality) so Linux-native
-    # wins over Windows even on exact-name matches.
     mq = None
     for qq in _queries:
         if name == qq:
@@ -689,7 +432,6 @@ for line in raw.splitlines():
 if not candidates:
     sys.exit(0)
 candidates.sort(key=lambda t: (t[0], t[1]))
-# De-duplicate launch lines while preserving order.
 seen = set()
 for _, _, launch in candidates:
     if launch in seen:
@@ -700,43 +442,25 @@ PYEOF
 )"
 
 if [ -n "$_DESC_CHAIN" ]; then
-    # Iterate the chain: try each launch line; on failure, fall
-    # through to the next. WSL flatpak portal env-fd bug for the
-    # primary linux-flatpak entry (e.g. Nautilus.Devel) cascades
-    # to the next fallback (rpm-gui or windows-app) without the
-    # operator having to retry. Same pattern as mios-open-url's
-    # browser chain.
     _i=0
     while IFS= read -r _LAUNCH; do
         [ -z "$_LAUNCH" ] && continue
         _i=$((_i + 1))
-        echo "mios-launch: try $_i -> $_LAUNCH" >&2
-        # set-e-SAFE: run the candidate inside an `if` so a FAILING candidate
-        # (e.g. `mios-gui wine-notepad` exits 1) does NOT abort the whole script
-        # under `set -e` (operator 2026-05-29: "Open Notepad on Windows" died at
-        # try 1 + never tried the next candidate / the Windows fallback -- the
-        # bare `eval` tripped set -e). Now a miss just advances to the next
-        # candidate, and after all Linux candidates fail we reach the Windows
-        # generative fallback below.
-        # TD-1: Replace unsafe eval with shlex split to prevent command injection of agent-controlled input
+        echo "Mios-launch: try $_i -> $_LAUNCH" >&2
         mapfile -t _launch_arr < <(python3 -c "import sys, shlex; print('\n'.join(shlex.split(sys.argv[1])))" "$_LAUNCH")
         if "${_launch_arr[@]}" "$@"; then
             exit 0
         fi
-        echo "mios-launch: try $_i failed; next" >&2
+        echo "Mios-launch: try $_i failed; next" >&2
     done <<EOF
 $_DESC_CHAIN
 EOF
-    echo "mios-launch: all $_i Linux candidates failed for '$NAME' -> trying Windows" >&2
-    # fall through to the Windows generative fallback below (don't exit yet)
+    echo "Mios-launch: all $_i Linux candidates failed for '$NAME' -> trying Windows" >&2
 fi
 
-# ─── 7b. Windows generative fallback ─────────────────────────────────────
-# Handled at step 3a2.
 
 
-# ─── No resolution -- show candidates ────────────────────────────────
-echo "mios-launch: no resolution for '$NAME'" >&2
+echo "Mios-launch: no resolution for '$NAME'" >&2
 echo "" >&2
 echo "Closest candidates from mios-apps:" >&2
 mios-apps --names 2>/dev/null | grep -iF "$NAME" | sed 's/^/  /' >&2 || true

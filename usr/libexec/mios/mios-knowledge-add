@@ -98,9 +98,6 @@ def _collect_files(path: Path) -> list[Path]:
 
 def _get_or_create_collection(c: sqlite3.Connection, name: str,
                               description: str, user_id: str) -> str:
-    # Look up by exact name match. Pre-existing knowledge rows from
-    # mios-owui-apply-knowledge use a deterministic id; this helper
-    # uses a fresh uuid for separate collections to avoid colliding.
     row = c.execute(
         "SELECT id FROM knowledge WHERE name=? LIMIT 1", (name,)
     ).fetchone()
@@ -179,7 +176,6 @@ def _link_file(c: sqlite3.Connection, knowledge_id: str,
         "VALUES (?, ?, ?, ?, ?, ?)",
         (str(uuid.uuid4()), user_id, knowledge_id, file_id, now, now),
     )
-    # Also append to knowledge.data.file_ids so OWUI's UI reflects it.
     row = c.execute(
         "SELECT data FROM knowledge WHERE id=?", (knowledge_id,)
     ).fetchone()
@@ -256,12 +252,8 @@ def main() -> int:
     print(f"  marker: meta.managed_by='{MANAGED_MARKER}' "
           f"(mios-cache-clear will preserve these)")
 
-    # --- optional: bind to a model row so the model RAGs over it ---
     if args.attach_to:
-        # Pre-existing model rows the operator might have on this host:
         candidates = [args.attach_to]
-        # Auto-include the pipe-derived id too if operator used the
-        # default. (mios-agent vs mios_agent.mios-agent both ship.)
         if args.attach_to == "mios-agent":
             candidates.append("mios_agent.mios-agent")
         attached_to: list[str] = []
@@ -273,7 +265,6 @@ def main() -> int:
                 continue
             meta = json.loads(row[0]) if row[0] else {}
             kn = meta.get("knowledge") or []
-            # OWUI shape: list of {id, name, description} OR list of ids.
             already = any(
                 (isinstance(k, dict) and k.get("id") == knowledge_id)
                 or (isinstance(k, str) and k == knowledge_id)

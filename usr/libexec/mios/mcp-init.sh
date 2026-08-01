@@ -2,36 +2,14 @@
 # AI-hint: MiOS' MCP server pre-flight (ExecStartPre for mios-mcp.service).
 # AI-related: /usr/lib/mios/paths.sh, mios-mcp, mios-ai, mios-mcp-init, mios-owned, mios-mcp.service
 # AI-functions: _log
-# 'MiOS' MCP server pre-flight (ExecStartPre for mios-mcp.service).
-# Verifies the MCP server's runtime directories + sqlite vault paths exist
-# before the long-running mcp-server-runner is launched. Fast (<100 ms),
-# idempotent, no network.
-#
-# Lays down:
-#   /var/lib/mios/mcp/             owner mios-ai:mios-ai mode 0750
-#   /var/lib/mios/mcp/state.db     touched if missing (sqlite WAL friendly)
-#   /var/log/mios/mcp/             owner mios-ai:mios-ai mode 0750
-#   /srv/ai/mcp/                   read-only mount target for server config
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-mcp-init "$*" 2>/dev/null || true; echo "[mcp-init] $*" >&2; }
 
-# Target the service's OWN user (mios-ai after the agent-user consolidation).
-# This runs as the service User= via ExecStartPre, so `id -u`/`id -g` are that
-# user -- avoiding the old hardcoded `mios`, which EPERM-crashed once the
-# service moved to mios-ai and could no longer chown/chmod mios-owned dirs
-# (the dirs are now pre-created with the right owner by tmpfiles.d/mios.conf).
 uid=$(id -u)
 gid=$(id -g)
 
-# Writable runtime dirs only. /srv/ai/mcp is the read-only config mount
-# target -- it's pre-created by usr/lib/tmpfiles.d/mios.conf at boot,
-# and on bootc/composefs deployments where /srv resolves into the
-# read-only image surface, `install -d` fails on the chmod step. The
-# mcp server reads config from there but never writes, so verification
-# is enough; no mutation.
 for dir in \
     "${MIOS_VAR_DIR}/mcp" \
     "/var/log/mios/mcp"

@@ -2,26 +2,12 @@
 # MIOS_APPLY_CLASS=dev-only
 # AI-hint: Configures Podman machine backend compatibility by ensuring the 'core' user exists via sysusers and symlinking essential systemd units like podman.socket and qemu-guest-agent.service for container runtime support.
 # AI-related: podman.socket, qemu-guest-agent.service, sshd.service, cloud-init.service, cloud-final.service, multi-user.target
-# 14-podman-machine-compat.sh - Podman-machine backend compatibility.
-# Package installs moved to mios.toml [packages.containers] / [packages.utils].
-# This script only does the runtime config that cannot be expressed as packages:
-#   - create the 'core' user (Podman machine convention)
-#   - enable services needed for machine backend operation
-#
-# fix:
-#   - Pre-create the `video`, `render`, `kvm`, `libvirt` groups if missing so
-#     useradd -G doesn't die with "group does not exist". The ucore-hci base
-#     ships udev rules that create these groups dynamically at runtime, but
-#     during the image build they're absent.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-mios_log "hardware groups pre-created globally by 11-user.sh"
+mios_log "Hardware groups pre-created globally by 11-user.sh"
 
-# Create the 'core' user if missing (Podman machine convention).
-# Managed via /usr/lib/sysusers.d/20-podman-machine.conf (declarative).
-# We apply sysusers here to ensure 'core' exists for any subsequent operations.
 systemd-sysusers --root=/ 2>/dev/null || true
 
 if id -u core >/dev/null 2>&1; then
@@ -31,11 +17,10 @@ else
     mios_warn "failed to initialize 'core' user via sysusers"
 fi
 
-# Enable core services for Podman-machine and cloud-init entry
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 
-mios_log "symlink units into multi-user.target.wants"
+mios_log "Symlink units into multi-user.target.wants"
 for unit in \
     sshd.service \
     podman.socket \

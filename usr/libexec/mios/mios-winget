@@ -3,50 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-winget, /usr/share/mios/mios.toml, mios-wg-out-XXXXXX, mios-wg-err-XXXXXX
 # AI-functions: usage, _find_winget, _emit_json_error, _run_winget, _emit_envelope
 set -euo pipefail
-# /usr/libexec/mios/mios-winget <subcommand> [args...]
-#
-# Phase D.4 of the AgentOS roadmap: Windows-side package
-# management surface for the MiOS agent stack. Wraps winget.exe
-# (Windows Package Manager) through WSL interop so MiOS agents
-# can search / install / upgrade / uninstall Windows apps via
-# the same dispatch path they use for Linux-side verbs.
-#
-# Output is structured JSON by default (broker + agent-pipe
-# tool_call rows stay parsable). Pass --plain for the raw winget
-# stdout for interactive use.
-#
-# SUBCOMMANDS
-#
-#   search <query> [-n LIMIT]    Search the winget catalog.
-#                                Returns {results:[{Name, Id,
-#                                Version, Source}]}.
-#   list  [--filter F]           Installed packages on this host.
-#   show  <id>                   Detailed package info.
-#   install <id> [--silent]      Install (DEFAULT silent --no-banner
-#                                so no interactive prompts hang the
-#                                broker). High-privilege verb;
-#                                tainted sessions refused.
-#   upgrade [<id>]               Upgrade one package, or -- with no
-#                                arg / "all" / --all -- every installed
-#                                package with an update available.
-#   uninstall <id>               Uninstall.
-#   sources                      List configured winget sources.
-#   help                         This message.
-#
-# Resolution: looks for winget.exe at
-#   /mnt/c/Users/<operator>/AppData/Local/Microsoft/WindowsApps/winget.exe
-# (per-user install location), then PATH (WSL interop registration).
-# Returns a JSON error envelope when winget.exe is unreachable
-# rather than crashing -- callers parse {ok:false,error:...}.
-#
-# Hardening:
-#   * Output truncated to MIOS_WINGET_MAX_OUTPUT_BYTES (default 256 KiB)
-#     so pathological winget output (huge `list` on a large host)
-#     can't fill the agent's context window.
-#   * --silent + --disable-interactivity flags forced on install/
-#     upgrade/uninstall so prompts can't hang.
-#   * Install/upgrade/uninstall write a structured outcome envelope
-#     {ok, verb, id, exit_code, stdout, stderr}.
 set -u
 
 MAX_OUTPUT_BYTES="${MIOS_WINGET_MAX_OUTPUT_BYTES:-262144}"
@@ -55,14 +11,7 @@ usage() {
     sed -n '2,/^set -u$/p' "$0" | sed 's/^# \?//'
 }
 
-# ─── locate winget.exe ────────────────────────────────────────────
 _find_winget() {
-    # 1) Per-user install location (most common). Resolution
-    # order: MIOS_USER env -> USER (when != root) -> mios.toml
-    # [identity].username -> scan /mnt/c/Users/ for any user
-    # who has the WindowsApps dir. Root sessions (sudo, services)
-    # don't have MIOS_USER + USER=root won't hit a Windows
-    # profile, so the scan is the resilient path.
     local op="${MIOS_USER:-}"
     if [[ -z "$op" ]] && [[ "${USER:-root}" != "root" ]]; then
         op="$USER"
@@ -76,8 +25,6 @@ _find_winget() {
         cand="/mnt/c/Users/${op}/AppData/Local/Microsoft/WindowsApps/winget.exe"
         if [[ -x "$cand" ]]; then printf '%s' "$cand"; return; fi
     fi
-    # Scan /mnt/c/Users/ as a last resort. Skips Default / Public
-    # which never have user winget installs.
     for d in /mnt/c/Users/*/; do
         local user
         user="$(basename "$d")"
@@ -87,12 +34,9 @@ _find_winget() {
         cand="${d}AppData/Local/Microsoft/WindowsApps/winget.exe"
         if [[ -x "$cand" ]]; then printf '%s' "$cand"; return; fi
     done
-    # 2) System-wide (rare but possible on managed hosts).
     for sys in "/mnt/c/Program Files/WindowsApps"/Microsoft.DesktopAppInstaller_*/winget.exe; do
         [[ -x "$sys" ]] && { printf '%s' "$sys"; return; }
     done
-    # 3) PATH (WSL interop registration -- works when winget.exe is
-    # registered as a Windows interop binary).
     if command -v winget.exe >/dev/null 2>&1; then
         command -v winget.exe; return
     fi
@@ -119,7 +63,6 @@ fi
 
 sub="$1"; shift
 
-# ─── output capture + truncation helper ───────────────────────────
 _run_winget() {
     local out_file err_file size
     out_file="$(mktemp -t mios-wg-out-XXXXXX)"
@@ -127,10 +70,7 @@ _run_winget() {
     trap 'rm -f "$out_file" "$err_file"' RETURN
     local rc=0
     "$WINGET" "$@" >"$out_file" 2>"$err_file" || rc=$?
-    # Strip CRLF (Windows defaults) so JSON-encoded blobs don't
-    # carry literal \r in every line.
     sed -i 's/\r$//' "$out_file" "$err_file" 2>/dev/null || true
-    # Cap per stream.
     for f in "$out_file" "$err_file"; do
         size="$(wc -c <"$f")"
         if (( size > MAX_OUTPUT_BYTES )); then
@@ -140,8 +80,6 @@ _run_winget() {
             mv "${f}.tr" "$f"
         fi
     done
-    # EXPORT so _emit_envelope's python child sees them via os.environ (shell-local
-    # vars are invisible to the subprocess -> empty-stdout bug for list/show/etc.). 2026-06-10.
     export _WG_OUT="$(cat "$out_file")"
     export _WG_ERR="$(cat "$err_file")"
     _WG_RC=$rc
@@ -186,15 +124,12 @@ case "$sub" in
             [[ -n "$_WG_ERR" ]] && printf '%s\n' "$_WG_ERR" >&2
             exit "$_WG_RC"
         fi
-        # Parse winget's column output into structured results.
-        # winget headers: Name  Id  Version  Match  Source.
         export _WG_OUT
         python3 - "$query" "$_WG_RC" <<'PYEOF'
 import json, os, re, sys
 query, rc = sys.argv[1], int(sys.argv[2])
 out = os.environ.get("_WG_OUT", "")
 lines = out.splitlines()
-# Find the header row (first line containing "Name" and "Id").
 hdr_idx = None
 for i, line in enumerate(lines):
     if re.search(r"\bName\b", line) and re.search(r"\bId\b", line):
@@ -202,7 +137,6 @@ for i, line in enumerate(lines):
 results = []
 if hdr_idx is not None:
     header = lines[hdr_idx]
-    # Column starts -- find each header position.
     cols = []
     for col in ("Name", "Id", "Version", "Match", "Source"):
         m = re.search(rf"\b{col}\b", header)
@@ -210,10 +144,6 @@ if hdr_idx is not None:
     cols.sort(key=lambda x: x[1])
     for line in lines[hdr_idx + 2:]:   # skip header + separator
         if not line.strip(): continue
-        # winget appends "<additional entries truncated due to
-        # result limit>" as the last line when -n caps the
-        # output. Skip any line whose first non-space char is
-        # `<` -- those are winget chrome, not real packages.
         if line.lstrip().startswith("<"): continue
         row = {}
         for i, (col, start) in enumerate(cols):
@@ -251,9 +181,6 @@ PYEOF
         _emit_envelope "install" "$id"
         ;;
     upgrade)
-        # No id, the literal keyword "all" (any case), or --all all mean
-        # "upgrade everything" -- the helper OWNS this contract so the
-        # agent-pipe dispatch template stays a clean `upgrade{id?}` (P3).
         id="${1:-}"
         if [[ -z "$id" ]] || [[ "$id" == "--all" ]] || [[ "${id,,}" == "all" ]]; then
             _run_winget upgrade --all --silent --disable-interactivity \

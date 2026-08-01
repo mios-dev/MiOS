@@ -14,7 +14,7 @@ except Exception:
 ")
 
 if [[ "$RECHUNK_ENABLE" != "true" ]]; then
-    echo "Distribution rechunk_enable=false. Skipping edge delta apply."
+    echo "Distribution rechunk_enable=false. Skipping edge delta apply"
     exit 0
 fi
 
@@ -27,21 +27,19 @@ NEW_OCI="/var/tmp/mios-delta-new-oci"
 rm -rf "$TMP_DIR" "$OLD_OCI" "$NEW_OCI"
 mkdir -p "$TMP_DIR"
 
-echo "Fetching delta bundle from $BUNDLE_URL..."
+echo "Fetching delta bundle from $BUNDLE_URL"
 curl -sL --fail "$BUNDLE_URL" -o "$TMP_DIR/delta.tar" || {
-    echo "Failed to fetch delta bundle. Exiting."
+    echo "Failed to fetch delta bundle. Exiting"
     exit 1
 }
 
-# In a real environment, we'd export the current image layout
-echo "Exporting current OCI layout..."
+echo "Exporting current OCI layout"
 skopeo copy "containers-storage:localhost/mios:latest" "oci:$OLD_OCI" || {
-    echo "Could not export old image. Continuing with empty old_dir for bootstrapping."
+    echo "Could not export old image. Continuing with empty old_dir for bootstrapping"
     mkdir -p "$OLD_OCI"
 }
 
-echo "Applying delta..."
-# Verify against SEC-03 pub key if present
+echo "Applying delta"
 if [[ -f "$PUB_KEY_PATH" ]]; then
     PUB_KEY_ARG="--key $(cat $PUB_KEY_PATH)"
 else
@@ -50,11 +48,11 @@ fi
 
 /usr/libexec/mios/mios-oci-delta-apply "$OLD_OCI" "$NEW_OCI" "$TMP_DIR/delta.tar" $PUB_KEY_ARG
 
-echo "Importing reconstructed OCI layout..."
+echo "Importing reconstructed OCI layout"
 skopeo copy "oci:$NEW_OCI" "containers-storage:localhost/mios:edge-update"
 
-echo "Signaling bootc to stage..."
+echo "Signaling bootc to stage"
 bootc switch --transport containers-storage localhost/mios:edge-update
 
-echo "Delta apply complete."
+echo "Delta apply complete"
 rm -rf "$TMP_DIR" "$OLD_OCI" "$NEW_OCI"

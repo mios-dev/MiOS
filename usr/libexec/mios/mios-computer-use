@@ -76,7 +76,6 @@ PROG = "mios-computer-use"
 HTTP_TIMEOUT_S = 20
 
 
-# ── config ──────────────────────────────────────────────────────────────────
 def _toml_layered() -> dict:
     """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins), plus
     an optional MIOS_TOML override as the top layer -- via the shared resolver."""
@@ -113,7 +112,6 @@ def _restore_token_path() -> Path:
     return Path(base) / "mios" / "cu-restore-token"
 
 
-# ── environment detection ─────────────────────────────────────────────────────
 def _is_wsl() -> bool:
     if os.environ.get("WSL_DISTRO_NAME") or os.environ.get("WSL_INTEROP"):
         return True
@@ -139,7 +137,6 @@ def _executor_endpoint() -> str:
     """[computer_use].executor_endpoint, falling back to [os_control] for parity."""
     ep = str(_cu("executor_endpoint", "") or "").strip()
     if not ep:
-        # Reuse the os_control executor when it speaks the same HTTP contract.
         ep = str(_cfg("os_control", "executor_endpoint", "") or "").strip()
     return ep.rstrip("/")
 
@@ -152,7 +149,6 @@ def _endpoint_up(ep: str) -> bool:
         return False
 
 
-# ── federation: route every op to a remote executor (HTTP) ────────────────────
 def _http_get(ep: str, path: str) -> dict:
     with urllib.request.urlopen(ep + path, timeout=HTTP_TIMEOUT_S) as r:
         return json.loads(r.read() or b"{}")
@@ -240,7 +236,6 @@ def _idwh(a):
     return {"id": a[0], "width": int(a[1]), "height": int(a[2])}
 
 
-# ── capture (one-shot) ────────────────────────────────────────────────────────
 def _screen_size() -> tuple[int, int]:
     """Best-effort logical screen geometry for uinput absolute axes."""
     for cmd, parse in (
@@ -305,11 +300,6 @@ def _capture(out_path: str) -> int:
         return _portal_screenshot(out)
 
     def _wsl_windows():
-        # WSLg fallback: Weston supports neither wlr-screencopy nor a Screenshot
-        # portal, but the desktop the operator SEES is Windows (WSLg surfaces
-        # composite into it). Capture the Windows virtual screen via PowerShell
-        # interop and copy it into `out`. Read-only/observational. Bare-metal MiOS
-        # never reaches this -- the Wayland backends above win first.
         if not (os.path.exists("/mnt/wslg") or os.environ.get("WSL_DISTRO_NAME")):
             return False
         pwsh = (shutil.which("powershell.exe")
@@ -415,13 +405,11 @@ def _portal_screenshot(out: Path) -> bool:
         return False
 
 
-# ── input backends ────────────────────────────────────────────────────────────
 def _input_backend() -> str:
     want = str(_cu("input_backend", "auto"))
     if want != "auto":
         return want
     d = _desktop()
-    # Portal RemoteDesktop is production on GNOME/KDE; uinput everywhere else.
     if ("gnome" in d or "kde" in d or "plasma" in d) and _have_wayland():
         return "portal"
     return "uinput"
@@ -435,7 +423,6 @@ def _do_input(action: str, args: list[str]) -> int:
     try:
         dev = impl()
     except Exception as e:
-        # Fall back portal -> uinput once before giving up.
         if backend == "portal":
             try:
                 dev = _InputUinput()
@@ -572,7 +559,6 @@ class _InputPortal:
         self._stream_size = _screen_size()
         self._start_session()
 
-    # The portal Request/Response dance is verbose; kept compact + commented.
     def _await(self, call):
         Gio, GLib = self._gi
         loop = GLib.MainLoop()
@@ -606,7 +592,6 @@ class _InputPortal:
 
     def _start_session(self):
         Gio, GLib = self._gi
-        # CreateSession
         def _create(tok):
             self._portal("CreateSession", GLib.Variant("(a{sv})", ({
                 "handle_token": GLib.Variant("s", tok),
@@ -616,7 +601,6 @@ class _InputPortal:
         self._session = res.get("session_handle")
         if not self._session:
             raise RuntimeError("portal returned no session_handle")
-        # SelectDevices (KEYBOARD|POINTER = 3) + persist mode 2 + restore token
         rt = self._read_restore_token()
         def _select(tok):
             opts = {
@@ -628,7 +612,6 @@ class _InputPortal:
                 opts["restore_token"] = GLib.Variant("s", rt)
             self._portal("SelectDevices", GLib.Variant("(oa{sv})", (self._session, opts)))
         self._await(_select)
-        # Start (parent_window "")
         def _start(tok):
             self._portal("Start", GLib.Variant("(osa{sv})", (
                 self._session, "", {"handle_token": GLib.Variant("s", tok)})))
@@ -660,7 +643,6 @@ class _InputPortal:
 
         if action in ("mouse-move", "click", "double-click"):
             x, y = int(a[0]), int(a[1])
-            # NotifyPointerMotionAbsolute(session, opts, stream, x, y)
             self._portal("NotifyPointerMotionAbsolute", GLib.Variant(
                 "(oa{sv}udd)", (self._session, {}, 0, float(x), float(y))))
         if action == "mouse-move":
@@ -683,7 +665,6 @@ class _InputPortal:
                 self._portal("NotifyKeyboardKeysym", GLib.Variant(
                     "(oa{sv}iu)", (self._session, {}, ks, 0)))
             return
-        # key / key-combo via keysyms
         if action in ("key", "key-combo"):
             from evdev import ecodes  # only for the name map; keysyms emitted below
             keysym = _keyname_to_keysym(" ".join(a) if action == "key-combo" else a[0])
@@ -707,7 +688,6 @@ class _InputPortal:
             pass
 
 
-# ── key maps ──────────────────────────────────────────────────────────────────
 def _char_to_evdev(e, ch):
     """Return (keycode, needs_shift) for a printable char, US layout."""
     base = {
@@ -791,7 +771,6 @@ def _keyname_to_keysym(name):
     return out
 
 
-# ── windows + AT-SPI ──────────────────────────────────────────────────────────
 def _emit_windows(windows, as_json) -> int:
     if as_json:
         print(json.dumps({"windows": windows}))
@@ -805,7 +784,6 @@ def _emit_windows(windows, as_json) -> int:
 
 
 def _list_windows(as_json) -> int:
-    # wmctrl (X/XWayland), hyprctl (Hyprland), kdotool (KDE), then AT-SPI frames.
     if shutil.which("hyprctl"):
         try:
             data = json.loads(subprocess.run(
@@ -924,7 +902,6 @@ def _atspi_query(query, as_json) -> int:
 
 def _ground(query, as_json) -> int:
     """AT-SPI first; vision (mios-pc-vision) only when the tree has no match."""
-    # 1. semantic
     try:
         Atspi = _atspi_root()
         hits = []
@@ -961,7 +938,6 @@ def _ground(query, as_json) -> int:
             return 0
     except Exception:
         pass
-    # 2. vision fallback
     if not shutil.which("mios-pc-vision"):
         _die("no AT-SPI match and mios-pc-vision not on PATH")
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
@@ -986,14 +962,12 @@ def _cu_act(query: str, button: str, as_json: bool) -> int:
     import json
     import os
 
-    # 1. Ground
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tf:
         shot = tf.name
     try:
         if _capture(shot) != 0:
             _die("cu_act: capture failed")
         
-        # We invoke mios-pc-vision directly to get JSON
         out = subprocess.run(["mios-pc-vision", shot, query], capture_output=True, text=True)
         if out.returncode != 0:
             sys.stderr.write(out.stderr)
@@ -1010,13 +984,10 @@ def _cu_act(query: str, button: str, as_json: bool) -> int:
             print(json.dumps(res))
             return 1
             
-        # 2. Click
         _do_input("click", [str(x), str(y), button])
         
-        # 3. Verify
         verify_enabled = _toml_layered("computer_use", "verify_after_act")
         if verify_enabled:
-            # Short wait for UI to update
             import time
             time.sleep(1.0)
             v_out = subprocess.run(["mios-cu-verify", f"was '{query}' successfully clicked and did the screen update?", "--json"], capture_output=True, text=True)
@@ -1039,7 +1010,6 @@ def _cu_act(query: str, button: str, as_json: bool) -> int:
         except OSError:
             pass
 
-# ── WSL delegation ────────────────────────────────────────────────────────────
 def _delegate_pc_control(sub, args, as_json) -> int:
     if not shutil.which("mios-pc-control"):
         _die("WSL2 host but mios-pc-control not on PATH")
@@ -1050,13 +1020,11 @@ def _delegate_pc_control(sub, args, as_json) -> int:
     return subprocess.run(cmd).returncode
 
 
-# ── helpers ───────────────────────────────────────────────────────────────────
 def _die(msg: str):
     print(json.dumps({"error": msg, "prog": PROG}), file=sys.stderr)
     raise SystemExit(1)
 
 
-# ── main ──────────────────────────────────────────────────────────────────────
 INPUT_ACTIONS = {"click", "double-click", "mouse-move", "type", "key", "key-combo"}
 WINDOW_ACTIONS = {"window-list", "window-focus", "window-move", "window-resize"}
 
@@ -1075,14 +1043,12 @@ def main() -> int:
         print(__doc__)
         return 0
 
-    # 1. Federation: a configured + reachable executor wins (drive remote desktop).
     ep = _executor_endpoint()
     if ep:
         if _endpoint_up(ep):
             return _route_remote(ep, sub, args, as_json)
         _die(f"computer-use executor {ep} configured but unreachable (no blind local fallback)")
 
-    # 2. Local Wayland desktop.
     if _have_wayland():
         if sub == "screenshot":
             return _capture(args[0] if args else _die("screenshot needs <out-path>"))
@@ -1101,7 +1067,6 @@ def main() -> int:
                  f"use window-list + focus via wmctrl/hyprctl)")
         _die(f"unknown subcommand: {sub}")
 
-    # 3. WSL2 -> delegate to the Windows executor so one verb works everywhere.
     if _is_wsl():
         return _delegate_pc_control(sub, args, as_json)
 

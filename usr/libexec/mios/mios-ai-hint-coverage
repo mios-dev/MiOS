@@ -2,12 +2,6 @@
 # AI-hint: AI-hint coverage fitness-function -- reuses the mios-ai-tag taggability
 # AI-related: mios-ai-tag, mios-codebase-index, ./automation/98-drift-checks.sh, ./usr/share/mios/mios.toml
 # AI-functions: _load_tagger, _ceiling, measure, main
-#   SSOT (walk + existing_hint + indexable + SKIP/EXT) to measure what fraction of
-#   taggable source files carry an `AI-hint:` header, and FAILS (exit 1) when the
-#   untagged count exceeds a ratchet ceiling ([ai_tag].max_untagged in mios.toml,
-#   env MIOS_AITAG_MAX_UNTAGGED, or --max-untagged). Read-only; a CI/build drift
-#   gate that stops AI-hint coverage from regressing. Defines NO file/keyword lists
-#   of its own -- taggability is whatever mios-ai-tag says it is.
 """mios-ai-hint-coverage -- ratchet gate for AI-hint header coverage.
 
 Taggability is NOT redefined here: this tool imports mios-ai-tag (the single
@@ -162,8 +156,6 @@ def main() -> int:
 
     tagger, tagger_path = _load_tagger(a.tagger)
     if tagger is None:
-        # The SSOT is the tagger; without it we cannot measure. Degrade open --
-        # a missing tagger must not red an unrelated build.
         sys.stderr.write("[ai-hint-coverage] WARNING: mios-ai-tag not found -- "
                          "cannot measure coverage; skipping (exit 0)\n")
         return 0

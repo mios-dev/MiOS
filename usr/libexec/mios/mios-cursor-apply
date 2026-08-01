@@ -47,8 +47,6 @@ def main():
 
     theme = str(_toml_get("theme.cursor_linux.theme", "Bibata-Modern-Classic"))
     size = str(_toml_get("theme.cursor_linux.size", "24"))
-    # XcursorLibraryLoadCursor honours these; set them if the caller's env
-    # didn't (so the helper resolves the theme even when run bare).
     os.environ.setdefault("XCURSOR_THEME", theme)
     os.environ.setdefault("XCURSOR_SIZE", size)
 
@@ -71,8 +69,6 @@ def main():
 
     Xc.XcursorLibraryLoadCursor.restype = ctypes.c_ulong
     Xc.XcursorLibraryLoadCursor.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-    # left_ptr is the ambient/arrow cursor toplevels inherit; default is the
-    # modern alias. Try left_ptr, fall back to default.
     cur = Xc.XcursorLibraryLoadCursor(dpy, b"left_ptr") \
         or Xc.XcursorLibraryLoadCursor(dpy, b"default")
     if not cur:

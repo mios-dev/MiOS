@@ -3,30 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-open-url, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-gui, mios-find, mios-window-active, mios-as-operator, mios-wsl-flatpak-heal
 # AI-functions: _resolve_browser_chain, _parse_summary, _derive_verify_pattern
 set -euo pipefail
-# /usr/libexec/mios/mios-open-url <url> [<browser-override>]
-#
-# Open a URL in the MiOS-defined default browser. Operator directive
-# 2026-05-16: "WRONG BROWSER!!!! NOT THE GLOBALLY DEFINED LINUX
-# DEFAULTS FROM THE USER SPECIFIED mios.toml/html" -- this used to
-# hardcode chromedev as the default, which routed URLs through the
-# operator's Windows-side default browser via WSL interop instead
-# of the MiOS-defined Linux default.
-#
-# Resolution order for the default browser (high precedence first):
-#   1. <browser-override>  if passed as $2 (operator-tunable per-call)
-#   2. mios.toml [[desktop.apps]] entry with role="browser" + default=true
-#   3. mios.toml [mios-find.aliases].web
-#
-# Operator directive 2026-05-16: "Should be understood from the
-# source that defines all global settings(mios.toml/html)" -- NO
-# compiled fallback to a specific app name. If mios.toml defines
-# no default browser, this script ERRORS so the operator knows to
-# pick one via mios.html. Silent-default-to-some-name is a bug.
-#
-# The URL is passed through to mios-gui <resolved-default> "$URL"
-# which dispatches via flatpak-launch into the operator's WSLg
-# session. Window appears on the operator's desktop, NOT in the
-# headless Hermes-Agent CDP browser.
 
 set -eu
 
@@ -50,10 +26,6 @@ USAGE
     [ "$#" -lt 1 ] && exit 64 || exit 0
 fi
 
-# ── Native launch args (from the open_url verb schema) + back-compat positional
-# <url> [<browser-override>]. mode/private/reuse drive tab-vs-window: the URL is
-# opened as a TAB in the ALREADY-RUNNING browser by default (reuse the instance),
-# never a new window. NO-HARDCODE: the per-browser flags come from mios.toml. ──
 URL=""
 OVERRIDE=""
 MODE="tab"
@@ -71,22 +43,14 @@ while [ "$#" -gt 0 ]; do
         *)         if [ -z "$URL" ]; then URL="$1"; elif [ -z "$OVERRIDE" ]; then OVERRIDE="$1"; fi; shift ;;
     esac
 done
-[ -n "$URL" ] || { echo "mios-open-url: missing <url>" >&2; exit 64; }
-# Effective disposition: private overrides; reuse=false forces a fresh instance.
+[ -n "$URL" ] || { echo "Mios-open-url: missing <url>" >&2; exit 64; }
 EFF_MODE="$MODE"
 if [ "$PRIVATE" = 1 ]; then EFF_MODE="private"; fi
 if [ "$REUSE" = 0 ] && [ "$EFF_MODE" = "tab" ]; then EFF_MODE="new-window"; fi
-# A literal "default" / "operator default" / "system" / "none" is NOT a browser
-# id -- it means "use the mios.toml-defined Linux default chain". Treating it as
-# an app id made mios-gui try to launch a bogus flatpak
-# "org.fedoraproject.Platform.CL.default" -> bwrap execvp /bin/sh failure
-# (operator 2026-05-27). Normalise these sentinels to empty so the resolved
-# Linux-native browser chain is used (Linux apps are always the first default).
 case "$(printf '%s' "$OVERRIDE" | tr '[:upper:]' '[:lower:]' | tr -d ' ')" in
     default|operatordefault|systemdefault|system|none) OVERRIDE="" ;;
 esac
 
-# Quick sanity: warn (not error) if it doesn't look like a URL.
 case "$URL" in
     http://*|https://*|file://*|about:*|chrome://*) : ;;
     *)
@@ -94,12 +58,6 @@ case "$URL" in
         ;;
 esac
 
-# ─── Resolve the browser FALLBACK CHAIN from mios.toml ──────────────
-# SSOT: mios.toml [[desktop.apps]] entries with role="browser". The
-# default=true entry leads; the rest follow in declaration order.
-# Caller iterates the chain on launch failure -- when Epiphany hits
-# the WSLg portal env-fd error (operator-flagged trace 2026-05-18),
-# the next browser (ChromeDev, then Windows-side host) gets a shot.
 _resolve_browser_chain() {
     if command -v mios-app-type >/dev/null 2>&1; then
         _lead="$(mios-app-type "browser" 2>/dev/null || true)"
@@ -110,15 +68,9 @@ import sys
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 chain = []
 seen = set()
-# MiOS is Linux-native first. Browser chain reads [[desktop.apps]]
-# role=browser in declaration order (defaults first). Windows-side
-# fallback (cmd.exe /c start) is the LAST resort -- appended only
-# at the tail by mios-open-url's runtime loop, NOT prepended.
-# Operator binding: "always prefer Linux native apps first."
 d = mios_toml.load_merged()
 apps = mios_toml.section(d, "desktop").get("apps", [])
 if isinstance(apps, list):
-    # Pass 1: defaults first (preserve declaration order)
     for entry in apps:
         if not isinstance(entry, dict) or entry.get("role") != "browser":
             continue
@@ -126,7 +78,6 @@ if isinstance(apps, list):
         if aid and aid not in seen and entry.get("default"):
             chain.append(aid)
             seen.add(aid)
-    # Pass 2: non-defaults
     for entry in apps:
         if not isinstance(entry, dict) or entry.get("role") != "browser":
             continue
@@ -134,7 +85,6 @@ if isinstance(apps, list):
         if aid and aid not in seen:
             chain.append(aid)
             seen.add(aid)
-# mios-find.aliases.web as tail fallback (legacy operator config)
 aliases = mios_toml.section(d, "mios-find").get("aliases", {})
 web = aliases.get("web") if isinstance(aliases, dict) else None
 if isinstance(web, str) and web and web not in seen:
@@ -144,9 +94,6 @@ print("\n".join(chain))
 PYEOF
 }
 
-# Resolve the native tab/window flag(s) for a browser target + mode from the SSOT
-# [browser.*] map. Empty when unknown (degrade-open: the running instance opens a
-# tab by default when the binary is invoked with the URL). NO-HARDCODE.
 _browser_flag() {
     python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$1" "$2" <<'PYEOF' 2>/dev/null || true
 import sys
@@ -184,8 +131,6 @@ Add at least one:
   id      = "<your-browser-app-id>"
   role    = "browser"
   default = true     # leads the chain
-  # Additional role="browser" entries form the fallback chain
-  # in declaration order.
 
 After editing, re-run mios-open-url.
 ERR
@@ -194,7 +139,6 @@ ERR
 fi
 
 set +e   # the verification path catches its own rcs; set -e here
-         # would propagate python json-parse failures as exit-1.
 
 _parse_summary() {
     printf '%s' "$1" | python3 -c "
@@ -226,11 +170,6 @@ _derive_verify_pattern() {
     fi
 }
 
-# Iterate the fallback chain. First browser that lands a presented
-# window wins. Each attempt: launch -> wait -> verify presented.
-# Heal-on-failure once after the FIRST flatpak failure (covers the
-# stale portal env-fd / dbus credentials case); subsequent chain
-# entries get their own launch attempt without re-healing.
 _HEAL_ATTEMPTED=0
 _LAST_VERIFY=""
 _LAST_SUMMARY=""
@@ -240,7 +179,6 @@ while IFS= read -r TARGET; do
     [ -z "$TARGET" ] && continue
     echo "[mios-open-url] trying browser: $TARGET" >&2
     _verify_pattern="$(_derive_verify_pattern "$TARGET")"
-    # Native disposition flag (tab reuses the running instance; SSOT [browser.*]).
     _FLAG="$(_browser_flag "$TARGET" "$EFF_MODE")"
 
     _already_running=0
@@ -257,9 +195,7 @@ while IFS= read -r TARGET; do
         fi
     fi
 
-    # ─── Already running CDP browser shortcut ───
     if [ "$_already_running" = "1" ] && { echo "$TARGET" | grep -qiE 'chrome|chromium'; }; then
-        # Try local CDP port first if responding
         _cdp_port="${CDP_PORT:-9222}"
         if curl -fsS -m 2 "http://127.0.0.1:${_cdp_port}/json/version" >/dev/null 2>&1; then
             echo "[mios-open-url] browser $TARGET is already running with CDP -> opening tab via CDP" >&2
@@ -313,20 +249,16 @@ PYEOF
 
         if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ]; then
             WIN_URL=$(wslpath -w "$URL" 2>/dev/null || echo "$URL")
-            # cmd.exe start delegates to the Windows default browser's protocol
-            # handler, which reuses the running instance -> opens a TAB already.
             echo "[mios-open-url] trying Windows handler: $TARGET '$WIN_URL'" >&2
             cmd.exe /c start "" "$WIN_URL"
             _launch_rc=$?
             _used_windows_fallback=1
         else
-            # shellcheck disable=SC2086  # $_FLAG deliberately word-splits into flag tokens
             mios-gui "$TARGET" $_FLAG "$URL"
             _launch_rc=$?
             _used_windows_fallback=0
             if [ "$_launch_rc" -ne 0 ] && command -v mios-windows >/dev/null 2>&1; then
                 echo "[mios-open-url] mios-gui $TARGET failed; trying Windows fallback via mios-windows" >&2
-                # shellcheck disable=SC2086
                 if mios-windows launch "$TARGET" $_FLAG "$URL" >/dev/null 2>&1; then
                     _launch_rc=0
                     _used_windows_fallback=1
@@ -334,15 +266,6 @@ PYEOF
             fi
         fi
 
-    # Poll the window verifier up to ~15s with progressive delays.
-    # WSLg flatpak cold-launches register a Win32 window via the
-    # weston RDP rail AFTER bwrap unpack + GTK4 init + Wayland surface
-    # bind + RDP frame -- empirically 5-12s on first launch (faster on
-    # warm). A single immediate check (the prior implementation)
-    # caught only fast launches; slow ones reported "no-window" while
-    # the window actually rendered seconds later. Operator-flagged
-    # 2026-05-19: "in the end it DID actually open it in ChromeDev"
-    # despite mios-open-url declaring EXHAUSTED chain.
     _summary=""
     _verify=""
     if [ "$_already_running" = "0" ]; then
@@ -368,24 +291,10 @@ PYEOF
 
     echo "[mios-open-url] $TARGET summary=${_summary:-<empty>} launch_rc=$_launch_rc" >&2
 
-    # PID-PROBE verification (operator 2026-05-30: "just probe PIDs for verifying
-    # success"). WSLg windows are NOT enumerable here (no wmctrl/xdotool), so the
-    # mios-window-active check above false-fails even when the browser opened. So
-    # confirm the flatpak's PROCESS is RUNNING instead -- a live instance means the
-    # app launched on the WSLg desktop. Linux is the DEFAULT; fall through to the
-    # next browser / Windows last-resort only when NOTHING is running.
     _proc_ok=0
     if [ "$TARGET" = "cmd.exe" ] || [ "$TARGET" = "explorer.exe" ] || [ "${_used_windows_fallback:-0}" = "1" ]; then
         _proc_ok=1
     else
-        # PID probe against the GLOBAL process table. The flatpak runs as the
-        # operator (uid != agent uid), so neither `flatpak ps` (per-user) nor
-        # `mios-as-operator flatpak ps` (a fire-and-forget LAUNCHER that returns
-        # NO stdout -- it dispatches detached) can see it. But /proc is global,
-        # so pgrep finds the operator's process from any agent context. Match
-        # the full app-id (present in the bwrap'd flatpak app path) then the
-        # trailing segment / binary name as a looser fallback. Backoff loop
-        # because GTK4 apps take a moment to fork the real process in.
         for _pp in 1 2 3 4; do
             if pgrep -fi "$TARGET" >/dev/null 2>&1 \
                || { [ -n "$_seg" ] && pgrep -fi "$_seg" >/dev/null 2>&1; }; then
@@ -395,9 +304,6 @@ PYEOF
         done
     fi
 
-    # If the browser was already running, and we opened a tab, we don't expect a new window to open.
-    # So if the process is still alive and mios-gui succeeded (rc=0) or returned unconfirmed (rc=3),
-    # we treat it as success immediately.
     if [ "$_already_running" = "1" ] && { [ "$_launch_rc" = "0" ] || [ "$_launch_rc" = "3" ]; } && [ "$_proc_ok" = "1" ]; then
         if [ "${_used_windows_fallback:-0}" = "1" ]; then
             printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"tab-opened-existing\", \"engine\": \"windows-host\", \"verified_by\": \"already-running\", \"launch_rc\": $_launch_rc}"
@@ -415,15 +321,11 @@ PYEOF
             echo "[mios-open-url] $TARGET launched on Windows host via mios-windows" >&2
         else
             printf '%s\n' "{\"success\": true, \"target\": \"$TARGET\", \"url\": \"$URL\", \"summary\": \"running\", \"engine\": \"linux-flatpak\", \"verified_by\": \"pid-probe\", \"launch_rc\": 0}"
-            echo "[mios-open-url] $TARGET launched -> process verified running via PID probe (engine=linux-flatpak, Linux default); window surfacing is confirmed separately by the agent-pipe window-diff" >&2
+            echo "[mios-open-url] $TARGET launched -> process verified running via PID probe; window surfacing is confirmed separately by the agent-pipe window-diff" >&2
         fi
         exit 0
     fi
 
-    # First-failure heal: when launch_rc != 0 (sandbox bootstrap
-    # broke), restart the user-side portal stack ONCE before
-    # continuing the chain. Subsequent attempts on different
-    # browsers don't re-heal (one heal per turn).
     if [ "$_HEAL_ATTEMPTED" = "0" ] \
        && [ "$_launch_rc" -ne 0 ] \
        && command -v mios-wsl-flatpak-heal >/dev/null 2>&1; then
@@ -434,10 +336,6 @@ PYEOF
             mios-wsl-flatpak-heal >/dev/null 2>&1 || true
         fi
         _HEAL_ATTEMPTED=1
-        # Re-try the SAME browser one more time after heal before
-        # moving down the chain (give the heal a chance on the
-        # operator's preferred default).
-        # shellcheck disable=SC2086
         mios-gui "$TARGET" $_FLAG "$URL" >/dev/null 2>&1
         _verify=$(mios-window-active --present "$_verify_pattern" 2>/dev/null)
         _summary=$(_parse_summary "$_verify")
@@ -453,7 +351,6 @@ done <<EOF
 $CHAIN
 EOF
 
-# Chain exhausted with no winner.
 echo "$_LAST_VERIFY"
 echo "[mios-open-url] EXHAUSTED chain; last=$_LAST_TARGET summary=${_LAST_SUMMARY:-<empty>} launch_rc=$_LAST_RC" >&2
 exit 2

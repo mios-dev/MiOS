@@ -1,13 +1,6 @@
 #!/bin/bash
 # AI-hint: Hot-deploys source-only MiOS binaries, configuration files (tmpfiles/sysusers), and OWUI tools to the live VM's /usr path without a full image rebuild to apply immediate updates to the broker and system services.
 # AI-related: /usr/share/mios/openwebui/tools, /usr/share/mios/openwebui/tools/mios_computer_use.py, mios-coderun-sandbox, mios-launcher-daemon, mios-db, mios-docgen, mios-coderun-codemode, mios-stresstest, mios-owui-install-computer-use, mios-hermes-firstboot
-# automation/support/deploy-tooling-live.sh
-# Deploy the SOURCE-ONLY tooling to the LIVE VM /usr (no image rebuild): the new/
-# changed libexec tools + shim-links + tmpfiles + sysusers, reload, restart the
-# broker (WS-4 capture-timeout fix), and register the OWUI computer-use tool.
-# CR-strips every file. REBUILD-GATED items are NOT handled here (dnf packages:
-# pandoc/libreoffice for docgen; localhost/ container image: mios-coderun-sandbox
-# for code_mode; boot-config: WS-7 fapolicyd/UKI).
 set -euo pipefail
 SRC=/mnt/c/MiOS
 LX=/usr/libexec/mios
@@ -35,10 +28,10 @@ sudo systemd-sysusers 2>&1 | tail -2 || true
 sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios-shim-links.conf 2>&1 | tail -2 || true
 sudo systemd-tmpfiles --create /usr/lib/tmpfiles.d/mios-pgvector.conf /usr/lib/tmpfiles.d/mios-llamacpp.conf 2>&1 | tail -2 || true
 
-echo "[live] restart broker (WS-4 capture-timeout fix)"
+echo "[live] restart broker"
 sudo systemctl restart mios-launcher-daemon.service 2>&1 || true
 sleep 2
-echo "  broker: $(systemctl is-active mios-launcher-daemon.service)"
+echo "  broker: $"
 
 echo "[live] shim resolution check"
 for t in mios-docgen mios-coderun-codemode mios-stresstest mios-db; do
@@ -50,7 +43,7 @@ echo "[live] OWUI computer-use tool file + installer"
 sudo install -d -m 0755 /usr/share/mios/openwebui/tools
 tr -d '\r' < "$SRC/usr/share/mios/openwebui/tools/mios_computer_use.py" | sudo tee /usr/share/mios/openwebui/tools/mios_computer_use.py >/dev/null
 if [ -x "$LX/mios-owui-install-computer-use" ]; then
-    sudo "$LX/mios-owui-install-computer-use" 2>&1 | tail -6 || echo "  (OWUI install failed -- is OWUI reachable on :3030?)"
+    sudo "$LX/mios-owui-install-computer-use" 2>&1 | tail -6 || echo ""
 fi
 
-echo "[live] DONE. REBUILD-GATED (NOT deployed): docgen pandoc/libreoffice (dnf), code_mode mios-coderun-sandbox image (localhost/, build-time), WS-7 fapolicyd/UKI (boot)."
+echo "[live] DONE. REBUILD-GATED: docgen pandoc/libreoffice, code_mode mios-coderun-sandbox image, WS-7 fapolicyd/UKI"

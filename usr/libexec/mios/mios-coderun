@@ -57,7 +57,6 @@ def main() -> int:
                           "refusing to run unsandboxed"}))
         return 126
 
-    # Per-call scratch workspace (the ONLY writable path in the jail).
     ws = os.path.join(SCRATCH_ROOT, f"cr-{int(time.time())}-{uuid.uuid4().hex[:8]}")
     try:
         os.makedirs(ws, exist_ok=True)

@@ -40,10 +40,6 @@ import socket as _socket
 import subprocess
 import sys
 
-# PKG store: PostgreSQL + pgvector via the shared mios-db --pg-json CLI (which
-# binds params through mios-pg-query's extended protocol). The legacy BSL 1.1 store is
-# retired -- ALL reads + writes go to pg. Natural-key model
-# (resolves_to(phrase, app_id)) -- no record-id round-trips.
 _MIOS_DB = "/usr/libexec/mios/mios-db"
 
 
@@ -84,14 +80,10 @@ def _pg_rows(sql_inner: str, params: "list | None" = None) -> list:
         return []
 
 
-# Phase C.1 SSOT knobs from mios.toml [pkg].* (via userenv.sh slot
-# map). Defaults match the mios.toml seed so a Day-0 deploy with
-# no overrides still ingests sensibly.
 PER_SOURCE_CAP = int(os.environ.get(
     "MIOS_PKG_BOOTSTRAP_PER_SOURCE_CAP", "200"))
 
 
-# ─── bootstrap ─────────────────────────────────────────────────────
 def cmd_bootstrap(args: argparse.Namespace) -> int:
     """Create / update the singleton person row + ingest mios-apps
     catalog into app_install rows. Idempotent -- re-running on an
@@ -101,9 +93,6 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
                 or os.environ.get("LOGNAME")
                 or "operator")
     hostname = os.environ.get("MIOS_HOSTNAME") or _socket.gethostname()
-    # Upsert the person via DELETE + INSERT (cheaper than UPDATE for the
-    # singleton case + survives schema changes). Natural key = username; values
-    # are BOUND params.
     _pg_batch([
         {"sql": "DELETE FROM person WHERE username = $1", "params": [username]},
         {"sql": ("INSERT INTO person (username, hostname, created_at) "
@@ -116,13 +105,6 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     person_id = pr[0].get("id")
     print(f"person: {person_id} (username={username}, hostname={hostname})")
 
-    # Ingest the inventory. Default source is `mios-apps --json`
-    # (NDJSON of {category, name, description, launch} objects).
-    # Operator can pass --source <path> or `-` for stdin so this
-    # CLI is a template -- any tool that emits the same NDJSON shape
-    # can re-bootstrap the graph (operator directive 2026-05-18:
-    # "tools/skills are global templates that can be self improved
-    # upon").
     src = getattr(args, "source", None) or ""
     text = ""
     if src == "-":
@@ -143,8 +125,6 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
             sys.stderr.write(f"bootstrap: mios-apps --json failed: {e}\n")
             return 2
 
-    # Parse NDJSON. Aggregate by category so we keep the
-    # per-source cap.
     catalog: dict = {}
     for line in text.splitlines():
         line = line.strip()
@@ -166,19 +146,14 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
             short_name = (entry.get("name") or entry.get("short_name") or "").strip()
             if not short_name:
                 continue
-            # Extract app_id from "Display (com.foo.Bar)" suffix in description.
             description = entry.get("description") or ""
             app_id = entry.get("app_id") or entry.get("id") or ""
             if not app_id:
-                # Pull the parenthesised id from the description tail.
                 m = re.search(r"\(([^()]+)\)\s*$", description)
                 if m:
                     app_id = m.group(1)
             label = description or short_name
             launch_hint = entry.get("launch") or entry.get("launch_cmd") or ""
-            # Idempotent insert into pg app_install (natural key:
-            # short_name + source). All NDJSON-sourced fields are BOUND params
-            # -- an embedded apostrophe ("'MiOS' CDI spec ...") needs no escaping.
             _pg_batch([
                 {"sql": ("DELETE FROM app_install WHERE short_name = $1 "
                          "AND source = $2"), "params": [short_name, source]},
@@ -193,19 +168,14 @@ def cmd_bootstrap(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── alias ─────────────────────────────────────────────────────────
 def cmd_alias_add(args: argparse.Namespace) -> int:
     phrase = args.phrase.strip().lower()
     target = args.target.strip()
     if not phrase or not target:
         sys.stderr.write("alias add: <phrase> and <target> required\n")
         return 64
-    # Resolve target: app:<short_name> or bare short_name.
     if target.startswith("app:"):
         target = target[4:]
-    # pg path (natural-key): phrase -> app_id via app_install.short_name.
-    # Resolve the target's app_id first so we can fail loudly when the
-    # operator names an app that isn't in the inventory.
     pgr = _pg_rows("SELECT app_id FROM app_install WHERE short_name = $1 LIMIT 1",
                    [target])
     if not pgr or not pgr[0].get("app_id"):
@@ -215,7 +185,6 @@ def cmd_alias_add(args: argparse.Namespace) -> int:
         )
         return 1
     app_id = pgr[0]["app_id"]
-    # Upsert the alias + its resolves_to edge (delete-then-insert), atomically.
     _pg_batch([
         {"sql": "DELETE FROM alias WHERE phrase = $1", "params": [phrase]},
         {"sql": "INSERT INTO alias (phrase) VALUES ($1)", "params": [phrase]},
@@ -238,10 +207,6 @@ def cmd_alias_rm(args: argparse.Namespace) -> int:
 
 
 def cmd_alias_list(args: argparse.Namespace) -> int:
-    # pg JOIN replaces the legacy `->resolves_to->app_install` graph walk.
-    # LEFT JOIN so aliases with no edge still list (as "(unresolved)").
-    # Aggregate resolved targets per phrase into a JSON array of short_names.
-    # Constant SQL -- no external value.
     rows = _pg_rows(
         "SELECT al.phrase AS phrase, "
         "coalesce(json_agg(ai.short_name) "
@@ -261,18 +226,11 @@ def cmd_alias_list(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── lookup ────────────────────────────────────────────────────────
 def cmd_lookup(args: argparse.Namespace) -> int:
     phrase = args.phrase.strip().lower()
-    # Exact first; fall back to contains. Run the queries in priority order and
-    # pick the first non-empty. pg JOINs replace the legacy
-    # `->resolves_to->app_install` graph walk (same shape the agent-pipe
-    # kg_lookup uses); each row aggregates its resolved apps into the `app` JSON
-    # array. `_app_obj` is a CONSTANT projection; `phrase` is a BOUND param ($1).
     _app_obj = ("json_build_object('id', ai.id, 'short_name', ai.short_name, "
                 "'app_id', ai.app_id, 'source', ai.source, 'label', ai.label, "
                 "'launch_hint', ai.launch_hint)")
-    # Stage 1a: alias EXACT match.
     rows = _pg_rows(
         f"SELECT al.phrase AS phrase, json_agg({_app_obj}) AS app "
         f"FROM alias al "
@@ -281,7 +239,6 @@ def cmd_lookup(args: argparse.Namespace) -> int:
         f"WHERE al.phrase = $1 "
         f"GROUP BY al.phrase LIMIT 1", [phrase])
     if not rows:
-        # Stage 1b: alias CONTAINS match (fuzzy fallback).
         rows = _pg_rows(
             f"SELECT al.phrase AS phrase, json_agg({_app_obj}) AS app "
             f"FROM alias al "
@@ -291,7 +248,6 @@ def cmd_lookup(args: argparse.Namespace) -> int:
             f"   OR $1 ILIKE '%' || al.phrase || '%' "
             f"GROUP BY al.phrase LIMIT 3", [phrase])
     if not rows:
-        # Stage 2: direct app_install lookup by short_name substring.
         rows = _pg_rows(
             "SELECT id, short_name, app_id, source, label, launch_hint "
             "FROM app_install "
@@ -316,7 +272,6 @@ def cmd_lookup(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── apps ──────────────────────────────────────────────────────────
 def cmd_apps(args: argparse.Namespace) -> int:
     filt = (args.filter or "").strip().lower()
     if filt:
@@ -337,7 +292,6 @@ def cmd_apps(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── who ───────────────────────────────────────────────────────────
 def cmd_who(args: argparse.Namespace) -> int:
     rows = _pg_rows("SELECT id, username, hostname, created_at::text "
                     "AS created_at FROM person")
@@ -350,7 +304,6 @@ def cmd_who(args: argparse.Namespace) -> int:
     return 0
 
 
-# ─── main ──────────────────────────────────────────────────────────
 def main() -> int:
     p = argparse.ArgumentParser(prog="mios-kg")
     sub = p.add_subparsers(dest="cmd", required=True)

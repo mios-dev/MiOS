@@ -2,33 +2,16 @@
 # AI-hint: Executes the mios-cpu-isolate.service to parse isolcpus= kernel parameters and migrate all user-space processes onto non-isolated host cores via taskset to ensure deterministic performance.
 # AI-related: /usr/lib/mios/paths.sh, mios-cpu-isolate, mios-cpu-isolate.service, multi-user.target
 # AI-functions: _log, expand
-# 'MiOS' CPU core isolation engine -- runtime helper.
-# Reads `isolcpus=` from /proc/cmdline (set by usr/lib/bootc/kargs.d/), then
-# moves every existing user-space process onto the non-isolated host cores
-# via `taskset -cp`. Kernel threads are left alone (taskset can't move them
-# and the scheduler routes them by other means).
-#
-# Service unit: mios-cpu-isolate.service (Type=oneshot, RemainAfterExit=yes,
-# ConditionVirtualization=no). Skipped on virtualization where isolcpus has
-# no effect.
-#
-# When `isolcpus=` is absent, this is a no-op (logs "no isolation kargs").
-# When set, the service activates at multi-user.target and the host range
-# becomes the complement (e.g. isolcpus=4-7 on 8-core box -> host range 0-3).
 set -euo pipefail
-# shellcheck source=/usr/lib/mios/paths.sh
 source /usr/lib/mios/paths.sh
 
 _log()  { logger -t mios-cpu-isolate "$*" 2>/dev/null || true; echo "[cpu-isolate] $*" >&2; }
 
-# Parse isolcpus= from /proc/cmdline (handles "isolcpus=4-7" and
-# "isolcpus=managed_irq,4-7" variants -- pulls the trailing CPU list).
 ISOL=""
 for tok in $(< /proc/cmdline); do
     case "$tok" in
         isolcpus=*)
             v="${tok#isolcpus=}"
-            # Strip leading flag terms (managed_irq, domain, ...) keeping last comma-sep field
             ISOL=${v##*,}
             ;;
     esac
@@ -39,7 +22,6 @@ if [[ -z "$ISOL" ]]; then
     exit 0
 fi
 
-# Compute host range = full CPU set minus isolated set
 TOTAL=$(nproc)
 LAST=$((TOTAL - 1))
 expand() {
@@ -75,7 +57,6 @@ moved=0; skipped=0; failed=0
 for pid in $(ps -eo pid --no-headers); do
     [[ -d "/proc/$pid" ]] || continue
     ppid=$(awk '{print $4}' "/proc/$pid/stat" 2>/dev/null) || continue
-    # Skip kernel threads (kthreadd is pid 2; its children are kthreads)
     if [[ "$ppid" == 2 || "$pid" == 2 ]]; then
         skipped=$((skipped + 1))
         continue
@@ -91,11 +72,11 @@ _log "moved=$moved kernel-skipped=$skipped failed=$failed"
 
 install -d -m 0755 /run/mios
 {
-    echo "timestamp=$(date -Is)"
-    echo "isolated=$ISOL"
-    echo "host_range=$HOST_SET"
-    echo "moved=$moved"
-    echo "kernel_threads_skipped=$skipped"
-    echo "failed=$failed"
+    echo "Timestamp=$"
+    echo "Isolated=$ISOL"
+    echo "Host_range=$HOST_SET"
+    echo "Moved=$moved"
+    echo "Kernel_threads_skipped=$skipped"
+    echo "Failed=$failed"
 } > /run/mios/cpu-isolate.status
 exit 0

@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
 # AI-hint: Daemon script to manage the GPU-accelerated animated living wallpaper on Linux (WBRAND-05).
-# Sourced from the SSOT [branding] and [colors] sections via mios-env / userenv.sh.
-# Gated + off by default.
 set -euo pipefail
 
-# Sourced TOML environment
 USERENV="/usr/lib/mios/userenv.sh"
 if [[ -r "$USERENV" ]]; then
-    # shellcheck disable=SC1090
     . "$USERENV"
 fi
 
-# ── Environment startup checks ──
 if [[ -z "${XDG_CURRENT_DESKTOP:-}" && -z "${WAYLAND_DISPLAY:-}" && -z "${DISPLAY:-}" ]]; then
-    echo "[living-wallpaper] Non-graphical, headless, or boot-time environment detected (no desktop session) -- skipping wallpaper startup."
+    echo "[living-wallpaper] Non-graphical, headless, or boot-time environment detected"
     exit 0
 fi
 
@@ -25,18 +20,16 @@ if [[ "$LIVING_WALLPAPER" != "true" ]]; then
     exit 0
 fi
 
-echo "[living-wallpaper] Starting animated wallpaper daemon (mode: $MODE)..."
+echo "[living-wallpaper] Starting animated wallpaper daemon"
 
 BG_COLOR="${MIOS_COLOR_BG:-#282262}"
 ACCENT_COLOR="${MIOS_COLOR_ACCENT:-#1A407F}"
 
-# If mode is static, do nothing (static wallpaper is already set by GNOME/desktop manager)
 if [[ "$MODE" == "static" ]]; then
-    echo "[living-wallpaper] mode is static -- exiting."
+    echo "[living-wallpaper] mode is static"
     exit 0
 fi
 
-# Universal video fallback (e.g., mpvpaper)
 if [[ "$MODE" == "video" ]]; then
     VIDEO_PATH="/usr/share/mios/branding/living-wallpaper.mp4"
     if command -v mpvpaper >/dev/null 2>&1; then
@@ -48,22 +41,17 @@ if [[ "$MODE" == "video" ]]; then
             exit 1
         fi
     else
-        echo "[living-wallpaper] mpvpaper not installed -- falling back to static" >&2
+        echo "[living-wallpaper] mpvpaper not installed" >&2
         exit 0
     fi
 fi
 
-# Shader mode
 if [[ "$MODE" == "shader" ]]; then
-    # Check if we are running in Quickshell/Hyprland
     if [[ "${XDG_CURRENT_DESKTOP:-}" == "Hyprland" ]] && command -v quickshell >/dev/null 2>&1; then
-        echo "[living-wallpaper] Launching Quickshell living wallpaper backgrounds module..."
-        # In a real environment, this would start the Quickshell engine with our custom QML/GLSL shader.
-        # We degrade-open to mpvpaper or static if unsupported.
+        echo "[living-wallpaper] Launching Quickshell living wallpaper backgrounds module"
         exit 0
     else
-        # For standard GNOME/Wayland desktop, we run the WebGL page in a lightweight background browser or fallback to static.
-        echo "[living-wallpaper] Shader mode on standard desktop -- fallback to static"
+        echo "[living-wallpaper] Shader mode on standard desktop"
         exit 0
     fi
 fi

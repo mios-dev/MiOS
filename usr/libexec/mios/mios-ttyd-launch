@@ -3,43 +3,14 @@
 # AI-related: /usr/libexec/mios/mios-ttyd-launch, /etc/mios/userenv.sh, /usr/libexec/mios/mios-powershell, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-powershell
 # AI-functions: _toml_get
 set -euo pipefail
-# /usr/libexec/mios/mios-ttyd-launch <bash|powershell>
-#
-# Builds the ttyd argv from the MIOS_TTYD_* env (sourced via
-# /etc/mios/userenv.sh, which the systemd unit EnvironmentFile=s)
-# and execs ttyd. Splitting the assembly out of the .service file
-# keeps the unit declarative + lets the operator override pieces
-# via mios.toml [ttyd] without editing the unit.
-#
-# Load environment configurations explicitly
 if [[ -r /etc/mios/userenv.sh ]]; then source /etc/mios/userenv.sh; fi
 if [[ -r /etc/mios/install.env ]]; then
-    # Guard set -u: a value with shell-metachars must not abort under set -u.
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; source /etc/mios/install.env 2>/dev/null || true; set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
-#
-# Variant arg picks WHICH ttyd instance to start:
-#   bash       -> port MIOS_PORT_TTYD_BASH (default 7681), runs
-#                 MIOS_TTYD_BASH_SHELL or /bin/bash.
-#   powershell -> port MIOS_PORT_TTYD_POWERSHELL (default 7682),
-#                 runs MIOS_TTYD_POWERSHELL_SHELL or
-#                 /usr/libexec/mios/mios-powershell --shell.
-#
-# Common knobs (both variants):
-#   MIOS_TTYD_BIND               default 127.0.0.1
-#   MIOS_TTYD_REQUIRE_AUTH       default true; refuses exposed bind
-#                                without auth creds.
-#   MIOS_TTYD_AUTH_USER / _PASS  basic-auth credentials.
-#   MIOS_TTYD_SSL_CERT / _KEY    optional TLS termination.
-#   MIOS_TTYD_WRITABLE           default true.
-#   MIOS_TTYD_MAX_CLIENTS        default 0 (ttyd default).
 set -eu
 
-# Section-aware, layered mios.toml reader (/etc overrides /usr). Used to inherit
-# the global MiOS login credential from [identity] (operator 2026-05-30: "all
-# usernames/passwords match the mios.toml user selection, default mios/mios").
 _toml_get() {  # <section> <key> -> value (empty + rc1 if absent)
     local sec="$1" key="$2" f val
     for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
@@ -60,12 +31,11 @@ VARIANT="${1:-bash}"
 case "$VARIANT" in
     bash|powershell) ;;
     *)
-        echo "mios-ttyd-launch: variant must be bash|powershell (got $VARIANT)" >&2
+        echo "Mios-ttyd-launch: variant must be bash|powershell" >&2
         exit 2
         ;;
 esac
 
-# Resolve port + shell defaults.
 if [[ "$VARIANT" == "bash" ]]; then
     PORT="${MIOS_PORT_TTYD_BASH:-7681}"
     SHELL_CMD="${MIOS_TTYD_BASH_SHELL:-/bin/bash}"
@@ -78,13 +48,6 @@ BIND="${MIOS_TTYD_BIND:-127.0.0.1}"
 REQUIRE_AUTH="${MIOS_TTYD_REQUIRE_AUTH:-true}"
 AUTH_USER="${MIOS_TTYD_AUTH_USER:-}"
 AUTH_PASS="${MIOS_TTYD_AUTH_PASS:-}"
-# SSOT credential inheritance (operator 2026-05-30: "all usernames/passwords
-# match the mios.toml user selection, default mios/mios"). Per-instance auth
-# ([ttyd].auth_user/_pass -> MIOS_TTYD_AUTH_*) OVERRIDES; otherwise inherit the
-# global MiOS login from [identity] (username / default_password), same as the
-# Portal / Cockpit / Forge logins (server.py _pcfg pattern). Vendor default
-# mios/mios. No per-host random secret -- the credential is the operator's one
-# user selection everywhere. See [[mios_mobile_access]].
 if [[ -z "$AUTH_USER" ]]; then AUTH_USER="$(_toml_get identity username || true)"; fi
 if [[ -z "$AUTH_PASS" ]]; then AUTH_PASS="$(_toml_get identity default_password || true)"; fi
 AUTH_USER="${AUTH_USER:-mios}"
@@ -94,16 +57,12 @@ SSL_KEY="${MIOS_TTYD_SSL_KEY:-}"
 WRITABLE="${MIOS_TTYD_WRITABLE:-true}"
 MAX_CLIENTS="${MIOS_TTYD_MAX_CLIENTS:-0}"
 
-# Safety: refuse to bind beyond loopback without credentials. ttyd
-# itself happily exposes an unauthenticated shell; this guard is
-# the difference between a casual local convenience and a remote
-# code execution surface.
 if [[ "$BIND" != "127.0.0.1" ]] && [[ "$BIND" != "localhost" ]] && [[ "$BIND" != "::1" ]]; then
     if [[ "${REQUIRE_AUTH,,}" == "true" || "$REQUIRE_AUTH" == "1" ]]; then
         if [[ -z "$AUTH_USER" || -z "$AUTH_PASS" ]]; then
-            echo "mios-ttyd-launch: refusing to bind $BIND:$PORT without auth creds" >&2
+            echo "Mios-ttyd-launch: refusing to bind $BIND:$PORT without auth creds" >&2
             echo "  set [ttyd].auth_user + .auth_pass in mios.toml, OR" >&2
-            echo "  flip [ttyd].require_auth = false (NOT RECOMMENDED)" >&2
+            echo "  flip [ttyd].require_auth = false" >&2
             exit 2
         fi
     fi
@@ -124,18 +83,10 @@ if [[ -n "$SSL_CERT" && -n "$SSL_KEY" ]] \
     ARGS+=("-S" "-C" "$SSL_CERT" "-K" "$SSL_KEY")
 fi
 
-# Window title in the browser tab.
 ARGS+=("-T" "xterm-256color")
 ARGS+=("-t" "titleFixed=MiOS ttyd [$VARIANT @ $BIND:$PORT]")
-# Pin the xterm font size so the portal's inline embed renders a deterministic
-# ~80x20 grid in its fixed pixel box (operator: "80x20 everywhere"). SSOT:
-# [ttyd].font_size -> MIOS_TTYD_FONT_SIZE.
 ARGS+=("-t" "fontSize=${MIOS_TTYD_FONT_SIZE:-14}")
 
-# Final argv: ttyd <flags> <shell-cmd> [shell-args]
-# Split SHELL_CMD on whitespace so "mios-powershell --shell" becomes
-# argv[0]=mios-powershell + argv[1]=--shell.
-# shellcheck disable=SC2206
 SHELL_ARGV=( $SHELL_CMD )
 
 exec ttyd "${ARGS[@]}" "${SHELL_ARGV[@]}"

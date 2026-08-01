@@ -2,25 +2,20 @@
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pre-generates fapolicyd trust databases to harden the system during the build/provisioning phase.
 # AI-related: mios-hardening, multi-user.target, usbguard.service, auditd.service, fapolicyd.service
-# 51-hardening.sh - enable hardening services (USBGuard, auditd).
-# Package installs moved to mios.toml [packages.security].
-# sysctl drop-in shipped via usr/lib/sysctl.d/99-mios-hardening.conf.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
-# USBGuard config is at /usr/lib/usbguard/usbguard-daemon.conf (managed via overlay).
 chmod 0600 /usr/lib/usbguard/usbguard-daemon.conf 2>/dev/null || true
 
 if command -v miosd >/dev/null 2>&1; then
     miosd harden
     mios_ok "hardening services enabled via miosd"
 else
-    # Enable hardening services using build-safe symlinks
     WANTS=/usr/lib/systemd/system/multi-user.target.wants
     install -d -m 0755 "${WANTS}"
 
-    mios_log "enable hardening services"
+    mios_log "Enable hardening services"
     for unit in \
         usbguard.service \
         auditd.service \
@@ -35,18 +30,14 @@ else
     done
 fi
 
-# Pre-generate fapolicyd trust database for bootc systems
-# fapolicyd config is at /usr/lib/fapolicyd/fapolicyd.conf (managed via overlay).
 if command -v fagenrules &>/dev/null; then
-    mios_log "pre-generate fapolicyd trust database"
-    # Ensure correct permissions for the fapolicyd directory
+    mios_log "Pre-generate fapolicyd trust database"
     chown -R fapolicyd:fapolicyd /etc/fapolicyd 2>/dev/null || true
     fagenrules --load 2>/dev/null || true
     fapolicyd-cli --update 2>/dev/null || true
 fi
 
 mios_ok "hardening services wired"
-# Materialize clevis LUKS config (AGY-110)
 mkdir -p /etc/mios
 /usr/libexec/mios/mios-clevis-luks-gen > /etc/mios/clevis-luks.env
 mios_ok "Materialized clevis-luks.env"

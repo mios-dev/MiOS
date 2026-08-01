@@ -66,17 +66,8 @@ def _ssot_val(env: str, section: str, key: str, default: str) -> str:
     return default
 
 
-# SSOT endpoints (env rendered from mios.toml); localhost fallbacks = the
-# vendor container publish ports.
 SEARXNG_PORT = _ssot_val("MIOS_PORT_SEARXNG", "ports", "searxng", "8899")
 SEARXNG_URL = os.environ.get("MIOS_SEARXNG_URL", f"http://localhost:{SEARXNG_PORT}").rstrip("/")
-# Query-EXPANSION model. Operator 2026-05-24 ("did NOT do multiple passes /
-# differing queries"): the old default (qwen3:0.6b-cpu on the retired micro lane)
-# was loaded NOWHERE -- cold -- so every expansion blew the 6 s budget and SILENTLY fell
-# back to a single query, killing the whole fan-out. Default instead to the
-# model the mios-daemon pins ALWAYS-WARM on the CPU lane (qwen3:1.7b @ :11435,
-# keep_alive=-1): expansion is then sub-second, never cold-fails, and is more
-# capable than the weak 0.6b. Override via MIOS_WEB_EXPAND_MODEL / _ENDPOINT.
 _EXPAND_PORT = _ssot_val("MIOS_PORT_LLM_LIGHT", "ports", "llm_light", "8450")
 _EXPAND_MODEL = os.environ.get(
     "MIOS_WEB_EXPAND_MODEL",
@@ -84,10 +75,8 @@ _EXPAND_MODEL = os.environ.get(
 _EXPAND_ENDPOINT = os.environ.get(
     "MIOS_WEB_EXPAND_ENDPOINT",
     os.environ.get("MIOS_DAEMON_ENDPOINT", f"http://localhost:{_EXPAND_PORT}/v1")).rstrip("/")
-# Native /api/chat lives at the base (strip a trailing /v1 like agent-pipe).
 _EXPAND_BASE = (_EXPAND_ENDPOINT[:-3].rstrip("/")
                 if _EXPAND_ENDPOINT.endswith("/v1") else _EXPAND_ENDPOINT)
-# Reciprocal Rank Fusion constant (the standard 60 from the RRF paper).
 _RRF_K = int(os.environ.get("MIOS_WEB_RRF_K", "60"))
 
 
@@ -139,9 +128,6 @@ def search(query: str, limit: int, timeout: float, category: str = "",
             "title": it.get("title", ""),
             "url": it.get("url", ""),
             "content": (it.get("content") or "")[:500],
-            # publishedDate passthrough (operator 2026-05-25): SearXNG NEWS
-            # engines set this on dated stories -- lets the caller PREFER real
-            # articles over bare homepages and cite recency. Empty on general web.
             "publishedDate": it.get("publishedDate") or "",
         }
         for it in (data.get("results") or [])
@@ -155,13 +141,6 @@ def search(query: str, limit: int, timeout: float, category: str = "",
             "answers": answers, "infoboxes": infoboxes}
 
 
-# Topical anchor: a multi-word but OFF-TOPIC invented sub-query ("what is 2026
-# minus 1978" from a flights ask) passes the degenerate word-count filter yet
-# fetches junk (age calculators), which RRF then surfaces. Require >=1 shared
-# CONTENT token with the ORIGINAL query. Structural -- a classic function-word +
-# generic-qualifier screen + trailing-s plural fold, NOT a topic deny-list. The
-# stopword list is SSOT-sourced (mios.toml [search].anchor_stopwords), not baked
-# in code. Pure numbers are excluded (a bare year is too weak an anchor).
 _ANCHOR_STOPWORDS = frozenset(_ssot_list(
     "MIOS_WEB_ANCHOR_STOPWORDS", "search", "anchor_stopwords", (
         "the", "a", "an", "of", "to", "from", "and", "or", "for", "in", "on",
@@ -175,13 +154,6 @@ _ANCHOR_STOPWORDS = frozenset(_ssot_list(
         "using", "best", "cheap", "cheapest",
     )))
 
-# Unicode-aware word tokenizer (replaces the Latin-only [A-Za-z][A-Za-z0-9]{2,},
-# which tokenized CJK/accented text to ZERO -> every non-Latin expansion was
-# dropped as "degenerate"/"off-anchor"). CJK/Kana/Hangul are written WITHOUT
-# spaces and are information-dense, so each ideograph is its own token (else a
-# whole spaceless sentence reads as ONE token and trips the word-count gates);
-# every other script keeps whole word-runs of unicode letters+digits (so "café",
-# "Zürich", "naïve" survive intact). `re.UNICODE` is implicit for str patterns.
 _CJK = r"぀-ヿ㄀-ㄯ㐀-䶿一-鿿豈-﫿가-힣"
 _WORD_RE = re.compile(rf"[{_CJK}]|[^\W_{_CJK}]+")
 
@@ -197,9 +169,6 @@ def _content_toks(text: str) -> set:
         t = t.lower()
         if t.isdigit():
             continue  # a bare number / year is too weak a content anchor
-        # ASCII noise floor: the old regex required >=3 chars, dropping tiny Latin
-        # fragments ("us"); keep that for ASCII but NEVER length-gate non-Latin
-        # (a single CJK char carries real meaning).
         if t.isascii() and len(t) < 3:
             continue
         if t in _ANCHOR_STOPWORDS:
@@ -219,14 +188,7 @@ def expand_queries(query: str, k: int, timeout: float,
     date-filters, so the bare-year anchor is dropped (it baited year-pages)."""
     if k <= 1:
         return [query]
-    # Date-aware (operator 2026-05-26 "use env detect for current values for all
-    # AI functions"): the live system year, so time-sensitive sub-queries anchor
-    # to NOW (2026 this year, 2027 next) instead of a stale year. Never hardcoded.
     _cur_year = time.localtime().tm_year
-    # Recency-aware year-anchor (operator 2026-06-12): when the CALLER already passes
-    # a time_range / news category, SearXNG date-filters server-side, so appending a
-    # bare year is redundant AND magnets "2026 - Wikipedia" year-overview pages. In
-    # that case steer the micro toward 'latest'/concrete-event terms instead.
     if (time_range or "").strip() or (category or "").strip():
         _time_clause = (
             "The search engine ALREADY filters by recency, so for time-sensitive "
@@ -252,10 +214,6 @@ def expand_queries(query: str, k: int, timeout: float,
         {"role": "user",
          "content": f"Make {k - 1} alternative search queries for: {query}"},
     ]
-    # llama.cpp OpenAI /v1 (MiOS is /v1-only): the expander posts the OpenAI
-    # /chat/completions shape + response_format json_object. qwen3 via llama.cpp
-    # /v1 strands the answer in <think> and returns EMPTY content -> 0 sub-queries
-    # (silent single-query fallback), so disable thinking to land the JSON in content.
     extra: list = []
     try:
         payload = {"model": _EXPAND_MODEL, "messages": _msgs, "stream": False,
@@ -275,49 +233,22 @@ def expand_queries(query: str, k: int, timeout: float,
         obj = json.loads(content)
         extra = [str(q).strip() for q in (obj.get("queries") or []) if str(q).strip()]
     except Exception as e:
-        # De-silenced (operator 2026-05-24: a SILENT cold-micro fallback to one
-        # query is exactly what hid the dead fan-out). Log to stderr so a broken
-        # expansion is visible in the journal; still fall back so search runs.
         print(f"mios-web-search: query expansion failed via {_EXPAND_MODEL} @ "
               f"{_EXPAND_BASE} ({type(e).__name__}: {e}); using single query",
               file=sys.stderr)
         extra = []
-    # Drop DEGENERATE expansions before they hit SearXNG: a bare single word or
-    # stopword fragment ("last" from "last minute", "set" from "set up", "best",
-    # "many") makes the metasearch return a DICTIONARY / unrelated page (Merriam-
-    # Webster, Last.fm, a card game) that then pollutes the RRF-fused results
-    # (operator 2026-05-26: "last"->dictionary, "set"->card game). Language-
-    # agnostic -- word-count + length only, NO keyword/topic list. The ORIGINAL
-    # query is ALWAYS kept (it is the caller's real, vetted facet); only the
-    # model-invented alternatives are screened. Tunable knobs.
     _min_words = int(os.environ.get("MIOS_WEB_EXPAND_MIN_WORDS", "2"))
     _min_chars = int(os.environ.get("MIOS_WEB_EXPAND_MIN_CHARS", "6"))
     _anchor = _content_toks(query)
-    # The ORIGINAL is normally the lead facet (the caller's vetted query). BUT a LONG,
-    # instruction-like query ("research and report on all of today's global trending")
-    # searched VERBATIM returns junk -- the word "research" matches the Research Wikipedia
-    # page (operator 2026-06-12) -- while the micro-LLM's reformulated facets are clean.
-    # So when the original is long (an instruction, not a search TERM) AND we got
-    # reformulations, lead with the reformulations instead of the raw instruction.
-    # Script-neutral word-count gate (unicode tokenizer, NO keyword/topic list);
-    # degrade-open (return below falls back to [query] if every reformulation gets
-    # screened out).
     _instruction_like = (len(_word_tokens(query))
                          > int(os.environ.get("MIOS_WEB_REFORMULATE_WORDS", "7")))
     out = [] if (_instruction_like and extra) else [query]
     for q in extra:
-        # Token count over unicode word-runs so HYPHENATED / underscored slugs
-        # ("cheapest-flights-toronto-to-tokyo" -> 5 tokens) count as multi-word
-        # and pass, a CJK phrase counts per-ideograph (not zero), while a bare
-        # "last" / "set" (1 token) is dropped.
         _ntok = len(_word_tokens(q))
         if _ntok < _min_words or len(q) < _min_chars:
             print(f"mios-web-search: dropped degenerate expansion {q!r} "
                   f"({_ntok} tok / {len(q)} chars)", file=sys.stderr)
             continue
-        # OFF-TOPIC drop: a multi-word invented sub-query that shares NO content
-        # token with the original has drifted (the "2026 minus 1978" case); skip
-        # it so the fan-out stays on-topic. Skipped when the anchor is too thin.
         if len(_anchor) >= 2 and not (_content_toks(q) & _anchor):
             print(f"mios-web-search: dropped off-anchor expansion {q!r}",
                   file=sys.stderr)
@@ -343,8 +274,6 @@ def multi_search(query: str, limit: int, k: int, timeout: float,
                 per.append(f.result())
             except Exception:
                 pass
-    # RRF: each result earns 1/(RRF_K + rank) per query list it appears in;
-    # appearing high across MULTIPLE phrasings wins. Dedupe by URL.
     fused: dict = {}
     answers: list = []
     infoboxes: list = []
@@ -420,9 +349,6 @@ def main() -> int:
                 "results": results,
             }
     except Exception as e:
-        # Offline / SearXNG down: be HONEST -- never fabricate. The caller
-        # surfaces this so the model says it couldn't reach the web instead
-        # of inventing an answer.
         out = {
             "success": False,
             "query": q,

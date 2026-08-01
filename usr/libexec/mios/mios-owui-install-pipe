@@ -2,63 +2,36 @@
 # AI-hint: Registers the MiOS Agent pipe and anti-meta filters into the Open WebUI database, ensuring the "MiOS AI" model is available in the UI dropdown and automatically configured for the agent's interaction logic.
 # AI-related: /usr/libexec/mios/mios-owui-install-pipe, /usr/share/mios/owui/pipes/mios_agent_pipe.py, /usr/share/mios/owui/pipes/mios_antimeta_filter.py, /usr/share/mios/mios.toml, /etc/mios/mios.toml, /usr/share/mios/owui/pipes/mios_swarm_council_filter.py, /usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py, /usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py, mios-owui-pipe-payload, mios-agent
 set -euo pipefail
-# /usr/libexec/mios/mios-owui-install-pipe
-#
-# Install the MiOS-Agent OWUI Pipe Function into the running OWUI.
-# Auto-generates an admin API key (stashed in webui.db's api_key
-# table) if none exists, then POSTs the pipe to the functions API.
-# Idempotent: re-running updates the function content if changed.
-#
-# Operator directive 2026-05-16: "OWUI's MiOS-Agent is the 'model'
-# that users speak to" / "OWUI should emit all global agents
-# printing/answers/etc". This script makes the vendored pipe at
-# /usr/share/mios/owui/pipes/mios_agent_pipe.py available in OWUIs
-# model dropdown without the operator having to paste it manually.
 
 set -eu
 
 PIPE_SRC=/usr/share/mios/owui/pipes/mios_agent_pipe.py
 PIPE_ID="mios_agent"
-# User-facing display name shown in OWUI's model dropdown + chat
-# header. Operator preference 2026-05-18: shorter, more consumer-
-# y ("MiOS AI" not "MiOS-Agent"). The PIPE_ID below stays
-# "mios_agent" for backwards compatibility (the id is the stable
-# row key in webui.db's function table; renaming it would orphan
-# existing chats that reference the old model id).
 PIPE_NAME="MiOS AI"
 FILTER_SRC=/usr/share/mios/owui/pipes/mios_antimeta_filter.py
 FILTER_ID="mios_antimeta"
 FILTER_NAME="MiOS Anti-Meta Filter"
-# Sidecar filter id, retained ONLY so the disable block below can
-# target the row in webui.db when a previous install enabled it.
-# agent-pipe is the canonical orchestrator now; it surfaces its own
-# SSE status events and the sidecar's hermes-tail polling + post-
-# call response-replacement was actively destructive on chat turns.
 SIDECAR_ID="mios_sidecar"
 OWUI_URL="${MIOS_OWUI_URL:-http://localhost:3030}"
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
 
-[ -f "$PIPE_SRC" ] || { echo "mios-owui-install-pipe: $PIPE_SRC missing" >&2; exit 2; }
-[ -f "$OWUI_DB" ] || { echo "mios-owui-install-pipe: $OWUI_DB missing" >&2; exit 3; }
+[ -f "$PIPE_SRC" ] || { echo "Mios-owui-install-pipe: $PIPE_SRC missing" >&2; exit 2; }
+[ -f "$OWUI_DB" ] || { echo "Mios-owui-install-pipe: $OWUI_DB missing" >&2; exit 3; }
 
-# ─── Find / generate an admin API key (MIOS_OWUI_TOKEN env wins -- e.g. a
-#     JWT from /auths/signin, used when OWUI's api-key auth is disabled) ──
 TOKEN="${MIOS_OWUI_TOKEN:-}"
 if [ -n "$TOKEN" ]; then
-    echo "[mios-owui-install-pipe] using MIOS_OWUI_TOKEN (JWT/override)"
+    echo "[mios-owui-install-pipe] using MIOS_OWUI_TOKEN"
 else
 TOKEN=$(python3 - "$OWUI_DB" <<'PYEOF'
 import sqlite3, sys, secrets, time
 path = sys.argv[1]
 c = sqlite3.connect(path)
 cur = c.cursor()
-# Find an admin user
 row = cur.execute("SELECT id FROM user WHERE role='admin' LIMIT 1").fetchone()
 if not row:
     print("", end="")
     sys.exit(0)
 user_id = row[0]
-# Check for existing API key
 existing = cur.execute(
     "SELECT key FROM api_key WHERE user_id=? ORDER BY created_at DESC LIMIT 1",
     (user_id,)
@@ -66,7 +39,6 @@ existing = cur.execute(
 if existing and existing[0]:
     print(existing[0], end="")
     sys.exit(0)
-# Generate new API key + insert (OWUI's format: sk-<32 hex chars>)
 new_key = "sk-" + secrets.token_hex(24)
 now_ms = int(time.time() * 1000)
 api_id = secrets.token_hex(16)
@@ -82,14 +54,13 @@ PYEOF
 fi
 
 if [ -z "$TOKEN" ]; then
-    echo "mios-owui-install-pipe: could not find or create admin API key" >&2
-    echo "  (does webui.db have an admin user?)" >&2
+    echo "Mios-owui-install-pipe: could not find or create admin API key" >&2
+    echo "" >&2
     exit 4
 fi
 
-echo "[mios-owui-install-pipe] using admin api_key: ${TOKEN:0:12}..."
+echo "[mios-owui-install-pipe] using admin api_key: ${TOKEN:0:12}"
 
-# ─── Build the pipe payload ───────────────────────────────────────────
 PAYLOAD=$(python3 - "$PIPE_ID" "$PIPE_NAME" "$PIPE_SRC" <<'PYEOF'
 import json, sys
 pid, pname, src = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -110,12 +81,6 @@ print(json.dumps({
 PYEOF
 )
 
-# ─── POST to OWUI's functions API ────────────────────────────────────
-# Send the payload via a TEMP FILE (-d @file), NOT an inline arg: the pipe
-# source is large enough to blow ARG_MAX as a curl command-line argument
-# ("curl: Argument list too long" -- operator-flagged 2026-05-21 after the
-# UserValves persona fields grew the pipe). printf is a shell builtin, so
-# writing the file does not hit the exec arg limit.
 PAYLOAD_FILE="$(mktemp /tmp/mios-owui-pipe-payload.XXXXXX.json)"
 printf '%s' "$PAYLOAD" > "$PAYLOAD_FILE"
 trap 'rm -f "$PAYLOAD_FILE"' EXIT
@@ -132,8 +97,7 @@ case "$RESP" in
         echo "[mios-owui-install-pipe] ✓ created pipe $PIPE_ID"
         ;;
     400|409)
-        # Already exists; try update
-        echo "[mios-owui-install-pipe] (exists; updating)"
+        echo "[mios-owui-install-pipe]"
         RESP2=$(curl -s -X POST "$OWUI_URL/api/v1/functions/id/$PIPE_ID/update" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
@@ -159,25 +123,14 @@ case "$RESP" in
 esac
 
 
-# ─── Bind a Model entry that uses the pipe ────────────────────────────
-# OWUI distinguishes "Functions" (which include Pipes) from "Models".
-# A Pipe registered in Functions is callable but doesn't auto-appear
-# as a chat model unless a Model entry binds to it via base_model_id.
-# This block creates that Model entry so "MiOS-Agent" shows up in the
-# chat dropdown + actually routes through our pipe.
 MODEL_ID="mios-agent"
 MODEL_NAME="MiOS AI"
 BASE_MODEL="mios_agent.mios-agent"  # <function_id>.<pipe_id> from pipes()
 
-# Materialise the SSOT-driven system prompt to a tempfile FIRST so both
-# the create-model payload + the post-install sqlite sync can read the
-# same bytes (no risk of the two python invocations rendering different
-# strings if the operator edits mios.toml between them).
 SYSTEM_PROMPT_FILE="$(mktemp -t mios-owui-sys-XXXXXX.md)"
 trap 'rm -f "$SYSTEM_PROMPT_FILE"' EXIT
 python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" "$SYSTEM_PROMPT_FILE" <<'PYEOF'
 import json, os, sys
-# Shared layered mios.toml resolver (vendor < host < user), path injected as argv[1].
 sys.path.insert(0, sys.argv[1])
 import mios_toml
 out_path = sys.argv[2]
@@ -210,8 +163,6 @@ import json, os, sys
 
 mid, mname, base, sys_prompt_file = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
-# SSOT: rendered upstream by the bash-level mktemp + python loader, so
-# both this payload + the post-install sqlite sync see the SAME bytes.
 try:
     with open(sys_prompt_file, "r", encoding="utf-8") as f:
         SYSTEM_PROMPT = f.read() or "You are MiOS AI."
@@ -225,59 +176,19 @@ print(json.dumps({
     "meta": {
         "profile_image_url": "/static/favicon.png",
         "description": "local-first Agent for MiOS systems",
-        # OWUI native tool features ENABLED BY DEFAULT on the USER-FACING
-        # pipe model (operator 2026-05-22: "OWUI tools can't be used if the
-        # actual OWUI tools aren't enabled by default"). Without these the
-        # web_search / code / image features sit behind a per-chat toggle,
-        # so the agent's tool_calls + the daemon-agent fan-out can't reach
-        # them. Mirrors mios-owui-apply-system-prompt's DEFAULT_FEATURE_IDS.
-        # web_search DISABLED 2026-05-24 (operator "disable OWUI web search for
-        # mios-agent"): OWUI's BUILT-IN web search auto-fired every message and
-        # injected its OWN, often EMPTY-content sources that COMPETED WITH and
-        # POLLUTED the MiOS pipeline's own web-research loop (search -> extract ->
-        # crawl, fed to every agent). The PIPELINE owns web research now; OWUI
-        # must not run a second, worse one. Capability off + not in the auto-fire
-        # set. (Re-enable by setting web_search True + adding it back below.)
         "capabilities": {
             "vision": True, "citations": True, "file_upload": True,
             "web_search": False, "image_generation": True,
             "code_interpreter": True,
         },
-        # defaultFeatureIds: native OWUI feature toggles ON by default in a fresh
-        # chat. EMPTY now -- web_search was the only one and is disabled (above);
-        # image_generation + code_interpreter were dropped 2026-05-22 after they
-        # auto-fired destructively (code_interpreter ran os.listdir('/mnt/uploads')
-        # on an anime-schedule query; image_generation errored on a greeting).
         "defaultFeatureIds": [],
-        # Native tool surface -- the model SEES these in its tool_calls list.
-        # Operator 2026-05-22: ALL registered tools active by default (the
-        # force-sync block below is authoritative and re-derives this from the
-        # `tool` table dynamically, so this literal is just the fresh-install
-        # seed). Each entry must match a tool row id in OWUI's `tool` table.
         "toolIds": ["mios_verbs", "openui", "sub_agent"],
-        # NO hardcoded suggestion_prompts: mios-daemon.suggestions_loop
-        # populates the blank-chat panel dynamically every 20 min from
-        # recent state + chat language (operator directive 2026-05-17:
-        # "no hardcoded answers or anything hardcoded for english").
     },
     "params": {
-        # The system prompt OWUI prepends to every chat. Edit in
-        # the OWUI admin UI (Settings -> Models -> MiOS-Agent) or
-        # re-run this installer.
         "system": SYSTEM_PROMPT,
-        # Sampling defaults tuned for the refine -> hermes -> polish
-        # chain. Low temperature: agent should be predictable about
-        # which canonical verb to call, not "creative". top_p left
-        # at OWUI default. Hermes internally overrides these on its
-        # delegate spawns -- this is just the outer chat-completion
-        # default.
         "temperature": 0.2,
         "top_p": 0.9,
-        # Stop tokens: hermes occasionally emits these as text inside
-        # delegate-spawn tool args; cut them so they don't leak into
-        # the polished answer.
         "stop": ["<|im_end|>", "<|endoftext|>"],
-        # OWUI streams tokens incrementally; no need to override.
     },
     "is_active": True,
 }))
@@ -297,10 +208,7 @@ case "$RESP3" in
         echo "[mios-owui-install-pipe] ✓ created Model entry $MODEL_ID"
         ;;
     400|401|409)
-        # OWUI returns 401 (not 409) for "model id already registered"
-        # -- detail body "Uh-oh! This model id is already registered."
-        # Treat all three as "exists -- need to update".
-        echo "[mios-owui-install-pipe] (Model exists; updating)"
+        echo "[mios-owui-install-pipe]"
         RESP4=$(curl -s -X POST "$OWUI_URL/api/v1/models/model/update?id=$MODEL_ID" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
@@ -319,11 +227,6 @@ case "$RESP3" in
         ;;
 esac
 
-# ─── Register the anti-meta Filter Function (post-hoc scrubber) ───────
-# Operator directive 2026-05-16: research-driven approach -- replace
-# rigid "DO NOT say X" SOUL.md text-blocks with an OWUI Filter that
-# strips meta-speak from the stream. The filter reads the same shared
-# refusal-patterns.txt the nudger + prefilter use; one source of truth.
 if [ -f "$FILTER_SRC" ]; then
     FILTER_PAYLOAD=$(python3 - "$FILTER_ID" "$FILTER_NAME" "$FILTER_SRC" <<'PYEOF'
 import json, sys
@@ -367,11 +270,6 @@ PYEOF
 fi
 
 
-# ─── Register the SWARM toggle Filters (operator 2026-05-22 "AI SWARM") ──
-# Three chat-bar toggle-filters (toggle=True chips): Council / Delegate /
-# Force-tool. Each inlet injects body.mios_flags.<flag>, which the MiOS
-# Agent Pipe (:8640) reads per-request to force the swarm behaviour. Same
-# create-or-update-on-409 pattern + admin TOKEN as the anti-meta filter.
 for _spec in \
     "mios_swarm_council|MiOS Swarm · Council|/usr/share/mios/owui/pipes/mios_swarm_council_filter.py|Force the full multi-agent swarm (every agent, concurrent) this chat." \
     "mios_swarm_delegate|MiOS Swarm · Delegate|/usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py|Force per-agent swarm decomposition (different sub-tasks to different agents)." \
@@ -410,10 +308,6 @@ PYEOF
     esac
 done
 
-# OWUI's functions/create API ignores is_active / is_global in the payload --
-# new functions always land inactive. Force-enable + globalize the swarm
-# toggle-filters in webui.db so they render as chat-bar toggles. toggle=True
-# in each filter keeps them defaulting OFF, so global is safe (no auto-fire).
 if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" <<'PYEOF'
 import sqlite3, sys
@@ -429,20 +323,6 @@ PYEOF
 fi
 
 
-# ─── MiOS Agents Sidecar Filter -- RETIRED ────────────────────────
-# agent-pipe is the canonical orchestrator now and emits its own
-# SSE status events (📡 prompt / 🧭 route / 📋 plan / 💬 chat / ...).
-# The sidecar tailed /var/lib/mios/hermes-tail/latest.json and would
-# surface stale Hermes events as if current on every chat -- and its
-# post-call response sometimes REPLACED the legitimate polished
-# reply ("launch steam" succeeded internally but the operator saw
-# "I cannot launch Steam" because the sidecar's post-emit overwrote
-# the agent-pipe reply). Forcing it disabled here is the safety net;
-# the install path no longer creates+enables it.
-#
-# A previous run may have installed + enabled the sidecar; force-
-# disable both flags in webui.db so a re-run leaves the row in the
-# correct disabled state.
 if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" "$SIDECAR_ID" <<'PYEOF'
 import sqlite3, sys
@@ -459,14 +339,6 @@ c.close()
 PYEOF
 fi
 
-# ─── Rename any stale duplicate model rows ──────────────────────
-# OWUI's pipe-function registration creates an auto-managed model
-# row under `<function_id>.<model_id>` (e.g. mios_agent.mios-agent)
-# alongside our explicit `mios-agent` model row. Both surface in
-# the model dropdown. When we rename one (PIPE_NAME / MODEL_NAME
-# above), we must rename the auto-managed twin OR the operator
-# sees both "MiOS-Agent" (old auto-row) AND "MiOS AI" (new
-# explicit row) in the dropdown.
 if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" "$MODEL_NAME" "$MODEL_ID" "$PIPE_ID" "$SYSTEM_PROMPT_FILE" <<'PYEOF'
 import json, sqlite3, sys
@@ -487,39 +359,13 @@ c.commit()
 print(f"[mios-owui-install-pipe] aligned {n} model row(s) "
       f"name -> {target_name!r}")
 
-# Force-sync params.system on BOTH the explicit + twin model rows.
-# OWUI auto-creates the twin row on first pipe registration with no
-# params.system, then never refreshes it -- result was the OLD
-# baked-in English prompt persisting on the twin even after the
-# SSOT prompt in mios.toml was updated. Operator-flagged
-# 2026-05-19.
 if sys_prompt:
     synced = 0
-    # OWUI native tool features the USER-FACING model must have ON by
-    # default (operator 2026-05-22: "OWUI tools can't be used if they
-    # aren't enabled by default"). OWUI never refreshes meta after first
-    # create, so force-sync capabilities + defaultFeatureIds + toolIds onto
-    # BOTH rows here (mirrors the create payload + apply-system-prompt).
     want_caps = {
         "vision": True, "citations": True, "file_upload": True,
         "web_search": False, "image_generation": True, "code_interpreter": True,
     }
-    # web_search DISABLED 2026-05-24 (operator "disable OWUI web search for
-    # mios-agent"): OWUI's built-in web search competed with + polluted the MiOS
-    # pipeline web-research (empty-content sources). The PIPELINE owns web
-    # research; OWUI must not run its own. Auto-fire set is EMPTY now
-    # (image_generation + code_interpreter were already pulled 2026-05-22 after
-    # auto-firing destructively on non-matching queries).
     want_features = []
-    # ALL registered tools active by default (operator 2026-05-22, reversing
-    # the earlier MiOS-authored-only restriction). The third-party tools
-    # (openui by thesysdev/vishxrad, sub_agent by skyzi000) are re-attached.
-    # HISTORY the operator accepted: openui once FABRICATED a fake "interactive
-    # OpenUI visualization" on a "send to Discord" turn (claimed success while
-    # nothing happened). If that recurs, narrow this query back to MiOS-authored
-    # tools. Query stays dynamic: every row in the `tool` table auto-attaches,
-    # so a newly-installed tool needs no code edit here. Empty result (tools
-    # not yet installed at firstboot ordering) -> rows keep existing toolIds.
     want_tools = [r[0] for r in c.execute("SELECT id FROM tool").fetchall()]
     for row_id in (model_id, twin_id):
         cur = c.execute(
@@ -543,9 +389,6 @@ if sys_prompt:
         caps.update(want_caps)
         m["capabilities"] = caps
         m["defaultFeatureIds"] = want_features
-        # AUTHORITATIVE set (not a merge): replace toolIds with the full
-        # `tool`-table set computed above, so the live rows always converge on
-        # exactly the installed tools (no drift from manual UI edits).
         m.pop("tool_ids", None)
         m["toolIds"] = list(dict.fromkeys(want_tools))
         c.execute("UPDATE model SET params = ?, meta = ? WHERE id = ?",
@@ -558,13 +401,6 @@ c.close()
 PYEOF
 fi
 
-# ─── Force WEBUI_NAME into config.data.webui.name ────────────────
-# OWUI seeds the browser-tab title + top-left banner from
-# WEBUI_NAME env at first boot, but persists it into
-# config.data.webui.name where it then OVERRIDES the env on
-# subsequent boots. If the operator-visible banner still shows
-# the old name despite the Quadlet update, this is the DB row
-# we need to force.
 if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" "$MODEL_NAME" <<'PYEOF'
 import json, sqlite3, sys
@@ -587,8 +423,6 @@ webui = d.get("webui") or {}
 if not isinstance(webui, dict):
     webui = {}
 changed = False
-# OWUI stores the banner / browser-title under different keys
-# depending on version; set all three so the right one lands.
 for cfg, key in ((ui, "name"), (webui, "name"), (d, "name")):
     if cfg.get(key) != target_name:
         cfg[key] = target_name
@@ -608,12 +442,6 @@ c.close()
 PYEOF
 fi
 
-# ─── Memory feature ON by default for every user ─────────────────
-# OWUI's memory feature is per-user via settings.ui.memory = true.
-# Operator confirmed they want it ON by default for the MiOS-Agent
-# experience (without it, the agent forgets context between turns
-# at the OWUI layer). Walk every user row, ensure memory: true.
-# Idempotent: already-true users are left alone.
 if [ -f "$OWUI_DB" ]; then
     python3 - "$OWUI_DB" <<'PYEOF'
 import json, sqlite3, sys

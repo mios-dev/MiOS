@@ -3,35 +3,12 @@
 # AI-hint: Configures the `prepare-root.conf` file by reading the `[security].composefs_mode` setting from `mios.toml` to enable/disable fs-verity or standard composefs for the root filesystem.
 # AI-related: systemd-remount-fs.service
 # AI-functions: _read_mios_scalar
-# 77-composefs-verity.sh -- render /usr/lib/ostree/prepare-root.conf based
-# on the operator-tunable [security].composefs_mode knob in mios.toml.
-#
-# SSOT: usr/share/mios/mios.toml [security].composefs_mode
-#       (resolved through the documented overlay chain by lib/packages.sh
-#        + this script's local _read_mios_scalar awk helper).
-#
-# Modes:
-#   verity  -- composefs in fs-verity mode (tamper-evident root). Default.
-#              Requires ext4 or btrfs. Also masks systemd-remount-fs.service
-#              (known-broken on Fedora 42+ with composefs) when
-#              [security].mask_systemd_remount_fs = true.
-#   yes     -- composefs enabled without verity. Works on XFS too.
-#   off     -- skip prepare-root.conf rewrite entirely; honor base image.
-#
-# See usr/share/mios/mios.toml [security] prose for the full rationale.
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/lib/common.sh"
-# shellcheck source=lib/packages.sh
-# Pulled in for _resolve_mios_toml; the same TOML overlay chain that
-# packages.sh uses is what we want for [security] too.
 source "${SCRIPT_DIR}/lib/packages.sh"
 
-# _read_mios_scalar <table> <key> -- read a top-level scalar from the
-# [<table>] block of the resolved mios.toml. Strips quotes and inline
-# comments. Returns empty string when the key is absent.
 _read_mios_scalar() {
     local table="$1" key="$2" toml_path
     toml_path="$(_resolve_mios_toml 2>/dev/null || true)"
@@ -80,21 +57,15 @@ fi
 conf="${COMPOSEFS_CONF:-/usr/lib/ostree/prepare-root.conf}"
 if [[ -f "$conf" ]]; then
     if [[ ! -f "${conf}.orig" ]]; then
-        mios_log "backing up existing $conf -> ${conf}.orig"
+        mios_log "Backing up existing $conf -> ${conf}.orig"
         cp -a "$conf" "${conf}.orig"
     fi
 fi
 
-# Render the table according to the requested mode. The [root] / [etc]
-# transient = false stanzas are independent of verity vs yes -- they
-# enforce immutable / non-tmpfs root and /etc on every composefs path.
-mios_log "writing $conf with composefs mode=${MODE}"
+mios_log "Writing $conf with composefs mode=${MODE}"
 case "$MODE" in
     verity)
         cat > "$conf" <<'EOF'
-# 'MiOS': composefs in verity mode. Tamper-evident root.
-# Target filesystems must support fsverity (ext4, btrfs). XFS is NOT supported.
-# SSOT: mios.toml [security].composefs_mode = "verity".
 [composefs]
 enabled = verity
 
@@ -107,10 +78,6 @@ EOF
         ;;
     yes)
         cat > "$conf" <<'EOF'
-# 'MiOS': composefs enabled (no verity). Read-only /usr without the
-# fs-verity cryptographic chain -- works on every composefs-capable
-# filesystem (ext4, btrfs, XFS). Default upstream FCOS / bootc posture.
-# SSOT: mios.toml [security].composefs_mode = "yes".
 [composefs]
 enabled = yes
 
@@ -123,11 +90,8 @@ EOF
         ;;
 esac
 
-# systemd-remount-fs masking: only relevant in verity mode (where the
-# composefs/remount-fs interop bug surfaces). The "yes" path uses the
-# upstream-default mount sequence and does not need the mask.
 if [[ "$MODE" == "verity" && "$MASK_REMOUNT" =~ ^(true|TRUE|1|yes|YES)$ ]]; then
-    mios_log "masking systemd-remount-fs.service (composefs/remount interop bug)"
+    mios_log "Masking systemd-remount-fs.service"
     install -d -m 0755 /etc/systemd/system
     ln -sf /dev/null /etc/systemd/system/systemd-remount-fs.service
 fi

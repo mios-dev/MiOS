@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: mios-vfio-check -- read-only VFIO state report. Shows IOMMU support,
 # AI-related: mios-vfio-check, mios-vfio-toggle
-# mios-vfio-check -- read-only VFIO state report. Shows IOMMU support,
-# loaded modules, currently-bound devices, and configured passthrough
-# IDs from /etc/modprobe.d/vfio.conf.
-#
-#   mios-vfio-check                 full report
-#   mios-vfio-check --short         one-line yes/no summary
 set -euo pipefail
 
 short=0
@@ -45,9 +39,9 @@ fi
 
 echo "==> IOMMU"
 if (( iommu_ok )); then
-    echo "    enabled ($(ls /sys/kernel/iommu_groups | wc -l) groups)"
+    echo "    enabled groups)"
 else
-    echo "    NOT enabled -- check kargs (intel_iommu=on or amd_iommu=on) + BIOS VT-d/SVM"
+    echo "    NOT enabled"
 fi
 
 echo
@@ -59,9 +53,9 @@ else
 fi
 
 echo
-echo "==> Configured passthrough IDs ($vfio_conf)"
+echo "==> Configured passthrough IDs"
 if [[ -z "$configured_ids" ]]; then
-    echo "    (none -- run 'mios-vfio-toggle' to configure)"
+    echo ""
 else
     for id in $configured_ids; do
         echo "    $id"
@@ -71,7 +65,7 @@ fi
 echo
 echo "==> Currently bound to vfio-pci"
 if [[ -z "$bound_devices" ]]; then
-    echo "    (none)"
+    echo ""
 else
     while read -r bdf; do
         [[ -z "$bdf" ]] && continue

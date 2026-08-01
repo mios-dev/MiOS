@@ -35,13 +35,9 @@ USAGE
     mios-docgen help
 
 EXAMPLES
-    # markdown report -> Word
     mios-docgen build /tmp/q3.docx --from markdown --content-file /tmp/q3.md
-    # markdown bullets -> PowerPoint deck (--- splits slides)
     mios-docgen build /tmp/deck.pptx --from markdown --stdin < deck.md
-    # CSV -> Excel workbook
     mios-docgen build /tmp/sales.xlsx --from csv --content-file /tmp/sales.csv
-    # existing .docx -> PDF (LibreOffice headless)
     mios-docgen convert /tmp/q3.docx /tmp/q3.pdf
 
 CONFIG (layered mios.toml [computer_use], or MIOS_DOCGEN_* env):
@@ -70,9 +66,6 @@ import mios_toml  # noqa: E402  -- the ONE shared layered-mios.toml resolver
 
 PROG = "mios-docgen"
 
-# Format -> canonical file extension. Drives both routing and output naming.
-# Pandoc owns the markup side; LibreOffice owns the office-binary side; the two
-# overlap on docx/pptx/html (Pandoc preferred there for fidelity from markdown).
 _EXT_FMT = {
     ".md": "markdown", ".markdown": "markdown", ".txt": "plain",
     ".docx": "docx", ".odt": "odt", ".rtf": "rtf",
@@ -80,11 +73,8 @@ _EXT_FMT = {
     ".xlsx": "xlsx", ".ods": "ods", ".csv": "csv",
     ".pdf": "pdf", ".html": "html", ".htm": "html",
 }
-# Formats Pandoc can WRITE from markdown/markup source.
 _PANDOC_TARGETS = {"docx", "pptx", "html", "pdf", "markdown", "plain", "odt", "rtf"}
-# Office-binary formats LibreOffice converts losslessly (its native domain).
 _SOFFICE_TARGETS = {"docx", "pptx", "xlsx", "odt", "odp", "ods", "pdf", "html", "rtf", "csv"}
-# soffice --convert-to filter hints for ambiguous targets (e.g. csv->xlsx).
 _SOFFICE_FILTER = {
     "xlsx": "xlsx:Calc MS Excel 2007 XML",
     "ods": "ods:calc8",
@@ -96,7 +86,6 @@ _SOFFICE_FILTER = {
 }
 
 
-# -- config ------------------------------------------------------------------
 def _toml_layered() -> dict:
     """Deep-merge mios.toml across vendor < /etc < ~/.config (higher wins), plus
     an optional MIOS_TOML override as the top layer -- via the shared resolver."""
@@ -137,7 +126,6 @@ def _enabled() -> bool:
     return _as_bool(_cfg("enable", False))
 
 
-# -- emit --------------------------------------------------------------------
 def _ok(**fields) -> int:
     print(json.dumps({"ok": True, "prog": PROG, **fields}))
     return 0
@@ -155,7 +143,6 @@ def _disabled() -> int:
                 "(set [computer_use].docgen_enable = true or MIOS_DOCGEN_ENABLE=1)")
 
 
-# -- format resolution -------------------------------------------------------
 def _fmt_of(path: str) -> str:
     return _EXT_FMT.get(Path(path).suffix.lower(), "")
 
@@ -171,13 +158,11 @@ def _run(cmd: list[str], timeout: int) -> tuple[int, str, str]:
 
 
 def _which(binary: str) -> str | None:
-    # Accept an absolute path OR a PATH-resolvable name.
     if os.path.sep in binary:
         return binary if os.path.isfile(binary) and os.access(binary, os.X_OK) else None
     return shutil.which(binary)
 
 
-# -- LibreOffice headless conversion -----------------------------------------
 def _soffice_convert(src: Path, out: Path, target: str, timeout: int) -> tuple[bool, str]:
     """soffice --headless --convert-to <filter> --outdir <dir> <src>.
 
@@ -209,7 +194,6 @@ def _soffice_convert(src: Path, out: Path, target: str, timeout: int) -> tuple[b
         return True, ""
 
 
-# -- Pandoc conversion / authoring -------------------------------------------
 def _pandoc_run(args: list[str], timeout: int) -> tuple[bool, str]:
     pandoc = _which(str(_cfg("pandoc", "pandoc")))
     if not pandoc:
@@ -231,19 +215,16 @@ def _pandoc_convert(src: Path, out: Path, src_fmt: str, target: str, timeout: in
         if engine:
             args += ["--pdf-engine", engine]
         else:
-            # No LaTeX/pdf engine -> route PDF through LibreOffice instead.
             return False, "no pandoc --pdf-engine configured (route via soffice)"
     if target == "pptx":
         args += ["-t", "pptx"]
     return _pandoc_run(args, timeout)
 
 
-# -- CSV -> XLSX (no pandoc path; LibreOffice native) ------------------------
 def _csv_to_xlsx(src: Path, out: Path, timeout: int) -> tuple[bool, str]:
     return _soffice_convert(src, out, "xlsx", timeout)
 
 
-# -- subcommands -------------------------------------------------------------
 def cmd_convert(in_path: str, out_path: str, to: str) -> int:
     if not _enabled():
         return _disabled()
@@ -261,8 +242,6 @@ def cmd_convert(in_path: str, out_path: str, to: str) -> int:
     src_fmt = _fmt_of(in_path)
     out = Path(out_path)
 
-    # Routing: CSV->xlsx and any office-binary source -> LibreOffice; markup
-    # source (md/txt/html) -> Pandoc; PDF from markup falls back to LibreOffice.
     if src_fmt == "csv" and target in ("xlsx", "ods"):
         ok, err = _csv_to_xlsx(src, out, timeout) if target == "xlsx" \
             else _soffice_convert(src, out, target, timeout)
@@ -288,11 +267,6 @@ def cmd_build(out_path: str, from_fmt: str, content_file: str, use_stdin: bool,
     timeout = _as_int(_cfg("timeout_s", 120), 120)
     max_bytes = _as_int(_cfg("max_bytes", 20_000_000), 20_000_000)
 
-    # Source content: inline --content TEXT (the agent-pipe VERB path -- agents
-    # pass text, and the launcher broker runs `bash -lc` with stdin CLOSED so a
-    # verb can't pipe; the dispatch shlex-quotes the arg so typical doc text is
-    # safe on argv), a --content-file PATH, or --stdin (the OWUI tool streams
-    # text here). Unifies the two docgen_build surfaces on TEXT semantics.
     if content_text is not None:
         content = content_text
     elif content_file:
@@ -314,7 +288,6 @@ def cmd_build(out_path: str, from_fmt: str, content_file: str, use_stdin: bool,
         return _err(f"cannot determine output format from {out_path!r}")
     src_fmt = (from_fmt or "markdown").strip().lower()
 
-    # Write the authored content to a temp source file, then convert.
     suffix = ".csv" if src_fmt == "csv" else (".html" if src_fmt == "html" else ".md")
     with tempfile.NamedTemporaryFile("w", suffix=suffix, delete=False,
                                      encoding="utf-8") as tf:
@@ -357,7 +330,6 @@ def cmd_formats() -> int:
     )
 
 
-# -- main --------------------------------------------------------------------
 def main() -> int:
     ap = argparse.ArgumentParser(prog=PROG, add_help=False,
                                  description="FOSS offline document generation (Pandoc + LibreOffice)")
@@ -378,7 +350,6 @@ def main() -> int:
     sub.add_parser("formats", add_help=False)
     sub.add_parser("help", add_help=False)
 
-    # Manual parse so an unknown/no subcommand prints help (exit 0).
     ns, _extra = ap.parse_known_args()
     if ns.cmd in (None, "help"):
         print(__doc__)

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ]; then
-    echo "usage: mios-app-default <type> <app_name>" >&2
+    echo "Usage: mios-app-default <type> <app_name>" >&2
     exit 64
 fi
 
@@ -24,7 +24,6 @@ if not os.path.exists(etc_path):
 with open(etc_path, "r", encoding="utf-8") as f:
     content = f.read()
 
-# Very basic TOML array-of-tables injection
 block = f"""
 [[desktop.app_types]]
 type = "{target_type}"
@@ -32,7 +31,6 @@ linux_default = "{new_app}"
 windows_default = "{new_app}"
 """
 
-# Append to file
 with open(etc_path, "a", encoding="utf-8") as f:
     f.write("\n" + block + "\n")
 

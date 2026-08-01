@@ -2,71 +2,12 @@
 # AI-hint: A robust wrapper for flatpak run that restores missing WSLg, Wayland, X11, and PulseAudio environment variables (DISPLAY, WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS) lost during shell transitions like su, sudo, or nsenter; the launch is always DETACHED so its "dispatched" line is NOT a success confirmation -- the caller (mios-gui) does the authoritative new-window poll.
 # AI-related: /usr/libexec/mios/flatpak-launch, /usr/libexec/mios/mios-autocenter, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-as-operator, /usr/libexec/mios/mios-wsl-flatpak-heal, /etc/mios/flatpak-flags/, /usr/share/mios/flatpak-flags/, /etc/mios/wsl-distro, mios-autocenter
 # AI-functions: _mios_fire_autocenter, _q
-# /usr/libexec/mios/flatpak-launch <flatpak-app-id> [args...]
-#
-# Robust GUI flatpak launcher. Re-derives the WSLg / Wayland / X11 / PulseAudio
-# / D-Bus environment whenever the calling shell stripped it (su -, nsenter -m,
-# sudo without -E, systemd-run, cron), then exec's `flatpak run --system <id>`.
-#
-# WHY THIS EXISTS
-# ───────────────
-# The per-app shims under /usr/local/bin/ (nautilus, epiphany, ptyxis, codium,
-# gnome-software, flatseal) get launched from every imaginable context. Login
-# shells under WSL get DISPLAY/WAYLAND_DISPLAY via /etc/profile.d/mios-wslg.sh,
-# but the moment the operator goes through `su - mios`, `sudo nsenter -m -p`,
-# `sudo -i`, or any systemd unit, those vars vanish and the flatpak fails with
-# one of:
-#
-#     Cannot autolaunch D-Bus without X11 $DISPLAY
-#     Gtk-WARNING **: cannot open display:
-#     ** WARNING **: Failed to create XdpPortal instance:
-#         Cannot autolaunch D-Bus without X11 $DISPLAY
-#
-# The /etc/profile.d/mios-wslg.sh helper would fix all of those, but only
-# login shells source profile.d/. Flatpak shims invoked from a non-login
-# shell (e.g. `bash -c 'nautilus'` from a script, or interactive bash from
-# `su -l mios` whose PAM stack didn't run because we entered via nsenter)
-# bypass it entirely.
-#
-# This script is the inner-shell complement: it runs every time a GUI
-# flatpak is launched, and only sets variables that are unset, so it never
-# overrides a working bare-metal GNOME or Wayland session that already
-# arranged its own environment.
-#
-# DESIGN
-# ──────
-# 1. WSL detection via /proc/version (namespace-stable; survives nsenter -m
-#    because /proc is bind-mounted into every namespace).
-# 2. XDG_RUNTIME_DIR: prefer /run/user/$UID (real tmpfs that supports the
-#    sticky-bit chmods rootless podman performs); fall back to WSLg's 9p
-#    runtime-dir when the per-uid tmpfs is absent.
-# 3. DISPLAY / WAYLAND_DISPLAY: WSLg defaults (:0 / wayland-0).
-# 4. PULSE_SERVER: prefer $XDG_RUNTIME_DIR/pulse/native, fall back to
-#    /mnt/wslg/PulseServer.
-# 5. DBUS_SESSION_BUS_ADDRESS: derived from $XDG_RUNTIME_DIR/bus when the
-#    user@$UID.service socket is up. This is the single var that breaks
-#    epiphany the loudest -- "Cannot autolaunch D-Bus without X11 $DISPLAY"
-#    is libportal's complaint when DBUS_SESSION_BUS_ADDRESS is empty AND
-#    DISPLAY is empty (it tries X11 cookie autolaunch as last resort).
-#
-# Inert on bare-metal Linux desktops (where the session manager already
-# set everything) and on macOS hosts running MiOS in a VM (no /proc/version
-# Microsoft signal, no /mnt/wslg). On those substrates the exec falls
-# straight through to `flatpak run` with the caller's environment intact.
 
 set -eu
 
 APP_ID="${1:?usage: flatpak-launch <flatpak-app-id> [args...]}"
 shift || true
 
-# ─── Auto-center on launch (operator: "all apps launch CENTERED ALWAYS!") ──
-# WSLg/flatpak windows ignore Win32 launch placement, so we center them
-# post-hoc via the Windows OS-control executor: snapshot the visible-window
-# hwnds NOW (before the launch fires), then hand that set to mios-autocenter
-# which polls for the NEW window and centers it by hwnd. Centering by hwnd
-# (not title) works for apps whose title omits the app-id (Nautilus="Files",
-# Epiphany="GNOME Web", ...). No-op when no executor endpoint is configured
-# (bare-metal Linux desktop -- the WM/compositor handles placement there).
 _mios_fire_autocenter() {
     [ -x /usr/libexec/mios/mios-autocenter ] || return 0
     command -v curl    >/dev/null 2>&1 || return 0
@@ -91,46 +32,8 @@ print(",".join(str(w.get("hwnd")) for w in d.get("windows", [])))' 2>/dev/null)"
     setsid /usr/libexec/mios/mios-autocenter "$_ace" "$_before" >/dev/null 2>&1 &
 }
 
-# Step 0 ── Service-user re-exec (operator-confirmed regression 2026-05-15:
-# "launching epiphany from Hermes CLI WORKS, just not from Open WebUI").
-#
-# Hermes-Agent's gateway service runs as `mios-hermes` (uid 820). When OWUI
-# asks the agent to launch a GUI flatpak, the agent's `terminal` tool forks
-# under that service user. mios-hermes is deliberately locked down:
-#
-#   * HOME=/var/empty (root-owned, NOT writable -- flatpak needs a real
-#     home to write app state under ~/.var/app/<id>/, and dies with a
-#     bare "error: Permission denied" without it)
-#   * no `user@820.service` socket -> no DBUS_SESSION_BUS_ADDRESS -> the
-#     entire portal stack (Open File, Notifications, Secrets) refuses to
-#     start, GTK then aborts the window
-#   * no XDG seat / login session -> can't acquire the screen
-#
-# The Hermes CLI works fine because the operator runs `hermes` from their
-# own login shell as the `mios` user (uid 992) -- their session has DISPLAY,
-# WAYLAND_DISPLAY, DBUS_SESSION_BUS_ADDRESS, a real HOME, all already set.
-#
-# Fix: when this script is invoked as a service user (uid < 1000 OR HOME
-# unwritable), re-exec via `sudo` to the operator. The mios-hermes sudoers
-# grant (/etc/sudoers.d/10-mios-hermes -> NOPASSWD: ALL) lets this happen
-# without prompting; the operator's session has all the GUI plumbing the
-# flatpak needs. _MIOS_FLATPAK_REEXEC=1 guards against an infinite loop if
-# the sudo escalation ever lands back in a service user (it shouldn't, but
-# belt and suspenders).
 _FL_REEXEC="${_MIOS_FLATPAK_REEXEC:-0}"
 
-# Resolve the operator UID from mios.toml [identity].username.
-# Used to decide whether to re-exec through the operator-side
-# launcher path. If we're ALREADY the operator (or any uid >= 1000),
-# no re-exec is needed -- the calling shell already has the right
-# WSLg env and can launch flatpak directly.
-#
-# Bug fix 2026-05-15: previous test was `id -u < 1000` which mis-
-# triggered for the operator (uid 992 on MiOS-DEV; in the system-
-# user range despite being a real interactive user). Operator
-# typed `nautilus` in their own terminal and got "[mios-as-operator]
-# broker rejected: -- falling back to wsl.exe path" because the
-# launch chain ran the re-exec path it shouldn't have entered.
 _op_user=""
 if [ -r /usr/share/mios/mios.toml ]; then
     _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
@@ -139,8 +42,6 @@ fi
 _op_uid="$(id -u "$_op_user" 2>/dev/null || echo 1000)"
 _my_uid="$(id -u)"
 
-# Need re-exec ONLY if we're a system service user (NOT the operator,
-# AND uid < operator's uid -- catches mios-hermes 820 + similar).
 _NEED_REEXEC=0
 if [ "$_FL_REEXEC" != "1" ] \
    && [ "$_my_uid" != "$_op_uid" ] \
@@ -148,20 +49,6 @@ if [ "$_FL_REEXEC" != "1" ] \
     _NEED_REEXEC=1
 fi
 
-# WSLg path: when on WSL2 + service user, prefer mios-as-operator
-# (which prefers the broker socket → falls back to wsl.exe --user).
-#
-# CRITICAL (operator 2026-05-29 OS-control train: gedit window OPENED but
-# launch_app "timed out after 45s, exit -1"): a GUI flatpak is LONG-RUNNING
-# (the operator keeps the window open for minutes). The old `exec mios-as-
-# operator flatpak run ...` ran the app in the FOREGROUND, so this call
-# BLOCKED until the app exited -- which means the agent-pipe broker that
-# dispatched `mios-launch <app>` sat blocked until its 45s capture timeout
-# fired and returned exit -1, marking a SUCCESSFUL launch as failed. The
-# detached systemd-run path below carries the same "do NOT --wait" lesson.
-# So DETACH here too: fire the launch in the background (setsid, own session)
-# so flatpak-launch returns ~instantly; the agent-pipe's own before/after
-# window-diff is the authoritative success check, not this call blocking.
 if [ "$_NEED_REEXEC" = "1" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ] \
    && [ -x /usr/libexec/mios/mios-as-operator ]; then
@@ -169,17 +56,11 @@ if [ "$_NEED_REEXEC" = "1" ] \
     _mios_fire_autocenter
     setsid /usr/libexec/mios/mios-as-operator flatpak run --system \
         "$APP_ID" "$@" >/dev/null 2>&1 < /dev/null &
-    # "dispatched" not "fired/opened": this is a DETACHED hand-off, NOT a
-    # confirmation a window surfaced. The caller (mios-gui) does the
-    # authoritative bounded new-window poll; over RDP a WSLg window may not paint.
-    echo "flatpak-launch: dispatched $APP_ID via mios-as-operator (detached, unconfirmed; caller verifies window)" >&2
+    echo "Flatpak-launch: dispatched $APP_ID via mios-as-operator" >&2
     exit 0
 fi
 
 if [ "$_NEED_REEXEC" = "1" ]; then
-    # Resolve operator UID/name from mios.toml's identity.username (default
-    # 'mios'); fall back to whatever uid 1000 exists if username lookup fails
-    # (single-tenant dev VM contract).
     _op_user=""
     if [ -r /usr/share/mios/mios.toml ]; then
         _op_user="$(awk -F\" '/^\s*username\s*=\s*"/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
@@ -191,36 +72,7 @@ if [ "$_NEED_REEXEC" = "1" ]; then
         _op_dbus="unix:path=${_op_xdg}/bus"
         _op_home="$(getent passwd "$_op_user" | cut -d: -f6)"
         export _MIOS_FLATPAK_REEXEC=1
-        # KEY POINT: `sudo -u <op>` alone is NOT enough. It changes uid+gid
-        # but INHERITS the parent's mount namespace -- and the parent here
-        # is hermes-agent.service, which has ProtectSystem=strict. That
-        # namespace makes /var/home read-only, so the flatpak's first
-        # `mkdir(/var/home/<op>/.var/app/<id>)` dies with "Read-only file
-        # system" (operator-confirmed 2026-05-15 journal: nautilus failed
-        # 0.24s into the agent's terminal call with that exact errno).
-        # Same fix as mios-build-driver's namespace escape: route through
-        # `systemd-run --pipe --wait` so PID 1 forks the unit FRESH outside
-        # the agent's namespace, with PID 1's default mount view (the host's
-        # writable /var/home). --uid=<op> sets the unit user; --setenv
-        # carries DISPLAY/WAYLAND_DISPLAY/etc. inside the new namespace.
-        # If systemd-run is unavailable (atypical install), fall back to
-        # plain sudo -- works on bare-metal where ProtectSystem isn't a
-        # factor, breaks honestly inside the agent.
         if command -v systemd-run >/dev/null 2>&1; then
-            # CRITICAL: do NOT pass --wait/--pipe here. GUI flatpaks are long-
-            # running (the user keeps the window open for minutes/hours);
-            # --wait would block this exec until the GUI exits, which means
-            # the agent's terminal call never returns, OWUI times out the
-            # chat, and the operator sees "couldn't open epiphany" even
-            # though the window IS up (operator-confirmed regression
-            # 2026-05-15: bwrap epiphany running as mios while the agent's
-            # call sat blocked on systemd-run --wait).
-            #
-            # Without --wait, systemd-run registers the transient unit, lets
-            # PID 1 take ownership of it, and returns ~instantly with the
-            # unit name. The GUI then runs DETACHED in the operator's
-            # session, outliving this script and the agent's tool call.
-            # --collect cleans up the transient unit when the GUI exits.
             exec sudo -n systemd-run \
                 --collect --quiet \
                 --unit="mios-flatpak-${APP_ID//./-}-$$" \
@@ -242,11 +94,8 @@ if [ "$_NEED_REEXEC" = "1" ]; then
                     /usr/libexec/mios/flatpak-launch "$APP_ID" "$@"
         fi
     fi
-    # If we get here the operator user doesn't exist (atypical install) --
-    # fall through and let flatpak fail with whatever its own error is.
 fi
 
-# Step 1 ── WSL detection. /proc/version is namespace-stable.
 IS_WSL=0
 if [ -r /proc/version ]; then
     case "$(cat /proc/version 2>/dev/null)" in
@@ -254,9 +103,6 @@ if [ -r /proc/version ]; then
     esac
 fi
 
-# Step 2 ── XDG_RUNTIME_DIR. Prefer /run/user/$UID; on WSL fall back to
-# /mnt/wslg/runtime-dir if the per-uid tmpfs hasn't been created yet
-# (early-boot interactive shells before mios-wsl-runtime-dir.service runs).
 if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     uid="$(id -u)"
     if [ -d "/run/user/$uid" ]; then
@@ -267,10 +113,6 @@ if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
     [ -n "${XDG_RUNTIME_DIR:-}" ] && export XDG_RUNTIME_DIR
 fi
 
-# Step 3 ── Wayland / X11 / Pulse defaults. Only on WSL: a bare-metal GNOME
-# session that's missing DISPLAY is in a broken state we can't paper over,
-# but on WSL we know the defaults are stable across every distro that has
-# guiApplications=true in /etc/wsl.conf.
 if [ "$IS_WSL" = "1" ]; then
     : "${WAYLAND_DISPLAY:=wayland-0}"
     : "${DISPLAY:=:0}"
@@ -284,17 +126,6 @@ if [ "$IS_WSL" = "1" ]; then
     export WAYLAND_DISPLAY DISPLAY
     [ -n "${PULSE_SERVER:-}" ] && export PULSE_SERVER
 
-    # Step 3b ── WSL_INTEROP + WSL2_GUI_APPS_ENABLED best-effort recovery.
-    # systemd-spawned contexts running as the operator (mios-launcher.service,
-    # hermes-agent.service) don't inherit these. NOTE (operator trace
-    # 2026-05-30): setting WSL_INTEROP to a borrowed/foreign socket is NOT
-    # sufficient on its own -- the flatpak portal credential handshake
-    # requires the process to actually BELONG to the session that owns the
-    # interop, else it dies with "--env-fd: Not an open file descriptor: 13"
-    # + "failed to receive credentials". The real fix is the wsl.exe login-
-    # session re-launch in Step 6 below. This recovery is kept only as
-    # belt-and-suspenders for callers that ARE already in a usable session
-    # but had the var stripped. Harmless on bare-metal (no /run/WSL).
     if [ -z "${WSL_INTEROP:-}" ] || [ ! -S "${WSL_INTEROP:-/nonexistent}" ]; then
         for _ix in $(ls -t /run/WSL/*_interop 2>/dev/null); do
             if [ -S "$_ix" ]; then
@@ -308,9 +139,6 @@ if [ "$IS_WSL" = "1" ]; then
     export WSL2_GUI_APPS_ENABLED
 fi
 
-# Step 4 ── D-Bus session bus. The libportal autolaunch-error path triggers
-# when this is empty -- portals (Open File, Save File, Notification) refuse
-# to function without it, and nautilus/epiphany then crash on first dialog.
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
    && [ -n "${XDG_RUNTIME_DIR:-}" ] \
    && [ -S "$XDG_RUNTIME_DIR/bus" ]; then
@@ -318,98 +146,25 @@ if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] \
     export DBUS_SESSION_BUS_ADDRESS
 fi
 
-# Step 4b ── Pre-launch portal heal. WSLg consistently lets
-# flatpak-portal idle out (10-18min observed); when an agent or
-# operator launches a flatpak after the idle, the sandbox-credential
-# bootstrap fails ("Connection: failed to receive credentials") and
-# the app dies at startup. mios-wsl-flatpak-heal idempotently
-# re-starts the user-side portal stack + pings flatpak-portal to
-# confirm responsiveness. Cheap (~200ms when portals already up;
-# ~1s on cold heal) -- run it BEFORE every flatpak launch so the
-# operator never sees the idle-out failure mode.
-# Operator binding 2026-05-19: "fix epiphany and ALL Flatpaks
-# anching issues -- FIX GTK GLOBALLY NOW".
 if [ "$IS_WSL" = "1" ] && [ -x /usr/libexec/mios/mios-wsl-flatpak-heal ]; then
     /usr/libexec/mios/mios-wsl-flatpak-heal >/dev/null 2>&1 || true
 fi
 
-# Step 5 ── per-app extra flags (read from a static file so MiOS source
-# can ship app-specific launch defaults without having to regenerate
-# the bootstrap shim layer). Lookup order:
-#   1. /etc/mios/flatpak-flags/<app-id>.flags         (operator override)
-#   2. /usr/share/mios/flatpak-flags/<app-id>.flags   (vendor default)
-# Each file is plain text, one flag per line (or all on one line, shell-
-# tokenised). Lines starting with `#` are comments. Operator file wins.
-#
-# This is how Chrome gets its CDP port + dark-mode + Wayland decorations
-# without the bootstrap shim having to special-case com.google.ChromeDev
-# (operator-confirmed 2026-05-15: putting the flags in the bootstrap
-# shim heredoc is fragile to re-overlay, and inline-shim flag arrays
-# are unreadable; static .flags file = tracked in git, easy to extend).
 EXTRA_FLAGS=""
 for _flagfile in /etc/mios/flatpak-flags/"$APP_ID".flags \
                  /usr/share/mios/flatpak-flags/"$APP_ID".flags; do
     if [ -r "$_flagfile" ]; then
-        # Strip comment lines + blank lines, fold to one space-separated string
         EXTRA_FLAGS=$(grep -vE '^\s*(#|$)' "$_flagfile" | tr '\n' ' ')
         break
     fi
 done
 
-# Step 5b ── WSLg GTK render env is set via `flatpak override --env=GSK_RENDERER=...`
-# (a flatpak app-config mechanism), NOT injected here: `flatpak run` OPTIONS like
-# --env MUST precede the APP_ID, but EXTRA_FLAGS/the args below are appended AFTER
-# it -- a 2026-06-15 attempt to add --env to EXTRA_FLAGS made flatpak pass it to the
-# APP, which rejected it ("Unknown option --env=...") and exited with NO window.
-# The override (set by mios-wsl-flatpak-heal / firstboot) persists per-app, so no
-# launch-command surgery is needed. Tunable via MIOS_GSK_RENDERER.
 
-# Step 6 ── exec the flatpak. `flatpak run --system` resolves the app
-# from the system installation (/var/lib/flatpak); --user installs are
-# not used by MiOS because the dev VM is single-tenant.
-#
-# Stderr is filtered to drop flatpak 1.17.x debug noise:
-#   "F: Not replacing /usr/share/* with tmpfs: Path /usr is reserved"
-# These are informational warnings hardcoded into flatpak 1.17 -- not
-# silenceable via FLATPAK_LOG_LEVEL or G_MESSAGES_DEBUG. They print on
-# EVERY app launch and the operator flagged the noise 2026-05-16:
-# ptyxis launch transcript "F: Not replacing /usr/share/icons ...".
-# /usr/share/{themes,icons,fonts} are already negated in the global
-# override (mios-flatpak-overrides-apply); flatpak still tries the
-# mount internally and logs the rejection. Drop those lines, keep
-# everything else.
-# Arm auto-center (snapshot windows now, center the new one once it maps).
 _mios_fire_autocenter
 
-# ─── THE WSLg launch fix (operator trace 2026-05-30: every flatpak GUI
-# "nothing launched at all"). On WSL a flatpak GUI app needs a REAL
-# wsl.exe login session for its xdg-portal / D-Bus credential handshake.
-# A broker- or systemd-spawned context -- EVEN running as the operator
-# (uid 992, _NEED_REEXEC=0, so the re-exec paths A/B above were skipped) --
-# is SESSIONLESS, and the app dies at startup with:
-#     error: --env-fd: Not an open file descriptor: 13
-#     ERROR: Connection: failed to receive credentials: ... read zero bytes
-# Pointing WSL_INTEROP at a borrowed/foreign live socket does NOT fix it
-# (Step 3b) -- the process must BELONG to the session that owns the interop.
-# So re-launch through a FRESH `wsl.exe -d <distro> --user <op>` session
-# (which the operator-uid broker context CAN exec even without WSL_INTEROP),
-# kept alive a few seconds for the flatpak to finish its portal bootstrap.
-# The app SURVIVES the session's death afterward (verified 2026-05-30), so
-# the keepalive only needs to cover startup. The whole re-launch is DETACHED
-# (setsid &) so the broker dispatch / agent tool-call returns ~instantly --
-# the agent-pipe before/after window-diff is the authoritative success check.
-# _MIOS_FLATPAK_INSESSION guards against re-wrapping once we're inside the
-# fresh session. Bare-metal Linux (no wsl.exe) falls through to direct launch.
-# Only re-exec via wsl.exe when the broker is SESSIONLESS (no live WSLg env).
-# A broker running in the operator's user@ session already has WAYLAND_DISPLAY +
-# the live socket, so it launches DIRECTLY (the setsid path below) -- which
-# persists and renders. The fresh wsl.exe session was observed to DIE after the
-# WSL 2.8.x upgrade (open_url -> "epiphany summary=no-window", process gone),
-# so reserve it for the sessionless fallback only. Operator-hit 2026-06-06.
 if [ "$IS_WSL" = "1" ] && [ "${_MIOS_FLATPAK_INSESSION:-0}" != "1" ] \
    && [ -z "${WAYLAND_DISPLAY:-}" ] \
    && [ -e /mnt/c/Windows/System32/wsl.exe ]; then
-    # Resolve the WSL distro for re-entry: env -> /etc pin -> wsl.exe -l.
     _wd="${WSL_DISTRO_NAME:-}"
     [ -z "$_wd" ] && [ -r /etc/mios/wsl-distro ] && _wd="$(tr -d '\r\n' < /etc/mios/wsl-distro)"
     if [ -z "$_wd" ]; then
@@ -417,47 +172,20 @@ if [ "$IS_WSL" = "1" ] && [ "${_MIOS_FLATPAK_INSESSION:-0}" != "1" ] \
     fi
     [ -z "$_wd" ] && _wd="podman-MiOS-DEV"
     _boot="${MIOS_FLATPAK_BOOTSTRAP_SECS:-12}"
-    # Safely single-quote each token for transit through `bash -lc`.
     _q() { printf "'"; printf '%s' "$1" | sed "s/'/'\\\\''/g"; printf "'"; }
-    # EXTRA_FLAGS are flatpak-run OPTIONS (--env/--filesystem/--socket/...) and MUST
-    # precede the APP_ID; a 2026-06-15 bug placed them AFTER -> flatpak passed them to
-    # the app, which exited "Unknown option --env=..." with no window. App args ($@)
-    # still follow the APP_ID.
     _inner="export _MIOS_FLATPAK_INSESSION=1; setsid flatpak run --system"
     for _a in $EXTRA_FLAGS; do _inner="$_inner $(_q "$_a")"; done
     _inner="$_inner $(_q "$APP_ID")"
     for _a in "$@"; do _inner="$_inner $(_q "$_a")"; done
-    # Background the GUI inside the session, then keep the session alive
-    # $_boot seconds so the portal handshake completes before it exits.
     _inner="$_inner >/dev/null 2>&1 </dev/null & sleep $_boot"
     setsid /mnt/c/Windows/System32/wsl.exe -d "$_wd" --user "$_op_user" -- \
         bash -lc "$_inner" >/dev/null 2>&1 </dev/null &
-    # "dispatched" not "fired/opened": detached hand-off into a fresh wsl.exe
-    # session, NOT proof a window mapped. Caller (mios-gui) confirms via the
-    # bounded new-window poll; over RDP a WSLg window may not surface at all.
-    echo "flatpak-launch: dispatched $APP_ID via wsl.exe session (detached, bootstrap ${_boot}s, unconfirmed; caller verifies window)" >&2
+    echo "Flatpak-launch: dispatched $APP_ID via wsl.exe session" >&2
     exit 0
 fi
 
-# Non-WSL (bare-metal Linux desktop) OR already inside a usable session:
-# direct detached launch. GUI flatpaks are fire-and-forget -- launch in
-# their own session and return ~instantly (the old foreground `exec flatpak
-# run` blocked the caller until the GUI exited, tripping the agent-pipe 45s
-# capture timeout and marking a successful launch as failed). >/dev/null 2>&1
-# also drops the flatpak 1.17 "F: Not replacing /usr/*" noise.
-# shellcheck disable=SC2086 -- intentional word-splitting on EXTRA_FLAGS
-# operator 2026-06-15: CAPTURE the launch stderr instead of discarding it to
-# /dev/null. Ground truth this session: epiphany's binary runs fine (--version
-# OK, no coredump) but the DETACHED GUI process dies without surfacing a window
-# and the reason was being thrown away (cf. the WSL 2.8.x detach-reaping note
-# above). Per-app log (last run wins) so the failure is diagnosable without
-# launching the GUI by hand. Tunable off via MIOS_FLATPAK_LOG=/dev/null.
 _LOG="${MIOS_FLATPAK_LOG:-${TMPDIR:-/tmp}/mios-flatpak-$(printf '%s' "$APP_ID" | tr '/:' '__').log}"
 setsid flatpak run --system $EXTRA_FLAGS "$APP_ID" "$@" >"$_LOG" 2>&1 < /dev/null &
-echo "flatpak-launch: launch stderr -> $_LOG (read it if no window appears)" >&2
-# "dispatched" not "fired/opened": the launch is detached + fire-and-forget;
-# this line is NOT a confirmation that a window surfaced. The caller (mios-gui)
-# runs the authoritative bounded new-window poll and reports honestly. Bare-metal
-# Linux paints reliably; over a separate RDP session WSLg windows may not.
-echo "flatpak-launch: dispatched $APP_ID (detached, unconfirmed; caller verifies window)" >&2
+echo "Flatpak-launch: launch stderr -> $_LOG" >&2
+echo "Flatpak-launch: dispatched $APP_ID" >&2
 exit 0

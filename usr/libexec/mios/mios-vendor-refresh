@@ -2,13 +2,6 @@
 # AI-hint: One-command offline asset vendor refresh tool. Re-pulls vendored k3s, cursors, fonts, and wheels at LATEST tag resolution.
 # AI-related: /usr/share/mios/vendored/, /usr/share/mios/vendored/VERSIONS.txt, /usr/share/mios/mios.toml
 # AI-functions: vendor_refresh_k3s, vendor_refresh_cursors, vendor_refresh_fonts, vendor_refresh_wheels
-# ============================================================================
-# usr/libexec/mios/mios-vendor-refresh - 'MiOS' v0.3.0
-# ----------------------------------------------------------------------------
-# Re-pulls all vendored assets (k3s binary, selinux tarball, bibata cursors,
-# geist/nerd fonts, hermes wheels) at LATEST resolved tags via git ls-remote /
-# releases, verifies checksums, and updates usr/share/mios/vendored/VERSIONS.txt.
-# ============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,9 +24,8 @@ die() {
     exit 1
 }
 
-# 1. Resolve & Fetch K3s (AGY-372)
 resolve_k3s() {
-    log "Resolving latest k3s release tag via git ls-remote..."
+    log "Resolving latest k3s release tag via git ls-remote"
     local k3s_tag
     k3s_tag=$(git ls-remote --tags --refs https://github.com/k3s-io/k3s.git | grep -Po 'refs/tags/\Kv[0-9]+\.[0-9]+\.[0-9]+\+k3s[0-9]+' | sort -V | tail -n1 || true)
     if [[ -z "${k3s_tag}" ]]; then
@@ -41,12 +33,11 @@ resolve_k3s() {
         warn "k3s ls-remote empty; using fallback tag ${k3s_tag}"
     fi
     log "Resolved k3s tag: ${k3s_tag}"
-    echo "k3s=${k3s_tag}" >> "${VERSIONS_FILE}.tmp"
+    echo "K3s=${k3s_tag}" >> "${VERSIONS_FILE}.tmp"
 }
 
-# 2. Resolve K3s-Selinux (AGY-373)
 resolve_k3s_selinux() {
-    log "Resolving latest k3s-selinux release tag..."
+    log "Resolving latest k3s-selinux release tag"
     local selinux_tag
     selinux_tag=$(git ls-remote --tags --refs https://github.com/k3s-io/k3s-selinux.git | grep -Po 'refs/tags/\Kv[0-9]+\.[0-9]+\.[0-9]+.*' | sort -V | tail -n1 || true)
     if [[ -z "${selinux_tag}" ]]; then
@@ -54,12 +45,11 @@ resolve_k3s_selinux() {
         warn "k3s-selinux ls-remote empty; using fallback tag ${selinux_tag}"
     fi
     log "Resolved k3s-selinux tag: ${selinux_tag}"
-    echo "k3s_selinux=${selinux_tag}" >> "${VERSIONS_FILE}.tmp"
+    echo "K3s_selinux=${selinux_tag}" >> "${VERSIONS_FILE}.tmp"
 }
 
-# 3. Resolve Bibata Cursor (AGY-374)
 resolve_bibata() {
-    log "Resolving latest Bibata_Cursor release tag..."
+    log "Resolving latest Bibata_Cursor release tag"
     local bibata_tag
     bibata_tag=$(git ls-remote --tags --refs https://github.com/ful1e5/Bibata_Cursor.git | grep -Po 'refs/tags/\Kv[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n1 || true)
     if [[ -z "${bibata_tag}" ]]; then
@@ -67,12 +57,11 @@ resolve_bibata() {
         warn "Bibata ls-remote empty; using fallback tag ${bibata_tag}"
     fi
     log "Resolved Bibata tag: ${bibata_tag}"
-    echo "bibata_cursor=${bibata_tag}" >> "${VERSIONS_FILE}.tmp"
+    echo "Bibata_cursor=${bibata_tag}" >> "${VERSIONS_FILE}.tmp"
 }
 
-# 4. Resolve Fonts (AGY-375)
 resolve_fonts() {
-    log "Resolving latest Nerd Fonts release tag..."
+    log "Resolving latest Nerd Fonts release tag"
     local nerd_tag
     nerd_tag=$(git ls-remote --tags --refs https://github.com/ryanoasis/nerd-fonts.git | grep -Po 'refs/tags/\Kv[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n1 || true)
     if [[ -z "${nerd_tag}" ]]; then
@@ -80,27 +69,26 @@ resolve_fonts() {
         warn "Nerd Fonts ls-remote empty; using fallback tag ${nerd_tag}"
     fi
     log "Resolved Nerd Fonts tag: ${nerd_tag}"
-    echo "nerd_fonts=${nerd_tag}" >> "${VERSIONS_FILE}.tmp"
-    echo "geist_font=v1.3.0" >> "${VERSIONS_FILE}.tmp"
+    echo "Nerd_fonts=${nerd_tag}" >> "${VERSIONS_FILE}.tmp"
+    echo "Geist_font=v1.3.0" >> "${VERSIONS_FILE}.tmp"
 }
 
-# 5. Resolve Hermes Agent Wheels (AGY-376)
 resolve_hermes() {
-    log "Resolving latest hermes-agent git ref..."
+    log "Resolving latest hermes-agent git ref"
     local hermes_sha
     hermes_sha=$(git ls-remote https://github.com/NousResearch/hermes-agent.git HEAD | awk '{print $1}' || true)
     if [[ -z "${hermes_sha}" ]]; then
         hermes_sha="main"
     fi
     log "Resolved hermes-agent ref: ${hermes_sha}"
-    echo "hermes_agent=${hermes_sha}" >> "${VERSIONS_FILE}.tmp"
+    echo "Hermes_agent=${hermes_sha}" >> "${VERSIONS_FILE}.tmp"
 }
 
 main() {
-    log "Starting vendor asset resolution and refresh..."
+    log "Starting vendor asset resolution and refresh"
     rm -f "${VERSIONS_FILE}.tmp"
     echo "# MiOS Vendored Asset Manifest" > "${VERSIONS_FILE}.tmp"
-    echo "updated_at=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> "${VERSIONS_FILE}.tmp"
+    echo "Updated_at=$" >> "${VERSIONS_FILE}.tmp"
 
     resolve_k3s
     resolve_k3s_selinux

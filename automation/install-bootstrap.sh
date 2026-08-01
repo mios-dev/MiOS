@@ -2,17 +2,8 @@
 # AI-hint: Executes the full MiOS system bootstrap to transform a bare Fedora host into a complete MiOS workstation by installing all core components, configuring FHS paths, and setting up the environment.
 # AI-related: packages.sh, /usr/share/mios/mios.toml, mios-dev, mios-stage-XXXXXX
 # AI-functions: log_info, log_ok, log_warn, log_err, log_phase, require_root, detect_host_kind, check_network, prompt_default, prompt_password, prompt_yesno, main
-#
-# 'MiOS' Bootstrap -- Interactive Ignition Installer (Total Root Merge Mode)
-#
-# SSOT: This script installs EVERYTHING a fully built 'MiOS' system has.
-# It transforms a bare Fedora host into a self-building 'MiOS' workstation.
-#
 set -euo pipefail
 
-# ============================================================================
-# Defaults
-# ============================================================================
 DEFAULT_USER="user"
 DEFAULT_HOST="user"
 DEFAULT_USER_FULLNAME="User"
@@ -23,7 +14,6 @@ DEFAULT_BRANCH="main"
 
 MIOS_REPO="https://github.com/mios-dev/MiOS.git"
 
-# FHS path constants (override via env). Mirrors automation/lib/paths.sh.
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
@@ -32,9 +22,6 @@ MIOS_REPO="https://github.com/mios-dev/MiOS.git"
 PROFILE_DIR="${MIOS_ETC_DIR}"
 PROFILE_FILE="${PROFILE_DIR}/install.env"
 
-# ============================================================================
-# Logging & UI
-# ============================================================================
 _BOLD=$(tput bold 2>/dev/null || echo "")
 _RED=$(tput setaf 1 2>/dev/null || echo "")
 _GREEN=$(tput setaf 2 2>/dev/null || echo "")
@@ -58,11 +45,11 @@ require_root() {
 
 detect_host_kind() {
     if command -v bootc >/dev/null 2>&1 && bootc status --format=json 2>/dev/null | grep -q '"booted"'; then
-        echo "bootc"
+        echo "Bootc"
     elif [[ -f /etc/os-release ]] && grep -qE '^ID(_LIKE)?=.*fedora' /etc/os-release; then
-        echo "fhs-fedora"
+        echo "Fhs-fedora"
     else
-        echo "unsupported"
+        echo "Unsupported"
     fi
 }
 
@@ -107,9 +94,6 @@ prompt_yesno() {
     esac
 }
 
-# ============================================================================
-# Core Logic
-# ============================================================================
 main() {
     require_root
     log_phase "'MiOS' Bootstrap Installer (clone repo + install full [packages.*] manifest + FHS overlay)"
@@ -124,7 +108,6 @@ main() {
 
     check_network
 
-    # --- 1. Gather Profile ---
     LINUX_USER="$(prompt_default 'Linux username' "${DEFAULT_USER}")"
     HOSTNAME_VAL="$(prompt_default 'Hostname' "${DEFAULT_HOST}")"
     USER_FULLNAME="$(prompt_default 'Full name (GECOS)' "${DEFAULT_USER_FULLNAME}")"
@@ -134,7 +117,6 @@ main() {
     printf "  User: %s\n  Host: %s\n  Mode: Total Root Overlay\n\n" "$LINUX_USER" "$HOSTNAME_VAL"
     if ! prompt_yesno 'Proceed with these settings?' y; then exit 0; fi
 
-    # --- 2. Apply Profile ---
     log_phase "Applying system profile"
     hostnamectl set-hostname "$HOSTNAME_VAL"
 
@@ -160,11 +142,6 @@ main() {
     echo "$LINUX_USER:$USER_PASSWORD" | chpasswd
     log_ok "User profile applied."
 
-    # --- 3. Total Root Merge ---
-    # LAW 1: NON-DESTRUCTIVE SIMPLE MERGE -- never use git checkout -f at /,
-    # which forcibly overwrites existing system files. Clone to a temp path,
-    # then rsync each FHS overlay dir with --ignore-existing semantics so that
-    # base system files are never clobbered.
     log_phase "'MiOS' Core Installation (Root Merge)"
     log_info "Cloning 'MiOS' repository to staging area..."
     MIOS_STAGE="$(mktemp -d /tmp/mios-stage-XXXXXX)"
@@ -186,10 +163,6 @@ main() {
     fi
     log_ok "'MiOS' source tree merged to root."
 
-    # --- 4. Package Installation ---
-    # SSOT: mios.toml [packages.<section>].pkgs (resolved via packages.sh).
-    # We source packages.sh from the freshly-staged repo so the ignition
-    # path uses the same TOML-only resolver as the OCI build chain.
     log_phase "Installing 'MiOS' System Stack"
     local toml_path="${MIOS_SHARE_DIR}/mios.toml"
     [[ -f "$toml_path" ]] || toml_path="${MIOS_STAGE}/usr/share/mios/mios.toml"
@@ -199,14 +172,10 @@ main() {
     fi
 
     log_info "Sourcing package resolver from ${MIOS_STAGE}/automation/lib/packages.sh"
-    # shellcheck source=automation/lib/packages.sh
     export MIOS_TOML="$toml_path"
     export MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-$MIOS_TOML}"
     source "${MIOS_STAGE}/automation/lib/packages.sh"
 
-    # Aggregate every declared section so a fresh-host ignition matches the
-    # full vendor manifest (the OCI build chain installs section-by-section
-    # for staging discipline; bootstrap collapses them into one transaction).
     local section pkgs all_pkgs=""
     for section in $(awk -F'[][.]' '/^\[packages\./ { print $3 }' "$toml_path" | sort -u); do
         pkgs=$(get_packages "$section" 2>/dev/null || true)
@@ -224,7 +193,6 @@ main() {
         exit 1
     fi
 
-    # --- 5. System Initialization ---
     log_phase "System Initialization"
     if [[ -x "/install.sh" ]]; then
         log_info "Running /install.sh to finalize FHS overlay..."

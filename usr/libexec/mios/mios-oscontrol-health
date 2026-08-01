@@ -1,24 +1,15 @@
 #!/usr/bin/env bash
 # AI-hint: Probes the MiOS Windows OS-control plane (in-session executor :11437 via the
-# WSL gateway + the WSL-interop powershell.exe path) and emits typed JSON status so the
-# agent can report "control plane offline" instead of a silent exit -1 when a Windows
-# control/recipe action returns no data.
 # AI-related: mios-pc-control, mios-os-recipe, mios-oscontrol-server, mios-powershell
 # AI-functions: (probe-only)
-#
-# Research 2026-06-15 (ai-os-control-patterns) quick win: the in-session Windows executor
-# can be DOWN (operator must start it / log in); without this verb the agent gets a bare
-# exit -1 and can't explain it. Read-only, no side effects.
 set -uo pipefail
 
-# Guard set -u: a value with shell-metachars must not abort under set -u.
 if [ -r /etc/mios/install.env ]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
 PORT="${MIOS_PORT_OSCONTROL:-${MIOS_OSCONTROL_PORT:-11437}}"
-# WSL2 NAT: the default gateway is the Windows host that runs the in-session executor.
 GW="$(ip route 2>/dev/null | awk '/^default/{print $3; exit}')"
 
 exec_status="down"; exec_url=""
@@ -28,8 +19,6 @@ if [ -n "$GW" ]; then
 fi
 
 interop="down"
-# appendWindowsPath=false keeps bare powershell.exe OFF the VM PATH, so probe via the
-# FULL interop path (the recipes use it too); fall back to PATH if present.
 _pwsh="/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"
 [ -x "$_pwsh" ] || _pwsh="$(command -v powershell.exe 2>/dev/null)"
 if [ -n "$_pwsh" ]; then
@@ -44,7 +33,6 @@ elif [ "$exec_status" = "down" ]; then
   reason="In-session executor (:${PORT}) offline; WSL-interop powershell.exe fallback is available for shell-class Windows actions only (no GUI/window control)."
 fi
 
-# Escape the reason for JSON (only quotes/backslashes appear here).
 _r="${reason//\\/\\\\}"; _r="${_r//\"/\\\"}"
 printf '{"executor":"%s","executor_endpoint":"%s","interop":"%s","blind":%s,"reason":"%s"}\n' \
   "$exec_status" "$exec_url" "$interop" "$blind" "$_r"

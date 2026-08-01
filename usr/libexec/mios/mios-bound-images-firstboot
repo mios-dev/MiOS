@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: FBM first-boot bound-image provisioner. Reads [ai].firstboot_bound_images from mios.toml
-# and pulls each container image at first boot. Degrade-open (Law 12): sentinel + exit 0 so a pull
-# failure never blocks boot.
 # AI-related: mios-bound-images-firstboot.service, /usr/share/mios/mios.toml
 import sys
 import os
@@ -22,7 +20,6 @@ if SENTINEL.exists():
     print(f"Sentinel {SENTINEL} exists. Bound images provisioner already completed.")
     sys.exit(0)
 
-# Check Windows mapping
 if os.name == 'nt':
     SENTINEL = pathlib.Path("C:/var/lib/mios/.bound-images-firstboot-done")
 
@@ -50,7 +47,6 @@ else:
         print(f"Pulling {name}...")
         cmd = ["podman", "pull", name]
         
-        # Note: In Windows dev environment, podman might not be available, so we just dry-run or ignore failure
         try:
             res = subprocess.run(cmd)
             if res.returncode == 0:

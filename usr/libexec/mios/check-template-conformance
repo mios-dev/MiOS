@@ -50,11 +50,9 @@ def main():
 
     grandfathered = load_grandfathered()
 
-    # Load templates config
     merged = mios_toml.load_merged()
     templates_cfg = merged.get("templates", {})
 
-    # Compile regexes
     compiled_templates = []
     for tname, tcfg in templates_cfg.items():
         if "match" in tcfg:
@@ -68,9 +66,7 @@ def main():
     unconforming = []
     checked_count = 0
 
-    # Walk all files using tagger's walk
     for p in tagger.walk([root]):
-        # Resolve path relative to root
         rel_path = os.path.relpath(p, root).replace("\\", "/")
         if rel_path in grandfathered:
             continue
@@ -83,22 +79,18 @@ def main():
         except OSError:
             continue
 
-        # Check template conformance
         for ct in compiled_templates:
             if ct["pattern"].search(rel_path):
-                # Check header if required
                 if ct["required_header"]:
                     if not tagger.existing_hint(head):
                         unconforming.append((rel_path, f"Missing AI-hint header (required by {ct['name']})"))
                         break
-                # Check required markers
                 for marker in ct["required_markers"]:
                     if marker not in content:
                         unconforming.append((rel_path, f"Missing required body marker {marker!r} (required by {ct['name']})"))
                         break
                 break
 
-    # Determine ceiling
     ceiling = args.max_unconforming
     if ceiling is None:
         ceiling = merged.get("ai_tag", {}).get("max_unconforming", 0)

@@ -3,11 +3,6 @@
 # AI-related: mios-icon-stage
 # AI-functions: resolve_icon
 set -euo pipefail
-# Read icon names on stdin, resolve each to a real file inside the
-# WSL distro, rasterize/copy to a 256x256 PNG in /tmp/mios-icon-stage/,
-# and print "<icon-name>|<staged path>" per line. Used by
-# Update-MiOSStartMenuShortcuts.ps1 to produce native-looking Windows
-# Start Menu icons for every .desktop entry in the dev VM.
 set -u
 
 TARGET_DIR=/tmp/mios-icon-stage

@@ -2,40 +2,14 @@
 # AI-hint: Executes `flatpak override` to apply global theme, portal, and cursor settings from `mios.toml` to all flatpak applications, ensuring consistent UI styling across the system.
 # AI-related: /usr/libexec/mios/mios-flatpak-overrides-apply, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-hermes-firstboot, mios-flatpak-init, mios-cursor-ensure
 # AI-functions: _toml_get
-# /usr/libexec/mios/mios-flatpak-overrides-apply
-#
-# Apply the MiOS-managed global flatpak override (theming + portal +
-# theme filesystem mounts) so every installed flatpak respects the
-# operator's color-scheme + theme + cursor choices via xdg-portal-desktop.
-#
-# Idempotent: safe to run on every boot. Drops nothing operator-set
-# (uses --reset to clear OUR override only and re-apply our keys).
-#
-# Why a script vs a tracked /var/lib/flatpak/overrides/global file:
-#   * `flatpak override` is the supported API; writing the file directly
-#     bypasses validation and is brittle across flatpak versions.
-#   * Operators expect to be able to add their own overrides via
-#     `flatpak override --system <appid> --env=...` -- those land in
-#     <appid> files, not in `global`, so we only own `global`.
-#   * The override survives flatpak upgrades AND OS upgrades cleanly.
-#
-# Called by mios-hermes-firstboot at first boot, and re-runnable by the
-# operator (or agent) whenever they want to reset to MiOS defaults.
 
 set -eu
 
 if ! command -v flatpak >/dev/null 2>&1; then
-    echo "mios-flatpak-overrides-apply: flatpak not installed -- skipping" >&2
+    echo "Mios-flatpak-overrides-apply: flatpak not installed" >&2
     exit 0
 fi
 
-# Read appearance keys from layered mios.toml [appearance] (operator's
-# /etc/mios overrides /usr/share/mios). This SSOT is the same one
-# mios-flatpak-init reads; sourcing here ensures the firstboot --reset
-# doesn't drop theme env that operators expect to be applied globally.
-# Operator directive 2026-05-16: "should be the GLOBAL overrides so
-# that newly installed apps/flatpaks take hold of the configurations
-# as well".
 _toml_get() {
     local key="$1" default="$2" val=""
     for f in /etc/mios/mios.toml /usr/share/mios/mios.toml; do
@@ -62,77 +36,24 @@ _adw_color=$(_toml_get appearance.adw_color_scheme "prefer-dark")
 _curs_theme=$(_toml_get appearance.cursor_theme "Bibata-Modern-Classic")
 _curs_size=$(_toml_get appearance.cursor_size "24")
 
-# WSLg-stable render path (operator-flagged 2026-05-19: "ALL Windowed
-# Linux applications have outdated and broken Windowing GLOBALLY").
-# Without these, every flatpak GTK4 app misrenders because WSLg's
-# compositor + dxgkrnl GPU passthrough don't honour modern GTK4 /
-# libadwaita / Vulkan paths correctly.
 _gsk_renderer=$(_toml_get graphics.gsk_renderer "cairo")
 _force_sw_gl=$(_toml_get graphics.force_software_gl "True")
 _disable_vk=$(_toml_get graphics.disable_vulkan "True")
 _gdk_backend=$(_toml_get graphics.gdk_backend "")
 _xcurs_path=$(_toml_get graphics.xcursor_path '~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps')
 
-# WSLg-aware override (operator trace 2026-05-30: every Linux flatpak
-# "nothing launched"). WSLg's compositor exposes NO DRI3 GPU device, so
-# GTK4's hardware GL renderers (ngl/gl/vulkan) fail to create a GL
-# context -- "libEGL DRI3 error: Could not get DRI3 device" -- and the
-# app DIES before mapping a window. The [graphics] SSOT is tuned for
-# bare-metal GPUs (gsk_renderer="ngl"), which is correct THERE but fatal
-# on WSLg. So: when running under WSLg, force the software render path
-# regardless of the SSOT; on bare-metal (real DRM /dev/dri + DRI3) the
-# SSOT hardware path is honoured untouched. This is detection logic, not
-# a hardcoded per-deployment value -- the same vendor default works on
-# both WSLg dev VMs and bare-metal MiOS deployments.
 if [ -d /mnt/wslg ] || grep -qiE 'microsoft|wsl' /proc/version 2>/dev/null; then
     _ssot_renderer="$_gsk_renderer"
     _gsk_renderer="cairo"
     _force_sw_gl="True"
     _disable_vk="True"
-    echo "mios-flatpak-overrides-apply: WSLg detected -> forcing software GL (GSK_RENDERER=cairo, LIBGL_ALWAYS_SOFTWARE=1, no Vulkan); SSOT graphics.gsk_renderer='$_ssot_renderer' applies on bare-metal only" >&2
+    echo "Mios-flatpak-overrides-apply: WSLg detected -> forcing software GL; SSOT graphics.gsk_renderer='$_ssot_renderer' applies on bare-metal only" >&2
 fi
 
-# --reset clears the global override file completely; then we re-create
-# the MiOS-managed keys. This is safer than --unset of individual keys
-# (which can fail silently if the key doesn't exist).
 flatpak override --system --reset 2>/dev/null || true
 
-# Theme / icon / cursor reach into the sandbox.
-#
-# CORRECTION 2026-05-19 (operator trace): flatpak FLATLY REFUSES to
-# bind-mount any host path under /usr ("F: Not sharing /usr/share/...:
-# Path /usr is reserved by Flatpak"). The previous
-# --filesystem=/usr/share/{themes,icons,fonts}:ro lines were DROPPED
-# ENTIRELY at runtime -- NOT "a cosmetic warning" -- so flatpaks got
-# ZERO host theme/icon/cursor access. Removed them. Correct reach is:
-#   * GTK3 theme      -> org.gtk.Gtk3theme.adw-gtk3-dark flatpak
-#                        EXTENSION (installed from flathub; no /usr mount).
-#   * GTK4/libadwaita -> Adwaita built into org.gnome.Platform + portal
-#                        color-scheme (GTK_USE_PORTAL=1 + ADW_DEBUG_*).
-#   * Cursor (Bibata) -> installed into ~/.local/share/icons (writable;
-#                        /usr is RO on bootc) and reached via the
-#                        xdg-data/icons:ro mount below + XCURSOR_PATH.
-#                        Seeded by mios-cursor-ensure / firstboot.
-#   * Fonts           -> flatpak auto-shares host fonts (no mount needed).
-#
-# /dev/dxg was ALSO rejected ("unsupported type 0o20000") and is moot:
-# we force software GL (LIBGL_ALWAYS_SOFTWARE) + cairo + no Vulkan, so
-# no flatpak needs the WSLg GPU paravirt device. Kept --device=all +
-# /dev/dri (allowed) for the rare app that probes dri.
-# Render-path env -- conditional includes so empty strings don't
-# splat to "--env=FOO=" (which would clear the var). Booleans from
-# TOML come through Python repr (True/False); normalise to "1"/"0".
 _render_env_args=(
     --env=GTK_USE_PORTAL=1
-    # GTK_THEME is DELIBERATELY NOT set. It is a GTK3 theme name;
-    # setting it on a GTK4/libadwaita app (Nautilus, Epiphany, GNOME
-    # Settings) forces the OLD GTK3 adw-gtk3 chrome instead of native
-    # libadwaita -- operator trace 2026-05-19 "old windowing in
-    # Nautilus still". Mirrors /usr/lib/environment.d/50-mios.conf,
-    # which omits GTK_THEME for the same documented reason. GTK3-only
-    # flatpaks still get adw-gtk3-dark via the Gtk3theme extension +
-    # the mounted xdg-config/gtk-3.0 settings.ini; libadwaita apps get
-    # dark via ADW_DEBUG_COLOR_SCHEME below.
     --env=ADW_DEBUG_COLOR_SCHEME="$_adw_color"
     --env=XCURSOR_THEME="$_curs_theme"
     --env=XCURSOR_SIZE="$_curs_size"
@@ -156,11 +77,6 @@ if [ -n "$_gdk_backend" ]; then
     _render_env_args+=(--env=GDK_BACKEND="$_gdk_backend")
 fi
 
-# --socket=x11 is REQUIRED with GDK_BACKEND=x11: WSLg provides Xwayland
-# on DISPLAY=:0, but a flatpak only sees the X socket if it is shared
-# in. Without it, x11-backend apps die with "Failed to open display"
-# (operator trace 2026-05-19, Epiphany). Harmless on bare-metal Wayland
-# -- apps still prefer wayland unless GDK_BACKEND forces x11.
 flatpak override --system \
     --device=all \
     --socket=x11 \
@@ -171,31 +87,15 @@ flatpak override --system \
     --filesystem=xdg-data/icons:ro \
     --filesystem=/dev/dri
 
-echo "mios-flatpak-overrides-apply: global flatpak override seeded"
+echo "Mios-flatpak-overrides-apply: global flatpak override seeded"
 echo "  theme: GTK_THEME=<unset; libadwaita native>  color=$_adw_color  cursor=$_curs_theme/$_curs_size"
 echo "  render: GSK_RENDERER=$_gsk_renderer  LIBGL_ALWAYS_SOFTWARE=$_force_sw_gl  GDK_VULKAN_DISABLE=$_disable_vk  GDK_BACKEND=${_gdk_backend:-<auto>}  socket=x11"
-echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons} + /dev/dri (host /usr is NOT mountable in flatpak -- theme via Gtk3theme ext, cursor via ~/.local/share/icons)"
-echo "  GTK_USE_PORTAL=1 (libadwaita color-scheme via xdg-portal)"
+echo "  mounts: xdg-config/gtk-{3,4}.0 + xdg-data/{themes,icons} + /dev/dri"
+echo "  GTK_USE_PORTAL=1"
 
-# ─── Per-app overrides from mios.toml [flatpak.app_overrides] ────────
-# Operator directive 2026-05-16: "EVERYTHING IS DICTATED AND
-# UNDERSTOOD FROM THE mios.toml/html file(s)". Per-app env overrides
-# (Epiphany GPU compositing, Chrome CDP port, etc.) live in mios.toml
-# as nested tables under [flatpak.app_overrides."<app-id>"]. Iterate
-# the table and emit one /var/lib/flatpak/overrides/<id> file per
-# entry. Idempotent: each rewrite is full, no merge.
 python3 - <<'PYEOF'
 import os, tomllib
 
-# Layered read: later file wins per key. /etc/mios overrides /usr/share/mios.
-# Two SoT shapes are supported:
-#   1. [flatpak.app_overrides."<id>"] = { KEY = VALUE, ... }   (legacy flat)
-#   2. [[desktop.apps]] entry with overrides = { KEY = VALUE } (unified)
-# Operator directive 2026-05-16: "toml/html packages sections are BOTH
-# the installation references for MiOS builds and deployments globally
-# -- AS WELL as AI agents references for defaults". The [[desktop.apps]]
-# array is the unified SoT going forward; the flat [flatpak.app_overrides]
-# table is kept for entries without app metadata.
 merged = {}
 for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
     try:
@@ -203,8 +103,6 @@ for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
             data = tomllib.load(f)
     except (OSError, tomllib.TOMLDecodeError):
         continue
-    # Shape 2: [[desktop.apps]] entries (preferred). Read FIRST so
-    # operator-overlay entries can shadow vendor app_overrides.
     apps = data.get("desktop", {}).get("apps", [])
     if isinstance(apps, list):
         for entry in apps:
@@ -215,7 +113,6 @@ for path in ("/usr/share/mios/mios.toml", "/etc/mios/mios.toml"):
             if app_id and isinstance(env_map, dict):
                 cur = merged.setdefault(app_id, {})
                 cur.update(env_map)
-    # Shape 1: [flatpak.app_overrides.*] (legacy / non-desktop apps).
     overrides = data.get("flatpak", {}).get("app_overrides", {})
     if isinstance(overrides, dict):
         for app_id, env_map in overrides.items():
@@ -233,8 +130,6 @@ for app_id, env_map in merged.items():
     out_path = os.path.join(OVERRIDE_DIR, app_id)
     lines = ["[Context]", "", "[Environment]"]
     for k, v in env_map.items():
-        # TOML bools/ints render as Python; flatpak override files
-        # are plain text so str() everything.
         if isinstance(v, bool):
             v = 1 if v else 0
         lines.append(f"{k}={v}")

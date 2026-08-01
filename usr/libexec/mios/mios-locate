@@ -3,26 +3,6 @@
 # AI-related: /usr/libexec/mios/mios-locate, mios-everything, mios-locate-err, mios-ai
 # AI-functions: usage, _filter_results
 set -euo pipefail
-# /usr/libexec/mios/mios-locate <query> [-n <max>] [-ext <csv>] [-path <subtree>] [-type f|d]
-#
-# Linux-side filesystem search shim -- the agentic peer to mios-everything
-# (which is Windows-only via Voidtools Everything CLI). Operator directive
-# 2026-05-18: "MiOS-Agent(s) can navigate, search, exec--all the same in
-# the Linux Environments as well".
-#
-# Backend resolution (fastest first):
-#   1. plocate (the modern locate; sub-100ms on indexed trees)
-#   2. locate  (mlocate compat)
-#   3. find    (universal POSIX fallback; slower but always present)
-#
-# Default search scope (when -path is not given) is the operator-facing
-# Linux FHS surface: /usr /etc /var/lib /opt /home /root /var/log
-# /var/lib/mios /usr/share/mios. Skips /proc /sys /run /dev /tmp
-# /mnt /var/cache /var/tmp by default to avoid noise + WSL DrvFs.
-#
-# Returns one absolute path per line on stdout. Exit 0 with match(es);
-# exit 1 on no-match. English narratives go to stderr (suppressed by
-# the OWUI dispatch via 2>/dev/null) so tool_result.output stays clean.
 
 set -u
 
@@ -67,16 +47,12 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ -z "$QUERY" ]; then
-    echo "mios-locate: missing <query>" >&2
+    echo "Mios-locate: missing <query>" >&2
     usage >&2
     exit 64
 fi
 
-# --json flag (task #148): emit a structured envelope so the agent
-# reads typed fields. Re-exec ourselves without the flag, capture
-# stdout+stderr+exit, then wrap.
 if [ "${JSON_OUT:-0}" -eq 1 ]; then
-    # Rebuild the non-json args list. PATHS array becomes -path args.
     _ARGS=("-n" "$MAX")
     [ -n "$EXT" ] && _ARGS+=("-ext" "$EXT")
     [ -n "$TYPE" ] && _ARGS+=("-type" "$TYPE")
@@ -116,7 +92,6 @@ PYEOF
     exit "$_RC"
 fi
 
-# Default search scope. Operator-tunable later via mios.toml [paths].locate_roots.
 if [ "${#PATHS[@]}" -eq 0 ]; then
     PATHS=(
         /usr
@@ -131,30 +106,17 @@ if [ "${#PATHS[@]}" -eq 0 ]; then
     )
 fi
 
-# Filter the path list to those that actually exist (skip silently).
 EXISTING_PATHS=()
 for p in "${PATHS[@]}"; do
     [ -d "$p" ] && EXISTING_PATHS+=("$p")
 done
 if [ "${#EXISTING_PATHS[@]}" -eq 0 ]; then
-    echo "mios-locate: no readable search roots" >&2
+    echo "Mios-locate: no readable search roots" >&2
     exit 1
 fi
 
-# ─── Backend selection ────────────────────────────────────────────────
-# plocate / locate query the whole indexed FS; we filter by path-prefix
-# in awk afterward. find walks the tree directly.
 
 _filter_results() {
-    # Stdin: one path per line from the upstream backend (plocate / locate
-    # / find). Apply: path-prefix include, ext filter, type filter, query
-    # substring (case-insensitive). Then head -n MAX.
-    #
-    # NB: must use `python3 -c "<script>"` and NOT `python3 - <<PYEOF`.
-    # The heredoc-as-script form redirects python's stdin to the
-    # heredoc content, so the piped upstream output never reaches
-    # sys.stdin (operator-debug 2026-05-18 -- queries returned
-    # "no match" because the find output was lost to the heredoc).
     local q_lc
     q_lc=$(printf '%s' "$QUERY" | tr '[:upper:]' '[:lower:]')
     local exts_re=""
@@ -188,27 +150,19 @@ for line in sys.stdin:
     print(p)
     out += 1
     if out >= max_n:
-        # Drain the rest of stdin so the upstream backend (plocate/locate/find)
-        # finishes writing instead of getting SIGPIPE -> exit 141 under
-        # `set -o pipefail` (the bug that made fs_search return 141 + no output).
         for _ in sys.stdin:
             pass
         break
 ' "$q_lc" "$exts_re" "$TYPE" "$MAX" "${EXISTING_PATHS[@]}"
 }
 
-# Try plocate first.
 if command -v plocate >/dev/null 2>&1; then
     plocate -i -- "$QUERY" 2>/dev/null | _filter_results && exit 0
 fi
-# Try locate (mlocate).
 if command -v locate >/dev/null 2>&1; then
     locate -i -- "$QUERY" 2>/dev/null | _filter_results && exit 0
 fi
 
-# Find fallback. Universal but slower. Run across the EXISTING_PATHS
-# with prune for noise dirs. -iname matches case-insensitively on
-# basename. Type filter applied here for efficiency.
 PRUNE_DIRS=(/proc /sys /run /dev /tmp /mnt /var/cache /var/tmp \
             /var/lib/containers/storage /var/lib/podman)
 FIND_ARGS=("${EXISTING_PATHS[@]}")
@@ -221,16 +175,10 @@ case "$TYPE" in
 esac
 FIND_ARGS+=( -iname "*${QUERY}*" -print )
 
-# Pipe find output through the same filter for consistent ext/limit semantics.
-# `|| true`: find exits non-zero when ANY root is unreadable (e.g. /root for the
-# non-root broker user) EVEN AFTER printing matches from readable roots -- under
-# `set -e` + `pipefail` that killed the script before the results were emitted
-# (fs_search returned empty as mios-ai while working as root). The empty-check
-# below still reports a genuine no-match. operator 2026-06-10.
 RAW=$(timeout 30 find "${FIND_ARGS[@]}" 2>/dev/null | _filter_results || true)
 
 if [ -z "$RAW" ]; then
-    echo "mios-locate: no match for '$QUERY'" >&2
+    echo "Mios-locate: no match for '$QUERY'" >&2
     exit 1
 fi
 printf '%s\n' "$RAW"

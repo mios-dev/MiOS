@@ -1,22 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: mios-flatpaks CLI: operator-friendly wrapper over `flatpak` for the system-wide Flatpak surface (list/add/remove/update/search/bake-state); auto-sudo for mutating verbs; persist refs via mios.toml [desktop].flatpaks + mios-rebuild.
 # AI-related: /usr/lib/mios/state/flatpak-bake.env, /usr/share/mios/configurator/mios.html, mios-flatpaks, mios-rebuild
-# mios-flatpaks -- thin wrapper over `flatpak` for the MiOS-shipped
-# system-wide Flatpak surface. Operator-friendly verbs that don't
-# require remembering the long flatpak invocations.
-#
-#   mios-flatpaks list             list all installed system Flatpaks
-#   mios-flatpaks add    <ref>     install <ref> from flathub system-wide
-#   mios-flatpaks remove <ref>     uninstall <ref> system-wide
-#   mios-flatpaks update           update all installed Flatpaks
-#   mios-flatpaks search <term>    search flathub for <term>
-#   mios-flatpaks bake-state       show the build-time bake state
-#                                  (/usr/lib/mios/state/flatpak-bake.env)
-#
-# To make a Flatpak persist across `bootc switch` (the self-replication
-# loop), edit the canonical mios.toml [desktop].flatpaks array via the
-# configurator HTML at /usr/share/mios/configurator/mios.html, then
-# `mios-rebuild` to push and trigger a runner-side rebuild.
 set -euo pipefail
 
 cmd="${1:-list}"
@@ -28,7 +12,7 @@ case "$cmd" in
         ;;
     add|install)
         if [[ -z "${1:-}" ]]; then
-            echo "mios-flatpaks add <flathub-ref>  (e.g. com.valvesoftware.Steam)" >&2
+            echo "Mios-flatpaks add <flathub-ref>" >&2
             exit 2
         fi
         if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" add "$@"; fi
@@ -36,7 +20,7 @@ case "$cmd" in
         ;;
     remove|uninstall|rm)
         if [[ -z "${1:-}" ]]; then
-            echo "mios-flatpaks remove <flathub-ref>" >&2
+            echo "Mios-flatpaks remove <flathub-ref>" >&2
             exit 2
         fi
         if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" remove "$@"; fi
@@ -48,7 +32,7 @@ case "$cmd" in
         ;;
     search)
         if [[ -z "${1:-}" ]]; then
-            echo "mios-flatpaks search <term>" >&2
+            echo "Mios-flatpaks search <term>" >&2
             exit 2
         fi
         flatpak search "$@"
@@ -57,14 +41,14 @@ case "$cmd" in
         if [[ -r /usr/lib/mios/state/flatpak-bake.env ]]; then
             cat /usr/lib/mios/state/flatpak-bake.env
         else
-            echo "No bake state recorded (image may pre-date 40-flatpak-bake.sh)."
+            echo "No bake state recorded"
         fi
         ;;
     --help|-h|help)
         sed -n '2,15p' "$0" | sed 's/^# \?//'
         ;;
     *)
-        echo "mios-flatpaks: unknown verb '$cmd' (try --help)" >&2
+        echo "Mios-flatpaks: unknown verb '$cmd'" >&2
         exit 2
         ;;
 esac

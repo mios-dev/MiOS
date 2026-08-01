@@ -43,17 +43,9 @@ SUMMARIZE = os.environ.get("MIOS_SUMMARIZE_BIN", "mios-summarize")
 DEFAULT_EXTS = os.environ.get("MIOS_INGEST_EXTS", "md,txt,rst,org")
 PG_QUERY = os.environ.get("MIOS_PG_QUERY_BIN", "/usr/libexec/mios/mios-pg-query")
 
-# Embed-on-write (WS-0 durability + exposure): embed the L0+L1 text at ingest so
-# the row is semantically RECALLABLE via the knowledge_emb_hnsw cosine index --
-# the same path agent-pipe's _store_knowledge_task uses for chat Q+A. MUST match
-# agent-pipe's model + endpoint EXACTLY (MIOS_VERB_EMBED_MODEL / _URL) so the
-# 768-dim nomic-embed-text vectors are comparable under <=> cosine; a mismatch
-# would make ingested rows un-rankable against chat-embedded queries.
 EMBED_MODEL = os.environ.get("MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 EMBED_URL = os.environ.get(
     "MIOS_VERB_EMBED_URL", f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1/embeddings")
-# Cap the embed input (~1200 chars). nomic handles longer, but L0+L1 is already
-# a compact tiered summary; capping keeps the light-lane call fast + bounded.
 EMBED_MAX_CHARS = int(os.environ.get("MIOS_INGEST_EMBED_MAX_CHARS", "1200"))
 
 
@@ -129,7 +121,6 @@ def _embed(text: str):
         print(f"[mios-ingest] embed call failed (emb NULL): {str(e)[:160]}",
               file=sys.stderr)
         return None
-    # OpenAI /v1 shape: {data:[{embedding:[...]}]}.
     v = None
     d = data.get("data")
     if isinstance(d, list) and d:
@@ -185,8 +176,6 @@ def main() -> int:
                           "note": "no matching files", "sources": []}))
         return 0
 
-    # The pg `knowledge` table is created by the schema-init step
-    # (usr/share/mios/postgres/schema-init.sql); no per-tool DDL needed.
 
     ingested, skipped, report = 0, 0, []
     for sp in srcs:
@@ -207,27 +196,10 @@ def main() -> int:
         l0 = (s.get("l0") or os.path.basename(sp)).strip()
         l1 = (s.get("l1") or raw[:2000]).strip()
         answer = f"[ingested from {sp}]\n\n{l1}"
-        # Embed-on-write: the tiered L0+L1 summary is what recall should match
-        # against, so embed that (NOT the raw L2 on disk). Best-effort -- a miss
-        # leaves emb NULL (row still stored + auditable, just not cosine-
-        # recallable). Capped inside _embed (EMBED_MAX_CHARS).
         emb = _embed(f"{l0}\n{l1}")
         embedded = emb is not None
-        # idempotent upsert keyed on the source path. pg `knowledge` has no
-        # `src`/`source` columns, so the path lives in the `sources` jsonb
-        # array (preserving the old sources=[sp]) and we match it with the
-        # jsonb containment operator @>. session_id='ingest' marks provenance
-        # (was source='ingest'). ts defaults to now() at the column level.
         src_json = json.dumps([sp])
         try:
-            # Atomic delete-then-insert upsert keyed on the source path. ALL
-            # file-derived values bind out-of-band ($1..$n); only the trusted
-            # table/column identifiers stay inline. The literal 'ingest'
-            # session_id is a fixed constant (not request data) so it stays
-            # inline. Add `emb` to the column list ONLY when the embed succeeded,
-            # binding the vector literal as a TEXT param cast with ::vector
-            # (matches mios_pg.build_insert). On a miss we omit the column so it
-            # defaults to NULL -- never fail the ingest.
             del_stmt = {
                 "sql": f"DELETE FROM {TABLE} WHERE sources @> $1::jsonb "
                        f"AND session_id = 'ingest';",

@@ -2,48 +2,12 @@
 # AI-hint: Builds a verity-rooted Unified Kernel Image (UKI) and configures fapolicyd in permissive mode based on mios.toml flags; use this to generate the hardened UKI artifact and carve-out rules for the WS-7 security profile.
 # AI-related: mios-ws7-permissive, mios-agent-codegen, mios-verity
 # AI-functions: _ws7_scalar, _ws7_is_true, ws7_install_fapolicyd_observe, ws7_build_verity_uki, main
-# ============================================================================
-# automation/lib/ws7-uki-fapolicyd-build.sh
-# ----------------------------------------------------------------------------
-# WS-7 (AIOS immutable-host hardening) -- GATED, DEFAULT-OFF build step that:
-#   (1) installs the fapolicyd PERMISSIVE/observe drop-in + the agent-codegen
-#       carve-out rules over the live config (observe-only; never enforce);
-#   (2) builds a verity-rooted Unified Kernel Image (UKI) measuring the
-#       composefs fs-verity digest into the UKI.
-#
-# ====================  ABSOLUTELY CRITICAL SAFETY  =========================
-# This script is NOT a numbered pipeline step. It lives under automation/lib/
-# so automation/build.sh's `[0-9][0-9]-*.sh` glob NEVER auto-runs it. It only
-# runs when a numbered step (or an operator) explicitly invokes it, AND only
-# does anything when the SSOT flags below are set true. It ships fapolicyd in
-# PERMISSIVE (observe) mode ONLY and builds the UKI as an artifact -- it does
-# NOT switch the boot loader to the UKI, does NOT flip enforce, and does NOT
-# require a signed UKI. enforce-mode or a mis-signed/required UKI BRICKS BOOT;
-# that promotion is a separate, documented, rollback-tested operator step
-# (usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md).
-#
-# DEGRADE-OPEN: any sub-step failure is logged and the script returns 0 (a
-# hardening build step must never fail the whole image build).
-#
-# SSOT flags (mios.toml; both default false):
-#   [security.fapolicyd_observe].enable   -> install observe drop-in + carve-out
-#   [uki].verity_uki_build                -> build the verity-rooted UKI artifact
-#
-# Invoke (manually, or from a numbered step gated the same way):
-#   bash automation/lib/ws7-uki-fapolicyd-build.sh
-# ============================================================================
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=lib/common.sh
 source "${SCRIPT_DIR}/common.sh"
-# (for _resolve_mios_toml)
-# shellcheck source=lib/packages.sh
 source "${SCRIPT_DIR}/packages.sh"
 
-# _ws7_scalar <table> <key> -- read a top-level scalar from [<table>] of the
-# resolved mios.toml. Mirrors automation/77-composefs-verity.sh's helper so
-# WS-7 reads the SSOT the same tolerant way. Empty when absent.
 _ws7_scalar() {
     local table="$1" key="$2" toml_path
     toml_path="$(_resolve_mios_toml 2>/dev/null || true)"
@@ -78,15 +42,12 @@ _ws7_is_true() {
     esac
 }
 
-# ---------------------------------------------------------------------------
-# Step 1: fapolicyd PERMISSIVE/observe drop-in + agent-codegen carve-out
-# ---------------------------------------------------------------------------
 ws7_install_fapolicyd_observe() {
     local enable
     enable="$(_ws7_scalar security.fapolicyd_observe enable)"
     enable="${enable:-${MIOS_FAPOLICYD_OBSERVE_ENABLE:-false}}"
     if ! _ws7_is_true "$enable"; then
-        log "[ws7] fapolicyd observe drop-in disabled ([security.fapolicyd_observe].enable=false) -- skipping"
+        log "[ws7] fapolicyd observe drop-in disabled"
         return 0
     fi
 
@@ -96,24 +57,19 @@ ws7_install_fapolicyd_observe() {
         return 0
     fi
 
-    log "[ws7] installing fapolicyd PERMISSIVE/observe config (permissive=1)"
-    # Apply over both layers per Law 1 (USR-OVER-ETC: /etc is the admin-applied
-    # active copy). Back up the existing active config first so the operator can
-    # revert. We deliberately do NOT touch the vendor /usr/lib/fapolicyd.conf.
+    log "[ws7] installing fapolicyd PERMISSIVE/observe config"
     install -d -m 0755 /etc/fapolicyd
     if [[ -f /etc/fapolicyd/fapolicyd.conf ]]; then
         cp -a /etc/fapolicyd/fapolicyd.conf /etc/fapolicyd/fapolicyd.conf.pre-ws7 || true
     fi
     install -m 0644 "$src" /etc/fapolicyd/fapolicyd.conf || warn "[ws7] could not install observe conf"
 
-    # Render the carve-out path globs from the SSOT into the live rules.d copy.
     local rules_src="/usr/lib/fapolicyd/rules.d/80-mios-agent-codegen.rules"
     if [[ -f "$rules_src" ]]; then
         local work snap scratch
         work="$(_ws7_scalar paths coderun_workspace_root)";   work="${work:-/var/home/mios/coderuns}"
         snap="$(_ws7_scalar paths coderun_snapshots_root)";   snap="${snap:-/var/home/mios/.coderun-snapshots}"
         scratch="$(_ws7_scalar paths ai_scratch_dir)";        scratch="${scratch:-/var/lib/mios/ai/scratch}"
-        # Trailing slash required by fapolicyd dir= matching.
         [[ "$work"    == */ ]] || work="${work}/"
         [[ "$snap"    == */ ]] || snap="${snap}/"
         [[ "$scratch" == */ ]] || scratch="${scratch}/"
@@ -128,18 +84,15 @@ ws7_install_fapolicyd_observe() {
     fi
 
     log "[ws7] wrote fapolicyd permissive=1 config to /etc/fapolicyd/fapolicyd.conf; fapolicyd logs matches, does not deny"
-    log "[ws7] promotion to enforce is operator-gated -- see ws7-uki-fapolicyd.md"
+    log "[ws7] promotion to enforce is operator-gated"
 }
 
-# ---------------------------------------------------------------------------
-# Step 2: verity-rooted UKI artifact (build only; not wired to the bootloader)
-# ---------------------------------------------------------------------------
 ws7_build_verity_uki() {
     local enable
     enable="$(_ws7_scalar uki verity_uki_build)"
     enable="${enable:-${MIOS_UKI_VERITY_BUILD:-false}}"
     if ! _ws7_is_true "$enable"; then
-        log "[ws7] verity-rooted UKI build disabled ([uki].verity_uki_build=false) -- skipping"
+        log "[ws7] verity-rooted UKI build disabled"
         return 0
     fi
 
@@ -148,7 +101,6 @@ ws7_build_verity_uki() {
         return 0
     fi
 
-    # Reuse the cmdline rendered by automation/76-uki-render.sh.
     local cmdline_file="/usr/lib/kernel/cmdline"
     local cmdline=""
     [[ -f "$cmdline_file" ]] && cmdline="$(tr -d '\n' < "$cmdline_file")"
@@ -173,11 +125,6 @@ ws7_build_verity_uki() {
     log "[ws7] building verity-rooted UKI for kernel ${kver}"
     log "[ws7]   cmdline: ${cmdline:-<empty>}"
 
-    # The composefs fs-verity digest (mios.toml [security].composefs_mode=verity)
-    # is the root-of-trust this UKI is meant to measure. We pass it as a profile
-    # so the UKI records the expected root digest; absent that, build a plain UKI
-    # (still an artifact, not a brick: nothing boots it unless the operator
-    # installs + signs it per the promotion doc).
     local ukify_args=(build
         --linux="$vmlinuz"
         --uname="$kver"
@@ -189,20 +136,20 @@ ws7_build_verity_uki() {
     if ukify "${ukify_args[@]}" 2>&1; then
         log "[ws7] UKI artifact written: $out"
         log "[ws7] NOTE: this is an unsigned/un-installed ARTIFACT. It is NOT the"
-        log "[ws7] active boot entry. Signing (enrolled MOK) + install + rollback"
+        log "[ws7] active boot entry. Signing + install + rollback"
         log "[ws7] test are the documented operator promotion steps. Booting an"
-        log "[ws7] unsigned/required UKI BRICKS BOOT -- do not flip lockdown/"
-        log "[ws7] verity.require kargs until the promotion procedure passes."
+        log "[ws7] unsigned/required UKI BRICKS BOOT"
+        log "[ws7] verity.require kargs until the promotion procedure passes"
     else
         warn "[ws7] ukify build failed -- degrade-open, no UKI emitted"
     fi
 }
 
 main() {
-    log "[ws7] UKI + fapolicyd hardening build step (gated, default-off)"
+    log "[ws7] UKI + fapolicyd hardening build step"
     ws7_install_fapolicyd_observe || warn "[ws7] fapolicyd observe step degraded"
     ws7_build_verity_uki        || warn "[ws7] UKI build step degraded"
-    log "[ws7] done (degrade-open; image build is never failed by this step)"
+    log "[ws7] done"
     return 0
 }
 

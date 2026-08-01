@@ -2,35 +2,7 @@
 # AI-hint: Provides the canonical legal/policy acknowledgment gate; agents use it to determine if the system requires a manual "Acknowledged" prompt or can proceed automatically based on MIOS_AGREEMENT_ACK environment variables.
 # AI-related: mios-bootstrap
 # AI-functions: mios_agreement_summary, _mios_agreement_render, mios_print_agreement_banner
-# automation/lib/agreements-banner.sh -- single source of truth for the
-# entry-point acknowledgment gate. Sourced by every shell-side entry
-# point in 'MiOS' (mios.git) and 'mios-bootstrap' (mios-bootstrap.git).
-#
-# Behavior summary:
-#   * Default for an interactive operator: print a scrollable summary
-#     of the project's licenses, research-project framing, third-party
-#     agreements, and data/network posture, then require an explicit
-#     "Acknowledged" or "No thanks" choice.
-#   * Default for non-interactive runs (CI, `bash <(curl ...)` without
-#     a controlling TTY, sourced from another script in `--quiet`
-#     mode): print a one-line note and continue. There is no way to
-#     accept-by-prompt without a terminal.
-#   * Escape hatches (any one of these skips the prompt):
-#       MIOS_AGREEMENT_BANNER=quiet | silent | off | 0 | false
-#       MIOS_AGREEMENT_ACK=accepted               (explicit accept)
-#       MIOS_REQUIRE_AGREEMENT_ACK=0              (explicit waive)
-#   * CI users that need the prompt skipped should set
-#     `MIOS_AGREEMENT_ACK=accepted` -- declaring acknowledgment by
-#     external policy is more honest than silently bypassing.
-#
-# Exit code 78 (EX_CONFIG) on decline, matching prior behavior.
 
-# ---------------------------------------------------------------------
-# The canonical scrollable summary. Embedded verbatim so it works on
-# the first leg of a `curl ... | bash` invocation, before any clone /
-# fetch has happened. The full document lives at AGREEMENTS.md; this
-# is the abridged-but-thorough form the operator sees at the gate.
-# ---------------------------------------------------------------------
 mios_agreement_summary() {
     cat <<'EOF'
 ================================================================================
@@ -163,41 +135,19 @@ the environment to bypass this prompt as declared policy.
 EOF
 }
 
-# ---------------------------------------------------------------------
-# Render the summary on the operator's terminal. Use `less -RFX` if
-# available so the text is scrollable with arrow keys / PgUp / PgDn /
-# space; falls back to a plain stdout print on systems without less.
-# ---------------------------------------------------------------------
 _mios_agreement_render() {
     local tty_in tty_out
     tty_in="${1:-/dev/tty}"
     tty_out="${2:-/dev/tty}"
 
     if command -v less >/dev/null 2>&1; then
-        # -R  pass color codes through (none used today, future-proof)
-        # -F  quit immediately if content fits on one screen
-        # -X  do not clear the screen on exit
-        # -K  abort on Ctrl-C without leaving terminal in alt screen
-        #
-        # No `<"$tty_in"` redirect: the previous `cmd | less <"$tty_in"`
-        # form was wrong -- the `<` redirect REPLACES the pipe stdin,
-        # so less saw `</dev/tty` (a TTY, not piped data) AND no
-        # filename arg, then aborted with:
-        #   Missing filename ("less --help" for help)
-        # which is what the operator hit running ./install.sh from /
-        # inside MiOS-DEV. less reads keyboard input from /dev/tty
-        # automatically when stdin is a pipe; no override needed.
         mios_agreement_summary | less -RFXK >"$tty_out"
     else
         mios_agreement_summary >"$tty_out"
     fi
 }
 
-# ---------------------------------------------------------------------
-# Public: the gate.
-# ---------------------------------------------------------------------
 mios_print_agreement_banner() {
-    # Quiet escape hatch: skip everything (banner + prompt).
     case "${MIOS_AGREEMENT_BANNER:-}" in
         quiet|silent|off|0|false|FALSE) return 0 ;;
     esac
@@ -205,15 +155,13 @@ mios_print_agreement_banner() {
     local entry="${1:-${BASH_SOURCE[1]:-this entry point}}"
     entry="$(basename -- "$entry")"
 
-    # Pre-accepted: declared accept, no prompt.
     case "${MIOS_AGREEMENT_ACK:-}" in
         accepted|ACCEPTED|yes|YES|y|1|true|TRUE)
-            echo "[mios] AGREEMENTS.md acknowledged via MIOS_AGREEMENT_ACK; proceeding with ${entry}." >&2
+            echo "[mios] AGREEMENTS.md acknowledged via MIOS_AGREEMENT_ACK; proceeding with ${entry}" >&2
             return 0
             ;;
     esac
 
-    # Explicit waive: print the one-line banner only.
     if [[ "${MIOS_REQUIRE_AGREEMENT_ACK:-1}" == "0" ]]; then
         cat >&2 <<EOF
 [mios] By invoking ${entry} you acknowledge AGREEMENTS.md
@@ -223,13 +171,7 @@ EOF
         return 0
     fi
 
-    # Need a TTY to render the doc + prompt. /dev/tty is the canonical
-    # way to talk to the controlling terminal even when stdin/stdout
-    # are pipes (true on `curl ... | bash`).
     if [[ ! -r /dev/tty || ! -w /dev/tty ]]; then
-        # No terminal available -- fall back to one-line informational
-        # banner. This is the same behavior the legacy script had.
-        # Operator can re-run with a TTY (or set MIOS_AGREEMENT_ACK).
         cat >&2 <<EOF
 [mios] No controlling terminal available; cannot prompt for
        acknowledgment of AGREEMENTS.md. Continuing with ${entry}.
@@ -239,24 +181,22 @@ EOF
         return 0
     fi
 
-    # Render the scrollable summary.
     _mios_agreement_render /dev/tty /dev/tty
 
-    # Prompt loop. Read from /dev/tty so it works under `curl | bash`.
     local reply
     while :; do
         printf '\n[mios] Type "Acknowledged" to proceed, or "No thanks" to abort: ' >/dev/tty
         if ! IFS= read -r reply </dev/tty; then
-            echo "[mios] no input received; aborting." >&2
+            echo "[mios] no input received; aborting" >&2
             exit 78
         fi
         case "$reply" in
             Acknowledged|acknowledged|ACKNOWLEDGED|accept|ACCEPT|y|Y|yes|YES)
-                echo "[mios] AGREEMENTS.md acknowledged; proceeding with ${entry}." >&2
+                echo "[mios] AGREEMENTS.md acknowledged; proceeding with ${entry}" >&2
                 return 0
                 ;;
             No\ thanks|no\ thanks|NO\ THANKS|n|N|no|NO|decline|DECLINE|q|Q|quit|QUIT)
-                echo "[mios] not acknowledged; aborting (no system changes made)." >&2
+                echo "[mios] not acknowledged; aborting" >&2
                 exit 78
                 ;;
             *)

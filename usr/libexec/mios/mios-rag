@@ -46,7 +46,6 @@ _PGQ = "/usr/libexec/mios/mios-pg-query"
 
 def _embed(text: str) -> "list[float]":
     import time
-    # OpenAI /v1/embeddings (mios-llm-light serves nomic-embed-text; MiOS is /v1-only)
     base = EMBED_ENDPOINT if EMBED_ENDPOINT.endswith("/v1") else EMBED_ENDPOINT + "/v1"
     endpoints = [
         (base, EMBED_MODEL),
@@ -104,7 +103,6 @@ def _vec(emb: list) -> str:
 
 
 def _chunks(text: str, src: str):
-    # Paragraph-aware chunking with overlap capped at CHUNK_CHARS.
     OVERLAP_CHARS = 150
     buf = ""
     for para in text.split("\n\n"):
@@ -131,8 +129,6 @@ def cmd_ingest(dirs: "list[str]") -> int:
     if not paths:
         print("mios-rag: no source files found", file=sys.stderr)
         return 1
-    # pgvector store. Brute-force cosine is fine for the docs-sized corpus; an
-    # HNSW index is added best-effort.
     _pg("CREATE TABLE IF NOT EXISTS mios_rag ("
         "id bigserial PRIMARY KEY, source text, content text, emb vector(768));")
     try:
@@ -153,17 +149,12 @@ def cmd_ingest(dirs: "list[str]") -> int:
                 emb = _embed(chunk)
                 if not emb:
                     continue
-                # PARAMETERIZED: source (filesystem path) + content (file text)
-                # are BOUND, never spliced -> no quote/backslash/encoding edge
-                # case can break or inject the SQL.
                 _pg_param(
                     "INSERT INTO mios_rag (source, content, emb) "
                     "VALUES ($1, $2, $3::vector)",
                     [src, chunk, _vec(emb)])
                 n += 1
             except Exception:
-                # transient embed 500 (mios-llm-light loading) or a bad chunk --
-                # skip it and keep going so one failure can't abort the run.
                 continue
     print(json.dumps({"ok": True, "files": len(paths), "chunks": n}))
     return 0
@@ -175,10 +166,6 @@ def cmd_query(text: str, k: int) -> int:
         print(json.dumps({"ok": False, "error": "embed_failed", "hits": []}))
         return 1
     qv = _vec(emb)
-    # pgvector cosine: distance is emb <=> qv ; similarity = 1 - distance. The
-    # vector is BOUND as $1 (reused); LIMIT stays inline (int-coerced -> safe).
-    # Flatten newlines/tabs in content so mios-pg-query's tab-separated,
-    # one-row-per-line output stays parseable.
     q = ("SELECT source, translate(content, E'\\n\\t\\r', '   '), "
          "round((1 - (emb <=> $1::vector))::numeric, 4) "
          "FROM mios_rag ORDER BY emb <=> $1::vector LIMIT " + str(int(k)) + ";")

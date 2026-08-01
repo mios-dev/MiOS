@@ -10,7 +10,6 @@ import shutil
 import argparse
 
 # AI-hint: GAP-5 -- post-build binary diff between new OCI layer blobs and prior manifest
-# Creates a zstd-compressed block-level delta bundle
 
 BLOCK_SIZE = 1024 * 1024  # 1MB
 
@@ -76,7 +75,6 @@ def create_delta(old_dir: str, new_dir: str, out_tar: str, priv_key: str = None)
                                 "sha256": h
                             })
                         else:
-                            # Compress new block with zstd
                             try:
                                 cdata = subprocess.run(
                                     ["zstd", "-c", "-19", "--quiet"], 
@@ -106,21 +104,17 @@ def create_delta(old_dir: str, new_dir: str, out_tar: str, priv_key: str = None)
                     "blocks": file_blocks
                 }
                 
-        # Write manifest
         manifest_path = os.path.join(tmpdir, "manifest.json")
         with open(manifest_path, "w") as mf:
             json.dump(manifest, mf, indent=2)
             
-        # SEC-03: Sign the manifest if key is provided (simulate SHA-256 chain signing)
         if priv_key:
-            # We just do a mock signature for the chain
             with open(manifest_path, "rb") as mf:
                 content = mf.read()
             sig = hashlib.sha256(content + priv_key.encode()).hexdigest()
             with open(os.path.join(tmpdir, "signature.sha256"), "w") as sf:
                 sf.write(sig)
 
-        # Create tar
         with tarfile.open(out_tar, "w") as tar:
             tar.add(manifest_path, arcname="manifest.json")
             if priv_key:

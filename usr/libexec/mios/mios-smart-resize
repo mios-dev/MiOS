@@ -32,7 +32,6 @@ def main():
 
     W_orig, H_orig = img.size
 
-    # Math scaling logic
     W_target = args.width
     H_target = args.height
     factor = args.image_factor
@@ -89,17 +88,14 @@ def main():
     try:
         resized_img = img.resize((W_tensor, H_tensor), Image.Resampling.LANCZOS)
         
-        # Save metadata to PNG text chunk
         metadata = PngInfo()
         metadata.add_text("W_tensor", str(W_tensor))
         metadata.add_text("H_tensor", str(H_tensor))
         metadata.add_text("W_orig", str(W_orig))
         metadata.add_text("H_orig", str(H_orig))
 
-        # Output PNG to stdout
         resized_img.save(sys.stdout.buffer, "PNG", pnginfo=metadata)
         
-        # Output JSON metadata to stderr
         meta_json = json.dumps({
             "W_tensor": W_tensor,
             "H_tensor": H_tensor,
