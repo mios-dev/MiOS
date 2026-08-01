@@ -115,3 +115,12 @@ scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null |
 # Managed via usr/lib/tmpfiles.d/mios-virtio.conf
 
 mios_ok "virtualization stack ready (LG: refactored to 53-lg; K3s: refactored to 13-ceph-k3s)"
+
+# Materialize mini-vfio (AGY-117)
+mkdir -p /etc/mios
+/usr/libexec/mios/mios-mini-vfio-gen > /etc/mios/mini-vfio.env
+mios_ok "Materialized mini-vfio.env"
+
+# Materialize mini-mesh (AGY-118)
+/usr/libexec/mios/mios-mini-mesh-gen > /etc/mios/mini-mesh.env
+mios_ok "Materialized mini-mesh.env"

@@ -41,3 +41,7 @@ if command -v fagenrules &>/dev/null; then
 fi
 
 mios_ok "hardening services wired"
+# Materialize clevis LUKS config (AGY-110)
+mkdir -p /etc/mios
+/usr/libexec/mios/mios-clevis-luks-gen > /etc/mios/clevis-luks.env
+mios_ok "Materialized clevis-luks.env"

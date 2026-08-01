@@ -189,12 +189,12 @@
 | T-201 | P2 | planned | SSOT/CLI | FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync |
 | T-202 | P3 | planned | Provisioning/Containers | FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i |
 | T-203 | P3 | planned | UI/Provisioning | FBM-04 -- Portal model-provisioning status tile + air-gapped pre |
-| T-204 | P3 | planned | Build/Offline | OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3] |
-| T-205 | P3 | planned | Build/Offline | OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cur |
-| T-206 | P3 | planned | Build/Offline | OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3] |
-| T-207 | P3 | planned | Build/Offline | OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index` |
-| T-208 | P2 | planned | Build/Offline/AI-lanes | OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image   |
-| T-209 | P3 | planned | Build/Offline | OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3] |
+| T-204 | P3 | done | Build/Offline | OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3] |
+| T-205 | P3 | done | Build/Offline | OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cur |
+| T-206 | P3 | done | Build/Offline | OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3] |
+| T-207 | P3 | done | Build/Offline | OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index` |
+| T-208 | P2 | done | Build/Offline/AI-lanes | OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image   |
+| T-209 | P3 | done | Build/Offline | OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3] |
 | T-210 | P2 | planned | Verification/Compute | IGPU-00 -- Wave-0 hardware verify probes (iGPU-WSL, heavy-lane 4 |
 | T-211 | P2 | planned | Compute/AI-lanes | IGPU-01 -- In-VM iGPU compute lane; retire native `mios-igpu-ser |
 | T-212 | P2 | planned | Compute/AI-lanes | IGPU-02 -- llama.cpp RPC fabric across lanes + coopmat2 verify   |
@@ -3816,7 +3816,7 @@ T-094 (CONV-01 SSOT)
 - [x] `mios models cache` seeds the model dir so T-200 skips the download.
 
 ## T-204: OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** `automation/05-enable-external-repos.sh` currently fetches `terra.repo` from the network. Vendor it as `usr/share/mios/repos/terra.repo` and have the step copy the in-tree file instead of curling it (fall back to network only if a `--online` flag is set).
 **Where (files):** `automation/05-enable-external-repos.sh`; new `usr/share/mios/repos/terra.repo`.
 **When (deps/order):** Independent; part of the offline-build sweep.
@@ -3824,7 +3824,7 @@ T-094 (CONV-01 SSOT)
 - [x] A build with no egress reaches the repo-enable step without a network fetch.
 
 ## T-205: OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cursor, flathub mirror)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** `automation/09-fonts.sh` and `10-gnome.sh` fetch Geist + Nerd-Fonts, the Bibata cursor, and add the flathub remote at build time. Vendor `usr/share/mios/vendored/fonts/{geist,nerd}.tar.xz` + `bibata-*.tar.xz`, and stand up a local flathub mirror (or bake the needed flatpaks as OCI archives — `40-flatpak-bake.sh` already does OCI bake for flatpaks) so no build-time remote is required.
 **Where (files):** `automation/09-fonts.sh`, `automation/10-gnome.sh`; new `usr/share/mios/vendored/fonts/`, `usr/share/mios/vendored/cursors/`.
 **When (deps/order):** Independent.
@@ -3832,7 +3832,7 @@ T-094 (CONV-01 SSOT)
 - [x] Offline build installs fonts + cursor from in-tree tarballs; flatpak install uses the local mirror/OCI archives.
 
 ## T-206: OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** `automation/13-ceph-k3s.sh` fetches the k3s binary and `19-k3s-selinux.sh` clones k3s-selinux. Vendor `usr/share/mios/vendored/k3s/k3s-<tag>` and a k3s-selinux tarball; install from in-tree.
 **Where (files):** `automation/13-ceph-k3s.sh`, `automation/19-k3s-selinux.sh`; new `usr/share/mios/vendored/k3s/`.
 **When (deps/order):** Independent.
@@ -3840,7 +3840,7 @@ T-094 (CONV-01 SSOT)
 - [x] Offline build installs k3s + selinux policy without cloning/fetching.
 
 ## T-207: OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index`)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** `automation/38-hermes-agent.sh` fetches the hermes-agent git tree + pip deps at build. Vendor the source snapshot + a wheelhouse under `usr/share/mios/vendored/wheels/`, and switch the install to `pip install --no-index --find-links <wheelhouse>`.
 **Where (files):** `automation/38-hermes-agent.sh`; new `usr/share/mios/vendored/wheels/`, vendored hermes source.
 **When (deps/order):** Independent.
@@ -3848,7 +3848,7 @@ T-094 (CONV-01 SSOT)
 - [x] Offline build builds the hermes venv with no PyPI/network access.
 
 ## T-208: OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Build/Offline/AI-lanes | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Build/Offline/AI-lanes | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** `automation/38-llamacpp-prep.sh` fetches GGUF blobs + the llama-swap proxy image at build. For a fully offline build, bundle the small/default GGUFs under `usr/share/mios/vendored/models/` and pre-pull the proxy image into the build cache. (Coordinate with WS-FBM: large models move to first-boot fetch; only the baseline default lands offline.)
 **Where (files):** `automation/38-llamacpp-prep.sh`; new `usr/share/mios/vendored/models/`.
 **When (deps/order):** Coordinate with T-200/T-201 (firstboot models own the large-model path).
@@ -3856,7 +3856,7 @@ T-094 (CONV-01 SSOT)
 - [x] Offline build produces a bootable image with the baseline model + proxy image present, no build-time model fetch.
 
 ## T-209: OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
+> **Priority:** P3 | **Status:** done | **Effort:** L | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
 **Instructions (WHAT + HOW):** dnf package installs still reach Fedora mirrors at build. Ship a local rpm mirror image (or a vendored repo snapshot) so a Scenario-2 USB build installs all packages from a local source. This is the largest offline gap; scope a reproducible mirror-snapshot step.
 **Where (files):** `automation/` dnf-config step; a new mirror-build target.
 **When (deps/order):** Last / heaviest of the WS-OFFL sweep.

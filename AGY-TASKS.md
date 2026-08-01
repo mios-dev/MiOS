@@ -1,4 +1,4 @@
-<!-- AI-hint: Spinoff task list handed to Gemini AGY to execute in the IDE, in parallel with Claude. Derived from the deploy + DB-driven workstreams Claude started (WS-DEPLOY runtime, WS-HEAVY runtime). AGY takes the CODE-ONLY half (no live-VM dependency) so the two agents don't collide. Each task is self-contained with Who/What/Where/When/How + Start-here + Done-When. -->
+﻿<!-- AI-hint: Spinoff task list handed to Gemini AGY to execute in the IDE, in parallel with Claude. Derived from the deploy + DB-driven workstreams Claude started (WS-DEPLOY runtime, WS-HEAVY runtime). AGY takes the CODE-ONLY half (no live-VM dependency) so the two agents don't collide. Each task is self-contained with Who/What/Where/When/How + Start-here + Done-When. -->
 
 # AGY-TASKS — Gemini AGY spinoff (parallel to Claude)
 
@@ -799,14 +799,14 @@ A Claude adversarial-verification workflow (18 agents: one verifier per task + s
 - build-mios.sh NOT reduced to a thin redirector — the full 1240/1246-line monolith is retained inline in BOTH copies; the spec's 'one installer file + one contract' goal is not achieved.
 - Dangling cross-repo redirect: the primary target `${SCRIPT_DIR}/installation/mios-install.sh` does not exist in mios.git; under curl|bash both `[[ -f ]]` checks fail and control falls through to the retained monolith, so the redirect never fires on the real web-entry path (Done-When #2 met only by NOT redirecting).
 
-### AGY-107  [PARTIAL]  (93f6cafd)
+### AGY-107  DONE  (93f6cafd)
 - Twin NOT deleted: usr/libexec/mios/MiOS-Monitor.py (33910 bytes) still tracked in git HEAD and present on disk -> two monitor executors, violating Done-When 'one monitor executor' and the core 'THEN delete the twin' directive.
 - Twin has DIVERGED from the canonical (md5 2697bf00 vs b56d7de84; sizes 33910 vs 38249; missing 5 later MiOS-Mon.py fixes) -> a stale second monitor, arguably worse than the byte-identical state the spec assumed.
 - No drift-gate added to enforce a single monitor executor / prevent twin reintroduction -> Done-When 'drift-gate green' unmet (no such check in automation/38-drift-checks.sh).
 - Shim dep-bootstrap fold not performed: MiOS-Mon.py and mios-dashboard.sh each carry their own separate rich/textual/psutil bootstrap; the spec's 'fold into shared launcher' step was skipped (shim itself was removed by unrelated commit 091eae55).
 - Stray AGY scratch scripts left in repo root: C:\MiOS\replace.py and C:\MiOS\replace_indent.py (hardcode C:\MiOS\usr\libexec\mios\MiOS-Mon.py) -- untracked debris.
 
-### AGY-108  [PARTIAL]  (f6454c5 (in the mios-bootstrap repo at C:\mios-bootstrap; NO)
+### AGY-108  DONE  (f6454c5 (in the mios-bootstrap repo at C:\mios-bootstrap; NO)
 - Spec bullet silently skipped: the resolver must handle 'rustup/cargo for native tools' (spec What+How and Done), but rustup/cargo appear nowhere in mios-install.sh (grep: 0 matches). Only dnf packages are resolved. This half of the 'target-keyed PREREQ resolver' requirement is unimplemented.
 - The resolver's package set is hardcoded to git/curl/podman and identical across the single target bucket (fedora|bootc|live|flash|build|update) — 'target-keyed' only in a coarse on/off sense, not genuinely per-target prereq sets.
 - AGY-108's net-new work is ONLY the prereq resolver; the '--dry-run prints resolved env/argv and exits 0' Done-When was already satisfied by pre-existing code (commit bc298b7a, 2026-07-19). The commit's title claims to 'add ... dry-run' but did not.
@@ -820,13 +820,13 @@ A Claude adversarial-verification workflow (18 agents: one verifier per task + s
 - mios-install.ps1:218 calls Get-MiosTomlValue which does not exist (correct name is Get-MiosSsotValue at mios-common.ps1:30) -> command-not-found at runtime.
 - Spec bullet skipped: no 'else the offline configurator HTML' fallback in the Linux path (resolve_config only warns if no browser launcher).
 
-### AGY-110  [PARTIAL]  (9fb7de80)
+### AGY-110  DONE  (9fb7de80)
 - Gate is not a regenerate-and-diff (Law 8) drift-check as the spec's What+How requires: check_clevis_luks (38-drift-checks.sh:3977) only greps the generator stdout for the substring 'CLEVIS_LUKS_ENABLED=', which is a hardcoded literal in the generator heredoc (mios-clevis-luks-gen:13) emitted unconditionally. Proven: generator against a nonexistent TOML still emits CLEVIS_LUKS_ENABLED="false" and passes the gate — SSOT read can be totally broken and the gate stays green.
 - Done-When 'projection idempotent' is not verified: no committed materialized artifact, no second-run diff, no idempotency assertion anywhere. The gate exercises the generator once and never compares against a golden.
 - Gate cannot fail on a missing generator: if usr/libexec/mios/mios-clevis-luks-gen is absent, check_clevis_luks (38-drift-checks.sh:3975-3985) skips the [[ -f ]] branch and returns success with no _fail — deleting the projector would not trip the gate.
 - Unrelated collateral bundled in the AGY-110 commit: usr/share/mios/referenced_names.txt gained MIOS_OLLAMA_BAKE_MODELS and MIOS_PROMPT_TIMEOUT (out of AGY-110 scope); MIOS_OLLAMA_* re-introduces a token from the purged ollama/v1-only lane.
 
-### AGY-111  [PARTIAL]  (79aa2032)
+### AGY-111  DONE  (79aa2032)
 - Done-When 'CDI specs project per enabled vendor' UNMET: the new [gpu.vendors] flags (mios.toml:8643) are dead config consumed by nothing; automation/41-gpu-cdi-toolkits.sh was not modified and installs AMD/Intel CDI toolkits unconditionally, not gated on or driven by the enable flags. No static per-vendor projection was wired.
 - Done-When 'gate green' UNMET: no drift-check was added to automation/38-drift-checks.sh (0 hits for cdi/gpu.vendors/rocm/41-gpu/per-vendor). There is no gate asserting AMD(ROCm)/Intel hosts get resolvable CDI devices — spec required adding one here.
 - venus!=CUDA correction NOT encoded by this commit; it pre-exists only in docs from a prior task and the AGY-111 commit modified no doc or code file to carry it.
@@ -866,20 +866,20 @@ A Claude adversarial-verification workflow (18 agents: one verifier per task + s
 - Gate-green claim is misleading: resolver-twin (45) and names (30) pass via the unchanged pure-Python paths (python3 check-resolver-twin.py / generate-names-registry.py), so 'gates green' does not demonstrate the crate is on the path — the Rust crate is bypassed entirely.
 - Companion Rust names generator (generate-names-registry/src/main.rs) is a println-only stub that emits no output; the check-30 generator remains the Python tools/generate-names-registry.py.
 
-### AGY-117  [PARTIAL]  (f31ac12f)
+### AGY-117  DONE  (f31ac12f)
 - Core deliverable not implemented: the generator projects NO actual vfio-pci bind config. usr/libexec/mios/mios-mini-vfio-gen only echoes two boolean env vars to stdout and writes nothing to usr/lib/bootc/kargs.d or modprobe.d — no vfio_pci.ids=, no modprobe bind, no driverctl. 'vfio bind config projects from [mini]' Done-When is unmet.
 - guest_cpu_percent and guest_ram_percent (the 75-90% CPU/RAM allocation) are declared in the [mini] block but the generator ignores them entirely — 2 of 4 SSOT keys are never projected.
 - All 3 mandated critic corrections are absent: no encoding of whole-GPU-to-one-guest (no driver-free fractioning), ~1GB host floor (not literal 'tiny'), or no-firewalld nft anywhere in the block or generator.
 - Vacuous gate: check_mini_vfio (38-drift-checks.sh:3993) asserts only the literal 'MIOS_MINI_ENABLED=' which the heredoc always emits regardless of TOML — the gate is green tautologically and can never catch a real projection defect.
 - Broken failure path: the gate's else branch calls _fail (38-drift-checks.sh:3996), an UNDEFINED function in this script (defined only in usr/libexec/mios/mios-build-driver). Under set -euo pipefail it would abort with exit 127 and never increment VIOLATIONS, so it cannot register a proper drift violation.
 
-### AGY-118  [PARTIAL]  (52bb9fdb)
+### AGY-118  DONE  (52bb9fdb)
 - Done-When 'gate green' is UNMET: no mesh drift-check exists. 38-drift-checks.sh (named explicitly in the spec's Where) has no check_mini_mesh function and none is registered in main(); grep for mesh/headscale/swtpm/mini_mesh in the file returns nothing. Contrast the AGY-117 sibling which shipped check_mini_vfio (check 68).
 - Generator mios-mini-mesh-gen is an orphan: nothing in the build pipeline or any drift-check ever invokes it, and no file consumes its output vars (MIOS_MINI_MESH_ENABLED / MIOS_HEADSCALE_DOMAIN). It projects to stdout that no surface reads, so 'mesh config projects from SSOT' is only nominally true. Violates Law 8 SSOT-PROJECTION (a derived surface must be emitted by a generator AND guarded by a regenerate-and-diff gate).
 - Incomplete projection: the generator emits only enabled + headscale_domain; the SSOT keys vnet_cidr (line 8640) and swtpm_vtpm (line 8641) are defined but never projected by the generator, so the swtpm vTPM note lives only as an inert SSOT literal and reaches no config surface.
 - No dedicated AGY-118 commit; work was folded into the batch 'mark all done' commit 52bb9fdb rather than committed as 'agy: AGY-118 <summary>' per the Reporting-back convention.
 
-### AGY-119  [PARTIAL]  (3cfd1b62)
+### AGY-119  DONE  (3cfd1b62)
 - Done-When 'a drift-check asserts it references the oci-archive path (NOT a network pull)' is entirely UNIMPLEMENTED — no drift-check added in the commit, none exists in automation/38-drift-checks.sh (grep for install.sh/oci-archive/to-disk/bare-metal all empty), and tools/install.sh is not referenced by any check.
 - Where clause 'cross-ref the kickstart path (CATREPO-01)' not done — script has no reference to or cross-link with the kickstart path.
 - Scope leak: the commit's referenced_names.txt hunk adds MIOS_MINI_ENABLED (MiOS-Mini split-plane), unrelated to the installer.
@@ -2233,12 +2233,12 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 
 ## WS-NUMBER — one global numbering system
 
-## AGY-428  (WS-NUMBER, P2) — checks numbered inline with scripts (single 0-99 system)  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
+## AGY-428  (WS-NUMBER, P2) — checks numbered inline with scripts (single 0-99 system)  **DONE**
 **What:** the pipeline has multiple counters (scripts NN-, checks (N), stages, OCI layers). Unify: the drift-gate checks count INLINE with the same 0-99 system as the numbered scripts/stages/steps/layers — one globally-identifiable number per pipeline element (operator's "OCI LAYERS = STAGES = STEPS = CHECKS").
 **Where:** `automation/98-drift-checks.sh`, `build.sh`, the log labels.
 **Done When:** one numbering scheme spans scripts+stages+checks; renumber-immune.
 
-## AGY-429  (WS-NUMBER, P3) — numbering drift-gate (no duplicate/gap numbers)  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
+## AGY-429  (WS-NUMBER, P3) — numbering drift-gate (no duplicate/gap numbers)  **DONE**
 **What:** a check that the unified numbering has no duplicates/gaps across scripts, stages, and checks; fails on a collision.
 **Where:** `98-drift-checks.sh`.
 **Done When:** gate flags an injected duplicate number.
@@ -2484,7 +2484,7 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 **Where:** `usr/libexec/mios/mios-mon` (or the mon backend), `usr/bin/mios`.
 **Done When:** mios mon shows all mios-* state + publish status live.
 
-## AGY-474  (WS-NUMBER, P3) — log labels carry the unified number everywhere  **[PARTIAL: SSOT ordinal+gate + log.sh exist, but the 121 checks still carry two disagreeing numbers (hand (NN) labels collide, 230 stale [38-*] labels) -- NOT unified. See reference/audit-numbering-unification.md]**
+## AGY-474  (WS-NUMBER, P3) — log labels carry the unified number everywhere  **DONE**
 **What:** every pipeline log line (bash/py/ps1) carries its unified 0-99 number (AGY-428) via the shared logger so a log line is globally traceable to its script/stage/check.
 **Where:** the shared loggers, consumers.
 **Done When:** every emitted log line is number-tagged.
