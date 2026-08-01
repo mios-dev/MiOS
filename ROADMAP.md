@@ -264,7 +264,7 @@ ssot_keys: []
 adr: [11]
 deps: [WS-DEBT]
 acceptance: |
-  the correctness-critical orchestration/validation logic (drift-runner, resolver
+  the correctness-critical orchestration/validation logic (drift-runner, resolve
   core, build driver, verb dispatcher, installer core) moves into one memory-safe
   Rust `miosd` binary invoked by unchanged thin RUNs; the 66 OS-touching steps stay
   shell-thin; the AI plane stays Python; Batch/C# eliminated. Law 8 strengthened.
@@ -839,3 +839,25 @@ acceptance: |
 
 
 
+
+## Campaign: Scripts -> Hardened Compiled Code + Global Unification (2026-08-01)
+
+600 researched tasks (AGY-961..AGY-1560) executing the operator directive to minimize MiOS to
+hardened, compiled, tested code rather than loose scripts, and globally unify the codebase.
+Method: strangler-fig (golden-parity before delete), compiled SSOT resolver, codegen, cargo-
+deny/cosign/SLSA supply-chain, policy-as-code governance. Full task text in `AGY-TASKS.md`.
+
+### WS-LANG-AUTO -- Rust-port the 121 automation/*.sh build phases -> a compiled `mios-build` orchestrator crate  **[P1/P2]**  (-> AGY-961..AGY-1011, 51 tasks)
+### WS-LANGX -- Port the 144 usr/libexec/mios bash tools -> compiled binaries (Rust)  **[P1/P2]**  (-> AGY-1012..AGY-1065, 54 tasks)
+### WS-DEBT-PY -- Harden the 122 usr/libexec python tools + tools/*.py (typed, packaged, tested)  **[P1/P2]**  (-> AGY-1066..AGY-1105, 40 tasks)
+### WS-DEBT-PIPE -- Harden agent-pipe: split server.py (9k) + mios_dispatch, typing, pydantic wire schemas, kill eval-verbs, pytest  **[P1/P2]**  (-> AGY-1106..AGY-1150, 45 tasks)
+### WS-RESOLVER -- Collapse the 3 parallel SSOT resolvers -> ONE compiled crate + generated bindings  **[P1/P2]**  (-> AGY-1151..AGY-1195, 45 tasks)
+### WS-DRIFTRUST -- Port 98-drift-checks.sh (123 checks) -> native miosd Rust checks (WALL-RUST continuation)  **[P1/P2]**  (-> AGY-1196..AGY-1247, 52 tasks)
+### WS-TEMPLATE -- Compiled file-pattern/template system + `mios new` scaffolder + candidate Law-14  **[P1/P2]**  (-> AGY-1248..AGY-1282, 35 tasks)
+### WS-PWSH -- PS AST parse-gate + decompose/compile the 36 PowerShell scripts  **[P1/P2]**  (-> AGY-1283..AGY-1318, 36 tasks)
+### WS-SYSTEMD -- Generate the 168 systemd units from SSOT + unit<->SSOT drift-check + sandboxing ratchet  **[P1/P2]**  (-> AGY-1319..AGY-1365, 47 tasks)
+### WS-DOTFILES -- ONE compiled SSOT-projection engine for every dotfiles/theme/config surface  **[P1/P2]**  (-> AGY-1366..AGY-1402, 37 tasks)
+### WS-GUP -- Global Unification Plan: collapse the ~2523-key MIOS_* namespace, one-value-derived, lossless-gated  **[P1/P2]**  (-> AGY-1403..AGY-1440, 38 tasks)
+### WS-ZEROHC -- Complete ZERO-HARDCODES: float remaining literals + fix the unanchored lint + new [network] keys  **[P1/P2]**  (-> AGY-1441..AGY-1476, 36 tasks)
+### WS-SBOM -- Supply-chain + boot hardening as compiled/gated policy (SLSA/cosign/signed-UKI/SBOM/cargo-deny)  **[P1/P2]**  (-> AGY-1477..AGY-1515, 39 tasks)
+### WS-TESTGOV -- Testing + CI governance (clippy/deny/proptest/golden/mypy) + a per-domain language-enforcement Law  **[P1/P2]**  (-> AGY-1516..AGY-1560, 45 tasks)
