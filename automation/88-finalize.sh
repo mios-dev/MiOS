@@ -54,7 +54,10 @@ ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 # hardcode. The overlay ships os-release with values already == SSOT (drift-check
 # 42 enforces it); this is the authoritative build-time re-projection.
 OSR=/usr/lib/os-release
-if [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
+if command -v miosd >/dev/null 2>&1; then
+    miosd finalize-osrelease --path "$OSR" --version "$MIOS_VERSION"
+    mios_ok "os-release version projected from SSOT via miosd: ${MIOS_VERSION}"
+elif [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
     for _k in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
         sed -i -E "s|^${_k}=.*|${_k}=\"${MIOS_VERSION}\"|" "$OSR"
     done

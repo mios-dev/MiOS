@@ -121,6 +121,15 @@ enum Commands {
         #[arg(long)]
         check: bool,
     },
+    /// Re-project SSOT version onto /usr/lib/os-release fields
+    FinalizeOsrelease {
+        /// Target os-release file path
+        #[arg(long, default_value = "/usr/lib/os-release")]
+        path: String,
+        /// Explicit version override (defaults to reading /ctx/VERSION or /usr/share/mios/version)
+        #[arg(long)]
+        version: Option<String>,
+    },
 }
 
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -454,7 +463,60 @@ fn main() {
                 std::process::exit(1);
             }
         }
+        Commands::FinalizeOsrelease { path, version } => {
+            if let Err(e) = run_finalize_osrelease(path, version.as_deref()) {
+                eprintln!("[miosd] Finalize os-release error: {}", e);
+                std::process::exit(1);
+            }
+        }
     }
+}
+
+fn run_finalize_osrelease(path: &str, ver_opt: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+    let ver = match ver_opt {
+        Some(v) => v.to_string(),
+        None => {
+            if let Ok(c) = std::fs::read_to_string("/ctx/VERSION") {
+                c.trim().to_string()
+            } else if let Ok(c) = std::fs::read_to_string("VERSION") {
+                c.trim().to_string()
+            } else {
+                "unknown".to_string()
+            }
+        }
+    };
+
+    let p = std::path::Path::new(path);
+    if !p.exists() || ver == "unknown" {
+        return Ok(());
+    }
+
+    let content = std::fs::read_to_string(p)?;
+    let mut new_lines = Vec::new();
+
+    for line in content.lines() {
+        if line.starts_with("VERSION=") {
+            new_lines.push(format!("VERSION=\"{}\"", ver));
+        } else if line.starts_with("VERSION_ID=") {
+            new_lines.push(format!("VERSION_ID=\"{}\"", ver));
+        } else if line.starts_with("BUILD_ID=") {
+            new_lines.push(format!("BUILD_ID=\"{}\"", ver));
+        } else if line.starts_with("IMAGE_VERSION=") {
+            new_lines.push(format!("IMAGE_VERSION=\"{}\"", ver));
+        } else if line.starts_with("OSTREE_VERSION=") {
+            new_lines.push(format!("OSTREE_VERSION=\"{}\"", ver));
+        } else if line.starts_with("PRETTY_NAME=") {
+            new_lines.push(format!("PRETTY_NAME=\"MiOS {}\"", ver));
+        } else if line.starts_with("CPE_NAME=") {
+            new_lines.push(format!("CPE_NAME=\"cpe:/o:mios-dev:mios:{}\"", ver));
+        } else {
+            new_lines.push(line.to_string());
+        }
+    }
+
+    std::fs::write(p, new_lines.join("\n") + "\n")?;
+    println!("[miosd] os-release version projected from SSOT: {}", ver);
+    Ok(())
 }
 
 fn run_cosign_policy(check: bool) -> Result<(), Box<dyn std::error::Error>> {
