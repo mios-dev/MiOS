@@ -19,9 +19,22 @@ except ImportError:  # py < 3.11
 # Canonical three-layer overlay paths (lowest precedence first). Every element is
 # overridable so a caller (or a test/CI on a non-FHS host) can retarget without
 # editing this file. VENDOR is repo-relative when MIOS_TOML_ROOT is set.
+def _default_vendor(root=""):
+    """Vendor mios.toml path when no explicit override is set: root-relative when
+    MIOS_TOML_ROOT is given; else the FHS install if present; else repo-relative to
+    THIS file (source checkout / CI unit tests, where /usr/share/mios is absent) so
+    SSOT reads still resolve. Only the PATH is derived here -- no value is hardcoded."""
+    if root:
+        return os.path.join(root, "usr/share/mios/mios.toml")
+    fhs = "/usr/share/mios/mios.toml"
+    if os.path.exists(fhs):
+        return fhs
+    return os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "share", "mios", "mios.toml"))
+
+
 _ROOT = os.environ.get("MIOS_TOML_ROOT", "")
-VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or (
-    os.path.join(_ROOT, "usr/share/mios/mios.toml") if _ROOT else "/usr/share/mios/mios.toml")
+VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or _default_vendor(_ROOT)
 HOST = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
 USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
     os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
@@ -43,8 +56,7 @@ def _tier_dirs():
     + systemd's /usr/lib vendor convention), NOT beside the /usr/share monolith;
     admin/user fragments sit in a mios.d/ beside their monolith."""
     root = os.environ.get("MIOS_TOML_ROOT", "")
-    vendor = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or (
-        os.path.join(root, "usr/share/mios/mios.toml") if root else "/usr/share/mios/mios.toml")
+    vendor = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or _default_vendor(root)
     host = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
     user = os.environ.get("MIOS_USER_TOML") or os.path.join(
         os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
