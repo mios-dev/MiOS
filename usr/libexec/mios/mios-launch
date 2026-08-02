@@ -301,6 +301,7 @@ if [ -r "$_GAMES_CACHE" ]; then
         case "$_hit_cmd" in
             mios-windows*)
                 export MIOS_LAUNCH_TITLE_HINT="$_hit_name"
+                # TD-1: eval-safe, input=internal games cache formatted commands (e.g. mios-windows launch ...), not agent-controlled
                 eval exec "$_hit_cmd" '"$@"'
                 ;;
             *)

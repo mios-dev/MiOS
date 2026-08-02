@@ -276,6 +276,7 @@ case "$sub" in
         pat="${1:-}"; [[ -z "$pat" ]] && { echo "Mios-window $sub: missing <title-pattern>" >&2; exit 64; }
         hwnd="$(_resolve_hwnd "$pat")" || exit 1
         export LAYOUT_JSON="$_layout"
+        # TD-1: eval-safe, input=internal integers and layout bounds, not agent-controlled
         eval "$(python3 - "$sub" "$hwnd" <<'PYEOF'
 import sys, json, os
 try:
