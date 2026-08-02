@@ -1944,6 +1944,15 @@ test_check_no_silent_tool_skips() {
     log "check_no_silent_tool_skips correctly caught unhandled silent tool skip"
 }
 
+test_check_negatives_are_effective() {
+    log "Testing check_negatives_are_effective..."
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
+        log "check_negatives_are_effective passed on HEAD"
+    else
+        die "check_negatives_are_effective failed on HEAD"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -1956,6 +1965,7 @@ main() {
     log "Starting negative-test suite"
     test_version_ssot
     test_check_no_silent_tool_skips
+    test_check_negatives_are_effective
     test_resolver_equivalence
     test_eval_safety
     test_shellcheck_failure

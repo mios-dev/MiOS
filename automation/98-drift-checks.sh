@@ -5801,6 +5801,46 @@ check_no_silent_tool_skips() {
     fi
 }
 
+check_negatives_are_effective() {
+    echo "[98-drift-checks]   negative-test effectiveness check"
+    local neg_file="${ROOT}/tests/drift-gate-negatives.sh"
+    [[ -f "$neg_file" ]] || return 0
+
+    if python3 - "$neg_file" <<'PY'
+import sys, re
+
+neg_path = sys.argv[1]
+with open(neg_path, encoding="utf-8", errors="ignore") as fh:
+    content = fh.read()
+
+# Find all test_* functions
+test_fns = re.findall(r'^(test_[a-zA-Z0-9_]+)\(\)', content, re.MULTILINE)
+ineffective = []
+
+for fn in test_fns:
+    idx = content.find(fn + "()")
+    if idx == -1:
+        continue
+    sub = content[idx:idx+1500]
+    has_die = "die" in sub or "return 1" in sub or "FAIL" in sub or "exit 1" in sub
+    has_check = "98-drift-checks.sh" in sub or "97-ssot-lint.sh" in sub or "check_" in sub
+    if not (has_die and has_check):
+        ineffective.append(fn)
+
+if ineffective:
+    for fn in ineffective:
+        sys.stderr.write(f"    [ineffective-negative] {fn} lacks failure assertion\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[98-drift-checks]   all negative tests pass structural effectiveness contract"
+    else
+        _violation "ineffective negative tests found in tests/drift-gate-negatives.sh"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5941,6 +5981,7 @@ main() {
     check_no_hardcoded_ssot_literal
     check_bash_phase_ratchet
     check_no_silent_tool_skips
+    check_negatives_are_effective
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
