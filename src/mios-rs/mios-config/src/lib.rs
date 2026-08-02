@@ -216,7 +216,13 @@ pub struct MiosConfig {
     pub repos: std::collections::HashMap<String, RepoConfig>,
     #[serde(default)]
     pub compliance: ComplianceConfig,
-    #[serde(default)]
+    // Operator-defined, schema-FLEXIBLE section: [packages] carries a `sections = [...]`
+    // master list PLUS per-group [packages.<name>] tables, so it does NOT fit a uniform
+    // HashMap. Hard-typing it here forces a Rust RECOMPILE on every mios.toml shape change
+    // (the anti-pattern the operator flagged). The python resolver (mios_toml.py) already
+    // walks it generically; native code must not own this schema. Skipped from native
+    // deserialization so config load stays schema-tolerant. (See WS-RESOLVER schema-generic task.)
+    #[serde(default, skip_deserializing)]
     pub packages: std::collections::HashMap<String, PackageSectionConfig>,
 }
 
