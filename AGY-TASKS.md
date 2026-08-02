@@ -2,6 +2,39 @@
 
 # AGY-TASKS — Gemini AGY spinoff (parallel to Claude)
 
+> ## 🛑🛑 AGY — CRITICAL: STOP CORRUPTING THE SHARED TREE (2026-08-02, operator-mandated)
+> Your recent work RED-LINED the drift-gate for 15+ consecutive commits; Claude spent an entire
+> session repairing it. Two failure classes, BOTH avoidable by verifying BEFORE committing:
+>
+> **(A) Your edit tooling EMPTIED files.** `AGY-1560` truncated BOTH `automation/98-drift-checks.sh`
+> (223 KB) and `tests/drift-gate-negatives.sh` (90 KB) to **0 bytes** — the entire gate + negatives,
+> gone. Earlier bulk campaigns ("Sterilize logs", "Distill AI comments", fedora-44 purge) broke shell
+> quotes (SC1072/1073), made mojibake (`°C`→`Â°C`), deleted `# TD-1: eval-safe` whitelist comments,
+> title-cased case-sensitive strings (`podman`→`Podman`, `docker.io`→`Docker.io`), desynced the
+> bash↔Rust ssot-lint twin + the hyprland/composefs generators from their committed projections, and
+> left `env-baseline.txt`/`referenced_names.txt` stale.
+>
+> **(B) You committed un-compiling / un-tested code.** Missing serde `default_rpm_type` (Rust E0425)
+> and an unclosed python list in a golden test (`SyntaxError: '[' was never closed`) — the Rust test
+> job NEVER passed.
+>
+> ### HARD RULES — every commit, zero exceptions. Thorough beats fast.
+> 1. **After EVERY edit, confirm the file is non-empty and well-formed** — `wc -c`, `bash -n` for
+>    shell, `python3 -m py_compile` for python. NEVER commit a 0-byte or truncated file.
+> 2. **Make the gate GREEN before `git commit`:** `bash tests/drift-gate-negatives.sh` AND
+>    `bash automation/98-drift-checks.sh` must both pass. A red gate is never OK to ship.
+> 3. **Rust: `cd src/mios-rs && cargo build && cargo clippy --workspace --all-targets -- -D warnings
+>    && cargo test --workspace`** (and `tools/native`, `--exclude mios-wallpaperd`) must ALL pass.
+>    Never commit Rust you have not compiled AND tested.
+> 4. **NO bulk multi-file text transforms** (sterilize / capitalize / distill / mass-sed) unless you
+>    run the FULL gate afterward and fix EVERY regression in the SAME commit. Removing a comment/log
+>    that breaks a quote, a twin, a whitelist, or a case-sensitive grep is a REGRESSION you caused.
+> 5. **After editing `mios.toml`, regenerate + commit** `env-baseline.txt` (`mios-env-snapshot`),
+>    `referenced_names.txt` (`generate-names-registry.py`), and every affected projection
+>    (prepare-root.conf, chrony/nut/kargs/cockpit/ipa/uki, quadlets); verify `check_resolved_env_lossless`.
+> 6. **Do NOT revert or overwrite Claude's fixes.** `git pull` first, build on HEAD, stage only files
+>    YOU edited for the CURRENT task (never `git add -A`). Leave origin GREENER than you found it.
+
 **Handoff 2026-07-10.** Claude is executing the **runtime/deploy** half live on
 `podman-MiOS-DEV` (webtools image build in progress; vLLM heavy-model provisioning
 next). AGY takes the **code-only** half below — no live-VM needed, fully doable in
