@@ -198,7 +198,7 @@ fn test_golden_kargs_render_75() {
         "    v = str(kargs_conf.get(key, '')).strip()\n",
         "    if v:\n",
         "        custom_kargs.append(flag + v)\n",
-        "lines = ['# AI-hint: Configures custom kernel arguments from mios.toml [kargs] SSOT.', 'kargs = ['\n",
+        "lines = ['# AI-hint: Configures custom kernel arguments from mios.toml [kargs] SSOT.', 'kargs = [']\n",
         "for k in custom_kargs:\n",
         "    lines.append('    \"' + k + '\",')\n",
         "if lines[-1].endswith(','):\n",
