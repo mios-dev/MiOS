@@ -461,7 +461,7 @@
       "path": "tools/native/mios-resolver/Cargo.toml",
       "title": "Cargo.toml",
       "type": "source_code",
-      "full_content": "[package]\nname = \"mios-resolver\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nclap = { version = \"4.4\", features = [\"derive\"] }\nfigment = { version = \"0.10\", features = [\"toml\", \"env\"] }\nmiette = { version = \"5.10\", features = [\"fancy\"] }\nmios-ssot-walk = { path = \"../mios-ssot-walk\" }\nserde = { version = \"1.0\", features = [\"derive\"] }\nserde_json = \"1.0\"\nthiserror = \"1.0\"\ntoml = \"0.8\"\n[dev-dependencies]\ntempfile = \"3.8\"\n"
+      "full_content": "# AI-hint: Crate manifest for mios-resolver -- the native layered mios.toml resolver that emits the shell, PowerShell, JSON and install.env bindings.\n# AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml\n[package]\nname = \"mios-resolver\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nclap = { version = \"4.4\", features = [\"derive\"] }\nfigment = { version = \"0.10\", features = [\"toml\", \"env\"] }\nmiette = { version = \"5.10\", features = [\"fancy\"] }\nmios-ssot-walk = { path = \"../mios-ssot-walk\" }\nserde = { version = \"1.0\", features = [\"derive\"] }\nserde_json = \"1.0\"\nthiserror = \"1.0\"\ntoml = \"0.8\"\n[dev-dependencies]\ntempfile = \"3.8\"\n"
     },
     {
       "path": "tools/native/mios-ssot-lint/Cargo.toml",
