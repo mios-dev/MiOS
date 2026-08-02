@@ -1992,8 +1992,11 @@ test_ai_manifests_fresh() {
         die "check_ai_manifests_fresh passed despite injected manifest drift"
     fi
     cp "$backup" "$mf"; rm -f "$backup"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh >/dev/null 2>&1 \
-        || die "check_ai_manifests_fresh failed after restoration"
+    local restored_out
+    if ! restored_out=$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh 2>&1); then
+        printf '%s\n' "$restored_out" | tail -n 15 >&2
+        die "check_ai_manifests_fresh failed after restoration"
+    fi
     log "test_ai_manifests_fresh passed"
 }
 
