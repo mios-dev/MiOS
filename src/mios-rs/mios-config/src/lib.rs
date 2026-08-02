@@ -174,6 +174,7 @@ pub struct RepoConfig {
 }
 
 fn default_true() -> bool { true }
+fn default_rpm_type() -> String { "rpm".into() }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct ComplianceConfig {
