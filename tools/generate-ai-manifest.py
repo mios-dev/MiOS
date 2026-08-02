@@ -4,6 +4,7 @@ import os
 import json
 import re
 import gzip
+import subprocess
 
 def parse_markdown_metadata(content):
     """Simple parser to extract title and metadata from Markdown."""
@@ -24,6 +25,35 @@ def parse_markdown_metadata(content):
             pass
 
     return title, metadata, knowledge_block
+
+_TRACKED_CACHE = None
+
+
+def tracked_files():
+    """Repo-relative paths git tracks, or None when git is unavailable.
+
+    The manifests embed a walk of the tree. Walking the FILESYSTEM makes the
+    output a function of the developer's working directory -- local scratch
+    files, .bak files and untracked notes all land in root-manifest.json -- so
+    a manifest generated on a dev box can never match one regenerated on a
+    clean CI checkout, and check_ai_manifests_fresh fails forever. Restricting
+    the walk to tracked files makes the artifact reproducible anywhere.
+    """
+    global _TRACKED_CACHE
+    if _TRACKED_CACHE is None:
+        try:
+            out = subprocess.run(["git", "ls-files"], capture_output=True,
+                                 text=True, check=True).stdout
+            _TRACKED_CACHE = {p.strip() for p in out.split("\n") if p.strip()}
+        except Exception:
+            _TRACKED_CACHE = set()
+    return _TRACKED_CACHE or None
+
+
+def _is_tracked(rel_path):
+    known = tracked_files()
+    return known is None or rel_path in known
+
 
 def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:
@@ -49,7 +79,9 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
                 
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
-            
+            if not _is_tracked(rel_path):
+                continue
+
             try:
                 entry = {
                     "path": rel_path
@@ -126,7 +158,9 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
                 
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
-            
+            if not _is_tracked(rel_path):
+                continue
+
             try:
                 entry = {
                     "path": rel_path
