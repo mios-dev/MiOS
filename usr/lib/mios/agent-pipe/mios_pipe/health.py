@@ -27,8 +27,10 @@ def build_health_response(
     port: Optional[int] = None,
 ) -> Dict[str, Any]:
     resolved_version = version or get_system_version()
-    resolved_backend = backend or os.environ.get("MIOS_AGENT_PIPE_BACKEND", "http://localhost:8642")
-    resolved_port = port or int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
+    _hermes_port = os.environ.get("MIOS_PORT_HERMES", "8720")
+    resolved_backend = backend or os.environ.get(
+        "MIOS_AGENT_PIPE_BACKEND", f"http://localhost:{_hermes_port}")
+    resolved_port = port or int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
     return {
         "status": status,
         "version": resolved_version,

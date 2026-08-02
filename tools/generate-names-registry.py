@@ -68,6 +68,9 @@ def generate_referenced_vars(root):
         # namespace, they do not consume it. Scanning them makes the registry
         # circular: every emitted name would count as a reference to itself.
         "automation/lib/globals.sh", "automation/lib/globals.ps1",
+        # ...and so are the renderers themselves: their prose carries example
+        # placeholders (${MIOS_PORT_X:-N}) that are not real variables.
+        "tools/render-globals.py", "tools/render-ports.py",
     )
     var_re = re.compile(r"MIOS_[A-Z0-9_]+")
     consumer_globs = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",

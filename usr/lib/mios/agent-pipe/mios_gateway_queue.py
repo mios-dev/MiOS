@@ -296,7 +296,9 @@ class GatewayWorker:
                 res = original_execute(tool_name, arguments)
                 try:
                     output_str = str(res)
-                    endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640")
+                    _pipe_port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
+                    endpoint = os.environ.get(
+                        "MIOS_AI_ENDPOINT", f"http://localhost:{_pipe_port}")
                     url = f"{endpoint}/v1/embeddings"
                     import httpx
                     r = httpx.post(url, json={"input": output_str, "model": "google/embedding-gemma-300m"}, timeout=10.0)

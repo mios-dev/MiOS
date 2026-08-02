@@ -39,6 +39,8 @@ _SECTION_ORDER = ("identity", "services", "image", "ports", "paths", "units", "u
 
 _TEMPLATE_RE = re.compile(r"\$\{(MIOS_[A-Z0-9_]+)\}")
 _UNSAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_]")
+# Anything that could terminate/alter `"${VAR:=word}"` word-expansion.
+_SH_UNSAFE_RE = re.compile(r"""['"`$\\{}\n\r]""")
 
 
 def _sanitize(name: str) -> str:
@@ -76,6 +78,14 @@ def build_exports() -> dict:
 
     for name, value in (mios_toml.colors(data) or {}).items():
         exports.setdefault("MIOS_COLOR_" + name.upper(), value)
+
+    # get_aliases canon-remaps ports.guacamole_web -> MIOS_PORT_GUACAMOLE, but
+    # there is no [ports].guacamole key, so emitting it trips the globals-parity
+    # gate (which requires MIOS_PORT_<X> <-> [ports].<x>). The hand-written
+    # resolvers never defined it either -- MIOS_PORT_GUACAMOLE_WEB is the real
+    # name. It stays available from userenv.sh at runtime.
+    for dead in ("MIOS_PORT_GUACAMOLE", "MIOS_GUACAMOLE_PORT"):
+        exports.pop(dead, None)
 
     return {k: (v if isinstance(v, str) else str(v)) for k, v in exports.items()}
 
@@ -158,8 +168,14 @@ $script:MIOS_VERSION = Resolve-MiosVersion
 '''
 
 # Windows-host paths resolve from the live environment, so they stay expressions.
+# $defaultImageName is kept because check_globals_image_parity asserts on it.
 PS_HOST_PATHS = '''
-# ── WINDOWS HOST PATHS (resolved from the live environment) ──────────
+# ── IMAGE DEFAULT (asserted by the image-parity drift check) ─────────
+$defaultImageName = 'IMAGE_NAME_LITERAL'
+'''
+
+
+PS_HOST_PATHS_TAIL = '''# ── WINDOWS HOST PATHS (resolved from the live environment) ──────────
 $script:MIOS_WIN_APPDATA_DIR = if ($env:APPDATA)     { $env:APPDATA }     else { "$HOME/AppData/Roaming" }
 $script:MIOS_WIN_DOCS_DIR    = if ($env:USERPROFILE) { "$env:USERPROFILE/Documents" } else { "$HOME/Documents" }
 $script:MIOS_WIN_REPO_DIR    = if ($env:MIOS_WIN_REPO_DIR) { $env:MIOS_WIN_REPO_DIR } else { "$HOME/MiOS" }
@@ -172,14 +188,20 @@ def _sh_squote(text: str) -> str:
 
 
 def _sh_assign(name: str, value: str) -> str:
-    """Assign-if-unset without `${VAR:=...}`.
+    """Assign-if-unset.
 
-    `: "${VAR:=value}"` is unusable here: a value containing `}` (message
-    templates carry `{placeholder}`) closes the expansion early and the file
-    becomes a syntax error. `[ -n "${VAR+x}" ] ||` has the same
-    already-set-wins semantics with no parsing hazard.
+    Prefer the idiomatic `: "${VAR:=value}"` -- several drift checks parse that
+    exact shape out of this file. It is unusable when the value contains `}`
+    (message templates carry `{placeholder}`), which would close the expansion
+    early and make the file a syntax error; those fall back to
+    `[ -n "${VAR+x}" ] ||`, which has identical already-set-wins semantics.
     """
     parts = _TEMPLATE_RE.split(value)
+    # The word in `"${VAR:=word}"` is still quote-processed, so a lone ' or "
+    # inside it (e.g. "the operator's phone") starts an unterminated quote.
+    # Only take the idiomatic form when the value is free of every metacharacter.
+    if len(parts) == 1 and not _SH_UNSAFE_RE.search(value):
+        return ': "${%s:=%s}"' % (name, value)
     if len(parts) == 1:
         rendered = _sh_squote(value)
     else:
@@ -196,7 +218,11 @@ def _sh_assign(name: str, value: str) -> str:
 
 def _ps_assign(name: str, value: str) -> str:
     parts = _TEMPLATE_RE.split(value)
-    if len(parts) == 1:
+    if len(parts) == 1 and re.fullmatch(r"\d+", value):
+        # Bare integer, not a quoted string: ports really are numbers here, and
+        # the globals-parity drift check parses `else { <digits> }`.
+        rendered = value
+    elif len(parts) == 1:
         rendered = "'%s'" % value.replace("'", "''")
     else:
         chunks = []
@@ -228,7 +254,10 @@ def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
         if name == "MIOS_VERSION":
             continue
         lines.append(_ps_assign(name, exports[name]))
-    lines.append(PS_HOST_PATHS)
+    lines.append(PS_HOST_PATHS.replace(
+        "IMAGE_NAME_LITERAL",
+        exports.get("MIOS_IMAGE_NAME", "ghcr.io/mios-dev/mios").replace("'", "''")))
+    lines.append(PS_HOST_PATHS_TAIL)
     return "\n".join(lines)
 
 

@@ -507,6 +507,13 @@ def get_aliases(dotted_path):
     elif dotted_path == "fs_watcher.watch_dirs":
         aliases.append("MIOS_FS_WATCHER_DIRS")
 
+    elif dotted_path.startswith("ports.categories."):
+        # Allocation SCHEMA (base/stride/members/pinned), not a port. Emitting
+        # MIOS_PORT_CATEGORIES_<CAT>_BASE would invent ports that have no
+        # [ports].<name> key and trip the globals-parity gate. The derived
+        # values themselves are emitted from the flat [ports] keys.
+        pass
+
     elif dotted_path.startswith("ports."):
         name = dotted_path[len("ports."):].upper().replace(".", "_").replace("-", "_")
         # MIOS_<x>_PORT -- alongside the section-generic MIOS_PORTS_<x>, so NO consumer

@@ -1241,7 +1241,11 @@ for qd in quadlet_dirs:
                 if not active:
                     continue
                 for name, val in port_vals.items():
-                    cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z_]+:-' + str(val) + r'\}', '', active)
+                    # [A-Z0-9_]+ not [A-Z_]+ -- port names carry digits
+                    # (CRAWL4AI, K3S_API), so the old pattern failed to strip
+                    # their ${...:-N} form and then flagged the fallback it had
+                    # just failed to remove.
+                    cleaned = re.sub(r'\$\{MIOS_PORT_[A-Z0-9_]+:-' + str(val) + r'\}', '', active)
                     if re.search(rf'\b{val}\b', cleaned):
                         if val in (8080, 3002) and (":" + str(val) in cleaned or "=" + str(val) in cleaned and not cleaned.startswith("PublishPort=")):
                             continue
