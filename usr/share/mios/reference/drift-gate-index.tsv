@@ -123,3 +123,6 @@
 122	check_value_aliases	value-alias consistency verified
 123	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX strings
 124	check_bash_phase_ratchet	bash phase script count ratchet check
+125	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+126	check_negatives_are_effective	negative-test effectiveness check
+127	check_skip_list_covered	checking workflow skip-list coverage and parity

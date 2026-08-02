@@ -58,6 +58,11 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
         fallback = m.group(2)
         if var_name.startswith("MIOS_PORT_"):
             return f"${{{var_name}}}"
+        # FEDORA_VERSION floats from SSOT: keep it a placeholder (like MIOS_PORT_*) so the
+        # committed Quadlet is NOT baked to a hardcoded fedora-NN at generation. Resolved at
+        # build/render, keeping check_pod_quadlets and check_no_hardcoded_ssot_literal both happy.
+        if var_name == "FEDORA_VERSION":
+            return m.group(0)
         env_val = _env(var_name)
         if env_val is not None:
             return env_val
@@ -70,6 +75,8 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     def repl_var(m):
         var_name = m.group(1)
         if var_name.startswith("MIOS_PORT_"):
+            return m.group(0)
+        if var_name == "FEDORA_VERSION":
             return m.group(0)
         env_val = _env(var_name)
         if env_val is not None:

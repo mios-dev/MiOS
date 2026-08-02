@@ -581,6 +581,46 @@ check_module_test_coverage() {
     else
         echo "[98-drift-checks]   every agent-pipe mios_*.py and mios_pipe submodule has a sibling unit test"
     fi
+
+    local baseline_file="$ROOT/usr/share/mios/reference/python-untested-baseline.txt"
+    if [[ -f "$baseline_file" ]]; then
+        if python3 - "$ROOT" "$baseline_file" <<'PY'
+import sys, os
+
+root_dir, base_file = sys.argv[1], sys.argv[2]
+with open(base_file, encoding="utf-8") as f:
+    allowed = set(line.strip() for line in f if line.strip() and not line.startswith("#"))
+
+untested = []
+for scan_dir in ['tools', os.path.join('usr', 'libexec', 'mios')]:
+    full_scan = os.path.join(root_dir, scan_dir)
+    if not os.path.isdir(full_scan):
+        continue
+    for f in os.listdir(full_scan):
+        if not f.endswith('.py') or f.startswith('test_') or f == '__init__.py':
+            continue
+        rel = f"{scan_dir}/{f}".replace("\\", "/")
+        norm_stem = f[:-3].replace("-", "_")
+        test1 = os.path.join(full_scan, f"test_{f}")
+        test2 = os.path.join(full_scan, f"test_{f[:-3]}.py")
+        test3 = os.path.join(full_scan, f"test_{norm_stem}.py")
+        if not (os.path.exists(test1) or os.path.exists(test2) or os.path.exists(test3)):
+            if rel not in allowed:
+                untested.append(rel)
+
+if untested:
+    for u in untested:
+        sys.stderr.write(f"    untested python module not in baseline: {u}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+        then
+            echo "[98-drift-checks]   tools/ and libexec python module test coverage within baseline ratchet"
+        else
+            _violation "new untested tools/ or libexec python module found -- author sibling test_<module>.py or update baseline"
+        fi
+    fi
 }
 
 check_raw_toml_readers() {
@@ -5703,7 +5743,10 @@ check_pipeline_numbering() {
 }
 
 check_value_aliases() {
-    command -v python3 >/dev/null 2>&1 || return 0
+    if ! command -v python3 >/dev/null 2>&1; then
+        [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]] && { _violation "check_value_aliases: python3 required (MIOS_DRIFT_REQUIRE_TOOLS=1)"; return 1; }
+        return 0
+    fi
     local tsv="${ROOT}/usr/share/mios/reference/value-aliases.tsv"
     local snap="${ROOT}/usr/libexec/mios/mios-env-snapshot"
     [[ -f "$tsv" && -f "$snap" ]] || return 0

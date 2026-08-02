@@ -14,7 +14,7 @@ Wants=network-online.target mios-forgejo-runner-firstboot.service
 [Container]
 ContainerName=mios-forgejo-runner
 Environment=FORGEJO_RUNNER_NAME=mios-self-hosted
-Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-${FEDORA_VERSION}
+Environment=FORGEJO_RUNNER_LABELS=mios-self-hosted,podman,bootc,fedora-${FEDORA_VERSION:-44}
 Environment=FORGEJO_RUNNER_DEFAULT_LABELS=mios-self-hosted
 EnvironmentFile=/etc/mios/forge/runner-token
 Exec=forgejo-runner daemon

@@ -72,14 +72,20 @@ fi
 # MIOS_FLATPAKS / the Flatpak install path, never from an RPM repo. The
 
 if [[ ! -f "${REPO_DIR}/kubernetes.repo" ]]; then
-    mios_log "Enabling Kubernetes stable v1.32 repo"
-    cat > "${REPO_DIR}/kubernetes.repo" <<'EOF'
+    # Kubernetes repo minor FLOATS from the k3s image-tag SSOT ([image.sidecars].k3s ->
+    # MIOS_K3S_VERSION / MIOS_K3S_IMAGE): rancher/k3s v1.36.2-k3s1 -> k8s stable v1.36, kept
+    # coordinated so a k3s bump cascades here automatically (no stale hardcoded minor).
+    _k8s_src="${MIOS_K3S_VERSION:-${MIOS_K3S_IMAGE:-v1.36.2}}"
+    _k8s_minor="$(printf '%s' "$_k8s_src" | grep -oE 'v?[0-9]+\.[0-9]+' | head -1 | tr -d 'v')"
+    _k8s_minor="${_k8s_minor:-1.36}"
+    mios_log "Enabling Kubernetes stable v${_k8s_minor} repo (floated from k3s SSOT)"
+    cat > "${REPO_DIR}/kubernetes.repo" <<EOF
 [kubernetes]
 name=Kubernetes
-baseurl=https://pkgs.k8s.io/core:/stable:/v1.32/rpm/
+baseurl=https://pkgs.k8s.io/core:/stable:/v${_k8s_minor}/rpm/
 enabled=1
 gpgcheck=1
-gpgkey=https://pkgs.k8s.io/core:/stable:/v1.32/rpm/repodata/repomd.xml.key
+gpgkey=https://pkgs.k8s.io/core:/stable:/v${_k8s_minor}/rpm/repodata/repomd.xml.key
 repo_gpgcheck=1
 exclude=kubelet kubeadm cri-tools kubernetes-cni
 EOF

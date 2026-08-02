@@ -276,6 +276,15 @@ test_module_test_coverage() {
     fi
 
     rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
+
+    local temp_tool="${ROOT}/tools/temp_untested_tool_mod.py"
+    echo "# Temp untested tool" > "$temp_tool"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1; then
+        rm -f "$temp_tool"
+        die "Check_module_test_coverage passed despite un-grandfathered tools module"
+    fi
+    rm -f "$temp_tool"
+
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 \
         || die "Check_module_test_coverage failed after restoration"
     log "Check_module_test_coverage negative test passed"
