@@ -2059,6 +2059,13 @@ main() {
         fi
     fi
     log "Starting negative-test suite"
+    # MUST run before anything else. check_ai_manifests_fresh compares the
+    # manifests against a fresh walk of automation/ and tools/, and dozens of
+    # the tests below create, mutate and restore files in exactly those trees
+    # (some restore via `echo "$orig" >`, which drops a trailing newline). Run
+    # it last and it grades the wreckage of every preceding test instead of the
+    # committed state.
+    test_ai_manifests_fresh
     test_version_ssot
     test_check_no_silent_tool_skips
     test_check_negatives_are_effective
@@ -2147,7 +2154,6 @@ main() {
     test_pipeline_numbering
     test_value_aliases
     test_bash_phase_ratchet
-    test_ai_manifests_fresh
     test_ports_category_schema
     test_globals_generated
     log "All negative tests completed successfully"
