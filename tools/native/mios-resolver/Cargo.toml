@@ -1,3 +1,5 @@
+# AI-hint: Crate manifest for mios-resolver -- the native layered mios.toml resolver that emits the shell, PowerShell, JSON and install.env bindings.
+# AI-related: tools/native/Cargo.toml, usr/share/mios/mios.toml
 [package]
 name = "mios-resolver"
 version.workspace = true
