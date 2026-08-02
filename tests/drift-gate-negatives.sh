@@ -405,7 +405,7 @@ test_firstboot_tier() {
     local bak_file="${fb_list}.bak"
     cp "$fb_list" "$bak_file"
 
-    echo "Docker.io/unmatched/bogus-image:latest" >> "$fb_list"
+    echo "docker.io/unmatched/bogus-image:latest" >> "$fb_list"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
         cp "$bak_file" "$fb_list" && rm -f "$bak_file"
@@ -752,7 +752,7 @@ test_offline_install_invariant() {
     rm -f "$install_script"
     echo "$orig_val" > "$install_script"
 
-    echo "Podman pull ghcr.io/ublue-os/ucore-hci:latest" >> "$install_script"
+    echo "podman pull ghcr.io/ublue-os/ucore-hci:latest" >> "$install_script"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_offline_install_invariant >/dev/null 2>&1; then
         rm -f "$install_script"
@@ -1470,7 +1470,7 @@ test_bake_plan() {
     if [ -f "$plan_file" ]; then
         local bak_file="${plan_file}.bak"
         cp "$plan_file" "$bak_file"
-        echo "Docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
+        echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
             cp "$bak_file" "$plan_file" && rm -f "$bak_file"
@@ -1715,7 +1715,7 @@ test_bake_plan_integrity() {
     local orig_val
     orig_val="$(cat "$list_file")"
 
-    echo "Docker.io/vllm/vllm-openai:latest" >> "$list_file"
+    echo "docker.io/vllm/vllm-openai:latest" >> "$list_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan_integrity >/dev/null 2>&1; then
         echo "$orig_val" > "$list_file"
