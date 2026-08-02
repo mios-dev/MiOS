@@ -13,7 +13,14 @@ role = "mini"
     )
     .unwrap();
     let shell_out = emit_shell(&val, 0, None);
-    assert!(shell_out.contains("export MIOS_IDENTITY_ROLE='mini'"));
+    // shlex_quote leaves a bare-safe word UNQUOTED, matching Python's
+    // shlex.quote("mini") == "mini" (and emit_shell's own test_shlex_quote,
+    // which asserts shlex_quote("simple") == "simple"). The previous
+    // assertion demanded 'mini' and could never pass.
+    assert!(
+        shell_out.contains("export MIOS_IDENTITY_ROLE=mini"),
+        "got: {shell_out}"
+    );
 }
 
 #[test]
