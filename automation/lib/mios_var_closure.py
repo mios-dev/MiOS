@@ -12,6 +12,13 @@ EMITTER_SUFFIXES = (
     "usr/libexec/mios/system-sync-env.sh",
     "usr/share/mios/names.generated.txt",
     "usr/share/doc/mios/reference/naming-unification.md",
+    # globals.{sh,ps1} are GENERATED IN FULL from mios.toml by
+    # tools/render-globals.py -- they DEFINE ~2000 names rather than consume
+    # them. Scanning them as consumers reported every emitted constant as
+    # "referenced but NOT emitted", drowning the real signal. The renderers
+    # themselves carry example placeholders in their prose for the same reason.
+    "automation/lib/globals.sh", "automation/lib/globals.ps1",
+    "tools/render-globals.py", "tools/render-ports.py",
 )
 VAR_RE = re.compile(r"MIOS_[A-Z0-9_]+")
 DIRECTIVE_VARS = frozenset({"MIOS_APPLY_CLASS", "MIOS_SUBSTRATE"})
