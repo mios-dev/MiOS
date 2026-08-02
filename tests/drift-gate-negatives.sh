@@ -2047,8 +2047,15 @@ test_globals_generated() {
     fi
     cp "$backup" "$target"; rm -f "$backup"
 
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated >/dev/null 2>&1 \
-        || die "check_globals_generated failed after restoration"
+    local restored_out
+    if ! restored_out=$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated 2>&1); then
+        printf '%s\n' "$restored_out" | tail -n 10 >&2
+        # show the first divergent line so CI names the culprit
+        ( cd "$ROOT" && python3 tools/render-globals.py >/dev/null 2>&1 \
+          && git --no-pager diff --unified=0 -- automation/lib/globals.sh automation/lib/globals.ps1 \
+             | head -n 20 ) >&2 || true
+        die "check_globals_generated failed after restoration"
+    fi
     log "test_globals_generated passed"
 }
 
