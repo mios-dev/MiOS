@@ -36,7 +36,26 @@ def load_grandfathered():
     with open(gf_path, "r", encoding="utf-8") as f:
         return {ln.strip() for ln in f if ln.strip()}
 
+import subprocess
+
+def _try_native_bin(args_list):
+    bin_path = os.environ.get("MIOS_CONFORM_BIN")
+    if not bin_path:
+        exe = "mios-template-conform.exe" if os.name == "nt" else "mios-template-conform"
+        for profile in ("release", "debug"):
+            candidate = os.path.join(ROOT, "tools/native/target", profile, exe)
+            if os.path.isfile(candidate):
+                bin_path = candidate
+                break
+    if bin_path and os.path.isfile(bin_path):
+        try:
+            res = subprocess.run([bin_path] + args_list, stdout=sys.stdout, stderr=sys.stderr)
+            sys.exit(res.returncode)
+        except Exception:
+            pass
+
 def main():
+    _try_native_bin(sys.argv[1:])
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default=ROOT)
     ap.add_argument("--max-unconforming", type=int, default=None)

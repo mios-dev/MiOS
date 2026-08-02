@@ -1,69 +1,65 @@
 #!/usr/bin/env python3
-# AI-hint: Compiled file-pattern template engine for MiOS — renders compliant file scaffolds with AI-hint headers.
-# AI-related: /usr/share/mios/templates/, /usr/bin/mios, automation/98-drift-checks.sh
-# AI-functions: render_template, list_templates, main
+# AI-hint: Thin shim delegating template rendering to the mios-new canonical generator, preserving the legacy <kind> <target_filepath> [description] contract.
+# AI-related: /usr/libexec/mios/mios-new, /usr/share/mios/templates/
+# AI-functions: main, _scaffold_via_mios_new
 
-import os
 import sys
-import datetime
+import os
+import re
+import shutil
+import subprocess
 
-_SELF = os.path.abspath(__file__)
-ROOT = os.environ.get("MIOS_ROOT") or os.path.abspath(os.path.join(os.path.dirname(_SELF), "..", "..", ".."))
-TEMPLATE_DIR = os.path.join(ROOT, "usr/share/mios/templates")
+def _scaffold_via_mios_new(kind, name):
+    """Run mios-new and return the path it scaffolded, or None."""
+    mios_new_bin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mios-new")
+    res = subprocess.run(
+        [sys.executable, mios_new_bin, kind, name],
+        capture_output=True, text=True,
+    )
+    sys.stderr.write(res.stderr)
+    if res.returncode != 0:
+        sys.stdout.write(res.stdout)
+        sys.exit(res.returncode)
 
-def list_templates():
-    if not os.path.isdir(TEMPLATE_DIR):
-        return []
-    return [f for f in sorted(os.listdir(TEMPLATE_DIR)) if not f.endswith(".list")]
-
-def render_template(kind, filepath, description=""):
-    tmpl_path = os.path.join(TEMPLATE_DIR, kind)
-    if not os.path.isfile(tmpl_path):
-        raise ValueError(f"Unknown template kind: '{kind}'. Available: {', '.join(list_templates())}")
-
-    with open(tmpl_path, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    filename = os.path.basename(filepath)
-    rel_path = os.path.relpath(filepath, ROOT).replace("\\", "/") if filepath.startswith(ROOT) else filepath
-    desc_str = description or f"Scaffold for {filename}"
-    today = datetime.date.today().isoformat()
-
-    rendered = content.replace("{{filename}}", filename)
-    rendered = rendered.replace("{{path}}", rel_path)
-    rendered = rendered.replace("{{description}}", desc_str)
-    rendered = rendered.replace("{{date}}", today)
-
-    if "AI-hint:" not in rendered:
-        if kind in ("bash", "bash-tool", "bash-verb", "automation-step", "drift-check"):
-            rendered = f"#!/usr/bin/env bash\n# AI-hint: {desc_str}\n# AI-related: {rel_path}\n" + rendered
-        elif kind in ("python-module", "python-tool", "python-test"):
-            rendered = f"#!/usr/bin/env python3\n# AI-hint: {desc_str}\n# AI-related: {rel_path}\n" + rendered
-        elif kind in ("adr", "markdown-doc", "roadmap", "roadmap-ws"):
-            rendered = f"<!-- AI-hint: {desc_str} -->\n<!-- AI-related: {rel_path} -->\n" + rendered
-
-    os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
-    with open(filepath, "w", encoding="utf-8") as f:
-        f.write(rendered)
-
-    return filepath
+    m = re.search(r"^Scaffolded new .+ at: (.+)$", res.stdout, re.MULTILINE)
+    if not m:
+        # mios-new printed the rendered body instead of writing a file
+        # (no canonical destination for this kind) -- pass it through.
+        sys.stdout.write(res.stdout)
+        return None
+    return m.group(1).strip()
 
 def main():
     if len(sys.argv) < 3:
         print("Usage: mios-template-engine <kind> <target_filepath> [description]")
-        print(f"Available kinds: {', '.join(list_templates())}")
         sys.exit(1)
 
     kind = sys.argv[1]
     target = sys.argv[2]
     desc = sys.argv[3] if len(sys.argv) > 3 else ""
 
-    try:
-        out = render_template(kind, target, desc)
-        print(f"[mios-template-engine] Successfully rendered '{kind}' -> {out}")
-    except Exception as e:
-        print(f"ERROR: {e}", file=sys.stderr)
-        sys.exit(1)
+    # mios-new is name-addressed and picks its own canonical destination, so
+    # derive the name from the requested path and relocate afterwards to keep
+    # this entry point's documented <target_filepath> contract.
+    name, _ = os.path.splitext(os.path.basename(target))
+
+    produced = _scaffold_via_mios_new(kind, name)
+    if produced is None:
+        return
+
+    target_abs = os.path.abspath(target)
+    if os.path.abspath(produced) != target_abs:
+        os.makedirs(os.path.dirname(target_abs), exist_ok=True)
+        shutil.move(produced, target_abs)
+
+    if desc:
+        with open(target_abs, "r", encoding="utf-8") as f:
+            body = f.read()
+        if "{{description}}" in body:
+            with open(target_abs, "w", encoding="utf-8", newline="\n") as f:
+                f.write(body.replace("{{description}}", desc))
+
+    print(f"[mios-template-engine] Successfully rendered '{kind}' -> {target_abs}")
 
 if __name__ == "__main__":
     main()

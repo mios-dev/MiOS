@@ -5,8 +5,11 @@ members = [
     "mios-aiplane-lint",
     "mios-bake-plan",
     "mios-drift-runner",
+    "mios-resolver",
     "mios-ssot-lint",
     "mios-ssot-walk",
+    "mios-template-compile",
+    "mios-template-conform",
     "mios-version-check",
     "mios-wallpaperd",
 ]

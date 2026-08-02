@@ -1,4 +1,4 @@
-// AI-hint: Typed config resolver deserializing mios.toml via Figment into typed models.
+// AI-hint: Typed config resolver deserializing mios.toml via Figment into typed models + generic TOML table.
 // AI-related: usr/share/mios/mios.toml, /etc/mios/mios.toml, tools/lib/userenv.sh
 
 use figment::{
@@ -97,108 +97,10 @@ pub struct BuildConfig {
     pub ratchet: BuildRatchet,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct SecurityConfig {
-    #[serde(default)]
-    pub enable_units: Vec<String>,
-    #[serde(default)]
-    pub cosign: CosignConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct NtpConfig {
-    #[serde(default = "default_ntp_servers")]
-    pub servers: Vec<String>,
-}
-
-fn default_ntp_servers() -> Vec<String> {
-    vec!["time.cloudflare.com".into(), "time.google.com".into()]
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct NetworkConfig {
-    #[serde(default)]
-    pub ntp: NtpConfig,
-    #[serde(default)]
-    pub ports: std::collections::HashMap<String, u16>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct CosignConfig {
-    #[serde(default = "default_policy_mode")]
-    pub policy_mode: String,
-}
-
-fn default_policy_mode() -> String {
-    "insecureAcceptEverything".into()
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct PowerConfig {
-    #[serde(default)]
-    pub ups: UpsConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct UpsConfig {
-    #[serde(default)]
-    pub name: String,
-    #[serde(default = "default_ups_driver")]
-    pub driver: String,
-    #[serde(default = "default_ups_port")]
-    pub port: String,
-    #[serde(default = "default_ups_desc")]
-    pub desc: String,
-}
-
-fn default_ups_driver() -> String { "usbhid-ups".into() }
-fn default_ups_port() -> String { "auto".into() }
-fn default_ups_desc() -> String { "MiOS Uninterruptible Power Supply".into() }
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct RepoConfig {
-    #[serde(default)]
-    pub name: String,
-    #[serde(default)]
-    pub baseurl: Option<String>,
-    #[serde(default)]
-    pub metalink: Option<String>,
-    #[serde(default = "default_true")]
-    pub enabled: bool,
-    #[serde(default)]
-    pub repo_gpgcheck: bool,
-    #[serde(default = "default_rpm_type")]
-    pub repo_type: String,
-    #[serde(default = "default_true")]
-    pub gpgcheck: bool,
-}
-
-fn default_true() -> bool { true }
-fn default_rpm_type() -> String { "rpm".into() }
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct ComplianceConfig {
-    #[serde(default)]
-    pub enabled: bool,
-    #[serde(default = "default_compliance_profile")]
-    pub profile: String,
-    #[serde(default)]
-    pub datastream: String,
-    #[serde(default = "default_compliance_severity")]
-    pub severity_gate: String,
-    #[serde(default)]
-    pub remediate: bool,
-    #[serde(default)]
-    pub fetch_remote_resources: bool,
-    #[serde(default = "default_compliance_report")]
-    pub report_path: String,
-}
-
-fn default_compliance_profile() -> String { "standard".into() }
-fn default_compliance_severity() -> String { "high".into() }
-fn default_compliance_report() -> String { "/usr/share/mios/compliance".into() }
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+/// Schema-generic configuration container. Owns stable fields directly
+/// (`meta`, `identity`, `build`) while storing all dynamic/operator-defined
+/// sections generically in `raw` to prevent recompilation on mios.toml schema changes.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct MiosConfig {
     #[serde(default)]
     pub meta: MetaConfig,
@@ -206,32 +108,10 @@ pub struct MiosConfig {
     pub identity: IdentityConfig,
     #[serde(default)]
     pub build: BuildConfig,
-    #[serde(default)]
-    pub security: SecurityConfig,
-    #[serde(default)]
-    pub network: NetworkConfig,
-    #[serde(default)]
-    pub power: PowerConfig,
-    #[serde(default)]
-    pub repos: std::collections::HashMap<String, RepoConfig>,
-    #[serde(default)]
-    pub compliance: ComplianceConfig,
-    // Operator-defined, schema-FLEXIBLE section: [packages] carries a `sections = [...]`
-    // master list PLUS per-group [packages.<name>] tables, so it does NOT fit a uniform
-    // HashMap. Hard-typing it here forces a Rust RECOMPILE on every mios.toml shape change
-    // (the anti-pattern the operator flagged). The python resolver (mios_toml.py) already
-    // walks it generically; native code must not own this schema. Skipped from native
-    // deserialization so config load stays schema-tolerant. (See WS-RESOLVER schema-generic task.)
-    #[serde(default, skip_deserializing)]
-    pub packages: std::collections::HashMap<String, PackageSectionConfig>,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct PackageSectionConfig {
-    #[serde(default)]
-    pub pkgs: Vec<String>,
-    #[serde(default = "default_true")]
-    pub enable: bool,
+    /// Raw TOML table capturing all dynamic/operator-defined sections (e.g. packages, repos, security, network, power, compliance, etc.)
+    #[serde(flatten)]
+    pub raw: toml::Table,
 }
 
 impl MiosConfig {
@@ -254,6 +134,44 @@ impl MiosConfig {
             Ok(Self::default())
         }
     }
+
+    /// Retrieve a generic section from the raw config table by section name.
+    pub fn section(&self, name: &str) -> Option<&toml::Value> {
+        self.raw.get(name)
+    }
+
+    /// Retrieve a value via a dotted-path lookup (e.g. "packages.core.enable" or "security.enable_units").
+    pub fn get_value(&self, key: &str) -> Option<&toml::Value> {
+        let parts: Vec<&str> = key.split('.').collect();
+        if parts.is_empty() {
+            return None;
+        }
+        let mut val = self.raw.get(parts[0])?;
+        for part in &parts[1..] {
+            match val {
+                toml::Value::Table(map) => {
+                    val = map.get(*part)?;
+                }
+                _ => return None,
+            }
+        }
+        Some(val)
+    }
+
+    /// Helper to get a string value from a dotted path key.
+    pub fn get_string(&self, key: &str) -> Option<String> {
+        self.get_value(key).and_then(|v| v.as_str().map(|s| s.to_string()))
+    }
+
+    /// Helper to get a boolean value from a dotted path key.
+    pub fn get_bool(&self, key: &str) -> Option<bool> {
+        self.get_value(key).and_then(|v| v.as_bool())
+    }
+
+    /// Helper to get an integer value from a dotted path key.
+    pub fn get_i64(&self, key: &str) -> Option<i64> {
+        self.get_value(key).and_then(|v| v.as_integer())
+    }
 }
 
 #[cfg(test)]
@@ -267,5 +185,31 @@ mod tests {
         assert_eq!(config.identity.username, "mios");
         assert_eq!(config.build.ratchet.max_phase_scripts, 71);
         assert!(!config.build.phases.list.is_empty());
+
+        // Verify generic section access on complex tables without rigid structs
+        assert!(config.section("packages").is_some());
+        assert!(config.get_value("security.cosign.policy_mode").is_some());
+    }
+
+    #[test]
+    fn test_arbitrary_section_zero_recompile() {
+        let sample_toml = r#"
+[meta]
+mios_version = "0.3.0"
+
+[foo.bar]
+custom_setting = "test_value"
+number_key = 42
+flag = true
+"#;
+        let config: MiosConfig = figment::Figment::new()
+            .merge(figment::providers::Toml::string(sample_toml))
+            .extract()
+            .expect("should parse arbitrary custom sections generically");
+
+        assert_eq!(config.get_string("foo.bar.custom_setting").as_deref(), Some("test_value"));
+        assert_eq!(config.get_i64("foo.bar.number_key"), Some(42));
+        assert_eq!(config.get_bool("foo.bar.flag"), Some(true));
     }
 }
+

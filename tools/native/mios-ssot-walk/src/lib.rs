@@ -53,3 +53,47 @@ pub fn is_mostly_dead_section(section: &str) -> bool {
 pub fn is_emit_keep_var(var_name: &str) -> bool {
     WALK_EMIT_KEEP.contains(&var_name)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+    use std::fs;
+
+    #[test]
+    fn test_constants_match_python_ssot() {
+        let root = std::env::var("CARGO_MANIFEST_DIR")
+            .map(|p| std::path::PathBuf::from(p).join("../../../usr/lib/mios/mios_toml.py"))
+            .unwrap();
+        if !root.exists() {
+            return;
+        }
+        let content = fs::read_to_string(&root).expect("read mios_toml.py");
+
+        let extract_set = |name: &str| -> HashSet<String> {
+            let marker = format!("{} = ", name);
+            let idx = content.find(&marker).expect(&format!("find {}", name));
+            let sub = &content[idx + marker.len()..];
+            let end_idx = sub.find('}').expect(&format!("end brace {}", name));
+            let block = &sub[..end_idx];
+            block
+                .split(',')
+                .map(|s| s.trim().trim_matches(|c| c == '{' || c == '"' || c == '\'' || c == '\n' || c == ' '))
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect()
+        };
+
+        let py_excluded = extract_set("EXCLUDED_SECTIONS");
+        let rs_excluded: HashSet<String> = EXCLUDED_SECTIONS.iter().map(|s| s.to_string()).collect();
+        assert_eq!(py_excluded, rs_excluded, "EXCLUDED_SECTIONS mismatch");
+
+        let py_dead = extract_set("WALK_MOSTLY_DEAD");
+        let rs_dead: HashSet<String> = WALK_MOSTLY_DEAD.iter().map(|s| s.to_string()).collect();
+        assert_eq!(py_dead, rs_dead, "WALK_MOSTLY_DEAD mismatch");
+
+        let py_keep = extract_set("WALK_EMIT_KEEP");
+        let rs_keep: HashSet<String> = WALK_EMIT_KEEP.iter().map(|s| s.to_string()).collect();
+        assert_eq!(py_keep, rs_keep, "WALK_EMIT_KEEP mismatch");
+    }
+}

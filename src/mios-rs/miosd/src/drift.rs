@@ -63,11 +63,11 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
         .map_err(|e| format!("Failed to read embed_backfill.py: {}", e))?;
 
     let table_re =
-        Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").unwrap();
+        Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").expect("valid regex");
     // Match the COLUMN TYPE `emb vector(...)`, not the HNSW index operator class
     // `(emb vector_cosine_ops)` -- requiring `(` after `vector` excludes the opclass.
-    let emb_re = Regex::new(r"(?i)emb\s+vector\s*\(").unwrap();
-    let alter_re = Regex::new(r"(?i)ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?emb\s+vector").unwrap();
+    let emb_re = Regex::new(r"(?i)emb\s+vector\s*\(").expect("valid regex");
+    let alter_re = Regex::new(r"(?i)ALTER\s+TABLE\s+([a-zA-Z0-9_]+)\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?emb\s+vector").expect("valid regex");
 
     let mut emb_tables = HashSet::new();
     let mut current_table = String::new();
@@ -95,8 +95,8 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
     }
 
     let mut mapped_tables = HashSet::new();
-    let pk_map_re = Regex::new(r#""([a-zA-Z0-9_]+)"\s*:"#).unwrap();
-    let exempt_re = Regex::new(r#""([a-zA-Z0-9_]+)""#).unwrap();
+    let pk_map_re = Regex::new(r#""([a-zA-Z0-9_]+)"\s*:"#).expect("valid regex");
+    let exempt_re = Regex::new(r#""([a-zA-Z0-9_]+)""#).expect("valid regex");
 
     let mut in_pk_map = false;
     let mut in_exempt = false;

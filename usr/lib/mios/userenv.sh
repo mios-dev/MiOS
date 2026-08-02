@@ -20,6 +20,12 @@ if [[ -z "$MIOS_ROOT" ]]; then
 fi
 
 _mios_load_unified() {
+    if command -v mios-resolver >/dev/null 2>&1; then
+        local _native_exports=""
+        if _native_exports=$(mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
+            eval "$_native_exports" && return 0
+        fi
+    fi
     if command -v miosd >/dev/null 2>&1; then
         eval "$(miosd resolve --shell 2>/dev/null)" || true
     fi

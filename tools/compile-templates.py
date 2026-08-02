@@ -14,22 +14,31 @@ os.environ["MIOS_THEME_ROOT"] = ROOT
 sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
 import mios_toml
 
-MOCK_VALS = {
-    "name": "mockname",
-    "PascalName": "MockName",
-    "date": "2026-07-17",
-    "id": "9999",
-    "title": "Mock Title",
-    "description": "Mock Description",
-    "status": "proposed",
-    "priority": "P1",
-    "theme": "Mock Theme",
-    "task_title": "Mock Task Title",
-    "task_id": "8888",
-    "image": "mock-image:latest",
-    "uid": "1000",
-    "gid": "1000",
-}
+def load_mock_vals():
+    cfg = mios_toml.load_merged()
+    placeholders = cfg.get("templates", {}).get("placeholders", {})
+    if placeholders:
+        return placeholders
+    return {
+        "name": "mockname",
+        "PascalName": "MockName",
+        "date": "2026-07-17",
+        "id": "9999",
+        "title": "Mock Title",
+        "description": "Mock Description",
+        "status": "proposed",
+        "priority": "P1",
+        "theme": "Mock Theme",
+        "task_title": "Mock Task Title",
+        "task_id": "8888",
+        "image": "mock-image:latest",
+        "uid": "1000",
+        "gid": "1000",
+        "filename": "mockname.py",
+        "path": "usr/lib/mios/agent-pipe/mios_pipe/mockname.py",
+    }
+
+MOCK_VALS = load_mock_vals()
 
 def compile_template(name, content):
     rendered = content
@@ -85,7 +94,24 @@ def compile_template(name, content):
 
     return None
 
+def _try_native_bin(args_list):
+    bin_path = os.environ.get("MIOS_TCOMPILE_BIN")
+    if not bin_path:
+        exe = "mios-template-compile.exe" if os.name == "nt" else "mios-template-compile"
+        for profile in ("release", "debug"):
+            candidate = os.path.join(ROOT, "tools/native/target", profile, exe)
+            if os.path.isfile(candidate):
+                bin_path = candidate
+                break
+    if bin_path and os.path.isfile(bin_path):
+        try:
+            res = subprocess.run([bin_path] + args_list, stdout=sys.stdout, stderr=sys.stderr)
+            sys.exit(res.returncode)
+        except Exception:
+            pass
+
 def main():
+    _try_native_bin(sys.argv[1:])
     templates_dir = os.path.join(ROOT, "usr/share/mios/templates")
     if not os.path.isdir(templates_dir):
         sys.stderr.write(f"Templates directory not found: {templates_dir}\n")

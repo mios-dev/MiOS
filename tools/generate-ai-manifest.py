@@ -27,7 +27,7 @@ def parse_markdown_metadata(content):
 
 def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:
-        ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research"}
+        ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research", "node_modules", "target", "dist", "build", ".system_generated", "scratch", "logs"}
     
     manifest = {
         "source_directory": target_dir,
@@ -44,11 +44,11 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):
-            if file == os.path.basename(output_file):
+            if file.startswith(os.path.basename(output_file).replace(".tmp", "")) or file.endswith(".tmp"):
                 continue
                 
             file_path = os.path.join(root, file)
-            rel_path = os.path.relpath(file_path, start=os.getcwd())
+            rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
             
             try:
                 entry = {
@@ -104,7 +104,7 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
 
 def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_dirs=None):
     if ignore_dirs is None:
-        ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research"}
+        ignore_dirs = {".git", ".venv", "output", "__pycache__", "agents/research", "node_modules", "target", "dist", "build", ".system_generated", "scratch", "logs"}
     
     manifest = {
         "source_directory": target_dir,
@@ -121,11 +121,11 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):
-            if file == os.path.basename(output_file):
+            if file.startswith(os.path.basename(output_file).replace(".tmp", "")) or file.endswith(".tmp"):
                 continue
                 
             file_path = os.path.join(root, file)
-            rel_path = os.path.relpath(file_path, start=os.getcwd())
+            rel_path = os.path.relpath(file_path, start=os.getcwd()).replace('\\', '/')
             
             try:
                 entry = {
@@ -170,6 +170,10 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
     print(f"Generated {output_file}")
 
 if __name__ == "__main__":
+    import sys
+
+    check_mode = "--check" in sys.argv
+
     targets = [
         ("specs", "specs/manifest.json", False), # Non-recursive for flat specs (Wiki)
         (".ai/foundation/memories", ".ai/foundation/memories/manifest.json", False),
@@ -182,9 +186,45 @@ if __name__ == "__main__":
         ("agents/research", "agents/research/manifest.json", True),
         (".", "root-manifest.json", False) # Non-recursive for root
     ]
-    
+
+    has_drift = False
+
     for target_dir, output_file, recursive in targets:
-        if output_file.endswith(".gz"):
-            generate_gzipped_manifest(target_dir, output_file, recursive)
+        if not os.path.exists(target_dir):
+            continue
+
+        if check_mode:
+            temp_file = output_file + ".tmp"
+            if output_file.endswith(".gz"):
+                generate_gzipped_manifest(target_dir, temp_file, recursive)
+            else:
+                generate_json_manifest(target_dir, temp_file, recursive)
+
+            try:
+                if os.path.exists(output_file):
+                    if output_file.endswith(".gz"):
+                        with gzip.open(output_file, 'rt', encoding='utf-8') as f1, gzip.open(temp_file, 'rt', encoding='utf-8') as f2:
+                            d1 = f1.read()
+                            d2 = f2.read()
+                    else:
+                        with open(output_file, 'r', encoding='utf-8') as f1, open(temp_file, 'r', encoding='utf-8') as f2:
+                            d1 = f1.read()
+                            d2 = f2.read()
+                    if d1 != d2:
+                        print(f"[generate-ai-manifest] Manifest drift detected: {output_file}", file=sys.stderr)
+                        has_drift = True
+                else:
+                    print(f"[generate-ai-manifest] Missing manifest file: {output_file}", file=sys.stderr)
+                    has_drift = True
+            finally:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
         else:
-            generate_json_manifest(target_dir, output_file, recursive)
+            if output_file.endswith(".gz"):
+                generate_gzipped_manifest(target_dir, output_file, recursive)
+            else:
+                generate_json_manifest(target_dir, output_file, recursive)
+
+    if check_mode and has_drift:
+        sys.exit(1)
+
