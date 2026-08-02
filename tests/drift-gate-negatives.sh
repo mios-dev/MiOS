@@ -1929,6 +1929,21 @@ test_negative_coverage() {
     fi
 }
 
+test_check_no_silent_tool_skips() {
+    log "Testing check_no_silent_tool_skips..."
+    local dummy="$ROOT/automation/lint-dummy-skip-test.sh"
+    echo '#!/bin/bash' > "$dummy"
+    echo 'command -v non_existent_tool || return 0' >> "$dummy"
+    chmod +x "$dummy"
+
+    if MIOS_DRIFT_REQUIRE_TOOLS=1 bash "$ROOT/automation/98-drift-checks.sh" check_no_silent_tool_skips >/dev/null 2>&1; then
+        rm -f "$dummy"
+        die "check_no_silent_tool_skips failed to detect unhandled silent tool skip"
+    fi
+    rm -f "$dummy"
+    log "check_no_silent_tool_skips correctly caught unhandled silent tool skip"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -1940,6 +1955,7 @@ main() {
     fi
     log "Starting negative-test suite"
     test_version_ssot
+    test_check_no_silent_tool_skips
     test_resolver_equivalence
     test_eval_safety
     test_shellcheck_failure

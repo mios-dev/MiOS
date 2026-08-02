@@ -5773,6 +5773,34 @@ check_bash_phase_ratchet() {
     fi
 }
 
+check_no_silent_tool_skips() {
+    local require_tools="${MIOS_DRIFT_REQUIRE_TOOLS:-0}"
+    local bad_skips=""
+    local f
+
+    for f in "$ROOT/automation/98-drift-checks.sh" "$ROOT"/automation/lint-*.sh; do
+        [[ -f "$f" ]] || continue
+        local hits
+        hits=$(grep -nE 'command -v.*\|\|[[:space:]]*(return 0|exit 0)' "$f" | grep -v 'MIOS_DRIFT_REQUIRE_TOOLS' || true)
+        if [[ -n "$hits" ]]; then
+            bad_skips+="$f:"$'
+'"$hits"$'
+'
+        fi
+    done
+
+    if [[ -n "$bad_skips" ]]; then
+        if [[ "$require_tools" == "1" ]]; then
+            _violation "Silent tool skips found under MIOS_DRIFT_REQUIRE_TOOLS=1:"$'
+'"$bad_skips"
+        else
+            echo "[98-drift-checks]   WARNING: silent tool skips present (enable MIOS_DRIFT_REQUIRE_TOOLS=1 to enforce)"
+        fi
+    else
+        echo "[98-drift-checks]   no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5912,6 +5940,7 @@ main() {
     check_value_aliases
     check_no_hardcoded_ssot_literal
     check_bash_phase_ratchet
+    check_no_silent_tool_skips
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
