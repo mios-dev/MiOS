@@ -42,11 +42,10 @@ fn main() {
                     i += 1;
                 }
             }
-            "--max-unconforming"
-                if i + 1 < args.len() => {
-                    cli_ceiling = args[i + 1].parse().ok();
-                    i += 1;
-                }
+            "--max-unconforming" if i + 1 < args.len() => {
+                cli_ceiling = args[i + 1].parse().ok();
+                i += 1;
+            }
             _ => {}
         }
         i += 1;

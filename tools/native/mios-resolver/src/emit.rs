@@ -18,10 +18,7 @@ pub fn build_exports_map(merged: &Value, stack_offset: i32) -> BTreeMap<String, 
         }
 
         let cbody = if let Some(rest) = path.strip_prefix("converge.") {
-            format!(
-                "CONV_{}",
-                rest.to_uppercase().replace(['.', '-'], "_")
-            )
+            format!("CONV_{}", rest.to_uppercase().replace(['.', '-'], "_"))
         } else {
             path.to_uppercase().replace(['.', '-'], "_")
         };

@@ -12,10 +12,9 @@ pub fn process_val(dotted: &str, v: &Value, stack_offset: i32) -> String {
             }
         }
         Value::Integer(n) => {
-            if dotted.starts_with("ports.") && dotted != "ports.stack_id"
-                && *n != 53 {
-                    return (*n as i32 + stack_offset).to_string();
-                }
+            if dotted.starts_with("ports.") && dotted != "ports.stack_id" && *n != 53 {
+                return (*n as i32 + stack_offset).to_string();
+            }
             n.to_string()
         }
         Value::String(s) => {

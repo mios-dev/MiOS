@@ -10,8 +10,7 @@ pub fn is_db_authoritative() -> bool {
 }
 
 pub fn maybe_apply_db_overlay(_dst: &mut Value) {
-    if !is_db_authoritative() {
-    }
+    if !is_db_authoritative() {}
     // Reserved hook for DB overlay execution if enabled
 }
 

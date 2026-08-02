@@ -72,9 +72,13 @@ mod tests {
 
         let extract_set = |name: &str| -> HashSet<String> {
             let marker = format!("{} = ", name);
-            let idx = content.find(&marker).unwrap_or_else(|| panic!("find {}", name));
+            let idx = content
+                .find(&marker)
+                .unwrap_or_else(|| panic!("find {}", name));
             let sub = &content[idx + marker.len()..];
-            let end_idx = sub.find('}').unwrap_or_else(|| panic!("end brace {}", name));
+            let end_idx = sub
+                .find('}')
+                .unwrap_or_else(|| panic!("end brace {}", name));
             let block = &sub[..end_idx];
             block
                 .split(',')
