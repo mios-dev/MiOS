@@ -46,7 +46,7 @@ location = "docker.io"
 location = "mirror.gcr.io"
 RC
 
-SEARXNG_REF="$(python3 -c "import mios_toml; print(mios_toml.load_merged().get('build', {}).get('bake_refs', {}).get('searxng', 'master'))" 2>/dev/null || echo "Master")"
+SEARXNG_REF="$(python3 -c "import mios_toml; print(mios_toml.load_merged().get('build', {}).get('bake_refs', {}).get('searxng', 'master'))" 2>/dev/null || echo "master")"
 
 build_image_with_retry() {
     local target_tag="$1"
