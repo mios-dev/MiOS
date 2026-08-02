@@ -5972,7 +5972,11 @@ check_ai_manifests_fresh() {
     echo "[98-drift-checks]   checking AI manifest freshness"
     # generate-ai-manifest.py resolves its targets and relpaths against the CWD,
     # so it MUST run from $ROOT or it compares the wrong (or no) trees.
-    if ! ( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check ) >/dev/null 2>&1; then
+    local out
+    if ! out=$( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check 2>&1 ); then
+        # Surface WHICH manifest drifted -- swallowing this turned every
+        # failure into a guessing game.
+        printf '%s\n' "$out" | grep -i 'drift\|missing' | head -n 5 >&2
         _violation "AI manifests are stale or out of date (run python3 tools/generate-ai-manifest.py to refresh)"
     fi
 }
