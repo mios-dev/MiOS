@@ -272,14 +272,19 @@ def main() -> int:
 
     drifted = []
     for path, body in outputs.items():
+        # .gitattributes pins `*.ps1 text eol=crlf` and `*.sh text eol=lf`, so
+        # the CHECKED-OUT bytes differ per file type. Write the matching line
+        # ending, and compare with newlines normalised so the gate can never
+        # fail merely because a checkout honoured .gitattributes.
+        eol = "\r\n" if path.endswith(".ps1") else "\n"
         existing = None
         if os.path.isfile(path):
-            with open(path, encoding="utf-8", newline="") as fh:
+            with open(path, encoding="utf-8") as fh:  # universal newlines
                 existing = fh.read()
         if existing != body:
             drifted.append(path)
             if not check:
-                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                with open(path, "w", encoding="utf-8", newline=eol) as fh:
                     fh.write(body)
 
     if check:
