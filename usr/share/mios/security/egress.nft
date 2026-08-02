@@ -1,6 +1,4 @@
 # AI-hint: GENERATED nftables egress firewall for the MiOS agent (#54). DO NOT EDIT -- regenerate via tools/generate-egress-firewall.py. OFF: informational ruleset; applying it changes nothing.
-# Apply (operator step): nft -f usr/share/mios/security/egress.nft   |   Remove: nft delete table inet mios_egress
-# mode=off  agent-user=mios-ai  always-allowed: loopback + tailnet 100.64.0.0/10 + WSL gateway 172.16.0.0/12 + [security.egress].allow
 table inet mios_egress {
     chain output {
         type filter hook output priority filter; policy accept;

@@ -1,7 +1,7 @@
 # NN	kind	name	file	oneline
 01	script	system-files-overlay	automation/01-system-files-overlay.sh	MIOS_APPLY_CLASS=universal
 02	script	materialize-build-ctx	automation/02-materialize-build-ctx.sh	MIOS_APPLY_CLASS=bake-only
-04	script	local-rpm-mirror	automation/04-local-rpm-mirror.sh	shellcheck source=lib/common.sh
+04	script	local-rpm-mirror	automation/04-local-rpm-mirror.sh	local rpm mirror
 05	script	repos	automation/05-repos.sh	MIOS_APPLY_CLASS=universal
 06	script	enable-external-repos	automation/06-enable-external-repos.sh	MIOS_APPLY_CLASS=universal
 07	script	kernel	automation/07-kernel.sh	MIOS_APPLY_CLASS=universal
@@ -40,7 +40,7 @@
 51	script	hardening	automation/51-hardening.sh	MIOS_APPLY_CLASS=universal
 52	script	apply-boot-fixes	automation/52-apply-boot-fixes.sh	MIOS_APPLY_CLASS=universal
 53	script	enable-log-copy-service	automation/53-enable-log-copy-service.sh	MIOS_APPLY_CLASS=bake-only
-54	script	bake-coderun-sandbox	automation/54-bake-coderun-sandbox.sh	Stage the shim into the build directory so Dockerfile can COPY it
+54	script	bake-coderun-sandbox	automation/54-bake-coderun-sandbox.sh	bake coderun sandbox
 56	script	fonts	automation/56-fonts.sh	MIOS_APPLY_CLASS=universal
 57	script	gnome	automation/57-gnome.sh	MIOS_APPLY_CLASS=universal
 58	script	gnome-remote-desktop	automation/58-gnome-remote-desktop.sh	MIOS_APPLY_CLASS=universal

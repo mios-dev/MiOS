@@ -621,3 +621,5 @@ fi
 
 mios_ok "Validation successful"
 exit 0
+
+# References for laws: item14 item12 item16 item17
