@@ -227,6 +227,15 @@ if __name__ == "__main__":
         if not os.path.exists(target_dir):
             continue
 
+        # Only GATE manifests that are actually committed. root-manifest.json
+        # is covered by the `/*` rule in .gitignore, so a clean CI checkout
+        # never has it and --check reported "Missing manifest file" forever.
+        # It is still WRITTEN in normal mode; it just cannot be a gate subject.
+        if check_mode:
+            known = tracked_files()
+            if known is not None and output_file not in known:
+                continue
+
         if check_mode:
             temp_file = output_file + ".tmp"
             if output_file.endswith(".gz"):
