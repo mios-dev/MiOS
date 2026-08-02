@@ -4,6 +4,7 @@
 # AI-functions: check, t_build_agent_engines, t_load_agent_registry, t_load_node_pool, t_health_gate_via_registry, t_agent_lane, t_render_agent_catalog, t_role_system, t_dedup_pool_by_target, main
 """Unit tests for mios_agentreg (R3 strangler-fig wave)."""
 
+import os
 import sys
 import builtins
 
@@ -148,11 +149,19 @@ def t_health_gate_via_registry():
           str(dict(reg._AGENT_AUTH_BY_HOSTPORT)))
 
 
+# Ports are ALLOCATED from [ports.categories], so a hardcoded literal here goes
+# stale the moment a category base moves. Read the same env the module reads.
+_LIGHT_PORT = os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
+_CPU_PORT = os.environ.get("MIOS_PORT_CPU_NODE", "8510")
+
+
 def t_agent_lane():
     check("lane: explicit wins", reg._agent_lane({"lane": "IGPU"}) == "igpu")
-    check("lane: igpu port inferred", reg._agent_lane({"endpoint": "http://h:8450/v1"}) == "igpu")
+    check("lane: igpu port inferred",
+          reg._agent_lane({"endpoint": f"http://h:{_LIGHT_PORT}/v1"}) == "igpu")
     check("lane: igpu model inferred", reg._agent_lane({"model": "mios-igpu"}) == "igpu")
-    check("lane: cpu port inferred", reg._agent_lane({"endpoint": "http://h:8458/v1"}) == "cpu")
+    check("lane: cpu port inferred",
+          reg._agent_lane({"endpoint": f"http://h:{_CPU_PORT}/v1"}) == "cpu")
     check("lane: cpu model inferred", reg._agent_lane({"model": "mios-agent-cpu"}) == "cpu")
     check("lane: default gpu", reg._agent_lane({"endpoint": "http://h:9999/v1"}) == "gpu")
 
@@ -161,7 +170,8 @@ def t_render_agent_catalog():
     check("catalog: empty registry -> ''", reg._render_agent_catalog({}) == "")
     out = reg._render_agent_catalog({
         "coder": {"job": "writes code", "lane": "gpu"},
-        "rsrch": {"role": "research", "strengths": ["web"], "endpoint": "http://h:8458/v1"},
+        "rsrch": {"role": "research", "strengths": ["web"],
+                  "endpoint": f"http://h:{_CPU_PORT}/v1"},
     })
     check("catalog: job line present", "writes code" in out, out)
     check("catalog: explicit lane shown", "[gpu lane]" in out, out)
