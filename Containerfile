@@ -20,10 +20,18 @@ FROM docker.io/library/rust:slim AS rust-builder
 WORKDIR /build
 COPY src/mios-rs /build/src/mios-rs
 COPY tools/native /build/tools/native
+# mios-wallpaperd is a WINDOWS-only daemon: it depends UNCONDITIONALLY on windows-service (no cfg
+# gating), so it cannot compile on Linux at all, and its wry/tao WebView path would additionally
+# need WebKitGTK dev headers this build-only rust:slim stage does not carry. It is compiled on
+# Windows during Install-MiosRust, never into this Linux OCI image -- exclude it from the workspace
+# build so the bake does not fail on glib-sys.
+#   NOTE: this is BUILD-only and does NOT affect runtime GTK. The MiOS Linux desktop's full
+#   GTK3/GTK4/libadwaita stack (adw-gtk3-dark theme, GNOME apps, Quickshell/Hyprland surfaces)
+#   ships via dnf/flatpak from the base image and is entirely independent of this rust:slim stage.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
     cd /build/src/mios-rs && cargo build --release && \
-    cd /build/tools/native && cargo build --release && \
+    cd /build/tools/native && cargo build --release --workspace --exclude mios-wallpaperd && \
     mkdir -p /out && \
     cp /build/src/mios-rs/target/release/miosd /out/ && \
     cp /build/tools/native/target/release/mios-* /out/ 2>/dev/null || true && \
