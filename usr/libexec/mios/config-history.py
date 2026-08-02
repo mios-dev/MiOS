@@ -72,7 +72,6 @@ def main():
                     actor_str = str(actor) if actor is not None else "<system>"
                     source_str = str(source) if source is not None else "<unknown>"
 
-                    # Truncate values to fit formatting
                     if len(old_str) > 15:
                         old_str = old_str[:12] + "..."
                     if len(new_str) > 15:

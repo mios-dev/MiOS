@@ -55,7 +55,6 @@ def main():
     try:
         with psycopg.connect(conn_str, connect_timeout=5) as conn:
             with conn.cursor() as cur:
-                # 1. Read config_kv
                 cur.execute(
                     """
                     SELECT scope, key, value FROM config_kv
@@ -65,7 +64,6 @@ def main():
                 )
                 rows = cur.fetchall()
                 
-                # Group by scope
                 config_by_scope = {}
                 for scope, key, value_json in rows:
                     if scope == 'verbs':
@@ -74,13 +72,11 @@ def main():
                         config_by_scope[scope] = {}
                     config_by_scope[scope][key] = value_json
 
-                # We output standard sections in original order if they exist, else alphabetical
                 sections_order = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
                 all_scopes = list(config_by_scope.keys())
                 for s in sections_order:
                     if s not in all_scopes and s in config_by_scope:
                         all_scopes.append(s)
-                # Sort all_scopes so that standard sections come first in the predefined order
                 def scope_key(sc):
                     try:
                         return sections_order.index(sc)
@@ -88,18 +84,14 @@ def main():
                         return len(sections_order)
                 all_scopes.sort(key=scope_key)
 
-                # Output each section
                 first_printed = False
                 for scope in all_scopes:
-                    # Sort keys
                     keys = sorted(config_by_scope[scope].keys())
                     
-                    # Print standard keys
                     printed_section_header = False
                     for k in keys:
                         v = config_by_scope[scope][k]
                         if isinstance(v, dict):
-                            # If value is a dict, it represents a sub-table like [ai.vllm]
                             continue
                         if not printed_section_header:
                             if first_printed:
@@ -109,7 +101,6 @@ def main():
                             first_printed = True
                         print(f"{k} = {format_toml_value(v)}")
                     
-                    # Print sub-tables (dicts)
                     for k in keys:
                         v = config_by_scope[scope][k]
                         if isinstance(v, dict):
@@ -120,7 +111,6 @@ def main():
                             for sub_k in sorted(v.keys()):
                                 print(f"{sub_k} = {format_toml_value(v[sub_k])}")
 
-                # 2. Output routing domains from domain_verb
                 cur.execute(
                     """
                     SELECT domain, description, array_agg(verb_name ORDER BY verb_name)
@@ -137,11 +127,9 @@ def main():
                     first_printed = True
                     if desc:
                         print(f"desc = {format_toml_value(desc)}")
-                    # Convert psycopg array wrapper to standard list
                     v_list = list(verbs_list)
                     print(f"verbs = {format_toml_value(v_list)}")
 
-                # 3. Read verbs._defaults
                 cur.execute(
                     """
                     SELECT value FROM config_kv
@@ -151,7 +139,6 @@ def main():
                 def_row = cur.fetchone()
                 defaults = def_row[0] if def_row else {}
 
-                # Print defaults if present
                 if defaults and isinstance(defaults, dict) and len(defaults) > 0:
                     if first_printed:
                         print("")
@@ -160,7 +147,6 @@ def main():
                     for k in sorted(defaults.keys()):
                         print(f"{k} = {format_toml_value(defaults[k])}")
 
-                # 4. Read verbs
                 cur.execute(
                     """
                     SELECT name, sig, desc_default, tier, permission, cmd, params,
@@ -179,17 +165,14 @@ def main():
                         print("")
                     print(f"[verbs.{escape_toml_key(vname)}]")
                     first_printed = True
-                    # Collect keys to print if they differ from default
                     if sig:
                         print(f"sig = {format_toml_value(sig)}")
                     if desc:
                         print(f"desc = {format_toml_value(desc)}")
                     
-                    # Optional fields with defaults
                     if section:
                         print(f"section = {format_toml_value(section)}")
                     if examples:
-                        # examples is jsonb (list)
                         print(f"examples = {format_toml_value(examples)}")
                     
                     if tier != defaults.get("tier", "common"):
@@ -211,7 +194,6 @@ def main():
                     if max_result_chars != defaults.get("max_result_chars", 0):
                         print(f"max_result_chars = {format_toml_value(max_result_chars)}")
                         
-                    # Print parameters
                     if params:
                         for param_k in sorted(params.keys()):
                             param_v = params[param_k]

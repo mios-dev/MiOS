@@ -9,10 +9,6 @@ import unittest
 
 import mios_a2a_client
 
-# The self-peer-loop guard + agent-card fetch helpers now LIVE in the module
-# (moved out of server.py); capture the originals so a test that stubs them for
-# the load/probe paths can be undone, leaving the real functions for the
-# discovery-helper tests.
 _ORIG_SELF_PEER_URL = mios_a2a_client._a2a_self_peer_url
 _ORIG_FETCH_CARD = mios_a2a_client._a2a_fetch_card
 
@@ -81,8 +77,6 @@ def _base_configure(*, peers, peer_skills, registry, reputation, client,
         get_client=_get_client,
         invalidate_worker_cache=_invalidate,
     )
-    # The self-peer-loop guard + card-fetch helpers now LIVE in the module (no
-    # longer injected); stub them directly for the load/probe paths under test.
     mios_a2a_client._a2a_self_peer_url = (self_peer_url or (lambda u: False))
     if fetch_card is not None:
         mios_a2a_client._a2a_fetch_card = fetch_card
@@ -91,9 +85,6 @@ def _base_configure(*, peers, peer_skills, registry, reputation, client,
 
 class TestLoadPeers(_A2AClientBase):
     def test_layered_dedupe_and_self_exclude(self):
-        # Three synthetic registry files: vendor declares p1 (enabled) + a self
-        # loopback peer; user overlay REPLACES p1 (disabled) + adds p2. The
-        # self-peer is excluded by the injected predicate.
         files = []
         tmp = tempfile.mkdtemp()
         vendor = os.path.join(tmp, "vendor.json")
@@ -119,7 +110,6 @@ class TestLoadPeers(_A2AClientBase):
         out = mios_a2a_client._a2a_load_peers()
         by_id = {p["id"]: p for p in out}
         self.assertEqual(set(by_id), {"p1", "p2"})        # self excluded
-        # user overlay REPLACED the vendor p1 -> enabled flipped to False.
         self.assertFalse(by_id["p1"]["enabled"])
 
 
@@ -145,8 +135,6 @@ class TestProbePeer(_A2AClientBase):
         self.assertGreaterEqual(cache["invalidated"], 1)
 
     def test_reads_v1_card_protocol_version_from_interfaces(self):
-        # A v1.0 card has NO top-level protocolVersion; the client reads it from
-        # supportedInterfaces[0].protocolVersion (liberal in).
         peers, peer_skills, registry = {}, {}, {}
 
         async def _fetch(url, headers, timeout_s=10.0):
@@ -182,7 +170,6 @@ class TestSendMessageToPeer(_A2AClientBase):
         peers = {"p1": {"id": "p1", "url": "http://a:8640", "status": "ready",
                         "headers_template": {}}}
         rep = _FakeReputation()
-        # v1.0 SendMessageResponse wraps the Task under "task"; the client unwraps.
         client = _FakeClient({"result": {"task": {"id": "t1"}}})
         _base_configure(peers=peers, peer_skills={}, registry={},
                         reputation=rep, client=client)
@@ -193,8 +180,6 @@ class TestSendMessageToPeer(_A2AClientBase):
         self.assertEqual(client.last["url"], "http://a:8640/a2a")
         self.assertEqual(body["method"], "message/send")
         msg = body["params"]["message"]
-        # v1.0 outbound Message: role=ROLE_USER, text Part by member presence
-        # (mediaType, no `kind`), no message-level `kind`.
         self.assertEqual(msg["role"], "ROLE_USER")
         self.assertNotIn("kind", msg)
         self.assertEqual(msg["contextId"], "ctx-7")
@@ -204,8 +189,6 @@ class TestSendMessageToPeer(_A2AClientBase):
         self.assertEqual(rep.calls, [("p1", True)])
 
     def test_send_unwraps_bare_task_result(self):
-        # LIBERAL on input: a 0.3 peer that returns the BARE Task as `result`
-        # (no oneof wrapper) is still handled -- the result is taken as-is.
         peers = {"p1": {"id": "p1", "url": "http://a:8640", "status": "ready",
                         "headers_template": {}}}
         client = _FakeClient({"result": {"id": "bare-1", "artifacts": []}})
@@ -254,9 +237,7 @@ class TestDiscoveryHelpers(_A2AClientBase):
         self.assertTrue(f("http://127.0.0.1:8640"))
         self.assertTrue(f("http://localhost:8640/v1"))
         self.assertTrue(f("http://[::1]:8640"))
-        # A REMOTE node on the same port is a legitimate peer, NOT self.
         self.assertFalse(f("http://10.0.0.5:8640"))
-        # Loopback on a DIFFERENT port is not the self orchestrator.
         self.assertFalse(f("http://127.0.0.1:9999"))
         self.assertFalse(f(""))
 
@@ -270,7 +251,6 @@ class TestDiscoveryHelpers(_A2AClientBase):
             os.environ.pop("MIOS_PORT_AGENT_PIPE", None)
 
     def test_fetch_card_falls_through_candidates_and_tags_origin(self):
-        # First well-known path 404s, the legacy path returns the card.
         client = _FetchClient([
             (404, {}),
             (200, {"name": "Peer", "protocolVersion": "0.3.0"}),
@@ -314,9 +294,6 @@ class TestDiscoveryHelpers(_A2AClientBase):
                 os.environ.pop("MIOS_A2A_DISCOVER_PORT", None)
             else:
                 os.environ["MIOS_A2A_DISCOVER_PORT"] = prev_port
-        # Explicit URLs are collected first (trimmed + trailing-slash-stripped),
-        # and the duplicate is removed -- they lead the candidate list regardless
-        # of whether a tailscale CLI is present on the test host.
         self.assertEqual(out[:2], ["http://x:9000", "http://y:9000"])
         self.assertEqual(len(out), len(set(out)))
 
@@ -347,12 +324,10 @@ class TestCardlessJoin(_A2AClientBase):
         self.assertEqual(peers["cardless-peer"]["agent_name"], "cardless")
         self.assertTrue(peers["cardless-peer"]["card"]["_cardless"])
         
-        # Verify inferred skills
         skills = peers["cardless-peer"]["skills"]
         skill_ids = {s["id"] for s in skills}
         self.assertEqual(skill_ids, {"text-generation", "embeddings"})
         
-        # Verify agent registry mapping
         self.assertIn("a2a:cardless-peer", registry)
         self.assertEqual(set(registry["a2a:cardless-peer"]["strengths"]), {"text-generation", "embeddings"})
 

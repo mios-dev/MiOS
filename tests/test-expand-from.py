@@ -17,7 +17,6 @@ import json
 import sys
 import os
 
-# Run from inside the agent-pipe runtime so we get the same module.
 sys.path.insert(0, "/usr/lib/mios/agent-pipe")
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
@@ -28,8 +27,6 @@ async def main() -> int:
         "open-url-fallback-chain",
         {
             "url": "about:blank-mios-skilltest",
-            # 3 obviously-not-a-browser ids so every step "fails"
-            # cleanly and we can confirm all 3 were attempted.
             "browsers": ["mios-no-browser-1",
                          "mios-no-browser-2",
                          "mios-no-browser-3"],

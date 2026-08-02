@@ -49,14 +49,6 @@ import mios_a2a_principal as _a2a_pp
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam -------------------------------------------
-# The federation builders + JSON-RPC lifecycle + principal helpers call back
-# into server-resident state/helpers. server.py calls configure() with all of
-# them AFTER each is defined (one-way boundary: this module never imports
-# server). Placeholders keep a standalone ``import mios_a2a`` working for the
-# unit tests; nothing fires before configure() runs (builders/handlers are only
-# reached at request time). Mutable containers (_AGENT_REGISTRY/_VERB_CATALOG/
-# _SCRATCHPADS) are injected BY REFERENCE so server-side mutation stays visible.
 app = None
 _AGENT_REGISTRY: dict = {}
 _VERB_CATALOG: dict = {}
@@ -76,23 +68,12 @@ _passport_verify = None
 PASSPORT_ALGO = None
 PASSPORT_ENABLE = None
 PASSPORT_AGENT_NAME = None
-# Consumer-side A2A peer registries + the outbound-peer reputation + the
-# send-to-peer delegation (server-resident, owned by mios_a2a_client); injected
-# BY REFERENCE so the @app /v1/a2a/* route logic reaches the SAME live dicts the
-# client half mutates in place. _passport_load_public is the passport key reader
-# behind GET /passport/public-key. All routes fire only at request time, so the
-# placeholders are replaced by configure() long before any logic runs.
 _A2A_PEERS: dict = {}
 _A2A_PEER_SKILLS: dict = {}
 _A2A_PEERS_LOCK = None
 _A2A_REPUTATION = None
 _a2a_send_message_to_peer = None
 _passport_load_public = None
-# FED-G3 membership-reload route deps (POST /a2a/peers/reload, now on a2a_router):
-# the inbound-principal resolver (bearer -> scoped principal) + the membership
-# reloader (re-reads the agent/node/peer registries into the live caches). Both are
-# server-resident; injected by reference so the route reaches the same auth map +
-# caches server owns. Replaced by configure() before any request runs.
 _check_inbound_principal = None
 _reload_membership = None
 _MCP_POOL = None
@@ -174,22 +155,11 @@ def configure(*, app=None, agent_registry=None, verb_catalog=None,
         g["_reload_membership"] = reload_membership
 
 
-# The A2A protocol version this card + surface conforms to. ONE SSOT-able
-# constant (env wins, then [a2a].protocol_version, then the spec's current major):
-# the version is a protocol fact (like an HTTP version token), declared once and
-# never restated. v1.0 moved this OUT of the AgentCard top level into each
-# supportedInterfaces[] entry (A2A v1.0 §8.5); the constant feeds those entries.
 A2A_PROTOCOL_VERSION = str(
     os.environ.get("MIOS_A2A_PROTOCOL_VERSION")
     or (_toml_section("a2a") or {}).get("protocol_version")
     or "1.0").strip()
 
-# A2A v1.0 enum tokens are ProtoJSON SCREAMING_SNAKE names (A2A v1.0 §5.5: enums
-# serialise as their protobuf names). These TaskState/Role constants are protocol
-# facts (legit like HTTP verbs), defined once. MiOS stores its task lifecycle in
-# these v1.0 tokens directly, so the surface EMITS v1.0; the inbound side stays
-# LIBERAL (a 0.3 lowercase/kebab role is normalised in via _A2A_ROLE_TO_V1, and a
-# 0.3 `kind`-tagged Part is still read by _a2a_text_from_message).
 _TS_SUBMITTED = "TASK_STATE_SUBMITTED"
 _TS_WORKING = "TASK_STATE_WORKING"
 _TS_COMPLETED = "TASK_STATE_COMPLETED"
@@ -198,14 +168,8 @@ _TS_CANCELED = "TASK_STATE_CANCELED"
 _TS_REJECTED = "TASK_STATE_REJECTED"
 _ROLE_USER = "ROLE_USER"
 _ROLE_AGENT = "ROLE_AGENT"
-# Inbound liberality: map a 0.3 lowercase role onto its v1.0 token (an already-v1.0
-# or unknown token passes through unchanged, defaulting to ROLE_USER).
 _A2A_ROLE_TO_V1 = {"user": _ROLE_USER, "agent": _ROLE_AGENT}
-# Media type carried on a text Part (A2A v1.0 renamed mimeType -> mediaType; the
-# field is available for all part types).
 _A2A_TEXT_MEDIA_TYPE = "text/plain"
-# google.rpc.ErrorInfo domain for v1.0 error details (A2A v1.0 §9.5: error.data is
-# an array of typed detail objects, each tagged with an `@type`).
 _A2A_ERROR_DOMAIN = "a2a-protocol.org"
 _A2A_ERRINFO_TYPE = "type.googleapis.com/google.rpc.ErrorInfo"
 
@@ -223,18 +187,6 @@ def _a2a_text_part(text: str) -> dict:
     return {"text": str(text or ""), "mediaType": _A2A_TEXT_MEDIA_TYPE}
 
 
-# -- A2A v1.0 AgentCard JWS signature (RFC-7515 over RFC-8785 JCS) -------------
-# A2A v1.0 §8.4 signs the AgentCard with a JSON Web Signature (RFC-7515): the card
-# is canonicalized with the JSON Canonicalization Scheme (JCS, RFC-8785) so the
-# signed bytes are reproducible across JSON serializers, then signed. Each
-# `signatures[]` entry carries only the JWS `protected` header + `signature` (both
-# base64url) -- the payload is the card itself, so it is a DETACHED JWS
-# (RFC-7515 Appendix F): a verifier rebuilds the signing input by re-canonicalizing
-# the card MINUS its `signatures` field. The JWS `alg` is the JOSE name "EdDSA"
-# (RFC-7515 §4.1.1; RFC-8037 §3.1 registers it for Edwards-curve keys) -- a protocol
-# fact, since the passport keypair MiOS provisions is Ed25519 (the one curve the
-# passport crypto supports). The `kid` comes from the passport key store (SSOT), not
-# a literal.
 from mios_pipe.federation.agentcard_sign import (
     _JWS_ALG_EDDSA,
     _A2A_CARD_SIG_FIELD,
@@ -275,8 +227,6 @@ def _build_agent_card() -> dict:
     for name, cfg in _AGENT_REGISTRY.items():
         role = str(cfg.get("role", "general"))
         lane = _agent_lane(cfg)
-        # Shared SSOT: same tags the fan-out router (_pick_fanout_agents)
-        # keys on, so advertised capability == routing key.
         tags = _agent_skill_tags(cfg)
         desc_bits = [f"{role} agent on the {lane} inference lane"]
         if cfg.get("default"):
@@ -292,15 +242,6 @@ def _build_agent_card() -> dict:
             "inputModes": ["text/plain", "application/json"],
             "outputModes": ["text/plain"],
         })
-    # A2A v1.0 §8.5: endpoints live in supportedInterfaces[] (ordered, first =
-    # preferred), each {url, protocolBinding, protocolVersion} -- v0.3's top-level
-    # url / preferredTransport / additionalInterfaces / protocolVersion are GONE
-    # (protocolVersion moved INTO each interface). The NATIVE A2A JSON-RPC endpoint
-    # (POST /a2a) is preferred; the OpenAI Chat Completions surface is advertised
-    # alongside as a custom protocolBinding -- the spec allows an open-form binding
-    # string, and a conformant A2A client ignores a binding it doesn't recognise and
-    # selects JSONRPC -- so MiOS stays discoverable as BOTH native-A2A AND
-    # OpenAI-compatible (operator: "A2A ... OpenAI and native").
     card: dict = {
         "name": os.environ.get("MIOS_A2A_AGENT_NAME", "MiOS AI"),
         "description": app.description,
@@ -317,36 +258,23 @@ def _build_agent_card() -> dict:
                 "MIOS_REPO_URL", "https://github.com/mios-dev/MiOS"),
         },
         "capabilities": {
-            # A2A v1.0 AgentCapabilities standard flags. SSE streaming on
-            # /v1/chat/completions; push webhooks fire on state transitions from
-            # _a2a_dispatch_send. (v0.3's stateTransitionHistory / contextSharing
-            # are NOT v1.0 capability fields -- retained under x-mios below.)
             "streaming": True,
             "pushNotifications": True,
         },
         "defaultInputModes": ["text/plain", "application/json", "image/png"],
         "defaultOutputModes": ["text/plain"],
         "skills": skills,
-        # Non-spec extension block: where to actually reach the surfaces.
-        # Namespaced under x- so a strict A2A validator ignores it.
         "x-mios": {
             "openai_chat_completions": f"{base}/v1/chat/completions",
             "mcp_server": "mios-mcp-server (stdio JSON-RPC 2.0, spec "
                           "2025-06-18; tool catalog via this server's "
                           "/v1/verbs)",
             "verb_catalog_size": len(_VERB_CATALOG),
-            # v0.3 AgentCapabilities flags that v1.0 dropped from the standard
-            # capability set, preserved here (ignored by a strict validator) so the
-            # information is not lost: MiOS keeps session/tool-call history and
-            # shares inter-agent context (A2A/ACP) by contextId.
             "stateTransitionHistory": True,
             "contextSharing": True,
             "discovery": {
                 "tools": f"{base}/v1/verbs",
                 "tool_search": f"{base}/v1/tool-search",
-                # WS-11: the full capability surface as A2A skills (the 3rd
-                # projection), RBAC-filtered per caller -- the passport-gated
-                # A2A directory complementing this lean (agent-peers) card.
                 "a2a_skill_directory": f"{base}/a2a/skills",
                 "capabilities": f"{base}/v1/capabilities",
                 "capability_dag": f"{base}/v1/capabilities/dag",
@@ -355,14 +283,6 @@ def _build_agent_card() -> dict:
             },
         },
     }
-    # FED-G4 : make the card SELF-DESCRIBING about auth + signed by the issuer, so a
-    # discovering peer learns HOW to authenticate and can VERIFY this card.
-    # securitySchemes is a v1.0 discriminated union keyed by the scheme TYPE
-    # (e.g. {"bearer": {"httpAuthSecurityScheme": {...}}}, per A2A v1.0 §8.5);
-    # always advertised. The `security` REQUIREMENT keeps v1.0's OpenAPI-style
-    # [{scheme: [scopes]}] shape + field name and is asserted only when the inbound
-    # gate is actually enforced (honest posture). Data-driven from [a2a.security]
-    # SSOT when present (operator supplies the v1.0 shape there).
     _a2a_sec = (_toml_section("a2a") or {}).get("security") or {}
     card["securitySchemes"] = (
         _a2a_sec.get("schemes")
@@ -455,8 +375,6 @@ def _build_agent_passport() -> dict:
     revurl = ap.get("revocation_list_url")
     if revurl:
         doc["revocationListUrl"] = str(revurl)
-    # Sign: Ed25519 over canonical JSON with signature.value == "" (the spec's
-    # rule), then fill signature.value. Degrade-open: unsigned + flagged if no key.
     keypath = (os.environ.get("MIOS_AGENT_PASSPORT_KEY")
                or str(ap.get("signing_key_path") or ""))
     signed = False
@@ -495,8 +413,6 @@ def _build_agntcy_manifest() -> dict:
  'true ACP/A2A/MCP + AGNTCY layer'."""
     card = _build_agent_card()
     base = f"http://localhost:{PORT}"
-    # Each A2A skill becomes one OASF feature with a category derived from
-    # role/tags (so an AGNTCY directory can search by category).
     features = []
     for sk in (card.get("skills") or []):
         tags = list(sk.get("tags") or [])
@@ -509,9 +425,6 @@ def _build_agntcy_manifest() -> dict:
             "input_modes": sk.get("inputModes") or [],
             "output_modes": sk.get("outputModes") or [],
         })
-    # MCP-served tools (the in-process verb catalog) are advertised as
-    # OASF *resources*: discoverable, invocable side surfaces beside the
-    # primary agent feature set.
     resources = []
     for vname, vcfg in (_VERB_CATALOG or {}).items():
         if not isinstance(vcfg, dict):
@@ -537,10 +450,6 @@ def _build_agntcy_manifest() -> dict:
         "vendor": "MiOS",
         "homepage": (card.get("provider") or {}).get("url"),
         "license": os.environ.get("MIOS_AGNTCY_LICENSE", "MIT"),
-        # The protocols MiOS speaks: A2A (server + client; version from the SSOT
-        # constant), MCP Streamable-HTTP (server + client), OpenAI /v1 chat. Each
-        # entry includes a discovery URL so an AGNTCY consumer can wire up without
-        # parsing this manifest twice.
         "protocols": [
             {
                 "name": "A2A",
@@ -606,7 +515,6 @@ async def a2a_skill_directory_logic() -> JSONResponse:
         ceiling = str((_ucfg or {}).get("max_permission") or "interactive")
         recipes = _toml_section("recipes") or {}
         skills = _cap_skills()
-        # RBAC-admitted (name, kind) set via the unified manifest projection.
         man = mios_capreg.build_capability_manifest(
             _VERB_CATALOG, recipes, ceiling=ceiling, skills=skills)
         out = []
@@ -630,7 +538,6 @@ async def a2a_skill_directory_logic() -> JSONResponse:
                              "error": str(e), "skills": []})
 
 
-# -- Shared inter-agent context (A2A/ACP Message history projection) --
 
 def _a2a_messages_for(key: str) -> list:
     """The chat's shared-context checkpoints rendered as A2A v1.0 Message objects:
@@ -672,7 +579,6 @@ def _a2a_context(ctx_id: str) -> dict:
     }
 
 
-# -- Signed-delegation principal helpers (send-side metadata + receive-side verify + CRL) --
 
 def _principal_mode() -> str:
     """FED-G6: the A2A signed-delegation principal posture, read from SSOT
@@ -701,9 +607,6 @@ def _principal_mode() -> str:
 
 
 _A2A_PRINCIPAL_MODE = _principal_mode()
-# Back-compat boolean the enforce branch + the existing tests read. EXACTLY
-# enforce-mode, so off/enforce behaviour is byte-identical; verify is the new middle
-# tier handled explicitly alongside it in the dispatch path.
 _A2A_PRINCIPAL_REQUIRE = _A2A_PRINCIPAL_MODE == "enforce"
 
 
@@ -757,14 +660,6 @@ def _load_crl() -> "mios_crl.CRL":
         return _CRL_CACHE["crl"] if _CRL_CACHE["crl"] is not None else mios_crl.CRL()
 
 
-# -- FED-G8: caller-key revocation (append to the CRL + hot-reload, no restart) --
-# The revoke endpoint (POST /v1/admin/keys/revoke) appends a caller key's id to the
-# SAME CRL store _load_crl reads, then HOT-RELOADS it so the credential is refused on
-# the very next check. A caller key is keyed by its bearer token (mirroring
-# _load_caller_keys); the CRL persists the token's FINGERPRINT (never the secret) plus
-# any explicit id/kid/principal, so a revoke takes effect in BOTH the inbound-auth gate
-# (server._check_inbound_principal consults _caller_key_revoked) and the A2A signed-
-# principal check (_a2a_verify_principal already rejects a revoked principal/agent id).
 
 def _crl_fingerprint(token: str) -> str:
     """Stable, NON-SECRET id for a caller key: sha256 of the bearer token. The CRL
@@ -906,17 +801,12 @@ def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
     return verdict, reason, claims
 
 
-# -- A2A task lifecycle (JSON-RPC 2.0) --
 
 _A2A_TASKS: "collections.OrderedDict[str, dict]" = collections.OrderedDict()
 _A2A_TASKS_LOCK = asyncio.Lock()
 _A2A_TASKS_MAX = int(os.environ.get("MIOS_A2A_TASKS_MAX", "512"))
-# Terminal TaskState set in v1.0 tokens (the lifecycle stores v1.0 states).
 _A2A_TERMINAL = {_TS_COMPLETED, _TS_FAILED, _TS_CANCELED, _TS_REJECTED}
 
-# Spec error codes (§ Error Handling). v1.0 §9.5 keeps the JSON-RPC numeric codes
-# and adds a typed `data` detail array (see _a2a_rpc_err); the `reason` token below
-# is the google.rpc.ErrorInfo reason emitted alongside each.
 _A2A_ERR_TASK_NOT_FOUND = -32001
 _A2A_ERR_TASK_NOT_CANCELABLE = -32002
 _A2A_ERR_UNSUPPORTED_OP = -32004
@@ -983,13 +873,6 @@ async def _a2a_task_record(task: dict) -> None:
             _A2A_TASKS.popitem(last=False)
 
 
-# ── A2A push notifications (P3.3) ────────────────────────────────────────
-# Per-task webhook registrations. POSTs the Task envelope on every state
-# transition (working/completed/failed/canceled) so an async consumer doesn't
-# have to poll tasks/get. Synchronous message/send already returns the final
-# Task in-band so push is mostly a substrate for FUTURE async work (and a
-# spec-honest capability flag in the AgentCard). Best-effort: a webhook
-# failure logs + drops, never blocks the task.
 
 _A2A_PUSH_CONFIGS: dict = {}            # task_id -> {cfg_id: {url, token, …}}
 _A2A_PUSH_LOCK = asyncio.Lock()
@@ -1027,7 +910,6 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
     if not cfgs:
         return
     
-    # Redact sensitive payloads before sending to webhooks (gossip/federation)
     task_redacted = _redact_payload(task)
     
     client = await _get_client()
@@ -1064,7 +946,6 @@ async def _a2a_dispatch_send(task: dict) -> dict:
     }
 
     def _agent_msg(answer: str) -> dict:
-        # v1.0 Message: role=ROLE_AGENT, text Part by member presence (no `kind`).
         return {"role": _ROLE_AGENT, "messageId": str(uuid.uuid4()),
                 "contextId": task.get("contextId") or "",
                 "taskId": task.get("id") or "", "parts": [_a2a_text_part(answer)]}
@@ -1139,10 +1020,6 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
             return _a2a_rpc_err(mid, -32602,
                                 "params.message has no text Parts",
                                 reason=_A2A_REASON_INVALID_ARGUMENT)
-        # #60 WS-6: verify the inbound delegation's signed principal. Audit-log by
-        # default; reject only when [agent_passport].principal_mode requires it
-        # (absent/unsigned/forged principals are allowed in the default open mode,
-        # matching today's behaviour -- this adds attribution, not a new wall).
         _pv, _preason, _pclaims = _a2a_verify_principal(in_msg)
         if _pv is True:
             log.info("a2a inbound: principal verified (agent=%s on behalf of %s)",
@@ -1162,8 +1039,6 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
         task = _a2a_make_task(in_msg.get("contextId") or "", in_msg)
         await _a2a_task_record(task)
         task = await _a2a_dispatch_send(task)
-        # v1.0 §9.4.1: SendMessage result is a SendMessageResponse oneof
-        # {task|message}; MiOS always produces a Task -> wrap under "task".
         return _a2a_rpc_ok(mid, {"task": task})
 
     if method in ("tasks/get", "GetTask"):
@@ -1224,9 +1099,6 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
             items = [t for t in items if t.get("contextId") == ctx]
         total = len(items)
         items = list(reversed(items))[:page_size]
-        # v1.0 ListTasksResponse: tasks[] + nextPageToken (AIP-158 page token --
-        # "" when no more) + pageSize + totalSize. (A single page today; the
-        # in-memory LRU has no cursor paging, so nextPageToken is always empty.)
         return _a2a_rpc_ok(mid, {"tasks": items, "nextPageToken": "",
                                  "pageSize": page_size, "totalSize": total})
 
@@ -1307,9 +1179,6 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
                                  "deleted": bool(removed)})
 
     if method in ("message/stream", "tasks/resubscribe", "SubscribeToTask"):
-        # message/stream is served over SSE by a2a_jsonrpc_logic BEFORE this
-        # dict-dispatch; reaching here means resubscribe/SubscribeToTask, which has
-        # no live token bus to re-attach to -> the spec UnsupportedOperation error.
         return _a2a_rpc_err(mid, _A2A_ERR_UNSUPPORTED_OP,
                             f"{method} not supported (no resubscribe token bus)",
                             reason=_A2A_REASON_UNSUPPORTED_OP)
@@ -1317,7 +1186,6 @@ async def _a2a_jsonrpc_dispatch(msg: dict) -> dict:
     return _a2a_rpc_err(mid, -32601, f"unknown method: {method}")
 
 
-# ── P2: A2A message/stream over SSE (makes capabilities.streaming=true honest) ──
 _A2A_STREAM_ENABLED = os.environ.get("MIOS_A2A_STREAM", "1") != "0"
 
 
@@ -1365,12 +1233,6 @@ async def _a2a_stream_response(msg: dict) -> StreamingResponse:
     return StreamingResponse(_gen(), media_type="text/event-stream")
 
 
-# -- @app route-handler logic (thin wrappers in server.py call these) --
-# Each body is moved byte-identically from server.py; the @app routes stay there
-# as thin wrappers reaching these via sys.modules. The JSON-RPC + passport-verify
-# bodies reach module-resident names defined above; the /v1/a2a/* directory +
-# dispatch bodies reach the consumer-side peer registries / reputation / send-fn
-# injected via configure() (one-way boundary -- this module never imports server).
 
 async def a2a_jsonrpc_logic(request) -> JSONResponse:
     """POST /a2a JSON-RPC 2.0 entry-point logic. Routes message/send, tasks/get,
@@ -1382,8 +1244,6 @@ async def a2a_jsonrpc_logic(request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         return JSONResponse(
             _a2a_rpc_err(None, -32700, "parse error"), status_code=400)
-    # P2: message/stream returns an SSE stream, not a JSON-RPC dict -- intercept
-    # before the dict/batch dispatch (resubscribe stays UnsupportedOp downstream).
     if (_A2A_STREAM_ENABLED and isinstance(body, dict)
             and str(body.get("method") or "") == "message/stream"):
         return await _a2a_stream_response(body)
@@ -1448,10 +1308,6 @@ async def a2a_dispatch_logic(request) -> JSONResponse:
             candidates = list(_A2A_PEER_SKILLS.get(skill) or [])
             ready = [pid for pid in candidates
                      if (_A2A_PEERS.get(pid) or {}).get("status") == "ready"]
-        # #54: among ready peers advertising the skill, prefer the most reliable.
-        # rank() is a STABLE sort -> all-neutral (untried) peers keep candidate
-        # order, so this is identical to the prior first-ready pick until peers
-        # build a track record.
         ranked = _A2A_REPUTATION.rank(ready)
         if ranked:
             peer_id = ranked[0]
@@ -1514,17 +1370,6 @@ async def passport_public_key_logic(agent: str = "") -> JSONResponse:
     })
 
 
-# -- @app -> APIRouter migration (refactor R13): the /a2a HTTP routes ----------
-# The five /a2a routes moved off server.py's @app onto this co-located router
-# (R13 establishes the routes->APIRouter pattern). server.py imports a2a_router +
-# the five handler names and mounts the router via app.include_router(a2a_router);
-# the handler names are re-imported there so server's importable `provided` surface
-# is unchanged and the served path/method set is identical (the live-app route gate
-# proves it). Each body is the former thin @app wrapper, now calling the
-# module-resident *_logic / context builder DIRECTLY (same module -- no sys.modules
-# hop). The peers/reload route's two server-resident deps (_check_inbound_principal
-# + _reload_membership) arrive via configure() (one-way DI boundary: this module
-# never imports server). APIRouter()/method decorators are structural, not config.
 a2a_router = APIRouter()
 
 
@@ -1599,19 +1444,6 @@ async def caller_key_revoke(request: Request) -> JSONResponse:
     return await caller_key_revoke_logic(request)
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 2: federation/standards/identity)
-# The discovery/identity routes whose logic homes here -- the four well-known
-# discovery surfaces (A2A AgentCard current + legacy path, the Open Agent Passport,
-# the AGNTCY OASF manifest), the consumer-side /v1/a2a/peers + /v1/a2a/skills
-# inspection feeds, the /v1/a2a/dispatch peer-forward, and the /passport/* Ed25519
-# verification surface -- moved off server.py's @app onto this co-located a2a_router
-# (REUSING the same router the first /a2a wave established). server.py re-imports each
-# handler NAME so its importable `provided` surface is unchanged and the served
-# path/method set is byte-identical (the live-app route gate proves it). Each body now
-# calls the module-resident builder/_logic DIRECTLY (same module -- no sys.modules hop);
-# the consumer-side peer registries the /v1/a2a/peers body reads (_A2A_PEERS /
-# _A2A_PEERS_LOCK / _A2A_REPUTATION) are the SAME live dicts configure() already injects
-# for a2a_skills_list_logic / a2a_dispatch_logic, so no new DI is needed.
 
 
 @a2a_router.get("/.well-known/agent-card.json")
@@ -1700,13 +1532,6 @@ async def passport_public_key(agent: str = "") -> JSONResponse:
     return await passport_public_key_logic(agent)
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 4: the /v1 discovery aliases)
-# The two convenience aliases under /v1 for clients that don't probe the A2A/AGNTCY
-# well-known paths -- the AgentCard alias and the OASF manifest alias -- moved off
-# server.py's @app onto this SAME a2a_router. Each body calls the module-resident
-# builder DIRECTLY (the same _build_agent_card / _build_agntcy_manifest the
-# well-known routes use). server.py re-imports both handler NAMES so its importable
-# `provided` surface is unchanged; the served path/method set is byte-identical.
 @a2a_router.get("/v1/agent-card")
 async def a2a_agent_card_alias() -> JSONResponse:
     """Convenience alias under /v1 for clients that don't probe

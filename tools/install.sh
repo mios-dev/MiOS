@@ -5,7 +5,6 @@ set -euo pipefail
 
 DRY_RUN=0
 TARGET_DISK=""
-# Resolve MiOS-Repo partition from SSOT label
 REPO_DEV="$(blkid -L "MiOS-Repo" 2>/dev/null || true)"
 if [[ -n "$REPO_DEV" ]]; then
     mkdir -p /mnt/mios-repo
@@ -44,36 +43,36 @@ if [[ -z "$TARGET_DISK" ]]; then
 fi
 
 if [[ -z "$TARGET_DISK" ]] && (( ! DRY_RUN )); then
-    echo "[!] Target disk is required. Specify via --target-disk." >&2
+    echo "[!] Target disk is required. Specify via" >&2
     exit 1
 fi
 
-echo "[install.sh] Offline Bare-Metal Installer Plan (CATREPO-01):"
+echo "[install.sh] Offline Bare-Metal Installer Plan:"
 echo "  Target Disk: ${TARGET_DISK:-<none>}"
 echo "  OCI Archive: $OCI_ARCHIVE"
 echo "  Transport:   oci-archive"
 
 if (( DRY_RUN )); then
-    echo "[install.sh] DRY-RUN: Would execute -> bootc install to-disk --target-no-signature-verification --source-imgref \"oci-archive:$OCI_ARCHIVE\" \"${TARGET_DISK:-/dev/sda}\""
+    echo "[install.sh] DRY-RUN: Would execute -> bootc install to-disk"oci-archive:$OCI_ARCHIVE\" \"${TARGET_DISK:-/dev/sda}\""
     exit 0
 fi
 
 if [[ "$(id -u)" -ne 0 ]]; then
-    echo "[!] Must run as root to perform bare-metal installation." >&2
+    echo "[!] Must run as root to perform bare-metal installation" >&2
     exit 1
 fi
 
 if [[ ! -f "$OCI_ARCHIVE" ]]; then
-    echo "[!] Staged OCI archive not found at $OCI_ARCHIVE." >&2
+    echo "[!] Staged OCI archive not found at $OCI_ARCHIVE" >&2
     exit 1
 fi
 
-echo "WARNING: All data on $TARGET_DISK will be destroyed!"
+echo "WARNING: All data on $TARGET_DISK will be destroyed"
 read -rp "Type 'YES' to proceed: " CONFIRM
 if [[ "$CONFIRM" != "YES" ]]; then
-    echo "Installation cancelled."
+    echo "Installation cancelled"
     exit 0
 fi
 
 bootc install to-disk --target-no-signature-verification --source-imgref "oci-archive:$OCI_ARCHIVE" "$TARGET_DISK"
-echo "[install.sh] Offline installation complete."
+echo "[install.sh] Offline installation complete"

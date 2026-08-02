@@ -32,13 +32,6 @@ from mios_config import _STACK_MODEL, _LIGHT_BASE, _toml_section
 log = logging.getLogger("mios-agent-pipe")
 
 
-# ── Dependency-injection seam ─────────────────────────────────────
-# The DCI flow + critic write pg event rows via server.py's
-# _db_create/_db_post/_db_fire helpers and stamp outbound credentials
-# via _apply_outbound_auth. server.py calls configure() with those
-# functions AFTER they are defined (one-way boundary: this module never
-# imports server). They stay None until then; every consumer is
-# async/runtime so a standalone ``import mios_dci`` still succeeds.
 _db_post = None
 _db_create = None
 _db_fire = None
@@ -59,22 +52,6 @@ def configure(*, db_post=None, db_create=None, db_fire=None,
         _apply_outbound_auth = apply_outbound_auth
 
 
-# ── Phase B.1 -- Deliberative Collective Intelligence (DCI) vocab ─
-# 14 typed epistemic acts (Habermas-rooted, DCI paper arxiv
-# 2603.11781). Replaces unstructured agent debate -- which the
-# paper showed degrades vs isolated reasoning -- with grammatical
-# typed acts grouped into 6 functional families. Each act is a
-# first-class object the agent emits as structured JSON; the
-# orchestrator (Phase B.2) deliberates by passing acts between
-# personas, preserving tensions, and converging via DCI-CF.
-#
-# Phase B.1 scope (this commit): vocabulary + schema + a single-
-# persona post-dispatch critic helper that writes an event row
-# tagged kind=dci_act. NOT yet the 4-persona convergent flow --
-# that's B.2. This gives Phase B.1 immediate operator-visible
-# value (post-dispatch critic verdicts in the audit log) without
-# the latency of running the full deliberation loop on every
-# chat turn.
 
 DCI_ENABLED = os.environ.get("MIOS_AGENT_PIPE_DCI_ENABLED",
                               "true").lower() not in {"false", "0", "no"}
@@ -85,42 +62,25 @@ DCI_ENDPOINT = os.environ.get(
 DCI_TIMEOUT_S = int(os.environ.get("MIOS_AGENT_PIPE_DCI_TIMEOUT_S", "20"))
 DCI_MAX_TOKENS = int(os.environ.get("MIOS_AGENT_PIPE_DCI_MAX_TOKENS", "400"))
 
-# The 14 acts organized by family. Each family corresponds to a
-# distinct cognitive function in collective deliberation; missing
-# a family in a multi-round flow is what the DCI paper identifies
-# as the failure mode for unstructured debate ("sycophantic
-# convergence", "groupthink", "fragmentation"). Kept identical to
-# the paper so future B.2 / B.3 references stay grounded.
 _DCI_ACTS: dict[str, dict] = {
-    # Orienting: problem framing + scope.
     "frame":         {"family": "orienting",   "intent": "establish the problem definition"},
     "clarify":       {"family": "orienting",   "intent": "request or supply clarification"},
     "reframe":       {"family": "orienting",   "intent": "restate the problem with a shifted lens"},
-    # Generative: expanding the option space.
     "propose":       {"family": "generative",  "intent": "offer a candidate solution / hypothesis"},
     "extend":        {"family": "generative",  "intent": "build on an existing proposal"},
     "spawn":         {"family": "generative",  "intent": "open a new line of inquiry"},
-    # Critical: assumption testing + risk.
     "ask":           {"family": "critical",    "intent": "request evidence / probe an assumption"},
     "challenge":     {"family": "critical",    "intent": "contest a claim with a counter-argument"},
-    # Integrative: synthesis + memory.
     "bridge":        {"family": "integrative", "intent": "connect two distinct ideas"},
     "synthesize":    {"family": "integrative", "intent": "merge disparate views into a coherent whole"},
     "recall":        {"family": "integrative", "intent": "surface prior context / decisions"},
-    # Epistemic: belief state + confidence.
     "ground":        {"family": "epistemic",   "intent": "anchor a claim to verifiable evidence"},
     "update":        {"family": "epistemic",   "intent": "revise a prior belief in light of new info"},
-    # Decisional: closure.
     "recommend":     {"family": "decisional",  "intent": "advance a specific action / decision"},
 }
 
 _DCI_ACT_NAMES = sorted(_DCI_ACTS.keys())
 
-# JSON Schema for OpenAI structured-output constraint. The model
-# MUST emit exactly this shape; anything else is a parse error.
-# `confidence` is a 0.0-1.0 scalar so downstream can sort by it
-# (e.g. Phase B.2's tension tracker promotes high-confidence
-# CHALLENGE acts over low-confidence ones).
 _DCI_ACT_SCHEMA: dict = {
     "type": "object",
     "properties": {
@@ -137,10 +97,6 @@ _DCI_ACT_SCHEMA: dict = {
 }
 
 
-# Single-persona critic prompt for Phase B.1. The "Challenger"
-# archetype focuses on the critical family (ask / challenge) +
-# epistemic family (ground / update). Phase B.2 swaps in the
-# full Framer / Explorer / Challenger / Integrator quartet.
 _DCI_CRITIC_SYSTEM = (
     "You are a DCI Challenger agent (Deliberative Collective\n"
     "Intelligence, arxiv 2603.11781). Examine the operator's prompt\n"
@@ -173,35 +129,7 @@ _DCI_CRITIC_SYSTEM = (
 )
 
 
-# ── Phase B.2 -- DCI-CF convergent flow (4 personas) ──────────────
-# Replaces the single-persona B.1 Challenger with the full
-# Deliberative Collective Intelligence convergent-flow algorithm:
-# 4 archetypal delegates (Framer / Explorer / Challenger /
-# Integrator) iterate a bounded loop against a shared workspace,
-# always emitting a structured decision packet on exit (per
-# arxiv 2603.11781 §3.4: the algorithm is guaranteed-bounded; even
-# if convergence fails after R_max rounds, the Integrator emits a
-# fallback packet with minority report + reopen triggers).
-#
-# All 4 personas role-play on the SAME local qwen2.5-coder:7b
-# instance -- DCI paper §5.2 ablation showed single-model
-# role-playing matches true multi-model diversity on most tasks,
-# and the latency budget on a workstation rules out 4 distinct
-# model instances anyway.
-#
-# B.2 scope (this commit): opt-in via env knob + on-demand
-# /dci/deliberate endpoint. The flow does NOT fire automatically
-# on every dispatch (the cheap B.1 Challenger covers that audit
-# trail). Operator enables this when they want the heavy 4-persona
-# deliberation -- e.g. for ambiguous, high-stakes, or
-# operator-flagged turns.
 
-# Opt-in gate for the heavy B.2 convergent flow, resolved from the [dci] SSOT
-# (env override wins). DEFAULT-OFF for brick-safety: the 4-persona deliberation
-# changes council behaviour -- it can TAINT a session on unresolved dissent -- so
-# the operator flips [dci].flow_enabled on and live-validates. Same env-or-toml-or-
-# default shape as the audit-chain gate; off keeps every dispatch on the cheap B.1
-# critic audit trail only (which still records typed acts with their act_type).
 DCI_FLOW_ENABLED = str(
     os.environ.get("MIOS_AGENT_PIPE_DCI_FLOW_ENABLED")
     or _toml_section("dci").get("flow_enabled", "false")
@@ -210,13 +138,6 @@ DCI_FLOW_R_MAX = int(os.environ.get("MIOS_AGENT_PIPE_DCI_FLOW_R_MAX", "3"))
 DCI_FLOW_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_DCI_FLOW_TIMEOUT_S", "20"))
 
-# Per-persona allowed-act sets. Hard constraint at validation
-# time so single-model role-play doesn't collapse all four personas
-# onto the same act (operator-observed first-run regression
-# every persona emitted `ground` on an unambiguous
-# success envelope -- correct individually but no deliberative
-# value as a 4-persona flow). The Integrator retains the broadest
-# set since its job is synthesis + decision.
 _PERSONA_ALLOWED_ACTS: dict[str, set] = {
     "framer":     {"frame", "clarify", "reframe"},
     "explorer":   {"propose", "extend", "spawn"},
@@ -225,19 +146,8 @@ _PERSONA_ALLOWED_ACTS: dict[str, set] = {
                    "ground", "update", "recommend"},
 }
 
-# The dissent/objection acts -- exactly what the Challenger persona is allowed to
-# emit. Derived from the persona-allowed SSOT so it tracks the vocabulary instead
-# of restating a ("challenge","ask") literal at every site that decides "is this an
-# objection?" -- the B.1 critic's B.2-escalation trigger, run_dci_flow's dissent
-# extraction, and the warn-severity tag all read this ONE set.
 _DCI_DISSENT_ACTS = frozenset(_PERSONA_ALLOWED_ACTS["challenger"])
 
-# Per-persona system prompts. Each is a SPECIALIZATION of the
-# generic critic prompt -- focuses the model on a specific act
-# family while preserving access to the full 14-act vocabulary
-# (the persona "constrains tendency, not capability" per DCI
-# §4.1). The shared structural-output schema (_DCI_ACT_SCHEMA from
-# B.1) is reused -- one schema, four prompts.
 
 def _persona_prompt(role: str, role_desc: str, allowed_acts: set) -> str:
     """Build a hard-constraint persona prompt: MUST emit one of the
@@ -363,9 +273,6 @@ async def _dci_call_persona(
     act = parsed.get("act")
     if act not in _DCI_ACTS:
         return None
-    # Per-persona constraint: reject acts outside the persona's
-    # allowed set. Forces deliberative diversity vs single-model
-    # mode-collapse.
     allowed = _PERSONA_ALLOWED_ACTS.get(persona_name, set(_DCI_ACTS.keys()))
     if act not in allowed:
         log.info("dci %s emitted %s (not in family); rejecting",
@@ -396,8 +303,6 @@ async def run_dci_flow(
     Always returns -- the bounded loop guarantees termination."""
     if r_max is None:
         r_max = DCI_FLOW_R_MAX
-    # Initialize the shared workspace. DCI paper §3.2 prescribes 6
-    # sections; we collapse to 5 for the v1 implementation.
     workspace: dict = {
         "user_prompt":  user_text[:600],
         "envelope":     {
@@ -422,7 +327,6 @@ async def run_dci_flow(
             if not act:
                 continue
             round_acts.append(act)
-            # Route the act into the workspace section based on family.
             family = act.get("family", "")
             if family == "orienting":
                 workspace["frames"].append(act)
@@ -433,14 +337,8 @@ async def run_dci_flow(
             elif family in ("integrative", "epistemic"):
                 workspace["syntheses"].append(act)
             elif family == "decisional":
-                # Final-form recommend -- capture as the decision.
                 decision = act
-            # Per-act event (reuse B.1's tagging).
             severity = "warn" if act["act"] in _DCI_DISSENT_ACTS and act["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
-            # act_type is a first-class event column (T-028) so dissent/act queries
-            # are an indexed scan, not a JSONB extract; the act stays in the payload
-            # too. Degrade-open: a pre-migration DB without the column drops it (the
-            # pg mirror filters to live columns) and the event still logs.
             _db_fire(_db_post(_db_create("event", {
                 "source": "mios-agent-pipe",
                 "kind": "dci_act",
@@ -459,10 +357,8 @@ async def run_dci_flow(
                 },
             }, now_fields=("ts",))))
         rounds.append(round_acts)
-        # Early-exit if the Integrator emitted a recommend.
         if decision is not None:
             break
-    # If no recommend was emitted, force one last Integrator round.
     if decision is None:
         forced = await _dci_call_persona(
             "integrator",
@@ -477,19 +373,11 @@ async def run_dci_flow(
         if forced and forced.get("act") == "recommend":
             decision = forced
     converged = decision is not None
-    # Dissent extraction: high-confidence challenges/asks that
-    # were never resolved by a subsequent recommend/synthesize.
-    # Cutoff is the single SSOT dissent-confidence knob
-    # (DCI_FLOW_TRIGGER_CONF) -- the same threshold that auto-fires
-    # the heavy flow, so "what counts as dissent" and "what
-    # escalates" stay one tunable.
     dissents = [
         a for a in workspace["challenges"]
         if a.get("confidence", 0.0) >= DCI_FLOW_TRIGGER_CONF
     ]
     for d in dissents:
-        # Awaited (not fire-and-forget) so downstream consumers
-        # querying right after run_dci_flow returns see the rows.
         await _db_post(_db_create("event", {
             "source": "mios-agent-pipe",
             "kind": "dissent",
@@ -502,9 +390,6 @@ async def run_dci_flow(
                 "session": session_id,
             },
         }, now_fields=("ts",)))
-    # Final decision packet -- always returned, even on
-    # convergence failure (fallback uses the most-recent synthesis
-    # if Integrator couldn't be coerced into a recommend).
     if decision is None and workspace["syntheses"]:
         decision = dict(workspace["syntheses"][-1])
         decision["fallback"] = True
@@ -523,20 +408,6 @@ async def run_dci_flow(
     }
 
 
-# Phase B.3 -- conditional B.2 trigger.
-# When the cheap B.1 Challenger emits a HIGH-CONFIDENCE
-# `challenge` or `ask` (>= DCI_FLOW_TRIGGER_CONF), automatically
-# fire the heavy B.2 4-persona convergent flow. If the flow then
-# surfaces unresolved dissent, write a tainted tool_call row so
-# the operator's NEXT dispatch in the same session gets refused by
-# the Semantic Firewall. The whole chain runs fire-and-forget so
-# the operator's reply isn't delayed.
-#
-# Single SSOT dissent-confidence knob. Used for BOTH the
-# auto-escalation trigger here AND the dissent-extraction /
-# event-severity cutoffs in run_dci_flow + dci_critic_pass, so the
-# "high-confidence challenge/ask" line is one tunable -- not three
-# baked literals that could silently drift apart.
 DCI_FLOW_TRIGGER_CONF = float(os.environ.get(
     "MIOS_AGENT_PIPE_DCI_FLOW_TRIGGER_CONF", "0.7"))
 
@@ -560,38 +431,16 @@ async def critic_then_maybe_flow(
     """
     if not (DCI_ENABLED or DCI_FLOW_ENABLED):
         return
-    # Stage 1: B.1 critic.
     act = await dci_critic_pass(user_text, envelope, session_id=session_id)
     if not act:
         return
-    # Conditional escalation to B.2 -- GATED on DCI_FLOW_ENABLED so the heavy
-    # 4-persona deliberation (and its taint-on-dissent side effect) is operator
-    # opt-in. Default-off runs only the cheap B.1 critic above; flipping
-    # [dci].flow_enabled on makes a high-confidence Challenger objection escalate
-    # to the full convergent flow. The objection set is the persona-allowed SSOT
-    # (_DCI_DISSENT_ACTS), not a restated ("challenge","ask") literal.
     if (DCI_FLOW_ENABLED
             and act.get("act") in _DCI_DISSENT_ACTS
             and act.get("confidence", 0.0) >= DCI_FLOW_TRIGGER_CONF):
-        # Sentinel raised; fire the B.2 jury. Cap rounds at 2 for
-        # the auto-trigger path (operator can still hit /dci/
-        # deliberate manually for the full R_max=3 budget).
         result = await run_dci_flow(
             user_text, envelope,
             session_id=session_id, r_max=2,
         )
-        # If the flow surfaced unresolved dissent, write a tainted
-        # tool_call row so the Semantic Firewall blocks subsequent
-        # high-privilege verbs in this session.
-        #
-        # NB: this write is AWAITED (not fire-and-forget). The
-        # firewall pre-check on the operator's NEXT dispatch needs
-        # to see this row -- if we fire-and-forget it, a sub-second
-        # follow-up dispatch from the operator could land BEFORE
-        # the write completes and slip past the firewall (operator-
-        # observed race the dissent row didn't show up
-        # in the DB readback because the loop returned before
-        # the pending writes settled).
         if result.get("dissents") and session_id:
             taint_row = {
                 "tool": "dci_dissent",
@@ -618,9 +467,6 @@ async def critic_then_maybe_flow(
             )
 
 
-# Pydantic-free request shape for /dci/deliberate -- accept raw
-# JSON so the operator can curl-test on the fly without writing a
-# client.
 
 async def dci_critic_pass(
     user_text: str,
@@ -638,9 +484,6 @@ async def dci_critic_pass(
     """
     if not DCI_ENABLED or not user_text:
         return None
-    # Compact envelope for the critic prompt -- keep latency low
-    # by passing just the structured tool_call + tool_result, not
-    # the full rendered <details> block.
     compact = {
         "tool":       (envelope.get("tool_call") or {}).get("function", {}).get("name"),
         "args":       (envelope.get("tool_call") or {}).get("function", {}).get("arguments"),
@@ -667,8 +510,6 @@ async def dci_critic_pass(
     }
     try:
         async with httpx.AsyncClient(timeout=DCI_TIMEOUT_S) as s:
-            # FED-G2 follow-up: attach the outbound credential for the critic endpoint
-            # (shared key for a local lane / per-agent header for a remote one).
             _dci_hdrs = {"Content-Type": "application/json"}
             _apply_outbound_auth(_dci_hdrs, DCI_ENDPOINT)
             r = await s.post(
@@ -701,17 +542,11 @@ async def dci_critic_pass(
     act = parsed.get("act")
     if act not in _DCI_ACTS:
         return None
-    # Normalize + cap confidence.
     try:
         parsed["confidence"] = max(0.0, min(1.0, float(parsed.get("confidence", 0.5))))
     except (TypeError, ValueError):
         parsed["confidence"] = 0.5
     family = _DCI_ACTS[act]["family"]
-    # Event row -- act_type is the first-class column (T-028) so analytics is a
-    # plain indexed scan (SELECT * FROM event WHERE act_type='challenge') instead
-    # of a JSONB extract; the act + family stay in the payload for the full record.
-    # Degrade-open: a DB without the column drops it (pg mirror filters to live
-    # columns) and the event still logs.
     severity = "warn" if act in _DCI_DISSENT_ACTS and parsed["confidence"] >= DCI_FLOW_TRIGGER_CONF else "info"
     row = {
         "source":  "mios-agent-pipe",

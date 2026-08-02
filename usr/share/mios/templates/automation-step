@@ -6,7 +6,7 @@
 set -euo pipefail
 
 run_step() {
-    echo "Running automation step..."
+    echo "Running automation step"
 }
 
 run_step

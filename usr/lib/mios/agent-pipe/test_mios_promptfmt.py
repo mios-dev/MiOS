@@ -1,10 +1,4 @@
 # AI-hint: Stdlib unit tests for mios_promptfmt (pure prompt text-block
-#   formatters). No network/DB/stubs needed -- the functions are args-in /
-#   string-out. Asserts: empty input -> "" for all three; _council_role_lens
-#   builds an SSOT role+strengths lens and degrades to "" with neither;
-#   _format_satisfaction_block marks satisfied/unsatisfied + emits the P5
-#   write-action-unmet anti-fabrication NOTE; _format_tool_history renders the
-#   chronological ledger with ok/FAILED labels.
 # AI-related: mios_promptfmt.py
 """Stdlib assert-tests for mios_promptfmt (no network/DB)."""
 

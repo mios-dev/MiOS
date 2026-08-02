@@ -110,7 +110,6 @@ class _Req:
 
 
 def test_authed_flag():
-    # When login is required, a valid cookie authes and a missing one does not.
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
     try:
         mios_portal.PORTAL_REQUIRE_LOGIN = True
@@ -151,8 +150,6 @@ def test_host_stats_shape():
 
 
 def test_swarm_probe():
-    # Inject the two server helpers the probe calls (configure DI), then probe a
-    # fake reachable endpoint that serves a /v1/models list.
     mios_portal.configure(
         probe_auth_headers=lambda ep: {},
         agent_lane=lambda cfg: "light")
@@ -169,7 +166,6 @@ def test_swarm_probe():
 
 
 def test_portal_stats_logic():
-    # auth-fail path -> 401; happy path -> host+services rollup w/ container state.
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES,
              mios_portal._podman_ps, mios_portal.httpx)
     try:
@@ -204,7 +200,6 @@ def test_portal_stats_logic():
 
 
 def test_portal_service_detail_logic():
-    # unknown port -> 404; known port (no container) -> detail shape, empty logs.
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES,
              mios_portal._podman_ps, mios_portal.httpx,
              mios_portal._sanitize_tool_text)
@@ -235,7 +230,6 @@ def test_portal_service_detail_logic():
 
 
 def test_portal_swarm_logic():
-    # injected registry + fake httpx -> probed roster with up-count.
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._AGENT_REGISTRY,
              mios_portal.httpx)
     try:
@@ -258,7 +252,6 @@ def test_portal_swarm_logic():
 
 
 def test_portal_term_ws_logic():
-    # both reject paths close 1008 BEFORE accept (no websockets dep reached).
     saved = (mios_portal.PORTAL_REQUIRE_LOGIN, mios_portal._PORTAL_SERVICES)
     try:
         mios_portal.PORTAL_REQUIRE_LOGIN = True
@@ -278,7 +271,6 @@ def test_portal_term_ws_logic():
 
 
 def test_portal_login_logic():
-    # wrong pw -> /login?e=1; correct pw -> / + session cookie.
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
     try:
         mios_portal.PORTAL_REQUIRE_LOGIN = True
@@ -298,7 +290,6 @@ def test_portal_login_logic():
 
 
 def test_portal_login_page_logic():
-    # not authed + e=1 -> form with error banner; already authed -> redirect /.
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
     try:
         mios_portal.PORTAL_REQUIRE_LOGIN = True
@@ -316,7 +307,6 @@ def test_portal_login_page_logic():
 
 
 def test_portal_page_logic():
-    # unauthed -> redirect /login; authed -> dashboard HTML.
     saved = mios_portal.PORTAL_REQUIRE_LOGIN
     try:
         mios_portal.PORTAL_REQUIRE_LOGIN = True

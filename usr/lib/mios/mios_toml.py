@@ -16,9 +16,6 @@ except ImportError:  # py < 3.11
     except ImportError:  # pragma: no cover
         _toml = None
 
-# Canonical three-layer overlay paths (lowest precedence first). Every element is
-# overridable so a caller (or a test/CI on a non-FHS host) can retarget without
-# editing this file. VENDOR is repo-relative when MIOS_TOML_ROOT is set.
 def _default_vendor(root=""):
     """Vendor mios.toml path when no explicit override is set: root-relative when
     MIOS_TOML_ROOT is given; else the FHS install if present; else repo-relative to
@@ -182,8 +179,6 @@ def get(sect, key, default=None, data=None):
     return section(d, sect).get(key, default)
 
 
-# The ONE canonical palette-default map -- mirrors mios.toml [colors] verbatim so
-# no tool re-declares the 12 semantic hexes (+ ansi slots). resolve = SSOT over these.
 PALETTE_DEFAULTS = {
     "bg": "#282262", "fg": "#E7DFD3", "accent": "#1A407F", "cursor": "#F35C15",
     "success": "#3E7765", "warning": "#F35C15", "error": "#DC271B", "info": "#1A407F",
@@ -422,11 +417,7 @@ def get_aliases(dotted_path):
 
     elif dotted_path.startswith("ports."):
         name = dotted_path[len("ports."):].upper().replace(".", "_").replace("-", "_")
-        # UNIFIED PORTS (operator directive: every port floats from SSOT, one scheme):
-        # each [ports].<x> emits BOTH canonical alias forms -- MIOS_PORT_<x> AND
         # MIOS_<x>_PORT -- alongside the section-generic MIOS_PORTS_<x>, so NO consumer
-        # ever hardcodes a port number; the value is operator-defined in mios.toml [ports].
-        # A few keys carry a historical service-canonical name that differs from the raw key.
         _canon = {"GUACAMOLE_WEB": "GUACAMOLE"}.get(name, name)
         aliases.extend([f"MIOS_PORT_{_canon}", f"MIOS_{_canon}_PORT"])
 

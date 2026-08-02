@@ -1,31 +1,9 @@
 # AI-hint: Configures the Oh-My-Posh interactive shell prompt for bash and zsh by mapping the MiOS theme JSON to the shell's initialization sequence.
 # AI-related: /usr/libexec/mios/oh-my-posh/oh-my-posh, /usr/share/mios/oh-my-posh/mios.omp.json, mios-prompt
-# /etc/profile.d/mios-prompt.sh
-#
-# Initializes the MiOS-themed Oh-My-Posh prompt for every interactive
-# bash login shell. zsh + fish are wired the same way via their own
-# init lines below.
-#
-# Oh-My-Posh ships as a static Go binary at
-#   /usr/libexec/mios/oh-my-posh/oh-my-posh
-# (installed by automation/62-oh-my-posh.sh at build time -- not a
-# Fedora RPM). The MiOS theme lives at
-#   /usr/share/mios/oh-my-posh/mios.omp.json
-# Both paths are guarded with -x / -r so a missing binary or theme
-# (e.g. mid-build, or after a manual rm) silently falls back to the
-# distro default prompt.
-#
-# Conditional: only initializes for interactive shells (PS1 set, stdio
-# attached to a TTY). Background scripts and cron jobs that source
-# /etc/profile keep their plain-bash prompt unchanged.
 
 [ -n "${PS1:-}" ] || return 0
 [ -t 0 ] && [ -t 1 ] || return 0
 
-# Resolve the binary via PATH (canonical /usr/bin/oh-my-posh after the
-# 2026-05 path-unification commit) with a fallback to the older
-# /usr/libexec location for hosts that haven't pulled the new image
-# yet. Either path being -x is enough.
 OMP_BIN="$(command -v oh-my-posh 2>/dev/null)"
 [ -z "$OMP_BIN" ] && [ -x /usr/libexec/mios/oh-my-posh/oh-my-posh ] \
     && OMP_BIN=/usr/libexec/mios/oh-my-posh/oh-my-posh
@@ -37,5 +15,4 @@ if [ -n "$OMP_BIN" ] && [ -x "$OMP_BIN" ] && [ -r "$OMP_THEME" ]; then
     elif [ -n "${ZSH_VERSION:-}" ]; then
         eval "$("$OMP_BIN" init zsh --config="$OMP_THEME")"
     fi
-    # fish uses its own init.fish path; sourced from /etc/fish/config.fish
 fi

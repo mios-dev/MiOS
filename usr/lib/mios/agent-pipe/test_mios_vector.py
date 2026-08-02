@@ -1,5 +1,4 @@
 # AI-hint: stdlib unit test for pgvector schema and cosine similarity matching.
-# Connects to the database and performs a vector similarity query to assert correct functionality.
 import os
 import unittest
 try:
@@ -25,15 +24,10 @@ class TestMiosVectorDb(unittest.TestCase):
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
-        # Seed test verbs
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
-                # Clean up any leftover test data
-                # Escaped % for psycopg placeholder parser
                 cur.execute("DELETE FROM verb WHERE name LIKE 'test_verb_%%'")
                 
-                # Insert test verbs with 768-dim embeddings
-                # Let's create two orthogonal vectors
                 vec_a = [0.0] * 768
                 vec_a[0] = 1.0
                 
@@ -61,12 +55,10 @@ class TestMiosVectorDb(unittest.TestCase):
     def test_pgvector_cosine_similarity(self):
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
-                # Query with a target vector close to vec_a
                 target_vec = [0.0] * 768
                 target_vec[0] = 0.9
                 target_vec[1] = 0.1
                 
-                # Fetch closest verb by cosine distance (<=>)
                 cur.execute(
                     "SELECT name, emb <=> %s::vector as distance "
                     "FROM verb WHERE name LIKE 'test_verb_%%' "
@@ -77,7 +69,6 @@ class TestMiosVectorDb(unittest.TestCase):
                 self.assertIsNotNone(row)
                 self.assertEqual(row[0], "test_verb_a")
                 
-                # Distance should be small for matching, larger for different
                 dist_a = row[1]
                 
                 cur.execute(

@@ -41,10 +41,8 @@ def main():
             with conn.cursor() as cur:
                 log.info("Connected to database. Starting materialization of build context to %s...", ctx_dir)
                 
-                # 1. Materialize package_set
                 cur.execute("SELECT name, section, pkgs, enable, layer, base_image_ref FROM package_set ORDER BY name;")
                 package_sets = cur.fetchall()
-                # PostgreSQL decimal/json conversion: convert jsonb to python dicts/lists
                 package_sets_out = []
                 for p in package_sets:
                     p_dict = dict(p)
@@ -55,7 +53,6 @@ def main():
                     json.dump(package_sets_out, fh, indent=2)
                 log.info("Materialized package_sets.json (%d sets)", len(package_sets_out))
                 
-                # 2. Materialize build_phase
                 cur.execute("SELECT ordinal, script, stage, deps FROM build_phase ORDER BY stage, ordinal NULLS LAST, script;")
                 phases = cur.fetchall()
                 phases_out = []
@@ -68,7 +65,6 @@ def main():
                     json.dump(phases_out, fh, indent=2)
                 log.info("Materialized build_phases.json (%d phases)", len(phases_out))
                 
-                # 3. Materialize debloat/xbox profiles
                 cur.execute("SELECT name, policy_type, rules FROM debloat_policy ORDER BY name;")
                 policies = cur.fetchall()
                 policies_out = []

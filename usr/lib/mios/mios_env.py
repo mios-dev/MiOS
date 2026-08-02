@@ -1,7 +1,4 @@
 # AI-hint: Shared environment helper for stripping empty MIOS_* environment variables.
-# ============================================================================
-# usr/lib/mios/mios_env.py
-# ============================================================================
 
 import os
 

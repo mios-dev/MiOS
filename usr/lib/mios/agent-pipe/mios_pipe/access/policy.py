@@ -36,28 +36,16 @@ from mios_config import _toml_section   # layered mios.toml SSOT reader
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The policy helpers read server.py's verb/recipe catalogs, the agent registry,
-# the HITL / client-env / dispatch-agent ContextVars, the ask-to-run action
-# hasher, the shared httpx client factory and the DB-event helpers. server.py
-# calls configure() with those AFTER every one is defined (one-way boundary:
-# this module never imports server). The placeholders below carry the documented
-# defaults so a standalone ``import mios_policy`` still succeeds; every consumer
-# is runtime (per-request) so nothing fires before configure() runs.
 
-# mutable catalogs / registry (injected BY REFERENCE -- server assigns each
-# exactly once; _AGENT_REGISTRY is re-injected on a live membership reload)
 _VERB_CATALOG: dict = {}
 _RECIPE_CATALOG: dict = {}
 _AGENT_REGISTRY: dict = {}
 
-# ContextVars (injected by reference -- shared live objects)
 _hitl_approved_var = None
 _hitl_blocked_var = None
 _client_env_var = None
 _dispatch_agent_var = None
 
-# server-side helpers (injected)
 _pending_hash = None
 _get_client = None
 _db_fire = None
@@ -102,10 +90,6 @@ def configure(*, verb_catalog=None, recipe_catalog=None, agent_registry=None,
         globals()["_db_create"] = db_create
 
 
-# #55 risk lattice for the per-agent capability gate. The tiers ARE the SSOT
-# permission vocabulary documented in mios.toml ("permission -- read | write |
-# interactive"), ordered lowest->highest risk. Declarative + SSOT-tunable via
-# [ai].permission_tiers -- never a hardcoded keyword test against user content.
 _PERMISSION_TIERS = [
     str(t).strip().lower()
     for t in ((_toml_section("ai") or {}).get("permission_tiers")
@@ -125,17 +109,6 @@ def _perm_rank(perm: str) -> int:
         return len(_PERMISSION_TIERS)
 
 
-# ── #62 WS-9: human-in-the-loop gate-mode ────────────────────────────────────
-# SSOT [ai].hitl_mode = off (default) | audit | block, applied at the single
-# dispatch chokepoint (dispatch_mios_verb). It reuses the #55 risk lattice + the
-# agent-passport humanInLoop intent: an action whose permission tier is at/above
-# [ai].hitl_threshold is "high-risk". off -> no-op (zero overhead, zero behaviour
-# change). audit -> LOG every high-risk action + proceed (observe before you
-# enforce). block -> REFUSE it deterministically (no execution, no hang) until a
-# human approves / the operator allowlists it. Default off so this ships INERT;
-# the operator opts in. Degrade-open everywhere: any error -> proceed (a gate bug
-# must never spuriously block real work). The out-of-process policy arbiter named
-# in #62 is a further step ON TOP of this in-process gate.
 _HITL_MODE = str((_toml_section("ai") or {}).get("hitl_mode") or "off").strip().lower()
 _HITL_THRESHOLD = str((_toml_section("ai") or {}).get("hitl_threshold")
                       or "interactive").strip().lower()
@@ -173,9 +146,6 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
     if _HITL_MODE not in ("audit", "block"):
         return None
     try:
-        # ask-to-run: if the user EXPLICITLY approved THIS exact action this turn
-        # (hash match), let it run -- the proposal they confirmed. Scoped to the one
-        # hashed action; every other high-tier action is still gated as before.
         _appr = _hitl_approved_var.get()
         if _appr and _appr == _pending_hash(tool, args or {}):
             return None
@@ -183,14 +153,12 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
         in_tier = _perm_rank(vperm) >= _perm_rank(_HITL_THRESHOLD)
         verdict = mios_hitl.decide(in_tier_scope=in_tier, ai_mode=_HITL_MODE)
         if verdict == mios_hitl.OBSERVE:
-            # audit mode (tier scope): observe-only -- log + proceed, as before.
             log.info("HITL audit: %s (tier=%s >= %s) WOULD require approval -- "
                      "proceeding (audit mode)", tool, vperm, _HITL_THRESHOLD)
             return None
         if verdict != mios_hitl.BLOCK:
             return None  # below the gate threshold -> not human-gated
         log.info("HITL block: refused %s (tier=%s) pending human approval", tool, vperm)
-        # record the block turn-scoped so the final answer can flag it honestly
         try:
             _bl = _hitl_blocked_var.get()
             if not isinstance(_bl, list):
@@ -207,12 +175,6 @@ def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[st
         return None
 
 
-# #62 (remaining half) -- OUT-OF-PROCESS policy arbiter. When [ai].hitl_arbiter_url
-# is set, a high-risk action is POSTed to that external arbiter for an allow/deny
-# verdict on top of the in-process gate. Default unset -> the helper returns None
-# instantly (no HTTP, no overhead, no behaviour change). Degrade-open per
-# [ai].hitl_arbiter_fail (default 'open': a down/erroring arbiter PROCEEDS; set
-# 'closed' to fail-safe-deny). Short timeout so a slow arbiter never hangs dispatch.
 _HITL_ARBITER_URL = str((_toml_section("ai") or {}).get("hitl_arbiter_url") or "").strip()
 _HITL_ARBITER_FAIL = str((_toml_section("ai") or {}).get("hitl_arbiter_fail")
                          or "open").strip().lower()
@@ -266,10 +228,6 @@ def _agent_rbac_filter(aname: str, tools: list) -> list:
     cfg = _AGENT_REGISTRY.get(aname) or {}
     denied = {str(v) for v in (cfg.get("denied_verbs") or [])}
     allowed = {str(v) for v in (cfg.get("allowed_verbs") or [])}
-    # WS-A9: route the ceiling + per-tool decision through the shared PDP core
-    # (mios_pdp) so the surface filter and the dispatch-time gate can NEVER
-    # diverge. resolve_ceiling FAILS CLOSED on an unknown max_permission (a typo
-    # used to fall OPEN -> full surface). Verb permission defaults to "read".
     max_perm = str(cfg.get("max_permission") or "").strip().lower()
     ceiling = _pdp.resolve_ceiling(max_perm, _PERMISSION_TIERS)
     if not denied and not allowed and ceiling is None:
@@ -308,8 +266,6 @@ def _match_user_cfg() -> tuple:
             continue
         kk = str(k).strip().lower()
         _vemail = str(v.get("email", "")).strip().lower()
-        # Guard the email arm with `uemail and ...`: an empty-email entry must not
-        # spuriously match an empty-email user; the key must be non-empty too.
         if (kk and kk in (uname, uemail)) or (uemail and _vemail == uemail):
             return (uname or uemail), v
     return "", None
@@ -353,18 +309,10 @@ def _user_rbac_filter(tools: list) -> list:
     return out
 
 
-# WS-A9: emit a PDP audit event on ALLOW too when [ai].pdp_audit_allow=true
-# (default off -> deny-only auditing, ~zero overhead on the hot allow path).
 _PDP_AUDIT_ALLOW = str((_toml_section("ai") or {}).get("pdp_audit_allow")
                        or "").strip().lower() in ("1", "true", "yes", "on")
 
 
-# ── WS-6 per-user quota / rate-limit (mios_quota) ───────────────────────────
-# Per-user QuotaTracker cache, built LAZILY from the matched [users.<name>]
-# config's rpm_limit / daily_budget. INERT BY DEFAULT: a user with no quota keys
-# (the single-user MiOS default) -> _quota_for returns None -> the dispatch quota
-# gate is skipped entirely (one dict lookup), so behaviour is unchanged until an
-# operator adds limits. server.py owns this wiring; mios_quota owns the decision.
 _QUOTA_TRACKERS: dict = {}
 
 

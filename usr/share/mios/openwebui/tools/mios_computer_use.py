@@ -53,7 +53,6 @@ from typing import Literal, Optional
 from pydantic import BaseModel, Field
 
 ButtonLiteral = Literal["left", "right", "middle"]
-# Source content formats mios-docgen authors FROM (markup the model writes).
 BuildFromLiteral = Literal["markdown", "plain", "html", "csv"]
 
 LAUNCHER_SOCKET = os.environ.get(
@@ -163,7 +162,6 @@ class Tools:
                       "to let the agent drive desktop input.",
         })
 
-    # === Perceive ============================================================
     async def cu_screenshot(self, path: str, __user__: Optional[dict] = None) -> str:
         """Capture the desktop to a PNG (one-shot, read-only). Env-adaptive:
         local Wayland (portal/grim), WSLg via mios-pc-control, or a federated
@@ -184,7 +182,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # === Ground ==============================================================
     async def cu_ground(self, query: str, __user__: Optional[dict] = None) -> str:
         """Locate a UI element by natural-language description -> click
         coordinates. Read-only. AT-SPI accessibility tree FIRST (deterministic,
@@ -228,7 +225,6 @@ class Tools:
                               timeout=self.valves.ACTION_TIMEOUT_S, capture=True)
         return _passthru_json(result)
 
-    # === Act (WRITE -- gated by WRITE_ACTIONS_ENABLED) =======================
     async def cu_click(
         self,
         x: int,
@@ -295,7 +291,6 @@ class Tools:
                               timeout=self.valves.ACTION_TIMEOUT_S, capture=True)
         return _passthru_json(result, combo=combo)
 
-    # === Produce (doc-gen; FOSS offline Pandoc + LibreOffice) ================
     async def docgen_build(
         self,
         out_path: str,
@@ -324,11 +319,6 @@ class Tools:
             return json.dumps({"ok": False, "error": "out_path is required"})
         if content is None:
             content = ""
-        # Pass content via the broker's stdin-equivalent: write to a heredoc-
-        # safe temp through the shim's --stdin. We send the content base64-free
-        # by piping through printf; broker runs one shell line, so we use a
-        # process-substitution-free here-string approach via printf %s.
-        # shlex.quote keeps it a single safe argument; mios-docgen reads --stdin.
         q_out = shlex.quote(out_path)
         q_from = shlex.quote(from_fmt)
         q_content = shlex.quote(content)

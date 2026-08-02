@@ -231,9 +231,9 @@ check_privileges() {
     print_subsection "=== MEMORY PARTITIONING ==="
     
     total_mem=$(free -b | awk '/^Mem:/ {print $2}')
-    total_mem_gb=$(echo "scale=1; $total_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
+    total_mem_gb=$(echo "Scale=1; $total_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
     available_mem=$(free -b | awk '/^Mem:/ {print $7}')
-    available_mem_gb=$(echo "scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
+    available_mem_gb=$(echo "Scale=1; $available_mem / 1024 / 1024 / 1024" | bc 2>/dev/null || echo "")
     
     echo "┌─────────────────────────────────────────────────────────────────────────────┐"
     echo "│                         MEMORY ALLOCATION                                  │"
@@ -270,7 +270,7 @@ check_privileges() {
                 mem_total=$(grep "MemTotal" "${node}/meminfo" 2>/dev/null | awk '{print $4}')
                 mem_free=$(grep "MemFree" "${node}/meminfo" 2>/dev/null | awk '{print $4}')
                 cpus=$(cat "${node}/cpulist" 2>/dev/null || echo "")
-                mem_total_gb=$(echo "scale=1; ${mem_total:-0} / 1024 / 1024" | bc 2>/dev/null || echo "")
+                mem_total_gb=$(echo "Scale=1; ${mem_total:-0} / 1024 / 1024" | bc 2>/dev/null || echo "")
                 echo "  ${node_id}: ${mem_total_gb} GB total, CPUs: $cpus"
             fi
         done
@@ -2245,7 +2245,7 @@ check_privileges() {
     hugepages_total=$(grep HugePages_Total /proc/meminfo | awk '{print $2}')
     hugepage_size_kb=$(grep Hugepagesize /proc/meminfo | awk '{print $2}')
     if [[ -n "$hugepages_total" && "$hugepages_total" != "0" ]]; then
-        hugepages_gb=$(echo "scale=1; $hugepages_total * $hugepage_size_kb / 1024 / 1024" | bc 2>/dev/null || echo "")
+        hugepages_gb=$(echo "Scale=1; $hugepages_total * $hugepage_size_kb / 1024 / 1024" | bc 2>/dev/null || echo "")
         echo "  Hugepages Reserved: ${hugepages_gb} GB"
     else
         echo "  Hugepages Reserved: 0"

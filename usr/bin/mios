@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: The primary CLI entry point for the MiOS system, providing an OpenAI-compatible agent shell that handles tool-calling, system prompt resolution, and streaming responses from the Hermes-Agent gateway.
 # AI-related: /usr/lib/mios/tools/chat-completions-api/, /usr/libexec/mios/tools, /etc/mios/install.env, /etc/mios/hermes/api.env, /etc/mios/ai/system-prompt.md, /usr/share/mios/ai/system.md, /usr/libexec/mios/tools/, /usr/libexec/mios/mios-build-driver, /usr/libexec/mios/mios-dashboard.sh, /usr/libexec/mios/mios-configurator-launch
-# /usr/bin/mios -- locally-hosted OpenAI-API-compatible agent shell.
-#
-# Drives whichever model is bound to MIOS_AI_ENDPOINT (default
-# http://localhost:8642/v1 -- Hermes-Agent, the live MiOS agent at /).
-# Streams tokens, runs the function-calling roundtrip against the tool
-# definitions in /usr/lib/mios/tools/chat-completions-api/, and
-# resolves the canonical system prompt via the layered override chain.
-#
-# Usage:
-#   mios <prompt>
-#   mios --json <schema-name> <prompt>   # structured output, no tools
-#   mios --no-tools <prompt>             # disable function calling
-#
-# Environment (per Architectural Law 5):
-#   MIOS_AI_ENDPOINT=http://localhost:8642/v1   OpenAI-compatible base URL
-#   MIOS_AI_KEY=                                bearer token
-#   MIOS_AI_MODEL=qwen3.5:2b                    chat model id
-#   MIOS_AI_SYSTEM_PROMPT=/path/to/system.md    explicit override
-#   MIOS_SHARE_DIR=/usr/share/mios              resolved-file base
 
 from __future__ import annotations
 
@@ -42,7 +23,6 @@ except ImportError:
     )
     sys.exit(127)
 
-# ─── Configuration ────────────────────────────────────────────────────
 def _resolve_ai_config() -> tuple[str, str]:
     env_ep = os.environ.get("MIOS_AI_ENDPOINT")
     env_model = os.environ.get("MIOS_AI_GATEWAY_MODEL")
@@ -82,9 +62,6 @@ LIBEXEC  = pathlib.Path("/usr/libexec/mios/tools")
 
 
 def _resolve_api_key() -> str:
-    # Order: MIOS_AI_KEY env > /etc/mios/install.env > /etc/mios/hermes/api.env > "sk-noop".
-    # Hermes-Agent requires the shared API_SERVER_KEY for /v1/* calls;
-    # an empty/wrong key returns 401 with "Invalid API key".
     v = os.environ.get("MIOS_AI_KEY")
     if v:
         return v
@@ -104,18 +81,6 @@ def _resolve_api_key() -> str:
 API_KEY = _resolve_api_key()
 
 
-# ─── Per-terminal session continuity ──────────────────────────────────
-# Each `mios <prompt>` / `@<prompt>` invocation is a FRESH process: it builds a
-# brand-new request to Hermes (:8642) with no shared id, so consecutive turns in
-# the SAME terminal lose context (operator 2026-06-14, BUG C: after "open
-# epiphany", "attempt to launch and verify" had no idea what to launch -- a
-# stateless hermes session asked "which app?"). Fix: derive a STABLE session id
-# per controlling TTY, persisted in a short-TTL rolling state file under the XDG
-# state dir, so successive turns in one terminal share ONE conversation id (sent
-# to Hermes as metadata.chat_id + the OpenAI `user` field) AND a small client-
-# side rolling transcript we replay as prior messages -- continuity holds even
-# if the gateway doesn't persist server-side. A new terminal (different TTY) or
-# an idle gap past the TTL starts a fresh session.
 SESSION_TTL_S = int(os.environ.get("MIOS_CLI_SESSION_TTL", "1800") or 1800)
 SESSION_HISTORY_TURNS = int(os.environ.get("MIOS_CLI_SESSION_TURNS", "12") or 12)
 
@@ -186,7 +151,6 @@ def load_session() -> dict[str, Any]:
 def save_session(st: dict[str, Any]) -> None:
     import time
     st["updated"] = time.time()
-    # Cap the rolling transcript so the file (and the replayed context) stays small.
     hist = st.get("history")
     if isinstance(hist, list) and len(hist) > SESSION_HISTORY_TURNS * 2:
         st["history"] = hist[-(SESSION_HISTORY_TURNS * 2):]
@@ -204,15 +168,11 @@ def save_session(st: dict[str, Any]) -> None:
 
 
 def resolve_system_prompt() -> str:
-    # Layered override chain (highest wins):
-    #   $MIOS_AI_SYSTEM_PROMPT -> ~/.config/mios/system-prompt.md
-    #   -> /etc/mios/ai/system-prompt.md -> /usr/share/mios/ai/system.md
     candidates = [
         os.environ.get("MIOS_AI_SYSTEM_PROMPT"),
         str(pathlib.Path.home() / ".config/mios/system-prompt.md"),
         "/etc/mios/ai/system-prompt.md",
         str(SHARE / "ai/system.md"),
-        # Fallback for development when the package isn't deployed
         str(pathlib.Path(__file__).parent.parent / "share/mios/ai/system.md"),
     ]
     parts = []
@@ -226,8 +186,6 @@ def resolve_system_prompt() -> str:
                 continue
     if not parts:
         return "You are the MiOS local agent."
-    # Highest-precedence layer LAST so it has the final word in-prompt;
-    # canonical prompt first sets the baseline.
     return "\n\n---\n\n".join(reversed(parts))
 
 
@@ -253,11 +211,6 @@ def load_schema(name: str) -> dict[str, Any] | None:
 
 
 def dispatch_tool(name: str, args: dict[str, Any]) -> str:
-    # Tool implementations live at /usr/libexec/mios/tools/<name>. Each
-    # is a self-contained executable that reads JSON args on stdin and
-    # writes the result string on stdout. Missing dispatchers report
-    # cleanly so the model can recover via a different tool or a direct
-    # answer.
     exe = LIBEXEC / name
     if not exe.is_file() or not os.access(exe, os.X_OK):
         return json.dumps({
@@ -289,16 +242,6 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
                    extra_body: dict[str, Any] | None = None,
                    request_user: str | None = None,
                    answer_box: list[str] | None = None) -> None:
-    # Tool-calling roundtrip. The model may emit zero or more
-    # tool_calls; for each we append the assistant turn then a
-    # role:tool result and re-call. Loop until the model finishes
-    # without requesting another tool. Print content deltas as they
-    # arrive so the operator sees incremental output.
-    #
-    # extra_body / request_user carry the per-terminal session identity to the
-    # gateway (metadata.chat_id + the OpenAI `user` field) so consecutive turns
-    # thread server-side too; answer_box (if given) accumulates the visible
-    # assistant text so the caller can persist it to the rolling transcript.
     while True:
         kwargs: dict[str, Any] = {"model": MODEL, "messages": msgs}
         if tools:
@@ -309,7 +252,6 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
         if extra_body:
             kwargs["extra_body"] = extra_body
         if schema:
-            # Structured outputs (Chat Completions response_format).
             kwargs["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
@@ -318,14 +260,11 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
                     "strict": True,
                 },
             }
-        # SDK 1.30+ stream context manager auto-accumulates tool-call
-        # argument fragments and exposes a typed event union.
         _rsn_open = False
         with client.chat.completions.stream(**kwargs) as s:
             for ev in s:
                 if ev.type == "content.delta":
                     if _rsn_open:
-                        # close the dim reasoning block before the real answer
                         sys.stderr.write("\x1b[0m\n")
                         sys.stderr.flush()
                         _rsn_open = False
@@ -334,13 +273,6 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
                     if answer_box is not None:
                         answer_box.append(ev.delta)
                 elif ev.type == "chunk":
-                    # Stream the gateway's THINKING on the non-standard
-                    # delta.reasoning_content channel (parity with OWUI's
-                    # reasoning dropdown -- operator 2026-06-20 "thought streaming
-                    # ... in hermes CLI"). Dimmed + to STDERR so it's visibly the
-                    # thinking, never mixed into the answer or the saved transcript
-                    # (a piped `mios ...` still captures only the answer). No
-                    # reasoning emitted -> this branch is a clean no-op.
                     try:
                         _d = ev.chunk.choices[0].delta
                         _r = (getattr(_d, "reasoning_content", None)
@@ -361,15 +293,12 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
             sys.stderr.flush()
 
         msg = final.choices[0].message
-        # Append the assistant turn verbatim so the next iteration sees
-        # the same conversation the model produced.
         msgs.append(msg.model_dump(exclude_none=True))
 
         if not getattr(msg, "tool_calls", None):
             sys.stdout.write("\n")
             return
 
-        # Resolve every tool call requested in this turn before looping.
         for tc in msg.tool_calls:
             try:
                 args = json.loads(tc.function.arguments) if tc.function.arguments else {}
@@ -386,20 +315,6 @@ def chat_streaming(client: OpenAI, msgs: list[dict[str, Any]],
 
 
 KNOWN_VERBS = {
-    # verb name -> command argv (list of str). Resolved via shutil.which
-    # / pathlib.is_file before dispatch so missing wrappers fall through
-    # to chat rather than 127ing.
-    #
-    # CRITICAL: this table MUST stay in sync with the `mios()` shell
-    # function in /etc/profile.d/mios-verbs.sh. That function only
-    # exists for INTERACTIVE shells ([ -n "$PS1" ] || return 0), so any
-    # NON-interactive caller -- the Hermes/MiOS agent's terminal tool,
-    # CI, the Forgejo runner, `bash -c 'mios build'` -- bypasses it and
-    # lands here. If a verb is missing from this dict it falls through
-    # to CHAT: e.g. `mios build` got sent to the gateway as the literal
-    # prompt "build", so the agent recursively asked ITSELF to build and
-    # returned ~empty output (operator-confirmed 2026-05-14). Every verb
-    # the shell function routes must have an entry here too.
     "build":  ["/usr/libexec/mios/mios-build-driver"],
     "dash":   ["/usr/libexec/mios/mios-dashboard.sh", "--dash"],
     "mini":   ["/usr/libexec/mios/mios-dashboard.sh", "--mini"],
@@ -464,7 +379,6 @@ def _load_routing_list(key: str) -> list:
     return []
 
 
-# Launch grammar: trigger verbs mirror SSOT [routing].launch_triggers / open_app/launch_app
 _CLI_LAUNCH_TRIGGERS = frozenset(_load_routing_list("launch_triggers"))
 _CLI_COMPOUND = frozenset(_load_routing_list("compound_connectives"))
 
@@ -502,7 +416,6 @@ def _run_verified_launch(app: str) -> int:
             return subprocess.run(argv).returncode
         except FileNotFoundError:
             break
-    # mios-os-control absent -> plain launch then a read-only verify probe.
     try:
         sys.stderr.write(f"mios: launching '{app}' (deterministic launch route)\n")
         rc = subprocess.run(["mios-launch", app]).returncode
@@ -596,9 +509,6 @@ def main(argv: list[str]) -> int:
         )
         return 0 if len(argv) >= 2 else 1
 
-    # `mios ai clear` -> Day-0 global clean slate. Handled BEFORE the verb
-    # dispatch so the `clear` subcommand isn't swallowed by the `ai` verb
-    # (which opens OWUI). Case-insensitive so `mios AI clear` works too.
     if len(argv) >= 3 and argv[1].lower() == "ai" and argv[2].lower() == "clear":
         _clear = "/usr/libexec/mios/mios-ai-clear"
         if pathlib.Path(_clear).is_file():
@@ -606,10 +516,6 @@ def main(argv: list[str]) -> int:
         sys.stderr.write("mios: mios-ai-clear not found at %s\n" % _clear)
         return 1
 
-    # Verb dispatch -- if the first arg matches a known verb AND the
-    # target wrapper is reachable, exec it directly. Falls through to
-    # chat if the wrapper is missing so the operator still gets useful
-    # output on a partially-deployed system.
     first = argv[1]
     if first in KNOWN_VERBS and KNOWN_VERBS[first] is not None:
         cmd = KNOWN_VERBS[first]
@@ -619,12 +525,6 @@ def main(argv: list[str]) -> int:
         ).returncode == 0:
             os.execvp(cmd[0], cmd + argv[2:])
 
-    # THIN CLIENT (operator 2026-06-16 "UNIFY THE MiOS AI PIPELINE"): default to NO
-    # client-side tools so the agent-pipe orchestrator (:8640) owns the WHOLE pipeline
-    # -- refine -> native loop (deterministic launch + read-back-verified type-chain) ->
-    # SERVER-SIDE broker execution -- instead of the CLI running its own weak client-side
-    # tool roundtrip (which floundered for 17min and fabricated). Opt back into the legacy
-    # client-side tools with --tools.
     use_tools  = False
     schema_obj = None
     args = argv[1:]
@@ -653,26 +553,8 @@ def main(argv: list[str]) -> int:
         sys.stderr.write("mios: empty prompt\n")
         return 2
 
-    # Per-terminal session: one stable conversation id + a rolling transcript +
-    # the last-launched app, so consecutive `@`/`mios` turns in this terminal
-    # share context (operator 2026-06-14, BUG C). Structured-output (--json) is a
-    # one-shot contract, so it opts OUT of the rolling history but still rolls the
-    # id forward. Best-effort: a load/save failure degrades to the old stateless
-    # behaviour, never blocks the turn.
     session = load_session()
 
-    # Deterministic launch pre-route. TWO shapes:
-    #   (1) a bare "open/launch/start/run <app>" -- one concrete action; dispatch
-    #       it to mios-launch DIRECTLY (Windows-native via the in-session executor;
-    #       Linux apps fall through inside mios-launch), bypassing the Hermes model
-    #       whose small-model tool loop is unreliable for launches (operator
-    #       2026-06-07: "open notepad" looped on everything_search).
-    #   (2) a launch FOLLOW-UP / RETRY ("X didn't launch", "attempt to launch and
-    #       verify", "try again") referring to the PRIOR launch -- re-run the
-    #       launch+VERIFY path against the session's last-launched app instead of
-    #       narrating advice + asking permission (operator 2026-06-14, BUG B).
-    # Default tool-using chat only (not --no-tools / --json). Falls through to chat
-    # if the launch wrappers are missing.
     if use_tools:
         _app = _cli_launch_target(prompt)
         if _app:
@@ -698,16 +580,12 @@ def main(argv: list[str]) -> int:
                 session["last_app"] = str(_last)
                 save_session(session)
                 return 0 if _ok else 1
-            # No remembered app in this session -> fall through to chat so the
-            # agent can ask / resolve (rather than the CLI guessing a target).
 
     client = OpenAI(base_url=ENDPOINT, api_key=API_KEY, default_headers={"x-mios-reasoning-ok": "true"})
     is_orchestrator = ":8640" in ENDPOINT or "/agent-pipe" in ENDPOINT
     msgs: list[dict[str, Any]] = []
     if not is_orchestrator:
         msgs.append({"role": "system", "content": resolve_system_prompt()})
-    # Replay this terminal's rolling transcript so the model sees prior turns
-    # (BUG C). --json is a single-shot structured contract -> no replay.
     _replay = (not schema_obj) and isinstance(session.get("history"), list)
     if _replay:
         for _m in session["history"][-(SESSION_HISTORY_TURNS * 2):]:
@@ -716,16 +594,6 @@ def main(argv: list[str]) -> int:
     msgs.append({"role": "user", "content": prompt})
     tools = load_tools() if use_tools else None
 
-    # Send the session id to Hermes as the OpenAI-standard session keys
-    # (metadata.chat_id -- the SAME key the agent-pipe/OWUI path uses -- plus the
-    # `user` field) so a gateway that persists per-conversation state threads the
-    # turns server-side too. extra_body merges into the request JSON body.
-    # Forward this shell's INVOCATION ENVIRONMENT so the agent knows WHERE it is
-    # being spoken to from (operator 2026-06-19 "@*/mios ... should know what
-    # folder it's currently in ... aware of all env details for all chat surfaces
-    # natively"). The agent-pipe reads metadata.variables (_client_env) and
-    # threads cwd/surface/host + local date/time into its grounding. Best-effort:
-    # any probe failure just omits that key.
     import socket as _socket, platform as _platform, datetime as _datetime
     _now = _datetime.datetime.now().astimezone()
     _client_vars = {"SURFACE": "mios-cli"}
@@ -745,8 +613,6 @@ def main(argv: list[str]) -> int:
                                "variables": _client_vars}}
     request_user = session.get("id")
 
-    # Capture the assistant's visible answer so it can be appended to the rolling
-    # transcript after the turn completes (mutated in place by chat_streaming).
     answer_box: list[str] = []
     try:
         chat_streaming(client, msgs, tools, schema_obj,

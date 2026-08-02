@@ -62,7 +62,6 @@ def t_scenarios() -> None:
     _check("scen: mixed kinds", kinds == {"chat", "tool", "research"}, str(kinds))
     _check("scen: deterministic", [s["prompt"] for s in S.build_scenarios(10)]
            == [s["prompt"] for s in S.build_scenarios(10)])
-    # interleaved (not all-chat-then-all-tool): first few span >1 kind
     _check("scen: interleaved", len({s["kind"] for s in sc[:3]}) > 1)
     _check("scen: count 0 -> empty", S.build_scenarios(0) == [])
     _check("scen: single-kind mix",

@@ -13,10 +13,8 @@ import shlex
 def main():
     root = os.environ.get("MIOS_DRIFT_ROOT")
     if not root:
-        # Fallback to parent of tools directory
         root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     
-    # Configure env to isolate layer TOML paths to standard test files
     os.environ["MIOS_VENDOR_TOML"] = os.path.join(root, "usr/share/mios/mios.toml").replace('\\', '/')
     os.environ["MIOS_HOST_TOML"] = os.path.join(root, "etc/mios/mios.toml").replace('\\', '/')
     os.environ["MIOS_USER_TOML"] = os.path.join(root, "nonexistent.toml").replace('\\', '/')
@@ -35,7 +33,6 @@ def main():
     env["MSYS_NO_PATHCONV"] = "1"
     env.pop("MIOS_TOML_RESOLVED", None)
 
-    # Select the correct bash executable
     bash_exe = "bash"
     if os.name == "nt":
         for path in [r"C:\Program Files\Git\bin\bash.exe", r"C:\Program Files\Git\usr\bin\bash.exe"]:
@@ -43,7 +40,6 @@ def main():
                 bash_exe = path
                 break
 
-    # Source userenv.sh in isolated shell and capture exported MIOS_ env vars using JSON
     userenv_script = os.path.join(root, 'usr/lib/mios/userenv.sh').replace('\\', '/')
     py_exec = sys.executable.replace('\\', '/')
     cmd = [
@@ -72,10 +68,8 @@ def main():
         return mios_toml.process_val(dotted, v, stack_offset)
     walk = mios_toml.walk
 
-    # Reconstruct toml_vars expected exports dict
     toml_vars = {}
     
-    # 1. Walked variables
     all_pairs = []
     EXCLUDED_SECTIONS = mios_toml.EXCLUDED_SECTIONS
     for sec, val in merged_data.items():
@@ -90,8 +84,6 @@ def main():
         val_processed = process_val(path, val)
         if val_processed is None or val_processed == "":
             continue
-        # A body already starting with MIOS_ (the [mios] and [mios-find] sections) must NOT be
-        # re-prefixed, or it emits phantom double-prefixed dupes (nobody consumes them). GUP Phase 1.
         if path.startswith("converge."):
             _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_")
         else:
@@ -109,7 +101,6 @@ def main():
             else:
                 exports_map[leg] = str(val_processed)
 
-    # 2. [env] table verbatim exports
     env_tbl = mios_toml.section(merged_data, "env")
     if isinstance(env_tbl, dict):
         for k, v in sorted(env_tbl.items()):
@@ -117,7 +108,6 @@ def main():
             if vp is not None and vp != "":
                 exports_map[k] = str(vp)
 
-    # 3. Add referenced variables if not present
     ref_path = os.path.join(root, "usr/share/mios/referenced_names.txt")
     if os.path.isfile(ref_path):
         try:
@@ -131,7 +121,6 @@ def main():
 
     toml_vars = exports_map
 
-    # 4. Post-load transforms (pgvector listen_loopback -> MIOS_PG_BIND_ADDR)
     loopback = mios_toml.get("pgvector", "listen_loopback")
     if loopback is None:
         loopback = True
@@ -144,7 +133,6 @@ def main():
         "MIOS_TOML_ROOT", "MIOS_ROOT_LIB", "MIOS_CONFIG_DIR", "MIOS_ROOT"
     }
 
-    # Compare
     mismatches = []
     for k, expected in sorted(toml_vars.items()):
         if k in ignore_vars:

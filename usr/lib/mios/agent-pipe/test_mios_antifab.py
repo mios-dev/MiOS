@@ -1,14 +1,4 @@
 # AI-hint: Standalone assert-script unit test for the anti-fabrication guard
-#   `_contains_tool_result_block` (T-118/T-119) -- the chat-reply short-circuit in
-#   mios_pipe.routing.chat rejects a synthesized reply that NARRATES a tool
-#   execution (the real-emitter sentinel `🤝 <verb> output:` or a `"success":
-#   true` / `"tool":"<verb>"` JSON pair, in either key order) it never actually
-#   ran. Imports the REAL symbol through the repo's mios_chat re-export shim
-#   (see mios_chat.py) using the same bare-checkout stub recipe as
-#   test_mios_chat.py (httpx/websockets/uvicorn/fastapi doubles) so no network,
-#   DB, or built image is required. If a future dependency genuinely can't be
-#   stubbed offline, the import is wrapped so the test SKIPS (exit 0) instead of
-#   failing the suite.
 # AI-related: ./mios_pipe/routing/chat.py, ./mios_chat.py, ./test_mios_chat.py
 # AI-functions: _install_stubs, t_tool_output_sentinel, t_success_json_tool_order, t_tool_json_success_order, t_ordinary_prose, t_empty_and_none, main
 """Unit tests for the anti-fabrication tool-result predicate (T-118/T-119)."""
@@ -18,10 +8,6 @@ import sys
 import types
 from unittest import mock
 
-# Force the SSOT flag OFF *before* importing the guard modules so the native-loop
-# module constant (_ANTIFAB_ENABLE, read at import like the chat sibling) reflects
-# it -- T3 asserts the disabled passthrough. T1/T2 pass enable=True explicitly, so
-# they are independent of this env value.
 os.environ["MIOS_ANTIFAB_ENABLE"] = "false"
 
 _fails = 0
@@ -80,9 +66,6 @@ try:
 except Exception as exc:  # pragma: no cover -- offline-env fallback, not duplicated logic
     _skip_reason = f"{type(exc).__name__}: {exc}"
 
-# Native-loop anti-fabrication guard (FAB-01 / FAB-02). Same offline stub recipe;
-# imports the REAL routing module so the tests exercise the shipped guard code, not
-# a re-implementation. Skips (never fails) if it cannot import on a bare checkout.
 _NL = None
 _nl_skip = None
 try:
@@ -117,21 +100,14 @@ def t_empty_and_none():
     check("None -> False", _predicate(None) is False)
 
 
-# ── Native-loop reproduction tests (the two LIVE-falsified P0 fabrications) ──
-# The EXACT fabricated block from the T-113 transcript: a SYNTHESIZED answer that
-# reprints the executor's evidence format for `apps` (a verb that WAS fired) and
-# invents Windows/console games with a template "version":"1.0.0". The OLD guard
-# kept it because `apps` ∈ _fired (verb-membership axis); it ALSO never matched the
-# '(truncated for brevity)' header shape. The fix strips ALL evidence blocks from a
-# synthesized answer regardless of fired-membership.
 _FAB01_SYNTH = (
     "Here are the games installed on your system:\n\n"
     "🤝 apps output (truncated for brevity):\n"
     '{"success": true, "tool": "apps", "apps": ['
-    '{"name": "FakeGame 5", "version": "1.0.0"}, '
-    '{"name": "Sea of Thieves", "version": "1.0.0"}, '
-    '{"name": "Cyberpunk 2077", "version": "1.0.0"}, '
-    '{"name": "Minecraft", "version": "1.0.0"}]}'
+    '{"name": "example-app-1", "version": "unknown"}, '
+    '{"name": "example-app-2", "version": "unknown"}, '
+    '{"name": "example-app-3", "version": "unknown"}, '
+    '{"name": "example-app-4", "version": "unknown"}]}'
 )
 
 
@@ -139,14 +115,12 @@ def t_fab01_synth_strips_fired_verb_block():
     ans = _NL._guard_fabricated_execution(
         _FAB01_SYNTH, surfaced_raw_evidence=False, m2=[], enable=True)
     check("FAB-01: fabricated '🤝 apps output' block stripped (fired-membership "
-          "does NOT save it)", "🤝" not in ans and "FakeGame 5" not in ans, ans)
+          "does NOT save it)", "🤝" not in ans and "example-app-1" not in ans, ans)
     check("FAB-01: real synthesized prose survives the strip",
           ans.strip().startswith("Here are the games installed"), ans)
 
 
 def t_fab01_raw_evidence_provenance():
-    # On the RAW-evidence path a success-JSON block is kept ONLY if it byte-matches
-    # the real captured tool output in _m2; a fabricated one is dropped.
     real_blk = '{"success": true, "tool": "open_app", "pid": 4242}'
     m2 = [{"role": "tool", "name": "open_app", "content": real_blk}]
     keep = _NL._guard_fabricated_execution(
@@ -169,10 +143,6 @@ def t_fab01_skill_recipe_subsumed():
           "(false-positive subsumed)", "🤝" not in out, out)
 
 
-# FAB-02: a real 2024-games corpus; the answer keeps a grounded 2024 section but
-# HALLUCINATES a "Major 2025 Announcements" section citing titles absent from the
-# fetched text and an outlet (IGN) BY NAME with no URL -- the exact T-114 shape the
-# URL-only guard missed.
 _FAB02_CORPUS = (
     "In 2024, notable releases included Prince of Persia: The Lost Crown, a "
     "Metroidvania from Ubisoft Montpellier, and Eiyuden Chronicle: Hundred Heroes, "
@@ -209,12 +179,10 @@ def t_fab02_all_grounded_untouched():
 
 
 def t_fab02_degrade_open():
-    # empty corpus -> cannot ground -> keep answer verbatim
     out = _NL._guard_entity_grounding(
         _FAB02_ANS, "", gate=True, enable=True,
         min_entities=3, ground_min=0.34, note="(unverified omitted)")
     check("FAB-02: empty corpus degrades-open (byte-identical)", out == _FAB02_ANS, out)
-    # caseless script (CJK) -> too few entity tokens per section -> keep
     cjk = "## 概要\n\nこれは日本語のテキストです。ゲームについて。\n\n## 続き\n\nもっと日本語。"
     out2 = _NL._guard_entity_grounding(
         cjk, _FAB02_CORPUS, gate=True, enable=True,
@@ -223,10 +191,8 @@ def t_fab02_degrade_open():
 
 
 def t_flag_off_passthrough():
-    # The module read MIOS_ANTIFAB_ENABLE=false at import (set at top of file).
     check("gate: native-loop _ANTIFAB_ENABLE reflects env=false",
           _NL._ANTIFAB_ENABLE is False, _NL._ANTIFAB_ENABLE)
-    # Disabled -> byte-identical passthrough on BOTH guards.
     ex = _NL._guard_fabricated_execution(
         _FAB01_SYNTH, surfaced_raw_evidence=False, m2=[], enable=_NL._ANTIFAB_ENABLE)
     check("gate: FAB-01 guard passthrough when disabled (byte-identical)",

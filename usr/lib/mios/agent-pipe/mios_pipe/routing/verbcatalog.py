@@ -29,12 +29,6 @@ from mios_grounding import _capability_grounding
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --
-# The HOT verb-catalog globals stay OWNED by server.py (it runs the assignments
-# by calling the re-imported builders); they are injected here AFTER server builds
-# them so the readers below see the live catalog. CATALOG_FAIL_MODE (the malformed-
-# catalog fail-loud opt-in) is injected before the first build. These stay at their
-# defaults until configure() is called, so a standalone import still succeeds.
 _VERB_CATALOG: dict = {}
 _MODEL_NAME_TO_VERB: dict = {}
 CATALOG_FAIL_MODE = "warn"
@@ -99,11 +93,6 @@ def _load_verb_catalog() -> dict:
                 merged_vcfg = defaults.copy()
                 merged_vcfg.update(vcfg)
                 vcfg = merged_vcfg
-                # Reject entries lacking `section` -- the [verbs.*]
-                # namespace is shared with the mios-html configurator
-                # (build/config/dash/ai/dev/...) which uses the same
-                # TOML key for UI button definitions. agent-pipe owns
-                # only the entries that carry the agent-verb shape.
                 if "section" not in vcfg:
                     continue
                 cat[vname] = _normalize_verb_catalog_entry({
@@ -143,7 +132,6 @@ def _load_verb_catalog() -> dict:
     import copy
     pure_toml_cat = copy.deepcopy(cat)
 
-    # ── Database Overlay & Localization (T-126) ──
     if db_auth and not _DB_UNREACHABLE:
         try:
             import psycopg
@@ -214,17 +202,14 @@ def _load_verb_catalog() -> dict:
             _DB_UNREACHABLE = True
             log.debug("Database verb catalog overlay failed (using TOML baseline): %s", db_err)
 
-    # ── Database Authority Sentinel & Shadow-Compare ──
     try:
         if db_auth:
             if not _DB_UNREACHABLE:
                 db_cat = _load_verb_catalog_from_db()
                 if db_cat:
                     return db_cat
-            # Else fall-open to TOML
             return cat
         else:
-            # Run shadow-compare in background thread to avoid blocking the main thread/startup
             import threading
             def _bg_shadow():
                 try:
@@ -308,7 +293,6 @@ def _load_verb_catalog_from_db() -> dict:
                     parallel_limit = r.get("parallel_limit")
                     max_result_chars = r.get("max_result_chars")
                     
-                    # Localization (T-126)
                     i18n = r.get("i18n") or {}
                     if lang in i18n:
                         lang_data = i18n[lang]
@@ -558,12 +542,6 @@ def _build_model_name_map(cat: dict) -> dict:
                       vname, vname)
             continue
         rev[mn] = vname
-    # Fold each verb's hidden_aliases (old names it ABSORBED during consolidation) into
-    # the SAME reverse map so they resolve to the keeper -- back-compat for in-flight
-    # chains, DAG/skill step bodies, and MCP/A2A callers -- without ever appearing on the
-    # model/MCP/A2A surface (they are neither verb keys nor model_names, so no renderer
-    # emits them). Same guards: an alias equal to a real key, or already claimed, is
-    # dropped + logged. This is what lets a redundant verb block be DELETED losslessly.
     for vname, vcfg in cat.items():
         for al in ((vcfg or {}).get("hidden_aliases") or []):
             al = str(al).strip()
@@ -581,11 +559,6 @@ def _build_model_name_map(cat: dict) -> dict:
                           "keeping first", al, rev[al], vname)
                 continue
             rev[al] = vname
-    # A dropped alias SILENTLY hides a verb from the model -- exactly the failure a
-    # verb-merge campaign (model_name aliasing the old keys to a consolidated verb) can
-    # introduce. Make it loud by default; a HARD gate under MIOS_STRICT_VERB_ALIASES=1
-    # (set in CI / the build) fails fast so a bad merge never ships, WITHOUT ever
-    # bricking a production agent-pipe start (degrade-open: real keys still dispatch).
     if collisions:
         log.error("ALIAS-COLLISION: %d model_name collision(s) -- %s",
                   len(collisions), "; ".join(collisions))
@@ -660,12 +633,6 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
     recipes branch on the target OS). No arg is marked required -- recipes
     fill sensible defaults, and the os_recipe verb tolerates a partial
     params map. Discover here, execute via os_recipe at /v1/dispatch."""
-    # OpenAI STRICT mode (audit P1): recipe args are all OPTIONAL, but
-    # strict mode requires additionalProperties:false AND every property in
-    # `required` -- so an optional arg is expressed as NULLABLE (["string","null"]),
-    # the model emits null to skip it, and os_recipe fills the default. Mirrors
-    # _verb_to_openai_tool. (Was additionalProperties:true + required:[] -> not
-    # strict-mode-valid, silently degraded constrained decoding for mios_recipe__*.)
     args_raw = cfg.get("args") or []
     props: dict = {}
     if isinstance(args_raw, dict):
@@ -709,7 +676,6 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
                 "additionalProperties": False,
             },
         },
-        # Routing/UX hints (x- namespaced; ignored by strict OpenAI clients).
         "x-mios-recipe": name,
         "x-mios-permission": cfg.get("permission", "read"),
     }
@@ -732,11 +698,6 @@ def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
         spec: dict = {"description": argcfg.get("desc", "")}
         if argcfg.get("enum"):
             spec["enum"] = list(argcfg["enum"])
-        # OpenAI strict mode (Tier-1): EVERY property must be in `required`. An
-        # OPTIONAL param (has a default) becomes nullable -- the model emits null to
-        # "skip" it, dispatch_mios_verb drops null, and the cmd-template default
-        # applies. No `default` key (unsupported under strict). Required params keep
-        # their plain type.
         if "default" in argcfg:
             spec["type"] = [_t, "null"]
             if "enum" in spec:
@@ -745,10 +706,6 @@ def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
             spec["type"] = _t
         required.append(argname)
         props[argname] = spec
-    # P1 PA-Tool: the MODEL sees the model_name alias (unambiguous, pretraining-familiar)
-    # if one is declared; otherwise the bare key. The canonical key still rides x-mios-verb
-    # and dispatch resolves the alias back via _resolve_verb_key -> discover-as-alias,
-    # execute-as-key, one contract.
     _facing = str(vcfg.get("model_name", "") or "").strip() or vname
     return {
         "type": "function",
@@ -763,7 +720,6 @@ def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
                 "additionalProperties": False,
             },
         },
-        # Routing/UX hints (x- namespaced; ignored by strict OpenAI clients).
         "x-mios-verb": vname,
         "x-mios-permission": vcfg.get("permission", "read"),
         "x-mios-section": vcfg.get("section", ""),

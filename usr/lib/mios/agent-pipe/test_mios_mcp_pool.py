@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for MCPClientPool (CONV-13).
-# Mocks stdio/sse clients to assert startup/shutdown and unified tools listing.
 # AI-related: ./mios_gateway_queue.py
 
 import os
@@ -50,7 +49,6 @@ class MockSession:
         self.closed = True
 
 async def test_mcp_pool_lifecycle():
-    # Setup server configs
     server_configs = {
         "playwright": {
             "enabled": True,
@@ -65,7 +63,6 @@ async def test_mcp_pool_lifecycle():
         }
     }
 
-    # Setup mock session with a tool
     mock_tool = MockTool(
         name="navigate",
         description="Navigate to URL",
@@ -73,14 +70,11 @@ async def test_mcp_pool_lifecycle():
     )
     mock_session = MockSession(tools=[mock_tool])
 
-    # Instantiate pool
     pool = MCPClientPool(server_configs)
 
-    # Check initialization
     check("pool: clients created", "playwright" in pool.clients)
     check("pool: disabled client ignored", "disabled_srv" not in pool.clients)
 
-    # Mock StdioClient.connect
     async def mock_connect(self):
         self.session = mock_session
         return mock_session
@@ -91,7 +85,6 @@ async def test_mcp_pool_lifecycle():
     with mock.patch.object(mcp.StdioClient, "connect", mock_connect), \
          mock.patch.object(mcp.StdioClient, "close", mock_close):
         
-        # Test startup
         await pool.startup()
         
         tools = pool.get_tools()
@@ -100,7 +93,6 @@ async def test_mcp_pool_lifecycle():
         check("pool: tool description matches", tools[0]["description"] == "Navigate to URL")
         check("pool: inputSchema is preserved", "properties" in tools[0]["inputSchema"])
         
-        # Test shutdown
         await pool.shutdown()
         check("pool: shutdown clears clients dict", len(pool.clients) == 0)
         check("pool: shutdown clears tools cache", len(pool.get_tools()) == 0)

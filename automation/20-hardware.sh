@@ -24,7 +24,7 @@ NVIDIA_PRESENT=0
 if [[ -d "/lib/modules/$KVER/extra/nvidia" ]] || \
    [[ -d "/lib/modules/$KVER/extra/nvidia-open" ]] || \
    modinfo nvidia -k "$KVER" &>/dev/null; then
-    mios_ok "NVIDIA kmod present for kernel $KVER (ucore pre-signed)"
+    mios_ok "NVIDIA kmod present for kernel $KVER"
     NVIDIA_PRESENT=1
 fi
 
@@ -42,17 +42,17 @@ if [[ $NVIDIA_PRESENT -eq 0 ]]; then
 fi
 
 if [[ $NVIDIA_PRESENT -eq 0 ]]; then
-    mios_warn "no NVIDIA kmod for $KVER after all fallback attempts"
-    mios_warn "image will ship without NVIDIA acceleration. Users with"
+    mios_warn "No NVIDIA kmod for $KVER after all fallback attempts"
+    mios_warn "Image will ship without NVIDIA acceleration. Users with"
     mios_warn "NVIDIA hardware can rebuild the kmod at runtime:"
-    mios_warn "sudo dnf install kernel-devel-\$(uname -r) akmod-nvidia"
-    mios_warn "sudo akmods --force --kernels \$(uname -r)"
+    mios_warn "Sudo dnf install kernel-devel-\$ akmod-nvidia"
+    mios_warn "Sudo akmods"
 fi
 
 if command -v nvidia-ctk &>/dev/null; then
     nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml 2>/dev/null || true
-    mios_ok "NVIDIA CDI spec generated (build-time; runtime refresh handled by nvidia-cdi-refresh.path)"
+    mios_ok "NVIDIA CDI spec generated"
 fi
 
 
-mios_ok "GPU stack: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT (0 = image ships without NVIDIA acceleration)"
+mios_ok "GPU stack: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT"

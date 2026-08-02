@@ -11,7 +11,7 @@ mios_log "Set default hostname template"
 _hn="${MIOS_HOSTNAME:-mios}"
 install -d -m 0755 ${MIOS_USR_DIR}
 echo "$_hn" > ${MIOS_USR_DIR}/hostname.default
-mios_ok "wrote ${MIOS_USR_DIR}/hostname.default: $_hn"
+mios_ok "Wrote ${MIOS_USR_DIR}/hostname.default: $_hn"
 if [[ "$_hn" == "mios" ]]; then
     mios_log "Becomes mios-XXXXX on first boot via mios-init"
 fi

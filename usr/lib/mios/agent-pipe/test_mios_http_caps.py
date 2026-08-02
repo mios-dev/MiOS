@@ -154,7 +154,6 @@ def _make_get_client(payload):
 def main():
     _configure_stubs()
 
-    # /v1/verbs -- MCP inputSchema + annotations shape.
     r = asyncio.run(M.list_verbs_logic(include_rare=True))
     b = _body(r)
     t0 = next((t for t in b["tools"] if t["name"] == "open_app"), None)
@@ -165,74 +164,61 @@ def main():
           t0 and "name" in t0["inputSchema"]["required"])
     check("verbs: annotations.permission",
           t0 and t0["annotations"]["permission"] == "read")
-    # include_rare gate
     r2 = _body(asyncio.run(M.list_verbs_logic(include_rare=False)))
     check("verbs: rare excluded when include_rare False",
           all(t["name"] != "rare_verb" for t in r2["tools"]))
 
-    # /v1/verbs/openai-tools
     ot = _body(asyncio.run(M.list_verbs_openai_tools_logic(include_rare=True)))
     check("openai-tools: count == 2", ot["count"] == 2)
     check("openai-tools: function name projected",
           any(t["function"]["name"] == "open_app" for t in ot["tools"]))
 
-    # /v1/tools -- superset with counts.
     tl = _body(asyncio.run(M.list_tools_logic(include_rare=True)))
     check("tools: has counts block", "counts" in tl)
     check("tools: recipe projected", tl["counts"]["recipes"] >= 1)
     check("tools: skill projected", tl["counts"]["skills"] >= 1)
 
-    # /v1/capabilities -- manifest envelope (degrade-open object).
     cap = _body(asyncio.run(M.v1_capabilities_logic(_FakeReq())))
     check("capabilities: manifest object",
           cap["object"] == "mios.capability.manifest")
 
-    # /v1/peers -- gossip digest.
     pr = _body(asyncio.run(M.v1_peers_logic()))
     check("peers: digest object", pr["object"] == "mios.peer.digest")
     check("peers: endpoint + heartbeat projected",
           pr["peers"] and pr["peers"][0]["endpoint"] == "http://host:8642"
           and pr["peers"][0]["heartbeat"] == 3)
 
-    # /v1/resources -- MCP Resource list (uses the moved projectors).
     res = _body(asyncio.run(M.list_resources_logic()))
     uris = [x["uri"] for x in res["resources"]]
     check("resources: verb resource", "mios://verb/open_app" in uris)
     check("resources: recipe resource", "mios://recipe/toast" in uris)
     check("resources: skill resource", "mios://skill/deploy" in uris)
-    # moved projector direct shape
     check("projector: _verb_to_mcp_resource shape",
           M._verb_to_mcp_resource("v", {"desc": "d"})["uri"] == "mios://verb/v")
 
-    # /v1/resources/read
     rr = _body(asyncio.run(M.read_resource_logic("mios://verb/open_app")))
     check("read_resource: contents text is verb json",
           rr["contents"][0]["uri"] == "mios://verb/open_app")
     rr404 = asyncio.run(M.read_resource_logic("mios://verb/nope"))
     check("read_resource: 404 unknown verb", rr404.status_code == 404)
 
-    # /v1/cost
     cost = _body(asyncio.run(M.cost_ledger_logic()))
     check("cost: object + model", cost["object"] == "mios.cost"
           and cost["model"]["gpu_watts"] == 300)
 
-    # /v1/trace + /v1/trace/{id}
     tr = _body(asyncio.run(M.trace_read_logic("t1")))
     check("trace: span_count", tr["span_count"] == 1 and tr["trace_id"] == "t1")
     trl = _body(asyncio.run(M.trace_recent_logic()))
     check("trace.list: recent", trl["object"] == "mios.trace.list")
 
-    # /v1/offline-status
     off = _body(asyncio.run(M.offline_status_logic()))
     check("offline: status object + offline true",
           off["object"] == "mios.offline_status" and off["offline"] is True)
 
-    # /v1/models -- single advertised model.
     mo = _body(asyncio.run(M.list_models_logic(_FakeReq())))
     check("models: exactly one MiOS AI", len(mo["data"]) == 1
           and mo["data"][0]["id"] == "MiOS AI")
 
-    # /v1/embeddings -- proxy passthrough to BACKEND (stubbed client).
     emb_resp = asyncio.run(M.embeddings_logic(
         _FakeReq(body=b'{"input":"hi"}',
                  headers={"authorization": "Bearer k", "content-type": "application/json",
@@ -241,7 +227,6 @@ def main():
     eb = _body(emb_resp)
     check("embeddings: backend payload returned", "data" in eb)
 
-    # /kg/lookup
     kg = _body(asyncio.run(M.kg_lookup_endpoint_logic("browser")))
     check("kg: match returned", kg["match"] == {"app": "firefox"})
     kg404 = asyncio.run(M.kg_lookup_endpoint_logic("nope"))
@@ -249,7 +234,6 @@ def main():
     kg400 = asyncio.run(M.kg_lookup_endpoint_logic(""))
     check("kg: 400 on empty phrase", kg400.status_code == 400)
 
-    # /skills/*
     sl = _body(asyncio.run(M.skills_list_logic()))
     check("skills/list: rows", sl["count"] == 1)
     ss = _body(asyncio.run(M.skills_show_logic("deploy")))
@@ -261,7 +245,6 @@ def main():
     sot = _body(asyncio.run(M.skills_openai_tools_logic()))
     check("skills/openai-tools: projected", sot["count"] == 1)
 
-    # /dci/*
     dd = asyncio.run(M.dci_deliberate_logic(_FakeReq(jsonobj={"user_text": "hi"})))
     check("dci/deliberate: result", _body(dd)["verdict"] == "ok")
     dd400 = asyncio.run(M.dci_deliberate_logic(_FakeReq(jsonobj={"user_text": ""})))

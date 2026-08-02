@@ -1,2 +1,1 @@
-# MiOS: Podman-machine-style passwordless sudo for wheel members
 %wheel ALL=(ALL) NOPASSWD: ALL

@@ -34,16 +34,7 @@ from mios_skills import execute_skill
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The executor + rescue helpers read server.py's config scalars, the verb /
-# recipe / security catalogs, the orchestrator-context ContextVar, and call back
-# into the broker dispatch + DB-event + swarm fan-out helpers. server.py calls
-# configure() with those AFTER every one is defined (one-way boundary: this
-# module never imports server). The placeholders below carry the documented
-# defaults so a standalone ``import mios_toolexec`` still succeeds; every
-# consumer is async/runtime so nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 READ_TOOL_ENRICH_CHARS = 1500
 READ_TOOL_ENRICH_TIMEOUT = 12.0
 ACI_MAX_LINES = 160
@@ -52,15 +43,12 @@ CODE_MODE_ENABLE = False
 CODE_MODE_HEAVY_ONLY = False
 MAX_DISPATCH_DEPTH = 2
 
-# mutable catalogs / ContextVar (injected BY REFERENCE -- server assigns each
-# exactly once and never rebinds, so the shared object stays live)
 _VERB_CATALOG: dict = {}
 _RECIPE_CATALOG: dict = {}
 _HIGH_PRIVILEGE_VERBS: set = set()
 _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
 _orch_ctx_var = None
 
-# server-side helpers (injected)
 dispatch_mios_verb = None
 _mcp_call_tool = None
 _record_mcp_tool_call = None
@@ -181,11 +169,6 @@ _RESCUE_PARAM_RE = re.compile(
 _RESCUE_FENCE_RE = re.compile(
     r"```(?:json|tool_call|tool)?\s*(\{.*?\}|\[.*?\])\s*```",
     re.DOTALL | re.IGNORECASE)
-# Qwen/Hermes <tool_call>{json}</tool_call> markup. A model on a backend WITHOUT
-# the matching SGLang --tool-call-parser emits its call as this CONTENT block
-# instead of OpenAI tool_calls ("DIDN'T USE WEB TOOLS":
-# the SGLang research nodes narrated web_search this way -> inert text). Backstop
-# the server-side parser so a narrated <tool_call> is still promoted + executed.
 _RESCUE_TOOLCALL_RE = re.compile(
     r"<tool_call>\s*(\{.*?\}|\[.*?\])\s*</tool_call>", re.DOTALL | re.IGNORECASE)
 
@@ -238,7 +221,6 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
     if not allowed:
         return []
     out: list = []
-    # (a) Qwen XML function markup.
     for m in _RESCUE_XML_RE.finditer(text):
         name = m.group(1).strip()
         if name in allowed or name.startswith(("mios_recipe__", "mios_skill__", "mcp.")):
@@ -247,9 +229,6 @@ def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
             out.append(_norm_tool_call(name, args, len(out)))
     if out:
         return out
-    # (b) JSON candidates: <tool_call>{json}</tool_call> blocks first (the Qwen/
-    # Hermes format an un-parsed SGLang lane emits as content), then ```fenced
-    # blocks, then a whole-content object.
     candidates = list(_RESCUE_TOOLCALL_RE.findall(text))
     candidates += list(_RESCUE_FENCE_RE.findall(text))
     _stripped = text.strip()
@@ -299,10 +278,6 @@ def _cap_verb_result(verb: str, out: str) -> str:
     shown and say the list continues, instead of completing it from imagination.
     Returns `out` unchanged when within budget."""
     cap = _verb_result_cap(verb)
-    # WS-5 ACI: head-TAIL truncation (keep start + end, elide the middle) so a
-    # command's tail error/exit/result survives, not just the head. The marker
-    # keeps the anti-fabrication framing. Returns `out`
-    # unchanged when within budget.
     return _aci_normalize(out, max_chars=cap, max_lines=ACI_MAX_LINES,
                           head_frac=ACI_HEAD_FRAC, label=verb)
 
@@ -368,8 +343,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
     collapses duplicate actions across the parallel swarm, so a write fires once."""
     from mios_pipe.routing.chat import _record_active, _replay_active, _replay_tool_queue, _conv_key_var, _in_exec_tool_calls
     
-    # P6: the orchestrator turn context carries session_id -- used to (a) persist MCP
-    # taint rows and (b) firewall-gate high-privilege verbs once the session is tainted.
     _sess = (_orch_ctx_var.get() or {}).get("session_id")
     if not _sess and _conv_key_var is not None:
         try:
@@ -377,7 +350,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         except Exception:
             pass
 
-    # T-040 Replay Interception
     if _replay_active.get():
         tool_msgs: list = []
         q = _replay_tool_queue.get()
@@ -402,10 +374,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
 
     tool_msgs: list = []
     ran_read = False
-    # Mark that we are inside the exec loop so dispatch_mios_verb does NOT also
-    # record tool_io rows (toolexec is the single recorder). Reset on return via
-    # the token so a later DIRECT dispatch in the same context still records --
-    # otherwise the flag stays True and every post-exec dispatch is dropped.
     _iec_token = _in_exec_tool_calls.set(True)
     for tc in tcs:
         fn = tc.get("function") or {}
@@ -415,8 +383,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             tmsg["tool_call_id"] = tc["id"]   # OpenAI-spec linkage
         if vname:
             tmsg["name"] = vname
-        # Args canonicalised once (OpenAI `arguments` arrives as a JSON string;
-        # Claude/Gemini as an object) so every routing branch gets a dict.
         args = fn.get("arguments")
         if isinstance(args, str):
             try:
@@ -425,12 +391,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                 args = {}
         if not isinstance(args, dict):
             args = {}
-        # ── (a) SKILL tool: mios_skill__<name> -> execute_skill ──
-        # Mirrors the MCP relay routing (mios_skill__* -> /skills/run). Skill
-        # rows carry NO "read" permission marker, so a skill is treated as
-        # NON-read -> gated on allow_write (a worker/agent loop). The skill
-        # engine maps its body steps 1:1 to dispatch_mios_verb, so the broker's
-        # own permission + dedup + firewall still apply per underlying verb.
         if vname.startswith("mios_skill__"):
             real = vname[len("mios_skill__"):]
             if not allow_write:
@@ -454,20 +414,8 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             push(f"\n\n🤝 skill:{real} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
-        # ── (b) RECIPE tool: mios_recipe__<name> -> os_recipe verb ──
-        # Mirrors the MCP relay routing (mios_recipe__* -> os_recipe with
-        # {name, params}). Permission comes from _RECIPE_CATALOG (default
-        # non-read when unknown); non-read recipes (open/launch/lock) gate on
-        # allow_write so the no-launch rule still binds a read-only turn.
         if vname.startswith("mios_recipe__"):
             real = vname[len("mios_recipe__"):]
-            # _RECIPE_CATALOG is keyed by the mios.toml [recipes.*] names, which are
-            # HYPHENATED (disk-usage, show-network); the OpenAI/MCP tool name mangles
-            # hyphens to underscores (mios_recipe__disk_usage), so normalize back for
-            # the catalog lookup -- the SAME normalization as _effective_perm
-            # (mios_policy) and the mios-os-recipe executor. Without it every
-            # hyphenated READ recipe missed the catalog, was read as non-read, and was
-            # wrongly dropped on a read-only turn (allow_write=False).
             rkey = real.replace("_", "-")
             rcfg = _RECIPE_CATALOG.get(rkey) or {}
             r_perm = str(rcfg.get("permission", "")).lower()
@@ -493,9 +441,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             push(f"\n\n🤝 recipe:{real} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
-        # ── (b2) MCP tool: mcp.<server>.<tool> -> external MCP server ──
-        # No MiOS permission marker -> treated NON-read, gated on allow_write
-        # (a worker/agent loop), mirroring the skill branch (operator P0).
         if vname.startswith("mcp."):
             if not allow_write:
                 tmsg["content"] = (
@@ -515,24 +460,12 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             out = (json.dumps(res, ensure_ascii=False)
                    if isinstance(res, (dict, list)) else str(res))
             tmsg["content"] = out[:READ_TOOL_ENRICH_CHARS]
-            # P6: persist this MCP call's taint (an untrusted_web server taints the
-            # session) so the firewall gates downstream high-priv verbs. No-op for a
-            # non-taint server (the helper only writes taint sources).
             _ok = not (isinstance(res, dict) and res.get("error"))
             _record_mcp_tool_call(vname, args, _ok, out, _sess)
             push(f"\n\n🤝 {vname} output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
 
-        # ── (b3) CODE MODE: code_mode -> the podman coderun-sandbox (WS-2) ──
-        # The agent writes CODE that calls a local tool API instead of emitting
-        # verbs one at a time. NON-read (executes model code) -> gated on
-        # allow_write (a worker/agent loop) AND on the DEFAULT-OFF SSOT flag
-        # ([code_mode].enable). Degrade CLOSED -- the one place we refuse rather
-        # than fall through, since running model code is the sensitive path. The
-        # actual sandbox exec + broker proxy live in mios-coderun-codemode; this
-        # just routes the call through the broker like any write verb so the
-        # permission/firewall/dedup/HITL gates still apply.
         if vname == "code_mode":
             if not allow_write:
                 tmsg["content"] = (
@@ -566,13 +499,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             push(f"\n\n🤝 code_mode output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
-        # ── (b4) FAN-OUT: dispatch_to_nodes -> the multi-node SWARM behind a tool
-        # (federated swarm; agents-as-tools pattern). The
-        # orchestrator (native loop) calls this for BROAD/parallelizable work; the
-        # existing _agent_dag_from_tasks + _respond_agent_dag swarm fires across all
-        # live nodes and ONE synthesized result re-enters the loop as a tool_result
-        # (compression-on-return). Inert outside the native loop (orchestrator ctx
-        # unset) + the fanned workers never carry this tool, so no recursion.
         if vname == "dispatch_to_nodes":
             if not allow_write:
                 tmsg["content"] = "(skipped dispatch_to_nodes: writes disabled)"
@@ -606,10 +532,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                     "title": (str(_t.get("title") or _obj))[:72],
                     "local_state": bool(_t.get("local_state")),
                     "web": bool(_t.get("web"))})
-            # W0-T3 hard recursion bound: this tool IS the fan-out hop. If the
-            # context is already at the depth limit, refuse to spawn another
-            # swarm (degrade CLOSED -- the loop continues single-agent) so an
-            # agents-as-tools chain can't recurse into a swarm-of-swarms.
             if _depth_exhausted():
                 log.info("dispatch_to_nodes: depth %d >= %d -> refusing nested "
                          "swarm (degrade-closed)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
@@ -620,9 +542,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             _args_str = f" {json.dumps(args, ensure_ascii=False)}" if args else ""
             push(f" 🛰️ dispatch_to_nodes ({len(_norm)}){_args_str}")
             try:
-                # Enter a fan-out hop: child tasks (the swarm nodes spawned below)
-                # inherit this incremented depth, so any node that tries to fan out
-                # AGAIN sees >= the bound and degrades to single-agent.
                 _enter_dispatch_hop()
                 if not _norm:
                     _norm = await _plan_swarm(_octx.get("last_user_text") or "", None)
@@ -651,23 +570,13 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
             push(f"\n\n🤝 dispatch_to_nodes output:\n{tmsg['content']}\n")
             tool_msgs.append(tmsg)
             continue
-        # ── (c) VERB tool: bare verb name OR P1 model_name alias -> dispatch ──
-        # Resolve the alias to the canonical key so the permission gate keys off the
-        # REAL verb (a renamed write verb must gate as write, not fall through unknown).
-        # The model-facing `vname` is kept for the tool_result `name` + UX line.
         _key = _resolve_verb_key(vname)
         v = _VERB_CATALOG.get(_key)
-        # read verbs always auto-execute; write/launch only when allow_write (an
-        # agent loop -- agents act). Unknown verb -> skip with an adaptive note.
         if not v or (str(v.get("permission", "")).lower() != "read"
                      and not allow_write):
             tmsg["content"] = f"(skipped {vname or '?'}: not a read-only tool)"
             tool_msgs.append(tmsg)
             continue
-        # P6 Semantic Firewall: once the session is tainted (e.g. Playwright loaded
-        # untrusted web content), REFUSE high-privilege / exfil verbs -- this is the
-        # enforcement half of the lethal-trifecta break. Only the high-priv set pays the
-        # taint DB read (cheap); read/normal verbs are unaffected. Degrade-open on error.
         if _key in _HIGH_PRIVILEGE_VERBS and _sess:
             try:
                 _tainted, _chain = await _session_is_tainted(_sess)
@@ -696,11 +605,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                     timeout=READ_TOOL_ENRICH_TIMEOUT * 2)
         except Exception as e:  # noqa: BLE001
             res = {"error": str(e)}
-        # CENTRAL SOURCE CAPTURE : this is the ONE chokepoint
-        # every web_search/extract passes through -- native loop, council secondary,
-        # and DAG worker. Harvest the REAL result URLs into the turn-scoped collector
-        # BEFORE truncation so the final answer attaches real Sources + metadata on
-        # every path (not the model inventing names). Degrade-open; no-op off-turn.
         if _key in _WEB_ENRICH_VERBS:
             try:
                 _rj = res
@@ -710,7 +614,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
                     _src_record(_rj.get("results") or [])
             except Exception:  # noqa: BLE001 -- never break the tool loop
                 pass
-        # Check for failure in the result (either dict or string)
         _res_dict = None
         if isinstance(res, dict):
             _res_dict = res
@@ -733,7 +636,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
         push(f"\n\n🤝 {vname} output:\n{tmsg['content']}\n")
         tool_msgs.append(tmsg)
 
-    # T-040 Record Interception
     if _record_active.get() and _sess:
         try:
             import uuid
@@ -775,8 +677,6 @@ async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
 
 
 
-# MCP taint-recorder deps (injected via configure()): the firewall taint classifier
-# + the text scrubber. server-side fns, one-way boundary (no import of server).
 _classify_verb_taint = None
 _sanitize_tool_text = None
 _otel_tracer = None

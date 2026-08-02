@@ -1,9 +1,4 @@
 # AI-hint: Stdlib unit tests for mios_turn (per-turn message-prep + agent-selection
-#   helpers). Stubs the injected agent registry + node-liveness cache + health-probe
-#   helpers + think-tag regexes via configure(); no network, no DB. Asserts
-#   _extract_last_user_text (string + multimodal-parts + no-user), _pick_agent role
-#   selection + degrade-open of a dead gated node, _casual_agent_label, the think-tag
-#   split, and _live_agent_names with non-probed (always-live) lanes.
 # AI-related: ./mios_turn.py
 # AI-functions: (tests)
 """Stdlib tests for mios_turn -- no network, no DB (DI seam stubbed)."""
@@ -15,7 +10,6 @@ import unittest
 import mios_turn
 
 
-# Think-tag regexes mirroring server.py's SSOT (tag-based, structural).
 _THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
 _THINK_OPENERS = ("<think", "<thought", "<reason", "<reflect", "<scratch")
 _THINK_CAP_RE = re.compile(
@@ -31,8 +25,6 @@ def _configure(registry, node_live=None):
     mios_turn.configure(
         _AGENT_REGISTRY=registry,
         _NODE_LIVE=dict(node_live or {}),
-        # All lanes treated as local (never probed) -> _live_agent_names stays
-        # network-free and returns the whole registry as live.
         _should_health_probe=lambda cfg: bool(cfg.get("health_gate")),
         _probe_auth_headers=lambda ep: {},
         NODE_LIVENESS_TTL_S=45.0,
@@ -90,7 +82,6 @@ class TestPickAgent(unittest.TestCase):
     def test_health_gate_degrade_open(self):
         reg = {"worker": {"role": "heavy", "endpoint": "http://w",
                           "model": "mios-heavy", "health_gate": True}}
-        # No _NODE_LIVE entry -> not confirmed reachable -> endpoint blanked.
         _configure(reg, node_live={})
         _name, cfg = mios_turn._pick_agent("heavy")
         self.assertEqual(cfg["endpoint"], "")
@@ -145,7 +136,6 @@ class TestLiveAgentNames(unittest.TestCase):
         import time
         reg = {"local": {"endpoint": "http://l"},
                "gated": {"endpoint": "http://g", "health_gate": True}}
-        # gated node has a fresh LIVE cache entry -> included without probing.
         _configure(reg, node_live={"gated": (time.time(), True)})
         live = asyncio.run(mios_turn._live_agent_names())
         self.assertEqual(live, {"local", "gated"})

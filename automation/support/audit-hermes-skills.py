@@ -36,42 +36,21 @@ import sys
 
 SKILLS_DIR = "/usr/share/mios/hermes/skills"
 AI_DOCS_DIR = "/usr/share/mios/ai"
-# AI docs to skip: by design these reference scrub-targets or use
-# canonical "user:user" build-recipe placeholders that look like
-# leaks but aren't.
 AI_DOC_SKIP = {"audit-prompt.md", "INDEX.md"}
-# Also skip Claude-side meta files in the AI dir that document our
-# OWN agent behavior rather than getting loaded into MiOS-Agent.
 AI_DOC_PATTERN = "*.md"
-# Allow temporal framing in lines that ARE temporal events the model
-# legitimately needs to anchor (release-date facts, version pins).
 TEMPORAL_FACT_RE = re.compile(
     r"(Fedora \d+ released|released \d{4}-\d{2}-\d{2}|"
     r"build-time|since \d{4}-\d{2})", re.I)
 
-# Operator account name is a variable: SSOT is
-# [identity].username in mios.toml (-> MIOS_USER env), and
-# the Windows-side username is discovered by tools at runtime
-# (not bound in config). Examples in SKILL.md MUST use $MIOS_USER
-# / $env:USERPROFILE / $env:TEMP -- never a literal account.
-#
-# Exempt: the conventional placeholder identifiers "user" and
-# "claude" -- these are widely-recognized stand-ins, not real
-# account leaks. Real account names get flagged.
 HARDCODED_PATH_RE = re.compile(
     r"/(?:mnt/c/Users|var/home|home)/"
     r"(?!(?:user|claude)\b)[a-zA-Z0-9_-]+(?!\b)", re.I)
 HARDCODED_HOSTNAME_RE = re.compile(
     r"\b(?:MiOS-955|mios-ec377|podman-MiOS-DEV)\b")
-# These project-jargon tokens belong in commit messages, not in
-# the LLM-facing description field.
 DESC_JARGON_RE = re.compile(
     r"\b(?:Phase [A-Z]\.?\d?|Operator-flagged|operator-confirmed|"
     r"operator directive|operator 2026-\d{2}-\d{2}|"
     r"GLOBAL SWEEP|SOUL\.md|webui\.db|kanban\.db)\b", re.I)
-# Same shape as DESC_JARGON_RE but applied to AI prose-doc bodies
-# (system.md, SOUL.md, etc). These docs DO carry per-turn weight
-# in every LLM session -- temporal/personal framing is pure noise.
 BODY_JARGON_RE = re.compile(
     r"\b(?:Operator-flagged \d{4}-\d{2}-\d{2}|"
     r"operator-confirmed \d{4}-\d{2}-\d{2}|"
@@ -100,21 +79,17 @@ def audit_one(path: str) -> list[str]:
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
     front, body = split_frontmatter(text)
-    # Frontmatter description checks
     desc = front.get("description", "")
     for m in DESC_JARGON_RE.finditer(desc):
         findings.append(
             f"[{rel}] description has project-internal jargon: "
             f"{m.group()!r}")
-    # Body checks
     for m in HARDCODED_PATH_RE.finditer(body):
         findings.append(
             f"[{rel}] hardcoded user path in body: {m.group()!r}")
     for m in HARDCODED_HOSTNAME_RE.finditer(body):
         findings.append(
             f"[{rel}] hardcoded hostname in body: {m.group()!r}")
-    # Light conversational-tone check on body (just count noteworthy
-    # tokens; don't fail on each occurrence -- prose IS expected).
     op_tokens = len(re.findall(
         r"\b(operator-(?:flagged|confirmed)|operator directive|"
         r"operator binding|operator quote|operator-bind)\b",
@@ -138,7 +113,6 @@ def audit_ai_doc(path: str) -> list[str]:
         findings.append(
             f"[ai/{rel}] hardcoded hostname: {m.group()!r}")
     for m in BODY_JARGON_RE.finditer(body):
-        # Skip if the line is a legitimate temporal fact
         line = body.rfind("\n", 0, m.start())
         line_end = body.find("\n", m.end())
         line_text = body[line + 1:line_end if line_end >= 0 else None]

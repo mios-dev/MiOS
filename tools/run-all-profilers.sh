@@ -1,7 +1,6 @@
 #!/bin/bash
 # AI-hint: Executes a sequential chain of diagnostic scripts (quick-summary, iommu-visualizer, system-profiler) to generate a comprehensive system performance and hardware configuration report in a timestamped directory.
 # AI-functions: print_banner, print_step, print_info, print_success, print_error, wait_for_user, check_sudo, create_output_dir, run_quick_summary, run_iommu_visualizer, run_system_profiler, generate_summary
-# run-all-profilers.sh -- execute all profiling tools consecutively
 set -euo pipefail
 
 readonly RED='\033[0;31m'
@@ -14,7 +13,6 @@ readonly NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Detect real user/home even under sudo
 if [ -n "${SUDO_USER:-}" ]; then
     REAL_USER="$SUDO_USER"
     REAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6)
@@ -98,9 +96,9 @@ generate_summary() {
     local summary="$RUN_DIR/00-SUMMARY.txt"
     {
         echo "PROFILER RUN SUMMARY"
-        echo "Run Date: $(date)"
-        echo "Hostname: $(hostname)"
-        echo "User:     $(whoami)"
+        echo "Run Date: $"
+        echo "Hostname: $"
+        echo "User:     $"
         echo "Output:   $RUN_DIR"
         echo
         echo "FILES"
@@ -118,9 +116,9 @@ generate_summary() {
             echo "[IOMMU/PASSTHROUGH]"
             grep -A5 "Summary" "$RUN_DIR/02-iommu-analysis.txt" | tail -5 || echo "N/A"
             if grep -q "Isolated GPUs" "$RUN_DIR/02-iommu-analysis.txt"; then
-                echo "GPU PASSTHROUGH: capable (isolated GPU found)"
+                echo "GPU PASSTHROUGH: capable"
             else
-                echo "GPU PASSTHROUGH: limited (GPU not isolated)"
+                echo "GPU PASSTHROUGH: limited"
             fi
             echo
         fi
@@ -163,7 +161,7 @@ main() {
     check_sudo
     read -p "Ready to start? (Y/n) " -n 1 -r
     echo
-    [[ $REPLY =~ ^[Nn]$ ]] && { echo "Cancelled."; exit 0; }
+    [[ $REPLY =~ ^[Nn]$ ]] && { echo "Cancelled"; exit 0; }
     create_output_dir
     run_quick_summary;     sleep 2
     run_iommu_visualizer;  sleep 2

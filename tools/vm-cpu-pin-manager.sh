@@ -1,16 +1,9 @@
 #!/bin/bash
 # AI-hint: Manages libvirt hook scripts to pin VM CPU threads to specific physical cores, optimizing performance for AMD Ryzen, Intel Hybrid, and NUMA architectures by isolating cores and preventing cross-CCD/CCD-hopping.
 # AI-functions: log_info, log_success, log_warning, log_error, log_header, check_root, detect_cpu_topology, detect_amd_ccds, list_vms, display_cpu_topology, display_ccd_layout, display_linear_layout
-###############################################################################
-# VM CPU Core Pinning Hook Manager
-# For MiOS-Build Professional Virtualization Hosts
-# Optimized for: AMD Ryzen X3D (dual-CCD), Intel Hybrid, NUMA systems
-# Integrates with: libvirt, universal-cpu-isolator.sh, MiOS-Build framework
-###############################################################################
 
 set -euo pipefail
 
-# Colors - MiOS-Build Theme (Teal/Coral/White)
 readonly TEAL='\033[38;5;43m'
 readonly TEAL_LIGHT='\033[38;5;80m'
 readonly TEAL_DARK='\033[38;5;30m'
@@ -26,19 +19,16 @@ readonly BOLD='\033[1m'
 readonly DIM='\033[2m'
 readonly NC='\033[0m'
 
-# Configuration
 readonly SCRIPT_VERSION="${MIOS_VERSION:-0.3.0}"
 readonly HOOK_DIR="/etc/libvirt/hooks"
 readonly CONFIG_DIR="/etc/libvirt/vm-cpu-pins"
 readonly BACKUP_SUFFIX=".backup-$(date +%Y%m%d-%H%M%S)"
 
-# CPU Topology Data
 declare -A CPU_INFO
 declare -a CCD_MAP=()
 declare -A NUMA_MAP
 declare -A VM_CONFIGS
 
-# Logging
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${SUCCESS}[[OK]]${NC} $1"; }
 log_warning() { echo -e "${YELLOW}[[!] ]${NC} $1"; }
@@ -51,7 +41,6 @@ log_header() {
     echo ""
 }
 
-# Check root
 check_root() {
     if [[ $EUID -ne 0 ]]; then
         log_error "This script must be run as root"
@@ -60,11 +49,9 @@ check_root() {
     fi
 }
 
-# Detect CPU topology
 detect_cpu_topology() {
     log_info "Detecting CPU topology..."
     
-    # Basic CPU info
     CPU_INFO[vendor]=$(lscpu | grep "Vendor ID" | awk '{print $3}')
     CPU_INFO[model]=$(lscpu | grep "Model name" | sed 's/Model name:[[:space:]]*//')
     CPU_INFO[cores]=$(lscpu | grep "^Core(s) per socket:" | awk '{print $4}')
@@ -72,29 +59,24 @@ detect_cpu_topology() {
     CPU_INFO[sockets]=$(lscpu | grep "Socket(s):" | awk '{print $2}')
     CPU_INFO[threads_per_core]=$(lscpu | grep "Thread(s) per core:" | awk '{print $4}')
     
-    # Detect NUMA
     CPU_INFO[numa_nodes]=$(lscpu | grep "NUMA node(s):" | awk '{print $3}')
     
-    # Build NUMA map
     for ((node=0; node<${CPU_INFO[numa_nodes]}; node+=1)); do
         local cpus=$(lscpu | grep "NUMA node${node} CPU(s):" | awk '{print $4}')
         NUMA_MAP[$node]="$cpus"
     done
     
-    # Detect AMD CCD architecture
     detect_amd_ccds
     
     log_success "Detected: ${CPU_INFO[model]}"
     log_info "Topology: ${CPU_INFO[cores]} cores, ${CPU_INFO[threads]} threads"
 }
 
-# Detect AMD CCD layout (for Ryzen 9950X3D, 7950X3D, etc.)
 detect_amd_ccds() {
     if [[ "${CPU_INFO[vendor]}" != "AuthenticAMD" ]]; then
         return
     fi
     
-    # Check for X3D CPUs
     if [[ "${CPU_INFO[model]}" =~ (9950X3D|7950X3D|7900X3D) ]]; then
         local cores_per_ccd=$((${CPU_INFO[cores]} / 2))
         local threads_per_ccd=$((cores_per_ccd * ${CPU_INFO[threads_per_core]}))
@@ -103,16 +85,13 @@ detect_amd_ccds() {
         CPU_INFO[ccd_count]=2
         CPU_INFO[cores_per_ccd]=$cores_per_ccd
         
-        # CCD0: Usually has V-Cache
         CCD_MAP[0]="0-$((threads_per_ccd - 1))"
-        # CCD1: Usually higher frequency
         CCD_MAP[1]="$threads_per_ccd-$((${CPU_INFO[threads]} - 1))"
         
         log_success "AMD X3D dual-CCD architecture detected"
     fi
 }
 
-# List all VMs
 list_vms() {
     local all_vms=$(virsh list --all --name 2>/dev/null | grep -v "^$")
     
@@ -124,7 +103,6 @@ list_vms() {
     echo "$all_vms"
 }
 
-# Display CPU topology visualization
 display_cpu_topology() {
     echo -e "${CYAN}+================================================================+${NC}"
     echo -e "${CYAN}|${NC} ${BOLD}CPU Configuration${NC}"
@@ -141,7 +119,6 @@ display_cpu_topology() {
     echo -e "${CYAN}+=================================================================${NC}"
     echo ""
     
-    # Visual CPU grid
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
         display_ccd_layout
     else
@@ -149,7 +126,6 @@ display_cpu_topology() {
     fi
 }
 
-# Display CCD-based layout (AMD X3D)
 display_ccd_layout() {
     echo -e "${BOLD}CPU Layout by CCD:${NC}"
     echo ""
@@ -186,7 +162,6 @@ display_ccd_layout() {
     echo ""
 }
 
-# Display linear layout
 display_linear_layout() {
     echo -e "${BOLD}CPU Layout:${NC}"
     echo ""
@@ -202,7 +177,6 @@ display_linear_layout() {
     echo ""
 }
 
-# Main menu
 main_menu() {
     log_header "VM CPU Core Pinning Hook Manager v${SCRIPT_VERSION}"
     
@@ -210,7 +184,7 @@ main_menu() {
     
     echo -e "${BOLD}Management Options:${NC}"
     echo ""
-    echo "  ${TEAL}1)${NC} Configure VM CPU pinning (per-VM)"
+    echo "  ${TEAL}1)${NC} Configure VM CPU pinning"
     echo "  ${TEAL}2)${NC} View current VM configurations"
     echo "  ${TEAL}3)${NC} Remove VM configuration"
     echo "  ${TEAL}4)${NC} Test hook execution"
@@ -237,11 +211,9 @@ main_menu() {
     esac
 }
 
-# Configure VM CPU pinning
 configure_vm_pinning() {
     log_header "Configure VM CPU Pinning"
     
-    # List VMs
     local vm_list=$(list_vms)
     if [[ -z "$vm_list" ]]; then
         read -p "Press Enter to return to menu..."
@@ -253,13 +225,12 @@ configure_vm_pinning() {
     echo ""
     local counter=1
     while IFS= read -r vm; do
-        local state=$(virsh domstate "$vm" 2>/dev/null || echo "unknown")
+        local state=$(virsh domstate "$vm" 2>/dev/null || echo "Unknown")
         local vcpu_count=$(virsh dominfo "$vm" 2>/dev/null | grep "CPU(s):" | awk '{print $2}')
         
         echo -e "  ${TEAL}${counter})${NC} ${WHITE}${vm}${NC}"
         echo -e "     State: ${GRAY}${state}${NC} | vCPUs: ${GRAY}${vcpu_count:-unknown}${NC}"
         
-        # Check if already configured
         if [[ -f "$CONFIG_DIR/${vm}.conf" ]]; then
             echo -e "     ${SUCCESS}[OK] Configured${NC}"
         else
@@ -272,7 +243,6 @@ configure_vm_pinning() {
     
     read -p "Select VM to configure (number or name): " vm_selection
     
-    # Parse selection
     local selected_vm=""
     if [[ "$vm_selection" =~ ^[0-9]+$ ]]; then
         selected_vm=$(echo "$vm_list" | sed -n "${vm_selection}p")
@@ -287,7 +257,6 @@ configure_vm_pinning() {
         return
     fi
     
-    # Check if VM exists
     if ! virsh dominfo "$selected_vm" &>/dev/null; then
         log_error "VM not found: $selected_vm"
         sleep 2
@@ -298,7 +267,6 @@ configure_vm_pinning() {
     configure_vm_cores "$selected_vm"
 }
 
-# Configure cores for specific VM
 configure_vm_cores() {
     local vm_name="$1"
     
@@ -306,7 +274,6 @@ configure_vm_cores() {
     
     display_cpu_topology
     
-    # Get VM info
     local vcpu_count=$(virsh dominfo "$vm_name" | grep "CPU(s):" | awk '{print $2}')
     log_info "VM has ${vcpu_count} vCPUs configured"
     echo ""
@@ -315,15 +282,15 @@ configure_vm_cores() {
     echo ""
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
-        echo "  ${TEAL}1)${NC} Quick Presets (AMD X3D optimized)"
-        echo "  ${TEAL}2)${NC} Entire CCD (8 cores / 16 threads)"
-        echo "  ${TEAL}3)${NC} Partial CCD (custom core range)"
-        echo "  ${TEAL}4)${NC} Mixed CCDs (advanced)"
+        echo "  ${TEAL}1)${NC} Quick Presets"
+        echo "  ${TEAL}2)${NC} Entire CCD"
+        echo "  ${TEAL}3)${NC} Partial CCD"
+        echo "  ${TEAL}4)${NC} Mixed CCDs"
         echo "  ${TEAL}5)${NC} Custom core list"
         echo "  ${TEAL}6)${NC} Cancel"
     else
         echo "  ${TEAL}1)${NC} Quick Presets"
-        echo "  ${TEAL}2)${NC} Sequential cores (e.g., 0-7)"
+        echo "  ${TEAL}2)${NC} Sequential cores"
         echo "  ${TEAL}3)${NC} Custom core list"
         echo "  ${TEAL}4)${NC} Cancel"
     fi
@@ -367,7 +334,6 @@ configure_vm_cores() {
     esac
 }
 
-# Quick presets for X3D
 select_preset() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -377,16 +343,16 @@ select_preset() {
     echo ""
     
     if [[ -n "${CPU_INFO[has_ccds]}" ]]; then
-        echo "  ${TEAL}1)${NC} Gaming VM ${SUCCESS}(CCD0 V-Cache - 16 threads)${NC}"
-        echo "  ${TEAL}2)${NC} Gaming VM ${SUCCESS}(CCD0 V-Cache - 12 threads)${NC}"
-        echo "  ${TEAL}3)${NC} Gaming VM ${SUCCESS}(CCD0 V-Cache - 8 threads)${NC}"
-        echo "  ${TEAL}4)${NC} Workstation VM ${YELLOW}(CCD1 High-Freq - 16 threads)${NC}"
-        echo "  ${TEAL}5)${NC} Workstation VM ${YELLOW}(CCD1 High-Freq - 12 threads)${NC}"
-        echo "  ${TEAL}6)${NC} Workstation VM ${YELLOW}(CCD1 High-Freq - 8 threads)${NC}"
-        echo "  ${TEAL}7)${NC} Balanced ${GRAY}(8 threads from each CCD)${NC}"
+        echo "  ${TEAL}1)${NC} Gaming VM ${SUCCESS}${NC}"
+        echo "  ${TEAL}2)${NC} Gaming VM ${SUCCESS}${NC}"
+        echo "  ${TEAL}3)${NC} Gaming VM ${SUCCESS}${NC}"
+        echo "  ${TEAL}4)${NC} Workstation VM ${YELLOW}${NC}"
+        echo "  ${TEAL}5)${NC} Workstation VM ${YELLOW}${NC}"
+        echo "  ${TEAL}6)${NC} Workstation VM ${YELLOW}${NC}"
+        echo "  ${TEAL}7)${NC} Balanced ${GRAY}${NC}"
     else
-        echo "  ${TEAL}1)${NC} First half (CPUs 0 to $((${CPU_INFO[threads]} / 2 - 1)))"
-        echo "  ${TEAL}2)${NC} Second half (CPUs $((${CPU_INFO[threads]} / 2)) to $((${CPU_INFO[threads]} - 1)))"
+        echo "  ${TEAL}1)${NC} First half))"
+        echo "  ${TEAL}2)${NC} Second half) to $))"
         echo "  ${TEAL}3)${NC} First quarter"
         echo "  ${TEAL}4)${NC} Custom"
     fi
@@ -478,7 +444,6 @@ select_preset() {
     save_vm_config "$vm_name" "$cpus" "$emulator_cpus" "$description"
 }
 
-# Select entire CCD
 select_entire_ccd() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -486,8 +451,8 @@ select_entire_ccd() {
     echo ""
     echo -e "${BOLD}Select CCD:${NC}"
     echo ""
-    echo "  ${TEAL}1)${NC} CCD0 ${SUCCESS}(V-Cache)${NC} - CPUs ${CCD_MAP[0]}"
-    echo "  ${TEAL}2)${NC} CCD1 ${YELLOW}(High Freq)${NC} - CPUs ${CCD_MAP[1]}"
+    echo "  ${TEAL}1)${NC} CCD0 ${SUCCESS}${NC} - CPUs ${CCD_MAP[0]}"
+    echo "  ${TEAL}2)${NC} CCD1 ${YELLOW}${NC} - CPUs ${CCD_MAP[1]}"
     echo ""
     
     read -p "CCD: " ccd_choice
@@ -518,7 +483,6 @@ select_entire_ccd() {
     save_vm_config "$vm_name" "$cpus" "$emulator_cpus" "$description"
 }
 
-# Select partial CCD
 select_partial_ccd() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -526,8 +490,8 @@ select_partial_ccd() {
     echo ""
     echo -e "${BOLD}Partial CCD Selection:${NC}"
     echo ""
-    echo "  ${TEAL}1)${NC} CCD0 ${SUCCESS}(V-Cache)${NC}"
-    echo "  ${TEAL}2)${NC} CCD1 ${YELLOW}(High Freq)${NC}"
+    echo "  ${TEAL}1)${NC} CCD0 ${SUCCESS}${NC}"
+    echo "  ${TEAL}2)${NC} CCD1 ${YELLOW}${NC}"
     echo ""
     
     read -p "CCD: " ccd_choice
@@ -558,14 +522,12 @@ select_partial_ccd() {
     echo ""
     read -p "Core range (relative to CCD start): " range
     
-    # Parse range and adjust for actual CPU numbers
     if [[ "$range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
         local rel_start="${BASH_REMATCH[1]}"
         local rel_end="${BASH_REMATCH[2]}"
         local abs_start=$((start_cpu + rel_start))
         local abs_end=$((start_cpu + rel_end))
         
-        # If SMT enabled, include siblings
         if [[ ${CPU_INFO[threads_per_core]} -eq 2 ]]; then
             local smt_start=$((abs_start + 8))
             local smt_end=$((abs_end + 8))
@@ -574,7 +536,6 @@ select_partial_ccd() {
             cpus="${abs_start}-${abs_end}"
         fi
         
-        # Emulator on different CCD
         if [[ $ccd_choice -eq 1 ]]; then
             emulator_cpus="16-19"
         else
@@ -591,7 +552,6 @@ select_partial_ccd() {
     fi
 }
 
-# Select mixed CCDs
 select_mixed_ccd() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -599,8 +559,8 @@ select_mixed_ccd() {
     echo ""
     log_warning "Mixed CCD allocation may cause cross-CCD latency"
     echo ""
-    echo "Enter cores from each CCD (comma-separated)"
-    echo "Example: 0-3,16-19 (4 from CCD0, 4 from CCD1)"
+    echo "Enter cores from each CCD"
+    echo "Example: 0-3,16-19"
     echo ""
     
     read -p "Core list: " cpus
@@ -611,7 +571,6 @@ select_mixed_ccd() {
     save_vm_config "$vm_name" "$cpus" "$emulator_cpus" "$description"
 }
 
-# Sequential core selection
 select_sequential() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -629,7 +588,6 @@ select_sequential() {
     save_vm_config "$vm_name" "$cpus" "$emulator_cpus" "$description"
 }
 
-# Custom core selection
 select_custom() {
     local vm_name="$1"
     local vcpu_count="$2"
@@ -649,49 +607,36 @@ select_custom() {
     save_vm_config "$vm_name" "$cpus" "$emulator_cpus" "$description"
 }
 
-# Save VM configuration
 save_vm_config() {
     local vm_name="$1"
     local cpus="$2"
     local emulator_cpus="$3"
     local description="$4"
     
-    # Create config directory
     mkdir -p "$CONFIG_DIR"
     
-    # Create config file
     cat > "$CONFIG_DIR/${vm_name}.conf" << EOF
-# VM CPU Pinning Configuration
-# Generated: $(date)
-# VM: $vm_name
 
 DESCRIPTION="$description"
 VCPU_CPUS="$cpus"
 EMULATOR_CPUS="$emulator_cpus"
 EOF
     
-    # Create hook directories
     local vm_hook_dir="$HOOK_DIR/qemu.d/${vm_name}"
     mkdir -p "$vm_hook_dir/prepare/begin"
     mkdir -p "$vm_hook_dir/release/end"
     
-    # Create prepare/begin hook
     cat > "$vm_hook_dir/prepare/begin/cpu-pin.sh" << 'EOFHOOK'
-#!/bin/bash
-# CPU pinning hook - prepare/begin
-# VM: VM_NAME_PLACEHOLDER
-# Description: DESCRIPTION_PLACEHOLDER
 
 VCPU_CPUS="VCPU_CPUS_PLACEHOLDER"
 EMULATOR_CPUS="EMULATOR_CPUS_PLACEHOLDER"
 
 LOG_FILE="/var/log/libvirt/qemu/VM_NAME_PLACEHOLDER-cpu-pin.log"
 
-echo "$(date): VM starting - CPU pinning configuration" >> "$LOG_FILE"
+echo "$: VM starting - CPU pinning configuration" >> "$LOG_FILE"
 echo "  vCPU cores: $VCPU_CPUS" >> "$LOG_FILE"
 echo "  Emulator cores: $EMULATOR_CPUS" >> "$LOG_FILE"
 
-# Get VM PID
 VM_PID=$(pgrep -f "qemu.*VM_NAME_PLACEHOLDER")
 
 if [[ -z "$VM_PID" ]]; then
@@ -699,11 +644,9 @@ if [[ -z "$VM_PID" ]]; then
     exit 0
 fi
 
-# Pin emulator threads
 echo "  Pinning emulator to cores: $EMULATOR_CPUS" >> "$LOG_FILE"
 taskset -acp "$EMULATOR_CPUS" "$VM_PID" >> "$LOG_FILE" 2>&1
 
-# Pin vCPU threads
 for vcpu_thread in $(ps -T -p "$VM_PID" | grep "CPU " | awk '{print $2}'); do
     taskset -cp "$VCPU_CPUS" "$vcpu_thread" >> "$LOG_FILE" 2>&1
 done
@@ -713,7 +656,6 @@ echo "  CPU pinning complete" >> "$LOG_FILE"
 exit 0
 EOFHOOK
     
-    # Replace placeholders
     sed -i "s/VM_NAME_PLACEHOLDER/$vm_name/g" "$vm_hook_dir/prepare/begin/cpu-pin.sh"
     sed -i "s/DESCRIPTION_PLACEHOLDER/$description/g" "$vm_hook_dir/prepare/begin/cpu-pin.sh"
     sed -i "s/VCPU_CPUS_PLACEHOLDER/$cpus/g" "$vm_hook_dir/prepare/begin/cpu-pin.sh"
@@ -721,15 +663,11 @@ EOFHOOK
     
     chmod +x "$vm_hook_dir/prepare/begin/cpu-pin.sh"
     
-    # Create release/end hook
     cat > "$vm_hook_dir/release/end/cpu-cleanup.sh" << 'EOFHOOK'
-#!/bin/bash
-# CPU cleanup hook - release/end
-# VM: VM_NAME_PLACEHOLDER
 
 LOG_FILE="/var/log/libvirt/qemu/VM_NAME_PLACEHOLDER-cpu-pin.log"
 
-echo "$(date): VM stopped - CPU resources released" >> "$LOG_FILE"
+echo "$: VM stopped - CPU resources released" >> "$LOG_FILE"
 
 exit 0
 EOFHOOK
@@ -744,8 +682,8 @@ EOFHOOK
     
     echo ""
     echo -e "${BOLD}Next Steps:${NC}"
-    echo "  1. Edit VM XML to match these cores (Option 6 for snippet)"
-    echo "  2. Test the configuration (Option 4)"
+    echo "  1. Edit VM XML to match these cores"
+    echo "  2. Test the configuration"
     echo "  3. Start the VM normally"
     echo ""
     
@@ -753,7 +691,6 @@ EOFHOOK
     main_menu
 }
 
-# View current configurations
 view_configurations() {
     log_header "Current VM Configurations"
     
@@ -769,7 +706,6 @@ view_configurations() {
     for config in "$CONFIG_DIR"/*.conf; do
         local vm_name=$(basename "$config" .conf)
         
-        # Source config
         source "$config"
         
         echo -e "${CYAN}+================================================================+${NC}"
@@ -779,7 +715,6 @@ view_configurations() {
         echo -e "${CYAN}|${NC} vCPU cores:     ${VCPU_CPUS}"
         echo -e "${CYAN}|${NC} Emulator cores: ${EMULATOR_CPUS}"
         
-        # Check hook status
         if [[ -x "$HOOK_DIR/qemu.d/${vm_name}/prepare/begin/cpu-pin.sh" ]]; then
             echo -e "${CYAN}|${NC} Hook status:    ${SUCCESS}[OK] Active${NC}"
         else
@@ -796,7 +731,6 @@ view_configurations() {
     main_menu
 }
 
-# Remove configuration
 remove_configuration() {
     log_header "Remove VM Configuration"
     
@@ -856,7 +790,6 @@ remove_configuration() {
     main_menu
 }
 
-# Test hook execution
 test_hook() {
     log_header "Test Hook Execution"
     
@@ -910,7 +843,6 @@ test_hook() {
     echo ""
     echo -e "${GRAY}--- Hook Output ---${NC}"
     
-    # Simulate hook execution (dry run)
     bash -x "$hook_script" 2>&1 | head -20
     
     echo -e "${GRAY}--- End Output ---${NC}"
@@ -923,7 +855,6 @@ test_hook() {
     main_menu
 }
 
-# View CPU allocation map
 view_allocation_map() {
     log_header "CPU Allocation Map"
     
@@ -940,18 +871,15 @@ view_allocation_map() {
     echo -e "${BOLD}VM Core Allocations:${NC}"
     echo ""
     
-    # Create allocation array
     declare -a cpu_alloc
     for ((i=0; i<${CPU_INFO[threads]}; i+=1)); do
         cpu_alloc[$i]="HOST"
     done
     
-    # Mark VM allocations
     for config in "$CONFIG_DIR"/*.conf; do
         local vm_name=$(basename "$config" .conf)
         source "$config"
         
-        # Parse VCPU_CPUS ranges
         local IFS=','
         for range in $VCPU_CPUS; do
             if [[ "$range" =~ ^([0-9]+)-([0-9]+)$ ]]; then
@@ -966,7 +894,6 @@ view_allocation_map() {
         done
     done
     
-    # Display allocation
     echo -e "${CYAN}+-----+---------------------------------+${NC}"
     echo -e "${CYAN}|${NC} CPU ${CYAN}|${NC} Allocated To              ${CYAN}|${NC}"
     echo -e "${CYAN}+-----+---------------------------------+${NC}"
@@ -989,7 +916,6 @@ view_allocation_map() {
     main_menu
 }
 
-# Generate XML snippets
 generate_xml_snippets() {
     log_header "Generate libvirt XML Snippets"
     
@@ -1031,14 +957,12 @@ generate_xml_snippets() {
     
     source "$CONFIG_DIR/${selected_vm}.conf"
     
-    # Generate XML
     echo ""
     echo -e "${BOLD}libvirt XML Configuration Snippet:${NC}"
     echo ""
     echo -e "${GRAY}<!-- Add to <domain> section -->${NC}"
     echo ""
     
-    # Parse CPU list to count vCPUs
     local vcpu_count=0
     local IFS=','
     for range in $VCPU_CPUS; do
@@ -1057,7 +981,6 @@ generate_xml_snippets() {
   <!-- Pin each vCPU to specific cores -->
 EOFXML
     
-    # Generate vcpupin entries
     local vcpu_idx=0
     local IFS=','
     for range in $VCPU_CPUS; do
@@ -1149,7 +1072,6 @@ EOFXML
     main_menu
 }
 
-# Export/Import menu
 export_import_menu() {
     log_header "Export/Import Configurations"
     
@@ -1168,7 +1090,6 @@ export_import_menu() {
     esac
 }
 
-# Export configurations
 export_configs() {
     local export_file="/home/$SUDO_USER/vm-cpu-configs-$(date +%Y%m%d-%H%M%S).tar.gz"
     
@@ -1188,7 +1109,6 @@ export_configs() {
     main_menu
 }
 
-# Import configurations
 import_configs() {
     echo ""
     read -p "Path to import file: " import_file
@@ -1200,7 +1120,6 @@ import_configs() {
         return
     fi
     
-    # Backup existing configs
     if [[ -d "$CONFIG_DIR" ]]; then
         mv "$CONFIG_DIR" "${CONFIG_DIR}${BACKUP_SUFFIX}"
         log_info "Backed up existing configs"
@@ -1208,17 +1127,14 @@ import_configs() {
     
     tar xzf "$import_file" -C "$(dirname "$CONFIG_DIR")"
     
-    # Recreate hooks
     for config in "$CONFIG_DIR"/*.conf; do
         local vm_name=$(basename "$config" .conf)
         source "$config"
         
-        # Recreate hook structure
         local vm_hook_dir="$HOOK_DIR/qemu.d/${vm_name}"
         mkdir -p "$vm_hook_dir/prepare/begin"
         mkdir -p "$vm_hook_dir/release/end"
         
-        # Note: Hooks need to be regenerated with current paths
         log_warning "Hooks for $vm_name need to be regenerated"
     done
     
@@ -1228,7 +1144,6 @@ import_configs() {
     main_menu
 }
 
-# Verify hook integrity
 verify_hooks() {
     log_header "Hook Integrity Verification"
     
@@ -1247,7 +1162,6 @@ verify_hooks() {
         
         echo -e "${CYAN}Checking: ${vm_name}${NC}"
         
-        # Check config file
         if [[ ! -f "$config" ]]; then
             echo -e "  ${CORAL}[X] Config file missing${NC}"
             errors=$((errors + 1))
@@ -1255,7 +1169,6 @@ verify_hooks() {
             echo -e "  ${SUCCESS}[OK] Config file present${NC}"
         fi
         
-        # Check hook directory
         if [[ ! -d "$HOOK_DIR/qemu.d/${vm_name}" ]]; then
             echo -e "  ${CORAL}[X] Hook directory missing${NC}"
             errors=$((errors + 1))
@@ -1263,7 +1176,6 @@ verify_hooks() {
             echo -e "  ${SUCCESS}[OK] Hook directory present${NC}"
         fi
         
-        # Check prepare hook
         if [[ ! -x "$HOOK_DIR/qemu.d/${vm_name}/prepare/begin/cpu-pin.sh" ]]; then
             echo -e "  ${CORAL}[X] Prepare hook missing or not executable${NC}"
             errors=$((errors + 1))
@@ -1271,7 +1183,6 @@ verify_hooks() {
             echo -e "  ${SUCCESS}[OK] Prepare hook executable${NC}"
         fi
         
-        # Check release hook
         if [[ ! -x "$HOOK_DIR/qemu.d/${vm_name}/release/end/cpu-cleanup.sh" ]]; then
             echo -e "  ${CORAL}[X] Release hook missing or not executable${NC}"
             errors=$((errors + 1))
@@ -1293,19 +1204,15 @@ verify_hooks() {
     main_menu
 }
 
-# Main execution
 main() {
     check_root
     
-    # Create directories
     mkdir -p "$CONFIG_DIR"
     mkdir -p "$HOOK_DIR/qemu.d"
     mkdir -p /var/log/libvirt/qemu
     
-    # Detect topology
     detect_cpu_topology
     
-    # Show main menu
     main_menu
 }
 

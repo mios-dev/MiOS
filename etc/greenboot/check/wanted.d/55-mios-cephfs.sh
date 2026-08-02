@@ -4,12 +4,10 @@
 
 set -uo pipefail
 
-# Source global environment variables (SSOT)
 if [ -f /etc/profile.d/mios-env.sh ]; then
     source /etc/profile.d/mios-env.sh
 fi
 
-# Gate execution on CephFS being enabled
 if [ "${MIOS_CEPHFS_ENABLE:-false}" != "true" ]; then
     exit 0
 fi
@@ -24,7 +22,6 @@ log_health_failure() {
     echo "[greenboot-cephfs] [FAIL] ${check_name}: ${message}" >&2
 }
 
-# Check 1: ceph health does not return HEALTH_ERR
 if command -v ceph >/dev/null 2>&1; then
     _health_output=$(ceph health 2>/dev/null || true)
     if echo "$_health_output" | grep -q "HEALTH_ERR"; then
@@ -36,7 +33,6 @@ else
     exit_code=1
 fi
 
-# Check 2: each pool capacity < 90%
 if command -v ceph >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     _df_output=$(ceph df --format json 2>/dev/null || true)
     if [ -n "$_df_output" ]; then
@@ -48,7 +44,6 @@ if command -v ceph >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     fi
 fi
 
-# Check 3: at least 1 MDS in active state
 if command -v ceph >/dev/null 2>&1; then
     if ! ceph fs status 2>/dev/null | grep -q "active"; then
         log_health_failure "mds_status" "No active CephFS MDS daemons found"
@@ -56,7 +51,6 @@ if command -v ceph >/dev/null 2>&1; then
     fi
 fi
 
-# Check 4: findmnt /home/<operator_user> shows active CephFS mount
 _op_user="${MIOS_USER:-mios}"
 if command -v findmnt >/dev/null 2>&1; then
     if ! findmnt "/home/$_op_user" -t ceph >/dev/null 2>&1; then
@@ -65,7 +59,6 @@ if command -v findmnt >/dev/null 2>&1; then
     fi
 fi
 
-# Log event to pgvector on warning/failure
 if [ "$exit_code" -ne 0 ]; then
     if command -v mios-pg-query >/dev/null 2>&1; then
         _summary="CephFS health check failed: $failure_details"

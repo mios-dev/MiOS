@@ -26,20 +26,20 @@ for attempt in 1 2 3; do
     rm -rf "$SURFER_BUILD_DIR"
 
     if ! git clone "${MIOS_URL_SURFER:-https://github.com/zen-browser/surfer.git}" "$SURFER_BUILD_DIR"; then
-        mios_warn "git clone failed on attempt $attempt"
+        mios_warn "Git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
 
     cd "$SURFER_BUILD_DIR"
     if ! git checkout "$PIN_REF"; then
-        mios_warn "git checkout to $PIN_REF failed on attempt $attempt"
+        mios_warn "Git checkout to $PIN_REF failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
 
     if ! npm install --legacy-peer-deps; then
-        mios_warn "npm install failed on attempt $attempt"
+        mios_warn "Npm install failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -88,7 +88,7 @@ with open(p, "w", encoding="utf-8") as f:
     FF_VER="$(python3 -c 'import json; print(json.load(open("surfer.json")).get("firefoxVersion", "153.0"))' 2>/dev/null || echo '153.0')"
     if ! npx surfer download 2>&1 && \
        ! npx surfer download "$FF_VER" 2>&1; then
-        mios_warn "surfer download failed on attempt $attempt"
+        mios_warn "Surfer download failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -121,7 +121,7 @@ with open(p, "w", encoding="utf-8") as f:
 EOF
 
     if ! npx surfer import /tmp/browser_xhtml_patch.xml; then
-        mios_warn "surfer import patch failed on attempt $attempt"
+        mios_warn "Surfer import patch failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -135,18 +135,18 @@ EOF
             SURFER_OK=1
             break
         fi
-        mios_warn "surfer CLI built but no browser binary in the bake -- not retrying (see degrade-open below)."
+        mios_warn "Surfer CLI built but no browser binary in the bake"
         break
     fi
 
-    mios_warn "build failed on attempt $attempt"
+    mios_warn "Build failed on attempt $attempt"
     sleep $((attempt * 8))
 done
 
 if [[ -z "$SURFER_OK" ]]; then
-    mios_warn "mios-webshell not built in the bake (optional + multi-hour mach compile) -- degrading open; a firstboot/dedicated builder produces it."
+    mios_warn "Mios-webshell not built in the bake"
     exit 0
 fi
 
 record_version surfer "$PIN_REF" "https://github.com/zen-browser/surfer/tree/${PIN_REF}"
-mios_ok "installed /usr/lib/mios/webshell/ + symlinked /usr/bin/mios-webshell"
+mios_ok "Installed /usr/lib/mios/webshell/ + symlinked /usr/bin/mios-webshell"

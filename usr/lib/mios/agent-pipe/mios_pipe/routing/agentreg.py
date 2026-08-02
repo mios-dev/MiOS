@@ -19,8 +19,6 @@ import os
 
 import mios_hopbudget   # WS-4 effort-width width cap (pure module; never imports server)
 
-# Pure config SSOT -- genuinely owned by mios_config (mutable _AGENT_AUTH_BY_
-# HOSTPORT is the SAME object server.py imports, so mutating it here is shared).
 from mios_config import (  # noqa: E402
     _toml_section,
     BACKEND,
@@ -28,23 +26,12 @@ from mios_config import (  # noqa: E402
     _AGENT_AUTH_BY_HOSTPORT,
 )
 
-# -- Dependency-injected server.py symbols (set by configure(); kept under their
-# ORIGINAL server names so the moved bodies are byte-identical). Placeholders so
-# a bare ``import mios_agentreg`` still succeeds before configure() runs.
 _is_remote_endpoint = None
 _opt_int_mb = None
 log = None
 CATALOG_FAIL_MODE = "warn"
 NODES_RESEARCH_ONLY = False
 
-# -- Additional injected deps for the agent-registry HELPERS moved alongside the
-# builders (_dedup_pool_by_target / _render_agent_catalog / _role_system). Kept under
-# their ORIGINAL server names so the moved bodies stay byte-identical. _AGENT_REGISTRY
-# is the SAME hot dict server.py owns: injected by reference and RE-injected on a live
-# membership reload (server reassigns it there). _agent_binding / _endpoint_key are
-# server-resident helpers; EFFORT_DEFAULT / SWARM_MAX_WIDTH / _ROLE_SYSTEM_DIR are
-# server-owned config scalars (in the importable surface) injected by value. Placeholders
-# so a bare ``import mios_agentreg`` still succeeds before configure() runs.
 _AGENT_REGISTRY: dict = {}
 _agent_binding = None
 _endpoint_key = None
@@ -110,12 +97,6 @@ def _build_agent_engines(raw_cfg: dict, entry: dict) -> dict:
     if entry.get("cpu_endpoint"):
         engines["cpu"] = {"endpoint": entry["cpu_endpoint"],
                           "model": entry.get("cpu_model") or entry.get("model", "")}
-    # Explicit per-binding tables WIN. BOTH [agents.<name>.engines.<label>] AND
-    # [agents.<name>.nodes.<label>] are read into the same map: an ENGINE
-    # (cpu/gpu/igpu/accelerator) and a NODE (iPhone/Android/another MiOS host or
-    # cluster, by its tailnet endpoint) are both just an endpoint+model the agent
-    # can run on ("any Agent/Sub-Agent can run on any
-    # node/endpoint"). The label is free-form; the endpoint decides reachability.
     for _tbl in ("engines", "nodes"):
         raw = raw_cfg.get(_tbl)
         if isinstance(raw, dict):
@@ -141,12 +122,6 @@ def _load_agent_registry() -> dict[str, dict]:
     try:
         raw_agents = _toml_section("agents") or {}
         agents = {k: v.copy() for k, v in raw_agents.items() if isinstance(v, dict)}
-        # Unified agent template (roadmap WS-A1): every [agents.<name>] inherits
-        # [agents._defaults], overriding only what differs -- ONE merge path so an
-        # agent can never silently miss a safety field (the opencode merged_chars=0
-        # bug = opencode lacked health_gate while the hermes-worker had it). Reserved
-        # `_`-prefixed names are skipped as non-agents. Absent _defaults => {} =>
-        # byte-identical to the prior behaviour.
         _agent_defaults = (agents.pop("_defaults", {})
                            if isinstance(agents.get("_defaults"), dict) else {})
         _AGENT_AUTH_BY_HOSTPORT.clear()  # WS-FED/G2: rebuilt each load
@@ -154,11 +129,6 @@ def _load_agent_registry() -> dict[str, dict]:
             if name.startswith("_") or not isinstance(cfg, dict):
                 continue
             cfg = {**_agent_defaults, **cfg}
-            # SAFE health_gate default: a LOCAL-but-OPTIONAL endpoint (a default-off
-            # unit, or kind in cli/remote/edge/node/a2a) MUST be liveness-probed --
-            # otherwise _should_health_probe never probes a dead LOCAL endpoint,
-            # _live_agent_names marks it live, and _reroute_dead_nodes sinks DAG
-            # facets onto it -> merged_chars=0. Mirrors the node-loader's safe default.
             _ep_x = os.path.expandvars(str(cfg.get("endpoint", ""))).rstrip("/")
             _kind = str(cfg.get("kind", "")).strip().lower()
             _hg_default = (
@@ -167,84 +137,32 @@ def _load_agent_registry() -> dict[str, dict]:
                 or _is_remote_endpoint(_ep_x)
             )
             registry[name] = {
-                # expandvars: [agents.*].endpoint is stored as a deferred
-                # ${MIOS_PORT_*} template (e.g. the :8643 hermes-worker); the
-                # env supplies the numeric port (install.env). Without this the
-                # registry kept a literal "${MIOS_PORT_HERMES_WORKER}" -> httpx
-                # InvalidURL -> :8640 500 on every request. install-robustness.
                 "endpoint": os.path.expandvars(str(cfg.get("endpoint", ""))).rstrip("/"),
                 "model":    str(cfg.get("model", name)),
                 "role":     str(cfg.get("role", "general")),
                 "default":  bool(cfg.get("default", False)),
                 "strengths": list(cfg.get("strengths") or []),
                 "lane":     str(cfg.get("lane", "")).lower().strip(),
-                # WS-2 per-agent RBAC: optional verb allow/deny for THIS agent's
-                # tool surface (default empty = no restriction). Consumed by
-                # _agent_rbac_filter at dispatch.
                 "denied_verbs":  list(cfg.get("denied_verbs") or []),
                 "allowed_verbs": list(cfg.get("allowed_verbs") or []),
-                # #55 per-tool capability/risk gate: optional ceiling on the
-                # permission tier (read|write|interactive) this agent may call.
-                # Empty = no ceiling (default => zero behaviour change). Also
-                # consumed by _agent_rbac_filter; verbs whose permission tier
-                # exceeds this rank are dropped from the agent's surface.
                 "max_permission": str(cfg.get("max_permission", "")).strip().lower(),
-                # fan-out opt-out (default True = eligible as a secondary).
                 "fanout":   bool(cfg.get("fanout", True)),
-                # CPU-compute twin (every agent has a
-                # Modelfile for both CPU + GPU). When this agent runs as a
-                # concurrent fan-out SECONDARY, _call_agent_complete prefers
-                # this lane/model so the secondary offloads to the CPU lane
-                # and the dGPU stays free for the primary. Empty = single-lane.
                 "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
                 "cpu_model":    str(cfg.get("cpu_model", "")),
-                # health_gate ("client endpoints join the
-                # swarm when they join"): a client-hosted node (e.g. a phone
-                # running a local model over Tailscale) that comes and goes.
-                # When set, the secondary call uses a SHORT timeout so a
-                # sleeping/absent node drops from the merge fast instead of
-                # stalling the turn -- auto-join-when-up, auto-drop-when-gone.
                 "health_gate":  bool(cfg.get("health_gate", _hg_default)),
-                # P3.2 cluster resilience ("remove
-                # :8642/:11434 SPOFs"): ordered list of agent names to fall back
-                # to when this agent's PRIMARY endpoint is dead. The router
-                # picks the first live name in this chain (then this agent's
-                # own cpu_endpoint as a final fallback, then a hard error).
-                # Mios.toml shape: failover_agents = ["name1", "name2"]
                 "failover_agents": [str(s) for s in (cfg.get("failover_agents")
                                                     or []) if str(s).strip()],
-                # research_only ("research should dispatch
-                # as many 2-4GB models as possible across all lanes"): a
-                # lightweight RESEARCH-WORKER agent EXCLUDED from the normal
-                # council/swarm pool (everyday turns stay light), joining ONLY
-                # RESEARCH / deep-research turns. The [nodes.*] pool
-                # (_load_node_pool) is the canonical way to spread the worker
-                # brain across compute nodes; this per-agent flag carries the
-                # same research-turn-only membership for a hand-declared
-                # [agents.*] entry.
                 "research_only": bool(cfg.get("research_only", False)),
-                # WS-A1 unified-template fields (kind discriminator + the cli/
-                # optional contract the schema validator enforces in 98-drift-checks).
                 "kind":      (_kind or ("remote-http" if _is_remote_endpoint(_ep_x)
                                         else "local-http")),
                 "enabled":   bool(cfg.get("enabled", True)),
                 "transport": str(cfg.get("transport",
                                          "cli" if _kind == "cli" else "http")).strip().lower(),
                 "timeout_s": int(cfg.get("timeout_s", 0) or 0),
-                # WS-FED/G2: per-agent credential + trust posture.
                 "auth":  cfg.get("auth") if isinstance(cfg.get("auth"), dict) else {},
                 "trust": cfg.get("trust") if isinstance(cfg.get("trust"), dict) else {},
             }
-            # Per-engine + per-node binding map ("any Agent
-            # in any AI engine -- CPU/dGPU/iGPU/accelerator" + "any Agent/Sub-
-            # Agent on any node/endpoint -- iPhone/Android/other MiOS nodes").
-            # Folds the legacy endpoint/model + cpu twin AND any explicit
-            # [agents.<name>.engines.*] / [agents.<name>.nodes.*] tables into one
-            # {label: {endpoint, model}} map -- backward-compatible.
             registry[name]["engines"] = _build_agent_engines(cfg, registry[name])
-            # WS-FED/G2: index this agent's resolved credential by endpoint
-            # host:port so dispatch attaches it to a non-backend (remote) endpoint.
-            # Only a fully env-resolved "Header: value" is stored (degrade-open).
             _auth_t = str((registry[name].get("auth") or {}).get("header_template") or "").strip()
             _ep0 = registry[name].get("endpoint") or ""
             if _auth_t and _ep0:
@@ -311,14 +229,10 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
         if not ep:
             continue  # inert / privacy-empty node (e.g. vendor local-igpu)
         lane = str(cfg.get("lane", "")).lower().strip() or "gpu"
-        # A LOCAL lane is always-live; a REMOTE node comes and goes, so it is
-        # health-gated by default (auto-join when reachable / drop when gone),
-        # unless the node explicitly overrides. localhost/127.0.0.1 == local.
         _is_local = ("localhost" in ep) or ("127.0.0.1" in ep)
         health_gate = bool(cfg.get("health_gate", not _is_local))
         entry: dict = {
             "endpoint": ep,
-            # The node serves a CANONICAL Modelfile tag, never a raw base.
             "model":    str(cfg.get("model") or "mios-agent"),
             "role":     str(cfg.get("role", "research")),
             "job":      str(cfg.get("job",
@@ -329,21 +243,7 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             "strengths": list(cfg.get("strengths")
                               or ["research", "web_search", "summarize"]),
             "lane":     lane,
-            # V4 blade (machine) topology: which PHYSICAL MACHINE this compute node
-            # lives on -- so "nodes X, Y, Z are one machine" is EXPRESSIBLE and the
-            # per-blade admission (V5) can compare a node's residents against ITS
-            # blade's VRAM budget, not the single LOCAL scalar. Free-form, matching a
-            # [blades.<name>] key; EMPTY -> the local blade (server resolves the local
-            # name from the [identity] hostname SSOT), so a config with no blade
-            # fields keeps every node on the local blade = byte-identical to today.
             "blade":     str(cfg.get("blade", "")).strip(),
-            # SWARM Phase-0/1 : sub_lane = per-engine
-            # semaphore key (e.g. 'gpu0') so N single-model servers on ONE device
-            # each get independent concurrency; vram_mb/ram_mb = this worker's
-            # resident cost feeding per-endpoint admission so the dispatcher packs
-            # by REAL headroom (never OOM-cascades the 4090); tool_capable
-            # (default true) = the worker gets the global tool surface. All
-            # optional SSOT fields -> absent today = byte-identical behaviour.
             "sub_lane":  str(cfg.get("sub_lane", "")).lower().strip(),
             "vram_mb":   _opt_int_mb(cfg.get("vram_mb")),
             "ram_mb":    _opt_int_mb(cfg.get("ram_mb")),
@@ -351,27 +251,13 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
             "fanout":   bool(cfg.get("fanout", True)),
             "cpu_endpoint": str(cfg.get("cpu_endpoint", "")).rstrip("/"),
             "cpu_model":    str(cfg.get("cpu_model", "")),
-            # Node-declared protocol (operator no-hardcode): 'llamacpp'/'vulkan'
-            # -> /slots KV-paging + no forced tool_choice; 'openai' as
-            # usual. Carried so _binding_api/_endpoint_is_llamacpp honour it
-            # WITHOUT relying on a port substring (e.g. an iGPU llama.cpp node).
             "api":          str(cfg.get("api", "")).strip().lower(),
             "health_gate":  health_gate,
             "failover_agents": [str(s) for s in (cfg.get("failover_agents")
                                                 or []) if str(s).strip()],
-            # research_only membership for the node pool: when set, a node is
-            # excluded from everyday council/chat turns (keeps them light) and
-            # joins ONLY research/deep turns -- ONE canonical brain x N nodes
-            # carrying that research-turn-only behaviour without N bespoke entries.
-            # DEFAULT is the SSOT NODES_RESEARCH_ONLY ("all
-            # nodes enabled by default"): False -> every node joins EVERY turn
-            # (kept safe by admission + COUNCIL_MAX + per-endpoint/lane semaphores
-            # + lane priority), per-node override still wins.
             "research_only": bool(cfg.get("research_only", NODES_RESEARCH_ONLY)),
         }
         entry["engines"] = _build_agent_engines(cfg, entry)
-        # node:<name> namespacing keeps these distinct from [agents.*] (and from
-        # a2a:<pid>) so a node can't collide with / clobber a real sub-agent.
         registry[f"node:{name}"] = entry
         n += 1
     if n:
@@ -380,13 +266,6 @@ def _load_node_pool(registry: dict[str, dict]) -> int:
     return n
 
 
-# ── Agent-registry rendering / lane / pool-dedup HELPERS (strangler-fig refactor) ──
-# Moved VERBATIM from server.py. _agent_lane is pure (no deps); _render_agent_catalog
-# reads it as a module-level SIBLING (so the server's import-time render call needs no
-# injection); _role_system reads the injected _ROLE_SYSTEM_DIR; _dedup_pool_by_target
-# reads the injected hot _AGENT_REGISTRY + _agent_binding / _endpoint_key + the
-# EFFORT_DEFAULT / SWARM_MAX_WIDTH scalars (mios_hopbudget is imported directly above).
-# server.py re-imports each under its EXACT original name so the surface is byte-identical.
 
 
 def _agent_lane(cfg: dict) -> str:
@@ -433,8 +312,6 @@ def _render_agent_catalog(registry: dict) -> str:
         lane = _agent_lane(cfg)
         job = str(cfg.get("job") or "").strip()
         if not job:
-            # Fallback: derive a capability blurb from role + strengths tags so
-            # an agent without an explicit `job` still routes sensibly.
             role = str(cfg.get("role", "general"))
             strengths = ", ".join(str(s) for s in (cfg.get("strengths") or []))
             job = role + (f" ({strengths})" if strengths else "")
@@ -480,15 +357,6 @@ def _dedup_pool_by_target(pool: list) -> list:
             _ep, _mdl = _agent_binding(c, None)
         except Exception:  # noqa: BLE001
             _ep, _mdl = str(c.get("endpoint", "")), str(c.get("model", ""))
-        # A CONTINUOUS-BATCHING backend (SGLang / vLLM, api=openai) serves
-        # concurrent requests IN PARALLEL -- so do NOT collapse multiple nodes
-        # that target it ("ALL AGENTS USE SGLANG": the
-        # concurrent swarm fans N research facets onto the one batching server).
-        # Key such nodes by NAME so each stays a distinct fan-out target; the
-        # SWARM_MAX_WIDTH cap below still bounds total concurrency. Only
-        # SERIALIZING backends (llama.cpp -- one model loaded at a time,
-        # which THRASHED when 4 nodes requested different models) keep the
-        # (endpoint, model) collapse that prevents redundant identical dispatch.
         _batching = str(c.get("api", "")).strip().lower() in {"openai", "sglang", "vllm"}
         if _ep and _batching:
             key = ("@name:" + str(a), "")
@@ -501,9 +369,6 @@ def _dedup_pool_by_target(pool: list) -> list:
         seen.add(key)
         keep.add(a)
     out = [a for a in pool if a in keep]   # restore natural order (primary first)
-    # WS-4: cap to the EFFORT-scaled width (1..SWARM_MAX_WIDTH). Default effort
-    # "max" -> the full SWARM_MAX_WIDTH (unchanged); a lower effort narrows the
-    # fan-out so orchestration intensity tracks query complexity.
     _eff_w = (mios_hopbudget.effort_width(EFFORT_DEFAULT, base=2, cap=SWARM_MAX_WIDTH)
               if SWARM_MAX_WIDTH > 0 else 0)
     if _eff_w > 0 and len(out) > _eff_w:

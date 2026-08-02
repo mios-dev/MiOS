@@ -74,17 +74,14 @@ class ConflictGate:
         limits: Optional[Dict[str, int]] = None,
         groups: Optional[Dict[str, str]] = None,
     ) -> None:
-        # verb -> max concurrent dispatches (>= 1). Entries < 1 are dropped.
         self._limits: Dict[str, int] = {
             str(k): int(v) for k, v in (limits or {}).items()
             if _as_int(v) >= 1
         }
-        # verb -> conflict-group name (non-empty).
         self._groups: Dict[str, str] = {
             str(k): str(v).strip() for k, v in (groups or {}).items()
             if str(v).strip()
         }
-        # Lazily-created semaphores (need a running loop) + live bookkeeping.
         self._verb_sems: Dict[str, asyncio.Semaphore] = {}
         self._group_sems: Dict[str, asyncio.Semaphore] = {}
         self._verb_inflight: "collections.Counter[str]" = collections.Counter()
@@ -92,7 +89,6 @@ class ConflictGate:
         self._verb_wait: "collections.Counter[str]" = collections.Counter()
         self._group_wait: "collections.Counter[str]" = collections.Counter()
 
-    # ── construction from the SSOT verb catalog ───────────────────────────
     @classmethod
     def from_catalog(cls, catalog: Optional[dict]) -> "ConflictGate":
         """Build a gate from the _VERB_CATALOG dict: read each verb's
@@ -111,7 +107,6 @@ class ConflictGate:
                 groups[str(verb)] = cg
         return cls(limits=limits, groups=groups)
 
-    # ── lazy semaphore accessors ──────────────────────────────────────────
     def _group_sem(self, group: str) -> asyncio.Semaphore:
         s = self._group_sems.get(group)
         if s is None:
@@ -126,7 +121,6 @@ class ConflictGate:
             self._verb_sems[verb] = s
         return s
 
-    # ── public API ────────────────────────────────────────────────────────
     def constrains(self, verb: str) -> bool:
         """True if `verb` declares a parallel_limit or a conflict_group."""
         return verb in self._limits or verb in self._groups
@@ -170,11 +164,9 @@ class _Guard:
 
     async def __aenter__(self) -> "_Guard":
         g = self._g
-        # Fast path: unconstrained verb -> nothing to acquire.
         if self._group is None and self._verb not in g._limits:
             return self
         try:
-            # 1) group mutual-exclusion lock (global fixed order: group first).
             if self._group is not None:
                 gs = g._group_sem(self._group)
                 g._group_wait[self._group] += 1
@@ -184,7 +176,6 @@ class _Guard:
                     g._group_wait[self._group] -= 1
                 self._have_group = True
                 g._group_inflight[self._group] += 1
-            # 2) per-verb parallel-limit permit.
             if self._verb in g._limits:
                 vs = g._verb_sem(self._verb)
                 g._verb_wait[self._verb] += 1
@@ -195,7 +186,6 @@ class _Guard:
                 self._have_verb = True
                 g._verb_inflight[self._verb] += 1
         except BaseException:
-            # Cancelled / errored mid-acquire: hand back anything we took.
             self._release()
             raise
         return self

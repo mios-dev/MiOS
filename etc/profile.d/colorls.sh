@@ -1,10 +1,7 @@
 # AI-hint: Configures shell aliases (ll, l., ls) and initializes directory color schemes via dircolors for interactive shells to provide visual distinction in file listings.
-# color-ls initialization
 
-# Skip all for noninteractive shells.
 [ ! -t 0 ] && return
 
-#when USER_LS_COLORS defined do not override user LS_COLORS, but use them.
 if [ -z "$USER_LS_COLORS" ]; then
 
   alias ll='ls -l' 2>/dev/null
@@ -26,7 +23,6 @@ if [ -z "$USER_LS_COLORS" ]; then
   [ -z "$COLORS" ] && [ -e "/etc/DIR_COLORS" ] && \
   COLORS="/etc/DIR_COLORS"
 
-  # Existence of $COLORS already checked above.
   [ -n "$COLORS" ] || return
 
   if [ -e "$INCLUDE" ];

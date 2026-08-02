@@ -41,7 +41,6 @@ def main() -> int:
     fails = 0
     for inp, expected in CASES:
         got = server._strip_think_tags(inp)
-        # Allow whitespace differences -- strip both sides for compare.
         if got.strip() != expected.strip():
             print(f"  FAIL  input  = {inp!r}")
             print(f"        expect = {expected!r}")

@@ -49,7 +49,6 @@ def main():
             with conn.cursor() as cur:
                 log.info("Connected to database. Starting seeding...")
                 
-                # 1. Seed system_config
                 sys_sections = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
                 for sec in sys_sections:
                     sec_data = data.get(sec) or {}
@@ -69,7 +68,6 @@ def main():
                         )
                 log.info("System configuration seeded.")
 
-                # 1b. Seed verbs._defaults to config_kv
                 verbs = data.get("verbs") or {}
                 defaults = verbs.get("_defaults") or {}
                 cur.execute(
@@ -81,7 +79,6 @@ def main():
                     (json.dumps(defaults),)
                 )
 
-                # 1c. Seed config_kv (V0 layer foundation)
                 kv_sections = [k for k in data.keys() if k not in ("verbs", "packages")]
                 for sec in kv_sections:
                     sec_data = data.get(sec) or {}
@@ -100,7 +97,6 @@ def main():
                         )
                 log.info("config_kv seeded.")
                 
-                # 2. Seed verbs
                 verbs = data.get("verbs") or {}
                 defaults = verbs.get("_defaults") or {}
                 if isinstance(verbs, dict):
@@ -119,7 +115,6 @@ def main():
                             cmd = str(cmd)
                         params = merged.get("params") or {}
                         
-                        # Extra fields to satisfy lossless round-trip requirements
                         section = merged.get("section")
                         examples = merged.get("examples")
                         model_name = merged.get("model_name")
@@ -162,7 +157,6 @@ def main():
                         )
                 log.info("Verbs seeded.")
                 
-                # 3. Seed domain_verb mapping
                 routing = data.get("routing") or {}
                 domains = routing.get("domains") or {}
                 if isinstance(domains, dict):
@@ -185,7 +179,6 @@ def main():
                                 )
                 log.info("Domain verb mappings seeded.")
 
-                # 4. Seed package_set
                 packages = data.get("packages") or {}
                 if isinstance(packages, dict):
                     for sec_name, sec_cfg in packages.items():
@@ -212,7 +205,6 @@ def main():
                         )
                 log.info("package_set seeded.")
 
-                # 5. Seed build_phase
                 import re
                 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
                 automation_dir = os.path.join(repo_root, "automation")
@@ -247,7 +239,6 @@ def main():
                         )
                         prev_script = s
                         
-                    # Also seed firstboot scripts
                     fb_dir = os.path.join(automation_dir, "firstboot")
                     if os.path.isdir(fb_dir):
                         for f in os.listdir(fb_dir):
@@ -266,7 +257,6 @@ def main():
                                 )
                 log.info("build_phase seeded.")
 
-                # 6. Seed debloat_policy, debloat_profile, preset from bootstrap if reachable
                 bootstrap_dir = os.path.abspath(os.path.join(repo_root, "..", "mios-bootstrap", "src", "autounattend"))
                 debloat_json_path = os.path.join(bootstrap_dir, "mios-debloat.json")
                 features_txt_path = os.path.join(bootstrap_dir, "mios-xbox-features.txt")
@@ -288,7 +278,6 @@ def main():
                     except Exception as e:
                         log.warning("Failed to parse mios-xbox-features.txt: %s", e)
                 
-                # Seed debloat_policy
                 for pol_name, pol_rules in policies_to_seed.items():
                     if pol_name == "_comment" or not isinstance(pol_rules, list):
                         continue
@@ -302,7 +291,6 @@ def main():
                         (pol_name, pol_type, json.dumps(pol_rules))
                     )
                 
-                # Seed debloat_profile
                 cur.execute(
                     """
                     INSERT INTO debloat_profile (name, description)
@@ -311,7 +299,6 @@ def main():
                     """
                 )
                 
-                # Seed preset
                 cur.execute(
                     """
                     INSERT INTO preset (name, description, features, debloat_profile_name)
@@ -322,7 +309,6 @@ def main():
                 )
                 log.info("Debloat and Xbox features/profiles seeded.")
 
-                # 7. Backfill account defaults (home_dir, shell)
                 cur.execute(
                     """
                     UPDATE account

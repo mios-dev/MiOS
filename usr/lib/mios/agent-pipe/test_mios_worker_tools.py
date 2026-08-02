@@ -32,7 +32,6 @@ def _cos(a, b):
     return dot / (na * nb)
 
 
-# Synthetic verb catalog + embed-text corpus (key -> text used by the BM25 lexicon).
 _CATALOG = {
     "web_search": {"tier": "core", "permission": "read"},
     "open_app": {"tier": "common", "permission": "interactive"},
@@ -81,7 +80,6 @@ def t_bm25_lexicon():
     asyncio.run(w._ensure_verb_lexicon())
     lx = w._VERB_LEXICON
     check("lexicon built", isinstance(lx, dict) and lx.get("fp") == "fp-test-1")
-    # tier=rare verb is excluded from the index.
     check("rare verb excluded from lexicon", "old_thing" not in (lx or {}).get("key2tf", {}))
     q = w._tok("search the web online")
     s_web = w._bm25(q, "web_search")
@@ -93,7 +91,6 @@ def t_bm25_lexicon():
 
 def t_rank_positions():
     ts = [_tool("a"), _tool("b"), _tool("c")]
-    # scores: b highest, a/c tie -> tie broken by stable name (a before c).
     rk = w._rank_positions([0.1, 0.9, 0.1], ts)
     check("rank_positions: top score rank 1", rk[1] == 1, str(rk))
     check("rank_positions: stable-name tie-break", rk[0] == 2 and rk[2] == 3, str(rk))
@@ -104,15 +101,12 @@ def t_fuse_degrade():
     A, B, C = _tool("a"), _tool("b"), _tool("c")
     scored = [(0.9, A, [1, 0]), (0.8, B, [0, 1]), (0.1, C, [0, 0, 1])]
     keyfn = lambda t: t["function"]["name"]
-    # window fits (n >= len) -> cosine top-n verbatim.
     check("fuse n>=len -> cosine slice",
           w._fuse_then_diversify(scored, [], 3, keyfn) == [A, B, C])
-    # rerank OFF -> plain cosine top-n.
     w.configure(tool_rerank=False)
     check("fuse rerank-off -> cosine top-2",
           w._fuse_then_diversify(scored, w._tok("x"), 2, keyfn) == [A, B])
     w.configure(tool_rerank=True)
-    # confident cosine cut at the N-th boundary (gap > skip margin) -> cosine top-n.
     conf = [(0.90, A, [1, 0]), (0.85, B, [0, 1]), (0.10, C, [0, 0, 1])]
     check("fuse confident-skip -> cosine top-2",
           w._fuse_then_diversify(conf, w._tok("search"), 2, keyfn) == [A, B])
@@ -121,9 +115,6 @@ def t_fuse_degrade():
 
 def t_fuse_mmr():
     _configure()
-    # Two near-duplicate high-cosine tools + one diverse lower-cosine tool, with the
-    # N-th boundary gap BELOW the skip margin so the MMR stage actually runs. Greedy
-    # MMR must keep ONE of the duplicates and the diverse tool -- not both duplicates.
     hi1 = _tool("hi1")
     hi2 = _tool("hi2")
     div = _tool("div")
@@ -141,31 +132,22 @@ def t_fuse_mmr():
 
 def t_priority():
     _configure()
-    # NO English substrings: rank is permission + the core-tier rerank signal.
-    # web_search = read perm + core tier -> rank 0 (the curated read/discovery set).
     check("priority read+core -> 0", w._tool_priority(_tool("web_search")) == 0)
-    # read_file = read perm, common tier -> rank 1 (read, but not the core set).
     check("priority read non-core -> 1", w._tool_priority(_tool("read_file")) == 1)
-    # old_thing = read perm, rare tier -> rank 1 (no core signal, still read).
     check("priority read rare -> 1", w._tool_priority(_tool("old_thing")) == 1)
-    # an action / non-read verb (and an unknown verb with no catalog entry) -> 2.
     check("priority action verb -> 2", w._tool_priority(_tool("open_app")) == 2)
     check("priority unknown verb -> 2", w._tool_priority(_tool("status_thing")) == 2)
     check("priority recipe -> 3", w._tool_priority(_tool("mios_recipe__reboot")) == 3)
     check("priority external -> 4", w._tool_priority(_tool("a2a_send")) == 4)
-    # DEGRADE-OPEN: core-tier-first flag off -> read verbs fall to permission order
-    # alone (rank 1), NEVER back to a lexical/keyword gate.
     w.configure(tool_priority_core_first=False)
     check("priority degrade: read+core -> 1 when core-first off",
           w._tool_priority(_tool("web_search")) == 1)
     check("priority degrade: action still 2",
           w._tool_priority(_tool("open_app")) == 2)
     w.configure(tool_priority_core_first=True)
-    # fallback score is monotone with rank (rank-0 highest).
     fs0 = w._priority_fallback_score(_tool("web_search"))
     fs2 = w._priority_fallback_score(_tool("open_app"))
     check("fallback score rank0 > rank2", fs0 > fs2, f"{fs0} vs {fs2}")
-    # core-tier verb is a stable-prefix core tool; recipes/common are not.
     check("is_core_tool core verb -> True", w._is_core_tool(_tool("web_search")) is True)
     check("is_core_tool common verb -> False", w._is_core_tool(_tool("open_app")) is False)
     check("is_core_tool recipe -> False", w._is_core_tool(_tool("mios_recipe__reboot")) is False)
@@ -174,19 +156,16 @@ def t_priority():
 def t_priority_ssot():
     """The BM25 k1/b + the priority->score map are SSOT-injected, not baked-in."""
     _configure()
-    # priority_fallback_scores is read from the injected list (clamps past the end).
     w.configure(priority_fallback_scores=[0.9, 0.8, 0.7, 0.6, 0.5])
     check("fallback score uses injected map (rank0)",
           abs(w._priority_fallback_score(_tool("web_search")) - 0.9) < 1e-9,
           str(w._priority_fallback_score(_tool("web_search"))))
     check("fallback score uses injected map (rank2)",
           abs(w._priority_fallback_score(_tool("open_app")) - 0.7) < 1e-9)
-    # rank past the injected list clamps to the last entry (no magic default).
     w.configure(priority_fallback_scores=[0.42])
     check("fallback score clamps past list end",
           abs(w._priority_fallback_score(_tool("open_app")) - 0.42) < 1e-9)
     w.configure(priority_fallback_scores=[0.55, 0.45, 0.30, 0.25, 0.15])
-    # BM25 honours the injected k1/b knobs: changing b (length-norm) moves the score.
     asyncio.run(w._ensure_verb_lexicon())
     q = w._tok("search the web online")
     w.configure(bm25_k1=1.2, bm25_b=0.75)

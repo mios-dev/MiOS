@@ -40,11 +40,6 @@ from mios_toolsearch import _cosine
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Aggregation-bypass observability -------------------------------
-# In-memory counters (reset on restart) surfaced as aggregator_calls_bypassed_pct
-# in /v1/cluster/health (mios_clusterhealth). note_aggregator is called ONCE per
-# real aggregation opportunity while the bypass gate is enabled; when the gate is
-# off nothing is counted (pct stays 0.0) so the metric is honest, not inflated.
 _STATS = {"aggregator_total": 0, "aggregator_bypassed": 0}
 
 
@@ -68,7 +63,6 @@ def reset_stats() -> None:
     _STATS["aggregator_bypassed"] = 0
 
 
-# -- Pure similarity geometry ---------------------------------------
 
 def _sim_matrix(vectors: list, cosine: Callable = _cosine) -> list:
     """Full symmetric pairwise cosine matrix (diagonal = 1.0). O(k^2) cosine over
@@ -188,7 +182,6 @@ async def apply_council_gates(
         log.debug("council gate: embed failed -> gates skipped: %s", e)
         return (nodes, None)
     if any(not v for v in vecs):
-        # A missing vector means we cannot score reliably -> no-op (gates-off shape).
         return (nodes, None)
 
     if aggregator_bypass:

@@ -1,26 +1,4 @@
 # AI-hint: BACKGROUND async daemon-loop bodies extracted VERBATIM from server.py
-#   (strangler-fig refactor). These are the long-lived create_task() loops the
-#   FastAPI startup hooks spawn: _membership_watch_loop (FED-G3 mtime hot-reload of
-#   agent/node/peer membership), _gossip_loop (WS-A18 epidemic peer-discovery,
-#   trust-gated over mios_gossip), _selfimprove_loop + _selfimprove_report (#64
-#   proactive finding surfacing + the read-only outcome/reputation report it
-#   consumes, via the mios_selfimprove analyzer), the WS-A10/A18
-#   reputation-persistence helpers (_reputation_restore /
-#   _reputation_flush) the reputation flush loop drives, and the WS-A4 KV slot-file GC
-#   sweep+loop (_kv_gc_sweep_once / _kv_gc_loop) that reclaims on-disk KV paging/fork
-#   files via the mios_kvgc planner. Every comment/heuristic/guard moved byte-
-#   identically. The @app.on_event startup hooks STAY in server.py and create_task()
-#   these re-imported names. Leaf deps (_toml_section, mios_gossip, mios_selfimprove,
-#   mios_pg, the mios_kvgc planner + the mios_kvfork filename plan -- whose
-#   _FILE_PREFIX/_FILE_SUFFIX are the ONE source for the KV slot-file naming, so the
-#   sweep matches on those constants instead of restating the literal) are imported
-#   directly; every server-side symbol (the live peer registry + lock, the reputation
-#   object, _get_client, _reload_membership, the self-improve seen-set, the
-#   membership-watch config, the KV-GC knobs + the live _KV_RESIDENT active-slot map)
-#   is dependency-
-#   INJECTED via configure() (one-way boundary -- this module NEVER imports server).
-#   server.py re-imports every name under its exact original alias so the importable
-#   surface is byte-identical.
 # AI-related: ./server.py, ./mios_config.py, ./mios_gossip.py, ./mios_pg.py, ./mios_reputation.py, ./mios_selfimprove.py, ./mios_kvgc.py, ./mios_kvfork.py, ./test_mios_daemons.py
 # AI-functions: _membership_watch_loop, _gossip_loop, _reputation_restore, _reputation_flush, _selfimprove_report, _selfimprove_loop, _kv_gc_sweep_once, _kv_gc_loop, daemons_router, selfimprove_report_ep, configure
 """BACKGROUND async daemon loops (strangler-fig refactor).
@@ -55,8 +33,6 @@ import mios_selfimprove   # #64 outcome analyzer (read-only) -- consumed by _sel
 import mios_selfimprove_act   # #64 ACT-half decision core (isolation + solver-gap + pass^k non-regression)
 import mios_pg as _mios_pg
 import mios_kvgc
-# The KV slot-file naming has ONE source (the fork plan); the GC sweep matches on
-# these constants rather than restating the prefix/suffix literal.
 from mios_kvfork import (kv_filename as _kv_filename,
                          _FILE_PREFIX as _KV_FILE_PREFIX,
                          _FILE_SUFFIX as _KV_FILE_SUFFIX)
@@ -64,16 +40,6 @@ from mios_kvfork import (kv_filename as _kv_filename,
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam ----------------------------------------
-# These loops read server.py's live A2A peer registry (+ its lock), the outbound
-# peer-reputation object, the shared httpx client getter, the membership-reload
-# entrypoint + its watch config, the self-improve de-dup seen-set, and
-# the _PG_PRIMARY flag. server.py calls configure() with those AFTER every one is
-# defined (one-way boundary: this module never imports server). The placeholders
-# below let a standalone import succeed; every consumer is async/runtime so nothing
-# fires before configure() runs. The mutable registries (_A2A_PEERS, the lock, the
-# reputation object, _SELFIMPROVE_SEEN) are injected BY REFERENCE so in-place
-# mutations stay visible to server's own readers.
 
 _get_client = None
 _A2A_PEERS = None
@@ -85,11 +51,6 @@ _MEMBERSHIP_WATCH_PATHS = None
 MEMBERSHIP_WATCH_INTERVAL_S = 30
 _PG_PRIMARY = False
 
-# WS-A4 KV slot-file GC. server resolves these from mios.toml/env (SSOT) and injects
-# them; the sweep+loop read them at runtime. The placeholders are neutral sentinels
-# (the loop never runs until configure() supplies real values + the startup gate
-# checks them). _KV_RESIDENT is the live active-slot map, injected BY REFERENCE so the
-# sweep protects whatever conversation is currently paged in.
 KV_SLOTS_DIR = ""
 KV_GC_TTL_S = 0.0
 KV_GC_MAX_BYTES = 0
@@ -241,12 +202,6 @@ async def _reputation_flush() -> None:
             pass
 
 
-# #64 self-improvement signals (read-only). Surfaces WHAT to improve from local
-# outcome data; it does NOT act -- closing the loop (auto-tuning) is a separate,
-# gated step (agent self-modification needs guardrails). Moved home from server.py
-# (its sole runtime consumer is _selfimprove_loop, just below); the /v1/self-improve/
-# report route still reaches it via server's re-import. Tunables all read the
-# [selfimprove] SSOT section (the literals are the documented degrade-open fallbacks).
 async def _selfimprove_report() -> dict:
     """Improvement findings from recent tool_call outcomes + peer reputation.
     Read-only; degrade-open -> {findings:[], error} if pgvector is unreachable."""
@@ -267,20 +222,7 @@ async def _selfimprove_report() -> dict:
                 "error": "unavailable"}
 
 
-# ── #64 self-improvement ACT half (T-062) + proof-of-utility (T-064) ───────────
-# The OBSERVE half (_selfimprove_report) surfaces WHAT to improve; the ACT half turns
-# a finding into a bounded change PROPOSAL, PROVES it does not regress the baseline,
-# and QUEUES it for HUMAN approval -- it NEVER auto-applies a self-modification. The
-# pure decisions (structural anti-reward-hacking isolation, the Autodata solver-gap
-# curation, the pass^k non-regression gate) live in mios_selfimprove_act; this module
-# owns only the live orchestration (drafting via a model, running the solver lanes,
-# writing the queue) -- all DEFAULT-OFF + degrade-open. The queue is an `event` row
-# (kind below) the operator reviews via GET /v1/self-improve/proposals and approves
-# out of band; applying an approved proposal is a separate path (out of scope here).
 _PROPOSAL_EVENT_KIND = "self_improve_proposal"
-# Result-set bound for the read-only proposals list (a query cap, like hitl_pending's
-# LIMIT -- not a decision weight); the queue is append-only so the list shows the most
-# recent first.
 _PROPOSALS_LIST_LIMIT = 100
 
 
@@ -362,9 +304,6 @@ async def _selfimprove_act_pass() -> dict:
             if not proposal:
                 continue
             drafted += 1
-            # Structural isolation FIRST: a proposal that targets the evaluator /
-            # eval-data / lane-config (or anything outside the improvable surface) is
-            # rejected before any solver compute is spent scoring it.
             ok, why = mios_selfimprove_act.validate_proposal(
                 proposal, improvable=improvable, protected=protected)
             if not ok:
@@ -440,9 +379,6 @@ async def _selfimprove_loop() -> None:
                             f.get("detail"), f.get("suggestion"))
             if new:
                 log.info("self-improve: surfaced %d new finding(s)", new)
-            # ACT half (T-062/T-064): default-OFF no-op unless [selfimprove].act_enabled;
-            # when on, propose->prove->QUEUE non-regressing changes for human approval
-            # (never auto-applied). Self-gating + degrade-open inside the pass.
             await _selfimprove_act_pass()
         except asyncio.CancelledError:
             raise
@@ -500,16 +436,6 @@ async def _kv_gc_loop() -> None:
             await asyncio.sleep(60)
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 3: self-improve OBSERVE) -----
-# The read-only #64 self-improvement report (/v1/self-improve/report) -- the OBSERVE
-# half whose analyzer (_selfimprove_report) lives in THIS module -- moved off
-# server.py's @app onto this co-located daemons_router (the same routes->APIRouter
-# pattern the /a2a wave established). server.py imports daemons_router +
-# selfimprove_report_ep (re-imported there so its importable `provided` surface is
-# unchanged) and mounts the router via app.include_router(daemons_router); the served
-# path/method is identical (the live-app route gate proves it). The body calls the
-# module-resident _selfimprove_report DIRECTLY (no sys.modules hop). One-way boundary:
-# this module never imports server. APIRouter()/method decorators are structural.
 daemons_router = APIRouter()
 
 

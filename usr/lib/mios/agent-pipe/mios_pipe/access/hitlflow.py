@@ -43,16 +43,7 @@ import mios_pg as _mios_pg
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The gate + ask-to-run flow read server.py's HITL/ASK config scalars + the
-# router/planner endpoints, and call back into the DB-event helpers, the session
-# event emitter, the broker dispatch and a ContextVar. server.py calls
-# configure() with those AFTER every one is defined (one-way boundary: this
-# module never imports server). The placeholders below carry documented defaults
-# so a standalone ``import mios_hitlflow`` still succeeds; every consumer is
-# async/runtime so nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 HITL_ENABLE = True
 HITL_MODE = "log"
 HITL_SCOPE: set = set()
@@ -63,7 +54,6 @@ PLANNER_ENDPOINT = ""
 PLANNER_TIMEOUT_S = 20.0
 _PG_PRIMARY = False
 
-# server-side helpers / ContextVar (injected)
 _db_read = None
 _db_post = None
 _db_create = None
@@ -221,8 +211,6 @@ async def _hitl_gate(tool: str, args: dict,
         ah = _action_hash(tool, args)
         approved = (await _hitl_is_approved(session_id, ah)
                     if HITL_MODE == "gate" else False)
-        # Route the verb-scope decision through the one shared resolver: this verb is
-        # already in scope (the guard above), so feed its scope posture + approval.
         verdict = mios_hitl.decide(in_name_scope=True, hitl_enable=HITL_ENABLE,
                                    hitl_mode=HITL_MODE, approved=approved)
         blocked = verdict == mios_hitl.BLOCK
@@ -301,7 +289,6 @@ async def _read_recent_pending(session_id: "Optional[str]") -> "Optional[dict]":
                     "WHERE status = 'pending' AND session_id = %(sid)s "
                     "ORDER BY ts DESC LIMIT 1"),
             pg_params={"sid": session_id})
-        # _db_read wraps rows in the legacy result envelope [{"result": [...]}].
         _rows = ((resp[0] or {}).get("result") or []) if isinstance(resp, list) and resp else []
         if not _rows:
             return None
@@ -376,7 +363,6 @@ async def _maybe_run_pending_approval(user_text: str, session_id: "Optional[str]
         await _mark_pending_decided(pend.get("id"), "denied")
         log.info("ask-to-run: user DECLINED %s", _tool)
         return _ask_to_run_completion(chat_id, model, f"Okay — I won't run `{_tool}`. Skipped.")
-    # approve: run EXACTLY this hashed action (the gate lets it through this turn only)
     _hitl_approved_var.set(_ah)
     log.info("ask-to-run: user APPROVED %s -> executing", _tool)
     try:
@@ -425,9 +411,6 @@ async def hitl_approve_logic(request: Request) -> JSONResponse:
     except Exception:  # noqa: BLE001
         body = {}
     rid = str(body.get("id") or "").strip()
-    # WS-MEM-TIER: accept a legacy record-id ('pending_action:NNN') OR a bare
-    # pgvector bigint id -- the old `":" not in rid` guard REJECTED every valid pg
-    # id, so HITL approve/deny was unreachable on pgvector-primary.
     _pgid = _mios_pg.rid_to_pg_id(rid)
     if not rid or (":" not in rid and _pgid is None):
         return JSONResponse({"success": False,
@@ -442,10 +425,6 @@ async def hitl_approve_logic(request: Request) -> JSONResponse:
                 f"approver = {json.dumps(approver)}"]
         if env is not None:
             sets.append(f"approval_passport = {json.dumps(env)}")
-        # WS-MEM-TIER: the raw _db_post(UPDATE) was a dead no-op on
-        # pgvector-primary, so an approval/denial was NEVER persisted (the gate
-        # could never record its decision). Route through _db_update with a
-        # parameterized PG UPDATE (passport cast to jsonb) so the decision lands.
         await _db_update(
             f"UPDATE {rid} SET " + ", ".join(sets) + ";",
             pg_sql=("UPDATE pending_action SET status = %(status)s, "
@@ -459,18 +438,6 @@ async def hitl_approve_logic(request: Request) -> JSONResponse:
     return JSONResponse({"success": True, "id": rid, "status": status})
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 3: HITL surface) -------------
-# The two WS-6 HITL endpoints whose state this module owns -- the pending-approval
-# list + live gate posture (/v1/hitl/pending) and the passport-signed approve/deny
-# (/v1/hitl/approve) -- moved off server.py's @app onto this co-located
-# hitlflow_router (the same routes->APIRouter pattern the /a2a wave established).
-# server.py imports hitlflow_router + the two handler NAMES (re-imported there so its
-# importable `provided` surface is unchanged) and mounts the router via
-# app.include_router(hitlflow_router); the served path/method set is identical (the
-# live-app route gate proves it). The pending-list body moved VERBATIM and reads this
-# module's already-injected HITL_ENABLE/HITL_MODE/HITL_SCOPE + _db_read (no new
-# injection); approve calls the module-resident hitl_approve_logic DIRECTLY (no
-# sys.modules hop). One-way boundary: this module never imports server.
 hitlflow_router = APIRouter()
 
 

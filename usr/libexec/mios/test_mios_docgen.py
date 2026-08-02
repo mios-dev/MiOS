@@ -90,7 +90,6 @@ def t_gate_disabled() -> None:
 def t_gate_enabled_reads_env() -> None:
     os.environ["MIOS_DOCGEN_ENABLE"] = "1"
     _check("gate on: _enabled() True", mdg._enabled() is True)
-    # Enabled but missing input -> honest error, still exit 0 (degrade-open).
     rc, obj = _capture(mdg.cmd_convert, "/no/such/input.md", "/tmp/o.docx", "")
     _check("gate on: missing input -> ok=false", rc == 0 and obj.get("ok") is False
            and "not found" in obj.get("error", ""))
@@ -106,7 +105,6 @@ def t_build_needs_source() -> None:
 
 
 def t_target_tables_sane() -> None:
-    # Office binaries route through LibreOffice; markup through Pandoc.
     _check("targets: pptx/docx/pdf in pandoc set",
            {"pptx", "docx", "pdf"} <= mdg._PANDOC_TARGETS)
     _check("targets: xlsx only via soffice (not pandoc)",

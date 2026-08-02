@@ -31,7 +31,6 @@ def t_tiers():
 
 
 def t_fail_closed():
-    # THE security-critical property: an unknown/missing tier must NOT be 'none'.
     for bad in ["", None, "supervisor", "weird", "READ-ish"]:
         p = sb.resolve_profile(bad)
         check(f"fail-closed: {bad!r} -> strict (never none)", p.mechanism == "strict" and p.confined is True, p.to_dict())
@@ -61,10 +60,8 @@ def t_shape():
 
 def t_bwrap():
     cmd = ["powershell_run", "--", "echo hi"]
-    # 'read' tier (none) -> run direct, no wrapper
     none_argv = sb.build_bwrap_argv(sb.resolve_profile("read"), cmd)
     check("bwrap: none tier runs direct (cmd unchanged)", none_argv == cmd)
-    # 'write' tier (workspace, ro-root, network) + a workspace
     wp = sb.resolve_profile("write")
     wa = sb.build_bwrap_argv(wp, cmd, workspace="/var/lib/mios/ai/dispatch/x-1")
     check("bwrap: write starts with bwrap", wa[0] == "bwrap")
@@ -74,29 +71,23 @@ def t_bwrap():
     check("bwrap: write binds the workspace rw", "--bind" in wa and "/var/lib/mios/ai/dispatch/x-1" in wa)
     check("bwrap: write proc/dev/tmpfs", "--proc" in wa and "--dev" in wa and "--tmpfs" in wa)
     check("bwrap: cmd after the -- separator", wa[wa.index("--", 1):] == ["--"] + cmd)
-    # 'interactive' tier (strict, NO network)
     sa = sb.build_bwrap_argv(sb.resolve_profile("interactive"), cmd, workspace="/ws")
     check("bwrap: strict has NO --share-net (no network)", "--share-net" not in sa)
     check("bwrap: strict still --unshare-all", "--unshare-all" in sa)
-    # unknown tier fails CLOSED -> strict (no net)
     uk = sb.build_bwrap_argv(sb.resolve_profile("bogus"), cmd, workspace="/ws")
     check("bwrap: unknown tier fail-closed (confined, no net)", uk[0] == "bwrap" and "--share-net" not in uk)
 
 
 def t_sandbox_exec_prefix():
-    # 'read' tier (none) -> no prefix (run direct, unwrapped)
     check("prefix: none tier -> [] (no wrap)",
           sb.sandbox_exec_prefix(sb.resolve_profile("read")) == [])
-    # 'write' tier (workspace, network) -> enforce + --net + --workspace, ends in --
     wp = sb.sandbox_exec_prefix(sb.resolve_profile("write"), workspace="/ws/x-1")
     check("prefix: write level enforce", wp[:3] == ["mios-sandbox-exec", "--level", "enforce"])
     check("prefix: write keeps net (--net)", "--net" in wp)
     check("prefix: write binds workspace", "--workspace" in wp and "/ws/x-1" in wp)
     check("prefix: write ends in -- separator", wp[-1] == "--")
-    # 'interactive' tier (strict, NO network) -> enforce, no --net
     sp = sb.sandbox_exec_prefix(sb.resolve_profile("interactive"), workspace="/ws")
     check("prefix: strict no --net (no egress)", "--net" not in sp and sp[-1] == "--")
-    # unknown tier fails CLOSED -> confined, no net
     uk = sb.sandbox_exec_prefix(sb.resolve_profile("bogus"), workspace="/ws")
     check("prefix: unknown tier fail-closed (confined, no net)",
           uk and uk[0] == "mios-sandbox-exec" and "--net" not in uk)

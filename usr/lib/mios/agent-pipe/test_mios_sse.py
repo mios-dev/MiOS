@@ -52,10 +52,8 @@ def t_status():
     st = c["mios_status"]
     check("status: payload emoji/label/done", st["emoji"] == "🔎" and st["done"] is False)
     check("status: detail appended to label", "cats" in st["label"] and st.get("detail") == "cats")
-    # with content + STATUS_AS_REASONING, a reasoning line persists
     if e.STATUS_AS_REASONING:
         check("status: persists reasoning when content", c["choices"][0]["delta"].get("reasoning_content"))
-    # a BARE contentless marker (no label, no detail) must NOT persist reasoning
     bare = _decode(e._sse_status(chat_id="c", model="m", emoji="👂", label="", detail=None))
     check("status: bare marker no reasoning", not bare["choices"][0]["delta"].get("reasoning_content"))
     check("status: bare marker still a pill", bare.get("mios_status", {}).get("emoji") == "👂")
@@ -104,18 +102,14 @@ def t_tail():
 
 
 def t_iter_chunks():
-    # size<=0 or text shorter than size -> a single chunk (whole text)
     check("iter: size<=0 -> one chunk", list(e._iter_answer_chunks("hello world", 0)) == ["hello world"])
     check("iter: text<=size -> one chunk", list(e._iter_answer_chunks("hi", 8)) == ["hi"])
-    # splits at WORD boundaries, never mid-word; whitespace preserved
     out = list(e._iter_answer_chunks("alpha beta gamma delta", 8))
     check("iter: lossless reassembly", "".join(out) == "alpha beta gamma delta", str(out))
     check("iter: word-boundary chunks (whitespace kept)",
           out == ["alpha ", "beta ", "gamma ", "delta"], str(out))
-    # a single token longer than size is emitted whole (no mid-word cut)
     big = list(e._iter_answer_chunks("supercalifragilistic", 5))
     check("iter: oversize token emitted whole", big == ["supercalifragilistic"], str(big))
-    # empty text -> one empty chunk
     check("iter: empty text -> ['']", list(e._iter_answer_chunks("", 4)) == [""])
 
 

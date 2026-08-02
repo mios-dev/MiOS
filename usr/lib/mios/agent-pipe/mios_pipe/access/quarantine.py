@@ -47,26 +47,14 @@ from __future__ import annotations
 
 import mios_ruleof2
 
-# Reuse T-033's SSOT mode enum VERBATIM: ``[security].quarantine_mode`` shares the
-# EXACT tri-state semantics (off | audit | enforce) with ``[security].rule_of_two_mode``,
-# so the enum tokens AND the degrade-open normaliser are SHARED (no second copy of the
-# mode literals -- a single SSOT for the architectural-gate mode vocabulary).
 MODE_OFF = mios_ruleof2.MODE_OFF
 MODE_AUDIT = mios_ruleof2.MODE_AUDIT
 MODE_ENFORCE = mios_ruleof2.MODE_ENFORCE
 
-# The three structural axis keys (reused from mios_ruleof2 -- structural identifiers,
-# no English/topic content: they name the dataflow axes, not any verb or domain). The
-# quarantine boundary is concerned with A and the UNION B-or-C ("privileged").
 PROP_UNTRUSTED = mios_ruleof2.PROP_UNTRUSTED       # A -- attacker-controllable content present
 PROP_SENSITIVE = mios_ruleof2.PROP_SENSITIVE       # B -- reads sensitive / private data
 PROP_STATECHANGE = mios_ruleof2.PROP_STATECHANGE   # C -- mutates state / side effects
 
-# Per-mode action WHEN THE BOUNDARY BITES (tainted AND privileged). When it does not
-# bite the action is always "proceed" regardless of mode (untrusted content is absent,
-# or the verb is neither sensitive nor state-changing -- nothing to quarantine). Pure
-# enum dispatch over the SSOT mode value (not a content heuristic) -- mirrors the
-# Rule-of-Two action matrix so the two gates stay structurally identical.
 ACT_PROCEED, ACT_AUDIT, ACT_GATE = "proceed", "audit", "gate"
 _BITE_ACTION = {MODE_OFF: ACT_PROCEED, MODE_AUDIT: ACT_AUDIT, MODE_ENFORCE: ACT_GATE}
 
@@ -93,15 +81,7 @@ class QuarantineVerdict:
         self.untrusted = bool(untrusted)
         self.sensitive = bool(sensitive)
         self.state_change = bool(state_change)
-        # "Privileged" = the action either READS sensitive data (B) OR CHANGES state
-        # (C). The CaMeL dual-context boundary cares about EITHER -- untrusted content
-        # must not autonomously drive a sensitive read OR a state change. (Rule-of-Two
-        # requires BOTH B AND C alongside A; quarantine is the stricter superset.)
         self.privileged = self.sensitive or self.state_change
-        # The boundary BITES only when untrusted content is PRESENT and the action is
-        # privileged: an untrusted-content-derived privileged action cannot fire
-        # autonomously. Untainted sessions (A absent) never bite -- quarantine only
-        # constrains the dataflow once attacker-controllable content is in scope.
         self.bites = self.untrusted and self.privileged
         self.mode = normalize_mode(mode)
         self.action = _BITE_ACTION[self.mode] if self.bites else ACT_PROCEED

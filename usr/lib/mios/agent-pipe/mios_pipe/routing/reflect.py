@@ -33,15 +33,6 @@ from mios_hitlflow import _recent_reflections
 
 log = logging.getLogger("mios-agent-pipe")
 
-# -- Dependency-injection seam ----------------------------------------------
-# Everything below stays in server.py (the _db_* writers + the session-event
-# emitter, the live verb catalog, the REFINE_* model-call constants, the
-# _REFLECT_SYSTEM prompt). server.py calls configure(...) with these AFTER they are
-# all defined (one-way boundary: this module never imports server). They keep their
-# ORIGINAL server.py names because the moved bodies reference them verbatim. The
-# helpers are only invoked at request time -- well after configure() has injected
-# everything; the placeholders below just keep import + the surface check working
-# before injection.
 _db_read = None
 _db_write = None
 _emit_session_event = None
@@ -126,13 +117,6 @@ async def _inline_satisfaction_check(
         return None
     intent = str(refined.get("intent") or "").strip()
     intended = str(refined.get("intended_outcome") or "")[:200]
-    # Fetch this turn's tool_calls (since the refine row was
-    # written). Use a generous 5-min lookback that comfortably
-    # covers a slow refine + sub-agent loop. `ts` MUST be in the
-    # projection: the legacy backend rejects an ORDER BY on a field that
-    # isn't selected ("Missing order idiom `ts`") with an HTTP 400,
-    # which made _db_post return None (and trip a 30s DB backoff) --
-    # the check then always bailed once a real session_id existed.
     sql = (
         f"SELECT ts, tool, args, result_preview, success, "
         f"exit_code, latency_ms FROM tool_call "
@@ -153,8 +137,6 @@ async def _inline_satisfaction_check(
     rows = (r[-1] or {}).get("result") or []
     if not isinstance(rows, list):
         return None
-    # AND-fold (same logic shape as mios-daemon._emit_satisfaction
-    # but inline). For intent=chat no tools is expected = satisfied.
     if not rows:
         if intent == "chat":
             verdict = {
@@ -162,18 +144,12 @@ async def _inline_satisfaction_check(
                 "reason": "chat_no_tools_expected",
             }
         elif agent_answered:
-            # Agent path: the sub-agent ran its own tool-loop (results
-            # internal to it -> no agent-pipe tool_call row) and
-            # delivered an answer. Turn is DONE = DoD-met. Record which
-            # verbs it invoked for the audit trail.
             verdict = {
                 "kind": "user_query_satisfied",
                 "reason": "agent_answer_delivered",
                 "agent_tools": [str(t) for t in (agent_tools_called or [])],
             }
         else:
-            # No recorded tools AND no agent answer: a genuine no-op
-            # (empty backend reply / dead endpoint).
             verdict = {
                 "kind": "user_query_unsatisfied",
                 "reason": "no_tools_seen",
@@ -200,16 +176,6 @@ async def _inline_satisfaction_check(
                 "tools_checked": len(rows),
                 "failed_tools": failed,
             }
-    # STRUCTURAL action-claim validation (P5; the operator's "LIE"):
-    # language-agnostic -- NO action-word lists. If the refined PLAN intended a
-    # WRITE-permission action (intent=agent/multi_task + a write-permission verb
-    # in hint_tools) but NOT ONE write-permission verb was actually invoked this
-    # turn (neither in the agent's own tool-loop nor a recorded successful
-    # dispatch), the side-effecting action did NOT happen -> flag it so polish's
-    # INVOKED-TOOL CHECK has an authoritative structural signal and won't let a
-    # fabricated "done" stand. Conservative (fires only on ZERO write verbs) so
-    # it never false-flags a turn that legitimately acted; hint_tools are
-    # suggestions, hence we test the write-PERMISSION class, not the exact verb.
     try:
         if intent in ("agent", "multi_task"):
             def _is_write_verb(v) -> bool:
@@ -237,8 +203,6 @@ async def _inline_satisfaction_check(
         "source": "mios-agent-pipe-inline",
         **verdict,
     }
-    # Write synchronously so polish's subsequent query picks it
-    # up as the most-recent verdict for this session.
     try:
         _db_write("event", {
             "source": "mios-agent-pipe",
@@ -282,12 +246,6 @@ async def reflect_on_step_failure(
     )
     exit_code = failed_result.get("exit_code", "?")
     plan_summary = str(plan_context.get("summary") or "")[:200]
-    # Reflexion read-back (ref AIOS B.3): prior corrections in this session
-    # inform the new fix instead of re-deriving from scratch. Best-effort;
-    # empty when there are none / no session. Feeds the REFLECTION prompt
-    # (an internal pass), NOT the first-turn user message -- so it stays
-    # clear of the NO-context-injection binding (which targets env auto-
-    # injection into the user prompt).
     prior_hint = ""
     _prior = await _recent_reflections(session_id)
     if _prior:
@@ -337,7 +295,6 @@ async def reflect_on_step_failure(
         log.warning("reflect unexpected error: %s", e)
         return None
     elapsed = time.time() - t0
-    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
     choices = body.get("choices") or []
     msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
@@ -389,15 +346,6 @@ async def reflect_on_step_failure(
     return parsed
 
 
-# ── Reflexion-buffer reads + per-node Definition-of-Done judge ─────────────
-# Moved verbatim from server.py (strangler-fig wave). _recent_satisfaction_verdicts
-# + _recent_tool_history are the reflexion-buffer reads polish grounds on -- they
-# pull the cross-turn user_query_(un)satisfied verdict events and this session's
-# tool_call rows; _judge_answer_satisfied is the micro-LLM per-node DoD judge that
-# drives the swarm deepen loop. All three read only deps already injected above
-# (_db_read + the REFINE_* model-call constants + httpx), so configure() is
-# unchanged. server.py re-imports the three names under their exact original aliases
-# so the importable surface stays byte-identical.
 async def _recent_satisfaction_verdicts(limit: int = 3) -> list[dict]:
     """Pull recent mios-daemon satisfaction verdicts (Phase E.1).
     These are post-hoc audit rows the daemon emits every ~30s based
@@ -441,7 +389,6 @@ async def _recent_tool_history(session_id: Optional[str],
     if not r:
         return []
     rows = (r[-1] or {}).get("result") or []
-    # Reverse for chronological order in the prompt.
     return list(reversed(rows))
 
 

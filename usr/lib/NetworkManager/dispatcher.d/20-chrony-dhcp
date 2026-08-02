@@ -1,7 +1,4 @@
 #!/usr/bin/sh
-# This is a NetworkManager dispatcher script for chronyd to update
-# its NTP sources with servers from DHCP options passed by NetworkManager
-# in the DHCP4_NTP_SERVERS and DHCP6_DHCP6_NTP_SERVERS environment variables.
 
 export LC_ALL=C
 
@@ -22,11 +19,9 @@ dhcp_ntp_servers="$DHCP4_NTP_SERVERS $DHCP6_DHCP6_NTP_SERVERS"
 add_servers_from_dhcp() {
     rm -f "$dhcp_server_file"
 
-    # Don't add NTP servers if PEERNTP=no specified; return early.
     [ "$PEERNTP" = "no" ] && return
 
     for server in $dhcp_ntp_servers; do
-        # Check for invalid characters (from the DHCPv6 NTP FQDN suboption)
         len1=$(printf '%s' "$server" | wc -c)
         len2=$(printf '%s' "$server" | tr -d -c 'A-Za-z0-9:.-' | wc -c)
         if [ "$len1" -ne "$len2" ] || [ "$len2" -lt 1 ] || [ "$len2" -gt 255 ]; then

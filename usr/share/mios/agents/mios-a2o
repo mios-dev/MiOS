@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# mios-a2o — Architect->Operator terminal-muxer harness for MiOS.
-# A persistent tmux "war room" (inside the MiOS host / agents container) into which
-# an ORCHESTRATOR (Claude Sonnet 5, main panel) dispatches build/debug tasks to two
-# operator sub-agents — LANE A = Claude Opus 4.8 (framework + ~80%), LANE B = Gemini
-# Flash 3.5 (finalize, last ~20%) — each in its own tmux window, tee'd to a log,
-# with status tracking. Humans watch/steer via `tmux attach` or the code-server
-# browser terminal attached to the same socket.
 set -uo pipefail
 export PATH="${HOME:-/var/home/mios}/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
@@ -23,10 +16,6 @@ AGY_MODEL="${MIOS_A2O_AGY_MODEL:-}"
 CLAUDE_MODEL="${MIOS_A2O_CLAUDE_MODEL:-}"
 GEMINI_MODEL="${MIOS_A2O_GEMINI_MODEL:-}"
 
-# ── FRONTIER ROLES ── main panel = ORCHESTRATOR; two sub-agent lanes A/B. Each role
-# = engine + model + reasoning effort. These defaults are the single documented
-# baseline (operator spec); the SSOT that overrides them is mios.toml
-# [frontier], bridged to MIOS_A2O_* env via install.env -- NO-HARDCODE.
 ORCH_ENGINE="${MIOS_A2O_ORCH_ENGINE:-claude}"
 ORCH_MODEL="${MIOS_A2O_ORCH_MODEL:-claude-sonnet-5}"
 ORCH_EFFORT="${MIOS_A2O_ORCH_EFFORT:-high}"
@@ -38,24 +27,13 @@ LANE_B_ENGINE="${MIOS_A2O_LANE_B_ENGINE:-agy}"           # Gemini 3.5 Flash (Hig
 LANE_B_MODEL="${MIOS_A2O_LANE_B_MODEL:-Gemini 3.5 Flash (High)}"
 LANE_B_EFFORT="${MIOS_A2O_LANE_B_EFFORT:-high}"
 LANE_B_ROLE="${MIOS_A2O_LANE_B_ROLE:-finalize (last ~20%)}"
-# Lane B degrade-open FALLBACK. When agy's Gemini account is quota-blocked (429) its
-# generation returns empty and finalize work stalls; PREFER_FALLBACK routes Lane B to
-# a Claude engine instead so the last ~20% still ships. Baselines EQUAL mios.toml
-# [frontier].lane_b_fallback_* (SSOT, bridged via install.env) -- NO-HARDCODE. Empty
-# engine/model degrade-open (see cmd_lane): unknown fallback => behave as agy today.
 LANE_B_FALLBACK_ENGINE="${MIOS_A2O_LANE_B_FALLBACK_ENGINE:-claude}"
 LANE_B_FALLBACK_MODEL="${MIOS_A2O_LANE_B_FALLBACK_MODEL:-claude-sonnet-5}"
 LANE_B_FALLBACK_EFFORT="${MIOS_A2O_LANE_B_FALLBACK_EFFORT:-high}"
 LANE_B_PREFER_FALLBACK="${MIOS_A2O_LANE_B_PREFER_FALLBACK:-true}"
-# Per-engine reasoning-effort flag TEMPLATE ({e} -> effort). EMPTY = omit the flag
-# (degrade-open: never break an engine whose effort flag is unverified). Set the real
-# flag for your installed CLI once confirmed in-container, e.g.
-#   MIOS_A2O_CLAUDE_EFFORT_FLAG='--reasoning-effort {e}'
 CLAUDE_EFFORT_FLAG="${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}"
 AGY_EFFORT_FLAG="${MIOS_A2O_AGY_EFFORT_FLAG:-}"
 GEMINI_EFFORT_FLAG="${MIOS_A2O_GEMINI_EFFORT_FLAG:-}"
-# Orchestrator doctrine the Sonnet-5 main panel is seeded with (SSOT file; operator-
-# editable). Resolved from the harness dir / the live root / the vendor path.
 _a2o_self_dir="$(dirname "$(readlink -f "$0" 2>/dev/null || echo "$0")")"
 _default_brief=""
 for _d in "$_a2o_self_dir" /mnt/mios-root/usr/share/mios/agents /usr/share/mios/agents /usr/local/share/mios-agents; do
@@ -65,16 +43,14 @@ ORCH_BRIEF="${MIOS_A2O_ORCH_BRIEF:-$_default_brief}"
 
 mkdir -p "$LOGS" "$STATUS" "$PROMPTS" "$RUND" "$WORK_DEFAULT"
 
-die(){ echo "mios-a2o: $*" >&2; exit 1; }
+die(){ echo "Mios-a2o: $*" >&2; exit 1; }
 have(){ command -v "$1" >/dev/null 2>&1; }
-have tmux || die "tmux not found on PATH"
+have tmux || die "Tmux not found on PATH"
 
 engine_bin(){ case "$1" in agy) echo "$AGY_BIN";; claude) echo "$CLAUDE_BIN";; gemini) echo "$GEMINI_BIN";; *) return 1;; esac; }
 
-# True when the Lane-B prefer-fallback switch is set truthy (1/true/yes/on, any case).
 lane_b_fallback_on(){ case "${LANE_B_PREFER_FALLBACK,,}" in 1|true|yes|on) return 0;; *) return 1;; esac; }
 
-# Render the reasoning-effort flag for an engine (empty template or effort -> none).
 effort_flag(){
   local eng="$1" e="${2:-}" tpl=""
   [ -n "$e" ] || return 0
@@ -94,9 +70,6 @@ ensure_server(){
   fi
 }
 
-# Build the runtime exec line for an engine. $PROMPT is a RUNTIME variable (kept
-# literal here). model/effort override the per-engine defaults (frontier roles pass
-# them; plain dispatch leaves them empty -> legacy per-engine model, no effort).
 exec_line(){
   local eng="$1" work="$2" model_in="${3:-}" effort_in="${4:-}" agy_log="${5:-}" mdl="" auto="" sb="" eff="" lf=""
   eff="$(effort_flag "$eng" "$effort_in")"
@@ -105,11 +78,8 @@ exec_line(){
       mdl="${model_in:-$AGY_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--dangerously-skip-permissions"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
-      # F-023: agy --print ALWAYS exits 0 and prints NOTHING to stdout on failure;
-      # its trace (incl. quota/RESOURCE_EXHAUSTED lines) goes only to --log-file.
-      # Route it to a per-task debug log so the runner can detect silent failures.
       [ -n "$agy_log" ] && lf="--log-file '$agy_log'"
-      echo "$AGY_BIN $mdl $eff --add-dir '$work' $auto $sb $lf -p \"\$PROMPT\" < /dev/null"
+      echo "$AGY_BIN $mdl $eff"\$PROMPT\" < /dev/null"
       ;;
     claude)
       mdl="${model_in:-$CLAUDE_MODEL}"; [ -n "$mdl" ] && mdl="--model '$mdl'" || mdl=""
@@ -120,7 +90,7 @@ exec_line(){
       mdl="${model_in:-$GEMINI_MODEL}"; [ -n "$mdl" ] && mdl="-m '$mdl'" || mdl=""
       [ "$AUTO" = 1 ] && auto="--approval-mode yolo" || auto="--approval-mode default"
       [ "$SANDBOX" = 1 ] && sb="--sandbox"
-      echo "$GEMINI_BIN $mdl $eff $auto --skip-trust $sb -p \"\$PROMPT\" < /dev/null"
+      echo "$GEMINI_BIN $mdl $eff $auto"\$PROMPT\" < /dev/null"
       ;;
     *) return 1;;
   esac
@@ -128,32 +98,18 @@ exec_line(){
 
 cmd_dispatch(){
   local name="${1:-}" eng="${2:-$ENGINE_DEFAULT}" work="${3:-$WORK_DEFAULT}" model="${4:-}" effort="${5:-}"
-  [ -n "$name" ] || die "usage: dispatch <name> [engine] [workdir] [model] [effort]   (prompt on stdin)"
-  case "$name" in *[!A-Za-z0-9._-]*) die "task name must be slug [A-Za-z0-9._-]";; esac
-  engine_bin "$eng" >/dev/null || die "unknown engine '$eng' (agy|claude|gemini)"
-  have "$(engine_bin "$eng")" || die "engine binary not found: $(engine_bin "$eng")"
+  [ -n "$name" ] || die "Usage: dispatch <name> [engine] [workdir] [model] [effort]"
+  case "$name" in *[!A-Za-z0-9._-]*) die "Task name must be slug [A-Za-z0-9._-]";; esac
+  engine_bin "$eng" >/dev/null || die "Unknown engine '$eng'"
+  have "$(engine_bin "$eng")" || die "Engine binary not found: $(engine_bin "$eng")"
   ensure_server; mkdir -p "$work"
   cat > "$PROMPTS/$name.txt"                          # prompt from stdin
-  [ -s "$PROMPTS/$name.txt" ] || die "empty prompt on stdin"
-  # F-023: per-task agy debug/trace sink (agy exits 0 even on hard failure and hides
-  # its errors here). Lives under RUND, NOT LOGS, so it never matches the "$LOGS"/*.log
-  # glob that status/capture/follow scan (else it would show as a phantom task).
-  # Cleared alongside the task log so a re-dispatch can't match a stale error line.
+  [ -s "$PROMPTS/$name.txt" ] || die "Empty prompt on stdin"
   local AGY_DEBUG_LOG="$RUND/$name.agy-debug.log"
   : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running" "$AGY_DEBUG_LOG"; echo "$eng" > "$STATUS/$name.engine"
   local EXEC; EXEC="$(exec_line "$eng" "$work" "$model" "$effort" "$AGY_DEBUG_LOG")"
-  # F-011 "everything streams": resolve the reasoning-stream flag + sink ONCE here
-  # (the parent holds the SSOT-bridged env; a tmux server snapshots its env at
-  # first-start, so a child runner can't rely on inheriting it) and BAKE the
-  # resolved values into the runner. Off by default -> _stream_on=0 -> the emit
-  # function is a no-op and the runner is byte-identical to before.
   local _sr="${MIOS_A2O_STREAM_REASONING:-0}"; _sr="${_sr,,}"
   local _stream_on=0; case "$_sr" in 1|true|yes|on) _stream_on=1;; esac
-  # F-023 anti-fabrication (AGY ONLY): agy --print returns 0 and empty stdout even on
-  # hard failure, so PIPESTATUS is a lie for agy. Bake a post-run detector that turns
-  # "empty response" OR a known error in the debug log into a real non-zero rc and
-  # surfaces a concise reason. For claude/gemini this variable is EMPTY, so the
-  # runner line below is byte-identical to before (the ${_agy_post} prefix vanishes).
   local _agy_post=""
   if [ "$eng" = agy ]; then
     local EXEC_FALLBACK=""
@@ -178,7 +134,6 @@ if [ "\$rc" = 0 ]; then
 
     if [ "\$_is_quota" = 1 ] && [ -n "$EXEC_FALLBACK" ]; then
       printf '%s\n' "=== [mios-a2o] agy quota failure detected -- retrying on fallback engine '$LANE_B_FALLBACK_ENGINE' ===" | tee -a "$LOGS/$name.log"
-      # Run fallback
       PROMPT="\$(cat "$PROMPTS/$name.txt")"
       eval "$EXEC_FALLBACK" 2>&1 | tee -a "$LOGS/$name.log"
       rc=\${PIPESTATUS[0]}
@@ -207,43 +162,28 @@ AGYCHK
 "
   fi
   cat > "$RUND/$name.sh" <<RUNNER
-#!/usr/bin/env bash
 export PATH="$PATH"
 cd "$work" 2>/dev/null || cd "$WORK_DEFAULT"
 A2O_STREAM_ON="$_stream_on"
 A2O_STREAM_PATH="${MIOS_A2O_STREAM_PATH:-}"
 A2O_MOUNT_ROOT="${MIOS_A2O_WORK:-}"
 _a2o_stream(){  # \$1 = transition detail -> best-effort JSONL append to the frontier
-  # tail, which the agent-pipe folds into the mios_status reasoning channel it
-  # already publishes (OWUI/CLI/Discord subscribe to it). EVERY failure is
-  # swallowed: streaming must never break a dispatch (degrade-open).
   [ "\$A2O_STREAM_ON" = 1 ] || return 0
   [ -n "\$A2O_STREAM_PATH" ] || return 0
   local sp="\$A2O_STREAM_PATH"
-  # The war room runs inside the mios-agents container with host / mounted at
-  # \$A2O_MOUNT_ROOT; re-anchor the host-absolute sink under that mount when its
-  # raw parent dir is absent (running directly on the host uses the path as-is).
   if [ ! -d "\$(dirname "\$sp")" ] && [ -n "\$A2O_MOUNT_ROOT" ] && [ -d "\$(dirname "\$A2O_MOUNT_ROOT\$sp")" ]; then
     sp="\$A2O_MOUNT_ROOT\$sp"
   fi
   local d; d="\$(dirname "\$sp")"
   [ -d "\$d" ] || mkdir -p "\$d" 2>/dev/null || return 0
-  # name/engine are slug-constrained ([A-Za-z0-9._-] / a fixed engine set) and the
-  # transition text is digits+letters+space+'=', so the detail carries no JSON
-  # metacharacters -- safe to interpolate without escaping. TODO(finalize): to
-  # stream arbitrary LOG LINES (not just start/finish transitions) this needs a
-  # real JSON string-escape; transitions are the safe MVP the mandate asks for.
   printf '{"ts":%s,"kind":"frontier","detail":"war-room: %s %s [%s]"}\n' \
     "\$(date +%s)" "$name" "\$1" "$eng" >> "\$sp" 2>/dev/null || return 0
-  # Race-tolerant bound on the append-only sink. A lost trim just trims on a later
-  # append (the consumer reads only the tail + filters by ts, so a transient
-  # over-length file is harmless).
   local n; n="\$(wc -l < "\$sp" 2>/dev/null || echo 0)"
   if [ "\${n:-0}" -gt 400 ] 2>/dev/null; then
     tail -n 200 "\$sp" > "\$sp.tmp" 2>/dev/null && mv "\$sp.tmp" "\$sp" 2>/dev/null || true
   fi
 }
-echo "\$(date -Is) start [$eng]" > "$STATUS/$name.running"
+echo "\$ start [$eng]" > "$STATUS/$name.running"
 _a2o_stream start
 PROMPT="\$(cat "$PROMPTS/$name.txt")"
 set -o pipefail
@@ -254,33 +194,28 @@ echo "\$rc" > "$STATUS/$name.status"
 st=done; [ "\$rc" = 0 ] || st=failed
 _a2o_stream "\$st rc=\$rc"
 echo "" | tee -a "$LOGS/$name.log"
-echo "=== [mios-a2o] task '$name' ($eng) finished rc=\$rc (window kept open) ===" | tee -a "$LOGS/$name.log"
+echo "=== [mios-a2o] task '$name' finished rc=\$rc ===" | tee -a "$LOGS/$name.log"
 RUNNER
   chmod +x "$RUND/$name.sh"
   tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
   tmux new-window -t "$SESSION" -n "$name" -c "$work" "bash '$RUND/$name.sh'"
-  echo "dispatched: task='$name' engine='$eng'${model:+ model='$model'}${effort:+ effort='$effort'} work='$work' auto=$AUTO sandbox=$SANDBOX"
-  echo "monitor: mios-a2o tail $name | window: $SESSION:$name | attach: tmux attach -t $SESSION"
+  echo "Dispatched: task='$name' engine='$eng'${model:+ model='$model'}${effort:+ effort='$effort'} work='$work' auto=$AUTO sandbox=$SANDBOX"
+  echo "Monitor: mios-a2o tail $name | window: $SESSION:$name | attach: tmux attach -t $SESSION"
 }
 
-# Dispatch to a configured sub-agent role lane (engine+model+effort). Prompt on stdin.
 cmd_lane(){
   local lane="${1:-}" name="${2:-}"
-  [ -n "$lane" ] && [ -n "$name" ] || die "usage: lane <a|b> <name>   (prompt on stdin)"
+  [ -n "$lane" ] && [ -n "$name" ] || die "Usage: lane <a|b> <name>"
   local eng mdl eff
   case "$lane" in
     a|A) eng="$LANE_A_ENGINE"; mdl="$LANE_A_MODEL"; eff="$LANE_A_EFFORT";;
     b|B)
       eng="$LANE_B_ENGINE"; mdl="$LANE_B_MODEL"; eff="$LANE_B_EFFORT"
-      # agy quota workaround: when prefer_fallback is on AND a fallback engine is
-      # actually set, route Lane B to the Claude fallback instead of agy so finalize
-      # work never stalls on a 429. Degrade-open: empty fallback engine => agy as
-      # today. Lane A and plain `dispatch` are untouched.
       if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then
         eng="$LANE_B_FALLBACK_ENGINE"; mdl="$LANE_B_FALLBACK_MODEL"; eff="$LANE_B_FALLBACK_EFFORT"
       fi
       ;;
-    *) die "lane must be a|b";;
+    *) die "Lane must be a|b";;
   esac
   cmd_dispatch "$name" "$eng" "$WORK_DEFAULT" "$mdl" "$eff"
 }
@@ -298,45 +233,44 @@ cmd_status(){
     else state=PENDING; rc="-"; fi
     printf "%-24s %-9s %-9s %-5s %-6s\n" "$name" "$eng" "$state" "$rc" "$win"
   done
-  if [ "$any" = 0 ]; then echo "(no tasks yet)"; fi
+  if [ "$any" = 0 ]; then echo ""; fi
   return 0
 }
 
-cmd_tail(){ local n="${1:?usage: tail <name> [n]}"; tail -n "${2:-40}" "$LOGS/$n.log" 2>/dev/null || die "no log for '$n'"; }
-cmd_capture(){ local n="${1:?usage: capture <name> [n]}"; tmux capture-pane -pt "$SESSION:$n" -S "-${2:-60}" 2>/dev/null || die "no window '$n'"; }
-cmd_send(){ local n="${1:?usage: send <name> <keys...>}"; shift; tmux send-keys -t "$SESSION:$n" -- "$*" C-m; echo "sent to '$n': $*"; }
+cmd_tail(){ local n="${1:?usage: tail <name> [n]}"; tail -n "${2:-40}" "$LOGS/$n.log" 2>/dev/null || die "No log for '$n'"; }
+cmd_capture(){ local n="${1:?usage: capture <name> [n]}"; tmux capture-pane -pt "$SESSION:$n" -S "-${2:-60}" 2>/dev/null || die "No window '$n'"; }
+cmd_send(){ local n="${1:?usage: send <name> <keys...>}"; shift; tmux send-keys -t "$SESSION:$n" -- "$*" C-m; echo "Sent to '$n': $*"; }
 cmd_repl(){ local eng="${1:-$ENGINE_DEFAULT}" name="${2:-repl-$eng}" work="${3:-$WORK_DEFAULT}"
-  have "$(engine_bin "$eng")" || die "engine binary not found: $(engine_bin "$eng")"
+  have "$(engine_bin "$eng")" || die "Engine binary not found: $(engine_bin "$eng")"
   ensure_server; tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
   tmux new-window -t "$SESSION" -n "$name" -c "$work" "$(engine_bin "$eng")"
-  echo "interactive $eng in $SESSION:$name — attach: tmux attach -t $SESSION"; }
-cmd_attach(){ echo "tmux attach -t $SESSION"; echo "(from Windows) wsl -d podman-MiOS-DEV -- env TERM=xterm-256color tmux attach -t $SESSION"; }
-cmd_list(){ tmux list-windows -t "$SESSION" 2>/dev/null || echo "war room not running (dispatch a task first)"; }
+  echo "Interactive $eng in $SESSION:$name — attach: tmux attach -t $SESSION"; }
+cmd_attach(){ echo "tmux attach -t $SESSION"; echo " wsl -d podman-MiOS-DEV"; }
+cmd_list(){ tmux list-windows -t "$SESSION" 2>/dev/null || echo "War room not running"; }
 cmd_kill(){ local a="${1:?usage: kill <name>|--all}"
-  if [ "$a" = --all ]; then tmux kill-session -t "$SESSION" 2>/dev/null; echo "war room killed"
-  else tmux kill-window -t "$SESSION:$a" 2>/dev/null; echo "killed window '$a'"; fi; }
+  if [ "$a" = --all ]; then tmux kill-session -t "$SESSION" 2>/dev/null; echo "War room killed"
+  else tmux kill-window -t "$SESSION:$a" 2>/dev/null; echo "Killed window '$a'"; fi; }
 cmd_doctor(){
-  echo "session=$SESSION root=$ROOT work=$WORK_DEFAULT engine_default=$ENGINE_DEFAULT auto=$AUTO sandbox=$SANDBOX"
-  echo "roles:"
+  echo "Session=$SESSION root=$ROOT work=$WORK_DEFAULT engine_default=$ENGINE_DEFAULT auto=$AUTO sandbox=$SANDBOX"
+  echo "Roles:"
   printf "  %-13s %-7s %-22s effort=%-6s flag=%s\n" "orchestrator" "$ORCH_ENGINE" "$ORCH_MODEL" "$ORCH_EFFORT" "${CLAUDE_EFFORT_FLAG:-<none>}"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane A" "$LANE_A_ENGINE" "$LANE_A_MODEL" "$LANE_A_EFFORT" "$LANE_A_ROLE"
   printf "  %-13s %-7s %-22s effort=%-6s role=%s\n" "lane B" "$LANE_B_ENGINE" "$LANE_B_MODEL" "$LANE_B_EFFORT" "$LANE_B_ROLE"
   if lane_b_fallback_on && [ -n "$LANE_B_FALLBACK_ENGINE" ]; then _fb_state="ACTIVE (Lane B routes here now)"; else _fb_state="inactive (Lane B uses agy)"; fi
   printf "  %-13s %-7s %-22s effort=%-6s %s\n" "lane B fallback" "$LANE_B_FALLBACK_ENGINE" "$LANE_B_FALLBACK_MODEL" "$LANE_B_FALLBACK_EFFORT" "$_fb_state"
-  echo "orchestrator_brief=${ORCH_BRIEF:-<none found>}"
+  echo "Orchestrator_brief=${ORCH_BRIEF:-<none found>}"
   echo -n "tmux:   "; tmux -V
-  for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "not installed ($b)"; fi; done
+  for e in agy claude gemini; do b="$(engine_bin "$e")"; printf "%-7s " "$e:"; if have "$b"; then "$b" --version 2>/dev/null | head -1; else echo "Not installed"; fi; done
   echo -n "server: "; tmux has-session -t "$SESSION" 2>/dev/null && echo up || echo down
   if [ "$AUTO" = 1 ]; then echo "WARN: AUTO=1 auto-approves ALL tools — keep confined to this host/container"; fi
-  [ -n "$ORCH_BRIEF" ] || echo "WARN: orchestrator-brief.md not found -- the orchestrator will launch WITHOUT its doctrine"
+  [ -n "$ORCH_BRIEF" ] || echo "WARN: orchestrator-brief.md not found"
   return 0
 }
 cmd_selftest(){  # engine-free proof that dispatch->window->log->status->capture all work
   ensure_server; local name="selftest"
-  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "selftest" > "$STATUS/$name.engine"
+  : > "$LOGS/$name.log"; rm -f "$STATUS/$name.status" "$STATUS/$name.running"; echo "Selftest" > "$STATUS/$name.engine"
   cat > "$RUND/$name.sh" <<RUNNER
-#!/usr/bin/env bash
-echo "\$(date -Is) start [selftest]" > "$STATUS/$name.running"
+echo "\$ start [selftest]" > "$STATUS/$name.running"
 { echo "A2O_SELFTEST: window live in session '$SESSION' on \$(hostname)"; sleep 1; echo "A2O_SELFTEST_OK: dispatch->window->log->capture verified"; } 2>&1 | tee -a "$LOGS/$name.log"
 rc=\${PIPESTATUS[0]}; rm -f "$STATUS/$name.running"; echo "\$rc" > "$STATUS/$name.status"
 echo "=== [mios-a2o] selftest finished rc=\$rc ===" | tee -a "$LOGS/$name.log"
@@ -344,15 +278,10 @@ RUNNER
   chmod +x "$RUND/$name.sh"
   tmux kill-window -t "$SESSION:$name" 2>/dev/null || true
   tmux new-window -t "$SESSION" -n "$name" -c "$WORK_DEFAULT" "bash '$RUND/$name.sh'"
-  echo "selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
-  echo "roles configured:"
-  echo "  orchestrator=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  laneA=$LANE_A_ENGINE:$LANE_A_MODEL(effort=$LANE_A_EFFORT)  laneB=$LANE_B_ENGINE:$LANE_B_MODEL(effort=$LANE_B_EFFORT)"
+  echo "Selftest dispatched to $SESSION:selftest — verify: mios-a2o status ; mios-a2o tail selftest"
+  echo "Roles configured:"
+  echo "  orchestrator=$ORCH_ENGINE:$ORCH_MODEL  laneA=$LANE_A_ENGINE:$LANE_A_MODEL  laneB=$LANE_B_ENGINE:$LANE_B_MODEL"
 
-  # ── frontier-layout assertion (ENGINE-FREE) ── prove `frontier` lays out exactly
-  # 4 titled panes with the resolved role model ids. Launched headless into a
-  # throwaway session (MIOS_A2O_NOATTACH=1 so it never attaches). Degrade-open: a
-  # missing/unauthed engine still yields 4 panes — the orchestrator pane falls back
-  # to a shell, it does NOT vanish — so this passes with no claude/agy auth.
   local FS="${SESSION}-frontier-selftest" lay_ok=1 lay_msg="" panes npanes role mdl expect
   tmux kill-session -t "$FS" 2>/dev/null || true
   ( export MIOS_A2O_NOATTACH=1 MIOS_A2O_FRONTIER="$FS"; cmd_frontier ) >/dev/null 2>&1 || true
@@ -366,7 +295,7 @@ RUNNER
   [ "$npanes" = 4 ] || { lay_ok=0; lay_msg="$lay_msg pane-count=$npanes(want 4)"; }
   tmux kill-session -t "$FS" 2>/dev/null || true
   if [ "$lay_ok" = 1 ]; then
-    echo "FRONTIER-LAYOUT: PASS — 4 panes [ORCHESTRATOR/LANE A/LANE B/MONITOR] carry resolved role models ($ORCH_MODEL, $LANE_A_MODEL, $LANE_B_MODEL)"
+    echo "FRONTIER-LAYOUT: PASS — 4 panes [ORCHESTRATOR/LANE A/LANE B/MONITOR] carry resolved role models"
   else
     echo "FRONTIER-LAYOUT: FAIL —$lay_msg"
     return 1
@@ -386,11 +315,11 @@ cmd_follow(){  # live-tail newest task log; --engine <eng> filters that lane; wa
   local n="" eng=""
   while [ $# -gt 0 ]; do case "$1" in --engine) eng="${2:-}"; shift 2;; *) n="$1"; shift;; esac; done
   if [ -z "$n" ]; then
-    echo ">>> ${eng:-any} lane -- waiting for the newest ${eng:+$eng }task (dispatch it; it streams here)..."
+    echo ">>> ${eng:-any} lane"
     while :; do n="$(newest_task "$eng")"; [ -n "$n" ] && break; sleep 2; done
   fi
-  [ -f "$LOGS/$n.log" ] || die "no log for '$n'"
-  echo ">>> following '$n'${eng:+ [$eng]} -- Ctrl-C to stop"
+  [ -f "$LOGS/$n.log" ] || die "No log for '$n'"
+  echo ">>> following '$n'${eng:+ [$eng]}"
   exec tail -n +1 -F "$LOGS/$n.log"
 }
 
@@ -417,27 +346,23 @@ cmd_frontier(){  # ORCHESTRATOR (main) + LANE A / LANE B / MONITOR
   local S="${MIOS_A2O_FRONTIER:-mios-frontier}" self
   self="$(command -v mios-a2o 2>/dev/null || readlink -f "$0" 2>/dev/null || echo "$0")"
   if tmux has-session -t "$S" 2>/dev/null; then
-    if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"; else echo "frontier '$S' already up"; return 0; fi
+    if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"; else echo "Frontier '$S' already up"; return 0; fi
   fi
   ensure_server
-  # Orchestrator launcher script (avoids tmux send-keys quoting hell). Sonnet-5
-  # interactive, model+effort pinned, seeded with the A2O doctrine via
-  # --append-system-prompt; degrade to a shell+help if the engine is missing.
   local orch_bin orch_eff
   orch_bin="$(engine_bin "$ORCH_ENGINE" 2>/dev/null || echo "$ORCH_ENGINE")"
   orch_eff="$(effort_flag "$ORCH_ENGINE" "$ORCH_EFFORT")"
   mkdir -p "$RUND"
   cat > "$RUND/orchestrator.sh" <<ORUN
-#!/usr/bin/env bash
 export PATH="$PATH"
 cd "$WORK_DEFAULT" 2>/dev/null || true
 BRIEF="\$(cat "$ORCH_BRIEF" 2>/dev/null || true)"
 if ! command -v "$orch_bin" >/dev/null 2>&1; then
-  echo "[frontier] orchestrator engine '$ORCH_ENGINE' ($orch_bin) not installed -- run: mios-a2o doctor"; echo
+  echo "[frontier] orchestrator engine '$ORCH_ENGINE' not installed"; echo
   "$self" frontier-help; exec bash
 fi
-echo "[frontier] ORCHESTRATOR=$ORCH_ENGINE:$ORCH_MODEL(effort=$ORCH_EFFORT)  LANE A=$LANE_A_MODEL($LANE_A_ROLE)  LANE B=$LANE_B_MODEL($LANE_B_ROLE)"
-[ -n "\$BRIEF" ] || echo "[frontier] WARN: no orchestrator-brief -- launching without the doctrine"
+echo "[frontier] ORCHESTRATOR=$ORCH_ENGINE:$ORCH_MODEL  LANE A=$LANE_A_MODEL  LANE B=$LANE_B_MODEL"
+[ -n "\$BRIEF" ] || echo "[frontier] WARN: no orchestrator-brief"
 case "$ORCH_ENGINE" in
   claude)
     if [ -n "\$BRIEF" ]; then exec "$orch_bin" --model "$ORCH_MODEL" $orch_eff --append-system-prompt "\$BRIEF"
@@ -454,7 +379,6 @@ ORUN
   tmux set-option -t "$S" -g history-limit 500000 >/dev/null 2>&1 || true
   tmux set-option -t "$S" -g pane-border-status top          >/dev/null 2>&1 || true
   tmux set-option -t "$S" -g pane-border-format " #{pane_title} " >/dev/null 2>&1 || true
-  # pane0 = ORCHESTRATOR (left). Right column = LANE A / LANE B / MONITOR.
   tmux split-window -h -t "$S:frontier.0" -c "$WORK_DEFAULT" -p 52
   tmux split-window -v -t "$S:frontier.1" -c "$WORK_DEFAULT" -p 66
   tmux split-window -v -t "$S:frontier.2" -c "$WORK_DEFAULT" -p 50
@@ -468,7 +392,7 @@ ORUN
   tmux send-keys -t "$S:frontier.0" "bash '$RUND/orchestrator.sh'" C-m
   tmux select-pane -t "$S:frontier.0"
   if [ -t 1 ] && [ -z "${MIOS_A2O_NOATTACH:-}" ]; then exec tmux attach -t "$S"
-  else echo "frontier '$S' ready -- attach: tmux attach -t $S"; tmux list-panes -t "$S:frontier" -F '  pane #{pane_index}: #{pane_title}'; fi
+  else echo "Frontier '$S' ready"; tmux list-panes -t "$S:frontier" -F '  pane #{pane_index}: #{pane_title}'; fi
 }
 
 sub="${1:-help}"; shift 2>/dev/null || true
@@ -478,14 +402,14 @@ case "$sub" in
   attach) cmd_attach "$@";; list) cmd_list "$@";; kill) cmd_kill "$@";; doctor) cmd_doctor "$@";; selftest) cmd_selftest "$@";;
   follow) cmd_follow "$@";; frontier) cmd_frontier "$@";; frontier-help) cmd_frontier_help "$@";; warroom) cmd_frontier "$@";;
   help|-h|--help)
-    echo "mios-a2o — ORCHESTRATOR (Sonnet 5) || sub-agents (Opus 4.8 framework / Gemini Flash 3.5 finalize) tmux frontier"
-    echo "  frontier                             launch the war-room (Orchestrator | Lane A / Lane B / Monitor)"
-    echo "  lane <a|b> <name>                    dispatch to a sub-agent role (a=framework/Opus, b=finalize/Gemini); prompt on stdin"
-    echo "  dispatch <name> [engine] [workdir] [model] [effort]   run a task (prompt on stdin) in its own window (non-blocking)"
-    echo "  follow [name] [--engine agy|claude]  live-tail a lane (default: newest)"
+    echo "Mios-a2o — ORCHESTRATOR || sub-agents tmux frontier"
+    echo "  frontier                             launch the war-room"
+    echo "  lane <a|b> <name>                    dispatch to a sub-agent role; prompt on stdin"
+    echo "  dispatch <name> [engine] [workdir] [model] [effort]   run a task in its own window"
+    echo "  follow [name] ["
     echo "  status [name] | tail <name> [n] | capture <name> [n] | send <name> <keys...>"
-    echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|--all | doctor | selftest"
-    echo "roles: orchestrator=$ORCH_ENGINE:$ORCH_MODEL  laneA=$LANE_A_ENGINE:$LANE_A_MODEL  laneB=$LANE_B_ENGINE:$LANE_B_MODEL"
-    echo "env: MIOS_A2O_{ORCH,LANE_A,LANE_B}_{ENGINE,MODEL,EFFORT} MIOS_A2O_AUTO=1 MIOS_A2O_*_EFFORT_FLAG MIOS_A2O_ORCH_BRIEF";;
-  *) die "unknown command: $sub (try: mios-a2o help)";;
+    echo "  repl [engine] [name] [workdir] | attach | list | kill <name>|"
+    echo "Roles: orchestrator=$ORCH_ENGINE:$ORCH_MODEL  laneA=$LANE_A_ENGINE:$LANE_A_MODEL  laneB=$LANE_B_ENGINE:$LANE_B_MODEL"
+    echo "Env: MIOS_A2O_{ORCH,LANE_A,LANE_B}_{ENGINE,MODEL,EFFORT} MIOS_A2O_AUTO=1 MIOS_A2O_*_EFFORT_FLAG MIOS_A2O_ORCH_BRIEF";;
+  *) die "Unknown command: $sub";;
 esac

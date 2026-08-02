@@ -6,7 +6,6 @@
 set -euo pipefail
 
 main() {
-    # Task logic
     :
 }
 

@@ -36,7 +36,6 @@ def main():
     otp = ipa.get("otp", "placeholder-one-time-password")
 
     rendered = f"""# FreeIPA Zero-Touch Enrollment Config
-# Generated from mios.toml [identity.ipa] -- DO NOT EDIT DIRECTLY
 MIOS_IPA_ENABLED="{enabled}"
 MIOS_IPA_REALM="{realm}"
 MIOS_IPA_SERVER="{server}"

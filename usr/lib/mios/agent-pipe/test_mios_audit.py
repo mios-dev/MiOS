@@ -31,7 +31,6 @@ def _fresh_chainer():
 
 class TestEventChain(unittest.TestCase):
     def setUp(self):
-        # Tests toggle the module-global flag; snapshot + restore so order can't leak.
         self._enable = A.CHAIN_ENABLE
         A.CHAIN_ENABLE = True
 
@@ -50,7 +49,6 @@ class TestEventChain(unittest.TestCase):
                          [r["chain_hash"] for r in s2])
         self.assertEqual([r["chain_seq"] for r in s1], [1, 2, 3, 4])
         self.assertEqual(s1[0]["prev_hash"], A.GENESIS)
-        # each link's prev_hash is the predecessor's chain_hash
         for prev, cur in zip(s1, s1[1:]):
             self.assertEqual(cur["prev_hash"], prev["chain_hash"])
 
@@ -101,7 +99,6 @@ class TestEventChain(unittest.TestCase):
         rows = [c.stamp({"source": "s", "kind": "k", "payload": p})
                 for p in ("text", 7, [1, 2, 3])]
         self.assertTrue(A.verify_chain(rows)["ok"])
-        # and a content edit to a non-dict payload is still detected
         rows[0] = dict(rows[0]); rows[0]["payload"] = "TEXT"
         self.assertFalse(A.verify_chain(rows)["ok"])
 
@@ -113,19 +110,15 @@ class TestEventChain(unittest.TestCase):
         parsed object) -- else the chain reports a spurious "broken" link."""
         payload_dict = {"b": 2, "a": 1, "nested": [3, {"z": 9}]}
         payload_str = json.dumps(payload_dict)        # pre-serialised JSON string form
-        # canonical_core agrees on both shapes ...
         self.assertEqual(
             A.canonical_core({"source": "s", "kind": "k", "payload": payload_str}),
             A.canonical_core({"source": "s", "kind": "k", "payload": payload_dict}))
-        # ... so two chainers stamp the SAME chain_hash for the two forms.
         c1, c2 = _fresh_chainer(), _fresh_chainer()
         r_str = c1.stamp({"source": "s", "kind": "k", "payload": payload_str})
         r_dict = c2.stamp({"source": "s", "kind": "k", "payload": payload_dict})
         self.assertEqual(r_str["chain_hash"], r_dict["chain_hash"])
-        # WRITE sees the string, VERIFY sees the dict the DB round-trips back -> verifies.
         verify_row = dict(r_str); verify_row["payload"] = payload_dict
         self.assertTrue(A.verify_chain([verify_row])["ok"])
-        # a genuine free-text (non-JSON) string payload is untouched and still verifies.
         free = _fresh_chainer().stamp({"source": "s", "kind": "k", "payload": "hello world"})
         self.assertTrue(A.verify_chain([free])["ok"])
 
@@ -137,7 +130,6 @@ class TestEventChain(unittest.TestCase):
         again = c.stamp(first)                   # already has chain_hash
         self.assertEqual(again["chain_seq"], first["chain_seq"])
         self.assertEqual(again["chain_hash"], first["chain_hash"])
-        # the next genuinely-new event is seq+1 (chain advanced exactly once)
         nxt = c.stamp({"source": "s", "kind": "k", "payload": "y"})
         self.assertEqual(nxt["chain_seq"], first["chain_seq"] + 1)
         self.assertEqual(nxt["prev_hash"], first["chain_hash"])

@@ -1,13 +1,10 @@
 #!/usr/bin/env bash
 # AI-hint: Libvirt QEMU hook script that executes a Function Level Reset (FLR) on PCI host devices during VM preparation/release to mitigate GSP firmware initialization bugs on RTX 50-series hardware.
-# libvirt QEMU hook to force FLR (Function Level Reset) on VFIO devices
-# Mitigates the RTX 50-series (Blackwell) GSP firmware initialization bug
 
 GUEST_NAME="$1"
 OPERATION="$2"
 SUB_OP="$3"
 
-# Find all PCI host devices attached to this VM
 PCI_DEVICES=$(virsh dumpxml "$GUEST_NAME" | grep -E "type='pci'" -A 5 | grep -E 'source' -A 3 | grep -oP "bus='0x[0-9a-fA-F]+' slot='0x[0-9a-fA-F]+' function='0x[0-9a-fA-F]+'" || true)
 
 if [ -n "$PCI_DEVICES" ]; then

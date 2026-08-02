@@ -30,15 +30,12 @@ def t_noop():
 
 
 def t_summarize_oldest():
-    # 10 user turns of 40 chars (10 tokens) each = 100 tokens; budget 40.
     msgs = [m("user", f"turn{i} " + "x" * 33) for i in range(10)]
     plan = cmp.plan_compaction(msgs, budget=40, keep_recent=2)
     check("compact: needed True (over budget)", plan.needed is True)
     check("compact: keeps within budget", plan.kept_tokens <= 40, f"{plan.to_dict()}")
-    # The last 2 turns are always kept.
     kept_texts = [x["content"] for x in plan.to_keep]
     check("compact: last keep_recent kept", msgs[-1]["content"] in kept_texts and msgs[-2]["content"] in kept_texts)
-    # The oldest turn is summarized, not kept.
     check("compact: oldest folded into summary", msgs[0] in plan.to_summarize)
     check("compact: split is a partition", len(plan.to_keep) + len(plan.to_summarize) == 10)
 

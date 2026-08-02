@@ -1,5 +1,4 @@
 <!-- AI-hint: Describe the roadmap workstream tasks and progress here. -->
-## WS-{{id}} — {{title}}
 <!--
 id: WS-{{id}}
 title: {{title}}
@@ -15,7 +14,6 @@ acceptance: |
 -->
 *{{description}}*
 
-### {{id}}-01 — {{task_title}}  **[{{priority}}]**  (→ T-{{task_id}})
 - **What:** Detail the task description.
 - **Why:** Explain the rationale.
 - **Files:** List of modified/new files.

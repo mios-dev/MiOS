@@ -34,14 +34,6 @@ from mios_config import (  # SSOT mios.toml reader + model-call scalars (sibling
 log = logging.getLogger("mios-agent-pipe")
 
 
-# ── Dependency-injection seam ─────────────────────────────────────
-# The verity/polish cluster reads several server.py module constants and calls
-# back into server.py runtime helpers (DB reads, tool-history formatting,
-# knowledge store, clarify judge, the proposal contextvar). server.py calls
-# configure() with those AFTER every one is defined (one-way boundary: this
-# module never imports server). They stay at their import-time defaults until
-# then; every consumer is async/runtime so a standalone ``import mios_verity``
-# still succeeds.
 REFINE_TIMEOUT_S = int(os.environ.get("MIOS_REFINE_TIMEOUT_S", "30"))
 REFINE_ENDPOINT = ""
 REFINE_MODEL = ""
@@ -56,11 +48,6 @@ POLISH_MAX_TOKENS = 800
 POLISH_TIMEOUT_S = 15
 ASK_CLARIFY_JUDGE_ENABLE = False
 
-# Sentence-split abbreviation exceptions for the figure-guard's script-neutral
-# splitter (mios_verity._strip_ungrounded_figures -> _sents). SSOT-sourced from
-# mios.toml [verity].sentence_abbreviations; the Latin set below is the documented
-# vendor default (matches the shipped mios.toml value) so a standalone import still
-# works when the file/section is absent (degrade-open). configure() can override.
 _ABBR_DEFAULT = ("approx.", "Approx.", "e.g.", "i.e.", "vs.", "etc.", "U.S.",
                  "U.K.", "a.m.", "p.m.", "No.", "Inc.", "Co.", "Ltd.", "St.", "Mt.")
 
@@ -199,9 +186,6 @@ async def _clarify_question(user_text: str, answer: str) -> str:
         return ""
 
 
-# Final-pass VERITY fact-check ("checks passes for final
-# output can use web tools globally quickly fact check things for uncertainties --
-# should be able to generate queries to investigate the results for verity").
 VERITY_FACTCHECK = os.environ.get(
     "MIOS_VERITY_FACTCHECK", "true").lower() not in {"false", "0", "no"}
 VERITY_FACTCHECK_MAX_Q = int(os.environ.get("MIOS_VERITY_FACTCHECK_MAX_Q", "2"))
@@ -311,33 +295,16 @@ def _strip_ungrounded_figures(answer: str, haystack: str) -> str:
     hay_low = hay.lower()
     if not hay_nums:
         return answer  # no numeric grounding to check against -> leave as-is
-    # Digits are unicode-aware by default (\d matches any script's decimal digit);
-    # the percent sign is accepted in ASCII '%' and fullwidth '％' (CJK) so the
-    # numeric guard is script-neutral.
     fig_re = re.compile(
         r"(?:US|C|A|NZ|HK)?\$\s?\d[\d,]*(?:\.\d+)?|\d+(?:\.\d+)?\s?[%％]")
 
     def _ok(tok: str) -> bool:
         nums = re.findall(r"\d+", tok.replace(",", ""))
         if "%" in tok or "％" in tok:
-            # percent: require a matching '<n>%' / '<n> percent' in the source,
-            # not just the bare digit (which collides with years, versions, etc.)
             return any(re.search(rf"(?<!\d){n}\s?(?:%|％|percent)", hay_low)
                        for n in nums)
-        # price: the exact number must be one the source actually produced
         return any(n in hay_nums for n in nums)
 
-    # Abbreviation-protected, SCRIPT-NEUTRAL sentence split. Two boundary classes:
-    #   (1) ASCII terminator [.!?] FOLLOWED BY whitespace -- the period is protected
-    #       inside the SSOT abbreviation list (_ABBR, sourced from mios.toml [verity])
-    #       so "approx." / "U.S." don't split off the grounded "$X USD)" fragment
-    #       after them (observed live "C$586 (approx." dangling), then restored.
-    #   (2) a unicode sentence terminator (。！？．؟।) -- CJK / Arabic / Devanagari
-    #       scripts write WITHOUT a trailing space, so an ASCII-only `[.!?]\s+`
-    #       splitter treated a whole multi-sentence CJK line as ONE sentence and
-    #       dropped its grounded text wholesale when ANY clause carried an
-    #       ungrounded figure. Splitting on these gives non-Latin answers the same
-    #       per-sentence granularity Latin ones already had.
     def _sents(line: str) -> list:
         tmp = line
         for ab in _ABBR:
@@ -371,8 +338,6 @@ def _strip_ungrounded_figures(answer: str, haystack: str) -> str:
     rebuilt = re.sub(r"\n{3,}", "\n\n",
                      "\n".join(l for l in out_lines if l is not None)).strip()
     log.info("figure-guard: dropped %d ungrounded $/%% sentence(s)", dropped)
-    # Never return an empty/whitespace-only rebuild (an all-whitespace string is truthy
-    # and would slip past `rebuilt or answer`): fall back to the original answer.
     return rebuilt if rebuilt and rebuilt.strip() else answer
 
 
@@ -406,27 +371,17 @@ async def polish_response(raw_text: str,
     intended = (refined or {}).get("intended_outcome", "") or ""
     refined_q = (refined or {}).get("refined_text", "") or ""
     orig_q = (original_user_text or "").strip()
-    # Language anchor = operator's own words; fall back to the rewrite.
     user_q = orig_q or refined_q
     tool_history = await _recent_tool_history(session_id)
     has_failed_tool = any(
         r.get("success") is False for r in tool_history
     )
-    # Skip when intended is empty + raw is short + no failed tools.
-    # If a tool FAILED, we ALWAYS polish so the response gets
-    # ground-truth-checked even on short answers.
     if not intended and len(raw_text) < 200 and not has_failed_tool:
         log.info("polish: skipped (no intended_outcome + raw<200 chars + no failed tools)")
         return None
     system = _POLISH_SYSTEM + "\n" + _env_grounding() + (
         f"\nIntended outcome: {intended}\n" if intended else ""
     )
-    # Persona application ("polish the stack's final
-    # response WITH PERSONA APPLIED"). The OWUI pipe injects the operator's
-    # persona + the SSOT environment/language/locale guidance as system
-    # messages; pass them here so the FINAL answer carries the operator's
-    # voice/tone/verbosity/units + the right language. Framed as STYLE only
-    # so the tight re-shaper never treats it as new tasks/tools.
     if persona_system and persona_system.strip():
         system += (
             "\n\nFINAL-ANSWER STYLE & PERSONA (apply to voice, tone, length, "
@@ -434,17 +389,8 @@ async def polish_response(raw_text: str,
             "to add):\n" + persona_system.strip()[:2000]
         )
     hist_block = _format_tool_history(tool_history)
-    # Phase E.1d: also fold in mios-daemon's satisfaction verdicts so
-    # polish has the daemon's AND-folded ground truth available
-    # alongside the raw tool_call rows. The daemon verdict is the
-    # MOST AUTHORITATIVE signal (it cross-checks multiple sources);
-    # raw tool_calls are still useful for the per-step detail.
     sat_verdicts = await _recent_satisfaction_verdicts(limit=3)
     sat_block = _format_satisfaction_block(sat_verdicts)
-    # Thinking is disabled via enable_thinking=False on the /v1 call below -- qwen3
-    # ignores /no_think and would otherwise emit empty content after a
-    # long think pass (same fix + failure mode as refine; was the source
-    # of the 45s polish timeout, operator test).
     user_msg_parts = [
         f"User's ORIGINAL message (reply in THIS exact language, "
         f"one language only):\n{user_q}"
@@ -457,38 +403,19 @@ async def polish_response(raw_text: str,
         user_msg_parts.append(sat_block)
     if hist_block:
         user_msg_parts.append(hist_block)
-    # Evidence for the INVOKED-TOOL CHECK in _POLISH_SYSTEM: the verbs the
-    # sub-agent ACTUALLY invoked this turn (captured from its tool-call
-    # stream). Lets polish refuse a "done"/"sent"/"posted" claim the agent
-    # made WITHOUT a matching tool invocation (the
-    # agent fabricated "I've sent it to Discord" / a fake OpenUI render with
-    # no tool actually run). Empty list => the agent invoked NO tools, so any
-    # completed-action claim is unbacked.
     if agent_tools is not None:
         _inv = ", ".join(str(t) for t in agent_tools) if agent_tools else "(none)"
         user_msg_parts.append(
             f"Tools the agent ACTUALLY invoked this turn: {_inv}")
-    # SOURCES survive the handoff : the live web-research
-    # grounding (with [n] URLs + fetched text) reaches the FINAL pass so it can
-    # cite [n] inline and verify the draft against the REAL sources, not just the
-    # agents' paraphrase.
     _src = (refined or {}).get("_web_sources") or ""
     if _src:
         user_msg_parts.append(
             "WEB SOURCES used this turn (cite [n] inline; verify the draft's "
             "specifics against these -- assert only what they support):\n"
             + _src[:6000])
-    # VERITY fact-check: fresh searches verifying the draft's uncertain specifics
-    # (the checks pass can use web tools to fact-check).
     _fc_block = await _verity_factcheck(raw_text, user_q, refined)
     if _fc_block:
         user_msg_parts.append(_fc_block)
-    # Feed the FULL sub-agent draft (capped generously) so polish
-    # synthesises the complete answer instead of a truncated/mis-focused
-    # slice -- the 3500 cap made polish produce partial answers + "no
-    # data" contradictions of a summary it couldn't fully see (operator
-    #). The polish now runs on the fast 4b dGPU lane, so 8000
-    # chars is cheap.
     user_msg_parts.append(f"Raw answer from sub-agent:\n{raw_text[:8000]}")
     user_msg = "\n\n".join(user_msg_parts)
     url, payload = _polish_post(
@@ -513,33 +440,16 @@ async def polish_response(raw_text: str,
         log.warning("polish unexpected error: %s", e)
         return None
     log.info("polish: %.1fs", time.time() - t0)
-    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
     choices = body.get("choices") or []
     msg = (choices[0].get("message") if choices else {}) or {}
     polished = (msg.get("content") or "").strip()
     if not polished:
         return None
-    # OUTPUT-SIDE anti-fabrication guard: drop any $-price / N%-percent the
-    # polish model INVENTED (absent from the draft+research+agents'-findings+
-    # web sources it was given). Catches the recurring "as low as $184 [3]" /
-    # "~2% cheaper [1]" tip-fabrication that the prompt rules alone don't hold
-    # on the 4b lane. Haystack = everything polish saw.
     polished = _strip_ungrounded_figures(
         polished, "\n".join([raw_text or "", _src or "", _fc_block or ""]))
-    # Non-empty guarantee : the figure-guard must NEVER leave a
-    # grounded answer empty/blank -- if it did, keep the model's own raw draft instead
-    # (which then feeds the answer, never a hardcoded dead-end downstream).
     if not (polished and polished.strip()):
         log.info("polish: figure-guard emptied a grounded answer -> raw draft")
         polished = (raw_text or "").strip()
-    # ASK-TO-RUN proposal + anti-fabrication ("mios daemon should
-    # ask user to run things"): if a HITL-tier action was intercepted this turn, the pipe
-    # PROPOSES it (a pending_action was recorded) and asks the user to approve -- instead
-    # of silently no-op'ing or (worse) the small model FABRICATING the un-run result
-    # (live-seen: a blocked `coderun` -> a WRONG in-head product as exact). Render a
-    # clear, portable proposal (NL + a fenced mios_proposed_action JSON block; works in
-    # OWUI + CLI, which do NOT execute upstream tool_calls -- research §4). The user's
-    # next "yes" (model-classified) re-runs it. The HITL gate itself is UNCHANGED.
     try:
         _prop = _proposal_var.get()
         if isinstance(_prop, dict) and _prop.get("tool") and "mios_proposed_action" not in (polished or ""):
@@ -558,11 +468,6 @@ async def polish_response(raw_text: str,
                 f"\n\n```json\n{_block}\n```")
     except Exception:  # noqa: BLE001 -- never break the answer on the proposal note
         pass
-    # GLOBAL ASK-USER: clarification ("ask user... for questions and
-    # clarifications too, not just coderunning"). If the answer is PRIMARILY a clarifying
-    # QUESTION (model-classified; gated on a '?' so the judge runs rarely) and we did NOT
-    # already propose an action, mark it mios_clarification so OWUI/Hermes render a native
-    # INPUT prompt (the typed answer becomes the next turn). Degrade-open.
     try:
         if (ASK_CLARIFY_JUDGE_ENABLE and "?" in (polished or "")
                 and not isinstance(_proposal_var.get(), dict)
@@ -574,23 +479,9 @@ async def polish_response(raw_text: str,
                 polished = (polished or "").rstrip() + f"\n\n```json\n{_cb}\n```"
     except Exception:  # noqa: BLE001 -- never break the answer on the clarify note
         pass
-    # Store the finished Q+A (with sources) to the global knowledge table.
-    # Fire-and-forget -- the answer is already returned regardless.
-    # P2: satisfied is left None here -- polish_response has no DoD verdict in
-    # scope (the inline satisfaction check runs in this function's CALLERS,
-    # async, not threaded down). Degrade-open: the outcome field is simply
-    # omitted (recall rank treats it neutral). Wiring the live verdict down to
-    # this store call is a follow-up; we deliberately do NOT add a new
-    # synchronous satisfaction call in the hot path.
     _store_knowledge(query=user_q, answer=polished,
                      session_id=session_id, tool_history=tool_history,
                      satisfied=None)
-    # P5.7 (Hermes v2026.5.28 brief L6 "closed-loop self-learning"): render
-    # the run as a SKILL.md episodic-memory file alongside the knowledge row.
-    # Same fire-and-forget posture; failure logs at debug + never affects the
-    # already-returned answer. Knowledge table is the RAG-recall surface; the
-    # SKILL.md is the human-readable + Obsidian-vault-compatible mirror that
-    # the upcoming OpenViking-style L0/L1/L2 indexer (#62) can ingest.
     _write_skill_md_fire(query=user_q, answer=polished,
                          tool_history=tool_history, session_id=session_id)
     return polished

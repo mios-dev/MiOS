@@ -10,7 +10,7 @@ mios_log "'MiOS' ${MIOS_VERSION:-} user & authentication"
 mios_log "Configuring PAM via authselect"
 if command -v authselect &>/dev/null; then
     authselect select local --force 2>/dev/null || authselect select minimal --force 2>/dev/null || {
-        mios_warn "authselect select failed -- using overlay fallback"
+        mios_warn "Authselect select failed"
     }
     authselect apply-changes --force 2>/dev/null || authselect opt-out 2>/dev/null || true
 fi
@@ -70,9 +70,9 @@ if getent passwd "${C_USER}" >/dev/null; then
     fi
     if [[ "$pw_hash" =~ ^\$6\$ ]]; then
         echo "${C_USER}:${pw_hash}" | chpasswd -e
-        mios_ok "password hash baked into /etc/shadow for ${C_USER}"
+        mios_ok "Password hash baked into /etc/shadow for ${C_USER}"
     else
-        mios_warn "pw_hash is not sha512crypt -- skipping; user will be locked"
+        mios_warn "Pw_hash is not sha512crypt"
     fi
 else
     mios_err "failed to create user ${C_USER}"
@@ -107,4 +107,4 @@ mios_log "Fixing home directory ownership"
 done
 
 
-mios_ok "user & authentication configured"
+mios_ok "User & authentication configured"

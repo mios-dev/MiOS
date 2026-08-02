@@ -39,8 +39,6 @@ import socket
 from typing import Any
 
 SOCKET_PATH = os.environ.get("MIOS_CODEMODE_SOCKET", "/run/coderun.sock")
-# Per-call wall-clock budget for the socket round-trip (the verb itself is bounded
-# host-side; this just stops a hung socket from wedging the snippet).
 CALL_TIMEOUT_S = float(os.environ.get("MIOS_CODEMODE_CALL_TIMEOUT_S", "60") or 60)
 
 
@@ -80,7 +78,6 @@ def _rpc(verb: str, args: dict) -> Any:
     raw = b"".join(chunks).decode("utf-8", "replace").strip()
     if not raw:
         raise ToolError(f"empty response for {verb}")
-    # The host writes one JSON line; take the last non-empty one defensively.
     line = [ln for ln in raw.splitlines() if ln.strip()][-1]
     try:
         resp = _json.loads(line)
@@ -100,9 +97,6 @@ def call(verb: str, **args) -> Any:
     return _rpc(verb, args)
 
 
-# ── Convenience wrappers for the common read verbs (sugar over call()). The host
-#    enforces permission per verb, so a write/launch verb only runs if the deploy
-#    allows it; these wrappers don't widen access. ────────────────────────────
 def web_search(query: str, limit: int = 5) -> Any:
     """Live web search via the MiOS web_search verb (SearXNG-backed)."""
     return _rpc("web_search", {"query": query, "limit": limit})

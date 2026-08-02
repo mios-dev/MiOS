@@ -94,8 +94,6 @@ def t_trace_eviction():
 
 
 def t_lru_touch():
-    # Recording into an existing trace should mark it most-recently-used, so it
-    # survives eviction over a trace that has not been touched.
     T = tr.Tracer(enabled=True, max_traces=2, max_spans_per_trace=8)
     T.record(tr.Span("A", "1", "", "request").finish())
     T.record(tr.Span("B", "1", "", "request").finish())

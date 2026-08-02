@@ -3,7 +3,6 @@
 import os
 import sys
 
-# Ensure agent-pipe modules can be imported
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "usr", "lib", "mios", "agent-pipe"))
 
 try:

@@ -2,13 +2,6 @@
 # AI-hint: Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation).
 # AI-related: usr/share/mios/security, usr/share/mios/mios.toml, usr/lib/systemd/system/mios-agent-pipe.service, tools/generate-k3s-manifests.sh
 # AI-functions: agent_user, build_ruleset, main
-#   Renders usr/share/mios/security/egress.nft from mios.toml [security.egress]
-#   (mode + allow) and the agent-pipe service User= (SSOT, not hardcoded). The
-#   ruleset is UID-scoped to the agent so it constrains ONLY the agent's external
-#   egress -- loopback, tailnet, the local WSL gateway and the operator allowlist
-#   are always permitted; everything else for that user is logged (audit) or
-#   dropped (enforce). The OPERATOR applies it with `nft -f` -- this only
-#   generates the artifact (default mode=off -> a no-op ruleset).
 """Generate the MiOS agent egress firewall (#54).
 
 Zero-trust federation calls for an OUTBOUND firewall: a compromised or misled
@@ -74,8 +67,6 @@ def build_ruleset(mode: str, allow: "list[str]", user: str) -> str:
         allow_rules += f'        ip6 daddr {{ {", ".join(v6)} }} accept\n'
 
     return f"""# AI-hint: GENERATED nftables egress firewall for the MiOS agent (#54). DO NOT EDIT -- regenerate via tools/generate-egress-firewall.py. {note}
-# Apply (operator step): nft -f usr/share/mios/security/egress.nft   |   Remove: nft delete table inet mios_egress
-# mode={mode}  agent-user={user}  always-allowed: loopback + tailnet 100.64.0.0/10 + WSL gateway 172.16.0.0/12 + [security.egress].allow
 table inet mios_egress {{
     chain output {{
         type filter hook output priority filter; policy accept;

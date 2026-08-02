@@ -15,7 +15,6 @@ DROPINS_DIR = os.path.join(ROOT, "usr/share/mios/dropins")
 
 def build_dropin_content(capability: str) -> str:
     return f"""# AI-hint: GENERATED systemd capability drop-in for MiOS (WS-BLADE). DO NOT EDIT -- regenerate via tools/generate-blade-dropins.py.
-# Gates this unit under systemd using the /etc/mios/blade.d/{capability} marker.
 [Unit]
 ConditionPathExists=/etc/mios/blade.d/{capability}
 """
@@ -31,7 +30,6 @@ def main() -> int:
     blade = d.get("blade") or {}
     requires = blade.get("requires") or {}
 
-    # Extract all unique capabilities
     unique_caps = set()
     for caps in requires.values():
         if isinstance(caps, list):
@@ -42,7 +40,6 @@ def main() -> int:
 
     os.makedirs(DROPINS_DIR, exist_ok=True)
 
-    # Generate drop-in files
     for cap in sorted(unique_caps):
         if not cap:
             continue

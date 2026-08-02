@@ -1,6 +1,4 @@
 # AI-hint: stdlib unit test for mios_agent_call budget and depth limits.
-# Verifies the conversation and autonomous token budget ceilings, as well as the
-# max dispatch depth recursion limit.
 import unittest
 import asyncio
 from unittest.mock import patch, MagicMock
@@ -24,7 +22,6 @@ async def dummy_async(*args, **kwargs):
 class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
 
     async def asyncSetUp(self):
-        # Clear/reset state
         target_module._IN_FLIGHT_PROMPTS.clear()
         target_module._SESSION_TOKENS.clear()
         target_module._AUTONOMOUS_SOURCE_TOKENS.clear()
@@ -41,13 +38,11 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
     @patch("mios_pipe.routing.agent_call._conv_key_var")
     async def test_conversation_token_budget_ceiling(self, mock_conv_key, mock_budget):
         mock_conv_key.get.return_value = "session-1"
-        # Mock budget ceiling to 2M tokens
         mock_budget.side_effect = lambda key, default: {
             "conversation_token_ceil": 2000000,
             "max_dispatch_depth": 5
         }.get(key, default)
         
-        # Exceed budget
         target_module._SESSION_TOKENS["session-1"] = 2500000
         
         cfg = {"vram_mb": 0}
@@ -64,7 +59,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             ]
         }
         
-        # Mock downstream dependency to intercept execution after budget check
         class PassedCheck(Exception):
             pass
         target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
@@ -74,7 +68,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
         
-        # Verify that messages are trimmed: should keep system messages + the last 4 non-system messages
         expected = [
             {"role": "system", "content": "sys1"},
             {"role": "system", "content": "sys2"},
@@ -96,7 +89,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             "max_dispatch_depth": 5
         }.get(key, default)
         
-        # Exceed budget
         target_module._AUTONOMOUS_SOURCE_TOKENS["source-1"] = 450000
         
         cfg = {"vram_mb": 0}
@@ -113,7 +105,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             ]
         }
         
-        # Mock downstream dependency to intercept execution after budget check
         class PassedCheck(Exception):
             pass
         target_module._agent_offload_engine = MagicMock(side_effect=PassedCheck)
@@ -123,7 +114,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
                 "test-agent", cfg, body, {}, MagicMock(), priority=1.0
             )
         
-        # Verify that messages are trimmed: should keep system messages + the last 4 non-system messages
         expected = [
             {"role": "system", "content": "sys1"},
             {"role": "system", "content": "sys2"},
@@ -140,7 +130,6 @@ class TestMiosBudgetAndDepth(unittest.IsolatedAsyncioTestCase):
             "max_dispatch_depth": 5
         }.get(key, default)
         
-        # Set current depth to 5 (equal to max)
         target_module._dispatch_depth_var.set(5)
         
         cfg = {"vram_mb": 0}

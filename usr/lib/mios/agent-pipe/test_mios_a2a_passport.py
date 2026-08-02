@@ -24,8 +24,6 @@ def _check(name: str, ok: bool, detail: str = "") -> None:
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# A fake passport pair: sign returns an opaque envelope binding (table, claims);
-# verify accepts only an envelope this signer produced for the SAME (table, claims).
 def _fake_sign(table, claims):
     return {"t": table, "h": P.text_digest(repr(sorted(claims.items()))), "sig": "FAKE"}
 
@@ -68,11 +66,9 @@ def t_roundtrip() -> None:
 
 def t_tamper() -> None:
     md = P.build_metadata("agent-pipe", "alice", "peerX", "ctx1", "open notepad", _fake_sign)
-    # deliver a DIFFERENT instruction than was signed
     v, reason, _ = P.verify(_msg(md), "rm -rf /", _fake_verify)
     _check("tamper: rejected", v is False)
     _check("tamper: caught by digest (before sig)", reason == "text_digest_mismatch", reason)
-    # also: a valid-text but forged signature
     md["passport"]["sig"] = "FORGED"; md["passport"]["h"] = "wronghash"
     v2, r2, _ = P.verify(_msg(md), "open notepad", _fake_verify)
     _check("tamper: bad signature rejected", v2 is False, r2)

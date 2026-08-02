@@ -41,19 +41,13 @@ from typing import Any, Dict, List, Optional
 
 from agent.web_search_provider import WebSearchProvider
 
-# Boilerplate containers stripped WITH their contents (never the article body).
 _DROP = re.compile(
     r"(?is)<(script|style|head|nav|footer|aside|svg|noscript|form|button|"
     r"select|dialog|iframe|template)\b[^>]*>.*?</\1>")
-# Main-content containers -- prefer the largest <article>/<main> subtree so
-# site chrome (menus, promos, section lists) is dropped (the news-page win).
 _MAIN = re.compile(r"(?is)<(?:article|main)\b[^>]*>(.*?)</(?:article|main)>")
 _TITLE = re.compile(r"(?is)<title\b[^>]*>(.*?)</title>")
 _TAGS = re.compile(r"(?s)<[^>]+>")
 
-# Tier-2 escalation knobs (SSOT-overridable; defaults work offline). When urllib
-# extracts fewer than MIN_CHARS of text the page is treated as a JS shell /
-# dynamic / blocked page and re-read via crawl4ai (CDP + Camoufox).
 _CRAWL_BIN = shutil.which("mios-crawl") or "/usr/libexec/mios/mios-crawl"
 _CRAWL_ENABLE = os.environ.get(
     "MIOS_MIOSFETCH_CRAWL", "true").strip().lower() in {"1", "true", "yes", "on"}
@@ -125,7 +119,6 @@ def _crawl_one(url: str, max_chars: int, timeout: float) -> Optional[Dict[str, A
             "metadata": {"extractor": "crawl4ai", "engine": d.get("engine")},
         }
     except Exception:
-        # crawl4ai down / mios-crawl missing / timeout -> graceful: keep urllib.
         return None
 
 
@@ -156,11 +149,8 @@ class MiosFetchProvider(WebSearchProvider):
             urls = [urls]
 
         async def _one(u: str) -> Dict[str, Any]:
-            # Tier 1: fast offline urllib.
             base = await asyncio.to_thread(_fetch_one, u, max_chars, timeout)
             content = base.get("content") or ""
-            # Tier 2: thin/JS/blocked -> escalate to crawl4ai (CDP + Camoufox).
-            # Keep whichever tier returns more real content.
             if len(content) < _CRAWL_MIN_CHARS:
                 rich = await asyncio.to_thread(_crawl_one, u, max_chars, _CRAWL_TIMEOUT)
                 if rich and len(rich.get("content") or "") > len(content):

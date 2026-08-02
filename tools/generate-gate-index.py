@@ -21,7 +21,6 @@ def main():
     with open(script_path, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # Extract main() function block (from `main() {` to the end of the file or `main "$@"`)
     main_start = content.find("main() {")
     if main_start == -1:
         sys.stderr.write("ERROR: main() function not found in 98-drift-checks.sh\n")
@@ -39,10 +38,8 @@ def main():
         sys.stderr.write(f"ERROR: Duplicate check_* functions found in main(): {set(dups)}\n")
         sys.exit(1)
 
-    # Parse function definitions and descriptions
     rows = []
     for idx, name in enumerate(check_names, 1):
-        # Look for comment right before or at top of function definition
         pattern = r"(?:#\s*---\s*(?:\(\d+,\s*)?([^\n#]+?)\s*---\s*\n)?\s*" + re.escape(name) + r"\(\)\s*\{"
         comment_match = re.search(pattern, content)
         desc = ""

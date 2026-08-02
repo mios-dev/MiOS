@@ -24,7 +24,6 @@ class MiOSMCPClient:
             from mcp.client.stdio import stdio_client
             
             command = "/usr/libexec/mios/mios-mcp-server"
-            # Ensure the subprocess has env for connecting back to orchestrator
             env = dict(os.environ)
             env["MIOS_AGENT_PIPE_URL"] = os.environ.get("MIOS_AGENT_PIPE_URL", "http://localhost:8640")
             
@@ -42,15 +41,12 @@ class MiOSMCPClient:
                 await self.session.__aenter__()
                 await self.session.initialize()
                 
-                # Fetch initial tools list
                 await self._fetch_tools()
                 
-                # Start refresh background task
                 self._refresh_task = asyncio.create_task(self._refresh_loop())
                 log.info("MCP client connected successfully and loaded %d tools", len(self.cached_tools))
             except Exception as e:
                 log.error("Failed to connect stdio MCP client: %s", e)
-                # Cleanup if failed
                 await self._cleanup()
                 
     async def _fetch_tools(self) -> None:
@@ -79,7 +75,6 @@ class MiOSMCPClient:
                 raise RuntimeError("MCP client is not connected")
             try:
                 res = await self.session.call_tool(name, arguments)
-                # Parse output content from response
                 content_list = getattr(res, "content", []) or []
                 text_outputs = []
                 for content in content_list:

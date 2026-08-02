@@ -30,7 +30,7 @@ mios_log "Import Fedora ${_fver} GPG key"
 GPG_KEY_PATH="/etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-${_fver}-x86_64"
 if [[ ! -f "$GPG_KEY_PATH" ]]; then
     $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable fedora-gpg-keys \
-        || warn "[01-repos] fedora-gpg-keys import failed (no egress?); continuing -- F${_fver} repo is repo_gpgcheck=0 + skip_if_unavailable=True"
+        || warn "[01-repos] fedora-gpg-keys import failed; continuing"
 fi
 
 mios_log "Add Fedora ${_fver} repository"
@@ -40,7 +40,7 @@ if command -v miosd >/dev/null 2>&1; then
         _online_flag="--online"
     fi
     miosd render-repos --fedora-version "$_fver" $_online_flag
-    mios_ok "rendered fedora-${_fver}.repo via miosd"
+    mios_ok "Rendered fedora-${_fver}.repo via miosd"
 elif [ -d "/usr/share/mios/vendored/rpms" ] && [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
     mios_log "Using local vendored RPM mirror for Fedora ${_fver}"
     cat > /etc/yum.repos.d/fedora-${_fver}.repo <<EOREPO
@@ -101,7 +101,7 @@ fi
 mios_step "Phase 1: pre-upgrade core systemd/filesystem"
 $DNF_BIN "${DNF_SETOPT[@]}" upgrade -y --allowerasing --skip-unavailable \
     dnf rpm fedora-release fedora-repos filesystem systemd glibc dbus-broker 2>&1 || {
-    mios_warn "dnf upgrade of systemd/glibc/dbus-broker/filesystem returned non-zero; continuing"
+    mios_warn "Dnf upgrade of systemd/glibc/dbus-broker/filesystem returned non-zero; continuing"
 }
 
 _THIRD_PARTY_EXCLUDES="shim-*,kernel*,tailscale*,crowdsec*,crowdsec-firewall-bouncer*"
@@ -110,7 +110,7 @@ mios_step "Phase 2: distro-upgrade and userspace alignment"
 $DNF_BIN "${DNF_SETOPT[@]}" \
     --setopt=excludepkgs="${_THIRD_PARTY_EXCLUDES}" \
     upgrade --refresh -y --skip-unavailable || {
-    mios_warn "upgrade --refresh had conflicts (ucore vs Fedora ${_fver} pkgs) -- continuing"
+    mios_warn "Upgrade"
 }
 _dsync_ok=0
 for _attempt in 1 2; do
@@ -119,11 +119,11 @@ for _attempt in 1 2; do
             distro-sync -y --allowerasing --skip-unavailable; then
         _dsync_ok=1; break
     fi
-    mios_warn "distro-sync attempt $_attempt failed -- cleaning cache and retrying"
+    mios_warn "Distro-sync attempt $_attempt failed"
     $DNF_BIN clean metadata 2>/dev/null || true
 done
 if [[ $_dsync_ok -eq 0 ]]; then
-    mios_warn "distro-sync failed after 2 attempts -- ucore packages may differ from Fedora ${_fver}."
+    mios_warn "Distro-sync failed after 2 attempts"
     mios_log "Continuing; individual package installs will use available repos"
 fi
 

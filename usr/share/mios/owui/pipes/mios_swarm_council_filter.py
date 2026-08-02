@@ -31,8 +31,6 @@ class Filter:
 
     def __init__(self):
         self.valves = self.Valves()
-        # Render as a clickable chip in the chat input bar + an on/off entry
-        # in the Integrations menu. Offline-safe base64 SVG (a 3-node swarm).
         self.toggle = True
         self.icon = (
             "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5v"
@@ -51,8 +49,6 @@ class Filter:
         __user__: Optional[dict] = None,
         __metadata__: Optional[dict] = None,
     ) -> dict:
-        # inlet runs ONLY when the chip is selected -> set the flag
-        # unconditionally (the ENABLED valve is the admin kill-switch).
         if not self.valves.ENABLED:
             return body
         flags = body.get("mios_flags")

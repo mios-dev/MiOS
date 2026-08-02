@@ -70,7 +70,6 @@ async def t_parallel_limit():
 
 
 async def t_conflict_group():
-    # Two DIFFERENT verbs in the same group must never overlap.
     g = tc.ConflictGate(groups={"focus_window": "ui", "pc_type": "ui"})
     peak, gpeak = await _peak_under(g, ["focus_window", "pc_type"], n_each=3)
     check("conflict_group: cross-verb mutual exclusion", gpeak.get("ui") == 1, f"group_peak={gpeak}")
@@ -84,8 +83,6 @@ async def t_distinct_groups():
 
 
 async def t_group_and_limit_no_deadlock():
-    # A verb with BOTH a group and a limit must still complete (no deadlock) and
-    # serialize at the tightest constraint.
     g = tc.ConflictGate(limits={"v": 1}, groups={"v": "g", "w": "g"})
     try:
         peak, gpeak = await asyncio.wait_for(
@@ -118,8 +115,6 @@ async def t_cancellation_no_leak():
         pass
     release.set()                              # let holder finish
     await h
-    # The cancelled waiter must not have leaked a permit: a fresh acquire works
-    # immediately and in_flight returns to 0.
     ok = await asyncio.wait_for(_acquire_once(g, "v"), timeout=1.0)
     check("cancellation-safe: no permit leak", ok is True)
     check("cancellation-safe: in_flight drained", not g.stats()["in_flight"]["verbs"],
@@ -143,7 +138,6 @@ async def t_release_on_exception():
         await boom()
     except RuntimeError:
         pass
-    # Permit must have been released by the context manager despite the raise.
     ok = await asyncio.wait_for(_acquire_once(g, "v"), timeout=1.0)
     check("release-on-exception: permit freed after body raises", ok is True)
     check("release-on-exception: in_flight drained", not g.stats()["in_flight"]["verbs"])

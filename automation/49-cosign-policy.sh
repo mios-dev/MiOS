@@ -16,8 +16,8 @@ if ! command -v cosign >/dev/null 2>&1; then
         | grep -Po '"tag_name": "\Kv2\.[^"]+' \
         | head -n1) 2>/dev/null || true)
     if [[ -z "$COSIGN_VERSION" ]]; then
-        [[ -n "$COSIGN_FALLBACK_VERSION" ]] || die "cosign: api.github.com lookup empty AND no fallback pin"
-        mios_warn "cosign: api.github.com lookup empty -- falling back to pinned ${COSIGN_FALLBACK_VERSION}"
+        [[ -n "$COSIGN_FALLBACK_VERSION" ]] || die "Cosign: api.github.com lookup empty AND no fallback pin"
+        mios_warn "Cosign: api.github.com lookup empty"
         COSIGN_VERSION="$COSIGN_FALLBACK_VERSION"
     fi
     COSIGN_BASE_URL="https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}"
@@ -28,7 +28,7 @@ if ! command -v cosign >/dev/null 2>&1; then
     scurl -sfL "${COSIGN_BASE_URL}/cosign-linux-amd64" -o /tmp/cosign-dl/cosign-linux-amd64
     scurl -sfL "${COSIGN_BASE_URL}/cosign_checksums.txt" -o /tmp/cosign-dl/cosign_checksums.txt
     (cd /tmp/cosign-dl && grep "cosign-linux-amd64$" cosign_checksums.txt | sha256sum -c -) \
-        || die "cosign ${COSIGN_VERSION} SHA256 mismatch -- aborting"
+        || die "Cosign ${COSIGN_VERSION} SHA256 mismatch"
     install -m 0755 /tmp/cosign-dl/cosign-linux-amd64 /usr/bin/cosign
 
     sbom_dir="/usr/share/mios/artifacts/sbom"
@@ -48,12 +48,12 @@ install -d -m 0755 /usr/lib/containers/registries.d
 
 if command -v miosd >/dev/null 2>&1; then
     miosd cosign-policy
-    mios_ok "policy.json generated via miosd"
+    mios_ok "Policy.json generated via miosd"
 elif [[ -f "${SYSFILES}/usr/lib/containers/policy.json" ]]; then
     install -m 0644 "${SYSFILES}/usr/lib/containers/policy.json" /usr/lib/containers/policy.json
-    mios_ok "installed /usr/lib/containers/policy.json"
+    mios_ok "Installed /usr/lib/containers/policy.json"
 else
-    [[ -f /usr/lib/containers/policy.json ]] || mios_warn "missing policy.json"
+    [[ -f /usr/lib/containers/policy.json ]] || mios_warn "Missing policy.json"
 fi
 
 for f in fulcio_v1.crt.pem rekor.pub ublue-os.pub ublue-cosign.pub mios-cosign.pub; do
@@ -61,13 +61,13 @@ for f in fulcio_v1.crt.pem rekor.pub ublue-os.pub ublue-cosign.pub mios-cosign.p
     dst="/usr/share/pki/containers/${f}"
     if [[ -f "${src}" ]]; then
         install -m 0644 "${src}" "${dst}"
-        mios_ok "installed ${dst}"
+        mios_ok "Installed ${dst}"
     fi
 done
 
 if command -v jq >/dev/null 2>&1 && [[ -f /usr/lib/containers/policy.json ]]; then
-    jq -e . /usr/lib/containers/policy.json >/dev/null || die "policy.json failed jq parse"
-    mios_ok "policy.json parses cleanly"
+    jq -e . /usr/lib/containers/policy.json >/dev/null || die "Policy.json failed jq parse"
+    mios_ok "Policy.json parses cleanly"
 fi
 
-mios_ok "validation complete"
+mios_ok "Validation complete"

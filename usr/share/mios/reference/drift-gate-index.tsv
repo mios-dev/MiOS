@@ -1,51 +1,51 @@
 # Ordinal	Check Function	Description
 1	check_dead_lane	no retired :11434 lane in active config
 2	check_retired_models	no retired model-id in consumer config
-3	check_structured	every [nodes.local-*] localhost lane is served; (4) ai/v1 manifests parse + refs resolve
+3	check_structured	every [nodes.local-*] localhost lane is served; ai/v1 manifests parse + refs resolve
 4	check_hint_coverage	AI-hint coverage within ratchet ceiling
-5	check_module_boundary	agent-pipe dir absent -- skipped
-6	check_rbac_tiers	RBAC max_permission tiers all valid (PDP fail-closed gate)
-7	check_agent_schema	agent-schema contract satisfied (health_gate / cli / node / single-default rules)
+5	check_module_boundary	agent-pipe dir absent
+6	check_rbac_tiers	RBAC max_permission tiers all valid
+7	check_agent_schema	agent-schema contract satisfied
 8	check_ai_manifest	ai/v1 verb-catalog manifest in sync with mios.toml SSOT
-9	check_package_registry	package registry dormant ([ai].package_registry off) -- skipped
-10	check_cli_sql_safety	libexec dir absent -- skipped
-11	check_module_test_coverage	agent-pipe dir absent -- skipped
-12	check_raw_toml_readers	raw TOML readers -- skipped
+9	check_package_registry	package registry dormant
+10	check_cli_sql_safety	libexec dir absent
+11	check_module_test_coverage	agent-pipe dir absent
+12	check_raw_toml_readers	raw TOML readers
 13	check_capability_manifest	ai/v1 capability manifest in sync with mios.toml SSOT
-14	check_surface_parity	server.py public surface (routes+symbols) matches the committed golden
-15	check_no_hardcode	no date-in-comment / header crash-risk (NO-HARDCODE law)
-16	check_no_hardcode_version	no hand-pinned version literal (NO-HARDCODE-VERSION law)
-17	check_pod_quadlets	Quadlet units (.pod, .container, .network, .volume) in sync with mios.toml SSOT
+14	check_surface_parity	server.py public surface matches the committed golden
+15	check_no_hardcode	no date-in-comment / header crash-risk
+16	check_no_hardcode_version	no hand-pinned version literal
+17	check_pod_quadlets	Quadlet units in sync with mios.toml SSOT
 18	check_egress_firewall	egress.nft in sync with mios.toml [security.egress] SSOT
 19	check_blade_dropins	blade capability drop-ins in sync with mios.toml [blade.requires]
-20	check_unwired_modules	no imported-but-dead agent-pipe module (A1 _UNWIRED_ALLOW current)
-21	check_cephfs_ssot	CephFS SSOT configuration is valid (no placeholder/cache conflicts)
-22	check_converge_ssot	[converge] SSOT configuration is valid (retire_heavy_alt=$retire_alt)
-23	check_hummingbird	(20) Hummingbird distroless and Quadlet configuration (CONV-15). ----
+20	check_unwired_modules	no imported-but-dead agent-pipe module
+21	check_cephfs_ssot	CephFS SSOT configuration is valid
+22	check_converge_ssot	[converge] SSOT configuration is valid
+23	check_hummingbird	Hummingbird distroless and Quadlet configuration is valid
 24	check_container_ports	no manual port literals in container definitions
 25	check_bootstrap_ports_drift	bootstrap mios.toml [ports] table matches main repository
-26	check_agent_pipe_budgets	(23) Verify all [agent_pipe] variables have code consumers. ----------
-27	check_no_bare_port_literals	(24) Verify no bare port literals remain in execution paths. ---------
+26	check_agent_pipe_budgets	all [agent_pipe] budget variables have code consumers
+27	check_no_bare_port_literals	no bare port literals remain in execution paths
 28	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
 29	check_verb_backends	every [verbs.*].cmd mios-* backend resolves on disk
-30	check_userenv_parity	userenv.sh parity -- a copy is absent, skipped
+30	check_userenv_parity	userenv.sh parity
 31	check_globals_ports	every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT
 32	check_globals_image_parity	default image references in globals.{sh,ps1} equal mios.toml [image] SSOT
-33	check_dag_integrity	DAG-integrity drift-gate) consumer-before-producer = build error. -
-34	check_names_registry	WS-NAME names/keys registry enforcement) -------------------------
-35	check_drift_projection	WS-VECTOR V1 drift_projection round-trip) -----------------------
-36	check_drift_build_catalog	WS-VECTOR V3 drift_build_catalog round-trip) --------------------
-37	check_canonical_bools	WS-NAME no non-canonical bools) ---------------------------------
+33	check_dag_integrity	DAG-integrity: consumers start after their producers' readiness artifacts exist
+34	check_names_registry	names registry
+35	check_drift_projection	DB->TOML materialize round-trip is lossless for config_kv and verbs
+36	check_drift_build_catalog	DB->/ctx materialize round-trip is lossless for build catalog
+37	check_canonical_bools	no non-canonical bool literals in [verbs.*]
 38	check_etc_duplicates	no etc/ full-unit duplicate shadows generated usr/share/ containers
-39	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles (Law 2)
-40	check_quadlet_privilege	mios.toml absent -- skipped
-41	check_var_closure	SOFT: python3 missing -- var-closure needs Linux/CI, skipped
-42	check_lint_is_final	Containerfile + Containerfile.minimal end with 'RUN bootc container lint' (Law 4)
-43	check_firstboot_degrade_open	every *firstboot* script degrades open (no unguarded set -e; Law 12)
-44	check_vendor_urls	no vendor cloud URL in active config (Law 5)
-45	check_resolver_twin_parity	SOFT: python3 missing -- resolver twin-parity needs Linux/CI, skipped
-46	check_resolver_twin_equivalence	Law 13 NATIVE-DROPINS) resolver twin equivalence (gating). -------
-47	check_template_conformance	SOFT: python3 missing -- template conformance check skipped
+39	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles
+40	check_quadlet_privilege	mios.toml absent
+41	check_var_closure	SOFT: python3 missing
+42	check_lint_is_final	Containerfile + Containerfile.minimal end with 'RUN bootc container lint'
+43	check_firstboot_degrade_open	every *firstboot* script degrades open
+44	check_vendor_urls	no vendor cloud URL in active config
+45	check_resolver_twin_parity	SOFT: python3 missing
+46	check_resolver_twin_equivalence	SOFT: python3 missing
+47	check_template_conformance	SOFT: python3 missing
 48	check_kargs_projection	kargs.d matches mios.toml [kargs] projection
 49	check_greenboot_enablement	greenboot services and scripts are correctly configured
 50	check_greenboot	greenboot health-coverage check
@@ -56,49 +56,49 @@
 55	check_templates_compilation	all templates compile and validate successfully
 56	check_impossible_eol_regressions	impossible/EOL regression checks passed
 57	check_deploy_plane	deploy-plane checks passed
-58	check_version_ssot	VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version ([$ssot]) (Laws 7/8)
+58	check_version_ssot	VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version
 59	check_root_toml_subset	root mios.toml schema is subset of canonical SSOT
-60	check_toml_projection	mios.toml derived copies ([ports]/[colors]) project verbatim from the canonical SSOT
+60	check_toml_projection	mios.toml derived copies project verbatim from the canonical SSOT
 61	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
-62	check_bake_plan_integrity	bake-plan integrity gate verified clean (firstboot eviction & partition valid)
-63	check_bake_ref_defaults	all baker scripts have non-empty defaults for their bake-refs (skipped - no git repo)
-64	check_roadmap_index	ROADMAP.md not found -- skipping roadmap index check
+62	check_bake_plan_integrity	bake-plan integrity gate verified clean
+63	check_bake_ref_defaults	all baker scripts have non-empty defaults for their bake-refs
+64	check_roadmap_index	ROADMAP.md not found
 65	check_cli_eval_safety	CLI verbs in usr/libexec/mios/ are eval-safe
 66	check_sbom_metadata	SBOM metadata manifests are structurally valid
 67	check_hyprland_conf_heredoc	Hyprland configuration template is in sync with baker script heredoc
 68	check_shellcheck	shellcheck: shell scripts conform to error-level linting
-69	check_target_languages	Law 14 TARGET-LANGUAGES: no new non-target-language code (Rust/Python/Bun+TS; bash thin-glue)
-70	check_curl_retry	curl/wget build network fetches carry --retry / --tries (or scurl / exempt)
+69	check_target_languages	Law 14 TARGET-LANGUAGES: no new non-target-language code
+70	check_curl_retry	curl/wget build network fetches carry
 71	check_nested_podman_caps	nested-podman capability flags & reference doc verified
-72	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit (${budget}GB)
+72	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit
 73	check_clevis_luks	clevis LUKS SSOT projection check
 74	check_mini_vfio	MiOS-Mini vfio-pci SSOT projection check
-75	check_router_parity	Router Stage-2 parity gate satisfied (corpus parity + coverage)
-76	check_council_gate_ssot	(70) Verify [agent_pipe.council] parameters defined and consumed. --
-77	check_containerfile_pinned_clones	all git clone invocations in Containerfiles carry explicit --branch/--tag/ref
+75	check_router_parity	Router Stage-2 parity gate satisfied
+76	check_council_gate_ssot	council-gate SSOT parameters defined in mios.toml and consumed by code
+77	check_containerfile_pinned_clones	all git clone invocations in Containerfiles carry explicit
 78	check_firstboot_tier	firstboot tier invariant verified
 79	check_rechunk_budget	rechunk budget & SSOT image reference verified
-80	check_gate_registry	gate registry integrity verified (no duplicate checks, 1-to-1 main registration)
-81	check_python_lint	Python static compilation gate (lint-python.sh)
-82	check_test_hermeticity	test hermeticity verified (all live-resource tests carry skip sentinels)
-83	check_negative_test_coverage	negative test coverage ratchet verified (test count matches or exceeds law gates count; )
+80	check_gate_registry	gate registry integrity verified
+81	check_python_lint	Python static compilation gate
+82	check_test_hermeticity	test hermeticity verified
+83	check_negative_test_coverage	negative test coverage ratchet verified
 84	check_soft_mode_not_committed	no soft-mode override committed in CI/build pipeline
-85	check_ssot_lint_equivalence	mios-ssot-lint binary absent -- skipped
-86	check_gate_index	gate index in sync with main() registration
-87	check_oci_archive_path	oci-archive producer/consumer absent -- skipped
-88	check_replaceme_mount_substitution	Justfile absent -- skipped
+85	check_ssot_lint_equivalence	mios-ssot-lint binary absent
+86	check_gate_index	gate index in sync with main registration
+87	check_oci_archive_path	oci-archive producer/consumer absent
+88	check_replaceme_mount_substitution	Justfile absent
 89	check_kickstart_shell_syntax	embedded kickstart %post shell syntax verified clean with bash -n
-90	check_bib_rootfs_label_policy	Justfile absent -- skipped
-91	check_offline_install_invariant	tools/install.sh absent -- skipped
+90	check_bib_rootfs_label_policy	Justfile absent
+91	check_offline_install_invariant	tools/install.sh absent
 92	check_installer_family_roles	installer family role markers verified unique across all installers
 93	check_bib_configs_projection	BIB artifact configs in sync with mios.toml [deploy.artifacts] SSOT
-94	check_repo_partition_label_ssot	repo partition consumers absent -- skipped
-95	check_bib_single_config_invariant	Justfile absent -- skipped
-96	check_build_artifacts_output_dir	build output dir consumers absent -- skipped
-97	check_win11_vm_template_xml	win11 VM template or SSOT absent -- skipped
+94	check_repo_partition_label_ssot	repo partition consumers absent
+95	check_bib_single_config_invariant	Justfile absent
+96	check_build_artifacts_output_dir	build output dir consumers absent
+97	check_win11_vm_template_xml	win11 VM template or SSOT absent
 98	check_ipa_enroll_projection	etc/mios/ipa-enroll.env matches [identity.ipa] SSOT
 99	check_uki_cmdline_projection	usr/lib/kernel/cmdline matches kargs.d/*.toml drop-ins
-100	check_composefs_projection	composefs prepare-root.conf absent -- skipped
+100	check_composefs_projection	composefs prepare-root.conf absent
 101	check_cockpit_projection	etc/cockpit/cockpit.conf matches mios.toml [cockpit] SSOT
 102	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
 103	check_renderer_gate_coverage	renderer gate coverage verified clean
@@ -107,18 +107,19 @@
 106	check_verb_templates	verb templates compile and validate against SSOT args
 107	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
 108	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-109	check_pipe_extraction_parity	python3 absent -- skipped check_pipe_extraction_parity
+109	check_pipe_extraction_parity	python3 absent
 110	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
 111	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
 112	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
-113	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean (no full-unit /etc shadows of /usr SSOT)
+113	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
 114	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-115	check_db_seed_coverage	DB seed coverage gate verified clean (all SSOT tables reachable by seed-db-config.py)
-116	check_account_column_parity	account column parity gate verified clean (schema superset of consumer projections)
-117	check_module_length	mios_pipe sibling modules are all <= 800 lines (modular cohesion intact)
-118	check_vendored_assets_non_stub	vendored assets dir absent -- skipped
-119	check_resolved_env_lossless	resolved environment is lossless (matches env-baseline.txt)
+115	check_db_seed_coverage	DB seed coverage gate verified clean
+116	check_account_column_parity	account column parity gate verified clean
+117	check_module_length	mios_pipe sibling modules are all <= 800 lines
+118	check_vendored_assets_non_stub	vendored assets dir absent
+119	check_resolved_env_lossless	resolved environment is lossless
 120	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-121	check_pipeline_numbering	pipeline numbering: (NN) labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-122	check_value_aliases	value-alias consistency verified (derive/delete pairs equal; keep-distinct pairs differ)
-123	check_no_hardcoded_ssot_literal	check_no_hardcoded_ssot_literal registered
+121	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+122	check_value_aliases	value-alias consistency verified
+123	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX strings
+124	check_bash_phase_ratchet	bash phase script count ratchet check

@@ -28,7 +28,7 @@ for bin in "${SSSD_CAP_BINS[@]}"; do
     fi
 done
 if (( CAP_FAIL > 0 )); then
-    mios_warn "${CAP_FAIL} SSSD binary(ies) lost file capabilities -- FreeIPA authentication may require 'setcap' at runtime"
+    mios_warn "${CAP_FAIL} SSSD binary lost file capabilities"
 fi
 
 _ipa_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -38,7 +38,7 @@ if command -v python3 >/dev/null 2>&1 && [[ -f "${_ipa_gen}" ]]; then
     python3 "${_ipa_gen}"
     install -D -m 0644 "${_ipa_root}/etc/mios/ipa-enroll.env" /etc/mios/ipa-enroll.env
 else
-    mios_warn "python3 or generate-ipa-enroll-env.py unavailable -- /etc/mios/ipa-enroll.env not regenerated from SSOT"
+    mios_warn "Python3 or generate-ipa-enroll-env.py unavailable"
 fi
 
 systemctl enable mios-freeipa-enroll.service

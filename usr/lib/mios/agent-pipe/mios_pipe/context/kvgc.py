@@ -61,7 +61,6 @@ def plan_gc(files: Iterable[dict], *, ttl_s: float, max_bytes: int,
     evict: List[str] = []
     reasons: dict = {}
 
-    # (1) TTL pass.
     survivors = []
     for it in items:
         if it["path"] in prot:
@@ -73,9 +72,7 @@ def plan_gc(files: Iterable[dict], *, ttl_s: float, max_bytes: int,
         else:
             survivors.append(it)
 
-    # (2) Size cap on the TTL survivors (oldest-first), never evicting protected.
     if max_bytes and sum(s["size"] for s in survivors) > int(max_bytes):
-        # oldest first; protected files counted against the cap but never evicted.
         evictable = sorted((s for s in survivors if s["path"] not in prot),
                            key=lambda s: s["mtime"])
         total = sum(s["size"] for s in survivors)

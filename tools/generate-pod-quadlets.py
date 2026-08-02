@@ -49,22 +49,10 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     if not isinstance(val, str):
         return val
     
-    # An env var exported as the EMPTY string counts as UNSET here -- shell
-    # `${VAR:-default}` semantics, and the same rule the mios.toml overlay uses
-    # ("empty strings do not override non-empty values below them").
-    # tools/lib/userenv.sh exports EVERY MIOS_* key it knows about, emitting ""
-    # for keys with no resolved value, so an `in os.environ` membership test
-    # alone made the generator env-DEPENDENT: sourced-env renders collapsed
-    # ${MIOS_GUACD_UID:-811} to "" and render_nested_quadlet then DROPPED the
-    # User=/Group=/Image= line entirely, shipping implicitly-root Quadlets that
-    # fail Law 6 (UNPRIVILEGED-QUADLETS) at 99-postcheck. Treating empty as
-    # unset makes bare and sourced renders byte-identical (the determinism
-    # 33-generate-quadlets.sh and the --check drift gate both rely on).
     def _env(var_name: str):
         v = os.environ.get(var_name)
         return v if v else None
 
-    # 1. Resolve ${VAR:-default}
     def repl_fallback(m):
         var_name = m.group(1)
         fallback = m.group(2)
@@ -79,7 +67,6 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
         return fallback
     val = re.sub(r'\$\{([A-Za-z0-9_]+):-([^}]*)\}', repl_fallback, val)
 
-    # 2. Resolve ${VAR}
     def repl_var(m):
         var_name = m.group(1)
         if var_name.startswith("MIOS_PORT_"):
@@ -301,7 +288,6 @@ def main(argv: "list[str]") -> int:
     networks = load_networks(TOML)
     volumes = load_volumes(TOML)
 
-    # Parity check: every key in enabled_map must map to a real container
     for name in enabled_map:
         if name not in containers:
             print(f"[pod-gen] ERROR: key '{name}' in [quadlets.enable] does not map to any container in [containers]", file=sys.stderr)
@@ -311,7 +297,6 @@ def main(argv: "list[str]") -> int:
         print("[pod-gen] no Quadlets in SSOT -- nothing to do")
         return 0
 
-    # Filter members in each pod spec based on enablement
     for pod_name, pod_spec in pods.items():
         if "members" in pod_spec:
             filtered_members = []
@@ -327,7 +312,6 @@ def main(argv: "list[str]") -> int:
     member_miss = 0
     active_units = 0
 
-    # Process pods
     for name in sorted(pods):
         spec = pods[name]
         if not isinstance(spec, dict):
@@ -354,7 +338,6 @@ def main(argv: "list[str]") -> int:
         wrote += 1
         print(f"[pod-gen]   wrote {out}")
 
-    # Process containers, networks, volumes
     categories = [
         (containers, "container"),
         (networks, "network"),
@@ -368,8 +351,6 @@ def main(argv: "list[str]") -> int:
                 continue
 
             if unit_type == "container" and enabled_map.get(name) is False:
-                # If checking drift, the file MUST NOT exist.
-                # If not checking drift, delete it if it exists.
                 out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
                 if check:
                     if os.path.exists(out):
@@ -445,7 +426,6 @@ def _selftest() -> int:
     ck("selftest: deterministic", render_pod_quadlet("mios-test", spec, mock_ports) == t)
     ck("selftest: trailing newline", t.endswith("\n"))
 
-    # Selftest for nested quadlets
     container_spec = {
         "Unit": {
             "Description": "Test container unit",
@@ -464,8 +444,6 @@ def _selftest() -> int:
     ck("selftest nested: Unit section before Container", tc.index("[Unit]") < tc.index("[Container]"))
     ck("selftest nested: trailing newline", tc.endswith("\n"))
 
-    # Digest non-determinism guard: on env-miss, an Image fallback must resolve to
-    # the [image.sidecars] digest-pinned value, NOT the digestless inline default.
     global _SIDECARS
     _SIDECARS = {"pgvector": "docker.io/pgvector/pgvector:0.8.3-pg17@sha256:deadbeef"}
     os.environ.pop("MIOS_PGVECTOR_IMAGE", None)
@@ -473,11 +451,6 @@ def _selftest() -> int:
     ic = render_nested_quadlet("mios-pgvector", img_spec, "container")
     ck("selftest: bare-env resolves digest from [image.sidecars]", "@sha256:deadbeef" in ic)
 
-    # Law-6 regression guard: an EMPTY exported var must behave like an UNSET one
-    # (shell `${VAR:-default}`). userenv.sh exports every MIOS_* key it knows,
-    # emitting "" for unresolved ones; when "" won over the inline default the
-    # generator dropped User=/Group=/Image= and shipped implicitly-root Quadlets
-    # that fail Law 6 (UNPRIVILEGED-QUADLETS) at 99-postcheck.
     priv_spec = {"Container": {
         "Image": "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}",
         "User": "${MIOS_GUACD_UID:-811}",

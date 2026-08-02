@@ -45,4 +45,4 @@ if [ -d /etc/dconf/db ]; then
     find /etc/dconf/db -maxdepth 1 -type f -exec mv -f {} /usr/share/dconf/db/ \; 2>/dev/null || true
 fi
 
-mios_ok "system Flatpak overrides, 90-mios.gschema.override, dconf update applied"
+mios_ok "System Flatpak overrides, 90-mios.gschema.override, dconf update applied"

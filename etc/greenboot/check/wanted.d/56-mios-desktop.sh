@@ -4,7 +4,6 @@
 
 set -uo pipefail
 
-# Source global environment variables (SSOT)
 if [ -f /etc/profile.d/mios-env.sh ]; then
     source /etc/profile.d/mios-env.sh
 fi
@@ -19,25 +18,21 @@ log_health_failure() {
     echo "[greenboot-desktop] [FAIL] ${check_name}: ${message}" >&2
 }
 
-# Check 1: uinput device is available
 if [ ! -c /dev/uinput ]; then
     log_health_failure "uinput_device" "/dev/uinput character device not found"
     exit_code=1
 fi
 
-# Check 2: grim capture command is available
 if ! command -v grim >/dev/null 2>&1; then
     log_health_failure "grim_cli" "grim screen capture command not found"
     exit_code=1
 fi
 
-# Check 3: quickshell binary is available
 if ! command -v quickshell >/dev/null 2>&1; then
     log_health_failure "quickshell_cli" "quickshell binary not found"
     exit_code=1
 fi
 
-# Log event to pgvector on warning/failure
 if [ "$exit_code" -ne 0 ]; then
     if command -v mios-pg-query >/dev/null 2>&1; then
         _summary="Desktop graphical health check failed: $failure_details"

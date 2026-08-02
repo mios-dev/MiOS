@@ -2,10 +2,6 @@
 # AI-hint: Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comprehensive Software Bill of Materials for the MiOS ecosystem.
 # AI-related: mios-selinux-modules, mios-build-local, mios-ai, mios-ceph, mios-k3s, mios-guacamole, mios-pxe-hub, mios-ai.container, mios-ceph.container, mios-k3s.container
 # AI-functions: main
-# tools/lib/generate-sbom.py -- emit MiOS-SBOM.csv from mios.toml
-# [packages.<section>].pkgs + Quadlet Image= refs + base image refs +
-#.env.mios Flatpak defaults. As of - PACKAGES.md is
-# documentation only; mios.toml is the runtime SSOT.
 
 import re
 import csv
@@ -113,7 +109,6 @@ OCI_IMAGES = [
 def main(out_path: Path):
     rows = []
 
-    # 1. mios.toml [packages.<section>].pkgs (runtime SSOT)
     toml_path = ROOT / "usr/share/mios/mios.toml"
     with toml_path.open("rb") as fh:
         toml = tomllib.load(fh)
@@ -137,7 +132,6 @@ def main(out_path: Path):
                 "notes":          f"From usr/share/mios/mios.toml [packages.{cat}].pkgs",
             })
 
-    # 2. From-source
     for name, classification, purpose, notes in FROMSOURCE:
         rows.append({
             "section":        "from-source",
@@ -147,7 +141,6 @@ def main(out_path: Path):
             "notes":          notes,
         })
 
-    # 3. OCI images
     for img, classification, purpose, notes in OCI_IMAGES:
         rows.append({
             "section":        "oci-image",
@@ -157,14 +150,8 @@ def main(out_path: Path):
             "notes":          notes,
         })
 
-    # 4. Default Flatpaks
-    # SSOT: mios.toml [desktop].flatpaks (the canonical operator-tunable
-    # source). env.defaults was the legacy fallback (deleted in - 
-    # when mios.toml became THE singular SSOT). The legacy ~/.env.mios
-    # is still read for backward-compat with pre-migration installs.
     flat_seen = set()
 
-    # Primary source: mios.toml [desktop].flatpaks (TOML array of strings)
     toml_path = ROOT / "usr/share/mios/mios.toml"
     if toml_path.is_file():
         try:
@@ -176,8 +163,6 @@ def main(out_path: Path):
                 doc = tomllib.load(fh)
             flatpaks = (doc.get("desktop") or {}).get("flatpaks") or []
             if isinstance(flatpaks, dict):
-                # Some schemas put flatpaks under [desktop.flatpaks] with
-                # an `install` key; honor both shapes.
                 flatpaks = flatpaks.get("install") or []
             for fp in flatpaks:
                 fp = str(fp).strip()
@@ -193,7 +178,6 @@ def main(out_path: Path):
         except Exception as e:
             print(f"WARN: failed to parse {toml_path}: {e}", file=sys.stderr)
 
-    # Backward-compat fallback: legacy .env.mios (pre- - installs).
     for env_path in [".env.mios"]:
         p = ROOT / env_path
         if not p.is_file():

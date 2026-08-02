@@ -3,11 +3,7 @@
 # AI-related: usr/libexec/mios/mios-a2a-test, usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py
 set -euo pipefail
 
-# Resolve the agent-pipe endpoint from the SSOT bridge if present (install.env
-# exports MIOS_PORT_AGENT_PIPE from mios.toml [ports]); mios-a2a-test falls back
-# to the Law-5 default endpoint when the env is unset.
 if [[ -z "${MIOS_AGENT_PIPE_URL:-}" && -r /etc/mios/install.env ]]; then
-    # shellcheck disable=SC1091
     . /etc/mios/install.env || true
     if [[ -n "${MIOS_PORT_AGENT_PIPE:-}" ]]; then
         export MIOS_AGENT_PIPE_URL="http://127.0.0.1:${MIOS_PORT_AGENT_PIPE}"

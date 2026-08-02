@@ -11,7 +11,6 @@ from typing import Any, Dict, Optional, Tuple
 
 log = logging.getLogger("mios-agent-pipe")
 
-# -- A2A v1.0 AgentCard JWS signature (RFC-7515 over RFC-8785 JCS) -------------
 _JWS_ALG_EDDSA = "EdDSA"
 _A2A_CARD_SIG_FIELD = "signatures"
 
@@ -48,7 +47,6 @@ def _agent_card_signature(card: dict, *, load_priv_fn=None, kid_fn=None) -> Opti
     A DETACHED JWS over the JCS-canonical card (minus ``signatures``)."""
     try:
         if load_priv_fn is None or kid_fn is None:
-            # Sibling import fallback for production wiring
             from mios_pipe.identity.principal import _passport_load_priv, _passport_kid
             load_priv_fn = _passport_load_priv
             kid_fn = _passport_kid

@@ -11,7 +11,7 @@ mios_log "Resolving build-toolchain package list"
 TOOLCHAIN_STR="$(get_packages "build-toolchain")"
 
 if [[ -z "${TOOLCHAIN_STR// /}" ]]; then
-    mios_warn "no packages in 'build-toolchain' block; nothing to strip"
+    mios_warn "No packages in 'build-toolchain' block; nothing to strip"
     exit 0
 fi
 
@@ -34,11 +34,11 @@ for bin in gcc g++ cc cmake make go; do
     fi
 done
 if [[ ${#LEFT[@]} -gt 0 ]]; then
-    mios_warn "toolchain binaries still in PATH:"
+    mios_warn "Toolchain binaries still in PATH:"
     for entry in "${LEFT[@]}"; do mios_warn "  ${entry}"; done
-    mios_warn "pulled in by another package's dependencies; review build-toolchain block"
+    mios_warn "Pulled in by another package's dependencies; review build-toolchain block"
 else
-    mios_ok "no compiler/build-system binaries remain in PATH"
+    mios_ok "No compiler/build-system binaries remain in PATH"
 fi
 
-mios_ok "build toolchain stripped"
+mios_ok "Build toolchain stripped"

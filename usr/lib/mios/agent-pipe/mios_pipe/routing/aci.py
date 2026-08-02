@@ -39,7 +39,6 @@ def normalize_output(text, *, max_chars: int, max_lines: int = 0,
     try:
         text = text if isinstance(text, str) else str(text)
         hf = min(0.95, max(0.05, float(head_frac)))
-        # (1) line cap -- keep head_n + tail_n lines.
         if max_lines and max_lines > 0:
             lines = text.splitlines()
             if len(lines) > max_lines:
@@ -50,7 +49,6 @@ def normalize_output(text, *, max_chars: int, max_lines: int = 0,
                     text = ("\n".join(lines[:head_n])
                             + _omit_marker("lines", omitted, label)
                             + "\n".join(lines[-tail_n:]))
-        # (2) char cap -- keep head_c + tail_c chars.
         if max_chars and max_chars > 0 and len(text) > max_chars:
             head_c = max(1, int(max_chars * hf))
             tail_c = max(1, max_chars - head_c)

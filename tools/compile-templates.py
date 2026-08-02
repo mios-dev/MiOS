@@ -32,12 +32,10 @@ MOCK_VALS = {
 }
 
 def compile_template(name, content):
-    # Substitute all placeholders
     rendered = content
     for k, v in MOCK_VALS.items():
         rendered = rendered.replace(f"{{{{{k}}}}}", v)
 
-    # Validate based on name/extension
     if name in ("python-module", "python-test", "python-tool"):
         try:
             compile(rendered, name, "exec")

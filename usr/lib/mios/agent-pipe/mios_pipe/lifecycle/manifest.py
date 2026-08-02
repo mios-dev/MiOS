@@ -66,8 +66,6 @@ def project_verb_catalog(catalog: Dict[str, dict], *, version: str = "v1") -> di
             "permission": str(spec.get("permission", "read")),
             "hidden": bool(spec.get("hidden", False)),
         }
-        # WS-A7 serialization metadata is part of the SSOT surface -> project it
-        # so a drift in conflict_group/parallel_limit is caught too.
         cg = str(spec.get("conflict_group") or "").strip()
         if cg:
             entry["conflict_group"] = cg

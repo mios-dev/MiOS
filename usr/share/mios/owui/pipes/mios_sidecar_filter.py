@@ -45,28 +45,12 @@ from typing import Awaitable, Callable, Optional
 from pydantic import BaseModel, Field
 
 
-# ─── Where each sibling agent writes its state ────────────────────────
-# Two writers feed this filter:
-#   * mios-hermes-tail        -> hermes-tail/latest.json (in-flight tools)
-#   * mios-delegation-prefilter -> delegation-prefilter/latest.json (refiner)
-#   * mios-daemon (consolidated micro-LLM) -> daemon/state.json with
-#        three sub-objects (classify/refusal/cron) that mirror the old
-#        per-service files. ONE poll -> three categories of events.
-#
-# The unified mios-daemon state file replaces the three predecessor
-# files (nudger / log-watcher / cron-director) -- the daemon writes
-# them under a single roof. Old per-service paths are kept in the
-# fallback table below ONLY for compatibility with hosts that haven't
-# rebooted into the consolidated daemon yet; they'll be removed in a
-# future commit once the migration window closes.
 SIBLING_AGENTS = [
     ("hermes-tail",     "/var/lib/mios/hermes-tail/latest.json",         "_format_hermes_tail"),
     ("sys-agent",       "/var/lib/mios/delegation-prefilter/latest.json","_format_sys_agent"),
-    # NEW unified daemon
     ("daemon-classify", "/var/lib/mios/daemon/state.json",               "_format_daemon_classify"),
     ("daemon-refusal",  "/var/lib/mios/daemon/state.json",               "_format_daemon_refusal"),
     ("daemon-cron",     "/var/lib/mios/daemon/state.json",               "_format_daemon_cron"),
-    # Legacy fallbacks (pre-mios-daemon hosts -- deprecated)
     ("nudger",          "/var/lib/mios/agent-nudger/latest.json",        "_format_nudger"),
     ("log-watcher",     "/var/lib/mios/log-watcher/latest.json",         "_format_log_watcher"),
     ("cron-director",   "/var/lib/mios/cron-director/state.json",        "_format_cron"),
@@ -94,7 +78,6 @@ class Filter:
         except Exception:
             pass
 
-    # ─── Per-chat last-seen-mtime cache ──────────────────────────────
     def _cache_path(self, chat_id: str) -> Path:
         safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in str(chat_id)) or "default"
         return CACHE_DIR / f"{safe}.json"
@@ -114,17 +97,10 @@ class Filter:
         except Exception:
             pass
 
-    # ─── Per-agent formatters: each returns a short status string ────
     def _format_hermes_tail(self, payload: dict) -> Optional[str]:
-        # Expected shape: {"ts", "events": [...], "active_session_count",
-        #                  "inflight_subagents"}. Surfaces the MOST RECENT
-        # event with priority weighting -- chronic failure modes
-        # (invalid_tool, max_retries) are highlighted; routine tool
-        # calls only emit if no failure is in the recent window.
         events = payload.get("events", [])
         if not events:
             return None
-        # Priority sort: failures first, then synthesis/spawn, then routine.
         priority = {
             "max_retries":    0,
             "invalid_tool":   1,
@@ -155,14 +131,12 @@ class Filter:
         return f"{icon} hermes: {detail}{suffix}"
 
     def _format_nudger(self, payload: dict) -> Optional[str]:
-        # Expected shape: {"trigger": "<phrase>", "model": "...", "ts": ...}
         trigger = payload.get("trigger") or payload.get("phrase") or payload.get("pattern")
         if not trigger:
             return None
         return f"⚠️ mios-agent-nudger: refusal-pattern hit -- '{trigger[:80]}'"
 
     def _format_log_watcher(self, payload: dict) -> Optional[str]:
-        # Expected: {"tag": "...", "count": N, "ts": ...} or {"events": [...]}
         tag = payload.get("tag") or payload.get("classification")
         count = payload.get("count") or len(payload.get("events", []) or [])
         if not tag and not count:
@@ -170,18 +144,12 @@ class Filter:
         return f"📊 mios-log-watcher: {tag or 'classified'} ({count or '?'} events)"
 
     def _format_cron(self, payload: dict) -> Optional[str]:
-        # Expected: {"last_fire": {"rule": "...", "ts": ...}}
         last = payload.get("last_fire") or payload.get("last")
         if isinstance(last, dict):
             rule = last.get("rule") or last.get("name") or "rule"
             return f"⏱️ mios-cron-director: fired '{rule}'"
         return None
 
-    # ─── Formatters for the unified mios-daemon state file ─────────
-    # Sub-objects under daemon/state.json: {classify, refusal, cron}.
-    # Each formatter reads its OWN sub-key from the same blob; the
-    # three SIBLING_AGENTS entries for "daemon-*" all point at the
-    # same file but render different categories.
 
     def _format_daemon_classify(self, payload: dict) -> Optional[str]:
         c = payload.get("classify") or {}
@@ -210,13 +178,11 @@ class Filter:
         return f"⏱️ mios-daemon cron: fired '{rule}'"
 
     def _format_sys_agent(self, payload: dict) -> Optional[str]:
-        # Expected: {"original": "...", "refined": "...", "ts": ...}
         if "refined" in payload or "intent" in payload:
             intent = (payload.get("intent") or "")[:80]
             return f"🧠 mios-sys-agent: refined prompt" + (f" ({intent}...)" if intent else "")
         return None
 
-    # ─── Walk every sibling file, emit only NEW activity ─────────────
     def _gather_new_events(self, chat_id: str) -> list[tuple[str, str]]:
         cache = self._load_cache(chat_id)
         now = time.time()
@@ -238,10 +204,8 @@ class Filter:
             except OSError:
                 continue
             mtime = st.st_mtime
-            # Skip if older than staleness window
             if (now - mtime) > self.valves.STALENESS_SECONDS:
                 continue
-            # Skip if we already emitted this mtime for this chat
             if cache.get(label) and abs(cache[label] - mtime) < 0.001:
                 continue
             try:
@@ -268,7 +232,6 @@ class Filter:
         except Exception:
             pass
 
-    # ─── OWUI Filter contract ────────────────────────────────────────
     async def inlet(
         self,
         body: dict,
@@ -293,8 +256,6 @@ class Filter:
         if not self.valves.ENABLED:
             return body
         chat_id = (__metadata__ or {}).get("chat_id") or "default"
-        # Brief settle delay so nudger/log-watcher have a chance to react
-        # to THIS turn's response before we read their state.
         time.sleep(0.4)
         for label, msg in self._gather_new_events(chat_id):
             await self._emit(__event_emitter__, msg, done=True)

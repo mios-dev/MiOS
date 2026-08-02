@@ -3,7 +3,6 @@
 
 if [ "${MIOS_CEPHFS_ENABLE:-false}" = "true" ]; then
     _uid=$(id -u)
-    # Cache Isolation Rule: XDG_CACHE_HOME must never be mapped to CephFS to prevent MDS lock storms.
     _raw_path="${MIOS_XDG_CACHE_LOCAL_PATH:-/run/user/{uid}/.cache}"
     export XDG_CACHE_HOME=$(echo "$_raw_path" | sed "s/{uid}/$_uid/g")
     

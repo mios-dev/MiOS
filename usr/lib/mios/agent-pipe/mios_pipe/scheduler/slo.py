@@ -26,22 +26,11 @@ from __future__ import annotations
 
 from typing import Optional
 
-# SLO request classes, ASCENDING urgency (best_effort is shed first).
 BEST_EFFORT = "best_effort"
 INTERACTIVE = "interactive"
 _CLASS_RANK = {BEST_EFFORT: 0, INTERACTIVE: 1}
 
-# Default per-class deadline budget (seconds of wall-clock the turn SHOULD meet).
-# interactive = a human waiting at the keyboard; best_effort = background /
-# autonomous / fan-out work that can run long. These are the documented vendor
-# fallback and MUST match the [slo] seed in mios.toml; server.py reads that SSOT
-# section and injects the live values via configure() (pure injection, no I/O, so
-# the module stays deterministic for unit tests).
 _DEFAULT_BUDGET_S = {INTERACTIVE: 8.0, BEST_EFFORT: 120.0}
-# Default scheduling priority for an unclassified turn, and the interactive floor
-# (a foreground turn whose priority is clamped below this is downgraded to
-# best_effort). Documented vendor fallback; matches the [slo] seed. Injected from
-# SSOT via configure().
 _DEFAULT_PRIORITY = 7.0
 _INTERACTIVE_PRIORITY = 7.0
 

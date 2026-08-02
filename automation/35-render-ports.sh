@@ -14,7 +14,7 @@ touch "$ENV_FILE"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd render-ports --toml "$TOML_FILE" --out "$ENV_FILE"
-    mios_ok "wrote MIOS_PORT_* to $ENV_FILE via miosd"
+    mios_ok "Wrote MIOS_PORT_* to $ENV_FILE via miosd"
     exit 0
 fi
 
@@ -49,4 +49,4 @@ flag && /=/ {
     print "MIOS_PORT_" key "=" val
 }' "$TOML_FILE" >> "$ENV_FILE"
 
-mios_ok "wrote MIOS_PORT_* to $ENV_FILE (stack_id*10000 offset, port 53 excluded)"
+mios_ok "Wrote MIOS_PORT_* to $ENV_FILE"

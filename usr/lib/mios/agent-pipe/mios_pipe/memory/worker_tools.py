@@ -24,12 +24,6 @@ import re
 from typing import Optional
 
 
-# ââ Dependency-injection seam ââ
-# The reranker calls back into server.py's verb catalog + helpers and reads the
-# rerank flags. server.py calls configure() with those AFTER they are defined
-# (one-way boundary: this module never imports server). The functions are pure/
-# runtime so a standalone ``import mios_worker_tools`` still succeeds; the flags
-# carry the documented defaults until server injects its env/SSOT-derived values.
 _VERB_CATALOG = None
 _resolve_verb_key = None
 _cosine = None
@@ -42,19 +36,9 @@ RERANK_MIN_K = 24
 RERANK_RRF_K = 60
 RERANK_MMR_LAMBDA = 0.8
 RERANK_SKIP_MARGIN = 0.08
-# Okapi BM25 saturation (k1) + length-normalisation (b). SSOT [worker_tools] knobs
-# (server injects them via configure, same path as the RRF/MMR knobs); the literals
-# here are only the standalone-import degrade defaults.
 BM25_K1 = 1.2
 BM25_B = 0.75
-# Fallback relevance score for an UNEMBEDDED verb, indexed by its _tool_priority rank
-# (rank-0 read/discovery highest). SSOT-injected list, NOT a baked-in code map; ranks
-# outside the list clamp to the last entry.
 PRIORITY_FALLBACK_SCORES = [0.55, 0.45, 0.30, 0.25, 0.15]
-# Flag: rank read/discovery verbs FIRST (rank 0) using the reranker's own core-tier
-# signal intersected with the read permission -- the SSOT replacement for the deleted
-# English name-substring set. Absent/false degrades open to permission order alone
-# (read verbs -> rank 1), NEVER back to a lexical/keyword gate.
 TOOL_PRIORITY_CORE_FIRST = True
 
 
@@ -102,7 +86,6 @@ def configure(*, verb_catalog=None, resolve_verb_key=None, cosine=None,
         TOOL_PRIORITY_CORE_FIRST = tool_priority_core_first
 
 
-# ââ Module-owned BM25 lexicon state (rebuilt on the embeddings' fingerprint) ââ
 _VERB_LEXICON: "Optional[dict]" = None
 _VERB_LEXICON_LOCK = asyncio.Lock()
 
@@ -121,8 +104,6 @@ def _tool_priority(t: dict) -> int:
     read verbs fall to rank 1 (permission order alone), never a lexical gate."""
     fn = (t.get("function") or {})
     name = str(fn.get("name") or "")
-    # Non-verb tools rank last by their MiOS name convention (recipes/skills, then
-    # external MCP/A2A) -- a structural prefix, not natural-language matching.
     if name.startswith(("mios_recipe__", "mios_skill__")):
         return 3
     if name.startswith(("mcp.", "a2a")):
@@ -132,8 +113,6 @@ def _tool_priority(t: dict) -> int:
     perm = str(cat.get("permission", "")).lower()
     tier = str(cat.get("tier", "")).lower()
     is_read = perm == "read"
-    # 0: the curated high-frequency read/discovery verbs every agent leans on first,
-    # identified by the core-tier rerank signal (degrade-open: no core signal -> rank 1).
     if is_read and TOOL_PRIORITY_CORE_FIRST and tier == "core":
         return 0
     if is_read:
@@ -253,20 +232,14 @@ def _fuse_then_diversify(scored: list, qterms: list, n: int, keyfn) -> list:
         rels = [r for r, _t, _v in w]
         ts = [t for _r, t, _v in w]
         vecs = [v for _r, _t, v in w]
-        # stage-1.5 skip: a confident cosine cut (well-separated at the N-th boundary) has
-        # no confusable cluster -> keep the plain cosine slice, no fusion/MMR work.
         if len(w) > n and (rels[n - 1] - rels[min(n, len(w) - 1)]) > RERANK_SKIP_MARGIN:
             return cos_top
-        # stage-2a: RRF-fuse the cosine rank with the BM25 lexical rank over the window.
         bm = [_bm25(qterms, keyfn(t)) for t in ts]
         rk_cos = _rank_positions(rels, ts)
         rk_bm = _rank_positions(bm, ts)
         fused = [1.0 / (RERANK_RRF_K + rk_cos[i]) + 1.0 / (RERANK_RRF_K + rk_bm[i])
                  for i in range(len(ts))]
         order = sorted(range(len(ts)), key=lambda i: (-fused[i], _stable_name(ts[i])))
-        # stage-2b: greedy MMR over the fused window; relevance term = the calibrated
-        # cosine rel (a true [0,1] similarity), diversity = max cosine to an already-picked
-        # tool -> a confusable twin's marginal score collapses by (1-lambda)*sim.
         sel: list = []
         pool = list(order)
         maxsim = [0.0] * len(ts)               # running max cosine of each cand to ANY

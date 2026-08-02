@@ -1,9 +1,4 @@
 # AI-hint: stdlib unit test for mios_daemons -- single-iteration behaviour of the
-#   extracted background daemon loops with injected stubs (no real sleep / network /
-#   DB). Asserts the gossip loop merges a discovered peer into the shared registry,
-#   the self-improve loop surfaces a high-severity finding exactly once, the
-#   membership-watch loop fires a reload on an mtime change, and the reputation
-#   flush/restore helpers no-op when pg is not primary.
 # AI-related: ./mios_daemons.py
 # AI-functions: (tests)
 """Stdlib unit tests for the mios_daemons background loops (no network/DB)."""
@@ -18,9 +13,6 @@ import mios_daemons
 
 
 def _run(coro):
-    # The membership/self-improve loops re-raise CancelledError (the gossip loop
-    # breaks); the stub sleeper uses it to stop after one observable pass, so a
-    # propagated cancel is the expected end-of-test, not a failure.
     try:
         return asyncio.new_event_loop().run_until_complete(coro)
     except asyncio.CancelledError:
@@ -51,8 +43,6 @@ class _Rep:
 
 class GossipLoopTest(unittest.TestCase):
     def test_merges_discovered_peer(self):
-        # One known peer that, when pulled, advertises a brand-new peer -> the loop
-        # should merge it into the shared _A2A_PEERS dict with status=discovered.
         peers = {"known": {"url": "http://known", "status": "active", "heartbeat": 1}}
 
         class _Resp:
@@ -70,7 +60,6 @@ class GossipLoopTest(unittest.TestCase):
         async def _get_client():
             return _Client()
 
-        # Force exactly one round then break via CancelledError on the 2nd sleep.
         sleeper = _CancelAfter(fire_after=2)
         orig_sleep = mios_daemons.asyncio.sleep
         orig_toml = mios_daemons._toml_section
@@ -93,7 +82,6 @@ class GossipLoopTest(unittest.TestCase):
         orig_toml = mios_daemons._toml_section
         mios_daemons._toml_section = lambda _s: {"interval_min": 0}
         try:
-            # returns immediately, never sleeps / touches the network
             _run(mios_daemons._gossip_loop())
         finally:
             mios_daemons._toml_section = orig_toml
@@ -115,8 +103,6 @@ class SelfImproveLoopTest(unittest.TestCase):
         orig_report = mios_daemons._selfimprove_report
         mios_daemons.asyncio.sleep = sleeper
         mios_daemons._toml_section = lambda _s: {"interval_min": 1}
-        # _selfimprove_report now lives in this module (no longer injected) -- patch the
-        # module global directly, the same way the loop's other deps are stubbed above.
         mios_daemons._selfimprove_report = _report
         mios_daemons.configure(_SELFIMPROVE_SEEN=seen)
         try:
@@ -138,9 +124,6 @@ class _PG:
 
 class SelfImproveReportTest(unittest.TestCase):
     def test_degrades_open_when_pg_unreachable(self):
-        # A pg miss -> the read-only report returns the documented empty envelope
-        # and never raises, so both the loop and the /v1/self-improve/report route
-        # stay up. (Verifies the moved-home helper keeps its degrade-open contract.)
         async def _boom(*_a, **_k):
             raise RuntimeError("pg unreachable")
 
@@ -157,10 +140,6 @@ class SelfImproveReportTest(unittest.TestCase):
                                "samples": 0, "error": "unavailable"})
 
     def test_reads_selfimprove_ssot_tunables(self):
-        # The analyzer is driven ENTIRELY from the [selfimprove] SSOT section -- the
-        # sample_size bounds the query LIMIT and min_samples/fail_threshold/slow_ms
-        # flow through to mios_selfimprove.analyze with no values baked into the
-        # helper. Synthetic (non-dictionary) section values prove the plumbing.
         captured = {}
 
         async def _rows(_sql, params, fetch=False):
@@ -236,20 +215,16 @@ class MembershipWatchLoopTest(unittest.TestCase):
 class ReputationHelpersTest(unittest.TestCase):
     def test_flush_and_restore_noop_when_not_primary(self):
         mios_daemons.configure(_PG_PRIMARY=False)
-        # both must return without touching _mios_pg (which would fail with no DB)
         _run(mios_daemons._reputation_flush())
         _run(mios_daemons._reputation_restore())
 
 
 class KvGcSweepTest(unittest.TestCase):
     def test_evicts_old_unprotected_matching_only(self):
-        # Filenames are built from the module's filename plan (SSOT) -- no baked
-        # prefix/suffix literal -- with synthetic non-dictionary conversation tokens.
         old = time.time() - 100000.0
         with tempfile.TemporaryDirectory() as d:
             evictable = os.path.join(d, mios_daemons._kv_filename("zqx7slotA"))
             resident = os.path.join(d, mios_daemons._kv_filename("zqx7resB"))
-            # A stale file that does NOT match the KV prefix/suffix -> never a candidate.
             unrelated = os.path.join(d, "zqx7unrelated.tmp")
             for p in (evictable, resident, unrelated):
                 with open(p, "wb") as f:
@@ -303,7 +278,6 @@ class SelfImproveActPassTest(unittest.TestCase):
             setattr(mios_daemons, k, v)
 
     def test_disabled_is_noop(self):
-        # DEFAULT-OFF: act_enabled false -> a pure no-op; the drafter is never invoked.
         drafted = {"called": False}
 
         async def _draft(_f):
@@ -324,9 +298,6 @@ class SelfImproveActPassTest(unittest.TestCase):
         self.assertFalse(drafted["called"], "a disabled pass must not draft or act")
 
     def test_queues_non_regressing_proposal(self):
-        # Enabled + a non-regressing proposal -> QUEUED exactly once. The single write
-        # is an append to the event queue with a pending_review status (queue-not-apply:
-        # nothing is dispatched/mutated).
         captured = []
 
         async def _report():
@@ -371,7 +342,6 @@ class SelfImproveActPassTest(unittest.TestCase):
         self.assertIn("pending_review", params["payload"])  # awaits human approval
 
     def test_rejects_regressing_proposal(self):
-        # A regressing proposal is REJECTED and NEVER queued; the delta is in the result.
         captured = []
 
         async def _report():
@@ -409,9 +379,6 @@ class SelfImproveActPassTest(unittest.TestCase):
         self.assertEqual(len(captured), 0, "a regressing proposal is never queued")
 
     def test_rejects_isolation_violation_before_scoring(self):
-        # A proposal targeting the PROTECTED surface (the evaluator/eval/lane-config) is
-        # rejected on isolation BEFORE it is scored -- the evaluator is never even run --
-        # and is never queued. This is the anti-reward-hacking structural guarantee.
         eval_called = {"n": 0}
         captured = []
 
@@ -453,8 +420,6 @@ class SelfImproveActPassTest(unittest.TestCase):
         self.assertEqual(len(captured), 0, "never queued")
 
     def test_loop_runs_act_pass_each_iteration(self):
-        # Wiring proof: the surfacing loop invokes the ACT pass every iteration (the pass
-        # itself self-gates on act_enabled, so this stays default-off in production).
         calls = {"n": 0}
 
         async def _report():
@@ -485,8 +450,6 @@ class SelfImproveActPassTest(unittest.TestCase):
 
 class SelfImproveProposalsReadTest(unittest.TestCase):
     def test_degrades_open_when_pg_unreachable(self):
-        # The read-only proposals queue returns the documented empty envelope on a pg
-        # miss so GET /v1/self-improve/proposals stays up.
         async def _boom(*_a, **_k):
             raise RuntimeError("pg unreachable")
 
@@ -501,8 +464,6 @@ class SelfImproveProposalsReadTest(unittest.TestCase):
         self.assertEqual(out["error"], "unavailable")
 
     def test_reads_queued_proposal_rows(self):
-        # Reads back the queued proposal event rows, bounded + filtered by the proposal
-        # event kind (no apply -- read-only review surface).
         captured = {}
 
         async def _rows(_sql, params, fetch=False):

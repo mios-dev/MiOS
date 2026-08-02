@@ -23,7 +23,6 @@ def _check(name: str, ok: bool, detail: str = "") -> None:
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# Reference impl of the server.py _read_tool_enrich domain-keep logic (#49).
 def _enrich_keep(hints, explicit, dvset, core, local_state):
     keep = set(dvset) | set(explicit)
     if local_state:
@@ -38,8 +37,6 @@ CORE = {"system_status", "mios_apps", "process_list", "container_status", "list_
 
 
 def t_compound_cross_domain() -> None:
-    # "list windows AND system status" -> routed apps_windows; both EXPLICITLY
-    # hinted; local_state set. Both must survive (the live #49 repro).
     out = _enrich_keep(
         hints=["list_windows", "system_status"],
         explicit={"list_windows", "system_status"},
@@ -49,8 +46,6 @@ def t_compound_cross_domain() -> None:
 
 
 def t_local_state_core() -> None:
-    # local_state query routed apps_windows, refine hinted ONLY list_windows
-    # (dropped system_status) -> the deterministic CORE still grounds system_status.
     out = _enrich_keep(
         hints=["list_windows", "system_status", "process_list", "container_status"],
         explicit={"list_windows"},
@@ -61,8 +56,6 @@ def t_local_state_core() -> None:
 
 
 def t_no_overground() -> None:
-    # A FILES query (not local_state) that carries an AUTO (non-explicit)
-    # system_status must still be domain-scoped OUT -- no over-grounding.
     out = _enrich_keep(
         hints=["fs_search", "system_status"],
         explicit={"fs_search"},          # system_status was auto-added, NOT asked
@@ -73,8 +66,6 @@ def t_no_overground() -> None:
 
 
 def t_no_domain() -> None:
-    # No routed domain -> the caller doesn't apply this filter at all; here we
-    # confirm the keep-logic is a strict subset and never invents verbs.
     out = _enrich_keep(
         hints=["list_windows", "system_status"],
         explicit={"list_windows", "system_status"},

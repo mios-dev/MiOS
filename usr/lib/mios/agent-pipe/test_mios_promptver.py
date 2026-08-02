@@ -28,15 +28,12 @@ def t_register_versions():
     r = pv.PromptRegistry()
     a = r.register("refine", "v1 text")
     check("register: first -> version 1", a["version"] == 1)
-    # same content -> stable version (idempotent re-register every import)
     a2 = r.register("refine", "v1 text")
     check("register: unchanged -> same version", a2["version"] == 1 and a2["hash"] == a["hash"])
-    # changed content -> version bump
     b = r.register("refine", "v2 text edited")
     check("register: changed -> version 2", b["version"] == 2 and b["hash"] != a["hash"])
     check("register: history has the prior", len(r.history("refine")) == 1
           and r.history("refine")[-1]["version"] == 1)
-    # independent name tracks its own version
     c = r.register("polish", "p1")
     check("register: per-name version", c["version"] == 1)
 
@@ -47,12 +44,10 @@ def t_rollback():
     r.register("synth", "auto-edited (regressed)")
     check("rollback: pre state version 2", r.current("synth")["version"] == 2)
     rb = r.rollback("synth")
-    # rollback restores ORIGINAL content as a NEW forward version (3)
     check("rollback: forward version bump", rb["version"] == 3)
     check("rollback: content == original", r.current("synth")["content"] == "original")
     check("rollback: hash == original hash",
           r.current("synth")["hash"] == pv.content_hash("original"))
-    # nothing to roll back
     r.register("solo", "x")
     check("rollback: no history -> None", r.rollback("solo") is None)
 

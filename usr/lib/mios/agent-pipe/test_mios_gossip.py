@@ -29,7 +29,6 @@ def t_select():
     check("select: subset of input", set(s1) <= set(IDS))
     check("select: fanout>n -> all", set(g.select_gossip_peers(IDS, 99, seed=1)) == set(IDS))
     check("select: exclude self/contacted", "a" not in g.select_gossip_peers(IDS, 8, seed=1, exclude=["a"]))
-    # coverage rotates across rounds (not every seed picks the same 3)
     sels = {tuple(g.select_gossip_peers(IDS, 3, seed=s)) for s in range(8)}
     check("select: rotates coverage across seeds", len(sels) > 1)
 

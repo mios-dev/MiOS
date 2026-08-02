@@ -7,7 +7,6 @@ import sys
 import os
 from typing import Any, Callable, Awaitable
 
-# Ensure agent-pipe path is accessible for imports
 _base = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if _base not in sys.path:
     sys.path.insert(0, _base)
@@ -80,5 +79,4 @@ async def call_remote(
         return gemini_resp_to_oai(resp_raw)
 
     else:
-        # OpenAI or standard passthrough
         return await transport(node_cfg, oai_request)

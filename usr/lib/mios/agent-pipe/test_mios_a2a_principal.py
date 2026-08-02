@@ -22,7 +22,6 @@ def check(name, cond, detail=""):
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# --- injected crypto doubles (no external Ed25519 key material) -------------
 
 def sign_real(table, fields):
     """Deterministic fake passport: binds to a hash of (table, sorted-fields)."""
@@ -54,7 +53,6 @@ def verify_should_not_run(passport, key):
     raise AssertionError("verify_fn must NOT be invoked when text digest mismatches")
 
 
-# --- text_digest -------------------------------------------------------------
 
 def t_text_digest():
     d = ap.text_digest("hello world")
@@ -67,22 +65,17 @@ def t_text_digest():
           ap.text_digest("delegate task A") != ap.text_digest("delegate task B"))
     check("digest: whitespace is significant",
           ap.text_digest("a b") != ap.text_digest("a  b"))
-    # None / empty coerce to the empty-string digest (str(text or "")).
     empty = hashlib.sha256(b"").hexdigest()
     check("digest: None -> empty-string digest", ap.text_digest(None) == empty)
     check("digest: '' -> empty-string digest", ap.text_digest("") == empty)
     check("digest: None == '' (both falsy->'')", ap.text_digest(None) == ap.text_digest(""))
-    # Non-string inputs are stringified (str(text)).
     check("digest: int coerced via str()",
           ap.text_digest(123) == hashlib.sha256(b"123").hexdigest())
-    # 0 is falsy -> str(0 or "") == "" -> empty digest (NOT "0"). Document the quirk.
     check("digest: 0 is falsy -> empty digest (not '0')", ap.text_digest(0) == empty)
-    # unicode round-trips through utf-8
     check("digest: unicode utf-8 encoded",
           ap.text_digest("éè") == hashlib.sha256("éè".encode("utf-8")).hexdigest())
 
 
-# --- build_claims ------------------------------------------------------------
 
 def t_build_claims():
     c = ap.build_claims("agentX", "alice", "peer1", "ctx42", "do the thing")
@@ -96,7 +89,6 @@ def t_build_claims():
     check("claims: context passthrough", c["context"] == "ctx42")
     check("claims: text bound as digest, not raw text",
           c["text_sha256"] == ap.text_digest("do the thing") and "do the thing" not in c["text_sha256"])
-    # None/empty principal == autonomous ("")
     auto = ap.build_claims("agentX", None, "peer1", "ctx42", "t")
     check("claims: None principal -> '' (autonomous)", auto["principal"] == "")
     none_all = ap.build_claims(None, None, None, None, None)
@@ -104,12 +96,10 @@ def t_build_claims():
           none_all["agent"] == "" and none_all["peer"] == "" and none_all["context"] == "")
     check("claims: all-None text -> empty-string digest",
           none_all["text_sha256"] == ap.text_digest(""))
-    # non-string ids stringified
     numc = ap.build_claims(7, 8, 9, 10, "x")
     check("claims: numeric ids stringified", numc["agent"] == "7" and numc["context"] == "10")
 
 
-# --- build_metadata ----------------------------------------------------------
 
 def t_build_metadata():
     m = ap.build_metadata("agentX", "alice", "peer1", "ctx42", "task text", sign_real)
@@ -121,13 +111,11 @@ def t_build_metadata():
           m["passport"].get("table") == ap.TABLE == "a2a_delegation")
     check("metadata: passport sig binds to the exact claims",
           m["passport"]["sig"] == sign_real(ap.TABLE, m["claims"])["sig"])
-    # degrade-open: no key -> passport None but claims still ride along
     mu = ap.build_metadata("agentX", "alice", "peer1", "ctx42", "task text", sign_nokey)
     check("metadata: unsigned passport is None when no key", mu["passport"] is None)
     check("metadata: claims still present when unsigned", isinstance(mu["claims"], dict) and mu["claims"]["agent"] == "agentX")
 
 
-# --- verify round-trip -------------------------------------------------------
 
 def _wrap(meta):
     """Wrap a build_metadata() result under the on-wire METADATA_KEY envelope."""
@@ -146,12 +134,10 @@ def t_verify_valid_roundtrip():
 def t_verify_tampered_text():
     text = "transfer $10 to alice"
     meta = ap.build_metadata("agentX", "alice", "peer1", "ctx42", text, sign_real)
-    # MITM swaps the delivered instruction while keeping the original envelope.
     verdict, reason, claims = ap.verify(_wrap(meta), "transfer $10000 to mallory", verify_real)
     check("verify: tampered text rejected", verdict is False, reason)
     check("verify: reason is text_digest_mismatch", reason == "text_digest_mismatch")
     check("verify: claims still returned on mismatch", claims == meta["claims"])
-    # The digest check MUST run BEFORE signature verification.
     v2, r2, _ = ap.verify(_wrap(meta), "totally different task", verify_should_not_run)
     check("verify: digest checked before signature (verify_fn not called)",
           v2 is False and r2 == "text_digest_mismatch")
@@ -165,7 +151,6 @@ def t_verify_unsigned_degrade():
     check("verify: unsigned -> rejected (not None)", verdict is False, reason)
     check("verify: reason is unsigned", reason == "unsigned")
     check("verify: claims returned even when unsigned", claims == meta["claims"])
-    # text mismatch takes precedence over unsigned (digest checked first)
     v2, r2, _ = ap.verify(_wrap(meta), "different", verify_should_not_run)
     check("verify: mismatch beats unsigned ordering", v2 is False and r2 == "text_digest_mismatch")
 
@@ -175,7 +160,6 @@ def t_verify_bad_signature():
     meta = ap.build_metadata("agentX", "alice", "peer1", "ctx42", text, sign_real)
     verdict, reason, claims = ap.verify(_wrap(meta), text, verify_real)
     check("setup: valid before tamper", verdict is True)
-    # Forge the passport sig (text digest still matches, so it reaches verify_fn).
     forged = _wrap({"claims": dict(meta["claims"]), "passport": {"sig": "deadbeef", "table": ap.TABLE}})
     v2, r2, _ = ap.verify(forged, text, verify_real)
     check("verify: bad signature rejected", v2 is False, r2)
@@ -197,25 +181,19 @@ def t_verify_claims_tampered_under_valid_sig():
 
 def t_verify_absent_and_malformed():
     text = "x"
-    # No principal block at all (legacy / non-MiOS peer).
     v, r, c = ap.verify({}, text, verify_should_not_run)
     check("verify: absent block -> verdict None", v is None and r == "absent")
     check("verify: absent -> empty claims dict", c == {})
     v2, r2, c2 = ap.verify(None, text, verify_should_not_run)
     check("verify: None metadata -> None/absent", v2 is None and r2 == "absent" and c2 == {})
-    # metadata present but the principal value is not a dict
     v3, r3, _ = ap.verify({ap.METADATA_KEY: "not-a-dict"}, text, verify_should_not_run)
     check("verify: non-dict principal block -> None/absent", v3 is None and r3 == "absent")
-    # non-dict metadata entirely
     v4, r4, _ = ap.verify("garbage", text, verify_should_not_run)
     check("verify: non-dict metadata -> None/absent", v4 is None and r4 == "absent")
-    # block present, claims missing entirely -> {} claims, digest of "" won't match real text
     v5, r5, c5 = ap.verify({ap.METADATA_KEY: {"passport": {"sig": "z"}}}, "real text", verify_should_not_run)
     check("verify: missing claims -> {} and text mismatch (verify_fn unused)",
           v5 is False and r5 == "text_digest_mismatch" and c5 == {})
-    # block present, claims is the wrong type -> coerced to {}
     v6, r6, c6 = ap.verify({ap.METADATA_KEY: {"claims": ["bad"], "passport": {"sig": "z"}}}, "", verify_always_true)
-    # claims->{} , text_sha256 None vs digest("") -> mismatch
     check("verify: non-dict claims coerced to {} -> mismatch", v6 is False and r6 == "text_digest_mismatch" and c6 == {})
 
 
@@ -235,9 +213,6 @@ def t_constants():
     check("const: METADATA_KEY", ap.METADATA_KEY == "mios_principal")
 
 
-# --- agent-passport Ed25519 crypto (moved from server.py) --------------------
-# These functions were extracted verbatim; the module's PASSPORT_* config consts
-# are injected via configure() (server.py keeps the surface-pinned originals).
 
 def _empty_keydir():
     """A throwaway dir with no agent key material in it (degrade-open paths)."""
@@ -245,13 +220,11 @@ def _empty_keydir():
 
 
 def t_passport_canonical_json():
-    # Deterministic, key-sorted, whitespace-free (matches the mios-passport CLI).
     s = ap._passport_canonical_json({"b": 1, "a": 2})
     check("canonical_json: keys sorted + compact", s == '{"a":2,"b":1}', s)
     check("canonical_json: deterministic",
           ap._passport_canonical_json({"x": [3, 2, 1], "y": "z"})
           == ap._passport_canonical_json({"y": "z", "x": [3, 2, 1]}))
-    # default=str makes non-JSON-native values encodable instead of raising.
     check("canonical_json: non-native value coerced via str (no raise)",
           ap._passport_canonical_json({"a": {1, 2}}).startswith('{"a":'))
 
@@ -262,7 +235,6 @@ def t_passport_op_hash():
           h.startswith("sha256:") and len(h) == len("sha256:") + 64, h)
     check("op_hash: equals sha256 of 'table:canonical(fields)'",
           h == "sha256:" + hashlib.sha256(b'tbl:{"x":1}').hexdigest())
-    # The passport envelope field itself is excluded from the signed-over hash.
     check("op_hash: strips the 'passport' field before hashing",
           ap._passport_op_hash("tbl", {"x": 1, "passport": {"sig": "z"}}) == h)
     check("op_hash: table-bound (different table -> different hash)",
@@ -270,10 +242,8 @@ def t_passport_op_hash():
 
 
 def t_passport_sign_gated():
-    # Disabled -> always None regardless of key material.
     ap.configure(passport_enable=False)
     check("sign: PASSPORT_ENABLE=False -> None", ap._passport_sign("t", {"x": 1}) is None)
-    # Enabled but no key on disk -> None (degrade-open: write lands unsigned).
     kd = _empty_keydir()
     ap.configure(passport_enable=True, passport_algo="ed25519",
                  passport_key_dir=kd, passport_agent_name="agent-pipe")
@@ -307,7 +277,6 @@ def t_passport_verify_branches():
     v, r = ap._passport_verify(ed, payload_for_hash=("tbl", {"x": 1}))
     check("verify: op_hash mismatch (declared != recomputed)",
           v is False and r == "op_hash_mismatch", r)
-    # Matching op_hash but no public key for the agent -> no_public_key.
     kd = _empty_keydir()
     ap.configure(passport_key_dir=kd, passport_agent_name="agent-pipe")
     ap._passport_pub_cache.clear()

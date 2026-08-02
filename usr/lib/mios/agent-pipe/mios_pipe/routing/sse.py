@@ -18,9 +18,6 @@ import re
 import time
 from typing import Any, Optional
 
-# persist each phase emit ALSO as a reasoning line so the OWUI
-# Thinking dropdown keeps the live activity log (status pills are transient). Sole
-# consumer is _sse_status below; moved here with the emit cluster.
 STATUS_AS_REASONING = os.environ.get(
     "MIOS_STATUS_AS_REASONING", "true").lower() not in {"false", "0", "no"}
 
@@ -28,13 +25,6 @@ _DEBUG_ENABLE = False
 _SURFACE_DEFAULT = "clean"
 
 
-# ── SSE chunk builders ─────────────────────────────────────────────
-# Encode chat completion deltas in the OpenAI streaming protocol so
-# any gateway (OWUI, Hermes Discord, Slack/Telegram, ...) consumes
-# the response with its existing OpenAI client. The dispatch fast-
-# path emits a single delta containing the structured tool_calls
-# envelope as content (rendered as a <details type="tool_calls">
-# block markdown can collapse natively).
 
 def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
                role: Optional[str] = None,
@@ -52,13 +42,6 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
     if role:
         delta["role"] = role
     if reasoning is not None:
-        # Emit BOTH reasoning field conventions so EVERY client renders the
-        # thinking stream: `reasoning_content` (DeepSeek/OWUI) AND `reasoning`
-        # (OpenRouter / newer OpenAI / the Hermes desktop app + Cursor). A client
-        # parses whichever it knows and ignores the other; strict clients (Zen
-        # Smart Window) ignore both and show only `content`.
-        # Hermes thinking wasn't streaming because it reads `delta.reasoning`, not
-        # `reasoning_content`.
         delta["reasoning_content"] = reasoning
         delta["reasoning"] = reasoning
     if content is not None:
@@ -104,22 +87,11 @@ def _sse_reasoning(text: str, *, chat_id: str, model: str,
         return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
     if reasoning_ok is False:
         return _sse_chunk(text, chat_id=chat_id, model=model)
-    # reasoning_ok is None -> unknown surface. Route by surface_default setting (T-115).
-    # clean -> reasoning channel (Thinking pane); inline -> content channel (visible text).
     if _SURFACE_DEFAULT == "inline":
         return _sse_chunk(text, chat_id=chat_id, model=model)
     return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
 
 
-# Phase keys -> humanistic casual labels for the SSE status strip.
-# MiOS is for non-technical users; the strip should read like the
-# system is THINKING and DOING, not like a debugger output. Model
-# names, timings, arg JSONs, intent labels stay in the
-# event payloads for debug -- they NEVER reach the visible strip.
-#
-# Add a phase key here when wiring a new emit site instead of
-# inlining label strings -- keeps the operator-visible voice
-# consistent across every dispatch path.
 def _load_status_labels() -> dict:
     """Phase -> (emoji, label) for the SSE status strip. Personable
     defaults here; each phase is OVERRIDABLE from mios.toml
@@ -127,12 +99,6 @@ def _load_status_labels() -> dict:
     operator tunes MiOS-Agent's voice without touching code (SSOT; no
  hardcoded UI strings locked in the hot path).
     'better emitters / more detailed and personable'."""
-    # EMOJI ONLY -- no hardcoded English narrative, no TOML label map.
-    # "nothing hardcoded -- pure streamed +
-    # generative". The chip is the emoji plus any GENERATIVE `detail` the
-    # emit site passes (the actual verb / refined intent / plan); the rich
-    # agent-path activity comes from the live hermes-tail stream in the
-    # OWUI pipe. Emojis are locale-neutral glyphs, not English strings.
     return {
         "prompt":         ("👂", ""),
         "refine":         ("✨", ""),
@@ -186,26 +152,8 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
         d = str(detail).strip()
         if d:
             payload["detail"] = d[:80]
-            # Append to label for clients that only render `label`. " · "
-            # separator (was a bare double-space that read as a layout glitch).
             payload["label"] = f"{label} · {d[:80]}" if label else d[:80]
             _desc = f"{_desc} · {d[:80]}".strip(" ·")
-    # ALSO stream the emit as a PERSISTENT reasoning line (
-    # OWUI status pills are TRANSIENT -- one line, replaced each event, gone on
-    # done -- so the operator never sees the activity LOG). reasoning_content
-    # persists in OWUI's <details> Thinking block (and strict OpenAI clients
-    # ignore it), so the live phase log stays visible WITH context. Skip the
-    # terminal done marker -- it lands after the answer starts, where the OWUI
-    # bridge drops late reasoning.
-    # ONLY persist an emit that carries REAL content -- a label or a detail.
-    # A BARE phase marker (👂/✨/🧭/🤖 = prompt/refine/route/agent_target, which
-    # have empty labels + no detail) is noise in the dropdown (operator
-    # "the same hardcoded bunch of generic emits that do nothing").
-    # Such contentless markers still emit as a transient mios_status pill (the
-    # progress signal) -- they just no longer clutter the persistent log. The
-    # meaningful emits (🔎 search · query, 🕷️ crawl · url, 🛰️ <node>, ✅) all
-    # carry a label/detail and are unaffected. No hardcoded emoji list -- the
-    # test is purely "does this emit say anything".
     _has_content = bool((label and str(label).strip())
                         or (detail and str(detail).strip()))
     _content = None
@@ -252,9 +200,6 @@ def _node_context(node: dict) -> str:
     if not isinstance(node, dict):
         return ""
     if node.get("agent"):
-        # Prefer the CLEAN facet `title` -- `prompt` gets a LIVE-GROUNDING prefix
-        # prepended at dispatch, which would otherwise leak into the emit (operator
-        # "DAG emits leak the grounding text instead of clean labels").
         return str(node.get("title") or node.get("prompt")
                    or node.get("task") or "").strip()[:64]
     args = node.get("args") or {}
@@ -286,13 +231,10 @@ def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
     (`context`), falling back to its semantic ROLE as a plain word (research /
     reasoning / coding -- a capability descriptor, not a node name) and never
     the registry key. The internal name is dropped entirely from the emit."""
-    # Casual, end-user-obvious glyphs ("more casual + useful
-    # to end-users"): an AI is working on it (🤖) -> done (✅) -> went quiet (💤).
     emoji = {"engage": "🤖", "ok": "✅", "down": "💤"}.get(state, "🤖")
     _ctx = str(context or "").strip()
     _role = str((cfg or {}).get("role") or "").strip()
     _label = _ctx or _role or "working"
-    # context already IS the label -> don't repeat it as detail.
     _detail = "" if _label == _ctx else _ctx
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
                        label=_label[:80], detail=_detail[:80])
@@ -319,14 +261,6 @@ def _sse_done() -> bytes:
     return b"data: [DONE]\n\n"
 
 
-# Hermes-tail -> live checkpoint status. During the buffered sub-agent
-# call the agent-pipe would otherwise send bare ': keepalive' COMMENT
-# lines (no data) while it waits -- OWUI then renders nothing until the
-# very end ("emitters haven't worked once; thinking
-# + emits only mass-print at the end"). Emitting a REAL mios_status data
-# chunk on each checkpoint, sourced from the AI's actual latest tool
-# step, forces the emit to flush + stream live instead of dumping at the
-# end -- the "checkpoint/status interrupt" the operator asked for.
 _TAIL_KIND_EMOJI = {
     "max_retries":    "❌",
     "invalid_tool":   "⚠️",
@@ -335,8 +269,6 @@ _TAIL_KIND_EMOJI = {
     "synthesis":      "🔀",
     "subagent_done":  "✅",
     "tool_call":      "🛠️",
-    # F-011: war-room (A2O frontier) per-task transitions -- same live-status
-    # transport, so OWUI/CLI/Discord watch the frontier without `tmux attach`.
     "frontier":       "🛰️",
 }
 _HERMES_TAIL_PATH = os.environ.get(
@@ -382,9 +314,6 @@ def _tail_latest_status(seen_ts: float, *, chat_id: str,
         with open(_HERMES_TAIL_PATH) as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError, ValueError):
-        # Absent/unreadable hermes-tail is not fatal: the war-room sink (F-011) may
-        # still hold newer events, so degrade to an empty primary set rather than
-        # returning early -- the frontier fold below still runs.
         data = {}
     newest = None
     new_ts = seen_ts
@@ -393,9 +322,6 @@ def _tail_latest_status(seen_ts: float, *, chat_id: str,
         if ts > new_ts:
             new_ts = ts
             newest = ev
-    # F-011: fold in the war-room activity sink on the SAME newest-wins clock, so a
-    # frontier task transition surfaces on the mios_status reasoning channel exactly
-    # like a hermes tool step. Best-effort + off-by-default -> normally a no-op.
     for ev in _frontier_stream_events(seen_ts):
         ts = ev.get("ts", 0)
         if ts > new_ts:
@@ -427,10 +353,6 @@ def _iter_answer_chunks(text: str, size: int):
 
 
 def configure(*, debug_enable: bool = True, surface_default: str = "clean", **kwargs) -> None:
-    # Full-visibility posture: server.py resolves [observability].debug (default
-    # on) and passes it here; when on, reasoning/thinking/tool-io/status stream
-    # as visible content to every chat surface. Set debug=false in mios.toml for
-    # answer-only replies (reasoning then rides delta.reasoning_content instead).
     global _DEBUG_ENABLE, _SURFACE_DEFAULT
     _DEBUG_ENABLE = bool(debug_enable)
     _SURFACE_DEFAULT = str(surface_default).strip().lower()

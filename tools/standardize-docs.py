@@ -12,7 +12,6 @@ def get_version():
 
 VERSION = get_version()
 HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
-#  'MiOS'
 > **Proprietor:** 'MiOS' Project
 > **Infrastructure:** Self-Building Infrastructure (Personal Property)
 > **License:** Licensed as personal property to 'MiOS' Project
@@ -20,7 +19,6 @@ HEADER = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github
 ---"""
 
 FOOTER = """---
-###  Legal & Source Reference
 - **Copyright:** (c) 2026 'MiOS' Project
 - **Status:** Personal Property / Private Infrastructure
 - **Project Repository:** [MiOS-DEV/mios](https://github.com/MiOS-DEV/mios)
@@ -32,16 +30,11 @@ def standardize_file(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Clean existing header/footer if they look like our old ones
-    # This regex looks for the proprietor line to identify the header
     content = re.sub(r'^#  MiOS.*?\n---\n', '', content, flags=re.DOTALL | re.MULTILINE)
-    # This looks for the "Legal & Source Reference" or the old "Bootc Ecosystem" footer
     content = re.sub(r'\n---\n### ( Legal & Source Reference| Bootc Ecosystem & Resources).*?---$', '', content, flags=re.DOTALL)
 
-    # Strip extra whitespace
     content = content.strip()
 
-    # Re-apply standard header and footer
     new_content = f"{HEADER}\n\n{content}\n\n{FOOTER}"
 
     with open(file_path, 'w', encoding='utf-8') as f:

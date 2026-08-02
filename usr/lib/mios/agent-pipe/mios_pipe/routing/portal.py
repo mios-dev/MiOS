@@ -40,19 +40,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The swarm-roster probe + the moved route LOGIC call back into server-resident
-# deps: _probe_auth_headers (probe bearer header) and _agent_lane (lane
-# classifier) for the probe; _AGENT_REGISTRY (the live agent/node roster) for
-# the /portal/swarm logic; _sanitize_tool_text (log scrubber) for the
-# /portal/service detail logic; and the ``websockets`` client module for the
-# /portal/term WS bridge (kept as an injected dep because it is not present on a
-# bare checkout -- standalone ``import mios_portal`` must not require it). The
-# registry is injected BY REFERENCE and RE-injected on a live membership reload
-# (it is reassigned, not mutated, in server.py). server.py calls configure()
-# AFTER each is defined (one-way boundary: this module never imports server). The
-# placeholders keep a standalone ``import mios_portal`` working; the routes are
-# async/runtime so nothing fires before configure() runs.
 _probe_auth_headers = None
 _agent_lane = None
 _AGENT_REGISTRY = None
@@ -83,37 +70,10 @@ def configure(*, probe_auth_headers=None, agent_lane=None,
         g["websockets"] = websockets
 
 
-# ── MiOS Portal ("web portal that hosts links to each
-#    service with stats") ───────────────────────────────────────────────
-# The service catalog is AUTO-DISCOVERED from the Quadlet `openInBrowser`
-# labels (SSOT -- the same URLs Podman Desktop uses) + the host Cockpit
-# service. No hardcoded service list. agent-pipe runs INSIDE the WSL VM
-# alongside the services, so it health-checks them over localhost (no CORS,
-# no portproxy/firewall hop) and reports live up/down + latency. Tiles link
-# to the tailnet host:port so a peer can open them. PUBLIC_HOST is the
-# Tailscale MagicDNS name (override via MIOS_PUBLIC_HOST). Tiles link to
-# https://<name>:<port> -- valid HTTPS provided by `tailscale serve
-# --tls-terminated-tcp=<port>` per service (the cert is bound to this name,
-# so the NAME, not the IP, is used; clients need MagicDNS).
-# SSOT [portal].public_host -> MIOS_PUBLIC_HOST. EMPTY by default -- the vendor
-# image bakes NO specific operator's tailnet name. Degrade-open: unset -> this
-# host's own name (tiles stay reachable), never a hardcoded operator identity.
 PORTAL_PUBLIC_HOST = (os.environ.get("MIOS_PUBLIC_HOST", "").strip()
                       or socket.gethostname() or "localhost")
 
 
-# ── Portal authentication ("since this is a webapp and a
-#    MiOS Portal; it should require login") ─────────────────────────────────
-# A signed session-cookie login gating ONLY the portal surface (GET / +
-# /portal/* data endpoints). The /v1 OpenAI API, /a2a, and /health are left as
-# programmatic surfaces (own access model / tailnet-scoped) so OWUI and other
-# clients keep working unchanged. SSOT for the password: the global MiOS
-# password [identity].default_password -> MIOS_DEFAULT_PASSWORD, overridable
-# per-portal via [portal].password / MIOS_PORTAL_PASSWORD (+ user). Disable with
-# [portal].require_login=false / MIOS_PORTAL_REQUIRE_LOGIN=0 (e.g. when a
-# reverse proxy already authenticates). No hardcoded secret -- the cookie HMAC
-# key derives from the password (so rotating it invalidates live sessions)
-# unless an explicit MIOS_PORTAL_SECRET is set.
 def _portal_toml() -> dict:
     try:
         import mios_toml
@@ -252,11 +212,6 @@ def _discover_portal_services() -> list[dict]:
             scheme, port, path = m.group(1), m.group(2), (m.group(3) or "/")
             if port in seen:
                 continue
-            # Drop retired (masked) / gated-OFF (failed start condition) lanes so
-            # the portal stops showing them as perpetual phantom 'down' entries
-            # (legacy lanes retired -> mios-llm-light,
-            # vllm gated, guacamole condition-skipped). Genuine outages keep
-            # ConditionResult=yes and stay visible.
             if _portal_unit_hidden(f):
                 continue
             seen.add(port)
@@ -267,11 +222,6 @@ def _discover_portal_services() -> list[dict]:
             svcs.append({"name": name, "port": int(port), "path": path,
                          "container_name": cname, "kind": "",
                          "local": f"{scheme}://127.0.0.1:{port}{path}"})
-    # Host services (not Quadlets, so no openInBrowser label): read their
-    # ports from mios.toml [ports] SSOT. {toml key: (display name, scheme)}.
-    # (label, scheme, kind) -- kind="terminal" marks ttyd pty bridges so the
-    # portal pins them to the top + renders an inline ~80x20 terminal embed
-    # (matches the MiOS dashboards; also serves btop/console access).
     host_svcs = {"cockpit": ("Cockpit", "https", ""),
                  "code_server": ("Code Server", "http", ""),
                  "ttyd_bash": ("Terminal · Bash", "http", "terminal"),
@@ -290,9 +240,6 @@ def _discover_portal_services() -> list[dict]:
         svcs.append({"name": label, "port": int(p), "path": "/",
                      "container_name": "", "kind": kind,
                      "local": f"{scheme}://127.0.0.1:{p}/"})
-    # Terminals first (operator), then alphabetical. The portal JS re-asserts
-    # this ordering client-side, but sorting the catalog keeps non-JS
-    # consumers (e.g. /portal/stats) consistent.
     svcs.sort(key=lambda s: (s.get("kind") != "terminal", s["name"].lower()))
     return svcs
 
@@ -331,10 +278,6 @@ def _host_stats() -> dict:
 
 
 _PODMAN_PS_SNAPSHOT = os.environ.get(
-    # World-readable shared path (root:root 755 dir, 0644 file) so every
-    # non-root reader -- portal, container_status verb, operator SSH/Termius
-    # shell -- can read the rootful-container snapshot. Was under the 0750
-    # agent-pipe state dir, invisible to everyone but mios-agent-pipe.
     "MIOS_PODMAN_PS_SNAPSHOT", "/var/lib/mios/podman-ps.json")
 
 
@@ -374,8 +317,6 @@ async def _podman_ps() -> dict:
         info = {"container": (names[0] if names else (c.get("Id") or "")[:12]),
                 "state": str(c.get("State", "")).lower(),
                 "image": c.get("Image", "")}
-        # by NAME -- the only match for HOST-NETWORKED containers (most MiOS
-        # services), which report no published Ports in `podman ps`.
         for nm in names:
             by_name[str(nm)] = info
         for p in (c.get("Ports") or []):
@@ -474,21 +415,16 @@ gap:18px;flex-wrap:wrap;justify-content:center;font-size:12.5px;color:var(--mut)
 .hoststrip b{color:var(--fg)}
 /* chat window: portrait-ish 4:5 (taller than landscape, not phone-tall),
    inline + drag-resizable */
-#chatwrap{border:1px solid var(--line);border-radius:var(--rad);overflow:hidden;
 margin:0 auto;width:100%;aspect-ratio:2/3;resize:both;
 min-width:280px;min-height:720px;max-width:100%}
-#chatwrap.min{display:none}
-#chat{width:100%;height:100%;border:0;background:#0d1117;display:block}
 .grid{display:grid;gap:13px;grid-template-columns:repeat(auto-fill,minmax(215px,1fr))}
 /* Services grid: exactly 2 columns; 1 on narrow. */
-#grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start}
 /* Terminals stack in a SINGLE column so expanding one is purely vertical: it
    opens in place, never relocates a neighbour, and the row is wide enough for
    a real 80x20 embed. */
 /* minmax(0,1fr) NOT plain 1fr: a bare 1fr is minmax(auto,1fr), whose auto
    minimum lets the track expand to the terminal's wide min-content and overflow
    the viewport (the chip then shifts off-screen / appears to float). */
-#terms{grid-template-columns:minmax(0,1fr);align-items:start}
 @media(max-width:600px){#grid{grid-template-columns:1fr}}
 .addr{font-family:var(--mono);font-size:11.5px;color:var(--mut);margin-top:8px;
 white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -596,11 +532,6 @@ transform:translateZ(0)}
 /* System Config status card (WS-CONFIG): a read-only health summary, not a
    clickable disclosure -- neutralise the service-card hover-lift + reuse the
    modal .kv rows for the key/value lines. */
-#cfgcard{cursor:default;border-left-color:var(--info)}
-#cfgcard:hover{transform:none;border-color:var(--line);border-left-color:var(--info)}
-#cfgcard .kv{margin:5px 0}
-#cfgcard .kv code{word-break:break-word}
-#cfgcard .meta{margin-top:13px}
 </style></head><body>
 <div class="bar">
   <a href="/" id="logoLink" style="color:inherit;text-decoration:none;display:flex;align-items:center;"><h1>Mi<b>OS</b> <sup style="font-size:10px;color:var(--warn);font-weight:400">build18</sup></h1></a>
@@ -989,9 +920,6 @@ def _portal_theme_css() -> str:
              "--ok": c.get("success"), "--bad": c.get("error"),
              "--mut": c.get("subtle") or c.get("muted"),
              "--silver": c.get("silver"), "--earth": c.get("earth"),
-             # Richer palette ("add more colors from the
-             # mios palette"): pull the bright ANSI slots + warning/info roles
-             # so the portal uses more than the 9 base surfaces.
              "--warn": c.get("warning") or c.get("ansi_11_bright_yellow"),
              "--info": c.get("info") or c.get("ansi_12_bright_blue"),
              "--ok2": c.get("ansi_10_bright_green") or c.get("success"),
@@ -1002,10 +930,6 @@ def _portal_theme_css() -> str:
     return f"<style>:root{{{decl}}}</style>" if decl else ""
 
 
-# ── PWA assets (minimal Android web-app wrapper).
-# A manifest + icon + service worker make the portal "Add to Home Screen"
-# installable as a standalone, chrome-less app -- no third-party wrapper
-# needed (and works inside Native Alpha / a TWA too). MiOS-palette themed.
 _PORTAL_ICON = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">'
                 '<rect width="512" height="512" rx="104" fill="#282262"/>'
                 '<path d="M48 372 q68 -86 136 0 t136 0 t144 0" stroke="#F35C15"'
@@ -1024,9 +948,6 @@ def _read_portal_asset(name: str) -> bytes:
         return b""
 
 
-# PNG icons (generated by the build / tools). Chrome on Android requires
-# PNG icons at 192px + 512px for PWA installability -- an SVG-only icon is
-# why "Add to Home Screen" was unavailable. Maskable 512 covers adaptive.
 _PORTAL_ICON_192 = _read_portal_asset("icon-192.png")
 _PORTAL_ICON_512 = _read_portal_asset("icon-512.png")
 _PORTAL_MANIFEST = json.dumps({
@@ -1130,12 +1051,6 @@ if("serviceWorker" in navigator){navigator.serviceWorker.register("/sw.js",{upda
 </body></html>"""
 
 
-# iOS standalone-PWA embed DIAGNOSTIC. The operator reports that expanded chip
-# embeds (iframes) render "detached" / float over the page on the installed iOS
-# PWA, and headless WebKit cannot reproduce it -- so this page tests SIX embed
-# techniques side by side, each labelled, so the operator can scroll once and
-# say which ones stay glued inside their card. PUBLIC + no-store (no portal
-# shell, no service-worker caching) so it always loads fresh, even standalone.
 _IOSTEST_HTML = r"""<!DOCTYPE html><html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -1215,12 +1130,6 @@ async def _portal_swarm_probe(name: str, cfg: dict, client) -> dict:
             "strengths": cfg.get("strengths") or []}
 
 
-# ── Portal route-handler LOGIC (refactor ROUTE-SURFACE wave) ──────────
-# Each body below was moved VERBATIM out of a server.py @app portal handler; the
-# @app routes stay in server.py as thin wrappers that reach these through
-# sys.modules so the HTTP + importable surface is unchanged. The Request /
-# WebSocket object is passed through as a parameter; every server-resident dep is
-# read from the injected module-level names above (one-way boundary).
 async def portal_stats_logic(request: Request) -> JSONResponse:
     """Live server-side health of every discovered MiOS service + host
     stats + best-effort container state. Self-signed backends checked
@@ -1321,12 +1230,10 @@ async def portal_term_ws_logic(ws: WebSocket, port: int):
     reaches the portal but NOT ttyd's 127.0.0.1:<port> directly (loopback-only,
     not tailscale-served), so the native xterm embed connects here and we proxy
     to ttyd inside the VM -- works from any device with no per-port serve."""
-    # Same login gate as the rest of the portal (cookie sent on same-origin WS).
     if PORTAL_REQUIRE_LOGIN and not _portal_token_ok(
             ws.cookies.get(PORTAL_COOKIE)):
         await ws.close(code=1008)
         return
-    # Only ever bridge a KNOWN terminal port, never an arbitrary host port.
     if port not in {s["port"] for s in _PORTAL_SERVICES
                     if s.get("kind") == "terminal"}:
         await ws.close(code=1008)
@@ -1382,7 +1289,6 @@ async def portal_term_ws_logic(ws: WebSocket, port: int):
 
 
 async def portal_login_page_logic(request: Request, e: int = 0):
-    # Already signed in -> straight to the portal.
     if _portal_authed(request):
         return RedirectResponse("/", status_code=303)
     err = ('<div class="err">Incorrect password &mdash; try again.</div>'
@@ -1393,13 +1299,9 @@ async def portal_login_page_logic(request: Request, e: int = 0):
 
 
 async def portal_login_logic(request: Request):
-    # Parse the urlencoded form body directly (no python-multipart dependency).
     from urllib.parse import parse_qs
     body = (await request.body()).decode("utf-8", "replace")
     pw = (parse_qs(body).get("password") or [""])[0]
-    # Native/API clients (Quickshell's PortalData.qml, scripts, curl) ask for
-    # JSON explicitly; browsers don't send this Accept value for a plain
-    # <form> POST, so the existing redirect+cookie flow is untouched below.
     wants_json = "application/json" in request.headers.get("accept", "")
     if PORTAL_REQUIRE_LOGIN and not hmac.compare_digest(pw, PORTAL_PASSWORD):
         if wants_json:
@@ -1407,11 +1309,6 @@ async def portal_login_logic(request: Request):
         return RedirectResponse("/login?e=1", status_code=303)
     token = _portal_make_token(PORTAL_USER)
     if wants_json:
-        # Same signed token as the cookie below, just returned in the body --
-        # QML/CLI clients can't read Set-Cookie (forbidden response header
-        # in browsers; not reliably exposed in QML's XMLHttpRequest either),
-        # so a native client carries this as 'Authorization: Bearer <token>'
-        # instead (_portal_authed accepts both forms).
         return JSONResponse({"token": token, "user": PORTAL_USER,
                               "expires_in": PORTAL_SESSION_TTL})
     resp = RedirectResponse("/", status_code=303)
@@ -1424,11 +1321,6 @@ async def portal_login_logic(request: Request):
 async def portal_page_logic(request: Request):
     if not _portal_authed(request):
         return RedirectResponse("/login", status_code=303)
-    # Inject the SSOT palette AFTER the static defaults so it wins.
-    # Inject SSOT port JS vars so the baked JS uses live [ports] values
-    # (T-121 NO-HARDCODE: port comparisons in the JS must track mios.toml).
-    # no-store: iOS standalone PWAs cache the start_url HTML indefinitely
-    # without it, which is why old builds kept showing after deploys.
     _port_owui = int(os.environ.get("MIOS_PORT_OPEN_WEBUI",
                                     _pcfg("ports", "open_webui", 8033)))
     _port_searxng = int(os.environ.get("MIOS_PORT_SEARXNG",
@@ -1466,19 +1358,6 @@ async def portal_configure_page_logic(request: Request):
     return HTMLResponse(html, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
-# -- @app -> APIRouter migration (refactor R13): the /portal HTTP routes --------
-# The 13 /portal routes (the data/asset/auth surface, incl. the
-# /portal/term/{port} WebSocket bridge) moved off server.py's @app onto this
-# co-located router. server.py imports portal_router + the 13 handler NAMES and
-# mounts the router via app.include_router(portal_router); the handler names are
-# re-imported there so server's importable `provided` surface is unchanged and the
-# served path/method set is identical (the live-app route gate proves it). Each
-# body is the former thin @app wrapper, now calling the module-resident *_logic /
-# asset builder DIRECTLY (same module -- no sys.modules hop). No configure() dep is
-# added: every helper these wrappers reach is already module-resident or already
-# injected via configure(). The non-/portal portal routes (GET /, /login, /sw.js,
-# /iostest) stay in server.py as thin @app wrappers calling *_logic via sys.modules.
-# APIRouter()/method decorators are structural, not config.
 portal_router = APIRouter()
 
 
@@ -1528,9 +1407,6 @@ async def portal_manifest() -> Response:
     return Response(_PORTAL_MANIFEST, media_type="application/manifest+json")
 
 
-# xterm.js assets (vendored under /usr/share/mios/portal) -- the Terminals embed
-# renders xterm NATIVELY over ttyd's WebSocket instead of an <iframe>, because
-# iframes float over the viewport in an iOS standalone PWA.
 @portal_router.get("/portal/xterm.js")
 async def portal_xterm_js() -> Response:
     return Response(_read_portal_asset("xterm.js"),
@@ -1569,15 +1445,6 @@ async def portal_logout():
     return resp
 
 
-# -- @app -> APIRouter migration (refactor R13): the four non-/portal portal routes --
-# The PWA service worker (/sw.js), the login + dashboard pages (/login, /), and the
-# iOS layout probe (/iostest) moved off server.py's @app onto this SAME co-located
-# portal_router. Each body is the former thin @app wrapper: the asset routes return
-# the module-resident asset STRINGS directly; the page routes call the module-resident
-# *_logic DIRECTLY (no sys.modules hop). server.py imports the four handler NAMES so
-# its importable `provided` surface is unchanged and the served path/method set is
-# byte-identical (the live-app route gate proves it). No configure() dep is added --
-# every asset/helper these wrappers reach is already module-resident.
 @portal_router.get("/sw.js")
 async def portal_sw() -> Response:
     return Response(_PORTAL_SW, media_type="application/javascript")
@@ -1591,8 +1458,6 @@ async def portal_login_page(request: Request, e: int = 0):
 
 @portal_router.get("/iostest", response_class=HTMLResponse)
 async def iostest_page():
-    # Public + no-store on purpose: this is a layout probe with no data, and it
-    # must bypass the service-worker cache so it always renders the latest test.
     return HTMLResponse(_IOSTEST_HTML,
                         headers={"Cache-Control": "no-store, must-revalidate"})
 
@@ -1668,7 +1533,6 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
     body_bytes = await request.body()
     toml_text = body_bytes.decode("utf-8")
     
-    # Validate parseable TOML
     try:
         import tomllib as _toml
     except ImportError:
@@ -1682,10 +1546,6 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
 
     from mios_pipe.kernel.config import write_user_config, validate_config
 
-    # WS-CONFIG safety net: AFTER the parse-check, BEFORE the write. Load the
-    # live merged config so validate_config can reject a DROPPED critical
-    # section ([identity]/[ports]). Degrade-open -- if the live config can't be
-    # read we pass None and the drop-check is skipped rather than block a save.
     live_config = None
     try:
         import sys
@@ -1703,10 +1563,8 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
                             status_code=422)
 
     try:
-        # Write user config file atomically
         write_user_config(parsed_config)
         
-        # Add background task for DB re-seeding (non-blocking, degrade-open)
         background_tasks.add_task(run_db_reseed_bg)
         
         return JSONResponse({"status": "ok"})
@@ -1715,15 +1573,6 @@ async def post_portal_config(request: Request, background_tasks: BackgroundTasks
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# ── System Config status (WS-CONFIG polish) ───────────────────────────
-# A small READ-ONLY health summary of the live layered mios.toml + the theme
-# projection, surfaced as the dashboard's "System Config" card. It NEVER writes:
-# it only READS the config layers (via tomllib -- the same parser the Portal
-# already uses; no new deps) and shells out to `mios-theme-render check`, a
-# drift-gate that byte-diffs the committed theme artifacts against the SSOT
-# projection (it does not mutate on `check`). Every probe is independently
-# degrade-open so a single failure yields a safe placeholder ("unknown"/none)
-# instead of erroring the dashboard fetch.
 _THEME_RENDER_BIN = os.environ.get(
     "MIOS_THEME_RENDER", "/usr/libexec/mios/mios-dotfiles-render")
 

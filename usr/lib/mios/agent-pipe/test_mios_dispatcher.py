@@ -49,7 +49,6 @@ def t_fallback():
     async def agent_h(decision, **ctx):
         return "agent-fallback"
     d = md.Dispatcher({"agent": agent_h})
-    # 'dag' mode has no handler -> falls back to 'agent'.
     res = asyncio.run(d.run(mr.route({"intent": "dag"})))
     check("fallback: unknown mode -> default 'agent'", res == "agent-fallback")
 

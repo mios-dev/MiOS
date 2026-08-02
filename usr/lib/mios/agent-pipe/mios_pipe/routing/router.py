@@ -24,8 +24,6 @@ from __future__ import annotations
 
 from typing import Optional
 
-# The canonical intents the refiner emits (SSOT-aligned with the prompt). An
-# unknown/empty intent routes to the safe full-pipeline default ("agent").
 _INTENTS = {"chat", "dispatch", "multi_task", "agent", "dag"}
 _FANOUT_MODES = {"multi_task", "dag"}
 
@@ -82,7 +80,6 @@ class Router:
         if intent == "agent":
             return RouteDecision("agent", intent=intent, broad=deep,
                                  reason="agent tool-loop" + (" (deep)" if deep else ""))
-        # Unknown / empty intent -> safe default: the full agent pipeline.
         return RouteDecision("agent", intent=intent or "(none)", broad=deep,
                              reason="default: unclassified -> full agent pipeline")
 

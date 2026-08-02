@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_blades (V4/V5 blade topology +
-#   per-blade capacity model). Pure stdlib, no server.py/DB/network: monkeypatches the
-#   module's _toml_section so [blades.*] / [identity] are served offline, then asserts the
-#   DEFAULT-PRESERVING contract (no [blades.*] + no blade field -> one local blade at the
-#   local VRAM scalar = today), the local-blade override, remote-blade capacities, the
-#   endpoint->blade map (a node with no blade -> local), and -- the V5 headline -- that the
-#   admission DECISION (used+est+reserve <= budget) DENIES a remote node over ITS blade's
-#   budget yet ADMITS it under the local scalar (the default-off path), plus degrade-open
-#   to the local scalar on any unknown blade/capacity.
 # AI-related: ./mios_blades.py, ./mios_config.py, ./server.py
 # AI-functions: check, t_local_blade_name, t_load_blade_pool_default, t_load_blade_pool_overrides, t_endpoint_blade_map, t_blade_for_endpoint, t_blade_vram_budget_degrade_open, t_admission_decision, main
 """Unit tests for mios_blades (V4 blade model + V5 per-blade admission capacity)."""
@@ -34,7 +26,6 @@ def _endpoint_key(ep):
 
 
 def t_local_blade_name():
-    # env MIOS_HOSTNAME wins; else [identity].hostname; else the OS hostname (non-empty).
     _saved_env = os.environ.get("MIOS_HOSTNAME")
     _saved_toml = B._toml_section
     try:
@@ -55,8 +46,6 @@ def t_local_blade_name():
 
 
 def t_load_blade_pool_default():
-    # DEFAULT-PRESERVING: no [blades.*] -> ONLY the local blade, at the local scalar +
-    # local ceiling the caller passes (== today's VRAM_BUDGET_MB / ADMIT_LOAD_CEIL).
     _saved = B._toml_section
     B._toml_section = lambda s: {}
     try:
@@ -138,23 +127,19 @@ def t_admission_decision():
     def admits(budget):
         return (used + est + reserve) <= budget
 
-    # DEFAULT-OFF: budget is the LOCAL scalar regardless of which node -> 9000 <= 23000.
     off_budget = LOCAL_SCALAR
     check("admit(default-off): remote co-load fits the local scalar -> ADMIT",
           admits(off_budget) is True)
 
-    # MULTIBLADE-ON: the remote node is admitted against ITS blade (potato=8000) -> DENY.
     on_blade = B.blade_for_endpoint(ep_map, _endpoint_key, "http://10.0.0.9:11434/v1", "ws")
     on_budget = B.blade_vram_budget(pool, on_blade, LOCAL_SCALAR)
     check("admit(multiblade-on): remote node resolves to its blade", on_blade == "potato")
     check("admit(multiblade-on): 9000 over potato's 8000 -> DENY", admits(on_budget) is False)
 
-    # MULTIBLADE-ON, smaller footprint UNDER the blade budget -> ADMIT.
     used2 = 4000                              # 4000+2000+1000 = 7000 <= 8000
     check("admit(multiblade-on): 7000 under potato's 8000 -> ADMIT",
           (used2 + est + reserve) <= on_budget)
 
-    # DEGRADE-OPEN: an unknown remote blade -> the local scalar -> ADMIT (never wedge).
     unk_budget = B.blade_vram_budget(pool, "ghost-blade", LOCAL_SCALAR)
     check("admit(degrade-open): unknown blade -> local scalar -> ADMIT",
           admits(unk_budget) is True and unk_budget == LOCAL_SCALAR)

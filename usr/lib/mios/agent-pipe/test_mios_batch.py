@@ -48,7 +48,6 @@ def t_window_interval():
     w.add(1000.0)
     check("window: within interval -> hold", w.should_flush(1000.02) is False)
     check("window: interval elapsed -> flush", w.should_flush(1000.10) is True)
-    # degenerate zero interval = immediate flush (pass-through).
     w0 = mb.CoalesceWindow(interval_s=0.0, max_size=100)
     w0.add(0.0)
     check("window: zero interval -> immediate flush", w0.should_flush(0.0) is True)

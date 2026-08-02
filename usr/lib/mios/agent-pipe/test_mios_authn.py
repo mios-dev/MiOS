@@ -42,17 +42,14 @@ class TestAuthn(unittest.TestCase):
         self.tmp_dir.cleanup()
 
     def test_check_inbound_principal_shared_and_caller(self):
-        # Operator key
         op = _check_inbound_principal("backend_secret_xyz")
         self.assertIsNotNone(op)
         self.assertEqual(op["principal"], "operator")
 
-        # Valid caller key
         ck = _check_inbound_principal("secret_token_123")
         self.assertIsNotNone(ck)
         self.assertEqual(ck["principal"], "worker_agent")
 
-        # Unknown key
         un = _check_inbound_principal("invalid_token_999")
         self.assertIsNone(un)
 

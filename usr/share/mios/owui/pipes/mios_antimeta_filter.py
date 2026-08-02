@@ -35,11 +35,6 @@ import re
 from typing import Optional
 
 
-# Lines that match any of these REGEXEN are wrapped in <think>...</think>
-# instead of being passed through verbatim. Each is intentionally
-# anchored to the START of a stripped line (text.strip()) so we only
-# catch lines whose lead phrase is meta-narration -- prose that
-# happens to contain "let me check" mid-sentence is left alone.
 NARRATION_LEADERS = [
     r"^let me\b",
     r"^let.s\b",
@@ -145,7 +140,6 @@ class Filter:
                 _flush_narration()
                 out.append(line)
         _flush_narration()
-        # splitlines drops trailing newline; preserve it if original had one
         result = "\n".join(out)
         if text.endswith("\n") and not result.endswith("\n"):
             result += "\n"

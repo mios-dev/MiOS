@@ -1,6 +1,5 @@
 # AI-hint: systemd unit file for the mios-{{name}} service.
 # AI-related: /usr/lib/systemd/system/mios-{{name}}.service, /usr/share/mios/mios.toml
-#
 
 [Unit]
 Description=MiOS {{name}} Service

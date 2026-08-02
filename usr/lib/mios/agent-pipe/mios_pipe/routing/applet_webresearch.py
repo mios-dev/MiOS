@@ -3,10 +3,6 @@
 # AI-functions: configure, _sse, _li, _extract_results, stream_webresearch, build_router
 """Web-research verb cluster streamed as HTML-over-SSE into the portal (app-ification mechanism #3)."""
 
-# NOTE: deliberately NOT `from __future__ import annotations` -- FastAPI resolves
-# handler param types by object, and stringized annotations would leave `request:
-# Request` (Request imported inside build_router) unresolvable -> FastAPI would
-# validate `request` as a query field and 422 every route.
 
 import html
 import json
@@ -15,9 +11,6 @@ from typing import Any, Awaitable, Callable, Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 
-# ── DI seam (configure) ─ server.py injects the real dispatch_mios_verb + an
-# auth predicate, exactly like every other mios_pipe module. Kept optional so
-# the module imports (and unit-tests) with zero server state.
 _dispatch: Optional[Callable[..., Awaitable[dict]]] = None
 _authed: Optional[Callable[[Any], bool]] = None
 
@@ -111,7 +104,6 @@ async def stream_webresearch(query: str, dispatch: Callable[..., Awaitable[dict]
     yield _sse("done", "")
 
 
-# The applet HTML fragment: htmx SSE extension patches named events into #mios-wr-out.
 _APPLET_HTML = """<!doctype html><html><head><meta charset="utf-8">
 <link rel="stylesheet" href="/portal/theme.css">
 <link rel="stylesheet" href="/branding/mios-app-shell.css">
@@ -126,13 +118,6 @@ _APPLET_HTML = """<!doctype html><html><head><meta charset="utf-8">
 </body></html>"""
 
 
-# ── Module-level router (server.py mounts it via app.include_router(router)) ──
-# MUST be module-level with static @router.get decorators: the AST surface
-# projector (mios_surface.project_package -> gate check 15 AND test_mios_approutes'
-# live-app parity) only discovers routes that are statically visible. Routes hidden
-# inside a function are invisible to the projector yet served by the live app, so
-# the two route-parity gates disagree (the live app has "extra" routes). Matches the
-# established dispatch_router / a2a_router pattern.
 router = APIRouter()
 
 
@@ -145,7 +130,6 @@ async def _page(request: Request):
 
 @router.get("/portal/app/webresearch/render")
 async def _render(request: Request, q: str = ""):
-    # htmx swaps this <div>, which then opens the SSE connection to stream results.
     if _authed is not None and not _authed(request):
         return HTMLResponse("unauthorized", status_code=401)
     qq = html.escape(q or "")

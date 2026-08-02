@@ -11,7 +11,7 @@ mios_log "Configuring firewalld ports for 'MiOS' services"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd firewall-ports
-    mios_ok "configured firewalld ports via miosd"
+    mios_ok "Configured firewalld ports via miosd"
     exit 0
 fi
 

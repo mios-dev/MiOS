@@ -20,15 +20,11 @@ def check(name, cond):
         print(f"FAIL - {name}")
 
 
-# Deterministic text -> unit vector stub (no model). Identical text -> identical
-# vector -> cosine 1.0; the named vectors below give exact, checkable geometry.
 _VEC = {
     "A":  [1.0, 0.0, 0.0],
     "B":  [0.0, 1.0, 0.0],
     "C":  [0.0, 0.0, 1.0],
-    # near-A: cosine(A, An) ~= 0.9999 (well above both default thresholds)
     "An": [0.9999, 0.01414, 0.0],
-    # moderately-similar to A: cosine ~= 0.80 (below thresholds -> diverse)
     "Am": [0.8, 0.6, 0.0],
 }
 
@@ -45,32 +41,24 @@ def _nodes(*texts):
     return [{"output": t, "tag": t} for t in texts]
 
 
-# -- pure geometry ---------------------------------------------------
 
 def t_select_diverse():
     v = lambda k: list(_VEC[k])
-    # Two identical -> only ONE selected (the duplicate is dropped/replaced). [T-047]
     sel = M.select_diverse([v("A"), v("A")], 0.92)
     check("select_diverse: two identical -> 1 selected", len(sel) == 1)
-    # Two orthogonal -> both kept.
     sel = M.select_diverse([v("A"), v("B")], 0.92)
     check("select_diverse: two orthogonal -> both kept", sorted(sel) == [0, 1])
-    # A, A(dup), B : the distinct B is the lowest-mean-similarity seed; ONE of the
-    # two identical A's is kept, the other (redundant, sim>thr to the set) dropped.
     sel = M.select_diverse([v("A"), v("A"), v("B")], 0.92)
     check("select_diverse: {A,A,B} -> 2 selected (one A dropped)", len(sel) == 2)
     check("select_diverse: seed is the distinct response (lowest mean sim)",
           sel[0] == 2)
     check("select_diverse: exactly one of the identical A's survives",
           (0 in sel) ^ (1 in sel))
-    # Three mutually diverse -> all kept.
     sel = M.select_diverse([v("A"), v("B"), v("C")], 0.92)
     check("select_diverse: three diverse -> all kept", len(sel) == 3)
-    # near-duplicate (cosine>thr) is pruned; moderately-similar (cosine<thr) kept.
     sel = M.select_diverse([v("A"), v("An"), v("Am")], 0.92)
     check("select_diverse: near-dup pruned, moderate kept -> 2 selected",
           len(sel) == 2)
-    # Single / empty inputs are pass-through.
     check("select_diverse: single -> pass-through", M.select_diverse([v("A")], 0.92) == [0])
     check("select_diverse: empty -> []", M.select_diverse([], 0.92) == [])
 
@@ -90,16 +78,13 @@ def t_should_bypass():
 
 def t_medoid():
     v = lambda k: list(_VEC[k])
-    # {A, A, B}: an A is the consensus medoid (highest mean sim to the others).
     mi = M.medoid_index([v("A"), v("A"), v("B")])
     check("medoid_index: {A,A,B} -> an identical A (index 0/1)", mi in (0, 1))
     check("medoid_index: single -> 0", M.medoid_index([v("A")]) == 0)
 
 
-# -- async orchestrator ---------------------------------------------
 
 def t_gates_off_noop():
-    # Both gates OFF => embedder MUST NOT be called; nodes returned unchanged.
     called = {"n": 0}
 
     async def _boom(_t):
@@ -115,7 +100,6 @@ def t_gates_off_noop():
 
 
 def t_diversity_gate_prunes():
-    # T-047: two identical council responses -> one is replaced/dropped.
     nodes = _nodes("A", "A")
     sel, byp = asyncio.get_event_loop().run_until_complete(
         M.apply_council_gates(nodes, embed_one=_mk_embed(),
@@ -123,7 +107,6 @@ def t_diversity_gate_prunes():
                               aggregator_bypass=False))
     check("T-047 diversity: two identical -> 1 input kept", len(sel) == 1)
     check("T-047 diversity: no bypass", byp is None)
-    # A diverse pair is untouched.
     nodes = _nodes("A", "B")
     sel, byp = asyncio.get_event_loop().run_until_complete(
         M.apply_council_gates(nodes, embed_one=_mk_embed(),
@@ -132,9 +115,6 @@ def t_diversity_gate_prunes():
 
 
 def t_aggregator_bypass():
-    # T-048: three identical responses above threshold -> aggregator NOT called,
-    # event logged. We mirror the swarm wiring: the aggregator runs ONLY when the
-    # gate returns bypass=None.
     events = []
     aggregator_calls = {"n": 0}
 
@@ -148,7 +128,6 @@ def t_aggregator_bypass():
                               aggregator_bypass=True,
                               aggregator_bypass_threshold=0.95,
                               log_event=_log))
-    # caller decision (as in swarm._synthesise):
     if byp is None:
         aggregator_calls["n"] += 1
     check("T-048 bypass: bypass returned (aggregator skipped)", byp is not None)
@@ -163,7 +142,6 @@ def t_aggregator_bypass():
           events[0].get("council_size") == 3
           and abs(events[0].get("mean_similarity") - 1.0) < 1e-9)
 
-    # A divergent council does NOT bypass -> aggregator runs.
     events2 = []
     nodes = _nodes("A", "B", "C")
     sel, byp = asyncio.get_event_loop().run_until_complete(
@@ -176,14 +154,12 @@ def t_aggregator_bypass():
 
 
 def t_degrade_open_missing_embed():
-    # A missing embedding => cannot score => no-op (gates-off shape).
     nodes = _nodes("A", "A", "MISS")
     sel, byp = asyncio.get_event_loop().run_until_complete(
         M.apply_council_gates(nodes, embed_one=_mk_embed(missing="MISS"),
                               diversity_gate=True, aggregator_bypass=True))
     check("degrade-open: missing embedding -> nodes unchanged, no bypass",
           sel is nodes and byp is None)
-    # Fewer than 2 nodes never gates.
     nodes = _nodes("A")
     sel, byp = asyncio.get_event_loop().run_until_complete(
         M.apply_council_gates(nodes, embed_one=_mk_embed(),
@@ -204,7 +180,6 @@ def t_stats_counter():
 
 
 def main():
-    # Own event loop (avoid DeprecationWarning churn across Python versions).
     asyncio.set_event_loop(asyncio.new_event_loop())
     t_select_diverse()
     t_should_bypass()

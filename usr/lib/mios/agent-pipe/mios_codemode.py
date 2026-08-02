@@ -34,14 +34,9 @@ import re
 import shlex
 from typing import Optional
 
-# Languages the in-sandbox runner accepts. Mirrors the [verbs.code_mode] enum;
-# kept here so the CLI + the unit test share ONE source instead of two literals.
 SUPPORTED_LANGS = ("python", "bash", "sh")
 DEFAULT_LANG = "python"
 
-# Hard ceilings (defence-in-depth -- the sandbox + broker enforce their own; these
-# stop a malformed/abusive request before it ever reaches podman). All overridable
-# from mios.toml [code_mode] by the callers; these are the last-resort literals.
 MAX_CODE_CHARS = 64_000
 MIN_TIMEOUT_S = 1
 MAX_TIMEOUT_S = 600
@@ -53,7 +48,6 @@ def normalize_lang(lang: Optional[str]) -> str:
     l = (lang or "").strip().lower()
     if l in SUPPORTED_LANGS:
         return l
-    # Common aliases the planner emits.
     if l in ("py", "python3"):
         return "python"
     if l in ("shell", "/bin/bash"):
@@ -81,9 +75,6 @@ def session_id(conversation_id: Optional[str], fallback: str = "default") -> str
     (the coderun-sandbox@.container is templated by %i, and %i must be a clean
     token). Empty -> `fallback`. Deterministic: same conversation -> same id."""
     raw = (conversation_id or "").strip() or fallback
-    # Quadlet instance specifiers + dir names: keep it to a short hex digest so
-    # arbitrary chat ids (uuids, slashes, unicode) can never break the unit name
-    # or escape the workspace path.
     return "cm-" + hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
 
 

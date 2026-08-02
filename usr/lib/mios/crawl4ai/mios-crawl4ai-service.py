@@ -51,12 +51,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-# crawl4ai is imported lazily-but-once at module load (paid at service start).
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
-# HTTP endpoint (NOT a bare ws:// url): Playwright's connect_over_cdp fetches
-# /json/version from this and resolves the real /devtools/browser/<id> ws path.
-# A bare ws://host:9222/ 404s (that path doesn't exist).
 CDP_URL = os.environ.get("MIOS_CRAWL_CDP_URL", "http://127.0.0.1:9222").strip()
 CAMOUFOX_ON = os.environ.get("MIOS_CRAWL_CAMOUFOX", "true").strip().lower() in (
     "1", "true", "yes", "on")
@@ -64,9 +60,6 @@ MIN_CHARS = int(os.environ.get("MIOS_CRAWL_MIN_CHARS", "200"))
 BIND = os.environ.get("MIOS_CRAWL_BIND", "127.0.0.1").strip()
 PORT = int(os.environ.get("MIOS_PORT_CRAWL4AI", "11235"))
 
-# A single shared crawler attached to the running Chrome over CDP. crawl4ai
-# caches the CDP connection (cache_cdp_connection) so re-crawls reuse the
-# same attached browser instead of re-handshaking.
 _BROWSER_CFG = BrowserConfig(
     browser_mode="custom",   # explicit CDP attach (NOT "dedicated" launch)
     cdp_url=CDP_URL,
@@ -79,9 +72,6 @@ _crawler_lock = asyncio.Lock()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Lazy: don't attach to Chrome at import; attach on first crawl so the
-    # service still boots (and /healthz answers) even if ChromeDev is down,
-    # and so a cold camoufox-only run is possible.
     yield
     global _crawler
     if _crawler is not None:
@@ -96,8 +86,6 @@ app = FastAPI(title="mios-crawl4ai", lifespan=lifespan)
 
 class CrawlReq(BaseModel):
     url: str
-    # Force the camoufox path (smoke test / operator override). When None,
-    # camoufox is used only as the automatic fail-retry.
     force_camoufox: bool | None = None
 
 
@@ -152,11 +140,6 @@ async def _crawl_cdp(url: str) -> dict:
                     pass
         return _html, _title
 
-    # Hard ceiling on the whole CDP attempt so it can't hang the request.
-    # 5s ceiling: the shared ChromeDev flatpak's CDP usually STALLS the attach
-    # (hermes's browser already holds a CDP client and Chrome won't accept a
-    # second browser-level connect_over_cdp). So try Chrome briefly -- it's used
-    # when the CDP is free -- then fast-fail to camoufox instead of wasting 35s.
     html, title = await asyncio.wait_for(_do(), timeout=float(
         os.environ.get("MIOS_CRAWL_CDP_TIMEOUT", "5")))
     gen = DefaultMarkdownGenerator()
@@ -177,8 +160,6 @@ async def _crawl_camoufox(url: str) -> dict:
     camoufox is imported lazily so the service runs even before
     `python -m camoufox fetch` has pulled its Firefox (CDP-only mode)."""
     from camoufox.async_api import AsyncCamoufox
-    # crawl4ai ships an html2text-based markdown generator; reuse it so we
-    # don't add a second HTML->markdown dependency.
     from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 
     html = ""
@@ -220,7 +201,6 @@ async def crawl(req: CrawlReq) -> dict:
     force_cam = bool(req.force_camoufox)
     cdp_err = None
 
-    # 1) PRIMARY: Chrome over CDP (skipped when forcing camoufox).
     if not force_cam:
         try:
             r = await _crawl_cdp(url)
@@ -232,7 +212,6 @@ async def crawl(req: CrawlReq) -> dict:
         except Exception as e:
             cdp_err = f"cdp error: {e}"
 
-    # 2) FAIL-RETRY: camoufox stealth Firefox.
     if force_cam or CAMOUFOX_ON:
         try:
             r = await _crawl_camoufox(url)
@@ -247,7 +226,6 @@ async def crawl(req: CrawlReq) -> dict:
     else:
         cam_err = "camoufox disabled (MIOS_CRAWL_CAMOUFOX=false)"
 
-    # 3) Honest fail.
     return {"success": False, "engine": "none", "url": url, "title": "",
             "markdown": "", "links": 0,
             "error": f"both engines failed (cdp: {cdp_err}; camoufox: {cam_err})"}

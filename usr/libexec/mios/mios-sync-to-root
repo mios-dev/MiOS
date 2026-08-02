@@ -14,9 +14,9 @@ PRUNE="${MIOS_SYNC_ROOT_PRUNE:-0}"
 log(){ printf '[sync-to-root] %s\n' "$*" >&2; }
 die(){ printf '[sync-to-root] REFUSED: %s\n' "$*" >&2; exit 2; }
 
-case "$MODE" in apply|check|dry-run) ;; *) die "unknown mode '$MODE' (apply|check|dry-run)";; esac
-command -v rsync >/dev/null 2>&1 || die "rsync not found on PATH"
-command -v git   >/dev/null 2>&1 || die "git not found on PATH"
+case "$MODE" in apply|check|dry-run) ;; *) die "Unknown mode '$MODE'";; esac
+command -v rsync >/dev/null 2>&1 || die "Rsync not found on PATH"
+command -v git   >/dev/null 2>&1 || die "Git not found on PATH"
 
 SRC="${MIOS_FRONTIER_WORKSPACE:-${MIOS_A2O_WORK:-}}"
 if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
@@ -25,24 +25,24 @@ if [ -z "$SRC" ] || [ ! -d "$SRC/.git" ]; then
         [ -d "$_c/.git" ] && { SRC="$_c"; break; }
     done
 fi
-[ -n "$SRC" ] && [ -d "$SRC/.git" ] || die "no code-server workspace repo found (set MIOS_FRONTIER_WORKSPACE)"
+[ -n "$SRC" ] && [ -d "$SRC/.git" ] || die "No code-server workspace repo found"
 SRC="$(cd "$SRC" && pwd -P)"
-DEST_ABS="$(cd "$DEST" 2>/dev/null && pwd -P)" || die "target root '$DEST' does not exist"
-[ "$SRC" != "$DEST_ABS" ] || die "SRC and DEST are the same path ($SRC) -- already live, nothing to sync"
+DEST_ABS="$(cd "$DEST" 2>/dev/null && pwd -P)" || die "Target root '$DEST' does not exist"
+[ "$SRC" != "$DEST_ABS" ] || die "SRC and DEST are the same path"
 
 if [ -r "$DEST_ABS/usr/lib/os-release" ]; then _osr="$DEST_ABS/usr/lib/os-release";
 elif [ -r "$DEST_ABS/etc/os-release" ]; then _osr="$DEST_ABS/etc/os-release"; else _osr=""; fi
 [ -n "$_osr" ] && grep -qiE '^(VARIANT_ID=mios|NAME="?MiOS)' "$_osr" \
-    || die "target root '$DEST_ABS' is not a MiOS deploy (os-release check) -- refusing to overwrite a foreign root"
+    || die "Target root '$DEST_ABS' is not a MiOS deploy"
 
 if [ -e /run/ostree-booted ] && [ ! -w "$DEST_ABS/usr" ]; then
-    die "immutable bootc/ostree root (read-only $DEST_ABS/usr) -- ship changes via 'bootc upgrade' / mios-deploy, not a live sync"
+    die "Immutable bootc/ostree root"
 fi
-[ -w "$DEST_ABS/usr" ] || die "$DEST_ABS/usr is not writable -- not a mutable MiOS-DEV deploy"
+[ -w "$DEST_ABS/usr" ] || die "$DEST_ABS/usr is not writable"
 
 git config --global --add safe.directory "$SRC" 2>/dev/null || true
 mapfile -d '' -t FILES < <(git -C "$SRC" ls-files -z -c -o --exclude-standard)
-[ "${#FILES[@]}" -gt 0 ] || die "git ls-files produced no files in $SRC (empty/broken repo?)"
+[ "${#FILES[@]}" -gt 0 ] || die "Git ls-files produced no files in $SRC"
 
 RSYNC=(rsync -a --from0 --files-from=- )
 [ "$MODE" = apply ] || RSYNC+=(--dry-run --itemize-changes)

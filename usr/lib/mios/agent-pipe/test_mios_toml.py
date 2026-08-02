@@ -9,7 +9,6 @@ import tempfile
 import shutil
 from unittest.mock import patch
 
-# Ensure /usr/lib/mios is in python path
 sys.path.insert(0, "/usr/lib/mios")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import mios_toml
@@ -28,7 +27,6 @@ class TestMiosToml(unittest.TestCase):
         with open(self.host_file, "w", encoding="utf-8") as f:
             f.write("[section]\nkey2 = 'host_val2'\nkey3 = 'host_val3'\n")
 
-        # Mock env vars
         self.env_vars = {
             "MIOS_VENDOR_TOML": self.vendor_file,
             "MIOS_HOST_TOML": self.host_file,
@@ -63,7 +61,6 @@ class TestMiosToml(unittest.TestCase):
     @patch("mios_db_config.is_db_authoritative", return_value=True)
     @patch("mios_db_config.load_db_config")
     def test_load_merged_db_authoritative_fallback(self, mock_load_db, mock_is_auth):
-        # DB config overrides key3, key4 but is missing key1, key2!
         mock_load_db.return_value = {
             "section": {
                 "key3": "db_val3",
@@ -71,31 +68,24 @@ class TestMiosToml(unittest.TestCase):
             }
         }
         
-        # User TOML also has key3
         with open(self.user_file, "w", encoding="utf-8") as f:
             f.write("[section]\nkey3 = 'user_val3'\n")
 
         res = mios_toml.load_merged()
-        # key1 and key2 should fall back to files!
         self.assertEqual(res["section"]["key1"], "vendor_val")
         self.assertEqual(res["section"]["key2"], "host_val2")
-        # key3 and key4 should be overridden by the DB!
         self.assertEqual(res["section"]["key3"], "db_val3")
         self.assertEqual(res["section"]["key4"], "db_val4")
 
     def test_cache_memoization_and_invalidation(self):
-        # Initial load caches the result
         res1 = mios_toml.load_merged()
         
-        # Manually modify user file behind its back
         with open(self.user_file, "w", encoding="utf-8") as f:
             f.write("[section]\nkey3 = 'sneaky_change'\n")
             
-        # Loading again should return the cached value (not the sneaky change)
         res2 = mios_toml.load_merged()
         self.assertEqual(res1["section"].get("key3"), res2["section"].get("key3"))
         
-        # After clear_cache(), it should load the sneaky change!
         mios_toml.clear_cache()
         res3 = mios_toml.load_merged()
         self.assertEqual(res3["section"].get("key3"), "sneaky_change")

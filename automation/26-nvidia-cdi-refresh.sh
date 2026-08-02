@@ -24,7 +24,7 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        mios_ok "enabled ${unit}"
+        mios_ok "Enabled ${unit}"
     else
         mios_warn "${unit} not found, skipping enablement"
     fi

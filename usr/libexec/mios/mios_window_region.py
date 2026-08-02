@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Pure geometry helper for named window-snap regions. Given a monitor
-# WORK AREA (origin + width/height queried live from the OS-control screen-layout)
-# and a region name (left-half / right-half / top-half / bottom-half / maximize /
-# corners), returns the (x, y, w, h) rectangle -- every value DERIVED from the live
-# W and H, never a pixel constant (Architectural Law 7). Used by mios-window's
-# region actuator; unit-proven by test_mios_window_region.py.
 # AI-related: /usr/libexec/mios/mios-window, /usr/libexec/mios/mios-pc-control, /usr/share/mios/mios.toml
 # AI-functions: region_rect, normalize_region, rect_from_layout, main
 """Named window-snap region geometry (pure, no side effects).
@@ -19,9 +14,6 @@ from __future__ import annotations
 import json
 import sys
 
-# Synonyms that resolve to a canonical region key. The bare compass names are
-# kept as aliases of the half-screen snaps so a caller can say "left" or
-# "left-half" interchangeably; "max" / "full" / "maximize-pos" all mean fill.
 _ALIASES = {
     "left": "left-half",
     "right": "right-half",
@@ -50,7 +42,6 @@ def region_rect(width: int, height: int, region: str):
     h = int(height)
     half_w = w // 2
     half_h = h // 2
-    # Exact remainder -> the two halves tile the axis with no 1px seam on odd sizes.
     rem_w = w - half_w
     rem_h = h - half_h
 

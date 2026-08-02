@@ -4,7 +4,6 @@ import os
 import unittest
 from unittest.mock import patch, MagicMock
 
-# Resolve workspace path relative to this file
 base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 libexec_dir = os.path.join(base_dir, "usr/libexec/mios")
 
@@ -16,10 +15,8 @@ spec.loader.exec_module(muc)
 class TestMiosUserConfig(unittest.TestCase):
 
     def test_parse_simple_toml_tomllib(self):
-        # Create a temp TOML file containing complex TOML features (comments, inline tables, etc)
         temp_toml = "/tmp/test_complex_spec.toml"
         content = """
-        # Global settings comment
         [ai]
         db_authoritative = true
         models = ["granite", "gpt-oss"] # inline comment
@@ -42,19 +39,13 @@ class TestMiosUserConfig(unittest.TestCase):
                 os.remove(temp_toml)
 
     def test_path_escape_guard(self):
-        # We want to check the logic of preventing path traversal home-escape.
-        # Home: /home/bob
-        # Target Rel: ../bob-evil/.bashrc
-        # Resolved target: /home/bob-evil/.bashrc
         home_dir = "/home/bob"
         
-        # Test case 1: Normal path inside home
         rel_path_ok = ".config/mios/mios.toml"
         target_ok = os.path.abspath(os.path.join(home_dir, rel_path_ok))
         home_abs = os.path.abspath(home_dir)
         self.assertEqual(os.path.commonpath([home_abs, target_ok]), home_abs)
 
-        # Test case 2: Traverse escape path
         rel_path_escape = "../bob-evil/.bashrc"
         target_escape = os.path.abspath(os.path.join(home_dir, rel_path_escape))
         self.assertNotEqual(os.path.commonpath([home_abs, target_escape]), home_abs)

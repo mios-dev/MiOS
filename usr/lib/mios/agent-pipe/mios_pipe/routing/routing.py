@@ -28,15 +28,6 @@ import re
 from typing import Optional
 
 
-# ── Dependency-injection seam ─────────────────
-# The config loaders log on failure; _deterministic_action_route reads the
-# fast-path verb sets + launch phrase frozensets that server.py derives from
-# _VERB_CATALOG. server.py calls configure() with these AFTER they are all
-# defined (one-way boundary: this module never imports server). They keep their
-# ORIGINAL server.py names because the moved bodies reference them verbatim. The
-# loaders run at server import time (before configure), so `log` defaults to None
-# and is only touched on the error path; the fast-path globals are read only at
-# request time, well after configure() has injected them.
 log = None
 _COMPOUND_ACTION_ALT = ""
 _COMPOUND_CONNECTIVE_ALT = ""
@@ -89,7 +80,6 @@ def _load_routing_domains() -> tuple[dict, bool]:
             if isinstance(cfg, dict):
                 domains[str(dom)] = {"desc": str(cfg.get("desc", "")),
                                      "verbs": [str(v) for v in (cfg.get("verbs") or [])]}
-        # ── Database domain routing overlay (T-126) ──
         try:
             import psycopg
             from psycopg.rows import dict_row
@@ -164,20 +154,6 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     t = (user_text or "").strip()
     if not t or "?" in t:
         return None
-    # Standalone "type/write '<text>' [into it]" -> pc_type (Windows desktop
-    # input). Operator's EXACT domain (typing). Without this a bare type request
-    # that carries NO launch verb misrouted (multi-turn
-    # trace): refine hinted cu_type (the LINUX vm verb), the model fired
-    # windows_file_search/list_windows and ECHOED the text instead of typing it
-    # (notepad stayed "Untitled"). The action vocab is SSOT
-    # (_COMPOUND_ACTION_ALT <- mios.toml [routing].compound_actions) -- NO
-    # hardcoded keyword list. Fires ONLY when pc_type is a real fast-path verb.
-    # A QUOTED literal (within the first 2 words of an action verb) is the
-    # unambiguous text-to-type; an unquoted form needs the action verb at the
-    # HEAD plus an explicit "in/into <target>" so ordinary prose ("put it on the
-    # table", "write to me") can never hijack the route. Degrades open: no clear
-    # match -> falls through to the LLM router (no regression). The type-chain's
-    # read-back verification (mios-pc-control) still catches a wrong/lost focus.
     if _COMPOUND_ACTION_ALT and "pc_type" in _FASTPATH_VERBS:
         _Q = "\"'‘’“”"
         _av = r"(?:" + _COMPOUND_ACTION_ALT + r")"
@@ -196,9 +172,6 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
         if _typ:
             return {"intent": "dispatch", "tool": "pc_type",
                     "args": {"text": _typ}, "_deterministic": True}
-    # Native AIOS implementation: Do NOT strip compound tails in the deterministic
-    # fast-path. We WANT "open notepad and type hello" to fall through to the LLM
-    # router so it is natively decomposed into two separate tool calls (open_app + pc_type).
     if not t or len(t) > 80:
         return None
     words = t.split()
@@ -208,18 +181,7 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
     if head not in _LAUNCH_TRIGGERS or "open_app" not in _FASTPATH_VERBS:
         return None
     rest = " ".join(words[1:]).strip()
-    # Strip a trailing sentence terminator FIRST so the filler / word-boundary
-    # matching below isn't defeated by punctuation: 'open X on my desktop.' kept
-    # the period, so 'on my desktop' never stripped, the leftover 'on' tripped the
-    # compound guard, and the launch fell to the LLM router -- which then picked
-    # hermes's built-in `terminal` tool (exit 126) instead of open_app
-    # (e2e).
     rest = rest.rstrip(" .,!;:")
-    # Strip trailing courtesy/location filler (SSOT list) so the app name is clean
-    # and the launch stays on the DETERMINISTIC path -- 'open notepad for me' ->
-    # name='notepad'; 'open spotify on my desktop' -> name='spotify'. Stripping
-    # before the compound check is what keeps 'on my desktop' from forcing the
-    # launch into the LLM router (which mis-routed it to discovery in the e2e).
     _low = rest.lower()
     _changed = True
     while _changed and rest:
@@ -230,10 +192,6 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
                 _low = rest.lower()
                 _changed = True
                 break
-    # Drop leading determiners/possessives + trailing generic nouns (SSOT) so
-    # natural phrasings resolve: 'the windows calculator app' -> 'windows
-    # calculator', 'my photos application' -> 'photos'. Word-by-word (so a real
-    # one-word app name is never partially truncated).
     _rw = rest.split()
     while _rw and _rw[0].lower() in _LAUNCH_LEAD_WORDS:
         _rw.pop(0)
@@ -241,15 +199,8 @@ def _deterministic_action_route(user_text: str) -> Optional[dict]:
         _rw.pop()
     rest = " ".join(_rw).strip()
     _low = rest.lower()
-    # (Removed compound interception -- compounds natively fall to the LLM router)
     if not rest or len(rest.split()) > 3:
         return None
-    # True compound forms (url / 'in <app>' / conjunctions = two targets) -> let
-    # the LLM router split content from target; the deterministic path only takes
-    # the unambiguous bare 'launch <app>' (after filler + determiners stripped).
-    # The two-target connective vocab is SSOT (_COMPOUND_CONNECTIVE_ALT <-
-    # mios.toml [routing].compound_connectives) -- NO inline English keyword gate.
-    # Degrades open: empty list -> only the structural '://' guard remains.
     if "://" in rest or (_COMPOUND_CONNECTIVE_ALT
                          and re.search(r"\b(?:" + _COMPOUND_CONNECTIVE_ALT + r")\b", _low)):
         return None

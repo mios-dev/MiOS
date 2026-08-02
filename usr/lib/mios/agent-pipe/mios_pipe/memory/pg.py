@@ -30,10 +30,6 @@ from typing import Any, Optional
 
 log = logging.getLogger("mios-agent-pipe")
 
-# Connect-failure backoff (mirrors the _db_post 30s backoff): when the
-# DB is down / not yet deployed, skip attempts for a window so a default "dual"
-# backend doesn't churn one failed 5s connect per write. Module-global; single
-# event loop.
 _pg_down_until = 0.0
 _PG_BACKOFF_S = 30.0
 
@@ -67,7 +63,6 @@ def rid_to_pg_id(rid: Any) -> "Optional[int]":
         return None
 
 
-# ── config / DSN (SSOT: mios.toml [pgvector] -> MIOS_PG_* env via userenv.sh) ──
 def pg_config(env: Optional[dict] = None) -> dict:
     """Resolve connection settings from the environment (already layered from
     mios.toml by userenv.sh). Local-only defaults match the quadlet."""
@@ -88,14 +83,12 @@ def dsn(cfg: Optional[dict] = None) -> str:
             f"@{c['host']}:{c['port']}/{c['dbname']}")
 
 
-# ── pgvector helpers ─────────────────────────────────────────────────────────
 def vector_literal(vec) -> str:
     """Format a float sequence as a pgvector text literal: '[0.1,0.2,...]'.
     (psycopg binds this to a `vector` column via the `::vector` cast.)"""
     return "[" + ",".join(repr(float(x)) for x in (vec or [])) + "]"
 
 
-# ── parameterized SQL builders (return (sql, params); psycopg binds params) ───
 def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
     """`INSERT INTO <table> (cols) VALUES (%(col)s, ...)` -- never interpolates
     values. `emb` (if a list) is bound as a pgvector via the ::vector cast."""
@@ -108,7 +101,6 @@ def build_insert(table: str, fields: dict) -> "tuple[str, dict]":
             params[c] = vector_literal(v)
             placeholders.append(f"%({c})s::vector")
         elif isinstance(v, (dict, list, tuple)):
-            # document/array fields -> jsonb (sources, args, payload, dag, ...)
             params[c] = json.dumps(v, default=str)
             placeholders.append(f"%({c})s::jsonb")
         else:
@@ -132,7 +124,6 @@ def build_recall(table: str = "knowledge", k: int = 3,
     degrade-open arms the 30s global _pg_mark_down backoff, which would blank the
     LIVE knowledge recall inside every turn. Project the right columns per table.
 
-    #59 WS-5 RLS (MECHANISM ONLY): when `owner` is passed, scope recall to that
     owner -- `owner_user = %(owner)s OR owner_user IS NULL` (legacy/shared rows
     with a NULL owner stay visible, so turning enforcement on never blanks
     existing recall). owner=None (the default) leaves the SQL BYTE-IDENTICAL to
@@ -152,9 +143,6 @@ def build_recall(table: str = "knowledge", k: int = 3,
     the SQL is byte-identical to the pre-A3 query. Only filter when BOTH the active
     version AND a versioned table are present."""
     if table == "agent_memory":
-        # + ts so the shared blended recall rerank can apply its bounded recency
-        # decay (agent_memory carries no access_count/tier/satisfied columns -- those
-        # blend terms degrade-open to neutral; ts is its one tie-breaking signal).
         proj = "mem_key AS id, fact, scope, source, ts"
     elif table == "mios_rag":
         proj = "id, source, content"
@@ -165,9 +153,6 @@ def build_recall(table: str = "knowledge", k: int = 3,
     if owner is not None:
         where += " AND (owner_user = %(owner)s OR owner_user IS NULL)"
         params["owner"] = owner
-    # Only the emb_version-bearing tables (schema-init.sql) can be version-filtered;
-    # applying it to mios_rag (no such column) would raise UndefinedColumn and arm
-    # the degrade-open backoff that blanks LIVE recall, so restrict to the set.
     if emb_version and table in ("knowledge", "agent_memory"):
         where += " AND (emb_version = %(emb_version)s OR emb_version IS NULL)"
         params["emb_version"] = emb_version
@@ -269,14 +254,6 @@ def recall_tuning(ef_search: int = 100) -> str:
     return f"SET hnsw.ef_search = {int(ef_search)};"
 
 
-# ── WS-5 / T-068 native Postgres Row-Level-Security owner binding ─────────────
-# The session GUC the schema-init.sql RLS policies read (current_setting(
-# 'mios.owner_user', true)). It is a protocol / schema-contract constant -- it MUST
-# match the var name the policies in postgres/schema-init.sql read -- so it lives
-# here as ONE named constant (it is NOT an SSOT mios.toml value to restate). Set per
-# request/transaction so the policies scope rows to the verified principal; UNSET
-# leaves the policy permissive, so single-user / system / daemon / seeding paths see
-# all rows exactly as today.
 _RLS_OWNER_GUC = "mios.owner_user"
 
 
@@ -319,10 +296,6 @@ def _principal_enforced() -> bool:
         return False
 
 
-# One-time loud warning for the misconfiguration RLS-on-but-not-enforce: the operator
-# enabled DB-side isolation that CANNOT be applied (the owner principal is unverified /
-# spoofable), so we degrade to the permissive policy and say so ONCE per process rather
-# than silently pretending to isolate. Module-global flag; single event loop.
 _RLS_UNVERIFIED_WARNED = False
 
 
@@ -364,19 +337,6 @@ def _owner_scope(rls_owner: "Optional[str]",
     return build_set_owner(owner)
 
 
-# ── OPT-IN bounded async connection pool ([pgvector].pool_*) ─────────────────
-# DEFAULT-OFF: execute()/recall() open a fresh connection per query and close it
-# (the historic per-call path, byte-identical). ON: a bounded free-list of live
-# AsyncConnections is REUSED across queries so a swarm/DAG fan-out (N concurrent
-# nodes) does not open N fresh connects. psycopg_pool is NOT a hard dependency --
-# this is a minimal bounded reuse pool over the SAME lazy psycopg connect path, so
-# the pure builders + the pre-cutover (no-psycopg) deployment are unaffected.
-# Degrade-open everywhere: pool exhaustion/error falls back to a direct ephemeral
-# connect (a query NEVER fails on the pool); a broken/dirty connection is discarded
-# rather than reused. SECURITY: a connection is cleaned on check-in (any open/aborted
-# transaction is rolled back), which also discards a transaction-scoped SET LOCAL --
-# the RLS owner GUC (build_set_owner uses is_local=true) -- so no per-request owner
-# scope can leak to the next checkout.
 def pool_config(env: "Optional[dict]" = None) -> dict:
     """Resolve the opt-in pool settings (SSOT [pgvector].pool_* -> MIOS_PG_POOL_*
     via userenv.sh). Read per call (like rls_enabled) so a live mios.toml edit +
@@ -496,8 +456,6 @@ class AsyncConnPool:
                     self._size -= 1
                 raise
             return conn, True
-        # At capacity, none free -> degrade-open: a direct ephemeral connection
-        # (not counted against the pool; closed on release). Never block a query.
         return await _open_conn(cfg if cfg is not None else self._cfg), False
 
     async def release(self, conn, pooled: bool, ok: bool = True) -> None:
@@ -589,7 +547,6 @@ async def _conn(cfg: "Optional[dict]" = None):
         await pool.release(conn, pooled, ok)
 
 
-# ── async I/O (psycopg v3, imported lazily) ──────────────────────────────────
 async def execute(sql: str, params: Optional[dict] = None,
                   *, fetch: bool = False, cfg: Optional[dict] = None,
                   rls_owner: "Optional[str]" = None) -> Any:
@@ -639,9 +596,6 @@ async def execute(sql: str, params: Optional[dict] = None,
         async with _conn(cfg) as conn:
             async with conn.cursor(row_factory=dict_row) as cur:
                 if scope is not None:
-                    # SET LOCAL is transaction-scoped: the GUC + the query MUST share
-                    # one transaction (autocommit would otherwise discard the LOCAL
-                    # setting right after it ran). The owner is bound as a parameter.
                     async with conn.transaction():
                         await cur.execute(scope[0], scope[1])
                         await cur.execute(sql, params or {})
@@ -731,7 +685,6 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
         dense_rows = []
         sparse_rows = []
 
-        # 1. Run dense pgvector query (fetch k*2 candidates for RRF/rerank if hybrid/rerank is on)
         fetch_k = max(k * 4, 60) if (hybrid or rerank) else k
         sql, params = build_recall(table, fetch_k, owner=owner, emb_version=emb_version)
         params["qvec"] = vector_literal(qvec)
@@ -748,7 +701,6 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
                     await cur.execute(sql, params)
                     dense_rows = await cur.fetchall()
 
-        # 2. Run sparse FTS query if hybrid is enabled
         if hybrid and query_text:
             try:
                 fts_sql, fts_params = build_fts_query(table, fetch_k, owner=owner, emb_version=emb_version)
@@ -766,7 +718,6 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
             except Exception as e:
                 log.warning("FTS sparse query failed (degrade-open to dense-only): %s", e)
 
-        # 3. Fuse dense and sparse results using RRF
         if hybrid and query_text and (dense_rows or sparse_rows):
             rrf_k = 60
             scores = {}
@@ -794,7 +745,6 @@ async def recall(qvec, *, table: str = "knowledge", k: int = 3,
         else:
             rows = dense_rows
 
-        # 4. Optional Cross-Encoder Reranking
         if rerank and query_text and rows:
             rows = await rerank_candidates(query_text, rows, table)
 

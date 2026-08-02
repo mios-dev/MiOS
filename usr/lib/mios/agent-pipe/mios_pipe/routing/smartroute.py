@@ -94,7 +94,6 @@ def choose_next(lanes: Iterable[Lane], attempted: Iterable[str], *,
             continue
         if lane.is_local:
             return lane                      # always prefer an untried local lane
-        # remote (paid) lane: only on escalation + within budget.
         if not escalate:
             continue
         if ledger is not None and not ledger.can_afford(lane.cost_in):

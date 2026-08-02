@@ -29,7 +29,6 @@ def _tags(kind: str, spec: dict) -> List[str]:
     tier = str((spec or {}).get("tier") or "").strip()
     if tier:
         tags.append(f"tier:{tier}")
-    # de-dup, stable order
     seen, out = set(), []
     for t in tags:
         if t and t not in seen:

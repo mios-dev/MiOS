@@ -72,11 +72,9 @@ def t_client_env():
     check("client_env: timezone", out.get("timezone") == "Europe/Paris")
     check("client_env: language", out.get("language") == "fr-FR")
     check("client_env: date", out.get("date") == "2026-06-25")
-    # 'Unknown' is an env sentinel -> dropped, so the OpenAI `user` field fills in.
     check("client_env: sentinel dropped, user fallback", out.get("user_name") == "fallback-name")
     check("client_env: non-dict body -> {}", g._client_env(None) == {})
     
-    # Test stripping coordinates: E2 (T-071)
     body_with_coords = {
         "metadata": {
             "variables": {
@@ -105,7 +103,6 @@ def t_env_block():
                  ("location", "Testville"), ("location_source", "client"),
                  ("user", "Ada"), ("language", "en-US")):
         check(f"env_block: {k}:{v}", f"{k}: {v}" in blk, blk)
-    # No location forwarded + no config -> explicit UNKNOWN, never a fabricated city.
     g.configure(client_env_var=FakeVar({"surface": "cli"}))
     blk2 = g._env_block()
     check("env_block: unknown location is explicit", "location: UNKNOWN" in blk2, blk2)

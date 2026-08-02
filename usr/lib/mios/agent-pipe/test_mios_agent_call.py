@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Stdlib assert-script for mios_agent_call. Stubs every injected dep (no
-# network/no admission/no broker -- async no-op gates, async-CM semaphores, a
-# capturing fake httpx client) then drives _call_agent_complete end-to-end down the
-# /v1 path (MiOS is /v1-only) to assert (1) request-body ASSEMBLY (model/messages/tools/
-# tool_choice preserved, stream=False, max_tokens defaulted, enable_thinking=False)
-# and (2) response NORMALISATION -- the chrome-strip + think-tag-strip pipeline on a
-# 200, and the error path (non-200 with no failover chain -> ('', dropped from the
-# merge)). Run: python test_mios_agent_call.py
 # AI-related: ./mios_agent_call.py
 # AI-functions: (test)
 """Offline regression for mios_agent_call -- body assembly + response normalisation."""
@@ -18,7 +11,6 @@ import json
 import mios_agent_call as T
 
 
-# ── async-context-manager + async-no-op stubs (no network, no admission) ──
 class _ACM:
     async def __aenter__(self):
         return self
@@ -35,7 +27,6 @@ async def _anoop(*_a, **_k):
     return None
 
 
-# ── a capturing fake httpx client ──────────────────────────────────
 class _Resp:
     def __init__(self, status, payload):
         self.status_code = status
@@ -60,7 +51,6 @@ class _FakeClient:
         return _Resp(self.status, self.payload)
 
 
-# ── a capturing fake STREAMING httpx client ────────────────────────
 class _StreamResp:
     """Async-CM SSE response: replays scripted `data:` lines via aiter_lines()."""
 
@@ -94,7 +84,6 @@ class _FakeStreamClient:
         return _StreamResp(self.status, self.lines)
 
 
-# ── inject stubs ───────────────────────────────────────────────────
 _conv = contextvars.ContextVar("conv", default="")
 _dispatch = contextvars.ContextVar("dispatch", default="")
 _kvparent = contextvars.ContextVar("kvparent", default="")
@@ -126,30 +115,12 @@ def _configure(client_unused=None):
         model_active=_anoop,
         opt_int_mb=lambda v: 0,
         priority_gate=_acm,
-        # _num_predict_cap_for + _trip_breaker are now NATIVE to this module (moved
-        # home from server.py -- the dispatch path is their sole caller). The cap fn
-        # branches on the injected _is_slow_lane_ep probe + the SSOT ceilings: forced
-        # slow here so max_tokens defaults to the CPU cap (512), preserving the body-
-        # assembly assertions. _trip_breaker is a no-op on these tests because
-        # should_health_probe is stubbed False (it never writes _NODE_LIVE); the
-        # dedicated block below covers both functions directly.
         is_slow_lane_ep=lambda ep: True,
         llm_num_predict_cap=2048,
         llm_num_predict_cap_cpu=512,
         node_live={},
-        # _record_cost is now NATIVE to this module (moved home from server.py). It
-        # stays a no-op on these dispatch tests because cost_accounting_enable
-        # defaults OFF (so it returns before touching the ledger). Its own coverage
-        # is the dedicated [_record_cost cost accounting] block below.
-        # _kv_paging / _kv_fork / _rr_eligible / _rr_run are now NATIVE to this
-        # module (moved home from server.py). They stay inert on this dispatch
-        # path: KV_PAGING_ENABLE / KV_FORK_ENABLE / RR_ENABLE all default OFF, so
-        # _rr_eligible returns False (semaphore path) and the _kv_paging bracket
-        # is a zero-op yield -- no stubs needed for the _call_agent_complete tests.
         should_health_probe=lambda cfg: False,
         src_turn_key=lambda: "",
-        # strip_agent_chrome / strip_think_tags: small real-ish strippers so we
-        # actually exercise the normalisation pipeline.
         strip_agent_chrome=lambda t: t.replace("> build · qwen\n", "").strip(),
         strip_think_tags=lambda t: t.replace("<think>x</think>", ""),
         v1_secondary_tool_loop=_anoop,
@@ -176,7 +147,6 @@ BODY = {
 }
 
 
-# ── happy path: body assembly + normalisation on a 200 ──────────────
 print("[request-body assembly + normalisation]")
 
 
@@ -200,7 +170,6 @@ async def _happy():
        "thinking channel disabled so /v1 renders content not reasoning")
     ok("options" not in b and "think" not in b,
        "legacy options/think stripped from the /v1 body")
-    # normalisation: chrome line + think tags both stripped from the answer
     ok(name == "secondary", "returns the dispatched agent name")
     ok(text == "the real answer",
        "response normalised: agent-chrome + think tags stripped")
@@ -209,7 +178,6 @@ async def _happy():
 asyncio.run(_happy())
 
 
-# ── error path: non-200 with no failover chain -> dropped from merge ──
 print("[error path]")
 
 
@@ -224,7 +192,6 @@ async def _err():
 asyncio.run(_err())
 
 
-# ── inner failover: empty endpoint with no chain -> '' ──────────────
 print("[no-endpoint guard]")
 
 
@@ -239,17 +206,10 @@ async def _noep():
 asyncio.run(_noep())
 
 
-# ── streaming sibling: SSE fragments broadcast onto the merge queue ──
-# _call_agent_stream_inner streams a secondary's output, pushing ("SF", name,
-# fragment) onto the shared queue `q` AS fragments arrive (live reasoning
-# broadcast into the council think-dropdown -- streaming is proof of function),
-# while folding only the ANSWER content into the returned merge text.
 print("[streaming: live fragment broadcast + merge text]")
 
 
 async def _stream_happy():
-    # content + reasoning_content interleaved; reasoning streams to the dropdown
-    # but is NOT folded into the merge text; <think> tags stripped from the merge.
     lines = [
         "",                                                  # blank -> skipped
         'data: {"choices":[{"delta":{"content":"Hello"}}]}',
@@ -274,7 +234,6 @@ async def _stream_happy():
        "thinking channel disabled so /v1 renders content not reasoning")
     ok("options" not in b and "think" not in b,
        "legacy options/think stripped from the /v1 body")
-    # drain the broadcast queue
     frags = []
     while not q.empty():
         frags.append(q.get_nowait())
@@ -283,8 +242,6 @@ async def _stream_happy():
     pushed = [ev[2] for ev in frags]
     ok(pushed == ["Hello", " pondering", " <think>x</think>world"],
        "both answer AND reasoning fragments broadcast live, in arrival order")
-    # merge text: only content folds in, reasoning excluded, think tags stripped,
-    # nothing past [DONE] consumed
     ok(name == "secondary", "returns the dispatched agent name")
     ok(text == "Hello world",
        "merge text = answer content only (reasoning excluded, <think> stripped, "
@@ -294,7 +251,6 @@ async def _stream_happy():
 asyncio.run(_stream_happy())
 
 
-# ── streaming error path: non-200 -> dropped from the merge ──────────
 print("[streaming error path]")
 
 
@@ -311,7 +267,6 @@ async def _stream_err():
 asyncio.run(_stream_err())
 
 
-# ── streaming no-endpoint guard: absent binding -> '' (skipped) ──────
 print("[streaming no-endpoint guard]")
 
 
@@ -327,32 +282,24 @@ async def _stream_noep():
 asyncio.run(_stream_noep())
 
 
-# ── moved engine actors: KV-paging/fork + RR-preemptible decode ──────
-# These moved verbatim into mios_agent_call (their only caller was
-# _call_agent_complete_inner). Pure + inert paths first (all flags default OFF),
-# then the active paths with fakes for the /slots client + the priority gate.
 print("[moved cluster: pure + inert paths]")
 
-# _kv_base: strip a trailing /v1, else strip a trailing slash.
 ok(T._kv_base("http://h:8080/v1") == "http://h:8080", "_kv_base strips a trailing /v1")
 ok(T._kv_base("http://h:8080/") == "http://h:8080", "_kv_base strips a trailing slash")
 ok(T._kv_base("http://h:8080") == "http://h:8080", "_kv_base leaves a bare root")
 
-# _kv_filename: filesystem-safe + deterministic (SSOT with mios_kvfork).
 _fn = T._kv_filename("conv/../x y")
 ok(isinstance(_fn, str) and "/" not in _fn and "\\" not in _fn,
    "_kv_filename is filesystem-safe")
 ok(T._kv_filename("conv-abc") == T._kv_filename("conv-abc"),
    "_kv_filename is deterministic for one conversation")
 
-# _rr_eligible: RR_ENABLE defaults OFF -> never eligible.
 ok(T._rr_eligible({"messages": [{"role": "user", "content": "hi"}]},
                   "http://h/v1", {}, None) is False,
    "_rr_eligible False while RR_ENABLE is off")
 
 
 async def _kv_paging_inert():
-    # KV_PAGING_ENABLE defaults OFF -> the bracket is a zero-op yield.
     client = _FakeClient(200, {})
     async with T._kv_paging(client, "http://h/v1", {"model": "m"}, None):
         pass
@@ -371,7 +318,6 @@ async def _kv_fork_disabled():
 asyncio.run(_kv_fork_disabled())
 
 
-# ── active paths: enable the KV/RR knobs + inject a /slots client/gate ──
 print("[moved cluster: active KV-paging + RR decode]")
 
 
@@ -425,10 +371,8 @@ T.configure(kv_paging_enable=True, kv_paging_slot=0, kv_paging_timeout=12.0,
             rr_enable=True, priority_queue_enable=True,
             kv_locks={}, kv_resident={}, backend_key="",
             global_priority_gate=_gate)
-# force the /slots-lane branch without depending on mios_endpoints heuristics
 T._endpoint_is_llamacpp = lambda ep, cfg, eng=None: True
 
-# _rr_eligible now True for a plain completion, False once tools[] appear.
 ok(T._rr_eligible({"messages": [{"role": "user", "content": "hi"}]},
                   "http://h/v1", {}, None) is True,
    "_rr_eligible True for a plain completion on a /slots lane")
@@ -451,7 +395,6 @@ asyncio.run(_slot_action_status())
 
 
 async def _kv_paging_active():
-    # cold slot with prior snapshot -> page THIS conversation in (one restore), resident updated.
     T._KV_RESIDENT.clear()
     T._SAVED_CONVS.clear()
     T._SAVED_CONVS.add("convA")
@@ -482,12 +425,6 @@ async def _rr_run_single_slice():
 asyncio.run(_rr_run_single_slice())
 
 
-# ── _record_cost: WS-RES-GOV per-dispatch recorder (moved home; tokenizer seam) ──
-# Verifies the strangler move: it records into the injected server-owned ledger,
-# its token total comes from the mios_tokenize seam (NOT an inline `// 4`), it
-# attributes to the injected lane key, and it is a degrade-open no-op when the
-# accounting flag is off. Synthetic fixed-length content (no baked example words)
-# keeps the token estimate deterministic.
 print("[_record_cost cost accounting]")
 import time as _time
 import mios_cost
@@ -514,7 +451,6 @@ ok(_snap["tokens"] == _expect_tokens,
 ok(_snap["by_lane"].get("synthlane", {}).get("n") == 1,
    "_record_cost attributes the dispatch to the injected lane key")
 
-# Flag-gated + degrade-open: disabled => pure no-op (ledger untouched).
 T.configure(cost_accounting_enable=False)
 T._record_cost({"endpoint": "ep"}, "http://ep/v1", _time.time(), _cbody, _ctext)
 ok(_ledger.snapshot()["dispatches"] == 1,

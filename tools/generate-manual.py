@@ -14,7 +14,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Determine script root
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(script_dir, ".."))
 
@@ -25,17 +24,14 @@ def main():
 
     print(f"Target manual file: {manual_path}")
 
-    # Clean up old modular directory folders (01_* through 50_*) if they exist under usr/share/doc/mios/manual/
     manual_dir = os.path.join(repo_root, "usr", "share", "doc", "mios", "manual")
     if os.path.exists(manual_dir):
         print(f"Cleaning up old manual directory: {manual_dir}")
         shutil.rmtree(manual_dir)
 
-    # Ensure parent directory of manual.md exists
     parent_dir = os.path.dirname(manual_path)
     os.makedirs(parent_dir, exist_ok=True)
 
-    # Credits mapping lookup matching rows in credits.md
     credits_map = {
         1: ("Linux kernel", "file:///usr/share/doc/mios/reference/credits.md#L39"),
         2: ("systemd", "file:///usr/share/doc/mios/reference/credits.md#L40"),
@@ -92,7 +88,6 @@ def main():
         53: ("Function calling / tools", "file:///usr/share/doc/mios/reference/credits.md#L134")
     }
 
-    # Comprehensive chapter data mapping (50 chapters, 152 pages total)
     chapters = [
         {
             "num": "01",
@@ -1241,9 +1236,7 @@ def main():
         }
     ]
 
-    # Write unified master manual.md (All-in-One Manual) generation
     aio_content = """<!-- AI-hint: Unified All-in-One User Manual for MiOS. Consolidates all 50 chapters and 152 pages into a single document. -->
-# MiOS All-in-One User Manual & System Documentation
 
 Welcome to the comprehensive, All-in-One User Manual and System Documentation for **MiOS** (pronounced *"MyOS"*). 
 
@@ -1251,11 +1244,9 @@ This unified document consolidates the entire 50-chapter documentation suite, de
 
 ---
 
-## Table of Contents
 
 """
 
-    # Dynamic master README.md parts structure
     parts = [
         {"title": "Part I: Foundations & Philosophy", "range": range(1, 4)},
         {"title": "Part II: The Agentic AI Stack", "range": range(4, 8)},

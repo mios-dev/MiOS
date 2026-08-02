@@ -1,6 +1,4 @@
 # AI-hint: In-process asyncio.Queue gateway producer-consumer seam (CONV-02).
-# Integrates smolagents.ToolCallingAgent with the unified capreg tool manifest and LiteLLMModel
-# pointed locally at MIOS_AI_ENDPOINT (Law 5 compliance). Degrades-open to legacy HTTP via mode="http".
 # AI-related: ./server.py, ./mios_dispatcher.py, ./mios_capreg.py, ./test_mios_gateway_queue.py
 
 import asyncio
@@ -17,7 +15,6 @@ from mios_config import _toml_section
 
 log = logging.getLogger("mios-agent-pipe")
 
-# Global config variables dependency-injected by server.py
 _VERB_CATALOG: dict = {}
 _recipes: dict = {}
 _skills: dict = {}
@@ -66,7 +63,6 @@ class DispatchTool(Tool):
         super().__init__()
 
     def forward(self, **kwargs) -> str:
-        # Resolve the underlying execution coroutine
         if self.kind == "verb":
             from mios_dispatch import dispatch_mios_verb
             coro = dispatch_mios_verb(self.name, kwargs)
@@ -81,7 +77,6 @@ class DispatchTool(Tool):
         else:
             return f"Error: unknown capability kind '{self.kind}'"
 
-        # Execute coroutine on the main event loop from the worker thread
         fut = asyncio.run_coroutine_threadsafe(coro, self.main_loop)
         res = fut.result()
         if isinstance(res, dict):
@@ -241,7 +236,6 @@ class GatewayWorker:
 
                 conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)
                 try:
-                    # Wrap the worker execution inside a single trace span
                     loop = asyncio.get_running_loop()
                     if _trace_span:
                         async with _trace_span("tool_loop", kind="tool_loop"):
@@ -264,7 +258,6 @@ class GatewayWorker:
         system_prompt = extract_system_prompt_from_payload(payload)
         prompt = extract_prompt_from_payload(payload)
         
-        # Strict local enforcement: telemetry off + LiteLLM targeted at local endpoint
         os.environ["LITELLM_TELEMETRY"] = "False"
         
         model = LiteLLMModel(
@@ -310,7 +303,6 @@ class GatewayWorker:
                     if r.status_code == 200:
                         emb = r.json()["data"][0]["embedding"]
                         
-                        # T-033: Semantic Firewall Taint Propagation
                         from mios_firewall import _classify_verb_taint, _session_is_tainted
                         args_dict = arguments if isinstance(arguments, dict) else {}
                         t_tainted, _ = _classify_verb_taint(tool_name, args_dict)
@@ -348,7 +340,6 @@ class GatewayWorker:
             ]
         }
 
-# ── Unified MCPClientPool Seam (CONV-13) ──
 import mcp
 
 class MCPDispatchTool(Tool):

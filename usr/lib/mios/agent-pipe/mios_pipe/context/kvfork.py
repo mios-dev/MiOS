@@ -47,9 +47,6 @@ from __future__ import annotations
 import re
 from typing import List, Optional, Tuple
 
-# Kept byte-identical to server.py `_kv_filename` so a child file produced here
-# is the SAME path `_kv_paging` restores when the child conversation next runs.
-# (If server.py's scheme ever changes, change it in BOTH places.)
 _SAFE_RE = re.compile(r"[^A-Za-z0-9_.-]")
 _NAME_CAP = 120
 _FILE_PREFIX = "mios-kv-"
@@ -93,8 +90,6 @@ def validate_fork(src_conv: object, dst_conv: object) -> Tuple[bool, str]:
     return True, "ok"
 
 
-# One step of a fork plan: (action, conversation, filename). `action` is the
-# llama.cpp /slots verb the caller passes straight to `_kv_slot_action`.
 ForkStep = Tuple[str, str, str]
 
 

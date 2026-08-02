@@ -85,7 +85,6 @@ def grade_score_model(grader_endpoint: str, grader_key: str, grader_model: str,
             ],
             response_format={"type": "json_object"},
         )
-        # Some local servers ignore json_object — best-effort extract
         m = re.search(r'\{.*\}', raw, re.DOTALL)
         obj = json.loads(m.group(0)) if m else {"score": 0.0, "reason": "ungradable"}
         return float(obj.get("score", 0.0)), str(obj.get("reason", ""))
@@ -109,12 +108,10 @@ def main():
     ap.add_argument("--report", default=None)
     args = ap.parse_args()
 
-    # Default grader = same as candidate
     grader_endpoint = args.grader_endpoint or args.endpoint
     grader_key      = args.grader_key      or args.key
     grader_model    = args.grader_model    or args.model
 
-    # System prompt
     if args.system_prompt and Path(args.system_prompt).exists():
         system = Path(args.system_prompt).read_text()
     else:

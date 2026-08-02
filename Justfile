@@ -1,17 +1,6 @@
 # AI-hint: The Justfile defines the primary build, deployment, and lifecycle automation for MiOS, providing targets for preflight checks, overlay initialization, ISO creation, and OCI image building via podman.
 # AI-related: ./tools/lib/userenv.sh, /usr/libexec/mios/flight-control.sh, /usr/share/mios/build-logs/latest-build.log, /etc/mios/install.env, /etc/mios/forge/admin-password, /usr/lib/mios/agent-pipe, /usr/lib/mios/agents/.venv/bin/python3, /usr/libexec/mios/user-setup.sh, mios-overlay, mios-qcow2-XXXXXX
-# 'MiOS' v0.3.0 - Linux Build Targets
-# Requires: podman, just
-# Usage: just build | just iso | just all
-#
-# By invoking any 'just' target you acknowledge AGREEMENTS.md
-# (Apache-2.0 main + bundled-component licenses in LICENSES.md +
-# attribution in CREDITS.md). 'MiOS' is a research project (pronounced
-# 'MyOS'; generative, seed-script-derived). Set MIOS_AGREEMENT_BANNER=quiet
-# to silence the per-script banners that appear during build.
 
-# Load user environment from XDG-compliant configuration
-# This sources $HOME/.config/mios/*.toml files and exports MIOS_* variables
 _load_env := `bash -c 'source ./tools/lib/userenv.sh 2>/dev/null || true'`
 _agreement_banner := `bash -c '
 case "${MIOS_AGREEMENT_BANNER:-}" in
@@ -34,87 +23,70 @@ LOCAL := env_var_or_default("MIOS_LOCAL_TAG", "localhost/mios:latest") # @verb:S
 MIOS_IMG_BIB := "quay.io/centos-bootc/bootc-image-builder:latest" # @verb:GET_BIB
 BIB := env_var_or_default("MIOS_BIB_IMAGE", MIOS_IMG_BIB)
 
-# Run preflight system check
 preflight:
     @./tools/preflight.sh
 
-# Run pre-flight build asset URL liveness probe
 check-build-urls:
     @./tools/check-build-urls.sh
 
-# Run post-build image provisioning audit
 audit-provisioning:
     @python3 ./tools/audit-image-provisioning.py
 
-# Show current flight status and variable mappings
 flight-status:
     @bash ./usr/libexec/mios/flight-control.sh || true   # canonical path (was ./tools/, missing -> broke build/iso); status display is non-fatal
 
-# Unified initialization (Mode 2: User-space)
 init:
     sudo ./tools/mios-overlay.sh
 
-# System-wide deployment (Mode 1: FHS system install)
 deploy:
     sudo ./tools/mios-overlay.sh
 
-# Live ISO Initiation (Mode 0: Overlay onto root)
 live-init:
     sudo ./tools/mios-overlay.sh
 
-# bootc container lint -- runs against the locally built image.
-# The Containerfile already runs `bootc container lint` as its final RUN, so
-# `just build` is itself a lint gate. This target re-runs lint on demand.
 lint:
     podman run --rm --entrypoint /usr/bin/bootc {{LOCAL}} container lint
 
-# Run shellcheck over automation, tools, and libexec shell scripts
 lint-shell:
-    @echo "[lint-shell] Running shellcheck..."
+    @echo "[lint-shell] Running shellcheck"
     bash ./automation/lint-shell.sh
 
-# WS-0A drift gate: source-tree fitness-functions that need NO built image, so
-# CI can run them on every PR. (1) SSOT-render conformance lint -- every
-# ${MIOS_*} Quadlet placeholder wired on both ends; (2) the agent-pipe
-# deterministic unit tests (assert-scripts, run via python3). Exits non-zero on
-# any drift -- the same checks `just build` runs as post-build sub-phases.
 drift-gate:
-    @echo "[drift-gate] 97-ssot-lint.sh (SSOT-render conformance)"
+    @echo "[drift-gate] 97-ssot-lint.sh"
     bash ./automation/97-ssot-lint.sh
-    @echo "[drift-gate] lint-shell (shellcheck verification)"
+    @echo "[drift-gate] lint-shell"
     bash ./automation/lint-shell.sh
-    @echo "[drift-gate] agent-pipe unit tests (test_mios_*.py)"
+    @echo "[drift-gate] agent-pipe unit tests"
     @cd ./usr/lib/mios/agent-pipe && fails=0; \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         for t in test_mios_*.py; do \
             if "$py_exec" "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"; \
             else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
         done; \
-        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script(s) failed" >&2; exit 1; fi; \
+        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script failed" >&2; exit 1; fi; \
         echo "[drift-gate] all agent-pipe unit tests passed"
-    @echo "[drift-gate] test_mios_docgen.py (doc-generator, outside the agent-pipe glob)"
+    @echo "[drift-gate] test_mios_docgen.py"
     @cd ./usr/libexec/mios && \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         if "$py_exec" test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
-    @echo "[drift-gate] 98-drift-checks.sh (AI-plane source drift fitness-functions)"
+    @echo "[drift-gate] 98-drift-checks.sh"
     bash ./automation/98-drift-checks.sh
-    @echo "[drift-gate] tests/drift-gate-negatives.sh (negative-test harness for the new gates)"
+    @echo "[drift-gate] tests/drift-gate-negatives.sh"
     bash ./tests/drift-gate-negatives.sh
-    @echo "[drift-gate] tests/drift-gate-readonly.sh (read-only / idempotency self-test)"
+    @echo "[drift-gate] tests/drift-gate-readonly.sh"
     bash ./tests/drift-gate-readonly.sh
-    @echo "[drift-gate] tests/test-bake-group.sh (bake-group unit test harness)"
+    @echo "[drift-gate] tests/test-bake-group.sh"
     bash ./tests/test-bake-group.sh
-    @echo "[drift-gate] tests/test-firstboot-prestage.sh (firstboot prestage unit test harness)"
+    @echo "[drift-gate] tests/test-firstboot-prestage.sh"
     bash ./tests/test-firstboot-prestage.sh
-    @echo "[drift-gate] automation/lint-python.sh (Python static compilation gate)"
+    @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
-    @echo "[drift-gate] tests/test-theme-merge.py (negative-test harness for dotfiles merge kinds)"
+    @echo "[drift-gate] tests/test-theme-merge.py"
     @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         "$py_exec" ./tests/test-theme-merge.py
 
 
 
-# Build OCI image locally
 build: preflight flight-status
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
@@ -124,26 +96,24 @@ build: preflight flight-status
         -t {{LOCAL}} .
     @echo "[OK] Built: {{LOCAL}}"
 
-# Build OCI image with unified logging
 build-logged: artifact
     @mkdir -p logs
     @LOG_FILE="logs/build-$(date -u +%Y%m%dT%H%M%SZ).log"
-    @echo "---" | tee -a "${LOG_FILE}"
-    @echo "[START] CHECKPOINT: Starting 'MiOS' build..." | tee -a "${LOG_FILE}"
+    @echo "" | tee -a "${LOG_FILE}"
+    @echo "[START] CHECKPOINT: Starting 'MiOS' build" | tee -a "${LOG_FILE}"
     @echo "Unified log will be available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
-    @echo "---" | tee -a "${LOG_FILE}"
+    @echo "" | tee -a "${LOG_FILE}"
     @set -o pipefail; podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
         --build-arg MIOS_FLATPAKS={{env_var_or_default("MIOS_FLATPAKS", "")}} \
         --build-arg MIOS_USER={{env_var_or_default("MIOS_USER", "mios")}} \
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "mios")}} \
         -t {{LOCAL}} . 2>&1 | tee -a "${LOG_FILE}"
-    @echo "---" | tee -a "${LOG_FILE}"
-    @echo "[OK] CHECKPOINT: 'MiOS' build complete." | tee -a "${LOG_FILE}"
+    @echo "" | tee -a "${LOG_FILE}"
+    @echo "[OK] CHECKPOINT: 'MiOS' build complete" | tee -a "${LOG_FILE}"
     @echo "Unified log available at: ${LOG_FILE}" | tee -a "${LOG_FILE}"
-    @echo "---"
+    @echo ""
 
-# Build OCI image with verbose output (no redirection)
 build-verbose: artifact
     podman build --retry 5 --retry-delay 3s --no-cache --network=host \
         --build-arg BASE_IMAGE={{env_var_or_default("MIOS_BASE_IMAGE", "ghcr.io/ublue-os/ucore-hci:stable-nvidia")}} \
@@ -152,44 +122,39 @@ build-verbose: artifact
         --build-arg MIOS_HOSTNAME={{env_var_or_default("MIOS_HOSTNAME", "mios")}} \
         -t {{LOCAL}} .
 
-# Embed the most recent build log into the image
 embed-log:
-    @echo "[START] Finding most recent build log..."
+    @echo "[START] Finding most recent build log"
     @LOG_FILE=$$(ls -t logs/build-*.log 2>/dev/null | head -n 1)
     @if [ -z "$${LOG_FILE}" ]; then \
-        echo "[FAIL] No build logs found in logs/. Run 'just build-logged' first."; \
+        echo "[FAIL] No build logs found in logs/. Run 'just build-logged' first"; \
         exit 1; \
     fi
     @echo "  Found: $${LOG_FILE}"
-    @echo "[START] Creating temporary Containerfile to embed log..."
+    @echo "[START] Creating temporary Containerfile to embed log"
     @echo "FROM {{LOCAL}}" > /tmp/Containerfile.embed
-    @echo "COPY --chown=root:root $${LOG_FILE} /usr/share/mios/build-logs/latest-build.log" >> /tmp/Containerfile.embed
-    @echo "[START] Building image with embedded log..."
+    @echo "COPY" >> /tmp/Containerfile.embed
+    @echo "[START] Building image with embedded log"
     @set -o pipefail; podman build --no-cache -f /tmp/Containerfile.embed -t localhost/mios:latest-with-log .
     @rm /tmp/Containerfile.embed
-    @echo "---"
+    @echo ""
     @echo "[OK] Success! New image created: localhost/mios:latest-with-log"
     @echo "   Embedded log is at: /usr/share/mios/build-logs/latest-build.log"
-    @echo "---"
+    @echo ""
 
-# Refresh all AI manifests, UKB, and Wiki documentation
 artifact:
     ./automation/ai-bootstrap.sh
-    @echo "[OK] Artifacts, UKB, and Wiki refreshed."
+    @echo "[OK] Artifacts, UKB, and Wiki refreshed"
 
-# Compile the 50-chapter User Manual and all 152 sub-pages in one shot
 manual:
     python3 ./tools/generate-manual.py
-    @echo "[OK] User Manual and sub-pages compiled successfully."
+    @echo "[OK] User Manual and sub-pages compiled successfully"
 
 
-# Build OCI image on Cloud (using remote context)
 cloud-build:
     @echo "Configure cloud-build with your cloud provider CLI"
-    @echo "Example: podman build --remote -t {{IMAGE_NAME}}:{{VERSION}} ."
-    @echo "[OK] Cloud Build target (customize for your cloud provider)"
+    @echo "Example: podman build"
+    @echo "[OK] Cloud Build target"
 
-# Rechunk for optimal Day-2 updates (5-10x smaller deltas)
 rechunk: build
     podman run --rm \
         --security-opt label=type:unconfined_t \
@@ -199,7 +164,6 @@ rechunk: build
     podman tag {{IMAGE_NAME}}:{{VERSION}} {{IMAGE_NAME}}:latest
     @echo "[OK] Rechunked: {{IMAGE_NAME}}:{{VERSION}}"
 
-# Generate RAW bootable disk image (80 GiB root)
 raw: build
     mkdir -p build/raw
     sudo podman run --rm -it --privileged \
@@ -210,7 +174,6 @@ raw: build
         {{BIB}} build --type raw --rootfs ext4 {{LOCAL}}
     @echo "[OK] RAW image in build/raw"
 
-# Generate Anaconda installer ISO
 iso: build
     mkdir -p build/iso
     @TMPTOML="$(mktemp /tmp/mios-iso-XXXXXX.toml)" && \
@@ -226,11 +189,9 @@ iso: build
         rm -f "$$TMPTOML"
     @echo "[OK] ISO image in build/iso"
 
-# Generate QEMU qcow2 disk image
-# Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
 qcow2: build
     mkdir -p build/qcow2
-    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
+    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
     @TMPTOML="$(mktemp /tmp/mios-qcow2-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
@@ -244,12 +205,9 @@ qcow2: build
         rm -f "$$TMPTOML"
     @echo "[OK] QCOW2 image in build/qcow2"
 
-# Generate Hyper-V VHDX disk image
-# BIB emits VPC (.vhd); we convert to .vhdx via qemu-img.
-# Substitutes MIOS_USER_PASSWORD_HASH and MIOS_SSH_PUBKEY from env before invoking BIB.
 vhdx: build
     mkdir -p build/vhdx
-    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH (openssl passwd -6 'yourpass')"; exit 1; fi
+    @if [ -z "${MIOS_USER_PASSWORD_HASH:-}" ]; then echo "[FAIL] Set MIOS_USER_PASSWORD_HASH"; exit 1; fi
     @TMPTOML="$(mktemp /tmp/mios-vhdx-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
@@ -267,63 +225,32 @@ vhdx: build
             qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
         done; \
     else \
-        echo "[WARN] qemu-img not found or no .vhd produced -- .vhd retained in build/vhdx/"; \
+        echo "[WARN] qemu-img not found or no .vhd produced"; \
     fi
     @echo "[OK] VHDX image in build/vhdx"
 
-# Generate WSL2 tar.gz for wsl --import
 wsl2: build
     @mkdir -p build/wsl2
-    @echo "[wsl2] BIB has no --type wsl2 -> exporting {{LOCAL}} rootfs for wsl --import"
+    @echo "[wsl2] BIB has no"
     -sudo podman rm -f mios-wsl2-export 2>/dev/null
     sudo podman create --name mios-wsl2-export {{LOCAL}}
     sudo podman export mios-wsl2-export | gzip -c > build/wsl2/mios-rootfs.tar.gz
     sudo podman rm -f mios-wsl2-export
     @echo "[OK] WSL2 rootfs -> build/wsl2/mios-rootfs.tar.gz"
-    @echo "     import: wsl --import MiOS <target-dir> build/wsl2/mios-rootfs.tar.gz"
+    @echo "     import: wsl"
 
-# Save OCI image as oci-archive tarball for offline installation (AGY-152)
 oci-archive: build
     @mkdir -p build/oci-archive
     podman save --format oci-archive -o build/oci-archive/mios-{{VERSION}}.tar {{LOCAL}}
     @echo "[OK] OCI archive: build/oci-archive/mios-{{VERSION}}.tar"
 
-# Build EVERY MiOS deployable artifact in one shot.
-# Manifesto: "starts FULL build pipeline including all the different image
-# types and formats for ALL MiOS deployment types -- Hyper-V, WSL2/g, QEMU,
-# OCI images, Live-CD/USB, USB installer, RAW, etc"
-#
-# Order is deliberate -- the OCI image must exist BEFORE any BIB recipe
-# runs (BIB reads from /var/lib/containers/storage). After the build:
-#   - localhost/mios:latest                                  (OCI image)
-#   - build/disk.raw                                         (RAW disk)
-#   - build/install.iso                                      (Live-CD / USB installer)
-#   - build/qcow2/disk.qcow2                                 (QEMU)
-#   - build/{vhd|vhdx}/disk.{vhd,vhdx}                       (Hyper-V)
-#   - build/wsl2/disk.wsl2  (tar.gz)                         (WSL2/g)
-#
-# Prerequisites:
-#   MIOS_USER_PASSWORD_HASH (qcow2 + vhdx need this -- the operator's
-#                            login-shell SHA-512 hash, generated via
-#                            openssl passwd -6 'pw').
-#   MIOS_SSH_PUBKEY         (qcow2 + vhdx -- ed25519 public key for
-#                            sudo-less remote management).
-#
-# Use `just verify-images` after to sanity-check every artifact landed.
 all: build oci-archive raw iso usb-installer qcow2 vhdx wsl2
     @echo ""
     @echo "[OK] All MiOS deployable artifacts built. Output:"
     @ls -lah build/ 2>/dev/null || true
     @echo ""
-    @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity."
+    @echo "[NEXT] Run 'just verify-images' to confirm artifact integrity"
 
-# USB installer artifact -- explicit alias for the Anaconda installer
-# ISO repackaged as a USB-flashable image with a clear filename.
-# The same .iso BIB produces is bootable from USB via `dd if=build/*.iso
-# of=/dev/sdX bs=4M status=progress` (Linux) or `Rufus` (Windows). This
-# target just provides a discoverable name and prints the operator
-# flash recipe so "where's the USB installer?" doesn't end at the
-# generic `iso` target.
 usb-installer: iso
     @mkdir -p build/usb-installer
     @isos=$$(ls build/*.iso build/bootiso/*.iso 2>/dev/null); \
@@ -334,29 +261,27 @@ usb-installer: iso
             dst="build/usb-installer/$${base}-usb.iso"; \
             [ -f "$$dst" ] || cp -p "$$src" "$$dst"; \
             sz=$$(stat -c%s "$$dst" 2>/dev/null || stat -f%z "$$dst"); \
-            echo "[OK] USB installer: $$dst ($$sz bytes)"; \
+            echo "[OK] USB installer: $$dst"; \
         done; \
     else \
         echo "[FAIL] no .iso in build/ or build/bootiso/ — run 'just iso' first"; exit 1; \
     fi
     @echo ""
-    @echo "Flash to USB (replace /dev/sdX with your actual device):"
+    @echo "Flash to USB:"
     @echo "  Linux:    sudo dd if=build/usb-installer/*.iso of=/dev/sdX bs=4M status=progress conv=fdatasync"
     @echo "  macOS:    sudo dd if=build/usb-installer/*.iso of=/dev/rdiskN bs=4m"
-    @echo "  Windows:  use Rufus (https://rufus.ie) or balenaEtcher"
+    @echo "  Windows:  use Rufus or balenaEtcher"
     @echo ""
-    @echo "WARNING: dd will destroy ALL data on the target device — verify the device first."
+    @echo "WARNING: dd will destroy ALL data on the target device — verify the device first"
 
-# Smoke-test every artifact in build/ -- non-zero size, recognizable
-# magic bytes, sane disk-image geometry. Fast (no actual boot).
 verify-images:
-    @echo "[verify] Walking build/ for MiOS deployable artifacts..."
+    @echo "[verify] Walking build/ for MiOS deployable artifacts"
     @ok=0; fail=0; \
     for f in build/*.raw build/image/*.raw build/*.iso build/bootiso/*.iso build/qcow2/*.qcow2 build/vhd*/*.vhd* build/wsl2/*.wsl2 build/wsl2/*.tar.gz; do \
         [ -f "$$f" ] || continue; \
         sz=$$(stat -c%s "$$f" 2>/dev/null || stat -f%z "$$f"); \
         if [ "$${sz:-0}" -lt 1048576 ]; then \
-            echo "  [FAIL] $$f -- under 1 MiB ($$sz bytes); likely truncated"; \
+            echo "  [FAIL] $$f"; \
             fail=$$((fail+1)); continue; \
         fi; \
         case "$$f" in \
@@ -371,46 +296,36 @@ verify-images:
         ok=$$((ok+1)); \
     done; \
     echo ""; \
-    echo "[verify] $$ok artifact(s) passed, $$fail failed"; \
+    echo "[verify] $$ok artifact passed, $$fail failed"; \
     [ "$$fail" -eq 0 ]
 
-# Push EVERY artifact to its respective destination:
-#   - OCI image     -> ghcr.io/mios-dev/mios:latest (cloud + ghcr)
-#   - Disk images   -> Forgejo Releases on the local self-hosted forge
-#                       (operator pulls them locally for installer/USB
-#                       use without round-tripping through the cloud)
-# Run AFTER `just all` and `just verify-images` succeed.
 publish: all verify-images
-    @echo "[publish] Pushing OCI image..."
+    @echo "[publish] Pushing OCI image"
     podman push {{LOCAL}} {{IMAGE_NAME}}:{{VERSION}}
     podman push {{LOCAL}} {{IMAGE_NAME}}:latest
     @echo "[publish] OCI image pushed: {{IMAGE_NAME}}:{{VERSION}}"
     @echo ""
-    @echo "[publish] Disk images stay in build/ -- Forgejo Releases / GitHub Releases"
+    @echo "[publish] Disk images stay in build/"
     @echo "[publish] upload is operator-driven via 'gh release create' or the"
-    @echo "[publish] Forgejo web UI (Releases tab on the local forge)."
+    @echo "[publish] Forgejo web UI"
     @ls -1 build/ 2>/dev/null
 
 
-# Log artifacts to MiOS-bootstrap repository (Linux FS native)
 log-bootstrap:
-    @echo "[START] Logging artifacts to MiOS-bootstrap repository (Linux FS native)..."
+    @echo "[START] Logging artifacts to MiOS-bootstrap repository"
     ./tools/log-to-bootstrap.sh
     @echo "[OK] Artifacts logged to bootstrap repository"
 
-# Complete build with bootstrap logging (recommended for releases)
 build-and-log: build-logged
-    @echo "[START] Running bootstrap artifact logging (Linux FS native)..."
+    @echo "[START] Running bootstrap artifact logging"
     ./tools/log-to-bootstrap.sh
     @echo "[OK] Build complete with artifacts logged to bootstrap"
 
-# Full pipeline: build  rechunk  log to bootstrap (Linux FS native)
 all-bootstrap: build rechunk log-bootstrap
-    @echo "[OK] Full pipeline complete (build  rechunk  bootstrap Linux FS native)"
+    @echo "[OK] Full pipeline complete"
 
-# Generate SBOM for the local image
 sbom:
-    @echo "[START] Generating SBOM for {{LOCAL}}..."
+    @echo "[START] Generating SBOM for {{LOCAL}}"
     @mkdir -p artifacts/sbom
     podman run --rm \
         -v ./artifacts/sbom:/out \
@@ -418,45 +333,37 @@ sbom:
         anchore/syft:latest scan {{LOCAL}} -o cyclonedx-json > artifacts/sbom/mios-sbom.json
     @echo "[OK] SBOM generated: artifacts/sbom/mios-sbom.json"
 
-# ============================================================================
-# User-Space Management
-# ============================================================================
 
-# Initialize user-space configuration (seeds ~/.config/mios/mios.toml).
 init-user-space:
     @./usr/libexec/mios/user-setup.sh
 
-# Re-initialize user-space (overwrite mios.toml with vendor template).
 reinit-user-space:
     @./usr/libexec/mios/user-setup.sh --force
 
-# Show user-space configuration paths
 show-user-space:
     @echo "'MiOS' User-Space Directories:"
     @echo "  Config:  ${XDG_CONFIG_HOME:-$HOME/.config}/mios/"
     @echo "  Data:    ${XDG_DATA_HOME:-$HOME/.local/share}/mios/"
     @echo "  Cache:   ${XDG_CACHE_HOME:-$HOME/.cache}/mios/"
     @echo "  State:   ${XDG_STATE_HOME:-$HOME/.local/state}/mios/"
-    @echo "  Runtime: ${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/mios/"
+    @echo "  Runtime: ${XDG_RUNTIME_DIR:-/run/user/$}/mios/"
     @echo ""
     @echo "Configuration:"
     @if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/mios.toml" ]; then \
         echo "  [OK] mios.toml"; \
     else \
-        echo "  [FAIL] mios.toml (run: just init)"; \
+        echo "  [FAIL] mios.toml"; \
     fi
     @for f in env.toml images.toml build.toml flatpaks.list; do \
         if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/mios/$f" ]; then \
-            echo "  [legacy] $f -- migrate via: just init"; \
+            echo "  [legacy] $f"; \
         fi; \
     done
 
-# Show loaded environment variables
 show-env:
     @echo "'MiOS' Environment Variables:"
     @source ./tools/lib/userenv.sh && env | grep '^MIOS_' | sort | sed 's/^/  /'
 
-# Edit the unified user configuration (mios.toml).
 edit:
     @CFG="${XDG_CONFIG_HOME:-$HOME/.config}/mios/mios.toml"; \
         if [ ! -f "$CFG" ]; then \
@@ -464,43 +371,37 @@ edit:
         fi; \
         ${EDITOR:-vim} "$CFG"
 
-# Show mios-forge (Forgejo) status: Quadlet state, URL, admin identity,
-# initial-password file path, and a copy-pasteable 'git remote add' line.
-# Run on the deployed image after first boot.
 forge:
-    @echo "'MiOS' Forge (Forgejo)"
+    @echo "'MiOS' Forge"
     @if systemctl is-active --quiet mios-forge.service 2>/dev/null; then \
         echo "  Service:        active"; \
     else \
-        echo "  Service:        inactive (run: sudo systemctl start mios-forge)"; \
+        echo "  Service:        inactive"; \
     fi
     @if systemctl is-active --quiet mios-forge-firstboot.service 2>/dev/null \
         || [ -f /var/lib/mios/forge/.firstboot-done ]; then \
         echo "  First-boot:     [ok] admin user created"; \
     else \
-        echo "  First-boot:     pending (waiting on mios-forge.service readiness)"; \
+        echo "  First-boot:     pending"; \
     fi
     @echo "  Web UI:         http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/"
     @echo "  git+ssh:        ssh://git@localhost:${MIOS_FORGE_SSH_PORT:-2222}/<user>/<repo>.git"
     @echo "  Admin user:     $(grep -E '^MIOS_FORGE_ADMIN_USER=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
     @echo "  Admin email:    $(grep -E '^MIOS_FORGE_ADMIN_EMAIL=' /etc/mios/install.env 2>/dev/null | cut -d= -f2- | tr -d '\"' || echo '(check /etc/mios/install.env)')"
     @if [ -r /etc/mios/forge/admin-password ]; then \
-        echo "  Initial pwd:    sudo cat /etc/mios/forge/admin-password    (must change on first login)"; \
+        echo "  Initial pwd:    sudo cat /etc/mios/forge/admin-password"; \
     else \
-        echo "  Initial pwd:    (already changed, or firstboot not yet run)"; \
+        echo "  Initial pwd:"; \
     fi
     @echo "  Local push:     git remote add origin http://localhost:${MIOS_FORGE_HTTP_PORT:-3000}/<user>/<repo>.git && git push origin main"
 
-# Run the converged rechunk pipeline (CONV-14)
 rechunk-conv: build
     @bash automation/build/rechunk.sh
 
 
-# Scaffold a new file from templates
 new type name:
     python3 usr/libexec/mios/mios-new {{type}} {{name}}
 
-# Report total size of vendored offline assets (AGY-380)
 vendored-size:
-    @echo "[vendored-size] Reporting total size of usr/share/mios/vendored/..."
-    @du -sh usr/share/mios/vendored/* 2>/dev/null || du -sh usr/share/mios/vendored 2>/dev/null || echo "vendored dir clean"
+    @echo "[vendored-size] Reporting total size of usr/share/mios/vendored/"
+    @du -sh usr/share/mios/vendored/* 2>/dev/null || du -sh usr/share/mios/vendored 2>/dev/null || echo "Vendored dir clean"

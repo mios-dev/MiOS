@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_gateway_queue (CONV-03).
-# Pure python/stdlib/dependency test, no DB required.
 # AI-related: ./mios_gateway_queue.py
 
 import asyncio
@@ -24,7 +23,6 @@ def check(name, cond, detail=""):
 
 
 async def t_queue_basic():
-    # Test basic put, get, and queue size
     q = mq.GatewayQueue(maxsize=10)
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
@@ -41,7 +39,6 @@ async def t_queue_basic():
 
 
 async def t_future_resolution():
-    # Test future resolution
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
     req = mq.GatewayRequest(payload={"test": "data"}, fut=fut)
@@ -54,7 +51,6 @@ async def t_future_resolution():
 
 
 async def t_worker_run_and_cancellation():
-    # Test worker run and cancel
     with patch("mios_gateway_queue.ToolCallingAgent") as MockAgent, \
          patch("mios_gateway_queue.LiteLLMModel") as MockModel:
          
@@ -65,7 +61,6 @@ async def t_worker_run_and_cancellation():
         q = mq.GatewayQueue(maxsize=10)
         worker = mq.GatewayWorker(tools=[], endpoint="http://local:8080/v1", model_name="test-model")
         
-        # Start worker as a background task
         task = asyncio.create_task(worker.run(q, concurrency=2))
         
         loop = asyncio.get_running_loop()
@@ -74,12 +69,10 @@ async def t_worker_run_and_cancellation():
         
         await q.put(req)
         
-        # Await future
         res = await fut
         check("worker: future resolved", fut.done())
         check("worker: returns correct assistant message", res["choices"][0]["message"]["content"] == "hello from agent")
         
-        # Cancel worker task
         task.cancel()
         try:
             await task
@@ -90,7 +83,6 @@ async def t_worker_run_and_cancellation():
 
 
 async def t_worker_exception_handling():
-    # Test worker handling exceptions from the agent
     with patch("mios_gateway_queue.ToolCallingAgent") as MockAgent, \
          patch("mios_gateway_queue.LiteLLMModel") as MockModel:
          
@@ -123,14 +115,12 @@ async def t_worker_exception_handling():
 
 
 def t_parse_sig():
-    # 1. Test fallback when no catalog configuration is provided
     res1 = mq.parse_sig("limit?, force?")
     check("parse_sig fallback limit: type", res1["limit"]["type"] == "integer")
     check("parse_sig fallback limit: nullable", res1["limit"]["nullable"] is True)
     check("parse_sig fallback force: type", res1["force"]["type"] == "boolean")
     check("parse_sig fallback force: nullable", res1["force"]["nullable"] is True)
 
-    # 2. Test reading from catalog (vcfg) params config
     vcfg = {
         "params": {
             "my_param": {"type": "number", "desc": "A custom float param"},

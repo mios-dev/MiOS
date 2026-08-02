@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # AI-hint: Runtime smoke test harness that boots a built MiOS container image to verify load-bearing binaries, units, and Python compilation from SSOT.
-# Usage: tests/bake-smoke.sh [image-ref] (default: localhost/mios:latest)
 set -euo pipefail
 
 IMAGE_REF="${1:-localhost/mios:latest}"
@@ -20,10 +19,9 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     PODMAN_CMD="sudo podman"
 fi
 
-# Extract components from SSOT using python3 tomllib
-SHIMS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('shims', [])))" 2>/dev/null || echo "usr/libexec/mios/flatpak-launch usr/libexec/mios/mios-pc-control usr/libexec/mios/mios-launcher-daemon usr/libexec/mios/mios-flatpak-icon-sanitize")
-UNITS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('units', [])))" 2>/dev/null || echo "usr/lib/systemd/system/mios-wsl-interop-priority.service")
-PY_ENTRIES=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('python_entries', [])))" 2>/dev/null || echo "usr/lib/mios/agent-pipe/server.py")
+SHIMS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('shims', [])))" 2>/dev/null || echo "Usr/libexec/mios/flatpak-launch usr/libexec/mios/mios-pc-control usr/libexec/mios/mios-launcher-daemon usr/libexec/mios/mios-flatpak-icon-sanitize")
+UNITS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('units', [])))" 2>/dev/null || echo "Usr/lib/systemd/system/mios-wsl-interop-priority.service")
+PY_ENTRIES=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('python_entries', [])))" 2>/dev/null || echo "Usr/lib/mios/agent-pipe/server.py")
 
 ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     set -e
@@ -41,5 +39,5 @@ ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     echo \"SMOKE_RUN_PASS\"
 "
 
-echo "[bake-smoke] PASS: All smoke assertions passed clean."
+echo "[bake-smoke] PASS: All smoke assertions passed clean"
 exit 0

@@ -33,11 +33,9 @@ def loads_lenient(content: str) -> "dict | None":
     Returns the parsed dict, or None if it genuinely can't be salvaged."""
     if not content:
         return None
-    # Outermost {...} object: drop any leading prose / trailing junk around it.
     m = re.search(r"\{.*\}", content, flags=re.DOTALL)
     base = m.group(0) if m else content
     cands = [base]
-    # Generic JSON-grammar repairs (no field/topic knowledge):
     r = re.sub(r"/\*.*?\*/", "", base, flags=re.DOTALL)   # block comments
     r = re.sub(r"(?m)//.*$", "", r)                        # line comments
     r = re.sub(r"\bTrue\b", "true", r)                     # python -> json literals
@@ -46,14 +44,10 @@ def loads_lenient(content: str) -> "dict | None":
     r = re.sub(r":\s*(?=[,}\]])", ": null", r)             # empty value -> null
     r = re.sub(r",\s*(?=[}\]])", "", r)                    # trailing comma
     cands.append(r)
-    # Truncated tail: append the missing closers (best-effort brace/bracket balance).
     _opens = r.count("{") - r.count("}")
     _brk = r.count("[") - r.count("]")
     if _opens > 0 or _brk > 0:
         cands.append(r + ("]" * max(0, _brk)) + ("}" * max(0, _opens)))
-    # Truncate-at-error: parse the VALID PREFIX up to the first bad token, drop the
-    # partial trailing field, re-balance the closers. Recovers every field BEFORE
-    # the malformed one (in the refine envelope intent/refined_text/news/... lead).
     try:
         json.loads(r)
     except json.JSONDecodeError as e:
@@ -75,14 +69,6 @@ def loads_lenient(content: str) -> "dict | None":
                 break
         except Exception:  # noqa: BLE001 -- try the next repair candidate
             continue
-    # FIELD-LEVEL harvest: pull every well-formed top-level "key": <scalar|flat-
-    # array> pair and IGNORE the one malformed field, so a SINGLE bad token (on
-    # ANY line) can never sink the whole plan (two refine
-    # parse-fails in a row at "line 11" each discarded a correct intent/
-    # refined_text/news -> punt). NO field/topic knowledge -- it harvests whatever
-    # keys are present; routing needs only the scalars (intent/refined_text/news/
-    # target_agent/...) + flat arrays (hint_tools). MERGED UNDER the structural
-    # parse so a truncate-at-error recovery still regains fields AFTER the break.
     flat: dict = {}
     for am in re.finditer(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:\s*(\[[^\[\]]*\])', base):
         try:

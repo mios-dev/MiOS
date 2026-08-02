@@ -27,7 +27,6 @@ def t_import():
 def t_toml_section():
     d = c._toml_section("ai")
     check("toml_section: returns dict", isinstance(d, dict), type(d).__name__)
-    # an absent section degrades to an empty dict, never raises
     miss = c._toml_section("definitely_not_a_real_section_xyz")
     check("toml_section: missing -> {}", miss == {})
 
@@ -35,21 +34,14 @@ def t_toml_section():
 def t_cfg_num():
     env = "MIOS_TEST_CFG_NUM_XYZ"
     os.environ.pop(env, None)
-    # env override wins over table + default
     os.environ[env] = "5"
     check("cfg_num: env override wins", c._cfg_num({"k": 3}, env, "k", 1) == 5)
     os.environ.pop(env, None)
-    # table value used when no env
     check("cfg_num: table value", c._cfg_num({"k": 3}, env, "k", 1) == 3)
-    # literal default when neither env nor table
     check("cfg_num: literal default", c._cfg_num({}, env, "k", 7) == 7)
-    # preserves a legit 0 from the table (not the default)
     check("cfg_num: preserves table 0", c._cfg_num({"k": 0}, env, "k", 7) == 0)
-    # preserves a legit 0 as the default
     check("cfg_num: preserves default 0", c._cfg_num({}, env, "k", 0) == 0)
-    # float cast honored
     check("cfg_num: float cast", c._cfg_num({"k": "1.5"}, env, "k", 0.0, float) == 1.5)
-    # bad env value falls through to table
     os.environ[env] = "notanumber"
     check("cfg_num: bad env -> table", c._cfg_num({"k": 9}, env, "k", 1) == 9)
     os.environ.pop(env, None)
@@ -58,15 +50,12 @@ def t_cfg_num():
 def t_dispatch_num():
     env = "MIOS_TEST_DISPATCH_NUM_XYZ"
     os.environ.pop(env, None)
-    # default when key absent from [dispatch] + no env
     check("dispatch_num: literal default",
           c._dispatch_num(env, "no_such_dispatch_key_xyz", 4) == 4)
-    # env override wins
     os.environ[env] = "11"
     check("dispatch_num: env override",
           c._dispatch_num(env, "no_such_dispatch_key_xyz", 4) == 11)
     os.environ.pop(env, None)
-    # preserves a legit 0 default
     check("dispatch_num: preserves default 0",
           c._dispatch_num(env, "no_such_dispatch_key_xyz", 0) == 0)
     check("dispatch_num: _DISPATCH_TOML is dict", isinstance(c._DISPATCH_TOML, dict))

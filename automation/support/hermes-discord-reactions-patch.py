@@ -45,17 +45,7 @@ import pathlib
 
 MARKER = "# MiOS-patch: progressive thinking reactions"
 
-# New on_processing_start / on_processing_complete that replace the
-# upstream single-emoji surface. _react_progression is the background
-# task that adds emojis on a timer. _processing_tasks is a per-instance
-# dict keyed by Discord message.id so concurrent runs don't stomp.
 NEW_BLOCK = '''    # MiOS-patch: progressive thinking reactions
-    # Replaces the upstream on_processing_start / _complete pair so the
-    # operator sees a sequence of emojis on their message that reflect
-    # the agent's current phase (received -> thinking -> tools -> done).
-    # Adds more reactions to show it's
-    # thinking. Background task drives the progression so the gateway's
-    # main flow isn't blocked.
 
     _MIOS_PHASE_EMOJIS = ("📡", "🧠", "🛠️", "⏳", "👀")
     _MIOS_PHASE_TIMERS = (
@@ -83,7 +73,6 @@ NEW_BLOCK = '''    # MiOS-patch: progressive thinking reactions
         if not hasattr(message, "add_reaction"):
             return
         await self._add_reaction(message, "📡")
-        # Keyed per-message so concurrent in-flight runs don't stomp.
         import asyncio as _asyncio
         if not hasattr(self, "_mios_processing_tasks"):
             self._mios_processing_tasks = {}
@@ -97,7 +86,6 @@ NEW_BLOCK = '''    # MiOS-patch: progressive thinking reactions
         if not self._reactions_enabled():
             return
         message = event.raw_message
-        # Cancel progression task if still running.
         mid = getattr(message, "id", None)
         if mid is not None and hasattr(self, "_mios_processing_tasks"):
             t = self._mios_processing_tasks.pop(mid, None)
@@ -135,8 +123,6 @@ def _find_target_block(lines: list[str]) -> tuple[int, int]:
             break
     if start_idx < 0:
         return (-1, -1)
-    # on_processing_complete must follow within ~50 lines for the
-    # adjacent-block assumption to hold.
     for i in range(start_idx + 1,
                    min(start_idx + 50, len(lines))):
         if lines[i].startswith(SIG_COMP):
@@ -144,9 +130,6 @@ def _find_target_block(lines: list[str]) -> tuple[int, int]:
             break
     if comp_idx < 0:
         return (-1, -1)
-    # End of on_processing_complete: the next line at the SAME
-    # 4-space class-method indent (either `    async def ` or
-    # `    def `).
     end_idx = len(lines)  # fallback to EOF
     for i in range(comp_idx + 1, len(lines)):
         if (lines[i].startswith(METHOD_AT_4)

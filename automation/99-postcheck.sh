@@ -12,22 +12,22 @@ mios_step "'MiOS' build-time validation"
 if command -v systemd-sysusers >/dev/null 2>&1; then
     mios_log "Materialize sysusers.d into /etc/passwd + /etc/group"
     if systemd-sysusers --no-pager 2>/dev/null; then
-        mios_ok "sysusers.d entries materialized"
+        mios_ok "Sysusers.d entries materialized"
     else
-        mios_warn "systemd-sysusers exited non-zero; subsequent checks may have false-positives"
+        mios_warn "Systemd-sysusers exited non-zero; subsequent checks may have false-positives"
     fi
 fi
 
 mios_log "Check OpenSSH version"
 if ! command -v sshd >/dev/null 2>&1; then
-    die "sshd not found in image (required for Podman-machine & remote mgmt)"
+    die "Sshd not found in image"
 fi
 
 SSH_VER_RAW=$(sshd -V 2>&1 | head -n1 | grep -oP 'OpenSSH_\K[0-9.]+')
 mios_log "OpenSSH $SSH_VER_RAW"
 
 if [[ $(printf '%s\n9.6' "$SSH_VER_RAW" | sort -V | head -n1) != "9.6" ]]; then
-    die "OpenSSH version $SSH_VER_RAW is below required 9.6 (Vulnerable to CVE-2026-4631 in Cockpit context)"
+    die "OpenSSH version $SSH_VER_RAW is below required 9.6"
 fi
 mios_ok "OpenSSH version is safe"
 
@@ -42,7 +42,7 @@ fi
 
 if [[ -f "$COCKPIT_CONF" ]]; then
     if ! grep -q "LoginTo = false" "$COCKPIT_CONF"; then
-        die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF (CVE-2026-4631)"
+        die "Cockpit LoginTo mitigation missing in $COCKPIT_CONF"
     fi
     mios_ok "Cockpit LoginTo = false enforced"
 else
@@ -55,7 +55,7 @@ if [[ -d /usr/lib/bootc/kargs.d ]]; then
         [[ -e "$f" ]] || continue
         mios_log "Karg: $(basename "$f")"
     done
-    mios_ok "kargs.d presence verified"
+    mios_ok "Kargs.d presence verified"
 fi
 
 mios_log "Verify critical system binaries"
@@ -72,7 +72,7 @@ if command -v nvidia-ctk >/dev/null 2>&1; then
     NCT_VER=$(nvidia-ctk --version | head -n1 | grep -oP 'version \K[0-9.]+')
     mios_log "Nvidia-ctk $NCT_VER"
     if [[ $(printf '%s\n1.18' "$NCT_VER" | sort -V | head -n1) != "1.18" ]]; then
-        die "nvidia-container-toolkit version $NCT_VER is below required 1.18"
+        die "Nvidia-container-toolkit version $NCT_VER is below required 1.18"
     fi
     mios_ok "NVIDIA Container Toolkit version is safe"
 fi
@@ -82,7 +82,7 @@ if rpm -q cockpit >/dev/null 2>&1; then
     COCKPIT_VER=$(rpm -q cockpit --queryformat '%{VERSION}')
     mios_log "Cockpit $COCKPIT_VER"
     if [[ $(printf '%s\n361' "$COCKPIT_VER" | sort -V | head -n1) != "361" ]]; then
-        mios_warn "Cockpit version $COCKPIT_VER below 361 (risk: CVE-2026-4631 / Regressions)"
+        mios_warn "Cockpit version $COCKPIT_VER below 361"
     else
         mios_ok "Cockpit version is safe"
     fi
@@ -91,11 +91,11 @@ fi
 mios_log "Validate /etc/wsl.conf"
 if [[ -f /etc/wsl.conf ]]; then
     if LC_ALL=C grep -nP '[^\x00-\x7F]' /etc/wsl.conf >&2; then
-        die "/etc/wsl.conf contains non-ASCII bytes (WSL2's parser will choke)"
+        die "/etc/wsl.conf contains non-ASCII bytes"
     fi
     mios_log "Pure ASCII"
     if LC_ALL=C grep -lP '\r' /etc/wsl.conf >/dev/null 2>&1; then
-        die "/etc/wsl.conf contains CRLF line endings (must be LF; WSL2's parser will choke)"
+        die "/etc/wsl.conf contains CRLF line endings"
     fi
     mios_log "Pure LF line endings"
     if command -v python3 >/dev/null 2>&1; then
@@ -159,9 +159,9 @@ _sysusers_bad=$(
 )
 if [[ -n "$_sysusers_bad" ]]; then
     printf '%s\n' "$_sysusers_bad" >&2
-    die "sysusers.d defines login-shell user(s) with auto-allocated UID; pin to a value >= 1000"
+    die "Sysusers.d defines login-shell user with auto-allocated UID; pin to a value >= 1000"
 fi
-mios_ok "all login-shell sysusers entries have fixed UIDs"
+mios_ok "All login-shell sysusers entries have fixed UIDs"
 
 mios_log "Validate sysusers.d UID:GID resolves to a created group"
 _sysusers_known_gids=$(
@@ -200,9 +200,9 @@ _sysusers_truly_unresolved=$(
 )
 if [[ -n "$_sysusers_truly_unresolved" ]]; then
     printf '%s\n' "$_sysusers_truly_unresolved" >&2
-    die "sysusers.d: u-line references a numeric GID with no 'g name GID' anywhere in /etc/sysusers.d or /usr/lib/sysusers.d AND no matching entry in /etc/group"
+    die "Sysusers.d: u-line references a numeric GID with no 'g name GID' anywhere in /etc/sysusers.d or /usr/lib/sysusers.d AND no matching entry in /etc/group"
 fi
-mios_ok "all u-line GIDs resolve via cross-file g-lines or /etc/group"
+mios_ok "All u-line GIDs resolve via cross-file g-lines or /etc/group"
 
 mios_log "Validate tmpfiles.d uses /run"
 _tmpfiles_legacy=$(
@@ -218,9 +218,9 @@ _tmpfiles_legacy=$(
 )
 if [[ -n "$_tmpfiles_legacy" ]]; then
     printf '%s\n' "$_tmpfiles_legacy" >&2
-    die "tmpfiles.d entry uses /var/run or /var/lock (use /run or /run/lock instead)"
+    die "Tmpfiles.d entry uses /var/run or /var/lock"
 fi
-mios_ok "tmpfiles.d entries use canonical /run paths"
+mios_ok "Tmpfiles.d entries use canonical /run paths"
 
 mios_log "Validate MiOS systemd unit syntax"
 if command -v systemd-analyze >/dev/null 2>&1; then
@@ -234,7 +234,7 @@ if command -v systemd-analyze >/dev/null 2>&1; then
     )
     if [[ -n "$_bad_units" ]]; then
         printf '%s\n' "$_bad_units" >&2
-        die "systemd-analyze verify reported errors in MiOS unit(s)"
+        die "Systemd-analyze verify reported errors in MiOS unit"
     fi
     mios_ok "MiOS units lint clean"
 else
@@ -278,9 +278,9 @@ if command -v systemd-tmpfiles >/dev/null 2>&1; then
     )
     if [[ -n "$_bad_tmpfiles" ]]; then
         printf '%s\n' "$_bad_tmpfiles" >&2
-        die "systemd-tmpfiles reported errors in MiOS tmpfiles.d configs"
+        die "Systemd-tmpfiles reported errors in MiOS tmpfiles.d configs"
     fi
-    mios_ok "MiOS tmpfiles.d configs parse clean (sysusers-declared names accepted)"
+    mios_ok "MiOS tmpfiles.d configs parse clean"
 else
     mios_skip "systemd-tmpfiles unavailable -- tmpfiles verification"
 fi
@@ -309,9 +309,9 @@ for d in "${_law5_dirs[@]}"; do
 done
 if [[ -n "$_law5_hits" ]]; then
     printf '%s' "$_law5_hits" >&2
-    die "UNIFIED-AI-REDIRECTS: vendor cloud URL found in active config (must route through MIOS_AI_ENDPOINT)"
+    die "UNIFIED-AI-REDIRECTS: vendor cloud URL found in active config"
 fi
-mios_ok "no vendor URLs in active config"
+mios_ok "No vendor URLs in active config"
 
 mios_log "Validate UNIFIED-AI-REDIRECTS: no retired :11434 lane in active config"
 _dead_lane_pattern=':11434'
@@ -330,9 +330,9 @@ for d in "${_law5_dirs[@]}"; do
 done
 if [[ -n "$_dead_lane_hits" ]]; then
     printf '%s' "$_dead_lane_hits" >&2
-    die "UNIFIED-AI-REDIRECTS: retired :11434 (ollama) lane in active config -- MiOS is /v1-only; use the live lane, e.g. mios-llm-light :8450"
+    die "UNIFIED-AI-REDIRECTS: retired :11434 lane in active config"
 fi
-mios_ok "no retired :11434 lane in active config"
+mios_ok "No retired :11434 lane in active config"
 
 mios_log "Validate UNIFIED-AI-REDIRECTS: no [agents.*] dispatch target loops to the orchestrator/gateway"
 if command -v python3 >/dev/null 2>&1; then
@@ -382,7 +382,7 @@ PYEOF
     ); then
         mios_log "$_recursion_out"
     else
-        die "UNIFIED-AI-REDIRECTS: an [agents.*] dispatch target loops back to the orchestrator/gateway (recursion risk -- see above)"
+        die "UNIFIED-AI-REDIRECTS: an [agents.*] dispatch target loops back to the orchestrator/gateway"
     fi
 else
     mios_skip "python3 unavailable -- agent-recursion guard"
@@ -432,7 +432,7 @@ PYEOF
 else
     mios_log "  [!] python3 unavailable"
 fi
-mios_ok "every Quadlet declares User= (or is a documented root exception)"
+mios_ok "Every Quadlet declares User="
 
 mios_log "Validate BOUND-IMAGES: Quadlet -> bound-images.d/ coverage"
 _bind_dir=/usr/lib/bootc/bound-images.d
@@ -456,7 +456,7 @@ if [[ -d "$_bind_dir" ]]; then
                         [[ -n "$_p14_tok" && "$_p14_img" == *"$_p14_tok"* ]] && { _p14_fb=1; break; }
                     done
                     if [[ -n "$_p14_fb" ]]; then
-                        mios_ok "$base intentionally unbound (firstboot tier -- web-pulled at first boot, not baked)"
+                        mios_ok "$base intentionally unbound"
                         continue
                     fi
                 fi
@@ -474,9 +474,9 @@ if [[ -d "$_bind_dir" ]]; then
     if [[ -n "$_law3_missing" || -n "$_law3_extra" ]]; then
         [[ -n "$_law3_missing" ]] && printf '%s' "$_law3_missing" >&2
         [[ -n "$_law3_extra" ]] && printf '%s' "$_law3_extra" >&2
-        die "BOUND-IMAGES: Quadlet/binder drift (every *.container must symlink into $_bind_dir/)"
+        die "BOUND-IMAGES: Quadlet/binder drift"
     fi
-    mios_ok "every Quadlet has a corresponding bound-images.d/ symlink"
+    mios_ok "Every Quadlet has a corresponding bound-images.d/ symlink"
 else
     mios_skip "$_bind_dir not present -- binder loop did not run"
 fi
@@ -508,7 +508,7 @@ server.serve_forever()
     python3 "$BENCH_BIN" run --suite gaia-lite --endpoint http://127.0.0.1:8649/v1 --k 1
     
     kill "$MOCK_PID" || true
-    mios_ok "benchmark harness executed"
+    mios_ok "Benchmark harness executed"
 else
     mios_skip "python3 missing -- benchmark run"
 fi
@@ -518,10 +518,10 @@ _sync_env="/usr/libexec/mios/system-sync-env.sh"
 [[ -x "$_sync_env" ]] || _sync_env="$(dirname "${BASH_SOURCE[0]}")/../usr/libexec/mios/system-sync-env.sh"
 if [[ -f "$_sync_env" ]]; then
     if ! _env_render="$(bash "$_sync_env" --dry-run 2>/dev/null)"; then
-        die "BARE-SAFE-ENV: 'system-sync-env.sh --dry-run' failed to render install.env"
+        die "BARE-SAFE-ENV: 'system-sync-env.sh"
     fi
     if printf '%s\n' "$_env_render" | grep -nE '="' >&2; then
-        die "BARE-SAFE-ENV: install.env render contains a double-quoted value (breaks podman --env-file)"
+        die "BARE-SAFE-ENV: install.env render contains a double-quoted value"
     fi
     _law10_bad="$(printf '%s\n' "$_env_render" | grep -vE '^[[:space:]]*(#|$)' | grep -vE '^[A-Za-z_][A-Za-z0-9_]*=' || true)"
     if [[ -n "$_law10_bad" ]]; then
@@ -529,7 +529,7 @@ if [[ -f "$_sync_env" ]]; then
         die "BARE-SAFE-ENV: install.env render has a non-bare 'KEY=value' line"
     fi
     if printf '%s\n' "$_env_render" | grep -nE '^(MIOS_USER_PASSWORD_HASH|MIOS_FORGE_ADMIN_PASSWORD|MIOS_GITHUB_TOKEN)=' >&2; then
-        die "BARE-SAFE-ENV: a secret name leaked into install.env (secrets live ONLY in /etc/mios/secrets.env)"
+        die "BARE-SAFE-ENV: a secret name leaked into install.env"
     fi
     _law10_tmp="$(mktemp)"
     printf '%s\n' "$_env_render" > "$_law10_tmp"
@@ -538,7 +538,7 @@ if [[ -f "$_sync_env" ]]; then
         die "BARE-SAFE-ENV: install.env render does not source clean under 'set -u'"
     fi
     rm -f "$_law10_tmp"
-    mios_ok "install.env render is bare KEY=value, secret-free, and set -u clean"
+    mios_ok "Install.env render is bare KEY=value, secret-free, and set -u clean"
 else
     mios_skip "system-sync-env.sh not found -- BARE-SAFE-ENV render check"
 fi
@@ -562,9 +562,9 @@ for d in "${_law11_dirs[@]}"; do
 done
 if [[ -n "$_law11_bad" ]]; then
     printf '%s' "$_law11_bad" >&2
-    die "SECRETS-NEVER-IN-ENV: a secret-bearing env file is not mode 0600 (secret leak; move it to /etc/mios/secrets.env @ 0600)"
+    die "SECRETS-NEVER-IN-ENV: a secret-bearing env file is not mode 0600"
 fi
-mios_ok "every secret-bearing env file is mode 0600 (or none present)"
+mios_ok "Every secret-bearing env file is mode 0600"
 
 _bake_val="${MIOS_BAKE_BOUND_IMAGES:-0}"
 if [[ "$_bake_val" == "0" || "$_bake_val" == "false" || "$_bake_val" == "False" || "$_bake_val" == "no" ]]; then
@@ -610,14 +610,14 @@ if [[ -d "$_lbi_dir" ]]; then
                 resolved_ref="${resolved_ref//\'/}"
                 [[ -z "$resolved_ref" ]] && continue
                 if [[ "$resolved_ref" != "localhost/mios"* && -z "${_lbi_baked[$resolved_ref]:-}" ]]; then
-                    die "BOUND-IMAGES-RESOLVE: Image '$resolved_ref' (declared in $target) was not baked. Check your bake plan or plan.d groups."
+                    die "BOUND-IMAGES-RESOLVE: Image '$resolved_ref' was not baked. Check your bake plan or plan.d groups"
                 fi
             fi
         done < <(find "$_lbi_dir" -type l 2>/dev/null)
-        mios_ok "every bound-images.d symlink resolves to a baked image"
+        mios_ok "Every bound-images.d symlink resolves to a baked image"
     fi
 fi
 fi
 
-mios_ok "validation successful"
+mios_ok "Validation successful"
 exit 0

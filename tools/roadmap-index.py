@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# tools/roadmap-index.py
 import os
 import sys
 import re
@@ -23,7 +22,6 @@ def flatten_keys(d, prefix=""):
     return keys
 
 def make_anchor(title):
-    # Remove markdown link markup if any, e.g. [foo](#bar) -> foo
     title = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', title)
     title = title.replace("`", "")
     out = []
@@ -60,7 +58,6 @@ def parse_simple_yaml(text):
             multiline_val = []
             continue
         
-        # Parse array
         if v.startswith("[") and v.endswith("]"):
             items = [x.strip().strip('"').strip("'") for x in v[1:-1].split(",") if x.strip()]
             coerced = []
@@ -84,7 +81,6 @@ def main(argv):
         print(f"ERROR: ROADMAP.md not found at {roadmap_path}", file=sys.stderr)
         return 1
 
-    # Load valid SSOT keys
     valid_ssot_keys = set()
     userenv_path = os.path.join(ROOT, "tools/lib/userenv.sh")
     if os.path.exists(userenv_path):
@@ -99,14 +95,12 @@ def main(argv):
             toml_data = tomllib.load(f)
         valid_ssot_keys.update(flatten_keys(toml_data))
 
-    # Helper to check ADR file
     def check_adr_exists(adr_num):
         prefix = f"{adr_num:04d}"
         search_path = os.path.join(ROOT, "usr/share/doc/mios/adr", f"{prefix}-*.md")
         files = glob.glob(search_path)
         return len(files) > 0
 
-    # Parse ROADMAP.md
     with open(roadmap_path, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
@@ -120,7 +114,6 @@ def main(argv):
         line = lines[idx]
         if line.startswith("# ") and not line.startswith("## "):
             header_name = line[2:].strip()
-            # Ignore document title, archived title, and appendix
             if not any(header_name.lower().startswith(x) for x in ["mios -- master roadmap", "mios roadmap", "archived mios roadmap", "appendix"]):
                 current_part = header_name
                 if current_part not in parts_order:
@@ -196,20 +189,16 @@ def main(argv):
                 
         idx += 1
 
-    # Validation Checks
     validation_errors = []
     for ws in workstreams:
-        # 1. Laws verification (1-13)
         for law in ws["laws"]:
             if not isinstance(law, int) or law < 1 or law > 13:
                 validation_errors.append(f"Workstream {ws['id']} cites invalid Law: {law}")
                 
-        # 2. ADR verification
         for adr in ws["adr"]:
             if not isinstance(adr, int) or not check_adr_exists(adr):
                 validation_errors.append(f"Workstream {ws['id']} cites non-existent ADR: {adr}")
                 
-        # 3. SSOT keys verification
         for key in ws["ssot_keys"]:
             if key not in valid_ssot_keys:
                 validation_errors.append(f"Workstream {ws['id']} cites non-existent SSOT key: {key}")
@@ -220,15 +209,12 @@ def main(argv):
             print(f"  - {err}", file=sys.stderr)
         return 2
 
-    # Generate Tables
-    # Table of Contents
     toc_lines = ["## Table of Contents"]
     for part in parts_order:
         anchor = make_anchor(part)
         toc_lines.append(f"- [{part}](#{anchor})")
     toc_content = "\n".join(toc_lines) + "\n"
 
-    # Status Rollup
     rollup_counts = {"done": 0, "active": 0, "proposed": 0, "blocked": 0}
     for ws in workstreams:
         status = ws["status"].lower()
@@ -246,7 +232,6 @@ def main(argv):
     ]
     rollup_content = "\n".join(rollup_lines) + "\n"
 
-    # Index
     index_lines = ["### Workstream Index\n"]
     for part in parts_order:
         index_lines.append(f"**{part}**")
@@ -255,17 +240,14 @@ def main(argv):
             index_lines.append("(no workstreams)\n")
         else:
             for ws in ws_list:
-                # Add checkmark emoji if done
                 status_suffix = " ✅" if ws["status"].lower() == "done" else f" ({ws['status'].lower()})"
                 index_lines.append(f"- `{ws['id']}` — {ws['title']}{status_suffix}")
             index_lines.append("")
     index_content = "\n".join(index_lines)
 
-    # Read current file to check drift or replace
     with open(roadmap_path, "r", encoding="utf-8") as f:
         file_text = f.read()
 
-    # Regex search and replace
     def replace_section(text, start_marker, end_marker, replacement):
         pattern = re.compile(
             re.escape(start_marker) + r".*?" + re.escape(end_marker),

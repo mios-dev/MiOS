@@ -42,7 +42,6 @@ def t_failing() -> None:
 
 
 def t_min_samples() -> None:
-    # 2 calls, both fail -> below min_samples -> NOT flagged (no over-reaction)
     rep = S.analyze(_calls("rare", 2, 2))
     _check("min-samples: thin sample not flagged",
            not any(f["kind"] == "failing_tool" for f in rep["findings"]))

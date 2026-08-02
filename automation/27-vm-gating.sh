@@ -27,4 +27,4 @@ chmod +x /usr/libexec/mios-grd-setup 2>/dev/null || true
 
 
 
-mios_ok "VM gating + Hyper-V Enhanced Session (gnome-remote-desktop) configured"
+mios_ok "VM gating + Hyper-V Enhanced Session configured"

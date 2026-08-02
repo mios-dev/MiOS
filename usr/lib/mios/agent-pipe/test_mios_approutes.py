@@ -11,26 +11,13 @@ import sys
 import types
 import unittest
 
-# FastAPI injects these four routes into every application for its interactive
-# documentation and schema surface (the OpenAPI document, Swagger UI, ReDoc, and the
-# OAuth2 redirect helper). They are framework-provided, never MiOS-authored handlers,
-# so they are excluded from the served-surface comparison -- the golden is an AST
-# projection of server.py's own @app/@router decorators and only ever contains MiOS
-# routes. This is a structural framework fact, not a content/keyword decision-gate.
 _FASTAPI_BUILTIN_PATHS = frozenset({
     "/openapi.json", "/docs", "/docs/oauth2-redirect", "/redoc",
 })
 
-# Normalised method token for a WebSocket route, used on BOTH sides of the compare:
-# the live app exposes a websocket route object that carries no HTTP `methods`, while
-# the AST golden records it under FastAPI's decorator name `websocket`, upper-cased.
-# Both collapse to this one token so a websocket route stays method-comparable.
 _WS_METHOD = "WS"
 _GOLDEN_WS_TOKEN = "WEBSOCKET"   # how the AST projector spells a websocket route
-# HEAD is auto-paired with GET by the framework; it is never a distinct served route,
-# so it is dropped from the live enumeration (the golden never records it either).
 _HEAD_METHOD = "HEAD"
-# Golden record shape is "{METHOD} {path} -> {handler}" (see mios_surface.project_surface).
 _ROUTE_SEP = " -> "
 
 
@@ -146,8 +133,6 @@ class TestAppRouteParity(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Skip-if-unavailable: a bare checkout without the web stack cannot build the
-        # app, so the gate skips (like the suite's crypto skips) rather than failing.
         try:
             import fastapi
         except Exception as exc:  # noqa: BLE001 -- web stack absent on a bare checkout
@@ -172,10 +157,6 @@ class TestAppRouteParity(unittest.TestCase):
         never a test double."""
         app = self.app
         self.assertIsInstance(app, self.fastapi.FastAPI)
-        # The real class is defined in the fastapi package (type(app).__module__ ==
-        # "fastapi.applications"); a stub's class would resolve to the stubbing module.
-        # Compare the top package to fastapi's own __name__ (read from the module, not a
-        # restated literal) -- a faked fastapi fails this.
         self.assertEqual(type(app).__module__.split(".")[0], self.fastapi.__name__)
         self.assertTrue(app.routes, "real app exposes a non-empty route table")
 
@@ -200,8 +181,6 @@ class TestAppRouteParity(unittest.TestCase):
             f"  missing_from_app (golden promises, app does NOT serve): {missing_from_app}\n"
             f"  extra_in_app (app serves, golden does NOT list): {extra_in_app}",
         )
-        # Pin (and surface) the asserted MiOS-route count: the live app, with built-ins
-        # and HEAD excluded, serves the exact count the golden header records.
         self.assertEqual(len(app_pairs), golden.get("counts", {}).get("routes"))
         print(f"[test_mios_approutes] MiOS route parity OK: app={len(app_pairs)} "
               f"golden={len(golden_pairs)} (method+path, real fastapi.FastAPI app)")

@@ -14,7 +14,7 @@ mios_log "SBOM generation"
 # MIOS_USR_DIR may be unset in some build contexts -> default it (was an unbound
 ARTIFACT_DIR="${MIOS_USR_DIR:-/usr/share/mios}/artifacts/sbom"
 if ! mkdir -p "$ARTIFACT_DIR"; then
-    mios_warn "cannot create $ARTIFACT_DIR -- skipping SBOM (non-fatal)"
+    mios_warn "Cannot create $ARTIFACT_DIR"
     exit 0
 fi
 
@@ -29,7 +29,7 @@ if ! command -v syft &>/dev/null; then
         | sh -s -- -b /usr/local/bin "${SYFT_PIN}" >/dev/null 2>&1 || true
 fi
 if ! command -v syft &>/dev/null; then
-    mios_warn "syft unavailable (no egress or install failed) -- skipping SBOM (non-fatal)"
+    mios_warn "Syft unavailable"
     exit 0
 fi
 
@@ -44,14 +44,14 @@ mios_log "Scanning root filesystem with syft"
 
 syft scan dir:/ --source-name mios --source-version "${VERSION}" --output "cyclonedx-json=${ARTIFACT_DIR}/mios-sbom-${VERSION}.cyclonedx.json" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
-    || mios_warn "CycloneDX SBOM generation failed (non-fatal)"
+    || mios_warn "CycloneDX SBOM generation failed"
 
 syft scan dir:/ --source-name mios --source-version "${VERSION}" --output "spdx-tag-value=${ARTIFACT_DIR}/mios-sbom-${VERSION}.spdx.txt" \
     --exclude "./ctx/**" --exclude "./var/cache/**" \
-    || mios_warn "SPDX SBOM generation failed (non-fatal)"
+    || mios_warn "SPDX SBOM generation failed"
 
 mios_log "SBOM artifacts in ${ARTIFACT_DIR}:"
 ls -lh "$ARTIFACT_DIR" 2>/dev/null || true
 
-mios_ok "done (degrade-open; SBOM is provenance, never a build gate)"
+mios_ok "Done"
 exit 0

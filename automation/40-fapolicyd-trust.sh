@@ -12,7 +12,7 @@ source "$(dirname "$0")/lib/common.sh"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd harden
-    mios_ok "fapolicyd trust configured via miosd"
+    mios_ok "Fapolicyd trust configured via miosd"
     exit 0
 fi
 
@@ -23,4 +23,4 @@ for config in /usr/lib/fapolicyd/fapolicyd.conf /etc/fapolicyd/fapolicyd.conf; d
 done
 
 systemctl enable fapolicyd.service
-mios_ok "trust = file,rpmdb set in fapolicyd.conf, fapolicyd.service enabled"
+mios_ok "Trust = file,rpmdb set in fapolicyd.conf, fapolicyd.service enabled"

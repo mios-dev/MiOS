@@ -12,9 +12,9 @@ systemd-sysusers --root=/ 2>/dev/null || true
 
 if id -u core >/dev/null 2>&1; then
     passwd -l core 2>/dev/null || true
-    mios_ok "user 'core' initialized (declarative; key-auth only)"
+    mios_ok "User 'core' initialized"
 else
-    mios_warn "failed to initialize 'core' user via sysusers"
+    mios_warn "Failed to initialize 'core' user via sysusers"
 fi
 
 WANTS=/usr/lib/systemd/system/multi-user.target.wants
@@ -30,10 +30,10 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        mios_ok "enabled ${unit}"
+        mios_ok "Enabled ${unit}"
     else
         mios_warn "${unit} not found, skipping"
     fi
 done
 
-mios_ok "podman-machine compatibility wired"
+mios_ok "Podman-machine compatibility wired"

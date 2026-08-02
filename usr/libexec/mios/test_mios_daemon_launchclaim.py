@@ -28,9 +28,6 @@ def check(name, cond, detail=""):
 
 
 def _load(fname):
-    # The CLI is a Linux daemon that loads libc.so.6 via ctypes at import time;
-    # on a non-Linux build host that load fails. Shim CDLL so the module body
-    # (the launch-claim detector under test) can be exercised cross-platform.
     _orig_cdll = ctypes.CDLL
 
     def _cdll(name=None, *a, **k):
@@ -55,8 +52,6 @@ def _load(fname):
 def main() -> int:
     mod = _load("mios-daemon")
 
-    # The keyword/English-phrase regex list + the Steam|Epic|... app-name
-    # allowlist MUST be gone -- the detection is model-driven now.
     check("keyword regex list deleted",
           not hasattr(mod, "_LAUNCH_CLAIM_RES"),
           "_LAUNCH_CLAIM_RES still present")
@@ -65,7 +60,6 @@ def main() -> int:
           "Steam|Epic|Ubisoft|Uplay" not in src,
           "Steam|Epic|Ubisoft|Uplay literal still present")
 
-    # Force the model mode regardless of the host's mios.toml.
     mod.LAUNCH_CLAIM_DETECT = "model"
 
     calls = {"n": 0, "last": None}
@@ -77,37 +71,30 @@ def main() -> int:
             return reply
         return _f
 
-    # (1) MODEL says it's a launch claim -> target taken from the model, generic.
     mod.llm_chat = _stub('{"claim": true, "target": "Cyberpunk 2077"}')
     out = mod._classify_launch_claim("Cyberpunk 2077 is up and running for you.")
     check("model claim -> generic target",
           isinstance(out, dict) and out.get("app") == "Cyberpunk 2077", repr(out))
     check("model was actually consulted", calls["n"] >= 1)
 
-    # (1b) A non-English / non-listed target still resolves (no app-name list).
     mod.llm_chat = _stub('{"claim": true, "target": "电子表格"}')
     out = mod._classify_launch_claim("已为你打开 电子表格 。")
     check("unicode target resolves (no ascii/keyword gate)",
           isinstance(out, dict) and out.get("app") == "电子表格", repr(out))
 
-    # (2) MODEL says NOT a claim -> empty dict (no claim recorded).
     mod.llm_chat = _stub('{"claim": false, "target": ""}')
     out = mod._classify_launch_claim("I can open Steam for you if you want.")
     check("model not-a-claim -> {}", out == {}, repr(out))
 
-    # (3a) Lane unreachable (empty llm_chat) -> DEGRADE-OPEN None (skip, no fabricate).
     mod.llm_chat = _stub("")
     out = mod._classify_launch_claim("Steam has been successfully launched.")
     check("empty model output -> degrade-open None (no keyword fabrication)",
           out is None, repr(out))
 
-    # (3b) Unparseable model output -> degrade-open None.
     mod.llm_chat = _stub("not json at all")
     out = mod._classify_launch_claim("Steam is now open with the install.")
     check("unparseable model output -> None", out is None, repr(out))
 
-    # (4) Detector mode != model -> None (verification disabled), and the
-    # classifier never even calls the model.
     mod.LAUNCH_CLAIM_DETECT = "off"
     calls["n"] = 0
     mod.llm_chat = _stub('{"claim": true, "target": "Steam"}')
@@ -115,7 +102,6 @@ def main() -> int:
     check("mode=off -> None without consulting model",
           out is None and calls["n"] == 0, f"out={out!r} calls={calls['n']}")
 
-    # (5) Oversized/empty model target is structurally rejected, not back-filled.
     mod.LAUNCH_CLAIM_DETECT = "model"
     mod.llm_chat = _stub('{"claim": true, "target": ""}')
     out = mod._classify_launch_claim("Launched it.")

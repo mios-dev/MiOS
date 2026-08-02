@@ -37,17 +37,11 @@ import httpx
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_config import _STACK_MODEL, _LIGHT_BASE
-# Catalog renderer for the now-native _planner_system_for Stage-2 surface-narrowing
-# (moved here from server.py). mios_verbcatalog never imports mios_planner, so this
-# direct import keeps the one-way boundary intact (no cycle).
 from mios_verbcatalog import _render_verb_catalog
 
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Planner config (verbatim from server.py; re-read from env, same as the
-# sibling-module precedent in mios_dci). _STACK_MODEL / _LIGHT_BASE come from
-# mios_config so the defaults track the SSOT model/endpoint. ----------------
 PLANNER_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_ENABLED", "true",
 ).lower() not in {"false", "0", "no"}
@@ -55,40 +49,17 @@ PLANNER_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_MODEL", _STACK_MODEL,   # gemma4:12b entire-stack
 )
 PLANNER_ENDPOINT = os.environ.get(
-    # mios-llm-light /v1 (the old :11434 legacy lane default is dead -- G5/G17). Env (SSOT
-    # agent-pipe.env) overrides; this is only the fresh-install fallback.
     "MIOS_AGENT_PIPE_PLANNER_ENDPOINT", _LIGHT_BASE,
 ).rstrip("/")
 PLANNER_TIMEOUT_S = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_TIMEOUT_S", "30"))
 PLANNER_MAX_TOKENS = int(os.environ.get(
-    # 1536 (was 800): gemma4:12b is the REASONING model -- it spends tokens on
-    # reasoning_content before emitting the JSON content, so a tight budget
-    # truncates the decompose to empty -> -> council dups..
     "MIOS_AGENT_PIPE_PLANNER_MAX_TOKENS", "1536"))
 PLANNER_MAX_NODES = int(os.environ.get(
     "MIOS_AGENT_PIPE_PLANNER_MAX_NODES", "8"))
-# Short-prompt-skip cutoffs (SSOT: mios.toml [planner]; injected via configure()
-# from server.py). A prompt under BOTH limits is treated as a single-dispatch
-# input and skips the DAG planner. The values below are the single documented
-# baseline; behaviour is identical at them.
 PLANNER_SHORT_PROMPT_CHARS = 60   # below this char count, a non-action prompt skips the planner
 PLANNER_SHORT_PROMPT_WORDS = 10   # ...AND at or below this whitespace-token count
 
-# -- Dependency-injection seam -------------------------------------
-# decompose_intent + _PLANNER_SYSTEM + the native Stage-2 narrowers depend on
-# symbols server.py owns: the rendered SSOT catalogs (_VERB_CATALOG_RENDERED /
-# _RECIPE_CATALOG_RENDERED / _AGENT_CATALOG_RENDERED), the routed-domain
-# contextvar, the raw verb-catalog + routing-domains SSOT (_VERB_CATALOG /
-# _ROUTING_DOMAINS, read at call time by _planner_system_for / _action_domain_verbs),
-# the multi-consumer _is_action_domain split, the dispatch-verb resolver
-# _build_dispatch_cmd, and the live _AGENT_REGISTRY. server.py injects them via
-# configure() AFTER they are defined (one-way boundary: this module never
-# imports server). _PLANNER_SYSTEM is built INSIDE configure() once the three
-# rendered catalogs are present -- it cannot be built at import time because the
-# catalogs are rendered server-side. server.py re-imports _PLANNER_SYSTEM AFTER
-# the configure() call so its binding sees the built value. _AGENT_REGISTRY is
-# re-injected on every membership reload (live agent add/drop).
 _VERB_CATALOG_RENDERED: Optional[str] = None
 _RECIPE_CATALOG_RENDERED: Optional[str] = None
 _AGENT_CATALOG_RENDERED: Optional[str] = None
@@ -97,11 +68,6 @@ _is_action_domain = None
 _build_dispatch_cmd = None
 _AGENT_REGISTRY: dict = {}
 _PLANNER_SYSTEM: Optional[str] = None
-# Raw SSOT for the now-native domain-prompt helpers (_planner_system_for /
-# _action_domain_verbs, moved here from server.py): the HOT verb catalog (shared by
-# reference, mirroring its other consumers) + the routed [routing.domains] table.
-# Both default empty so the helpers fail-safe to the full prompt until configure()
-# injects them. _is_action_domain stays INJECTED (it is multi-consumer in server).
 _VERB_CATALOG: dict = {}
 _ROUTING_DOMAINS: dict = {}
 
@@ -149,16 +115,6 @@ def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
         _build_planner_system()
 
 
-# ── Planner system prompt (Phase A.1 DAG decomposition) ───────────
-# Function-calling-shaped prompt for qwen2.5-coder:7b. Emits a DAG
-# of dispatch verbs WHEN the user's intent is multi-step. Returns
-# {"action": "decompose", "nodes": [...]}. Each node has a unique
-# id, a tool, args, and a list of node-id deps (parents). Empty
-# nodes list = "I can't decompose this; fall through to backend".
-#
-# IMPORTANT: this prompt MUST stay in lockstep with the dispatch
-# verb table in _build_dispatch_cmd. A planner emitting a verb the
-# dispatcher doesn't know causes silent failures.
 def _build_planner_system() -> None:
     """Build _PLANNER_SYSTEM from the injected rendered catalogs (verbatim
     server.py prompt). Continuation lines below are byte-identical to the
@@ -319,12 +275,6 @@ def _build_planner_system() -> None:
     )
 
 
-# ── Stage-2 domain-prompt narrowing (moved verbatim from server.py) ──
-# _action_domain_verbs + _planner_system_for were the planner's sole consumers in
-# server; they now live beside decompose_intent (their only caller). _is_action_domain
-# stays injected (server-side multi-consumer); _VERB_CATALOG / _ROUTING_DOMAINS are the
-# raw SSOT injected via configure(); _render_verb_catalog is imported from
-# mios_verbcatalog. Behaviour is byte-for-byte the same as in server.py.
 def _action_domain_verbs() -> set:
     """Union of verbs across ALL action domains. A native GUI action spans several
     write-domains (apps_windows focus_window + computer_use cu_type/cu_key), so the
@@ -348,9 +298,6 @@ def _planner_system_for(domain: Optional[str]) -> str:
     dom = _ROUTING_DOMAINS.get(domain)
     if not dom or not dom.get("verbs"):
         return _PLANNER_SYSTEM
-    # Action domains: a native GUI action spans MULTIPLE write-domains (focus_window
-    # + cu_type/cu_key), so widen the planner surface to the UNION of all
-    # action-domain verbs (data-driven); research domains keep their tight slice.
     allowed = _action_domain_verbs() if _is_action_domain(domain) else set(dom["verbs"])
     sub = {k: v for k, v in _VERB_CATALOG.items() if k in allowed}
     if not sub:
@@ -376,15 +323,7 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return None
     _ut = user_text.strip()
-    # Stage-1 domain router : classify the intent -> show the
-    # planner ONLY that domain's verbs (Stage-2 via _planner_system_for). Fail-safe:
-    # _route_domain returns None -> full catalog (current behaviour, nothing lost).
     _domain = _routed_domain_var.get(None)  # routed once at the chat entry
-    # Short-prompt skip: a short input usually maps to ONE dispatch, not a DAG --
-    # EXCEPT an ACTION-domain command, where a short string is the normal shape
-    # ("send a discord message to @someone saying hello") that still needs a
-    # multi-verb GUI/tool DAG (focus_window -> cu_type -> cu_key). Bypass the skip
-    # for action domains (data-driven) so the action is decomposed + executed.
     if (len(_ut) < PLANNER_SHORT_PROMPT_CHARS
             and len(_ut.split()) <= PLANNER_SHORT_PROMPT_WORDS
             and not _is_action_domain(_domain)):
@@ -435,9 +374,6 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     if len(nodes) > PLANNER_MAX_NODES:
         nodes = nodes[:PLANNER_MAX_NODES]
         parsed["nodes"] = nodes
-    # Validate each node: an `agent` node must name a registered sub-agent
-    # + carry a prompt; a `tool` node must resolve to a known verb. A mixed
-    # DAG (some agents, some verbs) is fine.
     for n in nodes:
         if not isinstance(n, dict) or "id" not in n:
             return None

@@ -1,14 +1,4 @@
 # AI-hint: Layer-1 micro-LLM CLASSIFIER cluster, extracted verbatim from server.py
-#   (strangler-fig; unblocked by the R14 config relocation). classify_intent calls
-#   the micro classifier on the CPU light-lane and returns a {action: dispatch|chat|
-#   agent} verdict (native json_schema enum-constrained to REAL verbs; fail-open to
-#   None -> full surface). _route_domain is the stage-1 domain classifier (constrained
-#   enum over mios.toml [routing.domains], thinking-off, code-validated, fail-open).
-#   NOTE: distinct from mios_router (the pure intent->RouteDecision router). Static
-#   config (ROUTER_*/PLANNER_ENDPOINT/PLANNER_TIMEOUT_S/_ROUTER_SYSTEM) is imported
-#   DIRECTLY from mios_config (SSOT); the server-owned HOT verb catalog, the computed
-#   routing domains, and the event-DB helpers are dependency-INJECTED via configure()
-#   (one-way boundary -- this module NEVER imports server).
 # AI-related: server.py, mios_config.py, mios_jsonsalvage.py, mios_chat.py, mios_refine.py
 # AI-functions: classify_intent, _route_domain, configure
 """Layer-1 micro-LLM classifiers (classify_intent + _route_domain), from server.py."""
@@ -36,12 +26,8 @@ from mios_config import (
 )
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 
-# Same logger name server.py uses, so log output is byte-identical post-extraction.
 log = logging.getLogger("mios-agent-pipe")
 
-# Injected via configure() (server-owned). Placeholders until configured: the HOT
-# verb catalog (built once at startup, never rebound -> a plain ref is safe), the
-# computed [routing.domains] table + enable flag, and the event-DB helpers.
 _VERB_CATALOG: dict = {}
 _ROUTING_DOMAINS: dict = {}
 _ROUTING_ENABLE: bool = False
@@ -77,10 +63,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     falls through cleanly."""
     if not ROUTER_ENABLED or not user_text or not user_text.strip():
         return None
-    # /v1 with enable_thinking=False: ROUTER_MODEL is a qwen3 micro
-    # that ignores /no_think and otherwise dumps its answer into
-    # message.reasoning with EMPTY content (operator test) --
-    # which made the router slow (full think pass) and unreliable.
     payload = {
         "model": ROUTER_MODEL,
         "messages": [
@@ -92,14 +74,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
         "response_format": {"type": "json_object"},
         "stream": False,
     }
-    # NATIVE structured outputs (WS-H2): upgrade json_object (valid
-    # JSON, NOT schema-adherent -> the reason the parse below still defensively
-    # checks "action" not in parsed) to a strict json_schema so `action` is enum-
-    # constrained and `tool` can only be a REAL verb. Same proven _route_domain
-    # pattern (json_schema + enable_thinking=False; llama.cpp #20345 drops the
-    # grammar when thinking is on). Gated MIOS_ROUTER_STRUCTURED (default on); the
-    # router is fail-open (any miss -> full surface) so an unsupported backend
-    # degrades cleanly. The defensive parse guard below stays (belt + suspenders).
     if os.environ.get("MIOS_ROUTER_STRUCTURED", "true").strip().lower() not in {
             "0", "false", "no", "off"}:
         payload["response_format"] = {"type": "json_schema", "json_schema": {
@@ -128,7 +102,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
     except Exception as e:
         log.warning("router unexpected error: %s", e)
         return None
-    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
     choices = body.get("choices") or []
     msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
@@ -142,7 +115,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
         return None
     if not isinstance(parsed, dict) or "action" not in parsed:
         return None
-    # Best-effort event row for the router verdict.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
         "kind": "classify",

@@ -131,6 +131,8 @@ enable_units = [
   "auditd.service",
   "fapolicyd.service"
 ]
+composefs_mode = "verity"
+mask_systemd_remount_fs = true
 
 [security.cosign]
 policy_mode = "matchRepository"
@@ -784,10 +786,6 @@ surfaces = [
 ]
 
 # ----------------------------------------------------------------------------
-[security]
-composefs_mode = "verity"
-mask_systemd_remount_fs = true
-
 # Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
 # allowlist. Hosts in this list are TRUSTED -- open_url to one of
 # these does NOT taint the session. Anything outside this list +
@@ -11695,12 +11693,3 @@ list = [
 max_phase_scripts = 71
 
 
- [ s e c u r i t y ] 
- e n a b l e _ u n i t s   =   [ 
-     \  
- u s b g u a r d . s e r v i c e \ , 
-     \ a u d i t d . s e r v i c e \ , 
-     \ f a p o l i c y d . s e r v i c e \ 
- ] 
-  
- 

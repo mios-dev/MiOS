@@ -29,7 +29,6 @@ import sys
 
 MARKER = "MIOS-PATCH: background-review-global-tools"
 
-# Anchor: the whitelist-enforcement call. We inject a union line just before it.
 ANCHOR = "            set_thread_tool_whitelist(\n"
 INJECT = (
     "            # " + MARKER + " (all global tools for\n"
@@ -39,9 +38,6 @@ INJECT = (
     "                getattr(agent, \"valid_tool_names\", None) or ())\n"
 )
 
-# Best-effort: drop the now-false "other tools will be denied" instruction so
-# the review agent knows it MAY reach for any tool (e.g. patch) when a skill
-# update needs it. Skipped silently if the upstream wording drifts.
 OLD_PROMPT = (
     "                        + \"\\n\\nYou can only call memory and skill \"\n"
     "                        \"management tools. Other tools will be denied \"\n"
@@ -75,7 +71,6 @@ def main() -> int:
               f"SKIPPED, no change: {path}")
         return 0
 
-    # Inject the whitelist union before the FIRST enforcement call only.
     src = src.replace(ANCHOR, INJECT + ANCHOR, 1)
 
     if OLD_PROMPT in src:

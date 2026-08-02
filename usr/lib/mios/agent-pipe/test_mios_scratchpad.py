@@ -42,7 +42,6 @@ class TestScratchpad(unittest.TestCase):
         self.assertIn("Investigating build failure", rendered)
 
     def test_scratchpad_max_bound(self):
-        # Insert 10 notes when max is 5
         for i in range(10):
             _scratchpad_note("agent", f"Checkpoint note {i}")
 

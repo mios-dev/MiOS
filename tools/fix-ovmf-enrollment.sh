@@ -1,8 +1,6 @@
 #!/bin/bash
 # AI-hint: A root-level utility to ensure Secure Boot compatibility by downloading or generating pre-enrolled OVMF VARS files in /usr/share/edk2/x64/ for use in VM configurations.
 
-# OVMF Secure Boot Enrollment Fixer
-# Downloads or creates properly enrolled OVMF VARS files
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -43,7 +41,6 @@ echo -e "  Looking for: $TARGET_VARS\n"
 
 echo -e "${BLUE}[2/5] Checking for alternative packages...${NC}\n"
 
-# Check AUR for alternative OVMF packages
 echo -e "${CYAN}Searching AUR for OVMF packages with enrolled keys...${NC}"
 
 if command -v yay &>/dev/null; then
@@ -79,7 +76,6 @@ case $choice in
         
         echo -e "${CYAN}Downloading from Gerd Hoffmann's Jenkins...${NC}"
         
-        # Get the latest build
         LATEST_URL="https://www.kraxel.org/repos/jenkins/edk2/edk2.git-ovmf-x64-0-20231115.1699.gc4e558ebf9.EOL.noarch.rpm"
         
         echo -e "  Downloading OVMF package..."
@@ -109,7 +105,6 @@ case $choice in
             exit 1
         fi
         
-        # Find the extracted files
         EXTRACTED_CODE=$(find . -name "OVMF_CODE.secboot.fd" -o -name "OVMF_CODE.secboot.4m.fd" | head -1)
         EXTRACTED_VARS=$(find . -name "OVMF_VARS.secboot.fd" -o -name "OVMF_VARS.fd" | grep secboot | head -1)
         
@@ -121,7 +116,6 @@ case $choice in
         
         echo -e "\n${BLUE}[5/5] Installing files...${NC}\n"
         
-        # Rename to 4m convention if needed
         if [[ "$EXTRACTED_VARS" =~ "4m" ]]; then
             DEST_VARS="$OVMF_DIR/OVMF_VARS.secboot.4m.fd"
         else
@@ -134,7 +128,6 @@ case $choice in
         echo -e "${GREEN}[ok] Installed: $DEST_VARS${NC}"
         echo -e "  Size: $(stat -c%s "$DEST_VARS" | numfmt --to=iec-i --suffix=B)"
         
-        # Cleanup
         cd /
         rm -rf "$WORK_DIR"
         
@@ -153,7 +146,6 @@ case $choice in
             exit 1
         fi
         
-        # Copy template
         cp "$TEMPLATE_VARS" "$TARGET_VARS"
         echo -e "${GREEN}[ok] Created: $TARGET_VARS${NC}"
         

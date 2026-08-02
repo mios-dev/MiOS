@@ -33,26 +33,11 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# server.py calls configure() with its runtime helpers + the request
-# contextvars + the WEB_RESEARCH_*/_JUDGE_*/etc config constants AFTER
-# every one is defined (one-way boundary: this module never imports
-# server). They stay None/default until injected; every consumer that
-# uses them is async/runtime so a standalone ``import mios_web_research``
-# still succeeds.
 _is_action_domain = None
 _current_date_str = None
 _current_year = None
-# _anchor_tokens/_shares_anchor/_url_has_path/_clean_web_text are now NATIVE to this
-# module (defined below) -- the web loop + citation cluster call them and mios_knowledge
-# reuses the anchor pair via server's broker. configure() still accepts them as optional
-# overrides (the unit test injects stubs to isolate the nav-chrome/anchor paths).
 _routed_domain_var = None
 _client_env_var = None
-# Per-turn web-SOURCE registry plumbing the relocated citation cluster reads
-# (the cluster's own _src_record/_SRC_URL_RE are now native to this module, so
-# they are NOT injected -- only the server-owned request contextvars + the
-# module-level registry dict + its caps stay injected by reference).
 _sources_var = None
 _conv_key_var = None
 _src_turn_var = None
@@ -78,9 +63,6 @@ WEB_RESEARCH_CRAWL_TIMEOUT = 45.0
 WEB_RESEARCH_CRAWL_MAX = 6
 WEB_RESEARCH_USE_NEWS_CATEGORY = False
 WEB_RESEARCH_TIME_RANGE = ""
-# Broader SearXNG `time_range` window applied to a model-classified time-sensitive
-# turn (refine.news/needs_recency) when no explicit override is set -- the
-# degrade-open default that replaced the deleted English temporal-word gate.
 WEB_RESEARCH_RECENCY_RANGE = "month"
 WEB_RESEARCH_MAX_ATTEMPTS = 5
 
@@ -157,10 +139,6 @@ def configure(*, is_action_domain=None, current_date_str=None, current_year=None
     if web_research_max_attempts is not None: WEB_RESEARCH_MAX_ATTEMPTS = web_research_max_attempts
 
 
-# ── Web-text + topical-anchor helpers (relocated home from server.py). The web loop
-# below + the citation cluster call them, and mios_knowledge reuses the anchor pair via
-# server's broker (re-imported there). Pure/structural -- markdown + URL shape only, no
-# topic/keyword list. configure() can still override them for test isolation.
 def _url_has_path(u: str) -> bool:
     """True when a URL points DEEPER than a site front page (has a real path) --
     a STRUCTURAL article-vs-homepage signal for ranking news results (no topic /
@@ -175,22 +153,11 @@ def _url_has_path(u: str) -> bool:
         return True
 
 
-# Structural web-boilerplate strippers (a web answer punted +
-# stayed vague because the fetched blocks were full of site chrome -- "* [link]
-# (...)" nav bullets, SVG data: URIs, "![](...)" images, "[](javascript:void(0))"
-# share buttons -- which ate the per-block char budget so the real article
-# text was truncated out before the model saw it). These key off markdown / URL
-# STRUCTURE ONLY -- no topic or English
-# keyword list (operator binding: no hardcodes). Order matters: drop pure
-# nav-link bullet LINES while they still carry the [..](..) shape, THEN flatten
-# inline links in prose to their anchor text (kills the long URLs that also
-# burn budget; the [n] block header still carries the citable source URL).
 _MD_IMG_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _EMPTY_LINK_RE = re.compile(r"\[\s*\]\([^)]*\)")
 _NAV_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*\[[^\]]*\]\([^)]*\)\s*$")
 _INLINE_LINK_RE = re.compile(r"\[([^\]]+)\]\((?:https?|ftp|mailto|javascript)[^)]*\)")
 _DATA_URI_RE = re.compile(r"\(data:[^)]*\)")
-# Leftover empty list bullets after the link/image strips (e.g. "* )" / "* ").
 _EMPTY_BULLET_RE = re.compile(r"(?m)^\s*[\*\-+]\s*[)\]\s]*$")
 _MULTI_BLANK_RE = re.compile(r"\n{3,}")
 
@@ -214,16 +181,6 @@ def _clean_web_text(s: str) -> str:
         return s
 
 
-# Topical query-anchor: a multi-word but OFF-TOPIC invented sub-query can pass a
-# degenerate word-count filter yet fetch junk (an age-calculator from a "minus" sub-
-# query, an iCloud Find-My page) that then poisons the grounding. These helpers require
-# a generated query / fetched result to share >=1 CONTENT token with the ORIGINAL ask.
-# The low-signal function-word screen is SSOT-sourced (mios.toml [search].anchor_stopwords,
-# env MIOS_WEB_ANCHOR_STOPWORDS CSV) -- NO word list baked in code; degrade-open to empty
-# (fewer stopwords -> MORE permissive overlap, never over-filter). The tokenizer is
-# unicode-aware (CJK split per ideograph, every other script keeps whole letter+digit
-# runs) so a non-Latin ask tokenizes instead of dropping to zero; bare numbers + sub-3
-# ASCII fragments are excluded, Latin plurals fold on a trailing -s.
 def _load_anchor_stopwords() -> frozenset:
     """Resolve the anchor stopword screen from SSOT: a CSV env override (rendered from
     mios.toml by the userenv slot map) -> the layered mios.toml [search].anchor_stopwords
@@ -238,10 +195,6 @@ def _load_anchor_stopwords() -> frozenset:
 
 
 _ANCHOR_STOPWORDS = _load_anchor_stopwords()
-# Unicode-aware content tokenizer (a Latin-only [A-Za-z]... screen tokenized CJK/accented
-# text to ZERO, dropping every non-Latin anchor). CJK/Kana/Hangul are spaceless +
-# information-dense so each ideograph is its own token; every other script keeps whole
-# runs of unicode letters+digits (so accented/non-Latin words survive intact).
 _CJK = ("぀-ヿ㄀-ㄯ㐀-䶿一-鿿"
         "豈-﫿가-힯")
 _ANCHOR_TOKEN_RE = re.compile(rf"[{_CJK}]|[^\W_{_CJK}]+")
@@ -275,14 +228,6 @@ def _shares_anchor(text: str, anchor: set) -> bool:
     return bool(_anchor_tokens(text) & anchor)
 
 
-# ── Article-link "real-headline" scorer (the 2-hop drill's link ranker) ──────────
-# An INDEX page links out to many URLs; this ranks the most ARTICLE-LIKE ones by URL
-# STRUCTURE ONLY -- NO hardcoded domain/keyword/topic list (operator binding). Every
-# weight, length threshold, score cutoff and top-N is SSOT from mios.toml
-# [web_research], layered over a degrade-open fallback whose literals EQUAL the
-# long-standing structural defaults: with NO [web_research] override present the
-# ranking is byte-identical. Model/embedding ranking is OPT-IN (link_rank_mode) and
-# degrades OPEN to this structural path -- nothing here is a frozen magic weight.
 _LINK_RANK_DEFAULTS = {
     "link_rank_mode": "heuristic",  # "heuristic" (structural, default) | "embed" (opt-in; degrade-open)
     "seg_base": 1,        # score per path segment (path depth = article-ness signal)
@@ -342,9 +287,6 @@ def _rank_links_by_structure(cands: list, src_url: str, anchor: set,
             continue
         if u in _seen_l or not _url_has_path(u):
             continue
-        # Skip a NESTED linked-image `[![alt](img)](link)`: the simple markdown regex
-        # captures the IMAGE url + an anchor that begins with image markdown. A
-        # markdown-SHAPE test, not an asset-extension list.
         if atext.startswith("!") or "](" in atext:
             continue
         if len(anchor) >= 2 and not _shares_anchor(u + " " + atext, anchor):
@@ -426,61 +368,20 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         return ""
     if (refined or {}).get("intent") == "chat":
         return ""
-    # LOCAL-STATE short-circuit : a query about THIS
-    # machine's own state ("summarize recent activity", "check service status")
-    # must NEVER web-search -- the web returns irrelevant junk (random .xlsx
-    # files that merely contain "mios", a dictionary def of "list", the "Next"
-    # fashion brand). _read_tool_enrich grounds these on real local tools
-    # instead. This overrides the web-verb hint below (refine sometimes hints
-    # web_search for a local query too).
     if (refined or {}).get("local_state"):
         return ""
-    # GATE: fire ONLY when refine hinted an ACTUAL web verb (relevance-gating,
-    # "internal MiOS prompt? probably don't need full web
-    # tools"). Match the EXPLICIT web-verb set -- NOT a "search"/"web" substring,
-    # which also matched the LOCAL search verbs (knowledge_search /
-    # everything_search / fs_search / app_search / tool_search) and made an
-    # internal system/file query wastefully run full web research (caught live
-    # a "MiOS system status" turn deep-crawled 3 web pages). open_url
-    # counts as a web need too.
     _webverbs = _WEB_ENRICH_VERBS | {"open_url"}
     hints = [str(t).lower().strip() for t in ((refined or {}).get("hint_tools") or [])]
-    # Fire on an explicit web-verb hint OR the model's news/web/deep classification
-    # : the tiny refine model frequently malforms the
-    # `hint_tools` array (it's line 11 of the envelope -> the recurring parse-fail);
-    # _loads_lenient still recovers intent/refined_text/news, so a NEWS / web /
-    # deep-research turn must NOT lose its web grounding just because hint_tools was
-    # dropped. news/web/deep are MODEL-driven flags (no hardcoded keyword), and the
-    # local_state short-circuit above already excludes machine-state queries.
     _web_flagged = bool((refined or {}).get("news") or (refined or {}).get("web")
                         or (refined or {}).get("deep")
                         or (refined or {}).get("deep_research")
-                        # ROUTER-reliable signal (fabrication-root fix):
-                        # the tiny refine model frequently DROPS hint_tools/web, so an
-                        # obvious web turn never grounded (research_chars=0) and the
-                        # swarm FABRICATED "search results". The domain router already
-                        # classified this turn web -- trust it to fire web grounding.
-                        # (local_state machine-state queries short-circuited above.)
                         or _routed_domain_var.get(None) == "web")
-    # ACTION-domain HARD skip : an action turn NEVER
-    # web-researches -- even if refine mis-set web OR carried a web_search HINT
-    # ("open discord and send a message" still web-searched a fabricated URL after
-    # the dispatch + browser guards, because hint_tools held web_search). Return
-    # immediately. Data-driven on verb permission (_is_action_domain); no literals.
     if _is_action_domain(_routed_domain_var.get(None)):
         return ""
     if not _web_flagged and not any(h in _webverbs for h in hints):
         return ""
 
     async def _search(q: str, news: bool = False, time_range: str = "") -> list:
-        # news=True targets SearXNG's NEWS category (dated stories) instead of
-        # the general web -- set by refine's MODEL-DRIVEN `news` flag for
-        # current-events / breaking / trending asks (a vague
-        # 'current global trending' hit the 'Current' banking app on a general
-        # search; the news index returns real dated stories). NOT a Python
-        # keyword check -- the refine model classifies the intent. time_range
-        # recency-filters the GENERAL search (the news ENGINES are IP-blocked, so
-        # this is how a current ask gets CURRENT content --).
         args = ["mios-web-search", "-n", str(WEB_RESEARCH_RESULTS),
                 "--fanout", str(WEB_RESEARCH_FANOUT)]
         if news:
@@ -517,8 +418,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             return ""
 
     async def _crawl(url: str) -> tuple:
-        # Deep render via the local crawl engine (crawl4ai+CDP / Camoufox).
-        # Returns (markdown, links) -- links feed the 2-hop article drill below.
         if not _is_port_open(11235):
             return "", []
         try:
@@ -538,15 +437,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             return "", []
 
     async def _firecrawl(url: str) -> tuple:
-        # Clean article/news markdown via the self-hosted Firecrawl (web_scrape
-        # backend). A THIRD fetch engine raced beside extract + crawl4ai so the
-        # pipeline uses ALL web tools (operator) -- richest wins in _fetch_all.
-        # Returns (markdown, links).
-        # Gate ONLY on :3002 (the host-published Firecrawl proxy mios-firecrawl
-        # targets). Redis :6379 is the firecrawl pod's INTERNAL job queue, reached
-        # only by the firecrawl-api/worker containers -- never from this host-side
-        # broker -- so probing it here always failed and silently dropped the
-        # firecrawl engine out of the _fetch_all race once the pod was deployed.
         if not _is_port_open(3002):
             return "", []
         try:
@@ -566,14 +456,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             return "", []
 
     async def _judge_satisfied(user_q: str, gathered: str) -> tuple:
-        # MODEL-DRIVEN Definition-of-Done (operator "loop until satisfied"): the
-        # warm micro judges whether the gathered web content ANSWERS the query;
-        # if NOT it returns BOTH a sharper search query AND a concrete source URL
-        # to fetch directly (chose "model picks the source" --
-        # no hardcoded news list; the MODEL names an authoritative page and the
-        # loop Firecrawl-scrapes it, bypassing junk search results). No hardcoded
-        # topic/keyword check. Returns (answerable, better_query, scrape_url).
-        # Degrade OPEN (satisfied) on any error so a judge hiccup never blocks.
         if not gathered.strip():
             return False, "", ""
         sys_p = (
@@ -606,10 +488,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         _msgs = [{"role": "system", "content": sys_p},
                  {"role": "user",
                   "content": f"CURRENT DATE: {_current_date_str()}\nUSER QUERY: {user_q}\n\nGATHERED:\n{gathered}"}]
-        # ENDPOINT-AWARE (the judge can run on the iGPU,
-        # which is llama.cpp serving OpenAI /v1). Every MiOS lane speaks /v1, so
-        # the judge posts /chat/completions with response_format json_object
-        # (append /v1 when the endpoint doesn't already carry it).
         _url = (f"{_JUDGE_ENDPOINT}/chat/completions" if _JUDGE_ENDPOINT.endswith("/v1")
                 else f"{_JUDGE_ENDPOINT}/v1/chat/completions")
         try:
@@ -631,22 +509,10 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             log.warning("Judge satisfied check encountered unexpected error", exc_info=True)
             return True, "", ""
 
-    # Search the MODEL-SHARPENED query (refine's refined_text) or query argument,
-    # prioritizing query since it might carry caller-anchored years.
     search_q = query.strip() if (query and query.strip()) else str((refined or {}).get("refined_text") or "").strip()
-    # LOCATION-SCOPE the query ("weather + local news grounded
-    # to the WRONG city -- New York / Chicago sources mislabeled as Cobourg"): a
-    # location-sensitive ask (weather / 'near me' / local / local news) MUST carry
-    # the user's REAL resolved location into the SEARCH STRING, else the engine
-    # returns generic/foreign hits the model then passes off as local. Inject the
-    # location from THIS turn's env grounding when the ask needs it and it isn't
-    # already present. NEVER fabricate -- only a real, resolved location is used.
     try:
         _cenv = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
         _q_loc = str(_cenv.get("location") or "").strip()
-        # PRIMARY: the model-classified needs_location flag (refine). FALLBACK: an SSOT
-        # [routing].location_sensitive_phrases match -- NOT a hardcoded English list in
-        # code (operator binding: model-classified, no hardcoded keyword lists).
         _ql = search_q.lower()
         _loc_sensitive = bool((refined or {}).get("needs_location")) or any(
             _ph in _ql for _ph in _LOCATION_SENSITIVE_PHRASES)
@@ -656,47 +522,16 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             log.info("web-research: location-scoped the query to %r", _q_loc)
     except Exception:  # noqa: BLE001
         pass
-    # TIME-SENSITIVE / RECENCY detection: the MODEL-emitted refine flags are the
-    # SOLE authority (no hardcoded keyword law). refine.news (current-events /
-    # "latest" asks) and refine.needs_recency (when the classifier emits it) decide
-    # whether the turn wants fresh content. An English/ASCII temporal-word list here
-    # GATED this decision and silently MISSED every paraphrased / non-English
-    # temporal ask while the file claimed "no hardcoded keyword" -- deleted. Degrade
-    # OPEN: an absent flag => not time-sensitive (no lexical guess from the query).
     _time_sensitive = bool((refined or {}).get("news") or (refined or {}).get("needs_recency"))
-    # Append the CURRENT YEAR to a time-sensitive query that names no explicit year.
-    # The 4-digit-year probe is STRUCTURAL (is a literal year already present?), not
-    # a keyword match, so it stays.
     if (_time_sensitive and not re.search(r"\b(?:19|20)\d{2}\b", search_q)):
         search_q = f"{search_q} {_current_year()}".strip()
-    # News category is GATED OFF by default (WEB_RESEARCH_USE_NEWS_CATEGORY): the
-    # news engines are IP-blocked on this instance -> news category = stale
-    # wikinews only, which PUNTED "latest <X> news" turns (live debug).
-    # General search works, so route news asks through it too until news engines
-    # are unblocked. refine's `news` flag still gates IF news is ever re-enabled.
     _use_news = WEB_RESEARCH_USE_NEWS_CATEGORY and bool((refined or {}).get("news"))
-    # TIME-SENSITIVE general search : when refine flags the
-    # turn `news` (current/recent/trending), recency-filter the general web so it
-    # returns CURRENT content instead of evergreen Wikipedia / stale listicles --
-    # the news ENGINES are blocked, so this (not the news category) is the lever.
-    # The explicit override (WEB_RESEARCH_TIME_RANGE) wins; else a model-classified
-    # time-sensitive turn DEGRADES OPEN to the broader SSOT recency window
-    # (WEB_RESEARCH_RECENCY_RANGE, default "month"). The narrower-vs-broader choice
-    # used an English word list ("today"/"now"/"yesterday" -> week) that GATED the
-    # window and missed any paraphrased / non-English temporal ask -- deleted; the
-    # broad SSOT window is the safe non-lexical default.
     _time_range = WEB_RESEARCH_TIME_RANGE
     if not _time_range and _time_sensitive:
         _time_range = WEB_RESEARCH_RECENCY_RANGE
-    # Per-STEP emit log ("need emitters for every step
-    # end-to-end" -- not one whole-loop summary). Each web step is recorded here;
-    # the streaming path replays them as individual emits. Stashed on refined.
     _steps: list = []
 
     def _rec(_s: dict) -> None:
-        # record the step AND emit it LIVE (stream every step
-        # throughout the pipeline, not a dump at the end). `emit` is a sync sink
-        # (e.g. queue.put_nowait) supplied by a streaming caller; best-effort.
         _steps.append(_s)
         if emit:
             try:
@@ -704,58 +539,26 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             except Exception:  # noqa: BLE001
                 pass
 
-    # SATISFACTION-GATED LOOP ("loop until satisfied...
-    # across all nodes"): search -> drill across ALL fetch engines (web_extract +
-    # crawl4ai/real-Chrome + Firecrawl) -> a MODEL judge decides if the gathered
-    # content actually ANSWERS the query; if not, the warm micro hands back a
-    # SHARPER query and we SEARCH AGAIN (different angle), accumulating content,
-    # until satisfied or MIOS_WEB_RESEARCH_MAX_ATTEMPTS. So a junk first search
-    # ("current" -> the banking app) no longer surrenders a non-answer. The
-    # resulting grounding is injected into EVERY agent's prompt (council prefix +
-    # per-facet swarm) -> the loop's payoff reaches agents on ALL nodes (local
-    # dGPU, the Windows iGPU, the phone, any cluster node).
     content: dict = {}          # url -> REAL article text (>= MIN_CHARS)
     snippets: dict = {}         # url -> fallback snippet (thin/blocked page)
     touched: list = []          # results considered, in drill order
     seen: set = set()           # urls already fetched (dedup ACROSS attempts)
     crawl_budget = WEB_RESEARCH_CRAWL_MAX
     link_budget = WEB_RESEARCH_CRAWL_MAX   # 2-hop article-link drill budget
-    # QUICK mode : a research facet that only feeds an ACTION
-    # (e.g. "launch the best game" -> rank then launch_verified) needs a FAST
-    # ranking, so it does ONE search pass (not the full multi-attempt 2-hop drill).
-    # It STILL fans out across all fetch engines per URL ("use
-    # all web tools") -- just not the multi-attempt re-search loop. Standalone
-    # research (news, reports; no action) keeps the full deep loop.
     _max_att = 1 if quick else WEB_RESEARCH_MAX_ATTEMPTS
     want = max(1, WEB_RESEARCH_FETCH_N)
     n_crawled = 0               # pages whose richest text came from a deep engine
     passes = 0
     search_q_now = search_q
-    # STABLE topical anchor = the ORIGINAL ask (user/facet query + refined text),
-    # NOT the drifting search_q_now. Used to drop off-topic results + re-search
-    # queries the weak micro invents (flight-query derail).
     _anchor = _anchor_tokens(f"{query} {(refined or {}).get('refined_text') or ''}")
 
     async def _fetch_all(url: str) -> tuple:
-        # Race ALL fetch engines CONCURRENTLY (operator "use ALL web tools"):
-        # web_extract (fast readable text) + crawl4ai (real Chrome/CDP + Camoufox)
-        # + Firecrawl (clean article/news markdown). RICHEST result wins; the slow
-        # renders run in parallel so they add no latency to the fast path. The
-        # deep engines are turn-budgeted (crawl_budget) to protect the renderers.
         nonlocal crawl_budget
         jobs = [("read", _extract(url))]
-        # ALWAYS fan out across ALL web tools on EVERY
-        # node/facet -- web_extract + crawl4ai (real Chrome/CDP + Camoufox) +
-        # Firecrawl race on every fetch, even the quick action-feeding path
-        # (which keeps its single PASS but no longer grounds on a thin homepage
-        # when a renderer could pull the real article). Budget-bounded only to
-        # protect the renderers from a runaway drill.
         if WEB_RESEARCH_CRAWL_FALLBACK and crawl_budget > 0:
             crawl_budget -= 1
             jobs += [("deep-crawl", _crawl(url)), ("firecrawl", _firecrawl(url))]
         outs = await asyncio.gather(*[j for _, j in jobs])
-        # _extract returns str; _crawl/_firecrawl return (text, links). Normalise
-        # + harvest the page's outbound links (article links for the 2-hop drill).
         cand: dict = {}
         links: list = []
         for (label, _), out in zip(jobs, outs):
@@ -765,12 +568,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 links.extend(_lks or [])
             else:
                 cand[label] = out or ""
-        # PREFER Firecrawl's CLEAN markdown when it's substantial: it strips nav/
-        # chrome (onlyMainContent), whereas crawl4ai often out-LENGTHS it with the
-        # page's NAV MENU, so pure 'longest wins' picked junk -- operator
-        # saw wikinews "Main menu / Newsroom / Recent changes"
-        # boilerplate win. Fall back to the longest of the rest when Firecrawl is
-        # thin/blocked. No hardcoded domains; purely engine-quality preference.
         fc = cand.get("firecrawl", "")
         if len(fc) >= WEB_RESEARCH_MIN_CHARS:
             return fc, "firecrawl", links
@@ -780,22 +577,10 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 best, eng = text, label
         return best, eng, links
 
-    # Markdown link `[anchor](url)` -- crawl4ai/Camoufox returns the index page's
-    # article links INLINE in the rendered markdown (not a links[] array), and the
-    # anchor text IS the headline. NOT an image (`![..](..)`). Compiled once/turn.
     _md_link_re = re.compile(r"(?<!\!)\[([^\]]{0,200})\]\((https?://[^)\s]+)\)")
 
     def _rank_article_links(links: list, text: str, anchor: set,
                             src_url: str) -> list:
-        # From an INDEX page, pick the most ARTICLE-LIKE URLs for the 2-hop drill --
-        # by STRUCTURE ONLY, NO hardcoded domain/keyword/topic list (operator
-        # binding). Candidates = the engine links[] PLUS every markdown
-        # [headline](url) parsed from the rendered text; the module-level ranker
-        # (_rank_links) scores a STORY (deep path, long hyphenated slug, a date/id
-        # digit, a long real-headline anchor) above a shallow section/utility link,
-        # with every weight/threshold SSOT from [web_research] (model/embed ranking
-        # opt-in + degrade-open). A strong topical anchor (>=2 tokens) still requires
-        # overlap (enforced inside _rank_links).
         cands: list = []   # (anchor_text, url)
         for it in (links or []):
             u = it if isinstance(it, str) else (
@@ -809,14 +594,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     _md_any_re = re.compile(r"!?\[[^\]]*\]\([^)\s]*\)")
 
     def _strip_nav_chrome(md: str) -> str:
-        # Strip NAV/MENU/footer chrome from rendered markdown (crawl4ai/Camoufox
-        # keep it; Firecrawl's onlyMainContent already drops it). STRUCTURAL
-        # link-density heuristic -- NO hardcoded selectors/keywords (operator
-        # binding): a line that is MULTIPLE markdown links dominating its width
-        # with almost no prose is chrome; a real heading or sentence (prose words)
-        # is body and is kept. Conservative -- only clearly link-dominated lines
-        # drop, so an in-prose citation link ("per [Reuters](u), ...") survives.
-        # Run AFTER link harvest (which needs the raw links) -- see the loop below.
         if not md:
             return md
         out: list = []
@@ -832,16 +609,9 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             if len(spans) >= 2 and link_chars >= 0.6 * len(s) and prose_words <= 6:
                 continue   # link-dominated menu/nav/footer line -> drop
             out.append(ln)
-        # Collapse the runs of blank lines the drops leave behind.
         _txt = "\n".join(out)
         return re.sub(r"\n{3,}", "\n\n", _txt).strip()
 
-    # DIRECT URL EXTRACT ("Read <url>..." test gap): when the
-    # request explicitly NAMES a url, FETCH THAT PAGE + cite it -- never web_search the
-    # leftover verb ("read"/"open"), which anchored on the dictionary (merriam-webster
-    # "read") and shipped junk sources. The named url IS the authoritative grounding;
-    # skip the search entirely when it yields real content (no junk-anchor), else fall
-    # through to the normal search.
     _named_urls = [u.rstrip('.,);]}>"\'') for u in _SRC_URL_RE.findall(
         f"{query or ''} {(refined or {}).get('refined_text') or ''}")]
     for _nu in _named_urls[:3]:
@@ -870,10 +640,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                           (_time_range + " · " if _time_range else ""))
                          + search_q_now)[:72]})
         results = await _search(search_q_now, news=_use_news, time_range=_time_range)
-        # RELEVANCE ANCHOR: drop results with ZERO topical overlap with the
-        # ORIGINAL ask so an off-topic fan-out sub-query's hits (age calculators,
-        # iCloud Find-My, discount-store junk) can't reach the grounding. Degrade
-        # OPEN -- if nothing passes, keep all (junk beats an empty answer).
         if _anchor and results:
             _rel = [r for r in results if _shares_anchor(
                 f"{r.get('title', '')} {r.get('url', '')} {r.get('content', '')}",
@@ -881,35 +647,15 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             if len(_rel) < len(results):
                 log.info("web-research: anchor-filtered %d/%d off-topic results",
                          len(results) - len(_rel), len(results))
-            # Keep ONLY the on-topic results. A WEAK anchor (<2 tokens) already
-            # passed everything via _shares_anchor's degrade-open, so this is safe;
-            # a STRONG anchor that matched NOTHING means the whole set is off-topic
-            # junk -> ground on NOTHING so the agent answers from KNOWLEDGE (a clean
-            # estimate) instead of summarising an Overstock / dictionary-'cheap'
-            # page that slipped in (junk grounding < no
-            # grounding for an all-junk facet).
             results = _rel
         ordered: list = []
         for r in (results or []):
             u = r.get("url", "")
             if u and u not in seen:
                 ordered.append(r)
-        # DROP bare-homepage results (no URL path AND no publishedDate) on EVERY
-        # turn when better results exist ("MULTIPLE FAILURES":
-        # research kept fetching site FRONT PAGES -- kayak.com/, cheapflights.com/,
-        # local-dealer homepages for "Honda CRX", aggregator landings for
-        # "trends" -- which yield only nav/marketing/UI chrome, NEVER the query's
-        # data or article, so agents fabricated or punted). A path-bearing or
-        # dated URL (.../flight-routes/..., /wiki/Honda_CRX, a news article)
-        # carries real content. Keep ONLY those when ANY exist; else degrade
-        # OPEN (a thin homepage still beats nothing -> no empty grounding).
         _pathful = [r for r in ordered
                     if r.get("publishedDate") or _url_has_path(r.get("url", ""))]
         if _pathful:
-            # Keep article/dated URLs for direct reading PLUS the top homepage(s)
-            # as 2-hop link SEEDS (mine the index for article
-            # links, don't just drop it). The homepage's own thin chrome demotes to
-            # a snippet below; its harvested article links carry the real stories.
             _homes = [r for r in ordered if r not in _pathful]
             ordered = _pathful + _homes[:2]
             if _homes:
@@ -931,34 +677,22 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 if eng != "read" and best:
                     n_crawled += 1
                 if len(best) >= WEB_RESEARCH_MIN_CHARS:
-                    # strip nav/menu chrome AFTER the link harvest below reads the
-                    # raw `best` (the harvest needs the links the strip removes).
                     content[r["url"]] = _strip_nav_chrome(best)   # clean article body
                     _src_record([r])   # REAL article fetched -> a citable source
                 elif best:
                     snippets[r["url"]] = best          # thin/blocked -> snippet
                     _src_record([r])   # thin but a real, fetched source
                 _ttl = (str(r.get("title", "")).strip() or r.get("url", ""))[:60]
-                # casual FUNCTION label, never the engine/tool name (operator
-                # "not internal naming... indicative of the function")
                 _rec({"emoji": "📖",
                       "label": ("reading the page deeply"
                                 if eng in ("deep-crawl", "firecrawl")
                                 else "reading the page"),
                       "detail": _ttl})
-                # 2-HOP ARTICLE DRILL ("use the WHOLE web stack
-                # ... drill into the stories, not the index"): when this page is an
-                # INDEX (bare homepage URL or thin article body) but the engines
-                # returned outbound links, harvest its top on-topic ARTICLE links so
-                # the SAME concurrent engine race reads the actual stories next.
                 _indexish = (not _url_has_path(r.get("url", ""))
                              or len(best) < WEB_RESEARCH_MIN_CHARS)
                 if link_budget > 0 and _indexish and (_links or best):
                     _hop2.extend(_rank_article_links(
                         _links, best, _anchor, r.get("url", "")))
-            # Drill the harvested article links through the FULL engine race
-            # concurrently (bounded by link_budget + `want`), merging real article
-            # bodies into the grounding alongside the directly-fetched results.
             _hop2 = [u for u in dict.fromkeys(_hop2)
                      if u not in seen][:max(0, min(link_budget, want))]
             if _hop2:
@@ -978,9 +712,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                           "detail": u[:60]})
             if len(content) >= want:
                 break
-        # DEFINITION-OF-DONE: does what we hold actually ANSWER the query? If yes
-        # (or attempts exhausted) stop; else re-search with the judge's sharper
-        # query. This is the "loop until satisfied" -- model-driven, no hardcode.
         if attempt >= _max_att:
             break
         _gathered = "\n\n".join(
@@ -989,10 +720,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
         ok, better_q, scrape_url = await _judge_satisfied(query, _gathered)
         if ok:
             break
-        # MODEL-PICKED SOURCE ("model picks the source"): the
-        # judge names an authoritative page; Firecrawl-scrape it DIRECTLY, bypass-
-        # ing the junk search results (e.g. wikinews) with a clean index/article.
-        # No hardcoded source -- the model chose the URL. Best-effort.
         su = scrape_url.strip()
         _scraped = False
         if su.startswith(("http://", "https://")) and su not in seen:
@@ -1007,33 +734,18 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
                 _src_record([{"url": su, "title": "news source"}])  # citable source
                 n_crawled += 1
                 _scraped = True
-        # Adopt the judge's sharper query ONLY if it stays ON-TOPIC. A weak judge
-        # shown junk content drifts (it once drifted to an unrelated age-calculator
-        # arithmetic query after being fed age-calculator pages); an off-anchor
-        # re-search just fetches more junk, so keep the on-topic query for the next pass.
         _bq = better_q.strip() if better_q else ""
         _usable_bq = bool(_bq and _bq != search_q_now and _shares_anchor(_bq, _anchor))
         if _usable_bq:
             search_q_now = _bq
         elif _bq:
             log.info("web-research: dropped off-anchor re-search %r", better_q)
-        # STOP DRILLING when the judge gave NO usable sharper query and we didn't
-        # just fetch a judge-picked source: re-running the SAME query only hits the
-        # seen-dedup (empty) and burns the attempt budget. This is what made an
-        # UNSATISFIABLE ask ("cheap flights near me" -> the model can't fill the
-        # location, so the judge is NEVER satisfied) run the full MAX_ATTEMPTS on
-        # EVERY facet + deepen pass -> minutes with no answer.
-        # We keep the on-topic grounding already gathered and let the agents answer.
         if not _usable_bq and not _scraped:
             log.info("web-research: no usable sharper query -> stop drilling "
                      "(gathered %d real / %d snippet)", len(content), len(snippets))
             break
         _rec({"emoji": "🔁", "label": f"retry {attempt + 1}",
               "detail": ("not answered -> " + search_q_now)[:60]})
-    # ORDER the grounding so the BEST content LEADS (the
-    # wikinews NAV boilerplate was [1]). Judge-picked authoritative sources first
-    # (clean, requested precisely because the search results were junk), then
-    # pages with REAL article bodies, then thin snippets last. Dedup by URL.
     def _rank(r: dict) -> tuple:
         u = r.get("url", "")
         picked = 0 if "judge-picked" in str(r.get("title", "")) else 1
@@ -1054,16 +766,10 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
     log.info("web-research: %d results, %d real / %d snippet, %d deep-crawled "
              "over %d pass(es) for %.60r",
              len(touched), len(content), len(snippets), n_crawled, passes, query)
-    # Stash stats for the live emitter (operator "fix emits"): name the FULL web
-    # toolchain + real counts, not the old "SearXNG fan-out" under-sell.
     if isinstance(refined, dict):
         refined["_web_stats"] = {"sources": len(blocks), "real": len(content),
                                  "crawled": n_crawled, "passes": passes}
         refined["_web_steps"] = _steps
-        # SOURCES survive the handoff ("this is why all
-        # sources survive handoffs"): keep the [n] blocks (title + URL + text) so
-        # the FINAL verity/answer pass can cite [n] + verify the draft against the
-        # real fetched content -- not just the agents' paraphrase of it.
         refined["_web_sources"] = "\n\n".join(blocks)
     return ("LIVE WEB RESEARCH -- the MiOS pipeline ran its FULL web toolchain "
             "concurrently (SearXNG metasearch -> readable extract + crawl4ai/"
@@ -1092,15 +798,6 @@ async def _web_research_enrich(query: str, refined: Optional[dict],
             + "\n\n".join(blocks))
 
 
-# ── Per-turn web-SOURCE registry + citation rendering ─────────────────────
-# Relocated VERBATIM from server.py: the cross-turn web-source registry and
-# the citation renderers/harvesters. This module already OWNS the web toolchain
-# and calls _src_record as it fetches, so home is here. server.py re-imports
-# every name under its EXACT original alias (surface-parity zero-diff) and
-# injects the request contextvars (_sources_var/_conv_key_var/_src_turn_var),
-# the module-level registry dict (_SOURCES_REGISTRY) + its caps, MAX_SOURCES,
-# and _url_has_path via configure(). The _SRC_LINE_RE/_SRC_URL_RE parsers and
-# _src_record are now NATIVE here -- no longer injected.
 def _src_turn_key() -> str:
     """Stable per-turn key shared by the primary + every council/DAG secondary.
     Prefers the explicit turn-id (propagated to sub-requests) over the per-request
@@ -1149,9 +846,6 @@ def _src_record(items) -> None:
             if not isinstance(_it, dict):
                 continue
             _u = str(_it.get("url") or _it.get("link") or "").strip()
-            # Strip trailing junk a model leaks onto a URL (an escaped line-break
-            # '\', markdown/sentence punctuation) so 'url' and 'url\' don't survive
-            # as two un-deduped citations.
             _u = _u.rstrip("\\").rstrip(".,;:)]}>\"'").rstrip("\\")
             _t = str(_it.get("title") or _it.get("name") or "").strip()
             if not _u.startswith("http"):
@@ -1179,9 +873,6 @@ def _src_collected() -> list:
         _merged.extend(_r)
     if not _merged:
         return []
-    # Prefer real ARTICLE URLs (path-bearing) over bare homepages -- a judge-picked
-    # lite news index or a generic 'cnn.com/' is a weak citation; keep them ONLY
-    # when no article URL was collected (degrade-open, never strip to empty).
     _pathful = [(_t, _u) for (_t, _u) in _merged if _url_has_path(_u)]
     _use = _pathful if _pathful else _merged
     _seen: set = set()
@@ -1264,12 +955,6 @@ def _filter_relevant_sources(refs: list, *texts: str) -> list:
     return _kept if _kept else refs
 
 
-# Parse a sub-agent's appended '**Sources:**\nN. title — url' block (or any bare
-# http URLs) back into citable items. A council/DAG facet is dispatched to a leaf
-# agent (hermes/opencode) that re-calls :8640 WITHOUT the turn-id header, so its
-# real web sources live in ITS OWN turn bucket -- but they ALSO ride back in its
-# answer's appended Sources list (or its mios_sources JSON). The parent harvests
-# them here, in the PARENT turn context, so they unify into the final citation set.
 _SRC_LINE_RE = re.compile(
     r"^\s*\d+\.\s+(.*?)\s+[—\-]+\s+(https?://\S+?)\s*$", re.MULTILINE)
 _SRC_URL_RE = re.compile(r"https?://[^\s\)\]\}<>\"']+")

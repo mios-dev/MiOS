@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Build + run the mios-agents DEV war-room from THIS repo and bring mios-frontier
-# online on :8801 in the target composition (Sonnet-5 orchestrator + Opus-4.8 /
-# Gemini-Flash-3.5 lanes). YOU run this.
-#
-# WSL fact this encodes: a /mnt/c (drvfs/9p) bind-mount is NOT writable from inside
-# a podman container (rootless OR rootful) -- the agents could read but never EDIT
-# the repo. So the war-room works on a NATIVE ext4 replica (writable) synced to
-# GitHub (origin). Seed once from the repo (captures uncommitted edits), then it is
-# git-managed -- re-runs rebuild+restart WITHOUT clobbering the workspace.
 set -euo pipefail
 cd "$(dirname "$0")"                              # usr/share/mios/agents
 REPO_SRC="$(cd ../../../.. && pwd)"               # repo root
@@ -17,11 +8,11 @@ PORT="${MIOS_AGENTS_PORT:-8800}"                  # IDE port (takes over the mio
 PASS="${MIOS_AGENTS_PASSWORD:-mios}"
 WORK="${MIOS_FRONTIER_WORKSPACE:-$HOME/MiOS}"     # NATIVE ext4 workspace (container-writable)
 
-echo ">> build $IMG from the repo (rootful storage -- the run is rootful --network=host)"
+echo ">> build $IMG from the repo"
 sudo podman build --network=host -t "$IMG" -f Containerfile .
 
 if [ ! -e "$WORK/.git" ]; then
-  echo ">> seed native workspace $WORK from $REPO_SRC (one-time; includes uncommitted edits + git origin)"
+  echo ">> seed native workspace $WORK from $REPO_SRC"
   mkdir -p "$WORK"
   rsync -a \
     --exclude="__pycache__" --exclude="*.pyc" --exclude="node_modules" --exclude=".venv" \
@@ -29,16 +20,11 @@ if [ ! -e "$WORK/.git" ]; then
     --exclude="*.iso" --exclude="*.vhdx" --exclude="*.raw" --exclude="*.wsl" \
     "$REPO_SRC"/ "$WORK"/
 else
-  echo ">> native workspace $WORK exists (git-managed) -- leaving its contents. Sync via mios-frontier-sync."
+  echo ">> native workspace $WORK exists"
 fi
-# The container's coder maps to a uid != the workspace owner (WSL userns quirk);
-# make the native workspace writable by any container uid (dev workspace).
 chmod -R a+rwX "$WORK"
 
-# Serve the IDE via ROOTFUL --network=host (rootless -p forwarding is unreliable
-# under WSL, and --network=host conflicts with --userns=keep-id). Root also writes
-# the native workspace cleanly. Stop the stale systemd service so it frees the port.
-echo ">> (re)start $NAME on :$PORT (rootful --network=host)"
+echo ">>start $NAME on :$PORT"
 sudo systemctl stop mios-agents 2>/dev/null || true
 sudo podman rm -f "$NAME" 2>/dev/null || true; podman rm -f "$NAME" 2>/dev/null || true
 sudo chmod -R a+rwX "$WORK"

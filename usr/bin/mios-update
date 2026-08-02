@@ -1,25 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Wrapper for bootc commands to fetch, stage, and apply MiOS image updates, providing simplified flags for checking, staging, and rolling back system-wide deployments.
 # AI-related: mios-dev, mios-pull, mios-rebuild, localhost:3000
-# mios-update -- pull the next published MiOS image and stage it for
-# the next reboot. Wraps `bootc upgrade` so operators don't need to
-# remember the bootc verbs.
-#
-#   mios-update              # fetch + stage; reboot to apply
-#   mios-update --apply      # fetch, stage, AND reboot now
-#   mios-update --check      # show what's available; don't stage
-#   mios-update --rollback   # undo the last upgrade (boot the previous deployment)
-#
-# To switch to a DIFFERENT image (rather than upgrade the current one):
-#   sudo bootc switch ghcr.io/mios-dev/mios:<tag>
-#   sudo systemctl reboot
-#
-# Three update flavors -- pick by deployment shape:
-#   mios-update    bootc-managed deployed host (this script; A/B redeploy)
-#   mios-pull      / IS git working tree (dev VMs, Forge-driven hosts)
-#                  -- fast `git pull + reset` + bootstrap seed-merge
-#   mios-rebuild   trigger a CI rebuild via push to local Forgejo
-#                  (push to localhost:3000 -> runner -> bootc switch)
 set -euo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -47,20 +28,18 @@ case "${1:-}" in
         echo
         echo "Update staged for next boot. Apply now with:"
         echo "    sudo systemctl reboot      # full reboot"
-        echo "    sudo bootc upgrade --apply # immediate apply"
+        echo "    sudo bootc upgrade"
         ;;
     *)
-        echo "mios-update: unknown flag '$1'" >&2
-        echo "Try: mios-update --help" >&2
+        echo "Mios-update: unknown flag '$1'" >&2
+        echo "Try: mios-update" >&2
         exit 2
         ;;
 esac
 
-# Re-assert Windows-side branding and registry settings from SSOT
-# to counteract any theme/accent resets during Windows Updates.
 if [[ "${1:-}" != "--check" && "${1:-}" != "--rollback" && "${1:-}" != "--help" && "${1:-}" != "-h" ]]; then
     if [ -d "/mnt/c" ]; then
-        echo "[mios-update] Re-asserting Windows host branding + registry settings..."
+        echo "[mios-update] Re-asserting Windows host branding + registry settings"
         for mPath in "M:\\MiOS\\repo\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1" \
                      "C:\\MiOS\\repo\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1" \
                      "C:\\mios-bootstrap\\src\\autounattend\\Invoke-MiOSProvision.ps1"; do

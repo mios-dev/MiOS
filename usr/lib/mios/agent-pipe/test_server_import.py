@@ -53,9 +53,6 @@ def _install_stubs():
             return _decorator_factory
 
     fastapi.FastAPI = lambda *a, **k: _App()
-    # APIRouter behaves like the app here: a decorator-factory object whose
-    # .get/.post/... return the wrapped handler unchanged. R13 moved the /a2a routes
-    # onto an APIRouter in mios_a2a, mounted by server via app.include_router.
     fastapi.APIRouter = lambda *a, **k: _App()
     fastapi.Request = object
     fastapi.WebSocket = object
@@ -68,9 +65,6 @@ def _install_stubs():
     sys.modules.setdefault("fastapi.responses", responses)
 
 
-# Every symbol the refactor has extracted -> the sibling module it now lives in.
-# server.py must still PROVIDE each (as a re-import) and it must resolve to the
-# sibling, proving the extraction preserved the importable surface. Grows per wave.
 _EXTRACTED = {
     "mios_pipe.kernel.config": ["_toml_section", "_cfg_num", "PORT", "_STACK_MODEL"],
     "mios_pipe.routing.provider_translate": ["_scrub_schema", "_oai_msgs_to_anthropic"],
@@ -79,8 +73,6 @@ _EXTRACTED = {
     "mios_endpoints": ["_endpoint_is_llamacpp"],
     "mios_pipe.context.grounding": ["_env_grounding", "_env_block", "_host_timezone", "_current_year"],
     "mios_pipe.lifecycle.verity": ["polish_response", "_strip_ungrounded_figures", "_clarify_question"],
-    # _PARAM_TOKEN_RE is re-imported for surface parity but omitted here: a compiled
-    # re.Pattern reports __module__ == 're', which the origin check can't attribute.
     "mios_skills": ["execute_skill", "_make_schema_strict", "_skill_render_args",
                     "_skill_invocation_open", "_skill_invocation_close",
                     "_skill_attribute_tool_call", "_SKILL_INV_META",
@@ -100,11 +92,9 @@ _EXTRACTED = {
                       "_format_tool_error", "_record_mcp_tool_call"],
     "mios_pipe.routing.agent_call": ["_call_agent_complete", "_call_agent_complete_inner",
                         "_call_agent_stream_inner",
-                        # KV-paging/fork + RR-preemptible decode cluster moved home
                         "_kv_base", "_kv_filename", "_kv_lock", "_kv_slot_action",
                         "_kv_paging", "_kv_fork", "_rr_eligible", "_rr_slice",
                         "_rr_run",
-                        # per-dispatch lane-governance pair moved home (sole caller)
                         "_trip_breaker", "_num_predict_cap_for"],
     "mios_pipe.routing.secondary_loop": ["_v1_secondary_tool_loop",
                             "_daemon_diagnose", "_TOOL_NUDGE", "_REPLAN_NUDGE",
@@ -117,11 +107,6 @@ _EXTRACTED = {
                           "_src_collected", "_sources_markdown", "_sources_metadata",
                           "_sources_annotations", "_filter_relevant_sources",
                           "_src_record_from_text", "_harvest_sub_sources"],
-    # _SRC_LINE_RE / _SRC_URL_RE plus the relocated web-text/anchor patterns
-    # (_MD_IMG_RE / _EMPTY_LINK_RE / _NAV_BULLET_RE / _INLINE_LINK_RE / _DATA_URI_RE /
-    # _EMPTY_BULLET_RE / _MULTI_BLANK_RE / _ANCHOR_TOKEN_RE) and the _ANCHOR_STOPWORDS
-    # frozenset are re-imported for surface parity but omitted here: a compiled
-    # re.Pattern reports __module__ == 're', which the origin check can't attribute.
     "mios_pipe.access.policy": ["_perm_rank", "_effective_perm", "_agent_rbac_filter",
                     "_dispatch_pdp_reason"],
     "mios_pipe.access.firewall": ["_is_external_url", "_classify_verb_taint",
@@ -148,8 +133,6 @@ _EXTRACTED = {
                         "_verb_embed_fingerprint"],
     "mios_pipe.kernel.daemons": ["_gossip_loop", "_membership_watch_loop", "_selfimprove_report",
                      "_selfimprove_loop", "_kv_gc_sweep_once", "_kv_gc_loop",
-                     # T-062/T-064 ACT half: the queued-proposals route handler moved
-                     # onto the SAME daemons_router + re-imported by server (parity).
                      "selfimprove_proposals_ep"],
     "mios_pipe.routing.portal": ["_portal_authed", "_portal_token_ok", "_discover_portal_services",
                     "portal_stats_logic", "portal_service_detail_logic",
@@ -159,15 +142,9 @@ _EXTRACTED = {
     "mios_pipe.federation.a2a": ["_build_agent_card", "_a2a_jsonrpc_dispatch", "_a2a_verify_principal",
                  "a2a_jsonrpc_logic", "a2a_skills_list_logic", "a2a_dispatch_logic",
                  "passport_verify_logic", "passport_public_key_logic",
-                 # R13: the five /a2a route handlers moved here (off server.py's @app
-                 # onto a2a_router) and are re-imported by server -- assert their home.
                  "a2a_skill_directory", "a2a_context_get", "a2a_jsonrpc",
                  "a2a_jsonrpc_alias", "a2a_peers_reload",
-                 # FED-G8: the caller-key revoke route handler lives on the SAME
-                 # a2a_router and is re-imported by server -- assert its home.
                  "caller_key_revoke",
-                 # R13 batch 2: the discovery/identity route handlers moved here onto
-                 # the SAME a2a_router and are re-imported by server -- assert home.
                  "a2a_agent_card", "a2a_agent_card_legacy", "agent_passport",
                  "agntcy_manifest_wellknown", "a2a_peers_list", "a2a_skills_list",
                  "a2a_dispatch", "passport_verify", "passport_public_key"],
@@ -180,19 +157,10 @@ _EXTRACTED = {
                            "_passport_verify", "_passport_pub_cache",
                            "_passport_load_attempted"],
     "mios_pipe.federation.mcp": ["_mcp_call_tool", "_mcp_render_headers", "_McpStdioClient",
-                 # R13 batch 2: the three /v1/mcp/* route handlers moved here (off
-                 # @app onto mcp_router) and are re-imported by server -- assert home.
                  "mcp_clients", "mcp_tools_list", "mcp_dispatch"],
     "mios_pipe.federation.http_caps": ["_skill_to_mcp_resource", "_recipe_to_mcp_resource",
                        "_verb_to_mcp_resource",
-                       # R13 batch 2: the /v1/peers + /v1/resources[/read] route
-                       # handlers moved here (off @app onto http_caps_router) and are
-                       # re-imported by server -- assert their home.
                        "v1_peers", "list_resources", "read_resource"],
-    # The W0-T3 aggregate-budget admission cluster moved here (sole consumer is
-    # chat_completions_logic). _BUDGET_LOCK is re-imported for surface parity but
-    # omitted: an asyncio.Lock instance reports __module__ == 'asyncio.locks',
-    # which the origin check can't attribute (same class as the re.Pattern cases).
     "mios_pipe.routing.chat": ["chat_completions_logic", "responses_api_logic",
                   "_budget_num", "_budget_bucket", "_budget_window_total",
                   "_budget_debit", "_budget_prune_inflight", "_budget_admit",
@@ -239,15 +207,10 @@ def main():
         for n in names:
             obj = getattr(server, n, None)
             origin = getattr(obj, "__module__", None)
-            # constants have no __module__; presence alone proves the re-import.
             ok = obj is not None and (origin in (module, None))
             check(f"{n} provided by server (-> {module})", ok,
                   "" if ok else f"missing or wrong origin: {origin!r}")
 
-    # T-053 FED-G9: loopback-default bind derivation. Pure helper (no socket), so the
-    # posture is asserted here in the import gate: loopback unless the inbound auth gate
-    # is on; an explicit override wins. Both branches + the override are exercised in
-    # one process (the env-read live value is only one branch).
     bh = getattr(server, "_bind_host", None)
     check("_bind_host present + callable", callable(bh))
     if callable(bh):

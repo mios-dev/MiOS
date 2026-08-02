@@ -25,17 +25,11 @@ import pathlib
 MARKER = "# MiOS-patch: HERMES_PTY_SHELL override"
 
 INJECTION = '''    # MiOS-patch: HERMES_PTY_SHELL override
-    # When set (e.g. HERMES_PTY_SHELL=/bin/bash), the /api/pty endpoint
-    # spawns the requested shell instead of `hermes --tui`. Lets the
-    # dashboard's /chat tab serve a plain bash prompt with xterm.js
-    # rendering it in the browser. Loopback + session-token already
-    # protect the endpoint.
     import shlex as _shlex
     _override = os.environ.get("HERMES_PTY_SHELL")
     if _override:
         _argv = _shlex.split(_override)
         if _argv and os.path.basename(_argv[0]) in ("bash", "sh", "zsh", "fish"):
-            # Login + interactive so .bashrc/.profile load (PATH, aliases, history)
             if "-l" not in _argv and "--login" not in _argv:
                 _argv.insert(1, "-l")
             if "-i" not in _argv:
@@ -59,16 +53,6 @@ def main(path: str) -> int:
         print("shell-patch: already patched (idempotent no-op)")
         return 0
 
-    # Inject ABOVE the first statement of `_resolve_chat_argv`, which
-    # is the line `    from hermes_cli.main import PROJECT_ROOT, _make_tui_argv`.
-    # Earlier versions of this script tried to anchor on (signature +
-    # optional docstring) via a single multi-line regex; that matched
-    # the closing `"""` greedily and ended up splicing the injection
-    # INSIDE the docstring -- function compiled but the override was
-    # part of the doc-string literal and never executed. The line-based
-    # approach below operates on a single anchor line and inserts a
-    # block right above it with matching indentation; impossible to
-    # corrupt the docstring this way.
     anchor_re = re.compile(
         r"^(?P<indent>\s+)from hermes_cli\.main import PROJECT_ROOT,\s*_make_tui_argv\s*$",
         re.M,
@@ -79,14 +63,11 @@ def main(path: str) -> int:
         return 2
     indent = m.group("indent")
 
-    # Re-indent the INJECTION block (currently 4-space) to match
     indented_injection = "\n".join(
         (indent + line[4:]) if line.startswith("    ") else line
         for line in INJECTION.splitlines()
     ) + "\n"
 
-    # Ensure `import pathlib` exists at module top (used by the patch
-    # to resolve home dir). Idempotent.
     if "\nimport pathlib\n" not in text and not re.search(r"^import pathlib\b", text, re.M):
         text = re.sub(
             r"(^import os\s*$)",
@@ -95,7 +76,6 @@ def main(path: str) -> int:
             count=1,
             flags=re.M,
         )
-        # Re-locate the anchor (offsets shifted)
         m = anchor_re.search(text)
         if not m:
             print("shell-patch: anchor lost after pathlib import injection", file=sys.stderr)

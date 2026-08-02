@@ -2,7 +2,6 @@
 # AI-hint: Provides an OpenAI-compatible HTTP shim for the opencode CLI, exposing /v1/models and /v1/chat/completions endpoints to integrate opencode as a standard agent-pipe peer.
 # AI-related: /usr/lib/mios/agents/opencode/bin/opencode, /etc/mios/opencode/opencode.json, mios-opencode
 # AI-functions: _selector, _flatten_messages, _run_opencode, log_message, _send, _sse_headers, _sse_write, do_GET, do_POST, _stream, main, class Handler
-# -*- coding: utf-8 -*-
 """
 MiOS opencode → OpenAI /v1 gateway shim.
 
@@ -45,37 +44,17 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
-# ---------------------------------------------------------------------------
-# SSOT-rendered config (env-first; defaults match mios.toml slots)
-# ---------------------------------------------------------------------------
 HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
 PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8633"))
 OPENCODE_BIN = os.environ.get(
     "MIOS_OPENCODE_BIN", "/usr/lib/mios/agents/opencode/bin/opencode"
 )
-# ONE canonical model id, shared with [agents.opencode].model + opencode.json.
-# This is the INTERNAL opencode subprocess selector (the real lane model); it is
-# NOT what we show on the wire.
 OPENCODE_MODEL = os.environ.get("MIOS_OPENCODE_MODEL", "mios-opencode:latest")
-# What this gateway ADVERTISES as its model on its OpenAI /v1 surface (GET
-# /v1/models, the chat.completion `model` echo, /health). MiOS is "MiOS AI" on
-# EVERY surface (operator: "EVERYTHING IS MiOS AI / no matter the surface"), so a
-# client hitting :8633 sees "MiOS AI", never the internal lane id. Advertise vs.
-# execute are decoupled: the real opencode subprocess still runs OPENCODE_MODEL.
-# Shares MIOS_AI_GATEWAY_MODEL with the front door (usr/bin/mios) -- one SSOT knob.
 ADVERTISED_MODEL = os.environ.get("MIOS_AI_GATEWAY_MODEL", "MiOS AI")
-# opencode provider name as declared in opencode.json (e.g. "local").
 OPENCODE_PROVIDER = os.environ.get("MIOS_OPENCODE_PROVIDER", "local")
-# Explicit config location (no hardcoded /root/.config/opencode). Exported to
-# the child process as OPENCODE_CONFIG.
 OPENCODE_CONFIG = os.environ.get(
     "MIOS_OPENCODE_CONFIG", "/etc/mios/opencode/opencode.json"
 )
-# Per-run timeout. Canonical SSOT key is MIOS_OPENCODE_TIMEOUT_S (mios.toml
-# [ai].opencode_gateway_timeout_s, mirrored by the unit). Fall back to the
-# legacy MIOS_OPENCODE_TIMEOUT for older overlays, then a 90s default that
-# matches the SSOT vendor value (so the swarm fan-out drops opencode harmlessly
-# under VRAM pressure rather than hanging on the old 600s).
 TIMEOUT = int(
     os.environ.get("MIOS_OPENCODE_TIMEOUT_S")
     or os.environ.get("MIOS_OPENCODE_TIMEOUT")
@@ -107,7 +86,6 @@ def _flatten_messages(messages):
     for m in messages or []:
         role = (m.get("role") or "user").lower()
         content = m.get("content", "")
-        # OpenAI content can be a list of parts; flatten to text.
         if isinstance(content, list):
             text = "".join(
                 part.get("text", "")
@@ -146,7 +124,6 @@ def _run_opencode(prompt: str, model: str):
 
     Returns the assistant text. Raises on failure.
 
-    #57 fix: use `--format json`. opencode's DEFAULT format renders an
     interactive TUI (spinner/replay frames interleaved with the answer) which
     (a) pollutes the returned text with control noise and (b) wedges when stdout
     is a partial / early-closed consumer -- the long-standing "opencode run
@@ -158,10 +135,7 @@ def _run_opencode(prompt: str, model: str):
     --format json completed cleanly (step_finish reason=stop) every time.
     """
     env = dict(os.environ)
-    # Point opencode at the unified config explicitly (no /root/.config dep).
     env["OPENCODE_CONFIG"] = OPENCODE_CONFIG
-    # XDG fallback so any opencode build that ignores OPENCODE_CONFIG still
-    # finds the file under <dir>/opencode/opencode.json.
     cfg_dir = os.path.dirname(os.path.dirname(OPENCODE_CONFIG))
     if cfg_dir:
         env.setdefault("XDG_CONFIG_HOME", cfg_dir)
@@ -170,19 +144,9 @@ def _run_opencode(prompt: str, model: str):
            "-m", _selector(model), prompt]
     proc = subprocess.run(
         cmd, capture_output=True, text=True, timeout=TIMEOUT, env=env,
-        # stdin=DEVNULL (roadmap WS-A3): `--format json` above already suppresses
-        # the TUI replay-frame hang, but opencode's `run` otherwise inherits the
-        # gateway's stdin and, with no TTY, can BLOCK waiting on input -- the other
-        # half of the long-standing "opencode run hangs / returns zero" symptom.
-        # A closed stdin makes the invocation non-interactive end-to-end.
         stdin=subprocess.DEVNULL,
     )
     raw = proc.stdout or ""
-    # Assistant text = concatenation, in order, of every part.type=="text"
-    # chunk in the event stream (up to step_finish). Robust to interleaved
-    # tool/step events and to non-JSON lines. `parsed_any` records whether the
-    # output WAS the expected JSON event stream, so we only ever fall back to
-    # the raw bytes when it was NOT (format change) -- never dumping JSON noise.
     texts = []
     parsed_any = False
     for ln in raw.splitlines():
@@ -198,9 +162,6 @@ def _run_opencode(prompt: str, model: str):
         if part.get("type") == "text" and part.get("text"):
             texts.append(part["text"])
         else:
-            # Agentic runs can carry the result inside a tool part's state
-            # (output/text/result) rather than a text part -- best-effort
-            # surface it so a code task still returns the work, not silence.
             st = part.get("state")
             if isinstance(st, dict):
                 for k in ("output", "text", "result", "stdout"):
@@ -209,10 +170,6 @@ def _run_opencode(prompt: str, model: str):
                         texts.append(v)
                         break
     out = "".join(texts).strip()
-    # Fallback ONLY when the output was NOT the JSON event stream (older opencode
-    # / format change): use raw stdout then stderr. When it WAS valid JSON but
-    # carried no text (e.g. an agentic tool step that produced no answer), return
-    # the empty string rather than echoing raw event JSON to the caller.
     if not out and not parsed_any:
         out = raw.strip() or (proc.stderr or "").strip()
     if proc.returncode != 0 and not out:
@@ -223,7 +180,6 @@ def _run_opencode(prompt: str, model: str):
 
 
 class Handler(BaseHTTPRequestHandler):
-    # Quieten the default stderr access-log spam (journald captures stdout).
     def log_message(self, fmt, *args):
         return
 
@@ -272,24 +228,11 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         messages = req.get("messages", [])
-        # This gateway serves exactly ONE model (opencode itself). The caller's
-        # `model` is just a routing label -- the agent-pipe sends the AGENT NAME
-        # ("opencode"), which _selector would turn into the bogus "local/opencode"
-        # > "Model not found" (live error). ALWAYS use our
-        # own configured OPENCODE_MODEL (mios-opencode:latest) regardless of what
-        # the caller asked for; only honour a caller id that is already a real,
-        # provider-qualified opencode model (contains '/').
         _req_model = str(req.get("model") or "")
-        # run_model = the INTERNAL opencode subprocess selector (our own lane
-        # model unless the caller passed a real provider-qualified id). model =
-        # the SURFACE id we echo back = ADVERTISED_MODEL ("MiOS AI"): MiOS is
-        # MiOS AI on every surface, this gateway included.
         run_model = _req_model if "/" in _req_model else OPENCODE_MODEL
         model = ADVERTISED_MODEL
         stream = bool(req.get("stream", False))
 
-        # Pass the FULL conversation (system + history) to opencode, not just
-        # the last user message.
         _system, prompt = _flatten_messages(messages)
 
         cmpl_id = "chatcmpl-" + uuid.uuid4().hex[:24]
@@ -340,7 +283,6 @@ class Handler(BaseHTTPRequestHandler):
 
         self._sse_headers()
 
-        # role delta first
         self._sse_write({
             "id": cmpl_id,
             "object": "chat.completion.chunk",
@@ -366,7 +308,6 @@ class Handler(BaseHTTPRequestHandler):
                 }],
             })
         else:
-            # Chunk into reasonably sized content deltas.
             step = 512
             for i in range(0, len(out), step):
                 self._sse_write({
@@ -381,7 +322,6 @@ class Handler(BaseHTTPRequestHandler):
                     }],
                 })
 
-        # terminal chunk
         self._sse_write({
             "id": cmpl_id,
             "object": "chat.completion.chunk",

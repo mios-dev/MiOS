@@ -37,12 +37,6 @@ from mios_evict import (evict_where as _evict_where,
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# server.py calls configure() with its runtime helpers + the request
-# contextvars + the KNOWLEDGE_*/EMB_* config constants AFTER every one
-# is defined (one-way boundary: this module never imports server). They
-# stay None/default until injected; every consumer that uses them is
-# async/runtime so a standalone ``import mios_knowledge`` still succeeds.
 _db_fire = None
 _db_post = None
 _db_create = None
@@ -62,8 +56,6 @@ _RECALL_POSSESSIVE_RE = None
 _KNOWLEDGE_URL_RE = None
 EMB_MODEL = None
 EMB_VERSION = None
-# Agent SELF-EDITED durable-memory recall knobs (the remember/memory_update tier).
-# server-owned (importable surface) -> injected; same shape as the KNOWLEDGE_* set.
 AGENT_MEMORY_RECALL_ENABLED = False
 AGENT_MEMORY_TABLE = "agent_memory"
 AGENT_MEMORY_RECALL_K = 3
@@ -227,7 +219,6 @@ def _row_age_seconds(ts_val) -> "Optional[float]":
             try:
                 t = _dt.datetime.fromisoformat(s)
             except ValueError:
-                # pad a 2-digit trailing tz offset ('+00' -> '+00:00') for <3.11
                 s2 = re.sub(r'([+-]\d{2})$', r'\1:00', s)
                 t = _dt.datetime.fromisoformat(s2)
             if t.tzinfo is None:
@@ -334,12 +325,6 @@ def _store_knowledge(*, query: str, answer: str,
     can weight. None -> the field is simply omitted (degrade-open)."""
     if not KNOWLEDGE_STORE_ENABLED:
         return
-    # Anti-stale-recall : a VOLATILE turn (model-classified live
-    # local-state / current-events / location-bound) is a point-in-time snapshot --
-    # caching it poisons recall (a later turn surfaces the stale snapshot as current:
-    # 'what folder are we in' -> '/' while in /afs; weather recalled for the wrong
-    # city). It is re-derived LIVE every turn (env block + tools), so don't persist
-    # it. Read in the caller's context (set right after refine). Model-classified.
     if KNOWLEDGE_STORE_SKIP_VOLATILE:
         try:
             if _turn_volatile_var.get(False):
@@ -369,12 +354,6 @@ async def _store_knowledge_task(q: str, a: str,
     NULL-safe), tier='warm' (neutral default; hot/cold transitions are a
     deferred P2 pass), and `satisfied` (omitted by _db_create when None)."""
     try:
-        # P2 live outcome wiring: when the caller didn't pass an explicit verdict
-        # (the common polish path -- the inline DoD check runs in polish's caller,
-        # not in scope at the store call), look up THIS turn's most-recent
-        # user_query_(un)satisfied event. _store_knowledge_task fires AFTER the
-        # inline check has emitted the event, so LIMIT 1 is reliably this turn's.
-        # Degrade-open: any miss -> satisfied stays None -> field omitted.
         if satisfied is None:
             try:
                 _v = await _recent_satisfaction_verdicts(limit=1)
@@ -386,25 +365,9 @@ async def _store_knowledge_task(q: str, a: str,
                         satisfied = False
             except Exception:  # noqa: BLE001 -- outcome lookup is best-effort
                 pass
-        # VERDICT-GATED STORAGE (closed-loop / anti-poison): an
-        # answer the Definition-of-Done check judged UNSATISFIED (failed tools, empty
-        # synthesis, recall-only fallback) must NOT enter the knowledge store -- else
-        # it POISONS future recall. Live-proven: the floundering hermes CLI's
-        # '/mios-svc-hermes' hallucination got stored, then resurfaced mixed into a
-        # later 'list files at root' answer (real find_file_fast output + the stale
-        # fabrication). Persist ONLY satisfied turns; an UNJUDGED turn (satisfied=None,
-        # e.g. the inline check didn't run) still stores -- degrade-open, no capability
-        # lost, and the recall blend already down-weights non-satisfied rows. Gated by
-        # the SSOT knob so it can be tuned without a code change.
         if satisfied is False and KNOWLEDGE_STORE_GATE_UNSATISFIED:
             log.info("knowledge store SKIPPED: turn judged UNSATISFIED (anti-poison)")
             return
-        # WS-MEM-VALIDATE (OWASP ASI08): content-scan the answer for poisoning
-        # indicators (injection imperatives / dangerous code / URLs) the
-        # verdict-gate above can't catch (a SATISFIED answer can still carry an
-        # embedded instruction that later steers recall). Default mode "off" ->
-        # no-op; log emits an audit event + stores; strip neutralizes the stored
-        # text; reject drops a HIGH-severity fact. Fail-open in mios_memguard.
         if MEMORY_GUARD_MODE in ("log", "strip", "reject"):
             _mg = await mios_memguard.validate_for_store(a, mode=MEMORY_GUARD_MODE)
             if _mg.get("flags"):
@@ -424,12 +387,6 @@ async def _store_knowledge_task(q: str, a: str,
             a = _mg.get("store_text", a)        # 'strip' neutralizes; else unchanged
         row = {"q": q, "answer": a, "sources": sources,
                "access_count": 0, "recall_hits": 0, "tier": "warm"}
-        # #59 WS-5: tag the memory row with its OWNER (the principal the chat
-        # surface forwarded), so future per-owner RLS can scope recall by owner.
-        # The drift-tolerant pg insert DROPS this key if the owner_user column is
-        # absent (pre-migration) and writes it once present -> safe either way;
-        # empty when no principal was forwarded (single-user). Enforcement is gated
-        # by [pgvector].rls_mode (default off -> tag-only, no recall filtering yet).
         _ou_env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
         _ou = str(_ou_env.get("user_name") or _ou_env.get("user_email") or "").strip()
         if _ou:
@@ -442,9 +399,6 @@ async def _store_knowledge_task(q: str, a: str,
                 row["emb"] = emb
                 row["emb_model"] = EMB_MODEL       # WS-A2 embedding-version hygiene
                 row["emb_version"] = EMB_VERSION
-        # T-068: scope the mirror write to the SAME owner stamped into owner_user
-        # above (_ou), so FORCE row-level security validates the new row under RLS.
-        # Empty principal -> None -> no SET LOCAL -> permissive (single-user/daemon).
         _pg_mirror("knowledge", {**row, "session_id": session_id},
                    rls_owner=(_ou or None))  # WS-9c + T-068 DB-side RLS
         sql = _db_create(KNOWLEDGE_TABLE, row, now_fields=("ts",), _mirror=False)
@@ -464,9 +418,6 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         qv = await _embed_one(query, prefix="search_query: ")
         if not qv:
             return None
-        # Fetch a CANDIDATE POOL (not just top-K) so the recency-weighted rerank
-        # below has rows to re-order -- a bounded recency multiplier only matters if
-        # there are near-ties to break (temporal weighting).
         rows = await _MEMORY.retrieve(
             qv, table=KNOWLEDGE_TABLE,
             k=max(KNOWLEDGE_RECALL_K, KNOWLEDGE_RECALL_CANDIDATES),
@@ -482,19 +433,8 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
         cands = [r for r in rows if float(r.get("score") or 0.0) >= _floor]
         if not cands:
             return ""
-        # Blended rerank via the SHARED _blend_rank (same blend the agent_memory +
-        # legacy recall paths use): (cosine + outcome + tier + access) * BOUNDED
-        # recency decay, then take top-K. Cosine stays dominant -- a stale-but-relevant
-        # hit still wins; recency only re-orders near-ties toward fresher rows.
         cands.sort(key=_blend_rank, reverse=True)
         hits = cands[:KNOWLEDGE_RECALL_K]
-        # B2 PAGE-IN BUMP : increment access_count/recall_hits +
-        # refresh last_access + promote to tier='hot' on the rows we actually surfaced.
-        # This existed ONLY in the dead legacy recall path, so on the LIVE pgvector
-        # path the counters NEVER moved -- access_count stayed 0 for every row, the
-        # outcome-ranked tiering/eviction ran on all-zero signal, and no row ever went
-        # hot. Fire-and-forget; degrade-open (a miss just skips the bump). CASE sees the
-        # pre-increment access_count, mirroring the legacy IF semantics.
         for _r in hits:
             _rid = _r.get("id")
             if _rid is None:
@@ -510,8 +450,6 @@ async def _recall_knowledge_pg(query: str) -> "Optional[str]":
                     "THEN 'hot' ELSE COALESCE(tier,'warm') END "
                     "WHERE id = %(id)s"),
                 pg_params={"id": _rid, "hot": int(KNOWLEDGE_HOT_THRESHOLD)}))
-        # Stamp each recalled row with how long ago it was recorded, so a time-bound
-        # fact is never asserted as current (research: Zep bi-temporal 'as of').
         lines = [
             f"  - [match {round(float(r.get('score') or 0), 2)} · as of "
             f"{_humanize_age(_row_age_seconds(r.get('ts')))}] "
@@ -545,13 +483,6 @@ async def _recall_knowledge(query: str) -> str:
     PRIOR/own knowledge that may be outdated, never as fresh ground truth."""
     if not (KNOWLEDGE_RECALL_ENABLED and query and query.strip()):
         return ""
-    # Anti-stale-recall KEYSTONE : a VOLATILE turn (model-
-    # classified live local-state / current-events / location-bound) must be answered
-    # from the LIVE env block + tools, NEVER from cached knowledge -- recalling a prior
-    # snapshot (an old cwd, an old location, yesterday's weather) is exactly what made
-    # the agent state stale state as current ('@ what folder are we in' -> '/' while in
-    # /afs). Skip recall injection for these turns entirely (fixes it even while a stale
-    # row still sits in the table). Model-classified (refine flags), not a keyword list.
     if KNOWLEDGE_STORE_SKIP_VOLATILE:
         try:
             if _turn_volatile_var.get(False):
@@ -563,14 +494,10 @@ async def _recall_knowledge(query: str) -> str:
         _pgr = await _recall_knowledge_pg(query)
         if _pgr is not None:
             return _pgr
-        # degrade-open: fall through to the legacy recall path
     try:
         qv = await _embed_one(query)
         if not qv:
             return ""
-        # NOTE: this legacy build requires the ORDER BY field to be in the
-        # SELECT projection ("Missing order idiom"), hence `ts` is selected;
-        # rows lacking `emb` are filtered in Python below.
         resp = await _db_post(
             f"SELECT id, q, answer, emb, ts, access_count, last_access, "
             f"tier, satisfied FROM {KNOWLEDGE_TABLE} "
@@ -579,12 +506,6 @@ async def _recall_knowledge(query: str) -> str:
         for st in (resp or []):
             if isinstance(st, dict) and isinstance(st.get("result"), list):
                 rows = st["result"]
-        # TOPICAL anchor guard (cross-conversation bleed:
-        # a "world news today" turn recalled a prior "AI and 3D printing" answer
-        # purely on cosine >= 0.62 and a research replica parroted it). Require
-        # the recalled row's QUESTION to share >=1 content anchor token with the
-        # current query, so a semantically-near-but-topically-different memory is
-        # dropped. _anchor_tokens/_shares_anchor already exist (web-research use).
         _q_anchor = _anchor_tokens(query)
         _floor = _recall_floor(query)
         scored = []
@@ -595,27 +516,14 @@ async def _recall_knowledge(query: str) -> str:
             s = _cosine(qv, emb)
             if s < _floor:
                 continue
-            # below a HIGH-confidence cosine, also demand a shared topic anchor
             if s < KNOWLEDGE_RECALL_STRICT_SCORE and _q_anchor \
                     and not _shares_anchor(str(r.get("q", "")), _q_anchor):
                 continue
             scored.append((s, r))
-        # P2 blended rank via the SHARED _blend_rank (same blend the pgvector +
-        # agent_memory paths use). The legacy rows carry no `score` column -- the
-        # cosine was computed app-side into the tuple's first element -- so inject it
-        # as `score` for the shared ranker; negated for the ascending sort.
         scored.sort(key=lambda item: -_blend_rank({**item[1], "score": item[0]}))
         top = scored[:KNOWLEDGE_RECALL_K]
         if not top:
             return ""
-        # Page-in counter: bump access_count/last_access/recall_hits on the rows
-        # we actually surfaced (fire-and-forget; degrade-open -- a DB miss just
-        # skips the bump). Requires `id` in the projection (step 1). The legacy
-        # backend returns a SELECTed id as a record-string ("knowledge:abc"); the `??`
-        # null-coalesce (legacy 3.0+) makes the bump safe on legacy rows that
-        # never wrote access_count/recall_hits (step 4 writes them at 0 on new
-        # rows). Each UPDATE is its own fire-and-forget _db_post -> any per-row
-        # error just no-ops; the recall block returns regardless.
         try:
             for _s, _r in top:
                 _rid = _r.get("id")
@@ -623,8 +531,6 @@ async def _recall_knowledge(query: str) -> str:
                     continue
                 _rid_s = _rid if isinstance(_rid, str) else str(_rid)
                 _pgid = _mios_pg.rid_to_pg_id(_rid)
-                # Legacy record-id path: `??` + IF/ELSE keep the
-                # bump safe on rows that never wrote access_count/recall_hits.
                 _surreal = (
                     f"UPDATE {_rid_s} SET "
                     f"access_count = (access_count ?? 0) + 1, "
@@ -633,15 +539,6 @@ async def _recall_knowledge(query: str) -> str:
                     f"tier = IF (access_count ?? 0) >= "
                     f"{KNOWLEDGE_HOT_THRESHOLD} THEN 'hot' ELSE "
                     f"(tier ?? 'warm') END;") if ":" in _rid_s else ""
-                # WS-MEM-TIER: on pgvector-primary the id is a BIGINT (no ':') so
-                # the old `:" in _rid` guard skipped the bump entirely AND the raw
-                # _db_post(UPDATE) was a dead no-op (_PG_PRIMARY guard returns None)
-                # -> access_count/recall_hits/last_access/tier were NEVER refreshed
-                # on recall, so K-LRU eviction (mios_evict) ran on stale/zero
-                # counters. Route through _db_update with a parameterized PG UPDATE
-                # (COALESCE/CASE mirror the ??/IF semantics; CASE sees the
-                # pre-increment access_count exactly like the legacy IF) so the
-                # tiering feedback loop is LIVE on the active store. Fire-and-forget.
                 if not _surreal and not (_PG_PRIMARY and _pgid is not None):
                     continue
                 _db_fire(_db_update(
@@ -909,19 +806,10 @@ async def _recall_agent_memory(query: str) -> str:
     as an injectable block (or '' on miss). Default-OFF; degrade-open -> ''."""
     if not (AGENT_MEMORY_RECALL_ENABLED and _PG_PRIMARY and query and query.strip()):
         return ""
-    # #59 WS-5 multi-tenant durable memory: agent_memory now HAS an owner_user
-    # column (schema-init.sql), so under rls_mode=enforce we OWNER-SCOPE the recall
-    # (mios_pg adds `owner_user = %(owner)s OR owner_user IS NULL` -- the caller's
-    # own facts + shared/legacy rows, never another principal's), exactly like
-    # knowledge recall -- instead of fail-closed-SKIPPING (which lost the user
-    # their own durable facts). Default rls_mode=off -> _rls_owner() is None ->
-    # owner not passed -> recall SQL is byte-identical to pre-RLS.
     try:
         qv = await _embed_one(query)
         if not qv:
             return ""
-        # Fetch a CANDIDATE POOL (not just top-K) so the blended rerank below has
-        # near-ties to re-order toward fresher facts -- mirrors _recall_knowledge_pg.
         rows = await _MEMORY.retrieve(qv, table=AGENT_MEMORY_TABLE,
                                       k=max(AGENT_MEMORY_RECALL_K,
                                             KNOWLEDGE_RECALL_CANDIDATES),
@@ -934,12 +822,6 @@ async def _recall_agent_memory(query: str) -> str:
                  if float(r.get("score") or 0.0) >= AGENT_MEMORY_RECALL_MIN_SCORE]
         if not cands:
             return ""
-        # SAME blended rerank as the knowledge tiers (shared _blend_rank): this durable
-        # preference/identity tier deserves equal ranking quality, not flat cosine.
-        # DEGRADE-OPEN: agent_memory carries no access_count/tier/satisfied columns, so
-        # those blend terms read neutral via .get(); `ts` drives the bounded recency
-        # decay (a freshly-saved fact breaks ties over a stale one). Weights come from
-        # the same [knowledge] rank_* SSOT the knowledge ranker reads.
         cands.sort(key=_blend_rank, reverse=True)
         hits = cands[:AGENT_MEMORY_RECALL_K]
         lines = []
@@ -964,11 +846,6 @@ async def _recall_agent_memory(query: str) -> str:
         return ""
 
 
-# ── Personal Knowledge Graph lookup ───────────────────────────────
-# Resolves operator-set noun phrases ("my browser", "the dev VM") to concrete
-# app_install rows via the alias -> resolves_to -> app_install graph. Used by the
-# planner + dispatch to disambiguate phrases that would otherwise force the LLM to
-# guess. _db_read does the pg I/O (injected via configure()).
 async def kg_lookup(phrase: str) -> Optional[dict]:
     """Look up a phrase in the operator's PKG. Returns the first
     matching app_install record as a dict, or None if no match.
@@ -980,13 +857,8 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
     pr = phrase.strip().lower()              # raw (psycopg param binding)
     if not p:
         return None
-    # Stage 1a: person_pref EXACT-match (highest precedence, personalized).
-    # e.g. "my browser" -> pref_key="browser" -> pref_value->>"app_id"
-    # We strip "my " prefix to check preference keys (like "browser").
     stripped_p = pr[3:] if pr.startswith("my ") else pr
     
-    # Try fetching the username from _get_client_env() 
-    # (assuming it forwards user_name or similar).
     from mios_pipe.context.grounding import _get_client_env
     env = _get_client_env()
     username = (env.get("user_name") or "").strip()
@@ -1019,8 +891,6 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
                             "phrase": pr,
                             "app": apps[0]}
 
-    # Stage 1b: alias EXACT-match (global fallback). Operator
-    # configured "my browser" -> X, this returns X directly.
     sql = (
         f"SELECT phrase, "
         f"->resolves_to->app_install.{{id, short_name, app_id, "
@@ -1041,7 +911,6 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
                 return {"source": "alias",
                         "phrase": row.get("phrase"),
                         "app": apps[0]}
-    # Stage 1b: alias contains match (fuzzy fallback).
     sql = (
         f"SELECT phrase, "
         f"->resolves_to->app_install.{{id, short_name, app_id, "
@@ -1068,7 +937,6 @@ async def kg_lookup(phrase: str) -> Optional[dict]:
                 return {"source": "alias",
                         "phrase": row.get("phrase"),
                         "app": apps[0]}
-    # Stage 2: direct app_install short_name fuzzy match.
     sql = (
         f"SELECT id, short_name, app_id, source, label, launch_hint "
         f"FROM app_install "

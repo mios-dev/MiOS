@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: CLI tool to manage and activate staged bootc deployments by triggering system reboots, rolling back to previous versions, or reporting current bootc status.
 # AI-related: mios-build, mios-rebuild, mios-update
-# mios-deploy -- apply a staged bootc deployment. Companion to
-# mios-build / mios-rebuild / mios-update -- those STAGE a new
-# deployment via `bootc switch` or `bootc upgrade`; mios-deploy is
-# the explicit "reboot to activate" step.
-#
-#   mios-deploy             # show staged deployments + reboot prompt
-#   mios-deploy --now       # reboot immediately
-#   mios-deploy --status    # show staged + booted deployments; no reboot
-#   mios-deploy --rollback  # rollback to previous deployment, then reboot
 set -euo pipefail
 
 case "${1:-}" in
@@ -19,14 +10,14 @@ case "${1:-}" in
         ;;
     --now)
         if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" "$@"; fi
-        echo "Rebooting to activate the staged deployment in 3s ..."
+        echo "Rebooting to activate the staged deployment in 3s "
         sleep 3
         systemctl reboot
         ;;
     --rollback)
         if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" "$@"; fi
         bootc rollback
-        echo "Rollback staged. Rebooting in 3s to activate ..."
+        echo "Rollback staged. Rebooting in 3s to activate "
         sleep 3
         systemctl reboot
         ;;
@@ -41,17 +32,17 @@ case "${1:-}" in
         case "${ans,,}" in
             y|yes)
                 if [[ $EUID -ne 0 ]]; then exec sudo -E "$0" --now; fi
-                echo "Rebooting in 3s ..."
+                echo "Rebooting in 3s "
                 sleep 3
                 systemctl reboot
                 ;;
             *)
-                echo "Aborted. Run 'mios-deploy --now' or 'sudo systemctl reboot' when ready."
+                echo "Aborted. Run 'mios-deploy"
                 ;;
         esac
         ;;
     *)
-        echo "mios-deploy: unknown flag '$1' (try --help)" >&2
+        echo "Mios-deploy: unknown flag '$1'" >&2
         exit 2
         ;;
 esac

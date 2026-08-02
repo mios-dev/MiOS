@@ -17,7 +17,7 @@ echo "# Generated at build time: $" >> "$ENV_FILE"
 
 if [[ -n "${MIOS_FLATPAKS:-}" ]]; then
     echo "MIOS_FLATPAKS=\"${MIOS_FLATPAKS}\"" >> "$ENV_FILE"
-    mios_ok "captured MIOS_FLATPAKS to ${ENV_FILE}"
+    mios_ok "Captured MIOS_FLATPAKS to ${ENV_FILE}"
 else
     echo "MIOS_FLATPAKS=\"\"" >> "$ENV_FILE"
     mios_skip "MIOS_FLATPAKS not set, created empty env file"

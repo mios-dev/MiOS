@@ -34,12 +34,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Loop guards moved home (verbatim) ------------------------------
-# _tool_call_sig / _looks_like_disclaimer / _tmsgs_indicate_failure live with the
-# _v1_secondary_tool_loop that consumes them. They were
-# dependency-injected before this move-home wave; now defined at module level so
-# the configure() seam carries one less redundant param. server.py re-imports
-# each under its original name (surface-parity zero-diff).
 def _tool_call_sig(tc: dict) -> str:
     """Stable (name + sorted-args) signature of a tool_call, for the loop's
     no-progress / runaway guard: if a round re-emits ONLY calls already made,
@@ -59,13 +53,6 @@ def _tool_call_sig(tc: dict) -> str:
     return name + "\0" + a
 
 
-# A secondary that NARRATES a refusal/disclaimer with NO tool_calls (and nothing
-# rescuable) defeats the tool-loop: a small local /v1 model often ignores
-# tool_choice='required', so we can't force a call up front. Detect the "I can't /
-# no data / use my tools" shape and inject ONE explicit nudge to call the tool,
-# then re-call once -- a soft equivalent of tool_choice=required (research
-# replicas replied "I am not available... use my search tools" / "no news in the
-# provided context" instead of calling web_search).
 _DISCLAIM_MARKERS = (
     "not available", "no data", "no information", "no specific",
     "provided context", "i cannot", "i can't", "unable to", "i do not have",
@@ -105,26 +92,14 @@ def _tmsgs_indicate_failure(tmsgs: list) -> bool:
     return False
 
 
-# -- Dependency-injection seam --------------------------------------
-# The loop + its guards read server.py's config scalars and the
-# _DAEMON_DIAGNOSE_* constants, and call back into server-side helpers.
-# server.py calls configure() with those AFTER every one is defined (one-way
-# boundary: this module never imports server). The placeholders below carry the
-# documented defaults so a standalone ``import mios_secondary_loop`` still
-# succeeds; every consumer is async/runtime so nothing fires before configure().
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 SECONDARY_TOOL_MAX_ITERS = 15
 SECONDARY_REPLAN_MAX = 5
 
-# _daemon_diagnose constants (server SSOT/env-derived; injected)
 _DAEMON_DIAGNOSE_MODEL = ""
 _DAEMON_DIAGNOSE_ENDPOINT = ""
 _DAEMON_DIAGNOSE_ENABLE = True
 
-# server-side helpers (injected). The loop guards _looks_like_disclaimer /
-# _tool_call_sig / _tmsgs_indicate_failure now live at module level (moved home),
-# so only these two remain dependency-injected.
 _apply_outbound_auth = None
 _endpoint_supports_parallel_tools = None
 _db_read = None
@@ -255,7 +230,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     import time
     msgs = list(messages)
     
-    # Check reflexion gate
     agent_cfg = {}
     if "mios_config" in sys.modules:
         try:
@@ -271,7 +245,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     _tool_max_iters = int(agent_cfg.get("tool_max_iters", SECONDARY_TOOL_MAX_ITERS))
     _replan_max = int(agent_cfg.get("replan_max", SECONDARY_REPLAN_MAX))
 
-    # Load superstep checkpoint
     start_iter = 0
     if session_id and _db_read:
         try:
@@ -292,17 +265,7 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
     _replan = 0          # supervisory closed-loop re-engages used (bounded)
     _last_failed = False # did the previous tool batch report a genuine failure?
     _hdrs = dict(headers or {})
-    # llama-swap (mios-llm-light proxy) REQUIRES Content-Type: application/json to
-    # parse the body and extract the model id -- absent it, it 404s
-    # {"error":"no model id could be identified"} (verified). httpx with
-    # content=bytes does NOT auto-set it, and callers pass header dicts that omit it,
-    # so the WHOLE tool-loop silently 404'd (0 tool-calls -> empty/recall-fallback).
-    # Set it unconditionally here so EVERY tool-loop caller (native, opencode, hermes,
-    # daemon) is covered regardless of which client/headers they pass. Idempotent.
     _hdrs.setdefault("Content-Type", "application/json")
-    # WS-FED/G2: outbound credential -- the shared backend key for a local lane,
-    # or this agent's OWN per-endpoint header for a remote/federated /v1 endpoint
-    # (a forwarded client bearer would 401 the node, so set the right one here).
     _apply_outbound_auth(_hdrs, ep)
 
     start_time = time.monotonic()
@@ -317,14 +280,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
             msgs.append({"role": "user", "content": f"SYSTEM ALERT: You have exceeded the maximum execution time budget of {wall_clock_budget_s} seconds for this turn. Do NOT make any more tool calls. Summarize the information you have gathered and provide a final answer to the user now."})
             break
 
-        # parallel_tool_calls (OpenAI default True): a SMALL local model handed a
-        # multi-step request ("open notepad AND type hello") emits MALFORMED parallel
-        # tool calls (the fn name/wrapper drops, leaving raw "arguments": {...} in
-        # content -> the call never fires), so default to False (one well-formed call
-        # per turn; the loop sequences anyway). A CAPABLE lane (heavy SGLang/Qwen, per
-        # _endpoint_supports_parallel_tools SSOT) gets the OpenAI-standard True -> it
-        # batches INDEPENDENT calls into one turn (fewer round-trips) and still
-        # sequences dependent steps. /16.
         nb = {"model": model, "messages": msgs, "tools": tools, "stream": False,
               "parallel_tool_calls": _endpoint_supports_parallel_tools(ep)}
         if tool_choice and _ == 0:
@@ -362,7 +317,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 _c = re.sub(r"<function=.*?</function>", "", _c, flags=re.DOTALL | re.IGNORECASE)
                 msg["content"] = _c.strip()
         if not tcs:
-            # disclaimer with no tool call -> nudge ONCE then re-loop
             if not _nudged and _looks_like_disclaimer(msg.get("content") or ""):
                 _nudged = True
                 push(" 🪤")
@@ -370,11 +324,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                              "content": msg.get("content") or ""})
                 msgs.append({"role": "user", "content": _TOOL_NUDGE})
                 continue
-            # CLOSED LOOP (operator "loop anything not fully fulfilled"): the model
-            # stopped calling tools, but if a verb THIS loop reported a FAILURE it never
-            # fixed, the turn is UNFULFILLED -> re-engage ONCE (bounded) with a fix-it
-            # nudge so it retries the failed step instead of declaring done on a failure.
-            # Verdict = the broker result; _replan_max bounds it (no infinite loop).
             if _last_failed and _replan < _replan_max:
                 _replan += 1
                 _last_failed = False
@@ -382,10 +331,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 log.info("tool-loop CLOSED-LOOP re-engage #%d: prior verb FAILED and the "
                          "model gave up -> fix-it nudge (bounded %d)",
                          _replan, _replan_max)
-                # DAEMON-DIAGNOSE: a fresh monitor LLM explains WHY the step failed +
-                # proposes a DIFFERENT concrete action, so the retry is GUIDED, not a
-                # blind re-ask. Pulls the goal (original user msg) + the last failed tool
-                # result. Degrade-open -> generic nudge if the monitor returns nothing.
                 _goal = next((str(_o.get("content") or "") for _o in (messages or [])
                               if isinstance(_o, dict) and _o.get("role") == "user"), "")
                 _failsum = next((str(_o.get("content") or "") for _o in reversed(msgs)
@@ -403,7 +348,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 continue
             break
 
-        # runaway loop / progress checking
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
             break   # loop guard: no NEW tool calls this round -> stop (runaway)
@@ -427,7 +371,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 msgs.append({"role": "user", "content": "SYSTEM ALERT: Runaway loop detected (repeated identical tool names). Terminating loop."})
                 break
 
-        # Check blacklist for incoming tool calls
         active_tcs = []
         blacklisted_tmsgs = []
         for tc in tcs:
@@ -470,14 +413,12 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                 _last_failed = False
                 consecutive_failures = 0
 
-        # On tool error: add Reflexion step
         if batch_failed and reflexion_enable:
             if consecutive_failures >= max_consecutive_failures:
                 log.warning("tool-loop hit max_consecutive_failures=%d -> terminating", max_consecutive_failures)
                 msgs.append({"role": "user", "content": "SYSTEM ALERT: Maximum consecutive tool failures reached. Terminating loop."})
                 break
             
-            # Find the first failed tool call
             failed_tc = None
             failed_tm = None
             for tc in active_tcs:
@@ -489,7 +430,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                     break
             
             if failed_tc and failed_tm:
-                # Call structured reflection helper
                 try:
                     from mios_reflect import reflect_on_step_failure
                     failed_node = {
@@ -514,11 +454,9 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                     )
                     
                     if correction and isinstance(correction, dict) and correction.get("tool"):
-                        # Keep it internal in reasoning channel
                         rationale = correction.get("rationale") or "Correcting failed step"
                         push(f"\n\n🤖 Reflexion correction: {rationale}\n")
                         
-                        # Add correction user prompt
                         reflection_prompt = (
                             f"SYSTEM REFLEXION: A tool call failed. Corrective action suggested: "
                             f"tool={correction['tool']}, args={json.dumps(correction['args'])}. "
@@ -526,7 +464,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                         )
                         msgs.append({"role": "user", "content": reflection_prompt})
                         
-                        # Log event
                         if _db_create and _db_fire and _db_post:
                             try:
                                 sql = _db_create("event", {
@@ -548,7 +485,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                     log.warning("Failed to run structured reflexion: %s", ref_err)
                     break
 
-        # Save superstep checkpoint
         if session_id and _db_create and _db_fire and _db_post:
             superstep_id = f"superstep_{_}"
             checkpoint_key = f"{session_id}:{superstep_id}"
@@ -573,10 +509,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
         if not ran_read:
             break
     else:
-        # Loop exhausted its iteration budget without the model finishing (audit P5
-        #): surface the bound. The OpenAI Agents SDK raises
-        # MaxTurnsExceeded; MiOS degrades-open for a gateway but LOGS so a slow /
-        # looping turn is diagnosable rather than silently truncated.
         log.warning("secondary tool-loop hit MAX_ITERS=%d -> returning PARTIAL "
                     "(model kept requesting tools without a final answer)",
                     max(1, SECONDARY_TOOL_MAX_ITERS))

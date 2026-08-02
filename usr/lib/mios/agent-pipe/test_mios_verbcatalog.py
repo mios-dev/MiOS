@@ -40,7 +40,6 @@ default = 30
 aliases = ["n", "top_k"]
 
 [verbs.ui_button]
-# No `section` key -> NOT an agent verb; must be rejected by the loader.
 label = "Build"
 
 [recipes.toast]
@@ -72,7 +71,6 @@ class VerbCatalogTest(unittest.TestCase):
             pass
 
     def test_load_parses_only_agent_verbs(self):
-        # open_app + recall carry `section`; ui_button does not -> rejected.
         self.assertIn("open_app", self.cat)
         self.assertIn("recall", self.cat)
         self.assertNotIn("ui_button", self.cat)
@@ -84,7 +82,6 @@ class VerbCatalogTest(unittest.TestCase):
     def test_verb_to_openai_projection(self):
         tool = VC._verb_to_openai_tool("open_app", self.cat["open_app"])
         self.assertEqual(tool["type"], "function")
-        # Model-facing name is the model_name alias; canonical key rides x-mios-verb.
         self.assertEqual(tool["function"]["name"], "launch_application")
         self.assertEqual(tool["x-mios-verb"], "open_app")
         self.assertEqual(tool["x-mios-permission"], "write")
@@ -96,11 +93,9 @@ class VerbCatalogTest(unittest.TestCase):
         self.assertEqual(params["properties"]["name"]["type"], "string")
 
     def test_verb_to_openai_optional_param_nullable(self):
-        # recall.limit has a default -> strict-mode nullable type.
         tool = VC._verb_to_openai_tool("recall", self.cat["recall"])
         spec = tool["function"]["parameters"]["properties"]["limit"]
         self.assertEqual(spec["type"], ["integer", "null"])
-        # name == key when no model_name declared.
         self.assertEqual(tool["function"]["name"], "recall")
 
     def test_recipe_projection(self):
@@ -113,7 +108,6 @@ class VerbCatalogTest(unittest.TestCase):
         self.assertIn("message", props)
         self.assertIn("os", props)            # injected OS selector
         self.assertEqual(props["message"]["type"], ["string", "null"])
-        # Test typed dict recipe arguments
         rich_cfg = {
             "description": "Rich toast",
             "args": {
@@ -155,7 +149,6 @@ class VerbCatalogTest(unittest.TestCase):
         self.assertEqual(self.model_map["launch_application"], "open_app")
         self.assertEqual(self.model_map["open_application"], "open_app")
         self.assertEqual(self.model_map["start_app"], "open_app")
-        # _resolve_verb_key: alias -> key, key -> key, unknown -> identity.
         self.assertEqual(VC._resolve_verb_key("launch_application"), "open_app")
         self.assertEqual(VC._resolve_verb_key("open_app"), "open_app")
         self.assertEqual(VC._resolve_verb_key("nope"), "nope")
@@ -164,7 +157,6 @@ class VerbCatalogTest(unittest.TestCase):
     def test_arg_synonyms_projection(self):
         syn = VC._verb_arg_synonyms_from_catalog(self.cat)
         self.assertEqual(syn["open_app"]["name"], ["app", "binary", "exe", "file", "path", "program", "query", "target", "title"])
-        # The compat shim reads the injected _VERB_CATALOG.
         self.assertEqual(VC._load_verb_arg_synonyms(), syn)
 
     def test_identity_answer_from_live_catalog(self):

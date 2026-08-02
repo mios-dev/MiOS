@@ -40,14 +40,14 @@ ln -sf ${MIOS_USR_DIR}/version ${MIOS_USR_DIR}/mios-version
 OSR=/usr/lib/os-release
 if command -v miosd >/dev/null 2>&1; then
     miosd finalize-osrelease --path "$OSR" --version "$MIOS_VERSION"
-    mios_ok "os-release version projected from SSOT via miosd: ${MIOS_VERSION}"
+    mios_ok "Os-release version projected from SSOT via miosd: ${MIOS_VERSION}"
 elif [[ -f "$OSR" && "$MIOS_VERSION" != "unknown" ]]; then
     for _k in VERSION VERSION_ID BUILD_ID IMAGE_VERSION OSTREE_VERSION; do
         sed -i -E "s|^${_k}=.*|${_k}=\"${MIOS_VERSION}\"|" "$OSR"
     done
     sed -i -E "s|^PRETTY_NAME=.*|PRETTY_NAME=\"MiOS ${MIOS_VERSION}\"|" "$OSR"
     sed -i -E "s|^CPE_NAME=.*|CPE_NAME=\"cpe:/o:mios-dev:mios:${MIOS_VERSION}\"|" "$OSR"
-    mios_ok "os-release version projected from SSOT: ${MIOS_VERSION}"
+    mios_ok "Os-release version projected from SSOT: ${MIOS_VERSION}"
 fi
 
-mios_ok "finalized"
+mios_ok "Finalized"

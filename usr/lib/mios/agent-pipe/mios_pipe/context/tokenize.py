@@ -73,8 +73,6 @@ class TiktokenBackend:
         return f"tiktoken-{self._encoding}"
 
     def count(self, text: str) -> int:
-        # disallowed_special=() so a literal special-token string in user text is
-        # counted as ordinary bytes, never raising.
         return len(self._enc.encode(str(text), disallowed_special=()))
 
     def truncate(self, text: str, max_tokens: int) -> str:
@@ -191,9 +189,6 @@ def truncate_to_tokens(text: str, max_tokens: int) -> str:
     n = max(0, int(max_tokens))
     if count_text(s) <= n:
         return s
-    # A real backend can truncate token-EXACTLY (encode -> slice ids -> decode); the
-    # heuristic has no such method, so it falls through to the char-budget slice
-    # (n * chars_per_token) -- byte-identical to the prior `[:N]` behaviour.
     tr = getattr(_BACKEND, "truncate", None)
     if callable(tr):
         try:

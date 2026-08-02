@@ -2,13 +2,6 @@
 # AI-hint: Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key.
 # AI-related: usr/share/mios/security, usr/share/mios/mios.toml, mios_a2a_principal, tools/generate-egress-firewall.py
 # AI-functions: _cfg, ensure_ca, issue_agent_cert, main
-#   Operator-gated tool (like the fine-tune subsystem): generates a self-signed
-#   local CA (the standard self-hosted default; override the paths in
-#   [security.mtls] to use an org PKI) and an agent leaf cert/key valid for BOTH
-#   client + server auth, so A2A peers can mutually authenticate. Writes PEMs to
-#   [security.mtls].dir (default /etc/mios/mtls), NOT committed (secrets, per-host,
-#   time-stamped). mTLS itself is terminated at the reverse proxy (MiOS's TLS
-#   pattern) using these certs -- this tool only mints the PKI.
 """Provision the MiOS agent mTLS keypair + CA (#54).
 
 Zero-trust federation needs peers to mutually authenticate. The ed25519 *message*

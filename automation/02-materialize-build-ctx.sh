@@ -22,8 +22,8 @@ if [[ "$AUTH" == "true" ]]; then
     mios_log "Build_catalog_authoritative=true; materialize build-ctx into ${MIOS_BUILD_CTX}"
     export MIOS_BUILD_CTX="${MIOS_BUILD_CTX:-$(dirname "$TOML_PATH")}"
     if /usr/libexec/mios/materialize-build-ctx.py; then
-        mios_ok "materialized to ${MIOS_BUILD_CTX}"
+        mios_ok "Materialized to ${MIOS_BUILD_CTX}"
     else
-        mios_warn "materialization failed (DB unreachable in clean container); falling back to TOML"
+        mios_warn "Materialization failed; falling back to TOML"
     fi
 fi

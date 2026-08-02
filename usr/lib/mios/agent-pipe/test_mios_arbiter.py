@@ -27,7 +27,6 @@ def t_default_allow():
 def t_deny_list():
     v = arb.decide("powershell_run", "interactive", deny=["powershell_run"], tiers=TIERS)
     check("deny: deny-list refuses", not v.allow and v.rule == "deny_list")
-    # deny wins even if also on allow-list.
     v2 = arb.decide("x", "read", deny=["x"], allow=["x"], tiers=TIERS)
     check("deny: deny beats allow", not v2.allow and v2.rule == "deny_list")
 
@@ -53,7 +52,6 @@ def t_block_tier():
 
 
 def t_fail_closed():
-    # An unknown tier ranks above the top -> blocked when any block_tier is set.
     v = arb.decide("mystery", "superuser", block_tier="interactive", tiers=TIERS)
     check("fail-closed: unknown tier ranks above top -> deny", not v.allow, f"{v.to_dict()}")
 

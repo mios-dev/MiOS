@@ -31,4 +31,4 @@ systemd-tmpfiles --create --boot --root=/ 2>/dev/null || true
 mios_log "Cleaning package manager caches"
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 
-mios_ok "image cleanup"
+mios_ok "Image cleanup"

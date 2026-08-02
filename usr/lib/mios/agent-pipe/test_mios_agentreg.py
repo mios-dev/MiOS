@@ -57,7 +57,6 @@ def _is_remote_endpoint(ep):
     return bool(ep) and ("localhost" not in ep) and ("127.0.0.1" not in ep)
 
 
-# Inject the server-resident deps under their original names.
 reg.configure(
     is_remote_endpoint=_is_remote_endpoint,
     opt_int_mb=_opt_int_mb,
@@ -68,8 +67,6 @@ reg.configure(
 
 
 def t_build_agent_engines():
-    # home + cpu twin come from `entry` (the built registry row); explicit
-    # engines/nodes tables come from `raw_cfg` -- mirrors _load_agent_registry.
     entry = {"lane": "", "endpoint": "http://h:1/v1", "model": "m",
              "cpu_endpoint": "http://c:3/v1", "cpu_model": "cm"}
     raw = {"engines": {"GPU": {"endpoint": "http://g:2/v1/", "model": "gm"}}}
@@ -82,13 +79,6 @@ def t_build_agent_engines():
 
 
 def t_load_agent_registry(monkeypatched_toml):
-    # Force the EMPTY-config path (no [agents.*]) so _load_agent_registry falls back
-    # to the single hermes entry. Monkeypatch reg._toml_section -> {} -- the SAME
-    # robust isolation the sibling tests (t_load_node_pool / t_health_gate) use. The
-    # older open()/MIOS_TOML stubbing was fragile: on the built image
-    # _load_agent_registry still read the live /usr/share/mios/mios.toml (via a path
-    # the open() mock missed / a cached load_merged), yielding a NON-empty registry so
-    # the hermes fallback never triggered and `default is True` failed in CI.
     _saved = reg._toml_section
     reg._toml_section = lambda section: {}
     try:
@@ -100,7 +90,6 @@ def t_load_agent_registry(monkeypatched_toml):
 
 
 def t_load_node_pool():
-    # Monkeypatch the module's _toml_section so [nodes.*] is served offline.
     _saved = reg._toml_section
     nodes = {
         "potato": {"endpoint": "http://10.0.0.9:11435/v1", "lane": "cpu",
@@ -132,13 +121,6 @@ def t_load_node_pool():
 
 
 def t_health_gate_via_registry():
-    # Drive _load_agent_registry through a real layered TOML so the _defaults
-    # inheritance + health_gate safe-default + auth indexing are exercised.
-    # AGY refactor (d3f2622d): _load_agent_registry now reads [agents.*] via the
-    # _toml_section resolver, NOT a raw MIOS_TOML file. Feed the synthetic agents the
-    # same way the other tests do -- monkeypatch reg._toml_section -- so the _defaults
-    # inheritance + health_gate safe-default + per-agent auth indexing are exercised
-    # offline (the old MIOS_TOML temp-file path is silently ignored by the resolver).
     agents = {
         "_defaults": {"role": "general", "strengths": ["x"]},
         "localworker": {"endpoint": "http://localhost:8643/v1", "model": "lm"},
@@ -167,7 +149,6 @@ def t_health_gate_via_registry():
 
 
 def t_agent_lane():
-    # Pure (no injected deps): explicit lane wins, else inferred from endpoint/model.
     check("lane: explicit wins", reg._agent_lane({"lane": "IGPU"}) == "igpu")
     check("lane: igpu port inferred", reg._agent_lane({"endpoint": "http://h:8450/v1"}) == "igpu")
     check("lane: igpu model inferred", reg._agent_lane({"model": "mios-igpu"}) == "igpu")
@@ -177,7 +158,6 @@ def t_agent_lane():
 
 
 def t_render_agent_catalog():
-    # _render_agent_catalog reads _agent_lane as a module-level SIBLING (no DI).
     check("catalog: empty registry -> ''", reg._render_agent_catalog({}) == "")
     out = reg._render_agent_catalog({
         "coder": {"job": "writes code", "lane": "gpu"},
@@ -190,7 +170,6 @@ def t_render_agent_catalog():
 
 
 def t_role_system():
-    # _role_system reads the INJECTED _ROLE_SYSTEM_DIR; degrade-open to ''.
     import os
     import tempfile
     check("role: empty name -> ''", reg._role_system("") == "")
@@ -208,9 +187,6 @@ def t_role_system():
 
 
 def t_dedup_pool_by_target():
-    # Inject the hot registry + helper deps the dedup body reads, then assert the
-    # (endpoint, model) collapse, the node:* preference, the batching by-name keep,
-    # and the SWARM_MAX_WIDTH cap.
     registry = {
         "a": {"endpoint": "http://h:1/v1", "model": "m"},
         "b": {"endpoint": "http://h:1/v1", "model": "m"},          # dup of a -> collapsed

@@ -47,17 +47,7 @@ from mios_council_diversity import apply_council_gates, note_aggregator
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The swarm brain reads server.py's config scalars, the live agent registry +
-# verb catalog, the routed-domain ContextVar, and calls back into the agent
-# selection / pool / liveness / lane / read-enrich / source / strip / usage /
-# native-loop-fallback helpers. server.py calls configure() with those AFTER
-# every one is defined (one-way boundary: this module never imports server). The
-# placeholders below carry the documented defaults so a standalone
-# ``import mios_swarm`` still succeeds; every consumer is async/runtime so
-# nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 SWARM_MAX_WIDTH = 6
 SWARM_MAX_CPU_NODES = 2
 SWARM_DEEPEN_ENABLED = False
@@ -65,23 +55,15 @@ SLOW_LANE_BLOCK_CHARS = 1500
 DAG_REPLAN_MAX = 1
 DAG_EMPTY_NATIVE_FALLBACK = True
 SLOW_LANES: set = set()
-# decomposer pair (_plan_swarm / _expand_facets) scalars: the recursion-depth
-# ceiling + the swarm planner model and the full-roster fallback prompt head /
-# rendered roster. Server SSOT/env-derived, injected at import-completion; the
-# placeholder mirrors the SSOT default so a standalone import degrades open.
 MAX_DISPATCH_DEPTH = 2
 SWARM_MODEL = ""
 _SWARM_SYSTEM_HEAD = ""
 _AGENT_CATALOG_RENDERED = ""
 
-# mutable refs (injected BY REFERENCE -- server assigns each and the shared
-# object stays live; _AGENT_REGISTRY is rebound on membership reload, so server
-# re-injects it there).
 _AGENT_REGISTRY: dict = {}
 _VERB_CATALOG: dict = {}
 _routed_domain_var = None
 
-# server-side helpers (injected)
 _depth_exhausted = None
 _dispatch_depth = None
 _render_agent_catalog = None
@@ -104,10 +86,6 @@ _db_read = None
 _db_fire = None
 _db_post = None
 _db_create = None
-# T-047/T-048: the server-resident single-vector embed lane (mios-llm-light nomic),
-# injected so the council-diversity / aggregation-bypass gates reuse the SAME
-# embedding path as the rest of the pipeline (no duplicated endpoint literal). Stays
-# None until configure(); the gates degrade-open (no-op) when it is unavailable.
 _embed_one = None
 
 
@@ -263,11 +241,6 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
     "separate prompts per refinement step -> sub-agents ... concurrent
     Compute" directly. Returns {summary, nodes}."""
     nodes: list = []
-    # CAP + DE-DUP facets ("ridiculous runtimes"): a simple
-    # query was over-decomposed into ~6 topical facets, each running 3-5 heavy
-    # web-research passes (~24 web renders) = the load/time/disk blowup. Drop
-    # duplicate facets (the planner emitted 'top world headlines' twice) and bound
-    # the facet count to SWARM_MAX_WIDTH so the total web work stays sane.
     if isinstance(tasks, list) and tasks:
         _seen_f: set = set()
         _uniq: list = []
@@ -281,25 +254,8 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
                 _seen_f.add(_fk)
             _uniq.append(_t)
         tasks = _uniq[:SWARM_MAX_WIDTH] if SWARM_MAX_WIDTH > 0 else _uniq
-    # SPREAD across DISTINCT hardware nodes ("all nodes and
-    # endpoints must fire across all hardware nodes on the network"): the
-    # decomposer often funnels every facet to ONE agent, so the DISPATCHER
-    # guarantees distribution -- honour a distinct per-task hint, but when a hint
-    # repeats (or is absent) and unused roster nodes remain, reassign to an unused
-    # node so the facets fan out across ALL the hardware (dGPU/hermes, opencode,
-    # iGPU, phone/ai-local, daemon).
-    # When a LIVE set is given (swarm path), restrict spread + backfill to
-    # REACHABLE nodes so every live engine fires ("fire on
-    # ALL NODES incl iGPU") WITHOUT assigning a facet to a down node.
-    # research_only workers are EXCLUDED from the normal
-    # pool so everyday council/swarm turns stay light; they join ONLY when
-    # include_research=True (a research / deep-research turn), multiplying the
-    # 2-4GB workers across every lane for maximum concurrent coverage.
     def _eligible(a: str) -> bool:
         c = _AGENT_REGISTRY.get(a) or {}
-        # fanout=false agents (opencode-hangs/monopolises, mios-daemon-agent
-        # =monitor) are excluded from the swarm DAG too,
-        # not just the council. They engage only when explicitly routed.
         if c.get("fanout") is False or \
                 str(c.get("fanout", "")).strip().lower() in {"false", "no", "0"}:
             return False
@@ -318,13 +274,6 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         prompt = str(t.get("refined_text") or t.get("title") or "").strip()
         if not prompt:
             continue
-        # per-facet tool steering ("both" mixed execution): a
-        # LOCAL facet (local_state) must read THIS machine's REAL state via local
-        # tools -- not guess; an EXTERNAL facet (web/news) must web-search -- not
-        # answer from stale memory. Steer each facet agent to its tool class so a
-        # concurrent local+web "both" split actually executes both halves (the GPU
-        # facet was returning "cannot be determined" because the node carried only
-        # the bare text + no tool steering).
         _ls = t.get("local_state"); _wb = t.get("web"); _nw = t.get("news")
         _is_local = _ls is True or (isinstance(_ls, str) and _ls.strip().lower() in {"true", "1", "yes"})
         _is_web = (_wb is True or (isinstance(_wb, str) and _wb.strip().lower() in {"true", "1", "yes"})
@@ -339,13 +288,6 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         tgt = str(t.get("target_agent") or "").strip()
         aname = (tgt if tgt in _AGENT_REGISTRY
                  else (_pick_agent(tgt)[0] if tgt else ""))
-        # ELIGIBILITY (wedge fix): a per-task target_agent
-        # hint was used AS-IS, bypassing the _eligible() pool filter -- so when
-        # the planner routed a facet to a research_only worker
-        # it landed in the DAG even on a non-research / AUTONOMOUS turn, defeating
-        # include_research=False and re-creating the wide cold-load fan-out that
-        # OOM-wedged the VM. If the resolved agent is NOT eligible this turn,
-        # redirect it to an eligible pool agent.
         if aname and aname not in pool and not _eligible(aname):
             alt = next((a for a in pool if a not in used), None) \
                 or (pool[0] if pool else "")
@@ -358,28 +300,13 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
         if not aname:
             aname = _pick_agent("")[0]
         used.append(aname)
-        # `title` = the CLEAN facet label for the per-node emit (the grounding
-        # prefix gets prepended to `prompt` later, so emit off `title` not prompt).
         nodes.append({"id": f"t{i + 1}", "agent": aname, "prompt": prompt,
                       "title": (str(t.get("title") or prompt)[:72]), "deps": [],
                       "local_state": _is_local, "web": _is_web,
                       "inventory_filter": t.get("inventory_filter")})
-    # Backfill EVERY live agent the planner skipped ("didnt
-    # fire on ALL NODES ... you also forgot iGPU"): a small planner routinely
-    # under-covers (used 2 of N). Each idle live node gets its OWN node,
-    # researching one of the (clean) facets round-robin -> no REACHABLE engine
-    # sits idle. The iGPU/phone rejoin here the moment their servers are up (they
-    # appear in `live_agents` only when reachable); a DOWN node is absent from
-    # `live_agents`, so it's never assigned -- you can't fire a node that isn't
-    # listening. This re-enables the cross-hardware fan-out narrowed on
-    # now operator-mandated for ALL LIVE nodes (the iGPU's ~7 tok/s
-    # is the operator's accepted trade for full engagement).
     if live_agents is not None and nodes:
         _base = list(nodes)
         _bi = 0
-        # Count slow-lane nodes already assigned as PRIMARY facets (never dropped);
-        # the backfill below won't push the slow-lane total past the ceiling so a
-        # wide turn can't pile redundant CPU/iGPU gens (j).
         def _node_slow(n: dict) -> bool:
             return _is_slow_lane_ep(str(
                 (_AGENT_REGISTRY.get(n.get("agent")) or {}).get("endpoint") or ""))
@@ -401,7 +328,6 @@ def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
                           "web": src.get("web"),
                           "inventory_filter": src.get("inventory_filter")})
             used.append(a)
-    # multi_task "both" intent: research facet completes first, exports typed findings; action facet depends on those findings
     has_web = any(n.get("web") for n in nodes)
     has_local = any(n.get("local_state") for n in nodes)
     if has_web and has_local:
@@ -425,30 +351,11 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
     synthesis is the operator-facing answer -- same answer/dropdown split
     as the agent + council paths. Streaming emits LIVE per-node endpoint
  statuses as the DAG runs, before the synthesis."""
-    # DEPTH dial ("concurrent true swarm" + "deep cycles are
-    # INTENDED for deeper cycles"): the swarm ALWAYS fans out across all live nodes
-    # (breadth), but the expensive per-node DEEPEN loop + per-facet deep multi-pass
-    # web research run ONLY for a genuine deep request. A casual turn fans to all
-    # nodes, each doing ONE pass off the shared web_search already in context (fast,
-    # concurrent); a deep turn adds per-facet deep research + deepen.
     _dag_deep = bool(refined and (refined.get("deep") or refined.get("deep_research")))
-    # MIXED "both" split : when the DAG carries a LOCAL facet
-    # (a local_state node from a refine internal/external/both split), the SHARED
-    # single web_search grounding can't serve it -- the local facet would get web
-    # content + fabricate ("GPU cannot be determined"). Force the PER-FACET grounding
-    # path so each facet pulls its OWN source: a local node -> system_status/mios_apps
-    # via _read_tool_enrich; a web node -> web_search.
     _dag_has_local = any(n.get("local_state") for n in (dag.get("nodes") or []))
 
     async def _synthesise(dag_result: dict) -> tuple:
         """Post-DAG: build the audit envelope + the polished synthesis."""
-        # MULTI-FACET CLOSED LOOP ("loop anything not successful or
-        # fully fulfilled" ACROSS the fan-out): if any facet's verdict is UNFULFILLED
-        # (satisfied is False), RE-DISPATCH the DAG, bounded by DAG_REPLAN_MAX. Adopt the
-        # fresh result ONLY if it satisfies STRICTLY MORE facets -- a re-run can NEVER
-        # make the answer worse -- and DEGRADE-OPEN on any error (keep the original). So
-        # this cannot break or regress the working fan-out; worst case is one wasted
-        # re-run. Verdict-driven (the broker's satisfied flag), not a hardcoded rule.
         try:
             def _nsat(_dr: dict) -> int:
                 return sum(1 for _n in (_dr or {}).get("node_results", [])
@@ -501,11 +408,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                         pass
         except Exception as _re_err:  # noqa: BLE001 -- degrade-open, never break synth
             log.warning("DAG closed-loop replan skipped: %s", _re_err)
-        # Drop punting nodes from the polish input : a
-        # node that produced a real grounded answer must not be diluted by a
-        # sibling's "no data / can't help / rephrase" filler. FAIL-SAFE: if
-        # EVERY node punted, fall back to all-with-output so we never feed
-        # polish nothing (behaviour then unchanged from before).
         def _is_punt(_out: str) -> bool:
             t = (_out or "").strip().lower()
             if not t:
@@ -520,11 +422,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             )
             if not any(m in t for m in _markers):
                 return False
-            # A GROUNDED answer is long + carries facts (citations/dates/figures);
-            # only call it a punt if it's SHORT and fact-thin despite the marker
-            # (an 18-min turn shipped a punt while a sibling
-            # had the real news -- don't discard a real answer that merely CONTAINS
-            # a marker phrase).
             _facty = bool(re.search(r"\[\d+\]|\b20\d\d\b|\b\d{3,}\b", t)) or len(t) > 600
             return not _facty
 
@@ -534,20 +431,9 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                        if n.get("satisfied") is not False
                        and not _is_punt(n.get("output"))]
         _use_nodes = _good_nodes if _good_nodes else _all_nodes
-        # ── COUNCIL DIVERSITY GATE (T-047) + AGGREGATION BYPASS (T-048) ──────
-        # Score the k council responses' semantic diversity on their 768-d nomic
-        # embeddings (computed ONCE here, reused by both gates -- zero per-pair
-        # model calls). T-047 prunes near-duplicate inputs so the aggregator sees
-        # a diverse set; T-048 skips the aggregator LLM entirely when the whole
-        # council converged and ships the highest-confidence individual response.
-        # Both gates DEFAULT-OFF -> when off nothing here runs (no embed calls, no
-        # stats) and the synthesis path below is byte-identical to today.
         _bypass_main = None
         if COUNCIL_DIVERSITY_GATE or COUNCIL_AGGREGATOR_BYPASS:
             def _log_bypass_event(*, kind, council_size, mean_similarity):
-                # Emit the aggregator_bypass event via the same event-log helper the
-                # closed-loop replan uses above (metadata folded into the summary --
-                # no event-schema change). Best-effort; never breaks synthesis.
                 if not (_db_fire and _db_post and _db_create):
                     return
                 _ev = _db_create("event", {
@@ -605,12 +491,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 out_val = f"Verb-Output Schema: {(n.get('output') or '').strip()}"
             formatted_nodes.append(f"[{label}]:\n{out_val}")
         merged = "\n\n".join(formatted_nodes)
-        # RAW research grounding ("still lacking ACTUAL
-        # contents"): the union of the fetched web content across facets, so the
-        # synthesis works from the real FACTS/titles/scores even when an agent
-        # punts ("too far in the future") or FAILS empty -- the failure mode
-        # where the node holding the gold grounding (FakeGame 6 #1 etc.)
-        # died and the synthesis then FABRICATED sources. Deduped + capped.
         _synth_cap = int(os.environ.get("MIOS_SWARM_SYNTH_RESEARCH_CAP", "7000")
                          or 7000)
         _seen: set = set()
@@ -623,13 +503,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         _research = "\n\n".join(_grounds)[:_synth_cap]
         log.info("dag synth: research_chars=%d grounded_nodes=%d merged_chars=%d",
                  len(_research), len(_grounds), len(merged))
-        # Audit envelope = METADATA only (emits "not dumped
-        # all last second" + "duplicated in emit and thinking blocks"). Each
-        # node's full OUTPUT now streams LIVE into the reasoning block as the
-        # node finishes (see _execute_dag_emitting 'done' branch), so re-dumping
-        # the full outputs here would DUPLICATE them + bloat the end-of-turn
-        # flush. Keep the per-node verdict/tool/latency for the audit dropdown;
-        # drop the (already-streamed) output text, leaving only its length.
         _audit_nodes = []
         for _n in dag_result.get("node_results", []):
             if not isinstance(_n, dict):
@@ -655,8 +528,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     f"parallel</summary>\n\n"
                     f"```json\n{json.dumps(env, indent=2, default=str)}\n```\n"
                     f"</details>")
-        # Synthesise from the RAW RESEARCH first (ground truth) + the agents'
-        # findings; forbid fabricated sources/'where to look' filler.
         _synth_in = ""
         if _research.strip():
             _synth_in += (
@@ -684,13 +555,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                           "agent/tool (success=false in the audit envelope) is "
                           "analysis only, never ground truth. Ignore findings that "
                           "punt:\n" + merged)
-        # HONEST-WHEN-EMPTY ("--failure!!"): with only generic
-        # homepage research, a facet FABRICATED IPCC/WHO/UNEP "reports" from training
-        # data + the synthesis shipped them cited [n] as today's news. So: if the RAW
-        # RESEARCH holds NO concrete stories, the REQUIRED answer is a short, honest
-        # "I couldn't find specific trending stories from live sources for <today>"
-        # -- that is NOT a punt. NEVER backfill today's news from prior knowledge;
-        # a confident fabricated answer is the worst possible outcome here.
         _synth_in += (
             "\n\nGROUNDING RULES (check before you answer):\n"
             "  1) If RAW RESEARCH is empty or only generic homepage content, you have "
@@ -703,17 +567,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             "  3) Before returning, scan every [n] in your answer: if source [n] is "
             "not in the RAW RESEARCH block, DELETE the sentence carrying it. Every "
             "name, date, and figure you keep must appear in the blocks above.")
-        # INVOKED-TOOL evidence for polish's anti-fabricated-action check on the
-        # SWARM / multi_task synthesis path. Without it, polish had NO authoritative
-        # "what actually fired this turn" signal here (agent_tools defaulted to
-        # None), so a facet that merely TALKED about a side-effecting action
-        # ("Launched X", "posted to Discord") slipped through -- the launch-lie the
-        # operator flagged. Collect the verbs the DAG ACTUALLY dispatched and
-        # SUCCEEDED at; agent:* entries are agent runs (not side-effecting verbs)
-        # and are dropped. Empty => no verb fired this turn, so any completed-action
-        # claim in the synthesis is unbacked and the check refuses it. Agent-INTERNAL
-        # verbs (a facet's own tool-loop) are still covered by polish's session
-        # tool_history block, so the two signals together are complete.
         _dag_invoked: list = []
         for _nr in dag_result.get("node_results", []):
             _nt = str(_nr.get("tool") or "")
@@ -723,11 +576,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 _dag_invoked.append(_nt)
         polished = ""
         if _bypass_main is not None:
-            # T-048 aggregation bypass: the council converged (all pairwise cosine
-            # > threshold), so the aggregator LLM adds nothing -> ship the highest-
-            # confidence (medoid) individual response WITHOUT the aggregator call.
-            # `main` still flows through the punt/fallback guard below, so the
-            # anti-fabrication safety net is preserved.
             main = _bypass_main or _strip_think_tags(merged)
         elif _synth_in.strip():
             polished_raw = await polish_response(
@@ -739,16 +587,8 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             main = polished.strip() or _strip_think_tags(merged)
         else:
             main = polished.strip() or _strip_think_tags(merged)
-        # T-048 bypass-rate telemetry (surfaced as aggregator_calls_bypassed_pct in
-        # /v1/cluster/health). Counted ONLY when the bypass gate is enabled and there
-        # was a real aggregation opportunity, so the metric stays honest and the
-        # gate-off path touches no counters.
         if COUNCIL_AGGREGATOR_BYPASS and (_bypass_main is not None or _synth_in.strip()):
             note_aggregator(bypassed=_bypass_main is not None)
-        # If polish itself PUNTED despite grounded findings (
-        # the 18-min turn shipped "I don't have access..." while a sibling node
-        # held the real Lebanon/World-Cup news), don't ship the punt -- fall back
-        # to the most-complete grounded sibling answer.
         if _is_punt(main) and _good_nodes:
             _best = max(_good_nodes, key=lambda n: len(str(n.get("output") or "")))
             _cand = _strip_think_tags(str(_best.get("output") or "")).strip()
@@ -756,26 +596,11 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                 log.warning("synth: polish punted but a grounded node answered "
                             "-> using the grounded sibling (%d chars)", len(_cand))
                 main = _cand
-        # Empty-DAG signal for the native-loop fallback (operator anti-fabrication):
-        # the swarm grounded NOTHING (no fetched research AND no node output) and the
-        # answer is empty/punt OR this was a web/news turn that should have carried
-        # real sources -> the caller should re-answer via the native loop. Computed
-        # HERE because _is_punt + _research + merged are all in scope.
         _grounded_nothing = (len(_research) == 0 and len(merged) == 0)
         _web_turn = bool(refined and (refined.get("web") or refined.get("news")
                                       or refined.get("deep")
                                       or refined.get("deep_research"))) \
             or (_routed_domain_var.get(None) == "web")
-        # A web/news turn whose synthesis GROUND TRUTH (_research = the FETCHED web
-        # content, the "ONLY ground truth for SPECIFICS") is EMPTY is UNGROUNDED ->
-        # the workers generated "news" from training memory = fabrication (operator's
-        # original complaint, resurfacing on the swarm path). Gate on an empty
-        # _research, NOT `not _src_collected()`: web_search REGISTERS its result URLs
-        # as sources WITHOUT fetching their content, so _src_collected() is truthy (a
-        # FALSE POSITIVE) even when research_chars=0 / grounded_nodes=0 / +0 content
-        # was fetched -- which let a fabricated headline + fake URL ship.
-        # Fall back to the native loop (which web-grounds + cites) even when merged>0,
-        # so an ungrounded news answer is never shipped.
         _ungrounded_web = bool(_web_turn and not _research.strip())
         _empty_or_punt = (not main.strip()) or _is_punt(main)
         _needs_fallback = bool((_grounded_nothing and (_empty_or_punt or _web_turn))
@@ -809,21 +634,10 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             log.warning("dag empty-fallback skipped: %s", _fbe)
         return None, []
 
-    # PER-FACET research, run LIVE inside the stream (stream
-    # EVERY step throughout the pipeline -- do NOT block then dump at the end).
-    # Each facet researches its OWN sub-query concurrently; `emit` (a sync sink,
-    # e.g. queue.put_nowait) receives a step dict per facet-start / each web step /
-    # facet-grounded, so the streaming caller yields them in REAL TIME. Modifies
-    # the dag nodes in place. Best-effort; never blocks the DAG.
     async def _ground_facets(emit=None) -> None:
         try:
             _agent_nodes = [n for n in dag.get("nodes", [])
                             if n.get("agent") and n.get("prompt")]
-            # If the DAG performs an ACTION (a write-permission verb node such as
-            # launch_verified), the research facets only need a FAST ranking to
-            # feed it -> quick mode (one pass, no deep crawl). A standalone
-            # research DAG (no action verb) keeps the deep loop (operator
-            # "launch the best game" took ~11 min in the deep loop).
             _action_dag = any(
                 str((_VERB_CATALOG.get(str(_n.get("tool"))) or {})
                     .get("permission", "")).lower() == "write"
@@ -841,24 +655,11 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     return
                 _ag = str(n.get("agent") or "")
                 if emit:
-                    # GENERATIVE function label = the facet's actual sub-query,
-                    # NOT the internal agent key.
                     emit({"emoji": "🔎", "label": _fq[:60], "detail": ""})
-                # The facet IS the query; inherit parent web hints so the gate
-                # fires for a web turn (and stays OFF for a pure-local split).
                 _fref = dict(refined or {})
                 _fref["refined_text"] = _fq
                 _fref["hint_tools"] = (refined or {}).get("hint_tools") or []
-                # Forward each web step with ITS OWN casual function label
-                # (searching / reading) -- do NOT overwrite it with the internal
-                # agent key (emit titles are the FUNCTION,
-                # never internal names).
                 _sink = emit if emit else None
-                # per-facet execution (mixed "both" split): a
-                # LOCAL facet grounds on THIS machine's REAL state via the local read
-                # tools (system_status / mios_apps / process_list), NOT web -- the GPU
-                # facet was web-searching + fabricating "cannot be determined". A WEB
-                # facet web-researches as before.
                 _local_facet = bool(n.get("local_state"))
                 if _local_facet:
                     _lref = dict(refined or {})
@@ -876,53 +677,21 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                                                          quick=_action_dag)
                     except Exception:  # noqa: BLE001
                         _wc = ""
-                # A WEB facet grounds on its fetched web content ALONE. The
-                # shared LOCAL state (_read_tool_enrich: system_status /
-                # container_status / logs) is appended ONLY when this facet got
-                # NO web content -- otherwise local telemetry pollutes a
-                # web-research facet and a weak node fixates on it (operator
-                # the daemon-agent reported its flights grounding was
-                # "crowdsec / firewall-bouncer error logs + 401s"). A local-only
-                # facet (no web content) still falls back to the live state.
                 _ss = _shared_state if isinstance(_shared_state, str) else ""
-                # Inventory-grounded request (refine set local_state /
-                # inventory_filter -> _shared_state holds the operator's ACTUAL
-                # installed games/apps via mios_apps): that local inventory is the
-                # AUTHORITATIVE subject the facet must research/act on, so inject it
-                # ALONGSIDE the web content -- NOT suppressed. Otherwise a "research
-                # MY games" facet web-researches generic popular titles and
-                # FABRICATES, never seeing the real list (
-                # "FAILURE ENTIRELY": the swarm invented Valorant/CS2 instead of the
-                # real Wreckfest/Forza inventory that mios_apps had already fetched).
                 _inv_grounded = bool(_local_facet or (refined and (refined.get("local_state")
                                                   or refined.get("inventory_filter"))))
                 if _local_facet:
-                    # the local read output (_wc, from _read_tool_enrich) IS the
-                    # authoritative grounding for a local facet (
-                    # mixed-"both" per-facet execution -- never web for a local facet)
                     _parts = [p for p in (_wc, _ss) if p]
                 elif _inv_grounded and _ss:
                     _parts = [p for p in (_ss, _wc) if p]   # real inventory FIRST
                 else:
-                    # A WEB facet with no web content gets NO grounding -- do NOT
-                    # fall back to system telemetry (a weather
-                    # facet that fetched nothing got fed the live logs and RANTED
-                    # about DNS/401 errors instead of weather). The _ss fallback is
-                    # ONLY for a local_state turn (handled above).
                     _parts = [_wc] if _wc else []
                 log.info("facet %s local=%s web=%s wc=%dB ground=%dB",
                          n.get("id"), n.get("local_state"), n.get("web"),
                          len(_wc or ""), len("\n\n".join(_parts)))
                 if _parts:
                     _g = "\n\n".join(_parts)
-                    # Stash the RAW grounding so the final synthesis can work
-                    # from the fetched FACTS even when this agent punts/fails
-                    # ("lacking ACTUAL contents": the node
-                    # holding the gold grounding failed empty + the synthesis
-                    # then fabricated). Keep the full text here; the synth caps.
                     n["_grounding"] = _g
-                    # Detail-fill deepen needs the facet's clean search query + the
-                    # refined plan (the web gate) to fetch MORE on this facet later.
                     n["_base_query"] = _fq
                     n["_refined"] = refined
                     _lane = _agent_lane(_AGENT_REGISTRY.get(_ag) or {})
@@ -969,29 +738,17 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             if emit:
                 emit({"emoji": "🔎", "label": (last_user_text or "")[:60],
                       "detail": ""})
-            # SEARCH the CLEAN refined query, not the raw user text (operator
-            # "too sparse"): refine disambiguates + date-anchors the ask
-            # ("What are the current global trends and top stories happening today,
-            # June 2nd 2026?") whereas the raw greeting-laden text ("Hey there!
-            # What's trending worldwide right now?") fanned out to the junk phrase
-            # "worldwide trends today" -> Merriam-Webster / a shipping brand. Fall
-            # back to the user text only when refine gave no refined_text.
             _sq = str((refined or {}).get("refined_text") or "").strip() or last_user_text
             try:
                 _wc = await _web_research_enrich(_sq, refined,
                                                  emit=emit, quick=True)
             except Exception:  # noqa: BLE001
                 _wc = ""
-            # System telemetry ONLY for a local_state turn -- never as a fallback
-            # for a web turn that fetched nothing (live logs
-            # fed a weather facet -> a node ranted about DNS/401 instead of weather).
             _ss = ""
             if refined and (refined.get("local_state")
                             or refined.get("inventory_filter")):
                 _ss = await _read_tool_enrich(refined, session_id)
                 _ss = _ss if isinstance(_ss, str) else ""
-            # web facts FIRST; local telemetry only for a local turn. No grounding at
-            # all -> nodes just reason (no injection), they do NOT get system logs.
             _parts = [_wc] if _wc else ([_ss] if _ss else [])
             if not _parts:
                 return
@@ -999,10 +756,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             for n in _agent_nodes:
                 n["_grounding"] = _g
                 n["_no_tools"] = True       # reason over the shared facts; don't re-search
-                # Detail-fill deepen: each fast node fetches MORE on ITS OWN facet
-                # (the planner's clean per-node title), so the union across the
-                # work-stealing nodes is rich multi-facet coverage -- not N re-reads
-                # of one query. Falls back to the shared refined query.
                 n["_base_query"] = str(n.get("title") or "").strip() or _sq
                 n["_refined"] = refined
                 _lane = _agent_lane(_AGENT_REGISTRY.get(str(n.get("agent"))) or {})
@@ -1022,11 +775,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         except Exception as e:  # noqa: BLE001 -- grounding is best-effort
             log.debug("dag shared grounding skipped: %s", e)
 
-    # OUTAGE re-route ("iGPU is down"): before grounding or
-    # dispatch, move any facet assigned to a DOWN health_gate node onto a LIVE
-    # engine so the swarm keeps its full concurrent width instead of losing a
-    # facet to a dead node. Universal -- runs on the final DAG whatever planner
-    # built it. Best-effort: a bad probe returns an empty set -> no-op.
     try:
         _moved = _reroute_dead_nodes(dag, await _live_agent_names())
         if _moved:
@@ -1040,17 +788,9 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             yield _sse_status_phase(chat_id=chat_id, model=model,
                                     phase="prompt")
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="plan")
-            # LIVE per-facet research emits (stream every step
-            # from the first query -- do NOT block then dump). Ground the facets in
-            # a background task; drain its emit queue and yield each step in REAL
-            # TIME, with a keepalive during any silent gap.
             _gq: asyncio.Queue = asyncio.Queue()
 
             async def _run_ground() -> None:
-                # DEEP turn -> per-facet deep research (N crawls). CASUAL turn ->
-                # ONE shared web_search injected into every node (
-                # casual previously had NO shared search, so each node re-searched =
-                # contention + blew the deadline). Either way grounding streams live.
                 if _dag_deep or _dag_has_local:
                     await _ground_facets(emit=_gq.put_nowait)
                 else:
@@ -1071,8 +811,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                                   label=str(_s.get("label", "")),
                                   detail=_s.get("detail"))
             await _gtask
-            # LIVE per-node endpoint emitters as the synthesis DAG executes
-            # (same 🛰️/✅/💤 vocabulary as the council + primary paths).
             dag_result: dict = {}
             async for _k, _p in _execute_dag_emitting(
                     dag, session_id=session_id, chat_id=chat_id, model=model,
@@ -1081,27 +819,16 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                     yield _p
                 else:
                     dag_result = _p
-            # Close the only silent gap: _synthesise (the polish model call)
-            # emits nothing, so the stream went quiet between the last node and
-            # the answer. Emit a live "synthesising" status so emits are
-            # CONTINUOUS throughout -- no buffering/blocking.
             yield _sse_status(chat_id=chat_id, model=model, emoji="🧬",
                               label="synthesising the answer", detail=None)
             envelope, main, _needs_fb = await _synthesise(dag_result)
             if _needs_fb and DAG_EMPTY_NATIVE_FALLBACK:
-                # The swarm grounded nothing -> re-answer via the live light lane
-                # (a real cited answer, not blank/fabricated). Status emits first so
-                # the stream isn't silent during the fallback inference.
                 yield _sse_status(chat_id=chat_id, model=model, emoji="🩺",
                                   label="swarm found nothing — focused answer",
                                   detail=None)
                 _fbtxt, _fbsrc = await _native_fallback(main)
                 if _fbtxt:
                     main = _fbtxt
-            # Attach REAL sources (turn collector + the answer's own inline URLs),
-            # like the native-loop/council finalizers, so the DAG path cites its
-            # grounding too -- the swarm grounding + any fallback recorded into the
-            # SAME turn bucket. Append the block to the STREAMED text.
             try:
                 _src_record_from_text(main)
             except Exception:  # noqa: BLE001
@@ -1135,15 +862,11 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         _fbtxt, _fbsrc = await _native_fallback(main)
         if _fbtxt:
             main = _fbtxt
-    # Attach REAL sources (turn collector + the answer's own inline URLs) like the
-    # native-loop/council finalizers, so the DAG path cites its grounding too. The
-    # swarm grounding + any native-loop fallback recorded into the SAME turn bucket.
     try:
         _src_record_from_text(main)
     except Exception:  # noqa: BLE001
         pass
     _dag_refs = _src_collected()
-    # OpenAI grounding: drop off-topic sources before citing. web-tools hardening.
     _dag_refs = _filter_relevant_sources(_dag_refs, main)
     if _dag_refs and "**Sources:**" not in main:
         main = main.rstrip() + _sources_markdown(_dag_refs)
@@ -1152,7 +875,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": main,
-                                 # OpenAI url_citation annotations.
                                  "annotations": _sources_annotations(_dag_refs, main)},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate(last_user_text, main),  # P4 /v1 conformance
@@ -1175,24 +897,12 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     routes + constraints that searched garbage)."""
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return []
-    # W0-T3 hard recursion bound: refuse to DECOMPOSE into a fresh swarm when this
-    # context is already at/over the fan-out depth limit -> degrade CLOSED to a
-    # single agent (no sub-swarm) so a nested agents-as-tools hop can't recurse
-    # into a swarm-of-swarms. No-op at the normal top-level depth (default 2).
     if _depth_exhausted():
         log.info("plan_swarm: dispatch depth %d >= %d -> no decomposition "
                  "(degrade-closed)", _dispatch_depth(), MAX_DISPATCH_DEPTH)
         return []
-    # /v1 with enable_thinking=False -- the proven-reliable path refine uses. The
-    # /v1 + response_format path returned EMPTY content for the full agent
-    # roster (trace: "swarm planner raw (len=0)"). Use the
-    # general SWARM_MODEL (not the code model) and read message.content.
     _base = (PLANNER_ENDPOINT[:-3].rstrip("/")
              if PLANNER_ENDPOINT.endswith("/v1") else PLANNER_ENDPOINT)
-    # LIVE-only roster ("iGPU is down"): show the planner
-    # ONLY currently-reachable agents so it never assigns a facet to a down
-    # node -- the freed work spreads across live engines instead. Falls back to
-    # the full roster if the liveness probe yields nothing (degrade open).
     _reg: dict = {}
     try:
         _live = await _live_agent_names()
@@ -1201,17 +911,11 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
         _reg = {}
     _roster = _render_agent_catalog(_reg) if _reg else _AGENT_CATALOG_RENDERED
     _n = len(_reg) if _reg else len(_AGENT_REGISTRY)
-    # Temporal grounding (kills the stale-year search -- operator trace searched
-    # "...games of 2023" in 2026) + a HARD count so the planner covers EVERY live
-    # agent, not 2 of N ("didnt fire on ALL NODES").
     _sys = (_env_grounding() + "\n" + _SWARM_SYSTEM_HEAD + _roster
             + f"\n\n{_n} agents are available and the dispatcher SPREADS your "
               f"facets across ALL of them (reusing your facets when you give "
               f"fewer than {_n}). So emit the REAL distinct facets of the "
               f"request -- do NOT pad up to {_n} with unrelated filler.")
-    # Recent turns (capped) so a terse follow-up inherits the chat's subject.
-    # The user turns carry the subject cheaply; assistant turns are clipped
-    # hard (their full answers are huge + the subject is in the opening).
     _msgs = [{"role": "system", "content": _sys}]
     if history:
         for h in history[-4:]:
@@ -1221,13 +925,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
                 if _c:
                     _msgs.append({"role": h["role"], "content": _c[:_cap]})
     _msgs.append({"role": "user", "content": user_text[:4000] + " /no_think"})
-    # OpenAI /v1 (mios-llm-light :11450). A legacy non-/v1 chat shape once 404'd
-    # here -> the planner ALWAYS returned [] -> the swarm NEVER
-    # decomposed -> force_council DUPS across lanes ("tasks
-    # aren't delegated as distinct work"). Same drift class as summarize/daemon/cron.
-    # NO response_format: it makes gemma4 emit into reasoning_content (content="")
-    # -> the planner parsed "" -> []. The prompt already says "JSON ONLY" + the
-    # lenient parse handles it (matches the working refine shape)..
     payload = {
         "model": SWARM_MODEL,
         "messages": _msgs,
@@ -1248,8 +945,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     except Exception as e:
         log.warning("swarm planner error: %s", e)
         return []
-    # Read content, falling back to reasoning_content (gemma4 on mios-llm-light routes
-    # its output there when it "thinks" despite enable_thinking=False).
     _pm = (((body.get("choices") or [{}])[0]).get("message") or {})
     content = (_pm.get("content") or _pm.get("reasoning_content") or "").strip()
     log.debug("swarm planner raw (len=%d): %.400s", len(content), content)
@@ -1262,9 +957,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
     try:
         parsed = _loads_lenient(content)
     except (json.JSONDecodeError, ValueError):
-        # Same structural repair as refine (NO-HARDCODES): a
-        # tiny planner model's one malformed token must not silently collapse the
-        # whole swarm to [] (-> narrow council). Recover the subtasks if possible.
         parsed = _loads_lenient(content)
     subs = parsed.get("subtasks") if isinstance(parsed, dict) else None
     if not isinstance(subs, list):
@@ -1278,11 +970,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
         query = str(s.get("query") or "").strip()
         if not task:
             continue
-        # `title` carries the CLEAN search query (not the imperative task text):
-        # _ground_facets uses node.title as the web_search query, so this stops
-        # "Summarize the top..." / "Compile a list..." from hijacking the search
-        # to summarizer-tool / dictionary pages (garbage
-        # grounding). Falls back to the task text only if the planner omits query.
         tasks.append({"target_agent": agent, "refined_text": task,
                       "title": (query or task)[:72]})
     return tasks

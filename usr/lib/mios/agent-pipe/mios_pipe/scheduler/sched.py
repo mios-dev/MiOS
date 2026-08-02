@@ -1,18 +1,4 @@
 # AI-hint: The MiOS agent-pipe scheduler module. Provides (1) PriorityGate, the WS-1
-#   bounded concurrency gate that enforces priority-based reordering + anti-starvation
-#   so high-priority agent dispatches jump ahead of lower-priority ones, and (2) the
-#   lane/scheduling/priority DECISION helpers extracted VERBATIM from server.py
-#   (strangler-fig refactor): _lane_tool_cap (per-lane visible-tool cap),
-#   _agent_offload_engine (light offload-engine pick for concurrent fan-out),
-#   _resolve_autonomous_priority (background-turn priority scalar from SSOT),
-#   _sched_priority (the advisory priority = f(complexity, urgency, resource-need),
-#   with tiers/weights SSOT in mios.toml [sched] + a priority_mode model-signal hook,
-#   that PriorityGate makes ACTIVE), and _lane_sem_key (the per-lane semaphore key). The
-#   helpers close over server-owned SSOT constants + _agent_lane via a configure() DI
-#   seam (the constants stay server-owned so the importable surface is unchanged);
-#   _DISPATCH_TOML comes straight from mios_config. This module NEVER imports server
-#   (one-way boundary); server.py re-imports the helpers under their EXACT names so the
-#   surface stays byte-identical.
 # AI-related: server.py, mios_config.py, test_mios_sched.py
 # AI-functions: __init__, cap, available, in_flight, queued, head_priority, stats, _pick, acquire, _release, release, class PriorityGate, configure, _lane_tool_cap, _agent_offload_engine, _resolve_autonomous_priority, _sched_priority, _sched_priority_core, _lane_sem_key
 """mios_sched -- scheduler primitives for the MiOS agent-pipe (WS-1, the AIOS
@@ -74,21 +60,11 @@ class PriorityGate:
         self._cap = max(1, int(permits))
         self._avail = self._cap
         self._starv = max(0.0, float(starvation_s))
-        # seq -> [priority, enqueue_monotonic, future, tenant]. Insertion-ordered, and
-        # seq is monotonic, so the first entry is always the oldest waiter. `tenant` is
-        # the V5 per-tenant fair-share key (None = uncapped: a system/daemon dispatch).
         self._waiters: "collections.OrderedDict[int, list]" = collections.OrderedDict()
         self._seq = 0
-        # V5 per-tenant fair-share (DEFAULT-OFF). tenant_cap<=0 -> the tenant-aware
-        # branches below are SKIPPED entirely, so the gate is byte-identical to its
-        # pre-V5 behaviour. >0 -> at most `tenant_cap` permits are held by any one
-        # tenant WHILE another tenant waits (the cap bites only under contention; if
-        # every live waiter is one over-cap tenant the pick degrades OPEN so the gate
-        # never wedges). Counts only non-None tenants.
         self._tenant_cap = max(0, int(tenant_cap))
         self._tenant_inflight: "collections.Counter" = collections.Counter()
 
-    # ── observability (read-only; never mutates state) ────────────────────
     @property
     def cap(self) -> int:
         return self._cap
@@ -124,7 +100,6 @@ class PriorityGate:
         Read-only -- for observability + tests of the V5 fair-share dimension."""
         return int(self._tenant_inflight.get(tenant, 0)) if tenant is not None else 0
 
-    # ── per-tenant fair-share accounting (V5; no-ops when tenant_cap<=0) ──────
     def _tenant_inc(self, tenant) -> None:
         if self._tenant_cap > 0 and tenant is not None:
             self._tenant_inflight[tenant] += 1
@@ -137,32 +112,22 @@ class PriorityGate:
             else:
                 self._tenant_inflight[tenant] = c
 
-    # ── core ──────────────────────────────────────────────────────────────
     def _pick(self) -> Optional[int]:
         """Return the seq of the next waiter to serve, or None. Pure (no
         mutation). Skips any future already resolved (defensive)."""
         live = [(seq, w) for seq, w in self._waiters.items() if not w[2].done()]
         if not live:
             return None
-        # Anti-starvation: if the OLDEST live waiter has aged past the threshold,
-        # serve it regardless of priority so low lanes never indefinitely starve.
         if self._starv > 0.0:
             old_seq, old_w = live[0]  # insertion order -> oldest first
             if (time.monotonic() - old_w[1]) >= self._starv:
                 return old_seq
-        # V5 per-tenant fair-share (DEFAULT-OFF: _tenant_cap<=0 -> this block is
-        # skipped, so the pick is byte-identical). Prefer waiters whose tenant is
-        # UNDER its cap (a None tenant is always eligible); if NONE are eligible
-        # (every live waiter is one over-cap tenant) degrade OPEN to the full set so
-        # the gate never wedges -- the cap throttles a tenant only while ANOTHER can
-        # make progress.
         if self._tenant_cap > 0:
             eligible = [(seq, w) for seq, w in live
                         if w[3] is None
                         or self._tenant_inflight.get(w[3], 0) < self._tenant_cap]
             if eligible:
                 live = eligible
-        # Otherwise: highest priority wins; older (smaller seq) breaks ties.
         best_seq: Optional[int] = None
         best_key = None
         for seq, w in live:
@@ -176,13 +141,10 @@ class PriorityGate:
         (V5) is the per-tenant fair-share key; None (the default) -> uncapped, and
         with tenant_cap<=0 the tenant branches are skipped so this is byte-identical
         to the pre-V5 acquire(priority)."""
-        # Fast path: a permit is free. By the invariant this implies the queue is
-        # empty, so taking it cannot jump a queued higher-priority dispatch.
         if self._avail > 0 and not self._waiters:
             self._avail -= 1
             self._tenant_inc(tenant)
             return
-        # Contended: enqueue and await our grant.
         self._seq += 1
         seq = self._seq
         fut = asyncio.get_running_loop().create_future()
@@ -190,20 +152,11 @@ class PriorityGate:
         try:
             await fut
         except asyncio.CancelledError:
-            # Cancelled while suspended at `await fut`:
-            #   (a) not yet granted (fut not done) -> just drop our queue entry (no
-            #       tenant share was assigned, so nothing to undo).
-            #   (b) granted then cancelled (fut done) -> a permit + a tenant share
-            #       were handed to us; release our tenant share, then hand the permit
-            #       back so it is not leaked.
             self._waiters.pop(seq, None)
             if fut.done() and not fut.cancelled():
                 self._tenant_dec(tenant)
                 self._release()
             raise
-        # Granted: the releaser transferred a permit to us without bumping
-        # `available` (direct hand-off) and already counted our tenant share, so we
-        # already hold it. Proceed.
         return
 
     def _release(self) -> None:
@@ -228,15 +181,6 @@ class PriorityGate:
         self._release()
 
 
-# ── Lane / scheduling / priority DECISION helpers (strangler-fig refactor) ───────
-# Moved VERBATIM from server.py. Each closes over server-owned SSOT constants or the
-# server-resident _agent_lane; those stay OWNED by server.py (every name is in the
-# importable-surface golden), and server.py calls configure() with them under their
-# EXACT original names. The None placeholders below let a standalone import succeed;
-# every consumer is a runtime call, except _resolve_autonomous_priority which server.py
-# calls at import time -- so server configures its one dep (_AUTO_PRIO_WORDS) first.
-# _DISPATCH_TOML is imported directly from mios_config (static SSOT). One-way boundary:
-# this module never imports server.
 
 _AUTO_PRIO_WORDS = None
 LANE_TOOL_CAP = None
@@ -301,17 +245,7 @@ def _agent_offload_engine(cfg: dict) -> Optional[str]:
     return None
 
 
-# ── _sched_priority SSOT (NO-HARDCODE Law 7) ─────────────────────────────────────
-# The turn-priority scorer's tiers + weights are SSOT in mios.toml [sched], read via
-# mios_config._toml_section. _SCHED_FALLBACK holds the degrade-open defaults -- each
-# value EQUALS the long-standing literal, so an absent or malformed [sched] reproduces
-# the prior scoring byte-for-byte (the sanctioned NO-HARDCODE fallback pattern). The
-# urgency term LISTS are operator-localizable SSOT; the matcher is plain Unicode-
-# casefold membership (NOT an English/ASCII keyword gate). The priority_mode flag (env
 # MIOS_SCHED_PRIORITY_MODE) selects behaviour; the default reproduces today's numbers:
-#   "ssot"  -> parameterized lexical urgency from the [sched] term sets.
-#   "model" -> PREFER an already-present model-supplied numeric refined.urgency /
-#              refined.complexity, else the lexical/derived path (adds no LLM call).
 _SCHED_FALLBACK = {
     "priority_mode": "ssot",
     "urgency_default": 5,
@@ -351,14 +285,11 @@ def _sched_priority_core(refined: Optional[dict], cfg: dict) -> dict:
             return F[key]
 
     def _termset(key):
-        # Operator-localizable SSOT vocabulary -> Unicode-casefold set (no ASCII gate).
         v = cfg.get(key)
         seq = v if isinstance(v, (list, tuple)) else F[key]
         return frozenset(str(t).casefold() for t in seq)
 
     def _as_number(v):
-        # An already-present model-supplied NUMERIC signal (int/float, or a numeric
-        # string); a bool is not a number here. None when the field is non-numeric.
         if isinstance(v, bool) or v is None:
             return None
         if isinstance(v, (int, float)):
@@ -376,16 +307,12 @@ def _sched_priority_core(refined: Optional[dict], cfg: dict) -> dict:
     hints = r.get("hint_tools") if isinstance(r.get("hint_tools"), list) else []
     div = _num("complexity_hints_divisor")
 
-    # Complexity: an already-present model number wins in model-mode; else derive it
-    # from the task + tool-hint counts. Bounded by the SSOT cap either way.
     complexity = _as_number(r.get("complexity")) if model_mode else None
     if complexity is None:
         complexity = _num("complexity_base") + len(steps) + (
             len(hints) // div if div else 0)
     complexity = min(_num("complexity_cap"), complexity)
 
-    # Urgency: an already-present model number wins in model-mode; else membership in
-    # the SSOT term sets (Unicode-casefold -- localizable, not an English/ASCII gate).
     urgency = _as_number(r.get("urgency")) if model_mode else None
     if urgency is None:
         urgency = _num("urgency_default")
@@ -396,7 +323,6 @@ def _sched_priority_core(refined: Optional[dict], cfg: dict) -> dict:
             urgency = _num("urgency_low")
 
     intent = str(r.get("intent", "agent"))
-    # OS-control / dispatch single-actions are cheap + interactive -> high floor.
     if intent == "dispatch":
         urgency = max(urgency, _num("urgency_dispatch_floor"))
     score = round((complexity * _num("score_complexity_weight", float))

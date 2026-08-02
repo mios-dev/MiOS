@@ -56,16 +56,13 @@ class TestAgentCardSign(unittest.TestCase):
         self.assertIn("protected", sig_dict)
         self.assertIn("signature", sig_dict)
 
-        # Attach signature to card
         signed_card = dict(card)
         signed_card["signatures"] = [sig_dict]
 
-        # Verify signed card (True, "ok")
         verdict, reason = _verify_agent_card_signature(signed_card, public_key=pub)
         self.assertTrue(verdict)
         self.assertEqual(reason, "ok")
 
-        # Tamper card payload -> Verify FAILS (False, "invalid_signature")
         tampered_card = dict(signed_card)
         tampered_card["name"] = "TamperedAgent"
         tampered_verdict, tampered_reason = _verify_agent_card_signature(tampered_card, public_key=pub)

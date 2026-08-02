@@ -54,7 +54,6 @@ def t_personas():
           all(isinstance(p, str) and p.strip() for _, p in e._DCI_PERSONAS))
     check("critic system prompt non-empty",
           isinstance(e._DCI_CRITIC_SYSTEM, str) and e._DCI_CRITIC_SYSTEM.strip())
-    # allowed-act partition: no act leaks across personas, union == family-bearing acts
     keys = set(e._PERSONA_ALLOWED_ACTS)
     check("allowed-acts: keyed by the 4 personas",
           keys == {"framer", "explorer", "challenger", "integrator"})
@@ -154,12 +153,10 @@ def t_dissent_threshold_ssot():
     orig_conf = e.DCI_FLOW_TRIGGER_CONF
     e._dci_call_persona = stub_call
     try:
-        # Knob above the 0.9 challenge -> zero dissents.
         e.DCI_FLOW_TRIGGER_CONF = 0.95
         high = asyncio.run(e.run_dci_flow("decide X", {}, session_id=None))
         check("dissent-threshold: knob 0.95 suppresses the 0.9 challenge",
               len(high.get("dissents") or []) == 0)
-        # Knob below it -> the challenge resurfaces as dissent.
         e.DCI_FLOW_TRIGGER_CONF = 0.5
         low = asyncio.run(e.run_dci_flow("decide X", {}, session_id=None))
         check("dissent-threshold: knob 0.5 admits the 0.9 challenge",
@@ -263,12 +260,10 @@ def t_flow_gate():
     e.run_dci_flow = stub_flow
     e.DCI_ENABLED = True
     try:
-        # Default / disabled -> the cheap B.1 critic still runs, but no B.2 flow.
         e.DCI_FLOW_ENABLED = False
         asyncio.run(e.critic_then_maybe_flow("t", {}, session_id="s1"))
         check("flow-gate: disabled -> run_dci_flow NOT called (no-op B.2)",
               flow_calls == [], str(flow_calls))
-        # Enabled -> the high-confidence objection escalates to the 4-persona flow.
         e.DCI_FLOW_ENABLED = True
         asyncio.run(e.critic_then_maybe_flow("t", {}, session_id="s1"))
         check("flow-gate: enabled -> run_dci_flow invoked", len(flow_calls) == 1, str(flow_calls))

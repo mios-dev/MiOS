@@ -39,22 +39,13 @@ from __future__ import annotations
 
 import mios_sandbox
 
-# The three Rule-of-Two property keys (structural identifiers; no English/topic
-# content -- they name the invariant's axes, not any verb or domain).
 PROP_UNTRUSTED = "untrusted_input"    # A
 PROP_SENSITIVE = "sensitive_access"   # B
 PROP_STATECHANGE = "state_change"     # C
 
-# The SSOT [security].rule_of_two_mode enum. off = the evaluator is not consulted
-# (byte-identical behaviour); audit = on all-three, log a structured audit line and
-# proceed (observe before enforce); enforce = on all-three, route to HITL review /
-# block (fail-safe -- a 3-property chain requires a human).
 MODE_OFF, MODE_AUDIT, MODE_ENFORCE = "off", "audit", "enforce"
 _MODES = (MODE_OFF, MODE_AUDIT, MODE_ENFORCE)
 
-# Per-mode action when ALL THREE properties hold. <=2 properties always -> "proceed"
-# regardless of mode (the invariant is satisfied). Pure enum dispatch over the SSOT
-# mode value -- not a content heuristic.
 ACT_PROCEED, ACT_AUDIT, ACT_GATE = "proceed", "audit", "gate"
 _ALL_THREE_ACTION = {MODE_OFF: ACT_PROCEED, MODE_AUDIT: ACT_AUDIT, MODE_ENFORCE: ACT_GATE}
 
@@ -92,7 +83,6 @@ class RuleOfTwoVerdict:
     def __init__(self, properties: dict, mode: str) -> None:
         self.properties = {k: bool(v) for k, v in properties.items()}
         self.count = sum(1 for v in self.properties.values() if v)
-        # The invariant: a chain may hold at most TWO properties without review.
         self.all_three = self.count >= 3
         self.mode = normalize_mode(mode)
         self.action = _ALL_THREE_ACTION[self.mode] if self.all_three else ACT_PROCEED

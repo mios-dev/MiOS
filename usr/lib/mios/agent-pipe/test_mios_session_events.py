@@ -19,11 +19,8 @@ class TestSessionEvents(unittest.TestCase):
         mios_audit._CHAINER.seed(0, mios_audit.GENESIS)
 
     def test_sanitize_tool_text(self):
-        # ANSI CSI stripped
         self.assertEqual(_sanitize_tool_text("\x1b[31mRed\x1b[0m"), "Red")
-        # Bidi override stripped
         self.assertEqual(_sanitize_tool_text("\u202aLeftToRight\u202c"), "LeftToRight")
-        # C0 controls stripped except tab/newline/CR
         self.assertEqual(_sanitize_tool_text("Hello\x07\tWorld\r\n"), "Hello\tWorld\r\n")
 
     def test_emit_session_event_stamping(self):

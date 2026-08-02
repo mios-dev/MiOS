@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Stdlib assert-script for mios_toolexec. Stubs every injected dep (no
-# network/no broker) then exercises the LOAD-BEARING narrated-tool-call RESCUE
-# corpus (_rescue_tool_calls over Qwen <function=> XML, ```json fences,
-# <tool_call>{json}</tool_call> markup, an OpenAI {"function":...} blob, and an
-# opencode-style narrated/fenced "lie"), the _norm_tool_call arg-canonicalisation,
-# the _verb_result_cap/_cap_verb_result ACI capping, _format_tool_error shaping,
-# and the _exec_tool_calls permission gate (read auto-runs, write skipped when
-# allow_write=False). Run: python test_mios_toolexec.py
 # AI-related: ./mios_toolexec.py
 # AI-functions: (test)
 """Offline regression for mios_toolexec -- rescue corpus + executor shaping."""
@@ -18,7 +11,6 @@ import json
 import mios_toolexec as T
 
 
-# ── Inject stubs (no network, no broker) ───────────────────────────
 _VERB_CATALOG = {
     "web_search": {"permission": "read"},
     "web_extract": {"permission": "read", "max_result_chars": 4000},
@@ -77,7 +69,6 @@ def ok(cond, label):
     print("  ok:", label)
 
 
-# ── _norm_tool_call: arg canonicalisation ──────────────────────────
 print("[_norm_tool_call]")
 n = T._norm_tool_call("web_search", {"query": "hi"}, 0)
 ok(n["type"] == "function" and n["function"]["name"] == "web_search",
@@ -92,7 +83,6 @@ ok(json.loads(n3["function"]["arguments"]) == {},
    "norm degrades malformed args to {}")
 
 
-# ── _rescue_tool_calls: the narrated-tool-call salvage corpus ──────
 print("[_rescue_tool_calls]")
 TOOLS = [{"type": "function", "function": {"name": "web_search"}},
          {"type": "function", "function": {"name": "web_extract"}}]
@@ -103,51 +93,43 @@ def _one(rescued):
     fn = rescued[0]["function"]
     return fn["name"], json.loads(fn["arguments"])
 
-# (a) Qwen <function=NAME><parameter=K>V</parameter></function> XML
 xml = ("Sure, let me look that up.\n"
        "<function=web_search>\n<parameter=query>mios refactor</parameter>\n</function>")
 name, args = _one(T._rescue_tool_calls(xml, TOOLS))
 ok(name == "web_search" and args == {"query": "mios refactor"},
    "rescues Qwen <function=> XML markup")
 
-# (b) ```json fenced {"name","arguments"}
 fenced = ("Here you go:\n```json\n"
           '{"name": "web_search", "arguments": {"query": "fenced"}}\n```')
 name, args = _one(T._rescue_tool_calls(fenced, TOOLS))
 ok(name == "web_search" and args == {"query": "fenced"},
    "rescues a ```json fenced {name,arguments} block")
 
-# (c) <tool_call>{json}</tool_call> Qwen/Hermes content markup
 tc = ('thinking...<tool_call>{"name": "web_extract", "arguments": '
       '{"url": "http://e"}}</tool_call>')
 name, args = _one(T._rescue_tool_calls(tc, TOOLS))
 ok(name == "web_extract" and args == {"url": "http://e"},
    "rescues <tool_call>{json}</tool_call> markup")
 
-# (d) OpenAI {"function":{"name","arguments"}} bare whole-content object
 openai_blob = '{"function": {"name": "web_search", "arguments": "{\\"query\\": \\"blob\\"}"}}'
 name, args = _one(T._rescue_tool_calls(openai_blob, TOOLS))
 ok(name == "web_search" and args == {"query": "blob"},
    "rescues a bare OpenAI {function:{name,arguments}} object")
 
-# (e) opencode-style narrated lie: prose + a fenced {"tool","args"} blob
 opencode = ("I'll call the web_search tool to find that.\n\n"
             "```json\n{\"tool\": \"web_search\", \"args\": {\"query\": \"opencode\"}}\n```")
 name, args = _one(T._rescue_tool_calls(opencode, TOOLS))
 ok(name == "web_search" and args == {"query": "opencode"},
    "rescues the opencode narrated/fenced {tool,args} lie")
 
-# (f) GUARD: an unknown / un-offered tool name is NOT promoted
 guard = '```json\n{"name": "rm_rf_everything", "arguments": {}}\n```'
 ok(T._rescue_tool_calls(guard, TOOLS) == [],
    "guard: an un-offered tool name is never promoted")
 
-# (g) plain prose with no call -> nothing
 ok(T._rescue_tool_calls("just a normal answer, nothing to call here.", TOOLS) == [],
    "plain prose yields no rescued calls")
 
 
-# ── _verb_result_cap / _cap_verb_result ────────────────────────────
 print("[_cap_verb_result]")
 ok(T._verb_result_cap("web_search") == 1500,
    "verb_result_cap falls back to READ_TOOL_ENRICH_CHARS")
@@ -162,7 +144,6 @@ ok(isinstance(capped, str) and len(capped) < len(big),
    "cap_verb_result truncates an over-budget string")
 
 
-# ── _format_tool_error ─────────────────────────────────────────────
 print("[_format_tool_error]")
 ok(T._format_tool_error({"results": []}) is None,
    "no error on a normal result dict")
@@ -176,7 +157,6 @@ ok(T._format_tool_error("not a dict") is None,
    "non-dict result is not an error")
 
 
-# ── _exec_tool_calls: permission gate ──────────────────────────────
 print("[_exec_tool_calls]")
 _pushed = []
 
@@ -218,7 +198,6 @@ async def _run():
         db_create=lambda *a, **k: None,
         src_record=lambda items: None,
     )
-    # read verb auto-executes even when allow_write=False
     tcs_read = [{"id": "c1", "function": {
         "name": "web_search", "arguments": '{"query": "unique_toolexec_query"}'}}]
     msgs, ran = await T._exec_tool_calls(tcs_read, _push, allow_write=False)
@@ -230,16 +209,11 @@ async def _run():
        "tool message carries id + name linkage")
     ok(("web_search", {"query": "unique_toolexec_query"}) in _DISPATCHED,
        "read verb dispatched with canonicalised args")
-    # write verb skipped when allow_write=False
     tcs_write = [{"id": "c2", "function": {"name": "delete_file", "arguments": "{}"}}]
     msgs2, ran2 = await T._exec_tool_calls(tcs_write, _push, allow_write=False)
     ok(ran2 is False and "skipped" in msgs2[0]["content"],
        "write verb skipped when writes disabled")
 
-    # ── A2: a HYPHENATED read recipe (mios_recipe__disk_usage) must resolve via the
-    # underscore->hyphen normalization and RUN on a read-only turn (it was wrongly
-    # dropped because _RECIPE_CATALOG is keyed hyphenated but the lookup used the
-    # underscored, name-mangled tool name) ──
     T.configure(
         verb_catalog=_VERB_CATALOG,
         recipe_catalog={
@@ -253,7 +227,6 @@ async def _run():
        "A2: hyphenated read recipe runs on a read-only turn (not dropped)")
     ok(("os_recipe", {"name": "disk-usage", "params": {}}) in _DISPATCHED,
        "A2: read recipe dispatched via os_recipe with the canonical hyphenated name")
-    # a WRITE recipe stays gated on a read-only turn
     tcs_wrecipe = [{"id": "r2", "function": {
         "name": "mios_recipe__shutdown", "arguments": "{}"}}]
     msgs4, ran4 = await T._exec_tool_calls(tcs_wrecipe, _push, allow_write=False)

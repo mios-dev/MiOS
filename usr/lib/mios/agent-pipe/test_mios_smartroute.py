@@ -31,33 +31,27 @@ def t_order():
     o = [x.id for x in sr.order_lanes(lanes())]
     check("order: all local before any remote", o.index("local-heavy") < o.index("remote-cheap"), o)
     check("order: remotes by ascending cost", o.index("remote-cheap") < o.index("remote-strong"), o)
-    # equal-cost locals -> stronger first.
     check("order: equal-cost local -> stronger first", o[0] == "local-heavy", o)
 
 
 def t_local_first():
     nxt = sr.choose_next(lanes(), attempted=[], escalate=False)
     check("local-first: picks a local lane first", nxt.is_local is True)
-    # second pick (first attempted) -> the other local, still no escalation.
     nxt2 = sr.choose_next(lanes(), attempted=["local-heavy"], escalate=False)
     check("local-first: second pick still local", nxt2.id == "local-light")
-    # both locals attempted, no escalation -> nothing (don't spend without escalation).
     none = sr.choose_next(lanes(), attempted=["local-heavy", "local-light"], escalate=False)
     check("local-first: no escalation -> no paid lane", none is None)
 
 
 def t_escalation():
-    # locals exhausted + escalate -> the CHEAPEST remote.
     nxt = sr.choose_next(lanes(), attempted=["local-heavy", "local-light"], escalate=True)
     check("escalate: -> cheapest remote", nxt.id == "remote-cheap", nxt.id if nxt else None)
-    # remote-cheap also attempted -> the stronger remote.
     nxt2 = sr.choose_next(lanes(), attempted=["local-heavy", "local-light", "remote-cheap"], escalate=True)
     check("escalate: next -> stronger remote", nxt2.id == "remote-strong")
 
 
 def t_budget_gate():
     led = sr.CostLedger(budget=1.0, spent=0.0)
-    # remote-cheap (0.5) affordable; remote-strong (5.0) not.
     nxt = sr.choose_next(lanes(), attempted=["local-heavy", "local-light"], ledger=led, escalate=True)
     check("budget: affordable remote chosen", nxt.id == "remote-cheap")
     led.charge(0.9)  # now 0.9 spent, 0.1 remaining

@@ -25,7 +25,6 @@ def t_rpm():
     check("rpm: first 3 allowed", all(oks))
     v = t.check("u", base + 3)
     check("rpm: 4th denied", v.allowed is False and "rate limit" in v.reason, v.reason)
-    # slide the window past 60s -> the early requests expire -> admit again.
     check("rpm: re-admit after window slides", t.check("u", base + 61).allowed is True)
 
 
@@ -43,7 +42,6 @@ def t_budget():
     v = t.check("u", 2.0, cost=0.4)   # 0.8 + 0.4 = 1.2 > 1.0
     check("budget: over budget denied", v.allowed is False and "budget" in v.reason, v.reason)
     check("budget: spent tracked", round(t.spent("u", 3.0), 2) == 0.8)
-    # budget window rolls over -> spend resets.
     check("budget: window rollover resets spend", t.spent("u", 90000.0) == 0.0)
 
 

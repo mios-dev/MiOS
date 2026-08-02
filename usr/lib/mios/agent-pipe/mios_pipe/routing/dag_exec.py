@@ -47,27 +47,11 @@ from mios_policy import _agent_rbac_filter, _user_rbac_filter
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The DAG executors read server.py's config scalars, the live agent registry,
-# the KV-fork / conv-key ContextVars and the per-chat supersede map, and call
-# back into the broker dispatch + agent-call + scratchpad + grounding + db +
-# a2a + worker-tool helpers. server.py calls configure() with those AFTER every
-# one is defined (one-way boundary: this module never imports server). The
-# placeholders below carry the documented defaults so a standalone
-# ``import mios_dag_exec`` still succeeds; every consumer is async/runtime so
-# nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 DEEPEN_FETCH = False
 DEEPEN_DEADLINE_S = 45.0
 DEEPEN_MAX_ITERS = 12
 DEEPEN_WEB_TIMEOUT_S = 20.0
-# A8 early-exit-on-satisfied (default OFF): when on, the deepen loop asks the per-node
-# Definition-of-Done judge whether the node's current answer already satisfies its
-# sub-query and STOPS deepening if so -- the heaviest compute is not spent re-answering
-# an already-good node, and the freed lane lets slower nodes finish sooner. Default off
-# == no behaviour change (degrade-open: with no judge wired the loop runs to its bound).
-# DEEPEN_JUDGE_TIMEOUT_S bounds the (micro-LLM) judge so a hung judge can't stall a pass.
 DEEPEN_EARLY_EXIT = False
 DEEPEN_JUDGE_TIMEOUT_S = 6.0
 DAG_NODE_MAX_TOKENS = 800
@@ -86,30 +70,20 @@ REQUEST_CANCEL_ENABLE = True
 REQUEST_CANCEL_POLL_S = 1.0
 TURN_DEADLINE_S = 600.0
 _PG_PRIMARY = False
-# context-fit (num_ctx sizing) scalars read by _fit_context (moved home).
 CTX_FIT = False
 WORKER_TOOL_CTX_MAX = 24576
-# fast/deepen lane set read by _node_deepens (moved home).
 DEEPEN_LANES: set = set()
-# CPU-lane runaway reaper scalars read by _reap_cpu_lane (moved home).
 RUNAWAY_REAP_ENABLE = False
 _LIGHT_LANE = ""
 
-# mutable refs (injected BY REFERENCE -- server assigns each and the shared
-# object stays live; _AGENT_REGISTRY is rebound on membership reload, so server
-# re-injects it there).
 _AGENT_REGISTRY: dict = {}
 _CHAT_CANCEL: dict = {}
 _kv_fork_parent_var = None
 _conv_key_var = None
 
-# server-side helpers (injected)
 dispatch_mios_verb = None
 _call_agent_stream = None
 reflect_on_step_failure = None
-# A8: the micro-LLM per-node Definition-of-Done judge (mios_reflect._judge_answer_satisfied),
-# injected so mios_dag_exec never imports server. None until injected -> the deepen
-# early-exit gate stays inert (degrade-open) even when DEEPEN_EARLY_EXIT is on.
 _judge_answer_satisfied = None
 _sanitize_tool_text = None
 _scratchpad_note = None
@@ -314,20 +288,8 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
     iters = 0
     fetched = 0
     _deadline = time.monotonic() + DEEPEN_DEADLINE_S
-    # Expand COVERAGE until the BARRIER (all nodes' primaries done). A fast node
-    # keeps adding NEW facets/angles while slower nodes finish; detail-fill fetches
-    # new stories per pass (when enabled) and APPENDS only genuinely new content.
-    # When DEEPEN_EARLY_EXIT is enabled the loop ALSO stops once the DoD judge marks
-    # the node satisfied (checked at the top of each pass, below).
     while (iters < DEEPEN_MAX_ITERS and time.monotonic() < _deadline
            and not barrier.is_set()):
-        # A8 EARLY-EXIT: before spending another (heaviest) pass, ask the per-node
-        # DoD judge whether the answer in hand already satisfies the sub-query; if so,
-        # stop -- so an already-good node frees its lane instead of re-answering.
-        # Bounded by DEEPEN_JUDGE_TIMEOUT_S; degrade-open -> any timeout/error/absent
-        # judge falls through and the deadline-bound loop continues (never
-        # under-computes). The judge returning truthy is the ONLY way out here; the
-        # loop stays hard-bounded by the barrier + deadline + iter cap regardless.
         if (DEEPEN_EARLY_EXIT and _judge_answer_satisfied is not None
                 and base_q and out.strip()):
             _jbudget = _deadline - time.monotonic()
@@ -345,10 +307,6 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
         _budget = _deadline - time.monotonic()
         if _budget <= 0:
             break
-        # DETAIL-FILL: gather NEW data this pass (bounded). The fan-out's diverse
-        # sub-queries + article drill surface fresh stories on repeated calls; the
-        # new content is appended to grounding (deduped by prefix) for this pass +
-        # the final synthesis.
         if _fetch and not barrier.is_set():
             try:
                 _new = await asyncio.wait_for(
@@ -373,15 +331,12 @@ async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
         body = {"model": acfg.get("model") or aname, "messages": _msgs,
                 "max_tokens": DAG_NODE_MAX_TOKENS}
         try:
-            # Cap the call by the REMAINING budget so a slow/stuck generation can't
-            # overshoot (the `while` only gates STARTING an iter). Floor 1s.
             _, ans = await asyncio.wait_for(
                 _call_agent_complete(
                     aname, acfg, body, {"Content-Type": "application/json"},
                     client, prefer_cpu=False),
                 timeout=max(1.0, _budget))
             ans = (ans or "").strip()
-            # Append only NEW content (skip an empty / near-duplicate pass).
             if ans and ans[:120].lower() not in out.lower():
                 out = (out + "\n\n" + ans).strip()
         except Exception:  # noqa: BLE001  (incl. asyncio.TimeoutError)
@@ -408,7 +363,6 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
     agent_label = f"agent:{aname}" if aname else f"tool:{tool}"
     task_desc = str(node.get("prompt") or tool)
 
-    # 1. Log Progress Ledger assignment
     if session_id and _db_create and _db_fire and _db_post:
         try:
             sql = _db_create("progress_ledger", {
@@ -421,11 +375,9 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         except Exception as _pl_err:
             log.warning("Failed to log progress_ledger assignment: %s", _pl_err)
 
-    # 2. Check if this is a research vs action node
     is_research = bool(node.get("web") or node.get("news"))
     is_action = bool(node.get("local_state") or not is_research)
 
-    # 3. Derive action node input from Fact Ledger
     if is_action and session_id and _db_read:
         try:
             fact_sql = f"SELECT claim, source FROM fact_ledger WHERE session_id = '{session_id}'"
@@ -438,10 +390,8 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
                     fact_lines.append(f"- Claim: {claim} (Source: {source})")
                 fact_context = "\n[Grounded Facts from Research]:\n" + "\n".join(fact_lines) + "\n"
                 
-                # Append to agent node prompt
                 if node.get("prompt"):
                     node["prompt"] = str(node.get("prompt")) + "\n" + fact_context
-                # Or append to tool node query/args
                 if node.get("args"):
                     args = node.get("args")
                     for key in ("prompt", "text", "query"):
@@ -450,11 +400,9 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         except Exception as _fl_err:
             log.warning("Failed to read fact_ledger: %s", _fl_err)
 
-    # 4. Execute the actual node core
     res = await _execute_dag_node_core(node, results_by_id, seen_actions,
                                        dag_summary, session_id, client, frag_q)
 
-    # 5. Log Progress Ledger completion
     success = bool(res.get("success"))
     state_val = "completed" if success else "stalled"
     if session_id and _db_create and _db_fire and _db_post:
@@ -469,7 +417,6 @@ async def _execute_dag_node(node: dict, results_by_id: dict,
         except Exception as _pl_err:
             log.warning("Failed to log progress_ledger completion: %s", _pl_err)
 
-    # 6. Parse and write claims to Fact Ledger if this is a successful research node
     if is_research and success and session_id and _db_create and _db_fire and _db_post:
         output_txt = str(res.get("output") or "")
         claims = parse_research_claims(output_txt)
@@ -492,7 +439,6 @@ def parse_research_claims(output_str: str) -> list[dict]:
     if not output_str:
         return []
     
-    # 1. Try JSON
     import json
     try:
         start_idx = min(output_str.find('['), output_str.find('{'))
@@ -517,7 +463,6 @@ def parse_research_claims(output_str: str) -> list[dict]:
     except Exception:
         pass
     
-    # 2. Fallback: Parse plain text lines
     claims = []
     lines = output_str.split("\n")
     for line in lines:
@@ -560,7 +505,6 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
     emitting wrapper renders the agents' actual thinking into the dropdown --
     not just engage/done status pings (operator: 'no thinking blocks')."""
     nid = str(node.get("id", "?"))
-    # ---- agent-delegation node: route a sub-task to a named sub-agent ----
     if node.get("agent"):
         aname = str(node.get("agent"))
         acfg = _AGENT_REGISTRY.get(aname) or {}
@@ -573,9 +517,6 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
             d["node_id"] = nid
             d["repeat_of"] = _prior.get("node_id")
             return d
-        # A2A peer delegation (P0): a node/agent flagged with
-        # an a2a_peer_id routes to an EXTERNAL agent over A2A instead of a local
-        # /v1 endpoint. Same node_result shape as a local agent node.
         _peer = (node.get("a2a_peer_id")
                  or (acfg.get("a2a_peer_id") if isinstance(acfg, dict) else None))
         if _peer:
@@ -594,15 +535,7 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
                 "_act": _act,
             }
         t0 = time.time()
-        # Inject the rolling scratchpad so this node sees checkpoints from
-        # earlier DAG levels (sequential levels -> level N reads level N-1).
         _node_msgs: list = []
-        # Universal agent contract FIRST : a swarm/DAG
-        # worker was dispatched with NO SOUL, NO tools, NO contract -> it
-        # fabricated or lied "I have no internet". Present the overlay .md
-        # contract so every worker knows it is a MiOS agent with global tool
-        # access + live internet + delegation, and must call tools, not
-        # disclaim or invent. Grounding too, so no stale-year fabrication.
         _contract = _agent_contract()
         if _contract:
             _node_msgs.append({"role": "system",
@@ -614,46 +547,12 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
         if _sp_block:
             _node_msgs.append({"role": "system", "content": _sp_block})
         _node_msgs.append({"role": "user", "content": prompt})
-        # Lane-aware budget: a SLOW lane (iGPU/phone) gets fewer tokens so it
-        # FINISHES + computes instead of timing out empty.
         _lane = _agent_lane(acfg)
         _maxtok = (DAG_NODE_SLOW_MAX_TOKENS if _lane in SLOW_LANES
                    else DAG_NODE_MAX_TOKENS)
         body = {"model": acfg.get("model") or aname,
                 "messages": _node_msgs,
                 "max_tokens": _maxtok}
-        # All tools to every agent : hand this worker the
-        # OpenAI verb surface + raise its context so the surface fits + flag
-        # write-execution (the agents ACT; the no-launch rule is Claude's alone).
-        # The stream/complete paths run the pipe-side tool-loop over body.tools,
-        # so the worker CALLS web_search/etc. + acts via the broker instead of
-        # fabricating or disclaiming. Self-gating: a worker that needs no tool
-        # just answers in one pass (no-op).
-        # EVERY agent gets tools ("nothing toolless"); a weak
-        # lane (iGPU llama.cpp / mobile) just gets a CAPPED subset it can grammar-
-        # constrain in budget (the full 71 timed it out), prioritised read/web first.
-        # A node carrying shared grounding (_no_tools, set by _ground_shared on a
-        # casual turn) reasons over the injected facts and must NOT re-search --
-        # that redundant per-node web_search is what blew the deadline.
-        #
-        # NODE/ENDPOINT-AWARE SIZING ("LOCAL CPU IS NEEDED...
-        # planning isn't taking into account the nodes and endpoints it's being
-        # deployed to"): a SLOW lane (CPU/iGPU/phone) was handed the SAME dGPU-sized
-        # workload -- full 71-tool surface (cpu cap was 0) + 16K ctx + its own
-        # web tool-loop -- which it can't run in the node deadline, so local-cpu was
-        # ALWAYS abandoned. Now the work is sized to the hardware:
-        #   * a slow lane that already HAS grounding (the fast lanes fetched it this
-        #     turn via _ground_facets/_ground_shared) REASONS over those facts -- no
-        #     heavy own tool-loop, no 16K prefill -> its ONE pass finishes + counts.
-        #   * a slow lane WITHOUT grounding still gets a REAL but CAPPED tool surface
-        #     (_lane_tool_cap now floors cpu at SLOW_LANE_TOOL_CAP) on the SMALLER
-        #     WORKER_TOOL_CTX_SLOW window so its tool-loop fits the budget.
-        #   * a fast lane (dGPU/accelerator) is unchanged: full surface + full ctx +
-        #     work-steal deepen.
-        # WS-A4: mark this fan-out node so its dispatch FORKS the turn's parent KV
-        # (RadixAttention-style shared-prefix warm start). Inert unless
-        # KV_FORK_ENABLE; the parent var stays "" on the primary path so the
-        # primary never forks. The node task (created below) snapshots this value.
         if KV_FORK_ENABLE:
             _kv_fork_parent_var.set(_conv_key_var.get() or "")
         _slow_node = _lane in SLOW_LANES
@@ -670,26 +569,11 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
                     WORKER_TOOL_CTX_SLOW if _slow_node else WORKER_TOOL_CTX)
                 body["_allow_write"] = True
         elif _slow_node:
-            # Grounded reason-only slow node: cap its context so the trimmed
-            # grounding + contract prefill stays fast on CPU (no tools attached, so
-            # the tool-ctx block above is skipped -- set a sane window explicitly).
             body["num_ctx"] = WORKER_TOOL_CTX_SLOW
-        # Structured output ("jsonish ??!!"): when the planner
-        # marks a node format:json, constrain the agent to emit a REAL JSON object
-        # so a downstream #E<id>.<field> ref reads the value DETERMINISTICALLY --
-        # no brittle "jsonish" first-line guessing.
         if str(node.get("format") or "").lower() == "json":
             body["response_format"] = {"type": "json_object"}
         hdrs = {"Content-Type": "application/json"}
 
-        # STREAM vs COMPLETE: with a fragment queue (streaming DAG paths) the
-        # node streams its reasoning live into the dropdown via _call_agent_stream
-        # (pushes ("SF", name, frag) onto frag_q -- the SAME merged-queue shape the
-        # council secondaries use); without one (non-streaming) it collects the
-        # full answer. Both keep the (name, full_text) contract + identical
-        # dead-endpoint degradation, so the fallback/retry chain is unchanged.
-        # prefer_cpu=False -> the agent's PRIMARY endpoint/model (a coding
-        # sub-task must hit opencode proper, not its CPU twin).
         async def _run_node(prefer_cpu: bool) -> tuple:
             if frag_q is not None:
                 return await _call_agent_stream(
@@ -698,23 +582,12 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
             return await _call_agent_complete(
                 aname, acfg, body, hdrs, client, prefer_cpu=prefer_cpu)
 
-        # All of the agent dispatch (primary + cpu-twin fallback + empty-retries)
-        # runs under ONE wall-clock deadline so a slow/dead node can't gate the
-        # turn (j). On timeout the node is abandoned empty and
-        # the synthesiser uses whoever DID answer.
         async def _dispatch_with_retries() -> tuple:
             _, _txt = await _run_node(prefer_cpu=False)
             _txt = (_txt or "").strip()
-            # Fallback: a stream-only gateway (the Hermes server) returns empty on
-            # a non-streaming call. If the agent has a CPU twin, use it --
-            # it answers a self-contained sub-task non-streaming cleanly. opencode
-            # has no twin -> keeps hitting its real coder model.
             if not _txt and acfg.get("cpu_endpoint") and acfg.get("cpu_model"):
                 _, _txt = await _run_node(prefer_cpu=True)
                 _txt = (_txt or "").strip()
-            # RE-ATTEMPT on empty so an assigned node ACTUALLY computes (operator
-            #): a transient empty (timeout / stream-only gateway hiccup)
-            # is retried -- agent calls are read-only, so a retry is side-effect-free.
             _n = 0
             while not _txt and _n < DAG_NODE_RETRY:
                 _n += 1
@@ -722,10 +595,6 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
                 _, _txt = await _run_node(prefer_cpu=False)
                 _txt = (_txt or "").strip()
             return _txt, _n
-        # Lane-aware deadline ("LOCAL CPU IS NEEDED"): a slow
-        # lane gets the longer DAG_NODE_DEADLINE_SLOW_S so its single grounded pass
-        # is never guillotined just for being slow; the fast lanes work-steal while
-        # it finishes. A fast lane keeps the tight deadline.
         _node_deadline = DAG_NODE_DEADLINE_SLOW_S if _slow_node else DAG_NODE_DEADLINE_S
         try:
             text, _ntry = await asyncio.wait_for(_dispatch_with_retries(),
@@ -744,13 +613,8 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
             "retries": _ntry,
             "_act": _act,
         }
-    # ---- verb node: ONE MiOS dispatch verb via the broker ----------------
     tool = str(node.get("tool", "")).strip()
     args = _substitute_ek_refs(node.get("args") or {}, results_by_id)
-    # Action-hash dedup guard: a duplicate (verb, resolved-args) already run
-    # in an EARLIER level reuses the prior result (structural hash only --
-    # NO-HARDCODED-ENGLISH binding). Same-level dupes may both run (the
-    # snapshot has no in-level writes); that is a rare, harmless extra call.
     _act = _action_hash(tool, args)
     _prior = seen_actions.get(_act)
     if _prior is not None:
@@ -760,12 +624,8 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
         d["_act"] = _act
         return d
     attempt = 0
-    # Phase A.3: forward session_id so the firewall pre-check sees taint.
     last_result = await dispatch_mios_verb(tool, args, session_id=session_id)
     if not last_result.get("success"):
-        # ReWOO single-step reflection: one corrected re-dispatch before
-        # the transient-retry loop (bounded, so a stubborn failure surfaces
-        # as a real error instead of looping).
         correction = await reflect_on_step_failure(
             {"id": nid, "tool": tool, "args": args}, last_result,
             {"summary": dag_summary}, session_id=session_id)
@@ -842,8 +702,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
     succeeded: set = set()
     failed: set = set()          # failed OR skipped -> poisons dependents
     client = await _get_client()
-    # Global barrier for deepen: set when every node that WILL run has finished
-    # its PRIMARY pass (expected shrinks as deps-failed nodes are skipped).
     _barrier = asyncio.Event()
     _primary_done = {"n": 0}
     _primary_expected = {"n": len(nodes)}
@@ -871,11 +729,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
                                      session_id, client, frag_q=event_q)
         _primary_done["n"] += 1            # atomic: no await between read+set
         _check_barrier()
-        # Deepen FINISHED FAST-LANE nodes until the GLOBAL barrier (all primaries
-        # done) so the dGPU/accelerator stays busy while the slow nodes finish --
-        # bounded by the deepen deadline / iter cap (operator "nothing idle"). A
-        # slow lane (CPU/iGPU) is excluded (_node_deepens): it does its one grounded
-        # pass and waits, so it's never abandoned for spinning a second pass.
         if _do_deepen and _node_deepens(node) and not _barrier.is_set():
             _r = await _deepen_until_barrier(node, _r, _barrier,
                                              session_id, client)
@@ -885,10 +738,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
     running: dict = {}   # asyncio.Task -> node_id
 
     def _cascade_skips() -> None:
-        # A pending node whose deps include a failed/skipped node is skipped;
-        # the skip poisons its own dependents (cascade). Records a skip result so
-        # node_results stays complete; shrinks the primary-expected count so the
-        # deepen barrier still fires.
         changed = True
         while changed:
             changed = False
@@ -906,8 +755,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
 
     _cascade_skips()
     while pending or running:
-        # Launch EVERY currently-ready node (deps all succeeded); the semaphores
-        # bound how many actually run at once -> saturate to capacity.
         for nid in [x for x in pending if deps[x] <= succeeded]:
             pending.discard(nid)
             node = by_id[nid]
@@ -915,9 +762,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
                 event_q.put_nowait(("engage", node, None))
             running[asyncio.create_task(_run_node(node))] = nid
         if not running:
-            # nothing ready + nothing running -> cycle/dangling dep: force one
-            # node (declaration order) so the DAG never hangs (same stance as
-            # _dag_levels). Else done.
             if pending:
                 nid = next(iter(pending))
                 pending.discard(nid)
@@ -931,10 +775,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
             completed, _ = await asyncio.wait(
                 set(running.keys()), return_when=asyncio.FIRST_COMPLETED)
         except asyncio.CancelledError:
-            # Turn cancelled (client disconnect / deadline / supersede): asyncio
-            # does NOT auto-cancel a cancelled task's children, so cancel every
-            # in-flight node task here so they STOP dispatching to hermes / a
-            # sub-agent lane instead of running on (runaway fix). Re-raise.
             for _t in list(running.keys()):
                 if not _t.done():
                     _t.cancel()
@@ -966,14 +806,6 @@ async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
         "node_results": results,
     }
 
-# ── WS-6 replayable DAG run-templates ───────────────────────────
-# Determinism foundation: capture every planned DAG (the replayable plan shape)
-# to the run_template table, keyed by a STRUCTURAL class hash (sorted tool/agent
-# names + edge count -> no English, NO-HARDCODED-ENGLISH). This is the CAPTURE +
-# observability half (GET /v1/run-templates); replay-REUSE (matching a new turn
-# to a stored template + skipping planning) is a documented follow-up. Additive
-# + fire-and-forget: capture can never affect a live run. ENABLED by default
-# ('everything on'). SSOT [run_template].enable.
 RUN_TEMPLATE_ENABLE = str(os.environ.get("MIOS_RUN_TEMPLATE")
                           or _toml_section("run_template").get("enable", "true")
                           ).strip().lower() in {"1", "true", "yes"}
@@ -1078,7 +910,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
                         _act = res.get("_act")
                         if _act:
                             seen_actions[_act] = res
-                        # Re-post scratchpad notes so subsequent levels have them
                         _scratchpad_note(
                             res.get("tool") or "agent",
                             str(res.get("output") or ""), phase="dag")
@@ -1089,21 +920,9 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
         if loaded_from_checkpoint:
             continue
 
-        # Endpoint emitters: announce each node in this level as it ENGAGES
-        # (a level's nodes run concurrently). The streaming wrapper turns
-        # these queue items into live per-node SSE statuses (operator
-        #). No queue (non-streaming) -> no-op.
         if event_q is not None:
             for n in level:
                 event_q.put_nowait(("engage", n, None))
-        # BARRIER-DEEPEN: every node runs its PRIMARY pass concurrently; the moment
-        # all primaries finish a barrier fires. A node whose primary finishes BEFORE
-        # the barrier then deepens (deeper web-research + re-answer) UNTIL the barrier,
-        # so a fast lane keeps widening coverage instead of idling while the slow node
-        # finishes. When [dispatch].deepen_early_exit is enabled it ALSO stops early
-        # once the DoD judge marks the node satisfied (degrade-open; see
-        # _deepen_until_barrier). The last node (barrier already set) skips deepen.
-        # Only for a multi-node agent level (the swarm); off otherwise.
         _agent_level = [n for n in level if n.get("agent")]
         if deepen_barrier and len(_agent_level) > 1:
             _barrier = asyncio.Event()
@@ -1117,13 +936,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
                 _bstate["done"] += 1            # atomic: no await since the read
                 if _bstate["done"] >= _btotal:  # last primary -> release barrier
                     _barrier.set()
-                # FAST-lane nodes work-steal (deepen) for utilization (operator
-                # "every single node always computes"; refined
-                # "dGPU and accelerators that compute faster should just do another
-                # pass") -- a finished fast node keeps looping until the barrier
-                # (slowest primary done). A SLOW lane (CPU/iGPU) is excluded
-                # (_node_deepens): it does its one grounded pass and waits, never
-                # abandoned for a second pass. The LAST node (set the barrier) skips.
                 if _node_deepens(n) and not _barrier.is_set():
                     _r = await _deepen_until_barrier(
                         n, _r, _barrier, session_id, client)
@@ -1147,8 +959,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
                        "args": {}, "output": f"node {nid} raised: {res}"}
             results.append(res)
             _record_dag_node_row(res, session_id)
-            # Post this node's outcome as a checkpoint so the NEXT level's
-            # nodes (and other agents in the chain) read it from the scratchpad.
             _scratchpad_note(
                 res.get("tool") or f"agent:{node.get('agent') or '?'}",
                 str(res.get("output") or ""), phase="dag")
@@ -1161,7 +971,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
             else:
                 all_ok = False
 
-        # Save checkpoint
         if session_id and _db_create and _db_fire and _db_post:
             try:
                 ckpt_meta = {
@@ -1180,7 +989,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
             except Exception as _ckpt_save_err:
                 log.warning("Failed to save checkpoint %s: %s", checkpoint_key, _ckpt_save_err)
 
-        # Fail-fast: don't launch a level that depends on a failed one.
         if not all_ok:
             break
     if event_q is not None:
@@ -1258,10 +1066,6 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     populating it"). The 0.25s poll lets the drainer notice the DAG finishing
     even if the sentinel is lost to an unexpected raise -- then `await task`
     re-raises it (parity with a plain `await execute_dag`)."""
-    # Supersede: a NEW turn for this chat cancels the PRIOR in-flight one
-    #. Register THIS turn's cancel Event; signal any
-    # predecessor for the same chat. Skipped for the shared 'default' key (non-OWUI
-    # callers without a chat_id must not cancel each other).
     _my_cancel = asyncio.Event()
     _sup = bool(chat_id) and chat_id != "default"
     if _sup:
@@ -1273,22 +1077,11 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
     task = asyncio.create_task(
         execute_dag(dag, session_id=session_id, event_q=q,
                     deepen_barrier=deepen_barrier))
-    # Per-agent reasoning buffers: each node's streamed tokens accumulate here and
-    # are emitted ATOMICALLY as one labeled block on completion (live per-token
-    # flushing interleaved N concurrent nodes into a token-salad --).
     _sec_bufs: dict = {}
     _sec_hdr: set = set()
-    # name -> GENERATIVE function label (reasoning headers
-    # must name the FUNCTION being performed, not the internal agent key). Filled
-    # as each node ENGAGES (from its sub-task / role); the buffers are still
-    # KEYED by the internal name (unique) but DISPLAYED via this map.
     _func_by_name: dict = {}
 
     def _disp(_nm: str) -> str:
-        # NEVER surface the raw internal registry key ("NO
-        # INTERNAL NAMES"): use the generative function label captured at engage,
-        # else derive a clean function label from the agent's role/job/lane; strip
-        # any node:/a2a: prefix only as the last resort.
         lbl = str(_func_by_name.get(_nm) or "").strip()
         if lbl and not lbl.startswith(("node:", "a2a:")):
             return lbl
@@ -1307,14 +1100,9 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
             except asyncio.TimeoutError:
                 if task.done():
                     break
-                # Superseded by a newer turn for this chat -> stop (finally cancels).
                 if _my_cancel.is_set():
                     log.info("turn superseded for chat %s -> cancelling DAG", chat_id)
                     break
-                # TURN-WIDE deadline backstop (runaway fix):
-                # a connected-but-runaway turn can't exceed TURN_DEADLINE_S -> stop
-                # (the finally cancels the DAG). Per-node deepen caps don't bound
-                # the whole turn.
                 if time.monotonic() > _turn_deadline:
                     log.warning("turn deadline %.0fs exceeded -> cancelling DAG",
                                 TURN_DEADLINE_S)
@@ -1323,28 +1111,13 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                 continue
             if item is None:  # sentinel
                 break
-            # Deadline / supersede checked on the BUSY path too (operator
-            #): the idle-branch check above never fires while items keep
-            # flowing, so a busy runaway turn ran PAST the deadline (the 1074s
-            # turn). The finally cancels the DAG.
             if _my_cancel.is_set() or time.monotonic() > _turn_deadline:
                 log.warning("turn stop (deadline/supersede) chat %s -> cancel DAG",
                             chat_id)
-                # Reap ONLY on a real deadline-exceed, NOT on supersede (the new
-                # turn needs the CPU lane it just superseded this one for).
                 if time.monotonic() > _turn_deadline and not _my_cancel.is_set():
                     await _reap_cpu_lane("streaming busy deadline")
                 break
-            # Streamed agent-reasoning fragment -> per-agent buffer (not a node
-            # engage/done event; item[1] is the agent NAME, item[2] the fragment).
             if item and item[0] == "SF":
-                # Buffer streamed tokens but do NOT emit them live: N concurrent
-                # nodes' fragments interleave character-by-character in the single
-                # flat dropdown stream ("garbled" reasoning).
-                # Each node's full output is emitted ATOMICALLY as one clean labeled
-                # block on completion (below), so blocks stay contiguous + readable;
-                # liveness is preserved at NODE granularity (a block appears as each
-                # node finishes) plus the live 🔎/📖 web-research + 🤖 engage emits.
                 _sec_bufs[item[1]] = _sec_bufs.get(item[1], "") + (item[2] or "")
                 continue
             kind, node, res = item
@@ -1357,22 +1130,12 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                 cfg = {"lane": "verb", "model": str(node.get("tool") or "")}
             if kind == "engage":
                 _ctx = _node_context(node)
-                # remember this node's GENERATIVE function label for its reasoning
-                # header + finish emit (never display the internal name).
                 _func_by_name[name] = _ctx or str((cfg or {}).get("role") or "")
                 yield ("event", _node_status(chat_id=chat_id, model=model,
                                              name=name, cfg=cfg, state="engage",
                                              context=_ctx))
             else:
                 ok = bool(isinstance(res, dict) and res.get("success"))
-                # STREAM this node's output into the live reasoning block AS IT
-                # FINISHES ("emits... NOT held back... not
-                # dumped all last second"; "report for ALL stages/steps"). A node
-                # whose agent did NOT token-stream (returned a blob -- the research
-                # workers) would otherwise surface ONLY in the end-of-turn synthesis
-                # envelope, so the whole think block dumps at once. Emit its output
-                # now, ONCE -- the `_sec_hdr` guard skips nodes that already streamed
-                # live via "SF" fragments, so there is NO duplication either way.
                 if name not in _sec_hdr:
                     _nout = (_sec_bufs.get(name) or "").strip()
                     if not _nout:
@@ -1386,39 +1149,19 @@ async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                         yield ("event", _sse_reasoning(
                             _sanitize_tool_text(f"\n\n🤝 {_disp(name)}:\n{_nout}\n"),
                             chat_id=chat_id, model=model))
-                # Carry the sub-job into the FINISH emit too (
-                # "per-node sub-job in emits") so ✅/💤 still names WHAT the node
-                # did, not just its name -- parity with the engage emit above.
                 yield ("event", _node_status(chat_id=chat_id, model=model,
                                              name=name, cfg=cfg,
                                              state="ok" if ok else "down",
                                              context=_node_context(node)))
-        # Each node's reasoning was emitted ATOMICALLY on completion above, so
-        # there is no trailing buffered reasoning to drain here (the old per-flush
-        # drain is what produced the interleaved token-salad). Straight to synthesis.
         dag_result = await task
         yield ("result", dag_result)
     finally:
-        # ABANDONED / runaway / deadline-exceeded turn -> CANCEL the in-flight DAG
-        # so it STOPS instead of generating to completion through hermes -> a
-        # sub-agent lane (runaway ROOT CAUSE fix). On client disconnect the
-        # SSE generator is closed -> GeneratorExit lands here -> task.cancel() ->
-        # _execute_dag_saturated cancels its node tasks. No-op on normal finish.
         if not task.done():
             task.cancel()
-        # Deregister this turn's supersede slot (only if still ours -- a newer
-        # turn may have already claimed it).
         if _sup and _CHAT_CANCEL.get(chat_id) is _my_cancel:
             _CHAT_CANCEL.pop(chat_id, None)
 
 
-# -- DAG-execution support helpers (moved home; were server.py-resident + injected
-# back into this module). _substitute_ek_refs (ReWOO #E ref resolution) + its
-# _smart_extract_from_jsonish field-picker + the #E ref regexes, _fit_context
-# (num_ctx sizing), _node_deepens (fast-lane work-steal gate) and _reap_cpu_lane
-# (CPU-lane runaway reaper) are exclusively consumed by the DAG executors above;
-# they now live in their natural home. server.py re-imports each under its exact
-# name (surface parity); their config scalars are injected via configure().
 
 
 _EK_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)")
@@ -1446,7 +1189,6 @@ def _smart_extract_from_jsonish(payload: str) -> str:
     s = _sanitize_tool_text((payload or "").strip())
     if not s:
         return ""
-    # Try a single JSON object first.
     try:
         obj = _loads_lenient(s)
         if isinstance(obj, dict):
@@ -1468,7 +1210,6 @@ def _smart_extract_from_jsonish(payload: str) -> str:
                         return v.strip()[:1024]
     except (json.JSONDecodeError, ValueError):
         pass
-    # NDJSON: try the first line.
     first_line = s.splitlines()[0].strip()
     if first_line.startswith("{") and first_line.endswith("}"):
         try:
@@ -1480,7 +1221,6 @@ def _smart_extract_from_jsonish(payload: str) -> str:
                         return v.strip()[:1024]
         except (json.JSONDecodeError, ValueError):
             pass
-    # Plain text fallback: first non-empty line, capped.
     return first_line[:1024]
 
 
@@ -1489,11 +1229,9 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     values with the captured stdout of the upstream node. Two forms
     supported:
 
-      #E<id>            -> smart-extract a single useful field from
                            the upstream output (handles JSON objects
                            + NDJSON streams; falls back to first line
                            for plain text). Caps at 1024 chars.
-      #E<id>.<field>    -> extract a NAMED field from the upstream
                            JSON output. Use this when the planner
                            knows which field it needs (e.g.,
                            open_app(name='#En1.launch') to use the
@@ -1511,8 +1249,6 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
     out: dict = {}
     for k, v in args.items():
         if isinstance(v, str) and "#E" in v:
-            # Field-ref form #E<id>.<field> -- replace first since
-            # the bare-ref regex also matches.
             def _sub_field(m: re.Match) -> str:
                 ref, field = m.group(1), m.group(2)
                 r = results_by_id.get(ref)
@@ -1522,7 +1258,6 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
                 try:
                     obj = _loads_lenient(payload)
                 except (json.JSONDecodeError, ValueError):
-                    # Try first line as JSON.
                     first = (payload.strip().splitlines() or [""])[0]
                     try:
                         obj = _loads_lenient(first)
@@ -1536,8 +1271,6 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
                         return val[:1024]
                 return m.group(0)
             v = _EK_FIELD_REF_RE.sub(_sub_field, v)
-            # Bare-ref form #E<id> -- now smart-extract instead of
-            # pasting the whole blob.
             def _sub_bare(m: re.Match) -> str:
                 ref = m.group(1)
                 r = results_by_id.get(ref)
@@ -1591,5 +1324,4 @@ async def _reap_cpu_lane(reason: str) -> None:
     raises into a turn."""
     if not RUNAWAY_REAP_ENABLE:
         return
-    # The cancelled request already released the lane -- nothing to reap.
     log.debug("runaway reaper (%s): /v1 lane self-releases on cancel -- no-op", reason)

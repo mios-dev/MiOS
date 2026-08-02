@@ -46,7 +46,6 @@ class _FakeClient:
 
 
 def t_reflexion_gate():
-    # Test checking [agent].reflexion_enable gate
     class FakeConfig:
         @staticmethod
         def _toml_section(section):

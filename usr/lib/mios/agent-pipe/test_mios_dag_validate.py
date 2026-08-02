@@ -79,7 +79,6 @@ class TestDAGValidate(unittest.TestCase):
         self.assertEqual(len(verdict.remediation_order), 1)
 
     def test_orphan_roots(self):
-        # Closed cycle graph with no root node (all in_degree > 0)
         nodes = [
             {"id": "a", "deps": ["b"]},
             {"id": "b", "deps": ["c"]},

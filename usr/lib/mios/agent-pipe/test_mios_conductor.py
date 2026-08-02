@@ -18,7 +18,6 @@ async def main():
         
         yaml_mock = MagicMock()
         yaml_instance = MagicMock()
-        # Create a mock workflow with sequential steps and a parallel group
         yaml_instance.load.return_value = {
             "steps": [
                 {
@@ -64,7 +63,6 @@ async def main():
         process_mock_fail.communicate = AsyncMock(return_value=(b"", b"error"))
         process_mock_fail.returncode = 1
 
-        # Return fail for step2b_fail
         def side_effect(cmd, **kwargs):
             if "exit 1" in cmd:
                 return process_mock_fail
@@ -76,7 +74,6 @@ async def main():
             assert res["success"] is False, "Workflow should fail due to step2b_fail"
             assert res["workflow"] == "test-workflow"
             
-            # Verify step1, step2a, step2b_fail ran, but step3_skipped was skipped because of fail_fast
             assert len(res["results"]) == 3, f"Expected 3 step results, got {len(res['results'])}"
             assert res["results"][0]["step"] == "step1"
             assert res["results"][1]["step"] == "step2a"

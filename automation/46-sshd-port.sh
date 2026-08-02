@@ -18,6 +18,6 @@ chmod 0644 /etc/ssh/sshd_config.d/09-mios-ssh-port.conf
 
 if command -v sshd >/dev/null 2>&1; then
     sshd -t 2>/dev/null \
-        && mios_ok "sshd config valid; admin sshd will bind ${MIOS_PORT_SSH}" \
+        && mios_ok "Sshd config valid; admin sshd will bind ${MIOS_PORT_SSH}" \
         || mios_skip "drop-in written; skipped sshd -t (host keys absent at build is normal)"
 fi

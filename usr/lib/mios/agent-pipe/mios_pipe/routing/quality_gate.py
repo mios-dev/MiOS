@@ -31,7 +31,6 @@ except Exception:  # noqa: BLE001
 
 log = logging.getLogger("mios-agent-pipe")
 
-# Default quality thresholds (overridden by [agent_pipe.quality] SSOT)
 _DEFAULT_MIN_LENGTH = 5
 _DEFAULT_CHECK_EMPTY = True
 _DEFAULT_CHECK_PUNT = True
@@ -71,19 +70,15 @@ def evaluate_quality(output: str, config: Optional[Dict[str, Any]] = None) -> Tu
         text = output or ""
         stripped = text.strip()
 
-        # 1. Empty / whitespace check
         if check_empty and not stripped:
             return False, "empty_output"
 
-        # 2. Min length floor
         if len(stripped) < min_length:
             return False, "below_min_length"
 
-        # 3. Refusal / punt check
         if check_punt and _is_punt(stripped):
             return False, "refusal_or_punt"
 
-        # 4. JSON structure validation (if text looks like JSON block)
         if check_json and (stripped.startswith("{") or stripped.startswith("[")):
             try:
                 json.loads(stripped)

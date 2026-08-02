@@ -20,7 +20,7 @@ if [[ ! -d "/usr/lib/modules/$KVER" ]]; then # Explicitly check /usr
 fi
 
 if [[ ! -d "/usr/lib/modules/$KVER/build" ]]; then
-    mios_warn "/usr/lib/modules/$KVER/build missing -- akmod may fail"
+    mios_warn "/usr/lib/modules/$KVER/build missing"
 fi
 
-mios_ok "kernel extras for $KVER installed"
+mios_ok "Kernel extras for $KVER installed"

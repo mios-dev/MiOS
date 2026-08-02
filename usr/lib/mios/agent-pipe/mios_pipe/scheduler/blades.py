@@ -1,18 +1,4 @@
 # AI-hint: Pure-stdlib BLADE/topology model for the agent-pipe (V4 + V5 multi-blade
-#   admission). A BLADE is a physical machine; a NODE (mios.toml [nodes.*]) is a compute
-#   unit (CPU/iGPU/dGPU/NPU + engines) that lives ON a blade. This module owns the SSOT
-#   readers that turn [blades.*] + the [nodes.*]/[agents.*] registry into the maps the
-#   admission gate consumes: local_blade_name() resolves THIS machine's blade from the
-#   [identity] hostname SSOT (never a baked literal); load_blade_pool() builds
-#   {blade: {vram_budget_mb, load_ceil}} with the LOCAL blade defaulting to the existing
-#   VRAM_BUDGET_MB scalar (so a config with NO [blades.*] reproduces today's single-blade
-#   capacity exactly); endpoint_blade_map() maps each registry endpoint (host:port) to its
-#   blade (a node with no `blade` field belongs to the local blade -> today); and
-#   blade_vram_budget() looks a blade's VRAM budget up, degrading OPEN to the local scalar
-#   when the blade/capacity is unknown (admission is never wedged/locked out). Magic
-#   capacity numbers come from the CALLER (server's VRAM_BUDGET_MB / load ceiling SSOT) or
-#   [blades.*], never baked here. Pure: stdlib + mios_config._toml_section only; this
-#   module NEVER imports server (one-way boundary), so it unit-tests in isolation.
 # AI-related: ./mios_config.py, ./mios_agentreg.py, ./server.py, ./test_mios_blades.py, /usr/share/mios/mios.toml
 # AI-functions: _as_int, local_blade_name, load_blade_pool, endpoint_blade_map, blade_for_endpoint, blade_vram_budget
 """mios_blades -- blade (machine) topology + per-blade capacity model.
@@ -109,7 +95,6 @@ def load_blade_pool(local_blade: str, local_vram_budget_mb,
             if vb is not None and str(vb).strip() != "":
                 entry["vram_budget_mb"] = _as_int(vb, entry.get("vram_budget_mb", _local_vram))
             elif "vram_budget_mb" not in entry:
-                # A declared blade with no capacity -> the local scalar (degrade-open).
                 entry["vram_budget_mb"] = _local_vram
             lc = cfg.get("load_ceil")
             if lc is not None and str(lc).strip() != "":

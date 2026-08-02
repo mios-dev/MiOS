@@ -1,18 +1,4 @@
 # AI-hint: NATIVE single-agent tool-loop responders extracted VERBATIM from server.py
-#   (strangler-fig refactor). _respond_native_loop_direct is the mios-heavy + full MiOS
-#   tool-surface agentic loop -- deterministic remember/identity fast-paths, capability +
-#   env + recency + computation + route-by-source system grounding, concurrent
-#   memory/knowledge/RAG recall, the stable-prefix tool surface + dispatch_to_nodes
-#   fan-out tool, the LIVE-emit streaming pump, the web/compute/local-state/file-search
-#   PREFETCH grounding, the secondary tool-loop, heavy->light bullet-proof failover,
-#   think-tag empty-recovery, polish, the relay ladder, the anti-fabricated-citation
-#   guard, and deterministic **Sources:** capture -- every comment/heuristic/guard moved
-#   byte-identically. _respond_local_state is the deterministic local-READ fast-path with
-#   its own live-emit pump + native-loop recovery. Sibling helpers (mios_sse, mios_verity
-#   polish, mios_secondary_loop, mios_jsonsalvage) are imported directly; every
-#   server-side dep is dependency-INJECTED via configure() (one-way boundary -- this
-#   module NEVER imports server). server.py re-imports both names under their original
-#   aliases so the importable surface is byte-identical.
 # AI-related: ./server.py, ./mios_config.py, ./mios_turn.py, ./mios_sse.py, ./mios_verity.py, ./mios_secondary_loop.py, ./mios_jsonsalvage.py, ./test_mios_native_loop.py
 # AI-functions: _respond_native_loop_direct, _respond_local_state, _formulate_compute_snippet, _formulate_web_query, _format_local_state, configure
 """NATIVE single-agent tool-loop responders (strangler-fig refactor).
@@ -47,21 +33,11 @@ from mios_sse import (
     _sse_chunk, _sse_done, _sse_reasoning, _sse_status, _sse_status_phase,
     _stream_answer,
 )
-# SSOT model/endpoint scalars the moved web/compute formulators + local-state
-# responder read are imported DIRECTLY from mios_config (the SSOT) rather than
-# injected -- they are never reassigned in server.py, so import == inject-by-value
-# with no DI seam growth (one-way boundary: mios_config never imports this module).
 from mios_config import (
     PLANNER_ENDPOINT, PLANNER_TIMEOUT_S, POLISH_ENDPOINT, POLISH_MAX_TOKENS,
     POLISH_MODEL, POLISH_TIMEOUT_S, ROUTER_MODEL,
 )
-# The shared think-tag stripper lives in mios_turn (its SSOT home); imported here
-# directly for _format_local_state's final clean-up (no cycle -- mios_turn imports
-# no siblings).
 from mios_turn import _strip_think_tags
-# The web-enrich verb SET (which role:"tool" outputs count as fetched ground
-# truth) lives in toolexec's SSOT; referenced through the module so a runtime
-# reconfigure() is reflected (no duplicated literal set -- Law 7).
 from mios_pipe.routing import toolexec as _toolexec
 
 log = logging.getLogger("mios-agent-pipe")
@@ -86,13 +62,6 @@ def _is_punt(_out: str) -> bool:
 
 
 
-# ── Anti-fabrication guards (FAB-01 fabricated execution / FAB-02 fabricated
-# grounding). Extracted to module scope so each stage is unit-testable WITHOUT
-# standing up the pipe. The SSOT flag + thresholds are bridged from mios.toml
-# [verity] via MIOS_ANTIFAB_* (userenv.sh -> system-sync-env.sh -> install.env);
-# env is the live source and the get() fallbacks are the degrade-OPEN defaults
-# used only before the bridge runs (they mirror the SSOT defaults). Same idiom as
-# the chat-sibling flag. -------------------------------------------------------
 _ANTIFAB_ENABLE = os.environ.get(
     "MIOS_ANTIFAB_ENABLE", "true").strip().lower() not in {"false", "0", "no", "off"}
 
@@ -117,14 +86,6 @@ def _antifab_ground_min() -> float:
         return 0.34
 
 
-# Executor-evidence shapes. The '🤝 <verb> output:' sentinel is emitted ONLY into
-# the reasoning stream by the tool executor -- it is never concatenated into a
-# model-synthesized answer -- and the {"success":true,...,"tool":"..."} form is a
-# tool-run success claim. A synthesized answer that WRITES either is reprinting an
-# execution it did not produce (FAB-01). The 🤝 glyph appears ONLY on the
-# executor's evidence line, so matching any 🤝-line that mentions 'output' (the
-# real 'output:' AND a mimicked-but-varied 'output (truncated for brevity):') and
-# consuming its block to the next blank line is safe and total in synthesized prose.
 _RE_EVIDENCE_SENTINEL = re.compile(r'🤝[^\n]*output.*?(?=\n\n|\Z)', re.DOTALL)
 _RE_SUCCESS_JSON = re.compile(
     r'\{[^{}]*"success"\s*:\s*true[^{}]*"tool"\s*:\s*"[^"]+"[^{}]*\}', re.DOTALL)
@@ -262,16 +223,6 @@ def _guard_entity_grounding(ans, corpus, *, gate, enable, min_entities, ground_m
         return ans
 
 
-# -- Dependency-injection seam ----------------------------------------
-# These responders read server.py's config scalars + routing table, the live
-# verb catalog, three request-scoped ContextVars, and call back into a large set
-# of server-side helpers (grounding, recall, prefetch, source, store, usage, the
-# worker-tools surface + its rebindable core-cache). server.py calls configure()
-# with those AFTER every one is defined (one-way boundary: this module never
-# imports server). The placeholders below let a standalone import succeed; every
-# consumer is async/runtime so nothing fires before configure() runs. NOTE: the
-# worker-tools CORE cache is REBOUND by server at request time, so it is injected as
-# a live getter (``_worker_tools_core_cache()``) rather than by value.
 
 dispatch_mios_verb = None
 _usage_estimate = None
@@ -298,11 +249,6 @@ _sources_metadata = None
 _store_knowledge = None
 _iter_answer_chunks = None
 _write_skill_md_fire = None
-# Server-owned prompt const + the polish (url, payload) builder shared with
-# mios_verity (verity imports it via configure too) -- both INJECTED (one-way
-# boundary): _LOCAL_STATE_SYSTEM is a server string, _polish_post stays in
-# server.py because moving it would cycle (this module imports mios_verity, which
-# also consumes _polish_post).
 _LOCAL_STATE_SYSTEM = ""
 _polish_post = None
 _VERB_CATALOG = None
@@ -389,12 +335,6 @@ async def _respond_native_loop_direct(
     """Native agentic tool-loop: mios-heavy + the full MiOS tool surface, one
     standard call->tool_calls->execute->repeat loop, then polish. The model routes
     itself via tool choice -- no bespoke classify/route/decompose layers."""
-    # Deterministic memory-SAVE : an 8B mis-handles "remember X"
-    # -- it called save_document / tried to RUN the named app instead of saving the
-    # fact. The save-a-fact pattern is unambiguous, so fire the `remember` verb
-    # directly + confirm, bypassing the model's mis-interpretation. (Read-back stays
-    # the model's job via `recall`.) The one routing exception the native loop keeps,
-    # because the model demonstrably cannot be trusted with this exact phrasing.
     _rmemo = re.match(
         r"\s*(?:please\s+)?(?:remember|note|keep in mind|don'?t forget)"
         r"(?:\s+that)?\s+(.+)", last_user_text or "", re.IGNORECASE)
@@ -425,12 +365,6 @@ async def _respond_native_loop_direct(
                          "message": {"role": "assistant", "content": _memans},
                          "finish_reason": "stop"}],
             "usage": _usage_estimate(last_user_text, _memans)})
-    # Deterministic IDENTITY/CAPABILITY answer : "who are you
-    # / what can you do" made the 14B confabulate ("Zabbix agent", "Mio's Pizza")
-    # and vary run-to-run. Like the remember handler above, answer this narrow,
-    # unambiguous class deterministically from the LIVE catalog so the reply is
-    # accurate, consistent, and correct even on a Day-0 (no-history) image. Tight
-    # gate (anchored phrasing + short message) so it never hijacks a real task.
     _idq = re.match(
         r"\s*(?:hey|hi|hello|yo|ok|okay|so)?[,\s]*"
         r"(?:can you\s+|could you\s+|please\s+)?"
@@ -482,12 +416,6 @@ async def _respond_native_loop_direct(
         _sys += "\n\n" + _NATIVE_LOOP_BREADTH_PROSE
     if NATIVE_LOOP_REFLECTION:
         _sys += "\n\n" + _NATIVE_LOOP_REFLECTION_PROSE
-    # Recency steering from refine's MODEL-classified time-sensitivity :
-    # refine sets `news` true for current-events/trending/latest asks (model-classified, NOT
-    # a keyword list). The data showed the model produces a real DATED report when it sets
-    # web_search time_range='day' and a thin hedge when it doesn't -- so when refine flags the
-    # turn time-sensitive, inject a SPECIFIC strong instruction to pull the recency lever.
-    # Degrade-open: no flag -> no line (a timeless query is never forced to filter by date).
     if refined and refined.get("news"):
         _sys += ("\n\nRECENCY (this request is time-sensitive): set web_search's "
                  "time_range to '" + (NATIVE_LOOP_RECENCY_RANGE or "day")
@@ -504,37 +432,15 @@ async def _respond_native_loop_direct(
                  "results, say so plainly; do not pad, and do not invent items to look "
                  "fuller. Do not ask the user to narrow what you can research "
                  "yourself.")
-    # COMPUTATION steer ("MATH(AND OTHER PYTHON CAPABILITIES)"):
-    # route any non-trivial calculation to the sandboxed Python executor rather than
-    # letting the 8B compute in-head (unreliable). Unconditional capability guidance --
-    # the MODEL decides when a step is non-trivial -- gated only by the SSOT flag + the
-    # structural presence of the verb in _VERB_CATALOG; NO "if math in q" branch.
     if NATIVE_LOOP_MATH_HINT and ("coderun" in _VERB_CATALOG
                                   or "code_mode" in _VERB_CATALOG):
-        # Frame the model's OWN limitation + the CAPABILITY (research-backed: naming the
-        # weakness raises correct tool use), NOT a hardcoded verb name -- the model maps
-        # this to its always-present sandbox code/Python tool from natural-language
-        # understanding ("natural language!!! not verbs/keywords").
         _sys += ("\n\nCOMPUTATION: you cannot reliably do arithmetic, numeric, "
                  "statistical, date/time, unit-conversion, or symbolic math in your head "
                  "-- it is error-prone. For ANY such calculation, run it with your "
                  "sandboxed code / Python execution tool and report the tool's result "
                  "instead of computing it yourself.")
-    # Tool-selection hint : refine identifies the relevant
-    # verb(s) for clear patterns ("remember X" -> remember; "what apps" -> mios_apps);
-    # an 8B over the full surface sometimes mis-picks a semantic neighbour (pkg for
-    # mios_apps, save_document for remember). Inject refine's hint_tools as a STRONG
-    # preference so the model lands on the right verb -- a nudge, not a hardcoded route.
     _hint_tools = [str(h).strip() for h in ((refined or {}).get("hint_tools") or [])
                    if isinstance(h, str) and str(h).strip()]
-    # ROUTE-BY-SOURCE local steer (operator "never web-search local machine state").
-    # `web` is the ONLY external [routing.domains] domain; everything else (files,
-    # system, apps_windows, packages, memory, computer_use, code_shell) targets THIS
-    # machine. When the turn routed to a LOCAL domain, prefer that domain's OWN verbs
-    # and tell the model NOT to web-search -- fixes a live miss where "find the
-    # mios.toml file on this system" (domain=files) fired web_search instead of
-    # find_file_fast. SSOT: verbs come straight from [routing.domains]; degrade-open
-    # when no domain was routed (_rdom_nl None -> not treated as local).
     _rdom_nl = _routed_domain_var.get(None)
     _local_domain_nl = bool(_rdom_nl) and _rdom_nl != "web"
     _local_query_nl = bool(refined and refined.get("local_state")) or _local_domain_nl
@@ -563,11 +469,6 @@ async def _respond_native_loop_direct(
              (refined or {}).get("intent"),
              bool(refined and refined.get("news")),
              bool(refined and refined.get("web")), _hint_tools[:6])
-    # Context recall (P4 context-propagation): the native loop's
-    # system prompt was contract+env only -- it lacked the agent-memory / knowledge /
-    # RAG recall the swarm path injects, so "what is my favorite editor?" surfaced
-    # nothing despite a saved fact. Inject all three concurrently (each self-gates on
-    # relevance + degrades to "" on miss/error).
     _recall_text = ""
     try:
         _mem, _kn, _rag = await asyncio.gather(
@@ -581,18 +482,8 @@ async def _respond_native_loop_direct(
         pass
     _user_msgs = [m for m in (messages or [])
                   if isinstance(m, dict) and m.get("role") != "system"]
-    # P0 stable-prefix : the cosine 'prefer these tools' relevance
-    # signal rides the user-adjacent TEXT (not the tools[] order) so tools[] stays
-    # byte-stable for RadixAttention. "" when STABLE_PREFIX is off (legacy intent-orders
-    # tools[] instead).
     _pref = (await _tool_pref_block(last_user_text)
              if (STABLE_PREFIX and STABLE_PREFIX_HINT) else "")
-    # Carry the REFINED plan (operator binding: every hop runs on refine's clean ACTIONABLE
-    # rewrite, never raw user text -- see project_mios_refined_query_carry). Feeding the model
-    # the refined intent (not the verbose instruction) also stops it ECHOING the literal ask
-    # and hedging "no '<verbatim instruction>' content available" (judge panel: the
-    # hedge quotes the user's exact wording -> reframing to the actionable intent removes that
-    # anchor). Degrade-open: empty when refine produced no distinct rewrite.
     _plan_bits = []
     _rt = str((refined or {}).get("refined_text") or "").strip()
     _io = str((refined or {}).get("intended_outcome") or "").strip()
@@ -603,11 +494,6 @@ async def _respond_native_loop_direct(
     _plan_block = ("PLAN for this turn -- work to THIS refined intent, treat it as fully "
                    "answerable, and do not anchor on the user's literal wording:\n"
                    + "\n".join(_plan_bits) + "\n\n") if _plan_bits else ""
-    # CURRENT-DATE anchor, placed beside the PLAN block in the model's attention window
-    # (the soft _env_grounding prose up in _sys is demonstrably overridden by an 8B on
-    # strong-prior topics -> training-era 2024 dates). Grounds the orchestrator's OWN
-    # context from the forwarded OWUI client env (server-clock fallback), NOT the user
-    # message -- same sanctioned pattern as the PLAN/recall blocks. Gated; degrade-open.
     _date_block = ""
     if NATIVE_LOOP_DATE_ANCHOR:
         _date_block = ("CURRENT_DATE: " + _current_date_str() + ". This is the "
@@ -616,10 +502,6 @@ async def _respond_native_loop_direct(
                        "resolve such references from training data or from dates found in "
                        "retrieved text; use THIS date, and do not state a year absent from "
                        "CURRENT_DATE or from the live search results.\n\n")
-    # Position recalled context + the tool-preference hint IMMEDIATELY BEFORE the user's
-    # question (not buried in the long system prompt) so the model reliably attends to them
-    # instead of tool-hunting (recall was 2/3 with the memory in
-    # _sys -- the model ignored it). Keeps the system+tools prefix byte-stable.
     if (_recall_text or _pref or _plan_block or _date_block) and _user_msgs:
         _last = _user_msgs[-1]
         _ctx = _date_block + _plan_block
@@ -637,18 +519,9 @@ async def _respond_native_loop_direct(
             "role": _last.get("role", "user"),
             "content": _ctx + "---\nUser's question: " + str(_last.get("content") or "")}]
     _msgs = ([{"role": "system", "content": _sys}] if _sys else []) + _user_msgs
-    # P0: under STABLE_PREFIX, request the full stable core + a short cosine tail (cap =
-    # core size + tail budget) so the byte-stable core block is never truncated; legacy
-    # = the intent-capped out[:cap].
     _eff_cap = (len(_worker_tools_core_cache() or []) + STABLE_PREFIX_TAIL
                 if STABLE_PREFIX else NATIVE_LOOP_TOOL_CAP)
     _tools = await _worker_tools_surface_async(cap=_eff_cap, intent=last_user_text)
-    # Fan-out-as-a-tool (federated swarm; agents-as-tools): the
-    # orchestrator can dispatch INDEPENDENT sub-tasks across all hardware nodes when a
-    # task is broad/parallelizable. The swarm fires behind this tool + returns ONE
-    # synthesized result; the DESCRIPTION carries the decision criteria + width rules
-    # so the model self-selects (Anthropic effort-scaling). Only the orchestrator gets
-    # this tool -> the fanned workers can't recurse.
     _tools = list(_tools) + [{
         "type": "function",
         "function": {
@@ -694,43 +567,22 @@ async def _respond_native_loop_direct(
             },
         },
     }]
-    # P0: under STABLE_PREFIX, move dispatch_to_nodes (appended last) into the STABLE
-    # region -- right after the core block, BEFORE the variable cosine tail -- so the
-    # [core + dispatch_to_nodes] prefix stays byte-identical + RadixAttention-cached;
-    # only the trailing tail varies. (Legacy: it stays last, as today.)
     if STABLE_PREFIX and len(_tools) >= 2:
         _ncore = len(_worker_tools_core_cache() or [])
         if 0 <= _ncore < len(_tools) - 1:
             _disp = _tools[-1]
             _tools = _tools[:_ncore] + [_disp] + _tools[_ncore:-1]
-    # Publish the orchestrator turn-context so the dispatch_to_nodes handler can fire
-    # the swarm with full context (request-scoped contextvar; see _orch_ctx_var).
     _orch_ctx_var.set({
         "refined": refined, "chat_id": chat_id, "model": model,
         "session_id": session_id, "last_user_text": last_user_text,
         "persona_system": persona_system, "request": request})
-    # Time-sensitive turn -> publish recency/breadth defaults so dispatch_mios_verb fills
-    # web_search's time_range/fanout when the model omits them (deterministic coverage; the
-    # prose steering alone held only ~half the time). Gated on refine's MODEL-classified
-    # `news` flag -> no keyword list; the model can still override per call.
     if NATIVE_LOOP_RECENCY_DEFAULTS and refined and refined.get("news"):
         _recency_ctx_var.set({"time_range": NATIVE_LOOP_RECENCY_RANGE,
                               "fanout": NATIVE_LOOP_RECENCY_FANOUT})
-    # Content-Type REQUIRED by llama-swap to identify the model (see tool-loop note);
-    # this _hdrs feeds the final-completion (_pb) + light-lane fallback posts below.
     _hdrs: dict = {"Content-Type": "application/json"}
     if (_BACKEND_KEY
             and BACKEND.split("://")[-1].split("/")[0] == _BACKEND_HOSTPORT):
         _hdrs["Authorization"] = f"Bearer {_BACKEND_KEY}"
-    # ── LIVE-EMIT PUMP ("nothing emits or streams thinking"):
-    # the native loop ran its tool loop with a NO-OP status callback and streamed
-    # ONLY the final answer -- so the front-ends (OWUI + Hermes) showed no live
-    # thinking + no 🛰️/✅ emitters (the regression vs the council path). Mirror
-    # _respond_local_state: the TOP-LEVEL streaming call runs the WHOLE turn as a bg
-    # task whose `emit` pushes the tool-loop activity (reasoning_content) + status
-    # pills onto a queue, drained LIVE here, THEN streams the synthesized answer.
-    # The bg task calls back streaming=False+emit so the loop runs exactly ONCE
-    # (this branch is skipped when emit is set / non-streaming).
     if streaming and emit is None:
         async def _stream_native() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
@@ -752,9 +604,6 @@ async def _respond_native_loop_direct(
 
             _wtask = asyncio.create_task(_work())
             yield _sse_chunk("", chat_id=chat_id, model=model, role="assistant")
-            # Accumulate the REAL final-answer tokens the bg work streams onto the
-            # queue so we can (a) forward them live + (b) know not to re-type a
-            # simulated copy at the end ("streaming PROPERLY").
             _streamed_parts: list = []
             while True:
                 try:
@@ -769,10 +618,6 @@ async def _respond_native_loop_direct(
                         yield _sse_reasoning(str(_s["reasoning"]),
                                              chat_id=chat_id, model=model)
                     elif _s.get("content") is not None:
-                        # LIVE final-answer tokens: the bg final completion streams
-                        # real content deltas (+ the **Sources:** block) onto the
-                        # queue; forward them as true OpenAI content deltas instead
-                        # of dropping them and re-typing a simulated copy at the end.
                         _piece = str(_s["content"])
                         if _piece:
                             _streamed_parts.append(_piece)
@@ -794,11 +639,6 @@ async def _respond_native_loop_direct(
                                     phase="subagent_done", done=True)
             _streamed = "".join(_streamed_parts)
             if _content and not _streamed.strip():
-                # NOTHING streamed live (e.g. a relay-ladder answer, or the final
-                # completion returned non-stream) -> simulated token re-type of the
-                # full answer (legacy path; tunable / off via SSOT). When tokens DID
-                # stream live above (the normal case), the answer + **Sources:** are
-                # already on the wire -- re-typing would DOUBLE them, so skip it.
                 if NATIVE_LOOP_STREAM_TOKENS and NATIVE_LOOP_STREAM_CHUNK > 0:
                     _delay = max(0.0, NATIVE_LOOP_STREAM_DELAY_MS / 1000.0)
                     for _piece in _iter_answer_chunks(_content, NATIVE_LOOP_STREAM_CHUNK):
@@ -814,39 +654,12 @@ async def _respond_native_loop_direct(
     _fired: list = []
     async with httpx.AsyncClient(timeout=httpx.Timeout(NATIVE_LOOP_TIMEOUT_S),
                                  headers={"Content-Type": "application/json"}) as _c:
-        # The tool-loop: the model calls verbs until satisfied (reuses the proven
-        # rescue/nudge/runaway-guard). allow_write=True -> real OS-control actions.
-        # Route the tool-loop activity into the LIVE emit stream (operator
-        # "nothing emits or streams thinking"): the push callback gets
-        # status fragments (tool names, glyphs, rescue/nudge markers) as the loop
-        # runs -- surface them as reasoning_content so the think dropdown shows the
-        # agent working LIVE. No emit (non-streaming, no pump) -> the old no-op.
         if _DEBUG_ENABLE:
             _push = (lambda s: emit({"content": str(s)})) if emit else (lambda s: None)
         else:
             _push = (lambda s: emit({"reasoning": str(s)})) if emit else (lambda s: None)
-        # Research turns (refine flagged web/news): a small local model often ANSWERS
-        # FROM MEMORY instead of calling web_search -> fabricated "trending news"
-        #, and the light lane REJECTS tool_choice forcing so we
-        # cannot force the call. PRE-FETCH web_search deterministically here and inject
-        # the LIVE results, so the model synthesizes from real data, never training
-        # memory. Gated on refine's web/news flags (non-research turns like "open
-        # notepad" are untouched); degrade-open (any failure just skips the prefetch).
-        # NOT for a LOCAL-source turn (_local_query_nl: local_state, or routed to a
-        # non-`web` domain) -- web-priming a "find my file" / "what's my CPU" query is
-        # the route-by-source violation that made a local file-find web_search.
         _refs: list = []   # (title, url-or-path) SOURCES this turn -> saved References
-        # FETCHED-corpus ground truth for FAB-02 per-section grounding: the LIVE
-        # text the pipe actually retrieved this turn. Hoisted to function scope,
-        # appended as each fetch lands; stays "" for non-web turns -> the grounding
-        # guard degrades-open.
         _fetched_corpus = ""
-        # LOCAL-STATE prefetch FIRST (additive hybrid,): a
-        # local_state turn reaches the native loop ONLY because it ALSO has a web
-        # knowledge gap (pure-local goes to the deterministic fast-path). Ground THIS
-        # machine's real identity/state UP FRONT so (a) the answer states identity
-        # from live tool output, not memory, and (b) the web query below can target
-        # the CONCRETE components the tools just identified. Degrade-open.
         _lse = ""
         if refined and refined.get("local_state"):
             try:
@@ -857,22 +670,10 @@ async def _respond_native_loop_direct(
             except Exception as _e:  # noqa: BLE001 -- degrade-open
                 log.debug("native-loop local-state prefetch skipped: %s", _e)
                 _lse = ""
-        # ADDITIVE web grounding ("use web tools for knowledge
-        # gaps EVERY TURN"): fire whenever refine flags a web/news gap -- INCLUDING a
-        # local_state HYBRID turn ("the theoretical specs of MY GPU"). Was hard-gated
-        # by `not _local_query_nl`, which dropped the web half of every hybrid query.
-        # For a HYBRID turn FORMULATE the search query from the locally-identified
-        # hardware (so it searches "NVIDIA RTX 4090 ... specs", not a dictionary
-        # lookup of the word "theoretical"). Pure-local has web=false -> never searches.
         if (refined and (refined.get("web") or refined.get("news"))):
             try:
                 _wq = last_user_text
                 if NATIVE_LOOP_QUERY_REFORMULATE:
-                    # Reformulate on EVERY web/news turn, not just hybrid: hybrid passes
-                    # the identified hardware as grounding; pure-web/news passes '' and
-                    # _formulate_web_query takes its generative pure-web path (entity
-                    # extraction + date anchor). Kills the verbose-imperative "give"
-                    # dictionary anchor. Degrade-open (returns raw text on any error).
                     _wq = await _formulate_web_query(last_user_text, _lse or "")
                 elif _lse and _lse.strip():
                     _wq = await _formulate_web_query(last_user_text, _lse)
@@ -894,11 +695,6 @@ async def _respond_native_loop_direct(
                      "'Source: <name>' lines or homepage URLs (those are fabrications). "
                      "If you have no source for a claim, omit the citation:\n"
                      + _wtext[:6000]})
-                    # CAPTURE the source URLs so References are SAVED on the answer
-                    # ("doesn't save references for web links").
-                    # A small model cites sources only by NAME ("per Wikipedia") and
-                    # drops the URL; we append a deterministic Sources list below from
-                    # the REAL web_search result so the links are always preserved.
                     try:
                         _wj = _loads_lenient(_wtext) if isinstance(_wtext, str) else _wtext
                         _wres = (_wj.get("results") if isinstance(_wj, dict) else None) or []
@@ -912,19 +708,8 @@ async def _respond_native_loop_direct(
                         pass
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
                 log.debug("native-loop web prefetch skipped: %s", _e)
-        # COMPUTE prefetch ("MATH(AND OTHER PYTHON CAPABILITIES)...
-        # natural language!!! not verbs/keywords"): an 8B mis-computes arithmetic/numeric/
-        # date/symbolic math in its head AND -- like the web case above -- won't reliably
-        # call the (now ambient/core) sandbox code tool. So the PIPE does the math, exactly
-        # like the web prefetch: a GENERATIVE judge (_needs_compute, by MEANING not
-        # keywords) decides if a calculation is needed; if so the micro-LLM EXTRACTS it as
-        # a Python snippet, we run it in the coderun sandbox, and inject the VERIFIED
-        # result as authoritative grounding. No keyword gate, no required verb from the
-        # user. Gated by NATIVE_LOOP_MATH_HINT; degrade-open (any failure just skips).
         if NATIVE_LOOP_MATH_HINT and "coderun" in _VERB_CATALOG:
             try:
-                # Reuse the promotion's verdict if it already judged (chat->agent),
-                # else judge now (a turn that was already intent=agent). No double call.
                 _nc = (refined or {}).get("_needs_compute")
                 if _nc is None:
                     _nc = await _needs_compute(last_user_text)
@@ -934,9 +719,6 @@ async def _respond_native_loop_direct(
                         _cres = await dispatch_mios_verb(
                             "coderun", {"code": _code, "lang": "python"},
                             session_id=session_id)
-                        # coderun returns {output: '{"ok":true,"stdout":"..."}'} -- PARSE
-                        # out the bare stdout so the model gets the clean RESULT, not the
-                        # wrapper JSON (which it mis-reads, then recomputes in-head wrong).
                         _out = ((_cres.get("output") or _cres.get("result")
                                  or _cres.get("stdout") or "")
                                 if isinstance(_cres, dict) else "")
@@ -961,14 +743,6 @@ async def _respond_native_loop_direct(
                              "sandbox result is correct."})
             except Exception as _e:  # noqa: BLE001 -- degrade-open, never block the turn
                 log.debug("native-loop compute prefetch skipped: %s", _e)
-        # LOCAL FILE-SEARCH prefetch (symmetric to the web prefetch). SAME failure
-        # mode, local edition: a small non-tool_choice model answers "find my file"
-        # from MEMORY -> a fabricated path (live miss: "find mios.toml" -> 0 tool-calls
-        # -> guessed C:\Users\<YourUsername>\.mios\...). For a files-domain turn,
-        # extract a filename-like token and DETERMINISTICALLY run the real file-search
-        # verbs (everything_search=Windows index, fs_search=Linux) -- the pipeline does
-        # the call the model skips -- then inject the REAL hits. Degrade-open: no
-        # filename token / no hit / error -> skip (the model still has the tools).
         if _rdom_nl == "files":
             _mfn = (re.search(r"['\"]([^'\"]+\.[A-Za-z0-9]{1,8})['\"]", last_user_text)
                     or re.search(r"\b([\w.+-]+\.[A-Za-z0-9]{1,8})\b", last_user_text))
@@ -997,10 +771,6 @@ async def _respond_native_loop_direct(
         _m2 = await _v1_secondary_tool_loop(
             _c, BACKEND, BACKEND_MODEL, _hdrs, _msgs, _tools,
             NATIVE_LOOP_TIMEOUT_S, _push, allow_write=True, tool_choice=tool_choice)
-        # parallel_tool_calls symmetric with the tool-loop's per-turn requests (audit
-        # P4): the final completion previously omitted it, so an OpenAI-
-        # compatible heavy model could fall back to its OWN default on the shaping call
-        # while the loop ran sequential. Gate on the same SSOT capability check.
         _pb = {"model": BACKEND_MODEL, "messages": _m2, "stream": False,
                "parallel_tool_calls": _endpoint_supports_parallel_tools(BACKEND),
                "chat_template_kwargs": {"enable_thinking": False}}
@@ -1043,13 +813,6 @@ async def _respond_native_loop_direct(
         except Exception as _e:  # noqa: BLE001
             log.warning("native-loop final completion failed: %s", _e)
             _raw = ""
-        # BULLET-PROOF FAILOVER : the HEAVY lane can be
-        # DOWN/crashed (the SGLang q35 incident) -- a heavy-completion failure must
-        # NOT dead-end the turn. When it yielded nothing, fall back to the LIGHT
-        # lane (the refine endpoint = mios-llm-light) for the final completion so the
-        # user still gets a GENERATED answer (degraded but present, not empty).
-        # Only fires on heavy-lane failure -> zero behavior change in the normal
-        # case; fully degrade-open (any error -> fall through to the relay ladder).
         if not _raw.strip() and REFINE_ENDPOINT and REFINE_ENDPOINT != BACKEND:
             try:
                 _fb = {"model": REFINE_MODEL, "messages": _m2, "stream": False,
@@ -1068,21 +831,12 @@ async def _respond_native_loop_direct(
                 _fn = (_tc.get("function") or {}).get("name")
                 if _fn:
                     _fired.append(_fn)
-    # Strip model reasoning. NATIVE empty-recovery (no injected English, no extra POST):
-    # if removing <think>...</think> EMPTIES the answer, the model put the answer INSIDE
-    # the think tags (it ignored enable_thinking:false) -> UNWRAP the tags instead of
-    # deleting their contents, so a real answer is never discarded as "empty".
     _stripped = re.sub(r"(?is)<think>.*?</think>", "", _raw).strip()
     if not _stripped and _raw.strip():
         _stripped = re.sub(r"(?is)</?think>", "", _raw).strip()
     _raw = _stripped
     _ans = _raw
-    # PROVENANCE flag for the FAB-01 guard: True ONLY when `_ans` is surfaced RAW
-    # executor evidence (the relay-ladder fallback below), which must be preserved
-    # verbatim. False on every model-SYNTHESIZED path -> the evidence-strip applies.
     _surfaced_raw_evidence = False
-    # POLISH: heavy critic / style-correction over the final answer. Skipped when
-    # the answer is ALREADY clean or if we streamed live (cannot rewrite past).
     if not getattr(locals(), "_live_streamed", False):
         try:
             _p = await polish_response(
@@ -1094,10 +848,6 @@ async def _respond_native_loop_direct(
         except Exception as _e:  # noqa: BLE001
             log.debug("native-loop polish skipped: %s", _e)
     if not _ans or not _ans.strip():
-        # RELAY LADDER ("HARDCODED!!!" -- never a canned dead-end):
-        # (1) relay the model's own raw synthesis if polish emptied it; (2) else surface
-        # the REAL tool evidence the loop already gathered (data only, no English framing);
-        # (3) else leave it empty -- NO canned failure phrase, NO topic list.
         if _raw and _raw.strip():
             log.info("native-loop: relaying raw synthesis (polish empty)")
             _ans = _raw.strip()
@@ -1112,23 +862,7 @@ async def _respond_native_loop_direct(
                         break
             _ans = "\n\n".join(_snips).strip()
             _surfaced_raw_evidence = bool(_ans)   # RAW executor evidence -> preserve verbatim
-            # (3b) STILL empty but we injected saved-context recall this turn ->
-            # surface it deterministically. granite sometimes emits NOTHING for a
-            # memory ask (its "I have no memory" reflex -> 0 content + 0 tool-calls),
-            # which previously left the user with a BLANK turn even though their own
-            # saved facts were right here. Never return blank when recall is present
-            # (Claude; same relay-ladder spirit -- real data, no canned phrase).
-            # ALSO override a non-blank PUNT/DENIAL. granite-8b frequently
-            # emits "I don't have any information about your X / could you tell me?"
-            # DESPITE the saved fact being injected right here (it violates even the
-            # "It is FALSE to say you don't have it" directive). A confident recall hit
-            # (>=MIN_SCORE, self-gated on relevance) that the model DENIED is exactly the
-            # case to surface the fact deterministically instead of shipping the denial.
             if (not _ans or _is_punt(_ans)) and _recall_text and _recall_text.strip():
-                # Surface the saved FACTS cleanly: drop the model-facing framing
-                # headers/instructions, the [score] markers, and the "this fact:"
-                # filler so the user sees facts, not scaffolding (degrade to raw if
-                # over-stripped).
                 _facts = re.sub(
                     r"(?im)^\s*(Durable facts|Relevant knowledge|Recent web|Context from|Saved).*$",
                     "", _recall_text)
@@ -1144,15 +878,6 @@ async def _respond_native_loop_direct(
             else:
                 log.info("native-loop: %s", "surfaced tool evidence (raw+polish empty)"
                          if _ans else "no answer/raw/evidence (empty)")
-    # ANTI-FABRICATED-CITATION guard (operator no-farce): on a web/news turn, a
-    # cited URL that is NOT among the sources actually FETCHED this turn was invented --
-    # granite confidently emits e.g. "ai.googleblog.com/2024/..." as "this week's news"
-    # from TRAINING data, ignoring the real fetched sources (the swarm safety net already
-    # routed here, yet the model still fabricates a plausible stale story + fake URL). The
-    # fetched-source set is ground truth; an off-list URL means the specifics are
-    # untrustworthy, so replace the answer with an honest note -- the REAL **Sources:** are
-    # appended just below. Gated to router=web so a non-web answer that legitimately names
-    # a URL from knowledge is untouched; degrade-open keeps the model answer on any error.
     if _routed_domain_var.get(None) == "web":
         try:
             _real_norm = {re.sub(r"[/\s.]+$", "", str(_s.get("url") or ""))
@@ -1160,10 +885,6 @@ async def _respond_native_loop_direct(
             _ans_urls = re.findall(r"https?://[^\s)\]\"'<>]+", _ans or "")
             _fab = [_u for _u in _ans_urls
                     if re.sub(r"[/\s.]+$", "", _u) not in _real_norm]
-            # Also catch prose-only fabrication: a web/news turn that fetched ZERO
-            # sources yet produced a sourced-looking REPORT (a markdown table of
-            # "articles") -- e.g. gibberish misrouted to news -> invented outlets. No
-            # ground truth exists, so it is fabricated. Structural (table), not keyword.
             _has_report_table = bool(re.search(r"(?m)^\s*\|.*\|.*\|", _ans or ""))
             if (_fab and _real_norm) or (not _real_norm and _has_report_table):
                 log.warning("native-loop: web answer fabricated (%d off-list URL(s), %d fetched "
@@ -1173,15 +894,6 @@ async def _respond_native_loop_direct(
                         "the current sources I found -- open one for the latest:")
         except Exception:  # noqa: BLE001 -- degrade-open, keep the model answer
             pass
-    # ANTI-FABRICATED-CITATION guard, PART 2 -- per-SECTION entity grounding
-    # (FAB-02): the URL check above only catches an off-list http URL; a partial
-    # fabrication (real fetched sources + an invented section that cites an outlet
-    # BY NAME, no URL) slips it. Complete the fetched corpus with the web-enrich
-    # tool outputs + real source titles/urls, then strip ONLY a section whose named
-    # entities are mostly absent from that corpus -- keeping the grounded half + the
-    # real Sources. Gated on the web/news signal (covers a news turn that never set
-    # domain==web) AND _ANTIFAB_ENABLE; degrade-open on empty corpus / caseless
-    # script / too-few entities. Thresholds from [verity] SSOT (no literals).
     try:
         for _mm in _m2:
             if (isinstance(_mm, dict) and _mm.get("role") == "tool"
@@ -1200,22 +912,11 @@ async def _respond_native_loop_direct(
         min_entities=_antifab_min_entities(), ground_min=_antifab_ground_min(),
         note="*(Some content above could not be verified against the fetched "
              "sources and was omitted.)*")
-    # SAVE REFERENCES ("doesn't save references for web links"):
-    # a small model cites web sources by NAME and drops the URL, so the answer loses
-    # its links. Append a deterministic **Sources:** list from the REAL web_search
-    # results captured this turn -- ONLY when the answer doesn't already carry URLs --
-    # so the references are SAVED on the answer AND persisted by _store_knowledge
-    # below. Degrade-open (no refs / answer already has links -> unchanged).
-    # Unify with the turn-scoped central collector (prefetch + in-loop web_search via
-    # _exec_tool_calls); fall back to the local prefetch capture if the collector is off.
     try:   # harvest the answer's OWN inline citations so metadata matches the text
         _src_record_from_text(_ans)
     except Exception:  # noqa: BLE001
         pass
     _refs = _src_collected() or _refs
-    # OpenAI grounding: keep ONLY sources that support the answer -- drop the
-    # off-topic bleed (a Fedora answer must not cite 'Shaolin monks') before any
-    # citation surface. web-tools hardening.
     _refs = _filter_relevant_sources(_refs, _ans, last_user_text)
     if _refs and _ans and _ans.strip() and "**Sources:**" not in _ans:
         _append = _sources_markdown(_refs)
@@ -1246,8 +947,6 @@ async def _respond_native_loop_direct(
         "created": int(time.time()), "model": model,
         "choices": [{"index": 0,
                      "message": {"role": "assistant", "content": _ans,
-                                 # OpenAI url_citation annotations (canonical
-                                 # citation contract). web-tools hardening.
                                  "annotations": _sources_annotations(_refs, _ans)},
                      "finish_reason": "stop"}],
         "usage": _usage_estimate(last_user_text, _ans),
@@ -1263,14 +962,6 @@ async def _respond_local_state(
     """Deterministic local-state answer: run the local READ tools, enumerate
     faithfully, STOP. Returns a Response, or None to fall through to the normal
     council path (no grounding / format failure -- non-streaming only)."""
-    # ── LIVE EMIT PUMP (emits run SEPARATELY to the
-    # pipeline). The READ tools (mios_apps games-scan can take tens of seconds)
-    # were a SILENT gap. Run the SAME body as a non-streaming bg task whose
-    # `emit` pushes milestone status + the grounding reasoning onto a queue,
-    # drained LIVE here. NOTE: when streaming we COMMIT to a local answer (no
-    # council fallthrough on empty grounding) -- a local-state query that finds
-    # nothing gets an honest "couldn't find it" instead of a web-search the
-    # operator confirmed returns garbage for machine-state questions.
     if streaming:
         async def _stream_ls() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
@@ -1318,7 +1009,6 @@ async def _respond_local_state(
             except Exception:  # noqa: BLE001
                 _content = ""
             if _content:
-                # The local-state fast-path produced a real answer -> stream it + finish.
                 yield _sse_chunk(_content, chat_id=chat_id, model=model)
                 yield _sse_status_phase(chat_id=chat_id, model=model,
                                         phase="subagent_done", done=True)
@@ -1326,13 +1016,6 @@ async def _respond_local_state(
                                  finish_reason="stop")
                 yield _sse_done()
                 return
-            # RECOVERY ("research today's global trending" was routed to
-            # local-state + dead-ended on a HARDCODED string). The local-state fast-path
-            # ERRORED or found NOTHING -> the query was not machine-state (refine mis-set
-            # local_state). RELAY the native loop's LIVE stream: it self-routes (web_search
-            # etc.) and GENERATES the whole answer -- including any "I couldn't find that"
-            # in the model's own words. NO hardcoded dead-end, NO topic list. Recovers ANY
-            # misroute, and streams live (no keepalive gap / answer dump).
             _rf = dict(refined or {})
             _rf["local_state"] = False
             _nl = await _respond_native_loop_direct(
@@ -1369,16 +1052,10 @@ async def _respond_local_state(
     answer = await _format_local_state(last_user_text, grounding, persona_system)
     if not answer:
         return None
-    # P5.7 + knowledge: capture the local-state deterministic Q+A so it surfaces
-    # via RAG recall on the next similar query AND lands as a SKILL.md episodic
-    # memory. Identical fire-and-forget posture to the polish_response hook.
     _store_knowledge(query=last_user_text, answer=answer,
                      session_id=session_id, tool_history=[])
     _write_skill_md_fire(query=last_user_text, answer=answer,
                          tool_history=[], session_id=session_id)
-    # Streaming is handled by the live-emit pump at the TOP of this function
-    # (runs THIS body as a non-streaming bg task + drains milestone/reasoning
-    # emits live). Reaching here means streaming=False -> plain JSON completion.
     return JSONResponse(content={
         "id": chat_id, "object": "chat.completion", "created": int(time.time()),
         "model": model,
@@ -1389,13 +1066,6 @@ async def _respond_local_state(
     })
 
 
-# ── Extracted from server.py (strangler-fig wave): the micro-LLM web/compute
-# query formulators + the local-state faithful-enumeration responder. All three
-# were EXCLUSIVELY injected into + called by this module; moved here verbatim so
-# server.py drops their DI seam. They read PLANNER_*/POLISH_*/ROUTER_MODEL from
-# mios_config + _strip_think_tags from mios_turn (direct imports above); the
-# server-owned _LOCAL_STATE_SYSTEM prompt + the shared _polish_post builder stay
-# injected via configure().
 async def _formulate_compute_snippet(user_text: str) -> str:
     """Have the micro-LLM EXTRACT the calculation the user is asking for as a short,
     self-contained Python 3 snippet that PRINTS the result (mirrors _formulate_web_query).
@@ -1423,7 +1093,6 @@ async def _formulate_compute_snippet(user_text: str) -> str:
             return ""
         code = ((r.json().get("choices") or [{}])[0].get("message", {})
                 .get("content") or "").strip()
-        # Strip an accidental ```/```python fence pair so only runnable code remains.
         code = re.sub(r"^```[A-Za-z0-9_]*\n?", "", code)
         code = re.sub(r"\n?```\s*$", "", code).strip()
         return code[:2000]
@@ -1441,11 +1110,6 @@ async def _formulate_web_query(user_text: str, local_grounding: str) -> str:
     if not (user_text or "").strip():
         return user_text
     _has_local = bool((local_grounding or "").strip())
-    # PURE-WEB/NEWS turn (no local hardware to name): reformulate the verbose imperative
-    # request into a clean entity+recency query so "Give me a briefing on X this week"
-    # -> "X latest developments <YYYY-MM>" instead of the leading word "give" anchoring a
-    # dictionary hit. The MODEL decides what framing to drop (generative; NO stopword
-    # list in code). Gated by NATIVE_LOOP_QUERY_REFORMULATE; degrade-open to raw text.
     if not _has_local and not NATIVE_LOOP_QUERY_REFORMULATE:
         return user_text
     _date = _current_date_str()
@@ -1522,6 +1186,5 @@ async def _format_local_state(question: str, grounding: str,
         log.warning("local-state format failed: %s", e)
         return None
     log.info("local-state format: %.1fs", time.time() - t0)
-    # OpenAI /v1 choices[] shape (MiOS is /v1-only).
     msg = ((body.get("choices") or [{}])[0].get("message")) or {}
     return _strip_think_tags((msg.get("content") or "").strip()) or None

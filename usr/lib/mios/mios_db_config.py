@@ -1,6 +1,4 @@
 # AI-hint: Peer of mios_toml.py resolving configuration settings from PostgreSQL config tables (WS-VECTOR V1 / T-243).
-# Resolves settings from config_kv, verb, and domain_verb tables with layered precedence (vendor < host < user < machine).
-# Performs shadow-comparison checks against mios_toml when db_authoritative is false to detect and log configuration drifts.
 from __future__ import annotations
 
 import os
@@ -27,10 +25,6 @@ def record_divergence(key: str | set[str] | list[str]) -> None:
 
 def get_pg_config() -> dict:
     e = os.environ
-    # Parse the port defensively: a non-numeric MIOS_PORT_PGVECTOR must NOT raise
-    # (get_pg_config runs outside load_db_config's fail-open try -- a ValueError
-    # here would propagate out of the resolver and crash every config read instead
-    # of falling back to mios.toml).
     try:
         port = int(e.get("MIOS_PORT_PGVECTOR") or 8432)
     except (TypeError, ValueError):
@@ -59,7 +53,6 @@ def is_db_authoritative() -> bool:
     if val is not None:
         res = val.lower() in ("true", "1", "yes")
     else:
-        # Load from files only to prevent infinite recursion loop
         file_data = mios_toml.load_merged(layers=mios_toml.layer_paths())
         res = bool(mios_toml.get("ai", "db_authoritative", default=False, data=file_data))
     _IS_DB_AUTHORITATIVE_CACHE = res
@@ -69,7 +62,6 @@ def load_db_config() -> dict:
     global _LOAD_DB_CONFIG_CACHE
     if _LOAD_DB_CONFIG_CACHE is not None:
         return _LOAD_DB_CONFIG_CACHE
-    # Synchronously connect to PG database using psycopg
     try:
         import psycopg
     except ImportError:
@@ -82,7 +74,6 @@ def load_db_config() -> dict:
     try:
         with psycopg.connect(conn_str, connect_timeout=2) as conn:
             with conn.cursor() as cur:
-                # 1. Fetch config_kv keys in precedence order (lower rank first: vendor < host < user < machine)
                 cur.execute(
                     """
                     SELECT scope, key, value, layer FROM config_kv
@@ -94,7 +85,6 @@ def load_db_config() -> dict:
                     if scope not in data:
                         data[scope] = {}
                     
-                    # Merge using deep_merge overlay rules
                     if isinstance(value, dict) and isinstance(data[scope].get(key), dict):
                         mios_toml.deep_merge(data[scope][key], value)
                     elif isinstance(value, str) and value == "" and data[scope].get(key) not in (None, ""):
@@ -102,7 +92,6 @@ def load_db_config() -> dict:
                     else:
                         data[scope][key] = value
 
-                # 2. Fetch routing domains
                 cur.execute(
                     """
                     SELECT domain, description, array_agg(verb_name ORDER BY verb_name)
@@ -124,7 +113,6 @@ def load_db_config() -> dict:
                             "verbs": list(verbs_list)
                         }
 
-                # 3. Fetch verbs defaults
                 defaults = {}
                 if "verbs" in data and "_defaults" in data["verbs"]:
                     defaults = data["verbs"]["_defaults"]
@@ -142,7 +130,6 @@ def load_db_config() -> dict:
                             data["verbs"] = {}
                         data["verbs"]["_defaults"] = defaults
 
-                # 4. Fetch verbs
                 cur.execute(
                     """
                     SELECT name, sig, desc_default, tier, permission, cmd, params,
@@ -279,7 +266,6 @@ def get(sect, key, default=None, data=None) -> Any:
     if is_db_authoritative():
         db_cfg = load_db_config()
         if db_cfg:
-            # Check key inside DB config dict
             sect_dict = mios_toml.section(db_cfg, sect)
             if key in sect_dict:
                 return sect_dict[key]

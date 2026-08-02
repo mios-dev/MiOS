@@ -47,7 +47,6 @@ from typing import Iterable, Optional, Sequence, Tuple
 import mios_bench
 
 
-# ── 1. Structural anti-reward-hacking isolation ────────────────────────────────
 def proposal_target_allowed(target_kind: str, *, improvable, protected) -> bool:
     """True iff a proposal targeting ``target_kind`` is in the improvable surface
     and NOT in the protected surface. DENY WINS: a kind in ``protected`` is refused
@@ -83,14 +82,10 @@ def validate_proposal(proposal: dict, *, improvable, protected) -> "Tuple[bool, 
     if not tid:
         return False, "missing_target_id"
     if not proposal_target_allowed(kind, improvable=improvable, protected=protected):
-        # Structurally off-limits: either outside the improvable surface or inside
-        # the protected (evaluator/eval/lane-config) surface. Same token either way
-        # -- the proposal simply may not touch this surface.
         return False, "target_protected_or_unimprovable"
     return True, "ok"
 
 
-# ── 2. Autodata solver-gap discriminative signal ───────────────────────────────
 def solver_gap(weak_score: float, strong_score: float) -> float:
     """The discriminative signal: ``strong - weak``. A purely numeric verifier
     output (good per NO-HARDCODE -- not an English/keyword gate). Both args are
@@ -126,7 +121,6 @@ def curate_eval(candidates: "Iterable[dict]", *, gap_min: float) -> "list[dict]"
     return kept
 
 
-# ── 3. Proof-of-utility (pass^k non-regression) ────────────────────────────────
 def pass_hat_k_score(tasks: "Sequence[Tuple[int, int]]", *, k: int) -> float:
     """The pass^k reliability score over a held-out eval, via :mod:`mios_bench`.
     ``tasks`` = ``[(n_trials, c_correct), ...]`` per task. pass^k ("ALL k repeats

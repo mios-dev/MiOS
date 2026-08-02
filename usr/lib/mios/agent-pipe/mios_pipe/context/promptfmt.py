@@ -1,11 +1,4 @@
 # AI-hint: Pure prompt text-block formatters lifted verbatim from server.py
-#   (strangler-fig extraction). Each turns a small data structure into a
-#   prompt-injectable string with NO server state, NO network, NO DB -- args +
-#   stdlib only, so they are trivially unit-isolated: _council_role_lens (the
-#   per-secondary diversity lens for a council, SSOT role+strengths derived),
-#   _format_satisfaction_block (daemon satisfaction verdicts incl. the P5
-#   write-action-unmet anti-fabrication note), and _format_tool_history (the
-#   chronological tool-call ledger the writer must check before claiming done).
 # AI-related: server.py, mios_fanout.py, mios_swarm.py, mios_daemons.py
 # AI-functions: _council_role_lens, _format_satisfaction_block, _format_tool_history, _build_agent_hint, _multi_task_preamble
 """Pure, stateless prompt text-block formatters (strangler-fig extraction)."""
@@ -68,10 +61,6 @@ def _format_satisfaction_block(rows: list[dict]) -> str:
                     f"    failed: {f.get('tool')} exit={f.get('exit_code')} "
                     f"err={(f.get('stderr_preview') or '')[:80]}"
                 )
-        # Structural action-claim flag (P5): surfaced for ANY verdict (a turn
-        # can be "satisfied" by an answer yet still have skipped a planned
-        # side-effecting action). Gives polish's INVOKED-TOOL CHECK an explicit,
-        # authoritative signal not to let a fabricated "done" stand.
         wau = payload.get("write_action_unmet")
         if isinstance(wau, dict) and wau.get("hinted"):
             parts.append(
@@ -133,23 +122,9 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
         lines.append("hint_tools: " + ", ".join(str(t) for t in tools[:8]))
     if skills:
         lines.append("hint_skills: " + ", ".join(str(s) for s in skills[:8]))
-    # GLOBAL tool access ("all agents have all access to
-    # all tools/skills/recipes globally"). The hints above are SUGGESTIONS,
-    # not limits -- state it explicitly so an agent never assumes it's scoped
-    # to the hinted subset. Compact (no full-catalog dump -- keeps the micro
-    # context budget) + reinforces act-don't-narrate.
-    # Capability/behaviour rules (global tool access, live internet, no
-    # disclaim/fabricate, delegation) now live in the overlay agent-contract
-    # .md presented as the LEAD system message at every hop -- not duplicated
-    # here. This block carries only the per-plan hints. Keep one terse pointer
-    # so the hinted-subset is never misread as a limit.
     lines.append(
         "tool_access: GLOBAL -- the hints above are SUGGESTIONS, not limits "
         "(see the agent contract). Acting REQUIRES a real tool_call.")
-    # Per-step tool cards (ReWOO + MCP-style annotations). Carries
-    # the WHY + the success predicate INTO the sub-agent so it
-    # doesn't have to re-derive the plan. Cap at 8 cards so we
-    # stay under ~250 tokens total even for rich plans.
     cards = refined.get("tool_cards") or []
     if isinstance(cards, list) and cards:
         lines.append("tool_cards:")
@@ -163,7 +138,6 @@ def _build_agent_hint(refined: dict, target_name: str) -> str:
             args_hint = c.get("args_hint")
             line = f"  - [{i}] tool={tool}"
             if args_hint:
-                # Render compactly; sub-agent re-parses as JSON.
                 try:
                     line += f" args={json.dumps(args_hint, separators=(',', ':'))[:200]}"
                 except (TypeError, ValueError):

@@ -41,7 +41,6 @@ def main():
     report_path = compliance.get("report_path", "/usr/share/mios/compliance")
     skip_rules = compliance.get("oscap_skip_rules", [])
 
-    # Resolve datastream path
     ds_path = datastream
     if not ds_path:
         os_candidates = []
@@ -62,7 +61,6 @@ def main():
             if os.path.exists(cand):
                 ds_path = cand
                 break
-            # Try rpm query lookup
             try:
                 out = subprocess.check_output(["rpm", "-ql", "scap-security-guide"], text=True)
                 found = False
@@ -109,7 +107,6 @@ def main():
         with open(tailoring_file, "w", encoding="utf-8") as f:
             f.write(tailoring_xml)
 
-    # Construct oscap-im command
     cmd = ["oscap-im", "--results-arf", arf_path, "--report", html_path]
     if fetch_resources:
         cmd.append("--fetch-remote-resources")
@@ -123,10 +120,8 @@ def main():
     except subprocess.CalledProcessError as e:
         die(f"oscap-im failed with exit code {e.returncode}")
 
-    # Enforce the gate
     gate_bin = "/usr/libexec/mios/mios-oscap-gate"
     if not os.path.exists(gate_bin):
-        # Fallback to local dev tree lookup
         gate_bin = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mios-oscap-gate")
 
     if not os.path.exists(gate_bin):

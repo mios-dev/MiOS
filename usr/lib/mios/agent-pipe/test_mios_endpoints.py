@@ -7,8 +7,6 @@
 import os
 import sys
 
-# Pin the env-SSOT hint tuples BEFORE import so the module-load-time constants are
-# deterministic regardless of any mios.toml [dispatch] overrides on this host.
 os.environ["MIOS_NO_TOOL_CHOICE_HINTS"] = "11436"
 os.environ["MIOS_PARALLEL_TOOLS_HINTS"] = "11441"
 os.environ["MIOS_KV_PAGING_HINTS"] = "11436"
@@ -17,7 +15,6 @@ import mios_endpoints as e  # noqa: E402
 
 _fails = 0
 
-# A generic OpenAI endpoint that contains NONE of the port hint substrings.
 GENERIC = "http://core.example/v1"
 
 
@@ -40,7 +37,6 @@ def t_binding_api():
 
 
 def t_tool_choice():
-    # llama.cpp 400s on tool_choice='required'.
     check("tool_choice: api=llamacpp -> False",
           e._endpoint_supports_tool_choice(GENERIC, {"api": "llamacpp"}) is False)
     check("tool_choice: explicit tool_choice=False -> False",

@@ -13,7 +13,7 @@ install -d -m 0755 "${WANTS}"
 
 if [[ -f "/usr/lib/systemd/system/mios-copy-build-log.service" ]]; then
     ln -sf ../mios-copy-build-log.service "${WANTS}/mios-copy-build-log.service"
-    mios_ok "enabled mios-copy-build-log.service"
+    mios_ok "Enabled mios-copy-build-log.service"
 else
-    mios_warn "mios-copy-build-log.service not found, skipping"
+    mios_warn "Mios-copy-build-log.service not found, skipping"
 fi

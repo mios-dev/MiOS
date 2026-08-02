@@ -44,19 +44,6 @@ from mios_config import _toml_section
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam -------------------------------------------
-# The consumer half calls back into server-resident state/helpers: the live A2A
-# peer registries + lock, the outbound peer-reputation tracker, the agent
-# registry, the layered peer-registry paths, the council/self-id scalars,
-# the HTTP client factory, and the worker-tool-surface cache invalidator (a
-# newly-discovered peer registers a synthetic DAG agent -> server's
-# _WORKER_TOOLS_FULL_CACHE must drop so it rebuilds; the module cannot rebind
-# that server global across the one-way boundary). server.py calls configure()
-# with all of them AFTER each is defined. Mutable containers (_A2A_PEERS/
-# _A2A_PEER_SKILLS/_AGENT_REGISTRY) are injected BY REFERENCE so server-side
-# mutation stays visible. Placeholders keep a standalone ``import
-# mios_a2a_client`` working for the unit tests; nothing fires before configure()
-# runs (handlers are only reached at request/startup time).
 _A2A_PEERS: dict = {}
 _A2A_PEER_SKILLS: dict = {}
 _A2A_PEERS_LOCK = None
@@ -65,11 +52,6 @@ _AGENT_REGISTRY: dict = {}
 _A2A_PEER_REGISTRY_PATHS: list = []
 A2A_COUNCIL = False
 A2A_SELF_ID = "local-mios"
-# FED-G7 (T-051): when set, a discovered peer's FULL published AgentCard skills[]
-# (name/description/tags) is attached to its synthetic registry entry as
-# ``card_skills`` so the fan-out relevance model (mios_fanout) can route on the
-# advertised skill, not just the collapsed strength-token ids. SSOT
-# [a2a].route_on_card_skills; default OFF -> the peer entry is byte-identical.
 ROUTE_ON_CARD_SKILLS = False
 _get_client = None
 
@@ -181,7 +163,6 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                         if isinstance(m, dict) and m.get("id"):
                             model_ids.append(str(m["id"]))
                 
-                # Infer capabilities
                 skills = []
                 has_text = False
                 has_embed = False
@@ -228,7 +209,7 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
                 return {
                     "name": url.split("//", 1)[-1].split(":", 1)[0],
                     "provider": {"organization": "Cardless"},
-                    "version": "1.0.0",
+                    "version": "0.3.0",
                     "protocolVersion": "0.3.0",
                     "skills": skills,
                     "_cardless": True,
@@ -337,8 +318,6 @@ async def _a2a_probe_peer(cfg: dict) -> None:
             return
         card = cardless_card
     state["card"] = card
-    # LIBERAL on input: a v0.3 card carries a top-level protocolVersion; a v1.0
-    # card moved it into supportedInterfaces[].protocolVersion (first = preferred).
     state["protocolVersion"] = card.get("protocolVersion") or next(
         (i.get("protocolVersion")
          for i in (card.get("supportedInterfaces") or [])
@@ -357,7 +336,6 @@ async def _a2a_probe_peer(cfg: dict) -> None:
     state["skills"] = skills
 
     async with _A2A_PEERS_LOCK:
-        # Rebuild this peer's skill index entries (clear stale first).
         for sid in list(_A2A_PEER_SKILLS.keys()):
             _A2A_PEER_SKILLS[sid] = [
                 p for p in _A2A_PEER_SKILLS[sid] if p != pid]
@@ -367,16 +345,7 @@ async def _a2a_probe_peer(cfg: dict) -> None:
             sid = s["id"]
             _A2A_PEER_SKILLS.setdefault(sid, []).append(pid)
     state["status"] = "ready"
-    # Expose this peer as a synthetic DAG-routable agent + drop the worker tool
-    # cache so the federated agent joins the roster (P0).
     try:
-        # fanout default False (concurrent-swarm speed fix):
-        # A2A peers are EXPLICIT-delegation-only, because with fanout=True the
-        # pipe's OWN card (the local self-loop) joined every swarm -> the pipe
-        # called ITSELF over A2A = pure overhead. Phase-4 opt-in : when
-        # [a2a].council=true, every DISCOVERED peer EXCEPT the local self joins the
-        # concurrent fan-out as a remote worker (the "spread across all nodes"
-        # vision) -- the self is still excluded so the self-loop never returns.
         _a2a_fanout = bool(A2A_COUNCIL and (pid or "").strip().lower() != A2A_SELF_ID)
         _peer_cfg = {
             "endpoint": "", "model": pid, "role": "general",
@@ -384,9 +353,6 @@ async def _a2a_probe_peer(cfg: dict) -> None:
             "a2a_peer_id": pid, "research_only": False, "engines": {},
             "strengths": [str(s.get("id") or "") for s in (skills or [])],
         }
-        # FED-G7 (T-051, flag-gated): keep the peer's FULL published skills[] so the
-        # fan-out relevance model can route on the advertised name/description/tags,
-        # not just the strength-token ids above. OFF -> entry is byte-identical.
         if ROUTE_ON_CARD_SKILLS and skills:
             _peer_cfg["card_skills"] = skills
         _AGENT_REGISTRY[f"a2a:{pid}"] = _peer_cfg
@@ -467,7 +433,6 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
     headers = _mcp_render_headers(peer.get("headers_template") or {})
     headers.setdefault("Content-Type", "application/json")
     headers.setdefault("Accept", "application/json")
-    # v1.0 Message: role=ROLE_USER, a text Part by member presence (no `kind` tag).
     msg = {
         "role": "ROLE_USER",
         "messageId": uuid.uuid4().hex,
@@ -475,7 +440,6 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
     }
     if context_id:
         msg["contextId"] = context_id
-    # #60 WS-6: attach the signed delegation principal (no-op when no passport key)
     _pp = _a2a_principal_metadata(text, peer_id, context_id)
     if _pp:
         msg["metadata"] = {**(msg.get("metadata") or {}), "mios_principal": _pp}
@@ -485,8 +449,6 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
         "method": "message/send",
         "params": {"message": msg},
     }
-    # Single exit so the delegation outcome is recorded once for peer reputation
-    # (#54): result carries "error" on any failure, else the peer's Task envelope.
     result: dict
     try:
         client = await _get_client()
@@ -509,10 +471,6 @@ async def _a2a_send_message_to_peer(peer_id: str, text: str,
                     result = {"error": err.get("message") or "rpc error",
                               "code": err.get("code"), "peer_id": peer_id}
                 else:
-                    # LIBERAL on input: v1.0 wraps the SendMessage result in a
-                    # SendMessageResponse oneof ({"task"|"message": ...}); v0.3
-                    # returned the bare Task. Unwrap when wrapped, else take as-is,
-                    # so the returned envelope is always the Task/Message itself.
                     res = resp.get("result")
                     if isinstance(res, dict):
                         result = res.get("task") or res.get("message") or res

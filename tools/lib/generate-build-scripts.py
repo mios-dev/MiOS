@@ -2,9 +2,6 @@
 # AI-hint: Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, identify orchestration scripts, and locate helper utilities.
 # AI-related: mios-bootstrap, mios-build-local, mios-build-builder
 # AI-functions: fence_for, section, main
-# tools/lib/generate-build-scripts.py -- emit usr/share/doc/mios/reference/build-scripts.md, a single
-# markdown bundle containing the full source of every script that
-# participates in building 'MiOS', in execution order.
 
 import os
 from pathlib import Path
@@ -12,12 +9,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / "usr/share/doc/mios/reference/build-scripts.md"
 
-# Layered ordering per delivery contract. Each (label, [paths]) -- paths are
-# relative to ROOT. Glob-expand patterns inside each layer.
 LAYERS = [
     ("Layer 1 -- User entry points (mios-bootstrap repo)",
-     # mios-bootstrap repo lives at ../mios-bootstrap; check both possible
-     # checkouts.
      []),  # populated dynamically below if sibling repo exists
 
     ("Layer 2 -- System-side installers",
@@ -53,7 +46,6 @@ LAYERS = [
          "automation/build.sh",
      ]),
 
-    # Layer 4c-j: every NN-*.sh in automation/, expanded below.
     ("Layer 4c-j -- Numbered phase scripts (lex order)",
      []),  # populated below
 
@@ -69,11 +61,9 @@ LAYERS = [
 
     ("Layer 5 -- Postcheck + system-files overlay",
      [
-         # 99-postcheck.sh is in the NN scripts; called out here for emphasis
      ]),
 ]
 
-# Populate Layer 1 from sibling mios-bootstrap repo if present
 BOOTSTRAP_ROOT = ROOT.parent / "mios-bootstrap"
 if BOOTSTRAP_ROOT.is_dir():
     for f in ["bootstrap.sh", "bootstrap.ps1", "install.sh", "install.ps1"]:
@@ -81,7 +71,6 @@ if BOOTSTRAP_ROOT.is_dir():
         if p.is_file():
             LAYERS[0][1].append(str(p))
 
-# Populate Layer 4c-j: every NN-*.sh in automation/
 nn_scripts = sorted((ROOT / "automation").glob("[0-9][0-9]-*.sh"))
 LAYERS[5] = (LAYERS[5][0], [str(p.relative_to(ROOT)) for p in nn_scripts])
 
@@ -133,21 +122,9 @@ def main():
             except Exception as e:
                 skipped.append(f"{path_str} (read error: {e})")
                 continue
-            # Display path: prefer relative-to-ROOT; fall back to a stable
-            # sibling-form (e.g. 'mios-bootstrap/bootstrap.sh') so the bundle
-            # never embeds the build host's absolute path. Absolute paths
-            # leak the developer's machine setup; bare basenames lose
-            # repo context. The sibling form is the one users see in
-            # 'git status' and matches the tracked layout on GHCR.
             try:
                 display = str(p.relative_to(ROOT)).replace("\\", "/")
             except ValueError:
-                # Outside ROOT -- expected for the mios-bootstrap sibling.
-                # Walk parents until we find a *.git directory; emit the
-                # path relative to that repo's parent so the output reads
-                # 'mios-bootstrap/<file>' regardless of the absolute checkout
-                # location on the host. Fall back to bare basename if no
-                # repo root is detectable (e.g. file outside any git tree).
                 anchor = None
                 for ancestor in p.parents:
                     if (ancestor / ".git").exists():

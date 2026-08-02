@@ -1,18 +1,4 @@
 # AI-hint: INFERENCE LANE-RESOLVER cluster extracted VERBATIM from server.py
-#   (strangler-fig refactor). Owns the WS-1 unified lane selector: _lane_resolver
-#   builds the mios_lanes.LaneResolver lazily from SSOT ([ai].heavy_engine-preferred
-#   heavy lane -> the other heavy lane -> the always-on light lane, plus remote
-#   [nodes.*] escalation lanes), _pick_tool_backend delegates the client-tools
-#   (url, model) pick to it with a legacy heavy/light-probe fallback, and
-#   _heavy_lane_up is the cached SGLang-heavy reachability probe. The _LANE_RESOLVER
-#   lazy singleton is OWNED here and REBOUND at runtime by _lane_resolver; server.py
-#   reads the live value through the _lane_resolver_current getter (it is unsafe to
-#   inject a runtime-reassigned global by value -- the cluster-health route uses the
-#   getter). mios_lanes is imported directly; the config scalars come from mios_config;
-#   the two server-resident helpers (_get_client, _is_remote_endpoint) are
-#   dependency-INJECTED via configure(). This module NEVER imports server. server.py
-#   re-imports the moved names under their EXACT original aliases so the importable
-#   surface stays byte-identical.
 # AI-related: ./server.py, ./mios_config.py, ./mios_lanes.py, ./test_mios_lanes_resolver.py
 # AI-functions: _heavy_lane_up, _lane_resolver, _pick_tool_backend, _lane_resolver_current, configure
 """INFERENCE lane-resolver cluster (strangler-fig refactor).
@@ -49,13 +35,6 @@ from mios_config import (
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam ----------------------------------------
-# The resolver calls back into two server-resident helpers: the shared httpx
-# client factory (_get_client) and the remote-endpoint classifier
-# (_is_remote_endpoint). server.py calls configure() with those AFTER both are
-# defined (one-way boundary: this module never imports server). The placeholders
-# below let a standalone import succeed; every consumer is async/runtime so
-# nothing fires before configure() runs.
 
 _get_client = None
 _is_remote_endpoint = None
@@ -129,13 +108,6 @@ def _lane_resolver():
         "vllm":   mios_lanes.Lane("vllm",   _vllm_url,           _vllm_model),
     }
     chain = mios_lanes.build_chain(heavy_engine, lanes.keys())
-    # WS-A16: make remote [nodes.*] cores FIRST-CLASS escalation lanes appended
-    # AFTER the local lanes (LiteLLM order-based fallback: local-first, escalate to
-    # a remote core only when every local lane is on cooldown / unreachable). The
-    # quality/cost trigger (mios_smartroute.should_escalate) is the richer layer;
-    # this is the reliability-escalation baseline. INERT BY DEFAULT: when
-    # [ai].remote_escalation is off (default) OR no remote node is configured, the
-    # lanes/chain are byte-identical to the local-only resolver. Degrade-open.
     try:
         if str(_ai.get("remote_escalation", "off")).strip().lower() in {
                 "on", "true", "1", "yes", "enforce"}:

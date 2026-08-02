@@ -33,8 +33,6 @@ def t_ceiling():
     check("ceiling: empty -> None (no ceiling)", pdp.resolve_ceiling("", TIERS) is None)
     check("ceiling: absent -> None", pdp.resolve_ceiling(None, TIERS) is None)
     check("ceiling: known tier -> its rank", pdp.resolve_ceiling("write", TIERS) == 1)
-    # THE WS-A9 FIX: an unknown non-empty ceiling must FAIL CLOSED (rank 0), not
-    # the old fail-OPEN (None -> no ceiling -> full surface).
     check("ceiling: UNKNOWN tier -> 0 (FAIL CLOSED, not None)",
           pdp.resolve_ceiling("supervisor", TIERS) == 0)
     check("ceiling: typo'd tier -> 0 (fail closed)", pdp.resolve_ceiling("writ", TIERS) == 0)
@@ -54,7 +52,6 @@ def t_decide():
           not _d("open_app", allowed=["web_search"]).allow)
     check("decide: allowed-list includes self",
           _d("web_search", allowed=["web_search"]).allow)
-    # max_permission ceiling: ceiling=read(0) drops a write-tier verb.
     ceil_read = pdp.resolve_ceiling("read", TIERS)
     check("decide: ceiling read drops write verb",
           not _d("pc_type", verb_perm="write", ceiling=ceil_read).allow)
@@ -62,8 +59,6 @@ def t_decide():
           _d("list_windows", verb_perm="read", ceiling=ceil_read).allow)
     check("decide: ceiling rule named",
           _d("pc_type", verb_perm="write", ceiling=ceil_read).rule == "max_permission")
-    # Fail-closed ceiling end-to-end: an UNKNOWN max_permission now restricts to
-    # read-tier (was: granted everything).
     bad_ceil = pdp.resolve_ceiling("typo", TIERS)
     check("decide: fail-closed ceiling drops write verb",
           not _d("pc_type", verb_perm="write", ceiling=bad_ceil).allow)
@@ -72,8 +67,6 @@ def t_decide():
 
 
 def t_non_verb():
-    # A non-catalog tool (recipe/skill/MCP/client tool) is gated ONLY by an
-    # explicit denied entry; an allowed-list / ceiling does NOT prune it.
     check("non-verb: passes allowed-list (not a verb)",
           _d("some_mcp_tool", in_catalog=False, allowed=["web_search"]).allow)
     check("non-verb: passes ceiling (not a verb)",

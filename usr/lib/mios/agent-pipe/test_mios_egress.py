@@ -66,7 +66,6 @@ def t_modes() -> None:
     _check("enforce: log + drop",
            "mios-egress-drop" in enforce and enforce.rstrip().endswith("}"))
     _check("enforce: drop present", "drop" in enforce)
-    # unknown mode falls back to off (no-op) -- never accidentally enforce
     weird = M.build_ruleset("banana", [], "mios-ai")
     _check("unknown mode -> off no-op", "no-op" in weird and "drop" not in weird)
 

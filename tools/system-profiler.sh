@@ -2,16 +2,9 @@
 # AI-hint: A diagnostic script that aggregates hardware, kernel, and peripheral data (PCI, USB, GPU, IOMMU) into text and JSON reports to provide a comprehensive hardware profile for MiOS-Build environment configuration.
 # AI-functions: print_header, print_section, print_info, print_warning, print_error, command_exists, safe_exec, append_to_output, check_tools, collect_basic_info, collect_cpu_info, collect_memory_info
 
-################################################################################
-# Linux System & Hardware Profiler
-# System information collection for MiOS-Build development.
-# Captures kernel, CPU, memory, PCI, USB, block, network, GPU, IOMMU,
-# audio, sensors, BIOS, and firmware data into a single text report.
-################################################################################
 
 set -euo pipefail
 
-# Color definitions
 readonly RED='\033[0;31m'
 readonly GREEN='\033[0;32m'
 readonly YELLOW='\033[1;33m'
@@ -21,21 +14,15 @@ readonly CYAN='\033[0;36m'
 readonly BOLD='\033[1m'
 readonly NC='\033[0m' # No Color
 
-# Output file
 readonly OUTPUT_DIR="$HOME/system-profile"
 readonly TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 readonly OUTPUT_FILE="$OUTPUT_DIR/system-profile-${TIMESTAMP}.txt"
 readonly JSON_FILE="$OUTPUT_DIR/system-profile-${TIMESTAMP}.json"
 
-# Create output directory
 mkdir -p "$OUTPUT_DIR"
 
-# Initialize JSON output
 JSON_DATA="{"
 
-################################################################################
-# Helper Functions
-################################################################################
 
 print_header()  { echo -e "
 ${BOLD}${CYAN}== $1 ==${NC}
@@ -67,9 +54,6 @@ append_to_output() {
     echo "$1" | tee -a "$OUTPUT_FILE"
 }
 
-################################################################################
-# Check and Install Required Tools
-################################################################################
 
 check_tools() {
     print_header "CHECKING REQUIRED TOOLS"
@@ -92,26 +76,23 @@ check_tools() {
     
     if [ ${#missing_tools[@]} -gt 0 ]; then
         echo -e "\n${YELLOW}Missing tools: ${missing_tools[*]}${NC}"
-        echo "Install with your package manager (e.g., pacman, apt, dnf)"
+        echo "Install with your package manager"
     fi
 }
 
-################################################################################
-# System Information Collection Functions
-################################################################################
 
 collect_basic_info() {
     print_header "BASIC SYSTEM INFORMATION"
     
     {
-        echo "Hostname: $(hostname)"
-        echo "Kernel: $(uname -r)"
-        echo "Architecture: $(uname -m)"
-        echo "Distribution: $(cat /etc/os-release | grep -E '^(NAME|VERSION)' | tr '\n' ' ')"
-        echo "Uptime: $(uptime -p)"
-        echo "Current User: $(whoami)"
-        echo "Date: $(date)"
-        echo "Timezone: $(timedatectl | grep 'Time zone' | awk '{print $3}')"
+        echo "Hostname: $"
+        echo "Kernel: $"
+        echo "Architecture: $"
+        echo "Distribution: $' | tr '\n' ' ')"
+        echo "Uptime: $"
+        echo "Current User: $"
+        echo "Date: $"
+        echo "Timezone: $"
     } | tee -a "$OUTPUT_FILE"
 }
 
@@ -124,16 +105,16 @@ collect_cpu_info() {
     print_section "CPU Topology"
     if [ -f /proc/cpuinfo ]; then
         {
-            echo "CPU Model: $(grep -m1 'model name' /proc/cpuinfo | cut -d':' -f2 | xargs)"
-            echo "Physical CPUs: $(grep 'physical id' /proc/cpuinfo | sort -u | wc -l)"
-            echo "CPU Cores: $(grep -c 'processor' /proc/cpuinfo)"
-            echo "Threads per Core: $(lscpu | grep 'Thread(s) per core' | awk '{print $4}')"
+            echo "CPU Model: $"
+            echo "Physical CPUs: $"
+            echo "CPU Cores: $"
+            echo "Threads per Core: $ per core' | awk '{print $4}')"
         } | tee -a "$OUTPUT_FILE"
     fi
     
     print_section "CPU Frequency & Governors"
     if command_exists cpupower; then
-        cpupower frequency-info 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "cpupower not available"
+        cpupower frequency-info 2>/dev/null | tee -a "$OUTPUT_FILE" || echo "Cpupower not available"
     fi
     
     print_section "CPU Cache"
@@ -143,7 +124,7 @@ collect_cpu_info() {
     if command_exists numactl; then
         numactl --hardware 2>/dev/null | tee -a "$OUTPUT_FILE"
     else
-        echo "numactl not installed" | tee -a "$OUTPUT_FILE"
+        echo "Numactl not installed" | tee -a "$OUTPUT_FILE"
     fi
 }
 
@@ -184,7 +165,7 @@ collect_motherboard_bios() {
         echo "UEFI Boot Mode: Yes" | tee -a "$OUTPUT_FILE"
         ls -1 /sys/firmware/efi/efivars/ | head -20 | tee -a "$OUTPUT_FILE"
     else
-        echo "BIOS Boot Mode (Legacy)" | tee -a "$OUTPUT_FILE"
+        echo "BIOS Boot Mode" | tee -a "$OUTPUT_FILE"
     fi
 }
 
@@ -382,7 +363,7 @@ collect_virtualization_info() {
     
     print_section "Virtualization Support"
     if grep -q -E '(vmx|svm)' /proc/cpuinfo; then
-        echo "CPU Virtualization: ENABLED ($(grep -o -E '(vmx|svm)' /proc/cpuinfo | head -1))" | tee -a "$OUTPUT_FILE"
+        echo "CPU Virtualization: ENABLED' /proc/cpuinfo | head -1))" | tee -a "$OUTPUT_FILE"
     else
         echo "CPU Virtualization: NOT DETECTED" | tee -a "$OUTPUT_FILE"
     fi
@@ -416,13 +397,13 @@ collect_security_info() {
         if mokutil --sb-state 2>/dev/null; then
             mokutil --sb-state | tee -a "$OUTPUT_FILE"
         else
-            echo "mokutil not available" | tee -a "$OUTPUT_FILE"
+            echo "Mokutil not available" | tee -a "$OUTPUT_FILE"
         fi
     fi
     
     print_section "TPM Status"
     if [ -e /dev/tpm0 ]; then
-        echo "TPM Device: Present (/dev/tpm0)" | tee -a "$OUTPUT_FILE"
+        echo "TPM Device: Present" | tee -a "$OUTPUT_FILE"
     else
         echo "TPM Device: Not detected" | tee -a "$OUTPUT_FILE"
     fi
@@ -454,7 +435,7 @@ collect_sensors_thermal() {
     if [ -d /sys/class/thermal ]; then
         for zone in /sys/class/thermal/thermal_zone*; do
             if [ -e "$zone/type" ]; then
-                echo "$(cat $zone/type): $(cat $zone/temp 2>/dev/null || echo 'N/A')Â°C" | tee -a "$OUTPUT_FILE"
+                echo "$: $Â°C" | tee -a "$OUTPUT_FILE"
             fi
         done
     fi
@@ -463,7 +444,7 @@ collect_sensors_thermal() {
     if [ -d /sys/class/hwmon ]; then
         for hwmon in /sys/class/hwmon/hwmon*/fan*_input; do
             if [ -e "$hwmon" ]; then
-                echo "$hwmon: $(cat $hwmon) RPM" | tee -a "$OUTPUT_FILE"
+                echo "$hwmon: $ RPM" | tee -a "$OUTPUT_FILE"
             fi
         done
     fi
@@ -475,7 +456,7 @@ collect_power_info() {
     print_section "Power Supply"
     if [ -d /sys/class/power_supply ]; then
         for ps in /sys/class/power_supply/*; do
-            echo "=== $(basename $ps) ===" | tee -a "$OUTPUT_FILE"
+            echo "=== $ ===" | tee -a "$OUTPUT_FILE"
             cat "$ps/uevent" 2>/dev/null | tee -a "$OUTPUT_FILE"
         done
     fi
@@ -491,21 +472,21 @@ collect_installed_packages() {
     
     print_section "Package Manager & Count"
     if command_exists pacman; then
-        echo "Package Manager: pacman (Arch-based)" | tee -a "$OUTPUT_FILE"
-        echo "Installed Packages: $(pacman -Q | wc -l)" | tee -a "$OUTPUT_FILE"
+        echo "Package Manager: pacman" | tee -a "$OUTPUT_FILE"
+        echo "Installed Packages: $" | tee -a "$OUTPUT_FILE"
         echo "" | tee -a "$OUTPUT_FILE"
         echo "Package List:" | tee -a "$OUTPUT_FILE"
         pacman -Q | tee -a "$OUTPUT_FILE"
     elif command_exists apt; then
-        echo "Package Manager: apt (Debian-based)" | tee -a "$OUTPUT_FILE"
-        echo "Installed Packages: $(dpkg -l | grep ^ii | wc -l)" | tee -a "$OUTPUT_FILE"
+        echo "Package Manager: apt" | tee -a "$OUTPUT_FILE"
+        echo "Installed Packages: $" | tee -a "$OUTPUT_FILE"
         dpkg -l | tee -a "$OUTPUT_FILE"
     elif command_exists dnf; then
-        echo "Package Manager: dnf (Fedora-based)" | tee -a "$OUTPUT_FILE"
-        echo "Installed Packages: $(dnf list installed | wc -l)" | tee -a "$OUTPUT_FILE"
+        echo "Package Manager: dnf" | tee -a "$OUTPUT_FILE"
+        echo "Installed Packages: $" | tee -a "$OUTPUT_FILE"
         dnf list installed | tee -a "$OUTPUT_FILE"
     elif command_exists zypper; then
-        echo "Package Manager: zypper (openSUSE)" | tee -a "$OUTPUT_FILE"
+        echo "Package Manager: zypper" | tee -a "$OUTPUT_FILE"
         zypper packages --installed-only | tee -a "$OUTPUT_FILE"
     fi
 }
@@ -545,7 +526,7 @@ collect_boot_info() {
     fi
     
     if [ -d /boot/loader/entries ]; then
-        echo "systemd-boot entries:" | tee -a "$OUTPUT_FILE"
+        echo "Systemd-boot entries:" | tee -a "$OUTPUT_FILE"
         ls -la /boot/loader/entries/ | tee -a "$OUTPUT_FILE"
     fi
     
@@ -562,7 +543,7 @@ collect_display_server() {
     elif [ -n "${DISPLAY:-}" ]; then
         echo "Display Server: X11" | tee -a "$OUTPUT_FILE"
     else
-        echo "Display Server: Not detected (TTY)" | tee -a "$OUTPUT_FILE"
+        echo "Display Server: Not detected" | tee -a "$OUTPUT_FILE"
     fi
     
     print_section "Desktop Environment"
@@ -570,9 +551,6 @@ collect_display_server() {
     echo "Session: ${XDG_SESSION_TYPE:-Not set}" | tee -a "$OUTPUT_FILE"
 }
 
-################################################################################
-# Main Execution
-################################################################################
 
 main() {
     clear
@@ -580,25 +558,21 @@ main() {
     echo -e "${BOLD}Starting system profile...${NC}"
     echo -e "Output file: ${GREEN}$OUTPUT_FILE${NC}\n"
     
-    # Check for root/sudo
     if [ "$EUID" -ne 0 ]; then
         print_warning "Some commands require sudo/root access"
         echo "Run with sudo for complete information"
         echo ""
     fi
     
-    # Check tools
     check_tools
     
-    # Start profiling
     {
         echo "# Linux System Profile"
-        echo "# Generated: $(date)"
-        echo "# Hostname: $(hostname)"
+        echo "# Generated: $"
+        echo "# Hostname: $"
         echo ""
     } > "$OUTPUT_FILE"
     
-    # Collect all information
     collect_basic_info
     collect_cpu_info
     collect_memory_info
@@ -622,7 +596,6 @@ main() {
     collect_boot_info
     collect_display_server
     
-    # Final summary
     print_header "PROFILE COMPLETE"
     echo -e "${GREEN}âœ"${NC} Full system profile saved to: ${BOLD}$OUTPUT_FILE${NC}"
     echo -e "${GREEN}âœ"${NC} Profile directory: ${BOLD}$OUTPUT_DIR${NC}"
@@ -634,7 +607,6 @@ main() {
     echo -e "${YELLOW}      or: cat $OUTPUT_FILE | less${NC}"
 }
 
-# Run main function
 main
 
 exit 0

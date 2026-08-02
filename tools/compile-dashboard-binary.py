@@ -27,7 +27,6 @@ def compile_binary():
             compressed=True
         )
 
-        # Ensure executable permissions (+x)
         st = os.stat(target_bin)
         os.chmod(target_bin, st.st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
         print(f"[compile-dashboard] Compiled static dashboard binary: {target_bin}")

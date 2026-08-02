@@ -31,7 +31,6 @@ def t_dispatch():
     check("dispatch: carries tool", d.tool == "open_app")
     check("dispatch: deterministic flag", d.deterministic is True)
     check("dispatch: no fanout", d.fanout is False)
-    # tool can come from 'verb' alias.
     check("dispatch: verb alias -> tool", r.route({"intent": "dispatch", "verb": "pc_type"}).tool == "pc_type")
 
 

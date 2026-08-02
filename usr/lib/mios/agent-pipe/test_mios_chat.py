@@ -1,15 +1,4 @@
 # AI-hint: Routing-PRECEDENCE gate for the extracted chat-completions router-brain
-#   (mios_chat.chat_completions_logic, strangler-fig capstone). Drives the real
-#   orchestrator with every DISPATCHED responder STUBBED (vision / client-tools /
-#   OS fast-path / trivial-chat / native-loop / local-state / swarm) and asserts the
-#   EARLY precedence ORDER the function documents -- vision BEFORE client-tools,
-#   client-tools BEFORE refine/council, a deterministic OS action BEFORE the
-#   client-tools hybrid, a trivial chat short-circuiting BEFORE every heavy handler,
-#   and the no-messages Tier-0 400. It asserts WHICH handler fires first, never a
-#   handler's internals. Deps are wired through mios_chat.configure() (the DI seam)
-#   for injected names and setattr for the directly-imported sibling responders,
-#   auto-routed by membership in mios_chat._INJECTED. Pure stdlib (asyncio + a tiny
-#   fastapi/httpx stub); no network, no DB, no built image.
 # AI-related: ./mios_chat.py, ./server.py, ./test_server_import.py
 # AI-functions: _install_stubs, _resolve_toml, _apply, _run, main
 """Routing-precedence gate for mios_chat.chat_completions_logic (refactor R12)."""
@@ -91,9 +80,6 @@ def _install_stubs():
             return _factory
 
     fastapi.FastAPI = lambda *a, **k: _App()
-    # APIRouter behaves like the app here: a decorator-factory object whose route
-    # methods return the wrapped handler unchanged. mios_chat transitively imports
-    # mios_a2a (via mios_skills), which builds an APIRouter for its /a2a routes (R13).
     fastapi.APIRouter = lambda *a, **k: _App()
     fastapi.Request = FakeRequest
     fastapi.WebSocket = object
@@ -111,9 +97,6 @@ _resolve_toml()
 _install_stubs()
 import mios_chat  # noqa: E402 -- after stubs so the import succeeds on a bare checkout
 
-# The chat-precedence cases stub mios_chat._budget_admit via setattr (it left
-# _INJECTED when its cluster moved into mios_chat); capture the REAL admission
-# functions at import time so _test_budget can drive the real cluster.
 _REAL_BUDGET_ADMIT = mios_chat._budget_admit
 _REAL_BUDGET_RELEASE = mios_chat._budget_release_inflight
 
@@ -157,7 +140,6 @@ class FakeKernel:
         return {"scheduler": True, "memory": True}
 
 
-# Sentinels returned by the stubbed responders -- identity proves WHICH one fired.
 S_VISION, S_CLIENT, S_OS, S_NATIVE, S_LOCAL, S_DAG = (object() for _ in range(6))
 
 
@@ -165,7 +147,6 @@ def _wire_common(**over):
     """Fresh ContextVars + safe stubs for every dep the precedence paths touch.
     Per-case predicate/flag overrides come in via **over (applied last)."""
     base = dict(
-        # config scalars / flags
         BACKEND_MODEL="m", VISION_ENABLE=True, VISION_MODEL="vlm",
         CLIENT_TOOLS_PASSTHROUGH=True, _INGRESS_KEY="",
         _HOP_HEADER="x-mios-hop", _VIA_HEADER="x-mios-via",
@@ -175,7 +156,6 @@ def _wire_common(**over):
         KERNEL_ROUTE=False, COUNCIL_DEFAULT=False, _KERNEL=FakeKernel(),
         SWARM_DECOMPOSE_MIN_WORDS=6, AUTONOMOUS_PRIORITY=1.0,
         LOCAL_STATE_FASTPATH=True, NATIVE_LOOP_ENABLE=True, NATIVE_LOOP_MATH_HINT=False,
-        # request-scoped ContextVars (fresh objects each case)
         _conv_key_var=contextvars.ContextVar("conv", default=None),
         _sources_var=contextvars.ContextVar("src", default=None),
         _trace_id_var=contextvars.ContextVar("trace", default=None),
@@ -184,7 +164,6 @@ def _wire_common(**over):
         _client_env_var=contextvars.ContextVar("cenv", default=None),
         _routed_domain_var=contextvars.ContextVar("routed", default=None),
         _turn_volatile_var=contextvars.ContextVar("vol", default=None),
-        # preamble helpers (injected)
         _loads_lenient=json.loads,
         _extract_last_user_text=lambda msgs: next(
             (m.get("content") for m in reversed(msgs)
@@ -204,9 +183,7 @@ def _wire_common(**over):
         _is_memory_question=_ahandler("memq", False),
         _quick_chat_reply=_ahandler("quick_chat", ""),
         _write_skill_md_fire=lambda *a, **k: None,
-        # predicates (injected) -- default both off
         _messages_have_image=lambda msgs: False,
-        # dispatched responders (direct sibling imports -> setattr)
         _has_client_tools=lambda body: False,
         _deterministic_action_route=lambda text: None,
         _vision_complete=_ahandler("vision", S_VISION),
@@ -228,15 +205,12 @@ def _run(body, headers=None):
 
 
 def main():
-    # CASE 0 -- Tier-0 no-messages short-circuit (earliest guard).
     _wire_common()
     r = _run({"model": "m"})
     check("no-messages -> 400 short-circuit",
           getattr(r, "status_code", None) == 400 and not CALLS,
           f"status={getattr(r,'status_code',None)} calls={CALLS}")
 
-    # CASE 1 -- VISION precedence: an image turn routes to vision EVEN when client
-    # tools are also present (vision is the first dispatch).
     _wire_common(_messages_have_image=lambda msgs: True,
                  _has_client_tools=lambda body: True)
     r = _run({"model": "m", "messages": [{"role": "user", "content": "look"}],
@@ -244,8 +218,6 @@ def main():
     check("image turn -> vision wins over client-tools",
           r is S_VISION and CALLS == ["vision"], f"calls={CALLS}")
 
-    # CASE 2 -- CLIENT-TOOLS precedence: no image, caller supplied tools -> the
-    # client-tools passthrough fires (after vision, before refine/council).
     _wire_common(_has_client_tools=lambda body: True)
     r = _run({"model": "m", "messages": [{"role": "user", "content": "use my tools"}],
               "tools": [{"type": "function"}]})
@@ -253,8 +225,6 @@ def main():
           r is S_CLIENT and "client_tools" in CALLS and "vision" not in CALLS,
           f"calls={CALLS}")
 
-    # CASE 3 -- OS-action precedence INSIDE client-tools: an unambiguous OS action
-    # takes the server-side deterministic fast-path BEFORE the client-tools hybrid.
     _wire_common(_has_client_tools=lambda body: True,
                  _deterministic_action_route=lambda text: {"tool": "open_app", "args": {}})
     r = _run({"model": "m", "messages": [{"role": "user", "content": "open notepad"}],
@@ -262,8 +232,6 @@ def main():
     check("client-tools + OS action -> OS fast-path wins over hybrid",
           r is S_OS and CALLS == ["os_control"], f"calls={CALLS}")
 
-    # CASE 4 -- TRIVIAL CHAT short-circuit: refine emits intent=chat + a reply for a
-    # short turn -> the reply is returned DIRECTLY, before any heavy responder.
     _wire_common(refine_intent=_ahandler("refine", {"intent": "chat", "reply": "hi there"}))
     r = _run({"model": "m", "messages": [{"role": "user", "content": "hey"}]})
     body = getattr(r, "content", {}) or {}
@@ -273,24 +241,14 @@ def main():
           reply == "hi there" and not (heavy & set(CALLS)),
           f"reply={reply!r} calls={CALLS}")
 
-    # CASE 5 -- responses_api_logic (the /v1/responses self-proxy facade): a `input`
-    # string + `instructions` is reshaped into the Responses items model. The chat
-    # self-proxy POST is stubbed at the module's httpx so no network is touched; the
-    # error path (missing `input`) returns the OpenAI invalid_request error object.
     _test_responses_api()
 
-    # CASE 6 -- the W0-T3 aggregate-budget admission cluster (moved INTO mios_chat
-    # from server.py). Exercised directly against the real module functions.
     _test_budget()
 
-    # CASE 7 -- the micro-LLM early-reply helpers (intent=chat reply, memory-hit
-    # judge, location-ask), moved INTO mios_chat (injection reversed). Guards +
-    # degrade-open, no network.
     _test_microreply()
 
     _test_refine_orchestration()
 
-    # CASE 9 -- developer role normalization validation
     _test_developer_role()
 
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
@@ -329,13 +287,10 @@ class _RespHttpx:
 
 
 def _test_responses_api():
-    # inject the two deps responses_api_logic reads (the rest -- httpx/uuid/time/os --
-    # are module imports; _usage_estimate is a direct sibling import).
     mios_chat.configure(BACKEND_MODEL="m", _loads_lenient=json.loads)
     orig_httpx = mios_chat.httpx
     mios_chat.httpx = _RespHttpx
     try:
-        # happy path: text `input` + `instructions` -> one output_text message item.
         r = asyncio.run(mios_chat.responses_api_logic(
             FakeRequest({"model": "m", "input": "hello",
                          "instructions": "be terse"})))
@@ -348,7 +303,6 @@ def _test_responses_api():
               and part.get("type") == "output_text" and part.get("text") == "PROXIED ANSWER"
               and body.get("usage", {}).get("prompt_tokens") == 1,
               f"body={body}")
-        # error path: no `input` -> OpenAI invalid_request error object + 400.
         r2 = asyncio.run(mios_chat.responses_api_logic(FakeRequest({"model": "m"})))
         err = (getattr(r2, "content", {}) or {}).get("error") or {}
         check("responses_api -> missing input is a 400 invalid_request error",
@@ -368,7 +322,6 @@ def _test_budget():
     saved = {k: getattr(mc, k) for k in (
         "BUDGET_ENABLE", "BUDGET_CONV_TOKEN_CEIL", "BUDGET_AUTO_TOKEN_CEIL",
         "BUDGET_AUTO_MAX_INFLIGHT", "BUDGET_PER_TURN_ESTIMATE", "BUDGET_WINDOW_S")}
-    # Restore the REAL admission fns (the precedence cases left a stub on the module).
     mc._budget_admit = _REAL_BUDGET_ADMIT
     mc._budget_release_inflight = _REAL_BUDGET_RELEASE
     mc._BUDGET_LEDGER.clear()
@@ -381,8 +334,6 @@ def _test_budget():
         mc.BUDGET_AUTO_TOKEN_CEIL = 10_000_000
         mc.BUDGET_AUTO_MAX_INFLIGHT = 1
 
-        # Conversation tripwire: 1st admit ok (used 0 < ceil) + debits 100; the
-        # 2nd admit for the SAME conv sees used>=ceil -> hard-halt.
         ck = "conv-synthetic-xq7"
         ok1, _ = asyncio.run(mc._budget_admit(ck, None))
         ok2, reason2 = asyncio.run(mc._budget_admit(ck, None))
@@ -390,8 +341,6 @@ def _test_budget():
               ok1 is True and ok2 is False and "budget exhausted" in reason2,
               f"ok1={ok1} ok2={ok2} reason={reason2!r}")
 
-        # Autonomous concurrency cap: one in-flight token allowed, the next source
-        # is refused WHILE it's in flight; releasing the first frees the slot.
         mc._BUDGET_LEDGER.clear()
         okA, _ = asyncio.run(mc._budget_admit("c1", "src-alpha", "tok-1"))
         okB, reasonB = asyncio.run(mc._budget_admit("c2", "src-beta", "tok-2"))
@@ -402,7 +351,6 @@ def _test_budget():
               and okC is True,
               f"okA={okA} okB={okB} reason={reasonB!r} okC={okC}")
 
-        # Disabled -> degrade-open: always admit, regardless of the ledger.
         mc.BUDGET_ENABLE = False
         okD, _ = asyncio.run(mc._budget_admit(ck, None))
         check("budget: disabled degrades open (admits regardless of ledger)",
@@ -442,7 +390,6 @@ def _test_microreply():
     is never actually called -- httpx is swapped for a client that raises and
     _env_grounding is stubbed so the system-prompt assembly stays local."""
     mc = mios_chat
-    # Guards that return BEFORE any network: empty / whitespace-only inputs.
     check("micro: _quick_chat_reply('') short-circuits to ''",
           asyncio.run(mc._quick_chat_reply("")) == "")
     check("micro: _is_memory_question with empty facts is False (no judge call)",
@@ -450,7 +397,6 @@ def _test_microreply():
     check("micro: _is_memory_question with blank facts is False",
           asyncio.run(mc._is_memory_question("zxq-1", "   ")) is False)
 
-    # Degrade-open: the REFINE POST raises -> each helper returns its safe default.
     orig_httpx, orig_env = mc.httpx, mc._env_grounding
     mc.httpx = _BoomHttpx
     mc._env_grounding = lambda: ""
@@ -475,8 +421,6 @@ def _test_refine_orchestration():
     (no English example words); no network (the judge degrades open via the
     raising httpx stub) and no DB (the queue writer's guard paths return early)."""
     mc = mios_chat
-    # _hints_write_action is DATA-DRIVEN over the injected verb catalog's
-    # permission field -- a non-read permission on a hinted verb forces the action.
     mc.configure(_VERB_CATALOG={
         "zxq_mutate": {"permission": "write"},
         "zxq_inspect": {"permission": "read"},
@@ -493,14 +437,11 @@ def _test_refine_orchestration():
           mc._hints_write_action({"intent": "agent",
                                   "hint_tools": ["zxq_inspect"]}) is False)
 
-    # _shadow_queue_tasks guard paths return [] before any DB write.
     check("queue: empty task list -> [] (no DB)",
           mc._shadow_queue_tasks([], None) == [])
     check("queue: non-list input -> [] (no DB)",
           mc._shadow_queue_tasks("not-a-list", None) == [])
 
-    # _needs_external_knowledge: empty-input guard + degrade-CLOSED to False when
-    # the micro lane raises (no network) -- never web-searches on a bookkeeping error.
     check("kgap: empty input short-circuits to False",
           asyncio.run(mc._needs_external_knowledge("   ")) is False)
     orig_httpx = mc.httpx
@@ -518,12 +459,10 @@ def _test_developer_role():
         {"role": "developer", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello"}
     ]
-    # Anthropic translation test
     system_str, anthropic_messages = oai_msgs_to_anthropic(msgs)
     check("developer role -> anthropic system text matches", system_str == "You are a helpful assistant.", f"sys={system_str}")
     check("developer role -> anthropic content ignores developer role", len(anthropic_messages) == 1 and anthropic_messages[0]["role"] == "user", f"msgs={anthropic_messages}")
     
-    # Gemini translation test
     system_parts, gemini_contents = oai_msgs_to_gemini(msgs)
     check("developer role -> gemini system parts match", system_parts == {"parts": [{"text": "You are a helpful assistant."}]}, f"sys_parts={system_parts}")
     check("developer role -> gemini contents ignore developer role", len(gemini_contents) == 1, f"gemini={gemini_contents}")

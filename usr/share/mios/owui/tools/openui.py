@@ -10,10 +10,6 @@ description: Renders interactive generative UI components (charts, forms, tables
 import json
 from pydantic import BaseModel, Field
 from starlette.responses import HTMLResponse
-# ---------------------------------------------------------------------------
-# Theme detection script - runs in <head> before content renders so CSS
-# variables resolve to the correct theme immediately.
-# ---------------------------------------------------------------------------
 _THEME_SCRIPT = """<script>
 (function() {
   function detectTheme(root) {
@@ -41,9 +37,6 @@ _THEME_SCRIPT = """<script>
   }
 })();
 </script>"""
-# ---------------------------------------------------------------------------
-# Body scripts - height reporting, sendPrompt bridge, openLink, render
-# ---------------------------------------------------------------------------
 _BODY_SCRIPTS = """<script>
 var _rhLast = 0;
 var _rhRaf = 0;
@@ -87,9 +80,6 @@ function openLink(url) {
 }
 </script>"""
 _CDN_BASE = "file:///usr/share/mios/openui"  # MiOS local-only; see _build_openui_html for inline path
-# ---------------------------------------------------------------------------
-# HTML builder
-# ---------------------------------------------------------------------------
 _BUNDLE_JS_PATH  = "/usr/share/mios/openui/openui-bundle.min.js"
 _BUNDLE_CSS_PATH = "/usr/share/mios/openui/openui-styles.css"
 
@@ -122,7 +112,6 @@ def _build_openui_html(code: str, title: str = "Response", cdn_base: str = _CDN_
                 "once at image-build time; if you're on a partial install, "
                 "run mios-vendor-openui.sh."
                 "</div></body></html>")
-    # CSP allows ONLY same-origin + inline (no external).
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -135,7 +124,6 @@ def _build_openui_html(code: str, title: str = "Response", cdn_base: str = _CDN_
 * {{ box-sizing: border-box; margin: 0; }}
 html, body {{ background: transparent; }}
 body {{ padding: 4px; overflow: visible; }}
-#openui-root {{ width: 100%; }}
 .openui-loading {{ display: flex; align-items: center; justify-content: center;
   padding: 32px; color: #888; font-family: system-ui, -apple-system, sans-serif;
   font-size: 14px; }}
@@ -196,9 +184,6 @@ body {{ padding: 4px; overflow: visible; }}
 </body>
 </html>"""
 
-# ---------------------------------------------------------------------------
-# Tool class
-# ---------------------------------------------------------------------------
 class Tools:
     """OpenUI Generative UI - renders interactive components in chat.
     When the user's question could benefit from a visual response (charts,
@@ -226,12 +211,10 @@ class Tools:
         IMPORTANT: Pass the openui-lang code as the openui_lang_code argument.
         NEVER output openui-lang as text in your response. After calling this tool,
         briefly describe what the user sees - do NOT echo the source code.
-        ## OpenUI Lang Syntax
         Each statement: `identifier = Expression`. `root = Card(...)` is the entry point.
         Expressions: strings ("..."), numbers, booleans, null, arrays ([...]), objects ({...}), or TypeName(arg1, arg2, ...).
         Arguments are POSITIONAL. Write TypeName(arg1, arg2) NOT TypeName(key: val).
         Every variable (except root) must be referenced by another. Unreferenced = not rendered.
-        ## Components
         Card(children[]) - root container, children stack vertically.
         CardHeader(title?, subtitle?)
         TextContent(text, size?) - size: "small"|"default"|"large"|"small-heavy"|"large-heavy"
@@ -290,7 +273,6 @@ class Tools:
         Tag(text, icon?, size?, variant?)
         Action([@steps...]) - wires buttons. Steps: @ToAssistant("msg"), @OpenUrl("url")
         Buttons without Action auto-send their label.
-        ## Examples
         Table: root = Card([title, tbl, followUps])
         title = TextContent("Top Languages", "large-heavy")
         tbl = Table([Col("Language", langs), Col("Users (M)", users)])
@@ -308,7 +290,6 @@ class Tools:
         nameField = FormControl("Name", Input("name", "Your name", "text", {required: true}))
         emailField = FormControl("Email", Input("email", "you@example.com", "email", {required: true, email: true}))
         btns = Buttons([Button("Submit", Action([@ToAssistant("Submit")]), "primary")])
-        ## Rules
         - root = Card(...) MUST be the FIRST line.
         - Every name must be defined and reachable from root.
         - Card is the only layout container. Do NOT use Stack.

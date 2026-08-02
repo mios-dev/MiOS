@@ -1,12 +1,6 @@
 # AI-hint: Pure A2A signed-delegation-principal helpers (#60 WS-6). Builds + verifies. Also HOSTS the low-level agent-passport Ed25519 crypto (canonical op-hash + sign/verify + keypair load/cache, moved verbatim from server.py) that the signed-principal contract here consumes through the injected sign_fn/verify_fn; server.py keeps the surface-pinned PASSPORT_* config consts and injects them via configure(). Still server.py-free (one-way DI boundary) and unit-testable in isolation; cryptography is imported lazily inside the helpers so a host without python3-cryptography still imports the module.
 # AI-related: server.py, mios_hitl, mios-passport, /usr/share/mios/mios.toml
 # AI-functions: text_digest, build_claims, build_metadata, verify, configure, _passport_canonical_json, _passport_op_hash, _passport_load_priv, _passport_kid, _passport_load_public, _passport_sign, _passport_verify
-#   the signed "principal" block that MiOS AI attaches to an outbound A2A
-#   delegation (who is acting, on whose behalf, to whom, about what), and the
-#   receive-side verification that binds the delivered instruction text to the
-#   signature. Dependency-INJECTED: the caller passes the agent-passport
-#   sign_fn/verify_fn (Ed25519) + the acting agent/principal, so this module is
-#   server.py-free and unit-testable in isolation (test_mios_a2a_passport.py).
 """Pure helpers for the #60 WS-6 signed delegation principal (A2A).
 
 Why a sibling module: the crypto primitives (Ed25519 sign/verify) and the request
@@ -32,8 +26,6 @@ from typing import Any, Callable, Optional, Tuple
 
 log = logging.getLogger("mios-agent-pipe")
 
-# The op_hash "table" the two sides agree to sign over. Kept here so send + verify
-# can never disagree on it.
 TABLE = "a2a_delegation"
 METADATA_KEY = "mios_principal"
 
@@ -87,16 +79,6 @@ def verify(metadata: Optional[dict], delivered_text,
     return ok, reason, claims
 
 
-# -- Agent-passport Ed25519 crypto (moved VERBATIM from server.py) -----------
-# The low-level agent-passport credential the signed-principal contract above
-# (build_metadata / verify) consumes through its injected sign_fn/verify_fn:
-# deterministic op-hash canonicalisation, Ed25519 sign/verify, and keypair load +
-# caching. Moved here so the crypto and the claim shape live together. server.py
-# keeps the PASSPORT_* config consts (surface-pinned there) and injects them via
-# configure(); the cluster's private cache state moves with it. One-way boundary:
-# this module never imports server. cryptography is imported lazily inside the
-# helpers so a host without python3-cryptography still imports the module (sign
-# calls then degrade to None).
 PASSPORT_ENABLE = None
 PASSPORT_ALGO = None
 PASSPORT_KEY_DIR = None

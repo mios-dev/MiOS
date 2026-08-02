@@ -5751,11 +5751,9 @@ PY
 check_no_hardcoded_ssot_literal() {
     echo "[98-drift-checks]   checking for hardcoded fedora-XX strings"
     local hardcodes
-    # Search for hardcoded fedora-44 or fedora-43, ignoring binary files and this script
     hardcodes=$(grep -rE "fedora-[0-9]{2}" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" || true)
     
     if [[ -n "$hardcodes" ]]; then
-        # Check if the matches are actual violations (not dynamic ${FEDORA_VERSION} or similar)
         local violations=$(echo "$hardcodes" | grep -vE "fedora-\\\$|fedora-%")
         if [[ -n "$violations" ]]; then
             _violation "Hardcoded fedora-XX strings found in SSOT (use \${FEDORA_VERSION} instead):"

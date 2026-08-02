@@ -38,7 +38,6 @@ from typing import Optional
 from mios_config import PORT  # SSOT agent-pipe port (no restated :8640 literal)
 
 
-# ── pure helpers (unit-tested) ───────────────────────────────────────────────
 def percentile(values, p):
     """p-th percentile (0-100) of `values`, nearest-rank on a sorted copy."""
     xs = sorted(v for v in values if v is not None)
@@ -142,7 +141,6 @@ def by_kind(results):
     return kinds
 
 
-# ── live runner (httpx; operator runs this) ──────────────────────────────────
 async def _poll_load(client, base):
     """Best-effort host 1-min load from /v1/scheduler (-> None on miss)."""
     try:
@@ -185,7 +183,6 @@ async def run(cfg):
         while idx < len(scenarios):
             wave = scenarios[idx: idx + conc]
             idx += len(wave)
-            # run this wave to COMPLETION (gather awaits all -> no orphaned turns)
             results.extend(await asyncio.gather(
                 *[_one(client, base, s, model, timeout) for s in wave]))
             load1 = await _poll_load(client, base)

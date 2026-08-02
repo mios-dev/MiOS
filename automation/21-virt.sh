@@ -48,7 +48,7 @@ mios_log "Install gaming packages"
 GAMING_PKGS=$(get_packages "gaming")
 if [[ -n "$GAMING_PKGS" ]]; then
     ($DNF_BIN "${DNF_SETOPT[@]}" install -y "${DNF_OPTS[@]}" --skip-unavailable --exclude=udev-joystick-blacklist-rm $GAMING_PKGS) || {
-        mios_warn "some gaming packages failed to install"
+        mios_warn "Some gaming packages failed to install"
     }
 fi
 
@@ -71,11 +71,11 @@ mios_log "Download VirtIO-Win ISO"
 VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/stable-virtio/virtio-win.iso"
 mkdir -p ${MIOS_SHARE_DIR}/virtio
 scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null || {
-    mios_warn "VirtIO-Win ISO download failed -- download manually later"
+    mios_warn "VirtIO-Win ISO download failed"
 }
 
 
-mios_ok "virtualization stack ready (LG: refactored to 53-lg; K3s: refactored to 13-ceph-k3s)"
+mios_ok "Virtualization stack ready"
 
 mkdir -p /etc/mios
 /usr/libexec/mios/mios-mini-vfio-gen > /etc/mios/mini-vfio.env

@@ -13,7 +13,6 @@ def materialize_catalog():
     """Materializes build catalog tables to /ctx files for hermetic clean-container builds."""
     os.makedirs(CTX_DIR, exist_ok=True)
     
-    # Packages manifest export
     packages_file = os.path.join(CTX_DIR, "packages.json")
     default_packages = {
         "core": ["systemd", "podman", "bash", "python3", "curl"],

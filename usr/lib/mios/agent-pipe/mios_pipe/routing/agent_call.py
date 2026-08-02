@@ -45,23 +45,12 @@ import mios_tokenize
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The two dispatch functions read server.py's config scalars and call back into
-# the lane/admission gates, the binding helpers, the secondary tool-loops, the
-# KV helpers and the header/trace helpers. server.py calls configure() with those
-# AFTER every one is defined (one-way boundary: this module never imports
-# server). The placeholders below carry the documented defaults so a standalone
-# ``import mios_agent_call`` still succeeds; every consumer is async/runtime so
-# nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 HEALTHGATE_CONNECT_TIMEOUT = 6.0
 HEALTHGATE_READ_TIMEOUT = 120.0
 SECONDARY_TOOL_LOOP = True
 KV_FORK_ENABLE = False
 _SRC_TURN_HEADER = "X-MiOS-Turn"
-# KV-paging + RR-preemption config scalars (server SSOT/env-derived; injected).
-# Booleans default OFF so the moved engine actors stay inert until configure().
 KV_PAGING_ENABLE = False
 KV_PAGING_SLOT = 0
 KV_PAGING_TIMEOUT = 12.0
@@ -71,17 +60,11 @@ PRIORITY_QUEUE_ENABLE = False
 RR_SLICE_TOKENS = 512
 RR_SLICE_TIMEOUT = 120.0
 RR_QUANTUM_S = 8.0
-# Per-dispatch num_predict ceilings (server SSOT [dispatch].llm_num_predict_cap*
-# / env-derived; injected). _num_predict_cap_for (moved below) picks the CPU cap on
-# a slow lane, the full cap otherwise. Documented defaults so a standalone import
-# still resolves a ceiling; configure() overrides them from the live SSOT.
 LLM_NUM_PREDICT_CAP = 2048
 LLM_NUM_PREDICT_CAP_CPU = 512
 
-# mutable registry (injected BY REFERENCE; re-injected on live membership reload)
 _AGENT_REGISTRY: dict = {}
 
-# Rate limiting, preemption, and deduplication state (AGY-5,)
 import collections
 import contextvars
 _autonomous_var: contextvars.ContextVar[bool] = contextvars.ContextVar("autonomous", default=False)
@@ -113,19 +96,13 @@ def _add_to_window(ledger: dict, key: str, tokens: int, now: float) -> None:
         ledger[key] = collections.deque()
     ledger[key].append((now, tokens))
 
-# shared KV/priority/preempt state owned by server (injected BY REFERENCE so the
-# moved _kv_* mutations and the server-side KV-GC sweep observe the SAME dicts).
 _KV_LOCKS: dict = {}
 _KV_RESIDENT: dict = {}
 _BACKEND_KEY = ""
 _GLOBAL_PRIORITY_GATE = None
 _PREEMPT = None
-# dead-node liveness map (server-owned; injected BY REFERENCE so _trip_breaker's
-# breaker-open write is observed by mios_turn's prune + the server liveness probe,
-# which share the SAME dict). name -> (probed_ts, reachable).
 _NODE_LIVE: dict = {}
 
-# server-side helpers / ContextVars / exception class (injected)
 _SloShed = None
 _admit = None
 _agent_binding = None
@@ -142,10 +119,6 @@ _kv_fork_parent_var = None
 _lane_sem = None
 _lane_sem_key = None
 _model_active = None
-# _num_predict_cap_for + _trip_breaker are now NATIVE to this module (moved from
-# server.py -- the dispatch path below is their sole caller). _is_slow_lane_ep (the
-# CPU/iGPU lane probe _num_predict_cap_for branches on) stays server-owned and is
-# injected, since mios_swarm consumes it too.
 _is_slow_lane_ep = None
 _opt_int_mb = None
 _priority_gate = None
@@ -155,12 +128,6 @@ _strip_agent_chrome = None
 _strip_think_tags = None
 _v1_secondary_tool_loop = None
 
-# WS-RES-GOV cost accounting (injected). _record_cost is now NATIVE to this module
-# (this module is its sole caller), so it reads these directly instead of being
-# injected as a function. The CostLedger/CostModel instances stay SERVER-owned
-# (shared by reference with /v1/cost + the native loop); the enable flag + the
-# _is_remote_endpoint lane probe are injected too. Default-off so cost recording
-# is a no-op until configured (degrade-open: accounting must never break a turn).
 COST_ACCOUNTING_ENABLE = False
 _COST_LEDGER = None
 _COST_MODEL = None
@@ -287,8 +254,6 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
         _strip_think_tags = strip_think_tags
     if v1_secondary_tool_loop is not None:
         _v1_secondary_tool_loop = v1_secondary_tool_loop
-    # KV-paging + RR-preemption config scalars + the shared KV/priority/preempt
-    # state owned by server (mutable dicts/objects injected BY REFERENCE).
     if kv_paging_enable is not None:
         KV_PAGING_ENABLE = kv_paging_enable
     if kv_paging_slot is not None:
@@ -320,12 +285,6 @@ def configure(*, healthgate_connect_timeout=None, healthgate_read_timeout=None,
         _PREEMPT = preempt
 
 
-# ── Moved from server.py (strangler-fig): the per-dispatch lane-governance pair the
-# dispatch path is the SOLE caller of, so they live with their caller (the injections
-# were reversed). _trip_breaker opens the dead-node circuit breaker; _num_predict_cap_for
-# picks the per-lane token ceiling. Their server-owned deps -- the _should_health_probe /
-# _is_slow_lane_ep lane probes, the shared _NODE_LIVE map, and the SSOT num_predict caps --
-# are dependency-injected via configure() (one-way boundary: never imports server).
 def _trip_breaker(name: str, cfg: dict) -> None:
     """Open the circuit for a REMOTE agent that just failed a dispatch: mark it
     DOWN in _NODE_LIVE so the next turn prunes it (no repeated inline retries on a
@@ -346,11 +305,6 @@ def _num_predict_cap_for(ep: str) -> int:
     return LLM_NUM_PREDICT_CAP_CPU if _is_slow_lane_ep(ep) else LLM_NUM_PREDICT_CAP
 
 
-# ── Moved from server.py (strangler-fig): cost recording is driven ONLY by
-# _call_agent_complete below, so it lives with its sole caller (the injection was
-# reversed). De-hardcoded on the move: the prompt/completion token estimate now
-# routes through the mios_tokenize seam (the shared ~chars/token measure) instead
-# of an inline `// 4` literal -- byte-identical under the default heuristic backend.
 def _record_cost(cfg: dict, ep: str, t0: float, body: dict, text: str) -> None:
     """WS-RES-GOV observe-only: record one dispatch's energy/$ cost into the
     ledger. No-op unless COST_ACCOUNTING_ENABLE; degrade-open (accounting must
@@ -421,7 +375,6 @@ def _hash_request(ep: str, body: dict) -> str:
     return h.hexdigest()
 
 from typing import Any
-# ── Moved verbatim from server.py (refactor R3 dispatch-substrate) ──
 async def _call_agent_complete(name, cfg, body, headers, client,
                                *, prefer_cpu: bool = True,
                                priority: Optional[float] = None) -> tuple:
@@ -433,7 +386,6 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     capacity-aware _admit gate; default None -> lane-derived (_dispatch_priority)
     so slow/remote lanes self-shed under load ('all nodes
     enabled by default')."""
-    # 1. Depth checking (Recursion bound)
     depth = _dispatch_depth_var.get()
     max_depth = _get_budget_ceil("max_dispatch_depth", 5)
     if depth >= max_depth:
@@ -443,7 +395,6 @@ async def _call_agent_complete(name, cfg, body, headers, client,
     depth_token = _dispatch_depth_var.set(depth + 1)
     
     try:
-        # 2. Token Budget enforcement (check before dispatch)
         session_id = (_conv_key_var.get() if _conv_key_var else "") or ""
         conv_ceil = _get_budget_ceil("conversation_token_ceil", 2000000)
         now = time.monotonic()
@@ -472,7 +423,6 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                         recent_msgs = [m for m in msgs if isinstance(m, dict) and m.get("role") not in ("system", "developer")][-4:]
                         body["messages"] = system_msgs + recent_msgs
 
-        # 3. Host Pressure Gate
         _engine = _agent_offload_engine(cfg) if prefer_cpu else None
         _ep, _adm_model = _agent_binding(cfg, _engine)
         
@@ -492,12 +442,10 @@ async def _call_agent_complete(name, cfg, body, headers, client,
                 if not _adm_model:
                     _adm_model = light_model
 
-        # 4. Priority / Preemption
         _prio = priority if priority is not None else _dispatch_priority(cfg)
         if _autonomous_var.get():
             _prio = -100.0
 
-        # 5. Request Deduplication (in-flight collapse)
         req_hash = _hash_request(_ep or "", body)
         
         is_first = False
@@ -515,18 +463,14 @@ async def _call_agent_complete(name, cfg, body, headers, client,
             return await fut
 
         async def _execute_query():
-            # Capacity-aware admission BEFORE the semaphores (no-op unless ADMIT_ENABLE;
-            # degrade-open -- never blocks a turn). Endpoint cap OUTER, lane cap INNER.
             _est = _opt_int_mb(cfg.get("vram_mb"))   # Phase-1 per-worker VRAM (0 = unknown)
             try:
-                # foreground=False: background / secondary is shed-eligible
                 await _admit(_ep, _adm_model, _engine or _lane_sem_key(cfg), _prio, _est,
                              foreground=False)
             except _SloShed:  # WS-SCHED-SLO: best_effort shed -> drop this node
                 log.info("SLO shed: best_effort fan-out %s dropped under contention", name)
                 return name, ""
 
-            # WS-A12: RR-preemptible path
             if _rr_eligible(body, _ep, cfg, _engine):
                 async with _endpoint_sem(_ep):
                     async with _lane_sem(_engine or _lane_sem_key(cfg)):
@@ -557,7 +501,6 @@ async def _call_agent_complete(name, cfg, body, headers, client,
         try:
             res = await _execute_query()
             
-            # Post-completion token tracking
             _n, _t = res
             _msgs = (body or {}).get("messages") or []
             _ptok = mios_tokenize.count_messages(_msgs)
@@ -653,20 +596,8 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
     trigger failover -- the agent succeeded; the council merge handles
     quality. Only TRANSPORT failure flips us into failover."""
     _dispatch_agent_var.set(name)  # WS-A9: scope the dispatching agent for the PDP gate
-    # prefer_cpu (fan-out secondaries): offload to the agent's CPU twin so
-    # it runs concurrent with the GPU primary. prefer_cpu=False (planner
-    # agent-task nodes): use the agent's PRIMARY endpoint/model -- a coding
-    # sub-task must hit opencode proper, not a small CPU twin.
-    # Resolve (endpoint, model) for THIS dispatch via the agent's engine/node
-    # binding map. prefer_cpu (fan-out secondaries) offloads to a LIGHT engine
-    # the agent declares (cpu/igpu/accelerator) so it runs concurrent with the
-    # GPU primary; prefer_cpu=False (planner agent-task nodes) uses the default
-    # binding. Any agent can now run on any engine OR node it binds.
     _eng = _agent_offload_engine(cfg) if prefer_cpu else None
     ep, _mdl = _agent_binding(cfg, _eng)
-    # P3.2b: failover helper -- iterate the declared chain in order, recurse
-    # into this same function so each hop inherits the same body + headers and
-    # the bounded depth keeps a misconfigured cycle from spinning.
     async def _try_failover(reason: str) -> tuple:
         if _failover_depth >= 3:
             return name, ""
@@ -687,26 +618,14 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         if rt and rt.strip():
             return rn, rt
         return name, ""
-    # health-gated client node (mobile / Tailscale-hosted): SHORT timeout so a
-    # sleeping/absent node drops from the merge fast instead of stalling.
-    # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
-    # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a
-    # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
-    # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
-    # dispatched but contributed nothing ("fanout secondary ... failed:").
     _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
                          read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
            if _should_health_probe(cfg) else None)
     try:
         nb = dict(body)
         nb["stream"] = False
-        # Private worker-loop signalling keys are pipe-internal only -- never send
-        # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
-        # /v1 ignores the legacy options.num_predict/think fields -> set max_tokens + disable
-        # the thinking channel so the DAG node renders content (not an empty answer
-        # the synth merge then drops -> merged_chars=0;).
         if not nb.get("max_tokens"):
             _np = (nb.get("options") or {}).get("num_predict")
             nb["max_tokens"] = int(_np) if _np else _num_predict_cap_for(ep)
@@ -715,35 +634,15 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         nb.setdefault("chat_template_kwargs", {"enable_thinking": False})
         if _mdl:
             nb["model"] = _mdl
-        # The Hermes gateway (:8642) enforces Authorization: Bearer <key>; the
-        # fanout/DAG dispatch path never attached it, so hermes facets 401'd and
-        # silently dropped from the merge -- leaving only the weaker CPU/code
-        # agents (swarm non-answer). Attach the backend key
-        # when THIS dispatch targets the Hermes backend and no auth was already
-        # supplied; scoped to the backend netloc so the key never reaches a
-        # non-backend node (opencode/daemon don't enforce it anyway).
         _hdrs = dict(headers or {})
-        # WS-FED/G2: shared backend key for a local lane, or this agent's OWN
-        # header for a remote/federated endpoint (see _apply_outbound_auth).
         _apply_outbound_auth(_hdrs, ep)
-        # Propagate the turn-id so a sub-request that re-enters :8640 records its
-        # web_search sources into the PARENT turn's registry bucket (cross-agent
-        # source unification). Harmless on a leaf endpoint (ignored).
         _tk = _src_turn_key()
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
         _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
-        # WS-A8: propagate the request trace id to the Hermes hop so a downstream
-        # re-entry continues THIS request's trace (it adopts X-MiOS-Trace at the top).
         _tid = _current_trace_id()
         if _tid:
             _hdrs["X-MiOS-Trace"] = _tid
-        # WS-A4: KV-cache FORK for a fan-out child. When KV_FORK_ENABLE and this
-        # dispatch is a swarm/DAG child (a parent conv is set), branch the parent's
-        # saved KV into a child file (mios-kv-<parent>#fork:<node>) so the node
-        # warm-starts from the SHARED PREFIX, then page the forked child below.
-        # Fully inert by default: _kv_fork self-guards (disabled / non-llama.cpp ->
-        # no-op) and degrades open; the parent var is "" on the primary path.
         _kv_parent = _kv_fork_parent_var.get() or ""
         if KV_FORK_ENABLE and _kv_parent and _kv_parent != (_conv_key_var.get() or ""):
             _child_conv = f"{_kv_parent}#fork:{name}"
@@ -752,15 +651,7 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
                     _conv_key_var.set(_child_conv)   # page the forked child slot file
             except Exception:  # noqa: BLE001 -- degrade-open: a fork miss -> cold start
                 pass
-        # KV-paging bracket : on a llama.cpp endpoint, page
-        # THIS conversation's KV into the slot (saving whoever held it) before the
-        # tool-loop + final completion, holding the slot across the bracket so a
-        # concurrent conversation can't evict it mid-flight. No-op everywhere else.
         async with _kv_paging(client, ep, cfg, _eng):
-            # Pipe-side OpenAI tool-loop ("full loop until
-            # satisfied"): resolve the /v1 agent's read-only tool_calls --
-            # rescuing a narrated call -- before the final non-streaming answer.
-            # No-op when the agent self-loops or offers no tools.
             if SECONDARY_TOOL_LOOP and body.get("tools"):
                 sess_id = (_conv_key_var.get() if _conv_key_var else None) or None
                 nb["messages"] = await _v1_secondary_tool_loop(
@@ -787,9 +678,6 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         return name, _strip_think_tags(_content)
     except Exception as e:
         log.info("fanout secondary %s failed: %s", name, e)
-        # Circuit-breaker: a REMOTE node that just failed (e.g. the phone offline ->
-        # 'All connection attempts failed') is marked DOWN so the next turn prunes
-        # it instead of re-dispatching + retrying it.
         _trip_breaker(name, cfg)
         rn, rt = await _try_failover(f"exception {type(e).__name__}")
         if rt and rt.strip():
@@ -797,7 +685,6 @@ async def _call_agent_complete_inner_orig(name: str, cfg: dict, body: dict,
         return name, ""
 
 
-# ── Streaming sibling moved verbatim from server.py (refactor dispatch-substrate) ──
 async def _call_agent_stream_inner(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
@@ -834,20 +721,10 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                                    headers: dict, client, q,
                                    *, prefer_cpu: bool = True) -> tuple:
     _dispatch_agent_var.set(name)  # WS-A9: scope the dispatching agent for the PDP gate
-    # Resolve (endpoint, model) for THIS dispatch via the agent's engine/node
-    # binding map. prefer_cpu (fan-out secondaries) offloads to a LIGHT engine
-    # the agent declares (cpu/igpu/accelerator) so it runs concurrent with the
-    # GPU primary; prefer_cpu=False (planner agent-task nodes) uses the default
-    # binding. Any agent can now run on any engine OR node it binds.
     _eng = _agent_offload_engine(cfg) if prefer_cpu else None
     ep, _mdl = _agent_binding(cfg, _eng)
     if not ep:
         return name, ""
-    # health-gated nodes: a SHORT CONNECT timeout drops an ABSENT node (e.g. the
-    # phone asleep) from the merge fast, but a GENEROUS READ timeout lets a
-    # PRESENT-but-slow node still generate. A flat 2.5s total read-timed-out the
-    # Windows iGPU (mios-reasoner-cpu, ~13 tok/s: prefill+TTFB > 2.5s) so it was
-    # dispatched but contributed nothing ("fanout secondary ... failed:").
     _to = (httpx.Timeout(connect=HEALTHGATE_CONNECT_TIMEOUT,
                          read=HEALTHGATE_READ_TIMEOUT, write=10.0, pool=10.0)
            if _should_health_probe(cfg) else None)
@@ -856,27 +733,15 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
     def _push(frag: str) -> None:
         if frag and q is not None:
             try:
-                # Tagged event for the orchestrator's MERGED event queue:
-                # ("SF", agent_name, fragment). Distinguishes secondary
-                # fragments from the primary's ("PR"/"PT"/"PD") events.
                 q.put_nowait(("SF", name, frag))
             except Exception:
                 pass
 
     try:
-        # /v1 SSE stream -- every lane (opencode :8633, hermes :8642, the local
-        # llama.cpp lanes) shares the exact same OpenAI streaming path.
         nb = dict(body)
         nb["stream"] = True
-        # Private worker-loop signalling keys are pipe-internal only -- never send
-        # them to a strict /v1 gateway (it may reject unknown fields).
         nb.pop("_allow_write", None)
         nb.pop("num_ctx", None)
-        # /v1 (llama.cpp) IGNORES the legacy options.num_predict + think fields -> without an
-        # explicit max_tokens the server's tiny default lets gemma4's separate
-        # thinking channel eat the whole budget and return EMPTY content (operator
-        # grounded/browse nodes). Translate the cap to max_tokens and
-        # turn off the thinking channel so the node renders a clean answer.
         if not nb.get("max_tokens"):
             _np = (nb.get("options") or {}).get("num_predict")
             nb["max_tokens"] = int(_np) if _np else _num_predict_cap_for(ep)
@@ -885,33 +750,18 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
         nb.setdefault("chat_template_kwargs", {"enable_thinking": False})
         if _mdl:
             nb["model"] = _mdl
-        # Pipe-side OpenAI tool-loop FIRST ("fix opencode +
-        # others, full loop until satisfied"): resolve the /v1 agent's read-only
-        # tool_calls -- RESCUING a narrated call (the opencode ```json webfetch```
-        # lie) -- before streaming the final answer, symmetric to the non-streaming
-        # sibling. No-op when the agent self-loops (returns no tool_calls)
-        # or offers no tools, so a correctly-looping Hermes is unaffected.
         if SECONDARY_TOOL_LOOP and body.get("tools"):
             sess_id = (_conv_key_var.get() if _conv_key_var else None) or None
             nb["messages"] = await _v1_secondary_tool_loop(
                 client, ep, nb.get("model") or cfg.get("model"),
                 headers, nb.get("messages") or [], body["tools"], _to, _push,
                 session_id=sess_id)
-        # Attach the backend key when streaming from the Hermes backend (it
-        # enforces Bearer auth; see _call_agent_complete_inner). Scoped to the
-        # backend netloc so a non-backend node never receives the key.
         _hdrs = dict(headers or {})
-        # WS-FED/G2: shared backend key for a local lane, or this agent's OWN
-        # header for a remote/federated endpoint (see _apply_outbound_auth).
         _apply_outbound_auth(_hdrs, ep)
-        # Propagate the turn-id (cross-agent source unification; see the
-        # non-streaming sibling). Harmless on a leaf endpoint.
         _tk = _src_turn_key()
         if _tk:
             _hdrs[_SRC_TURN_HEADER] = _tk
         _hdrs.update(_hop_via_headers())   # P0 cross-hop recursion bound
-        # WS-A8: propagate the request trace id to the Hermes hop so a downstream
-        # re-entry continues THIS request's trace (it adopts X-MiOS-Trace at the top).
         _tid = _current_trace_id()
         if _tid:
             _hdrs["X-MiOS-Trace"] = _tid
@@ -940,18 +790,11 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
                     continue
                 delta = ch[0].get("delta") or {}
                 _content = delta.get("content") or ""
-                # Display BOTH the answer + any native reasoning the gateway
-                # streams; only the answer content folds into the merge text.
                 frag = _content or (delta.get("reasoning_content") or delta.get("reasoning") or "")
                 if _content:
                     parts.append(_content)
                 if frag:
                     _push(frag)
-            # NON-STREAMING /v1 fallback ("bring mios daemon
-            # back up"): mios-daemon-agent (:8644) IGNORES stream=true and returns
-            # ONE chat.completion JSON (no `data:` lines), so the SSE parser saw
-            # nothing and the node 💤'd despite being HEALTHY. If nothing streamed,
-            # parse the whole body as a non-streaming completion + push it.
             if not parts and _nonsse:
                 try:
                     _obj = _loads_lenient("".join(_nonsse))
@@ -968,17 +811,6 @@ async def _call_agent_stream_inner_orig(name: str, cfg: dict, body: dict,
         return name, ""
 
 
-# ── KV-cache demand-paging + fork + RR-preemptible decode (moved verbatim) ─────
-# The engine-side actors the two dispatch functions above route through:
-# _kv_paging brackets a completion with per-conversation /slots save+restore,
-# _kv_fork branches a parent's saved KV into a swarm child, and the _rr_* cluster
-# drives the RR-preemptible chunked decode. These lived in server.py and were
-# dependency-injected back into this module; they now live HERE (their natural
-# home -- only _call_agent_complete[_inner] uses them) over directly-imported
-# leaf siblings (mios_endpoints/_endpoint_is_llamacpp, mios_kvfork, mios_preempt)
-# plus the config scalars + the shared KV/priority/preempt state injected via
-# configure(). server.py re-imports every name verbatim so its surface is
-# unchanged, and the _kv_filename derivation stays SSOT with the KV-GC sweep.
 def _kv_base(ep: str) -> str:
     """The llama-server root (strip a trailing /v1) where /slots lives."""
     return ep[:-3].rstrip("/") if (ep or "").endswith("/v1") else (ep or "").rstrip("/")
@@ -1202,12 +1034,6 @@ async def _kv_fork(client, ep: str, cfg: dict, engine, src_conv: str,
     return {"forked": forked, "reason": reason}
 
 
-# ── RR preemptible decode driver (WS-A12) ────────────────────────────────────
-# The engine-side actor for the mios_preempt policy. See the RR_ENABLE comment
-# block above for the design; in short: chunk a fan-out completion into
-# RR_SLICE_TOKENS slices and, when a higher-priority dispatch is queued and the
-# quantum is spent, snapshot the KV (/slots save) + yield the priority gate, then
-# re-acquire + restore so the preempted gen resumes WITHOUT reprocessing.
 def _rr_eligible(body: dict, ep: str, cfg: dict, engine) -> bool:
     """A fan-out dispatch is RR-preemptible only when preemption can both HELP and
     be done safely: RR is on, the priority gate is active (it is what re-orders
@@ -1287,7 +1113,6 @@ async def _rr_run(client, ep: str, model, messages, *, conv: str,
             slot = _PREEMPT.acquire_slot()
             if slot is None:                  # lost the slot race -> keep running
                 continue
-            # Snapshot KV, record the suspension, hand the lane to the waiter.
             await _kv_slot_action(client, ep, "save", conv, model, slot_id)
             _PREEMPT.suspend(mios_preempt.Snapshot(conv, priority, produced, partial, slot))
             _GLOBAL_PRIORITY_GATE.release()

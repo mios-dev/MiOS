@@ -30,15 +30,12 @@ def t_make_schema_strict():
     })
     check("strict additionalProperties False",
           strict.get("additionalProperties") is False)
-    # OpenAI strict: every property must be in required.
     check("strict all props required",
           set(strict.get("required") or []) == {"a", "b"},
           str(strict.get("required")))
-    # The optional prop 'b' gets a nullable type-union so it can be omitted.
     check("strict optional prop nullable",
           strict["properties"]["b"]["type"] == ["integer", "null"],
           str(strict["properties"]["b"]))
-    # Non-dict input degrades to an empty strict object schema.
     deg = s._make_schema_strict("nope")
     check("strict non-dict degrade",
           deg == {"type": "object", "properties": {},
@@ -61,7 +58,6 @@ def t_skill_to_openai_tool():
           params.get("required") == ["url", "title"])
     check("tool additionalProperties False",
           params.get("additionalProperties") is False)
-    # Rich typed params test case
     tool_rich = s._skill_to_openai_tool({
         "name": "rich skill",
         "description": "does a rich thing",
@@ -117,10 +113,6 @@ def t_execute_skill():
     def stub_pg_mirror(*a, **k):
         return None
 
-    # The invocation/attribution lifecycle + arg renderer now LIVE in mios_skills
-    # (no longer injected); execute_skill drives the REAL helpers, which only need
-    # the DB-event helpers + pg mirror stubbed (_passport_sign degrades to None
-    # without a key, so open synthesizes a pg-id and proceeds).
     s.configure(
         db_read=stub_db_read,
         db_post=stub_db_post,
@@ -140,14 +132,12 @@ def t_execute_skill():
 
 
 def t_skill_render_args():
-    # $-token substitution from the params map; non-str values pass through.
     out = s._skill_render_args(
         {"url": "$site/page", "n": 5, "who": "$user"},
         {"site": "http://x", "user": "alice"})
     check("render substitutes tokens", out["url"] == "http://x/page", str(out))
     check("render leaves non-str untouched", out["n"] == 5, str(out))
     check("render second token", out["who"] == "alice", str(out))
-    # A missing param leaves the $-token literal so the dispatch errors visibly.
     miss = s._skill_render_args({"a": "$gone"}, {})
     check("render missing param literal", miss["a"] == "$gone", str(miss))
 
@@ -190,11 +180,9 @@ def t_skill_attribute_tool_call():
         return []
 
     s.configure(db_post=stub_db_post)
-    # Missing inv_id or tool_call_id -> no-op (no SQL emitted).
     asyncio.run(s._skill_attribute_tool_call(None, "tc:1", 0))
     asyncio.run(s._skill_attribute_tool_call("inv:1", None, 0))
     check("attribute no-op on missing ids", posts == [], str(posts))
-    # Both present -> RELATE emitted carrying the step index.
     asyncio.run(s._skill_attribute_tool_call("inv:1", "tc:1", 3))
     check("attribute emits RELATE",
           any("RELATE inv:1->emitted->tc:1" in p and "step_index = 3" in p
@@ -202,15 +190,11 @@ def t_skill_attribute_tool_call():
 
 
 def t_slug_for_skill():
-    # Synthetic non-dictionary tokens (no baked English example words); the slug
-    # lowercases + collapses non-[a-z0-9] runs to single hyphens and trims edges.
     check("slug lowercases + hyphenates",
           s._slug_for_skill("  Zxq!! Vwk__Mtp  ") == "zxq-vwk-mtp",
           s._slug_for_skill("  Zxq!! Vwk__Mtp  "))
-    # Length cap at 60 chars.
     long = "q" * 200
     check("slug length-capped to 60", len(s._slug_for_skill(long)) == 60)
-    # Empty / all-stripped input degrades to the literal fallback.
     check("slug empty -> fallback", s._slug_for_skill("") == "skill")
     check("slug all-symbols -> fallback", s._slug_for_skill("@#$%") == "skill")
 
@@ -224,7 +208,6 @@ def t_render_skill_md():
     check("render carries outcome", "mtpq result body" in md)
     check("render lists the verb in frontmatter", "verb_zz" in md)
     check("render stamps the session", "session: sess:9" in md)
-    # No tool history -> the explicit no-tools workflow note.
     md2 = s._render_skill_md("qwzx", "ans", None, None)
     check("render no-tools note",
           "answer produced without explicit tool calls" in md2)
@@ -232,19 +215,16 @@ def t_render_skill_md():
 
 def t_write_skill_md_fire(tmp_subdir):
     import os
-    # Disabled flag -> hard no-op (no dir/file created).
     s.configure(skills_episodic_dir=os.path.join(tmp_subdir, "off"),
                 skills_episodic_enabled=False)
     s._write_skill_md_fire(query="qwzx", answer="mtpq")
     check("write disabled -> no dir created",
           not os.path.isdir(os.path.join(tmp_subdir, "off")))
-    # Enabled but empty q/a -> no-op (degrade-open, never raises).
     on_dir = os.path.join(tmp_subdir, "on")
     s.configure(skills_episodic_dir=on_dir, skills_episodic_enabled=True)
     s._write_skill_md_fire(query="", answer="mtpq")
     check("write empty-query -> skip",
           not os.path.isdir(on_dir) or not os.listdir(on_dir))
-    # Enabled + real q/a -> a single .md file lands carrying the goal.
     s._write_skill_md_fire(query="qwzx vptm", answer="mtpq result",
                            tool_history=[{"tool": "verb_zz", "args": {}}],
                            session_id="sess:1")

@@ -9,8 +9,6 @@ import time
 import mios_dispatch
 
 
-# Representative planner-emittable verbs with SSOT cmd templates + the hardcoded
-# branches (pc_key etc.). The dispatch table must cover every one of these.
 _CATALOG = {
     "web_search": {"cmd": "mios-web-search -n {limit=5} {query!}"},
     "open_url": {"cmd": "mios-open-url {url!}"},
@@ -47,7 +45,6 @@ def _base_configure():
     )
 
 
-# ── 1. _build_dispatch_cmd shapes argv -- hardcoded branch ──────────────────
 _base_configure()
 cmd = mios_dispatch._build_dispatch_cmd("pc_key", {"key": "Ctrl+S"})
 assert cmd == "mios-pc-control key-combo Ctrl+S", repr(cmd)
@@ -56,27 +53,19 @@ assert cmd == "mios-pc-control key Enter", repr(cmd)
 cmd = mios_dispatch._build_dispatch_cmd("pc_click", {"x": 10, "y": 20, "button": "left"})
 assert cmd == "mios-pc-control click 10 20 left", repr(cmd)
 
-# ── 2. _build_dispatch_cmd shapes argv -- SSOT cmd-template verb ─────────────
 cmd = mios_dispatch._build_dispatch_cmd("web_search", {"query": "hello world", "limit": 3})
 assert cmd == "mios-web-search -n 3 'hello world'", repr(cmd)
-# required {url!} empty -> template aborts -> None (verb known, args rejected)
 assert mios_dispatch._build_dispatch_cmd("open_url", {"url": ""}) is None
 cmd = mios_dispatch._build_dispatch_cmd("open_url", {"url": "https://x.test"})
 assert cmd == "mios-open-url https://x.test", repr(cmd)
 
-# ── 3. dispatch table covers the planner-emittable verb sample ──────────────
 _planner_sample = ["web_search", "open_url", "knowledge_search", "pc_key", "pc_click"]
 for v in _planner_sample:
     args = {"query": "q", "url": "https://x.test", "key": "a", "x": 1, "y": 2}
     out = mios_dispatch._build_dispatch_cmd(v, args)
     assert out, f"dispatch table missing planner verb {v!r}: {out!r}"
-# unknown verb -> None
 assert mios_dispatch._build_dispatch_cmd("totally_unknown_verb", {}) is None
 
-# ── 3b. moved helpers: _arg_with_synonyms / _validate_enum_args / sandbox ────
-# These four were extracted from server.py into mios_dispatch (their sole consumer).
-# Run BEFORE the gate tests below, which monkeypatch _validate_enum_args. Synthetic
-# (non-dictionary) verb/arg tokens so no baked English example words leak in.
 _SYN_CATALOG = {
     "zqx_verb": {
         "params": {
@@ -93,26 +82,21 @@ mios_dispatch.configure(
     sandbox_self_confined=("xx-selfwrap",),
 )
 
-# _arg_with_synonyms: canonical first, then a declared synonym, else ''
 assert mios_dispatch._arg_with_synonyms("zqx_verb", "mode_qq", {"mode_qq": "aa1"}) == "aa1"
 assert mios_dispatch._arg_with_synonyms("zqx_verb", "mode_qq", {"mq_alias": "bb2"}) == "bb2"
 assert mios_dispatch._arg_with_synonyms("zqx_verb", "mode_qq", {"nope": "x"}) == ""
 
-# _validate_enum_args: in-enum -> None; out-of-enum -> error str; undeclared -> None
 assert mios_dispatch._validate_enum_args("zqx_verb", {"mode_qq": "bb2"}) is None
 _err = mios_dispatch._validate_enum_args("zqx_verb", {"mode_qq": "zzz9"})
 assert _err and "not allowed" in _err, repr(_err)
 assert mios_dispatch._validate_enum_args("zqx_verb", {"free_kk": "whatever"}) is None
 assert mios_dispatch._validate_enum_args("unknown_verb_xx", {"a": "b"}) is None
 
-# _dispatch_sandbox_profile -> a SandboxProfile; _sandbox_wrap_cmd enforce OFF = passthrough
 _prof = mios_dispatch._dispatch_sandbox_profile("zqx_verb")
 assert hasattr(_prof, "confined") and callable(getattr(_prof, "to_dict", None)), _prof
 _c, _ws = mios_dispatch._sandbox_wrap_cmd("zqx_verb", "echo zz", _prof)
 assert _c == "echo zz" and _ws is None, (_c, _ws)
 
-# enforce ON + opted-in confined verb: a self-confined cmd is NOT double-wrapped,
-# while a plain cmd IS wrapped through mios-sandbox-exec with a workspace.
 _SELF_CATALOG = {"wrapme_vv": {"permission": "write", "sandbox_profile": "workspace"}}
 mios_dispatch.configure(verb_catalog=_SELF_CATALOG, sandbox_enforce=True,
                         sandbox_self_confined=("xx-selfwrap",))
@@ -123,7 +107,6 @@ assert _c3 == "xx-selfwrap echo hi" and _ws3 is None, (_c3, _ws3)
 _c4, _ws4 = mios_dispatch._sandbox_wrap_cmd("wrapme_vv", "echo hi", _prof_c)
 assert _c4 != "echo hi" and "mios-sandbox-exec" in _c4 and _ws4 is not None, (_c4, _ws4)
 
-# ── 4. a GUARDED verb STAYS GATED -- HITL block refuses before the broker ───
 _broker_called = {"n": 0}
 
 
@@ -134,7 +117,6 @@ async def _explode_bounded(*a, **k):
 
 def test_hitl_gate():
     _base_configure()
-    # imported-direct gates monkeypatched in the module namespace (no DB/network)
     mios_dispatch._dispatch_bounded = _explode_bounded
     mios_dispatch._hitl_block_reason = lambda tool, args: "human approval required"
     mios_dispatch._HITL_ARBITER_URL = ""
@@ -150,7 +132,6 @@ def test_hitl_gate():
 
 test_hitl_gate()
 
-# ── 5. second gate: tainted high-privilege verb -> firewall_block (no broker) ─
 def test_firewall_gate():
     _base_configure()
     mios_dispatch._dispatch_pdp_reason = lambda tool: None
@@ -160,7 +141,6 @@ def test_firewall_gate():
     async def _tainted(session_id):
         return True, "open_url->external"
     mios_dispatch._session_is_tainted = _tainted
-    # open_url is in _HIGH_PRIVILEGE_VERBS (configured above) -> inner refuses it.
     res = asyncio.run(mios_dispatch._dispatch_mios_verb_inner(
         "open_url", {"url": "https://x.test"}, session_id="s1"))
     assert res.get("tainted") is True, res
@@ -171,12 +151,6 @@ def test_firewall_gate():
 test_firewall_gate()
 
 
-# ── 5b. NO SILENT BYPASS: the [ai] risk-tier HITL gate is ALSO enforced at the inner
-#       universal chokepoint, so a DIRECT _dispatch_mios_verb_inner caller (the
-#       computer-use loop bypasses the public dispatch_mios_verb entry) cannot run a
-#       tier-gated verb un-blocked. Synthetic verb; PDP/quota/firewall stubbed to
-#       pass and the [hitl] verb-scope gate stubbed to a no-op so ONLY the [ai] gate
-#       is under test. The two former gates now share the mios_hitl.decide resolver. ─
 async def _aret_none(*a, **k):
     return None
 
@@ -189,15 +163,11 @@ def test_hitl_inner_chokepoint_no_bypass():
     mios_dispatch._HITL_ARBITER_URL = ""
     mios_dispatch._hitl_gate = _aret_none
 
-    # HITL OFF: the [ai] gate returns None -> the inner does NOT HITL-block (the verb
-    # fails later for a benign reason -- unknown synthetic verb -- never hitl_blocked).
     mios_dispatch._hitl_block_reason = lambda tool, args: None
     res_off = asyncio.run(mios_dispatch._dispatch_mios_verb_inner(
         "zzz_synth_verb", {"a": 1}, session_id="s1"))
     assert not res_off.get("hitl_blocked"), res_off
 
-    # HITL ENABLED: the [ai] gate refuses -> the inner chokepoint BLOCKS before the
-    # broker, even on this DIRECT-inner (computer-use style) bypass path.
     mios_dispatch._hitl_block_reason = lambda tool, args: "human approval required"
     res_on = asyncio.run(mios_dispatch._dispatch_mios_verb_inner(
         "zzz_synth_verb", {"a": 1}, session_id="s1"))
@@ -209,10 +179,6 @@ def test_hitl_inner_chokepoint_no_bypass():
 test_hitl_inner_chokepoint_no_bypass()
 
 
-# ── 6. A9/F2: a tainted verb via /v1/dispatch persists a tool_call row that the
-#       Semantic Firewall then sees as a session taint (closes the dispatch-path
-#       taint-blind hole). No broker/network/DB -- the dispatch verb + the DB
-#       writers + the firewall reader are all stubbed. ─────────────────────────
 def test_dispatch_persists_taint_row():
     _base_configure()
     captured = {}
@@ -231,8 +197,6 @@ def test_dispatch_persists_taint_row():
 
     mios_dispatch.configure(db_create=_cap_create, db_post=_cap_post, db_fire=_cap_fire)
 
-    # The verb EXECUTED and its own result is tainted (e.g. external open_url) --
-    # this is exactly the dict the dispatch chokepoint returns after the broker.
     async def _fake_dispatch(tool, args, *, session_id=None):
         return {"success": True, "tool": "open_url",
                 "args": {"url": "https://x.test"},
@@ -246,18 +210,14 @@ def test_dispatch_persists_taint_row():
         body = {"tool": "open_url", "args": {"url": "https://x.test"}, "session_id": "s9"}
         asyncio.run(mios_dispatch.dispatch_verb(body))
 
-        # A tool_call row was written for the dispatch-executed verb, carrying its taint.
         assert captured.get("table") == "tool_call", captured
         row = captured.get("row") or {}
         assert row.get("tainted") is True, row
         assert row.get("taint_reason") == "external_open_url:https://x.test", row
         assert row.get("tool") == "open_url", row
         assert captured.get("fired") is not None, "row write must fire"
-        # session-scoped so _session_is_tainted (keyed on session) can find it.
         assert "session = s9" in str(captured.get("posted") or ""), captured
 
-        # Closing the loop: feed that recorded row back through the firewall's taint-chain
-        # reader -> the session is now seen as tainted (was invisible before A9).
         import mios_firewall
 
         async def _fake_read(sql, pg_sql=None, pg_params=None):
@@ -270,7 +230,6 @@ def test_dispatch_persists_taint_row():
         tainted, chain = asyncio.run(mios_firewall._session_is_tainted("s9"))
         assert tainted is True and "open_url" in chain, (tainted, chain)
 
-        # Degrade-open: a write failure (writer raises) must NOT break dispatch.
         def _boom_post(sql):
             raise RuntimeError("db down")
         mios_dispatch.configure(db_post=_boom_post)
@@ -284,12 +243,6 @@ def test_dispatch_persists_taint_row():
 test_dispatch_persists_taint_row()
 
 
-# ── 7. A6: write/exec verbs OPT IN to a real sandbox profile; read verbs don't ──
-# The dead-bwrap gap was that ZERO verbs declared sandbox_profile, so flipping
-# [dispatch].sandbox_enforce confined nothing. This gate drives off each verb's SSOT
-# `permission`/`sandbox_profile` metadata (NOT a runtime verb-name list): it proves
-# the opt-in set is now non-empty, every tagged profile is a REAL confining profile
-# on a non-read verb, and read-only verbs sensibly carry none.
 def test_sandbox_profile_coverage():
     import os
     import mios_sandbox
@@ -316,18 +269,11 @@ def test_sandbox_profile_coverage():
         if prof is None:
             continue
         tagged[name] = (prof, perm)
-        # (a) names a REAL profile that resolves to CONFINED (catches a typo'd name).
         assert mios_sandbox.resolve_profile(perm, explicit=prof).confined, \
             f"{name}: sandbox_profile={prof!r} did not resolve to a confined profile"
-        # (b) only a side-effecting (non-read) verb opts into confinement; a read-only
-        #     verb declaring one would be a classification error.
         assert perm != "read", \
             f"{name}: read-only verb must not declare sandbox_profile"
 
-    # (c) the opt-in set is NON-EMPTY (the gap was 0 of N) AND covers the canonical
-    #     arbitrary-code-execution + file-mutation verbs -- exactly what a dead
-    #     sandbox most needs to confine. Derived from catalog presence (a verb absent
-    #     in this build is skipped), so this is coverage, not a re-declared name map.
     assert tagged, "A6 regression: ZERO verbs declare sandbox_profile (dead bwrap)"
     _must_confine = [n for n in ("run_code", "coderun", "code_mode",
                                  "text_create", "text_str_replace", "text_insert",
@@ -342,7 +288,6 @@ test_sandbox_profile_coverage()
 
 
 def test_agent_access_control():
-    # Configure mios_dispatch with a mock catalog and agent registry
     _test_catalog = {
         "container_restart": {"cmd": "echo restarting", "tier": "destructive"},
         "safe_verb": {"cmd": "echo safe", "tier": "routine"},
@@ -352,7 +297,6 @@ def test_agent_access_control():
         "privileged_agent": {"privilege_group": "privileged"},
     }
     
-    # Save original mocks
     orig_hitl_block_reason = mios_dispatch._hitl_block_reason
     orig_pdp = mios_dispatch._dispatch_pdp_reason
     orig_quota = mios_dispatch._dispatch_quota_reason
@@ -372,7 +316,6 @@ def test_agent_access_control():
         return {"success": True, "output": f"ok-{tool}"}
     mios_dispatch._dispatch_bounded = _mock_bounded
 
-    # Configure variables
     mios_dispatch.configure(
         verb_catalog=_test_catalog,
         agent_registry=_test_agents,
@@ -382,33 +325,27 @@ def test_agent_access_control():
     )
     
     try:
-        # Run calling as routine_agent
         ctx1 = contextvars.copy_context()
         def _run_routine():
             _agent.set("routine_agent")
-            # should fail/route to HITL
             res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
             assert res.get("hitl_blocked") is True, f"routine_agent calling destructive verb should be HITL blocked: {res}"
             
-            # calling safe verb should succeed
             res2 = asyncio.run(mios_dispatch.dispatch_mios_verb("safe_verb", {}))
             assert res2.get("hitl_blocked") is not True, f"routine_agent calling safe verb should NOT be blocked: {res2}"
             assert res2.get("output") == "ok-safe_verb", res2
             
         ctx1.run(_run_routine)
         
-        # Run calling as privileged_agent
         ctx2 = contextvars.copy_context()
         def _run_privileged():
             _agent.set("privileged_agent")
-            # should proceed (fail on socket since launcher is /nonexistent, but NOT HITL blocked)
             res = asyncio.run(mios_dispatch.dispatch_mios_verb("container_restart", {}))
             assert res.get("hitl_blocked") is not True, f"privileged_agent calling destructive verb should not be HITL blocked: {res}"
             assert res.get("output") == "ok-container_restart", res
             
         ctx2.run(_run_privileged)
     finally:
-        # Restore original mocks
         mios_dispatch._hitl_block_reason = orig_hitl_block_reason
         mios_dispatch._dispatch_pdp_reason = orig_pdp
         mios_dispatch._dispatch_quota_reason = orig_quota
@@ -425,19 +362,16 @@ test_agent_access_control()
 
 
 def test_normalize_container_exec():
-    # 1. Test docker -> podman conversion (with word boundaries)
     s1 = "docker exec -it my-container bash"
     r1 = mios_dispatch.normalize_container_exec(s1)
     assert "podman" in r1, r1
     assert "docker" not in r1, r1
 
-    # 2. Test code-server / mios-code-server -> mios-agents
     s2 = "podman exec -it code-server bash"
     r2 = mios_dispatch.normalize_container_exec(s2)
     assert "mios-agents" in r2, r2
     assert "code-server" not in r2, r2
 
-    # 3. Test stripping of interactive -it / -t flags from exec
     s3 = "podman exec -it mios-agents bash"
     r3 = mios_dispatch.normalize_container_exec(s3)
     assert "-it" not in r3, r3
@@ -448,7 +382,6 @@ def test_normalize_container_exec():
     r3_long = mios_dispatch.normalize_container_exec(s3_long)
     assert "--tty" not in r3_long, r3_long
 
-    # 4. Test replacing bare shell at end with true
     s4 = "podman exec -i mios-agents bash"
     r4 = mios_dispatch.normalize_container_exec(s4)
     assert r4.endswith("true"), r4
@@ -457,7 +390,6 @@ def test_normalize_container_exec():
     r4_path = mios_dispatch.normalize_container_exec(s4_path)
     assert r4_path.endswith("true"), r4_path
 
-    # Multi-line test
     s_multi = "docker exec -it code-server bash\nWrite-Output 'hello'"
     r_multi = mios_dispatch.normalize_container_exec(s_multi)
     assert "podman exec -i mios-agents true" in r_multi, r_multi

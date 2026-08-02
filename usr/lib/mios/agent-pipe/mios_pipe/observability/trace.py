@@ -114,12 +114,9 @@ class Tracer:
         self.enabled = bool(enabled)
         self._max_traces = max(1, int(max_traces))
         self._max_spans = max(1, int(max_spans_per_trace))
-        # trace_id -> list[span dict] (insertion/finish order). OrderedDict for LRU.
         self._traces: "collections.OrderedDict[str, List[dict]]" = collections.OrderedDict()
-        # trace_id -> total spans SEEN (incl. dropped past the per-trace cap).
         self._seen: "collections.OrderedDict[str, int]" = collections.OrderedDict()
 
-    # ── span lifecycle ────────────────────────────────────────────────────
     def start_span(self, name: str, *, trace_id: str, parent_id: str = "",
                    attrs: Optional[dict] = None) -> Span:
         """Create (but do not yet record) a span. Caller finish()es it then
@@ -134,7 +131,6 @@ class Tracer:
         if not tid:
             return
         if tid not in self._traces:
-            # New trace: evict the oldest while over the trace cap.
             self._traces[tid] = []
             self._seen[tid] = 0
             while len(self._traces) > self._max_traces:
@@ -146,7 +142,6 @@ class Tracer:
         if len(lst) < self._max_spans:
             lst.append(span.to_dict() if not isinstance(span, dict) else span)
 
-    # ── reads (zero DB) ─────────────────────────────────────────────────────
     def get_trace(self, trace_id: str) -> List[dict]:
         """All recorded spans for a trace, in finish order (empty if unknown)."""
         return list(self._traces.get(str(trace_id), []))

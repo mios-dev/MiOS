@@ -76,7 +76,6 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
     global _ensure_verb_embeddings, _embed_one, CODE_MODE_ENABLE
     global _WORKER_TOOLS_CACHE, _WORKER_TOOLS_FULL_CACHE, _WORKER_TOOLS_CORE_CACHE
 
-    # Clear caches when reconfigured
     _WORKER_TOOLS_CACHE = None
     _WORKER_TOOLS_FULL_CACHE = None
     _WORKER_TOOLS_CORE_CACHE = None

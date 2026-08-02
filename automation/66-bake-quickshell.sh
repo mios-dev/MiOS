@@ -25,21 +25,21 @@ for attempt in 1 2 3; do
     rm -rf "$BUILD_DIR"
     
     if ! git clone "${MIOS_URL_QUICKSHELL:-https://github.com/quickshell-mirror/quickshell.git}" "$BUILD_DIR"; then
-        mios_warn "git clone failed on attempt $attempt"
+        mios_warn "Git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
     cd "$BUILD_DIR"
     if ! git checkout "$PIN_REF"; then
-        mios_warn "git checkout to $PIN_REF failed on attempt $attempt"
+        mios_warn "Git checkout to $PIN_REF failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
     git submodule sync --recursive || true
     if ! git submodule update --init --recursive --force; then
-        mios_warn "git submodule update failed on attempt $attempt"
+        mios_warn "Git submodule update failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -54,12 +54,12 @@ for attempt in 1 2 3; do
         fi
     fi
     
-    mios_warn "build failed on attempt $attempt"
+    mios_warn "Build failed on attempt $attempt"
     sleep $((attempt * 8))
 done
 
 if [[ -z "$QUICKSHELL_OK" ]]; then
-    mios_warn "quickshell build failed after 3 attempts"
+    mios_warn "Quickshell build failed after 3 attempts"
     exit 1
 fi
 
@@ -122,4 +122,4 @@ ShellRoot {
 }
 EOF
 chmod 0644 /usr/share/mios/quickshell/Config.qml
-mios_ok "installed /usr/bin/quickshell and wrote /usr/share/mios/quickshell/Config.qml"
+mios_ok "Installed /usr/bin/quickshell and wrote /usr/share/mios/quickshell/Config.qml"

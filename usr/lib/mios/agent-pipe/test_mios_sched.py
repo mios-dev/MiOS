@@ -168,8 +168,6 @@ async def t_cancel_after_grant() -> None:
 
     t = asyncio.create_task(worker())
     await asyncio.sleep(0.02)
-    # release() (synchronous) grants the permit to t; cancel BEFORE t resumes ->
-    # the awaiting task raises CancelledError even though its future is done.
     g.release()
     t.cancel()
     try:
@@ -207,7 +205,6 @@ async def t_cap_never_exceeded() -> None:
     _check("load: drained to full", g.available == cap, f"avail={g.available}")
 
 
-# ── V5 per-tenant fair-share dimension (DEFAULT-OFF: tenant_cap<=0 == today) ──────
 
 async def t_tenant_default_off() -> None:
     """tenant_cap=0 (the default) -> the tenant arg is inert: pick is PURE priority and
@@ -322,8 +319,6 @@ async def t_tenant_none_uncapped() -> None:
     _check("tenant none-uncapped: None never tracked", g.tenant_inflight(None) == 0)
 
 
-# ── Lane / scheduling / priority decision helpers (moved from server.py) ─────────
-# Stub the server-owned deps via configure() -- no server import, no DB, no network.
 
 def _configure_helpers(*, offload_cpu: bool = False, slow_cap: int = 12,
                        default_cap: int = 24, agent_lane=None) -> None:
@@ -438,10 +433,8 @@ async def t_sched_priority_ssot_override() -> None:
         _check("sched_override: default urgency",
                M._sched_priority({"urgency": "nomatch"})["urgency"] == 4,
                f"got={M._sched_priority({'urgency': 'nomatch'})}")
-        # complexity = min(cap 5, base 2 + 3 tasks + 2 hints // 1) = min(5, 7) = 5
         cx = M._sched_priority({"tasks": [1, 2, 3], "hint_tools": [1, 2]})
         _check("sched_override: complexity weights+cap", cx["complexity"] == 5, f"got={cx}")
-        # score = round(complexity 5 * 0.5 + default-urgency 4 * 0.5, 3) = 4.5
         _check("sched_override: blended score honors weights+ndigits", cx["score"] == 4.5,
                f"got={cx}")
         _check("sched_override: dispatch floor from config",

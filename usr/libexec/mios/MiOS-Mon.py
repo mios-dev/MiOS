@@ -31,7 +31,6 @@ def _install_deps():
         input("Press Enter to exit...")
         sys.exit(1)
 
-# --- RICH IMPORTS (For static renders) ---
 try:
     from rich.console import Console, Group
     from rich.panel import Panel
@@ -43,7 +42,6 @@ try:
 except ImportError:
     _install_deps()
 
-# --- TEXTUAL IMPORTS (For live TUI) ---
 try:
     from textual.app import App, ComposeResult
     from textual.widgets import Header, Footer, Static, RichLog, TabbedContent, TabPane, DataTable, Sparkline, Label
@@ -59,9 +57,6 @@ except ImportError:
 IS_WINDOWS = platform.system() == 'Windows'
 console = Console(safe_box=False)
 
-# ---------------------------------------------------------------------------
-# CORE DATA FETCHING (Shared between Rich and Textual)
-# ---------------------------------------------------------------------------
 
 _SYS_INFO_CACHE = None
 _USB_INFO_CACHE = "Scanning USB..."
@@ -222,7 +217,6 @@ def _bg_update_git():
             _GIT_STATUS_CACHE = "[dim]Git repo not found[/]"
         time.sleep(5)
 
-# Start background async threads for slow I/O
 threading.Thread(target=_bg_update_usb, daemon=True).start()
 threading.Thread(target=_bg_update_git, daemon=True).start()
 
@@ -291,9 +285,6 @@ def create_dash_layout():
     footer_text = f"User: login mios/mios   Host: forge mios/\n\nTree\n{get_git_tree_status()}"
     return Panel(Group(Panel(header, box=box.SIMPLE, border_style="cyan"), Panel(svcs, title="[yellow]UNIFIED SYSTEM STACK & SERVICES[/]", border_style="cyan"), Panel(Align.center(footer_text), box=box.SIMPLE, border_style="cyan")), border_style="blue", padding=1)
 
-# ---------------------------------------------------------------------------
-# FULL TEXTUAL TUI APPLICATION (btop-style)
-# ---------------------------------------------------------------------------
 
 if TEXTUAL_AVAILABLE:
     def load_ssot_colors():
@@ -353,31 +344,25 @@ if TEXTUAL_AVAILABLE:
             height: 1fr;
             width: 100%;
         }}
-        #main-container, #build-container, #flash-container, #ai-container {{
             height: 1fr;
             width: 100%;
             layout: horizontal;
         }}
-        #left-pane {{
             width: 1fr;
             height: 100%;
         }}
-        #right-pane {{
             width: 1fr;
             height: 100%;
         }}
-        #build-stats-pane, #flash-stats-pane, #ai-stats-pane {{
             width: 38;
             height: 100%;
             border: round {SSOT['accent']};
             content-align: center top;
         }}
-        #build-log-box, #flash-log-box, #ai-log-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['success']};
         }}
-        #top-right-bar {{
             height: 6;
             width: 100%;
         }}
@@ -387,39 +372,32 @@ if TEXTUAL_AVAILABLE:
             margin: 0;
             padding: 0 1;
         }}
-        #hw-box {{
             height: 2fr;
             border: round {SSOT['subtle']};
         }}
-        #svc-table {{
             height: 1fr;
             width: 100%;
             border: round {SSOT['accent']};
         }}
-        #sys-identity {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['subtle']};
             content-align: center middle;
         }}
-        #forge-box {{
             width: 1fr;
             height: 100%;
             border: round {SSOT['warning']};
             content-align: center middle;
         }}
-        #spark-container {{
             height: 4;
             border: round {SSOT['accent']};
             background: {SSOT['surface']};
             padding: 0 1;
         }}
-        #spark-widget {{
             height: 100%;
             width: 100%;
             color: {SSOT['subtle']};
         }}
-        #log-box {{
             height: 1fr;
             width: 100%;
             border: round {SSOT['success']};

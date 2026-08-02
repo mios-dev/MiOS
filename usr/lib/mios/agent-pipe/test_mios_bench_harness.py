@@ -8,9 +8,6 @@ import json
 import subprocess
 import time
 
-# Resolve the mios-bench CLI relative to this test's location so the suite runs
-# unchanged on the built image (/usr/...), a WSL checkout, or a Windows checkout
-# -- no dev-host absolute path (Law 7: no SSOT-restated install-path literals).
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", "..", "..", ".."))
 MIOS_BENCH = os.path.join(_REPO, "usr", "libexec", "mios", "mios-bench")
@@ -24,7 +21,6 @@ def check(name, cond, detail=""):
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 def test_offline_score_table():
-    # Write a temporary results file
     results = [
         {"task": "t1", "ok": True, "cost": 0.1, "latency_ms": 1500, "error": False, "security_violation": False},
         {"task": "t1", "ok": False, "cost": 0.2, "latency_ms": 2500, "error": False, "security_violation": False},
@@ -35,12 +31,6 @@ def test_offline_score_table():
         json.dump({"results": results}, fh)
         
     try:
-        # Run mios-bench score in a subprocess. Invoke via sys.executable (python3)
-        # rather than executing mios-bench directly: git tracks it 0644 and the +x
-        # bit is only added to the IMAGE copy by 08-system-files-overlay.sh, not to
-        # the /tmp/build working copy MIOS_BENCH points at during the OCI build, so a
-        # direct exec raised PermissionError in build.sh's test gate. python3 needs
-        # no exec bit and matches how postcheck #15 invokes it.
         p = subprocess.Popen(
             [sys.executable, MIOS_BENCH, "score", tmp_path, "--k", "2"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -64,7 +54,6 @@ def test_offline_score_table():
             os.remove(tmp_path)
 
 def test_run_command_suite_routing():
-    # Create a small temp suite
     suite = [
         {"task": "addition", "prompt": "40+2", "expect": "42"}
     ]
@@ -72,7 +61,6 @@ def test_run_command_suite_routing():
     with open(tmp_suite, "w") as fh:
         json.dump(suite, fh)
         
-    # Start a mini local mock HTTP server
     import http.server
     import threading
     class MockHandler(http.server.BaseHTTPRequestHandler):
@@ -93,7 +81,6 @@ def test_run_command_suite_routing():
     time.sleep(0.1)
     
     try:
-        # Run run command (via sys.executable -- see the score-subprocess note above)
         p = subprocess.Popen(
             [sys.executable, MIOS_BENCH, "run", tmp_suite, "--endpoint", "http://127.0.0.1:8699/v1", "--k", "1"],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE

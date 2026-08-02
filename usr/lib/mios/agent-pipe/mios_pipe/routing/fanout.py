@@ -34,14 +34,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# _pick_fanout_agents reads server.py's live agent registry + dispatch
-# config and calls back into its depth/lane/dedup/admission helpers.
-# server.py calls configure() with those AFTER they are all defined
-# (one-way boundary: this module never imports server); _reload_membership
-# re-injects the rebuilt _AGENT_REGISTRY so live add/drop is seen. They stay
-# None until then; _pick_fanout_agents is only called at runtime (after
-# configure) so a standalone ``import mios_fanout`` still succeeds.
 _AGENT_REGISTRY: dict = {}
 _DISPATCH_CFG: dict = {}
 _depth_exhausted = None
@@ -54,13 +46,6 @@ _agent_skill_tags = None
 MAX_DISPATCH_DEPTH = 2
 COUNCIL_MAX_DEFAULT = 4
 ADMIT_ENABLE = False
-# FED-G7 (T-051): fold a federated peer's FULL published AgentCard skills[] (each
-# skill's name + description + tags) into the relevance corpus, not just the
-# collapsed strength-token ids the peer registration keeps. SSOT
-# [a2a].route_on_card_skills; default OFF -> the card corpus AND the selection stay
-# byte-identical to strength-token-only routing. The event-table writers are
-# injected so the routing decision can be recorded; they stay None (emit is a no-op)
-# for a standalone ``import mios_fanout`` and the offline unit tests.
 ROUTE_ON_CARD_SKILLS = False
 _db_create = None
 _db_post = None
@@ -270,8 +255,6 @@ async def _model_select(corpus: str, candidates: list, want: int) -> Optional[li
                      {"role": "user", "content": user}],
         "temperature": 0,
         "max_tokens": 120,
-        # llama.cpp drops the grammar when thinking is on; keep it off for the
-        # constrained JSON-array answer (and it's a sub-second classifier call).
         "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
@@ -285,9 +268,6 @@ async def _model_select(corpus: str, candidates: list, want: int) -> Optional[li
         if isinstance(picked, dict):   # tolerate {"agents": [...]}
             picked = picked.get("agents") or picked.get("names") or []
         if not isinstance(picked, list):
-            # Models often wrap the array in prose ("Here you go: [...]"); extract
-            # the first [...] span and parse it directly (loads_lenient salvages
-            # objects, not bare prose-wrapped arrays).
             m = re.search(r"\[.*\]", content, re.DOTALL)
             if m:
                 try:
@@ -328,9 +308,6 @@ async def _pick_fanout_agents(primary_name: str,
  force_council (SWARM toggle): engage EVERY eligible agent
     this turn, bypassing enable/fanout_max/relevance -- the manual 'full swarm'."""
 
-    # W0-T3 hard recursion bound: a nested fan-out hop at >= MAX_DISPATCH_DEPTH
-    # degrades CLOSED to a single agent (a swarm-of-swarms can't recurse unbounded).
-    # force_council does NOT override this (it's a safety bound, not a relevance gate).
     if _depth_exhausted():
         log.info("fanout: dispatch depth %d >= %d -> single-agent (degrade-closed)",
                  _dispatch_depth(), MAX_DISPATCH_DEPTH)
@@ -338,7 +315,6 @@ async def _pick_fanout_agents(primary_name: str,
 
     candidates = _eligible_candidates(primary_name, live_agents, include_research)
 
-    # FORCE-COUNCIL: every eligible agent, sub-lane-diverse. Explicit override.
     if force_council:
         primary_lane = _lane_sem_key(_AGENT_REGISTRY.get(primary_name) or {})
         return sorted(candidates, key=lambda nc: (
@@ -348,8 +324,6 @@ async def _pick_fanout_agents(primary_name: str,
         return []
     want = _DISPATCH_CFG["fanout_max"] - 1
 
-    # COUNCIL mode : equal weight, every eligible agent runs
-    # concurrently, no relevance gate -- shed width under the admission ceiling.
     if _DISPATCH_CFG.get("mode") == "council":
         sel = _council_fallback(primary_name, candidates, COUNCIL_MAX_DEFAULT)
         if ADMIT_ENABLE and COUNCIL_MAX_DEFAULT != 1 and _over_global_ceiling():
@@ -358,9 +332,6 @@ async def _pick_fanout_agents(primary_name: str,
             sel = sel[:_cmax]
         return sel
 
-    # DEFAULT mode: model-driven relevance over the eligible pool. Build the plan
-    # corpus from the refined envelope (the agent's own declared cards are the
-    # capability surface the model reasons over -- no hardcoded topic text).
     corpus = ""
     if isinstance(refined, dict):
         corpus = " ".join(str(refined.get(k, "")) for k in
@@ -374,8 +345,6 @@ async def _pick_fanout_agents(primary_name: str,
 
     chosen_names = await _model_select(corpus, candidates, want)
     if chosen_names is None:
-        # Degrade-open: model selection off/unreachable -> council-equal-weight
-        # (engages secondaries, bounded). Never primary-only, never unbounded.
         sel = _council_fallback(primary_name, candidates, want)
         _emit_route_event(primary_name, [n for n, _c in sel])
         return sel

@@ -26,7 +26,7 @@ if command -v miosd >/dev/null 2>&1; then
     if [[ "${ROOT}/usr/lib/kernel/cmdline" != "${KERNEL_CMDLINE_DST}" && -f "${ROOT}/usr/lib/kernel/cmdline" ]]; then
         install -D -m 0644 "${ROOT}/usr/lib/kernel/cmdline" "${KERNEL_CMDLINE_DST}"
     fi
-    mios_ok "rendered UKI cmdline via miosd"
+    mios_ok "Rendered UKI cmdline via miosd"
     exit 0
 fi
 
@@ -44,8 +44,8 @@ fi
 
 CMDLINE=$(cat "${KERNEL_CMDLINE_DST}" | xargs)
 if [ -z "$CMDLINE" ]; then
-    mios_warn "/usr/lib/kernel/cmdline empty -- no kargs rendered; UKI uses defaults"
+    mios_warn "/usr/lib/kernel/cmdline empty"
 fi
 
-mios_ok "rendered UKI cmdline: $CMDLINE"
+mios_ok "Rendered UKI cmdline: $CMDLINE"
 mios_ok "UKI cmdline rendered"

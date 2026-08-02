@@ -50,7 +50,6 @@ def _resolver(up, clock, **kw):
 
     async def probe(url):
         calls["n"] += 1
-        # match by port substring
         for key, ok in up.items():
             if key in url:
                 return ok
@@ -64,7 +63,6 @@ def _resolver(up, clock, **kw):
     return r, calls
 
 
-# --- build_chain -----------------------------------------------------------
 async def t_build_chain():
     ids = ["light", "sglang", "vllm"]
     _check("chain sglang-first", build_chain("sglang", ids) == ["sglang", "vllm", "light"],
@@ -83,7 +81,6 @@ async def t_build_chain():
            str(build_chain("light,sglang", ids)))
 
 
-# --- pick ------------------------------------------------------------------
 async def t_pick_prefers_heavy():
     clk = _Clock()
     r, _ = _resolver({"8442": True, "8441": True, "8450": True}, clk)
@@ -134,7 +131,6 @@ async def t_recovery_after_cooldown():
 
 async def t_terminal_floor():
     clk = _Clock()
-    # nothing up at all -> still returns the terminal floor (light), never None
     r, _ = _resolver({"8442": False, "8441": False, "8450": False}, clk)
     lane = await r.pick("tool")
     _check("all down -> terminal floor light (not None)", lane is not None and lane.id == "light",

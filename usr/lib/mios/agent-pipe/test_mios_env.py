@@ -1,15 +1,9 @@
 # AI-hint: Unit test for empty MIOS_* env contract.
-# Asserts that every agent-pipe module imports cleanly even when os.environ is populated
-# with empty MIOS_* variables.
-# ============================================================================
-# usr/lib/mios/agent-pipe/test_mios_env.py
-# ============================================================================
 
 import os
 import sys
 import unittest
 
-# Ensure usr/lib/mios and usr/lib/mios/agent-pipe are in sys.path
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 USR_LIB = os.path.abspath(os.path.join(BASE_DIR, ".."))
 if USR_LIB not in sys.path:
@@ -33,7 +27,6 @@ class TestMiosEnvContract(unittest.TestCase):
         self.assertIn("OTHER_VAR", stripped)
 
     def test_import_agent_pipe_with_empty_env(self):
-        # Populate env with dummy empty MIOS_* variables
         sample_keys = [
             "MIOS_FIXTURE_PORT_AGENT_PIPE",
             "MIOS_FIXTURE_PORT_HTTP",
@@ -44,7 +37,6 @@ class TestMiosEnvContract(unittest.TestCase):
         for k in sample_keys:
             os.environ[k] = ""
 
-        # Import mios_pipe and call strip_empty_mios_env to ensure empty keys are stripped
         import mios_pipe
         strip_empty_mios_env(os.environ)
         import mios_pipe.kernel.config

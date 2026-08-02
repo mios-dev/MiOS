@@ -106,8 +106,6 @@ def decide(name: str, *, in_catalog: bool, verb_perm: str,
         return Decision(False, "denied_verbs",
                         f"'{nm}' is in the caller's denied_verbs")
     if not in_catalog:
-        # Non-verb tools (recipes / skills / MCP / client tools) are only gated
-        # by an explicit denied_verbs entry (handled above); pass otherwise.
         return Decision(True, "non_verb", "")
     if allowed_s and nm not in allowed_s:
         return Decision(False, "allowed_verbs",

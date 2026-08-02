@@ -1,7 +1,5 @@
 #!/bin/bash
 # AI-hint: Automates the extraction, manual editing, and application of specific CPU pinning and host-passthrough XML configurations for the "Xbox" Libvirt VM.
-# Xbox VM CPU Pinning Configuration Script
-# Automated XML editing for nano users
 
 echo "Xbox VM CPU Pinning Configuration"
 echo ""
@@ -13,13 +11,10 @@ echo "  4. Redefine the VM with new configuration"
 echo ""
 read -p "Press ENTER to continue or Ctrl+C to cancel..."
 
-# Export current XML
 sudo virsh dumpxml Xbox > /tmp/xbox-original.xml
 
-# Create backup
 cp /tmp/xbox-original.xml /tmp/xbox-backup-$(date +%Y%m%d-%H%M%S).xml
 
-# Copy for editing
 cp /tmp/xbox-original.xml /tmp/xbox-edit.xml
 
 echo ""
@@ -32,11 +27,11 @@ echo "   - Press: ENTER"
 echo ""
 echo "2. Delete that line and the old <cpu> section"
 echo ""
-echo "3. Paste the new CPU configuration (see below)"
+echo "3. Paste the new CPU configuration"
 echo ""
 echo "4. Save and exit:"
 echo "   - Press: Ctrl+X"
-echo "   - Press: Y (to confirm)"
+echo "   - Press: Y"
 echo "   - Press: ENTER"
 echo ""
 echo "CPU CONFIGURATION TO PASTE:"
@@ -70,33 +65,29 @@ EOF
 echo ""
 read -p "Press ENTER to open nano editor..."
 
-# Open in nano
 nano /tmp/xbox-edit.xml
 
 echo ""
-echo "Validating XML..."
+echo "Validating XML"
 
-# Validate the XML
 if sudo virt-xml-validate /tmp/xbox-edit.xml 2>/dev/null; then
     echo "[OK] XML validation passed"
 else
-    echo "[WARN] Warning: XML validation skipped (virt-xml-validate not found)"
+    echo "[WARN] Warning: XML validation skipped"
 fi
 
 echo ""
 read -p "Apply this configuration to Xbox VM? [y/N]: " confirm
 
 if [[ "$confirm" =~ ^[Yy]$ ]]; then
-    echo "Applying configuration..."
+    echo "Applying configuration"
     
-    # Undefine old VM
     sudo virsh undefine Xbox --nvram
     
-    # Define with new configuration
     sudo virsh define /tmp/xbox-edit.xml
     
     echo ""
-    echo "[OK] Configuration Applied!"
+    echo "[OK] Configuration Applied"
     echo ""
     echo "Verification:"
     sudo virsh dumpxml Xbox | grep -A 5 vcpupin
@@ -107,6 +98,6 @@ if [[ "$confirm" =~ ^[Yy]$ ]]; then
     echo "  1. Start VM: sudo virsh start Xbox"
     echo "  2. Check logs: tail -f /var/log/libvirt/qemu/Xbox-cpu-pin.log"
 else
-    echo "Cancelled. Original configuration unchanged."
+    echo "Cancelled. Original configuration unchanged"
     echo "Edit file is saved at: /tmp/xbox-edit.xml"
 fi

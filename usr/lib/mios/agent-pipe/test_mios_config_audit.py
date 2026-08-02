@@ -25,7 +25,6 @@ class TestMiosConfigAudit(unittest.TestCase):
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
-        # Ensure we clean up any prior leftover test rows
         self._cleanup()
 
     def tearDown(self):
@@ -46,21 +45,18 @@ class TestMiosConfigAudit(unittest.TestCase):
     def test_config_kv_redaction(self):
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
-                # 1. Non-secret insert
                 cur.execute(
                     """
                     INSERT INTO config_kv (scope, key, value, layer, description)
                     VALUES ('test_audit_scope', 'normal_key', '"normal_value"'::jsonb, 3, 'normal')
                     """
                 )
-                # 2. Secret-key insert
                 cur.execute(
                     """
                     INSERT INTO config_kv (scope, key, value, layer, description)
                     VALUES ('test_audit_scope', 'github_api_key', '"ghp_abcdef123456"'::jsonb, 3, 'secret key')
                     """
                 )
-                # 3. Secret-scope insert
                 cur.execute(
                     """
                     INSERT INTO config_kv (scope, key, value, layer, description)
@@ -69,10 +65,8 @@ class TestMiosConfigAudit(unittest.TestCase):
                 )
             conn.commit()
 
-        # Query config_event to assert redactions
         with psycopg.connect(self.conn_str, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
-                # Assert normal key
                 cur.execute(
                     """
                     SELECT new_value FROM config_event
@@ -84,7 +78,6 @@ class TestMiosConfigAudit(unittest.TestCase):
                 self.assertIsNotNone(r_normal)
                 self.assertEqual(r_normal["new_value"], "normal_value")
 
-                # Assert secret key key
                 cur.execute(
                     """
                     SELECT new_value FROM config_event
@@ -96,7 +89,6 @@ class TestMiosConfigAudit(unittest.TestCase):
                 self.assertIsNotNone(r_secret_key)
                 self.assertEqual(r_secret_key["new_value"], "[REDACTED_SECRET]")
 
-                # Assert secret scope key
                 cur.execute(
                     """
                     SELECT new_value FROM config_event
@@ -136,7 +128,6 @@ class TestMiosConfigAudit(unittest.TestCase):
                 )
             conn.commit()
 
-        # Query config_event to assert redactions
         with psycopg.connect(self.conn_str, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -152,29 +143,24 @@ class TestMiosConfigAudit(unittest.TestCase):
                 if isinstance(new_val, str):
                     new_val = json.loads(new_val)
                 
-                # Check that Environment variables are redacted
                 env = new_val["Container"]["Environment"]
                 self.assertIn("PORT=8080", env)
                 self.assertIn("K3S_TOKEN=[REDACTED_SECRET]", env)
                 self.assertIn("DATABASE_PASSWORD=[REDACTED_SECRET]", env)
                 
-                # Check that SecretConfig key matched regex and was fully redacted
                 self.assertEqual(new_val["Container"]["SecretConfig"], "[REDACTED_SECRET]")
                 
-                # Check that OtherConfig nested key matched regex and was redacted
                 self.assertEqual(new_val["Container"]["OtherConfig"]["api_key"], "[REDACTED_SECRET]")
 
     def test_verb_cmd_redaction(self):
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
-                # 1. Non-secret verb cmd
                 cur.execute(
                     """
                     INSERT INTO verb (name, sig, desc_default, tier, permission, cmd)
                     VALUES ('test_audit_verb_clean', '()', 'clean desc', 'common', 'read', 'git status')
                     """
                 )
-                # 2. Secret verb cmd containing inline token
                 cur.execute(
                     """
                     INSERT INTO verb (name, sig, desc_default, tier, permission, cmd)
@@ -183,10 +169,8 @@ class TestMiosConfigAudit(unittest.TestCase):
                 )
             conn.commit()
 
-        # Query config_event to assert redactions
         with psycopg.connect(self.conn_str, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
-                # Assert normal verb
                 cur.execute(
                     """
                     SELECT new_value FROM config_event
@@ -198,7 +182,6 @@ class TestMiosConfigAudit(unittest.TestCase):
                 self.assertIsNotNone(r_clean)
                 self.assertEqual(r_clean["new_value"]["cmd"], "git status")
 
-                # Assert secret verb
                 cur.execute(
                     """
                     SELECT new_value FROM config_event

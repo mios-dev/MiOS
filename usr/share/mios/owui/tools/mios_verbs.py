@@ -49,22 +49,6 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-# Phase-3 migration (operator directive "What's ALL NATIVE
-# to OpenAI API and industry standards"): typed Literal[...] enums
-# replace SOUL.md prose rules. OWUI's introspector emits these as
-# JSONSchema `enum: [...]` constraints; strict-mode function calling
-# enforces them client-side -- the model CANNOT emit an invalid
-# position value, so the schema teaches the surface instead of a
-# 700-line rule book.
-# Position enum: "default" is the MiOS global launch geometry
-# (operator directive) -- a 16:10 window sized at
-# screen_width / phi (golden ratio ~0.618) and centered on the
-# primary monitor's WorkingArea. Concretely on 1920x1080:
-#   W = 1920 / 1.618 ~= 1186
-#   H = W * 10/16    ~= 741
-#   centered at      (367, 169)
-# Use "as-is" to OPT OUT (leave wherever the OS placed it).
-# "center" = native-size centered (no resize).
 PositionLiteral = Literal[
     "default",
     "as-is",
@@ -92,11 +76,6 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
         return {"success": False, "exit_code": -1, "stdout": "",
                 "stderr": f"launcher broker socket not present at {LAUNCHER_SOCKET} "
                           "(mios-launcher.service down? container missing the mount?)"}
-    # CAPTURE_JSON: returns a single JSON line {stdout, stderr, exit_code}
-    # so we get clean per-stream output for the agent envelope (English
-    # narratives from downstream tools land in stderr, structured data
-    # in stdout). Fire-and-forget calls (capture=False) keep the legacy
-    # plain-text protocol ("OK" / "ERROR: ...").
     if capture:
         payload = (f"CAPTURE_JSON: {line}").encode("utf-8") + b"\n"
     else:
@@ -122,15 +101,11 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
                 "stdout": "", "stderr": f"broker connect: {e}"}
     raw = b"".join(chunks).decode("utf-8", errors="replace").strip()
     if capture:
-        # Parse the JSON line. If parsing fails (e.g. broker pre-dates
-        # CAPTURE_JSON support and replied with raw bytes), fall back to
-        # treating the whole reply as stdout.
         try:
             j = json.loads(raw) if raw else {}
         except (json.JSONDecodeError, ValueError):
             j = {}
         if not j:
-            # Pre-CAPTURE_JSON fallback path: raw text reply.
             if raw.startswith("ERROR:"):
                 return {"success": False, "exit_code": -1,
                         "stdout": "", "stderr": raw}
@@ -143,7 +118,6 @@ def _broker_send(line: str, timeout: float, capture: bool) -> dict:
             "stdout": (j.get("stdout") or "")[:12000],
             "stderr": (j.get("stderr") or "")[:4000],
         }
-    # Fire-and-forget: "OK\n" or "ERROR: ..."
     if raw.startswith("OK"):
         return {"success": True, "exit_code": 0,
                 "stdout": "", "stderr": ""}
@@ -173,7 +147,6 @@ class Tools:
     def __init__(self) -> None:
         self.valves = self.Valves()
 
-    # ─── launch_app ─────────────────────────────────────────────────
     async def launch_app(self, name: str, __user__: Optional[dict] = None) -> str:
         """Launch a MiOS-registered app by short name. Resolves through
         the canonical mios-launch chain (internal-service alias ->
@@ -200,8 +173,6 @@ class Tools:
             return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
         cmd = f"mios-launch {shlex.quote(name)}"
         result = _broker_send(cmd, timeout=self.valves.LAUNCH_TIMEOUT_S, capture=True)
-        # mios-launch prints "mios-launch: <DisplayName> -> <cmd>" on
-        # successful resolve; extract for visibility.
         target = ""
         for line in (result.get("stdout") or "").splitlines():
             if line.startswith("mios-launch:") and " -> " in line:
@@ -214,7 +185,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── everything_search ──────────────────────────────────────────
     async def everything_search(
         self,
         query: str,
@@ -250,14 +220,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── fs_search ──────────────────────────────────────────────────
-    # Linux-side peer to everything_search. Operator directive
-    # "MiOS-Agent(s) can navigate, search, exec--all the same in the Linux
-    # Environments as well". everything_search covers Windows NTFS via
-    # Voidtools; fs_search covers the Linux FHS (the OS this agent runs
-    # ON) via plocate -> locate -> find. Both verbs exposed so the agent
-    # picks based on intent (Windows .exe / install -> everything_search;
-    # Linux config / shim / log -> fs_search).
     async def fs_search(
         self,
         query: str,
@@ -298,13 +260,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── web_search ─────────────────────────────────────────────────
-    # The MISSING capability behind the fabrication failure:
-    # the agent invented a weather/event report (wrong city, °F for a
-    # Canadian user, made-up details) because the OWUI tool surface had
-    # ONLY filesystem search -- no web tool. SearXNG was already up and
-    # advertised as the web_search backend; this exposes it so OWUI's
-    # tool-calling can GROUND current-world answers on real fetched data.
     async def web_search(
         self,
         query: str,
@@ -338,8 +293,6 @@ class Tools:
         cmd = f"mios-web-search -n {int(limit)} {shlex.quote(query)}"
         result = _broker_send(cmd, timeout=max(self.valves.SEARCH_TIMEOUT_S, 20), capture=True)
         out = (result.get("stdout") or "").strip()
-        # mios-web-search prints a single JSON line; pass it through so the
-        # model sees structured, citable hits. Fall back to raw on a miss.
         try:
             return json.dumps(json.loads(out))
         except Exception:
@@ -349,7 +302,6 @@ class Tools:
                 "stderr": result.get("stderr", ""),
             })
 
-    # ─── mios_apps ──────────────────────────────────────────────────
     async def mios_apps(
         self,
         filter: str = "",
@@ -377,7 +329,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── mios_find ──────────────────────────────────────────────────
     async def mios_find(self, name: str, __user__: Optional[dict] = None) -> str:
         """Look up an app's launch info across all MiOS-known sources.
         Faster than mios_apps when you just need ONE app's metadata
@@ -399,7 +350,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── knowledge_search ──────────────────────────────────────────
     async def knowledge_search(
         self,
         query: str,
@@ -441,14 +391,11 @@ class Tools:
         if collection.strip():
             cmd += f" --collection {shlex.quote(collection.strip())}"
         result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
-        # The shim already returns JSON on stdout; surface it
-        # verbatim so the model sees the typed hits array.
         return (result.get("stdout") or "").strip() or json.dumps({
             "success": False,
             "stderr": (result.get("stderr") or "")[:400],
         })
 
-    # ─── directory_lookup ──────────────────────────────────────────
     async def directory_lookup(
         self,
         query: str,
@@ -497,7 +444,6 @@ class Tools:
             "stderr": (result.get("stderr") or "")[:400],
         })
 
-    # ─── os_recipe ──────────────────────────────────────────────────
     async def os_recipe(
         self,
         name: str,
@@ -553,7 +499,6 @@ class Tools:
                 "stderr": result.get("stderr", "")[:600] or f"non-JSON: {raw[:300]}",
             })
 
-    # ─── system_status ──────────────────────────────────────────────
     async def system_status(self, __user__: Optional[dict] = None) -> str:
         """Return a structured snapshot of the live MiOS host: GPU(s) +
         VRAM, RAM, disk, failed/active service count, MiOS service
@@ -576,17 +521,10 @@ class Tools:
         """
         if not self.valves.ENABLED:
             return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
-        # mios-system-status is a self-contained JSON-emitting helper.
-        # Broker dispatch so we hit it from the operator-side context
-        # (nvidia-smi + model list + systemctl all behave the same in
-        # the broker context, but going through the broker keeps the
-        # tool stateless and consistent with the other verbs).
         result = _broker_send("mios-system-status",
                               timeout=self.valves.INVENTORY_TIMEOUT_S,
                               capture=True)
         raw = result.get("stdout") or ""
-        # If the helper emitted JSON, pass it through; else surface the
-        # error so the model knows it can't trust the answer.
         try:
             parsed = json.loads(raw)
             parsed["success"] = True
@@ -597,10 +535,6 @@ class Tools:
                 "stderr": result.get("stderr", "") or f"non-JSON from mios-system-status: {raw[:300]}",
             })
 
-    # ─── PHASE-3 typed window/launch surface (operator directive
-    # native OpenAI strict function-calling with enum
-    # positions; replaces SOUL.md prose rules + env-var preludes
-    # like `MIOS_LAUNCH_POSITION=top-right mios-find ... | bash`). ──
 
     async def open_app(
         self,
@@ -631,15 +565,9 @@ class Tools:
         """
         if not self.valves.ENABLED:
             return json.dumps({"success": False, "stderr": "MiOS verbs disabled by valve"})
-        # Build the broker invocation: MIOS_LAUNCH_POSITION env +
-        # extra args after the name.
         env_prefix = ""
         if position and position != "as-is":
             env_prefix = f"MIOS_LAUNCH_POSITION={shlex.quote(position)} "
-        # mios-find returns a shell-line for the named app; pipe to
-        # bash so it executes. Extra args concat after the resolved
-        # command would need a different path -- for now, when args
-        # are present, dispatch via mios-windows launch directly.
         if args:
             extra = " ".join(shlex.quote(a) for a in args)
             cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {extra}"
@@ -701,7 +629,6 @@ class Tools:
         if position == "as-is":
             return json.dumps({"success": True, "applied_position": "as-is",
                                "stderr": "noop"})
-        # mios-window has subcommands matching the enum names.
         cmd = f"mios-window {shlex.quote(position)} {shlex.quote(title)}"
         result = _broker_send(cmd, timeout=self.valves.SEARCH_TIMEOUT_S, capture=True)
         return json.dumps({
@@ -823,7 +750,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── service_status ─────────────────────────────────────────────
     async def service_status(self, name: str, __user__: Optional[dict] = None) -> str:
         """systemctl status snapshot for a Linux service. Read-only.
         Returns is-active + first 20 lines of status output.
@@ -844,7 +770,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── service_restart ────────────────────────────────────────────
     async def service_restart(self, name: str, __user__: Optional[dict] = None) -> str:
         """systemctl restart <name>. WRITE verb -- visible side effect.
         Confirms via post-restart is-active line.
@@ -864,7 +789,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── process_list ───────────────────────────────────────────────
     async def process_list(
         self,
         filter: str = "",
@@ -894,7 +818,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── container_status ───────────────────────────────────────────
     async def container_status(self, name: str = "", __user__: Optional[dict] = None) -> str:
         """podman ps -a snapshot. Read-only.
 
@@ -912,7 +835,6 @@ class Tools:
             "stderr": result.get("stderr", ""),
         })
 
-    # ─── container_restart ──────────────────────────────────────────
     async def container_restart(self, name: str, __user__: Optional[dict] = None) -> str:
         """podman restart <name>. WRITE verb.
 

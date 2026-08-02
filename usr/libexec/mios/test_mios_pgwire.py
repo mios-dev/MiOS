@@ -37,7 +37,6 @@ def t_sync_execute():
     check("sync: exact bytes", pg.build_sync() == b"S\x00\x00\x00\x04",
           repr(pg.build_sync()))
     ex = pg.build_execute()
-    # 'E' + Int32(9) + cstr("")(\x00) + Int32(0 max_rows)
     check("execute: exact bytes", ex == b"E\x00\x00\x00\x09\x00\x00\x00\x00\x00",
           repr(ex))
     check("execute: declared length", _declared_len_ok(ex))
@@ -49,7 +48,6 @@ def t_parse():
     check("parse: declared length", _declared_len_ok(m))
     check("parse: query NUL-terminated present", b"SELECT 1\x00" in m)
     check("parse: 0 param-type OIDs (trailing 00 00)", m.endswith(b"\x00\x00"))
-    # body = cstr("")(1) + cstr("SELECT 1")(9) + Int16 0 (2) = 12; +type+len(5)=17
     check("parse: total size", len(m) == 17, str(len(m)))
 
 
@@ -63,7 +61,6 @@ def t_bind():
           b"\x00\x00\x00\x02ab" in m)
     check("bind: NULL encoded as -1 length", b"\xff\xff\xff\xff" in m)
     check("bind: 0 result-format codes (trailing 00 00)", m.endswith(b"\x00\x00"))
-    # empty params still valid
     e = pg.build_bind([])
     check("bind: empty params declared length", _declared_len_ok(e))
 
@@ -90,7 +87,6 @@ def t_parse_envelope():
     check("envelope: batch is txn", btxn is True)
     check("envelope: batch two statements", len(bstmts) == 2)
     check("envelope: batch params encoded", bstmts[0] == ("DELETE FROM t WHERE k=$1", ["a"]))
-    # malformed
     for bad in ('[]', '{}', '{"params": []}', 'not json'):
         try:
             pg.parse_envelope(bad)

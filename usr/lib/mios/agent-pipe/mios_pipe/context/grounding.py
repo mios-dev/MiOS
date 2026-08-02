@@ -29,19 +29,8 @@ from mios_config import _toml_section
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --
-# The grounding helpers read the per-request client/session context from
-# server.py's _client_env_var ContextVar and the current date via its
-# _current_date_str() helper. server.py calls configure() with those AFTER
-# they are defined (one-way boundary: this module never imports server).
-# They stay None until then; every consumer runs at request time so a
-# standalone ``import mios_grounding`` still succeeds.
 _client_env_var = None
 _current_date_str = None
-# V2 verified-principal binding: server.py's bearer-token -> scoped-principal
-# resolver, injected via configure(). None (default / tests) -> binding degrades
-# open (the owner falls back to the forwarded body/header user). One-way boundary:
-# mios_grounding never imports server.
 _check_inbound_principal = None
 
 
@@ -140,8 +129,6 @@ def _temporal_grounding() -> str:
     if now_dt is None:
         now_dt = datetime.datetime.now().astimezone()
     tomorrow_dt = now_dt + datetime.timedelta(days=1)
-    # Prefer the client's OWN rendered strings (authoritative for the user's
-    # locale) where present; compute the rest from the resolved clock.
     weekday = (env.get("weekday") or now_dt.strftime("%A")).strip()
     date_s = (env.get("date") or now_dt.strftime("%Y-%m-%d")).strip()
     time_s = (env.get("time") or now_dt.strftime("%H:%M")).strip()
@@ -280,12 +267,6 @@ def _client_grounding() -> str:
     lang = (env.get("language") or "").strip()
     name = (env.get("user_name") or "").strip()
     lines: list = []
-    # Invocation environment -- WHERE this turn is being spoken to from. Each
-    # surface forwards what it knows: cwd (the @/mios CLI's working directory),
-    # surface tag (cli/owui/discord/desktop), host/os of the invoking machine
-    # ("MiOS AI should be aware of every environment it's
-    # invoked in"). Emitted independently of location so a CLI turn with no OWUI
-    # geo still grounds its folder/surface.
     surface = (env.get("surface") or "").strip()
     cwd = (env.get("cwd") or "").strip()
     host = (env.get("host") or "").strip()
@@ -305,21 +286,11 @@ def _client_grounding() -> str:
             "per-invocation environment -- report the working directory / surface "
             "ONLY from THIS context, NEVER from memory, recall, or a prior session.")
     else:
-        # No invocation env forwarded this turn (e.g. a surface with no folder
-        # context). cwd/surface are LIVE per-invocation facts -- the agent must NOT
-        # answer them from a recalled/stored value ('what
-        # folder are we in' returned a STALE test cwd from prior recorded context).
         lines.append(
             "  - No working-directory / surface context was forwarded this turn. "
             "If asked where you are / what folder this is, say you cannot determine "
             "it for THIS turn -- do NOT recall, guess, or report a cwd/surface from "
             "memory or a prior session.")
-    # Location resolution CHAIN (OWUI on a phone answered
-    # "local weather" with five random US cities -- it observed NO location). In
-    # order: (1) the client-forwarded geo; else (2) the configured MiOS home
-    # location [identity].location; else (3) the host system timezone's REGION (a
-    # real, always-available env detail) as a coarse locale. Only when NONE exists
-    # do we punt -- and NEVER by fabricating a list of unrelated cities.
     loc_src = "Open WebUI client"
     if not loc:
         _cfg_loc = str((_toml_section("identity") or {}).get("location") or "").strip()
@@ -337,10 +308,6 @@ def _client_grounding() -> str:
             "real value into the query / answer. When it is coordinates "
             "(lat, long), treat them as the user's position.")
     else:
-        # No real location this turn. A TIMEZONE IS NOT A LOCATION: it spans a
-        # huge area, so we NEVER derive a city/metro from it (
-        # "Where am I exactly" was wrongly answered "New York" off America/New_York).
-        # Be honest + point at the real sources; never fabricate a city.
         _tz = _host_timezone()
         _tz_clause = (f" The host system timezone is {_tz} -- but a timezone covers "
                       "a broad area and is NOT a location, so do NOT derive or name "
@@ -427,7 +394,6 @@ def _arch_grounding() -> str:
     hallucinated its own stack before (e.g. 'the orchestrator is Hermes', stale).
     Folds the key system.md facts in (system.md is not otherwise injected at
     runtime). Kept short to bound per-turn token cost."""
-    # Ports read from SSOT at call time; defaults track [ports] renumber (T-121).
     import os as _os
     _p_pipe    = _os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")
     _p_light   = _os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
@@ -485,7 +451,6 @@ def _env_block() -> str:
         _v = str(env.get(_ek) or "").strip()
         if _v:
             rows.append((_ok, _v))
-    # os details: prefer server-probed OS (cached/detailed) and merge client platform if separate
     _client_os = str(env.get("os") or "").strip()
     _server_os = _get_os_info()
     if _client_os and _client_os.lower() not in _server_os.lower():
@@ -494,14 +459,6 @@ def _env_block() -> str:
         _os_v = _server_os or _client_os
     if _os_v:
         rows.append(("os", _os_v))
-    # location chain (client-forwarded geo -> configured [identity].location),
-    # with provenance, MIRRORING _client_grounding so the two views never disagree.
-    # We DELIBERATELY do NOT downgrade the host timezone into a `location`: a tz
-    # area (e.g. America/New_York) spans a third of a country and is NOT the
-    # user's city -- claiming its principal metro is a fabrication (operator
-    # "Where am I exactly" was wrongly answered "New York"). `location`
-    # is emitted ONLY from a real source; the honest "unknown" path lives in
-    # _client_grounding's directives (the timezone fact stays in the `timezone` row).
     _loc = str(env.get("location") or "").strip()
     _src = "client"
     if not _loc:
@@ -512,11 +469,6 @@ def _env_block() -> str:
         rows.append(("location", _loc))
         rows.append(("location_source", _src))
     else:
-        # EXPLICIT unknown (NOT omitted): an 8B model otherwise fills the gap by
-        # inferring a city from the `timezone` row above (it
-        # kept answering "New York" off America/New_York). Granite obeys the
-        # structured key:value block far more reliably than prose, so the hard
-        # guard lives HERE, in the env block itself.
         rows.append(("location",
                      "UNKNOWN -- not shared this turn. The timezone is NOT a "
                      "location: do NOT infer or name any city/region from it. "
@@ -582,20 +534,10 @@ _OWUI_VAR_KEYS = (
     "user_location", "location", "current_timezone", "timezone",
     "current_date", "current_time", "current_datetime", "current_weekday",
     "user_language", "language", "locale", "user_name", "user_email",
-    # Invocation-environment keys (every chat surface forwards what it knows so
-    # the agent is aware of WHERE it is being spoken to from --
-    # "MiOS AI should be aware of every environment it's invoked in"). cwd = the
-    # @/mios CLI's working directory; surface = which front-end (cli/owui/discord/
-    # desktop); host/os = the invoking machine.
     "cwd", "surface", "origin", "host", "os", "shell",
 )
-# OWUI's absent-value sentinels (getPromptVariables emits 'Unknown'); drop
-# them so a missing fact never overrides a real one or grounds as junk.
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
 
-# The SSOT-defined principal-binding states (validation set, NOT a decision gate);
-# mirrors the sibling rls_mode / principal_mode enums. Anything outside this set
-# degrades to the safe 'off' default. See mios.toml [security].principal_bind_mode.
 _PRINCIPAL_BIND_MODES = frozenset({"off", "verify", "enforce"})
 
 
@@ -650,14 +592,11 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
         return {}
     meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
     raw: dict = {}
-    # Braced-key variable dicts (OWUI metadata.variables; also tolerate one at
-    # body top level for direct callers).
     for cand in (meta.get("variables"), body.get("variables")):
         if isinstance(cand, dict):
             for k, v in cand.items():
                 if isinstance(k, str):
                     raw.setdefault(k, v)
-    # Directly-placed known keys on metadata/body (non-OWUI shapes).
     for cand in (meta, body):
         if isinstance(cand, dict):
             for k in _OWUI_VAR_KEYS:
@@ -676,7 +615,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
         norm.setdefault(kk, sv)
     loc = norm.get("user_location") or norm.get("location") or ""
     if loc:
-        # Strip trailing (lat, long) coordinates, e.g., "Paris, France (48.8566, 2.3522)"
         loc = re.sub(r"\s*\([-+]?\d+(?:\.\d+)?,\s*[-+]?\d+(?:\.\d+)?\)$", "", loc).strip()
     out = {
         "location":  loc,
@@ -689,18 +627,12 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                       or norm.get("locale") or ""),
         "user_name": norm.get("user_name") or "",
         "user_email": norm.get("user_email") or "",
-        # Invocation environment (where the turn is being spoken to from).
         "cwd":       norm.get("cwd") or "",
         "surface":   norm.get("surface") or norm.get("origin") or "",
         "host":      norm.get("host") or "",
         "os":        norm.get("os") or "",
         "shell":     norm.get("shell") or "",
     }
-    # Retain EVERY env detail the surface forwards ("OWUI
-    # exposes DOZENS of env details, MiOS AI uses them"): keep the canonical
-    # aliases above AND pass through any other normalized key so the allow-list
-    # never silently drops a forwarded fact. setdefault never clobbers a canonical
-    # key; _client_grounding renders the named ones, the rest are available.
     for _k, _v in norm.items():
         out.setdefault(_k, _v)
     if not out["user_name"]:
@@ -708,7 +640,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
         if isinstance(u, str) and u.strip():
             out["user_name"] = u.strip()
 
-    # Look up user details in webui.db if we have email or user_id
     email = ""
     uid = ""
     if headers and hasattr(headers, "get"):
@@ -756,14 +687,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                             pass
             except Exception:
                 pass
-    # CONNECTION-MODEL PATH : when OWUI drives a direct
-    # connection model (NOT the pipe), it substitutes the live geo into the SYSTEM
-    # MESSAGE TEXT (the model's {{USER_LOCATION}} prompt), NOT into
-    # metadata.variables -- so the loops above find nothing and 'near me'/weather
-    # fall back to "ask for your city". Recover it from the resolved system
-    # message(s) so the connection path grounds too. Anchored on the SSOT prompt
-    # wording ("location is <value>"); requires an alphanumeric value and rejects a
-    # leftover "{{" or a stripped "location is ." -- best-effort, never throws.
     if not out["location"]:
         try:
             for _m in (body.get("messages") or []):
@@ -772,9 +695,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                 _sys = _m.get("content")
                 if not isinstance(_sys, str) or not _sys:
                     continue
-                # Match both the prose form ("...location is <v>.") and the
-                # labelled form the mios-agent.md env block uses ("User location:
-                # <v>" / "location = <v>"), value bounded by newline or sentence end.
                 _mt = re.search(r"location\s*(?:is|[:=])\s*(.+?)(?:\n|\.\s|\.$|$)",
                                 _sys, re.I)
                 if _mt:
@@ -785,10 +705,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                         break
         except Exception:  # noqa: BLE001 -- recovery is best-effort
             pass
-    # Diagnostic: surface EXACTLY what the chat surface forwarded for location, so
-    # an "I enabled location but it still doesn't know where I am" report is
-    # debuggable from the journal. Logs the forwarded var
-    # keys + the resolved location/timezone, never the full payload.
     try:
         _hdr_email = ""
         if headers is not None and hasattr(headers, "get"):
@@ -798,14 +714,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
                  out.get("location"), out.get("timezone"))
     except Exception:  # noqa: BLE001
         pass
-    # ── V2 verified-principal binding (default OFF -> byte-identical) ──────────
-    # Downstream owner row-scoping (owner_user) derives from user_name/user_email,
-    # both spoofable by a direct caller (body `user` / x-openwebui-user-* headers).
-    # When [security].principal_bind_mode is verify/enforce, reconcile that owner
-    # against the AUTHENTICATED caller-key's bound account. This is the LAST mutation
-    # so it has the final say over the webui.db / OWUI-forwarded values. 'off' (the
-    # default) does NOTHING -> the returned env dict is byte-identical to today.
-    # DEGRADE-OPEN: no token / unbound key / any error -> the forwarded value stands.
     _bind_mode = _principal_bind_mode()
     if _bind_mode != "off":
         try:
@@ -813,9 +721,6 @@ def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
             _bound = _bound_account(headers)
             if _bound:
                 if _bind_mode == "enforce":
-                    # The token-bound account is the sole owner identity; the
-                    # spoofable claim is overridden so display + every owner_user
-                    # derivation (knowledge / agent_memory / a2a / policy) agree.
                     out["user_name"] = _bound
                     out["user_email"] = ""
                 elif _bound != _claimed:  # verify: observe + audit, value unchanged

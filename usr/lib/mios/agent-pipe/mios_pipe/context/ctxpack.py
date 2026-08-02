@@ -58,7 +58,6 @@ def pack(items: List, budget: int, *,
     priority_of = priority_of or _default_priority
     avail = max(0, int(budget) - max(0, int(reserve)))
 
-    # (original_index, item, cost, priority)
     enriched = []
     for i, it in enumerate(items or []):
         cost = mios_tokenize.count_text(text_of(it))
@@ -71,7 +70,6 @@ def pack(items: List, budget: int, *,
         if used + cost <= avail:
             kept_idx.add(i)
             used += cost
-        # else: skip this item, keep trying smaller lower-priority ones
     kept = [e[1] for e in enriched if e[0] in kept_idx]
     dropped = [e[1] for e in enriched if e[0] not in kept_idx]
     return PackResult(kept, dropped, used, avail)

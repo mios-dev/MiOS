@@ -18,8 +18,6 @@ def check(name, cond, detail=""):
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# Verbs carry their RBAC tier in `permission` (read|write|interactive); the `tier`
-# key on a real verb is COMMONNESS (common/rare/core) and must be IGNORED here.
 VERBS = {
     "list_windows": {"permission": "read", "tier": "common", "description": "list windows"},
     "open_app": {"permission": "write", "tier": "common", "description": "launch an app"},
@@ -54,7 +52,6 @@ def t_platforms():
 
 
 def t_build():
-    # ceiling = write: read+write verbs, NOT interactive, NOT unknown-tier; read recipes
     m = cr.build_capability_manifest(VERBS, RECIPES, ceiling="write")
     names = {(c["name"], c["kind"]) for c in m}
     check("build: includes read+write verbs", ("list_windows", "verb") in names and ("open_app", "verb") in names)
@@ -66,17 +63,14 @@ def t_build():
     check("build: excludes interactive recipe under write", ("reboot", "recipe") not in names)
     check("build: deterministic sort (kind then name)",
           [ (c["kind"], c["name"]) for c in m ] == sorted((c["kind"], c["name"]) for c in m))
-    # ceiling = interactive: everything known-tier; platform=linux drops windows-only reboot
     mi = cr.build_capability_manifest(VERBS, RECIPES, ceiling="interactive", platform="linux")
     inames = {(c["name"], c["kind"]) for c in mi}
     check("build: interactive admits run_powershell", ("run_powershell", "verb") in inames)
     check("build: still excludes unknown-tier verb", ("weird", "verb") not in inames)
     check("build: platform=linux drops windows-only reboot", ("reboot", "recipe") not in inames)
     check("build: platform=linux keeps cross-platform open-folder", ("open-folder", "recipe") in inames)
-    # ceiling = read: only read caps
     mr = cr.build_capability_manifest(VERBS, RECIPES, ceiling="read")
     check("build: read ceiling -> only read tier", all(c["tier"] == "read" for c in mr))
-    # unknown ceiling -> empty
     check("build: unknown ceiling -> empty", cr.build_capability_manifest(VERBS, RECIPES, ceiling="root") == [])
 
 
@@ -113,7 +107,6 @@ def t_load_and_diff():
         check("project: merges verbs + recipes", ("v1", "verb") in names and ("open-folder", "recipe") in names)
     finally:
         os.unlink(p)
-    # diff
     base = [{"kind": "verb", "name": "a", "tier": "read"},
             {"kind": "recipe", "name": "r", "tier": "read", "platforms": ["linux"]}]
     check("diff: identical -> []", cr.diff_capabilities(base, base) == [])
@@ -139,28 +132,22 @@ def t_skills():
         "peek": {"description": "read-only peek",
                  "body": {"steps": [{"verb": "focus_window"}]}},
     }
-    # steps extraction (DAG edges out of a skill)
     check("skill_steps reads body.steps[].verb",
           cr.skill_steps(skills["open-and-focus"]) == ["open_app", "focus_window"])
-    # effective tier = MAX over component verbs (write, because open_app is write)
     check("skill effective tier = max(verb tiers)",
           cr.skill_effective_tier("open-and-focus", skills, verbs) == "write")
     check("read-only skill stays read",
           cr.skill_effective_tier("peek", skills, verbs) == "read")
-    # dangling component -> fail-closed unknown tier (never admitted)
     bad = {"x": {"body": {"steps": [{"verb": "no_such_verb"}]}}}
     check("dangling step -> fail-closed unknown tier",
           cr.skill_effective_tier("x", bad, verbs) == "(unknown)")
 
-    # manifest: skill admitted at interactive ceiling, carries `uses`
     man = cr.build_capability_manifest(verbs, {}, ceiling="interactive", skills=skills)
     sk = [c for c in man if c["kind"] == "skill"]
     check("skills projected as kind=skill", len(sk) == 2, f"{len(sk)}")
     oaf = next(c for c in sk if c["name"] == "open-and-focus")
     check("skill carries uses[] (DAG edges)", oaf["uses"] == ["open_app", "focus_window"])
     check("skill tier recorded", oaf["tier"] == "write")
-    # RBAC reachability: a read-ceiling caller gets ONLY the read skill (open-and-focus
-    # needs write verbs -> dropped), and the write verbs themselves are dropped too.
     man_r = cr.build_capability_manifest(verbs, {}, ceiling="read", skills=skills)
     sk_r = {c["name"] for c in man_r if c["kind"] == "skill"}
     check("read ceiling: write-needing skill dropped (reachability fail-closed)",

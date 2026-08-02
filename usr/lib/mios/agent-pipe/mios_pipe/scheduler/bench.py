@@ -136,7 +136,6 @@ def classic_rollup(records: "List[dict]", *, k: int = 1) -> dict:
     n_ok = sum(1 for r in recs if r.get("ok"))
     n_err = sum(1 for r in recs if r.get("error"))
     n_sec = sum(1 for r in recs if r.get("security_violation"))
-    # Stability via pass^k grouped by task (consistency across repeats).
     by_task: dict = {}
     for r in recs:
         t = str(r.get("task") or "")

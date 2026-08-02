@@ -433,7 +433,7 @@ if [[ -d "$_agent_pipe_dir" ]] && [[ -x "$_test_py" ]]; then
     done
     shopt -u nullglob
     if [[ "$_test_fails" -gt 0 ]]; then
-        die "agent-pipe unit tests: ${_test_fails} test script(s) failed (full output logged above)"
+        die "Agent-pipe unit tests: ${_test_fails} test script failed"
     fi
     _row "  all agent-pipe unit tests passed"
 else
@@ -456,7 +456,7 @@ if [[ -d "$_libexec_dir" ]] && command -v python3 >/dev/null 2>&1; then
     done
     shopt -u nullglob
     if [[ "$_lx_fails" -gt 0 ]]; then
-        die "libexec unit tests: ${_lx_fails} test script(s) failed (full output logged above)"
+        die "Libexec unit tests: ${_lx_fails} test script failed"
     fi
 else
     _row "  WARNING: libexec dir or python3 missing -- skipping libexec unit tests"
@@ -478,7 +478,7 @@ if command -v skopeo >/dev/null 2>&1; then
     done
     shopt -u nullglob
 else
-    warn "skopeo not available -- Quadlet image digests not captured"
+    warn "Skopeo not available"
 fi
 
 echo ""

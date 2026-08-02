@@ -21,7 +21,7 @@ fi
 
 if command -v miosd >/dev/null 2>&1; then
     miosd render-kargs --toml "$TOML_FILE" --kargs-dir "$KARGS_DIR"
-    mios_ok "kargs.d rendered via miosd"
+    mios_ok "Kargs.d rendered via miosd"
     exit 0
 fi
 
@@ -128,4 +128,4 @@ else:
         print(f"Removed stale {custom_toml_path}")
 ' "$TOML_FILE" "$KARGS_DIR"
 
-mios_ok "kargs.d rendered"
+mios_ok "Kargs.d rendered"

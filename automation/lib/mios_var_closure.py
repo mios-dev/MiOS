@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: SSOT var-closure fitness function (drift-check 37). Proves R ⊆ E --
-# every MIOS_* env var REFERENCED by a real (non-emitter) consumer is EMITTED by
-# the userenv.sh resolver. Guards the 767->~240 MIOS_* minification: a drop that
-# orphaned a consumer FAILS the build with the offending var + file:line. Also
-# reports E\R (emitted-but-unreferenced) as the standing next-drop advisory.
 # AI-related: ../../usr/lib/mios/userenv.sh, ../../tools/lib/userenv.sh, ../../usr/libexec/mios/system-sync-env.sh, ../97-ssot-lint.sh
 # AI-functions: emitted_set, referenced_set, main
 """MIOS_* consumer-closure gate: assert referenced ⊆ emitted."""
@@ -11,7 +7,6 @@ from __future__ import annotations
 import os, re, subprocess, sys, glob
 
 ROOT = os.environ.get("MIOS_ROOT") or os.getcwd()
-# The emitters + generated catalog + naming docs are NOT consumers.
 EMITTER_SUFFIXES = (
     "usr/lib/mios/userenv.sh", "tools/lib/userenv.sh",
     "usr/libexec/mios/system-sync-env.sh",
@@ -19,15 +14,7 @@ EMITTER_SUFFIXES = (
     "usr/share/doc/mios/reference/naming-unification.md",
 )
 VAR_RE = re.compile(r"MIOS_[A-Z0-9_]+")
-# Build-substrate DIRECTIVES parsed from stage headers / passed by the unified apply
-# engine (automation/mios-apply), NOT userenv.sh-emitted runtime vars. They are build
-# metadata (which class/substrate/root a stage applies under), so they are correctly
-# neither emitted by the resolver nor "consumed" in the R ⊆ E closure sense. Excluded
-# here so the per-stage `# MIOS_APPLY_CLASS=<class>` header does not read as an orphan.
 DIRECTIVE_VARS = frozenset({"MIOS_APPLY_CLASS", "MIOS_SUBSTRATE"})
-# Reference forms: ${MIOS_X}, $MIOS_X, "$MIOS_X", os.environ["MIOS_X"] /.get("MIOS_X"),
-# %MIOS_X% -- we just scan for any MIOS_ token in consumer files and keep those that
-# look like a var read (not an assignment target inside an emitter, which we exclude).
 CONSUMER_GLOBS = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",
                   "*.ps1", "*.psm1", "*.yaml", "*.yml", "Justfile", ".env.mios", "*.tmpl")
 
@@ -64,10 +51,8 @@ def referenced_set():
                     for n, line in enumerate(fh, 1):
                         for m in VAR_RE.finditer(line):
                             v = m.group(0)
-                            # build-substrate directives (stage-header metadata) are not consumers
                             if v in DIRECTIVE_VARS:
                                 continue
-                            # skip an emitter-style `export MIOS_X=` / `MIOS_X=` assignment
                             if re.match(rf"\s*(export\s+)?{v}=", line):
                                 continue
                             refs.setdefault(v, f"{rel}:{n}")

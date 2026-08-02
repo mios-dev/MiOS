@@ -28,9 +28,6 @@ def check(name, cond, detail=""):
 
 
 def _load(fname):
-    # The CLI loads libc.so.6 via ctypes at import time; on a non-Linux build
-    # host that fails. Shim CDLL so the module body (the refusal judge under
-    # test) can be exercised cross-platform.
     _orig_cdll = ctypes.CDLL
 
     def _cdll(name=None, *a, **k):
@@ -55,8 +52,6 @@ def _load(fname):
 def main() -> int:
     mod = _load("mios-daemon")
 
-    # The English-regex PRE-FILTER that GATED whether to even check MUST be gone
-    # -- detection is the model's job now.
     check("pattern loader deleted",
           not hasattr(mod, "_load_refusal_patterns"),
           "_load_refusal_patterns still present")
@@ -66,15 +61,11 @@ def main() -> int:
     check("pattern-file constant deleted",
           not hasattr(mod, "REFUSAL_PATTERNS_FILE"),
           "REFUSAL_PATTERNS_FILE still present")
-    # The READ PATH must be gone: no env-var pointing at the file, no
-    # .read_text of it. (A timeless prose comment may still name the deleted
-    # file -- we ban the mechanism, not the word.)
     src = open(os.path.join(_HERE, "mios-daemon"), encoding="utf-8").read()
     check("daemon no longer reads the pattern file (env hook gone)",
           "MIOS_REFUSAL_PATTERNS" not in src,
           "MIOS_REFUSAL_PATTERNS read hook still present")
 
-    # Force the model mode regardless of the host's mios.toml.
     mod.REFUSAL_DETECT = "model"
 
     calls = {"n": 0, "last": None}
@@ -86,10 +77,6 @@ def main() -> int:
             return reply
         return _f
 
-    # (1) The judge is consulted on EVERY candidate -- a response that contains
-    # NO refusal-keyword text at all is still judged; a YES verdict records it.
-    # (Under the old regex pre-filter this benign-looking line would never have
-    # reached the LLM; now there is no gate.)
     mod.llm_chat = _stub("YES")
     out = mod._classify_refusal("Sure, here you go.")  # no "cannot"/"unable"/etc.
     check("model YES on keyword-free response -> refusal True",
@@ -97,36 +84,30 @@ def main() -> int:
     check("judge actually consulted (no English pre-filter gate)",
           calls["n"] >= 1)
 
-    # (1b) A non-English response is judged too (no ascii/keyword gate).
     mod.llm_chat = _stub("YES")
     out = mod._classify_refusal("抱歉，我无法为你打开它。")
     check("unicode response judged (no ascii/keyword gate)",
           out is True, repr(out))
 
-    # (2) MODEL says NO -> not a refusal (False, nothing recorded).
     mod.llm_chat = _stub("NO")
     out = mod._classify_refusal("I cannot stress this enough: it worked.")
     check("model NO -> not a refusal (False)", out is False, repr(out))
 
-    # (3a) Lane unreachable (empty llm_chat) -> DEGRADE-OPEN None (skip).
     mod.llm_chat = _stub("")
     out = mod._classify_refusal("I'm unable to find that tool.")
     check("empty model output -> degrade-open None (no keyword fallback)",
           out is None, repr(out))
 
-    # (3b) Unparseable verdict -> degrade-open None.
     mod.llm_chat = _stub("maybe?")
     out = mod._classify_refusal("The mios-find tool appears to be unavailable.")
     check("unparseable verdict -> None", out is None, repr(out))
 
-    # (3c) Empty input -> None without consulting the model.
     calls["n"] = 0
     mod.llm_chat = _stub("YES")
     out = mod._classify_refusal("   ")
     check("empty input -> None without consulting model",
           out is None and calls["n"] == 0, f"out={out!r} calls={calls['n']}")
 
-    # (4) Mode != model -> None (detection disabled), model never consulted.
     mod.REFUSAL_DETECT = "off"
     calls["n"] = 0
     mod.llm_chat = _stub("YES")

@@ -33,23 +33,19 @@ def t_ttl():
 
 
 def t_size_cap():
-    # 5 files of 100 each = 500; cap 250 -> evict oldest until <=250 (evict 3).
     files = [f(f"f{i}.bin", age_s=i * 10, size=100) for i in range(5)]
     plan = gc.plan_gc(files, ttl_s=0, max_bytes=250, now=NOW)
     check("size: evicts oldest-first to fit cap", len(plan.evict) == 3, f"{plan.to_dict()}")
-    # oldest = largest age = f4,f3,f2.
     check("size: evicted the OLDEST", set(plan.evict) == {"f4.bin", "f3.bin", "f2.bin"}, f"{plan.evict}")
     check("size: survivors under cap", sum(100 for _ in plan.kept) <= 250)
     check("size: reason tagged size_cap", all(plan.reasons[p] == "size_cap" for p in plan.evict))
 
 
 def t_protect():
-    # Even when massively over cap, a protected (active-slot) file is never evicted.
     files = [f("active.bin", 9999, 1000), f("old.bin", 8888, 1000)]
     plan = gc.plan_gc(files, ttl_s=3600, max_bytes=0, now=NOW, protect=["active.bin"])
     check("protect: active never TTL-evicted", "active.bin" not in plan.evict)
     check("protect: non-protected old evicted", "old.bin" in plan.evict)
-    # size-cap with protect:
     files2 = [f("active.bin", 1, 1000), f("p1.bin", 50, 100), f("p2.bin", 60, 100)]
     plan2 = gc.plan_gc(files2, ttl_s=0, max_bytes=150, now=NOW, protect=["active.bin"])
     check("protect: active counts vs cap but is never evicted", "active.bin" not in plan2.evict, f"{plan2.to_dict()}")

@@ -10,12 +10,12 @@ source "$(dirname "$0")/lib/common.sh"
 
 CTX="${CTX:-/ctx}"
 
-mios_step "rootfs-native overlay"
+mios_step "Rootfs-native overlay"
 
 if [[ -f "${CTX}/VERSION" ]]; then
     install -d -m 0755 /usr/share/mios
     install -m 0644 "${CTX}/VERSION" /usr/share/mios/VERSION
-    mios_ok "staged /usr/share/mios/VERSION -> $(cat /usr/share/mios/VERSION)"
+    mios_ok "Staged /usr/share/mios/VERSION -> $"
 fi
 
 if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
@@ -23,7 +23,7 @@ if [[ -d "${CTX}/usr/share/mios/branding" ]]; then
     if [[ -f "${CTX}/usr/share/mios/branding/icon.png" ]]; then
         cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/pixmaps/mios.png
         cp -f "${CTX}/usr/share/mios/branding/icon.png" /usr/share/icons/hicolor/256x256/apps/mios.png
-        mios_ok "staged /usr/share/pixmaps/mios.png and /usr/share/icons/hicolor/256x256/apps/mios.png"
+        mios_ok "Staged /usr/share/pixmaps/mios.png and /usr/share/icons/hicolor/256x256/apps/mios.png"
     fi
 fi
 
@@ -53,14 +53,14 @@ if [[ -f "${CTX}/etc/wsl.conf" ]]; then
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/etc/wsl.conf" > "$tmp_wsl"
     install -m 0644 -o root -g root -T "$tmp_wsl" /etc/wsl.conf
     rm -f "$tmp_wsl"
-    mios_ok "stage 3a: force-installed /etc/wsl.conf (mode 0644, root:root, CRLF-stripped)"
+    mios_ok "Stage 3a: force-installed /etc/wsl.conf"
 fi
 if [[ -f "${CTX}/usr/lib/wsl.conf" ]]; then
     tmp_wsl=$(mktemp)
     sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "${CTX}/usr/lib/wsl.conf" > "$tmp_wsl"
     install -m 0644 -o root -g root -T "$tmp_wsl" /usr/lib/wsl.conf
     rm -f "$tmp_wsl"
-    mios_ok "stage 3a: force-installed /usr/lib/wsl.conf reference (CRLF-stripped)"
+    mios_ok "Stage 3a: force-installed /usr/lib/wsl.conf reference"
 fi
 
 
@@ -70,11 +70,11 @@ if [[ -d "${CTX}/home" ]]; then
     tar -C "${CTX}/home" -cf - . | tar -C /etc/skel --no-overwrite-dir --strip-components=1 -xf - 2>/dev/null || true
 fi
 
-mios_step "normalize systemd file permissions"
+mios_step "Normalize systemd file permissions"
 find /usr/lib/systemd -type f \( -name "*.service" -o -name "*.socket" -o -name "*.timer" -o -name "*.mount" -o -name "*.conf" -o -name "*.target" -o -name "*.path" -o -name "*.slice" -o -name "*.preset" -o -name "*.automount" -o -name "*.swap" \) -exec chmod 644 {} \; 2>/dev/null || true
 find /usr/lib/systemd -type d -exec chmod 755 {} \; 2>/dev/null || true
 
-mios_step "normalize udev/tmpfiles/sysusers/modprobe permissions"
+mios_step "Normalize udev/tmpfiles/sysusers/modprobe permissions"
 for d in \
     /usr/lib/udev/rules.d \
     /usr/lib/tmpfiles.d \
@@ -139,16 +139,16 @@ else
     mios_log "LBI: stripped git-tracking .gitkeep"
 fi
 
-mios_step "pathing compatibility symlinks"
+mios_step "Pathing compatibility symlinks"
 
 
 if [ ! -L /home ] && [ -d /home ] && [ ! "$(ls -A /home)" ]; then
     rm -rf /home
     ln -sf /var/home /home
-    mios_ok "path: symlinked /home -> /var/home"
+    mios_ok "Path: symlinked /home -> /var/home"
 elif [ ! -e /home ]; then
     ln -sf /var/home /home
-    mios_ok "path: created /home -> /var/home symlink"
+    mios_ok "Path: created /home -> /var/home symlink"
 fi
 
 if [[ -d /usr/libexec/mios ]]; then
@@ -159,7 +159,7 @@ fi
 if [[ "${MIOS_INSTALL_MODE:-}" != "fhs" ]]; then
     if [[ ! -e "/usr/share/mios/k3s-manifests" ]]; then
         ln -sf "k3s/generated" "/usr/share/mios/k3s-manifests"
-        mios_ok "path: symlinked /usr/share/mios/k3s-manifests -> k3s/generated"
+        mios_ok "Path: symlinked /usr/share/mios/k3s-manifests -> k3s/generated"
     fi
 else
     if [[ -L "/usr/share/mios/k3s-manifests" ]]; then
@@ -168,8 +168,8 @@ else
     mkdir -p "/usr/share/mios/k3s-manifests"
 fi
 
-mios_step "relabel overlaid files"
+mios_step "Relabel overlaid files"
 restorecon -RFv /usr/ 2>/dev/null || true
 restorecon -RFv /etc/ 2>/dev/null || true
 
-mios_ok "overlay complete"
+mios_ok "Overlay complete"

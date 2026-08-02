@@ -1,13 +1,4 @@
 # AI-hint: stdlib assert-script gate for mios_swarm (the SWARM brain). Drives the
-# extracted _respond_agent_dag (non-streaming) with fully stubbed deps -- NO
-# network / DB -- to assert the LOAD-BEARING anti-fabrication synthesis survives
-# the verbatim move: (1) PUNT-DROP -- a sibling node that punts ("I cannot
-# provide...") is excluded from the polish synthesis input while a grounded
-# fact-bearing node is kept (exercises the nested _is_punt marker+facty logic);
-# (2) HONEST-WHEN-EMPTY -- a web turn whose RAW RESEARCH is empty never ships
-# fabricated content: it routes through the native-loop fallback and the polish
-# input carries the explicit "couldn't find specific results from live sources"
-# grounding rule. Also asserts configure() injection + module boundary.
 # AI-related: ./mios_swarm.py, ./server.py
 # AI-functions: _stub_deps, _run, main
 import asyncio
@@ -33,8 +24,6 @@ def _stub_deps(*, polish_holder, dag_result, native_payload=None,
 
     async def _polish(synth_in, refined, **kw):
         polish_holder.append(synth_in)
-        # Echo a deterministic marker so `main` is inspectable; honest tests
-        # override via native fallback.
         return "[POLISHED] " + (synth_in[:40] if synth_in else "")
 
     async def _read_enrich(*a, **k):
@@ -76,7 +65,6 @@ def _stub_deps(*, polish_holder, dag_result, native_payload=None,
         src_record_from_text=lambda t: None,
         usage_estimate=lambda p, c: {},
     )
-    # _web_research_enrich is a direct sibling import -> monkeypatch on the module.
     mios_swarm._web_research_enrich = _web_enrich
     mios_swarm._execute_dag_bounded = _exec_dag_bounded
     mios_swarm.polish_response = _polish
@@ -118,7 +106,6 @@ def test_punt_drop():
     _call({"web": False, "refined_text": "q"}, dag_result)
     assert holder, "polish_response was never called"
     synth_in = holder[-1]
-    # punt-drop: the grounded node's facts are fed to polish, the punt is not.
     assert "signed accord" in synth_in, "grounded node dropped from synthesis"
     assert PUNT not in synth_in, "punt node was NOT dropped from synthesis"
     print("test_punt_drop: PASS")
@@ -143,12 +130,9 @@ def test_honest_when_empty():
                    "mios_sources": []},
                native_calls=calls)
     resp = _call({"web": True, "refined_text": "world news today"}, dag_result)
-    # The honest-empty grounding rule must be present in the synthesis prompt
-    # (the load-bearing anti-fabrication instruction moved byte-identically).
     synth_in = holder[-1]
     assert "couldn't find specific results from live sources" in synth_in, \
         "honest-when-empty grounding rule missing from synthesis input"
-    # An ungrounded web turn routes to the native-loop fallback (no fabrication).
     assert calls, "ungrounded web turn did NOT engage the native-loop fallback"
     body = json.loads(bytes(resp.body).decode("utf-8"))
     main = body["choices"][0]["message"]["content"]
@@ -169,7 +153,6 @@ def test_boundary_and_surface():
     print("test_boundary_and_surface: PASS")
 
 
-# -- swarm DECOMPOSER pair (_plan_swarm / _expand_facets) ----------------------
 
 class _FakePlannerResp:
     """Stand-in for the httpx response the planner reads (.status_code/.json())."""

@@ -10,9 +10,6 @@ import types
 
 import mios_clusterhealth as M
 
-# Capture the REAL (native) helper-fn objects BEFORE any configure() override, so
-# their dedicated tests exercise the moved-home implementations regardless of the
-# stubs the *_logic tests later inject over the same names.
 _REAL_PROBE = M._probe_one_endpoint
 _REAL_LANE_SCHED = M._lane_sched_stats
 _REAL_KERNEL_DETAIL = M._kernel_managers_detail
@@ -57,11 +54,6 @@ def _body(resp):
     return json.loads(bytes(resp.body).decode("utf-8"))
 
 
-# -- lane-resolver getter stub (the deferred landmine) --------------------
-# cluster_health_logic reads the LIVE resolver via
-# sys.modules["mios_lanes_resolver"]._lane_resolver_current(). Replace that module
-# with a tiny fake so the moved body resolves the getter without the real lane
-# infrastructure -- proving the getter access works post-extraction.
 class _FakeResolver:
     def snapshot(self):
         return {"engine": "heavy", "cooldown": 0}
@@ -73,7 +65,6 @@ def _install_resolver(current):
     sys.modules["mios_lanes_resolver"] = fake
 
 
-# -- stub callables -------------------------------------------------------
 _REGISTRY = {
     "hermes": {"role": "gateway", "default": True, "enabled": True,
                "endpoint": "http://hermes:8642", "model": "m"},
@@ -85,14 +76,12 @@ _REGISTRY = {
 
 
 def _resolve_failover_chain(name):
-    # primary only -> single-hop chains (so SPOF/failover branches are exercised).
     cfg = _REGISTRY[name]
     return [{"name": name, "endpoint": cfg["endpoint"],
              "model": cfg["model"], "kind": "primary"}]
 
 
 def _probe_results(name):
-    # hermes + opencode reachable; the disabled peer's endpoint is down.
     return name != "disabled_peer"
 
 
@@ -144,12 +133,10 @@ _KERNEL = types.SimpleNamespace(
 
 def _configure_common():
     M.configure(
-        # cluster_health deps
         _AGENT_REGISTRY=_REGISTRY,
         _resolve_failover_chain=_resolve_failover_chain,
         _probe_one_endpoint=_probe_one_endpoint,
         _agent_lane=_agent_lane,
-        # scheduler_state deps
         _lane_sched_stats=lambda: [{"lane": "gpu", "cap": 3, "in_flight": 1,
                                     "available": 2, "queued": 0}],
         AGENT_CONCURRENCY=3,
@@ -192,7 +179,6 @@ def _configure_common():
         _KERNEL=_KERNEL,
         _kernel_managers_detail=lambda: {"scheduler": {"queued": 0}},
         KERNEL_ROUTE=False,
-        # health deps
         app=types.SimpleNamespace(version="9.9.9-test"),
         _ALLOWLIST_HOSTS={"localhost", "127.0.0.1"},
         _HIGH_PRIVILEGE_VERBS={"shell_exec", "container_restart"},
@@ -219,28 +205,20 @@ def _configure_common():
 
 
 def t_probe_one_endpoint():
-    # Native helper moved home from server.py. client is an ARGUMENT -> a fake
-    # client routes every .get through a handler, so there is zero network.
     M.configure(_probe_auth_headers=lambda ep: {"Authorization": "Bearer t"})
-    # OpenAI /v1/models success.
     r, lm, ms = asyncio.run(_REAL_PROBE(
         _FakeClient(lambda url, **k: _FakeResp(200, {"data": [{"id": "m1"},
                                                               {"id": "m2"}]})),
         "http://ep/v1"))
     check("probe: openai /models reachable + ids", r is True and lm == ["m1", "m2"])
     check("probe: latency_ms is int", isinstance(ms, int) and ms >= 0)
-    # Empty endpoint short-circuits to down with zero latency.
     r0, lm0, ms0 = asyncio.run(_REAL_PROBE(_FakeClient(lambda url, **k: None), ""))
     check("probe: empty ep -> (False,[],0)", r0 is False and lm0 == [] and ms0 == 0)
-    # Both transports raise -> unreachable.
 
     def _raise(url, **k):
         raise RuntimeError("conn refused")
     rd, lmd, _ = asyncio.run(_REAL_PROBE(_FakeClient(_raise), "http://dead/v1"))
     check("probe: unreachable -> down", rd is False and lmd == [])
-    # /v1-only: an endpoint with NO OpenAI /v1/models surface is DOWN. There is no
-    # legacy /api/tags fallback (MiOS is /v1-only), so a host that 404s /models is
-    # unreachable, never silently probed via the retired lane.
 
     def _no_v1(url, **k):
         if url.endswith("/models"):
@@ -252,8 +230,6 @@ def t_probe_one_endpoint():
 
 
 def t_lane_sched_stats():
-    # Native helper moved home from server.py -- reads the injected live lane
-    # semaphore map; introspects available/in-flight/queued per lane.
     sems = {"gpu": asyncio.Semaphore(3), "cpu": asyncio.Semaphore(2)}
     M.configure(_LANE_SEMS=sems, AGENT_CONCURRENCY=4)
     by = {r["lane"]: r for r in _REAL_LANE_SCHED()}
@@ -267,7 +243,6 @@ def t_lane_sched_stats():
 
 
 def t_kernel_managers_detail():
-    # Native helper moved home from server.py -- rolls up the live kernel seams.
     M.configure(
         _GLOBAL_PRIORITY_GATE=_Gate(),
         _PREEMPT=_Preempt(),
@@ -291,18 +266,11 @@ def t_kernel_managers_detail():
 
 
 def t_resolve_failover_chain():
-    # Native helper moved home from server.py -- expands an agent name into its
-    # full failover chain from the injected-by-reference _AGENT_REGISTRY. Synthetic
-    # agent tokens only (no baked example words); assert the module's own structural
-    # kind vocabulary (primary/failover/cpu-twin).
     reg = {
-        # primary with one declared failover + a distinct cpu twin + a self-loop and
-        # a dangling failover ref (both must be skipped).
         "a0": {"endpoint": "http://h0/v1", "model": "m0",
                "cpu_endpoint": "http://h0cpu", "cpu_model": "m0cpu",
                "failover_agents": ["a1", "a0", "ghost"]},
         "a1": {"endpoint": "http://h1/v1", "model": "m1"},
-        # cpu_endpoint identical to endpoint -> NOT added as a cpu twin.
         "a2": {"endpoint": "http://h2", "model": "m2", "cpu_endpoint": "http://h2"},
     }
     M.configure(_AGENT_REGISTRY=reg)
@@ -317,12 +285,10 @@ def t_resolve_failover_chain():
     check("failover: cpu twin carries cpu_model + cpu_endpoint",
           chain[2]["model"] == "m0cpu" and chain[2]["endpoint"] == "http://h0cpu")
 
-    # cpu_endpoint == endpoint -> no cpu twin appended.
     chain2 = _REAL_FAILOVER("a2")
     check("failover: cpu_endpoint==endpoint adds no twin",
           [h["kind"] for h in chain2] == ["primary"], str(chain2))
 
-    # unknown agent -> empty chain (no crash).
     check("failover: unknown agent -> []", _REAL_FAILOVER("nope") == [])
 
 
@@ -338,14 +304,12 @@ def t_cluster_health():
     check("cluster: disabled_peer down", names["disabled_peer"]["effective_up"] is False)
     check("cluster: single_point_of_failure flagged (single primary hop)",
           names["hermes"]["single_point_of_failure"] is True)
-    # council honesty: only ENABLED non-default + effective_up peers count.
     check("cluster: council_peers_up == 1 (opencode only)", b["council_peers_up"] == 1,
           str(b["council_peers_up"]))
     check("cluster: mode is council", b["mode"] == "council")
     check("cluster: lane_resolver snapshot via getter",
           b["lane_resolver"] == {"engine": "heavy", "cooldown": 0})
     check("cluster: agents_up == 2", b["agents_up"] == 2, str(b["agents_up"]))
-    # resolver None -> lane_resolver None branch
     _install_resolver(None)
     b2 = _body(asyncio.run(M.cluster_health_logic()))
     check("cluster: lane_resolver None when resolver unbuilt",

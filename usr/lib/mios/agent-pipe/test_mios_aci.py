@@ -46,14 +46,12 @@ def t_line_head_tail() -> None:
 
 def t_head_frac() -> None:
     body = "A" * 1000 + "B" * 1000
-    # head_frac 0.9 -> mostly head (A's), little tail (B's)
     out = N(body, max_chars=200, head_frac=0.9)
     head_len = out.split("…⟪")[0].count("A")
     _check("frac: head dominates at 0.9", head_len >= 150, f"head A's={head_len}")
 
 
 def t_degrade_open() -> None:
-    # non-string coerced, never raises
     _check("degrade: int coerced", isinstance(N(12345, max_chars=3), str))
     _check("degrade: zero budget no-op", N("abc", max_chars=0) == "abc")
 

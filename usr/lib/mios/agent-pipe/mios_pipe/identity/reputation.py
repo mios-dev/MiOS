@@ -1,12 +1,6 @@
 # AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation):
 # AI-related: server.py, mios_a2a_principal, mios_lanes
 # AI-functions: PeerReputation.record, PeerReputation.score, PeerReputation.rank, PeerReputation.snapshot, PeerReputation.rows, PeerReputation.restore
-#   records outbound A2A delegation outcomes (ok/bad) and ranks ready peers by a
-#   Laplace-smoothed success rate so the orchestrator prefers reliable peers and
-#   deprioritises flaky ones. Dependency-free + deterministic -> unit-testable
-#   (test_mios_reputation.py). Default-NEUTRAL: a peer with no history scores 0.5
-#   and rank() is a STABLE sort, so with no data the caller's existing order
-#   (first-ready) is preserved exactly -> zero behaviour change until peers exist.
 """Peer reputation for zero-trust A2A federation (#54).
 
 Tracks how reliably each A2A peer has handled delegations and ranks candidates so
@@ -27,7 +21,6 @@ NEUTRAL = 0.5
 
 class PeerReputation:
     def __init__(self, recent_penalty: float = 0.15) -> None:
-        # peer_id -> {"ok": int, "bad": int, "streak_bad": int}
         self._stats: Dict[str, dict] = {}
         self._recent_penalty = float(recent_penalty)
 
@@ -68,7 +61,6 @@ class PeerReputation:
             for p, s in self._stats.items()
         }
 
-    # ── WS-A18 persistence seam (DB-free; server.py owns the pg flush/load) ──
     def rows(self) -> List[dict]:
         """The state as DB-insertable rows (the FLUSH form): one per peer with the
         raw counters only (NOT the derived score -- that's recomputed). Sorted +

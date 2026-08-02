@@ -17,7 +17,7 @@ SRC_DIR="${CTX}/etc/mios/containers/coderun-sandbox"
 SHIM_SRC="${CTX}/usr/libexec/mios/mios-codemode-api.py"
 
 if [[ ! -d "${SRC_DIR}" ]]; then
-    die "missing ${SRC_DIR}"
+    die "Missing ${SRC_DIR}"
 fi
 
 cp "${SHIM_SRC}" "${SRC_DIR}/mios_tools.py"

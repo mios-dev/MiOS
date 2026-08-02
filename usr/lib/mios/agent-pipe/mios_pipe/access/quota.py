@@ -84,7 +84,6 @@ class QuotaTracker:
         if self.daily_budget > 0 and (cur_spent + max(0.0, cost)) > self.daily_budget:
             return QuotaVerdict(False, f"budget exceeded: {cur_spent:.4f}+{cost:.4f} > "
                                 f"{self.daily_budget}", used, cur_spent)
-        # admit: record the request + the spend.
         self._reqs.setdefault(u, collections.deque()).append(float(now))
         w = self._spend.get(u)
         if not w or (now - w[0]) >= self.budget_window_s:

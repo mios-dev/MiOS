@@ -53,7 +53,7 @@ ws7_install_fapolicyd_observe() {
 
     local src="/usr/lib/fapolicyd/mios-ws7-permissive.conf"
     if [[ ! -f "$src" ]]; then
-        warn "[ws7] observe drop-in $src missing -- skipping (degrade-open)"
+        warn "[ws7] observe drop-in $src missing"
         return 0
     fi
 
@@ -80,7 +80,7 @@ ws7_install_fapolicyd_observe() {
             -e "s#^allow perm=execute all : dir=/var/lib/mios/ai/scratch/#allow perm=execute all : dir=${scratch}#" \
             "$rules_src" > "$dst" 2>/dev/null \
             && log "[ws7] rendered codegen carve-out rules -> $dst" \
-            || warn "[ws7] could not render carve-out rules (degrade-open)"
+            || warn "[ws7] could not render carve-out rules"
     fi
 
     log "[ws7] wrote fapolicyd permissive=1 config to /etc/fapolicyd/fapolicyd.conf; fapolicyd logs matches, does not deny"
@@ -97,7 +97,7 @@ ws7_build_verity_uki() {
     fi
 
     if ! command -v ukify >/dev/null 2>&1; then
-        warn "[ws7] ukify not found (install [packages.uki]) -- skipping UKI build (degrade-open)"
+        warn "[ws7] ukify not found"
         return 0
     fi
 
@@ -108,7 +108,7 @@ ws7_build_verity_uki() {
     local kver kdir vmlinuz initrd out_dir out
     kver="$(find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -printf '%f\n' 2>/dev/null | sort -V | tail -1)"
     if [[ -z "$kver" ]]; then
-        warn "[ws7] no kernel under /usr/lib/modules -- skipping UKI build"
+        warn "[ws7] no kernel under /usr/lib/modules"
         return 0
     fi
     kdir="/usr/lib/modules/${kver}"
@@ -118,7 +118,7 @@ ws7_build_verity_uki() {
     out="${out_dir}/mios-verity.efi"
 
     if [[ ! -f "$vmlinuz" ]]; then
-        warn "[ws7] vmlinuz missing at $vmlinuz -- skipping UKI build"
+        warn "[ws7] vmlinuz missing at $vmlinuz"
         return 0
     fi
 
@@ -141,7 +141,7 @@ ws7_build_verity_uki() {
         log "[ws7] unsigned/required UKI BRICKS BOOT"
         log "[ws7] verity.require kargs until the promotion procedure passes"
     else
-        warn "[ws7] ukify build failed -- degrade-open, no UKI emitted"
+        warn "[ws7] ukify build failed"
     fi
 }
 

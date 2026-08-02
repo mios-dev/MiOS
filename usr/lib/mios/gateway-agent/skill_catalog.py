@@ -18,9 +18,7 @@ class SkillCatalogLoader:
         self._lock = asyncio.Lock()
 
     def start(self) -> None:
-        # Load initially
         self.reload_catalog()
-        # Start background refresh loop
         self._refresh_task = asyncio.create_task(self._refresh_loop())
 
     def stop(self) -> None:
@@ -63,7 +61,6 @@ class SkillCatalogLoader:
         return tools
 
     def _create_tool_instance(self, skill_def: dict) -> Tool:
-        # Expected OpenAI-compatible function mapping
         func = skill_def.get("function", {}) or {}
         name = func.get("name", "")
         description = func.get("description", "")
@@ -93,7 +90,6 @@ class SkillCatalogLoader:
                 super().__init__()
 
             def forward(self, **kwargs) -> str:
-                # Resolve orchestrator root and skill execute URL
                 ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
                 orchestrator_root = ai_endpoint.replace("/v1", "").rstrip("/")
                 url = f"{orchestrator_root}/skills/run"
@@ -110,7 +106,6 @@ class SkillCatalogLoader:
                             return f"Error executing skill {self.name}: HTTP {resp.status_code} - {resp.text[:200]}"
                         
                         body = resp.json()
-                        # Format the result nicely
                         if body.get("success"):
                             steps = body.get("steps") or []
                             out = f"Skill '{self.original_skill_name}' executed successfully.\n"

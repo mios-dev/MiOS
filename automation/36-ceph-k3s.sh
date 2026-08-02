@@ -28,7 +28,7 @@ else
 fi
 
 if [[ -z "$K3S_TAG" ]]; then
-    mios_warn "K3s version SSOT empty (MIOS_K3S_VERSION unset); skipping binary install"
+    mios_warn "K3s version SSOT empty; skipping binary install"
     K3S_TAG=""
 fi
 
@@ -83,7 +83,7 @@ if [[ -n "$K3S_TAG" ]]; then
             [ ! -e /usr/bin/crictl ]  && ln -sf k3s /usr/bin/crictl  || true
             [ ! -e /usr/bin/ctr ]     && ln -sf k3s /usr/bin/ctr     || true
 
-            mios_ok "K3s binary + install script installed (tag: $K3S_TAG)"
+            mios_ok "K3s binary + install script installed"
         else
             mios_err "K3s binary SHA256 checksum mismatch; skipping"
         fi
@@ -97,6 +97,6 @@ fi
 chmod 755 /usr/libexec/mios/ceph-bootstrap.sh 2>/dev/null || true
 
 
-mios_ok "Ceph client + cephadm installed; K3s binary per tag ${K3S_TAG:-none} (see status above)"
+mios_ok "Ceph client + cephadm installed; K3s binary per tag ${K3S_TAG:-none}"
 mios_log "Ceph Dashboard:  https://<host>:8443"
 mios_log "K3s API server:  https://<host>:6443"

@@ -49,7 +49,6 @@ from typing import AsyncGenerator, Awaitable, Callable, Optional
 import aiohttp
 
 
-# ─── Qwen-style XML function-call markup the model sometimes leaks ────
 QWEN_FUNCTION_RE = re.compile(
     r"<function=([a-zA-Z_-]+)>\s*"
     r"(?:<parameter=([a-zA-Z_-]+)>\s*(.*?)\s*</parameter>\s*)*"
@@ -58,9 +57,6 @@ QWEN_FUNCTION_RE = re.compile(
 )
 
 
-# ─── Narration line classifier (kept IN SYNC with mios_antimeta_filter) ──
-# Anchored to start-of-line; matches the meta-speak the operator wants
-# collapsed into <think>...</think> rather than showing in the answer.
 NARRATION_LEADERS = [
     r"^let me\b", r"^let.s\b", r"^i.ll\b", r"^i.m going to\b",
     r"^i.m about to\b", r"^i need to\b", r"^i.ll need to\b",
@@ -87,7 +83,6 @@ def _is_narration_line(line: str) -> bool:
     return False
 
 
-# ─── hermes-tail bridge polling ──────────────────────────────────────
 HERMES_TAIL_PATH = "/var/lib/mios/hermes-tail/latest.json"
 TAIL_POLL_INTERVAL_S = 0.4
 
@@ -102,13 +97,6 @@ _TAIL_ICONS = {
 }
 
 
-# ── Retired database best-effort writer ─────────────────────────────────────
-# Migration note: the legacy DB is retired. Cross-agent state is now managed by
-# PostgreSQL/pgvector via agent-pipe. The writes in this class are retired.
-#
-# Resilience: writes are FIRE-AND-FORGET via asyncio.create_task so the
-# streaming response is never delayed. A 30s "DB down" backoff prevents
-# hammering a downed endpoint on every chat turn.
 
 import base64 as _base64
 import urllib.parse as _urlparse  # noqa: F401  (reserved for record-id quoting)
@@ -189,11 +177,6 @@ def _db_fire(coro: Awaitable) -> None:
     loop.create_task(coro)
 
 
-# Absent-value sentinels (mirror server.py _ENV_SENTINELS) -- case-insensitive so
-# OWUI's 'Unknown'/'undefined'/'n/a' geo never overrides a real value nor slips
-# through. Shared by _collect_env_vars across all env channels (operator
-# the prior ad-hoc {None,'','None','Unknown'} checks were case-
-# sensitive and disagreed with the server).
 _ENV_SENTINELS = frozenset({"", "unknown", "none", "null", "n/a", "undefined"})
 
 
@@ -218,14 +201,6 @@ class Pipe:
             description="Bearer key for the backend. Defaults to API_SERVER_KEY / OPENAI_API_KEY from the OWUI container env.",
         )
 
-        # ── In-pipe CPU refinement (operator-architecture) ──
-        # MiOS-Agent IS the CPU refiner -- it sits in front of hermes,
-        # takes the user's raw prompt, calls a small CPU model on
-        # local inference lanes, and forwards a refined / contextualized prompt to
-        # the heavy orchestrator. Sub-second target. Operator:
-        # "OWUI's MIOS_AGENT OPERATES ON THE CPU MODEL ... QUICKLY
-        # REFINING THE USERS PROMPTS WITH MORE CONTEXT AND CLEARER
-        # DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
         REFINE_ENABLED: bool = Field(
             default=False,
             description="In-pipe CPU refinement pass. MiOS-Agent (agent-pipe :8640) handles refine centrally as of Phase D.5a -- having this ENABLED here causes a DOUBLE refine (OWUI pipe rewrites the prompt, then agent-pipe rewrites it again). Default flipped to False; agent-pipe's iGPU-lane qwen3:1.7b refine is faster than the dGPU qwen2.5-coder:7b path this valve used. Set to true ONLY when running OWUI without agent-pipe in front.",
@@ -272,18 +247,6 @@ class Pipe:
             description="Total HTTP timeout in seconds (0 = unbounded, recommended for CPU-bound tool turns).",
         )
 
-        # ── Output refinement (operator-architecture) ──
-        # The downstream agent dispatch (hermes-agent today; later
-        # opencode / MCP / delegated subagents the same way) emits a
-        # mix of narration, tool I/O, and final result. MiOS-Agent
-        # wraps the WHOLE raw stream as <details type="reasoning">
-        # collapsed thinking, then runs a CPU polish pass to produce
-        # the operator-facing answer.
-        #
-        # Operator quote: "ALL MiOS-Agent(OWUI)'s dispatches
-        # (MiOS-Hermes, MiOS-OpenCode, etc) are always capturing their
-        # outputs as thinking and providing an appropriate final
-        # answer normally in OWUI chats".
         POLISH_ENABLED: bool = Field(
             default=False,
             description="In-pipe polish pass. agent-pipe :8640 (Phase D.5b) handles polish centrally and wraps the raw sub-agent output in a <details type='reasoning'> dropdown ITSELF. Having this ENABLED here causes a DOUBLE polish + double-wrap. Default flipped to False; the OWUI pipe trusts agent-pipe's centralised pass. Set to true ONLY when running OWUI without agent-pipe in front.",
@@ -304,12 +267,6 @@ class Pipe:
             default=240,
             description="If the raw agent output is shorter than this and contains no narration markers, pass through unpolished -- no value in spinning up the CPU model for a one-liner result.",
         )
-        # ── Phase-2 Critic loop (see docs/multi-agent-architecture.md)
-        # The Critic Agent reviews the compose draft against the
-        # structured tool history. If the draft claims success on a
-        # tool that failed, claims a step ran when no tool_call for
-        # it exists, or otherwise mismatches the structured truth,
-        # critic returns issues; compose revises once. Bounded loop.
         CRITIC_ENABLED: bool = Field(
             default=False,
             description="In-pipe critic pass over the polished draft. agent-pipe's Phase B.1 / B.2 DCI critic + Phase D.5b polish stack handle review centrally. The in-pipe critic was paired with the in-pipe polish (both default-off now); running it standalone over a thin-passthrough body adds latency without complementary review. Set to true ONLY when running OWUI without agent-pipe in front + in-pipe POLISH_ENABLED is also true.",
@@ -334,7 +291,6 @@ class Pipe:
             default="🧠 MiOS-Hermes",
             description="The <summary> rendered above the collapsed reasoning block. Per-agent label so the operator can tell which agent (hermes / opencode / etc.) produced the thinking. Kept short + symbol-led so it reads the same across operator locales (a global sweep removed hardcoded English).",
         )
-        # Router (layer-1 classifier): dispatch | chat | agent.
         ROUTER_ENABLED: bool = Field(default=True, description="layer-1 router (micro-LLM)")
         ROUTER_MODEL: str    = Field(default="qwen3:1.7b", description="always-warm micro-LLM (keep_alive=-1) for fast refinements; repointed from qwen3:0.6b-cpu to the 4-model-set micro base qwen3:1.7b")
         ROUTER_TIMEOUT_S: int = Field(default=12, description="s")
@@ -386,18 +342,11 @@ class Pipe:
             default="",
             description="Any other standing instructions / preferences (plain text). Your words, used verbatim.")
 
-    # Operator directive "prompt refining should be tool
-    # aware to be able to hint". The refine system prompt has a
-    # {tool_table} placeholder filled at init from the YAML manifest
-    # at /usr/share/mios/owui/tool-hints.yaml. Adding a new shim =
-    # one YAML entry, no prompt rewrite.
     _TOOL_HINTS_PATH = "/usr/share/mios/owui/tool-hints.yaml"
 
     def __init__(self):
         self.valves = self.Valves()
         self.name = "MiOS AI"
-        # Build the tool table once at init; pipe restart picks up
-        # YAML edits.
         self._refine_system_rendered = self._render_refine_system()
 
     @staticmethod
@@ -476,28 +425,14 @@ class Pipe:
         had none -- OWUI exposes DOZENS of env details, MiOS AI uses them'."""
         import datetime as _dt
         sub: dict = {}
-        # 1. Frontend-captured variables (browser locale/timezone/geo). Keys
-        #    arrive as the full "{{TOKEN}}" literal.
         if isinstance(__metadata__, dict):
             for _k, _v in (__metadata__.get("variables") or {}).items():
                 if _env_ok(_v):
                     sub[str(_k)] = str(_v).strip()
-        # 1b. body['variables'] -- OWUI's pipe contract ALSO carries the frontend
-        #     variables dict here (the same dict the server's _client_env reads);
-        #     the pipe previously read ONLY __metadata__['variables'].
         if isinstance(body, dict):
             for _k, _v in (body.get("variables") or {}).items():
                 if _env_ok(_v):
                     sub.setdefault(str(_k), str(_v).strip())
-        # 1.5 LIVE-GEO RECOVERY. OWUI's BACKEND substitutes
-        #     {{USER_LOCATION}} into the SYSTEM-PROMPT TEXT (the SSOT template
-        #     carries "location is {{USER_LOCATION}}."), NOT into the structured
-        #     variables the Pipe sees -- so the iPhone's live geo reaches the model
-        #     but was invisible to the orchestrator's grounding / refine / web-
-        #     search. Recover it from the resolved system message so it flows to
-        #     :8640 as a structured fact. Anchored on the SSOT wording; requires an
-        #     alphanumeric value (so a stripped "location is ." can't match) and
-        #     no leftover "{{"; best-effort -- degrades to prior behaviour on miss.
         if "{{USER_LOCATION}}" not in sub and isinstance(body, dict):
             try:
                 for _m in (body.get("messages") or []):
@@ -506,8 +441,6 @@ class Pipe:
                     _sys = _m.get("content")
                     if not isinstance(_sys, str) or not _sys:
                         continue
-                    # Match the prose form ("...location is <v>.") AND the labelled
-                    # env-block form ("User location: <v>" / "location = <v>").
                     _mt = re.search(
                         r"location\s*(?:is|[:=])\s*(.+?)(?:\n|\.\s|\.$|$)",
                         _sys, re.I)
@@ -519,7 +452,6 @@ class Pipe:
                             break
             except Exception:
                 pass  # recovery is best-effort; never break the turn
-        # 2. Host clock -- fills CURRENT_* the frontend/OWUI may have left.
         _now = _dt.datetime.now().astimezone()
         sub.setdefault("{{CURRENT_DATE}}", _now.strftime("%Y-%m-%d"))
         sub.setdefault("{{CURRENT_TIME}}", _now.strftime("%I:%M:%S %p"))
@@ -529,7 +461,6 @@ class Pipe:
         _tz = _now.tzname() or ""
         if _tz:
             sub.setdefault("{{CURRENT_TIMEZONE}}", _tz)
-        # 3. __user__ fields (name/email/persisted-profile location).
         if isinstance(__user__, dict):
             _nm = str(__user__.get("name") or "").strip()
             if _env_ok(_nm):
@@ -571,9 +502,6 @@ class Pipe:
         for _k, _v in sub.items():
             if _k in text:
                 text = text.replace(_k, _v)
-        # Strip any token we could not resolve so no literal {{...}}
-        # reaches the model (the template wording treats a missing fact
-        # as "not provided").
         text = re.sub(r"\{\{[^}]+\}\}", "", text)
         return text
 
@@ -587,7 +515,6 @@ class Pipe:
             with open(self._TOOL_HINTS_PATH, "r", encoding="utf-8") as f:
                 manifest = _yaml.safe_load(f) or {}
         except Exception:
-            # Inject a noop placeholder so .format() doesn't KeyError.
             return self._REFINE_SYSTEM.replace(
                 "{tool_table}",
                 "(tool-hints.yaml not loaded -- agent must rely on PATH discovery)",
@@ -597,17 +524,12 @@ class Pipe:
             return self._REFINE_SYSTEM.replace(
                 "{tool_table}", "(no canonical verbs registered)",
             )
-        # Compact markdown table: name | intent | example. Three
-        # columns keeps each row scannable; the model uses the
-        # 'intent' column to match the user's ask.
         rows = ["| Verb | Intent | Example |", "|------|--------|---------|"]
         for v in verbs:
             name = v.get("name", "?")
             intent = (v.get("intent", "") or "").replace("|", "\\|")
             example = (v.get("example", "") or "").replace("|", "\\|")
             rows.append(f"| `{name}` | {intent} | `{example}` |")
-        # Optional intent_patterns block -- per-pattern hints for
-        # composite asks the verb table alone doesn't cover.
         patterns = manifest.get("intent_patterns") or []
         extras = []
         if patterns:
@@ -623,10 +545,6 @@ class Pipe:
         return self._REFINE_SYSTEM.replace("{tool_table}", table)
 
     def pipes(self):
-        # OWUI dropdown shows `<function.name><pipe.name>` with no
-        # separator. The function row's name is already "MiOS-Agent",
-        # so we leave the pipe.name EMPTY -- otherwise the dropdown
-        # reads "MiOS-AgentMiOS-Agent" (operator-flagged).
         return [{"id": "mios-agent", "name": self.valves.DISPLAY_NAME}]
 
     async def _emit(
@@ -691,41 +609,8 @@ class Pipe:
             except asyncio.TimeoutError:
                 continue
 
-    # ─── CPU REFINEMENT (in-pipe, sub-second target) ─────────────
-    # Architecture: MiOS-Agent (this pipe) IS the prompt enhancer.
-    # Operator: "OWUI's MIOS_AGENT OPERATES ON THE CPU MODEL ...
-    # IS QUICKLY REFINING THE USERS PROMPTS WITH MORE CONTEXT AND
-    # CLEARER DIRECTIONS FOR HERMES AGENTS/DELEGATED SUB-AGENTS".
-    # The pipe owns this step end-to-end:
-    #   1. Receive raw user text
-    #   2. Call a small CPU model (default qwen3.5:4b)
-    #      with a tight system prompt -- num_predict capped low,
-    #      keep_alive=-1, num_gpu=0, native /api/chat endpoint
-    #   3. Return the refined text -- forwarded as the user message
-    #      to the prefilter -> hermes chain
-    #
-    # The refiner runs INLINE in the pipe so the operator sees it
-    # as a discrete OWUI status emit ("🧠 refining via qwen3.5:4b
-    # on CPU...") rather than as an invisible sidecar pre-step.
 
-    # Curly-quote (U+2019) tolerant. Operator-flagged
-    # "How's it going?" (with smart-quote apostrophe) fell through the
-    # gate -> triggered the dashboard rule and the agent dumped
-    # mios-system-status as the answer to a greeting. Both ' (U+0027)
-    # and ' (U+2019) now match the optional apostrophe slot.
-    # Operator directive GLOBAL SWEEP to remove hardcoded
-    # English. The conversational gate now matches greetings/acks/
-    # farewells across the languages the operator's chats commonly
-    # use. New languages can be added without code review by editing
-    # the alternation. The bare-name list (hi, hola, etc.) covers
-    # standalone tokens; the phrase list covers multi-word openers.
     _CONVERSATIONAL_RE = re.compile(
-        # English / generic. The "X there"/"X y'all"/"X everyone"
-        # forms (Hey there!, Hi y'all, Hello everyone) are bundled
-        # in the leading-word alternation so they also short-circuit
-        # to skip-refine. Operator-flagged "Hey there!"
-        # was inflating from 10c to 111c via refine because the
-        # 1-word gate failed to match.
         r"^\s*((?:hi|hello|hey|yo|howdy)(?:\s+(?:there|y[’']?all|everyone|all|guys|friend|friends|bot))?|"
         r"sup|gm|gn|ok|okay|kk|alright|"
         r"thanks|thx|ty|thank you|cool|nice|great|got it|"
@@ -737,34 +622,26 @@ class Pipe:
         r"how (are|have|you been|are things|are you|are ya|"
         r"you doing|you been|is it going|is everything)|"
         r"what do you (want|wanna|got|need)|"
-        # Spanish / Portuguese
         r"hola|holi|holaaa+|buenas|buenos d[ií]as|buenas (tardes|noches)|"
         r"gracias|de nada|adi[óo]s|chao|chau|hasta luego|qu[eé] tal|"
         r"c[óo]mo (est[áa]s|va|andas)|todo bien|vale|s[íi]|"
         r"ol[áa]|bom dia|boa (tarde|noite)|obrigad[oa]|tudo bem|tchau|"
-        # French
         r"salut|bonjour|bonsoir|bonne nuit|merci|merci beaucoup|"
         r"de rien|au revoir|[àa] bient[oô]t|[çc]a va|comment [çc]a va|d[’']accord|oui|non|"
-        # Italian
         r"ciao|salve|buongiorno|buonasera|buonanotte|"
         r"grazie|prego|arrivederci|come stai|come va|s[íi]|"
-        # German / Dutch / Nordics
         r"hallo|hi+|moin|servus|gr[üu][sß] (dich|gott)|guten (morgen|tag|abend)|"
         r"danke|bitte|tsch[üu]ss|auf wiedersehen|wie geht.?s|"
         r"hej|hej hej|hejs[åa]|tack|farv[ée]l|"
         r"hallo|hoi|dag|dankjewel|doei|"
-        # Slavic (Latin transliteration tolerated; native scripts below)
         r"czesc|cze[śs][ćc]|dzi[ęe]kuj[ęe]|do widzenia|"
         r"ahoj|d[ěe]kuji|d[ěe]k|nashledanou|"
-        # Asian (Latin)
         r"ohayou?|konnichiwa|konbanwa|sayounara|arigatou?|"
         r"annyeong(haseyo)?|kamsahamnida|"
         r"ni hao|xie ?xie|zai ?jian|"
-        # Other / multilingual
         r"namaste|namaskar|shukriya|dhanyavaad|"
         r"shalom|toda|"
         r"mahalo|aloha)[!?.,\s]*$"
-        # Native-script openers (single-line)
         r"|^\s*(?:привет|здравствуй(те)?|спасибо|пока|до свидания)[!?.,\s]*$"
         r"|^\s*(?:你好|您好|嗨|哈罗|谢谢|再见)[!?.,\s]*$"
         r"|^\s*(?:こんにちは|こんばんは|おはよう(ございます)?|ありがとう(ございます)?|さようなら|またね)[!?.,\s]*$"
@@ -774,9 +651,6 @@ class Pipe:
         re.IGNORECASE,
     )
 
-    # Refine system prompt — standard schema-driven refinement prompt.
-    # Tool-aware: the {tool_table} placeholder is filled at runtime
-    # from /usr/share/mios/owui/tool-hints.yaml.
     _REFINE_SYSTEM = (
         "You are a prompt refinement layer for a multi-agent system.\n"
         "Rewrite the user's raw request into a structured handoff the\n"
@@ -844,26 +718,6 @@ class Pipe:
 
     _LEGACY_REFINE_DELETED = True
 
-    # ── Output polish system prompt ──
-    # The output-refinement pass runs AFTER the agent dispatch (hermes
-    # today; opencode / MCP / delegate children the same way) has
-    # streamed its raw output. The raw output is preserved verbatim
-    # inside a collapsed <details type="reasoning"> block; this polish
-    # pass produces the operator-facing answer.
-    #
-    # Hard constraints (these are the failure modes from operator
-    # chats we're closing):
-    #  * RAW OUTPUT is ground truth. NEVER invent paths, IDs, numbers,
-    #    statuses, app names, registry coords, port numbers, etc.
-    #  * Strip narration. "Let me", "I'll", "First I...", "Now I'll"
-    #    are agent thinking; the operator sees the polished answer
-    #    only -- they don't need to read the agent's stream of
-    #    consciousness.
-    #  * If the agent failed, say what failed in ONE sentence + surface
-    #    the verbatim error.
-    #  * NO "would you like me to..." trailing questions unless the
-    #    agent's raw output already proposed exactly that.
-    #  * NO suggestions to "try X if Y" unless the agent surfaced X.
     _POLISH_SYSTEM = (
         "You are MiOS-Agent's FINAL-ANSWER polisher. The downstream\n"
         "agent (MiOS-Hermes today; same role for OpenCode / MCP /\n"
@@ -1016,30 +870,18 @@ class Pipe:
         "## POLISHED ANSWER\n"
     )
 
-    # Cheap heuristic: if there's no narration marker AND the output
-    # is short, skip the polish call entirely (saves 30-180s of CPU
-    # for a result that's already clean).
     _NARRATION_MARKERS = re.compile(
         r"\b(let me|i.?ll|i'?ll|first,?\s*i|now,?\s*i|let.?s|i need to|i.?m going to|i.?ve|i.?m about to)\b",
         re.IGNORECASE,
     )
-    # "Looks like structured markdown" -- a heading line OR a markdown
-    # table separator (`|---|`). When raw output starts with one of
-    # these, hermes is already shaping the answer; polish has nothing
-    # to add and a non-trivial chance of mangling it.
     _STRUCTURED_MD_RE = re.compile(
         r"^\s*(?:#{1,6}\s+\S|\|[\s\-:|]+\|)",
         re.M,
     )
-    # Known agent-error signatures: if the raw output contains these,
-    # ALWAYS polish (so the "KNOWN AGENT ERRORS" rewrites in the polish
-    # prompt have a chance to clean them up).
     _KNOWN_AGENT_ERROR_RE = re.compile(
         r"(?:not recognized|cmdlet|cannot parse|screencapture\.exe|"
         r"Invoke-Screenshot|GDI\+|Get-StartApps not found|pwsh not found|"
         r"vendor-specific|I don.t have|not in (?:my toolset|this environment)|"
-        # WSLg gaslighting (operator-flagged after agent ran 6 calls
-        # then claimed all three of these to refuse opening gnome-control-center)
         r"no (?:active )?(?:X server|display server|X server or Wayland)|"
         r"terminal restrictions prevent|display infrastructure issue|"
         r"pure terminal service|browser can.t launch in this environment|"
@@ -1047,30 +889,6 @@ class Pipe:
         re.IGNORECASE,
     )
 
-    # Native multi-agent compose -- structured handoff from Hermes
-    # session JSON (operator directive "HOW WOULD THIS
-    # MULTI_AGENTIC_REASONING WORK NATIVELY!??? RESEARCH!" + "make
-    # sure this is ALL ALSO OpenAI API COMPLIANT and COMPLETELY
-    # FUnctional on a Bootc Bootable OCI MiOS image").
-    #
-    # Architecture (see /usr/share/mios/docs/multi-agent-architecture.md
-    # for the full research + migration plan):
-    #   Phase 1 (this code): Compose reads Hermes session JSON for
-    #     the OpenAI-format tool_calls + tool_result message history,
-    #     reasons over STRUCTURE instead of text-mangled stream.
-    #   Phase 2 (future):    Add explicit Critic Agent loop on
-    #     iGPU micro-LLM (qwen3:1.7b).
-    #   Phase 3 (future):    Refine emits JSON {intent, plan} rather
-    #     than INTENT/TOOLS/DELEGATE/PLAN labels.
-    #   Phase 4 (future):    Drop regex post-processors (think /
-    #     details strip, KNOWN_AGENT_ERROR_RE, etc.).
-    #
-    # OpenAI compliance: the tool_call + tool_result shape is the
-    # standard OpenAI Chat Completions message format. Hermes
-    # records exactly this in session JSON; we surface it untouched
-    # to the compose model. Any OpenAI-API-compatible model
-    # (Claude, GPT-*, local engines) can consume the structured
-    # input identically.
     HERMES_SESSIONS_DIR = "/var/lib/mios/hermes/sessions"
 
     def _load_session_tool_history(self, after_ts: float,
@@ -1101,7 +919,6 @@ class Pipe:
             except OSError:
                 continue
             if mtime < after_ts:
-                # Older than the dispatch -- not this turn's session.
                 break
             if (now - mtime) > max_age_s:
                 continue
@@ -1112,8 +929,6 @@ class Pipe:
             msgs = d.get("messages") or []
             if not msgs:
                 continue
-            # Keep only the operator-relevant slice: the LAST
-            # user-message and every message after it.
             last_user_idx = -1
             for i in range(len(msgs) - 1, -1, -1):
                 m = msgs[i]
@@ -1131,7 +946,6 @@ class Pipe:
         when the upstream tool returned JSON with `success` -- the
         MiOS verb convention)."""
         import json as _json
-        # Build call-id -> result-content index
         results: dict[str, dict] = {}
         for m in msgs:
             if not isinstance(m, dict) or m.get("role") != "tool":
@@ -1145,7 +959,6 @@ class Pipe:
                     success = bool(parsed["success"])
             except (_json.JSONDecodeError, ValueError):
                 pass
-            # Trim noisy content for the compose prompt.
             preview = content if isinstance(content, str) else str(content)
             results[tcid] = {
                 "tool_call_id": tcid,
@@ -1188,11 +1001,6 @@ class Pipe:
                     })
         return _json.dumps({"history": events}, indent=2)
 
-    # ── Router classifier system prompt + dispatch ─────────────────
-    # Micro-LLM gets a terse tool list + the user's prompt; emits
-    # JSON {action, tool?, args?, reply?}. JSON Mode (inference
-    # /v1/chat/completions response_format) constrains the output --
-    # no parsing tax.
     _ROUTER_SYSTEM = (
         "You are the MiOS router (Agentic-OS layer 1). Classify the "
         "user prompt into ONE of three actions and emit JSON ONLY.\n"
@@ -1327,7 +1135,6 @@ class Pipe:
             return None
         if not isinstance(parsed, dict) or "action" not in parsed:
             return None
-        # Best-effort event: layer-1 router verdict.
         _row = {
             "source": "mios-agent-pipe",
             "kind": "classify",
@@ -1349,8 +1156,6 @@ class Pipe:
         a single string. Fail-open: returns the error JSON on any
         failure so compose can surface it."""
         import socket as _socket
-        # Map verb name -> shell command. Keep this in lockstep with
-        # mios_verbs.Tools method bodies.
         env_prefix = ""
         if tool == "open_app":
             name = str(args.get("name", "")).strip()
@@ -1362,43 +1167,15 @@ class Pipe:
                 ea = " ".join(shlex.quote(str(a)) for a in extra_args)
                 cmd = f"{env_prefix}mios-windows launch {shlex.quote(name)} {ea}"
             else:
-                # Use mios-launch, NOT mios-find: mios-launch scans the
-                # live environment in the operator-expected priority order
-                # (internal-service alias -> URL -> Windows GUI builtin ->
-                # browser CDP -> Windows games-cache -> MiOS shim -> Linux
-                # GUI -> plain CLI). mios-find's "best match" scoring puts
-                # MiOS shims ahead of real apps which caused "launch steam"
-                # to resolve to mios-steamcmd (a CLI shim) instead of the
-                # actual operator-installed Steam client. mios-launch is
-                # the environment-generative path: games-cache is populated
-                # by mios-apps at runtime, not from a baked priority list.
-                # No 2>/dev/null filter -- the broker's CAPTURE_JSON
-                # protocol (used below) now returns stdout / stderr / exit
-                # SEPARATELY, so English narrative on stderr lands in
-                # tool_result.stderr (labeled-as-stderr in the envelope)
-                # instead of polluting tool_result.output.
                 cmd = f"{env_prefix}mios-launch {shlex.quote(name)}"
         elif tool == "launch_app":
             cmd = f"mios-launch {shlex.quote(str(args.get('name', '')))}"
         elif tool == "focus_window":
-            # Operator directive "all focused/re-focused apps
-            # that are opened/focused are resized and launch as per default
-            # params". A bare focus that leaves the window at whatever
-            # geometry it last had violates this -- re-focused windows
-            # must also re-apply the default golden+16:10-centered
-            # placement unless the operator named another position OR
-            # explicitly opted out via position="as-is".
             title = shlex.quote(str(args.get("title", "")))
             pos = str(args.get("position", "default")).lower()
             if pos in ("as-is",):
                 cmd = f"mios-window focus {title}"
             else:
-                # mios-window <pos> implies a raise -- but chain focus
-                # explicitly so the geometry change happens AFTER the
-                # window is foregrounded (some WMs ignore size requests
-                # on hidden/minimized windows). MIOS_LAUNCH_POSITION
-                # is exported so the place_block reads the same enum
-                # mios-windows launch consumes.
                 cmd = (
                     f"mios-window focus {title} && "
                     f"MIOS_LAUNCH_POSITION={shlex.quote(pos)} "
@@ -1433,10 +1210,6 @@ class Pipe:
             cmd = f"mios-everything -n {n} {q}"
             if ext: cmd += f" -ext {shlex.quote(str(ext))}"
         elif tool == "fs_search":
-            # Linux-side filesystem search -- the agentic peer to
-            # everything_search (which is Windows-only via Voidtools).
-            # Operator directive "MiOS-Agent(s) can navigate,
-            # search, exec--all the same in the Linux Environments as well".
             q = shlex.quote(str(args.get("query", "")))
             n = int(args.get("limit", 20))
             ext = args.get("ext") or ""
@@ -1450,9 +1223,6 @@ class Pipe:
         elif tool == "system_status":
             cmd = "mios-system-status"
         elif tool == "service_status":
-            # systemctl is-active + status snapshot for a Linux service.
-            # Read-only. Picks system bus by default; passes through
-            # whatever the operator named.
             name = shlex.quote(str(args.get("name", "")))
             cmd = (
                 f"echo \"=== is-active ===\"; systemctl is-active {name}; "
@@ -1460,17 +1230,12 @@ class Pipe:
                 f"systemctl --no-pager status {name} | head -20"
             )
         elif tool == "service_restart":
-            # systemctl restart <name>. WRITE verb -- visible side
-            # effect on the operator's system. Returns the post-restart
-            # is-active line so the agent can confirm.
             name = shlex.quote(str(args.get("name", "")))
             cmd = (
                 f"systemctl restart {name} && "
                 f"echo \"restarted; is-active=$(systemctl is-active {name})\""
             )
         elif tool == "process_list":
-            # ps snapshot sorted by RSS (default) or CPU. limit caps lines.
-            # filter is a case-insensitive substring on the command name.
             limit = int(args.get("limit", 20))
             sort = str(args.get("sort", "rss")).lower()
             sort_arg = "--sort=-pcpu" if sort == "cpu" else "--sort=-rss"
@@ -1482,16 +1247,12 @@ class Pipe:
                 base += f" | grep -i -- {shlex.quote(filt)}"
             cmd = f"{base} | head -{limit}"
         elif tool == "container_status":
-            # podman ps -a snapshot (all containers, including stopped).
-            # No filter = all; filter = case-insensitive substring on name.
             filt = str(args.get("name", "")).strip()
             base = "podman ps -a --format '{{.Names}}\\t{{.Status}}\\t{{.Image}}'"
             if filt:
                 base += f" | grep -i -- {shlex.quote(filt)}"
             cmd = base
         elif tool == "container_restart":
-            # podman restart <name>. WRITE verb. Confirms by showing the
-            # post-restart status line.
             name = shlex.quote(str(args.get("name", "")))
             cmd = (
                 f"podman restart {name} && "
@@ -1502,10 +1263,8 @@ class Pipe:
             return json.dumps({"success": False,
                                "stderr": f"router emitted unknown tool {tool!r}"})
         await self._emit(emitter, f"🛠️  {tool}")
-        # Broker dispatch (same socket Tools.* uses).
         sock_path = os.environ.get("MIOS_LAUNCHER_SOCK",
                                     "/run/mios-launcher/launcher.sock")
-        # Capture call start for tool_call.latency_ms.
         _t0 = time.time()
         _result_payload: Optional[dict] = None
         if not os.path.exists(sock_path):
@@ -1516,12 +1275,6 @@ class Pipe:
                 s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
                 s.settimeout(15.0)
                 s.connect(sock_path)
-                # CAPTURE_JSON: protocol -- broker returns a single
-                # JSON line with {stdout, stderr, exit_code} so we can
-                # bucket English narrative on stderr into its own
-                # envelope field (instead of mixing with structured
-                # tool_result.output). Backward-compat CAPTURE: stays
-                # available on the broker for older callers.
                 s.sendall(("CAPTURE_JSON: " + cmd + "\n").encode())
                 chunks: list[bytes] = []
                 try:
@@ -1554,9 +1307,6 @@ class Pipe:
             except OSError as e:
                 _result_payload = {"success": False, "stderr": f"broker: {e}",
                                    "output": "", "tool": tool, "args": args}
-        # Best-effort retired write: tool_call row. Carries session id
-        # if pipe() opened one this turn (self._session_id). Output is
-        # truncated to keep the row compact.
         _latency_ms = int((time.time() - _t0) * 1000)
         _success = bool(_result_payload.get("success"))
         _out_preview = (_result_payload.get("output")
@@ -1570,8 +1320,6 @@ class Pipe:
         }
         _sid = getattr(self, "_session_id", None)
         if _sid:
-            # session is a record link; assign as a raw expression
-            # (record-id literals aren't JSON-quoted).
             _db_fire(_db_post(
                 _db_create("tool_call", _row, now_fields=("ts",)).rstrip(";")
                 + f", session = {_sid};"
@@ -1609,10 +1357,8 @@ class Pipe:
             return False
         if self._KNOWN_AGENT_ERROR_RE.search(raw):
             return False
-        # Short + clean -> skip (original case)
         if len(raw) <= int(self.valves.POLISH_SKIP_SHORT_CHARS):
             return True
-        # Long but structured markdown -> skip (new case)
         if self._STRUCTURED_MD_RE.search(raw):
             return True
         return False
@@ -1634,22 +1380,10 @@ class Pipe:
             return raw_output
         if self._polish_can_skip(raw_output):
             await self._emit(emitter, "✓ clean → skip polish")
-            # Even on skip-polish, strip reasoning leaks ("Thought\n\n",
-            # <think>...</think>, <details>...</details>) from the
-            # raw text. Hermes uses reasoning-mode models that emit
-            # these prefixes; the operator should never see them.
-            # Operator-flagged "Hey there!" returned
-            # "Thought\n\nHello! How can I assist you today?" because
-            # polish skipped and the leading "Thought" passed through.
             cleaned = self._strip_outer_md_fence(raw_output)
             cleaned = self._strip_reasoning_leaks(cleaned)
             return cleaned or raw_output
 
-        # Try to load the structured tool history from Hermes session
-        # JSON (OpenAI-format messages with tool_calls + tool_result).
-        # When available, compose reasons over STRUCTURE; when not,
-        # falls back to the legacy text-blob path. Operator directive
-        # to keep this OpenAI-API-compliant + Day-0-bootc.
         tool_history_json: Optional[str] = None
         if dispatch_ts is not None:
             try:
@@ -1660,10 +1394,6 @@ class Pipe:
                 tool_history_json = None
         await self._emit(emitter, "🎨 polish")
 
-        # Append the structured tool history at the bottom of the
-        # system prompt when available. The model sees the legacy
-        # text-blob raw_output AND the structured tool_history; the
-        # structured part is authoritative for success/fail reasoning.
         sys_content = self._POLISH_SYSTEM.format(
             user_prompt=user_text[:2000],
             raw_output=raw_output[:12000],
@@ -1727,27 +1457,13 @@ class Pipe:
             await self._emit(emitter, "⚠️ polish=∅ → raw")
             return raw_output
 
-        # Sanity check: if polish is suspiciously short vs raw, suspect
-        # truncation; pass raw through with a one-line summary header.
         if len(polished) < min(40, len(raw_output) // 10):
             await self._emit(emitter, "⚠️ polish too short → raw")
             return raw_output
 
-        # Strip the outer ```markdown ... ``` wrapper if the model
-        # ignored the no-fence rule. The system prompt explicitly
-        # forbids this but qwen2.5-coder:7b sometimes does it anyway,
-        # and OWUI then renders the WHOLE answer as a code block
-        # (operator-flagged every polished response was
-        # showing as raw markdown source instead of rendered markup).
         polished = self._strip_outer_md_fence(polished)
-        # Strip <think>...</think> + leading "Thought" leaks.
         polished = self._strip_reasoning_leaks(polished)
 
-        # ── Phase-2 Critic reflexion loop ──────────────────────────
-        # Only runs when we HAVE structured tool history to reason
-        # over (the critic's whole value-add is checking the draft
-        # against ground truth); skipped on the text-blob fallback
-        # path. Bounded by CRITIC_MAX_ITERATIONS.
         if (self.valves.CRITIC_ENABLED and tool_history_json
                 and int(self.valves.CRITIC_MAX_ITERATIONS) > 0):
             for attempt in range(int(self.valves.CRITIC_MAX_ITERATIONS)):
@@ -1762,7 +1478,6 @@ class Pipe:
                     break
                 await self._emit(emitter,
                     f"🧑‍⚖️ ✎ critic: {len(issues)} issue(s) → revise")
-                # Re-compose with the critic's issues fed back.
                 polished = await self._recompose_with_critic_feedback(
                     user_text, raw_output, tool_history_json, polished,
                     issues, emitter,
@@ -1845,13 +1560,11 @@ class Pipe:
         content = (msg.get("content") or "").strip()
         if not content:
             return {}
-        # Strip code fences a chatty model might add.
         content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
         content = re.sub(r"\n?```\s*$", "", content)
         try:
             parsed = json.loads(content)
             if isinstance(parsed, dict):
-                # Best-effort event: critic verdict.
                 _row = {
                     "source": "mios-agent-pipe",
                     "kind": "critic_verdict",
@@ -1929,22 +1642,10 @@ class Pipe:
         msg = (data.get("message") or {})
         return (msg.get("content") or msg.get("thinking") or "").strip()
 
-    # Match a leading ```markdown / ``` fence. The closing ``` is
-    # OPTIONAL because polish sometimes truncates mid-output (token
-    # cap hit on a long table) -- in that case there's an open fence
-    # with no close, and OWUI renders the WHOLE answer as a code
-    # block. We strip the open fence either way; if a close exists
-    # at end-of-text we also drop that. Operator-flagged
-    # MiOS System Dashboard table came back wrapped in ```markdown
-    # because polish ran out of tokens before closing the fence.
     _OUTER_FENCE_RE = re.compile(
         r"^\s*```(?:md|markdown|MD|MARKDOWN)?\s*\n(.*?)(?:\n```\s*)?$",
         re.S,
     )
-    # Reasoning leakage in polish output (operator-flagged
-    # "<think>I need to use the Windows tool instead..." rendered as
-    # part of the final answer). Strip <think>...</think>, <reasoning>
-    # ...</reasoning>, and bare "Thought\n\n<text>" pattern leaks.
     _THINK_TAG_RE = re.compile(
         r"<\s*(?:think|reasoning|thinking|cot)\s*>.*?<\s*/\s*(?:think|reasoning|thinking|cot)\s*>",
         re.S | re.I,
@@ -1952,12 +1653,6 @@ class Pipe:
     _LEADING_THOUGHT_RE = re.compile(
         r"^\s*(?:thought|thinking|reasoning)\s*\n+", re.I,
     )
-    # Polish sometimes emits an additional <details type="reasoning">
-    # block in its output, on top of the agent-thinking <details> the
-    # pipe already wrapped. Operator-flagged chat showed
-    # two stacked <details> blocks. The polished answer must NEVER
-    # contain a <details>; that wrapper is the pipe's job, not the
-    # polish model's.
     _DETAILS_BLOCK_RE = re.compile(
         r"<\s*details[^>]*>.*?<\s*/\s*details\s*>",
         re.S | re.I,
@@ -1971,9 +1666,6 @@ class Pipe:
         if not m:
             return text
         inner = m.group(1).strip()
-        # Only unwrap if the inner content itself doesn't START with
-        # a fence (preserves answers that genuinely lead with a code
-        # block as their first element).
         if inner.startswith("```"):
             return text
         return inner
@@ -2006,7 +1698,6 @@ class Pipe:
             return user_text
 
         model = self.valves.REFINE_MODEL
-        # Sanitized emit (no model name); see polish emit comment above.
         await self._emit(emitter, "🧠 refine")
         payload = {
             "model": model,
@@ -2037,8 +1728,6 @@ class Pipe:
             msg = body.get("message") or {}
             refined = (msg.get("content") or "").strip()
             if not refined:
-                # qwen3.5-family thinking-mode -- final answer empty,
-                # thinking field has the trace. Use it but mark.
                 refined = (msg.get("thinking") or msg.get("reasoning") or "").strip()
             if not refined:
                 await self._emit(emitter, "⚠️ refine=∅ → original")
@@ -2076,23 +1765,14 @@ class Pipe:
         call and was the source of the "hermes immediately" behavior
         the operator flagged."""
         body = dict(body)
-        # Route to the CPU refine/polish model, not to Hermes.
         body["model"] = self.valves.REFINE_MODEL
         body["stream"] = True
-        # Strip any sampling overrides that would slow the small model
-        # down on trivial gen tasks.
         body.pop("tools", None)
         body.pop("tool_choice", None)
-        # Cap token budget on task-gen so a runaway generation doesn't
-        # eat a full polish-sized output for a title.
         body.setdefault("max_tokens", 220)
 
-        # mios-llm-light exposes /v1/chat/completions as an OpenAI-compatible
-        # endpoint -- same request + streaming shape as the BACKEND_URL
-        # OWUI was hitting before. No client-side transform needed.
         headers = {"Content-Type": "application/json"}
         url = self.valves.REFINE_ENDPOINT.rstrip("/") + "/v1/chat/completions"
-        # Task-gen calls are short -- bound the timeout tighter than user chats.
         timeout = aiohttp.ClientTimeout(total=90, sock_connect=15, sock_read=None)
 
         try:
@@ -2136,11 +1816,9 @@ class Pipe:
         Adjacent narration coalesces into a single <think> block."""
         if not self.valves.COLLAPSE_NARRATION:
             return buffer, ""
-        # Only process up to the last newline; anything after stays buffered.
         if "\n" not in buffer:
             return "", buffer
         head, _, tail = buffer.rpartition("\n")
-        # head already excludes the trailing newline; restore it for splitlines.
         out_parts: list[str] = []
         narration_run: list[str] = []
 
@@ -2211,7 +1889,6 @@ class Pipe:
                         if _t:
                             yield _t
 
-        # 1) ACTION proposal -> confirmation dialog -> run on OK.
         pa = _extract("mios_proposed_action")
         if isinstance(pa, dict) and pa.get("tool"):
             try:
@@ -2238,7 +1915,6 @@ class Pipe:
                 yield f"\n\n_⚠️ approval follow-up error: {type(_e).__name__}_"
             return
 
-        # 2) CLARIFICATION question -> input dialog -> continue with the typed answer.
         cq = _extract("mios_clarification")
         if isinstance(cq, dict) and str(cq.get("question") or "").strip():
             try:
@@ -2270,27 +1946,14 @@ class Pipe:
         body: dict,
         __user__: Optional[dict] = None,
         __event_emitter__: Optional[Callable[..., Awaitable[None]]] = None,
-        # __event_call__ (OWUI >= v0.3.8) BLOCKS + returns the user's choice from a
-        # native dialog -- used to render the ask-to-run PROPOSAL as a real
-        # confirmation popup ("OWUI... handle asking with prompts").
         __event_call__: Optional[Callable[..., Awaitable[Any]]] = None,
         __metadata__: Optional[dict] = None,
         __task__: Optional[str] = None,
         __tools__: Optional[list] = None,
         __files__: Optional[list] = None,
     ) -> AsyncGenerator[str, None]:
-        # ── Task-generation bypass (OWUI internal calls) ─────────────
-        # OWUI calls the same model for title / tags / follow-up /
-        # autocomplete / query / image-prompt generation. These calls
-        # come WITH __task__ set + expect raw JSON or short labels back
-        # (NOT refined, NOT wrapped in <details>, NOT polished into
-        # markdown). Running them through refinement+polish strips the
-        # JSON the followup template asks for -- which is why
-        # ENABLE_FOLLOW_UP_GENERATION=True yields no followups in OWUI
-        # (operator-flagged). Detect + passthrough.
         task_kind = (__task__ or "").strip().lower()
         if not task_kind and isinstance(__metadata__, dict):
-            # Some OWUI versions stash task in metadata.task instead of __task__
             task_kind = str(__metadata__.get("task") or "").strip().lower()
         is_task_gen = task_kind in {
             "title_generation", "tags_generation", "follow_up_generation",
@@ -2299,22 +1962,12 @@ class Pipe:
         }
 
         if is_task_gen:
-            # Sanitized: no model name in the emit; task_kind is the
-            # OWUI-defined identifier (title_generation, etc.) and
-            # stays cross-locale.
             await self._emit(__event_emitter__,
                 f"⚙️ task-gen ({task_kind})")
             async for chunk in self._raw_passthrough(body, __event_emitter__):
                 yield chunk
             return
 
-        # Resolve / strip OWUI template tokens on every system message
-        # FIRST: backfill any {{...}} OWUI left unresolved ({{USER_LANGUAGE}}
-        # / {{CURRENT_TIMEZONE}} are frontend-only and leak when the browser
-        # didn't send them; direct-API callers get no substitution at all)
-        # and strip the rest so no literal token reaches the model
-        # (- the leaked/locale-pinned language tokens
-        # were behind the wrong-language + dual-language replies).
         try:
             _msgs0 = body.get("messages")
             if isinstance(_msgs0, list):
@@ -2326,10 +1979,6 @@ class Pipe:
         except Exception:
             pass  # env resolution is best-effort; never break the turn
 
-        # Per-user PERSONA (UserValves) -- inject AFTER OWUI's already-
-        # substituted vendor system prompt (with {{USER_NAME}}/locale vars)
-        # and BEFORE the user turn, so the operator's fields augment the
-        # environment-grounded base. Empty persona -> no-op.
         try:
             _persona = self._compose_persona(__user__)
             if _persona:
@@ -2344,21 +1993,7 @@ class Pipe:
         except Exception:
             pass  # persona is best-effort; never break the turn
 
-        # Status emits use short symbol+term form, no English narrative
-        # (operator directive GLOBAL SWEEP -- "remove any
-        # hardcoded english (other than generic technically accurate
-        # terminologies)"). Tool/model names stay since they're
-        # cross-locale identifiers; verbs like "receiving" -> emoji.
-        # (No hardcoded status pill here. The live thinking stream + the
-        # tail-derived generative status carry the activity. Operator
-        # "nothing hardcoded -- pure streamed + generative".)
 
-        # ── Retired database session open ──────────────────────────────────
-        # Open a session row for this OWUI turn; subsequent tool_call /
-        # event writes link back via SET session = <record_id>. Fire-
-        # and-forget so the DB write never delays streaming. Per-turn
-        # session (not per-chat) -- aligns with OWUI's pipe lifecycle
-        # where each turn is a fresh pipe() invocation.
         _chat_id = ""
         if isinstance(__metadata__, dict):
             _chat_id = str(__metadata__.get("chat_id") or "")
@@ -2380,8 +2015,6 @@ class Pipe:
                 if isinstance(rows, list) and rows:
                     rid = rows[0].get("id")
                     if rid:
-                        # The retired database returned record-id as "table:hashid"
-                        # already in unquoted form.
                         self._session_id = str(rid)
         except Exception:
             self._session_id = None
@@ -2389,9 +2022,6 @@ class Pipe:
         body = dict(body)
         body["model"] = self.valves.BACKEND_MODEL
         body["stream"] = True
-        # Collect + forward chat identity as the OpenAI-standard `metadata`
-        # object (string values, <=16 pairs) so :8640 keys its per-chat agent
-        # scratchpad off a stable conversation id..
         _md = dict(body.get("metadata")) if isinstance(body.get("metadata"), dict) else {}
         if _chat_id:
             _md["chat_id"] = str(_chat_id)[:512]
@@ -2400,17 +2030,6 @@ class Pipe:
                 _mv = __metadata__.get(_mk)
                 if _mv:
                     _md[_mk] = str(_mv)[:512]
-        # Forward the resolved OWUI ENVIRONMENT (location / timezone / locale /
-        # datetime / weekday / name) to :8640 as metadata.variables -- OWUI's
-        # own braced-key shape. The agent-pipe orchestrator reads it (server.py
-        # _client_env) to resolve 'near me' to the real location, set temporal
-        # grounding to the USER's timezone, and answer in the user's locale.
-        # Before this the env only reached a {{...}} system-prompt placeholder,
-        # so refine/swarm/web-search never saw the location -> 'near me' became
-        # an unfillable '[user location]' placeholder (
-        # 'didnt use detected environments details ... OWUI provides entire
-        # environment details ... USE them in the pipeline'). Values are length-
-        # capped; absent-value sentinels already dropped in _collect_env_vars.
         try:
             _env_vars = self._collect_env_vars(__user__, __metadata__, body)
             if _env_vars:
@@ -2418,10 +2037,6 @@ class Pipe:
                                     for _k, _v in _env_vars.items()}
         except Exception:
             pass  # env forwarding is best-effort; never break the turn
-        # Tag the invocation SURFACE so the orchestrator knows WHERE the turn
-        # came from ("OWUI should know where it's being
-        # spoken to from ... aware of all env details for all chat surfaces").
-        # The agent-pipe (_client_env) reads metadata.variables.surface.
         try:
             _md.setdefault("variables", {})["SURFACE"] = "owui"
         except Exception:
@@ -2429,7 +2044,6 @@ class Pipe:
         if _md:
             body["metadata"] = _md
 
-        # Extract the last user message text (used by router + refine).
         messages = body.get("messages") or []
         _last_user_text = ""
         for i in range(len(messages) - 1, -1, -1):
@@ -2444,34 +2058,7 @@ class Pipe:
                     _last_user_text = raw
                 break
 
-        # ── Layer-1 ROUTER -- DELEGATED to mios-agent-pipe service ──
-        # The router + dispatch + chat-fast-path + database writes
-        # are owned by the standalone agent-pipe service at :8640 now
-        # (operator directive "discord chats not going
-        # through MiOS-Agent paths" -- extracted the chain into a
-        # gateway-agnostic service so Hermes Discord + future
-        # Slack/Telegram get the same tool surface). The OWUI pipe
-        # POSTs to agent-pipe (BACKEND_URL = :8640) which runs the
-        # router and either returns a tool_calls envelope (dispatch),
-        # a short reply (chat), or streams hermes content (agent path).
-        #
-        # OWUI-specific behaviors RETAINED in this shim:
-        #   - task-gen bypass (above)
-        #   - tail_watcher (Hermes-internal tool_call emits via the
-        #     /var/lib/mios/hermes-tail/latest.json sideband)
-        #   - mios_status SSE field translation (below) -- agent-pipe
-        #     emits {emoji, label, done} markers on each phase; the
-        #     translator below calls _emit() so the OWUI status pill
-        #     stays lit during dispatch/chat/agent paths
-        #   - CPU REFINE / CRITIC / POLISH (kept below; these add
-        #     OWUI-specific quality but aren't ported to agent-pipe
-        #     yet -- Step 2b if Discord needs them too)
 
-        # ── CPU REFINEMENT (in-pipe) ─────────────────────────────────
-        # Extract the last user message, refine via the small CPU model,
-        # replace the user message in-place with the refined text. The
-        # downstream chain (prefilter -> hermes) sees the enriched
-        # prompt, not the raw input.
         last_user_idx = -1
         for i in range(len(messages) - 1, -1, -1):
             if isinstance(messages[i], dict) and messages[i].get("role") == "user":
@@ -2479,7 +2066,6 @@ class Pipe:
                 break
         if last_user_idx >= 0:
             raw = messages[last_user_idx].get("content") or ""
-            # OpenAI multi-part content shape: pick the first text segment
             if isinstance(raw, list):
                 for part in raw:
                     if isinstance(part, dict) and part.get("type") == "text":
@@ -2490,7 +2076,6 @@ class Pipe:
             if isinstance(raw, str) and raw.strip():
                 refined = await self._refine_via_cpu(raw, __event_emitter__)
                 if refined and refined != raw:
-                    # Write back as a plain string (downstream tolerates both)
                     messages[last_user_idx]["content"] = refined
                     body["messages"] = messages
 
@@ -2498,11 +2083,6 @@ class Pipe:
         if self.valves.BACKEND_KEY:
             headers["Authorization"] = f"Bearer {self.valves.BACKEND_KEY}"
 
-        # Forward the STABLE OWUI conversation id to the agent-pipe so its conv-scoped
-        # state is stable ACROSS TURNS of this chat -- specifically the ask-to-run pending
-        # proposals ("ask user to run things"). OWUI hands the chat_id
-        # in __metadata__, not the body, so without this the agent-pipe falls back to a
-        # per-request id and the next-turn "yes" can't find the proposal. Degrade-open.
         try:
             _owui_cid = str((__metadata__ or {}).get("chat_id") or "") if isinstance(__metadata__, dict) else ""
             if _owui_cid:
@@ -2514,24 +2094,8 @@ class Pipe:
         except Exception:
             pass
 
-        # Humanistic "got it" emission while we hand the prompt
-        # over to agent-pipe. agent-pipe will emit its own casual
-        # phase strip (📡 listening / ✨ thinking / 🧭 picking the
-        # right helper / 🤖 working on it) once it picks up the
-        # request -- this pipe just acknowledges receipt so the
-        # operator sees activity during the handoff latency.
-        # (No hardcoded "got it" pill -- generative status comes from the
-        # live hermes-tail work stream below..)
-        # Mark the dispatch moment so compose (after hermes finishes
-        # streaming) can find the matching Hermes session JSON by
-        # mtime > _dispatch_ts. Shared mutable scratch location:
-        # /var/lib/mios/hermes/sessions/ (operator directive
-        # "shared global scratpad(s) in mutable locations").
         _dispatch_ts = time.time()
 
-        # Unbounded sock_read (LLM stream can idle 10s+ between chunks on
-        # CPU); only sock_connect bounded so we don't hang if the backend
-        # is down. TIMEOUT_S=0 => unbounded total.
         total = None if self.valves.TIMEOUT_S <= 0 else self.valves.TIMEOUT_S
         timeout = aiohttp.ClientTimeout(total=total, sock_connect=15, sock_read=None)
         url = self.valves.BACKEND_URL.rstrip("/") + "/chat/completions"
@@ -2539,69 +2103,21 @@ class Pipe:
         stop_tail = asyncio.Event()
         tail_task = asyncio.create_task(self._tail_watcher(__event_emitter__, stop_tail))
 
-        # ── ALL agent dispatch output is captured + wrapped as
-        # collapsible <details type="reasoning">. After the stream
-        # ends, the polish pass emits the operator-facing answer.
-        # Operator architecture "ALL MiOS-Agent(OWUI)'s
-        # dispatches (MiOS-Hermes, MiOS-OpenCode, etc) are always
-        # capturing their outputs as thinking and providing an
-        # appropriate final answer normally in OWUI chats".
         raw_buffer = ""
         reasoning_buffer = ""
         any_text = False
-        # Operator-flagged open `<details>` was being
-        # yielded EAGERLY before hermes responded -- if hermes was
-        # cold-loading a model (30-90s) the operator saw the open tag
-        # alone, and if hermes returned empty, the close was missed
-        # and OWUI rendered the rest of the message as
-        # collapsed-reasoning. Fix: lazy-open. We only emit the open
-        # tag the first time a real chunk arrives. _details_opened
-        # tracks state so the close path knows whether to emit a
-        # matching close.
         _details_opened = False
 
         def _open_details_chunk() -> str:
-            # `done="true"` tells OWUI to render the block as a
-            # complete (collapsed-by-default) reasoning dropdown the
-            # operator can click to expand. Without it OWUI keeps the
-            # block open + spinning forever -- operator-flagged
-            # "Thinking doesn't collapse(or stream/emit!)".
             return (
                 f"<details type=\"reasoning\" done=\"true\" "
                 f"data-mios-agent=\"hermes\">\n"
                 f"<summary>{self.valves.AGENT_THINKING_LABEL}</summary>\n\n"
             )
 
-        # Live, GENERATIVE thinking: poll the hermes-tail (the AI's actual
-        # tool/reasoning events) and stream them INTO the reasoning dropdown
-        # as they happen; close it when the answer begins. The latest work
-        # line doubles as the status chip -- no hardcoded label map.
-        # "pure streamed + generative from the AI
-        # pipeline(s)". last-seen ts starts at dispatch so we never replay
-        # the historical buffer.
         _tail_seen = _dispatch_ts
         _reasoning_open = False
         _answer_started = False
-        # BUFFER reasoning deltas and emit ONE complete <details type="reasoning">
-        # block when the answer starts, instead of streaming an OPEN <details>
-        # that OWUI shows INLINE in the chat for the whole (1-2 min) research
-        # phase and only collapses once the answer closes it (
-        # "thinking leaks into chat field before moving to think"). Live progress
-        # still streams via the transient mios_status pills (separate channel).
-        # LIVE thinking: stream the orchestrator's reasoning_content deltas as
-        # <think>...</think> tags in the CONTENT channel. This is OWUI's
-        # canonical, default-on reasoning path (DEFAULT_REASONING_TAGS in
-        # backend utils/middleware.py): OWUI extracts the tag-interior text
-        # into the native Thinking dropdown LIVE, token by token, WITHOUT
-        # leaking it into the chat field, and collapses it when </think>
-        # arrives. Replaces the old buffer-and-dump of a literal
-        # <details type="reasoning"> block -- that is OWUI's STORAGE form, not
-        # an input: emitting it raw bypassed the live-stream state machine and
-        # risked removeAllDetails() stripping, so the dropdown never populated
-        # live ("thinking doesnt show up still!"; research:
-        # OWUI PR #9241 / issue #23923 / docs reasoning-models). ONE think
-        # block per turn: opened on the first reasoning delta, closed when the
-        # answer begins (or at stream end / timeout / error).
         _think_open = False
 
         def _think_close() -> str:
@@ -2636,7 +2152,6 @@ class Pipe:
                                         data=json.dumps(body).encode()) as resp:
                     if resp.status != 200:
                         err = (await resp.text())[:300]
-                        # Nothing to close yet -- we never opened.
                         await self._emit(__event_emitter__,
                                          f"❌ backend {resp.status}: {err}",
                                          done=True)
@@ -2644,15 +2159,6 @@ class Pipe:
                         return
 
                     async for raw_line in resp.content:
-                        # The agent-pipe now STREAMS Hermes's inline output
-                        # as self-contained <details type="reasoning">
-                        # blocks directly in the content channel (operator
-                        # "stream all of Hermes's inline output
-                        # into checkpointed reasoning blocks"). The pipe no
-                        # longer polls the hermes-tail to build its own
-                        # dropdown -- that duplicated the streamed blocks.
-                        # It just forwards content + the agent-pipe's
-                        # mios_status pills below.
                         line = raw_line.decode("utf-8", errors="ignore").strip()
                         if not line or not line.startswith("data:"):
                             continue
@@ -2663,11 +2169,6 @@ class Pipe:
                             chunk = json.loads(payload_str)
                         except json.JSONDecodeError:
                             continue
-                        # agent-pipe injects mios_status on content-empty
-                        # chunks for the dispatch FAST PATH + orchestration
-                        # phases (no hermes-tail there). Forward it as the
-                        # status pill so those keep feedback; the agent
-                        # path's live THINKING comes from the tail above.
                         _mios_status = chunk.get("mios_status")
                         if isinstance(_mios_status, dict):
                             emoji = str(_mios_status.get("emoji", ""))
@@ -2705,18 +2206,8 @@ class Pipe:
                         if not choices:
                             continue
                         delta = (choices[0].get("delta") or {})
-                        # Agent-pipe now streams the live thinking on the
-                        # STANDARD delta.reasoning_content channel (
-                        # keystone refactor). Re-wrap it as OWUI's
-                        # <details type="reasoning"> dropdown so OWUI shows a
-                        # live Thinking block, while strict clients hitting the
-                        # agent-pipe directly (Firefox Smart Window) ignore
-                        # reasoning_content and get only the clean answer.
                         _rc = delta.get("reasoning_content") or delta.get("reasoning") or ""
                         if _rc:
-                            # Stream reasoning LIVE inside a <think> block.
-                            # Open it on the first fragment; OWUI routes the
-                            # interior to the Thinking dropdown as it arrives.
                             if not _think_open:
                                 _think_open = True
                                 yield "<think>\n"
@@ -2727,8 +2218,6 @@ class Pipe:
                         text_piece = delta.get("content") or ""
                         if not text_piece:
                             continue
-                        # First answer content -> CLOSE the live think block so
-                        # OWUI collapses it, then stream the clean answer.
                         if not _answer_started:
                             _answer_started = True
                         _close = _think_close()
@@ -2738,8 +2227,6 @@ class Pipe:
                         raw_buffer += text_piece
                         yield text_piece
 
-            # Empty/early-exit turn: close the live think block if the answer
-            # never arrived, so OWUI doesn't render an orphaned open <think>.
             _close = _think_close()
             if _close:
                 yield _close
@@ -2753,19 +2240,13 @@ class Pipe:
                 await self._emit(__event_emitter__, "✅", done=True)
                 return
 
-            # If polish is OFF, the legacy flow already emitted text
-            # via yield above; nothing more to do.
             if not self.valves.POLISH_ENABLED:
-                # ASK-TO-RUN native prompt: render any proposed
-                # action as a native confirmation dialog + run it on approval.
                 async for _c in self._confirm_and_followup(
                         raw_text, body, url, headers, __event_call__, __event_emitter__):
                     yield _c
                 await self._emit(__event_emitter__, "✅", done=True)
                 return
 
-            # Polish: CPU pass to clean narration + surface concrete
-            # results. Falls back to raw on any error.
             user_text_for_polish = ""
             try:
                 last_user = next(
@@ -2782,17 +2263,12 @@ class Pipe:
             )
             yield polished
 
-            # ASK-TO-RUN native prompt ("OWUI... handle asking with
-            # prompts"): if the agent proposed an action, show a NATIVE confirmation dialog
-            # + run it on approval. raw_text (not polished) carries the proposal block.
             async for _c in self._confirm_and_followup(
                     raw_text, body, url, headers, __event_call__, __event_emitter__):
                 yield _c
 
             await self._emit(__event_emitter__, "✅", done=True)
         except asyncio.TimeoutError:
-            # Close the live <think> block ONLY if it actually opened, so we
-            # never orphan a tag on empty-stream / cold-load timeouts.
             _close = _think_close()
             if _close:
                 yield _close

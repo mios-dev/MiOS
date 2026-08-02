@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Validates build environment requirements including podman, git, just, disk space, and Containerfile presence to ensure the system is ready for OCI image construction.
 # AI-functions: ok, fail, warn
-# 'MiOS' preflight check -- verifies build prerequisites
 set -euo pipefail
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
@@ -17,15 +16,13 @@ for cmd in podman git just; do
     if command -v "$cmd" >/dev/null 2>&1; then ok "$cmd found"; else fail "$cmd not found"; ERRORS=$((ERRORS+1)); fi
 done
 
-# Disk space (need at least 20G free)
 AVAIL_GB=$(df -BG . | awk 'NR==2 {gsub("G",""); print $4}')
 if [[ "${AVAIL_GB:-0}" -ge 20 ]]; then
     ok "Disk space: ${AVAIL_GB}G available"
 else
-    warn "Disk space: ${AVAIL_GB}G available (recommend 20G+ for OCI build cache)"
+    warn "Disk space: ${AVAIL_GB}G available"
 fi
 
-# Containerfile present
 if [[ -f "$(dirname "$0")/../Containerfile" ]]; then ok "Containerfile present"; else fail "Containerfile missing"; ERRORS=$((ERRORS+1)); fi
 
 if [[ "$ERRORS" -gt 0 ]]; then

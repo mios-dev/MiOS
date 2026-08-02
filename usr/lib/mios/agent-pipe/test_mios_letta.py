@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone unit test suite for LettaMemoryClient and letta_dispatch_handler (T-077).
-# Pure stdlib + asyncio, no live Letta server required. Runs as `python3 test_mios_letta.py` (exit 0 = pass).
-# usr/lib/mios/agent-pipe/test_mios_letta.py
 
 import asyncio
 import json
 import sys
 from typing import Optional
 
-# Setup import path for agent-pipe dependencies
 import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -62,40 +59,32 @@ class MockHTTPXClient:
         return MockResponse(404, {})
 
 async def test_letta_client_flow():
-    # Force client to use mock HTTPX
     client = mios_memory.LettaMemoryClient("http://localhost:8283")
     mock_http = MockHTTPXClient()
     client.client = mock_http
 
-    # 1. Get or create agent
     agent_id = await client.get_or_create_agent("test-session")
     check("letta: resolves existing agent ID", agent_id == "agent-123")
 
-    # 2. Append memory
     res = await client.append_memory("test-session", "persona", "prefers dark mode")
     check("letta: append memory succeeds", res.get("ok") is True)
 
-    # 3. Search memory
     s_res = await client.search_memory("test-session", "dark mode")
     check("letta: search memory succeeds", s_res.get("ok") is True)
     check("letta: search returns formatted memories", len(s_res.get("memories", [])) == 1)
 
-    # 4. Compaction triggers
     await client.trigger_compaction("test-session")
     check("letta: trigger compaction post is recorded", mock_http.history[-1][0] == "POST")
 
-    # 5. Flush oldest context message
     await client.flush_oldest("test-session")
     check("letta: flush oldest delete is recorded", mock_http.history[-1][0] == "DELETE")
 
 async def test_dispatch_handler_remember():
-    # Force client to use mock HTTPX and enable backend
     mios_memory.LETTA_MEMORY_BACKEND = True
     mios_memory._LETTA_CLIENT = mios_memory.LettaMemoryClient("http://localhost:8283")
     mock_http = MockHTTPXClient()
     mios_memory._LETTA_CLIENT.client = mock_http
 
-    # Setup database mock helpers inside mios_memory module
     stored_db = []
     def mock_db_create(table, fields, **kw):
         stored_db.append((table, fields))
@@ -104,7 +93,6 @@ async def test_dispatch_handler_remember():
     mios_memory._db_post = lambda x: x
     mios_memory._db_fire = lambda x: x
 
-    # Call letta_dispatch_handler for remember verb
     args = {"fact": "I prefer dark mode", "scope": "global", "key": "persona"}
     res = await mios_memory.letta_dispatch_handler("remember", args, "test-session")
     check("dispatch: intercept remember returns dispatch result", res is not None)
@@ -112,7 +100,6 @@ async def test_dispatch_handler_remember():
     check("dispatch: remember updates local pg snapshot", len(stored_db) > 0)
     check("dispatch: remember local pg scope correct", stored_db[0][1].get("scope") == "conversation:test-session")
 
-    # Call letta_dispatch_handler for memory_append verb with label and content
     args_append = {"content": "I prefer dark mode", "label": "persona"}
     res_append = await mios_memory.letta_dispatch_handler("memory_append", args_append, "test-session")
     check("dispatch: memory_append with label/content succeeds", res_append.get("success") is True)

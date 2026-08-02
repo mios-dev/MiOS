@@ -27,30 +27,24 @@ def t_recall_floor():
         knowledge_recall_min_score=0.62,
         knowledge_recall_pref_min_score=0.50,
     )
-    # No possessive -> default floor.
     check("recall_floor default (no possessive)",
           k._recall_floor("what is the capital of France") == 0.62,
           str(k._recall_floor("what is the capital of France")))
-    # Possessive present -> the lower preference floor.
     check("recall_floor preference (possessive)",
           k._recall_floor("what is my favorite editor") == 0.50,
           str(k._recall_floor("what is my favorite editor")))
-    # Never raises above the default even if pref floor were higher.
     k.configure(knowledge_recall_pref_min_score=0.99)
     check("recall_floor never above default",
           k._recall_floor("what is my X") == 0.62,
           str(k._recall_floor("what is my X")))
-    # restore for later tests
     k.configure(knowledge_recall_pref_min_score=0.50)
 
 
 def t_recency_mult():
-    # rank_age==0 -> inert (always 1.0), backward-compatible.
     k.configure(knowledge_rank_age=0.0, knowledge_recall_halflife_days=7.0)
     check("recency_mult inert when rank_age==0",
           k._recency_mult({"ts": time.time() - 9 * 86400}) == 1.0)
 
-    # rank_age>0 -> bounded decay: newer outranks older, factor in [1-rank_age, 1].
     k.configure(knowledge_rank_age=0.3, knowledge_recall_halflife_days=7.0)
     now = time.time()
     m_fresh = k._recency_mult({"last_access": now})
@@ -62,7 +56,6 @@ def t_recency_mult():
     check("recency_mult at one half-life == (1-ra)+ra*0.5",
           abs(m_halflife - ((1 - 0.3) + 0.3 * 0.5)) < 1e-6, str(m_halflife))
     check("recency_mult bounded below by 1-rank_age", m_old >= (1 - 0.3) - 1e-9, str(m_old))
-    # last_access takes precedence over ts; missing both -> 1.0 (degrade-open).
     check("recency_mult no timestamp -> 1.0", k._recency_mult({}) == 1.0)
     k.configure(knowledge_rank_age=0.0)  # restore inert for the blend test
 
@@ -79,7 +72,6 @@ def t_recall_blend():
 
     class _Mem:
         async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
-            # deliberately returned in the WRONG order to prove the rerank sorts.
             return [
                 {"id": 2, "score": 0.70, "q": "COLD question", "answer": "a2",
                  "ts": time.time(), "satisfied": False, "tier": "warm",
@@ -99,8 +91,6 @@ def t_recall_blend():
     async def _db_update(*a, **kw):
         return None
 
-    # _rls_owner now lives in this module (no longer injected); with rls_mode off
-    # (real default) it returns None, so the recall stays unscoped here.
     k.configure(
         embed_one=_embed_one,
         memory=_Mem(),
@@ -120,13 +110,10 @@ def t_recall_blend():
     check("recall_pg returns a non-empty injectable block",
           isinstance(block, str) and "HOT question" in block and "COLD question" in block,
           repr(block[:80]))
-    # Blend must place HOT (satisfied/hot/accessed) before COLD at equal cosine.
     check("recall_pg blended order: hot+satisfied outranks cold+unsatisfied",
           block.index("HOT question") < block.index("COLD question"))
-    # A page-in bump was queued for the surfaced rows (fire-and-forget).
     check("recall_pg queued page-in bump", len(fired) >= 1, str(len(fired)))
 
-    # Below-floor candidates -> clean empty-string miss.
     class _MemLow:
         async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
             return [{"id": 9, "score": 0.10, "q": "x", "answer": "y",
@@ -149,19 +136,15 @@ def t_rls_owner():
     _orig_toml = k._toml_section
     _orig_env = k._client_env_var
     try:
-        # rls_mode absent -> 'off' -> None regardless of any forwarded principal.
         k._toml_section = lambda _s: {}
         k._client_env_var = _FakeVar({"user_name": "zqxprincipal"})
         check("rls_owner off -> None", k._rls_owner() is None, repr(k._rls_owner()))
-        # enforce + principal -> the principal id.
         k._toml_section = lambda _s: {"rls_mode": "enforce"}
         check("rls_owner enforce+principal -> owner",
               k._rls_owner() == "zqxprincipal", repr(k._rls_owner()))
-        # enforce, NO principal forwarded -> None (degrade to unscoped).
         k._client_env_var = _FakeVar({})
         check("rls_owner enforce+no-principal -> None",
               k._rls_owner() is None, repr(k._rls_owner()))
-        # email falls back when user_name absent.
         k._client_env_var = _FakeVar({"user_email": "wbz@vorp"})
         check("rls_owner falls back to user_email",
               k._rls_owner() == "wbz@vorp", repr(k._rls_owner()))
@@ -189,13 +172,11 @@ def t_recall_agent_memory():
     _orig_toml = k._toml_section
     try:
         k._toml_section = lambda _s: {}  # rls off -> _rls_owner() None (unscoped)
-        # Default-off: no recall even with PG primary.
         k.configure(agent_memory_recall_enabled=False, pg_primary=True,
                     embed_one=_embed_one, memory=_Mem(),
                     agent_memory_recall_min_score=0.45)
         check("agent-memory recall default-off -> ''",
               asyncio.run(k._recall_agent_memory("anything")) == "")
-        # Enabled: facts above the floor are surfaced; the below-floor row is dropped.
         k.configure(agent_memory_recall_enabled=True,
                     agent_memory_table="agent_memory", agent_memory_recall_k=3)
         block = asyncio.run(k._recall_agent_memory("anything"))
@@ -205,7 +186,6 @@ def t_recall_agent_memory():
               "below-floor noise" not in block)
         check("agent-memory recall tags non-global scope",
               "(devbox)" in block and "(global)" not in block, repr(block[-80:]))
-        # No PG primary -> '' (degrade-open).
         k.configure(pg_primary=False)
         check("agent-memory recall no-PG -> ''",
               asyncio.run(k._recall_agent_memory("x")) == "")
@@ -228,7 +208,6 @@ def t_recall_agent_memory_recency():
 
     class _Mem:
         async def retrieve(self, qv, *, table=None, k=None, owner=None, emb_version=None, rls_owner=None, **kwargs):
-            # Equal cosine; returned STALE-first so a reorder is observable.
             return [
                 {"fact": "STALE fact zqx", "score": 0.80, "scope": "global",
                  "ts": now - 60 * 86400},
@@ -252,8 +231,6 @@ def t_recall_agent_memory_recency():
               "FRESH fact zqx" in block and "STALE fact zqx" in block
               and block.index("FRESH fact zqx") < block.index("STALE fact zqx"),
               repr(block[:120]))
-        # Inert at rank_age==0 -> pure cosine; equal-cosine ties keep input order
-        # (stable sort), so STALE (listed first) leads -> isolates the recency effect.
         k.configure(knowledge_rank_age=0.0)
         block0 = asyncio.run(k._recall_agent_memory("anything"))
         check("agent-memory recency: inert at rank_age==0 (input order kept)",

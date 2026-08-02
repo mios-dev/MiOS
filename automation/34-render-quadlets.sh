@@ -18,7 +18,7 @@ mios_log "Render Quadlet placeholders from mios.toml"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd render-quadlets
-    mios_ok "rendered Quadlet placeholders via miosd"
+    mios_ok "Rendered Quadlet placeholders via miosd"
     exit 0
 fi
 
@@ -132,7 +132,7 @@ for dir in "${QUADLET_DIRS[@]}"; do
         if ! cmp -s "$f" "$local_tmp"; then
             mv "$local_tmp" "$f"
             chmod 0644 "$f"
-            mios_ok "rendered: $f"
+            mios_ok "Rendered: $f"
             rendered_count=$((rendered_count + 1))
         else
             rm -f "$local_tmp"
@@ -140,4 +140,4 @@ for dir in "${QUADLET_DIRS[@]}"; do
     done < <(find "$dir" -maxdepth 2 -type f \( -name '*.container' -o -name '*.network' -o -name '*.volume' -o -name '*.pod' -o -name '*.image' -o -name '*.build' -o -name '*.toml' -o -name '*.json' -o -name '*.conf' -o -name '*.service' \) -print0 2>/dev/null)
 done
 
-mios_ok "rendered $rendered_count, skipped $skipped_count (no placeholders)"
+mios_ok "Rendered $rendered_count, skipped $skipped_count"

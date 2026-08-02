@@ -33,7 +33,7 @@ EOSEM
     restorecon -v /boot/bootupd-state.json 2>/dev/null || true
     restorecon -R /usr/share/accountsservice 2>/dev/null || true
     restorecon -R /var/lib/gnome-remote-desktop 2>/dev/null || true
-    mios_ok "booleans and fcontexts applied"
+    mios_ok "Booleans and fcontexts applied"
 fi
 
 if command -v checkmodule &>/dev/null && command -v semodule_package &>/dev/null; then
@@ -162,7 +162,7 @@ allow xdm_t cache_home_t:file { create write read open getattr setattr };'
         if err_out="$(checkmodule -M -m -o "/tmp/mios_${name}.mod" "/tmp/mios_${name}.te" 2>&1)" && \
            semodule_package -o "/tmp/mios_${name}.pp" -m "/tmp/mios_${name}.mod" 2>/dev/null; then
             install -m 0644 "/tmp/mios_${name}.pp" "/usr/share/selinux/packages/mios/mios_${name}.pp"
-            mios_ok "mios_${name}: staged"
+            mios_ok "Mios_${name}: staged"
             SELINUX_OK=$((SELINUX_OK + 1))
         else
             mios_skip "mios_${name}: skipped ($err_out)"
@@ -178,6 +178,6 @@ mkdir -p /usr/share/selinux/packages/mios
 cat > /usr/share/selinux/packages/mios/booleans.conf <<'EOBOOL'
 container_use_devices=on
 EOBOOL
-mios_ok "booleans.conf staged for runtime selinux-init"
+mios_ok "Booleans.conf staged for runtime selinux-init"
 
 mios_ok "SELinux configured"

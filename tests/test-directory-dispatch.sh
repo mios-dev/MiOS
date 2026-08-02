@@ -1,27 +1,17 @@
 #!/bin/bash
 # AI-hint: Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote API dispatch via the Hermes port.
 # AI-related: /usr/libexec/mios/mios-directory-lookup, /etc/mios/hermes/api.env, mios-directory-lookup, mios-agent
-# Confirm directory_lookup dispatches end-to-end via agent-pipe.
-# Sends a minimal chat that should hint directory_lookup; we check
-# the pgvector event log for a refine row with directory_lookup in
-# hint_tools.
 set -euo pipefail
 
-# 1. Direct shim test (proves the data path works).
 echo "── direct shim ──"
 /usr/libexec/mios/mios-directory-lookup 'mios.toml' --limit 2 --json \
     | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'  hits={len(d[\"hits\"])} root={d[\"hits\"][0].get(\"root_label\",\"\") if d[\"hits\"] else \"\"}')"
 
-# 2. Agent-pipe dispatch via the verb (proves the wiring works).
 echo
 echo "── agent-pipe verb dispatch ──"
 PORT=8640
 KEY=$(grep -oE 'API_SERVER_KEY=[a-f0-9]+' /etc/mios/hermes/api.env 2>/dev/null | head -1 | cut -d= -f2)
 [ -z "$KEY" ] && KEY="dummy"
-# Construct a chat.completions request with stream=false so we
-# get the JSON response directly. The model field doesn't matter
-# for the routing; agent-pipe's classify+dispatch path picks the
-# verb from the user_text.
 curl -s -X POST "http://127.0.0.1:$PORT/v1/chat/completions" \
     -H "Authorization: Bearer $KEY" \
     -H "Content-Type: application/json" \

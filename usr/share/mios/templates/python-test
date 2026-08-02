@@ -7,7 +7,6 @@ from mios_pipe.{{name}} import {{name}}_helper
 
 class Test{{PascalName}}(unittest.TestCase):
     def test_helper(self):
-        # Implement test assertions here
         self.assertIsNotNone({{name}}_helper)
 
 if __name__ == "__main__":

@@ -1,8 +1,6 @@
 #!/bin/bash
 # AI-hint: A diagnostic and recovery script used to troubleshoot Secure Boot auto-enrollment failures by auditing libvirt XML configurations, NVRAM file integrity, and identifying manual firmware key enrollment workarounds.
 
-# Diagnose Secure Boot Auto-Enrollment Failure
-# Try alternative enrollment methods
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -87,7 +85,6 @@ case $choice in
         mkdir -p "$WORK_DIR"
         cd "$WORK_DIR"
 
-        # Try multiple sources
         SOURCES=(
             "https://src.fedoraproject.org/repo/pkgs/edk2/edk2-ovmf-20231115-5.fc39.noarch.rpm/sha512/1a2b3c4d/edk2-ovmf-20231115-5.fc39.noarch.rpm"
             "https://rpmfind.net/linux/fedora/linux/releases/39/Everything/x86_64/os/Packages/e/edk2-ovmf-20231115-5.fc39.noarch.rpm"
@@ -108,7 +105,6 @@ case $choice in
             echo -e "${RED}All download sources failed${NC}"
             echo -e "${YELLOW}Trying direct file download...${NC}"
 
-            # Try getting just the VARS file directly from GitHub mirrors
             VARS_URL="https://github.com/pftf/RPi4/raw/master/firmware/OVMF_VARS.fd"
             if wget -q "$VARS_URL" -O OVMF_VARS.fd; then
                 cp OVMF_VARS.fd /usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd
@@ -119,14 +115,12 @@ case $choice in
                 exit 1
             fi
         else
-            # Extract the RPM
             if command -v bsdtar &>/dev/null; then
                 bsdtar -xf ovmf.rpm
             elif command -v rpm2cpio &>/dev/null; then
                 rpm2cpio ovmf.rpm | cpio -idmv 2>&1 | grep OVMF
             fi
 
-            # Find and install VARS
             VARS=$(find . -name "*VARS*.fd" | head -1)
             if [ -n "$VARS" ]; then
                 cp "$VARS" /usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd
@@ -138,13 +132,11 @@ case $choice in
         cd /
         rm -rf "$WORK_DIR"
 
-        # Now update VM to use it
         echo -e "\n${BLUE}Updating VM configuration...${NC}"
         virsh shutdown Xbox 2>/dev/null
         sleep 3
         rm -f /var/lib/libvirt/qemu/nvram/Xbox_VARS.fd
 
-        # Update XML to use secboot VARS
         sed -i 's|template="/usr/share/edk2/x64/OVMF_VARS.4m.fd"|template="/usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd"|g' /tmp/xbox-check.xml
         virsh define /tmp/xbox-check.xml
         virsh start Xbox
@@ -163,7 +155,6 @@ case $choice in
         virsh shutdown Xbox 2>/dev/null
         sleep 3
 
-        # Enroll keys into existing NVRAM
         virt-fw-vars --input /var/lib/libvirt/qemu/nvram/Xbox_VARS.fd \
                      --output /var/lib/libvirt/qemu/nvram/Xbox_VARS.fd \
                      --enroll-redhat \
@@ -180,7 +171,6 @@ case $choice in
         mkdir -p "$WORK_DIR"
         cd "$WORK_DIR"
 
-        # Ubuntu has enrolled OVMF in their cloud images package
         wget http://archive.ubuntu.com/ubuntu/pool/main/e/edk2/ovmf_2023.05-2ubuntu0.1_all.deb
 
         ar x ovmf_*.deb
@@ -194,7 +184,6 @@ case $choice in
             cd /
             rm -rf "$WORK_DIR"
 
-            # Update VM
             virsh shutdown Xbox 2>/dev/null
             sleep 3
             rm -f /var/lib/libvirt/qemu/nvram/Xbox_VARS.fd

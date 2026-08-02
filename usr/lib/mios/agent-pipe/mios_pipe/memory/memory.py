@@ -49,8 +49,6 @@ class PgVectorMemoryProvider(MemoryProvider):
     name = "pgvector"
 
     def __init__(self, backend) -> None:
-        # `backend` is the mios_pg module (or any object exposing async
-        # recall(qvec, **kw) + insert(table, fields, **kw)).
         self._pg = backend
 
     async def retrieve(self, qvec, **kw) -> Any:
@@ -60,7 +58,6 @@ class PgVectorMemoryProvider(MemoryProvider):
         return await self._pg.insert(table, fields, **kw)
 
 
-# Provider registry. A new backend registers a factory(backend) -> MemoryProvider.
 _PROVIDERS = {"pgvector": PgVectorMemoryProvider}
 
 
@@ -82,7 +79,6 @@ def get_memory_provider(name: str, backend) -> MemoryProvider:
             f"(fail-closed)")
     return cls(backend)
 
-# --- Letta Server Memory Complement (T-076 & T-077) ---
 import os
 import json
 import httpx
@@ -100,7 +96,6 @@ _db_fire = None
 class LettaMemoryClient:
     def __init__(self, endpoint: str):
         self.endpoint = endpoint.rstrip("/")
-        # Timeout 15 seconds to avoid locking up on slow LLM calls
         self.client = httpx.AsyncClient(base_url=self.endpoint, timeout=15.0)
 
     async def get_or_create_agent(self, session_id: str) -> str:

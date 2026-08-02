@@ -1,7 +1,6 @@
 #!/bin/bash
 # AI-hint: Validates if the system contains pre-enrolled Secure Boot OVMF_VARS files (e.g., OVMF_VARS.secboot.fd) versus standard blank files to ensure firmware compatibility.
 
-# Check for Vendor Secure Boot Enrolled OVMF Files
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -21,7 +20,6 @@ echo -e "  Regular OVMF_VARS.fd files are BLANK and won't work!\n"
 
 echo -e "${BLUE}[1] Checking for pre-enrolled VARS files...${NC}\n"
 
-# Look for secboot VARS files (pre-enrolled)
 SECBOOT_VARS=$(find /usr/share -name "*VARS*secboot*.fd" 2>/dev/null | grep x64)
 
 if [ -n "$SECBOOT_VARS" ]; then
@@ -48,7 +46,6 @@ fi
 
 echo -e "\n${BLUE}[3] Analyzing available options...${NC}\n"
 
-# Check what we actually have
 X64_DIR="/usr/share/edk2/x64"
 
 echo -e "${CYAN}Files in $X64_DIR:${NC}"
@@ -61,7 +58,6 @@ echo -e "${BOLD}${YELLOW}══════════════════�
 HAS_SECBOOT_VARS=false
 SECBOOT_VARS_PATH=""
 
-# Check for the specific file we need
 if [ -f "/usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd" ]; then
     HAS_SECBOOT_VARS=true
     SECBOOT_VARS_PATH="/usr/share/edk2/x64/OVMF_VARS.secboot.4m.fd"
@@ -117,7 +113,6 @@ fi
 
 echo -e "\n${BOLD}${CYAN}═══════════════════════════════════════════════════════${NC}\n"
 
-# Save results
 cat > /tmp/ovmf-diagnosis.txt << EOF
 OVMF Secure Boot Diagnosis
 ==========================

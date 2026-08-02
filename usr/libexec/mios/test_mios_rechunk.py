@@ -28,13 +28,11 @@ class TestRechunkDelta(unittest.TestCase):
         self.tmpdir.cleanup()
         
     def test_rechunk_roundtrip(self):
-        # Create dummy old files
         with open(os.path.join(self.old_dir, "file1.txt"), "w") as f:
             f.write("A" * 2_000_000)  # > 1MB
         with open(os.path.join(self.old_dir, "file2.txt"), "w") as f:
             f.write("B" * 100_000)
             
-        # Create new files
         os.makedirs(os.path.join(self.new_dir, "subdir"))
         with open(os.path.join(self.new_dir, "file1.txt"), "w") as f:
             f.write("A" * 2_000_000) # Unchanged
@@ -43,15 +41,12 @@ class TestRechunkDelta(unittest.TestCase):
         with open(os.path.join(self.new_dir, "subdir", "file3.txt"), "w") as f:
             f.write("C" * 50_000)    # New file
             
-        # Create Delta
         subprocess.run(["python3", self.rechunk_bin, self.old_dir, self.new_dir, self.delta_tar], check=True)
         
         self.assertTrue(os.path.exists(self.delta_tar))
         
-        # Apply Delta
         subprocess.run(["python3", self.apply_bin, self.old_dir, self.out_dir, self.delta_tar], check=True)
         
-        # Verify contents
         with open(os.path.join(self.new_dir, "file1.txt"), "r") as f1, open(os.path.join(self.out_dir, "file1.txt"), "r") as f2:
             self.assertEqual(f1.read(), f2.read())
             
@@ -70,10 +65,8 @@ class TestRechunkDelta(unittest.TestCase):
             
         subprocess.run(["python3", self.rechunk_bin, self.old_dir, self.new_dir, self.delta_tar, "--key", priv_key], check=True)
         
-        # Apply with correct key
         subprocess.run(["python3", self.apply_bin, self.old_dir, self.out_dir, self.delta_tar, "--key", priv_key], check=True)
         
-        # Apply with wrong key should fail
         res = subprocess.run(["python3", self.apply_bin, self.old_dir, self.out_dir, self.delta_tar, "--key", "wrong_key"])
         self.assertNotEqual(res.returncode, 0)
 

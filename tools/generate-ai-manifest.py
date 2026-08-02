@@ -10,13 +10,11 @@ def parse_markdown_metadata(content):
     title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
     title = title_match.group(1).strip() if title_match else "Untitled"
     
-    # Extract blockquotes/metadata lines like "> **Key:** Value"
     metadata = {}
     meta_matches = re.findall(r'^>\s+\*\*(.+?):\*\*\s+(.+)$', content, re.MULTILINE)
     for key, value in meta_matches:
         metadata[key.strip().lower().replace(" ", "_")] = value.strip()
     
-    # Extract json:knowledge block
     knowledge_block = {}
     kb_match = re.search(r'```json:knowledge\s*\n(.*?)\n```', content, re.DOTALL)
     if kb_match:
@@ -43,10 +41,6 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
         if not recursive and root != target_dir:
             continue
             
-        # Filter out ignored directories. SORT dirs (controls os.walk recursion
-        # order) + files (entry order) so the manifest is byte-reproducible across
-        # environments -- os.walk does NOT guarantee order, which would otherwise
-        # make the WS-10 regenerate-and-diff gate flap.
         dirs[:] = sorted(d for d in dirs if d not in ignore_dirs)
 
         for file in sorted(files):
@@ -61,7 +55,6 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
                     "path": rel_path
                 }
 
-                # Handle different file types
                 if file.endswith(".md"):
                     with open(file_path, 'r', encoding='utf-8') as f:
                         content = f.read()
@@ -177,7 +170,6 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
     print(f"Generated {output_file}")
 
 if __name__ == "__main__":
-    # Categories to manifest
     targets = [
         ("specs", "specs/manifest.json", False), # Non-recursive for flat specs (Wiki)
         (".ai/foundation/memories", ".ai/foundation/memories/manifest.json", False),

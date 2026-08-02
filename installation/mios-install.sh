@@ -1,57 +1,10 @@
 #!/usr/bin/env bash
 # AI-hint: Thin Linux bash dispatcher for the mios-install unified provisioning
-# funnel -- validates a <target>, resolves it to ONE of the existing
-# mios-bootstrap entrypoints (build-mios.sh, cat/MiOS-Cat.sh, mios-build,
-# mios-update; the Windows-only cat/autounattend/*.ps1 + build-mios.ps1
-# entrypoints get printed as ready-to-run guidance, never executed here),
-# builds that entrypoint's real argv/env, and execs it. No business logic is
-# duplicated from any wrapped script.
-# The themed logger, layered SSOT resolver, find_mios_bin, self-elevate, and repo-fetch are the ONE
-# shared contract in installation/mios-common.sh (sourced below); this file adds only the dispatcher.
 # AI-related: mios-common.sh, build-mios.sh, cat/MiOS-Cat.sh, cat/MiOS-Cat.bat,
-# cat/autounattend/Build-MiOSXboxISO.ps1, cat/autounattend/Deploy-MiOSXbox.ps1,
-# cat/autounattend/Invoke-MiOSProvision.ps1, cat/autounattend/Build-MiOSSeed.ps1,
-# build-mios.ps1, mios-build, mios-update, mios.toml, installation/mios-install.ps1,
-# installation/mios-install.bat, installation/README.md
 # AI-functions: usage, resolve_flash_or_live, resolve_live, resolve_flash,
-# resolve_build_mios_sh, resolve_fedora, resolve_bootc, resolve_mios_update_like,
-# resolve_update, resolve_build, resolve_xbox, resolve_oci, resolve_seed
-#   (shared from mios-common.sh: mios_ssot_value, mios_ssot_path, find_mios_bin,
-#    mios_self_elevate, mios_ensure_repo, log_info, log_ok, log_warn, log_err, log_phase, die)
-#
-# mios-install.sh -- unified MiOS provisioning dispatcher (Linux)
-#
-# One dispatcher for launching provisioning from ANY stage and targeting a
-# specific deployment TYPE (live / xbox / fedora / bootc / oci / seed /
-# flash / build / update). THIS FILE NEVER MOVES, RENAMES, OR REWRITES THE
-# EXISTING ENTRYPOINTS -- it only builds the right argv/env for one of them
-# and launches it. See installation/README.md for the full grammar, the
-# target -> entrypoint mapping table, and the design rationale (what's a
-# genuine flag vs. best-effort per target/stage).
-#
-# Usage:
-#   mios-install.sh <target> [--type <name>] [--stage <name>] [--dry-run] [--unattended] [-- <native args>]
-#
-# Targets natively runnable FROM Linux: fedora, bootc, build, update, flash,
-# live. xbox/oci/seed wrap Windows-only entrypoints (ISO servicing/DISM,
-# WSL2/Hyper-V orchestration) -- this script prints the exact command to run
-# on a Windows host instead of pretending to run them here.
-#
-# Examples:
-#   ./mios-install.sh flash --dry-run
-#   sudo -E ./mios-install.sh fedora --unattended            # (or let it self-sudo)
-#   ./mios-install.sh bootc --type upgrade --stage prereqs   # -> mios-update --check
-#   ./mios-install.sh update --check                         # -> mios-update --check
-#   ./mios-install.sh build -- --tag mios:test
-#
-# Exit code: mirrors the wrapped entrypoint's exit code (final step is
-# `exec`, i.e. process replacement -- same convention as `"$@"; exit $?`).
 
 set -euo pipefail
 
-# ============================================================================
-# Paths -- resolved relative to THIS script so it works from any CWD/symlink.
-# ============================================================================
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 BUILD_MIOS_SH="${ROOT}/build-mios.sh"
@@ -61,21 +14,9 @@ if [[ ! -d "$CAT_DIR" && -d "${ROOT}/../mios-bootstrap/cat" ]]; then
 fi
 MIOS_CAT_SH="${CAT_DIR}/MiOS-Cat.sh"
 
-# ============================================================================
-# Shared library -- ONE SSOT-[colors] themed logger (log_info/ok/warn/err/phase/
-# die), ONE layered SSOT resolver (mios_ssot_value / mios_ssot_path, the same
-# user>host>vendor order as usr/lib/mios/mios_toml.py), find_mios_bin, ONE
-# self-elevate (mios_self_elevate), ONE repo-fetch (mios_ensure_repo).
-# Set _MIOS_REPO_ROOT BEFORE sourcing so the resolver includes this checkout's
-# mios.toml as the repo-local layer (and the theme reads its [colors]).
-# ============================================================================
 _MIOS_REPO_ROOT="$ROOT"
-# shellcheck source=installation/mios-common.sh
 . "${SCRIPT_DIR}/mios-common.sh"
 
-# ============================================================================
-# Usage
-# ============================================================================
 usage() {
     cat <<'EOF'
 mios-install.sh -- unified MiOS provisioning dispatcher (Linux)
@@ -108,14 +49,11 @@ REAL-vs-best-effort notes: installation/README.md.
 EOF
 }
 
-# ============================================================================
-# Argument parsing
-# ============================================================================
 ORIG_ARGS=("$@")
 
 if [[ $# -eq 0 ]]; then usage; exit 1; fi
 case "$1" in -h|--help|help) usage; exit 0 ;; esac
-case "$1" in -*) die "missing required <target> as the first argument (got '$1'). Run with --help." ;; esac
+case "$1" in -*) die "Missing required <target> as the first argument. Run with" ;; esac
 
 TARGET="$1"; shift
 TYPE=""
@@ -135,11 +73,6 @@ while [[ $# -gt 0 ]]; do
         -h|--help)   usage; exit 0 ;;
         --)          shift; PASSTHROUGH=("$@"); break ;;
         *)
-            # Lenient escape hatch: an unrecognized flag (no literal `--`
-            # given) is treated as the start of the passthrough tail rather
-            # than a hard parse error -- this is what makes
-            # `mios-install.sh update --check` work the same as
-            # `mios-install.sh update -- --check`.
             log_info "note: unrecognized flag '$1' -- treating it and everything after as passthrough args (same as '-- $1 ...')."
             PASSTHROUGH=("$@")
             break
@@ -149,39 +82,19 @@ done
 
 case "$STAGE" in
     ""|prereqs|fetch|service|iso|flash) ;;
-    *) die "invalid --stage '${STAGE}' (valid: prereqs|fetch|service|iso|flash)" ;;
+    *) die "Invalid" ;;
 esac
 
-# ============================================================================
-# Per-target resolution. Each resolve_* function fills these globals:
-#   CMD               argv array to exec
-#   ENV               ("KEY=VALUE" ...) to export before exec
-#   REQUIRES_ROOT      1 -> dispatcher self-execs `sudo -E "$0" "${ORIG_ARGS[@]}"`
-#                       (only for targets whose entrypoint does NOT already
-#                       self-elevate -- mios-build/mios-update do it
-#                       themselves, so those leave this 0)
-#   FORBIDS_ROOT        1 -> entrypoint errors out if run as root (MiOS-Cat.sh)
-#   STAGE_NOTES         array of caveats printed before running (best-effort
-#                       stage isolation, missing unattended support, etc.)
-#   WINDOWS_GUIDANCE    if set, nothing is executed -- this text is printed
-#                       instead (the target's entrypoint is Windows-only)
-# ============================================================================
 CMD=(); ENV=(); STAGE_NOTES=(); REQUIRES_ROOT=0; FORBIDS_ROOT=0; WINDOWS_GUIDANCE=""
 
-# --- live / flash: cat/MiOS-Cat.sh (Linux-native Ventoy/MediCat kickstart) --
-# Source-verified: MiOS-Cat.sh's CheckNotElevated EXITS if EUID==0 ("do not
-# run using sudo") -- it calls sudo itself, per privileged step. Must run as
-# a normal user, never pre-sudo'd. It also has zero CLI-arg parsing and zero
-# non-interactive mode: --unattended cannot be honored, --stage cannot
-# isolate anything (one monolithic interactive pipeline).
 resolve_flash_or_live() {
     local target_name="$1"
     TYPE="${TYPE:-usb}"
     case "$TYPE" in
         usb|live) ;;
-        *) die "target '${target_name}' only supports --type usb (got '${TYPE}')" ;;
+        *) die "Target '${target_name}' only supports" ;;
     esac
-    [[ -f "$MIOS_CAT_SH" ]] || die "cat/MiOS-Cat.sh not found at ${MIOS_CAT_SH}"
+    [[ -f "$MIOS_CAT_SH" ]] || die "Cat/MiOS-Cat.sh not found at ${MIOS_CAT_SH}"
     FORBIDS_ROOT=1
     CMD=(env -C "$CAT_DIR" bash ./MiOS-Cat.sh "${PASSTHROUGH[@]}")
     STAGE_NOTES+=("stage isolation: NONE -- MiOS-Cat.sh is one monolithic interactive pipeline; --stage is documentation-only here.")
@@ -196,12 +109,6 @@ resolve_flash_or_live() {
 resolve_live()  { resolve_flash_or_live live; }
 resolve_flash() { resolve_flash_or_live flash; }
 
-# --- fedora / bootc(switch): build-mios.sh -----------------------------
-# Source-verified: build-mios.sh's main() calls require_root() which EXITS
-# (telling the operator to re-run with sudo) rather than self-elevating --
-# so THIS dispatcher does the self-sudo for it. main() also never reads
-# "$@" -- it is entirely env-var driven, so passthrough args are accepted
-# for grammar consistency but have no effect on this target; say so.
 resolve_build_mios_sh() {
     local mode="$1"   # fhs | bootc
     REQUIRES_ROOT=1
@@ -224,7 +131,7 @@ resolve_build_mios_sh() {
 
 resolve_fedora() {
     TYPE="${TYPE:-fhs}"
-    [[ "$TYPE" == "fhs" ]] || die "target 'fedora' only supports --type fhs (got '${TYPE}')"
+    [[ "$TYPE" == "fhs" ]] || die "Target 'fedora' only supports"
     resolve_build_mios_sh fhs
 }
 
@@ -239,19 +146,16 @@ resolve_bootc() {
         upgrade)
             resolve_mios_update_like "bootc --type upgrade"
             ;;
-        *) die "target 'bootc' supports --type switch|upgrade (got '${TYPE}')" ;;
+        *) die "Target 'bootc' supports" ;;
     esac
 }
 
-# --- bootc(upgrade) / update: mios-update -----------------------------
-# Source-verified (per project record): mios-update already self-execs sudo
-# internally if not root -- this dispatcher must NOT pre-sudo it too.
 resolve_mios_update_like() {
     local via="$1"   # "update" or "bootc --type upgrade" -- both resolve identically, only the error text differs
     local bin
     if bin="$(find_mios_bin mios-update)"; then :; else
         if (( DRY_RUN )); then bin="mios-update"; else
-            die "mios-update not found on PATH or under /usr/bin -- target '${via}' requires an already-provisioned MiOS host (mios-update ships with the OS image, not this bootstrap checkout)."
+            die "Mios-update not found on PATH or under /usr/bin"
         fi
     fi
     local args=()
@@ -276,18 +180,17 @@ resolve_update() {
             WINDOWS_GUIDANCE="target 'update' --type repo is Windows-only: it maps to 'cat\\MiOS-Cat.bat update' (git fetch/pull of BOTH C:\\MiOS and C:\\mios-bootstrap). There is no Linux row for this in installation/README.md -- run it on the Windows checkout instead, or just 'git pull' this repo yourself."
             return
             ;;
-        *) die "target 'update' supports --type repo (Windows-only) or the default mios-update passthrough (got '${TYPE}')" ;;
+        *) die "Target 'update' supports" ;;
     esac
     resolve_mios_update_like update
 }
 
-# --- build: mios-build --------------------------------------------------
 resolve_build() {
-    [[ -z "$TYPE" ]] || die "target 'build' takes no --type (got '${TYPE}')"
+    [[ -z "$TYPE" ]] || die "Target 'build' takes no"
     local bin
     if bin="$(find_mios_bin mios-build)"; then :; else
         if (( DRY_RUN )); then bin="mios-build"; else
-            die "mios-build not found on PATH or under /usr/bin -- this target requires an already-provisioned MiOS host (it ships with the OS image, not this bootstrap checkout)."
+            die "Mios-build not found on PATH or under /usr/bin"
         fi
     fi
     local args=()
@@ -305,10 +208,6 @@ resolve_build() {
     CMD=("$bin" "${args[@]}")
 }
 
-# --- xbox / oci / seed: Windows-only entrypoints ------------------------
-# These wrap DISM/oscdimg servicing (xbox) or WSL2+Hyper-V orchestration
-# (oci, seed) -- none of that exists on Linux, so this dispatcher prints
-# the exact command to paste on a Windows host rather than faking a run.
 resolve_xbox() {
     TYPE="${TYPE:-iso}"
     local toml; toml="$(mios_ssot_path)"
@@ -339,7 +238,7 @@ resolve_xbox() {
             args_str="-TomlPath '<ssot>'"
             (( UNATTENDED )) && args_str+=" -SkipBootstrap"
             ;;
-        *) die "target 'xbox' supports --type iso|vm|provision (got '${TYPE}')" ;;
+        *) die "Target 'xbox' supports" ;;
     esac
     WINDOWS_GUIDANCE="target 'xbox' (--type ${TYPE}) is a Windows-only entrypoint (DISM servicing / Hyper-V) -- it cannot run on Linux. On a Windows host, run:
   powershell -NoProfile -ExecutionPolicy Bypass -File ${script} ${args_str}${extra}
@@ -348,7 +247,7 @@ resolve_xbox() {
 
 resolve_oci() {
     TYPE="${TYPE:-local}"
-    case "$TYPE" in local|full|push) ;; *) die "target 'oci' supports --type local|full|push (got '${TYPE}')" ;; esac
+    case "$TYPE" in local|full|push) ;; *) die "Target 'oci' supports" ;; esac
     local unattended_flag="" skip_bib_note=""
     (( UNATTENDED )) && unattended_flag=" -Unattended"
     case "$TYPE" in
@@ -366,7 +265,7 @@ IMPORTANT (source-verified against the CURRENT build-mios.ps1): its -BootstrapOn
 
 resolve_seed() {
     TYPE="${TYPE:-dev}"
-    [[ "$TYPE" == "dev" ]] || die "target 'seed' supports --type dev (got '${TYPE}')"
+    [[ "$TYPE" == "dev" ]] || die "Target 'seed' supports"
     local toml; toml="$(mios_ssot_path)"
     local extra=""
     (( ${#PASSTHROUGH[@]} )) && extra=" ${PASSTHROUGH[*]}"
@@ -401,9 +300,6 @@ resolve_install_core() {
     CMD=(echo "MiOS installer core executed in ${mode} mode")
 }
 
-# ============================================================================
-# Dispatch
-# ============================================================================
 case "$TARGET" in
     live)   resolve_live ;;
     flash)  resolve_flash ;;
@@ -417,9 +313,9 @@ case "$TARGET" in
     config|configure) resolve_config ;;
     _install_core) resolve_install_core "${TYPE:-fhs}" ;;
     default|Default|offlinesync|OfflineSync|buildxboxiso|BuildXboxISO|flashusb|FlashUSB)
-        die "'${TARGET}' is a Get-MiOS.ps1 -Action value, not a mios-install target. mios-install only runs AFTER Get-MiOS.ps1 has already cloned this repo locally -- it does not re-wrap Get-MiOS.ps1's bootstrap/offline-sync actions (installation/README.md, 'Out of scope')." ;;
+        die "'${TARGET}' is a Get-MiOS.ps1 -Action value, not a mios-install target. mios-install only runs AFTER Get-MiOS.ps1 has already cloned this repo locally" ;;
     *)
-        die "unknown target '${TARGET}'. Valid targets: live xbox fedora bootc oci seed flash build update config (run with --help)" ;;
+        die "Unknown target '${TARGET}'. Valid targets: live xbox fedora bootc oci seed flash build update config" ;;
 esac
 
 resolve_target_prereqs() {
@@ -465,25 +361,16 @@ resolve_target_prereqs() {
     esac
 }
 
-# ============================================================================
-# Windows-only targets: print guidance, execute nothing.
-# ============================================================================
 if [[ -n "$WINDOWS_GUIDANCE" ]]; then
     log_warn "target '${TARGET}' has no native Linux entrypoint"
     printf '\n%s\n\n' "$WINDOWS_GUIDANCE" >&2
     if (( DRY_RUN )); then exit 0; else exit 2; fi
 fi
 
-# ============================================================================
-# Print any best-effort/caveat notes before doing anything real.
-# ============================================================================
 if (( ${#STAGE_NOTES[@]} )); then
     for _n in "${STAGE_NOTES[@]}"; do log_warn "$_n"; done
 fi
 
-# ============================================================================
-# --dry-run: print the resolved env + command, execute nothing.
-# ============================================================================
 if (( DRY_RUN )); then
     log_phase "DRY RUN -- target=${TARGET} type=${TYPE:-<default>} stage=${STAGE:-<full pipeline>} unattended=${UNATTENDED}"
     if (( ${#ENV[@]} )); then
@@ -497,26 +384,16 @@ if (( DRY_RUN )); then
     exit 0
 fi
 
-# ============================================================================
-# Root handling. Self-elevate only for targets whose entrypoint does NOT
-# already self-sudo (build-mios.sh); never blanket-elevate; MiOS-Cat.sh must
-# NEVER be run as root (source-verified CheckNotElevated).
-# ============================================================================
 if (( FORBIDS_ROOT )) && [[ "$(id -u)" -eq 0 ]]; then
-    die "target '${TARGET}' must NOT run as root/sudo -- the underlying script (MiOS-Cat.sh) self-invokes sudo internally for the individual steps that need it, and exits immediately if launched already-elevated. Re-run as your normal user."
+    die "Target '${TARGET}' must NOT run as root/sudo"
 fi
 
 if (( REQUIRES_ROOT )); then
-    # mios_self_elevate (mios-common) no-ops if already root, else exec's sudo -E.
     mios_self_elevate "$0" "${ORIG_ARGS[@]}"
 fi
 
 resolve_target_prereqs "$TARGET"
 
-# ============================================================================
-# Apply env, launch. exec = process replacement, exit code mirrors the
-# wrapped entrypoint exactly (same convention as: "$@"; exit $?).
-# ============================================================================
 for _kv in "${ENV[@]:-}"; do
     [[ -z "$_kv" ]] && continue
     export "$_kv"

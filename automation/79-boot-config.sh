@@ -8,7 +8,7 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 mios_log "Configuring boot console"
 
 if [ -f /usr/lib/bootc/kargs.d/10-mios-console.toml ]; then
-    mios_ok "/usr/lib/bootc/kargs.d/10-mios-console.toml present (plymouth disable via kernel cmdline)"
+    mios_ok "/usr/lib/bootc/kargs.d/10-mios-console.toml present"
 else
     mios_err "10-mios-console.toml not found -- check overlay"
 fi
@@ -25,7 +25,7 @@ systemctl enable serial-getty@ttyS0.service 2>/dev/null || true
 
 mios_log "NetworkManager-wait-online-service.d timeout drop-in supplied by image overlay"
 
-mios_ok "boot console configured"
+mios_ok "Boot console configured"
 mios_log "Plymouth: disabled"
 mios_log "Getty@tty1: enabled"
 mios_log "Serial-getty@ttyS0: enabled"

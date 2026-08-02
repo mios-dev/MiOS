@@ -32,7 +32,6 @@ def t_count_parity():
 def t_count_messages_parity():
     msgs = [{"role": "user", "content": "a" * 40}, {"role": "assistant", "content": "b" * 12}]
     tools = [{"type": "function", "function": {"name": "x"}}]
-    # Must equal the exact pre-WS-A5 _fit_context estimate.
     expect = (sum(len(str(m.get("content") or "")) for m in msgs) + len(json.dumps(tools))) // 4
     check("count_messages == _fit_context //4 estimate",
           tok.count_messages(msgs, tools) == expect, f"{tok.count_messages(msgs, tools)} vs {expect}")
@@ -47,7 +46,6 @@ def t_truncate():
     check("truncate: under budget unchanged", tok.truncate_to_tokens("short", 100) == "short")
     check("truncate: rstrips trailing space", not tok.truncate_to_tokens("a b " * 100, 10).endswith(" "))
     check("truncate: 0 tokens -> empty-ish", tok.truncate_to_tokens(s, 0) == "")
-    # SLOW_LANE_BLOCK_CHARS=1500 routed as 1500//4=375 tokens -> 375*4=1500 chars (identity).
     big = "y" * 5000
     check("truncate: slow-lane block round-trips to 1500 chars",
           tok.truncate_to_tokens(big, 1500 // 4) == big[:1500])
@@ -70,7 +68,6 @@ def t_set_backend():
 
 
 def t_usage_estimate():
-    # Moved from server.py: the OpenAI usage object built off count_text (>=1 floor).
     u = tok._usage_estimate("", "")
     check("usage: empty floors to 1/1/2",
           u.get("prompt_tokens") == 1 and u.get("completion_tokens") == 1 and u.get("total_tokens") == 2, str(u))
@@ -83,12 +80,6 @@ def mios_tokenize_default():
     return tok.HeuristicBackend()
 
 
-# ── real-tokenizer backends (tiktoken / HF) via FAKE optional deps ───────────
-# tiktoken / tokenizers are NOT installed in this offline harness, so the real
-# backends + the factory + the seam routing are exercised against fakes injected
-# into sys.modules. Each fake encodes 1 token per character (encode = code points,
-# decode = chr-join), so counts + token-exact truncation are deterministically
-# checkable.
 class _FakeEnc:
     def encode(self, text, disallowed_special=None):
         return [ord(c) for c in str(text)]
@@ -164,7 +155,6 @@ def t_make_backend_hf():
 
 
 def t_make_backend_degrade_open():
-    # Optional dep absent -> None (caller keeps the heuristic). NEVER raises.
     sys.modules.pop("tiktoken", None)
     check("make_backend tiktoken w/o dep -> None (degrade-open)",
           tok.make_backend("tiktoken", encoding="x") is None)
@@ -180,8 +170,6 @@ def t_make_backend_degrade_open():
 
 
 def t_real_backend_measures_via_seam():
-    # An installed real backend must drive count_text / count_messages /
-    # truncate_to_tokens THROUGH the seam -- not the char//4 heuristic.
     _install_fake_tiktoken()
     be = tok.make_backend("tiktoken", encoding="x")
     try:
@@ -189,7 +177,6 @@ def t_real_backend_measures_via_seam():
         check("seam: backend_name swapped to the real tokenizer", tok.backend_name() == "tiktoken-x")
         check("seam: count_text uses the tokenizer (1/char)", tok.count_text("hello") == 5)
         msgs = [{"role": "user", "content": "abc"}, {"role": "assistant", "content": "de"}]
-        # joined "abcde" -> 5 real tokens; the heuristic would give 5//4 == 1.
         check("seam: count_messages routes through the tokenizer (not char//4)",
               tok.count_messages(msgs) == 5, str(tok.count_messages(msgs)))
         check("seam: truncate_to_tokens is token-exact via the backend",

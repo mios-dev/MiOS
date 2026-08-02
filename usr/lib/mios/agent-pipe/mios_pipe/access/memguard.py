@@ -43,7 +43,6 @@ from mios_jsonsalvage import loads_lenient as _loads_lenient
 
 log = logging.getLogger("mios-agent-pipe")
 
-# Severity levels (ascending).
 NONE = "none"
 LOW = "low"
 HIGH = "high"
@@ -57,16 +56,8 @@ def _max_sev(a: str, b: str) -> str:
     return a if _SEV_RANK.get(a, 0) >= _SEV_RANK.get(b, 0) else b
 
 
-# STRUCTURAL control-token shape -- a tokenizer / chat-template special-token
-# delimiter smuggled into stored prose (ChatML `<|...|>`, llama `[INST]`/`[/INST]`,
-# BOS/EOS `<s>`/`</s>`). This is a language-neutral SHAPE, NOT a keyword list: a
-# recalled fact that carries a template delimiter is an injection vector in any
-# language. Used ONLY to ESCALATE (a structural fast-path) -- never the sole
-# severity gate; the model judge is the primary verdict.
 _CONTROL_TOKEN = re.compile(r"<\|[^|>\n]{1,60}\|>|\[/?INST\]|</?s>", re.IGNORECASE)
 
-# Lower-signal STRUCTURAL indicators (common in legit answers) -> LOW (informational).
-# Both are SHAPES (a URL scheme, a Markdown fence), not lexical/keyword matches.
 _URL = re.compile(r"\bhttps?://[^\s)>\]\"']+", re.IGNORECASE)
 _CODE_FENCE = re.compile(r"```")
 
@@ -146,8 +137,6 @@ async def _judge_severity(text: str) -> Optional[str]:
                      {"role": "user", "content": s[:4000]}],
         "temperature": 0,
         "max_tokens": 40,
-        # llama.cpp drops the grammar when thinking is on; keep it off for the
-        # constrained JSON answer (and it's a sub-second classifier call).
         "chat_template_kwargs": {"enable_thinking": False},
     }
     try:
@@ -209,22 +198,13 @@ async def validate_for_store(text: str, *, mode: str = "off",
         except Exception:  # noqa: BLE001 -- degrade to structural on any judge error
             judged = None
     if judged is None:
-        # DEGRADE-OPEN (judge off / lane down): the structural verdict governs --
-        # an obvious control-token still escalates to HIGH (no silent pass of a
-        # blatant injection), while benign content stays none/low and still stores
-        # (the module's anti-data-loss fail-open posture). NOT the deleted keyword
-        # gate: a paraphrased English injection with no structural shape is NOT
-        # auto-flagged here -- only the MODEL would catch it.
         sev = struct_sev
     else:
         flags.append(f"judge:{judged}")
-        # the model verdict governs, but a structural control-token / url-fence
-        # ESCALATES it (never lowers it) -- the structural scan is a one-way bump.
         sev = _max_sev(judged, struct_sev)
     if m == "reject":
         return {"ok": sev != HIGH, "store_text": text, "flags": flags, "severity": sev}
     if m == "strip":
         st = _neutralize(text) if sev != NONE else text
         return {"ok": True, "store_text": st, "flags": flags, "severity": sev}
-    # log
     return {"ok": True, "store_text": text, "flags": flags, "severity": sev}

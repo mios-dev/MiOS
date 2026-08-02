@@ -16,7 +16,7 @@ for unit in \
 do
     if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
         ln -sf "../${unit}" "${WANTS}/${unit}"
-        mios_ok "enabled ${unit}"
+        mios_ok "Enabled ${unit}"
     else
         mios_warn "${unit} not installed, skipping"
     fi
@@ -27,4 +27,4 @@ chmod +x /etc/greenboot/check/wanted.d/*.sh   2>/dev/null || true
 chmod +x /etc/greenboot/green.d/*.sh          2>/dev/null || true
 chmod +x /etc/greenboot/red.d/*.sh            2>/dev/null || true
 
-mios_ok "greenboot wired"
+mios_ok "Greenboot wired"

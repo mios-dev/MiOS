@@ -21,17 +21,12 @@ def _check(name: str, ok: bool, detail: str = "") -> None:
     print(f"[{'PASS' if ok else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 1. PURE EVALUATOR -- the CaMeL bite: tainted AND (sensitive OR state-change)
-# ─────────────────────────────────────────────────────────────────────────────
 def _bites(t, perm, sens):
     return Q.evaluate(session_tainted=t, permission_tier=perm, sensitive=sens,
                       mode=Q.MODE_ENFORCE).bites
 
 
 def t_normalize_mode() -> None:
-    # Delegates to the SHARED T-033 normaliser -> the two architectural-gate modes
-    # can never drift in their parsing.
     _check("mode: off", Q.normalize_mode("off") == Q.MODE_OFF)
     _check("mode: audit", Q.normalize_mode("audit") == Q.MODE_AUDIT)
     _check("mode: enforce", Q.normalize_mode("enforce") == Q.MODE_ENFORCE)
@@ -41,23 +36,17 @@ def t_normalize_mode() -> None:
 
 
 def t_evaluate_bite_matrix() -> None:
-    # The boundary BITES when untrusted content is present AND the verb is privileged
-    # (sensitive-read OR state-change). This is STRICTER than Rule-of-Two (all three):
-    # a sensitive READ (no state-change) in a tainted session already bites.
     _check("bite: tainted + sensitive-READ -> bites (stricter than ro2)", _bites(True, "read", True) is True)
     _check("bite: tainted + plain WRITE -> bites", _bites(True, "write", False) is True)
     _check("bite: tainted + sensitive WRITE -> bites", _bites(True, "write", True) is True)
     _check("bite: tainted + interactive -> bites", _bites(True, "interactive", False) is True)
-    # NO bite: the verb is neither sensitive nor state-changing (a pure-info read).
     _check("bite: tainted + read-only non-sensitive -> NO bite", _bites(True, "read", False) is False)
-    # NO bite: untainted session -- quarantine only constrains untrusted-present dataflow.
     _check("bite: UNtainted + sensitive write -> NO bite", _bites(False, "write", True) is False)
     _check("bite: UNtainted + sensitive read -> NO bite", _bites(False, "read", True) is False)
     _check("bite: UNtainted + plain write -> NO bite", _bites(False, "write", False) is False)
 
 
 def t_evaluate_privileged() -> None:
-    # "privileged" is the UNION B OR C (either reads sensitive data or changes state).
     def _priv(perm, sens):
         return Q.evaluate(session_tainted=False, permission_tier=perm, sensitive=sens).privileged
     _check("priv: sensitive read -> privileged (B)", _priv("read", True) is True)
@@ -69,12 +58,10 @@ def t_evaluate_privileged() -> None:
 def t_evaluate_action_matrix() -> None:
     def _act(mode, *, t=True, perm="write", sens=True):
         return Q.evaluate(session_tainted=t, permission_tier=perm, sensitive=sens, mode=mode).action
-    # On a BITE the action is the SSOT mode's posture.
     _check("action: bite + off -> proceed (not consulted-equivalent)", _act("off") == Q.ACT_PROCEED)
     _check("action: bite + audit -> audit", _act("audit") == Q.ACT_AUDIT)
     _check("action: bite + enforce -> gate", _act("enforce") == Q.ACT_GATE)
     _check("action: bite + unknown mode -> proceed (off-like)", _act("weird") == Q.ACT_PROCEED)
-    # NO bite -> ALWAYS proceed, regardless of mode.
     for m in ("off", "audit", "enforce"):
         _check(f"action: read-only non-sensitive + {m} -> proceed",
                _act(m, perm="read", sens=False) == Q.ACT_PROCEED)
@@ -83,8 +70,6 @@ def t_evaluate_action_matrix() -> None:
 
 
 def t_evaluate_total() -> None:
-    # Pure + total: a malformed tier never raises (degrades to state-change=True via the
-    # SHARED mios_ruleof2.is_state_change fail-closed derivation).
     try:
         v = Q.evaluate(session_tainted=True, permission_tier=12345, sensitive=False, mode="enforce")
         _check("eval: malformed tier -> no raise + bites (fail-closed C)", v.bites is True, str(v.to_dict()))
@@ -104,35 +89,20 @@ def t_to_dict() -> None:
 
 
 def t_seam_stub() -> None:
-    # The Q-LLM extraction seam is STUBBED -- degrade-open to None (never newly-opens
-    # the gate, which is independent of this seam).
     _check("seam: quarantined_extract -> None (stubbed)", Q.quarantined_extract("attacker text") is None)
     _check("seam: quarantined_extract(schema) -> None", Q.quarantined_extract("x", schema={"k": 1}) is None)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2. decide() reconciliation -- the quarantine posture composes into the SINGLE
-#    HITL resolver (stricter wins; approval downgrades) ALONGSIDE the ro2 posture.
-# ─────────────────────────────────────────────────────────────────────────────
 def t_decide_quarantine() -> None:
     _check("decide: quarantine_block -> BLOCK", mios_hitl.decide(quarantine_block=True) == mios_hitl.BLOCK)
     _check("decide: quarantine_block + approved -> OBSERVE",
            mios_hitl.decide(quarantine_block=True, approved=True) == mios_hitl.OBSERVE)
     _check("decide: no block flags -> PROCEED (inert default)", mios_hitl.decide() == mios_hitl.PROCEED)
-    # stricter-wins: a quarantine BLOCK composes with the other gates (an audit-only
-    # [ai] gate cannot soften it).
     _check("decide: quarantine_block + ai audit -> BLOCK still",
            mios_hitl.decide(quarantine_block=True, in_tier_scope=True, ai_mode="audit") == mios_hitl.BLOCK)
-    # BYTE-IDENTICAL: the existing ro2/tier/scope verdicts are unchanged by the new flag.
     _check("decide: ro2_block still BLOCK (unchanged)", mios_hitl.decide(ro2_block=True) == mios_hitl.BLOCK)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 3. CHOKEPOINT WIRING -- drive mios_dispatch with SYNTHETIC (non-dictionary) verbs;
-#    only the quarantine gate is under test (ro2 forced OFF, every other gate stubbed).
-# ─────────────────────────────────────────────────────────────────────────────
-# B-only = sensitive read-tier; C-only = plain write-tier; B+C = sensitive write-tier;
-# neither = plain read-tier. Names are synthetic so no baked dictionary words leak in.
 _CAT = {
     "zq_senread":  {"permission": "read",  "sensitive": True},   # B only  -> tainted bites
     "zq_plainwr":  {"permission": "write"},                       # C only  -> tainted bites
@@ -193,7 +163,6 @@ def _configure(mode, *, tainted):
         db_post=lambda sql: sql,
         db_fire=lambda x: None,
     )
-    # Upstream gates stubbed to pass-through so ONLY the quarantine gate decides.
     mios_dispatch._dispatch_pdp_reason = lambda tool: None
     mios_dispatch._dispatch_quota_reason = lambda tool: None
     mios_dispatch._validate_enum_args = lambda t, a: None
@@ -209,8 +178,6 @@ def _configure(mode, *, tainted):
     async def _taint(session_id):
         return (bool(tainted), "zq_src->external" if tainted else "")
     mios_dispatch._session_is_tainted = _taint
-    # spy on the evaluator so off-mode-never-consults-it is provable (mios_dispatch calls
-    # mios_quarantine.evaluate -- the SAME shared module object as Q).
     Q.evaluate = _spy_evaluate
     return _created
 
@@ -224,8 +191,6 @@ def _run_public(tool, args, session_id="s-q"):
 
 
 def t_enforce_blocks_tainted_sensitive() -> None:
-    # tainted + sensitive READ (B only, NO state-change) = a bite under quarantine even
-    # though Rule-of-Two would let it through (only 2 of 3). This is the stricter posture.
     _evspy["n"] = 0
     _appr.set(None)
     _configure("enforce", tainted=True)
@@ -237,22 +202,17 @@ def t_enforce_blocks_tainted_sensitive() -> None:
 
 
 def t_enforce_blocks_tainted_write() -> None:
-    # tainted + plain WRITE (C only, not sensitive) = a bite (state-change under untrusted).
     _configure("enforce", tainted=True)
     res = _run_inner("zq_plainwr", {"k": "v"})
     _check("enforce: tainted+write -> quarantine_blocked", res.get("quarantine_blocked") is True, str(res))
-    # tainted + sensitive WRITE (B+C) = a bite too (the all-three case is a subset).
     res2 = _run_inner("zq_senwrite", {"k": "v"})
     _check("enforce: tainted+sensitive-write -> quarantine_blocked", res2.get("quarantine_blocked") is True, str(res2))
 
 
 def t_enforce_proceeds_non_bite() -> None:
-    # tainted + read-only NON-sensitive (neither B nor C) = NO bite -> proceeds.
     _configure("enforce", tainted=True)
     res = _run_inner("zq_roplain", {"k": "v"})
     _check("enforce: tainted+read-only-non-sensitive -> NOT blocked", not res.get("quarantine_blocked"), str(res))
-    # UNtainted + privileged (sensitive write) = NO bite -> proceeds (quarantine only bites
-    # when untrusted content is present).
     _configure("enforce", tainted=False)
     res2 = _run_inner("zq_senwrite", {"k": "v"})
     _check("enforce: untainted+privileged -> NOT blocked (quarantine needs untrusted-present)",
@@ -273,9 +233,6 @@ def t_audit_non_blocking() -> None:
 
 
 def t_off_byte_identical() -> None:
-    # DEFAULT-OFF: the evaluator is NOT consulted (the chokepoint mode-guard short-
-    # circuits) -> behaviour is byte-identical to pre-feature dispatch. Drive the
-    # all-bite candidate through BOTH entries to prove neither consults the gate.
     _evspy["n"] = 0
     _configure("off", tainted=True)
     res_i = _run_inner("zq_senwrite", {"k": "v"})
@@ -287,8 +244,6 @@ def t_off_byte_identical() -> None:
 
 
 def t_approval_downgrade() -> None:
-    # An explicit same-turn ask-to-run approval of THIS exact action downgrades the
-    # enforce block so the approved action runs.
     _configure("enforce", tainted=True)
     _ah = mios_dispatch._pending_hash("zq_senwrite", {"k": "v"})
     _appr.set(_ah)
@@ -301,7 +256,6 @@ def t_approval_downgrade() -> None:
 
 
 def t_degrade_open() -> None:
-    # The taint read raises -> the gate degrades OPEN (no crash, no spurious block).
     _configure("enforce", tainted=True)
 
     async def _boom(session_id):
@@ -313,11 +267,6 @@ def t_degrade_open() -> None:
 
 
 def t_soundness_no_bypass() -> None:
-    # SOUNDNESS: the SAME tainted + privileged dispatch must be gated via BOTH the public
-    # dispatch_mios_verb (the chat tool-loop / HTTP entry) AND the direct
-    # _dispatch_mios_verb_inner chokepoint -- and the broker cmd-builder must be reached by
-    # NEITHER (the gate short-circuits before the broker). This proves there is no second
-    # action path that bypasses the single-chokepoint composition.
     _appr.set(None)
     _configure("enforce", tainted=True)
     _broker = {"n": 0}
@@ -339,10 +288,6 @@ def t_soundness_no_bypass() -> None:
 
 
 def t_semantic_firewall_t33() -> None:
-    # Test T-033 specific features:
-    # 1. Taint propagation from scratchpad: has_tainted returns True -> gates!
-    # 2. Log: event(kind="firewall_decision", verdict=allow|block|hitl)
-    # 3. open_url to external host is side-effecting/privileged -> gates when tainted
     
     orig_vec_enable = mios_scratchpad.SQLITE_VEC_ENABLE
     orig_has_tainted = mios_scratchpad.has_tainted
@@ -361,7 +306,6 @@ def t_semantic_firewall_t33() -> None:
         _configure("enforce", tainted=False)
         mios_dispatch._db_create = _spy_db_create
         
-        # zq_senwrite is sensitive write -> should gate due to scratchpad taint!
         res = _run_inner("zq_senwrite", {"k": "v"})
         _check("T-033: scratchpad taint propagation gates execution", res.get("quarantine_blocked") is True, str(res))
         
@@ -372,7 +316,6 @@ def t_semantic_firewall_t33() -> None:
             
         events.clear()
         
-        # Let's test allow path: untainted session + safe verb (zq_roplain)
         mios_scratchpad.has_tainted = lambda sid, sdir: False
         res_allow = _run_inner("zq_roplain", {"k": "v"})
         _check("T-033: clean session allows safe execution", not res_allow.get("quarantine_blocked"))

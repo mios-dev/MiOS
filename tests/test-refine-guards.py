@@ -68,17 +68,11 @@ async def main() -> int:
 
     print()
     print("=== case 3: arg-shape guard via inline check ===")
-    # Can't reliably force the live model to emit a wordy-arg
-    # dispatch, so just test the guard logic by calling the post-
-    # parse block on a forged envelope. The guard ships inside
-    # refine_intent itself -- expose by simulating: build a parsed
-    # dict, run only the arg-shape check.
     forged = {
         "intent": "dispatch",
         "args": {"name": "the highest reviewed game on disk"},
         "tool": "open_app",
     }
-    # Reproduce the inline guard logic
     args = forged.get("args") or {}
     wordy = any(
         isinstance(v, str) and len(v.strip().split()) > 3

@@ -3,7 +3,6 @@ import os
 import logging
 from typing import Optional
 
-# Lazily import psycopg to support unit testing offline
 psycopg = None
 
 log = logging.getLogger("gateway-agent-session")

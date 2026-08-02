@@ -118,8 +118,6 @@ _BACKFILL_EXEMPT = [
     "feature_removal",
     "capability_removal",
     "component_removal",
-    # emb-only tables (no emb_model/emb_version): not versioned-backfillable by this
-    # generic job; emb is written by the owning path at ingest/write time.
     "person_pref",
     "mios_rag"
 ]

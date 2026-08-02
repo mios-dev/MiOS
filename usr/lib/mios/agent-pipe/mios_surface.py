@@ -42,16 +42,11 @@ import os
 import sys
 from typing import Any, NamedTuple
 
-# FastAPI route-decorator verbs we recognise on the ``app`` object. ``api_route``
-# and ``websocket`` are included so a future route form is captured too.
 _ROUTE_METHODS = (
     "get", "post", "put", "delete", "patch", "head", "options",
     "websocket", "api_route", "trace",
 )
 
-# Sentinel recorded for a path (or path segment) that is not a string literal and
-# so cannot be resolved statically. A composed path collapses to this whenever any
-# of its segments is dynamic, matching how a single non-literal path is reported.
 _DYNAMIC = "<dynamic>"
 
 
@@ -280,12 +275,6 @@ def project_surface(path: str) -> dict[str, Any]:
             if inc:
                 includes.setdefault(inc[0], []).append(inc[1])
 
-    # Second pass: a router's mount prefix is usually applied AFTER its routes are
-    # declared (and a decorator could even precede its router assignment in
-    # pathological order), so router-route paths are composed only once every
-    # APIRouter assignment and include_router mount in the file has been collected.
-    # A candidate whose object was never bound to an APIRouter is not a route and is
-    # dropped here -- which is also why an all-``@app`` module is projected unchanged.
     for obj, method, dec_path, handler in pending:
         if obj not in routers:
             continue
@@ -301,39 +290,7 @@ def project_surface(path: str) -> dict[str, Any]:
     }
 
 
-# ---------------------------------------------------------------------------
-# Whole-package projection (refactor R13 Step 2a)
-#
-# ``project_surface`` recovers a router + its mount only when both live in ONE
-# file. Once routes migrate onto APIRouter instances in sibling ``mios_*.py``
-# modules, the mount prefix (``app.include_router`` in the entry module) and the
-# router's own prefix + ``@router`` routes live in DIFFERENT files.
-# ``project_package`` follows each ``app.include_router(<name>, prefix=...)`` whose
-# ``<name>`` is a router IMPORTED from a sibling, parses that sibling by the
-# flat-layout filename convention (``<module final component>.py`` in the same
-# directory, or an explicit ``search_dir``), and composes mount + router prefix +
-# decorator path into the SAME ``"METHOD path -> handler"`` record -- so a route
-# MOVED from ``@app`` onto a sibling-module router is zero-diff.
-#
-# ``provided`` STAYS the entry module's surface (it is NOT aggregated across the
-# package): the gate's ``provided`` half protects ``from server import X`` /
-# ``server.X`` consumers, which import from the ENTRY module only. A name that moved
-# to a sibling WITHOUT being re-imported into the entry SHOULD red the gate (its
-# importable surface really shrank); aggregating would mask that. ``routes`` ARE
-# aggregated -- a mounted route is reachable regardless of which file defines its
-# handler.
-#
-# Resolution is pure ``ast`` + the filename convention (no import/exec -> offline).
-# An include that cannot be resolved to a local sibling file contributes NO route
-# records: its handlers are unknown and are never fabricated -- the same silent
-# drop ``project_surface`` applies to a decorator whose object was never an
-# APIRouter. A resolvable router reached past the supported nesting depth, or
-# mounted under a non-literal prefix, degrades to the ``_DYNAMIC`` path sentinel
-# with the handler PRESERVED -- mirroring how a single non-literal path is recorded.
 
-# One ``router -> subrouter`` nesting hop is composed exactly; a deeper chain
-# degrades to the ``_DYNAMIC`` path sentinel (handler preserved). This is the
-# structural support depth (like the recognised method set), not a tunable weight.
 _MAX_NEST = 1
 
 
@@ -470,18 +427,15 @@ def _module_file(module: str, search_dir: str) -> str | None:
     if not module:
         return None
     
-    # 1. Resolve dotted mios_pipe modules directly
     if module.startswith("mios_pipe."):
         rel = module.replace(".", os.sep) + ".py"
         cand = os.path.join(search_dir, rel)
         if os.path.isfile(cand):
             return cand
             
-    # 2. Try the flat name
     flat_name = module.split(".")[-1] + ".py"
     cand = os.path.join(search_dir, flat_name)
     if os.path.isfile(cand):
-        # 3. Check if it's a shim proxying to mios_pipe
         try:
             with open(cand, encoding="utf-8") as f:
                 content = f.read()

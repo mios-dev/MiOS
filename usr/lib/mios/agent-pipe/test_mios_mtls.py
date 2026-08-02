@@ -72,7 +72,6 @@ def main() -> int:
         ca = x509.load_pem_x509_certificate(open(cfg["ca_cert"], "rb").read())
         agent = x509.load_pem_x509_certificate(open(cfg["cert"], "rb").read())
 
-        # chain: agent issued by the CA + signature verifies under the CA key
         _check("chain: issuer == CA subject", agent.issuer == ca.subject)
         try:
             ca.public_key().verify(
@@ -83,25 +82,21 @@ def main() -> int:
             sig_ok = False
         _check("chain: agent signature verifies under CA", sig_ok)
 
-        # CA is a CA; agent is not
         _check("ca: BasicConstraints CA=true",
                ca.extensions.get_extension_for_class(x509.BasicConstraints).value.ca is True)
         _check("agent: BasicConstraints CA=false",
                agent.extensions.get_extension_for_class(x509.BasicConstraints).value.ca is False)
 
-        # EKU: client AND server auth (mutual)
         eku = agent.extensions.get_extension_for_class(x509.ExtendedKeyUsage).value
         _check("agent: EKU clientAuth", ExtendedKeyUsageOID.CLIENT_AUTH in eku)
         _check("agent: EKU serverAuth", ExtendedKeyUsageOID.SERVER_AUTH in eku)
         _check("agent: CN carried", any(
             a.value == "test-agent" for a in agent.subject))
 
-        # key file is private-mode (best-effort; POSIX only)
         if os.name == "posix":
             mode = os.stat(cfg["key"]).st_mode & 0o777
             _check("agent: key file mode 0600", mode == 0o600, oct(mode))
 
-        # idempotent: re-run reuses the SAME CA (peer trust preserved)
         ca_serial_before = ca.serial_number
         _, minted2 = _provision(tool, d)
         ca2 = x509.load_pem_x509_certificate(open(cfg["ca_cert"], "rb").read())

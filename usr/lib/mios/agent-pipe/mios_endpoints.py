@@ -36,12 +36,6 @@ def _binding_api(cfg: dict, engine: Optional[str]) -> str:
     return str(cfg.get("api") or "").strip().lower()
 
 
-# Endpoints whose OpenAI surface does NOT accept tool_choice="required"
-# (the Windows iGPU llama.cpp server b9305 at :11436 400s on
-# tool_choice=required -> the iGPU node always 💤'd on a force-tool turn). SSOT:
-# an agent/engine declares api="llamacpp" (or tool_choice=false) to opt out, else
-# the env hint list (default the iGPU :11436 lane) -- no bare port literal in the
-# routing decision. llama.cpp still honours `tools`; only the FORCED choice fails.
 _NO_TOOL_CHOICE_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
 _NO_TOOL_CHOICE_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_NO_TOOL_CHOICE_HINTS")
@@ -64,17 +58,6 @@ def _endpoint_supports_tool_choice(ep: str, cfg: dict,
     return not any(h and h in (ep or "") for h in _NO_TOOL_CHOICE_HINTS)
 
 
-# Endpoints whose model RELIABLY emits well-formed PARALLEL tool calls (operator
-# "proper patterns + loops to OpenAI standards"). OpenAI DEFAULTS
-# parallel_tool_calls=True; MiOS forces it False in the tool-loop because a SMALL
-# local model malforms parallel calls (the "@ open notepad and type" failure: the
-# fn wrapper dropped, leaving raw arguments in content). A CAPABLE lane (the heavy
-# SGLang/Qwen) handles parallel correctly AND it is faster -- the model batches
-# INDEPENDENT calls into ONE turn (fewer round-trips) while still SEQUENCING
-# dependent steps itself. So OPT IN per-endpoint via this SSOT host:port hint list
-# (default the heavy lane :11441); everything else stays sequential (robust). Note
-# dependent OS actions ("open then type") take the deterministic fast-path, not this
-# loop, so enabling parallelism here never reorders a launch+type chain.
 _PARALLEL_TOOLS_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_PARALLEL_TOOLS_HINTS")
                            or _DISPATCH_TOML.get("parallel_tools_hints", "8441,8442")).split(",")
@@ -89,8 +72,6 @@ def _endpoint_supports_parallel_tools(ep: str) -> bool:
 
 
 _LLAMACPP_API = {"llamacpp", "llama.cpp", "llama-server", "vulkan"}
-# Which endpoints support /slots paging, by host:port substring (SSOT; default
-# the iGPU llama.cpp lane). An agent/engine api='llamacpp' opts in regardless.
 _KV_PAGING_HINTS = tuple(
     h.strip() for h in str(os.environ.get("MIOS_KV_PAGING_HINTS")
                            or _DISPATCH_TOML.get("kv_paging_hints", "8450,8458,11436")).split(",")

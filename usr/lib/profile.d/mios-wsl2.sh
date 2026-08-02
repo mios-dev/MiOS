@@ -1,17 +1,9 @@
 #!/bin/bash
 # AI-hint: Configures WSL2 graphics environment variables (DISPLAY, WAYLAND_DISPLAY, XDG_SESSION_TYPE) and XDG_RUNTIME_DIR to enable GUI application support and X11/Wayland compatibility for MiOS on WSLg.
-# WSLg display environment for login shells in WSL2.
 [[ -n "${WSL_DISTRO_NAME:-}" ]] || grep -qi "microsoft" /proc/version 2>/dev/null || return 0
 export DISPLAY="${DISPLAY:-:0}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
-# WSLg supplies a Wayland socket via /mnt/wslg/. GTK apps refuse to start
-# without XDG_SESSION_TYPE set ("Unsupported or missing session type ''").
-# pam_systemd would set this for a proper logind session; under WSLg there
-# is no PAM session, so set it here as a fallback.
 export XDG_SESSION_TYPE="${XDG_SESSION_TYPE:-wayland}"
-# logind creates /run/user/<uid> and pam_systemd exports XDG_RUNTIME_DIR.
-# WSL bypasses PAM at login, so populate the var if logind made the dir
-# but the env var is unset.
 if [[ -z "${XDG_RUNTIME_DIR:-}" && -d "/run/user/$(id -u)" ]]; then
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 fi

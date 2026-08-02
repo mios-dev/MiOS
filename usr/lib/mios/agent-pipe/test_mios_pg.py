@@ -76,29 +76,21 @@ def t_build_recall() -> None:
 
 
 def t_build_recall_emb_version() -> None:
-    # A3 embedding-version hygiene: with an ACTIVE emb_version + a versioned table,
-    # recall scopes to the active embedding space (+ NULL/un-stamped rows), so a
-    # model/dim change can't mix incompatible vector spaces in one cosine query.
     sql, params = P.build_recall("knowledge", k=3, emb_version="v2")
     _check("emb_ver: filter present",
            "(emb_version = %(emb_version)s OR emb_version IS NULL)" in sql, sql)
     _check("emb_ver: bound param", params.get("emb_version") == "v2", str(params))
-    # DEGRADE-OPEN: no active version -> byte-identical to the unfiltered query.
     sql0, p0 = P.build_recall("knowledge", k=3)
     _check("emb_ver: none -> no filter",
            "emb_version" not in sql0 and "emb_version" not in p0, sql0)
     sqle, pe = P.build_recall("knowledge", k=3, emb_version="")
     _check("emb_ver: empty -> no filter (degrade-open)",
            "emb_version" not in sqle and "emb_version" not in pe, sqle)
-    # agent_memory is versioned too; mios_rag has NO emb_version column -> never filtered
-    # (filtering it would raise UndefinedColumn and arm the degrade-open backoff).
     sql_am, _ = P.build_recall("agent_memory", k=3, emb_version="v2")
     _check("emb_ver: agent_memory filtered", "emb_version = %(emb_version)s" in sql_am, sql_am)
     sql_rag, p_rag = P.build_recall("mios_rag", k=3, emb_version="v2")
     _check("emb_ver: mios_rag NOT filtered (no column)",
            "emb_version" not in sql_rag and "emb_version" not in p_rag, sql_rag)
-    # Semantic check mirroring `emb_version = active OR emb_version IS NULL`: a
-    # matching row + a NULL row are KEPT; a mismatched row is EXCLUDED.
     def _kept(row_ver, active="v2"):
         return row_ver is None or row_ver == active
     _check("emb_ver: keeps matching row", _kept("v2") is True)
@@ -107,18 +99,15 @@ def t_build_recall_emb_version() -> None:
 
 
 def t_build_fts_query() -> None:
-    # knowledge (default)
     sql, params = P.build_fts_query("knowledge", k=5)
     _check("fts: expr on knowledge", "fts @@ plainto_tsquery('simple', %(query_text)s)" in sql, sql)
     _check("fts: ts_rank score", "ts_rank(fts, plainto_tsquery('simple', %(query_text)s)) AS score" in sql, sql)
     _check("fts: order by score", "ORDER BY score DESC LIMIT %(k)s" in sql, sql)
     _check("fts: k bound", params["k"] == 5)
 
-    # mios_rag
     sql_rag, _ = P.build_fts_query("mios_rag", k=3)
     _check("fts: expr on mios_rag", "to_tsvector('simple', coalesce(content, '')) @@ plainto_tsquery" in sql_rag, sql_rag)
 
-    # agent_memory
     sql_am, _ = P.build_fts_query("agent_memory", k=3, emb_version="v2")
     _check("fts: expr on agent_memory", "to_tsvector('simple', coalesce(fact, '') || ' ' || coalesce(scope, ''))" in sql_am, sql_am)
     _check("fts: emb_version on agent_memory", "emb_version = %(emb_version)s" in sql_am, sql_am)
@@ -130,22 +119,16 @@ def t_recall_tuning() -> None:
 
 
 def t_rid_to_pg_id() -> None:
-    # legacy record-string -> trailing bigint
     _check("rid: legacy numeric tail", P.rid_to_pg_id("knowledge:123") == 123)
     _check("rid: pending_action tail", P.rid_to_pg_id("pending_action:42") == 42)
-    # bare bigint (int or str) -> itself
     _check("rid: bare int", P.rid_to_pg_id(789) == 789)
     _check("rid: bare numeric str", P.rid_to_pg_id("456") == 456)
-    # non-numeric / missing -> None (caller skips the pg write)
     _check("rid: alpha legacy id -> None", P.rid_to_pg_id("knowledge:abc") is None)
     _check("rid: None -> None", P.rid_to_pg_id(None) is None)
     _check("rid: empty -> None", P.rid_to_pg_id("") is None)
 
 
 def t_rls_owner_scope() -> None:
-    # T-068 DB-side RLS: build_set_owner emits a PARAMETER-bound set_config with
-    # is_local=true (SET LOCAL semantics) -- neither the GUC name nor the owner is
-    # spliced into the SQL text.
     sql, params = P.build_set_owner("alice")
     _check("rls: set_config call shape",
            "set_config(%(guc)s, %(owner)s, true)" in sql, sql)
@@ -154,7 +137,6 @@ def t_rls_owner_scope() -> None:
     _check("rls: owner bound, not spliced",
            params["owner"] == "alice" and "alice" not in sql, sql)
 
-    # rls_enabled reads the env (default OFF); only the truthy set turns it on.
     _check("rls: disabled by default (no env)", P.rls_enabled({}) is False)
     _check("rls: enabled on truthy",
            P.rls_enabled({"MIOS_DB_RLS_ENABLE": "true"}) is True
@@ -165,23 +147,13 @@ def t_rls_owner_scope() -> None:
            and P.rls_enabled({"MIOS_DB_RLS_ENABLE": "false"}) is False
            and P.rls_enabled({"MIOS_DB_RLS_ENABLE": ""}) is False)
 
-    # P2-1: _owner_scope emits SET LOCAL ONLY when rls_enable AND the principal is
-    # enforce-verified ([security].principal_bind_mode=enforce, read via the SSOT seam
-    # mios_grounding._principal_bind_mode -> the MIOS_PRINCIPAL_BIND_MODE env here). The
-    # bind mode is controlled through os.environ (the live request path resolves it the
-    # same way); snapshot+restore so order can't leak. The owner GUC must NEVER be
-    # emitted for an unverified (spoofable) owner -- that would be FALSE DB isolation.
     _prior_bm = os.environ.get("MIOS_PRINCIPAL_BIND_MODE")
     try:
-        # rls_enable=false short-circuits FIRST -> byte-identical no-op even under
-        # enforce (the default-off path is unchanged regardless of bind mode).
         os.environ["MIOS_PRINCIPAL_BIND_MODE"] = "enforce"
         _check("rls: scope None when rls_enable=false (byte-identical no-op, even w/ enforce)",
                P._owner_scope("alice", {}) is None
                and P._owner_scope("alice", {"MIOS_DB_RLS_ENABLE": "0"}) is None)
 
-        # rls_enable=true + enforce-verified + owner -> the param-bound set_config tuple
-        # IS emitted (the ONLY path that DB-scopes rows), and NO false-warn fires.
         P._RLS_UNVERIFIED_WARNED = False
         sc = P._owner_scope("alice", {"MIOS_DB_RLS_ENABLE": "1"})
         _check("rls: scope emitted when enabled+enforce+owner",
@@ -190,9 +162,6 @@ def t_rls_owner_scope() -> None:
         _check("rls: no false-warn on the verified emit path",
                P._RLS_UNVERIFIED_WARNED is False)
 
-        # FOOTGUN CLOSED: rls_enable=true but bind-mode NOT enforce (off OR verify) ->
-        # the owner is UNVERIFIED/spoofable -> emit NOTHING (degrade to permissive =
-        # honest, no false isolation) + log a ONE-TIME loud WARN.
         for _mode in ("off", "verify"):
             os.environ["MIOS_PRINCIPAL_BIND_MODE"] = _mode
             P._RLS_UNVERIFIED_WARNED = False
@@ -202,9 +171,6 @@ def t_rls_owner_scope() -> None:
             _check(f"rls: one-time WARN fired (bind-mode={_mode})",
                    P._RLS_UNVERIFIED_WARNED is True)
 
-        # enabled + enforce + NO owner -> None (DEGRADE-OPEN: a system/daemon/seeding
-        # connection leaves the GUC unset -> the schema policy stays permissive -> never
-        # locked out). Owner-less is intentional, NOT a misconfig -> no warn.
         os.environ["MIOS_PRINCIPAL_BIND_MODE"] = "enforce"
         P._RLS_UNVERIFIED_WARNED = False
         _check("rls: scope None when enabled+no-owner (degrade-open, no lockout)",
@@ -221,14 +187,6 @@ def t_rls_owner_scope() -> None:
         P._RLS_UNVERIFIED_WARNED = False
 
 
-# ── opt-in connection pool (mios_pg.AsyncConnPool / _conn) ───────────────────
-# psycopg is NOT installed in this offline harness, so the pool's I/O path is
-# exercised against a FAKE psycopg injected into sys.modules. The fake models the
-# bits the pool + execute() touch: per-call connect logging, `async with conn`
-# closing the connection (the historic per-call lifecycle), a cursor, a
-# transaction() block that applies/discards a transaction-scoped SET LOCAL (so the
-# RLS owner-GUC leak guarantee is testable), and transaction_status for the
-# check-in cleanliness guard.
 class _FakeInfo:
     def __init__(self) -> None:
         self.transaction_status = 0   # 0 == IDLE (psycopg pq.TransactionStatus.IDLE)
@@ -246,8 +204,6 @@ class _FakeCursor:
 
     async def execute(self, sql, params=None):
         self.conn.executed.append((str(sql), dict(params) if params else None))
-        # Emulate set_config(guc, owner, is_local=true) -> a SET LOCAL of the owner
-        # GUC (transaction-scoped) vs a leaked session-level SET (the failure signal).
         if "set_config" in str(sql) and params and params.get("guc"):
             target = self.conn.local_guc if self.conn._in_txn else self.conn.session_guc
             target[params["guc"]] = params.get("owner")
@@ -267,7 +223,6 @@ class _FakeTxn:
         return self
 
     async def __aexit__(self, et, ev, tb):
-        # commit (or rollback on error): SET LOCAL settings are discarded, txn closes
         self.conn.local_guc.clear()
         self.conn._in_txn = False
         self.conn.info.transaction_status = 0
@@ -305,7 +260,6 @@ class _FakeConn:
         return self
 
     async def __aexit__(self, *a):
-        # psycopg3 closes the connection on context-manager exit (per-call path).
         self.closed = True
         return False
 
@@ -357,8 +311,6 @@ def _set_env(**kw):
 
 
 def t_pool_default_off_per_call_connect() -> None:
-    # DEFAULT-OFF: byte-identical to the historic path -- a fresh connect PER call,
-    # each closed after use, and the pool object is never even created.
     _install_fake_psycopg()
     restore = _set_env(MIOS_PG_POOL_ENABLE=None)
     P._POOL = None
@@ -377,7 +329,6 @@ def t_pool_default_off_per_call_connect() -> None:
 
 
 def t_pool_on_reuses_connection() -> None:
-    # ON: the two sequential queries share ONE pooled connection (no connect storm).
     _install_fake_psycopg()
     restore = _set_env(MIOS_PG_POOL_ENABLE="1")
     P._POOL = None
@@ -406,8 +357,6 @@ class _PoisonPool:
 
 
 def t_pool_degrade_open_poisoned() -> None:
-    # DEGRADE-OPEN: a broken pool must never fail a query -- _conn falls back to a
-    # direct connect and the query still runs (returns a result, not None-from-mark-down).
     _install_fake_psycopg()
     restore = _set_env(MIOS_PG_POOL_ENABLE="1")
     P._POOL = _PoisonPool()   # enabled + non-None -> _get_pool hands back this broken pool
@@ -428,10 +377,6 @@ def t_pool_degrade_open_poisoned() -> None:
 
 
 def t_pool_no_owner_guc_leak() -> None:
-    # SECURITY: an owner-scoped call (SET LOCAL mios.owner_user) followed by a plain
-    # call on the SAME reused connection must NOT leak the owner GUC. SET LOCAL is
-    # transaction-scoped (cleared on the txn commit/rollback), and the plain call
-    # emits no scope at all -- so the reused connection carries nothing across.
     _install_fake_psycopg()
     restore = _set_env(MIOS_PG_POOL_ENABLE="1", MIOS_DB_RLS_ENABLE="1",
                        MIOS_PRINCIPAL_BIND_MODE="enforce")
@@ -459,9 +404,6 @@ def t_pool_no_owner_guc_leak() -> None:
 
 
 def t_pool_checkin_cleans_connection() -> None:
-    # Check-in cleanliness guard: a connection released with a transaction left OPEN
-    # (status != IDLE, e.g. a stray SET LOCAL) is ROLLED BACK before reuse (which
-    # discards the SET LOCAL); a broken connection is discarded, not pooled.
     _install_fake_psycopg()
 
     async def _dirty_then_release():
@@ -492,8 +434,6 @@ def t_pool_checkin_cleans_connection() -> None:
 
 
 def t_pool_warm_and_exhaustion() -> None:
-    # min_size pre-opens warm connections on first use; at max with none free the
-    # pool degrades-open to an ephemeral (un-pooled) connection rather than blocking.
     _install_fake_psycopg()
 
     async def _warm():

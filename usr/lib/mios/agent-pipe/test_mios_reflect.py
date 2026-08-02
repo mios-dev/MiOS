@@ -25,10 +25,8 @@ def check(name, cond, detail=""):
         print(line.encode(enc, "replace").decode(enc))
 
 
-# ── _inline_satisfaction_check (DB stubbed via configure) ──────────
 def _mk_db_read(rows):
     async def _f(sql, *, pg_sql=None, pg_params=None):
-        # The function reads rows from the LAST result envelope.
         return [{"result": rows}]
     return _f
 
@@ -42,7 +40,6 @@ def _wire_inline(rows):
 
 
 def t_inline_gate():
-    # Missing session_id OR non-dict refine short-circuits before any DB touch.
     _wire_inline([])
     check("inline: no session -> None",
           asyncio.run(r._inline_satisfaction_check(None, {"intent": "chat"})) is None)
@@ -51,7 +48,6 @@ def t_inline_gate():
 
 
 def t_inline_chat():
-    # chat intent + no recorded tools = expected -> satisfied.
     _wire_inline([])
     out = asyncio.run(r._inline_satisfaction_check("123", {"intent": "chat"}))
     check("inline: chat/no-tools -> satisfied",
@@ -60,7 +56,6 @@ def t_inline_chat():
 
 
 def t_inline_success():
-    # An all-success tool_call set -> satisfied(all_succeeded).
     _wire_inline([{"tool": "open_app", "success": True,
                    "exit_code": 0, "result_preview": ""}])
     out = asyncio.run(r._inline_satisfaction_check("123", {"intent": "agent"}))
@@ -70,7 +65,6 @@ def t_inline_success():
 
 
 def t_inline_failed():
-    # A failed tool_call -> unsatisfied(failed_tools) carrying the failure detail.
     _wire_inline([{"tool": "open_app", "success": False,
                    "exit_code": 2, "result_preview": "boom"}])
     out = asyncio.run(r._inline_satisfaction_check("123", {"intent": "agent"}))
@@ -79,7 +73,6 @@ def t_inline_failed():
           and out["payload"].get("failed_tools"), repr(out))
 
 
-# ── reflect_on_step_failure (httpx + sibling readers stubbed) ──────
 class _FakeResp:
     status_code = 200
     text = ""
@@ -122,8 +115,6 @@ def _wire_reflect(content):
         emit_session_event=lambda fields, sid: None,
     )
     r.httpx = types.SimpleNamespace(AsyncClient=_mk_client(content), HTTPError=Exception)
-    # _recent_reflections is imported from mios_hitlflow (needs server-side DI we
-    # don't run here); stub it to an empty buffer for the offline test.
     r._recent_reflections = _no_reflections
 
 
@@ -133,7 +124,6 @@ _PLAN = {"summary": "do a thing"}
 
 
 def t_reflect_gate():
-    # REFINE disabled -> None before any model call.
     r.configure(refine_enabled=False)
     out = asyncio.run(r.reflect_on_step_failure(_NODE, _RESULT, _PLAN))
     check("reflect: refine-disabled -> None", out is None, repr(out))
@@ -147,16 +137,12 @@ def t_reflect_corrected():
 
 
 def t_reflect_unfixable():
-    # Empty tool name = the model declined -> None (caller aborts the chain).
     _wire_reflect('{"tool": "", "args": {}, "rationale": "unfixable"}')
     out = asyncio.run(r.reflect_on_step_failure(_NODE, _RESULT, _PLAN, session_id="123"))
     check("reflect: unfixable -> None", out is None, repr(out))
 
 
-# ── _recent_satisfaction_verdicts / _recent_tool_history (DB stubbed) ──────
 def t_recent_verdicts():
-    # The cross-turn verdict reader returns the rows from the LAST result
-    # envelope, and degrades to [] when the DB read yields nothing.
     r.configure(db_read=_mk_db_read([{"kind": "user_query_unsatisfied"}]))
     out = asyncio.run(r._recent_satisfaction_verdicts(limit=3))
     check("verdicts: returns the result rows",
@@ -170,17 +156,14 @@ def t_recent_verdicts():
 
 
 def t_recent_tool_history():
-    # Missing session_id gates before any DB touch.
     check("tool-history: no session -> []",
           asyncio.run(r._recent_tool_history(None)) == [])
-    # DESC fetch is reversed so the prompt reads oldest-first.
     r.configure(db_read=_mk_db_read([{"tool": "a"}, {"tool": "b"}]))
     out = asyncio.run(r._recent_tool_history("123"))
     check("tool-history: reversed to chronological",
           out == [{"tool": "b"}, {"tool": "a"}], repr(out))
 
 
-# ── _judge_answer_satisfied (httpx stubbed) ────────────────────────
 class _JResp:
     text = ""
 
@@ -217,7 +200,6 @@ def _wire_judge(content, status=200):
 
 
 def t_judge_empty():
-    # An empty answer never calls the model -> False.
     check("judge: empty answer -> False",
           asyncio.run(r._judge_answer_satisfied("q", "")) is False)
 
@@ -232,7 +214,6 @@ def t_judge_yes_no():
 
 
 def t_judge_degrade():
-    # Non-200 degrades to True so a judge hiccup never loops a node forever.
     _wire_judge("whatever", status=503)
     check("judge: non-200 -> True (degrade-open)",
           asyncio.run(r._judge_answer_satisfied("q", "x")) is True)

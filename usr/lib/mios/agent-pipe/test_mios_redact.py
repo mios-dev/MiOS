@@ -1,5 +1,4 @@
 # AI-hint: stdlib unit test for secrets and PII redaction.
-# Verifies redaction of API keys, email addresses, and MIOS_* env credentials.
 import os
 import sys
 import unittest
@@ -60,7 +59,6 @@ class TestMiosRedactDatabase(unittest.TestCase):
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
-        # Ensure clean state
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM knowledge WHERE q = 'test_redact_q'")
@@ -75,13 +73,11 @@ class TestMiosRedactDatabase(unittest.TestCase):
             conn.commit()
 
     async def async_test_db_redaction(self):
-        # 1. Insert into knowledge with an API key using parameters (SSOT/production style)
         await pg_execute(
             "INSERT INTO knowledge (q, answer) VALUES (%(q)s, %(answer)s)",
             {"q": "test_redact_q", "answer": "contact sk-12345678901234567890123456789012"}
         )
         
-        # Verify it got redacted
         rows = await pg_execute(
             "SELECT answer FROM knowledge WHERE q = %(q)s",
             {"q": "test_redact_q"},
@@ -91,13 +87,11 @@ class TestMiosRedactDatabase(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["answer"], "contact [REDACTED_API_KEY]")
 
-        # 2. Insert into agent_memory with an email
         await pg_execute(
             "INSERT INTO agent_memory (fact, mem_key) VALUES (%(fact)s, %(key)s)",
             {"fact": "email is user@example.com", "key": "test_redact_key"}
         )
         
-        # Verify it got redacted
         rows = await pg_execute(
             "SELECT fact FROM agent_memory WHERE mem_key = %(key)s",
             {"key": "test_redact_key"},

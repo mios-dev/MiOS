@@ -20,11 +20,9 @@ def get_pg_config():
 
 def dict_to_toml(d):
     lines = []
-    # Write top-level key-values first
     for k, v in sorted(d.items()):
         if not isinstance(v, dict):
             lines.append(f"{k} = {json.dumps(v)}")
-    # Write sections
     for section, content in sorted(d.items()):
         if isinstance(content, dict):
             if lines:
@@ -55,7 +53,6 @@ def main():
         
     db_render_prefs = False
     if os.path.isfile(toml_path):
-        # Quick parse to check db_render_prefs setting
         try:
             cfg = parse_simple_toml(toml_path)
             db_render_prefs = cfg.get("accounts", {}).get("db_render_prefs", False)
@@ -79,7 +76,6 @@ def main():
     try:
         with psycopg.connect(conn_str, connect_timeout=5) as conn:
             with conn.cursor() as cur:
-                # Resolve active accounts and their layered preferences
                 cur.execute(
                     """
                     SELECT a.id, a.name, a.home_dir, a.uid, a.gid, ap.key, ap.value
@@ -94,7 +90,6 @@ def main():
                     log.info("No active accounts found in database.")
                     return 0
 
-                # Group by account name
                 accounts = {}
                 for r_id, r_name, r_home_dir, r_uid, r_gid, p_key, p_value in rows:
                     if r_name not in accounts:
@@ -115,11 +110,9 @@ def main():
 
                     log.info("Processing account: %s (home: %s)", name, home_dir)
 
-                    # Initialize default user config: render only the typed pref slots, not the whole file
                     user_toml = {}
                     user_files = {}
 
-                    # Apply preferences
                     for key, val in prefs.items():
                         if key.startswith("file:"):
                             rel_path = key[5:]
@@ -133,21 +126,17 @@ def main():
                             else:
                                 user_toml[key] = val
 
-                    # Render default mios.toml if not explicitly overridden by file: key
                     default_toml_rel = ".config/mios/mios.toml"
                     if default_toml_rel not in user_files and user_toml:
                         user_files[default_toml_rel] = dict_to_toml(user_toml)
 
-                    # Materialize files idempotently
                     for rel_path, content in user_files.items():
                         target_file = os.path.abspath(os.path.join(home_dir, rel_path))
-                        # Prevent writing outside user home using commonpath comparison
                         home_abs = os.path.abspath(home_dir)
                         if os.path.commonpath([home_abs, target_file]) != home_abs:
                             log.warning("Security: skipping path %s outside home directory %s", rel_path, home_dir)
                             continue
 
-                        # Ensure parent directories exist
                         parent_dir = os.path.dirname(target_file)
                         if not os.path.isdir(parent_dir):
                             os.makedirs(parent_dir, exist_ok=True)
@@ -157,7 +146,6 @@ def main():
                                 except Exception as err:
                                     log.warning("Failed to chown directory %s: %s", parent_dir, err)
 
-                        # Write file only if content has changed
                         existing_content = None
                         if os.path.isfile(target_file):
                             try:
@@ -166,7 +154,6 @@ def main():
                             except Exception:
                                 pass
 
-                        # Convert non-string content to raw content if needed
                         if not isinstance(content, str):
                             content = json.dumps(content, indent=2)
 
@@ -175,7 +162,6 @@ def main():
                                 f.write(content)
                             log.info("Materialized file: %s", target_file)
 
-                        # Adjust permissions and ownership
                         if uid is not None and gid is not None:
                             try:
                                 os.chown(target_file, uid, gid)

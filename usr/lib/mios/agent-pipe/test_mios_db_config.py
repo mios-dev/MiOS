@@ -1,11 +1,8 @@
 # AI-hint: stdlib unit test for mios_db_config resolver.
-# Exercises the DB read path, precedence ordering, TOML fall-back, and shadow-compare divergences.
-# WS-A2 compliance: Sibling test present and free of server.py imports.
 import sys
 import os
 import unittest
 from unittest.mock import patch
-# Ensure /usr/lib/mios and relative path are in python path
 sys.path.insert(0, "/usr/lib/mios")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -16,8 +13,6 @@ except ImportError:
 import mios_db_config
 
 def setUpModule():
-    # Test hermeticity: self-skip when no live pgvector so the
-    # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
     if psycopg is None:
         raise unittest.SkipTest("no live pgvector -- integration test")
     port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
@@ -35,12 +30,10 @@ class TestMiosDbConfig(unittest.TestCase):
 
     def setUp(self):
         self.conn_str = "postgresql://mios:mios@localhost:8432/mios"
-        # Reset divergence counter and clear cache
         mios_db_config.clear_cache()
         mios_db_config.reset_divergences()
 
     def test_is_db_authoritative(self):
-        # Test env override
         os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
         mios_db_config.clear_cache()
         self.assertTrue(mios_db_config.is_db_authoritative())
@@ -53,13 +46,10 @@ class TestMiosDbConfig(unittest.TestCase):
         mios_db_config.clear_cache()
 
     def test_toml_fail_open(self):
-        # Override connection port to invalid port to simulate db outage
         os.environ["MIOS_PORT_PGVECTOR"] = "9999"
         try:
-            # Under db_authoritative=true, should fall back to TOML without raising
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             val = mios_db_config.get("ai", "kernel_dispatch")
-            # Should match TOML value (True)
             self.assertTrue(val)
         finally:
             del os.environ["MIOS_PORT_PGVECTOR"]
@@ -67,10 +57,8 @@ class TestMiosDbConfig(unittest.TestCase):
                 del os.environ["MIOS_DB_AUTHORITATIVE"]
 
     def test_shadow_compare_divergence(self):
-        # Temporarily insert a divergent value in the database config_kv
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
-                # Ensure layer 3 config_layer exists
                 cur.execute(
                     """
                     INSERT INTO config_layer (rank, name)
@@ -88,26 +76,20 @@ class TestMiosDbConfig(unittest.TestCase):
             conn.commit()
             
         try:
-            # Under db_authoritative = false (default), should shadow-compare and detect divergence
             os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
             mios_db_config.reset_divergences()
             
-            # Read mcp.port
             val = mios_db_config.get("mcp", "port")
             
-            # Should return TOML value (not 11111)
             self.assertNotEqual(val, 11111)
             
-            # Divergence counter should have incremented
             self.assertTrue(mios_db_config.get_divergences() > 0)
             
-            # Now flip to db_authoritative = true, should return DB value (11111)
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             val_db = mios_db_config.get("mcp", "port")
             self.assertEqual(val_db, 11111)
             
         finally:
-            # Clean up test row
             with psycopg.connect(self.conn_str) as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM config_kv WHERE scope = 'mcp' AND key = 'port' AND layer = 3")
@@ -214,7 +196,6 @@ class TestMiosDbConfig(unittest.TestCase):
     def test_verb_catalog_sentinel_and_shadow(self):
         import mios_pipe.routing.verbcatalog as vc
         
-        # Divergence setup: update parallel_limit for list_windows in DB
         with psycopg.connect(self.conn_str) as conn:
             with conn.cursor() as cur:
                 cur.execute(
@@ -227,14 +208,11 @@ class TestMiosDbConfig(unittest.TestCase):
             conn.commit()
             
         try:
-            # Under db_authoritative = false (default), should shadow-compare and detect divergence
             os.environ["MIOS_DB_AUTHORITATIVE"] = "False"
             mios_db_config.reset_divergences()
             
             cat = vc._load_verb_catalog()
-            # Under false, parallel_limit should remain TOML default (0 or not 99)
             self.assertNotEqual(cat["list_windows"]["parallel_limit"], 99)
-            # Divergence should have incremented (wait for background thread)
             import time
             for _ in range(50):
                 if mios_db_config.get_divergences() > 0:
@@ -242,14 +220,11 @@ class TestMiosDbConfig(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(mios_db_config.get_divergences() > 0)
             
-            # Now flip db_authoritative = true
             os.environ["MIOS_DB_AUTHORITATIVE"] = "True"
             cat_db = vc._load_verb_catalog()
-            # Under true, parallel_limit should be loaded from DB (99)
             self.assertEqual(cat_db["list_windows"]["parallel_limit"], 99)
             
         finally:
-            # Restore db state
             with psycopg.connect(self.conn_str) as conn:
                 with conn.cursor() as cur:
                     cur.execute(
@@ -269,38 +244,30 @@ class TestMiosDbConfig(unittest.TestCase):
         import mios_toml
         import mios_pipe.routing.verbcatalog as vc
         
-        # Retrieve the clean vendor TOML baseline
         vendor_data = mios_toml.load_vendor()
         mock_load.return_value = vendor_data
         mock_db_config.return_value = vendor_data
         
-        # Reset divergences
         mios_db_config.reset_divergences()
         
-        # 1. Test load_merged
         merged = mios_db_config.load_merged()
         self.assertIsNotNone(merged)
         
-        # 2. Test section loading for seeded scopes
         for sec in ["ai", "mcp", "routing", "recipes", "security"]:
             sec_val = mios_db_config.section(None, sec)
             self.assertIsNotNone(sec_val)
             
-        # 3. Test get keys
         self.assertEqual(
             mios_db_config.get("ai", "kernel_dispatch"),
             vendor_data.get("ai", {}).get("kernel_dispatch")
         )
         
-        # 4. Test colors
         self.assertIsNotNone(mios_db_config.colors())
         
-        # 5. Test verb catalog shadow compare directly
         toml_cat = vc._load_verb_catalog()
         db_cat = vc._load_verb_catalog_from_db()
         self.assertEqual(vc._compare_catalogs(toml_cat, db_cat), set())
         
-        # Ensure 0 divergences detected
         self.assertEqual(mios_db_config.get_divergences(), 0)
 
     def test_record_divergence_deduplication(self):

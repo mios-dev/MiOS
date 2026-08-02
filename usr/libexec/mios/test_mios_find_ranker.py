@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Unit-proves the mios-find launch-disambiguation ranker reads its
-# scoring SSOT (tier ordering, category-priority weights, fuzzy bounds) from
-# mios.toml -- defaults preserve historical behaviour, a non-default config
-# flips the winner. Pure in-process exec of the script's embedded ranker; no
-# bash, no mios-apps subprocess.
 # AI-related: /usr/libexec/mios/mios-find, /usr/share/mios/mios.toml
 """Tests for the mios-find ranker SSOT (mios.toml [mios-find.ranker] +
 [mios-find.category_priority]).
@@ -27,10 +23,6 @@ import unittest
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _MIOS_FIND = os.path.join(_HERE, "mios-find")
-# mios-find invokes the ranker heredoc as `python3 - "<.../lib/mios>" "$QUERY"`,
-# so argv[1] is the shared-resolver lib dir and argv[2] is the query. Mirror that
-# 3-arg contract here (was the old 2-arg [prog, query] -> ModuleNotFoundError /
-# IndexError -> the libexec test gate die'd the whole OCI build).
 _LIB = os.path.abspath(os.path.join(_HERE, "..", "..", "lib", "mios"))
 
 
@@ -79,10 +71,6 @@ def run_ranker(query, entries, toml_text):
 
     orig_run = subprocess.run
     orig_argv = sys.argv
-    # mios-find's ranker reads the shared mios_toml resolver, which layers
-    # VENDOR<HOST<USER from MIOS_VENDOR_TOML/MIOS_HOST_TOML/MIOS_USER_TOML (NOT
-    # the old MIOS_TOML). Point the vendor layer at the fixture and isolate
-    # host/user at nonexistent paths so ONLY the fixture is merged.
     _env_keys = ("MIOS_VENDOR_TOML", "MIOS_HOST_TOML", "MIOS_USER_TOML")
     orig_env = {k: os.environ.get(k) for k in _env_keys}
     _absent = os.path.join(tempfile.gettempdir(), "mios-find-test-absent-layer.toml")
@@ -94,12 +82,6 @@ def run_ranker(query, entries, toml_text):
         os.environ["MIOS_VENDOR_TOML"] = toml_path
         os.environ["MIOS_HOST_TOML"] = _absent
         os.environ["MIOS_USER_TOML"] = _absent
-        # The ranker resolves config via mios_toml.load_merged(), which memoizes a
-        # PROCESS-GLOBAL cache for layers=None. These tests exec() the ranker
-        # repeatedly in ONE process, each pointing MIOS_VENDOR_TOML at a different
-        # fixture; without invalidating that cache every test after the first reuses
-        # the FIRST fixture's merged config and the override assertions fail. Clear
-        # it so each fixture is re-read (mios_toml lives on the _LIB dir).
         if _LIB not in sys.path:
             sys.path.insert(0, _LIB)
         import mios_toml as _mt
@@ -125,8 +107,6 @@ def run_ranker(query, entries, toml_text):
     return winner, code, err.getvalue()
 
 
-# Config snippets ---------------------------------------------------------
-# A toml with NO ranker sections -> loader degrades to the baked defaults.
 _NO_RANKER_CFG = """
     [some-other-section]
     x = 1
@@ -134,22 +114,17 @@ _NO_RANKER_CFG = """
 
 
 class CategoryPriorityFromSSOT(unittest.TestCase):
-    # Two entries tie at the strongest tier (name_exact); the category-priority
-    # weight is the only tiebreaker, so flipping it in config flips the winner.
     ENTRIES = [
         {"name": "foo", "category": "mios-shim", "launch": "SHIM"},
         {"name": "foo", "category": "windows-app", "launch": "APP"},
     ]
 
     def test_default_category_priority_picks_real_app(self):
-        # Historical default: windows-app (1) outranks mios-shim (6) -> APP.
         winner, code, _ = run_ranker("foo", self.ENTRIES, _NO_RANKER_CFG)
         self.assertEqual(code, 0)
         self.assertEqual(winner, "APP")
 
     def test_override_category_priority_flips_winner(self):
-        # Invert the weights via SSOT -> the shim now wins. If the weights were
-        # baked in code this override would be ignored and APP would still win.
         cfg = """
             [mios-find.category_priority]
             mios-shim = 0
@@ -161,8 +136,6 @@ class CategoryPriorityFromSSOT(unittest.TestCase):
 
 
 class TierOrderingFromSSOT(unittest.TestCase):
-    # "foobar" matches query "foo" at name_prefix; "a foo b" matches at
-    # name_word. Default ordering ranks name_prefix above name_word.
     ENTRIES = [
         {"name": "foobar", "category": "windows-app", "launch": "PREFIX"},
         {"name": "a foo b", "category": "windows-app", "launch": "WORD"},
@@ -174,7 +147,6 @@ class TierOrderingFromSSOT(unittest.TestCase):
         self.assertEqual(winner, "PREFIX")
 
     def test_override_tier_order_flips_winner(self):
-        # Reorder so name_word outranks name_prefix -> WORD wins.
         cfg = """
             [mios-find.ranker]
             tiers = ["name_exact", "name_word", "name_prefix", "name_substr",
@@ -186,7 +158,6 @@ class TierOrderingFromSSOT(unittest.TestCase):
 
 
 class FuzzyBoundsFromSSOT(unittest.TestCase):
-    # Query "discrod" is a 2-edit typo of "discord" (token length 7).
     ENTRIES = [
         {"name": "discord", "category": "windows-app", "launch": "DISCORD"},
     ]
@@ -197,8 +168,6 @@ class FuzzyBoundsFromSSOT(unittest.TestCase):
         self.assertEqual(winner, "DISCORD")
 
     def test_override_min_token_len_disables_fuzzy(self):
-        # Require tokens >= 10 chars -> the 7-char query token is ineligible,
-        # so the typo no longer matches -> no match (exit 1).
         cfg = """
             [mios-find.ranker]
             fuzzy_min_token_len = 10
@@ -209,7 +178,6 @@ class FuzzyBoundsFromSSOT(unittest.TestCase):
         self.assertIsNone(winner)
 
     def test_override_max_edit_distance_tightens_match(self):
-        # Tighten to <=1 edit -> the 2-edit typo no longer matches.
         cfg = """
             [mios-find.ranker]
             fuzzy_min_token_len = 4
@@ -226,16 +194,11 @@ class MultiTokenFuzzyMatching(unittest.TestCase):
     ]
 
     def test_multi_token_query_requires_all_tokens_to_match(self):
-        # "foreg fake" contains two tokens >=4 chars: "foreg" and "fake".
-        # "foreg" matches "forge" (edit dist 1), but "fake" matches nothing.
-        # It must NOT match because not all query tokens have a match.
         winner, code, _ = run_ranker("foreg fake", self.ENTRIES, _NO_RANKER_CFG)
         self.assertEqual(code, 1)
         self.assertIsNone(winner)
 
     def test_multi_token_typo_matches_when_all_tokens_match(self):
-        # "wallpapr engine" contains "wallpapr" (matches "wallpaper" dist 1) and
-        # "engine" (matches "engine" dist 0). Both match, so it must succeed.
         entries = [{"name": "wallpaper engine", "category": "windows-app", "launch": "WP"}]
         winner, code, _ = run_ranker("wallpapr engine", entries, _NO_RANKER_CFG)
         self.assertEqual(code, 0)

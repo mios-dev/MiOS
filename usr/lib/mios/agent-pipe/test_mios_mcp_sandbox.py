@@ -47,12 +47,10 @@ def t_sandbox_gate_parsing():
           str(enable_val).strip().lower() in {"false", "0", "no", "off", ""},
           f"got {enable_val!r}")
 
-    # Verify write_allowed_paths is a list
     wap = sec_cfg.get("write_allowed_paths", [])
     check("sandbox-gate: write_allowed_paths is a list", isinstance(wap, list),
           f"got {type(wap)}")
 
-    # Verify the MCP module parsed it
     import mios_pipe.federation.mcp as mc
     check("sandbox-gate: MCP_SANDBOX_ENABLE is False by default",
           mc.MCP_SANDBOX_ENABLE is False, f"got {mc.MCP_SANDBOX_ENABLE}")
@@ -62,8 +60,6 @@ def t_sandbox_gate_parsing():
 
 def t_gatekeeper_traversal_blocking():
     """Verify the gatekeeper script blocks directory traversal patterns."""
-    # Write a minimal test harness that sources the gatekeeper's _block_traversal
-    # function and tests it
     gatekeeper = _gatekeeper_path()
     if not os.path.isfile(gatekeeper):
         check("gatekeeper-traversal: gatekeeper exists", False, "file not found")
@@ -75,12 +71,10 @@ def t_gatekeeper_traversal_blocking():
     if len(posix_gatekeeper) >= 2 and posix_gatekeeper[1] == ':':
         posix_gatekeeper = '/' + posix_gatekeeper[0].lower() + posix_gatekeeper[2:]
 
-    # Test 1: ../../etc/passwd should be blocked
     result = subprocess.run(
         ["bash", "-c", f"""
             source /usr/lib/mios/paths.sh 2>/dev/null || true
             _log() {{ true; }}
-            # Source just the _block_traversal function
             eval "$(sed -n '/_block_traversal()/,/^}}/p' '{posix_gatekeeper}')"
             _block_traversal "../../etc/passwd"
             echo $?
@@ -91,7 +85,6 @@ def t_gatekeeper_traversal_blocking():
     check("gatekeeper-traversal: ../../etc/passwd blocked",
           exit_code == "1", f"exit={exit_code} stdout={result.stdout[:100]}")
 
-    # Test 2: /var/lib/mios/ai/data.json should be allowed (no traversal)
     result2 = subprocess.run(
         ["bash", "-c", f"""
             source /usr/lib/mios/paths.sh 2>/dev/null || true
@@ -106,7 +99,6 @@ def t_gatekeeper_traversal_blocking():
     check("gatekeeper-traversal: /var/lib/mios/ai/data.json allowed",
           exit_code2 == "0", f"exit={exit_code2}")
 
-    # Test 3: /etc/shadow should be blocked
     result3 = subprocess.run(
         ["bash", "-c", f"""
             source /usr/lib/mios/paths.sh 2>/dev/null || true
@@ -132,7 +124,6 @@ def t_gatekeeper_write_path_validation():
         print("[SKIP] gatekeeper-write-path: bash subshell evaluation skipped on Windows host")
         return
 
-    # Test 1: /tmp/mios-mcp/foo should be allowed
     result = subprocess.run(
         ["bash", "-c", f"""
             export MIOS_WRITE_ALLOWED_PATHS="/tmp/mios-mcp:/var/lib/mios/ai"
@@ -148,7 +139,6 @@ def t_gatekeeper_write_path_validation():
     check("gatekeeper-write-path: /tmp/mios-mcp/foo.txt allowed",
           exit_code == "0", f"exit={exit_code}")
 
-    # Test 2: /etc/passwd should be blocked
     result2 = subprocess.run(
         ["bash", "-c", f"""
             export MIOS_WRITE_ALLOWED_PATHS="/tmp/mios-mcp:/var/lib/mios/ai"
@@ -169,11 +159,9 @@ def t_spawn_routes_through_gatekeeper():
     """Verify _McpStdioClient._spawn prepends gatekeeper when sandbox is enabled."""
     import mios_pipe.federation.mcp as mc
 
-    # Save originals
     orig_enable = mc.MCP_SANDBOX_ENABLE
     orig_gatekeeper = mc.MCP_SANDBOX_GATEKEEPER
 
-    # Create a fake gatekeeper script that echoes its args
     with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as f:
         f.write('#!/bin/bash\necho "gatekeeper: $@"\nexec "$@"\n')
         fake_gk = f.name
@@ -185,9 +173,6 @@ def t_spawn_routes_through_gatekeeper():
 
         client = mc._McpStdioClient("test-sid", "/usr/bin/echo", ["hello"], {}, None)
 
-        # We can't actually spawn (it would exec), but we can verify the
-        # logic by checking what _spawn would construct
-        # Simulate the command construction logic from _spawn
         _cmd = client.command
         _args = list(client.args)
         if mc.MCP_SANDBOX_ENABLE and os.path.isfile(mc.MCP_SANDBOX_GATEKEEPER):
@@ -210,7 +195,6 @@ def t_spawn_direct_when_disabled():
     """Verify _McpStdioClient._spawn runs command directly when sandbox is disabled."""
     import mios_pipe.federation.mcp as mc
 
-    # Save originals
     orig_enable = mc.MCP_SANDBOX_ENABLE
 
     try:
@@ -218,7 +202,6 @@ def t_spawn_direct_when_disabled():
 
         client = mc._McpStdioClient("test-sid", "/usr/bin/echo", ["hello"], {}, None)
 
-        # Simulate the command construction logic from _spawn
         _cmd = client.command
         _args = list(client.args)
         if mc.MCP_SANDBOX_ENABLE and os.path.isfile(mc.MCP_SANDBOX_GATEKEEPER):
@@ -237,7 +220,6 @@ def t_fapolicyd_rules_structure():
     """Verify fapolicyd.rules has MCP execution carve-outs and still ends with deny_audit."""
     rules_path = "/etc/fapolicyd/fapolicyd.rules"
     if not os.path.isfile(rules_path):
-        # Try the Windows repo copy under WSL mount
         for candidate in [
             "/mnt/c/MiOS/etc/fapolicyd/fapolicyd.rules",
             os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -258,7 +240,6 @@ def t_fapolicyd_rules_structure():
     check("fapolicyd-rules: contains /srv/ai/mcp/ allow rule",
           "dir=/srv/ai/mcp/" in content)
 
-    # Verify deny_audit is the LAST non-blank, non-comment line
     lines = [l.strip() for l in content.strip().splitlines()
              if l.strip() and not l.strip().startswith("#")]
     check("fapolicyd-rules: last rule is deny_audit",

@@ -51,11 +51,11 @@ else
             if (cd /tmp && grep "Bibata-Modern-Classic.tar.xz" bibata.sha256 | sha256sum -c -) 2>/dev/null; then
                 mios_ok "Bibata sha256 verified"
             else
-                mios_warn "Bibata sha256 mismatch or sidecar format mismatch -- continuing anyway"
+                mios_warn "Bibata sha256 mismatch or sidecar format mismatch"
             fi
             rm -f /tmp/bibata.sha256
         else
-            mios_warn "Bibata sha256 sidecar unavailable -- skipping integrity check"
+            mios_warn "Bibata sha256 sidecar unavailable"
         fi
         if tar -xf /tmp/bibata.tar.xz -C /usr/share/icons/; then
             sbom_dir="/usr/share/mios/artifacts/sbom"
@@ -71,13 +71,13 @@ else
             break
         fi
     fi
-        mios_warn "attempt $attempt failed, retrying"
+        mios_warn "Attempt $attempt failed, retrying"
         sleep 5
     done
 fi
 
 if [ "$BIBATA_OK" -eq 0 ] || [ ! -d "$BIBATA_DIR/cursors" ]; then
-    die "Bibata cursor download FAILED after 3 attempts ($BIBATA_URL) -- refusing to ship an image with a broken cursor. (Already-shipped images self-heal at runtime via mios-cursor-ensure into ~/.local/share/icons, but the BUILD must seed /usr/share/icons.)"
+    die "Bibata cursor download FAILED after 3 attempts"
 fi
 mios_ok "Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -maxdepth 1 | wc -l) cursors"
 
@@ -85,7 +85,7 @@ mios_ok "Bibata cursor installed: $(find "$BIBATA_DIR/cursors/" -mindepth 1 -max
 if [ -d "$BIBATA_DIR/cursors" ]; then
     update-alternatives --install /usr/share/icons/default/index.theme \
         x-cursor-theme /usr/share/icons/Bibata-Modern-Classic/cursor.theme 100 2>/dev/null || true
-    mios_ok "x-cursor-theme alternative set to Bibata"
+    mios_ok "X-cursor-theme alternative set to Bibata"
 fi
 
 mkdir -p /usr/share/cursors/xorg-x11
@@ -108,7 +108,7 @@ if command -v flatpak &>/dev/null; then
     fi
     flatpak remote-modify --system --disable fedora 2>/dev/null || true
 else
-    mios_warn "flatpak binary not found, skipping remote configuration"
+    mios_warn "Flatpak binary not found, skipping remote configuration"
 fi
 
 mios_log "Flatpaks installed on first boot"

@@ -7,7 +7,6 @@ import mios_argval
 
 class TestMiosArgVal(unittest.TestCase):
     def setUp(self):
-        # Configure a mock verb catalog and synonyms map
         self.mock_catalog = {
             "test_verb": {
                 "params": {

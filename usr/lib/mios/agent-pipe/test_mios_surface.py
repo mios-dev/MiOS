@@ -46,8 +46,6 @@ class Widget:
         return 1
 '''
 
-# Same module after a behavior-preserving extraction: ``scrub`` is MOVED into a
-# sibling and RE-IMPORTED under the same name. The importable surface is identical.
 _AFTER_MOVE = _BEFORE.replace(
     "from helpers import scrub, translate as _xlate",
     "from helpers import translate as _xlate\nfrom mios_scrub import scrub",
@@ -99,7 +97,6 @@ def t_routes():
 
 def t_provided():
     prov = set(_project(_BEFORE)["provided"])
-    # defs (incl route handlers) + class + globals + imported names all present
     check("provided: top-level funcs", {"health", "chat_completions", "_mw", "scrub"} <= prov)
     check("provided: nested method excluded", "method" not in prov)
     check("provided: class", "Widget" in prov)
@@ -112,7 +109,6 @@ def t_provided():
 def t_move_reimport_zero_diff():
     before = _project(_BEFORE)
     after = _project(_AFTER_MOVE)
-    # scrub left the local `def` but re-enters via `from mios_scrub import scrub`
     check("move: scrub still defined-locally before", "scrub" in set(before["provided"]))
     check("move: scrub still provided after (via import)", "scrub" in set(after["provided"]))
     diffs = s.diff_surface(after, before)
@@ -121,7 +117,6 @@ def t_move_reimport_zero_diff():
 
 def t_real_drop():
     before = _project(_BEFORE)
-    # golden has an extra route + name the current projection lacks -> both REMOVED
     golden = {
         "routes": before["routes"] + ["DELETE /v1/old -> old_handler"],
         "provided": before["provided"] + ["removed_symbol"],
@@ -133,11 +128,6 @@ def t_real_drop():
     check("identical == clean", s.diff_surface(before, before) == [])
 
 
-# A synthetic module exercising APIRouter projection. Three routers: ``r`` is
-# mounted under ``prefix="/api"`` (full composition), ``empty`` has an empty router
-# prefix and a no-prefix mount, ``orphan`` is never mounted in-file (best in-file
-# resolution = router prefix only). A plain ``@app`` route in the SAME module must
-# still project identically. Synthetic paths/handlers -- no real route copied.
 _ROUTER_FIXTURE = '''\
 from fastapi import APIRouter
 
@@ -178,23 +168,15 @@ app.include_router(empty)
 
 def t_router_routes():
     routes = set(_project(_ROUTER_FIXTURE)["routes"])
-    # mount prefix + router prefix + decorator path, in FastAPI's concat order
     check("router: composed GET /api/v1/x/y", "GET /api/v1/x/y -> handler_y" in routes, routes)
     check("router: composed POST (async handler)", "POST /api/v1/x/z -> handler_z" in routes, routes)
-    # empty router prefix + no-prefix mount -> just the decorator path
     check("router: empty prefixes -> /e", "GET /e -> handler_e" in routes, routes)
-    # never mounted in-file: best in-file resolution = router prefix only, no mount
     check("router: un-mounted uses router prefix only", "GET /orphan/o -> handler_o" in routes, routes)
-    # a plain @app route in the same module still projects exactly as before
     check("router: @app route unchanged alongside routers", "GET /plain -> plain_handler" in routes, routes)
-    # composition order is mount<router<path, never reordered
     check("router: no mis-ordered path", not any("/v1/x/api" in rt for rt in routes), routes)
 
 
 def t_router_method_set_matches_app():
-    # Build, for EVERY route method the projector recognises, one @app route and one
-    # @router route; assert the router yields the SAME method set as @app (read from
-    # the module, not a restated literal list).
     methods = list(s._ROUTE_METHODS)
     lines = ["r = APIRouter()"]
     for i, m in enumerate(methods):
@@ -211,8 +193,6 @@ def t_router_method_set_matches_app():
 
 
 def t_app_to_router_zero_diff():
-    # The central migration property: a route MOVED from @app onto a prefixed router
-    # mounted to reconstruct the same absolute path yields the IDENTICAL route record.
     as_app = _project('@app.get("/api/v1/x/y")\ndef h():\n    return 1\n')
     as_router = _project(
         'r = APIRouter(prefix="/v1/x")\n'
@@ -229,8 +209,6 @@ def t_app_to_router_zero_diff():
 
 
 def t_router_dynamic_prefix():
-    # A non-literal prefix cannot be resolved statically -> the whole path collapses
-    # to the <dynamic> sentinel, exactly as a non-literal single path already does.
     routes = set(_project(
         'PFX = make_prefix()\n'
         'r = APIRouter(prefix=PFX)\n'
@@ -241,11 +219,6 @@ def t_router_dynamic_prefix():
     check("dynamic prefix collapses path to <dynamic>", "GET <dynamic> -> h" in routes, routes)
 
 
-# --- Whole-package projection (refactor R13 Step 2a) --------------------------
-# A router declared in a SIBLING module (B) and mounted by the ENTRY module (A)
-# via app.include_router. The single-file scan of A cannot see B's prefix/routes;
-# project_package follows the import (resolved by filename convention) and composes
-# mount + router + decorator prefixes across the two files. Synthetic only.
 _PKG_MOD_X = '''\
 from fastapi import APIRouter
 
@@ -277,24 +250,18 @@ def t_package_cross_file_include():
     }
     proj = _project_package(files, "entry.py")
     routes = set(proj["routes"])
-    # mount(/api) + router(/v1/x) + decorator(/y), in FastAPI concat order
     check("package: cross-file GET composed /api/v1/x/y",
           "GET /api/v1/x/y -> handler_y" in routes, routes)
     check("package: cross-file POST (async) composed",
           "POST /api/v1/x/z -> handler_z" in routes, routes)
-    # the entry's own @app route still projects exactly as single-file
     check("package: entry @app route preserved",
           "GET /plain -> plain_handler" in routes, routes)
-    # provided is the ENTRY module's surface only -- sibling handlers are NOT in it
     prov = set(proj["provided"])
     check("package: provided is entry-only (sibling handler absent)",
           "handler_y" not in prov and "router_x" in prov, sorted(prov))
 
 
 def t_package_app_to_sibling_zero_diff():
-    # The cross-file migration property: an @app route moved onto a sibling router
-    # mounted to reconstruct the same absolute path yields the IDENTICAL record AND
-    # an identical route surface (entry has no other route here).
     as_app = _project('@app.get("/api/v1/x/y")\ndef h():\n    return 1\n')
     as_pkg = _project_package(
         {
@@ -323,8 +290,6 @@ def t_package_app_to_sibling_zero_diff():
 
 
 def t_package_one_level_nesting():
-    # parent.include_router(child) composes one level: app mount + parent prefix +
-    # nested mount + child prefix + decorator path.
     files = {
         "mios_nest.py": (
             "from fastapi import APIRouter\n"
@@ -351,9 +316,6 @@ def t_package_one_level_nesting():
 
 
 def t_package_unresolved_degrades():
-    # An include whose router resolves to NO local file contributes nothing (its
-    # handlers are unknown and never fabricated); resolvable includes alongside it
-    # still project; the result is deterministic.
     files = {
         "mios_routes_x.py": _PKG_MOD_X,
         "entry.py": (
@@ -376,9 +338,6 @@ def t_package_unresolved_degrades():
 
 
 def t_package_dynamic_mount_degrades():
-    # A non-literal mount prefix cannot be resolved statically -> the composed path
-    # collapses to <dynamic> (mirroring the single-file convention) while the handler
-    # is preserved -- never dropped, never guessed.
     files = {
         "mios_routes_x.py": _PKG_MOD_X,
         "entry.py": (
@@ -395,13 +354,6 @@ def t_package_dynamic_mount_degrades():
 
 
 def t_package_superset_of_surface_on_current_tree():
-    # The projector's contract on the REAL tree: project_package is a strict SUPERSET
-    # of project_surface -- identical `provided` (entry-only; never aggregated across
-    # the package) and a routes set that CONTAINS every single-file @app route PLUS any
-    # route migrated cross-file onto a sibling-module APIRouter that server.py mounts
-    # via app.include_router (R13 moved the /a2a routes that way). Before any route
-    # moved cross-file the two were byte-identical; once one does, package recovers the
-    # moved route where surface (single-file) cannot -- and `provided` never diverges.
     server = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server.py")
     if not os.path.isfile(server):
         check("package>=surface (server.py absent -> skipped)", True)

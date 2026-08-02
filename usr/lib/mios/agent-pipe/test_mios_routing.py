@@ -45,7 +45,6 @@ def _write_toml():
 
 def t_load_phrases():
     fillers = r._load_routing_phrases("launch_filler_phrases")
-    # lowercased, de-duplicated, longest-first.
     check("phrases longest-first", fillers[0] == "on my desktop", str(fillers))
     check("phrases complete", set(fillers) == {"on my desktop", "for me", "please"},
           str(fillers))
@@ -67,8 +66,6 @@ def t_load_domains():
 
 
 def t_deterministic_route():
-    # Inject synthetic fast-path verb sets + launch phrase frozensets (these
-    # derive from _VERB_CATALOG in server.py and are normally injected there).
     r.configure(
         compound_action_alt="type|write",
         fastpath_verbs=frozenset({"open_app", "pc_type", "schedule", "remember"}),
@@ -77,23 +74,18 @@ def t_deterministic_route():
         launch_lead_words=frozenset({"the", "my"}),
         launch_trail_words=frozenset({"app", "application"}),
     )
-    # Unambiguous launch -> open_app(name=...).
     o = r._deterministic_action_route("open notepad")
     check("open -> open_app", o == {"intent": "dispatch", "tool": "open_app",
                                     "args": {"name": "notepad"}, "_deterministic": True},
           str(o))
-    # Lead determiner + trailing generic noun stripped.
     o2 = r._deterministic_action_route("open the calculator app")
     check("lead/trail stripped", o2 and o2["args"]["name"] == "calculator", str(o2))
-    # Trailing courtesy filler stripped.
     o3 = r._deterministic_action_route("open spotify for me")
     check("filler stripped", o3 and o3["args"]["name"] == "spotify", str(o3))
-    # Quoted standalone type -> pc_type(text=...).
     p = r._deterministic_action_route("type 'hello world'")
     check("type -> pc_type", p == {"intent": "dispatch", "tool": "pc_type",
                                    "args": {"text": "hello world"}, "_deterministic": True},
           str(p))
-    # Neutral / question / compound / non-trigger -> None.
     check("question -> None", r._deterministic_action_route("what is the weather?") is None)
     check("non-trigger -> None", r._deterministic_action_route("tell me a story") is None)
     check("compound -> None",

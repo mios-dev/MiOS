@@ -30,7 +30,6 @@ def _events(frames):
 
 
 async def main_async():
-    # 1. happy path: envelope dict with 'results'
     async def d_ok(tool, args):
         check(tool == "web_search", "dispatch invoked with web_search verb")
         check(args.get("query") == "langs", "query forwarded to dispatch args")
@@ -47,7 +46,6 @@ async def main_async():
     check("https://rust-lang.org" in body and ">Rust<" in body, "result html carries url+title")
     check(all(f.endswith("\n\n") for f in fr), "every SSE frame terminates with a blank line")
 
-    # 2. empty query -> error,done and dispatch is NOT called
     called = {"n": 0}
     async def d_never(t, a):
         called["n"] += 1
@@ -56,20 +54,17 @@ async def main_async():
     check(_events(fr) == ["error", "done"], "empty query -> error,done")
     check(called["n"] == 0, "dispatch NOT called on empty query")
 
-    # 3. dispatch raises -> error,done carrying the message
     async def d_boom(t, a):
         raise RuntimeError("boom-net")
     fr = await _collect("x", d_boom)
     check(_events(fr)[-1] == "done" and "error" in _events(fr), "dispatch error -> error,done")
     check("boom-net" in "".join(fr), "error frame carries the failure message")
 
-    # 4. XSS: untrusted scraped title must be HTML-escaped, never streamed raw
     async def d_xss(t, a):
         return {"results": [{"title": "<script>alert(1)</script>", "url": "https://x/"}]}
     body = "".join(await _collect("x", d_xss))
     check("<script>alert" not in body and "&lt;script&gt;" in body, "title HTML-escaped (no raw <script>)")
 
-    # 5. result-shape normalization
     check(len(wr._extract_results({"data": [{"a": 1}]})) == 1, "extract: dict.data list")
     check(len(wr._extract_results([{"a": 1}, {"b": 2}])) == 2, "extract: bare list")
     check(len(wr._extract_results({"stdout": json.dumps({"hits": [{"x": 1}]})})) == 1, "extract: json-in-stdout")
@@ -78,7 +73,6 @@ async def main_async():
 
 def main():
     asyncio.run(main_async())
-    # 6. build_router (requires fastapi)
     try:
         r = wr.build_router()
         paths = {getattr(rt, "path", None) for rt in r.routes}

@@ -41,26 +41,14 @@ import mios_tokenize  # WS-A5 tokenizer seam -- token estimate for the ctx clamp
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The vision + client-tools responders read server.py's VLM-lane config
-# (VISION_MODEL/VISION_ENDPOINT/_BACKEND_KEY), the live verb catalog, and call
-# back into the verb-projection / verb-resolve / contract / tool-backend-pick /
-# child-tool-select / tool-call-sig / http-client helpers. server.py calls
-# configure() with those AFTER every one is defined (one-way boundary: this
-# module never imports server). The placeholders below carry safe defaults so a
-# standalone ``import mios_vision`` still succeeds; every consumer is
-# async/runtime so nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 VISION_MODEL = ""
 VISION_ENDPOINT = ""
 _BACKEND_KEY = ""
 DEFAULT_TOOL_CAP = 24
 
-# mutable refs (injected BY REFERENCE -- the shared object stays live)
 _VERB_CATALOG: dict = {}
 
-# server-side helpers (injected)
 _get_client = None
 _verb_to_openai_tool = None
 _resolve_verb_key = None
@@ -122,10 +110,6 @@ def _messages_have_image(messages: list) -> bool:
     return False
 
 
-# Honest "vision unavailable" message ("FIX ALL VISION"): when
-# the VLM is not provisioned / fails to load, the user must get a CLEAR assistant
-# turn -- not the confusing raw "image inputs are not supported / required config
-# missing" the leaf relayed. Generic + honest (no fabricated capability claim).
 _VISION_UNAVAILABLE_MSG = (
     "I can't read images right now — the local vision model isn't loaded on this "
     "machine. Image understanding returns once the vision model is provisioned; "
@@ -145,9 +129,6 @@ def _vision_backend_failed(status: int, body_text: str) -> bool:
                                   "image inputs are not supported"))
 
 
-# Honest message when a remote image/GIF/page URL couldn't be fetched into a
-# viewable image (a Tenor GIF PAGE url made the leaf guess
-# from a web search instead of seeing it). Never fabricate a description.
 _VISION_FETCH_FAILED_MSG = (
     "I couldn't open that image — the link didn't return a viewable image (it may "
     "be a web page, a video, or unreachable). Upload the image directly, or share a "
@@ -232,7 +213,6 @@ async def _vision_inline_remote_images(messages: list) -> bool:
                 _ct = (r.headers.get("content-type") or "").lower()
                 _data = r.content
                 if not _ct.startswith("image/"):
-                    # a web PAGE -> resolve the real media asset (1 hop), then fetch it
                     _media = _resolve_media_url_from_html(r.text)
                     if not _media:
                         ok = False
@@ -270,10 +250,6 @@ async def _vision_complete(body: dict, streaming: bool, chat_id: str,
     'FIX ALL VISION' -- the confusing leaf error was the reported failure)."""
     if not (VISION_MODEL or "").strip():
         return _vision_unavailable_response(streaming, chat_id, model)
-    # Inline any REMOTE image/GIF/page URL so the local VLM can actually SEE it (it
-    # reads only inlined base64; it rejects bare URLs + page links like a Tenor GIF
-    # page). On a fetch/resolve failure, return an honest 'couldn't open that image'
-    # turn rather than letting the model guess from the URL text.
     _msgs = body.get("messages")
     if isinstance(_msgs, list) and _messages_have_image(_msgs):
         try:
@@ -342,10 +318,6 @@ def _has_client_tools(body: dict) -> bool:
     return isinstance(t, list) and len(t) > 0
 
 
-# Identity + capability preamble injected into a client-tools turn so MiOS AI
-# never adopts the caller's persona (Zen's smart-window forwards a "you are
-# Mozilla's Smart Window assistant" system prompt) and knows it owns the full
-# MiOS verb surface -- not just the 2-3 browser tools the client shipped.
 _CLIENT_TOOLS_IDENTITY = (
     "You are MiOS AI, the local agentic assistant of MiOS (a private, offline-first "
     "AI operating system running on this machine). You are NOT a Mozilla, Firefox, "
@@ -429,17 +401,8 @@ async def _client_tools_backend(req: dict) -> dict:
     lane (a different engine often accepts what the heavy lane rejected). Returns {}
     (never raises) when neither lane yields a 200, so the loop's synthesis / never-
     empty fallback engages instead of the whole turn erroring out."""
-    # Clamp the completion budget so input + max_tokens fit the lane context.
-    # Hermes sends max_tokens = its context_length (65536 = the WHOLE window), so
-    # input(~29.6k) + completion(65.5k) = ~95k > 65536 -> SGLang 400 ("Requested
-    # token count exceeds the model's maximum context length",,
-    # the REPL 'No reply'). Estimate input tokens (~4 chars/tok over messages +
-    # tools) and cap the completion to what's left. Never blocks on the estimate.
     try:
         _ctx = int(os.environ.get("MIOS_AGENT_PIPE_TOOL_CTX", "65536") or 65536)
-        # Estimate input tokens via the WS-A5 tokenizer seam (was an inline // 4):
-        # count_text over the concatenated message + tool JSON == the prior
-        # (len(messages_json) + len(tools_json)) // 4 under the heuristic backend.
         _in_tokens = mios_tokenize.count_text(
             json.dumps(req.get("messages") or [])
             + json.dumps(req.get("tools") or []))
@@ -471,7 +434,6 @@ async def _client_tools_backend(req: dict) -> dict:
         r = None
     if r is not None and r.status_code == 200:
         return r.json()
-    # Non-200 -> diagnose + fall back to the light lane.
     if r is not None:
         try:
             _names = [((_t.get("function") or {}).get("name") or _t.get("name"))
@@ -505,14 +467,6 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     caller to act on. So 'open notepad' executes via the MiOS launcher HERE, while
     'get_page_content' still rides back to the browser."""
     messages = _client_tools_inject_identity(list(body.get("messages") or []))
-    # Cap the MERGED MiOS surface to the intent-relevant subset, leaving EVERY client
-    # tool untouched (client tools have no verb embeddings, so relevance-ranking them
-    # would wrongly deprioritise e.g. Zen's browser tools). A small (8B) model handed
-    # ALL ~60 MiOS verbs -- esp. the redundant launch cluster (open_app/launch_app/
-    # launch_windows_app/launch_and_verify_app) -- alongside the client's ~137 tools
-    # emitted MALFORMED parallel calls (open_app AND launch_windows_app for one app ->
-    # nothing fired,). Relevance-selecting the MiOS verbs keeps the
-    # ONE launch verb that fits the ask -> a clean single tool_call.
     _intent = ""
     for _m in reversed(body.get("messages") or []):
         if isinstance(_m, dict) and _m.get("role") == "user":
@@ -521,28 +475,11 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
     _mios_sel = await _select_child_tools(
         _client_tools_mios_surface(), _intent, DEFAULT_TOOL_CAP)
     tools = list(body.get("tools") or []) + _mios_sel
-    # parallel_tool_calls=False by default: the loop executes MiOS verbs SEQUENTIALLY
-    # server-side anyway, and an 8B model handed a big merged tool surface (the client's
-    # own tools + the MiOS verbs) tends to emit MALFORMED parallel calls -- e.g. open_app
-    # AND launch_windows_app for one app, serialized with missing names so NEITHER fires
-    # ("nothing happened",). Forcing one call per turn keeps the
-    # tool_call well-formed. The client can still override via its own parallel_tool_calls.
     base_req: dict = {"model": _TOOL_BACKEND_MODEL, "tools": tools, "stream": False,
                       "parallel_tool_calls": False}
-    # WS-E #3/#4: forward the caller's tool_choice + parallel_tool_calls so a client
-    # that forces a function (or forbids parallel) isn't silently overridden to auto.
     for _k in ("temperature", "top_p", "max_tokens", "tool_choice", "parallel_tool_calls"):
         if _k in body:
             base_req[_k] = body[_k]
-    # Thinking OFF (the Hermes REPL "empty response" bug):
-    # with thinking ON a reasoning model (Qwen3-8B on the heavy lane) spends the
-    # CALLER's whole max_tokens budget inside the <think> block and hits the length
-    # limit BEFORE emitting any content OR tool_call -> the client gets "empty
-    # response after retries / No reply". Proven live on the heavy lane: tools-less
-    # max_tokens=250 think-ON -> content_len=0 reasoning_len=1133 finish=length, vs
-    # think-OFF -> content_len=1114. The Hermes client sets a tight budget, so
-    # thinking MUST be off here. Tool-calling works fine without thinking; the
-    # final-synthesis fallback below is also thinking-off.
     base_req["chat_template_kwargs"] = {"enable_thinking": False}
     last: dict = {}
     _seen: set = set()
@@ -556,18 +493,11 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
         if not tcs:
             if str(msg.get("content") or "").strip():
                 return msg
-            # No tool_calls AND empty content (a small 8B handed the big merged client+
-            # MiOS tool surface can return nothing, esp. with thinking on). Do NOT hand
-            # back an empty reply (the Hermes desktop "no reply" bug) -- break to the final
-            # tools-less synthesis below, which forces a content answer.
             break
         if any(not _client_tools_is_mios(
                 (tc.get("function") or {}).get("name", ""), client_names)
                 for tc in tcs):
-            # A client tool is requested -> hand the whole message back so the
-            # caller fulfills it (and re-enters this loop with the result).
             return msg
-        # All MiOS verbs -> execute server-side, append results, continue.
         _sigs = [_tool_call_sig(_tc) for _tc in tcs]
         if _sigs and all(_s in _seen for _s in _sigs):
             messages.append(msg)
@@ -599,29 +529,17 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
             messages.append({
                 "role": "tool", "tool_call_id": tc.get("id"),
                 "content": json.dumps(result)[:4000]})
-    # Robustness (Hermes desktop "empty response"): reaching here
-    # means the loop exhausted max_iters on MiOS-verb tool_calls WITHOUT the model ever
-    # emitting plain content or a CLIENT tool_call (a small 8B can spin on the merged
-    # surface). `last` is then a MiOS-tool-call message with NO content -> the caller (the
-    # desktop agent) gets an EMPTY reply. Make ONE final tools-LESS call so the model must
-    # synthesise a content answer from the tool results already in `messages`. Degrade-open.
     if not str((last or {}).get("content") or "").strip():
         try:
             _fr = dict(base_req)
             _fr.pop("tools", None)
             _fr.pop("tool_choice", None)
-            # Thinking OFF for the synthesis: the whole token budget goes to the
-            # CONTENT answer (with thinking on, an 8B spends it reasoning and emits a
-            # truncated/terse reply).
             _fr["chat_template_kwargs"] = {"enable_thinking": False}
             _fr["messages"] = messages
             _fresp = await _client_tools_backend(_fr)
             _fmsg = ((_fresp.get("choices") or [{}])[0] or {}).get("message") or {}
             if str(_fmsg.get("content") or "").strip():
                 return _fmsg
-            # Last resort: synthesize over a MINIMAL prompt -- drop the heavy SOUL +
-            # accumulated tool-result context that may have choked the model -- so a
-            # content answer is essentially guaranteed.
             _orig_user = ""
             for _m in reversed(messages):
                 if isinstance(_m, dict) and _m.get("role") == "user":
@@ -642,7 +560,6 @@ async def _client_tools_loop(body: dict, client_names: set, chat_id: str,
                 return _mmsg
         except Exception as _e:  # noqa: BLE001 -- degrade-open
             log.debug("client-tools final synthesis failed: %s", _e)
-    # NEVER hand the client an empty reply (Hermes shows "No reply" + retries 3x).
     if not str((last or {}).get("content") or "").strip() and not (last or {}).get("tool_calls"):
         return {"role": "assistant", "content":
                 "I'm the MiOS local agent. I couldn't form a full reply just now -- "
@@ -670,8 +587,6 @@ async def _client_tools_sse(msg: dict, chat_id: str,
                                  "finish_reason": finish}]}) + "\n\n").encode("utf-8")
 
     yield _chunk({"role": "assistant"})
-    # Relay the backend's thinking so a client that renders it (Hermes desktop)
-    # shows the thinking stream; emit both field conventions. Zen ignores both.
     _rsn = msg.get("reasoning_content") or msg.get("reasoning")
     if _rsn:
         yield _chunk({"reasoning_content": _rsn, "reasoning": _rsn})
@@ -715,11 +630,6 @@ async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> An
     tbody["messages"] = _client_tools_inject_identity(list(body.get("messages") or []))
     tbody["chat_template_kwargs"] = {"enable_thinking": True}
     tbody["stream"] = True
-    # Force ONE well-formed tool call per turn (the client runs its own loop, executing
-    # each step then re-calling). A small model handed the full client+MiOS surface on a
-    # multi-step ask ("open notepad AND type hello") emits MALFORMED parallel calls (the
-    # Hermes-desktop "LIAR" failure: two open_app calls, no type, nothing fires). The
-    # client may override..
     tbody.setdefault("parallel_tool_calls", False)
     for _k in ("mios_flags", "_allow_write", "num_ctx"):
         tbody.pop(_k, None)
@@ -763,26 +673,8 @@ async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
         except Exception:  # noqa: BLE001
             continue
     out_model = model or _TOOL_BACKEND_MODEL
-    # ROUTING (- the Hermes desktop "open notepad and type"
-    # failures): ALWAYS use the HYBRID loop for a client-tools turn; NEVER the verbatim
-    # relay. The desktop app's actual tool surface is the hermes-cli builtins
-    # (browser_*, terminal, text_to_speech, ...) and does NOT contain the MiOS verbs --
-    # its mios MCP tools fail to register, proven by the live error "Tool 'open_url'
-    # does not exist. Available tools: browser_back ... write_file" (no open_app /
-    # pc_type / launch_* anywhere). The model is told by its system prompt to call MiOS
-    # launch tools, so it emits open_url / open_app / windows_desktop_type_text -- verbs
-    # ABSENT from its surface -> "does not exist" -> nothing runs. The verbatim relay
-    # only forwarded that MiOS-less surface, so it could NEVER work. The hybrid loop
-    # MERGES the MiOS verb surface server-side (_client_tools_mios_surface) so open_app/
-    # pc_type are actually present and EXECUTE via the broker (notepad opens + types),
-    # while genuine client-only tools (browser_*) still ride back to the caller. Tradeoff
-    # vs the old relay: the final answer bursts instead of token-streaming -- acceptable
-    # for a turn that now actually WORKS.
     try:
         final_msg = await _client_tools_loop(body, client_names, chat_id)
-        # WS-E #2: a strict client matches its follow-up role:tool message by
-        # tool_call_id; if the backend omitted an id, synthesize a stable one so the
-        # client's next turn validates instead of 400-ing on id=null.
         for _i, _tc in enumerate(final_msg.get("tool_calls") or []):
             if isinstance(_tc, dict) and not _tc.get("id"):
                 _tc["id"] = f"call_{chat_id}_{_i}"

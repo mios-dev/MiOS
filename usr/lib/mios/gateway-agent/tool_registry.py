@@ -43,7 +43,6 @@ class WebSearchTool(Tool):
             return f"Error executing web_search: {e}"
 
     def get_tools(self) -> List[Tool]:
-        # Build smolagents.Tool instances dynamically from the MCP cached tools
         tools = []
         for mcp_tool in self.mcp_client.cached_tools:
             try:
@@ -52,7 +51,6 @@ class WebSearchTool(Tool):
             except Exception as e:
                 log.warning("Failed to map MCP tool %s to smolagents.Tool: %s", getattr(mcp_tool, "name", "unknown"), e)
         
-        # T-081: Add web_search tool to the tool registry
         from server import _toml_section
         gateway_cfg = _toml_section("gateway")
         searxng_url = gateway_cfg.get("searxng_url", "http://mios-searxng:8080")
@@ -64,7 +62,6 @@ class WebSearchTool(Tool):
         name = getattr(mcp_tool, "name", "")
         description = getattr(mcp_tool, "description", "")
         
-        # Parse inputs schema from inputSchema
         input_schema = getattr(mcp_tool, "inputSchema", {}) or {}
         properties = input_schema.get("properties", {}) or {}
         required = input_schema.get("required", []) or []
@@ -78,7 +75,6 @@ class WebSearchTool(Tool):
             if param_name not in required:
                 inputs[param_name]["nullable"] = True
 
-        # Dynamic subclass creation
         client = self.mcp_client
         loop = self.main_loop
 
@@ -92,11 +88,9 @@ class WebSearchTool(Tool):
                 super().__init__()
 
             def forward(self, **kwargs) -> str:
-                # Dispatch the async call to the running event loop from the executor thread
                 coro = client.call_tool(self.name, kwargs)
                 fut = asyncio.run_coroutine_threadsafe(coro, loop)
                 try:
-                    # Timeout 20 seconds to prevent blocking indefinitely
                     return fut.result(timeout=20.0)
                 except Exception as e:
                     return f"Error executing tool {self.name}: {e}"

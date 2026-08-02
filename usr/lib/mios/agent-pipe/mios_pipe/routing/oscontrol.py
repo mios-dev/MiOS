@@ -41,17 +41,7 @@ from mios_knowledge import _store_knowledge
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The OS-control fast-path reads server.py's OS_CONTROL_* config scalars + the
-# verb sets, the per-conversation conv-key ContextVar, and calls back into the
-# broker-adjacent helpers (_get_client, _scratchpad_note, the _db_* row helpers,
-# _inline_satisfaction_check, _strip_think_tags). server.py calls configure()
-# with those AFTER every one is defined (one-way boundary: this module never
-# imports server). The placeholders below carry the documented defaults so a
-# standalone ``import mios_oscontrol`` still succeeds; every consumer is
-# async/runtime so nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion)
 OS_CONTROL_LAUNCH_VERIFY_S = 16.0
 OS_CONTROL_LAUNCH_POLL_S = 1.5
 OS_CONTROL_RETRY_ATTEMPTS = 2
@@ -63,7 +53,6 @@ OS_CONTROL_ENUM_RETRY_SETTLE_S = 0.7
 _OS_CONTROL_ACTION_VERBS: frozenset = frozenset()
 _LAUNCH_VERBS: frozenset = frozenset()
 
-# server-side refs/helpers (injected)
 _conv_key_var = None
 _get_client = None
 _scratchpad_note = None
@@ -73,11 +62,6 @@ _db_create = None
 _inline_satisfaction_check = None
 _strip_think_tags = None
 
-# fast-path verb set + verb catalog (server SSOT; injected). Read by
-# _render_os_control_verbs to build the per-verb refine-prompt lines. Server.py
-# CALLS that render at import time, so it injects these two BEFORE that call (the
-# import-time stage of its two-stage configure); the empty placeholders here let a
-# standalone import + render succeed (returns "" when no verbs are registered).
 _FASTPATH_VERBS: frozenset = frozenset()
 _VERB_CATALOG: dict = {}
 
@@ -160,11 +144,9 @@ def _load_oscontrol_endpoints() -> list:
         if not isinstance(sec, dict):
             sec = {}
         cfg: dict = {}
-        # Top-level executor_endpoint overlays.
         if "executor_endpoint" in sec:
             cfg.setdefault("__exec__", {}).update(
                 {"endpoint": str(sec.get("executor_endpoint") or "")})
-        # Per-node overlays (sec.nodes.<name>).
         nodes = sec.get("nodes") or {}
         if isinstance(nodes, dict):
             for nname, ncfg in nodes.items():
@@ -261,11 +243,6 @@ async def _enumerate_windows() -> dict:
                 merged.extend(r)
         return any_ok, merged
 
-    # RETRY-ON-EMPTY : an empty snapshot on a live desktop is a
-    # transient broker miss, not truth -- re-enumerate so a launch-verify never goes
-    # falsely BLIND (which forced the unreliable PID fallback). Each attempt is
-    # wait_for-bounded; the empty case returns fast in practice, so the common path
-    # (windows present on the first try) adds ZERO latency.
     any_ok, merged = False, []
     for _attempt in range(max(1, OS_CONTROL_ENUM_RETRY + 1)):
         try:
@@ -379,7 +356,6 @@ async def _center_windows(wins: list) -> list:
            for e in _load_oscontrol_endpoints() if e.get("url")}
     if not eps:
         return []
-    # Largest qualifying window per owning executor.
     best: dict = {}
     for w in (wins or []):
         if not isinstance(w, dict):
@@ -489,24 +465,13 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         if blind:
             return False  # blind enum cannot verify window; fallback to call-site _proc_present
         wins = (after or {}).get("windows") or []
-        # A NEW window appeared after the launch = it worked. This is the
-        # robust signal: WSLg windows report CONTENT titles ("Home", "Anime
-        # North - Home", "mios@MiOS-955:~") + proc=msrdc -- NEVER the app name
-        # - so a target-NAME substring match is unreliable (
-        # train: epiphany/files/ptyxis ALL opened but were reported "failed"
-        # because "epiphany" isn't in "Sample App - Home"). No hardcoded app
-        # names: count-delta + the live window diff carry the truth.
         if ac > bc or wdiff.get("opened"):
             return True
-        # ALREADY-OPEN: mios-launch's preflight focuses+centers an existing
-        # instance and reports already_running -- honour that as success.
         _out = (result.get("output") or "") + " " + (result.get("stderr") or "")
         if "already_running" in _out and "true" in _out:
             return True
         if "tab-opened" in _out and '"success": true' in _out:
             return True
-        # Last resort: a genuine title match (native Windows apps DO carry
-        # their name, e.g. "Task Manager").
         if target and any(target in _win_hay(w) for w in wins):
             return True
         return False
@@ -517,19 +482,9 @@ def _verify_os_action(tool: str, args: dict, result: dict,
         if target:
             return not any(target in _win_hay(w) for w in wins)  # gone == success
         return bool(wdiff.get("closed")) or ok
-    # focus / move / resize / center / state: no window-count change expected.
     return ok
 
 
-# "Last window THIS CONVERSATION opened" -- the referent for a standalone "type X
-# into it" the turn AFTER a launch (operator's exact domain: typing). Keyed on the
-# per-conversation scratchpad key (_conv_key_var = metadata.chat_id the OWUI pipe
-# forwards) NOT the per-REQUEST session_id, which is a fresh DB row each turn and
-# would never match across the conversation. A launch records its opened window
-# here; a later standalone pc_type focuses it before typing so the keystrokes land
-# in the window the user means, not whatever stole foreground since. Bounded
-# (LRU-ish via clear); read-back still verifies the text actually landed -- this
-# only improves WHICH window is targeted, it never asserts success.
 _LAST_OPENED_WINDOW: dict = {}
 _LAST_OPENED_WINDOW_CAP = int(os.environ.get("MIOS_LAST_WINDOW_CAP", "256") or 256)
 
@@ -569,14 +524,6 @@ async def _respond_os_control(
     'presented, not merely process-alive' Definition-of-Done rule in SOUL)."""
     _args = args if isinstance(args, dict) else {}
 
-    # ── LIVE EMIT PUMP, decoupled from the work ("emits
-    # are HELD BACK BY THE PIPELINE; should run SEPARATELY ... zero emits during
-    # a launch"). When streaming, run the SAME work as a non-streaming bg task
-    # whose `emit` callback PUSHES milestone status onto a queue, and drain that
-    # queue LIVE here (mirrors the research _gen pump). ONE shared work body --
-    # only the transport differs -- so a launch streams route -> launching ->
-    # checking -> centering -> result in REAL TIME instead of a silent gap then
-    # a dump. Keepalive during any quiet stretch keeps the SSE channel open.
     if streaming:
         async def _stream_os() -> AsyncGenerator[bytes, None]:
             yield _sse_status_phase(chat_id=chat_id, model=model, phase="prompt")
@@ -627,7 +574,6 @@ async def _respond_os_control(
             yield _sse_done()
         return StreamingResponse(_stream_os(), media_type="text/event-stream")
 
-    # Milestone emitter -- no-op unless a streaming pump passed an `emit` sink.
     def _emit(emoji: str, label: str, detail=None) -> None:
         if emit:
             try:
@@ -635,16 +581,6 @@ async def _respond_os_control(
             except Exception:  # noqa: BLE001
                 pass
 
-    # CONTEXT-AWARE FOCUS for a standalone type (operator's exact domain): a bare
-    # "now type X into it" the turn after a launch has NO same-turn window to
-    # focus -- the "it" referent is the window THIS session most recently opened.
-    # Focus it before pc_type so the keystrokes land there, not whatever stole
-    # foreground since (the cross-turn analogue of the compound type-chain's
-    # focus-before-type). Best-effort + degrade-open: no remembered window, or a
-    # focus miss (window since closed), just types into the current foreground;
-    # pc_type's STRICT read-back still verifies the text actually landed. ONLY the
-    # standalone route enters _respond_os_control with tool=pc_type (the compound
-    # chain dispatches pc_type directly), so this never double-focuses.
     if tool == "pc_type":
         _ckey = _conv_key_var.get()
         _lw = _LAST_OPENED_WINDOW.get(_ckey) if _ckey else None
@@ -664,16 +600,6 @@ async def _respond_os_control(
                                 log.info("standalone pc_type: context-focused and resolved hwnd %s for last-opened window %r before typing", _hw, _lw)
             except Exception as _ex:  # noqa: BLE001
                 log.warning("failed to resolve target hwnd for standalone pc_type: %s", _ex)
-    # FIRE -> VERIFY -> RE-ATTEMPT ("iGPU does MiOS OS
-    # control ... the rest of the pipeline VERIFIES TRUE and attempts to
-    # re-attempt"). For a WRITE OS-control verb: snapshot ALL open windows
-    # BEFORE, fire the action, snapshot AFTER, diff to learn exactly what
-    # opened/closed, and CONFIRM via the diff (launch -> target window now
-    # present; close -> target gone). If the enumeration does NOT confirm it
-    # took effect, RE-ATTEMPT up to OS_CONTROL_RETRY_ATTEMPTS. The before/after
-    # diff is real once the executor is wired (else blind count:0 -> trust the
-    # exit code, no retry-spin). A launch already present short-circuits (no
-    # double-launch). The final snapshot+delta is indexed to RAG.
     _action = tool in _OS_CONTROL_ACTION_VERBS
     _is_launch = tool in _LAUNCH_VERBS
     _before = _after = None
@@ -682,12 +608,6 @@ async def _respond_os_control(
     _verified = False
     _tries = 0
     if _action and _is_launch:
-        # LAUNCH: fire ONCE (the launch is detached + fire-and-forget), then
-        # POLL the window enumeration until the window renders or the deadline
-        # passes. Re-DISPATCHING a launch on a miss would spawn DUPLICATE
-        # instances (train: 3 gedit instances; epiphany/
-        # nautilus/ptyxis all opened ~5-10s later but were reported "no
-        # window"). Polling (re-enumerate only, no re-launch) fixes both.
         _emit("🚀", f"opening {_os_target(_args) or tool}")
         _before = await _enumerate_windows()
         result = await dispatch_mios_verb(tool, _args, session_id=session_id)
@@ -698,17 +618,6 @@ async def _respond_os_control(
             _emit("🔍", "checking it opened")
             _after = await _enumerate_windows()
             _wdiff = _window_diff(_before, _after)
-            # A GUI launch is VERIFIED by a real WINDOW -- a new window opened,
-            # or a visible window matching the target ("this
-            # is how i know nothing is verified" -- Discord PTB spawned 6 procs
-            # with MainWindowHandle=0 and ZERO top-level windows, started
-            # minimized to the tray, yet a pgrep PID check flipped the verdict to
-            # "launched". A live process with NO window is NOT "opened"). So
-            # _proc_present is demoted to a BLIND-ONLY fallback: when the window
-            # enumeration can see nothing at all (executor not wired -> count:0
-            # both sides), THEN fall back to the global-PID check / exit code
-            # (operator's earlier "search PIDs globally"). When we CAN enumerate
-            # windows, process-presence does NOT override the absence of one.
             _win_verdict = _verify_os_action(
                 tool, _args, result, _before, _after, _wdiff)
             _enum_blind = ((_before or {}).get("count", 0) == 0
@@ -720,18 +629,11 @@ async def _respond_os_control(
             log.info("os-control %s not yet confirmed (poll %d) -> wait %.1fs",
                      tool, _tries, OS_CONTROL_LAUNCH_POLL_S)
             await asyncio.sleep(OS_CONTROL_LAUNCH_POLL_S)
-        # CENTER the freshly-launched window (operator binding: 'launches are
-        # ALWAYS centered -- the default MiOS opening pattern'). Done HERE, after
-        # the verify loop has identified what opened, so we center the REAL main
-        # window (mapped + full-size) rather than an early popup. Server-side so
-        # it covers EVERY fast-path launch + reuses the diff already computed.
         if _wdiff.get("opened"):
             _emit("🎯", "centering it")
             _ctr = await _center_windows(_wdiff["opened"])
             if _ctr:
                 log.info("auto-centered launched window(s): %s", ", ".join(_ctr))
-        # Remember what this launch opened so a FOLLOW-UP turn's standalone
-        # "type X into it" can focus the right window before typing.
         _record_last_opened_window(_wdiff)
     else:
         _emit("🪟", (f"{tool.replace('_window', '').replace('_', ' ').strip()} "
@@ -752,20 +654,8 @@ async def _respond_os_control(
                          tool, _tries, _attempts)
                 await asyncio.sleep(OS_CONTROL_RETRY_SETTLE_S)
     ok = bool(result.get("success"))
-    # Effective verdict for the operator-facing symbol: a launch that fired
-    # (exit 0) but did NOT verify (no window) is NOT a confirmed success.
     _eff_ok = _verified if _action else ok
-    # ...BUT a launch whose COMMAND fired (exit 0) with no window yet is
-    # LAUNCHING, not failed -- normal for Steam/Store games that load over
-    # 30-60s, well past the verify window ("play a game").
-    # Distinct from a fire that errored (genuine failure -> stays ⚠️).
     _launch_pending = bool(_is_launch and ok and not _verified)
-    # SMART FOCUS ("detect if running -> focus to the
-    # foreground -> not available? -> find and launch to the foreground"):
-    # focus_window only raises an ALREADY-OPEN window. If the target isn't
-    # running (focus found no matching window), LAUNCH it -- the launcher brings
-    # the new window to the foreground -- so "focus X" means "ensure X is open +
-    # frontmost", never a dead-end "X isn't running" punt.
     _focus_launched = False
     if tool == "focus_window" and not _eff_ok:
         _t = str(_args.get("title") or _args.get("app")
@@ -782,8 +672,6 @@ async def _respond_os_control(
             ok = bool(result.get("success"))
             _eff_ok = _verified
             _focus_launched = True
-    # (Compound-launch TYPE-CHAIN hack removed: the agent now relies on 
-    # native AIOS routing to compose open_app and pc_type sequentially.)
     if _action:
         _index_window_event(tool, _args, _before, _after, _wdiff, session_id)
     _row = {
@@ -815,8 +703,6 @@ async def _respond_os_control(
         },
     }
     if _action:
-        # Grounding diff: what the enumeration shows ACTUALLY changed + the
-        # verify/re-attempt verdict.
         envelope["window_change"] = {
             "verified": bool(_verified),
             "attempts": _tries,
@@ -827,7 +713,6 @@ async def _respond_os_control(
             "closed": [str(w.get("title") or w.get("proc") or "")
                        for w in _wdiff.get("closed", []) if isinstance(w, dict)],
         }
-    # (type_chain removed)
     if DCI_ENABLED:
         _db_fire(critic_then_maybe_flow(last_user_text, envelope,
                                         session_id=session_id))
@@ -842,7 +727,6 @@ async def _respond_os_control(
         "intended_outcome": f"perform the {tool} action the operator asked for",
         "refined_text": last_user_text,
     }
-    # Inline satisfaction event before polish reads verdicts.
     await _inline_satisfaction_check(session_id, _refined_for_polish)
     _out = (result.get("output") or "").strip()
     _err = (result.get("stderr") or "").strip()
@@ -868,12 +752,6 @@ async def _respond_os_control(
                             "30-60s. Report this as STARTING / LAUNCHING (e.g. "
                             "'<app> is launching via Steam -- it may take a moment "
                             "to appear'), which is NOT a failure.\n")
-    # (type_chain reporting removed)
-    # OS-control replies are SHORT + GENERATIVE ("completely
-    # generative in its replies too" + "JUST reply SUCCESS and DETAILS and
-    # FOLLOW-UPS, nothing much more"). So: model-written (no template), but a
-    # tight prompt + low token cap -> fast (vs the 16s full-length polish). The
-    # `verified`/window/proc facts in _polish_src are the ground truth.
     _emit(symbol, "writing the result")
     polished_raw = await polish_response(
         "The OS-control verb `" + tool + "` ran (result below). Reply in 1-3 "
@@ -894,10 +772,6 @@ async def _respond_os_control(
     polished = _strip_think_tags(polished_raw) if polished_raw else ""
     rendered = (f"{polished}\n\n{envelope_block}"
                 if polished.strip() else envelope_block)
-    # Streaming is handled by the live-emit pump at the TOP of this function (it
-    # runs THIS body as a non-streaming bg task + drains the milestone emits in
-    # real time). Reaching here means streaming=False -> return the rendered
-    # envelope (polished answer + tool_calls block) as a plain JSON completion.
     return JSONResponse(content={
         "id": chat_id,
         "object": "chat.completion",

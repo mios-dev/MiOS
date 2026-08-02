@@ -103,7 +103,6 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
                                Response, StreamingResponse)
 import uvicorn
 
-# ── Logging ────────────────────────────────────────────────────────
 logging.basicConfig(
     level=logging.INFO,
     format="[mios-agent-pipe] %(asctime)s %(levelname)s %(message)s",
@@ -111,21 +110,11 @@ logging.basicConfig(
 )
 log = logging.getLogger("mios-agent-pipe")
 
-# ── MiOS agent-pipe sub-modules (monolith split) ─────────
-# Extracting cohesive, low-coupling helpers out of this 19k-line file into
-# sibling modules. The sys.path guard makes the imports work whether the file is
-# run as a script (its dir is sys.path[0]) or loaded by absolute path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mios_jsonsalvage import loads_lenient as _loads_lenient   # noqa: E402
 from mios_owui import (strip_owui_scaffold as _strip_owui_scaffold,  # noqa: E402
                        OWUI_TEMPLATE_MARKERS as _OWUI_TEMPLATE_MARKERS)
 from mios_sched import (PriorityGate,   # noqa: E402  -- WS-1 priority scheduler queue
-                        # Lane/scheduling/priority decision helpers, moved VERBATIM.
-                        # Re-imported here under their EXACT names so server's surface
-                        # stays byte-identical; their server-owned deps are injected via
-                        # sys.modules["mios_sched"].configure(...) below (the import-time
-                        # dep _AUTO_PRIO_WORDS first, then the runtime-only deps once
-                        # _agent_lane is defined).
                         _lane_tool_cap, _agent_offload_engine,
                         _resolve_autonomous_priority, _sched_priority, _lane_sem_key)
 from mios_evict import (evict_where as _evict_where,  # noqa: E402  -- WS-A3 parameterized pg
@@ -147,7 +136,6 @@ from mios_kvfork import (validate_fork as _kvfork_validate,  # noqa: E402  -- WS
                         fork_outcome as _kvfork_outcome,
                         kv_filename as _kvfork_kv_filename)   # WS-A4 de-dup target
 import mios_kvgc   # noqa: E402,F401  -- WS-A4 KV slot-file GC planner; retained for
-# surface parity (the sweep that calls plan_gc now lives in mios_daemons)
 import mios_secset   # noqa: E402  -- WS-A14 SSOT-derived high-privilege/taint sets
 import mios_hopbudget   # noqa: E402  -- WS-4 hop-budget recursion guard + effort scaling
 import mios_preempt   # noqa: E402  -- WS-A12 RR-preemption state machine + snapshot contract
@@ -189,10 +177,6 @@ import mios_memory   # noqa: E402  -- WS-A15 pluggable MemoryProvider seam
 import mios_tokenize   # noqa: E402  -- WS-A5 tokenizer seam (token accounting)
 import mios_ctxpack    # noqa: E402  -- WS-A5 priority token-budget context packer
 import mios_compact    # noqa: E402  -- WS-A5 rolling-summary compaction planner
-# WS-R1: pure config constants + SSOT readers extracted to mios_config.py;
-# re-imported here verbatim so server.py's importable surface is unchanged
-# (mios_surface parity gate). Resolves near the top so every later config
-# constant + the runtime-coupled fns that stayed can use them.
 from mios_config import (   # noqa: E402
     PORT,
     MCP_SERVER_PORT,
@@ -251,11 +235,6 @@ from mios_config import (   # noqa: E402
     _dispatch_num,
     KV_SLOT_PERSIST,
 )
-# ── Phase B DCI subsystem (vocab + B.1 critic + B.2 convergent flow + B.3
-# escalation) -- extracted verbatim to mios_dci.py (refactor R6). Re-imported
-# under the original names so server.py's importable surface is byte-identical
-# (surface-parity gate). configure() is injected lower down, once the _db_*
-# helpers + _apply_outbound_auth exist (mios_dci never imports server).
 from mios_dci import (   # noqa: E402
     DCI_ENABLED,
     DCI_MODEL,
@@ -283,7 +262,6 @@ from mios_dci import (   # noqa: E402
     dci_critic_pass,
 )
 
-# ── Config (SSOT-sourced via env) ──────────────────────────────────
 
 
 from mios_pipe.access.authn import (
@@ -297,47 +275,19 @@ from mios_pipe.access.authn import (
 )
 
 
-# Web-search cross-agent concurrency bound ("SearXNG
-# setup to handle the load -- buffer/queue or delayed starts for multi-agent
-# dispatches"). When a council/DAG fans out, several agents can call
-# web_search at once, and each expands into MIOS_WEB_FANOUT concurrent
-# sub-queries -- a thundering herd at the local SearXNG. A global semaphore
-# (bulkhead) caps how many web_search dispatches run concurrently; excess
-# ones QUEUE on it (the "buffer"). A tiny pre-acquire jitter desynchronises
-# simultaneous starts (the "delayed starts"). Total concurrent SearXNG
-# queries stay ~= MIOS_WEB_CONCURRENCY * MIOS_WEB_FANOUT.
 
 
 
 
-# [web_research] SSOT: the per-turn web-research loop bounds (the dominant
-# research-turn latency driver) live in mios.toml, not as code literals. The
 # MIOS_WEB_RESEARCH_* env vars stay as runtime overrides; the trailing literal is
-# the last-resort fallback. (Only the 3 latency-driving keys are wired to the
-# SSOT today -- passes / crawl_timeout_s / max_attempts; the rest are a noted
-# follow-up sweep.)
 _WEB_TOML = _toml_section("web_research")
 _AGENT_PIPE_TOML = _toml_section("agent_pipe") or {}
-# [knowledge] SSOT (P2): the tiered semantic-memory recall
-# weights + thresholds live in mios.toml [knowledge], not as code literals. The
 # MIOS_KNOWLEDGE_* env vars stay as runtime overrides; the trailing literal is
-# the last-resort fallback. Read via _cfg_num(_KN_TOML, env, key, default, cast).
 _KN_TOML = _toml_section("knowledge")
 WEB_CONCURRENCY = int(os.environ.get("MIOS_WEB_CONCURRENCY", "3"))
 WEB_DISPATCH_JITTER_S = float(os.environ.get("MIOS_WEB_DISPATCH_JITTER_S", "0.15"))
 _web_sem = asyncio.Semaphore(max(1, WEB_CONCURRENCY))
 
-# ── WS-A8 per-request trace/span observability ──────────────────────────────
-# A chat_completions request mints (or adopts, via the X-MiOS-Trace header) a
-# trace_id; each pipeline stage opens a child span under the current parent
-# (contextvars), and finished spans land in a bounded in-memory buffer
-# (mios_trace.Tracer) that backs GET /v1/trace/{trace_id} with NO DB hit.
-# Degrade-open + cheap: turn off with MIOS_TRACE_ENABLE=0. The trace id is also
-# propagated outbound (X-MiOS-Trace) to the Hermes hop and stamped (with the active
-# span_id) onto `event` rows for durable correlation. Finished spans themselves are
-# NOT mirrored to the DB -- they live only in the bounded in-memory ring above (the
-# trace-read endpoint serves them with no DB hit); the event.parent_span_id column
-# is reserved (not currently written).
 TRACE_ENABLE = os.environ.get("MIOS_TRACE_ENABLE", "1").strip().lower() \
     not in ("0", "false", "no", "off", "")
 TRACE_MAX_TRACES = int(os.environ.get("MIOS_TRACE_MAX_TRACES", "256") or 256)
@@ -347,7 +297,6 @@ _TRACER = mios_trace.Tracer(enabled=TRACE_ENABLE, max_traces=TRACE_MAX_TRACES,
 _trace_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_trace_id", default="")
 _span_id_var: "contextvars.ContextVar" = contextvars.ContextVar("mios_span_id", default="")
 
-# OpenTelemetry GenAI Spans (T-023)
 _otel_toml = _toml_section("observability") or {}
 _DEBUG_ENABLE = (
     str(os.environ.get("MIOS_DEBUG_ENABLE") or _otel_toml.get("debug", "true"))
@@ -424,52 +373,14 @@ def _traced_stage(name: str):
     return deco
 
 
-# ── WS-A2 embedding identity + working-memory durability ────────────────────
-# ONE canonical embedding identity (model + logical version) stamped onto every
-# stored vector (knowledge / agent_memory). Bump MIOS_PGVECTOR_EMB_VERSION whenever the
-# embedding model or its dimensionality changes -> mios_embed_backfill re-embeds
-# the stale rows off the hot path instead of silently mixing incompatible vector
-# spaces (which degrades cosine recall to noise).
 EMB_MODEL = os.environ.get("MIOS_PGVECTOR_EMB_MODEL", "nomic-embed-text")
 EMB_VERSION = os.environ.get("MIOS_PGVECTOR_EMB_VERSION", "nomic-768-v1")
-# WS-A1: SSOT catalog load posture. "warn" (default) = the loaders log + degrade
-# to an empty/partial catalog on a parse error (today's behaviour). "fail" =
-# FAIL-LOUD: a malformed verb/recipe/agent catalog RAISES at startup so the pipe
-# never silently serves an empty tool surface from a broken mios.toml. Opt-in via
-# [ai].catalog_fail_mode (env MIOS_CATALOG_FAIL_MODE); ship "warn", flip to "fail"
-# once the build/CI manifest-drift gate (mios-ai-manifest-gen --check) is green.
 CATALOG_FAIL_MODE = str(os.environ.get("MIOS_CATALOG_FAIL_MODE", "warn")).strip().lower()
-# Persist the per-chat scratchpad (working memory) to the pg `scratch` table so
-# it SURVIVES an agent-pipe restart (rehydrated once on chat entry). Fire-and-
-# forget + degrade-open; off -> the old in-memory-only behaviour.
 SCRATCHPAD_PERSIST = str(os.environ.get("MIOS_SCRATCHPAD_PERSIST", "1")).strip().lower() \
     not in ("0", "false", "no", "off", "")
-# WS-A5: the tokenizer backend (SSOT [ai].tokenizer_*) is INSTALLED below, right
-# after the logger is defined (it logs the install/degrade outcome) -- see
-# "_TOKENIZER_BACKEND" near the logger setup.
 
-# Pipeline-side WEB-RESEARCH loop ("the MiOS pipeline
-# ITSELF loops for web use and web tools" + "multi loops for all web tools" +
-# "use searxng too" + "all these web tools and no use from any agent"). For a
-# web-needing turn the PIPELINE runs the chain itself -- SearXNG web_search with
-# fan-out (multiple diverse queries) THEN web_extract the top results for REAL
-# article text, over WEB_RESEARCH_PASSES loop passes -- and injects the grounded
-# content for EVERY agent (primary + reasoning-only secondaries). So the swarm
-# grounds on actual stories, not shallow homepage snippets, regardless of any
-# single agent's own tool-loop depth (the transcript that listed bare news
-# homepages -- "did NOT elaborate / multiple passes"). Gated on the refine
-# web-hint so it never over-fires on a non-web turn.
 WEB_RESEARCH_ENABLED = os.environ.get(
     "MIOS_WEB_RESEARCH_ENABLED", "true").lower() not in {"false", "0", "no"}
-# LOOP DEPTH ("didn't do enough loops for web tools!!"):
-# a "master review" / "what's new" needs MANY sources read + re-searched when
-# the first hits are off-topic (the Forza run pulled in NBA odds / an LG TV /
-# a Zodiac page; the news run pulled India NEET / an auto show). Raised the
-# defaults: 4 search->judge->re-search PASSES (was 2 -> a junk first search now
-# gets 3 more sharpened angles), 5 pages FETCHED per pass (was 3), 8 results
-# considered (was 6). Still env-overridable + bounded by the per-iter web cap +
-# the deepen wall-clock so they can't run away. Self-hosted SearXNG/Firecrawl/
-# crawl4ai -> all offline.
 WEB_RESEARCH_PASSES = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_PASSES", "passes", 4))
 WEB_RESEARCH_RESULTS = int(os.environ.get("MIOS_WEB_RESEARCH_RESULTS", "8"))
 WEB_RESEARCH_FANOUT = int(os.environ.get(
@@ -479,59 +390,14 @@ WEB_RESEARCH_FETCH_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_FETCH_CHARS", "
 WEB_RESEARCH_BLOCK_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_BLOCK_CHARS", "1200"))
 WEB_RESEARCH_SEARCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_SEARCH_TIMEOUT_S", "30"))
 WEB_RESEARCH_FETCH_TIMEOUT = float(os.environ.get("MIOS_WEB_RESEARCH_FETCH_TIMEOUT_S", "12"))
-# The deep crawl engine (mios-crawl = crawl4ai+CDP / Camoufox, the local
-# web-tools pod) fires CONCURRENTLY with the stdlib web_extract on every web turn
-# - both web tools race per URL and the richest result wins (
-# "use all web tools concurrently", "all other web tools fire on ALL
-# endpoints"). Set MIOS_WEB_RESEARCH_CRAWL_FALLBACK=false to drop back to
-# extract-only (no deep render).
 WEB_RESEARCH_CRAWL_FALLBACK = os.environ.get(
     "MIOS_WEB_RESEARCH_CRAWL_FALLBACK", "true").lower() not in {"false", "0", "no"}
 WEB_RESEARCH_MIN_CHARS = int(os.environ.get("MIOS_WEB_RESEARCH_MIN_CHARS", "300"))
-# Camoufox stealth render is SLOW (~20-40s) but RESCUES bot-blocked / JS pages
-# (a weforum 403 came back EMPTY because the old 25s crawl
-# TIMED OUT -> non-answer). 45s gives Camoufox room; CRAWL_MAX is the TURN-WIDE cap
-# on how many pages the deep renderer fetches (concurrently) so it can't blow the
-# turn budget -- raised to 4 (operator wants the deep tool firing broadly, not 2).
 WEB_RESEARCH_CRAWL_TIMEOUT = _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_CRAWL_TIMEOUT_S", "crawl_timeout_s", 45, float)
-# Raised 4 -> 6 ("not enough loops"): keep the deep-render
-# budget in step with the larger FETCH_N=5 so the JS-heavy / bot-blocked pages
-# a research query needs still get the Chrome/Camoufox render, not just the
-# fast extract. Turn-wide cap; concurrent; bounded so it can't blow the budget.
 WEB_RESEARCH_CRAWL_MAX = int(os.environ.get("MIOS_WEB_RESEARCH_CRAWL_MAX", "6"))
-# Route "news" asks through the SearXNG NEWS category? DEFAULT ON.
-# The note said the news engines (bing/ddg/reuters/yahoo/qwant/brave
-# news) were IP-blocked so the news category returned only stale wikinews -- that
-# is STALE. Re-probed (isolated SearXNG test): `categories=news` for
-# "world news today" returns 43 REAL results from reuters(20)/qwant news(10)/
-# bing news(8)/wikinews(5) -- the engines work again. The GENERAL search, by
-# contrast, returns dictionary/brand junk for news queries ("what's new" ->
-# Merriam-Webster "WHAT", WhatsApp; "current events" -> the "Current" banking
-# app). So news asks MUST use the news category. refine's MODEL-DRIVEN `news`
-# flag gates it (no Python keyword list).
 WEB_RESEARCH_USE_NEWS_CATEGORY = os.environ.get(
     "MIOS_WEB_RESEARCH_USE_NEWS_CATEGORY", "true").lower() not in {"false", "0", "no"}
-# Recency window (SearXNG `time_range`). DISABLED by default: isolated test
-# showed `time_range=week|month` returns ZERO results for news queries
-# on this instance (the recency filter is too aggressive / engine-dependent) --
-# it was an actively HARMFUL "fix" that produced empty grounding -> non-answers.
-# The news category (above) is what actually surfaces current dated stories.
-# Set day|week|month|year to re-enable if a future engine set supports it.
 WEB_RESEARCH_TIME_RANGE = os.environ.get("MIOS_WEB_RESEARCH_TIME_RANGE", "").strip()
-# LOOP-UNTIL-SATISFIED ("all agents... use all tools
-# globally AND LOOP UNTIL SATISFIED"; "multi loops for all web tools"). The web
-# research re-searches / re-tools (across SearXNG + Firecrawl + crawl4ai) until a
-# MODEL judge says the gathered content actually answers the query, or the
-# attempt cap is hit -- so a junk first search ("current" -> the banking app) no
-# longer surrenders a non-answer. The judge is the warm CPU-lane micro (same
-# model the web fan-out uses); degrade OPEN (treat as satisfied) on any error so
-# a judge hiccup never blocks the answer. No hardcoded topic/keyword check.
-# 3 -> 5 ("loops until satisfied!!"): the search->judge->
-# re-search loop now gets more rounds to KEEP GOING when the judge says the
-# gathered content doesn't yet answer the ask -- a junk/pre-launch first search
-# (the Forza run grabbed hype pages + concluded "no reviews" instead of digging
-# for the actual Metacritic/IGN reviews) gets 4 more sharpened angles before
-# giving up. The judge (below) is the real gate; this is just the safety cap.
 WEB_RESEARCH_MAX_ATTEMPTS = max(1, _cfg_num(_WEB_TOML, "MIOS_WEB_RESEARCH_MAX_ATTEMPTS", "max_attempts", 5))
 _JUDGE_MODEL = os.environ.get(
     "MIOS_WEB_RESEARCH_JUDGE_MODEL", os.environ.get("MIOS_DAEMON_MODEL", _STACK_MODEL))
@@ -540,38 +406,10 @@ _JUDGE_ENDPOINT = os.environ.get(
     os.environ.get("MIOS_DAEMON_ENDPOINT", _LIGHT_BASE + "/v1")).rstrip("/")  # mios-llm-light (WS-0B)
 _JUDGE_BASE = (_JUDGE_ENDPOINT[:-3].rstrip("/") if _JUDGE_ENDPOINT.endswith("/v1") else _JUDGE_ENDPOINT)
 
-# Health-gated (remote / slow) node call timeouts. A SHORT connect drops an
-# ABSENT node fast (phone asleep -> ~2.5s); a GENEROUS read lets a PRESENT-but-
-# SLOW node FINISH. the Windows iGPU (~13 tok/s on Vulkan)
-# DID fire (visible in Task Manager) but agent-pipe abandoned it at the old flat
-# 45s read -- the new pipeline web-research context (~7K chars) pushed its prefill
-# past 45s. Raise the read budget so slow lanes actually CONTRIBUTE; connect
-# stays short so an absent node still drops fast. Both env-tunable.
-# 6s (was 2.5s): the iGPU is reached over the tailnet, where a relayed hop's
-# CONNECT can take ~4s ("iGPU NOT firing" -- it was up +
-# reachable but the 2.5s connect timed out so the health-gate dropped it). A
-# genuinely-down node still fails FAST (connection-refused, not a timeout), so
-# this only buys patience for a slow-but-live tailnet node.
 HEALTHGATE_CONNECT_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_CONNECT_S", "6"))
 HEALTHGATE_READ_TIMEOUT = float(os.environ.get("MIOS_AGENT_HEALTHGATE_READ_S", "120"))
 
-# Node-liveness gate ("iGPU is down"). OUTAGE resilience:
-# a health_gate client/Tailscale node (the Windows iGPU :11436, a phone) can be
-# DOWN. Without a pre-flight check the swarm planner / DAG still assigns it a
-# facet, which then fails-connect at HEALTHGATE_CONNECT and contributes NOTHING
-# -- the swarm silently loses a concurrent lane. This TTL-cached liveness set
-# lets the planner PICK only live nodes and the DAG RE-ROUTE a facet off a dead
-# node onto a live engine, so swarm WIDTH is preserved under an outage instead
-# of a facet vanishing. Only health_gate nodes are probed (the ones that
-# legitimately come and go); local lanes (dGPU/CPU/opencode/daemon) are always
-# treated live -- probing them every turn only adds latency, and a local-lane
-# failure is a louder, separate problem the fast-fail dispatch already handles.
-# A down node isn't re-probed every turn (TTL); it rejoins within the TTL once
-# the operator brings it back. All env-tunable; no hardcoded node names.
 NODE_LIVENESS_TTL_S = float(os.environ.get("MIOS_NODE_LIVENESS_TTL_S", "45"))
-# 6s (was 1.5s): the liveness probe must not mark a slow-but-reachable tailnet
-# node (the iGPU, ~4s relayed connect) dead -- that dropped it from the swarm
-#. Down nodes still refuse fast, so detection stays quick.
 NODE_LIVENESS_CONNECT_S = float(os.environ.get("MIOS_NODE_LIVENESS_CONNECT_S", "6"))
 _NODE_LIVE: dict = {}  # name -> (probed_ts, reachable)
 
@@ -599,43 +437,15 @@ def _should_health_probe(cfg: dict) -> bool:
     return _is_remote_endpoint(cfg.get("endpoint", ""))
 
 
-# _trip_breaker moved VERBATIM -> mios_agent_call (the dispatch path is its SOLE
-# caller). Re-imported below for surface parity; its deps (_should_health_probe +
-# the shared _NODE_LIVE liveness map) stay server-owned and are injected via
-# mios_agent_call.configure(). _NODE_LIVE stays here (shared with mios_turn's prune).
 
 
-# Per-lane context trimming ("add per-lane context
-# trimming"). SLOW lanes (the iGPU on Vulkan, a phone/mobile node, a remote
-# accelerator) prefill far slower than the dGPU, so handing them the FULL system
-# prefix -- especially the ~7K pipeline web-research block -- blows their read
-# budget and they get abandoned mid-compute. For those lanes each system block
-# is capped to SLOW_LANE_BLOCK_CHARS: the gist (top story headlines / top RAG
-# hits lead each block) survives, the long tail drops, so prefill stays fast and
-# the node FINISHES + contributes. gpu + cpu (local, fast enough) keep the full
-# context. So the iGPU contributes WITHOUT needing the long 120s read.
 SLOW_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_SLOW_LANES", "igpu,mobile,accelerator,cpu").split(",") if x.strip())
 SLOW_LANE_BLOCK_CHARS = int(os.environ.get("MIOS_SLOW_LANE_BLOCK_CHARS", "1500"))
-# DEEPEN (work-steal) LANES ("dGPU and accelerators that
-# compute faster should just do another pass from another facet"): ONLY a fast
-# lane work-steals extra coverage passes until the barrier. A slow lane (CPU /
-# iGPU / phone) does its ONE grounded pass and then waits -- it can't afford a
-# second. This is SEPARATE from SLOW_LANES (which is about context trimming): an
-# 'accelerator' is slow-to-prefill yet fast enough to deepen, so it's listed here
-# but trimmed there. SSOT env MIOS_DEEPEN_LANES / [dispatch].deepen_lanes.
 DEEPEN_LANES = set(x.strip() for x in os.environ.get(
     "MIOS_DEEPEN_LANES",
     str(_toml_section("dispatch").get("deepen_lanes", "gpu,accelerator"))
     ).split(",") if x.strip())
-# Per-lane TOOL-SURFACE CAP ("NOTHING should be toolless --
-# everything gets tools, or the agent contract .md isn't working"). EVERY agent
-# gets real tools; a WEAK device just gets FEWER of them. The Windows iGPU
-# llama.cpp/Vulkan node TIMES OUT grammar-constraining all 71 schemas (15 ~9s,
-# 40 ~33s, 71 timeout), so its lane is capped to a prioritised subset (read/web/
-# state tools first, via _tool_priority) it can actually execute in budget.
-# 0 / absent = the FULL surface (fast gpu/cpu lanes). Format: "lane:cap,...".
-# SSOT env MIOS_LANE_TOOL_CAP; default caps the iGPU + mobile lanes.
 from mios_pipe.scheduler.admission import (
     _parse_lane_caps,
     _priority_gate,
@@ -654,251 +464,80 @@ LANE_TOOL_CAP = _parse_lane_caps(
     or str(_toml_section("dispatch").get("lane_tool_cap", "igpu:15,mobile:15")))
 
 
-# Fallback tool cap for ANY slow lane that has NO explicit LANE_TOOL_CAP entry
-# ("planning isn't taking the node/endpoint into account"):
-# the 'cpu' lane defaulted to cap 0 = the FULL 71-tool surface + 16K ctx, which a
-# CPU-only daemon can't prefill in the node deadline -> always abandoned. A slow
-# lane with no explicit cap now gets this bounded-but-real subset so it can run a
-# tool-loop in budget when it has no injected grounding. SSOT
-# [dispatch].slow_lane_tool_cap. 0 = keep the full surface (opt out).
 SLOW_LANE_TOOL_CAP = int(os.environ.get(
     "MIOS_SLOW_LANE_TOOL_CAP",
     str(_toml_section("dispatch").get("slow_lane_tool_cap", 12))) or 12)
 
-# Per-turn visible-tool cap for any lane lacking an explicit entry (SSOT; 0 = uncapped).
 DEFAULT_TOOL_CAP = int(os.environ.get(
     "MIOS_DEFAULT_TOOL_CAP",
     str(_toml_section("dispatch").get("default_tool_cap", 24))) or 24)
-# _lane_tool_cap (per-lane visible-tool cap) moved VERBATIM to mios_sched.py and is
-# re-imported above; the SSOT caps it reads (LANE_TOOL_CAP / SLOW_LANES /
-# SLOW_LANE_TOOL_CAP / DEFAULT_TOOL_CAP) stay server-owned and are injected below.
-# SSOT ("HARDCODES!!!"): the swarm/DAG/deepen tunables in
-# this block are NOT code literals -- they live in mios.toml [dispatch], layered
-# vendor <- /etc <- ~/.config via _dispatch_toml(). The MIOS_* env vars are the
-# runtime OVERRIDE layer (mirror MIOS_DISPATCH_FANOUT_MAX); the trailing literal
-# is the last-resort fallback only if the SSOT key is somehow absent.
 
 
-# Per-node compute budget so EVERY assigned swarm node ACTUALLY COMPUTES
-# a fast lane (dGPU/CPU) gets the full budget; a SLOW lane
-# (iGPU ~7 tok/s, phone) gets a SMALLER budget so it FINISHES within the read
-# timeout instead of timing out empty + bottlenecking the gather. A node that
-# still returns empty is retried DAG_NODE_RETRY times (read-only -> safe retry).
 DAG_NODE_MAX_TOKENS = _dispatch_num("MIOS_DAG_NODE_MAX_TOKENS", "dag_node_max_tokens", 800)
 DAG_NODE_SLOW_MAX_TOKENS = _dispatch_num(
     "MIOS_DAG_NODE_SLOW_MAX_TOKENS", "dag_node_slow_max_tokens", 350)
 DAG_NODE_RETRY = _dispatch_num("MIOS_DAG_NODE_RETRY", "dag_node_retry", 1)
-# PER-NODE WALL-CLOCK DEADLINE (j "ridiculous runtimes"): the
-# turn waited for the SLOWEST node (potato-cpu ~600s, an unresponsive daemon-agent)
-# -> it blew past every client timeout and the user saw a punt. Bound EACH agent
-# node's dispatch+retries; a node that doesn't answer in time is abandoned (empty
-# -> success:False) and the synthesiser proceeds on the nodes that DID answer. The
-# fast dGPU/hermes nodes finish in ~15s, so the turn no longer hostage to a slow
-# remote. SSOT [dispatch].dag_node_deadline_s.
 DAG_NODE_DEADLINE_S = _dispatch_num("MIOS_DAG_NODE_DEADLINE_S", "dag_node_deadline_s", 75, float)
-# Slow-lane (CPU/iGPU/phone) get a LONGER node deadline (
-# "LOCAL CPU IS NEEDED ... ALL NODES PLAY A PART"): once a slow node is sized
-# correctly (reasons over the grounding the fast lanes fetched -- no 16K-ctx
-# tool-loop) its ONE pass finishes well inside this, but the extra headroom means
-# a slow CPU generation is never abandoned just for being slow. The fast lanes
-# work-steal (deepen) while it finishes, so the wall-clock is still bounded by
-# this, not the old 75s that guillotined local-cpu. SSOT [dispatch].dag_node_deadline_slow_s.
 DAG_NODE_DEADLINE_SLOW_S = _dispatch_num(
     "MIOS_DAG_NODE_DEADLINE_SLOW_S", "dag_node_deadline_slow_s", 150, float)
-# BARRIER-DEEPEN ("other nodes should be looping until all
-# slower nodes complete ... looping tools/skills/recipes used"): in a swarm
-# level, the moment every node's PRIMARY pass finishes a barrier fires; until
-# then a FAST node (lane not in SLOW_LANES) that already finished keeps
-# DEEPENING its facet -- extra web-research + re-answer passes -- so the slowest
-# node (iGPU/phone) sets the wall-clock and NO fast node sits idle. Bounded by
-# the barrier + DEEPEN_MAX_ITERS so it can never run away.
-# SSOT deepen tunables (resolved via _dispatch_num from mios.toml [dispatch], above).
-# With [dispatch].deepen_early_exit enabled a node whose answer the per-node DoD judge
-# marks satisfied exits the loop early (freeing its lane); default off -> it runs to
-# the barrier/deadline. Degrade-open: a judge hiccup falls through to the
-# deadline-bound loop (see _deepen_until_barrier).
 SWARM_DEEPEN_ENABLED = (os.environ.get(
     "MIOS_SWARM_DEEPEN", str(_DISPATCH_TOML.get("deepen_enabled", True)))
     .strip().lower() not in ("0", "false", "no"))
-# SATURATION SCHEDULER ("nothing in the pipeline is idle
-# within a turn until synthesis"). When ON, the DAG runs as a CONTINUOUS
-# READY-QUEUE (a node dispatches the MOMENT its own deps finish, bounded by the
-# global/endpoint/lane semaphores = saturate-to-capacity) instead of in
-# barrier'd topological LEVELS (where a fast node's lane idles waiting for the
-# slowest node in its level). Research-endorsed (the level barrier wastes the
-# fast lanes' idle time). Deepen still loops finished agent nodes until the
-# GLOBAL barrier (all primaries done) so no lane idles while the swarm finishes.
-# FALLBACK: flip false -> the proven level-barrier execute_dag path. SSOT
-# [dispatch].swarm_saturate (env MIOS_SWARM_SATURATE).
 SWARM_SATURATE = (os.environ.get(
     "MIOS_SWARM_SATURATE", str(_DISPATCH_TOML.get("swarm_saturate", True)))
     .strip().lower() not in ("0", "false", "no"))
-# DEEPEN BOUNDS: the deepen loop is hard-bounded by the WALL-CLOCK DEADLINE + the
-# barrier; the iter cap is a high RUNAWAY BACKSTOP. With [dispatch].deepen_early_exit
-# enabled (below) it ALSO stops once the per-node DoD judge marks the answer
-# satisfied, so the heaviest compute is not spent re-answering an already-good node
-# (default off -> runs to the bound; ships flag-gated + degrade-open).
 DEEPEN_MAX_ITERS = _dispatch_num("MIOS_SWARM_DEEPEN_ITERS", "deepen_iters", 12)
 DEEPEN_DEADLINE_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_DEADLINE_S", "deepen_deadline_s", 120, float)
 DEEPEN_WEB_TIMEOUT_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_WEB_S", "deepen_web_timeout_s", 20, float)
-# DETAIL-FILL deepen ("also can loop to gather data in
-# detail-fill passes"): a work-stealing FAST node fetches NEW web data each deepen
-# pass (bounded by DEEPEN_WEB_TIMEOUT_S) and APPENDS the fresh stories to the
-# shared grounding, so the loop ENRICHES coverage with new facts -- not just
-# re-reasons the same grounding. Self-gates: only fires when the node carries a
-# web-capable refined (a web/news turn); a non-web turn just reasons. SSOT
-# [dispatch].deepen_fetch (env MIOS_SWARM_DEEPEN_FETCH).
 DEEPEN_FETCH = (os.environ.get(
     "MIOS_SWARM_DEEPEN_FETCH", str(_DISPATCH_TOML.get("deepen_fetch", True)))
     .strip().lower() not in ("0", "false", "no"))
-# EARLY-EXIT ON SATISFIED (A8): when ON, each deepen pass first asks the per-node
-# micro-LLM DoD judge (_judge_answer_satisfied) whether the node's CURRENT answer
-# already satisfies its sub-query; if so the node stops deepening -- the heaviest
-# compute is not burned re-answering an already-good node and the freed lane lets
-# slower nodes finish sooner. DEFAULT OFF: it is a behaviour change (fewer deepen
-# iterations) and the judge degrades to "satisfied" on its OWN internal error, so it
-# ships operator-opt-in (Law-7: behaviour changes flag-gated + degrade-open). When on,
-# the call site bounds the judge by DEEPEN_JUDGE_TIMEOUT_S and any timeout/error falls
-# THROUGH to the deadline-bound loop (never under-computes); the loop stays
-# hard-bounded by the barrier + deadline + iter cap regardless. SSOT
-# [dispatch].deepen_early_exit (env MIOS_SWARM_DEEPEN_EARLY_EXIT).
 DEEPEN_EARLY_EXIT = (os.environ.get(
     "MIOS_SWARM_DEEPEN_EARLY_EXIT",
     str(_DISPATCH_TOML.get("deepen_early_exit", False)))
     .strip().lower() not in ("0", "false", "no", ""))
-# Per-call wall-clock cap (s) on the deepen DoD judge (a yes/no micro-LLM), kept well
-# under the deepen deadline so a slow/hung judge becomes a caught timeout -> the loop
-# continues (degrade-open) instead of stalling a coverage pass. Only used when
-# DEEPEN_EARLY_EXIT. SSOT [dispatch].deepen_judge_timeout_s (env MIOS_SWARM_DEEPEN_JUDGE_S).
 DEEPEN_JUDGE_TIMEOUT_S = _dispatch_num(
     "MIOS_SWARM_DEEPEN_JUDGE_S", "deepen_judge_timeout_s", 6, float)
 
-# Pipeline-side READ-TOOL enrich ("all... skills and
-# recipes fire on ALL endpoints"). Like the web-research loop, the PIPELINE runs
-# the refine-hinted READ-only, NO-arg capabilities itself (live system state:
-# system_status, sys_env, process_list, container_status, list_windows, ...) and
-# grounds EVERY agent on the real output -- so a system-state turn is answered
-# from real state on the iGPU/phone too, not only the tool-looping primary.
-# SAFETY (binding NO-LIVE-LAUNCH rule): ONLY permission=read verbs with NO
-# required args run here. WRITE / LAUNCH verbs + recipes (os_recipe opens
-# folders / locks screen / launches apps) are NEVER auto-fired by the pipeline --
-# they go through the agent tool-loop + confirmation engine. Web verbs ->
-# _web_research_enrich; KB search -> _rag_enrich.
 READ_TOOL_ENRICH_ENABLED = os.environ.get(
     "MIOS_READ_TOOL_ENRICH_ENABLED", "true").lower() not in {"false", "0", "no"}
 READ_TOOL_ENRICH_MAX = int(os.environ.get("MIOS_READ_TOOL_ENRICH_MAX", "3"))
 READ_TOOL_ENRICH_TIMEOUT = float(os.environ.get("MIOS_READ_TOOL_ENRICH_TIMEOUT_S", "12"))
 READ_TOOL_ENRICH_CHARS = int(os.environ.get("MIOS_READ_TOOL_ENRICH_CHARS", "1500"))
-# ── WS-5 Agent-Computer Interface (ACI) output normalizer. Tool /
-# terminal results are head-TAIL truncated (keep the start AND the end -- the
-# tail carries the error/exit/result a head-only slice drops) with an anti-
-# fabrication marker. SSOT [aci].* read directly via _toml_section/_cfg_num.
 _ACI_TOML = _toml_section("aci")
 ACI_MAX_LINES = _cfg_num(_ACI_TOML, "MIOS_ACI_MAX_LINES", "max_lines", 160, int)
 ACI_HEAD_FRAC = _cfg_num(_ACI_TOML, "MIOS_ACI_HEAD_FRAC", "head_frac", 0.6, float)
-# ── WS-2 Code Mode SSOT. DEFAULT-OFF: the code_mode verb only
-# executes model-written code when [code_mode].enable is set AND allow_write is
-# in effect (a worker/agent loop). Read directly via _toml_section.
 _CODE_MODE_TOML = _toml_section("code_mode")
 CODE_MODE_ENABLE = _codemode.is_enabled(_CODE_MODE_TOML)
-# P5: code_mode = the model AUTHORS python orchestrating many verbs,
-# which needs the CAPABLE/heavy orchestrator -- not a light swarm worker. heavy_lane_only
-# (default true) restricts code_mode to the heavy native-loop orchestrator (identified by
-# the _orch_ctx_var turn context, which only the orchestrator sets); a light-lane worker
-# that emits code_mode is refused. Full per-lane model routing lands with node-consolidation.
 CODE_MODE_HEAVY_ONLY = str(
     os.environ.get("MIOS_CODE_MODE_HEAVY_ONLY")
     or _CODE_MODE_TOML.get("heavy_lane_only", True)
 ).strip().lower() not in {"false", "0", "no"}
 _WEB_ENRICH_VERBS = {"web_search", "web_extract", "crawl"}
-# Secondary (council/sub-agent) LIVE tool-loop ("use all web
-# tools concurrently by all agents and sub-agents" + secondaries get their own
-# tool-loops). The /v1 agents (Hermes/opencode) already loop internally; a RAW
-# raw /v1 secondary (iGPU / phone) can't, so the PIPE runs a bounded READ-ONLY
-# tool-loop for it: a /v1 /chat/completions call with tools -> execute the permission=read
-# tool_calls (all web tools + system-state reads) via dispatch_mios_verb -> feed
-# results back -> re-call. WRITE/LAUNCH verbs are NEVER executed here (binding
-# no-live-launch rule); the conv-scoped single-flight dedup collapses identical
-# calls across the fan-out; the per-lane semaphore is the concurrency cap.
 SECONDARY_TOOL_LOOP = os.environ.get(
     "MIOS_SECONDARY_TOOL_LOOP", "true").lower() not in {"false", "0", "no"}
-# Per-secondary tool-loop budget: how many search->read->refine cycles each
-# fan-out council member may run in its own /v1 tool loop before it must answer,
-# so a member doesn't stop after a single shallow search but also can't loop
-# unbounded. Generous by default for deep multi-step turns; override via
 # MIOS_SECONDARY_TOOL_ITERS to trade thoroughness against per-node cost.
 SECONDARY_TOOL_MAX_ITERS = int(os.environ.get("MIOS_SECONDARY_TOOL_ITERS", "") or _AGENT_PIPE_TOML.get("tool_max_iters", 15))
-# Forced-call chokepoint (universal-loop item #1 slice 3,):
-# when refine hints a state-changing (non-read) verb, set tool_choice=required so
-# the executor MUST emit a real tool_call instead of NARRATING the action (the
-# "I posted to Discord" / install lie). The big labs' #1 structural fix. Gated by
-# verb PERMISSION (data-driven, no English action-word list).
 AUTO_FORCE_TOOL = os.environ.get(
     "MIOS_AUTO_FORCE_TOOL", "true").lower() not in {"false", "0", "no"}
-# Mirror every phase emit into the reasoning channel as a PERSISTENT log line
-# (OWUI status pills are transient, so the activity log
-# never stays visible). reasoning_content persists in OWUI's Thinking block;
-# strict OpenAI clients ignore it. See _sse_status.
-# STATUS_AS_REASONING moved to mios_sse (its sole consumer _sse_status); re-imported
-# so the module surface is unchanged (refactor R2).
 from mios_sse import STATUS_AS_REASONING  # noqa: E402
-# Cap on CONCURRENTLY-dispatched agents ("not all agents at
-# the same time -- reasonable limit/cap"). Council secondaries + DAG-level
-# nodes share this semaphore via _call_agent_complete, so the swarm engages at
-# most N agents at once; the rest queue. Also protects the shared model lanes /
-# search engines from being overrun (the same burst that degraded web search).
 AGENT_CONCURRENCY = _dispatch_num("MIOS_AGENT_CONCURRENCY", "agent_concurrency", 3)
 _agent_sem = asyncio.Semaphore(max(1, AGENT_CONCURRENCY))
 
-# Global HOST in-flight cap (load-361 near-wedge fix;
-# research-endorsed backstop). The per-LANE + per-ENDPOINT semaphores bound each
-# lane/daemon, but with MANY lanes eligible (all-nodes-by-default) the SUM of
-# lane permits can still swamp the box -> the wedge. ONE process-wide semaphore
-# caps TOTAL concurrently-RUNNING dispatches regardless of how many lanes fan out
-# ("saturate to capacity, never over"). Sized ~cores-reserve so normal multi-lane
-# concurrency is unaffected; only an extreme wide fan-out is bounded. Acquired
-# OUTSIDE the endpoint/lane sems but AFTER _admit (admit is the soft wait; this is
-# the hard cap on actually-running work, so it can't deadlock on the admit wait).
-# SSOT [dispatch].global_concurrency (env MIOS_GLOBAL_CONCURRENCY).
 GLOBAL_DISPATCH_CONCURRENCY = _dispatch_num(
     "MIOS_GLOBAL_CONCURRENCY", "global_concurrency",
     max(8, (os.cpu_count() or 8) - 4))
 _GLOBAL_DISPATCH_SEM = asyncio.Semaphore(max(1, GLOBAL_DISPATCH_CONCURRENCY))
 
-# ── WS-1 priority scheduler queue (AIOS Agent Scheduler reordering,).
-# The plain _GLOBAL_DISPATCH_SEM admits in ARRIVAL order, so _sched_priority /
-# _dispatch_priority were only ADVISORY -- a queued low-priority dispatch could
-# never be overtaken by a later high-priority one. PriorityGate makes the next
-# freed GLOBAL slot go to the highest-priority waiter (FIFO tie-break) with
-# anti-starvation aging. DEFAULT OFF + DEGRADE-OPEN: deploy is a pure no-op until
 # MIOS_PRIORITY_QUEUE flips on, and ANY error falls back to the proven plain FIFO
-# semaphore -- the scheduler is never allowed to block a turn. SSOT
-# [dispatch].priority_queue_enable / priority_starvation_ms.
 PRIORITY_QUEUE_ENABLE = str(os.environ.get("MIOS_PRIORITY_QUEUE")
                             or _DISPATCH_TOML.get("priority_queue_enable", "true")
                             ).strip().lower() in {"1", "true", "yes"}
 PRIORITY_STARVATION_S = _dispatch_num("MIOS_PRIORITY_STARVATION_MS",
                                   "priority_starvation_ms", 4000, float) / 1000.0
 
-# ── V5 multi-blade + per-tenant admission (SSOT [admission]; DEFAULT-OFF) ─────────
-# Two INDEPENDENT flags, each a pure no-op when off so admission + the priority gate
-# behave byte-identically to today's single-blade / no-quota path:
-#   multiblade_enable   -- _admit compares a node's residents against ITS blade's VRAM
-#                          budget (node->blade->capacity) + skips the LOCAL /proc/
-#                          loadavg ceiling for a REMOTE blade, instead of the single
-#                          local VRAM scalar + local loadavg. OFF -> the local scalar +
-#                          local ceiling EXACTLY as today (the multi-blade capacity
-#                          comparison is operator-live-validated on a real cluster).
-#   tenant_quota_enable -- the global PriorityGate gains a per-tenant (verified owner)
-#                          concurrent-dispatch fair-share so one tenant can't hold all
-#                          global slots. OFF (cap 0) -> the gate is byte-identical.
-#                          DISTINCT AXIS from mios_quota (per-user RPM/spend rate
-#                          budget at the PDP) -- this is concurrent in-flight fair-share,
-#                          the AIOS scheduler dimension.
-# DEGRADE-OPEN everywhere: unknown blade/capacity/owner -> the local-scalar / no-quota
-# path (never wedge admission, never lock a tenant out).
 _ADMISSION_TOML = _toml_section("admission") or {}
 MULTIBLADE_ENABLE = str(os.environ.get("MIOS_MULTIBLADE_ENABLE")
                         or _ADMISSION_TOML.get("multiblade_enable", "false")
@@ -906,70 +545,28 @@ MULTIBLADE_ENABLE = str(os.environ.get("MIOS_MULTIBLADE_ENABLE")
 TENANT_QUOTA_ENABLE = str(os.environ.get("MIOS_TENANT_QUOTA_ENABLE")
                           or _ADMISSION_TOML.get("tenant_quota_enable", "false")
                           ).strip().lower() in {"1", "true", "yes"}
-# Per-tenant concurrent-dispatch fair-share cap (in-flight global slots one tenant may
-# hold). 0 = unlimited (today). The cap BITES only under contention (another tenant
-# waiting); a single tenant on an idle gate is never throttled, and if every live
-# waiter is one over-cap tenant the gate degrades OPEN (serves by priority) so it can
-# never wedge. SSOT [admission].tenant_max_concurrency (env MIOS_TENANT_MAX_CONCURRENCY).
 TENANT_MAX_CONCURRENCY = _cfg_num(_ADMISSION_TOML, "MIOS_TENANT_MAX_CONCURRENCY",
                                   "tenant_max_concurrency", 0)
 _GLOBAL_PRIORITY_GATE = PriorityGate(
     GLOBAL_DISPATCH_CONCURRENCY, PRIORITY_STARVATION_S,
-    # tenant_cap stays 0 (the inert default) until the quota is enabled -> the gate's
-    # tenant-aware branches are skipped entirely (byte-identical to today).
     tenant_cap=(TENANT_MAX_CONCURRENCY if TENANT_QUOTA_ENABLE else 0))
 
 
 
 
-# ── Runaway-turn bounds (cancellation fix; research-backed).
-# (a) Hard num_predict cap on AGENT dispatches: a local llama.cpp lane does NOT
-# stop generating when the client disconnects, so a per-generation token ceiling
-# is the ONLY real bound on an abandoned turn's compute. Applied when the caller
-# didn't set max_tokens (it previously left generation UNBOUNDED).
-# (b) Turn-wide wall-clock backstop: a connected-but-runaway turn can't exceed
-# this; the per-node deepen caps don't bound the whole turn. Generous so a legit
-# deep multi-node research turn still completes. SSOT [dispatch].*.
 LLM_NUM_PREDICT_CAP = _dispatch_num(
     "MIOS_LLM_NUM_PREDICT_CAP", "llm_num_predict_cap", 2048)
-# (a2) PER-LANE cap: a CPU/iGPU lane generates SLOWLY (a 4B CPU model ~5 tok/s),
-# so the full 2048-token cap = ~400s of pegged cores per generation. Since a
-# disconnect can't abort the gen, stacked slow-lane gens are the load-387 runaway
-# (j). Give the slow lanes a much SHORTER ceiling so each gen
-# self-clears fast; the dGPU keeps the full cap. Applied via _num_predict_cap_for
-# (reuses the _CPU_LANE_HINTS endpoint detector). SSOT [dispatch].*.
 LLM_NUM_PREDICT_CAP_CPU = _dispatch_num(
     "MIOS_LLM_NUM_PREDICT_CAP_CPU", "llm_num_predict_cap_cpu", 512)
 TURN_DEADLINE_S = _dispatch_num("MIOS_TURN_DEADLINE_S", "turn_deadline_s", 600, float)
-# T21 request-cancellation: cancel a NON-STREAMING turn's swarm the
-# moment the client disconnects, instead of churning DAG+deepen to the 600s
-# deadline. The STREAMING path already self-bounds on disconnect in
-# _execute_dag_emitting; this closes the non-streaming gap. Default ON;
-# degrade-open (no request / disabled -> deadline-only, unchanged). SSOT [dispatch].
 REQUEST_CANCEL_ENABLE = _dispatch_num(
     "MIOS_REQUEST_CANCEL_ENABLE", "request_cancel_enable", 1, int) != 0
 REQUEST_CANCEL_POLL_S = _dispatch_num(
     "MIOS_REQUEST_CANCEL_POLL_S", "request_cancel_poll_s", 2.0, float)
-# Supersede registry: chat_id -> the active turn's cancel Event. A NEW turn for a
-# chat SET()s the prior turn's event so the orchestrator's drain loop stops it
-# (don't leave an abandoned/superseded turn generating).
 _CHAT_CANCEL: dict = {}
 
-# ── W0-T3 aggregate token/turn budget + autonomous isolation cluster
-# (the _BUDGET_* ledger state + _budget_num/_budget_bucket/_budget_window_total/
-# _budget_debit/_budget_prune_inflight/_budget_admit/_budget_release_inflight)
-# moved VERBATIM into mios_chat -- the admission gate is a chat-turn concern
-# whose ONLY consumer is the chat-completions handler, so it lives WITH it
-# instead of being injected back. server.py re-imports every name (surface
-# parity) right after the mios_chat configure() at module end. SSOT [budget].*.
 
 
-# ── W0-T3 hard recursion bound. Each fan-out HOP (council/swarm dispatch that
-# can itself fan out) increments this contextvar in the child task's context; a
-# planner/fanout-picker at >= MAX_DISPATCH_DEPTH degrades CLOSED to a single
-# agent (returns no extra fan-out) so an agents-as-tools loop can't recurse into
-# an unbounded swarm-of-swarms. Generous default (2) so normal one-level council
-# + its self-fan-out is unaffected. SSOT [dispatch].max_dispatch_depth.
 MAX_DISPATCH_DEPTH = _dispatch_num("MIOS_MAX_DISPATCH_DEPTH", "max_dispatch_depth", int(_DISPATCH_TOML.get("default_hop_budget", 2)))
 _dispatch_depth_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_depth", default=0)
@@ -1001,13 +598,6 @@ def _depth_exhausted() -> bool:
     return mios_hopbudget.depth_exhausted(_dispatch_depth(), MAX_DISPATCH_DEPTH)  # WS-4 pure guard
 
 
-# ── P0 CROSS-HOP recursion bound (meta-pipeline refactor, RFC
-# 9110 Max-Forwards + Via): the depth contextvar above is PROCESS-LOCAL and does NOT
-# survive an HTTP hop, so a worker that re-enters :8640 (a thin-gateway-as-worker, an
-# A2A peer) reset to depth 0 -> UNBOUNDED recursion (the dGPU runaway). Carry the
-# depth + an agent-id chain as HTTP HEADERS on every sub-dispatch so the bound CROSSES
-# the hop; deterministically kill a loop the moment our own id reappears in the chain.
-# Degrade-OPEN: absent headers == exactly today's single-process behaviour.
 _HOP_HEADER = "X-MiOS-Hop"      # dispatch depth seen so far (Max-Forwards-style budget)
 _VIA_HEADER = "X-MiOS-Via"      # comma-separated agent-id chain (Via-style loop detect)
 _via_chain_var: "contextvars.ContextVar" = contextvars.ContextVar(
@@ -1045,138 +635,46 @@ def _seed_hop_from_headers(hop_hdr, via_hdr) -> None:
     except Exception:  # noqa: BLE001
         pass
 
-# ── DISPATCH PRIORITY for autonomous (background) turns (operator W0-T3). An
-# UNATTENDED autonomous turn must YIELD the next freed GPU slot to any operator
-# FOREGROUND turn -- background research should never preempt a human waiting at
-# the keyboard. This priority is applied to _turn_priority when metadata.
-# mios_autonomous is set, so the existing _priority_gate / _dispatch_priority
-# ordering admits the foreground turn first. SSOT [dispatch].autonomous_priority
-# accepts a NUMERIC value on the same _turn_priority scale (lower = waits longer)
-# OR a word (low/normal/high) mapped to a number. Default "low" -> 1.0, well
-# below the neutral 5.0 a foreground turn gets, so foreground always wins the gate.
 _AUTO_PRIO_WORDS = {"low": 1.0, "normal": 5.0, "medium": 5.0, "high": 9.0}
-# _resolve_autonomous_priority moved VERBATIM to mios_sched.py (re-imported above). It
-# is CALLED at import time (AUTONOMOUS_PRIORITY below), and its only injected dep is the
-# priority-word map -- inject it NOW so the call resolves; the runtime-only lane/offload/
-# sem deps are injected once _agent_lane is defined (far below). _AUTO_PRIO_WORDS stays
-# server-owned (importable surface) and is injected by value.
 sys.modules["mios_sched"].configure(_AUTO_PRIO_WORDS=_AUTO_PRIO_WORDS)
 
 
 AUTONOMOUS_PRIORITY = _resolve_autonomous_priority()
 
-# Council ROSTER width cap (runaway fix). Bounds how many
-# SECONDARY agents a council turn engages -- distinct from _agent_sem (which
-# bounds how many run AT ONCE). The old code read MIOS_COUNCIL_MAX with a 0
-# (UNCAPPED) default, so a trivial prompt fanned out to every live agent and
-# cold-loaded all their models simultaneously -> a backend thundering herd ->
-# loadavg 128 -> VM wedge. Default to a sane width; 0 = uncapped (opt-in).
 COUNCIL_MAX_DEFAULT = _dispatch_num("MIOS_COUNCIL_MAX", "council_max", 4)
-# COUNCIL BY DEFAULT ("force council shouldn't be FORCED but a
-# default option ENABLED"): when true, SUBSTANTIVE turns engage the full
-# multi-agent council by DEFAULT (no force toggle needed) -- breadth + live
-# thinking/emitters by default instead of the single-brain native loop. The OWUI
-# force_council toggle still wins (explicit on/off). Bounded by COUNCIL_MAX_DEFAULT
-# + admission + per-lane/sub-lane semaphores (the OOM backstop the historical
-# uncapped wedge lacked). Trivial chat (< SWARM_DECOMPOSE_MIN_WORDS) stays single.
 COUNCIL_DEFAULT = str(os.environ.get(
     "MIOS_COUNCIL_DEFAULT",
     str((_toml_section("dispatch") or {}).get("council_default", "true")))
 ).strip().lower() not in ("0", "false", "no")
-# SWARM/DAG width cap ("16-agent explosion / 18-min turn"):
-# the DAG fan-out (_agent_dag_from_tasks) had NO width cap -- COUNCIL_MAX only
-# bounds the council path -- so a research turn assigned EVERY live eligible agent
-# its own node. Bound the swarm to at most this many DISTINCT (endpoint,model)
-# targets. 0 = uncapped. SSOT [dispatch].swarm_max_width.
 SWARM_MAX_WIDTH = _dispatch_num("MIOS_SWARM_MAX_WIDTH", "swarm_max_width", 6)
-# WS-4: first-class "effort" knob -- scales the swarm fan-out WIDTH between 1 and
-# SWARM_MAX_WIDTH by query effort/complexity (low|medium|high|max, or a 0..1
-# score). Default "max" == today's FULL width (behaviour-preserving); dial down
-# to make orchestration intensity track complexity. Env MIOS_EFFORT (bridged
-# from [ai].effort). Applied via mios_hopbudget.effort_width at the width cap.
 EFFORT_DEFAULT = (os.environ.get("MIOS_EFFORT") or "max").strip().lower()
-# Empty-DAG native-loop fallback ("swarm returns empty/
-# fabricated when leaf agents are down"): when a swarm/DAG turn grounds NOTHING
-# (research_chars==0 AND merged_chars==0) and the answer is empty/punt OR it was a
-# web/news turn that should have had real sources, RE-ANSWER via the always-up
-# light-lane native loop (which does its own grounding + cites real URLs) instead
-# of shipping blank or fabricated text. SSOT [dispatch].dag_empty_native_fallback;
-# degrade-open + flag-off restores the prior behaviour exactly.
 DAG_EMPTY_NATIVE_FALLBACK = str(os.environ.get(
     "MIOS_DAG_EMPTY_NATIVE_FALLBACK",
     str((_toml_section("dispatch") or {}).get("dag_empty_native_fallback", "true")))
 ).strip().lower() not in ("0", "false", "no")
-# TRUST THE PLANNER'S ATOMIC VERDICT ("research native patterns"):
-# every production framework (Anthropic, AutoGen, CrewAI) + the decomposition research
-# (ADaPT, Adaptive-RAG, ReWOO/LLMCompiler) converge on "default single, fan out ONLY on
-# evidence of breadth; the planner's emitted facet COUNT IS the decision". So when
-# _plan_swarm self-gates to [] (atomic) AND no independent breadth signal fires, DON'T
-# force-seed a synthetic swarm (the documented anti-pattern that balloons a focused ask
-# into off-topic facets) -- fall through to the single-agent path. SSOT
-# [dispatch].swarm_trust_atomic; false = prior always-seed behaviour verbatim.
 SWARM_TRUST_ATOMIC = str(os.environ.get(
     "MIOS_SWARM_TRUST_ATOMIC",
     str((_toml_section("dispatch") or {}).get("swarm_trust_atomic", "true")))
 ).strip().lower() not in ("0", "false", "no")
-# Slow-lane (CPU/iGPU) fan-out CEILING (j runaway): GPU/fast
-# nodes fan out unbounded (each on its own fast hardware), but the CPU/iGPU lanes
-# are where stacked ~100s gens pile up. Cap how many slow-lane nodes a single DAG
-# BACKFILLS (primary facet nodes are never dropped). Default = the live CPU node
-# count (local-cpu + potato-cpu) so it's a no-op today but bounds a research/deep
-# turn that would otherwise multiply CPU replicas across the lanes. SSOT.
 SWARM_MAX_CPU_NODES = _dispatch_num("MIOS_SWARM_MAX_CPU_NODES", "swarm_max_cpu_nodes", 2)
 
-# Per-LANE concurrency ("iGPU fires WITH CPU cores as well
-# as the rest of the other engines, hardware or nodes"). The single global
-# _agent_sem above serialised DISTINCT hardware -- the iGPU (a separate node)
-# would QUEUE behind CPU/GPU work instead of firing alongside it. Now each
-# compute lane / engine / node gets its OWN semaphore, so they ALL fire
-# CONCURRENTLY; only agents SHARING one lane (e.g. two models on the single
-# 4090) are bounded. Per-lane cap = MIOS_AGENT_LANE_CONCURRENCY (default =
 # MIOS_AGENT_CONCURRENCY); override one lane via MIOS_AGENT_LANE_CONCURRENCY_<LANE>
-# (e.g. _GPU=2 to protect the shared 4090's VRAM while iGPU/CPU/nodes run free).
 _LANE_SEMS: dict = {}
-# Per-ENDPOINT concurrency (runaway fix). The lane semaphore
-# bounds a hardware CATEGORY, but the truly scarce resource is the physical
-# inference daemon: multiple research workers targeting ONE shared daemon
-# endpoint each carry distinct lane keys, so each got its own lane permit ->
-# simultaneous COLD model loads of the SAME daemon. A wide research fan-out thus
-# cold-loaded N models on one daemon at once -> thundering herd -> loadavg 128 ->
-# VM wedge. This caps how many concurrent calls hit ONE endpoint regardless of
-# lane, so cold-starts on a shared daemon serialize. SSOT
-# [dispatch].endpoint_concurrency (default 2).
 _ENDPOINT_SEMS: dict = {}
 ENDPOINT_CONCURRENCY = _dispatch_num("MIOS_AGENT_ENDPOINT_CONCURRENCY",
                                  "endpoint_concurrency", 2)
 
-# ── Admission controller (P1): capacity-aware admission
-# that REPLACES pure-FIFO semaphore acquisition with a gate on live host load +
-# per-endpoint VRAM/cold-load + priority. DEFAULT OFF (MIOS_ADMIT_ENABLE) so it
-# is a pure no-op until observed+enabled; DEGRADE-OPEN everywhere (any error ->
-# admit, never block a turn). Targets the documented loadavg-128 wedge + cold-
-# load thundering herd without the blunt static caps.
 ADMIT_ENABLE = str(os.environ.get("MIOS_ADMIT_ENABLE")
                    or _DISPATCH_TOML.get("admit_enable", "false")).lower() in {"1", "true", "yes"}
 ADMIT_LOAD_CEIL = _dispatch_num("MIOS_ADMIT_LOAD_CEIL", "admit_load_ceil",
                             max(2, (os.cpu_count() or 4)) * 2, float)
 ADMIT_MEM_PCT = _dispatch_num("MIOS_ADMIT_MEM_PCT", "admit_mem_pct", 92, float)
 ADMIT_MAX_WAIT = _dispatch_num("MIOS_ADMIT_MAX_WAIT", "admit_max_wait", 8.0, float)
-# WS-SCHED-SLO: give admission the ability to say "no". When enabled, a
-# BEST_EFFORT (low-priority / autonomous / fan-out) dispatch is SHED under
-# capacity contention OR when the host probe failed (fail-CLOSED -- the inversion
-# of _admit's degrade-OPEN hole), while an INTERACTIVE foreground turn is NEVER
-# shed. mios_slo owns the pure decision; this is the flag. Default-off => _admit
-# never raises _SloShed => byte-identical. SSOT [dispatch].slo_shed_enable.
 SLO_SHED_ENABLE = (
     str(os.environ.get("MIOS_SLO_SHED_ENABLE")
         or _DISPATCH_TOML.get("slo_shed_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 
-# WS-SCHED-SLO: inject the SSOT [slo] policy (per-class deadline budgets + the
-# interactive-priority floor) into the pure mios_slo module so its EDF ordering +
-# fail-closed shed read from mios.toml, not baked literals. Read inline so no new
-# server top-level name is added; mios_slo carries matching documented defaults so
-# a missing [slo] section preserves the prior behaviour.
 mios_slo.configure(
     budgets={
         mios_slo.INTERACTIVE: float((_toml_section("slo") or {}).get(
@@ -1235,84 +733,27 @@ _configure_vram_scheduler(
     _dispatch_num=globals().get('_dispatch_num'),
 )
 
-# Router (layer-1 micro-LLM classifier) config + _LIGHT_LANE -> mios_config (R14
-# config SSOT); re-imported above. The light-lane isolation rationale lives there.
 
-# Last-resort runaway reaper (j). A turn that BLEW its
-# wall-clock deadline may have left CPU-lane gens running. On the /v1 plane a
-# llama.cpp / llama-swap gen ABORTS when the client disconnects, so dropping the
-# socket already releases the pegged cores (the reaper is now a no-op seam).
-# Fires ONLY on a blown deadline (never on a normal supersede, which would just
-# disrupt the turn that replaced this one). Belt-and-braces behind the per-lane
-# num_predict cap + NUM_PARALLEL=2 that already bound each gen. SSOT [dispatch].
 RUNAWAY_REAP_ENABLE = str(os.environ.get("MIOS_RUNAWAY_REAP")
                           or _DISPATCH_TOML.get("runaway_reap", "true")
                           ).strip().lower() in {"1", "true", "yes"}
 
 
-# _reap_cpu_lane (CPU light-lane runaway reaper) moved VERBATIM -> mios_dag_exec
-# (its sole consumer -- the DAG executors call it on deadline/disconnect). Re-imported
-# below under its exact name (surface parity); RUNAWAY_REAP_ENABLE + _LIGHT_LANE are
-# injected via mios_dag_exec.configure().
-# ROUTER_ENDPOINT/TIMEOUT_S/MAX_TOKENS -> mios_config (R14); re-imported above.
-
-# Planner (Phase A.1 -- DAG query decomposition) config. The planner is
-# function-calling-tuned + larger than the router; it emits a DAG of
-# dispatch verbs when the router classifies a multi-step intent.
-# Defaults to qwen2.5-coder:7b on the dGPU/CUDA lane (:11434) -- it
-# needs the bigger context + reasoning headroom. Operator can disable
-# planner via env (DAG-mode falls back to backend proxy).
-# PLANNER_* config -> mios_config (R14 config SSOT); re-imported above.
 
 
-# Decompose substantive single-goal asks into a CONCURRENT multi-agent swarm
-# by DEFAULT ("decompose into sub-tasks" as the default
-# swarm mode). For an agent-intent query of >= MIN_WORDS, attempt _plan_swarm:
-# if it splits into >=2 independent sub-tasks, they run on DIFFERENT agents /
-# lanes concurrently (real division of labour -- the CPU lane does its OWN
-# sub-task, not a duplicate) and get synthesised. If the ask is not worth
-# splitting, _plan_swarm returns [] and the normal council path handles it, so
-# this never hurts trivial queries. MIN_WORDS keeps short ACTION verbs ("open
-# steam") off the extra planner call.
-# DEFAULT TRUE ("let _plan_swarm self-gate every
-# substantive turn" -- reverses the council-first default now that
-# _plan_swarm produces RICH facet splits + reliably self-gates). Every
-# substantive (>= MIN_WORDS) agent-intent query attempts the swarm decomposer;
-# _plan_swarm returns [] when the ask is not worth splitting (-> falls through to
-# the ALL-NODES council unharmed), and a real multi-facet split runs the agents
-# CONCURRENTLY on DISTINCT sub-tasks -> a true swarm. The MODEL (the swarm
-# planner) decides whether/how to split -- NO hardcoded phrase trigger.
+
 SWARM_DECOMPOSE_DEFAULT = os.environ.get(
     "MIOS_SWARM_DECOMPOSE_DEFAULT", "true").lower() not in {"false", "0", "no"}
 SWARM_DECOMPOSE_MIN_WORDS = int(
     os.environ.get("MIOS_SWARM_DECOMPOSE_MIN_WORDS", "6"))
-# Swarm DECOMPOSER model. Bumped 4b -> 9b (model-research +
-# the "don't use <7B for agentic" guidance): the 4b under-split AND funnelled
-# every facet to one agent; a 9b decomposes + spreads across the roster far more
-# reliably. qwen3.5:9b is already on the box (no pull). Target upgrade: qwen3.6:27b
-# (the current top dense agentic model) once pulled + validated. Distinct-agent
-# SPREAD is also enforced in code (_agent_dag_from_tasks) so it never depends on
-# the model alone. /api/chat (think=False) -- the /v1 path returned empty content.
 SWARM_MODEL = os.environ.get("MIOS_SWARM_MODEL", _STACK_MODEL)
-# PLANNER_TIMEOUT_S/MAX_TOKENS/MAX_NODES/REFLEXION_CAP -> mios_config (R14); above.
 
-# Launcher broker (unix socket) -- where dispatch verbs run.
 LAUNCHER_SOCK = os.environ.get(
     "MIOS_LAUNCHER_SOCK", "/run/mios-launcher/launcher.sock",
 )
 
-# Backend bearer key. Hermes (and other sub-agents) usually require
-# Authorization: Bearer <key>. The OWUI gateway sends the operator's
-# session token; direct callers (curl, MCP clients, future Slack/
-# Telegram) won't. Loaded from MIOS_AGENT_PIPE_BACKEND_KEY env first,
 _BACKEND_KEY = _load_backend_key()
 
-# ── FED-G1 inbound auth gate (flag-gated, degrade-open) ──────
-# DEFAULT OFF -> the middleware (defined far below) is a pass-through, behaviour
-# byte-identical. When [security].api_require_auth is ON it gates /v1/* + /a2a: a
-# request must carry the canonical shared key (what OWUI + the mios/@ CLI already
-# send), the ingress key, OR a per-caller key -> a scoped principal. See mios.toml
-# [security].api_require_auth for the full rationale + the operator-greenlight note.
 _API_REQUIRE_AUTH = str(
     os.environ.get("MIOS_API_REQUIRE_AUTH")
     or (_toml_section("security") or {}).get("api_require_auth", "false")
@@ -1321,16 +762,11 @@ _CALLER_KEYS_PATH = str(
     os.environ.get("MIOS_CALLER_KEYS_PATH")
     or (_toml_section("security") or {}).get("api_caller_keys_path")
     or "/etc/mios/ai/v1/caller-keys.json")
-# /v1/* + /a2a are gated when ON; discovery/health stay open so an unauth'd peer can
-# still fetch the card/passport to LEARN how to authenticate (federation join).
 _AUTH_GATED_PREFIXES = ("/v1/", "/a2a")
 _AUTH_OPEN_PATHS = frozenset({
     "/v1/models", "/.well-known/agent-card.json", "/.well-known/agent.json",
     "/.well-known/agent-passport.json", "/a2a/card", "/health",
     "/v1/cluster/health",
-    # DATA-01 (T-059): the agent directory is a DISCOVERY surface -- a peer
-    # queries it to learn the roster, exactly like /v1/models + the well-known
-    # AgentCard, so it stays open even when [security].require_auth gates /v1/*.
     "/v1/agents"})
 _CALLER_KEYS_CACHE: dict = {"mtime": -1.0, "keys": {}}
 
@@ -1344,7 +780,6 @@ _configure_authn(
 )
 
 
-# ── Legacy DB seam (cross-cutting agent state) ─────────────────────
 DB_URL = os.environ.get("MIOS_DB_URL", "http://localhost:8000")
 DB_USER = os.environ.get("MIOS_DB_USER", "root")
 DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
@@ -1352,22 +787,6 @@ DB_NS = os.environ.get("MIOS_DB_NS", "mios")
 DB_DB = os.environ.get("MIOS_DB_DB", "mios")
 _DB_AUTH = "Basic " + base64.b64encode(f"{DB_USER}:{DB_PASS}".encode()).decode()
 
-# ── Phase C.3 -- Agent Passport (Ed25519 signing) ─────────────────
-# Each agent in the stack signs security-relevant agent-state writes
-# with its Ed25519 private key so every tool_call / firewall_block
-# event / skill_invocation row carries a tamper-evident attribution
-# header. Verification is OFFLINE: any agent reads the signer's
-# public key from /var/lib/mios/agent-passports/<agent>/public.key
-# (world-readable) or the agent_keypair table -- no
-# external KMS, no online CA.
-#
-# We import the mios-passport library helpers lazily so a fresh
-# deployment without keypairs provisioned yet doesn't crash agent-
-# pipe at import time. When ENABLE is true but the agent's private
-# key isn't on disk, individual sign calls return None + log a
-# warning -- the write still lands but unsigned (operator sees the
-# missing-passport state in the configurator HTML "Passport"
-# section).
 PASSPORT_ENABLE = os.environ.get(
     "MIOS_PASSPORT_ENABLE", "true",
 ).lower() not in {"false", "0", "no"}
@@ -1380,16 +799,6 @@ PASSPORT_VERIFY_ON_READ = os.environ.get(
     "MIOS_PASSPORT_VERIFY_ON_READ", "false",
 ).lower() in {"true", "1", "yes"}
 
-# The agent-passport Ed25519 crypto (canonical op-hash + Ed25519 sign/verify +
-# keypair load/cache) moved VERBATIM to mios_a2a_principal -- the sibling that
-# already hosts the A2A signed-principal contract consuming this crypto. Re-
-# imported here under the EXACT original names so the importable surface is byte-
-# identical; the surface-pinned PASSPORT_* config consts above are injected into
-# it via configure(). The cluster's private cache state (_passport_priv /
-# _passport_pub_cache / _passport_load_attempted) moved with it and is re-imported
-# so those names stay on server's surface. The cryptography import stays lazy
-# inside the moved helpers, so a host without python3-cryptography still runs
-# agent-pipe with PASSPORT_ENABLE=false.
 from mios_a2a_principal import (  # noqa: E402
     _passport_canonical_json,
     _passport_op_hash,
@@ -1412,17 +821,6 @@ _db_down_until: float = 0.0
 
 
 
-# WS-A5: install the tokenizer backend (SSOT [ai].tokenizer_* via the env bridge).
-# The shipped default is an EXACT tokenizer (tiktoken, OpenAI-BPE) so context-fit
-# sizing + the client-visible usage object measure real tokens, not the ~4-chars/
-# token heuristic. Offline-safe + degrade-open: the encoding blob loads from the
-# baked MIOS_TOKENIZER_CACHE_DIR, and if the optional dep/asset is absent (CI, a
-# bare host) make_backend returns None and the heuristic stays -- never a hard dep.
-# "heuristic" explicitly selects the zero-dep estimate. The encoding/tokenizer path
-# are SSOT-supplied (no restated literal in code); selecting "hf" + a vendored
-# tokenizer.json path uses a served model's own tokenizer instead. Installed HERE
-# (after the logger) so it can log the install/degrade outcome; token counting is
-# request-time, so this runs well before the first count.
 _TOKENIZER_BACKEND = str(os.environ.get("MIOS_TOKENIZER_BACKEND", "tiktoken")).strip().lower()
 if _TOKENIZER_BACKEND not in ("", "heuristic"):
     _tok_backend = mios_tokenize.make_backend(
@@ -1438,26 +836,8 @@ if _TOKENIZER_BACKEND not in ("", "heuristic"):
         log.warning("WS-A5: tokenizer_backend=%r unavailable (dep/asset missing) -- "
                     "using the heuristic (offline-safe)", _TOKENIZER_BACKEND)
 
-# ── App ────────────────────────────────────────────────────────────
-# FastAPI lifespan -- the SINGLE modern startup/shutdown context manager that
-# replaces the deprecated FastAPI on_event startup/shutdown hooks formerly
-# scattered through this module. The pre-yield block runs every STARTUP action
-# IN SOURCE ORDER (identical to the order the on_event hooks were registered ->
-# the order Starlette ran them); the post-yield block runs SHUTDOWN. Each block
-# below was one on_event hook, inlined verbatim. The bodies forward-reference
-# module-level daemon loops / config flags / helpers defined LATER in this module
-# (e.g. _kv_gc_loop, _offline_posture, _reputation_restore): that is fine --
-# lifespan executes only at server STARTUP, after the whole module is imported,
-# so every name resolves against module globals at runtime (never at def time).
 @contextlib.asynccontextmanager
 async def lifespan(app):
-    # ---- STARTUP (each block was one on_event startup hook) ----
-    # Build verb + app embeddings as fire-and-forget Tasks at boot so the first
-    # chat turn does NOT block on a 4-5s embed flood; /v1/tool-search +
-    # /v1/app-search use substring fallback until warmup completes. Disk-persisted
-    # embeddings survive restart (subsequent boots are no-ops). Detached so the
-    # polish path can't compete with the embed flood on the iGPU lane (operator-
-    # flagged "double fail" TransferEncodingError).
     async def _warm():
         try:
             await _ensure_verb_embeddings()
@@ -1469,24 +849,15 @@ async def lifespan(app):
             log.warning("app inventory warmup failed: %s", e)
     asyncio.create_task(_warm())
 
-    # SEC-03: warm the event hash-chain head from the persisted max(chain_seq) ONCE,
-    # so the per-event stamp links to the prior chain without a SELECT-max on the hot
-    # path. Awaited (a single-row read, cheap); degrade-open -- a DB miss leaves the
-    # chain unseeded (events log unchained until a restart with a healthy DB) rather
-    # than restarting the chain at seq=1 and colliding with existing rows.
     if AUDIT_CHAIN_ENABLE:
         await mios_audit.seed_from_db(_mios_pg.execute)
         await mios_audit.seed_session_from_db(_mios_pg.execute)
 
-    # WS-A4 KV slot-file GC loop. Only when a LOCAL slots dir is configured (else
-    # the tmpfiles age-out is the sole, sufficient backstop -> zero overhead).
     if KV_GC_ENABLE and KV_SLOTS_DIR:
         asyncio.create_task(_kv_gc_loop())
         log.info("kv-gc loop on (interval=%ss ttl=%ss max=%d bytes dir=%s)",
                  KV_GC_INTERVAL_S, KV_GC_TTL_S, KV_GC_MAX_BYTES, KV_SLOTS_DIR)
 
-    # WS-3 knowledge eviction sweep. Start the sweep ONLY when the operator opted
-    # into eviction or dry-run observation; default (both off) = zero overhead.
     if KNOWLEDGE_EVICT_ENABLE or KNOWLEDGE_EVICT_DRYRUN:
         asyncio.create_task(_knowledge_evict_loop())
         log.info("knowledge-evict loop on (enable=%s dry_run=%s interval=%ss "
@@ -1495,15 +866,9 @@ async def lifespan(app):
                  KNOWLEDGE_EVICT_INTERVAL_S, KNOWLEDGE_EVICT_TTL_DAYS,
                  KNOWLEDGE_EVICT_MAX_ROWS, KNOWLEDGE_EVICT_BATCH)
 
-    # MEM-05: Sleep-time consolidation daemon
     if AGENT_MEMORY_RECALL_ENABLED:
         asyncio.create_task(_consolidate_memory_loop())
 
-    # WS-LIFECYCLE-VER: stamp the live hop prompts (content-hash + version) so each
-    # is drift-detectable + rollback-able -- the prerequisite for the WS-11 self-
-    # improve ACT half (you cannot safely auto-edit a prompt without a way to
-    # identify the live version + roll it back). Registered at startup (after the
-    # module-level constants are assigned); observe via /v1/prompts. Degrade-open.
     for _pn, _pc in (("router", _ROUTER_SYSTEM), ("refine", _REFINE_SYSTEM),
                      ("polish", _POLISH_SYSTEM), ("planner", _PLANNER_SYSTEM),
                      ("reflect", _REFLECT_SYSTEM), ("swarm", _SWARM_SYSTEM),
@@ -1518,10 +883,6 @@ async def lifespan(app):
         except Exception:  # noqa: BLE001
             pass
 
-    # Offline-computation guard: validate the offline posture. LOUD warning on any
-    # external inference endpoint (the core MiOS law forbids cloud compute). Does
-    # NOT hard-crash -- a wedged pipe is worse than a logged violation -- but the
-    # breach is unmissable in the journal + queryable at /v1/offline-status.
     p = _offline_posture()
     if p["offline"]:
         log.info("offline-guard: OK -- all %d inference endpoints are "
@@ -1533,25 +894,17 @@ async def lifespan(app):
                         "(cloud compute breaks MiOS offline-first law)",
                         c["role"], c["endpoint"])
 
-    # Probe registered MCP servers at agent-pipe startup. Detached so a slow or
-    # unreachable peer doesn't delay the chat path from coming online.
     asyncio.create_task(_mcp_client_startup())
 
-    # FED-G3 live membership reload: background mtime-watch on the registry files +
-    # layered mios.toml so adding a peer needs no restart.
     if MEMBERSHIP_WATCH_ENABLE:
         asyncio.create_task(_membership_watch_loop())
 
-    # WS-A18 gossip peer-discovery loop. DEFAULT-OFF: [gossip].interval_min = 0 ->
-    # no task spawned, zero overhead.
     try:
         if int(_toml_section("gossip").get("interval_min", 0)) > 0:
             asyncio.create_task(_gossip_loop())
     except Exception:  # noqa: BLE001
         pass
 
-    # WS-A10/A18 PERSISTENT peer reputation: restore once on startup + flush on a
-    # timer so accrued reliability SURVIVES a restart. No-op when pg isn't primary.
     await _reputation_restore()
 
     async def _flush_loop() -> None:
@@ -1567,19 +920,14 @@ async def lifespan(app):
     if _PG_PRIMARY and REPUTATION_FLUSH_S > 0:
         asyncio.create_task(_flush_loop())
 
-    # #64 self-improve surfacing loop: spawn the proactive surfacing loop when
-    # enabled. DEFAULT-OFF ([selfimprove].interval_min = 0 -> no task spawned).
     try:
         if int(_toml_section("selfimprove").get("interval_min", 0)) > 0:
             asyncio.create_task(_selfimprove_loop())
     except Exception:  # noqa: BLE001
         pass
 
-    # Probe registered A2A peers at agent-pipe startup. Detached so a slow or
-    # unreachable peer doesn't delay the chat path from coming online.
     asyncio.create_task(_a2a_client_startup())
 
-    # Part 10: Converged-Resource Architecture Gateway Queue
     global _GATEWAY_QUEUE, _GATEWAY_WORKER, _GATEWAY_TASK, _MCP_POOL
     mcp_pool_enable = os.environ.get("MIOS_CONV_IMAGE_MCP_POOL_ENABLE", "false").lower() in ("true", "1", "yes", "on")
     if mcp_pool_enable:
@@ -1595,7 +943,6 @@ async def lifespan(app):
         q_maxsize = int(os.environ.get("MIOS_CONV_GATEWAY_QUEUE_MAXSIZE", "64"))
         w_concurrency = int(os.environ.get("MIOS_CONV_GATEWAY_WORKER_CONCURRENCY", "4"))
         
-        # Sourced tools from mios_capreg via mios_gateway_queue
         mios_gateway_queue.configure(
             verb_catalog=_VERB_CATALOG,
             recipes=_toml_section("recipes") or {},
@@ -1615,7 +962,6 @@ async def lifespan(app):
 
     yield
 
-    # ---- SHUTDOWN (each block was one on_event shutdown hook) ----
     if _GATEWAY_TASK:
         log.info("GatewayQueue shutting down...")
         _GATEWAY_TASK.cancel()
@@ -1628,7 +974,6 @@ async def lifespan(app):
         log.info("MCP Client Pool shutting down...")
         await _MCP_POOL.shutdown()
 
-    # Cleanly terminate spawned stdio MCP subprocesses on agent-pipe shutdown.
     clients = list(_MCP_STDIO_CLIENTS.values())
     if clients:
         await asyncio.gather(*(c.close() for c in clients),
@@ -1786,11 +1131,7 @@ async def lora_list():
         return {"adapters": [], "enabled": True}
 
 
-# Startup embed-warmup (verb + app embeddings) consolidated into the FastAPI
-# `lifespan` context manager above (the single modern startup/shutdown hook).
 
-# Shared httpx AsyncClient -- reused across requests (connection
-# pooling). Created lazily on first request so module import is cheap.
 _client: httpx.AsyncClient | None = None
 
 
@@ -1803,22 +1144,7 @@ async def _get_client() -> httpx.AsyncClient:
     return _client
 
 
-# ── Legacy DB writer (port of the OWUI pipe helpers) ───────────────
-# POOLED client (disk fix): the per-turn DB writes (a
-# passport-signed tool_call CREATE per DAG node, dedup events, knowledge) used to
-# open a FRESH httpx.AsyncClient PER CALL -> a TCP connect/teardown per write x
-# 16 nodes = a connection storm + disk WAL churn. One keep-alive pooled client
-# reuses connections across all writes. Lazily created inside the loop.
 
-# ── SEC-03 event-bus tamper-evident hash chain (mios_audit) ──────────
-# Every `event` row is linked to its predecessor by a SHA-256 chain at the single
-# persist chokepoint below (_db_create / _emit_session_event) so a later insert,
-# delete, reorder, or content edit is detectable (GET /v1/audit/chain/verify +
-# mios-chain-verify). The chain head is cached in-memory (seeded once at startup),
-# so the hot path adds one sha256 -- never a per-insert SELECT-max; degrade-open --
-# a chaining hiccup NEVER blocks event logging (tamper-evidence is best-effort, the
-# event must always land). The pure algorithm + verify logic + admin route live in
-# mios_audit (one-way boundary). SSOT [audit].chain_enable (env override bridges it).
 import mios_audit   # noqa: E402
 AUDIT_CHAIN_ENABLE = str(
     os.environ.get("MIOS_AUDIT_CHAIN_ENABLE")
@@ -1879,79 +1205,20 @@ sys.modules["mios_dci"].configure(
 )
 
 
-# ── Router system prompt (kept in lockstep with the OWUI pipe) ─────
-# IMPORTANT: this verb table MUST stay synchronized with the OWUI
-# Pipe class's _ROUTER_SYSTEM. Either side advertising verbs the
-# other doesn't dispatch causes silent failures. Future Step 2b can
-# move the table to a shared yaml file both sides load.
-# _ROUTER_SYSTEM (static router prompt) -> mios_config (R14); re-imported above.
 
 
-# ── Router (Layer-1 classifier) ────────────────────────────────────
-# classify_intent moved verbatim -> mios_classify (re-imported + configured above).
 
 
-# ── Phase D.5 -- Refine / Polish / Agent registry ─────────────────
-# Operator directive "MiOS-Agent (OWUI) handles the
-# question(s) and refactors and reasons the actionable plan for
-# other agents -- uses quick models and methods to achieve this
-# refinement -- sent to the respective local agents with hints
-# (tools, skills, intent, intended outcome) -- processed --
-# returned to MiOS-Agent to check success -- refine the final
-# answer". And: "Hermes isn't the only sub-agent on the system".
-#
-# Implementation:
-#   * refine_intent(user_text, history) -- always-on quick pass
-#     on the iGPU lane (qwen3:1.7b). Output extends the router
-#     verdict with intended_outcome + target_agent + hint_tools
-#     + hint_skills.
-#   * Sub-agent registry sourced from mios.toml [agents.*] via
-#     _load_agent_registry(). Refine picks target_agent by role
-#     match; falls back to default=true; falls back to first.
-#   * delegate_to_agent(name, refined, history) -- proxies to the
-#     chosen sub-agent's :port with the refined plan injected as
-#     a system-message prefix.
-#   * polish_response(raw, refined) -- final-answer cleanup with
-#     the same iGPU model. Skipped on dispatch / chat / DAG fast
-#     paths (those produce final-shape content directly).
-#
-# Latency budget (qwen3:1.7b on iGPU): refine ~150-300ms,
-# polish ~300-600ms. Trivial-input bypass (greetings, short)
-# skips both -- sub-50ms total overhead on the fast path.
 
-# REFINE_*/POLISH_* config -> mios_config (R14 config SSOT); re-imported above.
 
-# ── Per-turn VRAM checkpoint ("every turn is a checkpoint
-# and clears RAM/VRAM as needed") ─────────────────────────────────────────────
-# A big transient model (e.g. the 7B coder at ~21.6GB with a 32k ctx) can squat
-# the shared 4090 and EVICT the pipeline-critical refine+polish models, so every
-# turn cold-loads them (the 13-20s thrash the operator saw). At the START of
-# each turn, when the backend's resident models leave too little headroom, UNLOAD
-# the non-essential ones (keep refine+polish+backend resident) so the turn's models
-# stay warm. "As needed": a no-op when there's headroom. INERT on the /v1 plane --
-# llama-swap owns residency (no /v1 residency API), so _engine_resident() returns []
-# and this checkpoint no-ops (the co-load admission degrades open).
 VRAM_CHECKPOINT_ENABLE = os.environ.get(
     "MIOS_VRAM_CHECKPOINT", "true").lower() not in {"false", "0", "no"}
 VRAM_BUDGET_MB = int(os.environ.get("MIOS_VRAM_BUDGET_MB", "23000"))
 VRAM_TURN_HEADROOM_MB = int(os.environ.get("MIOS_VRAM_TURN_HEADROOM_MB", "16000"))
-# VRAM-AWARE CO-LOAD ("multiple medium/small models dispatch
-# concurrently to dGPUs ... load multiple smaller models within the same turn ...
-# until satisfied"). Admission admits ANOTHER concurrent model onto a dGPU
-# endpoint only when measured free VRAM fits it + a reserve -- so the dGPU packs
-# several small models elastically by REAL headroom, not a flat count. CRITICAL
-# guardrail: the 4090 is SHARED with the Windows host (the VM cannot see host-side
-# VRAM via /api/ps -- it only sums RESIDENT-model size_vram), so VRAM_COLOAD_RESERVE_MB
-# leaves a conservative margin for the host's co-tenancy + transient spikes. If the
-# probe is wrong, the raised-but-bounded lane/endpoint semaphores are the hard
-# backstop, and _vram_checkpoint still evicts biggest-first when genuinely tight.
 VRAM_COLOAD_ENABLE = os.environ.get(
     "MIOS_VRAM_COLOAD", "true").lower() not in {"false", "0", "no"}
-# SSOT: [dispatch].vram_coload_reserve_mb / vram_coload_est_mb (env overrides).
 VRAM_COLOAD_RESERVE_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_RESERVE_MB", "vram_coload_reserve_mb", 3000)
-# Estimated VRAM a cold model needs when we can't read its size yet (used only
-# until it appears in /api/ps). Conservative default ~ a 4-7B Q4 model.
 VRAM_COLOAD_EST_MB = _dispatch_num(
     "MIOS_VRAM_COLOAD_EST_MB", "vram_coload_est_mb", 5000)
 
@@ -1976,21 +1243,6 @@ from mios_pipe.scheduler.vram import (
 
 
 
-# ── Per-engine + per-node agent bindings ("any Agent(s) can
-# be in any AI Engine/Compute Pipeline -- CPU, dGPU, iGPU, Accelerator" + "any
-# Agent/Sub-Agent can run on any node/endpoint -- iPhone, Android, other MiOS
-# nodes/clusters") ───────────────────────────────────────────────────────────
-# An agent is a JOB (a Modelfile); a BINDING is an endpoint+model that serves it
-# -- whether a local compute ENGINE (dGPU, CPU, Windows iGPU
-# llama.cpp, a future accelerator) or a remote NODE (a phone/tablet or another
-# MiOS host/cluster at a tailnet endpoint). They are the SAME thing: an endpoint
-# that runs the model. Decoupling agent from binding lets ANY agent run on ANY
-# engine OR node that has a binding. Bindings come from mios.toml as the legacy
-# single endpoint/model (+ optional cpu_endpoint/cpu_model twin) OR explicit
-# tables (the label is free-form -- an engine OR a node name):
-#   [agents.<name>.engines.igpu]  endpoint = "http://<igpu-host>:11436/v1"     model = "..."
-#   [agents.<name>.nodes.iphone]  endpoint = "http://<phone-tailnet>:11434/v1" model = "..."
-# _build_agent_engines folds them all into ONE {label: {endpoint, model}} map.
 _OFFLOAD_ENGINES = ("cpu", "igpu", "accelerator")  # local light lanes, off the dGPU
 
 
@@ -2000,15 +1252,6 @@ def _agent_engines(cfg: dict) -> list:
     return sorted((cfg.get("engines") or {}).keys())
 
 
-# CPU/iGPU light-lane = micro-LLMs ONLY (binding operator rule; enforced here
-# after a runaway where a 4.7B model cold-loaded on the CPU-only
-# CPU lane :11435 and pegged cores for hours). The offload swaps the ENDPOINT to a
-# light lane but historically kept the agent's full-size MODEL -- so a big
-# research model landed on a CPU daemon. This guard FORCES any dispatch resolved
-# onto a light-lane endpoint down to the micro model, regardless of what the
-# agent/binding declared. SSOT-overridable; default micro = the always-warm
-# (keep_alive=-1) :11435 resident so there is NO cold load. Hints = host:port
-# substrings of the light lanes (CPU :11435, iGPU :11436).
 _CPU_LANE_HINTS = tuple(h.strip() for h in os.environ.get(
     "MIOS_CPU_LANE_HINTS",
     str(_DISPATCH_TOML.get("cpu_lane_hints", "8458,8450"))).split(",")
@@ -2044,11 +1287,6 @@ def _is_slow_lane_ep(ep: str) -> bool:
     return bool(ep) and any(h and h in ep for h in _CPU_LANE_HINTS)
 
 
-# _num_predict_cap_for moved VERBATIM -> mios_agent_call (the dispatch path is its
-# SOLE caller). Re-imported below for surface parity; its deps -- the _is_slow_lane_ep
-# lane probe and the LLM_NUM_PREDICT_CAP* SSOT ceilings -- stay server-owned and
-# are injected via mios_agent_call.configure(). _is_slow_lane_ep stays here (mios_swarm
-# consumes it too).
 
 
 def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
@@ -2063,38 +1301,16 @@ def _agent_binding(cfg: dict, engine: Optional[str] = None) -> tuple:
             return (_ep, _cap_cpu_lane_model(
                 _ep, str(b.get("model") or cfg.get("model", ""))))
     _ep = str(cfg.get("endpoint", "")).rstrip("/")
-    # An agent with NO declared endpoint (inert vendor default -- e.g. ai-local,
-    # the phone node) must NOT dispatch to "" (-> "All connection attempts
-    # failed" and a dead turn). Fall back to the live BACKEND so refine can route
-    # to it and it lands on the gemma4 reasoning model on llama.cpp.
     if not _ep:
         _ep = BACKEND.rstrip("/")
     return _ep, _cap_cpu_lane_model(_ep, str(cfg.get("model", "")))
 
 
-# CPU-offload of fan-out secondaries: DEFAULT OFF ("concurrent
-# true swarm ... unfired nodes"). Forcing every fan-out agent onto its CPU twin
-# funneled ALL secondaries onto the ONE CPU lane (:11435) -> 35-conn pile-up that
-# WEDGED it (HTTP 000) while the dGPU (free) + potato + iGPU sat IDLE. Each distinct
-# node must run on its OWN hardware (the dGPU co-loads multiple models -- the
-# operator's goal). When off, _agent_offload_engine returns None so every agent
-# uses its own declared endpoint/lane. SSOT [dispatch].offload_cpu.
 DISPATCH_OFFLOAD_CPU = str(os.environ.get("MIOS_DISPATCH_OFFLOAD_CPU")
                           or _DISPATCH_TOML.get("offload_cpu", "false")
                           ).strip().lower() in {"1", "true", "yes"}
-# _agent_offload_engine moved VERBATIM to mios_sched.py (re-imported above); the SSOT it
-# reads (DISPATCH_OFFLOAD_CPU / _OFFLOAD_ENGINES) stays server-owned and is injected below.
 
 
-# ── Endpoint-capability detection (refactor R-wave leaf) ──────────────────
-# The pure /v1 endpoint capability probes (llama.cpp /slots paging,
-# tool_choice='required' + parallel-tools support -- MiOS is /v1-only, so there
-# is no wire-dialect to detect) moved verbatim to mios_endpoints.py. Re-imported
-# under the original _-prefixed names so the module surface is unchanged
-# (surface-parity gate); the host:port hint tuples + api-name SSOT sets moved
-# with them (only this cluster consumed them). No DI: every fn is pure (endpoint
-# str + cfg dict), config defaults from mios_config._DISPATCH_TOML (mios_endpoints
-# never imports server). _endpoint_is_llamacpp is used by the KV-paging block just below.
 from mios_endpoints import (  # noqa: E402
     _binding_api,
     _NO_TOOL_CHOICE_API,
@@ -2108,30 +1324,6 @@ from mios_endpoints import (  # noqa: E402
 )
 
 
-# ── KV-cache paging — the AIOS context-manager prototype (Phase 1) ──────
-# "VRAM can compress or write to disk, properly stored and
-# clean state when agents/models load/unload" -> true per-conversation KV
-# save/restore. A swap-only backend CANNOT (no API; a swap UNLOADS the model, never
-# checkpoints it); vLLM+LMCache is the scale-up (Phase 2/3). llama.cpp's
-# llama-server, launched with --slot-save-path, exposes
-#   POST /slots/{id}?action=save|restore   {"filename": "..."}
-# which writes a slot's KV to DISK and restores it near-instantly -- the cheap
-# prototype that proves the context-paging mechanism TODAY on the EXISTING iGPU
-# node (mios-igpu-server.ps1 :11436), zero new heavy deps, no 4090 VRAM.
-#
-# DEMAND PAGING with a single frame (the light iGPU lane has one resident
-# conversation at a time): on a turn whose conversation differs from the one
-# resident in the slot, page the resident OUT (save -> disk = "unload") then
-# page THIS one IN (restore <- disk = "load"); a same-conversation turn reuses
-# the warm in-slot KV with no disk I/O. So disk writes happen ONLY on a real
-# conversation SWITCH, never every turn -- matching "clean state when
-# agents/models load/unload" without thrashing the disk. The bracket holds a
-# per-(endpoint,slot) lock across the completion so a concurrent conversation
-# can't swap the slot mid-flight and cross-contaminate the KV.
-#
-# Gated + best-effort: a turn NEVER fails because paging failed (an old binary
-# without --slot-save-path 404s on /slots; a first-ever restore has no file) --
-# every slot op swallows its error and the turn proceeds normally.
 KV_PAGING_ENABLE = (
     str(os.environ.get("MIOS_KV_PAGING")
         or _DISPATCH_TOML.get("kv_paging_enable", "true"))
@@ -2139,30 +1331,13 @@ KV_PAGING_ENABLE = (
 KV_PAGING_SLOT = _dispatch_num("MIOS_KV_PAGING_SLOT", "kv_paging_slot", 0)
 KV_PAGING_TIMEOUT = _dispatch_num(
     "MIOS_KV_PAGING_TIMEOUT", "kv_paging_timeout", 12.0, cast=float)
-# (endpoint#slot) -> conversation key currently resident in that slot, and a
-# matching lock so restore->complete->save brackets serialise per slot.
 _KV_RESIDENT: dict = {}
 _KV_LOCKS: dict = {}
-# ── KV-cache FORK (WS-8) — branch a parent conversation's saved KV into a NEW
-# child-conversation file so a swarm can fan out parallel paths from a SHARED
-# PREFIX (RadixAttention-style prefix-sharing on the cheap disk-file prototype).
-# llama.cpp has no native copy-slot verb, so a fork = restore(parent) -> save
-# (child) over the EXISTING _kv_slot_action primitive, run under the per-slot
-# lock. DEFAULT-OFF + degrade-open: when disabled (or on any slot error) the
-# child simply starts cold, exactly as today. Read directly from mios.toml
-# [dispatch] via _dispatch_num/_DISPATCH_TOML (same path as the KV paging knobs).
 KV_FORK_ENABLE = (
     str(os.environ.get("MIOS_KV_FORK")
         or _DISPATCH_TOML.get("kv_fork_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 KV_FORK_MAX_BRANCHES = _dispatch_num("MIOS_KV_FORK_MAX_BRANCHES", "kv_fork_max_branches", 4)
-# ── KV slot-file GC (WS-A4) — bound the on-disk KV paging/fork files so an
-# unbounded fork fan-out can't fill the disk. The systemd-tmpfiles age-out is
-# the OS-level backstop; this in-process sweep ALSO runs when the slots dir is
-# LOCAL (MIOS_KV_SLOTS_DIR set + accessible -- i.e. the agent-pipe is co-located
-# with the light lane). Plans TTL + total-size eviction via mios_kvgc, NEVER
-# touching the file of the conversation resident in the active slot. Default-ON
-# but a true no-op when no local slots dir / no KV files exist.
 KV_GC_ENABLE = (
     str(os.environ.get("MIOS_KV_GC")
         or _DISPATCH_TOML.get("kv_gc_enable", "true"))
@@ -2172,48 +1347,16 @@ KV_GC_TTL_S = _dispatch_num("MIOS_KV_GC_TTL_S", "kv_gc_ttl_s", 86400, cast=float
 KV_GC_MAX_BYTES = _dispatch_num("MIOS_KV_GC_MAX_BYTES", "kv_gc_max_bytes", 2000000000)
 KV_SLOTS_DIR = (os.environ.get("MIOS_KV_SLOTS_DIR", "")
                 or str(_DISPATCH_TOML.get("kv_slots_dir", "") or "")).strip()
-# ── RR time-slice preemption (WS-A12) — bound how long one fan-out dispatch holds
-# a lane before its quantum expires + it is snapshotted so the next (higher-prio)
-# waiter runs. The POLICY/bookkeeping is mios_preempt (quantum, bounded
-# snapshot-slot free-list, priority-ordered resume, the per-slice decide()). The
-# engine-side interruptible decode that ACTS on it is _rr_run() below: a CHUNKED
-# completion that, at each RR_SLICE_TOKENS slice boundary, snapshots this gen's KV
-# (/slots save -- the real, verified llama.cpp endpoint) + RELEASES the priority
-# gate so a higher-priority waiter jumps in, then RE-ACQUIRES + restores (/slots
-# restore + cache_prompt) so no token is reprocessed. The achievable preemption
-# QUANTUM for an autoregressive server is a bounded token chunk (no engine does
-# sub-forward-pass preemption); the chunk boundary IS the time-slice. DEFAULT-OFF
-# (rr_enable=false) => _call_agent_complete never routes through _rr_run, so the
-# deploy is byte-identical until the operator opts in + load-tests. Only applies
-# to a llama.cpp /slots lane on a NO-tools (single-completion) fan-out dispatch;
-# tool-loop preemption needs the WS-A11 Context seam and stays single-call.
 RR_ENABLE = (
     str(os.environ.get("MIOS_RR_ENABLE")
         or _DISPATCH_TOML.get("rr_enable", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
 RR_QUANTUM_S = _dispatch_num("MIOS_RR_QUANTUM_S", "rr_quantum_s", 8.0, cast=float)
 RR_MAX_SUSPENDED = _dispatch_num("MIOS_RR_MAX_SUSPENDED", "rr_max_suspended", 4)
-# A generation slice = at most this many tokens before a preemption check. Sized
-# so short/medium fan-out answers finish in ONE slice (zero chunking overhead) and
-# only genuinely-long generations chunk + become preemptible.
 RR_SLICE_TOKENS = _dispatch_num("MIOS_RR_SLICE_TOKENS", "rr_slice_tokens", 512)
 RR_SLICE_TIMEOUT = _dispatch_num("MIOS_RR_SLICE_TIMEOUT_S", "rr_slice_timeout_s", 120.0, cast=float)
 _PREEMPT = mios_preempt.PreemptScheduler(max_suspended=RR_MAX_SUSPENDED)
-# ── T-019 (SCHED-01) turn-boundary preemption wiring. mios_preempt reads its own
-# [scheduler] SSOT (self-contained + unit-testable), so server only injects the live
-# runtime signal: the "is a higher-priority turn waiting?" probe = the global
-# PriorityGate's head-priority. The hook (mios_preempt.turn_boundary) is called from
-# the chat turn loop AFTER the turn's priority is known; it is DEFAULT-OFF
-# ([scheduler].preempt_enable=false -> the injected probe is never consulted) and
-# degrade-open. Statement-only: adds no module-level name, so the surface is
-# unchanged. SEPARATE instance from _PREEMPT above (the decode-loop RR scheduler).
 mios_preempt.configure(head_priority=_GLOBAL_PRIORITY_GATE.head_priority)
-# ── Batch coalescing (WS-A6). RESEARCHED: vLLM/SGLang/llama.cpp do server-side
-# CONTINUOUS BATCHING, so client-side coalescing BYPASSES those lanes (double-
-# batching only adds head-of-line latency) and applies a small batch_interval
-# window ONLY to NON-native endpoints (a rate-limited remote core). With only
-# local lanes (all native) this is INERT; it becomes useful once WS-A16 adds a
-# remote core. mios_batch owns the decision; the chokepoint checks the bypass.
 BATCH_ENABLE = (
     str(os.environ.get("MIOS_BATCH_ENABLE")
         or _DISPATCH_TOML.get("batch_enable", "false"))
@@ -2223,20 +1366,9 @@ BATCH_MAX_SIZE = _dispatch_num("MIOS_BATCH_MAX_SIZE", "batch_max_size", 8)
 BATCH_NATIVE_HINTS = [h.strip() for h in str(
     os.environ.get("MIOS_BATCH_NATIVE_HINTS")
     or _DISPATCH_TOML.get("batch_native_hints", "")).split(",") if h.strip()]
-# ── Cost/quality SmartRouting (WS-A16, researched local-first escalation). Run
-# local lanes first; escalate to a paid remote core only on a quality-gate fail
-# / local exhaustion, within a per-day budget (mios_smartroute). DISABLED by
-# default (local-only); the remote adapters + quality gate are the server.py/VM
-# integration. Env: MIOS_SMARTROUTE_ENABLE / MIOS_SMARTROUTE_BUDGET.
 SMARTROUTE_ENABLE = str(os.environ.get("MIOS_SMARTROUTE_ENABLE", "")).strip().lower() \
     in ("1", "true", "yes", "on")
 SMARTROUTE_BUDGET = float(os.environ.get("MIOS_SMARTROUTE_BUDGET", "0") or 0)
-# ── WS-RES-GOV cost/energy accounting (CLASSic Cost axis). On a local-GPU OS the
-# POWER envelope is the binding constraint, not an API bill; mios_cost prices each
-# dispatch by energy (gpu_watts x elapsed) for a local lane / $/Mtok for a remote
-# lane and accumulates per-lane totals (observe via /v1/cost + /v1/scheduler.cost).
-# OBSERVE-ONLY + DEFAULT-OFF: recording is pure arithmetic that gates nothing.
-# SSOT [cost].{enable,gpu_watts,usd_per_kwh,remote_usd_per_mtok,budget_usd}.
 _COST_CFG = _toml_section("cost") or {}
 COST_ACCOUNTING_ENABLE = (
     str(os.environ.get("MIOS_COST_ACCOUNTING_ENABLE")
@@ -2250,53 +1382,15 @@ _COST_MODEL = mios_cost.CostModel(
 _COST_LEDGER = mios_cost.CostLedger()
 
 
-# _record_cost (WS-RES-GOV per-dispatch cost recorder) MOVED to mios_agent_call --
-# _call_agent_complete is its sole caller, so the injection was reversed. server
-# keeps owning the SSOT rates + the CostLedger/CostModel singletons (shared with
-# /v1/cost + the native loop) and injects them via mios_agent_call.configure(); the
-# moved name is re-imported below (surface parity). De-hardcoded on the move: the
-# token estimate now routes through the mios_tokenize seam (was an inline `// 4`).
-# ── Risk-tier dispatch sandbox (WS-A13). mios_sandbox resolves each verb's
-# permission tier -> a confinement profile (FAIL-CLOSED: unknown tier -> strict).
-# The agent-pipe is the POLICY point: it RESOLVES + RECORDS the profile on every
-# dispatch (audit), and -- when SANDBOX_ENFORCE is on -- WRAPS the broker cmd of a
-# verb that OPTS IN via [verbs.*].sandbox_profile through mios-sandbox-exec (bwrap)
-# so a write/interactive verb runs ro-root + writable-workspace + (no-net unless
-# its tier allows). OPT-IN per verb + DEFAULT-OFF so it never misfires on the
-# OS-control/launch verbs that bwrap would break (display/`/mnt/c`); those run
-# broker-side, already confined by the broker's systemd hardening + PDP/taint/HITL
-# gates. Code-exec verbs (coderun/code_mode) already self-confine at mios-coderun.
 SANDBOX_ENFORCE = (
     str(os.environ.get("MIOS_SANDBOX_ENFORCE")
         or _DISPATCH_TOML.get("sandbox_enforce", "false"))
     .strip().lower() not in {"false", "0", "no", "off", ""})
-# A verb's broker cmd that ALREADY routes through one of these self-confines, so
-# the agent-pipe must NOT double-wrap it.
 _SANDBOX_SELF_CONFINED = ("mios-sandbox-exec", "mios-coderun")
-# _dispatch_sandbox_profile + _sandbox_wrap_cmd moved VERBATIM into mios_dispatch
-# (the dispatch chokepoint is their sole consumer; they were already injected back
-# into it). Re-imported below under their exact names (surface parity). The two
-# SSOT consts above stay server-owned and are injected via mios_dispatch.configure().
 
 
-# ── KV-cache demand-paging + fork + RR-preemptible decode: MOVED to
-# mios_agent_call (refactor strangler-fig wave). The engine-side actors
-# (_kv_base/_kv_filename/_kv_lock/_kv_slot_action/_kv_paging/_kv_fork and the
-# _rr_eligible/_rr_slice/_rr_run preemption driver) were ONLY ever driven by
-# _call_agent_complete[_inner]; they now live in their natural home and are
-# re-imported below (in the existing `from mios_agent_call import (...)` block)
-# verbatim under their original names so server's public surface is unchanged.
-# server injects the KV-paging/RR config scalars + the shared KV/priority/
-# preempt state (_KV_LOCKS/_KV_RESIDENT/_GLOBAL_PRIORITY_GATE/_PREEMPT/
-# _BACKEND_KEY) into mios_agent_call.configure() below. _kv_filename stays
-# SSOT with the KV-GC sweep (mios_kvgc) which calls the re-imported name.
 
 
-# ── Model-adapter gateway: OpenAI <-> Anthropic/Gemini (refactor R2 leaf) ──────
-# The cross-provider wire-format adapter moved verbatim to mios_provider_translate
-# ("entire stacks to OpenAI standards for UNIVERSAL MODEL
-# compatibility"). Re-imported under the original _-prefixed names so the module
-# surface is unchanged (refactor R2; guarded by 98-drift-checks check 15).
 from mios_provider_translate import (  # noqa: E402
     ANTH_REJECT_KEYS as _ANTH_REJECT_KEYS,
     GEMINI_DROP_KEYS as _GEMINI_DROP_KEYS,
@@ -2326,11 +1420,6 @@ from mios_agentreg import (  # noqa: E402
     _build_agent_engines,
     _load_agent_registry,
     _load_node_pool,
-    # Registry HELPERS moved alongside the builders (strangler-fig): re-imported
-    # under their EXACT names so the public surface is byte-identical. _agent_lane is
-    # pure; _render_agent_catalog reads it as a sibling there (so the import-time
-    # render below needs no DI); _role_system / _dedup_pool_by_target read deps
-    # injected via configure() once those are defined (see below + _reload_membership).
     _agent_lane,
     _render_agent_catalog,
     _role_system,
@@ -2346,25 +1435,12 @@ sys.modules["mios_agentreg"].configure(
 
 
 _AGENT_REGISTRY = _load_agent_registry()
-# Fold the [nodes.*] compute pool into the registry as synthetic research-worker
-# agents (consolidation). Degrade-open: no [nodes.*] = no-op.
 try:
     _load_node_pool(_AGENT_REGISTRY)
 except Exception as _e:  # noqa: BLE001 -- never block startup on the node pool
     log.warning("node pool injection failed: %s", _e)
 
 
-# ── V4/V5 blade (machine) topology, built from the loaded registry + [blades.*] SSOT.
-# _LOCAL_BLADE  : this machine's name from the [identity] hostname SSOT (NOT a literal).
-# _BLADE_POOL   : {blade: {vram_budget_mb, load_ceil}} -- the LOCAL blade defaults to
-#                 VRAM_BUDGET_MB + ADMIT_LOAD_CEIL, so NO [blades.*] = today's single
-#                 budget/ceiling exactly.
-# _ENDPOINT_BLADE: {host:port -> blade} from every node/agent endpoint (a node with no
-#                 `blade` field -> the local blade -> today).
-# Consumed by the V5 admission helpers (_blade_vram_budget / _over_blade_ceiling) ONLY
-# when MULTIBLADE_ENABLE; built-but-unread by default. Rebuilt on a live membership
-# reload so a hot [nodes.*]/[blades.*] edit takes effect. Degrade-open: any failure
-# leaves the maps empty/partial and the helpers fall back to the local scalar/ceiling.
 _LOCAL_BLADE = ""
 _BLADE_POOL: dict = {}
 _ENDPOINT_BLADE: dict = {}
@@ -2380,8 +1456,6 @@ def _rebuild_blade_topology() -> None:
         _ENDPOINT_BLADE = mios_blades.endpoint_blade_map(
             _AGENT_REGISTRY, _endpoint_key, _LOCAL_BLADE)
     except Exception as _e:  # noqa: BLE001 -- the admission helpers already degrade-open
-        # to the local scalar/ceiling when these maps are empty/partial, so a failed
-        # build is safe (admission keeps today's single-blade behaviour).
         log.warning("blade topology build failed: %s; local-scalar fallback", _e)
 
 
@@ -2404,10 +1478,6 @@ def _load_dispatch_cfg() -> dict:
     fanout_max<=1 restores exact single-agent behaviour (zero fan-out)."""
     cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,
            "mode": "relevance"}
-    # Layered [dispatch] (vendor <- /etc <- ~/.config) via the shared
-    # _dispatch_toml() reader (one place owns the layering) so a host can
-    # override [dispatch] -- fanout_max, the deepen budget, etc. -- in
-    # /etc/mios/mios.toml without editing the public vendor file.
     try:
         dd = _dispatch_toml()
         cfg["enable"] = bool(dd.get("enable", True))
@@ -2430,23 +1500,10 @@ def _load_dispatch_cfg() -> dict:
 _DISPATCH_CFG = _load_dispatch_cfg()
 
 
-# _agent_lane moved VERBATIM to mios_agentreg (re-imported above with the registry
-# builders). It is PURE (no deps), so a plain re-import resolves every server-side
-# caller AND every module that takes _agent_lane via configure() below.
 
 
-# _node_deepens (fast-lane work-steal gate) moved VERBATIM -> mios_dag_exec (its
-# sole consumer). Re-imported below under its exact name (surface parity); DEEPEN_LANES
-# + _agent_lane + _AGENT_REGISTRY are injected via mios_dag_exec.configure().
 
 
-# _lane_sem_key (the per-lane semaphore key) moved VERBATIM to mios_sched.py and is
-# re-imported far above. Inject the cluster's RUNTIME-only deps now -- placed AFTER
-# _agent_lane (its only server-fn dep) and after the lane-cap / offload SSOT constants
-# are all defined. _lane_sem_key / _agent_offload_engine / _lane_tool_cap are called
-# only at request time, so injecting here (well before any request) is in time. The
-# constants stay server-owned (surface-parity) and are injected by value; _agent_lane is
-# injected by reference.
 sys.modules["mios_sched"].configure(
     LANE_TOOL_CAP=LANE_TOOL_CAP,
     SLOW_LANES=SLOW_LANES,
@@ -2458,12 +1515,6 @@ sys.modules["mios_sched"].configure(
 )
 
 
-# _trim_sys_prefix (slow-lane system-prefix trimmer) moved VERBATIM into mios_chat --
-# its sole consumer is the chat fan-out, so it lives with chat_completions_logic
-# instead of being injected back. The slow-lane SSOT scalars (SLOW_LANES /
-# SLOW_LANE_BLOCK_CHARS) are injected into mios_chat by value; re-imported below
-# under its EXACT original name so the importable `provided` surface stays
-# byte-identical.
 
 
 from mios_promptfmt import (  # noqa: E402  (pure prompt text-block formatters, moved verbatim)
@@ -2493,20 +1544,9 @@ def _agent_skill_tags(cfg: dict) -> list[str]:
     return sorted(t for t in tags if t)
 
 
-# ── Council/swarm fan-out SELECTION (refactor R3 dispatch-substrate) ───────────
-# _pick_fanout_agents moved verbatim to mios_fanout (pure selection; the registry
-# + dispatch cfg + depth/lane/dedup/admission helpers are dependency-injected via
-# sys.modules["mios_fanout"].configure(...) below, after every dep is defined).
-# Re-imported under its original alias (surface-parity zero-diff).
 from mios_fanout import _pick_fanout_agents  # noqa: E402
 
 
-# Sub-agent LANE/MODE+MODEL chrome that some agents prefix onto their answer --
-# e.g. opencode emits "> build · qwen2.5-coder:7b" (this
-# internal label leaked into the node output + reasoning dropdown). Tight by
-# design: a line that is (optional '>') a short mode word + the U+00B7 middot +
-# a model-ish token. Ordinary prose / blockquotes lack that exact shape, so
-# they are never touched.
 _AGENT_CHROME_RE = re.compile(
     r"^[ \t]*>?[ \t]*\w{2,10}[ \t]*·[ \t]*[\w./:+-]{2,}[ \t]*$",
     re.MULTILINE)
@@ -2521,61 +1561,18 @@ def _strip_agent_chrome(text: str) -> str:
     return stripped.strip() if stripped.strip() != text.strip() else text
 
 
-# ── Shared sub-agent COMPLETION-call primitive moved verbatim to mios_agent_call
-# (refactor R3 dispatch-substrate). _call_agent_complete (the bounded admission +
-# per-lane-semaphore + RR-preemptible + cost dispatch entry point) and its helper
-# _call_agent_complete_inner (the best-effort non-streaming /v1-or-native call with
-# the pipe-side secondary tool-loop, KV fork/paging bracket, outbound auth, source
-# harvest and the P3.2b failover chain) now live there, alongside the STREAMING
-# sibling _call_agent_stream_inner (pushes each secondary's reasoning/answer
-# fragments onto the shared merge queue as they arrive -- live broadcast into the
-# council think-dropdown). Every server-side symbol they touch (lane/admission
-# gates, binding helpers, the secondary tool-loops, the KV helpers, the ContextVars,
-# the header/trace helpers, _AGENT_REGISTRY + the config scalars; _loads_lenient is
-# imported directly from mios_jsonsalvage) is dependency-injected via
-# sys.modules["mios_agent_call"].
-# configure(...) below, AFTER every dep is defined (one-way boundary; _AGENT_REGISTRY
-# is re-injected on live membership reload). Re-imported under their original aliases
-# (surface-parity zero-diff).
 from mios_agent_call import (  # noqa: E402
     _call_agent_complete, _call_agent_complete_inner, _call_agent_stream_inner,
-    # _record_cost moved alongside its sole caller (_call_agent_complete) and is
-    # re-imported here for surface parity; server still owns the cost singletons it
-    # records into + injects them via mios_agent_call.configure() below.
     _record_cost,
-    # KV-paging/fork + RR-preemptible decode cluster moved into mios_agent_call
-    # (its only caller) and re-imported verbatim for surface parity; _kv_filename
-    # is shared with the KV-GC sweep below.
     _kv_base, _kv_filename, _kv_lock, _kv_slot_action, _kv_paging, _kv_fork,
     _rr_eligible, _rr_slice, _rr_run,
-    # Per-dispatch lane-governance pair (dead-node circuit breaker + slow-lane token
-    # cap) moved into mios_agent_call (its sole caller); re-imported for surface
-    # parity. Their server-owned deps are injected via configure() below.
     _trip_breaker, _num_predict_cap_for)
 
 
-# ── Tool-call RESCUE + normalisation (universal-loop item #1, slice 1) ──
-# "entire stack to OpenAI standards for universal model
-# compatibility". The #1 agentic-loop failure across local + reasoning models
-# (Qwen3 #1817, DeepSeek-V3 #1244, and MiOS's own opencode ```json webfetch```
-# trace) is the model NARRATING a tool call -- emitting it as PROSE in
-# message.content (a JSON object, an OpenAI {"function":...} blob, a ```json
-# fence, or Qwen's <function=...> XML) instead of the structured tool_calls[]
-# field. The loop then sees no tool_calls and stops, so the action never runs
-# (the "lie"). _rescue_tool_calls promotes such a narrated call back into a real
-# OpenAI tool_calls[] entry so the loop executes it -- the structural fix the
-# big labs use (forced-call + rescue parser), model-agnostic, the foundation of
-# the universal tool-loop. STRICTLY GUARDED: a candidate is promoted ONLY when
-# its name matches an OFFERED/known tool, so a normal answer that merely
-# contains JSON is never hijacked.
 from mios_toolexec import (   # noqa: E402
     _RESCUE_XML_RE, _RESCUE_PARAM_RE, _RESCUE_FENCE_RE, _RESCUE_TOOLCALL_RE)
 
 
-# _allowed_tool_names moved VERBATIM into mios_toolexec (its SOLE consumer -- the
-# narrated-tool-call rescue parser _rescue_tool_calls gates promotion on it; dep
-# _VERB_CATALOG is already a module global there). Re-imported below under its
-# original name (surface-parity zero-diff); no longer injected back.
 
 
 from mios_toolexec import (   # noqa: E402
@@ -2584,43 +1581,22 @@ from mios_toolexec import (   # noqa: E402
     _record_mcp_tool_call, _allowed_tool_names)
 
 
-# _tool_call_sig moved verbatim -> mios_secondary_loop (it lives with the tool
-# loops that consume it as a no-progress/runaway guard). Re-imported here under
-# its original name (surface-parity zero-diff); still injected into mios_vision.
 from mios_secondary_loop import _tool_call_sig  # noqa: E402
 
 
-# _hints_write_action moved verbatim -> mios_chat (its SOLE consumer is the chat
-# path, so the injection was reversed). Re-imported below for surface parity.
 
 
-# _DISCLAIM_MARKERS + _looks_like_disclaimer moved verbatim -> mios_secondary_loop
-# (the disclaimer detector the tool loops nudge on, home with _TOOL_NUDGE).
-# Re-imported here under their original names (surface-parity zero-diff).
 from mios_secondary_loop import _DISCLAIM_MARKERS, _looks_like_disclaimer  # noqa: E402
 
 
 from mios_secondary_loop import _TOOL_NUDGE  # noqa: E402
 
 
-# Closed-loop SUPERVISORY re-engage ("loop anything not successful
-# or fully fulfilled"): when the model stops calling tools but a verb THIS loop reported
-# a FAILURE / unverified outcome, the turn is UNFULFILLED -> nudge the model to retry the
-# failed step (or report honestly), BOUNDED so it can never loop forever. The verdict is
-# the broker's own result (success=False / read-back marker), NOT a hardcoded rule, so it
-# generalises across ALL verbs/facets and all agents that share this loop.
 SECONDARY_REPLAN_MAX = int(os.environ.get("MIOS_SECONDARY_REPLAN_MAX", "") or _AGENT_PIPE_TOML.get("replan_max", 5))
-# Multi-facet DAG closed loop (operator "loop anything not fully fulfilled" ACROSS the
-# fan-out): how many times to RE-DISPATCH the DAG when a facet's verdict is UNFULFILLED
-# (satisfied is False). Bounded; 0 disables. The re-run is adopt-ONLY-if-strictly-better
-# + degrade-open, so it can never worsen the answer or break the fan-out.
 DAG_REPLAN_MAX = int(os.environ.get("MIOS_DAG_REPLAN_MAX", "1") or 1)
 from mios_secondary_loop import _REPLAN_NUDGE  # noqa: E402
 
 
-# _tmsgs_indicate_failure moved verbatim -> mios_secondary_loop (the failure
-# verdict both tool loops re-engage on). Re-imported here under its original name
-# (surface-parity zero-diff).
 from mios_secondary_loop import _tmsgs_indicate_failure  # noqa: E402
 
 
@@ -2659,16 +1635,6 @@ _configure_streaming(
 )
 
 
-# -- Verb/recipe catalog + 3-projection SSOT extracted to mios_verbcatalog --
-# The catalog LOADERS + projection builders (verb/recipe -> planner prose,
-# OpenAI/MCP tool schemas, model_name reverse map) moved verbatim to
-# mios_verbcatalog.py; re-imported here under their EXACT original names so the
-# importable surface stays byte-identical. The HOT globals _VERB_CATALOG /
-# _MODEL_NAME_TO_VERB stay OWNED here (server runs the assignments by calling the
-# re-imported builders) + are injected back via configure() AFTER each is built,
-# so the existing configure(verb_catalog=_VERB_CATALOG) injections across the
-# siblings stay valid. CATALOG_FAIL_MODE is injected first (before the catalogs
-# are built). One-way boundary: mios_verbcatalog never imports server.
 from mios_verbcatalog import (  # noqa: E402
     _load_verb_catalog,
     _verb_arg_synonyms_from_catalog,
@@ -2685,24 +1651,9 @@ from mios_verbcatalog import (  # noqa: E402
 sys.modules["mios_verbcatalog"].configure(CATALOG_FAIL_MODE=CATALOG_FAIL_MODE)
 
 
-# Identity grounding: "who are you / what can you do?"
-# returned a NARROW, partly FABRICATED self-description ("syrup (R)") because the
-# native-loop system prompt was principle-based (_agent_contract) with NO list of
-# the agent's real tools, so the model confabulated from pretraining. The fix
-# injects a COMPACT capability summary built from the live _VERB_CATALOG (the
-# mios.toml [verbs.*] SSOT) -- regenerated every load, never a hardcoded English
-# list. This is also what makes a freshly-imaged (Day-0) agent describe itself
-# correctly without any learned chat history: the capability knowledge is BAKED.
 NATIVE_LOOP_CAPABILITY_GROUNDING = os.environ.get(
     "MIOS_NATIVE_LOOP_CAPABILITY_GROUNDING", "true").strip().lower() not in (
         "0", "false", "no")
-# -- Grounding subsystem extracted to mios_grounding (refactor R2 leaf wave) --
-# The per-turn ENV-GROUNDING cluster (identity/arch/temporal/client + the
-# structured <env> block builders + the OWUI client-env normaliser) moved
-# verbatim to mios_grounding.py; re-imported here under their EXACT original
-# names so the importable surface stays byte-identical. _client_env_var and
-# _current_date_str (which stay in server.py) are injected via configure()
-# below, AFTER both are defined.
 from mios_grounding import (   # noqa: E402
     _current_year,
     NATIVE_LOOP_CAPABILITY_PER_SECTION,
@@ -2724,19 +1675,12 @@ from mios_grounding import (   # noqa: E402
 
 
 _VERB_CATALOG = _load_verb_catalog()
-# WS-A7: build the Tool-Manager conflict/parallel-limit gate from the SSOT
-# [verbs.*].parallel_limit / .conflict_group fields. Degrade-open: an empty gate
-# (no verb declares either) serializes nothing, so the dispatch chokepoint stays
-# a straight pass-through for the vast majority of verbs.
 _TOOL_CONFLICT = mios_toolconflict.ConflictGate.from_catalog(_VERB_CATALOG)
 
 
 _MODEL_NAME_TO_VERB = _build_model_name_map(_VERB_CATALOG)
 
 
-# Inject the now-built HOT catalog globals into mios_verbcatalog so its catalog
-# readers (_resolve_verb_key / _identity_answer / _load_verb_arg_synonyms) see the
-# live catalog. server.py keeps ownership of the assignments above.
 sys.modules["mios_verbcatalog"].configure(
     _VERB_CATALOG=_VERB_CATALOG, _MODEL_NAME_TO_VERB=_MODEL_NAME_TO_VERB)
 
@@ -2755,11 +1699,6 @@ from mios_routing import (  # noqa: E402
 
 _ROUTING_DOMAINS, _ROUTING_ENABLE = _load_routing_domains()
 
-# Layer-1 micro-LLM classifiers -> mios_classify (R14: static config now in
-# mios_config, so the cluster takes only a 6-dep configure() seam). Placed here:
-# _VERB_CATALOG (built above) + _ROUTING_* (just computed) + _db_* (above) are all
-# live, and this precedes the first re-injection of classify_intent/_route_domain
-# into the other modules. mios_classify NEVER imports server (one-way boundary).
 from mios_classify import classify_intent, _route_domain  # noqa: E402
 sys.modules["mios_classify"].configure(
     verb_catalog=_VERB_CATALOG,
@@ -2776,38 +1715,14 @@ sys.modules["mios_classify"].configure(
 
 
 _LAUNCH_FILLERS = _load_launch_fillers()
-# Leading determiners/possessives ('the', 'my', ...) and trailing generic nouns
-# ('app', 'application', ...) dropped from a deterministic launch target so natural
-# phrasings like 'open the calculator app' resolve to name='calculator' instead of
-# falling to the LLM router (which picked the built-in `terminal` tool, exit 126).
-# SSOT data; matched word-by-word (so 'whatsapp' is never truncated by 'app').
 _LAUNCH_LEAD_WORDS = frozenset(_load_routing_phrases("launch_target_lead_phrases"))
 _LAUNCH_TRAIL_WORDS = frozenset(_load_routing_phrases("launch_target_trail_phrases"))
-# Deterministic-routing TRIGGER phrases ("NO hardcodes!!!"):
-# the remember + web_search pre-router keywords were hardcoded English literals in
-# refine post-processing -- externalised to mios.toml [routing] SSOT (same pattern
-# as the launch pre-router above). FAIL-SAFE: empty/missing list -> that auto-route
-# is skipped -> the model self-routes (no capability lost, no hardcoded fallback).
 _REMEMBER_TRIGGERS = _load_routing_phrases("remember_trigger_phrases")
 _WEB_SEARCH_TRIGGERS = _load_routing_phrases("web_search_trigger_phrases")
 _WEB_SEARCH_CONTEXTS = _load_routing_phrases("web_search_trigger_contexts")
-# Location-sensitive phrases ("NOTHING HARDCODED"): the SSOT
-# fallback behind refine's model-classified `needs_location` flag for splicing the
-# user's resolved location into a web-search string. Externalised to mios.toml
-# [routing]; empty -> rely on the model flag alone. Degrade-open (missing -> []).
 _LOCATION_SENSITIVE_PHRASES = _load_routing_phrases("location_sensitive_phrases")
-# Browser-READ action verbs ("NOTHING HARDCODED"): the URL+read
-# intent that force-flips browser_action was a hardcoded English regex duplicated in
-# refine post-processing. Externalised to mios.toml [routing] SSOT (same degrade-open
-# pattern): empty/missing list -> the force is SKIPPED -> the model's own browser_action
-# boolean stands (fully generative, no hardcoded fallback).
 _BROWSER_ACTION_VERBS = _load_routing_phrases("browser_action_verbs")
 _BROWSER_ACTION_ALT = "|".join(re.escape(p) for p in _BROWSER_ACTION_VERBS)
-# Compound-launch conjunctions + action verbs ("NOTHING HARDCODED"):
-# the deterministic "open X and type Y" fast-lane (the PROVEN launch+type fix) matched a
-# hardcoded (and|then)+(type|write|...) regex. Vocab -> mios.toml [routing] SSOT; the
-# fast-lane STRUCTURE stays (reliability), only its vocab is externalised. DEGRADE-OPEN:
-# empty list -> the fast-lane declines the compound -> the LLM planner decomposes it.
 _COMPOUND_CONJUNCTIONS = _load_routing_phrases("compound_conjunctions")
 _COMPOUND_ACTIONS = _load_routing_phrases("compound_actions")
 _COMPOUND_CONNECTIVES = _load_routing_phrases("compound_connectives")
@@ -2815,53 +1730,18 @@ _COMPOUND_CONJ_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONJUNCTIONS)
 _COMPOUND_ACTION_ALT = "|".join(re.escape(p) for p in _COMPOUND_ACTIONS)
 _COMPOUND_CONNECTIVE_ALT = "|".join(re.escape(p) for p in _COMPOUND_CONNECTIVES)
 
-# OS-control / window-action verb set, derived from the verb catalog SSOT
-# (mios.toml `section`). A request that maps to ONE of these is a single
-# DETERMINISTIC machine action -- it must fire that one verb through the
-# broker and STOP, NOT fan out to the research council.
-# trace: "Launch FakeGame 6" ran a 4-agent web-search swarm that
-# fabricated window coordinates AND never stopped after the launch had
-# already succeeded; "Close FakeGame" narrated a made-up `mios-window -mode
-# graceful` call (a command form that doesn't exist). Membership is whatever
-# mios.toml tags as the launch section -- NO hardcoded English verb list here.
 _OS_CONTROL_SECTION = os.environ.get(
     "MIOS_OS_CONTROL_SECTION", "Window / app launch")
 _OS_CONTROL_VERBS = frozenset(
     name for name, cfg in _VERB_CATALOG.items()
     if str(cfg.get("section", "")) == _OS_CONTROL_SECTION
 )
-# Other DETERMINISTIC single-action verbs that should take the same fire-one-
-# verb-and-stop fast-path (NOT a research swarm), section-derived like the
-# OS-control set -- NO hardcoded verb names. Currently: the scheduling section
-# (the `schedule` verb -> mios-cron-schedule). "do deep
-# research on flights every 30 minutes" must SCHEDULE a recurring job, not run
-# one-shot research. These ride the OS-control fast-path but are NOT in
-# _OS_CONTROL_ACTION_VERBS / _LAUNCH_VERBS, so the window-enumerate/verify logic
-# is skipped -- the verb just fires + the result is polished.
 _SCHEDULE_SECTION = os.environ.get("MIOS_SCHEDULE_SECTION", "Automation / scheduling")
 _SCHEDULE_VERBS = frozenset(
     name for name, cfg in _VERB_CATALOG.items()
     if str(cfg.get("section", "")) == _SCHEDULE_SECTION
 )
-# The full set the refine fast-path recognizes (catalog injection + the
-# length/wordy-arg exemptions + the dispatch routing all key off this).
-# Memory verbs are deterministic single-action writes/reads too -- route them via
-# the fast-path so "remember X" / "recall Y" FIRE the verb instead of falling to the
-# council ("remember X" ran mios_apps under unify-on because
-# remember wasn't a fast-path verb -> the dispatch intent fell back to the agent).
 _MEMORY_VERBS = {"remember", "recall", "memory", "memory_append", "memory_replace", "memory_update", "memory_forget"}
-# Raw PC-input verbs (type / key / click / keycombo) are deterministic
-# single-actions too -- a standalone "type 'X' into it" must FIRE pc_type and
-# stop, NOT fall to the research agent (multi-turn trace:
-# turn-2 "now type 'standup notes' into it" was hinted cu_type [the LINUX vm
-# verb], the model fired windows_file_search/list_windows and ECHOED the text
-# instead of typing -- notepad stayed Untitled). Section-derived from mios.toml
-# (same shape as the OS-control + schedule sets) -- NO hardcoded verb names.
-# Folding the section into the fast-path set ALSO surfaces pc_type in the refine
-# prompt (_render_os_control_verbs keys off _FASTPATH_VERBS) so the micro maps a
-# desktop-type request to pc_type rather than the wrong-platform cu_type. These
-# are NOT in _OS_CONTROL_ACTION_VERBS (window enumerate/diff) -- raw input does
-# not change the open-window set, so the verb just fires + the result polishes.
 _PC_INPUT_SECTION = os.environ.get("MIOS_PC_INPUT_SECTION", "PC input")
 _PC_INPUT_VERBS = frozenset(
     name for name, cfg in _VERB_CATALOG.items()
@@ -2870,15 +1750,6 @@ _PC_INPUT_VERBS = frozenset(
 _FASTPATH_VERBS = _OS_CONTROL_VERBS | _SCHEDULE_VERBS | _MEMORY_VERBS | _PC_INPUT_VERBS
 
 
-# _render_os_control_verbs (+ the OS-control fast-path / window-verify cluster)
-# moved VERBATIM to mios_oscontrol.py; re-imported here under their EXACT names so
-# server's importable surface stays byte-identical (one-way boundary: that module
-# never imports server). _render_os_control_verbs is CALLED at import time
-# (_OS_CONTROL_VERBS_RENDERED below), so this re-import + the EARLY configure() that
-# injects its two deps -- _FASTPATH_VERBS + _VERB_CATALOG, both defined just above --
-# must precede that call. The runtime-only OS-control deps (config scalars, verb
-# sets, the _db_* / client / scratchpad helpers) are injected by a SECOND configure()
-# once they are all defined (far below), mios_sched-style.
 from mios_oscontrol import (   # noqa: E402  (R9: OS-control fast-path + window verify, moved verbatim)
     _OSCONTROL_ENDPOINTS_CACHE, _load_oscontrol_endpoints,
     _remote_enumerate_windows_one, _enumerate_windows, _window_key,
@@ -2894,26 +1765,12 @@ sys.modules["mios_oscontrol"].configure(
 
 _OS_CONTROL_VERBS_RENDERED = _render_os_control_verbs()
 
-# The WRITE OS-control verbs (launch / close / focus / move / resize / open_url)
-# CHANGE the set of open windows. For these the fast-path enumerates ALL open
-# windows BEFORE the action, performs it, enumerates AFTER, and DIFFs the two
-# snapshots to learn exactly what opened/closed -- then INDEXES the snapshot +
-# delta into RAG (so future queries recall "what was open / what I launched")
-# and the per-conversation scratchpad. "check whats open
-# first before opening anything and compare the list after launch or after
-# close ... index values for future queries RAG and/or DAG". Read verbs
-# (list_windows / verify_launch / screen_layout) don't mutate window state.
 _OS_CONTROL_ACTION_VERBS = frozenset(
     name for name in _OS_CONTROL_VERBS
     if str((_VERB_CATALOG.get(name) or {}).get("permission", "")).lower() == "write"
 )
-# Launch verbs ADD a window (vs window-ops that target an existing one). Verb
-# names (identifiers), not English keywords -- same shape as _WEB_ENRICH_VERBS.
 _LAUNCH_VERBS = frozenset({"open_app", "launch_app", "launch_verified", "open_url"})
 
-# Deterministic pre-router triggers: the FIRST token of each LAUNCH verb name
-# (open_app->open, launch_*->launch) IS the action word -- SSOT-derived from the
-# catalog, NO hardcoded English list.
 _LAUNCH_TRIGGERS = frozenset(
     v.split("_", 1)[0] for v in _LAUNCH_VERBS if v in _FASTPATH_VERBS)
 
@@ -2930,95 +1787,36 @@ sys.modules["mios_routing"].configure(
 )
 
 
-# FIRE -> VERIFY -> RE-ATTEMPT bound ("the pipeline VERIFIES
-# TRUE and attempts to re-attempt"): how many times to (re)fire an OS-control
-# action until the window-enumeration diff confirms it took effect.
 OS_CONTROL_RETRY_ATTEMPTS = int(os.environ.get("MIOS_OS_CONTROL_RETRY", "2") or 2)
 OS_CONTROL_RETRY_SETTLE_S = float(
     os.environ.get("MIOS_OS_CONTROL_RETRY_SETTLE_S", "1.2") or 1.2)
-# LAUNCH verbs are different: the launch fires ONCE (detached) and the window
-# renders ASYNCHRONOUSLY -- a cold WSLg flatpak start takes 5-10s to map its
-# window (train: epiphany/nautilus/ptyxis ALL opened but
-# the old 2-attempt/~3s verify reported "no window" before they rendered AND
-# re-dispatched the launch -> duplicate instances). So for launches we fire
-# ONCE then POLL the window enumeration (no re-launch) until the window appears
-# or the deadline passes.
 OS_CONTROL_LAUNCH_VERIFY_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_VERIFY_S", "16") or 16)
 OS_CONTROL_LAUNCH_POLL_S = float(
     os.environ.get("MIOS_OS_CONTROL_LAUNCH_POLL_S", "1.5") or 1.5)
-# Window-enumeration RETRY-ON-EMPTY ("checks aren't occurring
-# by MiOS Daemon or natively"): a LIVE Windows/Wayland desktop ALWAYS has >=1
-# window (Program Manager / the shell), so a count:0 snapshot is NEVER truth --
-# it is a transient broker timeout / launch contention (the ~3.6s list_windows
-# enumeration racing the in-flight launch that holds the single broker). The old
-# code treated count:0 as "blind" and SILENTLY DROPPED the reliable window-diff,
-# falling back to the flaky global-PID check (operator's Steam matched, but
-# Spotify -- which DID open a "Spotify Premium" window -- did not, so it reported
-# FAILURE on an app that opened). Re-enumerate on empty so the diff sees the real
-# windows + verifies via the count-delta. Each attempt is wait_for-bounded so a
-# hung broker can't blow the launch-verify deadline. 0 disables. SSOT-tunable.
 OS_CONTROL_ENUM_RETRY = int(os.environ.get("MIOS_OS_CONTROL_ENUM_RETRY", "2") or 2)
 OS_CONTROL_ENUM_RETRY_SETTLE_S = float(
     os.environ.get("MIOS_OS_CONTROL_ENUM_RETRY_SETTLE_S", "0.7") or 0.7)
 OS_CONTROL_ENUM_TIMEOUT_S = float(
     os.environ.get("MIOS_OS_CONTROL_ENUM_TIMEOUT_S", "6") or 6)
-# Closed-loop bound ("loop anything not fully fulfilled"): how many
-# times the compound type-chain re-focuses + re-types when pc_type's strict read-back
-# reports the text did NOT land. Bounded so an unverifiable target can't loop forever;
-# 0 disables the retry (single attempt). SSOT-tunable.
 TYPE_RETRY_MAX = int(os.environ.get("MIOS_TYPE_RETRY_MAX", "2") or 2)
-# OS-control replies are GENERATIVE but SHORT ("just reply
-# success + details + follow-ups, nothing much more"). A low generation cap on
-# the action-path polish keeps the reply concise AND fast (the full 800-token
-# polish took ~16s for a one-line confirmation). Still model-written (no
-# template) -- only the LENGTH is bounded.
 OS_CONTROL_REPLY_MAX_TOKENS = int(
     os.environ.get("MIOS_OS_CONTROL_REPLY_MAX_TOKENS", "200"))
 
 
-# _salvage_refine_dispatch moved verbatim to mios_refine (refactor R5); re-imported
-# below with the rest of the refine classifier surface (see the mios_refine block).
 
 
 _RECIPE_CATALOG = _load_recipe_catalog()
 _RECIPE_CATALOG_RENDERED = _render_recipe_catalog(_RECIPE_CATALOG)
 
 
-# _render_agent_catalog moved VERBATIM to mios_agentreg (re-imported above). Its only
-# dep, _agent_lane, is a module-level SIBLING there, so this IMPORT-TIME render needs no
-# DI -- the re-imported function is fully resolved by the time this line runs. Only the
-# render FUNCTION moved; _AGENT_CATALOG_RENDERED (the rendered result) stays a server.py
-# global (in the importable surface).
 _AGENT_CATALOG_RENDERED = _render_agent_catalog(_AGENT_REGISTRY)
 
 
-# _reroute_dead_nodes moved VERBATIM into mios_swarm (its SOLE consumer -- the
-# swarm brain's _respond_agent_dag calls it on the FINAL DAG; deps _AGENT_REGISTRY
-# + _pick_agent are already module globals there). Re-imported below under its
-# original name (surface-parity zero-diff); no longer injected back.
 
 
-# _arg_with_synonyms + _validate_enum_args moved VERBATIM into mios_dispatch (the
-# dispatch chokepoint is their sole consumer; both were already injected back into
-# it). Re-imported below under their exact names (surface parity). _VERB_ARG_SYNONYMS
-# (defined above) stays server-owned and is injected via mios_dispatch.configure().
 
 
-# Trivial-input bypass regex -- short messages with no question
-# mark, no action verb tokens, no path-like or URL-like content.
-# These are handled by the existing classify_intent router without
-# a separate refine pass. Locale-neutral (the regex matches BY
-# SHAPE not by English keyword list -- operator binding rule
-# "ABSOLUTELY NO HARDCODED ENGLISH STANDARD Linux and Windows
-# Terminologies").
-#
-# Bypass triggers when:
-#   * <= REFINE_BYPASS_CHARS total chars
-#   * no `?` (questions ALWAYS get the refine pass)
-#   * no `/`, `\`, `:`, `@`, `$`, `~` (paths / refs / hosts)
-#   * no digit (commands with numbers / coords are non-trivial)
-#   * <= 4 word tokens
 _BYPASS_NEGATIVE_CHARS = set("?/\\:@$~")
 
 
@@ -3039,21 +1837,6 @@ def _is_trivial_bypass(s: str) -> bool:
 
 
 
-# ─── Universal agent contract (.md at the overlay root) ────────────────
-# "the stack... present ai.md(s) (AGENTS.md, SOUL.md)"
-# + "all tools/skills/recipes to every agent and sub-agent at all times +
-# they can delegate". The capability/behaviour rules live in the OVERLAY .md
-# (version-controlled, FHS-placed) -- NOT hardcoded Python strings -- and the
-# pipe presents the contract as the LEAD system message at EVERY agent hop
-# (primary, council secondary, swarm/DAG worker). This is what stops a bare
-# qwen worker fabricating or lying "I have no internet" (it was dispatched
-# with no SOUL, no tools, no contract). Layered SSOT: ~/.config wins over
-# /etc wins over the /usr vendor copy. Read ONCE at import; degrade to "" if
-# absent (no crash, just no injection).
-# Consolidated the global identity now lives in ONE root file
-# /MiOS.md (the union of the old agent-contract.md + the generator's AIOS_IDENTITY
-# -- they were ~80% duplicate, injected twice). Layered SSOT: ~/.config < /etc <
-# / (root). Falls back to the old agent-contract.md paths if /MiOS.md is absent.
 _AGENT_CONTRACT_PATHS = (
     os.path.expanduser("~/.config/mios/MiOS.md"),
     "/etc/mios/MiOS.md",
@@ -3070,8 +1853,6 @@ def _load_agent_contract() -> str:
             with open(_p, "r", encoding="utf-8") as _f:
                 _txt = _f.read().strip()
             if _txt:
-                # Drop the leading FHS/blockquote metadata lines (begin '>')
-                # so the agent sees the contract body, not the file header.
                 _body = "\n".join(
                     ln for ln in _txt.splitlines()
                     if not ln.lstrip().startswith(">")).strip()
@@ -3093,15 +1874,6 @@ def _agent_contract() -> str:
 _ROLE_SYSTEM_DIR = "/etc/mios/ai/v1/role-systems"
 
 
-# _role_system + _dedup_pool_by_target moved VERBATIM to mios_agentreg (re-imported
-# above). Inject their runtime-only deps HERE -- after every one is defined:
-# _AGENT_REGISTRY / _agent_binding / _endpoint_key / EFFORT_DEFAULT / SWARM_MAX_WIDTH far
-# above, _ROLE_SYSTEM_DIR just above. Both helpers are called only at request time, so
-# injecting here (well before any request) is in time. _render_agent_catalog needs no
-# injection (its only dep, _agent_lane, is a module-level sibling there). _AGENT_REGISTRY
-# is re-injected on a live membership reload (_reload_membership), since it is reassigned
-# there. The constants/helpers stay server-owned (surface-parity) and are injected by
-# value/reference under their EXACT original names.
 sys.modules["mios_agentreg"].configure(
     agent_registry=_AGENT_REGISTRY,
     agent_binding=_agent_binding,
@@ -3112,73 +1884,25 @@ sys.modules["mios_agentreg"].configure(
 )
 
 
-# ─── Worker tool surface ("all tools to every agent + sub-agent") ──────
-# every agent + sub-agent has GLOBAL tool access AT ALL
-# TIMES + can delegate; the no-live-launch rule binds CLAUDE only -- the MiOS
-# agents ACT. So every swarm/DAG worker is handed the OpenAI verb surface +
-# runs a pipe-side tool-loop (the loops already exist) so it CALLS tools
-# (web_search etc.) + acts via the broker -- instead of fabricating or
-# disclaiming "I have no internet". Write/launch verbs execute too (allow_write)
-# -- the broker's conversation-scoped single-flight dedup collapses duplicate
-# actions across the parallel swarm. SSOT-tunable.
 WORKER_TOOLS_ENABLE = os.environ.get(
     "MIOS_WORKER_TOOLS", "true").lower() not in {"false", "0", "no"}
-# Presented scope: "all" (every verb, ~11K tok -- the operator's "ALL tools")
-# or "read" (the 36 read-permission verbs only, ~5.6K tok -- lighter prefill on
-# the CPU/iGPU light lanes). Execution still allows write regardless of scope.
 WORKER_TOOLS_SCOPE = os.environ.get("MIOS_WORKER_TOOLS_SCOPE", "all").strip().lower()
-# Per-worker context window for the tool-bearing call (the surface alone is
-# ~11K tok, so a bare 4096 default would truncate it). qwen3 supports
-# this comfortably; raise/lower per VRAM + latency budget.
 WORKER_TOOL_CTX = int(os.environ.get("MIOS_WORKER_TOOL_CTX", "16384") or 16384)
-# SLOW-lane context window ("planning isn't taking the
-# node/endpoint into account"): a CPU/iGPU/phone node can't prefill the full 16K
-# ctx in budget. It gets a SMALLER window -- it reasons over the trimmed grounding
-# (SLOW_LANE_BLOCK_CHARS) the fast lanes already fetched, or runs a capped
-# (SLOW_LANE_TOOL_CAP) tool-loop -- so the slow node FINISHES + contributes
-# instead of being abandoned mid-prefill. SSOT MIOS_WORKER_TOOL_CTX_SLOW.
 WORKER_TOOL_CTX_SLOW = int(os.environ.get("MIOS_WORKER_TOOL_CTX_SLOW", "6144") or 6144)
-# AIOS gap #5 (per-child tool-surface + dynamic ctx budgeting). All degrade-open +
-# env-gated via the cached _DISPATCH_TOML; empty intent / cap<=0 / embed-outage /
-# any error => EXACTLY today's surface[:cap] + today's num_ctx (zero regression).
 WORKER_TOOL_CTX_MAX = int(os.environ.get("MIOS_WORKER_TOOL_CTX_MAX", str(_DISPATCH_TOML.get("worker_tool_ctx_max", 24576))) or 24576)
 CHILD_TOOL_SELECT = (os.environ.get("MIOS_CHILD_TOOL_SELECT") or str(_DISPATCH_TOML.get("child_tool_select", True))).strip().lower() not in {"false", "0", "no"}
 CTX_FIT = (os.environ.get("MIOS_CTX_FIT") or str(_DISPATCH_TOML.get("ctx_fit", True))).strip().lower() not in {"false", "0", "no"}
 CHILD_TOOL_FLOOR = int(os.environ.get("MIOS_CHILD_TOOL_FLOOR", str(_DISPATCH_TOML.get("child_tool_floor", 6))) or 6)
 _WORKER_TOOLS_CACHE: "Optional[list]" = None
-# Full surface (verbs + recipes + SKILLS) -- built once via the async warm
-# (skills require an async DB read). Memoised module-global; degrade-open to
-# the sync verbs+recipes surface if the skill fetch fails.
 _WORKER_TOOLS_FULL_CACHE: "Optional[list]" = None
-# P0 RadixAttention stable-prefix: the native loop's tools
-# was reordered/truncated per-intent by _select_child_tools (out[:cap]) -> a different
-# tool prefix every turn -> SGLang RadixAttention prefix-cache MISS every turn. When
-# STABLE_PREFIX is on, the backend gets a BYTE-IDENTICAL core+common tools[] block
-# (canonical order) every turn; the cosine relevance signal moves to a trailing
-# user-adjacent text block (see _tool_pref_block). cap becomes the variable TAIL length.
-# DEFAULT OFF (degrade-open): legacy out[:cap] until prefix-hit-rate is verified.
 STABLE_PREFIX = (os.environ.get("MIOS_STABLE_TOOL_PREFIX")
                  or str(_DISPATCH_TOML.get("stable_tool_prefix", False))
                  ).strip().lower() not in {"false", "0", "no"}
-# Max # of variable specialist (rare/non-core) tools appended AFTER the stable block.
 STABLE_PREFIX_TAIL = int(os.environ.get("MIOS_STABLE_PREFIX_TAIL",
                          str(_DISPATCH_TOML.get("stable_prefix_tail", 10))) or 10)
-# Optional user-adjacent "likely-relevant tools" TEXT hint (the relevance signal that
-# can't ride tools[] order once it's byte-stable). DEFAULT OFF: it nudges the 8B toward
-# tool-hunting and regressed memory-recall (- recall answer went
-# "I don't have access to your data" because the hint competed with the injected memory).
-# The per-turn cosine TAIL already carries the relevance signal IN tools[]; this is a
-# future logit-mask experiment knob, off until it demonstrably helps.
 STABLE_PREFIX_HINT = (os.environ.get("MIOS_STABLE_PREFIX_HINT")
                       or str(_DISPATCH_TOML.get("stable_prefix_hint", False))
                       ).strip().lower() not in {"false", "0", "no"}
-# P2 retrieve->rerank: a pure-compute stage-2 over the cosine TAIL
-# selection in _select_child_tools -- RRF-fuse the cosine rank with an in-process BM25
-# lexical arm (orthogonal signal that reliably surfaces the single best tool), then greedy
-# MMR diversify (so two confusable near-duplicates don't BOTH crowd the top-N tail). No
-# model, ~+2-6ms, degrades-open to plain cosine in 4 nested layers. DEFAULT ON: it strictly
-# dominates raw cosine + falls back identically. (Cross-encoder stage-2c is a documented
-# operator-gated follow-up.) See usr/share/mios/doc/concepts/mcp-tools-optimization.md (P2).
 TOOL_RERANK = (os.environ.get("MIOS_TOOL_RERANK")
                or str(_DISPATCH_TOML.get("tool_rerank", True))
                ).strip().lower() not in {"false", "0", "no"}
@@ -3192,13 +1916,6 @@ RERANK_MMR_LAMBDA = max(0.0, min(1.0, float(os.environ.get("MIOS_RERANK_MMR_LAMB
                        str(_DISPATCH_TOML.get("rerank_mmr_lambda", 0.8))) or 0.8)))  # relevance vs diversity (0.8 = no recall regression in eval)
 RERANK_SKIP_MARGIN = float(os.environ.get("MIOS_RERANK_SKIP_MARGIN",
                        str(_DISPATCH_TOML.get("rerank_skip_margin", 0.08))) or 0.08)  # confident-cut skip
-# Lazy in-process BM25 lexicon over the verb embed-text corpus (name+desc+examples),
-# fingerprint-keyed so it rebuilds on the same trigger as the embeddings.
-# R4 worker-tools wave: the BM25/RRF/MMR reranker + tool-priority ranking helpers
-# (incl. _VERB_LEXICON/_VERB_LEXICON_LOCK) live in mios_worker_tools; re-imported
-# here verbatim (surface-parity zero-diff). Deps injected via configure() at the
-# bottom of this file (after _cosine/_verb_embed_* are defined). Referenced via
-# sys.modules so no new top-level name enters server.py's surface.
 from mios_worker_tools import (   # noqa: E402
     _tool_priority,
     _priority_fallback_score,
@@ -3212,7 +1929,6 @@ from mios_worker_tools import (   # noqa: E402
     _VERB_LEXICON,
     _VERB_LEXICON_LOCK,
 )
-# Byte-stable core block, built once (intent-free). Parallel to _WORKER_TOOLS_FULL_CACHE.
 _WORKER_TOOLS_CORE_CACHE: "Optional[list]" = None
 
 
@@ -3225,25 +1941,10 @@ from mios_pipe.routing.toolsurface import (
 )
 
 
-# _fit_context (dynamic num_ctx sizing) moved VERBATIM -> mios_dag_exec (its sole
-# consumer). Re-imported below under its exact name (surface parity); CTX_FIT +
-# WORKER_TOOL_CTX_MAX + SLOW_LANES are injected via mios_dag_exec.configure().
 
 
-# _current_year moved -> mios_grounding (temporal/env cluster; uses its already-
-# injected _client_env_var). Re-imported below for surface parity.
 
 
-# ─── Per-chat agent scratchpad (rolling cross-agent blackboard) ────────
-# "rolling scratchpad per chat... an inline log on
-# every agent's scratchpad for them ALL to see and use or refer to during
-# the chain for checkpoints from other agents." One rolling, capped log PER
-# CONVERSATION, keyed by the OpenAI-standard metadata.chat_id the OWUI pipe
-# forwards. The orchestrator injects the recent tail into EVERY dispatched
-# agent's system context (so each sees the others' checkpoints) and appends
-# each agent's contribution back as a checkpoint. In-process + async-safe
-# via a contextvar (concurrent council/DAG tasks inherit the key); no new
-# deps, fully offline.
 SCRATCHPAD_ENABLE = os.environ.get(
     "MIOS_SCRATCHPAD_ENABLE", "true").lower() not in {"false", "0", "no"}
 SCRATCHPAD_MAX = int(os.environ.get("MIOS_SCRATCHPAD_MAX", "60"))
@@ -3252,28 +1953,10 @@ SCRATCHPAD_TTL_S = int(os.environ.get("MIOS_SCRATCHPAD_TTL_S", "3600"))
 SCRATCHPAD_SUMMARY_CHARS = int(
     os.environ.get("MIOS_SCRATCHPAD_SUMMARY_CHARS", "280"))
 SCRATCHPAD_MAX_CHATS = int(os.environ.get("MIOS_SCRATCHPAD_MAX_CHATS", "256"))
-# conv_key -> rolling deque of checkpoint dicts. OrderedDict so the least-
-# recently-used conversation evicts when MAX_CHATS is exceeded.
 _SCRATCHPADS: "collections.OrderedDict" = collections.OrderedDict()
-# Set once per request from the conversation id; read by note/render anywhere
-# in the dispatch chain (child asyncio tasks inherit the context at creation).
 _conv_key_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_conv_key", default="default")
 
-# ─── Per-request CLIENT ENVIRONMENT (location / timezone / locale) ─────
-# "OWUI provides entire environment details... USE
-# them in the pipeline". OWUI renders per-request template variables
-# ({{USER_LOCATION}}, {{CURRENT_TIMEZONE}}, {{CURRENT_DATE}}, ...) from the
-# browser; the MiOS OWUI pipe forwards them to us as metadata.variables
-# (an EXTERNAL OpenAI connection would have metadata STRIPPED -- so the
-# pipe is the authoritative source). We normalise them into a flat dict
-# the grounding helpers read via this contextvar (child asyncio tasks --
-# council / DAG fan-out -- inherit it at creation). Empty when a non-OWUI
-# caller (Discord, raw API) sends nothing -> grounding degrades, never
-# fabricates. This is per-request DATA on the request body, NOT a
-# pre_llm_call host-env inject (the forbidden pattern is auto-probing the
-# HOST env into the user message; consuming the client's OWN forwarded
-# session context is exactly what the operator asked for).
 _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_client_env", default=None)
 
@@ -3295,140 +1978,47 @@ def _turn_tenant() -> "Optional[str]":
     except Exception:  # noqa: BLE001 -- degrade-open: tenant binding never breaks a turn
         return None
 
-# WS-A9: the NAME of the agent on whose behalf the current dispatch runs (set at
-# the top of _call_agent_complete_inner / _call_agent_stream_inner -- each agent
-# call is its own task, so this scopes per-call with no leak). Read by the
-# dispatch-time PDP (_dispatch_pdp_reason) so the per-AGENT capability policy is
-# enforced at dispatch, not only at surface-build. "" -> no agent context (the
-# primary/native path) -> agent-axis PDP is a no-op there (user-axis still applies).
 _dispatch_agent_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_dispatch_agent", default="")
 
-# WS-A4: the PARENT conversation a fan-out child should fork its KV from (set on
-# the swarm/DAG fan-out path; "" on the primary path so the primary never forks).
-# Read at the KV-paging bracket: when KV_FORK_ENABLE, the child branches the
-# parent's saved KV (shared-prefix warm start) then pages the forked child.
 _kv_fork_parent_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_kv_fork_parent", default="")
 
-# Stage-1 domain-router result for THIS request: set once at
-# the chat entry, inherited by all child council/DAG tasks; read by the planner
-# (_planner_system_for) AND the tool-loop surface (_worker_tools_surface_async) to
-# shrink the verb surface to the routed domain. None -> FULL surface (fail-safe).
 _routed_domain_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_routed_domain", default=None)
 
-# Orchestrator turn-context for the native loop's dispatch_to_nodes tool (operator
-# federated swarm; agents-as-tools). Lets _exec_tool_calls fire the
-# multi-node SWARM BEHIND the dispatch_to_nodes tool with the full turn context,
-# without threading it through the shared tool-loop signature. Set by
-# _respond_native_loop_direct (request-scoped contextvar -> no leak across turns);
-# None elsewhere, so dispatch_to_nodes is inert outside the orchestrator loop AND
-# the fanned worker nodes (which never carry the tool) can't recurse.
 _orch_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_orch_ctx", default=None)
-# Recency defaults for web_search on a refine-flagged TIME-SENSITIVE turn (operator
-#): prose-steering the 8B to set time_range/fanout was unreliable (it
-# still ran untimed single-facet searches -> "2026 - Wikipedia" -> thin hedge). When
-# this is set, dispatch_mios_verb FILLS IN the missing web_search recency/breadth args
-# deterministically (the model can still OVERRIDE -- we only fill what it omitted). Set
-# by the native loop ONLY when refine.news is true (model-classified, NOT a keyword list).
 _recency_ctx_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_recency_ctx", default=None)
 
-# TURN-SCOPED VOLATILITY FLAG ("data/time of requests should be
-# weighed appropriately in an AIOS environment"). True when refine MODEL-classified
-# this turn as a point-in-time SNAPSHOT -- live local-state (cwd, open windows,
-# processes), current-events/news, or location-bound (weather, near-me). Such an
-# answer is stale the instant it's produced, so it must be answered LIVE (env block +
-# tools, Anthropic just-in-time) and NEVER cached into / recalled from the durable
-# knowledge store -- else a later turn surfaces the stale snapshot as current (the
-# '@ what folder are we in' -> '/' while actually in /afs; weather recalled for the
-# wrong city). Read by _recall_knowledge (skip injection) + _store_knowledge (skip
-# persist). Model-classified (refine local_state/news/needs_location), NOT a keyword
-# list. Default False -> byte-identical behaviour on any non-refined path.
 _turn_volatile_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_turn_volatile", default=False)
 
-# A5 COUNCIL HONESTY: the TRUE per-turn dispatch mode. Default
-# "single-agent" -- set to "council" ONLY when the turn actually fans out to >=1
-# secondary peer. The usage middleware injects it as `mios_mode` on every chat
-# response, so the front door reports the mode it REALLY used instead of advertising
-# a council it silently degraded from when all peers are down. Per-request (each
-# request runs in its own copied context); modern Starlette propagates it from the
-# endpoint up to the BaseHTTPMiddleware.
 _council_mode_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_council_mode", default="single-agent")
 
-# ANTI-FABRICATION on a HITL BLOCK: tools that HITL block-mode
-# REFUSED this turn (tier >= threshold, pending human approval). Recorded so the final
-# answer can HONESTLY say a NEEDED action did not run -- instead of the small model
-# silently FABRICATING a result it never computed (live-seen: a HITL-blocked `coderun`
-# on "calculate 19387*4472" -> a WRONG in-head product presented as exact). The HITL
-# gate itself is UNCHANGED; this only OBSERVES the block and makes the answer honest.
 _hitl_blocked_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_hitl_blocked", default=None)
 
-# ASK-TO-RUN ("mios daemon should ask user to run things"). When a
-# HITL-tier (mutating) verb is intercepted, the pipe doesn't silently no-op/fabricate --
-# it PROPOSES the action and asks the user to approve it. `_proposal_var` carries the
-# structured proposal {tool,args,action_hash,reason} so the answer can render "reply yes
-# to run it"; `_hitl_approved_var` carries the action_hash the user EXPLICITLY approved
-# THIS turn, so the HITL gate lets exactly that one action through on re-dispatch (the
-# gate is otherwise UNCHANGED -- approval is scoped to one hashed action, never blanket).
 _proposal_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_proposal", default=None)
 _hitl_approved_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_hitl_approved", default=None)
 
-# TURN-SCOPED SOURCE COLLECTOR ("no sources are working / aren't
-# attached / hallucinated -- they should be A2A or metadata"). EVERY web_search across
-# the pipeline (native-loop prefetch + in-loop, AND every council/DAG sub-agent's
-# web_search via _exec_tool_calls) records its REAL (title,url) results here. The final
-# answer on EVERY path then attaches a deterministic **Sources:** list of REAL URLs +
-# structured `mios_sources` metadata -- so the model never invents source names. Set
-# ONCE per turn in chat_completions so child council/DAG asyncio tasks share ONE list
-# (contextvars inherit at task creation). None (a path not entering via chat_completions,
-# e.g. /a2a) -> _src_record is a safe no-op.
 _sources_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_sources", default=None)
 MAX_SOURCES = _dispatch_num("MIOS_MAX_SOURCES", "max_sources", 8)
 
-# A council/DAG secondary's web_search runs in a CHILD asyncio task whose context
-# was copied at task creation -- but the secondary's tool-loop rebinds its own
-# request-scoped vars, so its _sources_var bucket is NOT the parent turn's bucket
-# (verified live: each secondary records into a distinct bkt id, parent finalize
-# sees none). The robust fix is a module-level registry keyed by the turn's
-# conversation key, which IS stable + shared across every agent on the turn (set
-# once in chat_completions, inherited unchanged by child tasks). _src_record
-# mirrors into BOTH the contextvar bucket (fast same-context path) and the
-# registry (cross-agent path); _src_collected merges them. Bounded to the most
-# recent turns so it can't grow without limit.
 _SOURCES_REGISTRY: "dict" = {}
 _SOURCES_REGISTRY_CAP = _dispatch_num("MIOS_SOURCES_REGISTRY_CAP",
                                       "sources_registry_cap", 64)
-# Council/DAG secondaries re-enter chat_completions over HTTP (verified live: each
-# sub-request shows a distinct chatcmpl-* conv key -- no metadata.chat_id forwarded),
-# so they cannot share the parent's conv key. The parent stamps a stable turn-id on
-# every sub-dispatch via the X-MiOS-Turn header; the sub-request pins it into this
-# contextvar so its web_search sources land in the PARENT turn's registry bucket.
 _SRC_TURN_HEADER = "X-MiOS-Turn"
 _src_turn_var: "contextvars.ContextVar" = contextvars.ContextVar(
     "mios_src_turn", default=None)
 
 
-# ── Per-turn web-SOURCE registry + citation rendering (refactor -> mios_web_research) ──
-# The source-tracking + citation cluster (_src_turn_key/_src_turn_init/_src_record/
-# _src_collected/_sources_markdown/_sources_metadata/_sources_annotations/
-# _filter_relevant_sources/_src_record_from_text/_harvest_sub_sources, plus the
-# _SRC_LINE_RE/_SRC_URL_RE parsers) moved VERBATIM to mios_web_research -- the module
-# that already OWNS the web toolchain and calls _src_record as it fetches. They are
-# re-imported below under their EXACT names (surface-parity zero-diff); the server
-# globals they read (_sources_var/_conv_key_var/_src_turn_var/_SOURCES_REGISTRY[_CAP]/
-# MAX_SOURCES/_url_has_path) are dependency-injected via mios_web_research.configure().
 
-# OWUI's frontend variable token -> our normalised key (braces stripped,
-# lower-cased). Mirrors getPromptVariables() in OWUI src/lib/utils/index.ts.
 
 
 from mios_pipe.context.scratchpad import (
@@ -3441,19 +2031,8 @@ from mios_pipe.context.scratchpad import (
 )
 
 
-# _a2a_messages_for + _a2a_context (the A2A/ACP shared inter-agent context
-# projection) moved VERBATIM to mios_a2a (refactor R11 federation wave) and
-# re-imported below under their exact names alongside the rest of the A2A
-# publish surface; the @app context routes stay thin in this module.
 
 
-# -- REFINE intent classifier (refactor R5 -> mios_refine) --------------------
-# The primary pre-router pass + its load-bearing classifier prompts (_REFINE_SYSTEM
-# / _REFINE_SYSTEM_LITE) and _salvage_refine_dispatch moved verbatim to mios_refine;
-# re-imported here under their EXACT original names (surface-parity zero-diff). The
-# @_traced_stage("refine") span is re-applied at this boundary -- the tracing infra
-# (_traced_stage / _trace_span) stays in server.py. configure() injects every server
-# dep the classifier reads further below, after _route_domain et al. are defined.
 from mios_refine import (  # noqa: E402
     _REFINE_SYSTEM,
     _REFINE_SYSTEM_LITE,
@@ -3499,12 +2078,6 @@ async def _rag_enrich(query: str) -> str:
             "if helpful, ignore if not):\n" + "\n".join(lines))
 
 
-# _url_has_path / _clean_web_text (+ its _MD_*/_INLINE_LINK_RE/_NAV_BULLET_RE/
-# _EMPTY_*/_DATA_URI_RE/_MULTI_BLANK_RE patterns) and the topical-anchor pair
-# _anchor_tokens / _shares_anchor (+ _ANCHOR_STOPWORDS/_ANCHOR_TOKEN_RE) moved HOME
-# to mios_web_research (its web loop is their primary caller). Re-imported below for
-# surface parity; mios_knowledge still gets the anchor pair injected from those
-# re-imported names (server brokers, so knowledge gains no new module dep).
 def _current_date_str() -> str:
     env = _client_env_var.get() if isinstance(_client_env_var.get(), dict) else {}
     for _src in (env.get("date"), env.get("datetime")):
@@ -3514,36 +2087,16 @@ def _current_date_str() -> str:
     import datetime
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
-# Inject the server-side runtime refs the grounding cluster calls back into
-# (one-way boundary: mios_grounding never imports server). Placed AFTER
-# _client_env_var and _current_date_str are defined.
 sys.modules["mios_grounding"].configure(   # noqa: E402
     client_env_var=_client_env_var,
     current_date_str=_current_date_str,
-    # V2 verified-principal binding: the bearer-token -> scoped-principal resolver,
-    # so _client_env can bind the spoofable owner to the authenticated caller-key
-    # under [security].principal_bind_mode (default off -> resolver unused).
     check_inbound_principal=_check_inbound_principal,
 )
 
 
-# ── R9 web-research extraction: _is_port_open + the full WEB-RESEARCH loop
-# (_web_research_enrich -- SearXNG metasearch + concurrent web_extract/crawl4ai/
-# Firecrawl fetch race + 2-hop article drill + the LOAD-BEARING model-driven
-# judge-satisfied anti-fabrication gate) moved verbatim to mios_web_research.
-# Re-imported here under their EXACT original names so the importable surface
-# stays byte-identical; the server-side helpers + request contextvars +
-# WEB_RESEARCH_*/_JUDGE_* config consts are injected via
-# mios_web_research.configure() below, AFTER every one is defined.
 from mios_web_research import (   # noqa: E402
     _is_port_open,
     _web_research_enrich,
-    # Structural web-text + topical-anchor helpers (relocated home; re-imported under
-    # EXACT original names for surface parity). mios_knowledge still receives the
-    # anchor pair injected from these names (server brokers -> no new module dep).
-    # The _MD_*/_INLINE_LINK_RE/_NAV_BULLET_RE/_EMPTY_*/_DATA_URI_RE/_MULTI_BLANK_RE
-    # and _ANCHOR_TOKEN_RE compiled re.Patterns + the _ANCHOR_STOPWORDS frozenset are
-    # re-imported ONLY to keep server.py's importable surface byte-identical.
     _url_has_path,
     _clean_web_text,
     _anchor_tokens,
@@ -3557,9 +2110,6 @@ from mios_web_research import (   # noqa: E402
     _MULTI_BLANK_RE,
     _ANCHOR_STOPWORDS,
     _ANCHOR_TOKEN_RE,
-    # Per-turn web-SOURCE registry + citation cluster (relocated home; re-imported
-    # under EXACT original names for surface parity). _SRC_LINE_RE/_SRC_URL_RE are
-    # compiled re.Patterns re-imported only to keep server.py's surface byte-identical.
     _src_turn_key,
     _src_turn_init,
     _src_record,
@@ -3589,36 +2139,11 @@ async def _read_tool_enrich(refined: Optional[dict],
         return ""
     ran: dict = {}
     _hints = list(refined.get("hint_tools") or [])
-    # #49: the verbs refine EXPLICITLY hinted (the user's actual request). The
-    # domain filter below restricts AUTO-added core verbs to the routed domain, but
-    # must NOT drop an explicit hint -- a compound that spans domains ("list
-    # windows AND system status" -> apps_windows + system) routes to ONE domain, so
-    # filtering by it alone silently dropped the cross-domain verb the user asked
-    # for (live-repro'd: system_status hinted but never run).
     _explicit_hints = set(_hints)
     _max = READ_TOOL_ENRICH_MAX
-    # local_state: refine routinely HALLUCINATES tool names
-    # for a system query ("journalctl_tail", "system_service_status", "flight_
-    # search") so its hints fire nothing + the answer falls back to garbage web
-    # results. For a local-machine query, DETERMINISTICALLY ground on the real
-    # no-required-arg READ verbs instead of trusting the hints. Any verb absent
-    # on this host is skipped by the catalog check below; these are READ-only
-    # (no launch). Capability verb names (SSOT), not a topic/keyword list.
     _core_set: set = set()
-    # A category-specific inventory question ("what GAMES / browsers / editors do
-    # I have") -> refine emits `inventory_filter` (model-chosen substring, NOT a
-    # hardcoded keyword list) so we run mios_apps(filter=X): a SMALL focused
-    # grounding the 4b can fully enumerate, vs the full ~32KB dump where games
-    # sit 23KB deep + the model said "no games" despite 11 installed (operator
-    #). Omitted for a general "what's installed" -> full inventory.
     _inv_filter = str((refined or {}).get("inventory_filter") or "").strip()
     if refined.get("local_state"):
-        # state_scope: refine classifies the question as
-        # LIVE (open/running now) vs INVENTORY (installed) vs both, so we ground
-        # on the RELEVANT verbs instead of always dumping all 5. "what's open"
-        # used to lead with the 30KB mios_apps inventory + OMIT the open windows;
-        # now LIVE skips mios_apps and leads with list_windows. Model-routed (no
-        # keyword list); unknown/empty -> the full set (legacy/general overview).
         _scope = str((refined or {}).get("state_scope") or "").lower().strip()
         if _scope == "live":
             _core = ["list_windows", "process_list", "container_status",
@@ -3631,22 +2156,10 @@ async def _read_tool_enrich(refined: Optional[dict],
         _core_set = set(_core)
         _hints = _core + [h for h in _hints if h not in _core]
         _max = max(_max, len(_core) + 1)
-    # Domain router: if this request routed to a domain,
-    # restrict the auto-fired enrich verbs to THAT domain's read-verbs -- so a
-    # files/code query no longer grounds on mios_apps/system_status. Fail-safe:
-    # no routed domain -> unrestricted (current behaviour, nothing lost).
     _dom = _routed_domain_var.get(None)
     if _dom and _dom in _ROUTING_DOMAINS:
         _dvset = set(_ROUTING_DOMAINS[_dom].get("verbs") or [])
         if _dvset:
-            # #49: keep domain verbs AND (a) any verb refine EXPLICITLY hinted --
-            # the user's stated request, which may legitimately span another domain
-            # in a compound -- AND (b) the deterministic local_state CORE verbs: a
-            # state query mis-routed to apps_windows (because it leads with "list
-            # windows") must still ground on system_status/etc. Non-local_state,
-            # non-explicit AUTO verbs are still domain-scoped (no over-grounding of
-            # a files/code query). Live-repro'd: "list windows AND system status"
-            # routed apps_windows, dropping the hinted+core system_status.
             _keep = _dvset | _explicit_hints
             if refined.get("local_state"):
                 _keep |= _core_set
@@ -3658,24 +2171,14 @@ async def _read_tool_enrich(refined: Optional[dict],
         if not tool or tool in ran or tool in _WEB_ENRICH_VERBS:
             continue
         v = _VERB_CATALOG.get(tool)
-        # unknown verb OR write/launch -> NEVER auto-fire (no-live-launch rule).
         if not v or v.get("permission") != "read":
             continue
-        # required arg = a declared param with no default; we don't infer args
-        # pipeline-side, so leave arg-taking verbs to the agent tool-loop. EXCEPT
-        # the trusted local_state CORE inventory verbs -- they all accept empty
-        # args, but mios_apps' OPTIONAL `filter` param has no `default` key in
-        # the catalog, so this guard WRONGLY skipped mios_apps: "what games/apps
-        # do I have" then ran only system_status+list_windows (no app inventory)
-        # -> "no games installed" despite 11 in the games cache (operator
-        #). The core set is curated + empty-arg-safe, so bypass it.
         if tool not in _core_set and any(
                 isinstance(c, dict) and "default" not in c
                 for c in (v.get("params") or {}).values()):
             continue
         if len(ran) >= _max:
             break
-        # Focus the inventory verb when refine named a category (else full dump).
         _targs = ({"filter": _inv_filter}
                   if tool == "mios_apps" and _inv_filter else {})
         try:
@@ -3704,23 +2207,13 @@ async def _read_tool_enrich(refined: Optional[dict],
             "PIDs, names, or counts:\n\n" + "\n\n".join(blocks))
 
 
-# refine_intent moved verbatim to mios_refine (refactor R5); re-imported above
-# (decorated with @_traced_stage("refine") at the import boundary).
 
 
-# _shadow_queue_tasks moved verbatim -> mios_chat (its SOLE consumer is the chat
-# path, so the injection was reversed). Re-imported below for surface parity.
 
 
-# _multi_task_preamble moved verbatim -> mios_promptfmt (re-imported above).
 
 
 _POLISH_SYSTEM = (
-    # LANGUAGE RULE FIRST + the word "polish" is deliberately AVOIDED in this
-    # prompt: a multilingual base (qwen3.5:4b) primes on the homonym
-    # "polish" -> the Polish LANGUAGE and emits Polish for English input
-    # (reproduced on the bare base). State the
-    # language target up front and never name the task "polish".
     "Write your answer in ENGLISH. Use another language ONLY if the\n"
     "operator's ORIGINAL message (in the user turn) is itself clearly\n"
     "written in that language -- then reply in that ONE language only.\n"
@@ -3859,19 +2352,6 @@ _POLISH_SYSTEM = (
 )
 
 
-# -- Reflection / self-assessment cluster extracted to mios_reflect (strangler-fig
-# wave) -- _inline_satisfaction_check (per-turn Definition-of-Done verdict) +
-# reflect_on_step_failure (ReWOO single-step correction of a failed DAG node) moved
-# verbatim; re-imported here under their EXACT original names so the importable
-# surface stays byte-identical. A later wave folded in the reflexion-buffer reads
-# (_recent_satisfaction_verdicts cross-turn verdict events + _recent_tool_history
-# this-session tool_call rows -- the rows polish grounds on) and the micro-LLM
-# per-node Definition-of-Done judge _judge_answer_satisfied; all three read only deps
-# already injected into mios_reflect (_db_read + the REFINE_* model-call constants),
-# so configure() is unchanged. The server-side DB writers + the verb catalog + the
-# REFINE_* model-call constants + the _REFLECT_SYSTEM prompt are injected via
-# mios_reflect.configure() below, AFTER every one is defined. The sibling readers
-# (_recent_reflections, _loads_lenient) are imported by the module directly.
 from mios_reflect import (   # noqa: E402
     _inline_satisfaction_check,
     reflect_on_step_failure,
@@ -3881,15 +2361,8 @@ from mios_reflect import (   # noqa: E402
 )
 
 
-# _recent_satisfaction_verdicts + _recent_tool_history moved verbatim -> mios_reflect
-# (re-imported above). _format_satisfaction_block + _format_tool_history moved
-# verbatim -> mios_promptfmt (re-imported above).
 
 
-# Reasoning-tag variants different models leak: qwen3 <think>, plus
-# <thinking>/<thought>/<reasoning>/<reflection>/<scratchpad> seen from
-# other backends. Tag-based stripping only -- STRUCTURAL, no English
-# content matching, so the NO-HARDCODED-ENGLISH binding holds.
 _THINK_TAGS = r"think|thinking|thought|reasoning|reflection|scratchpad"
 _THINK_BLOCK_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>.*?</\1>\s*", re.DOTALL | re.IGNORECASE)
@@ -3904,41 +2377,17 @@ _THINK_CAP_UNCLOSED_RE = re.compile(
     rf"<({_THINK_TAGS})\b[^>]*>(.*)$", re.DOTALL | re.IGNORECASE)
 
 
-# ── Knowledge storage ─────────────────────────────────────────────
-# Operator pipeline spec "...present to user as final answer
-# and STORE all gained knowledge in all relevant global databases".
-# Persisted fire-and-forget so a write NEVER delays or breaks the
-# streamed answer the operator already has. SSOT toggle/table/cap via
-# env (mirrors every other MIOS_* tunable; document in mios.toml).
 KNOWLEDGE_STORE_ENABLED = os.environ.get(
     "MIOS_KNOWLEDGE_STORE", "true").strip().lower() not in ("0", "false", "no")
-# Verdict-gated storage (closed-loop / anti-poison): refuse to
-# persist a turn the Definition-of-Done check judged UNSATISFIED, so a failed/empty/
-# fabricated answer cannot poison future recall (live-proven hermes-CLI hallucination
-# leak). Default ON; SSOT-tunable. An UNJUDGED turn (verdict=None) still stores
-# (degrade-open). See _store_knowledge_task.
 KNOWLEDGE_STORE_GATE_UNSATISFIED = os.environ.get(
     "MIOS_KNOWLEDGE_STORE_GATE_UNSATISFIED", "true").strip().lower() not in ("0", "false", "no")
 KNOWLEDGE_TABLE = (os.environ.get("MIOS_KNOWLEDGE_TABLE", "knowledge").strip()
                    or "knowledge")
-# WS-MEM-VALIDATE (OWASP ASI08): scan a candidate knowledge fact for poisoning
-# indicators (prompt-injection imperatives / dangerous code / URLs) BEFORE it is
-# persisted, so a recalled fact can't later steer the model. mios_memguard owns
-# the pure scan; this is the policy mode. Default "off" = zero behaviour change;
-# "log" observes (emits a memory_poison_flag event, still stores), "strip"
-# neutralizes URLs/code-fences in the stored text, "reject" drops a HIGH-severity
-# fact. SSOT [pgvector].memory_guard_mode / MIOS_MEMORY_GUARD_MODE.
 MEMORY_GUARD_MODE = (os.environ.get("MIOS_MEMORY_GUARD_MODE")
                      or (_toml_section("pgvector").get("memory_guard_mode", "off"))
                      ).strip().lower()
 KNOWLEDGE_ANSWER_MAX = int(
     os.environ.get("MIOS_KNOWLEDGE_ANSWER_MAX", "8000") or 8000)
-# Knowledge RECALL (read the store back). The query is
-# embedded at WRITE time (nomic-embed via the existing _embed_one) so recall is
-# a cheap cosine over recent rows, threshold-gated so only genuinely-relevant
-# prior answers inject. Reuses the verb tool-search embedding infra. This is
-# recall of prior ANSWERS, NOT env detection -> compatible with the
-# no-context-injection rule (which is env-detection-only).
 KNOWLEDGE_RECALL_ENABLED = os.environ.get(
     "MIOS_KNOWLEDGE_RECALL", "true").strip().lower() not in ("0", "false", "no")
 KNOWLEDGE_RECALL_K = int(os.environ.get("MIOS_KNOWLEDGE_RECALL_K", "3") or 3)
@@ -3946,20 +2395,8 @@ KNOWLEDGE_RECALL_CANDIDATES = int(
     os.environ.get("MIOS_KNOWLEDGE_RECALL_CANDIDATES", "60") or 60)
 KNOWLEDGE_RECALL_MIN_SCORE = float(
     os.environ.get("MIOS_KNOWLEDGE_RECALL_MIN_SCORE", "0.62") or 0.62)
-# Above this cosine a recall is trusted WITHOUT a shared topic-anchor token;
-# between MIN and STRICT, the recalled row must also share an anchor with the
-# query (cross-conversation bleed guard).
 KNOWLEDGE_RECALL_STRICT_SCORE = _cfg_num(
     _KN_TOML, "MIOS_KNOWLEDGE_RECALL_STRICT_SCORE", "recall_strict_score", 0.82, float)
-# Preference / identity-about-the-user questions ("what is MY favorite editor?")
-# cosine LOWER against the stored STATEMENT phrasing ("Neovim is my favorite
-# editor") than two statements would, so the 0.62 floor drops the match and the
-# turn dead-ends on a tool-call instead of recalling the fact (operator
-# "what's my favorite text editor?" listed installed editors and gave
-# up instead of answering "Neovim"). Lower the floor ONLY for self-referential
-# asks -- detected STRUCTURALLY by a 1st/2nd-person possessive pronoun, NOT a
-# topic/keyword deny-list (no-hardcode). The topical anchor guard below still
-# blocks cross-conversation bleed for the widened band.
 KNOWLEDGE_RECALL_PREF_MIN_SCORE = _cfg_num(
     _KN_TOML, "MIOS_KNOWLEDGE_RECALL_PREF_MIN_SCORE", "recall_pref_min_score", 0.50, float)
 _RECALL_POSSESSIVE_RE = re.compile(
@@ -3968,13 +2405,6 @@ _RECALL_POSSESSIVE_RE = re.compile(
 )
 
 
-# -- Tiered pgvector KNOWLEDGE memory (store + recency-weighted recall +
-# eviction) extracted to mios_knowledge (refactor R6 wave) -- moved verbatim;
-# re-imported here under their EXACT original names so the importable surface
-# stays byte-identical. The server-side helpers + request contextvars + the
-# KNOWLEDGE_*/EMB_* config constants are injected via mios_knowledge.configure()
-# below, AFTER every one is defined. The lifespan startup block + KV-GC
-# loop stay in server.py.
 from mios_knowledge import (   # noqa: E402
     _recall_floor,
     _row_age_seconds,
@@ -3996,44 +2426,18 @@ from mios_knowledge import (   # noqa: E402
 )
 
 
-# P2 tiered-memory recall ranking: blend the cosine score
-# with outcome (was the prior turn satisfied), tier (hot/warm/cold), access
-# frequency, and age. Weights default NEAR-ZERO so recall == today's pure
-# recency+cosine until an operator tunes them; degrade-open on missing fields.
 KNOWLEDGE_RANK_OUTCOME = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_OUTCOME", "rank_outcome", 0.05, float)
 KNOWLEDGE_RANK_HOT = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_HOT", "rank_hot", 0.03, float)
 KNOWLEDGE_RANK_ACCESS = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_ACCESS", "rank_access", 0.02, float)
 KNOWLEDGE_RANK_AGE = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_RANK_AGE", "rank_age", 0.0, float)
-# RECENCY DECAY ("weigh date/time appropriately in an AIOS env";
-# research-grounded: Generative-Agents recency=0.995^h, LangChain TimeWeighted
-# (1-decay)^h, Elasticsearch exp-decay -- and the canonical AIOS kernel (2403.16971)
-# has NO recall recency term, a genuine gap this closes). Applied as a BOUNDED
-# MULTIPLIER so cosine stays dominant and recency only breaks near-ties toward fresher
-# rows: mult = (1 - rank_age) + rank_age * 0.5**(age_days / halflife). rank_age is the
-# decay SWING (0 -> mult 1.0 == inert/backward-compatible; 0.3 -> floor 0.7, ~1.43x
-# freshest edge per the research). age_days from last_access (refreshed on recall,
-# Park/LangChain), falling back to ts (creation).
 KNOWLEDGE_RECALL_HALFLIFE_DAYS = _cfg_num(
     _KN_TOML, "MIOS_KNOWLEDGE_RECALL_HALFLIFE_DAYS", "recall_halflife_days", 7.0, float)
-# Anti-stale-recall: skip durable STORE *and* RECALL injection
-# for model-classified VOLATILE turns (refine local_state/news/needs_location) -- a
-# point-in-time snapshot poisons recall if cached. Model-classified, not a keyword
-# check. SSOT-gated; default ON. Set false to cache/recall everything (legacy).
 _skip_vol_cfg = _KN_TOML.get("store_skip_volatile") if isinstance(_KN_TOML, dict) else None
 KNOWLEDGE_STORE_SKIP_VOLATILE = (
     bool(_skip_vol_cfg) if _skip_vol_cfg is not None
     else str(os.environ.get("MIOS_KNOWLEDGE_STORE_SKIP_VOLATILE", "1")).strip().lower()
     in {"1", "true", "yes"})
-# P2 hot-tier promotion: a row paged in (recalled) at least this many times is
-# marked tier='hot' so the HOT recall weight + a future eviction pass have a
-# real signal. Set high enough that only genuinely-reused memories go hot.
 KNOWLEDGE_HOT_THRESHOLD = _cfg_num(_KN_TOML, "MIOS_KNOWLEDGE_HOT_THRESHOLD", "hot_threshold", 5, int)
-# ── WS-3 knowledge eviction (P2.1,). The knowledge table appends one
-# row per finished turn -> unbounded. A bounded K-LRU + TTL sweep (see
-# _evict_knowledge) removes only stale, never-recalled, neutral-outcome rows and
-# NEVER a hot/satisfied/pinned row. DEFAULT OFF: the loop only starts when
-# evict_enable OR evict_dryrun is set. evict_dryrun=true -> log-only (observe
-# first); evict_enable=true -> actually delete. SSOT [knowledge].evict_*.
 KNOWLEDGE_EVICT_ENABLE = str(os.environ.get("MIOS_KNOWLEDGE_EVICT")
                              or _KN_TOML.get("evict_enable", "false")
                              ).strip().lower() in {"1", "true", "yes"}
@@ -4057,26 +2461,11 @@ SKILLS_EPISODIC_ENABLED = os.environ.get(
     "true").lower() not in {"false", "0", "no"}
 
 
-# ── Episodic SKILL.md mirror moved VERBATIM -> mios_skills (closed-loop self-
-# learning; cohesive with the skills cluster already there). _slug_for_skill /
-# _render_skill_md / _write_skill_md_fire are re-imported below (in the existing
-# `from mios_skills import (...)` block) under their EXACT original names so the
-# importable surface stays byte-identical; _write_skill_md_fire is still injected
-# back into the chat / native-loop / verity paths. The target dir + enable flag
-# (SKILLS_EPISODIC_DIR / SKILLS_EPISODIC_ENABLED above) stay server-owned SSOT and
-# are injected via sys.modules["mios_skills"].configure() below; _a2a_now is
-# imported DIRECTLY by mios_skills from mios_a2a (one-way boundary).
 
 
 
 
-# P1 AIOS Memory Manager: semantic recall of the agent's SELF-EDITED durable
-# facts (the remember/memory_update/memory_forget tier -> agent_memory). The
-# write half (embed-on-write) ships in mios-remember; this is the read+inject
-# half. DEFAULT-OFF so the hot path is byte-identical until the operator flips
 # MIOS_AGENT_MEMORY_RECALL=1. Same allowed-injection class as _recall_knowledge
-# (the agent's OWN prior facts, NOT env detection -> compatible with the
-# no-context-injection rule, which is scoped to env discovery).
 AGENT_MEMORY_RECALL_ENABLED = str(
     os.environ.get("MIOS_AGENT_MEMORY_RECALL", "0")).strip().lower() in {"1", "true", "yes"}
 AGENT_MEMORY_TABLE = os.environ.get("MIOS_AGENT_MEMORY_TABLE", "agent_memory")
@@ -4085,17 +2474,6 @@ AGENT_MEMORY_RECALL_MIN_SCORE = float(
     os.environ.get("MIOS_AGENT_MEMORY_RECALL_MIN_SCORE", "0.45"))
 
 
-# WS-A15: resolve the pluggable MemoryProvider ONCE. [pgvector].memory_provider
-# (env MIOS_MEMORY_PROVIDER) selects the backend; the recall path routes through
-# _MEMORY.retrieve so the storage backend is swappable behind a single seam. The
-# default (pgvector) is a verbatim pass-through to mios_pg -> behaviour is
-# byte-identical until a different provider is configured. The factory is
-# fail-CLOSED (ValueError on an unknown name); at STARTUP we degrade-open --
-# log loudly + fall back to the default -- so a config typo never bricks the pipe.
-# --- Letta Server Memory Complement (T-076 & T-077) ---
-# All Letta memory complement implementation class and handlers are defined in
-# mios_pipe.memory.memory (exposed via the mios_memory shim) to keep server.py's
-# public module-level surface clean and unchanged (R0 parity).
 
 _MEMORY_PROVIDER_NAME = str(
     os.environ.get("MIOS_MEMORY_PROVIDER")
@@ -4116,44 +2494,15 @@ mios_memory.configure_letta(
 )
 
 
-# _recall_agent_memory (SELF-EDITED durable-memory recall) + _rls_owner (the RLS
-# owner resolver it owner-scopes through) moved VERBATIM into mios_knowledge (they
-# are cohesive with the recall plane and _rls_owner was already injected back into
-# it). Re-imported under their exact names below (surface parity); their server-
-# owned deps -- the AGENT_MEMORY_* knobs + _MEMORY + _PG_PRIMARY + _embed_one + the
-# _client_env_var contextvar -- are injected via the mios_knowledge.configure() call
-# further down (one-way boundary). _rls_owner is no longer injected (it lives home).
 
 
-# ── WS-3 knowledge eviction sweep (P2.1,). Pure SQL/parse/plan logic
-# lives in mios_evict (unit-tested); these wrappers do the DB I/O. The
-# sweep removes only STALE, never-recalled, neutral-outcome rows and NEVER a
-# hot / satisfied / pinned / recently-accessed one. DEFAULT OFF (loop doesn't
-# even start); evict_dryrun=true starts it LOG-ONLY; evict_enable=true deletes.
 
 
-# WS-A4 KV slot-file GC sweep + loop bodies moved VERBATIM to mios_daemons (the
-# background-daemon-loop home, alongside membership/gossip/selfimprove). Re-imported
-# here under their EXACT names so the importable surface stays byte-identical; the
-# lifespan startup block create_task()s the re-imported _kv_gc_loop.
-# Their server-resolved deps (KV_SLOTS_DIR + the KV_GC_* knobs + the live _KV_RESIDENT
-# active-slot map) are injected via the mios_daemons.configure(...) call further down,
-# AFTER each is defined; the filename plan (kv_filename + its _FILE_PREFIX/_FILE_SUFFIX
-# SSOT) and the plan_gc planner are imported DIRECTLY by mios_daemons from their leaf
-# siblings (one-way boundary -- mios_daemons never imports server).
 from mios_daemons import _kv_gc_sweep_once, _kv_gc_loop, _consolidate_memory_loop   # noqa: E402,F401
 
 
-# KV-GC + knowledge-eviction startup loops consolidated into the FastAPI
-# `lifespan` context manager above (their create_task() calls run there at boot).
 
 
-# -- Anti-fabrication POLISH/VERITY cluster extracted to mios_verity (refactor
-# R6 wave) -- _verity_factcheck + _strip_ungrounded_figures + polish_response
-# moved verbatim; re-imported here under their EXACT original names so the
-# importable surface stays byte-identical. The model-call constants + the
-# server-side DB/format/store helpers + the proposal contextvar are injected
-# via mios_verity.configure() below, AFTER every one is defined.
 from mios_verity import (   # noqa: E402
     VERITY_FACTCHECK,
     VERITY_FACTCHECK_MAX_Q,
@@ -4164,14 +2513,8 @@ from mios_verity import (   # noqa: E402
 )
 
 
-# _build_agent_hint moved verbatim -> mios_promptfmt (re-imported above).
 
 
-# ── Phase C.2 -- Skill catalog SSOT knobs ─────────────────────────
-# Mirror of the mios-skills CLI's env reads. Centralised here so a
-# single source-of-truth deploys to BOTH the CLI miner AND the
-# agent-pipe /skills/* execution surface every other agent in the
-# stack consumes.
 SKILLS_ENABLED = os.environ.get(
     "MIOS_SKILLS_ENABLE", "true",
 ).lower() not in {"false", "0", "no"}
@@ -4183,35 +2526,9 @@ SKILLS_AUTO_PROMOTE_THRESHOLD = float(os.environ.get(
     "MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD", "0.85"))
 
 
-# ── Phase C.1 -- Personal Knowledge Graph lookup ──────────────────
-# kg_lookup (operator-PKG phrase resolution: alias -> resolves_to -> app_install,
-# used by the planner + dispatch to disambiguate "my browser"-style phrases) moved
-# VERBATIM into mios_knowledge (cohesive with the knowledge plane). Re-imported
-# under its exact name below (surface parity); its only server-side dep, _db_read,
-# is injected via the mios_knowledge.configure() call further down. One-way boundary.
 
 
-# ── Phase C.2 -- skill catalog helpers ────────────────────────────
-# Cross-agent skill execution surface. Every other agent in the
-# MiOS stack (MiOS-Hermes, MiOS-OpenCode, future MCP clients) reads
-# skills via the skill table directly OR via this
-# service's /skills/* endpoints -- they MUST converge on the same
-# dispatch path so a skill run produces the same firewall checks,
-# taint propagation, and tool_call audit rows regardless of which
-# agent initiated it. No agent-specific behaviour anywhere.
 
-# ── R7 mios_skills extraction: the skill readers (_skill_fetch/_skill_list), the
-# step engine (execute_skill), the OpenAI function-tool projectors
-# (_skill_to_openai_tool/_make_schema_strict/_mcp_tool_to_openai_tool), the skill
-# invocation/attribution lifecycle (_skill_invocation_open/_skill_invocation_close/
-# _skill_attribute_tool_call) + its open->close carry state (_SKILL_INV_META), and
-# the $-token arg renderer (_skill_render_args/_PARAM_TOKEN_RE) all live in
-# mios_skills; re-imported here under their original names (surface-parity
-# zero-diff). The remaining server-side deps (DB-event helpers, dispatch_mios_verb,
-# _pg_mirror, SKILLS_ENABLED) are dependency-injected via configure() AFTER
-# dispatch_mios_verb is defined (see sys.modules["mios_skills"].configure(...)
-# below); mios_skills imports _passport_sign directly from mios_a2a_principal
-# (one-way boundary -- mios_skills never imports server).
 from mios_skills import (  # noqa: E402
     _skill_fetch, _skill_list, execute_skill, _skill_to_openai_tool,
     _make_schema_strict, _mcp_tool_to_openai_tool,
@@ -4221,84 +2538,36 @@ from mios_skills import (  # noqa: E402
 )
 
 
-# Critic->refiner (ref AIOS B.1 / OS-Copilot executor-critic-refiner).
-# ENABLED BY DEFAULT, but fires AS NEEDED: only on the HEAVY agent path,
-# only for substantive answers (>= MIN_CHARS), and only re-invokes when
-# the DCI critic raises a high-confidence challenge/ask (a genuinely
-# contested/complex resolution). Simple/short answers and the entire
-# mios-os-control DISPATCH fast path skip it -> CPU usecases stay fast,
-# GPU/heavy answers earn the quality loop. Bounded; falls back to the
-# original answer on any error. "DCI fires as needed
-# for more complex resolutions" -- this is that gate.
 CRITIC_REFINE_ENABLED = os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE", "1") not in ("0", "false", "False", "")
 CRITIC_REFINE_MAX = int(os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE_MAX", "1"))
 CRITIC_REFINE_MIN_CHARS = int(os.environ.get(
     "MIOS_AGENT_PIPE_CRITIC_REFINE_MIN_CHARS", "500"))
-# The heavy-path executor-critic-refiner that consumes these CRITIC_REFINE_* knobs
-# (_critic_refine_agent) was moved verbatim to mios_refine.py and is re-imported
-# above under its original name. The values here remain the SSOT and are injected
-# into that module via its configure() call lower down (it imports dci_critic_pass
-# and the DCI_* trigger constants directly from mios_dci).
 
 
-# ── Phase A.3 -- taint-aware memory + Semantic Firewall stub ─────
-# When a verb fetches or exposes the agent to untrusted external
-# content (current scope: open_url to a non-allowlisted domain;
-# future: web_extract, knowledge_search hitting a third-party RAG
-# doc, etc.), tag the tool_call row with tainted=true. Taint
-# propagates within a session: any subsequent tool_call inherits
-# tainted=true if ANY prior tool_call in the same session was
-# tainted. High-privilege verbs are refused while taint is set --
-# the Semantic Firewall stub. Refusals emit an event row
-# {source=agent-pipe, kind=firewall_block, severity=high}.
 
-# Verbs that perform a SYSTEM-AFFECTING action and must NOT run
-# when the session is tainted. service_restart / container_restart
-# touch the operator's host services; pc_type / pc_key / pc_click
-# inject input into Win32 windows (could enter credentials if
-# tainted content prompted it).
 _HIGH_PRIVILEGE_CURATED = {
     "service_restart",
     "container_restart",
     "pc_type",
     "pc_key",
     "pc_click",
-    # text_create / str_replace / insert are WRITE class -- a
-    # tainted session could craft them to drop a payload anywhere
-    # the agent has write access to.
     "text_create",
     "text_str_replace",
     "text_insert",
-    # powershell_run executes arbitrary Windows-side script with
-    # the operator's interop context. Single most dangerous verb
-    # in the catalog -- always firewall-gated.
     "powershell_run",
-    # Window-state verbs (D.3 PC-control template). All cause a
-    # visible system effect -- a tainted session moving operator
-    # windows or hiding them counts as the kind of thing the
-    # firewall should refuse until the operator clears the chain.
     "minimize_window",
     "maximize_window",
     "restore_window",
     "resize_window",
     "position_window",
-    # Package management WRITE verbs (D.4). install / upgrade /
-    # uninstall on either platform can land arbitrary code on the
-    # operator's machine -- tainted sessions are refused.
     "winget_install",
     "winget_upgrade",
     "winget_uninstall",
     "flatpak_install",
     "flatpak_upgrade",
     "flatpak_uninstall",
-    # `pkg` is the CONSOLIDATED package verb (action=install|upgrade|uninstall|
-    # search|list|show|preflight) that supersedes the per-backend *_install verbs
-    # above. The firewall keys off the verb NAME, not the action arg -- so without
-    # `pkg` here a tainted session could pkg(action=install) and land arbitrary code,
-    # BYPASSING the gate the legacy verbs hit (live pre-existing gap,).
-    # Fail-safe: this also gates pkg reads (search/list/show) when tainted -- acceptable.
     "pkg",
     "window_op",
     "windows_input",
@@ -4309,33 +2578,13 @@ _HIGH_PRIVILEGE_CURATED = {
     "agent_route",
     "document",
 }
-# WS-A14: the EFFECTIVE high-privilege set = the curated floor above UNION the
-# SSOT [security].firewall_high_privilege_verbs (which previously existed but was
-# never consumed -> could silently drift from the literal). Derived once at load:
-# the curated base can never be dropped by a config edit, but the SSOT can ADD
-# verbs without a code change. Drives the taint firewall + the HITL gate scope.
 _HIGH_PRIVILEGE_VERBS = mios_secset.high_privilege_set(
     _HIGH_PRIVILEGE_CURATED,
     (_toml_section("security") or {}).get("firewall_high_privilege_verbs"))
-# WS-A14: always-taint verb set = the built-in external-fetch verbs UNION the
-# SSOT [security].taint_verbs (a verb whose own execution introduces taint, so
-# downstream high-privilege verbs in the same session get firewall-checked).
 _TAINT_VERBS = mios_secset.taint_verb_set(
     ("web_search", "web_extract", "crawl", "web_scrape"),
     (_toml_section("security") or {}).get("taint_verbs"))
 
-# Domains that are part of the operator's own infrastructure -- a
-# verb opening these is NOT a taint source. Anything else
-# constitutes a "we exposed the agent to untrusted external state"
-# event and the tool_call gets tainted=true (the URL itself didn't
-# return content, but the operator's screen now shows external
-# content the agent might subsequently react to).
-#
-# Phase B.3 -- list now sources from mios.toml [security].allowlist_hosts
-# via the userenv.sh slot map (MIOS_SECURITY_ALLOWLIST_HOSTS, CSV).
-# Compiled-in defaults are the fallback when the env isn't set --
-# they MUST match the mios.toml seed so a fresh deployment with no
-# overrides still allows the canonical local-MiOS hosts.
 _DEFAULT_ALLOWLIST_HOSTS = {
     "localhost", "127.0.0.1", "::1",
     "host.containers.internal",
@@ -4351,17 +2600,6 @@ else:
     _ALLOWLIST_HOSTS = set(_DEFAULT_ALLOWLIST_HOSTS)
 
 
-# ── Provenance-taint + Semantic Firewall (refactor R7 wave) ───────
-# _is_external_url / _classify_verb_taint / _session_is_tainted extracted verbatim
-# to mios_firewall.py. SECURITY-CRITICAL lethal-trifecta defense: a session that
-# ingested external/untrusted content is BLOCKED (by the firewall caller, using
-# _session_is_tainted) from high-privilege + exfiltration verbs. The gates are
-# NAME-KEYED on verb keys -- nothing renamed, no set inlined. Re-imported here
-# under the original names so server.py's importable surface is byte-identical;
-# the SSOT-derived _TAINT_VERBS set, the PROVENANCE_TAINT_ENABLE flag, the
-# _ALLOWLIST_HOSTS host set, the _MCP_CLIENT_TOOLS registry and the _db_read
-# reader are injected via sys.modules["mios_firewall"].configure(...) AFTER every
-# one is defined (one-way boundary -- mios_firewall never imports server).
 from mios_firewall import (   # noqa: E402
     _is_external_url,
     _classify_verb_taint,
@@ -4369,57 +2607,23 @@ from mios_firewall import (   # noqa: E402
 )
 
 
-# AIOS gap8 provenance/taint firewall: gate the EXTERNAL-web-fetch taint
-# extension behind an SSOT flag (default OFF). The existing classifier already
-# taints powershell_run / external open_url / system text_view; turning this on
-# adds web_search/web_extract/crawl/web_scrape so untrusted web content gates
-# subsequent high-privilege verbs (research-then-act) via the existing DB-taint
-# + firewall. Default OFF because gating reduces autonomous function -- the
-# operator opts in. LOCAL rag/recall are deliberately NOT tainted (the verified
-# false-positive: RAG runs every turn -> would block all OS-control).
 PROVENANCE_TAINT_ENABLE = str(
     os.environ.get("MIOS_SECURITY_PROVENANCE_TAINT")
     or _toml_section("security").get("provenance_taint", "false")
 ).strip().lower() in {"1", "true", "yes"}
 
-# F2/T-033 CaMeL-class Rule-of-Two architectural gate mode (SSOT
-# [security].rule_of_two_mode | env MIOS_SECURITY_RULE_OF_TWO_MODE): off (default) |
-# audit | enforce. A dispatch may hold at most TWO of {untrusted-input, sensitive-
-# access, state-change} without human review; off -> the deterministic gate is NOT
-# consulted at the dispatch chokepoint (byte-identical). audit -> log the all-three
-# kill-chain + proceed; enforce -> route it to HITL review / block (fail-safe).
-# Normalised in mios_ruleof2 (an unknown token degrades to off). DEFAULT off because
-# a 3-property block reduces autonomous function -- the operator opts in, then
-# validates the sensitive-verb classification ([verbs.*].sensitive) for the deployment.
 RULE_OF_TWO_MODE = str(
     os.environ.get("MIOS_SECURITY_RULE_OF_TWO_MODE")
     or _toml_section("security").get("rule_of_two_mode", "off")
 ).strip().lower()
 
-# F2 CaMeL dual-context QUARANTINE gate mode (SSOT [security].quarantine_mode | env
 # MIOS_SECURITY_QUARANTINE_MODE): off (default) | audit | enforce. The STRICTER superset
-# of Rule-of-Two: where that gates the all-three kill-chain, quarantine-enforce
-# additionally gates the tainted + (sensitive OR state-change) case -- untrusted content
-# must not autonomously drive a privileged action (the CaMeL dual-context boundary). off
-# -> the deterministic gate is NOT consulted at the dispatch chokepoint (byte-identical).
-# audit -> log the bite + proceed; enforce -> route it through mios_hitl.decide to HITL
-# review / block (fail-safe). Normalised in mios_quarantine (an unknown token degrades to
-# off). DEFAULT off because the stricter block reduces autonomous function -- the operator
-# opts in for full CaMeL isolation, then validates the [verbs.*].sensitive classification.
 QUARANTINE_MODE = str(
     os.environ.get("MIOS_SECURITY_QUARANTINE_MODE")
     or _toml_section("security").get("quarantine_mode", "off")
 ).strip().lower()
 
 
-# ── Planner system prompt + DAG decomposition (Phase A.1) ─────────
-# _PLANNER_SYSTEM extracted verbatim to mios_planner.py (refactor R5). It is
-# BUILT inside mios_planner.configure() from the rendered SSOT catalogs (it
-# cannot be a module-level const there -- the catalogs are rendered here), then
-# re-imported into server.py AFTER that configure() call further down (see
-# sys.modules["mios_planner"].configure(...)). decompose_intent /
-# _topological_order / _dag_levels are re-imported at their original locations
-# below. mios_planner never imports server (one-way boundary).
 
 
 def _is_action_domain(domain: Optional[str]) -> bool:
@@ -4436,20 +2640,11 @@ def _is_action_domain(domain: Optional[str]) -> bool:
                == "write" for v in verbs)
 
 
-# _action_domain_verbs + _planner_system_for moved verbatim INTO mios_planner (their
-# sole consumer is decompose_intent there); re-imported below under their original
-# names after that module's configure() so server.py's importable surface stays
-# byte-identical. _is_action_domain stays HERE -- it is multi-consumer (planner +
-# chat + web_research) and is injected into all three.
 
 
 @_traced_stage("route")  # WS-A8: emit a span around domain routing
-# _route_domain moved verbatim -> mios_classify (re-imported + configured above).
 
 
-# _needs_external_knowledge moved verbatim -> mios_chat (micro-LLM judge; its SOLE
-# consumer is the chat path, so the injection was reversed). Re-imported below for
-# surface parity.
 
 
 async def _needs_compute(user_text: str) -> bool:
@@ -4497,10 +2692,6 @@ async def _needs_compute(user_text: str) -> bool:
         return False
 
 
-# decompose_intent + _topological_order + _dag_levels extracted verbatim to
-# mios_planner.py (refactor R5). Re-imported under their original names; they
-# call back into _planner_system_for / _is_action_domain / _build_dispatch_cmd
-# / _AGENT_REGISTRY / _routed_domain_var injected via the configure() DI below.
 from mios_planner import (   # noqa: E402
     decompose_intent,
     _topological_order,
@@ -4541,15 +2732,6 @@ from mios_pipe.observability.session_events import (
 )
 
 
-# ── WS-6 runtime HITL approval gate ─────────────────────────────
-# A human-in-the-loop gate on dangerous verb dispatches. ENABLED by default
-# ('everything on'); MODE defaults to 'log' = NON-BLOCKING
-# (records + emits a hitl_request event for observability, then proceeds) so the
-# autonomous swarm is never deadlocked. mode='gate' = BLOCKING: a scoped verb is
-# REFUSED with a hitl_pending result + a pending_action row until approved via
-# POST /v1/hitl/approve, after which the agent's RETRY of that exact action
-# passes. Scope defaults to _HIGH_PRIVILEGE_VERBS; override via [hitl].verbs CSV.
-# Reuses _action_hash as the approval key. Pure decision logic = mios_hitl.
 _HITL_TOML = _toml_section("hitl")
 HITL_ENABLE = str(os.environ.get("MIOS_HITL_ENABLE")
                   or _HITL_TOML.get("enable", "true")).strip().lower() \
@@ -4563,27 +2745,9 @@ HITL_SCOPE = _hitl_parse_scope(
 
 from mios_hitlflow import (   # noqa: E402
     _hitl_is_approved, _hitl_record_pending, _hitl_gate,
-    # R13: GET /v1/hitl/pending (hitl_pending) + POST /v1/hitl/approve (hitl_approve)
-    # migrated off @app onto mios_hitlflow.hitlflow_router (the module that owns the
-    # HITL gate + pending-action store). Import the router (mounted via
-    # app.include_router after this module's configure() runs) + the two handler NAMES
-    # so they stay in server's importable `provided` surface (parity); the served
-    # path/method set is unchanged (the live-app route gate proves it). pending reads
-    # the module's already-injected HITL_ENABLE/HITL_MODE/HITL_SCOPE + _db_read;
-    # approve calls the module-resident hitl_approve_logic directly.
     hitlflow_router, hitl_pending, hitl_approve)
 
 
-# ── ASK-TO-RUN: chat-native HITL approval round-trip ─────────
-# "mios daemon should ask user to run things from relevant queries." Research-grounded
-# (LangGraph interrupt / OpenAI needs_approval / Claude Code permission-tiers; AIOS has
-# NO general per-action HITL -- a citable gap MiOS fills). When a HITL-tier (mutating)
-# verb is intercepted, the pipe PROPOSES it (records a pending_action + renders "reply
-# yes to run it") instead of silently no-op'ing or fabricating. The user's next-turn
-# reply is MODEL-CLASSIFIED (no keyword list -- operator "NOTHING HARDCODED") as
-# approve/reject/unrelated; approve re-dispatches exactly that hashed action (per-action
-# approval, gate otherwise unchanged); the portable surface (NL + a fenced
-# mios_proposed_action block) works in OWUI + CLI, which don't execute upstream tool_calls.
 _ATR_TOML = _toml_section("ai") or {}
 ASK_TO_RUN_ENABLE = str(
     os.environ.get("MIOS_ASK_TO_RUN")
@@ -4593,29 +2757,14 @@ try:
                            or _ATR_TOML.get("ask_to_run_ttl_s", 1800))
 except (TypeError, ValueError):
     ASK_TO_RUN_TTL_S = 1800
-# GLOBAL ASK-USER for CLARIFICATIONS ("ask user... for questions and
-# clarifications too, not just coderunning"): when the answer is PRIMARILY a clarifying
-# question, mark it so OWUI/Hermes render a native INPUT prompt. Model-classified; gated
-# on a '?' so the judge runs rarely. SSOT [ai].ask_clarify (default true).
 ASK_CLARIFY_ENABLE = str(
     os.environ.get("MIOS_ASK_CLARIFY")
     or _ATR_TOML.get("ask_clarify", "true")).strip().lower() in {"1", "true", "yes"}
-# The BROAD post-answer judge (below) is separate + DEFAULT OFF: the small ROUTER_MODEL
-# cannot reliably tell a complete greeting that ends with a social question ("how are
-# you?") from a genuine "I'm blocked, give me X" clarification, so it FALSE-POSITIVED on
-# greetings ("Hey! What are you up to?" got a spurious clarification
-# -> a stray OWUI input dialog -> empty turn). STRUCTURAL clarifications (the location
-# guard, etc.) are reliable + stay ON via ASK_CLARIFY_ENABLE; flip this on only with a
-# stronger judge model.
 ASK_CLARIFY_JUDGE_ENABLE = str(
     os.environ.get("MIOS_ASK_CLARIFY_JUDGE")
     or _ATR_TOML.get("ask_clarify_judge", "false")).strip().lower() in {"1", "true", "yes"}
 
 
-# _clarify_question (the GLOBAL clarification-block generative judge) moved verbatim
-# -> mios_verity alongside its sole consumer polish_response; it reads only the
-# mios_config model-call scalars + _loads_lenient, so it no longer needs injecting.
-# Re-imported in the mios_verity import block above (surface parity).
 
 
 from mios_hitlflow import _classify_approval_reply  # noqa: E402
@@ -4629,69 +2778,24 @@ from mios_hitlflow import (   # noqa: E402
 from mios_hitlflow import _recent_reflections  # noqa: E402
 
 
-# reflect_on_step_failure moved verbatim -> mios_reflect (re-imported above).
 
 
-# _EK_REF_RE / _EK_FIELD_REF_RE (ReWOO #E ref regexes) moved VERBATIM -> mios_dag_exec
-# alongside their sole consumer _substitute_ek_refs. Re-imported below (surface parity).
 
 
-# ── Tool-output sanitizer (structural; binding-compliant) ──────────
-# The reference flags tool-result prompt-injection as the "most
-# underrated risk": tool stdout is untrusted and re-enters BOTH the
-# ReWOO #E<id> arg substitution AND the polish-prompt preview. A
-# content denylist ("ignore previous instructions", ...) would be
-# HARDCODED ENGLISH -- forbidden by operator binding -- so we instead
-# do STRUCTURAL neutralisation that carries no English/topic content:
-#   * ANSI/CSI escape sequences (terminal-control spoofing),
-#   * Unicode bidi overrides + isolates (Trojan-Source CVE-2021-42574,
-#     used to make displayed text differ from logical order),
-#   * C0 control chars except tab/newline/CR.
-# This complements the provenance-taint Semantic Firewall (which blocks
-# the tainted->high-privilege ESCALATION path); together they cover both
-# the escalation and the prompt/arg-spoofing vectors without an English
-# classifier. BOM (U+FEFF) stripped too -- it has no place mid-stream.
-# _sanitize_tool_text moved -> mios_pipe.observability.session_events (re-imported above).
 
 
-# _smart_extract_from_jsonish (JSON-ish field picker) + _substitute_ek_refs (ReWOO #E
-# arg substitution) moved VERBATIM -> mios_dag_exec (the DAG executor is their sole
-# consumer; _sanitize_tool_text stays injected there). Re-imported below (surface parity).
 
 
 from mios_hitlflow import _action_hash, _pending_hash  # noqa: E402
 
 
-# ── Concurrent dispatch single-flight (anti-swarm-duplication) ─────────
-# Agentic-OS idempotency / single-flight pattern: when a fan-out (council /
-# swarm / same-level DAG) has several CONCURRENT nodes that independently
-# decide to run the SAME (verb, resolved-args) -- e.g. two same-level DAG
-# nodes both calling winget_install(VLC), or two agents both web_search-ing
-# the same query -- collapse them to ONE broker execution and share the
-# result, instead of firing the side effect N times. Closes the gap the
-# per-DAG seen_actions guard leaves open (it only dedupes ACROSS levels;
-# same-level concurrent nodes both fire -- see _execute_dag_node).
-#
-# Structural key only (_action_hash -> verb + sorted args; NO hardcoded
-# English) scoped to the conversation (the _conv_key_var contextvar, which
-# concurrent council/DAG tasks inherit at creation). IN-FLIGHT ONLY: the
-# entry is cleared the moment the first call completes, so a legitimate
-# SEQUENTIAL repeat re-runs fresh (no stale cache -> reads stay live, and we
-# never replay an old result for a genuinely later request). MiOS spec:
-# reuses _action_hash + emits the existing `action_repeat_dedup` event.
-# Ref: docs/agentic-standards-roadmap.md (standard tool-loop + idempotency).
 DISPATCH_DEDUP = os.environ.get(
     "MIOS_DISPATCH_DEDUP", "true").lower() not in {"false", "0", "no"}
-# (conv_key \x00 action_hash) -> in-flight Future holding the shared result.
 _dispatch_inflight: dict[str, "asyncio.Future"] = {}
 
 
-# _emit_dispatch_dedup_event moved -> mios_dispatch (its sole consumer; uses the
-# module's injected event-DB writers). Re-imported below for surface parity.
 
 
-# _judge_answer_satisfied (micro-LLM per-node Definition-of-Done judge) moved verbatim
-# -> mios_reflect (re-imported above).
 
 
 from mios_dag_exec import (   # noqa: E402  (R8: DAG execution entrypoints, moved verbatim)
@@ -4699,44 +2803,19 @@ from mios_dag_exec import (   # noqa: E402  (R8: DAG execution entrypoints, move
     _execute_dag_saturated, RUN_TEMPLATE_ENABLE, _run_template_class,
     _capture_run_template, execute_dag, _execute_dag_bounded,
     _execute_dag_emitting,
-    # DAG-execution support helpers moved home (this wave) -- re-imported under
-    # their exact names so server's importable surface stays byte-identical.
     _EK_REF_RE, _EK_FIELD_REF_RE, _smart_extract_from_jsonish,
     _substitute_ek_refs, _fit_context, _node_deepens, _reap_cpu_lane,
 )
 
 
-# _record_mcp_tool_call moved -> mios_toolexec (its consumer; _classify_verb_taint +
-# _sanitize_tool_text injected, _db_* already there). Re-imported below for surface.
 
 
-# GET /v1/run-templates (run_templates_list) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. Its body reads the injected _db_read +
-# RUN_TEMPLATE_ENABLE (run_template_enable=) wired into the http_caps configure() below.
 
 
-# _pretty_name (roster/credit display-name de-namespacer) moved VERBATIM into
-# mios_chat -- its sole consumer is the chat roster/credit emits, so it lives with
-# chat_completions_logic instead of being injected back. Re-imported below under
-# its EXACT original name so the importable `provided` surface stays byte-identical.
 
 
-# _dedup_pool_by_target moved VERBATIM to mios_agentreg (re-imported above with the
-# registry builders). It reads the hot _AGENT_REGISTRY + _agent_binding / _endpoint_key +
-# the EFFORT_DEFAULT / SWARM_MAX_WIDTH scalars (all injected via configure() above;
-# _AGENT_REGISTRY re-injected on a live membership reload). The re-import keeps every
-# caller + every module that takes dedup_pool_by_target via configure() resolving.
 
 
-# R8: the SWARM brain (_agent_dag_from_tasks + _respond_agent_dag, with the
-# nested _synthesise/_is_punt anti-fabrication synthesis, the multi-facet
-# closed-loop replan and the metadata-only audit envelope) moved VERBATIM to
-# mios_swarm; re-imported here under the original names (surface-parity
-# zero-diff). Placed BEFORE the mios_toolexec configure() below, which injects
-# agent_dag_from_tasks / respond_agent_dag into that module. mios_swarm's own
-# server-side deps are injected via sys.modules["mios_swarm"].configure() far
-# below, AFTER _respond_native_loop_direct + _usage_estimate are defined.
 from mios_swarm import _agent_dag_from_tasks, _reroute_dead_nodes  # noqa: E402
 
 
@@ -4817,22 +2896,9 @@ _SWARM_SYSTEM_HEAD = (
     "\n"
     "Sub-agent roster:\n"
 )
-# Full-roster system prompt (back-compat / fallback). _plan_swarm appends a
-# LIVE-only roster at call time so the planner never assigns a facet to a node
-# that is currently down ("iGPU is down").
 _SWARM_SYSTEM = _SWARM_SYSTEM_HEAD + _AGENT_CATALOG_RENDERED
 
 
-# The swarm DECOMPOSER pair (_plan_swarm + _expand_facets) moved VERBATIM to
-# mios_swarm (cohesive with _agent_dag_from_tasks / _respond_agent_dag already
-# there); re-imported here under their EXACT original names (surface-parity
-# zero-diff). The @_traced_stage("plan") span is re-applied at THIS boundary --
-# the tracing infra (_traced_stage / _trace_span) stays in server.py (same
-# pattern as refine_intent). mios_swarm's server-side deps for the pair (the
-# recursion-depth gate, the agent-catalog renderer, SWARM_MODEL /
-# _SWARM_SYSTEM_HEAD / _AGENT_CATALOG_RENDERED / MAX_DISPATCH_DEPTH) are injected
-# via configure() far below; _env_grounding + the PLANNER_* config are direct
-# sibling/SSOT imports inside the module.
 from mios_swarm import _plan_swarm, _expand_facets  # noqa: E402
 _plan_swarm = _traced_stage("plan")(_plan_swarm)  # noqa: E402  WS-A8 span
 
@@ -4840,44 +2906,19 @@ _plan_swarm = _traced_stage("plan")(_plan_swarm)  # noqa: E402  WS-A8 span
 from mios_swarm import _respond_agent_dag  # noqa: E402
 
 
-# ── Dispatch (broker socket bridge) ──────────────────
-# R7: the verb->bash dispatch chokepoint (_template_to_cmd / _build_dispatch_cmd
-# / dispatch_mios_verb / _dispatch_bounded / _dispatch_mios_verb_inner +
-# _TEMPLATE_PH_RE / _TemplateAbort) moved VERBATIM to mios_dispatch; re-imported
-# here under the original names (surface-parity zero-diff). The re-import is
-# placed BEFORE the mios_skills / mios_planner configure() calls below, which
-# inject dispatch_mios_verb / _build_dispatch_cmd into those modules. The gates
-# inside are NAME-KEYED -- nothing renamed.
 from mios_dispatch import (   # noqa: E402
     _TEMPLATE_PH_RE, _TemplateAbort, _template_to_cmd, _build_dispatch_cmd,
     _dispatch_bounded, dispatch_mios_verb, _dispatch_mios_verb_inner,
     _emit_dispatch_dedup_event,
     _arg_with_synonyms, _validate_enum_args,
     _dispatch_sandbox_profile, _sandbox_wrap_cmd,
-    # R13: POST /v1/dispatch (dispatch_verb) migrated off @app onto
-    # mios_dispatch.dispatch_router. Import the router (mounted via app.include_router
-    # below) + the handler NAME so it stays in server's importable `provided` surface
-    # (parity); the served path/method is unchanged (the live-app route gate proves it).
     dispatch_router, dispatch_verb,
 )
-# R13: mount the migrated /v1/dispatch route. include_router copies the route onto the
-# app at the SAME path/method the @app wrapper served; the body calls the
-# module-resident dispatch_mios_verb at request time (its configure() deps land below).
 app.include_router(dispatch_router)
-# App-ification #3: mount the web-research SSE applet -- the Discovery/resolution
-# verb cluster (web_search/web_extract/crawl) streamed as HTML-over-SSE into the
-# portal's iframe-applet shell (the slot the Configurator uses). It calls the SAME
-# dispatch_mios_verb chokepoint and is boundary-clean (never imports server).
 from mios_pipe.routing import applet_webresearch as _applet_webresearch  # noqa: E402
 from mios_pipe.routing.applet_webresearch import router as _webresearch_router  # noqa: E402
 _applet_webresearch.configure(dispatch=dispatch_mios_verb)
 app.include_router(_webresearch_router)
-# Inject mios_dispatch's deps now that every one is defined above (one-way
-# boundary -- mios_dispatch never imports server; referenced via sys.modules so NO
-# new top-level name enters server's importable surface). NATIVE_LOOP_DATE_IN_QUERY
-# is defined far below (its SSOT/env bridge), so it lands in a SECOND partial
-# configure() after that definition; the module default (True) matches the SSOT
-# default until then, and the web_search date-anchor only fires at request time.
 sys.modules["mios_dispatch"].configure(
     verb_catalog=_VERB_CATALOG,
     verb_arg_synonyms=_VERB_ARG_SYNONYMS,
@@ -4911,12 +2952,6 @@ sys.modules["mios_dispatch"].configure(
 
 
 
-# ── R7 mios_skills extraction: inject server.py's DB-event helpers + verb
-# dispatcher + pg outcome mirror + SKILLS_ENABLED flag now that all are defined
-# above (dispatch_mios_verb, the last dep, is defined just above). The invocation/
-# attribution lifecycle + arg renderer now LIVE in mios_skills (no longer injected).
-# Referenced via sys.modules so NO new top-level name enters server.py's importable
-# surface (surface gate stays 0-diff).
 sys.modules["mios_skills"].configure(
     db_read=_db_read,
     db_post=_db_post,
@@ -4929,22 +2964,11 @@ sys.modules["mios_skills"].configure(
     skills_episodic_enabled=SKILLS_EPISODIC_ENABLED,
 )
 
-# FED-G7 (T-051): route fan-out on the FULL published AgentCard skills[] (skill
-# name/description/tags), not just the collapsed strength-token ids. SSOT
-# [a2a].route_on_card_skills (env MIOS_A2A_ROUTE_ON_CARD_SKILLS overrides); default
-# OFF -> the card corpus + selection stay byte-identical. Resolved here (shared by
-# the fan-out selector below and the A2A peer client, which attaches the skills[] to
-# each peer's synthetic registry entry only when this is on).
 _ROUTE_ON_CARD_SKILLS = os.environ.get(
     "MIOS_A2A_ROUTE_ON_CARD_SKILLS",
     str((_toml_section("a2a") or {}).get("route_on_card_skills", "false"))
 ).strip().lower() in ("1", "true", "yes", "on")
 
-# Inject the council/swarm fan-out selector's runtime deps (refactor R3). Placed
-# here -- after the registry/config + every depth/lane/dedup/admission helper and
-# the COUNCIL_MAX/ADMIT/MAX_DISPATCH_DEPTH constants are defined (e.g.
-# _dedup_pool_by_target). _reload_membership re-injects the rebuilt registry so a
-# live agent add/drop is seen by the selector.
 sys.modules["mios_fanout"].configure(
     agent_registry=_AGENT_REGISTRY,
     dispatch_cfg=_DISPATCH_CFG,
@@ -4964,10 +2988,6 @@ sys.modules["mios_fanout"].configure(
     db_fire=_db_fire,
 )
 
-# Inject the REFINE classifier's runtime deps (refactor R5 -> mios_refine). Placed
-# here -- after the config consts, the verb/agent catalogs + routing-phrase globals,
-# the ceiling/verb-resolve/domain-route helpers, the contextvar and the _db_* writers
-# are all defined. _reload_membership re-injects the rebuilt registry (live add/drop).
 sys.modules["mios_refine"].configure(
     logger=log,
     agent_registry=_AGENT_REGISTRY,
@@ -4993,78 +3013,39 @@ sys.modules["mios_refine"].configure(
     fastpath_verbs=_FASTPATH_VERBS,
     routing_enable=_ROUTING_ENABLE,
     routing_domains=_ROUTING_DOMAINS,
-    # Heavy-path critic->refiner deps (_critic_refine_agent moved to mios_refine):
-    # the session-event emitter stays here and is injected; the CRITIC_REFINE_* knobs
-    # are the SSOT (env-read above). dci_critic_pass + the DCI_* trigger constants are
-    # imported directly from mios_dci inside the module.
     emit_session_event=_emit_session_event,
     critic_refine_enabled=CRITIC_REFINE_ENABLED,
     critic_refine_max=CRITIC_REFINE_MAX,
     critic_refine_min_chars=CRITIC_REFINE_MIN_CHARS,
-    # Routing length/word cutoffs (SSOT [refine]; read inline -- None keeps the
-    # module's documented baseline). Drives the promote-to-agent guards AND the
-    # _REFINE_SYSTEM length cues (one constant for both).
     chat_chars=(_toml_section("refine") or {}).get("chat_chars"),
     dispatch_chars=(_toml_section("refine") or {}).get("dispatch_chars"),
     promote_chars=(_toml_section("refine") or {}).get("promote_chars"),
     dispatch_arg_max_words=(_toml_section("refine") or {}).get("dispatch_arg_max_words"),
 )
-# Re-import _REFINE_SYSTEM AFTER configure() re-rendered its length cues from the
-# SSOT cutoffs (verbatim surface-parity; mirrors the _PLANNER_SYSTEM re-import).
 from mios_refine import _REFINE_SYSTEM  # noqa: E402,F811
 
-# Inject the planner / DAG-decomposition deps (refactor R5 -> mios_planner).
-# Placed here -- after the rendered verb/recipe/agent catalogs, the routed-domain
-# contextvar, the _is_action_domain / _planner_system_for domain helpers, the
-# _build_dispatch_cmd verb resolver and the _AGENT_REGISTRY are all defined.
-# configure() also BUILDS _PLANNER_SYSTEM from the rendered catalogs, so the
-# re-import below picks up the built value. _reload_membership re-injects the
-# rebuilt registry (live agent add/drop).
 sys.modules["mios_planner"].configure(
     verb_catalog_rendered=_VERB_CATALOG_RENDERED,
     recipe_catalog_rendered=_RECIPE_CATALOG_RENDERED,
     agent_catalog_rendered=_AGENT_CATALOG_RENDERED,
     routed_domain_var=_routed_domain_var,
     is_action_domain=_is_action_domain,
-    # _planner_system_for + _action_domain_verbs now live IN mios_planner; they read
-    # the raw verb catalog + routing-domain SSOT at call time, so inject both (the
-    # HOT _VERB_CATALOG dict is shared by reference, mirroring its other consumers).
     verb_catalog=_VERB_CATALOG,
     routing_domains=_ROUTING_DOMAINS,
     build_dispatch_cmd=_build_dispatch_cmd,
     agent_registry=_AGENT_REGISTRY,
-    # Short-prompt-skip cutoffs (SSOT [planner]; read inline -- None keeps the
-    # module's documented baseline).
     short_prompt_chars=(_toml_section("planner") or {}).get("short_prompt_chars"),
     short_prompt_words=(_toml_section("planner") or {}).get("short_prompt_words"),
 )
-# Re-import _PLANNER_SYSTEM AFTER configure() built it (verbatim surface-parity).
-# _planner_system_for + _action_domain_verbs were moved INTO mios_planner this wave
-# (their sole runtime consumer is decompose_intent there); re-imported under their
-# original names so server.py's importable surface stays byte-identical.
 from mios_planner import (  # noqa: E402,F401
     _PLANNER_SYSTEM, _planner_system_for, _action_domain_verbs)
 
-# ── SSE chunk builders + status emitters (refactor R2 leaf) ────────────────────
-# The OpenAI-streaming SSE chunk/status/node-emit primitives moved verbatim to
-# mios_sse; re-imported under their original names (surface-parity zero-diff).
 from mios_sse import (  # noqa: E402
     _sse_chunk, _sse_reasoning, _load_status_labels, _HUMAN_LABELS,
     _sse_status_phase, _sse_status, _enrich_step_emits, _node_context,
     _node_status, _stream_answer, _iter_answer_chunks, _sse_done,
     _TAIL_KIND_EMOJI, _HERMES_TAIL_PATH, _tail_latest_status,
 )
-# ── mios_turn extraction: the per-turn MESSAGE-PREP + agent-selection helpers
-# (last-user-text extraction, role-based sub-agent pick w/ degrade-open, the
-# generic agent surface label, the live-agent roster, and the <think>-tag
-# reasoning/answer split) moved VERBATIM to mios_turn. Re-imported here under their
-# EXACT original names so the importable surface stays byte-identical; injected
-# below with the live agent registry + node-liveness cache, the health-probe +
-# probe-auth helpers, the liveness TTL/connect scalars, and the think-tag regexes
-# now that every one is defined above. _AGENT_REGISTRY is REBOUND on a live
-# membership reload, so _reload_membership re-injects it. Referenced via sys.modules
-# so NO new top-level name enters the importable surface beyond the re-imports
-# (surface gate stays 0-diff; one-way boundary -- mios_turn never imports server).
 from mios_turn import (  # noqa: E402
     _extract_last_user_text, _pick_agent, _casual_agent_label, _live_agent_names,
     _split_think_tags, _strip_think_tags,
@@ -5087,35 +3068,10 @@ sys.modules["mios_turn"].configure(
 )
 
 
-# ── Health ─────────────────────────────────────────────────────────
-# GET /v1/verbs (list_verbs) + GET /v1/verbs/openai-tools (list_verbs_openai_tools)
-# + GET /v1/tools (list_tools) migrated off @app onto mios_http_caps.http_caps_router
-# (R13 batch 4); re-imported below for `provided` parity, mounted via
-# app.include_router. The bodies call the module-resident *_logic directly: the verb
-# catalog (MCP `inputSchema` shape), its OpenAI-tools twin, and the unified
-# verb+recipe+skill tool feed -- one SSOT (_VERB_CATALOG), three projections.
 
 
-# ── MCP Resources: the FULL read-only capability surface ──────────────────
-# "port all skills/tools/recipes/scripts to be globally
-# accessible MiOS MCP". Research-grounded (MCP spec first-class
-# context types = Tool | Resource | Prompt; Anthropic: tool-selection accuracy
-# collapses past ~30-50 flat tools). So the CALLABLE surface stays curated in
-# /v1/tools (verbs + recipes + PROMOTED skills), and the COMPLETE surface --
-# EVERY verb/script, EVERY recipe, and EVERY skill (promoted AND not) -- is
-# exposed here as browsable read-only MCP Resources. An agent DISCOVERS the
-# whole catalog (resources/list) and pulls the one it needs (resources/read)
-# WITHOUT ballooning the flat tool list = progressive disclosure. mios-mcp-server
-# relays these as resources/list + resources/read.
-# (_skill_to_mcp_resource / _recipe_to_mcp_resource / _verb_to_mcp_resource were
-# moved VERBATIM into mios_http_caps (refactor R-CAPS) and re-imported below.)
-# GET /v1/capabilities (v1_capabilities) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. The body calls v1_capabilities_logic.
 
 
-# Structured JSON skills (body.steps[].verb = the DAG edges) seed dir. SSOT
-# [skills]; the committed capabilities manifest projects from the same dir.
 _CAP_SKILLS_DIR = os.environ.get("MIOS_SKILLS_SEED_DIR", "/usr/share/mios/skills")
 _CAP_SKILLS_CACHE: "Optional[dict]" = None
 
@@ -5131,40 +3087,10 @@ def _cap_skills() -> dict:
     return _CAP_SKILLS_CACHE
 
 
-# GET /v1/capabilities/dag (v1_capabilities_dag) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. The body calls v1_capabilities_dag_logic.
 
 
-# GET /v1/peers (v1_peers) + GET /v1/resources (list_resources) + GET
-# /v1/resources/read (read_resource) migrated onto mios_http_caps.http_caps_router
-# (R13 batch 2); re-imported below for `provided` parity, mounted via
-# app.include_router. The bodies call the module-resident *_logic directly.
 
 
-# ── A2A Agent Card (Agent2Agent discovery surface) ────────────────────
-# Agentic-standards roadmap Phase 4. A2A (Agent2Agent, now under the
-# Linux Foundation Agentic-AI Foundation) is the peer-discovery standard
-# that complements MCP: MCP advertises TOOLS (mios-mcp-server -> /v1/verbs),
-# A2A advertises AGENTS + their high-level SKILLS. Serving the card from
-# the SAME SSOT (mios.toml [agents.*]) the fan-out router already reads
-# makes the roster a STANDARD, machine-discoverable surface -- the
-# foundation for replacing _pick_fanout_agents' bespoke strength-token
-# scoring with spec capability-matching, and for any external A2A client
-# (or a future MiOS orchestrator) to enumerate the stack's agents.
-#
-# LOCAL-ONLY, same as mios-mcp-server: this describes the on-host MiOS
-# agent stack; it does not register the agent with any cloud directory.
-# Served at the A2A well-known path + a /v1 convenience alias. Generated,
-# never hardcoded -- skills come from the live registry, the verb count
-# from the live catalog, identity from the FastAPI app + PORT.
-# A2A_PROTOCOL_VERSION + the AgentCard/passport/AGNTCY-OASF builders + the
-# JSON-RPC task lifecycle + the principal helpers moved VERBATIM to mios_a2a
-# (refactor R11 federation wave). Re-imported here under their EXACT names so the
-# importable surface is byte-identical; the @app A2A routes below stay thin
-# wrappers calling these. configure() injects every server-resident dep now that
-# all are defined above (one-way boundary: mios_a2a never imports server;
-# referenced via sys.modules so the module name does NOT enter server's surface).
 from mios_a2a import (   # noqa: E402
     A2A_PROTOCOL_VERSION,
     AGENT_PASSPORT_VERSION,
@@ -5204,10 +3130,6 @@ from mios_a2a import (   # noqa: E402
     _CRL_CACHE,
     _load_crl,
     _a2a_verify_principal,
-    # R13: the five /a2a HTTP routes migrated off @app onto mios_a2a.a2a_router.
-    # Import the router (mounted via app.include_router below) + the five handler
-    # NAMES so they stay in server's importable `provided` surface (parity) and the
-    # served path/method set is unchanged -- the live-app route gate proves it.
     a2a_router,
     a2a_skill_directory,
     a2a_context_get,
@@ -5215,16 +3137,7 @@ from mios_a2a import (   # noqa: E402
     a2a_jsonrpc,
     a2a_jsonrpc_alias,
     a2a_peers_reload,
-    # FED-G8: POST /v1/admin/keys/revoke (caller_key_revoke) lives on the SAME
-    # a2a_router (co-located with the CRL machinery it drives). Re-imported here so the
-    # handler NAME stays in server's importable `provided` surface (parity); the route
-    # is served via the existing app.include_router(a2a_router) mount.
     caller_key_revoke,
-    # R13 (batch 2): the discovery/identity routes whose logic homes in mios_a2a --
-    # the four well-known surfaces, the consumer /v1/a2a peers+skills feeds, the
-    # /v1/a2a/dispatch forward, and the /passport/* verify surface -- moved onto the
-    # SAME a2a_router. Re-imported here so each handler NAME stays in server's
-    # `provided` surface (parity); the served path/method set is byte-identical.
     a2a_agent_card,
     a2a_agent_card_legacy,
     agent_passport,
@@ -5234,12 +3147,6 @@ from mios_a2a import (   # noqa: E402
     a2a_dispatch,
     passport_verify,
     passport_public_key,
-    # R13 (batch 4): the two /v1 discovery aliases (GET /v1/agent-card ->
-    # a2a_agent_card_alias, GET /v1/agntcy/manifest -> agntcy_manifest_v1) moved onto
-    # the SAME a2a_router; their bodies call the module-resident _build_agent_card /
-    # _build_agntcy_manifest builders directly. Re-imported here so both handler NAMES
-    # stay in server's `provided` surface (parity); the served path/method set is
-    # byte-identical.
     a2a_agent_card_alias,
     agntcy_manifest_v1,
 )
@@ -5264,13 +3171,6 @@ sys.modules["mios_a2a"].configure(
     passport_enable=PASSPORT_ENABLE,
     passport_agent_name=PASSPORT_AGENT_NAME,
 )
-# R13: mount the migrated /a2a routes. include_router copies the router's five
-# routes onto the app at the SAME paths/methods the @app wrappers used to serve;
-# the route bodies resolve their module-resident logic at request time, and the
-# peers/reload route's server-resident deps are injected by a later configure()
-# pass (placed once _check_inbound_principal + _reload_membership are defined). A
-# top-level include with a from-imported router name is what the whole-package
-# surface gate composes back cross-file (project_package), so the move is parity-clean.
 app.include_router(a2a_router)
 
 
@@ -5307,7 +3207,6 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
         ep = str(cfg.get("endpoint", "")).rstrip("/")
         is_remote = str(cfg.get("kind", "")).lower() in _remote_kinds and bool(ep)
         
-        # Check if the peer is cardless
         peer_id = cfg.get("a2a_peer_id")
         cardless = False
         if peer_id:
@@ -5351,115 +3250,25 @@ async def v1_agents_directory(request: Request) -> JSONResponse:
     })
 
 
-# GET /.well-known/agent-card.json (a2a_agent_card) + GET /.well-known/agent.json
-# (a2a_agent_card_legacy) migrated onto mios_a2a.a2a_router (R13 batch 2); re-imported
-# above for `provided` parity, mounted via app.include_router. The /v1/agent-card
-# convenience alias below stays a thin @app wrapper (not in the batch).
 
 
-# GET /v1/agent-card (a2a_agent_card_alias) migrated off @app onto mios_a2a.a2a_router
-# (R13 batch 4); re-imported below for `provided` parity, mounted via
-# app.include_router. The body calls the module-resident _build_agent_card() builder
-# directly (the same SSOT the well-known AgentCard route serves).
 
 
-# GET /a2a/skills (a2a_skill_directory) migrated onto mios_a2a.a2a_router (R13);
-# re-imported above for `provided` parity, mounted via app.include_router.
 
 
-# ── Agent Passport (/.well-known/agent-passport.json) ────────────────────────
-# The Open Agent Passport (v0.1.0; cubitrek.com/blog/agent-passport, 2026) is the
-# emerging NATIVE standard for verifiable, issuer-signed AI-agent IDENTITY +
-# AUTHORITY: one signed JSON at /.well-known/agent-passport.json, Ed25519 over a
-# DNS-published public key. It answers who issued the agent, its allowed scope +
-# spend ceiling, the human-in-the-loop escalation, the audit-log + terms URLs,
-# and the signing key -- complementing the A2A AgentCard (which carries
-# CAPABILITIES) with IDENTITY. SSOT-derived from mios.toml [identity] +
-# [agent_passport]; Ed25519-signed iff a private key is provisioned, else served
-# unsigned (schema-valid, flagged) so the operator can sign + publish DNS later.
-# Operator: "agent passports ... OpenAI and native".
-# AGENT_PASSPORT_VERSION + _canonical_json + _build_agent_passport moved to
-# mios_a2a (R11); re-imported above. GET /.well-known/agent-passport.json
-# (agent_passport) migrated onto mios_a2a.a2a_router (R13 batch 2); re-imported above
-# for `provided` parity, mounted via app.include_router.
 
 
-# ── AGNTCY OASF manifest (P3.1) ──────────────────────────────────────────
-# AGNTCY (Cisco/Linux Foundation) builds discovery + identity + observability
-# ON TOP OF A2A + MCP. Its discovery layer is the Open Agent Schema Format
-# (OASF) -- a JSON manifest describing an agent's identity, capabilities,
-# inputs/outputs, and the protocols it speaks. We already publish the A2A
-# AgentCard (capability list as A2A skills) AND serve MCP tools AND
-# discover external A2A peers + MCP servers. OASF is a different SHAPE
-# over the SAME underlying SSOT (mios.toml [agents.*] + [verbs.*]).
-#
-# This endpoint renders MiOS as ONE OASF agent whose advertised features
-# are the A2A skills + MCP tools (so the same downstream agents
-# _AGENT_REGISTRY scores get one canonical entry in the AGNTCY registry).
-# LOCAL by binding, like the rest of the discovery surface. Implementing
-# only the manifest (publish side); the AGNTCY *directory* (where
-# manifests get registered + searched) is a separate task.
-
-# AGNTCY_OASF_SCHEMA_VERSION + _build_agntcy_manifest moved to mios_a2a (R11);
-# re-imported above. GET /.well-known/agntcy-manifest.json (agntcy_manifest_wellknown)
-# migrated onto mios_a2a.a2a_router (R13 batch 2); re-imported above for `provided`
-# parity, mounted via app.include_router. The /v1/agntcy/manifest convenience alias
-# (agntcy_manifest_v1) migrated onto the SAME a2a_router (R13 batch 4); re-imported
-# above for `provided` parity, mounted via app.include_router. Its body calls the
-# module-resident _build_agntcy_manifest() builder directly.
 
 
-# ── /v1/cluster/health (P3.2) ────────────────────────────────────────────
-# Public per-agent + per-endpoint health probe. Reuses the same probe shape
-# as /portal/swarm but without portal auth so external clients (and an
-# eventual mesh-wide health aggregator) can read it. SPOFs (:8642 hermes,
-# :8450 mios-llm-light) become visible at a glance + the declarative failover
-# chain (mios.toml [agents.X].failover_agents) is surfaced so a caller can
-# see who would take over.
 
 
-# GET /v1/cluster/health (cluster_health) migrated off @app onto
-# mios_clusterhealth.clusterhealth_router (R13 batch 3); re-imported below for
-# `provided` parity, mounted via app.include_router. The body calls
-# cluster_health_logic (same module; reaches the lane resolver via sys.modules).
 
 
-# ── AIOS-style scheduler observability + priority (P4.1) ─────────────────
-# AIOS's AgentScheduler arbitrates concurrent agents competing for inference,
-# scoring each by priority=f(complexity, urgency, resource-need). MiOS already
-# implements the RESOURCE-NEED dimension structurally: per-lane asyncio
-# semaphores (_LANE_SEMS) let distinct hardware (dGPU / CPU / iGPU / each node)
-# run CONCURRENTLY while bounding same-lane contention -- that IS resource-aware
-# scheduling across heterogeneous compute. What was missing is (a) OBSERVABILITY
-# of the live queue/in-flight state and (b) an explicit PRIORITY score. This
-# block adds both. A full preemptive FIFO/RR/SJF policy engine is deliberately
-# NOT built: it is over-engineering for a single-operator box where deep
-# multi-tenant contention does not occur -- the lane semaphores already serial-
-# ise fairly under the rare same-lane burst. The MemoryManager half of AIOS
-# maps to MiOS's existing tiers: scratchpad (working/core), knowledge-table
-# recall (recall), episodic SKILL.md + viking:// (archival).
 
 
-# _sched_priority (AIOS-style advisory priority = f(complexity, urgency, resource-need))
-# moved VERBATIM to mios_sched.py -- the scheduler module that owns PriorityGate, which
-# makes that score ACTIVE -- and is re-imported far above. It is a pure function (no
-# server deps), so no injection is needed.
 
 
-# ── WS-A11/WS-3 Kernel facade — Stage 2a: instantiate + make it LIVE ──────────
-# Stage 1 shipped the pure modules (mios_router decide / mios_dispatcher run /
-# mios_kernel compose) + their unit tests but NEVER instantiated them in
-# server.py, so the decomposition's facade was inert. This wires ONE live Kernel
-# over the existing subsystems: the Router classifies the refined plan, the
-# Dispatcher delegates the DAG mode to the REAL execute_dag, and the five AIOS
-# manager seams reference the live scheduler/memory/context/tool/access paths so
-# the kernel is INTROSPECTABLE (/v1/scheduler.kernel + /v1/route). The remaining
-# modes' execution-body migration OUT of the intertwined chat_completions cascade
-# is Stage 2b (VM-verified) -- those handlers fail LOUD (NotImplementedError) so a
-# premature full-kernel-execution attempt can't silently misroute. KERNEL_ROUTE
-# (default-off) turns on a SHADOW classification log so the Router's decision can
-# be verified against the inline cascade on real traffic before any swap. Zero
-# behaviour change: the live path never calls dispatcher.run() yet.
+
 KERNEL_ROUTE = (
     str(os.environ.get("MIOS_KERNEL_ROUTE")
         or _DISPATCH_TOML.get("kernel_route", "false"))
@@ -5511,48 +3320,18 @@ _KERNEL = mios_kernel.Kernel(
     access=_pdp)                             # AccessManager seam (PDP gate)
 
 
-# POST /v1/route (v1_route) migrated off @app onto mios_http_caps.http_caps_router
-# (R13 batch 3); re-imported below for `provided` parity, mounted via
-# app.include_router. The body calls v1_route_logic (reads the injected _KERNEL).
 
 
-# GET /v1/scheduler (scheduler_state) migrated off @app onto
-# mios_clusterhealth.clusterhealth_router (R13 batch 3); re-imported below for
-# `provided` parity, mounted via app.include_router. The body calls
-# scheduler_state_logic (same module).
 
 
-# GET /v1/cost (cost_ledger) migrated off @app onto mios_http_caps.http_caps_router
-# (R13 batch 3); re-imported below for `provided` parity, mounted via
-# app.include_router. The body calls cost_ledger_logic (reads the injected ledger).
 
 
-# Hop-prompt registration (WS-LIFECYCLE-VER) consolidated into the FastAPI
-# `lifespan` context manager above (stamps the live hop prompts at boot).
 
 
-# GET /v1/prompts (prompt_registry_view) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. Its body reads the injected _PROMPT_REGISTRY
-# (prompt_registry=) wired into the http_caps configure() below; the live instance +
-# its startup registration (_register_hop_prompts) stay server-owned.
 
 
-# GET /v1/trace/{trace_id} (trace_read) + GET /v1/trace (trace_recent) migrated off
-# @app onto mios_http_caps.http_caps_router (R13 batch 3); re-imported below for
-# `provided` parity, mounted via app.include_router. The bodies call
-# trace_read_logic / trace_recent_logic (read the injected _TRACER).
 
 
-# ── Offline-computation enforcement ("maintain offline
-# computation for all MiOS systems"; core MiOS law: never call cloud services,
-# never depend on the network for inference). Turns the offline-first principle
-# from a CONVENTION into an enforced INVARIANT: classify every configured
-# inference endpoint as local-or-external on startup, log a LOUD warning if any
-# is external, and expose the posture at /v1/offline-status. LOCAL = localhost /
-# loopback / tailnet (100.64.0.0/10) / *.ts.net / RFC1918 private LAN / bare
-# container-DNS name -- i.e. the operator's own machines. EXTERNAL = a public
-# host (a cloud LLM API), which violates the law.
 _OFFLINE_ENFORCE = os.environ.get(
     "MIOS_OFFLINE_ENFORCE", "true").lower() not in {"false", "0", "no"}
 
@@ -5570,16 +3349,13 @@ def _is_local_endpoint(url: str) -> bool:
         return True
     if not host:
         return True
-    # Loopback + unspecified.
     if host in ("localhost", "0.0.0.0", "::1") or host.startswith("127."):
         return True
-    # Container DNS / single-label hostname (no dot) = local network.
     if "." not in host and ":" not in host:
         return True
     if host == "host.containers.internal" or host.endswith(".ts.net") \
             or host.endswith(".local") or host.endswith(".internal"):
         return True
-    # Numeric IPv4 ranges: tailnet CGNAT 100.64.0.0/10 + RFC1918 private LAN.
     parts = host.split(".")
     if len(parts) == 4 and all(p.isdigit() for p in parts):
         a, b = int(parts[0]), int(parts[1])
@@ -5592,8 +3368,6 @@ def _is_local_endpoint(url: str) -> bool:
         if a == 100 and 64 <= b <= 127:
             return True                       # 100.64.0.0/10 tailnet
         return False                          # any other public IPv4
-    # A dotted DNS name that isn't *.ts.net/.local/.internal => treat as
-    # PUBLIC (a cloud host). This is the conservative catch for cloud APIs.
     return False
 
 
@@ -5629,63 +3403,15 @@ def _offline_posture() -> dict:
     }
 
 
-# Offline-computation startup guard consolidated into the FastAPI `lifespan`
-# context manager above (validates the offline posture at boot).
 
 
-# GET /v1/offline-status (offline_status) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. The body calls offline_status_logic (reads
-# the injected _offline_posture, which stays server-owned).
 
 
-# GET /a2a/contexts/{context_id} (a2a_context_get) + the /v1/contexts/{context_id}
-# alias (a2a_context_get_v1) migrated onto mios_a2a.a2a_router (R13); a2a_context_get_v1
-# re-imported above for `provided` parity, mounted via app.include_router. _a2a_context
-# stays imported above (a server-provided name re-exported from mios_a2a).
 
 
-# ── A2A task lifecycle (JSON-RPC 2.0) ─────────────────────────────────────
-# Before today this surface was PUBLISH-ONLY (card + read-only contextId).
-# This block adds the spec's core RPC methods (P0.2):
-#
-#   message/send     -- accept an A2A Message, create a Task, dispatch
-#                       through the existing /v1/chat/completions pipeline,
-#                       return the Task with the answer as an Artifact.
-#   tasks/get        -- retrieve a Task by id; optional historyLength trim.
-#   tasks/cancel     -- mark a non-terminal Task canceled (idempotent).
-#   tasks/list       -- paginated list (optional contextId filter).
-#
-# Streaming (message/stream, tasks/resubscribe) + pushNotificationConfig are
-# declared in the agent card's capabilities but tracked separately as P2.2 +
-# P3.3; for now we return the spec UnsupportedOperation error for them so a
-# probing client sees an honest signal instead of silence.
-#
-# LOCAL-ONLY by binding, matching the rest of the A2A surface. tools/call via
-# message/send routes through the same dispatch path that all chat traffic
-# uses, so the existing scratchpad/blackboard threading (metadata.chat_id
-# = contextId) integrates A2A tasks with OWUI chats on the SAME contextId.
-
-# The A2A JSON-RPC 2.0 task lifecycle (the _A2A_TASKS LRU + push registry, the
-# message/send -> _a2a_dispatch_send pipeline, tasks/get|cancel|list,
-# pushNotificationConfig/*, message/stream over SSE, and the _a2a_jsonrpc_dispatch
-# method table) moved VERBATIM to mios_a2a (R11); re-imported above. The POST /a2a
-# + POST /a2a/jsonrpc routes (a2a_jsonrpc + a2a_jsonrpc_alias) migrated onto
-# mios_a2a.a2a_router (R13); re-imported above for `provided` parity, mounted via
-# app.include_router.
 
 
-# ── MCP client (consumer half) ───────────────────────────────────────────
-# R-MCP extraction: the external-MCP CONSUME client (layered registry read,
-# Streamable-HTTP JSON-RPC, the self-healing stdio subprocess client, the
-# per-server probe/initialize/tools-list, the startup fan-out and the tools/call
-# forwarder) moved VERBATIM to mios_mcp.py; re-imported here under the original
-# names (surface parity) with the @app /v1/mcp/* routes kept as thin wrappers
-# calling the module's *_logic functions. _MCP_CLIENT_TOOLS + _MCP_CLIENT_LOCK
-# stay server-resident (also DI'd into the worker / toolsearch / toolexec planes);
-# the configure() injecting _get_client + _mcp_embed_new_tools + the worker-cache
-# invalidator is placed AFTER mios_toolsearch is imported (deps defined). One-way
-# boundary -- mios_mcp never imports server.
+
 _MCP_CLIENT_TOOLS: dict = {}      # "mcp.<sid>.<tool>" -> tool metadata
 _MCP_CLIENT_LOCK = asyncio.Lock()
 
@@ -5702,46 +3428,20 @@ from mios_mcp import (  # noqa: E402
     _mcp_probe_server,
     _mcp_client_startup,
     _mcp_call_tool,
-    # R13 (batch 2): the three /v1/mcp/* routes migrated off @app onto
-    # mios_mcp.mcp_router. Import the router (mounted via app.include_router below) +
-    # the three handler NAMES so they stay in server's importable `provided` surface
-    # (parity); the served path/method set is unchanged (the live-app gate proves it).
     mcp_router,
     mcp_clients,
     mcp_tools_list,
     mcp_dispatch,
 )
-# R13: mount the migrated /v1/mcp/* routes. include_router copies the router's three
-# routes onto the app at the SAME paths/methods the @app wrappers used to serve; the
-# bodies resolve their module-resident *_logic at request time (the MCP-client deps
-# they read are injected by the mios_mcp.configure() pass below, after mios_toolsearch).
 app.include_router(mcp_router)
 
 
-# MCP stdio-subprocess shutdown consolidated into the FastAPI `lifespan` context
-# manager above (runs post-yield on agent-pipe shutdown).
 
 
-# GET /v1/mcp/clients (mcp_clients) + GET /v1/mcp/tools (mcp_tools_list) + POST
-# /v1/mcp/dispatch (mcp_dispatch) migrated onto mios_mcp.mcp_router (R13 batch 2);
-# re-imported above for `provided` parity, mounted via app.include_router. The
-# bodies call the module-resident *_logic directly.
 
 
-# MCP-server startup probe consolidated into the FastAPI `lifespan` context
-# manager above (detached create_task at boot).
 
 
-# ── A2A client (consumer half) ───────────────────────────────────────────
-# P1.2 ("true ACP/A2A/MCP"): MiOS now CONSUMES external
-# A2A peers, not just publishes its own card. On startup we read the layered
-# peer registry (vendor /usr + /etc + user overlays), GET each peer's well-
-# known AgentCard, index the declared skills, and expose them at
-# /v1/a2a/skills. POST /v1/a2a/dispatch forwards a message/send to a chosen
-# peer (by id) or routes by declared skill name. This is the half that turns
-# _AGENT_REGISTRY from a static localhost SSOT into a federated discoverable
-# agent network -- the genuine multi-node agent layer the audit called out.
-# LOCAL by default (vendor registry empty); operators opt-in via overlays.
 
 _A2A_PEER_REGISTRY_PATHS = [
     "/usr/share/mios/ai/v1/a2a-peers.json",                          # vendor
@@ -5751,12 +3451,6 @@ _A2A_PEER_REGISTRY_PATHS = [
 _A2A_PEERS: dict = {}             # peer_id -> {url, status, card, skills, …}
 _A2A_PEER_SKILLS: dict = {}       # skill_id -> [peer_id, …]
 _A2A_PEERS_LOCK = asyncio.Lock()
-# SWARM Phase-4 ("multiple across all nodes -- remote or
-# localhost -- concurrently"): opt A2A peers INTO the swarm fan-out. Default OFF
-# -> peers stay explicit-delegation-only (fanout=False), byte-identical to today
-# and the self-loop overhead the fix removed stays gone. When the
-# operator sets [a2a].council=true, every DISCOVERED peer EXCEPT the local self
-# (a2a_self_id) joins the concurrent council/DAG fan-out as a remote worker.
 try:
     _A2A_CFG = _toml_section("a2a") or {}
 except Exception:  # noqa: BLE001
@@ -5768,19 +3462,6 @@ A2A_SELF_ID = str(os.environ.get(
     "MIOS_A2A_SELF_ID", _A2A_CFG.get("self_id", "local-mios"))).strip().lower()
 
 
-# R11 federation follow-up: the A2A peer-CLIENT consumer half (_a2a_load_peers,
-# _a2a_probe_peer, _a2a_autodiscover_peers, _a2a_client_startup,
-# _a2a_send_message_to_peer, _a2a_extract_text) plus the self-peer-url /
-# card-fetch / tailnet-candidate discovery helpers (_a2a_self_peer_url,
-# _a2a_fetch_card, _a2a_tailnet_candidates) all live in mios_a2a_client.py;
-# re-imported here under their original names (surface parity) now that every
-# injected dep is defined above -- the live _A2A_PEERS/_A2A_PEER_SKILLS
-# registries + lock, the outbound _A2A_REPUTATION, the agent registry, the
-# peer-registry paths + A2A_COUNCIL/A2A_SELF_ID, the HTTP client factory, and
-# the worker-surface cache invalidator (the module cannot rebind server's
-# _WORKER_TOOLS_FULL_CACHE across the one-way boundary) stay injected via
-# configure(). The @app /v1/a2a/dispatch route + the peer-discovery startup
-# on_event stay THIN below.
 from mios_a2a_client import (   # noqa: E402
     _a2a_self_peer_url,
     _a2a_fetch_card,
@@ -5806,12 +3487,6 @@ sys.modules["mios_a2a_client"].configure(
     invalidate_worker_cache=lambda: globals().__setitem__(
         "_WORKER_TOOLS_FULL_CACHE", None),
 )
-# Second mios_a2a.configure() pass: inject the consumer-side A2A deps now that
-# they are defined (the live peer registries + lock, the outbound reputation, the
-# send-to-peer delegation) plus the passport public-key reader -- the @app
-# /v1/a2a/skills, /v1/a2a/dispatch + /passport/public-key thin wrappers reach
-# these via the *_logic functions. By reference, so the consumer half's in-place
-# mutation of the same dicts stays visible to the route logic.
 sys.modules["mios_a2a"].configure(
     a2a_peers=_A2A_PEERS,
     a2a_peer_skills=_A2A_PEER_SKILLS,
@@ -5820,10 +3495,6 @@ sys.modules["mios_a2a"].configure(
     a2a_send_message_to_peer=_a2a_send_message_to_peer,
     passport_load_public=_passport_load_public,
 )
-# Runtime re-exports of the moved route logic so a `getattr(server, name)`
-# consumer (and test_server_import) sees them as server-provided, WITHOUT adding
-# an AST-visible top-level name (subscript-assign is invisible to the surface
-# projector's `provided` set -- keeps the surface 0-diff).
 globals()["a2a_jsonrpc_logic"] = sys.modules["mios_a2a"].a2a_jsonrpc_logic
 globals()["a2a_skills_list_logic"] = sys.modules["mios_a2a"].a2a_skills_list_logic
 globals()["a2a_dispatch_logic"] = sys.modules["mios_a2a"].a2a_dispatch_logic
@@ -5832,12 +3503,6 @@ globals()["passport_public_key_logic"] = (
     sys.modules["mios_a2a"].passport_public_key_logic)
 
 
-# ── FED-G3 live membership reload ───────────────────────────
-# "Network reachability + a verifiable credential is the ONLY thing required to join
-# the council" -> adding a peer must NOT require a restart. A reload re-reads the
-# agent/node registry + the A2A peer registry from disk and refreshes the live caches.
-# Two triggers: a background mtime-watch on the registry files + layered mios.toml, and
-# an auth-gated POST /a2a/peers/reload. Degrade-open throughout.
 MEMBERSHIP_WATCH_ENABLE = str(
     os.environ.get("MIOS_MEMBERSHIP_WATCH")
     or (_A2A_CFG.get("membership_watch", "true"))).strip().lower() in {"1", "true", "yes"}
@@ -5862,53 +3527,18 @@ async def _reload_membership(reason: str = "manual") -> dict:
         _reg = _load_agent_registry()
         _load_node_pool(_reg)
         _AGENT_REGISTRY = _reg
-        # V4/V5: refresh the blade topology so a live [nodes.*]/[blades.*] edit (a node
-        # moved to another machine, a blade's budget changed) takes effect without a
-        # restart. Degrade-open inside the helper (admission falls back to local scalar).
         _rebuild_blade_topology()
-        # Keep the fan-out selector's injected registry in sync (refactor R3):
-        # _pick_fanout_agents lives in mios_fanout and snapshots the registry at
-        # configure() time, so a live add/drop must be re-injected here.
         sys.modules["mios_fanout"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the refine classifier (refactor R5): it builds the agents_summary
-        # from the injected registry, so a live add/drop must be re-injected here too.
         sys.modules["mios_refine"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the planner (refactor R5): _PLANNER_SYSTEM embeds the agent
-        # roster + decompose_intent validates agent nodes against the registry,
-        # so a live add/drop must be re-injected here too.
         sys.modules["mios_planner"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the shared sub-agent completion call (refactor R3):
-        # _call_agent_complete_inner reads _AGENT_REGISTRY for the failover chain,
-        # so a live add/drop must be re-injected here too.
         sys.modules["mios_agent_call"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the RBAC/PDP policy plane (refactor R7): _agent_rbac_filter +
-        # _dispatch_pdp_reason resolve per-agent capability policy from the
-        # injected registry, so a live add/drop must be re-injected here too.
         sys.modules["mios_policy"].configure(agent_registry=_AGENT_REGISTRY)
         sys.modules["mios_dispatch"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the DAG executors (refactor R8): _execute_dag_node reads
-        # _AGENT_REGISTRY for per-node agent cfg/lane, so a live add/drop must be
-        # re-injected here too.
         sys.modules["mios_dag_exec"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the SWARM brain (refactor R8): _agent_dag_from_tasks reads
-        # _AGENT_REGISTRY for the eligibility/pool spread + slow-lane ceiling, so
-        # a live add/drop must be re-injected here too.
         sys.modules["mios_swarm"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the capstone router-brain (refactor R12): chat_completions_logic
-        # reads _AGENT_REGISTRY for the council/swarm eligibility + pool spread, so a
-        # live add/drop must be re-injected here too.
         sys.modules["mios_chat"].configure(_AGENT_REGISTRY=_AGENT_REGISTRY)
-        # Same for the per-turn helpers (refactor: mios_turn): _pick_agent,
-        # _casual_agent_label and _live_agent_names read _AGENT_REGISTRY for the
-        # role/label/liveness roster, so a live add/drop must be re-injected too.
         sys.modules["mios_turn"].configure(_AGENT_REGISTRY=_AGENT_REGISTRY)
-        # Same for the portal swarm-roster route (refactor ROUTE-SURFACE):
-        # portal_swarm_logic reads _AGENT_REGISTRY to probe every node, so a live
-        # add/drop must be re-injected here too (registry is reassigned above).
         sys.modules["mios_portal"].configure(agent_registry=_AGENT_REGISTRY)
-        # Same for the agent-registry helpers (mios_agentreg): _dedup_pool_by_target
-        # reads _AGENT_REGISTRY for the pool dedup ranking, so a live add/drop must be
-        # re-injected here too (registry is reassigned above).
         sys.modules["mios_agentreg"].configure(agent_registry=_AGENT_REGISTRY)
         out["agents"] = len(_reg)
     except Exception as e:  # noqa: BLE001
@@ -5927,113 +3557,42 @@ async def _reload_membership(reason: str = "manual") -> dict:
     return out
 
 
-# _membership_watch_loop body moved VERBATIM to mios_daemons (strangler-fig);
-# the lifespan startup block create_task()s this re-imported name.
 from mios_daemons import _membership_watch_loop   # noqa: E402
 
 
-# Membership-watch startup loop (FED-G3) consolidated into the FastAPI
-# `lifespan` context manager above (detached create_task at boot when enabled).
 
 
-# POST /a2a/peers/reload (a2a_peers_reload) migrated onto mios_a2a.a2a_router (R13);
-# re-imported above for `provided` parity, mounted via app.include_router. Inject its
-# two server-resident deps now that both are defined: the inbound-principal resolver
-# (the route's credential gate) + the membership reloader it drives. By reference;
-# one-way DI boundary (mios_a2a never imports server).
 sys.modules["mios_a2a"].configure(
     check_inbound_principal=_check_inbound_principal,
     reload_membership=_reload_membership,
 )
 
 
-# ── #60 WS-6: signed delegation principal (A2A) ──────────────────────────────
-# When MiOS AI delegates a task to an A2A peer, attach a SIGNED statement of the
-# principal -- who is acting (agent), on whose behalf (user principal) -- bound to
-# the delegated instruction (text digest), the target peer, and the context.
-# Reuses the agent-passport Ed25519 keypair (_passport_sign/_passport_verify).
-# DEGRADE-OPEN: with no key the claims still ride along but unsigned, and the peer
-# treats them as untrusted. CONFORMANCE: rides A2A's message.metadata extension
-# point, so non-MiOS peers simply ignore the unknown key. Inbound enforcement is
-# gated by [agent_passport].principal_mode (default "off" -> audit-log only).
-# The signed-delegation principal helpers (_A2A_PRINCIPAL_REQUIRE flag,
-# _a2a_principal_metadata send-side, the mtime-cached CRL _load_crl, and the
-# receive-side _a2a_verify_principal) moved to mios_a2a (R11); re-imported above.
 
 
-# GET /v1/a2a/peers (a2a_peers_list) migrated onto mios_a2a.a2a_router (R13 batch 2);
-# re-imported above for `provided` parity, mounted via app.include_router. Its body
-# reads the SAME live consumer-side peer registry + reputation that configure()
-# already injects into mios_a2a for the skills/dispatch logic.
 
 
-# #64 self-improvement signals (read-only). Surfaces WHAT to improve from local
-# outcome data; it does NOT act -- closing the loop (auto-tuning) is a separate,
-# gated step (agent self-modification needs guardrails). _selfimprove_report moved
-# VERBATIM to mios_daemons (its sole runtime consumer, _selfimprove_loop, lives
-# there); the route below calls the re-imported name (see `from mios_daemons import
-# ... _selfimprove_report` after the daemons configure() call further down).
 
 
-# GET /v1/self-improve/report (selfimprove_report_ep) migrated off @app onto
-# mios_daemons.daemons_router (R13 batch 3); re-imported below for `provided` parity,
-# mounted via app.include_router. The body calls the module-resident
-# _selfimprove_report directly (the #64 analyzer lives in mios_daemons).
 
 
-# #64 closure (observe -> surface): a DEFAULT-OFF periodic task that runs the
-# analyzer and LOGS new high/medium findings -> the daemon-agent (which tails
-# journals) + the operator see them. [selfimprove].interval_min = 0 (default) ->
-# no task is spawned and the hot path is byte-identical. It only SURFACES;
-# auto-remediation (self-modification) is a separate, guardrail-gated step.
-# ── WS-A18 gossip peer-discovery loop (epidemic anti-entropy over mios_gossip) ──
-# DEFAULT-OFF: [gossip].interval_min = 0 -> no task spawned, zero overhead. When
-# on, each round PULLs a seeded fanout of known peers' /v1/peers digests and
-# merges them TRUST-GATED (mios_gossip.merge_peer_set, trust from the peer's
-# _A2A_REPUTATION score >= [gossip].min_trust) so a rogue/low-rep peer can't
-# inject itself. Newly-discovered peers are added (status=discovered) for the A2A
-# prober to validate. Degrade-open; outbound-only (no inbound mutation here).
-# _gossip_loop body moved VERBATIM to mios_daemons (strangler-fig); the
-# lifespan startup block create_task()s this re-imported name.
 from mios_daemons import _gossip_loop   # noqa: E402
 
 
-# Gossip peer-discovery startup loop (WS-A18) consolidated into the FastAPI
-# `lifespan` context manager above (DEFAULT-OFF; spawned at boot when configured).
 
 
-# ── WS-A10/A18 PERSISTENT peer reputation ────────────────────────────────────
-# PeerReputation is in-memory; without this it reset every restart (so a peer's
-# accrued reliability -- which gossip trust-gates on + the fan-out ranks on -- was
-# lost on every deploy). The mios_reputation persistence seam (rows()/restore())
-# + the peer_reputation pg table existed but were never wired. Restore on startup
-# + flush on a timer so reliability SURVIVES a restart. Degrade-open + no-op when
-# pg isn't primary (the counters just stay in-memory as before).
 REPUTATION_FLUSH_S = _dispatch_num("MIOS_REPUTATION_FLUSH_S", "reputation_flush_s",
                                    300.0, cast=float)
 
 
-# _reputation_restore + _reputation_flush bodies moved VERBATIM to mios_daemons
-# (strangler-fig); the lifespan reputation startup block drives
-# these re-imported names (restore once + flush on the timer loop).
 from mios_daemons import _reputation_restore, _reputation_flush   # noqa: E402
 
 
-# Reputation restore + flush-timer startup (WS-A10/A18) consolidated into the
-# FastAPI `lifespan` context manager above (restore once + flush on the timer).
 
 
 _SELFIMPROVE_SEEN: set = set()
 
 
-# _selfimprove_loop + _selfimprove_report + the WS-A4 KV-GC sweep/loop bodies moved
-# VERBATIM to mios_daemons (strangler-fig); the lifespan startup block
-# create_task()s the re-imported loop names + the route re-imports the report. The
-# configure() call wiring every daemon's injected deps is placed here, AFTER each dep
-# (_reload_membership, the membership-watch config, the A2A peer registry + lock +
-# reputation object, _get_client, _SELFIMPROVE_SEEN, _PG_PRIMARY, and the KV-GC knobs +
-# the live _KV_RESIDENT active-slot map) is defined -- one-way DI boundary (mios_daemons
-# never imports server).
 sys.modules["mios_daemons"].configure(
     _get_client=_get_client,
     _A2A_PEERS=_A2A_PEERS,
@@ -6051,61 +3610,23 @@ sys.modules["mios_daemons"].configure(
     _KV_RESIDENT=_KV_RESIDENT,
 )
 from mios_daemons import _selfimprove_loop, _selfimprove_report   # noqa: E402
-# R13: GET /v1/self-improve/report (selfimprove_report_ep) migrated off @app onto
-# mios_daemons.daemons_router. Import the router (mounted via app.include_router
-# below) + the handler NAMES so they stay in server's importable `provided` surface
-# (parity); the served path/method is unchanged (the live-app route gate proves it).
-# T-062/T-064: the ACT-half adds GET /v1/self-improve/proposals (selfimprove_proposals_ep)
-# on the SAME daemons_router -- the read-only queue of validated, non-regressing change
-# proposals awaiting human approval (never auto-applied).
 from mios_daemons import (daemons_router, selfimprove_report_ep,   # noqa: E402,F401
                           selfimprove_proposals_ep)
-# R13: mount the migrated /v1/self-improve/report route. include_router copies the
-# route onto the app at the SAME path/method the @app wrapper served; the body calls
-# the module-resident _selfimprove_report at request time.
 app.include_router(daemons_router)
 
 
-# Self-improve surfacing startup loop (#64) consolidated into the FastAPI
-# `lifespan` context manager above (DEFAULT-OFF; spawned at boot when enabled).
 
 
-# GET /v1/a2a/skills (a2a_skills_list) + POST /v1/a2a/dispatch (a2a_dispatch) migrated
-# onto mios_a2a.a2a_router (R13 batch 2); re-imported above for `provided` parity,
-# mounted via app.include_router. The bodies call a2a_skills_list_logic /
-# a2a_dispatch_logic directly (same module).
 
 
-# A2A-peer startup probe consolidated into the FastAPI `lifespan` context
-# manager above (detached create_task at boot).
 
 
-# ── /v1/tool-search (progressive disclosure / RAG-MCP) ────────────────
-# Cosine-over-nomic-embed-text retrieval over the visible verb catalog.
-# Embeddings computed lazily on first request, cached in-memory until
-# agent-pipe restart (catalog is tiny: ~30 verbs at ~768-dim each).
-# Operator binding "compact, minimal, efficient" + per
-# RAG-MCP paper (arXiv 2505.03275): top-k retrieval halves prompt
-# tokens + triples selection accuracy for verb counts > 30.
 _VERB_EMBED_MODEL = os.environ.get(
     "MIOS_VERB_EMBED_MODEL", "nomic-embed-text")
 _VERB_EMBED_URL = os.environ.get(
     "MIOS_VERB_EMBED_URL", _LIGHT_BASE + "/v1/embeddings")
-# R10 toolsearch: the verb/MCP embedding caches + _tool_embedding/
-# _mcp_embed_new_tools and the /v1/tool-search + /v1/app-search retrieval core
-# moved verbatim to mios_toolsearch.py; re-imported below under their original
-# names (surface parity). The cosine metric + the verb embed-text/fingerprint
-# helpers moved there too (cohesive with the cache) and are re-imported just below.
-# Only _embed_one stays server-resident -- it drives the HTTP embed lane via
-# _get_client and is injected into mios_toolsearch via its configure().
 
 
-#: rate-limit the "embed call failed" warning. When the embed backend
-# (mios-llm-light) is down the loops below call _embed_one for every verb/app every
-# cycle, so an unrated log floods the journal ("All connection attempts failed",
-# hundreds/sec). Emit at most one warning per interval, folding the suppressed count
-# into the next line. Timestamp is computed in-function (NOT at import), starting at 0
-# so the very first failure always logs.
 _EMBED_FAIL_LOG_INTERVAL = float(
     os.environ.get("MIOS_EMBED_FAIL_LOG_INTERVAL", "60") or 60)
 _embed_fail_last_log = 0.0
@@ -6131,7 +3652,6 @@ async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Opt
         if r.status_code != 200:
             return None
         data = r.json()
-        # OpenAI /v1 shape: {data:[{embedding:[...]}]}.
         v = None
         _d = data.get("data")
         if isinstance(_d, list) and _d:
@@ -6155,11 +3675,6 @@ async def _embed_one(text: str, prefix: Optional[str] = "search_query: ") -> Opt
     return None
 
 
-# The cosine metric + the verb embed-text/fingerprint helpers now live in
-# mios_toolsearch (cohesive with its verb-embedding cache). Re-imported HERE --
-# early, BEFORE the mios_knowledge / mios_worker_tools configure() calls below
-# re-inject them into those planes -- under their original names so the importable
-# surface stays byte-identical. One-way boundary: mios_toolsearch never imports server.
 from mios_toolsearch import (  # noqa: E402
     _cosine,
     _verb_embed_text,
@@ -6220,21 +3735,12 @@ sys.modules["mios_knowledge"].configure(   # noqa: E402
 )
 
 
-# ── R9 web-research extraction: inject the server-side runtime helpers + request
-# contextvars + WEB_RESEARCH_*/_JUDGE_*/etc config consts into mios_web_research
-# now that every one is defined above (the latest is _is_action_domain). One-way
-# boundary -- mios_web_research never imports server. Referenced via sys.modules
-# so NO new top-level name enters server.py's importable surface.
 sys.modules["mios_web_research"].configure(   # noqa: E402
     is_action_domain=_is_action_domain,
     current_date_str=_current_date_str,
     current_year=_current_year,
-    # _anchor_tokens/_shares_anchor/_url_has_path/_clean_web_text are now NATIVE to
-    # mios_web_research (moved home) -- no longer injected from server.
     routed_domain_var=_routed_domain_var,
     client_env_var=_client_env_var,
-    # Per-turn web-SOURCE registry plumbing for the relocated citation cluster
-    # (the cluster's own _src_record/_SRC_LINE_RE/_SRC_URL_RE are now native there).
     sources_var=_sources_var,
     conv_key_var=_conv_key_var,
     src_turn_var=_src_turn_var,
@@ -6260,22 +3766,12 @@ sys.modules["mios_web_research"].configure(   # noqa: E402
     web_research_crawl_max=WEB_RESEARCH_CRAWL_MAX,
     web_research_use_news_category=WEB_RESEARCH_USE_NEWS_CATEGORY,
     web_research_time_range=WEB_RESEARCH_TIME_RANGE,
-    # Broader recency window for a model-classified time-sensitive turn (degrade-open
-    # default when no explicit time_range override): SSOT [web_research].recency_range,
-    # env MIOS_WEB_RESEARCH_RECENCY_RANGE, else the broad "month" default. Resolved
-    # inline so server.py's importable surface stays byte-identical.
     web_research_recency_range=(os.environ.get("MIOS_WEB_RESEARCH_RECENCY_RANGE", "").strip()
                                 or str(_WEB_TOML.get("recency_range") or "month")),
     web_research_max_attempts=WEB_RESEARCH_MAX_ATTEMPTS,
 )
 
 
-# ── R4 worker-tools extraction: inject the verb catalog + ranking helpers + the
-# rerank flags into mios_worker_tools now that _VERB_CATALOG/_resolve_verb_key/ the
-# rerank flags are defined above and _cosine/_verb_embed_text/_verb_embed_fingerprint
-# are re-imported above from mios_toolsearch (one-way boundary -- mios_worker_tools
-# never imports server). Referenced via sys.modules so NO new top-level name enters
-# server.py's importable surface.
 sys.modules["mios_worker_tools"].configure(
     verb_catalog=_VERB_CATALOG,
     resolve_verb_key=_resolve_verb_key,
@@ -6288,11 +3784,6 @@ sys.modules["mios_worker_tools"].configure(
     rerank_rrf_k=RERANK_RRF_K,
     rerank_mmr_lambda=RERANK_MMR_LAMBDA,
     rerank_skip_margin=RERANK_SKIP_MARGIN,
-    # [worker_tools] reranker/priority knobs (SSOT, no-hardcode): the BM25 saturation/
-    # length-norm, the unembedded-verb priority->score map, and the core-tier-first
-    # weak-lane ranking flag. Read inline (referencing the re-imported _toml_section) so
-    # NO new top-level name enters server.py's importable surface (parity gate); the
-    # literals here are only the env/SSOT degrade defaults, exactly like the RERANK_* lines.
     bm25_k1=float(os.environ.get("MIOS_BM25_K1",
                   str((_toml_section("worker_tools") or {}).get("bm25_k1", 1.2))) or 1.2),
     bm25_b=float(os.environ.get("MIOS_BM25_B",
@@ -6306,9 +3797,6 @@ sys.modules["mios_worker_tools"].configure(
 )
 
 
-# R4: inject the tool-call executor + narrated-call rescue-corpus deps into
-# mios_toolexec. Placed AFTER every injected symbol is defined (the latest is
-# _mcp_call_tool above) -- one-way boundary (mios_toolexec never imports server).
 sys.modules["mios_toolexec"].configure(
     read_tool_enrich_chars=READ_TOOL_ENRICH_CHARS,
     read_tool_enrich_timeout=READ_TOOL_ENRICH_TIMEOUT,
@@ -6343,22 +3831,12 @@ sys.modules["mios_toolexec"].configure(
 )
 
 
-# R7: inject the provenance-taint + Semantic Firewall deps into mios_firewall.
-# Placed AFTER every injected symbol is defined: _TAINT_VERBS / PROVENANCE_TAINT_ENABLE
-# / _ALLOWLIST_HOSTS (above, ~line 7850-7916), _MCP_CLIENT_TOOLS (~line 14005) and
-# _db_read (~line 2105). The sets/dict are injected BY REFERENCE so server-side
-# mutation stays visible. SECURITY-CRITICAL: NAME-KEYED gates -- nothing renamed
-# (one-way boundary -- mios_firewall never imports server).
 sys.modules["mios_firewall"].configure(
     taint_verbs=_TAINT_VERBS,
     provenance_taint_enable=PROVENANCE_TAINT_ENABLE,
     allowlist_hosts=_ALLOWLIST_HOSTS,
     mcp_client_tools=_MCP_CLIENT_TOOLS,
     db_read=_db_read,
-    # SSOT [security].text_view_taint_prefixes (the SAME write-protected prefix
-    # set the native editor refuses writes to) + [security].internal_tld_suffixes
-    # (operator-own host zones). Read inline so no new server top-level name is
-    # added (the module carries the matching documented defaults).
     text_view_taint_prefixes=((_toml_section("security") or {}).get(
         "text_view_taint_prefixes") or None),
     internal_tld_suffixes=((_toml_section("security") or {}).get(
@@ -6366,15 +3844,6 @@ sys.modules["mios_firewall"].configure(
 )
 
 
-# R7: inject server.py's catalogs, the agent registry, the HITL/client/dispatch
-# ContextVars and the runtime helpers the RBAC/PDP/quota/HITL policy plane
-# (mios_policy) calls back into. Placed AFTER every injected symbol is defined
-# (_VERB_CATALOG / _RECIPE_CATALOG / _AGENT_REGISTRY, the _hitl_approved_var /
-# _hitl_blocked_var / _client_env_var / _dispatch_agent_var ContextVars,
-# _pending_hash, _get_client, _db_fire/_db_post/_db_create are all above) --
-# one-way boundary (mios_policy never imports server). _AGENT_REGISTRY is
-# re-injected on a live membership reload (see _reload_membership), mirroring
-# mios_fanout/mios_refine/mios_agent_call.
 sys.modules["mios_policy"].configure(
     verb_catalog=_VERB_CATALOG,
     recipe_catalog=_RECIPE_CATALOG,
@@ -6391,15 +3860,6 @@ sys.modules["mios_policy"].configure(
 )
 
 
-# Inject server.py's config scalars + the _DAEMON_DIAGNOSE_* constants + the two
-# remaining server-resident helpers the tool-loops call back into. The loop guards
-# _looks_like_disclaimer / _tool_call_sig / _tmsgs_indicate_failure now live in
-# mios_secondary_loop itself (moved home), so they are no longer injected. Placed
-# AFTER every injected symbol is defined (SECONDARY_TOOL_MAX_ITERS,
-# SECONDARY_REPLAN_MAX, the _DAEMON_DIAGNOSE_* trio, _apply_outbound_auth,
-# _endpoint_supports_parallel_tools are all above) -- one-way boundary
-# (mios_secondary_loop never imports server). No registry rebind here, so nothing
-# to re-inject on a membership reload.
 sys.modules["mios_secondary_loop"].configure(
     secondary_tool_max_iters=SECONDARY_TOOL_MAX_ITERS,
     secondary_replan_max=SECONDARY_REPLAN_MAX,
@@ -6415,11 +3875,6 @@ sys.modules["mios_secondary_loop"].configure(
 )
 
 
-# R3: inject the shared sub-agent completion-call deps into mios_agent_call.
-# Placed AFTER every injected symbol is defined (the latest -- _strip_think_tags,
-# the secondary tool-loops, _SRC_TURN_HEADER -- are all above) -- one-way boundary
-# (mios_agent_call never imports server). _AGENT_REGISTRY is re-injected on a live
-# membership reload (see _reload_membership), mirroring mios_fanout/mios_refine.
 sys.modules["mios_agent_call"].configure(
     healthgate_connect_timeout=HEALTHGATE_CONNECT_TIMEOUT,
     healthgate_read_timeout=HEALTHGATE_READ_TIMEOUT,
@@ -6445,15 +3900,10 @@ sys.modules["mios_agent_call"].configure(
     model_active=_model_active,
     opt_int_mb=_opt_int_mb,
     priority_gate=_priority_gate,
-    # WS-RES-GOV cost recording now lives in mios_agent_call (its sole caller); the
-    # ledger/model singletons + enable flag + lane probe stay server-owned + injected.
     cost_accounting_enable=COST_ACCOUNTING_ENABLE,
     cost_ledger=_COST_LEDGER,
     cost_model=_COST_MODEL,
     is_remote_endpoint=_is_remote_endpoint,
-    # Deps for the lane-governance pair now native to mios_agent_call: the slow-lane
-    # probe (shared with mios_swarm), the shared dead-node liveness map (shared with
-    # mios_turn's prune), and the SSOT num_predict ceilings.
     is_slow_lane_ep=_is_slow_lane_ep,
     node_live=_NODE_LIVE,
     llm_num_predict_cap=LLM_NUM_PREDICT_CAP,
@@ -6463,11 +3913,6 @@ sys.modules["mios_agent_call"].configure(
     strip_agent_chrome=_strip_agent_chrome,
     strip_think_tags=_strip_think_tags,
     v1_secondary_tool_loop=_v1_secondary_tool_loop,
-    # KV-paging/fork + RR-preemption config scalars + shared KV/priority/preempt
-    # state for the engine actors now native to mios_agent_call (the _kv_fork/
-    # _kv_paging/_rr_eligible/_rr_run injections they replaced are gone -- the
-    # module owns those functions outright). _KV_LOCKS/_KV_RESIDENT are injected
-    # BY REFERENCE so the module + the server-side KV-GC sweep share state.
     kv_paging_enable=KV_PAGING_ENABLE,
     kv_paging_slot=KV_PAGING_SLOT,
     kv_paging_timeout=KV_PAGING_TIMEOUT,
@@ -6485,11 +3930,6 @@ sys.modules["mios_agent_call"].configure(
     otel_tracer=_otel_tracer,
 )
 
-# Inject mios_dag_exec's deps (refactor R8: DAG execution entrypoints). Placed
-# AFTER every injected symbol is defined: dispatch_mios_verb (from mios_dispatch),
-# the _a2a_* helpers, the ContextVars, _AGENT_REGISTRY and every config scalar are
-# all bound by here. One-way boundary (mios_dag_exec never imports server;
-# referenced via sys.modules so NO new top-level name enters server's surface).
 sys.modules["mios_dag_exec"].configure(
     deepen_fetch=DEEPEN_FETCH,
     deepen_deadline_s=DEEPEN_DEADLINE_S,
@@ -6545,15 +3985,6 @@ sys.modules["mios_dag_exec"].configure(
 )
 
 
-# R10 toolsearch: re-import the verb/MCP/app embedding caches + the search core
-# moved verbatim to mios_toolsearch.py (every name byte-identical to its old
-# server-resident definition -- surface parity), then inject the server-resident
-# deps it calls back into (the HTTP client, verb catalog, MCP-client registry/lock,
-# the per-vector embedder _embed_one, lenient JSON loader) now that every one is
-# defined above. The cosine metric + the verb embed-text/fingerprint helpers are
-# native to mios_toolsearch now (re-imported early, above). One-way boundary --
-# mios_toolsearch never imports server; referenced via sys.modules so the module
-# name does NOT enter server's importable surface.
 from mios_toolsearch import (   # noqa: E402
     _VERB_EMBEDDINGS,
     _VERB_EMBEDDINGS_LOCK,
@@ -6570,11 +4001,6 @@ from mios_toolsearch import (   # noqa: E402
     _APP_INV_CACHE_FILE,
     _APP_EMBED_PERSIST,
     _VERB_EMBED_PERSIST,
-    # R13 batch 4: the two embedding-search routes (GET /v1/tool-search ->
-    # tool_search, GET /v1/app-search -> app_search) migrated off @app onto
-    # mios_toolsearch.toolsearch_router. Import the router (mounted via
-    # app.include_router below) + both handler NAMES so they stay in server's
-    # importable `provided` surface (parity); the served path/method set is unchanged.
     toolsearch_router,
     tool_search,
     app_search,
@@ -6587,21 +4013,9 @@ sys.modules["mios_toolsearch"].configure(
     loads_lenient=_loads_lenient,
     embed_one=_embed_one,
 )
-# R13: mount the migrated /v1/tool-search + /v1/app-search routes. include_router
-# copies them onto the app at the SAME paths/methods the @app wrappers served; the
-# bodies resolve their module-resident *_logic at request time (the configure() above
-# injected every dep they read). A top-level include with a from-imported router name
-# is what the whole-package surface gate composes back cross-file (project_package).
 app.include_router(toolsearch_router)
 
 
-# R-MCP: inject the MCP consume-client's server-resident deps now that the HTTP
-# client, the MCP-tool embedder (_mcp_embed_new_tools, from mios_toolsearch
-# imported just above) and the shared MCP-tool registry/lock are all defined. The
-# worker-tool surface cache lives in server; a probe registering new tools drops
-# it via the injected callback (the module cannot rebind that server global across
-# the one-way boundary). Placed here, after mios_toolsearch, so _mcp_embed_new_tools
-# exists; the @app /v1/mcp/* routes + the from-mios_mcp re-import are far above.
 sys.modules["mios_mcp"].configure(
     get_client=_get_client,
     mcp_client_tools=_MCP_CLIENT_TOOLS,
@@ -6612,27 +4026,10 @@ sys.modules["mios_mcp"].configure(
 )
 
 
-# GET /v1/tool-search (tool_search) + GET /v1/app-search (app_search) migrated off
-# @app onto mios_toolsearch.toolsearch_router (R13 batch 4); imported + mounted via
-# app.include_router after the mios_toolsearch configure() pass above (the router +
-# both handler NAMES re-enter server's importable `provided` surface for parity). The
-# bodies call the module-resident tool_search_logic / app_search_logic directly.
 
 
-# POST /v1/dispatch (dispatch_verb) migrated off @app onto
-# mios_dispatch.dispatch_router (R13 batch 3); re-imported below for `provided`
-# parity, mounted via app.include_router. The body moved VERBATIM and calls the
-# module-resident dispatch_mios_verb chokepoint directly (mios-mcp-server's tools/call
-# lands here).
 
 
-# ── MiOS Portal (auth/stats/swarm-probe/terminal/PWA assets) ──
-# The portal HELPER LOGIC + asset builders + the swarm probe were extracted
-# VERBATIM into mios_portal (refactor R10); the @app routes below stay here as
-# THIN wrappers calling the moved logic so the HTTP surface is unchanged. The
-# probe's _probe_auth_headers + _agent_lane are injected after both are defined
-# (one-way boundary: mios_portal never imports server; referenced via
-# sys.modules so no new top-level name enters server's importable surface).
 from mios_portal import (  # noqa: E402
     PORTAL_PUBLIC_HOST, _portal_toml, _PORTAL_TOML, _pcfg, PORTAL_PASSWORD,
     PORTAL_USER, _portal_rl, PORTAL_REQUIRE_LOGIN, PORTAL_SESSION_TTL,
@@ -6642,11 +4039,6 @@ from mios_portal import (  # noqa: E402
     _PODMAN_PS_SNAPSHOT, _podman_ps, _PORTAL_HTML, _portal_theme_css,
     _PORTAL_ICON, _read_portal_asset, _PORTAL_ICON_192, _PORTAL_ICON_512,
     _PORTAL_MANIFEST, _PORTAL_SW, _PORTAL_LOGIN_HTML, _IOSTEST_HTML,
-    # R13: the 13 /portal HTTP routes (incl. the /portal/term/{port} websocket)
-    # migrated off @app onto mios_portal.portal_router. Import the router (mounted
-    # via app.include_router below) + the 13 handler NAMES so they stay in server's
-    # importable `provided` surface (parity) and the served path/method set is
-    # unchanged -- the live-app route gate proves it.
     portal_router,
     portal_stats,
     portal_service_detail,
@@ -6661,10 +4053,6 @@ from mios_portal import (  # noqa: E402
     portal_term_ws,
     portal_login,
     portal_logout,
-    # R13: the four non-/portal portal routes (GET /sw.js -> portal_sw, /login ->
-    # portal_login_page, /iostest -> iostest_page, / -> portal_page) migrated onto the
-    # SAME portal_router; re-imported here so each handler NAME stays in server's
-    # importable `provided` surface (parity); the served path/method set is unchanged.
     portal_sw,
     portal_login_page,
     iostest_page,
@@ -6674,56 +4062,18 @@ sys.modules["mios_portal"].configure(
     probe_auth_headers=_probe_auth_headers, agent_lane=_agent_lane,
     agent_registry=_AGENT_REGISTRY, sanitize_tool_text=_sanitize_tool_text,
     websockets=websockets)
-# R13: mount the migrated /portal routes. include_router copies the router's 13
-# routes (incl. the /portal/term/{port} websocket) onto the app at the SAME
-# paths/methods the @app wrappers used to serve; each body resolves its
-# module-resident *_logic / asset string at request time. No new configure() dep is
-# needed -- every helper the moved wrappers call is already module-resident or
-# already injected above. The top-level include with a from-imported router name is
-# what the whole-package surface gate composes back cross-file (project_package), so
-# the move is parity-clean. The non-/portal portal routes (/, /login, /sw.js,
-# /iostest) stay below as thin @app wrappers.
 app.include_router(portal_router)
 
 
-# ── Advertised-surface / capability + admin route LOGIC (mios_http_caps) ──
-# The verb/tool/resource projections, capability manifest+DAG, peer digest,
-# kernel Router shadow, cost ledger, trace reads, offline posture, skill
-# catalog, KG lookup, DCI surface, and the /v1/models + /v1/embeddings proxy
-# BODIES were moved VERBATIM into mios_http_caps (refactor R-CAPS); the @app
-# routes stay thin (calling the *_logic via sys.modules). The three MCP Resource
-# projectors moved with them are re-imported under their original names so the
-# importable surface is unchanged. Every server-resident dep is injected here,
-# AFTER each is defined (one-way boundary: mios_http_caps never imports server).
 from mios_http_caps import (  # noqa: E402
     _skill_to_mcp_resource, _recipe_to_mcp_resource, _verb_to_mcp_resource,
-    # R13 (batch 2): the gossip peer-digest + MCP-Resources discovery routes moved
-    # off @app onto mios_http_caps.http_caps_router. Import the router (mounted via
-    # app.include_router below) + the three handler NAMES so they stay in server's
-    # importable `provided` surface (parity); the served path/method set is unchanged.
     http_caps_router, v1_peers, list_resources, read_resource,
-    # R13 (batch 3): the RBAC capability manifest + DAG, kernel Router shadow, cost
-    # ledger, trace reads, offline posture, versioned hop-prompt registry, and captured
-    # DAG run-templates moved off @app onto the SAME http_caps_router. Re-imported here
-    # so these nine handler NAMES stay in server's importable `provided` surface
-    # (parity); the served path/method set is unchanged (the live-app route gate proves
-    # it). prompts + run-templates read deps injected via configure() below.
     v1_capabilities, v1_capabilities_dag, v1_route, cost_ledger,
     trace_read, trace_recent, offline_status, prompt_registry_view,
     run_templates_list,
-    # R13 (batch 4): the verb/tool catalog (MCP + OpenAI projections + unified feed),
-    # the personal-knowledge-graph lookup, the cross-agent skill catalog, and the DCI
-    # deliberation+schema surface moved off @app onto the SAME http_caps_router.
-    # Re-imported here so these ten handler NAMES stay in server's importable `provided`
-    # surface (parity); the served path/method set is unchanged (the live-app route gate
-    # proves it). Every dep the logic reads is already injected by the configure() below.
     list_verbs, list_verbs_openai_tools, list_tools, kg_lookup_endpoint,
     skills_list, skills_show, skills_run, skills_openai_tools,
     dci_deliberate, dci_schema,
-    # R13: the /v1/models + /v1/embeddings passthrough routes (list_models, embeddings)
-    # migrated off @app onto the SAME http_caps_router; re-imported here so both handler
-    # NAMES stay in server's importable `provided` surface (parity); the served
-    # path/method set is unchanged (the live-app route gate proves it).
     list_models, embeddings,
 )
 sys.modules["mios_http_caps"].configure(
@@ -6740,131 +4090,39 @@ sys.modules["mios_http_caps"].configure(
     cap_skills=_cap_skills, get_client=_get_client, kg_lookup=kg_lookup,
     execute_skill=execute_skill, run_dci_flow=run_dci_flow,
     offline_posture=_offline_posture,
-    # R13 batch 3: the read-only prompt-registry + run-template observability routes.
     prompt_registry=_PROMPT_REGISTRY, db_read=_db_read,
     run_template_enable=RUN_TEMPLATE_ENABLE,
     mcp_client_tools=_MCP_CLIENT_TOOLS,
     mcp_client_lock=_MCP_CLIENT_LOCK)
-# R13: mount the migrated /v1/peers + /v1/resources[/read] routes. include_router
-# copies the router's routes onto the app at the SAME paths/methods the @app
-# wrappers used to serve; the bodies resolve their module-resident *_logic at
-# request time (configure() above injected every dep they read).
 app.include_router(http_caps_router)
 
-# ── SEC-03 event-bus tamper-evident hash chain (mios_audit) ──
-# Inject the SSOT [audit].chain_enable flag + the mios_pg async reader the startup
-# seed and the verify endpoint use, re-import the co-located audit_router + its
-# handler NAME (chain_verify) so it stays in server's importable `provided` surface
-# (parity), and mount the router once. GET /v1/audit/chain/verify is admin-gated by
-# _inbound_auth_mw exactly like every other /v1/* admin route (no per-route auth is
-# restated). The write-side chain stamp/seed wired in above at _db_create / lifespan.
 from mios_audit import audit_router, chain_verify   # noqa: E402,F401
 mios_audit.configure(chain_enable=AUDIT_CHAIN_ENABLE, pg_execute=_mios_pg.execute)
 app.include_router(audit_router)
 
 
-# R13: ALL 17 portal routes now bind via mios_portal.portal_router (mounted above via
-# app.include_router). The 13 /portal data/asset/auth routes migrated earlier; the four
-# non-/portal routes (GET /sw.js -> portal_sw, /login -> portal_login_page, /iostest ->
-# iostest_page, / -> portal_page) migrated in this batch -- re-imported above for
-# `provided` parity. Each body resolves its module-resident *_logic / asset string at
-# request time; the served path/method set is byte-identical (the live-app route gate
-# proves it).
 
 
-# R13: GET /health (health) migrated onto mios_clusterhealth.clusterhealth_router;
-# re-imported below for `provided` parity, mounted via app.include_router. The body
-# returns health_logic's bare dict (FastAPI serialises it -- same shape as before).
 
 
-# ── /kg/lookup (Phase C.1 Personal Knowledge Graph) ────────────────
-# Resolve a phrase via the operator's preference graph. Returns
-# the matched app_install record (alias-resolved or direct).
-# Operator-callable curl-test endpoint; the planner can also hit
-# it pre-decomposition to ground noun phrases.
-# GET /kg/lookup (kg_lookup_endpoint) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 4); re-imported below for `provided`
-# parity, mounted via app.include_router. The body calls kg_lookup_endpoint_logic.
 
 
-# ── /skills/* (Phase C.2 cross-agent skill catalog) ────────────────
-# Shared surface for every agent in the MiOS stack. MiOS-Hermes
-# pulls /skills/openai-tools at startup so its OpenAI-compat tool
-# schema auto-includes every promoted skill -- no Hermes-side
-# hardcoding. MiOS-OpenCode does the same (or reads the skill store
-# directly for offline-only runs). Skill execution always goes
-# through /skills/run so the firewall + taint chain + audit rows
-# are identical regardless of which agent initiated the call.
-
-# GET /skills/list (skills_list) + GET /skills/show (skills_show) + POST /skills/run
-# (skills_run) + GET /skills/openai-tools (skills_openai_tools) migrated off @app onto
-# mios_http_caps.http_caps_router (R13 batch 4); re-imported below for `provided`
-# parity, mounted via app.include_router. The bodies call the module-resident
-# skills_list_logic / skills_show_logic / skills_run_logic / skills_openai_tools_logic
-# directly -- the same /skills/run firewall+taint+audit chokepoint for every agent.
 
 
-# ── /passport/* (Phase C.3 -- Ed25519 attribution chain) ───────────
-# Cross-agent verification surface. Any agent in the stack can POST
-# {envelope, payload?} to /passport/verify and get a structured
-# (ok, reason) response without holding the signer's private key.
-# Public keys are filesystem-cached (world-readable) and datastore-
-# backed as a fallback.
-# POST /passport/verify (passport_verify) + GET /passport/public-key
-# (passport_public_key) migrated onto mios_a2a.a2a_router (R13 batch 2); re-imported
-# above for `provided` parity, mounted via app.include_router. The bodies call
-# passport_verify_logic / passport_public_key_logic directly (same module).
 
 
-# ── /dci/deliberate (Phase B.2 on-demand convergent flow) ──────────
-# Operator-callable endpoint that runs the full 4-persona DCI-CF
-# flow against a supplied (user_text, envelope) pair. Latency:
-# 4 personas * up to R_max rounds * ~3-10s per call = up to ~2min
-# on cold-load. Use for high-stakes / ambiguous deliberation; the
-# always-on B.1 Challenger covers cheap audit-trail cases.
-# ── /dci/schema (Phase B.1 introspection) ──────────────────────────
-# Exposes the 14-act vocabulary + JSON schema so external gateways
-# (Discord, Slack, future MCP clients) can introspect what a DCI
-# act looks like without hardcoding. The operator can also hit
-# this endpoint to verify a deployment has the expected act set.
-# POST /dci/deliberate (dci_deliberate) + GET /dci/schema (dci_schema) migrated off
-# @app onto mios_http_caps.http_caps_router (R13 batch 4); re-imported below for
-# `provided` parity, mounted via app.include_router. The bodies call the
-# module-resident dci_deliberate_logic / dci_schema_logic directly.
 
 
-# R13: GET /v1/models (list_models) + POST /v1/embeddings (embeddings) migrated onto
-# mios_http_caps.http_caps_router; re-imported above for `provided` parity, mounted via
-# app.include_router. The bodies call the module-resident list_models_logic /
-# embeddings_logic directly (the single advertised model id is the SSOT [ai].agent_model,
-# never a hardcode -- the rationale lives with the route in mios_http_caps).
 
 
-# ── /v1/chat/completions (the chain) ───────────────────────────────
-# ── Vision branch ("we need a vision model local to
-# MiOS"). The text executor can't see images, so a turn carrying an image
-# is routed DIRECTLY to the local VLM (qwen3-vl on the dGPU lane), bypassing
-# refine/planning/Hermes. SSOT model via MIOS_AGENT_PIPE_VISION_MODEL
-# (rendered from mios.toml [ai].chat_vision_model); no hardcoded literal
-# beyond the env default, matching the REFINE_MODEL/POLISH_MODEL pattern.
+
 VISION_ENABLE = os.environ.get(
     "MIOS_AGENT_PIPE_VISION", "true").lower() not in ("0", "false", "no", "")
-# Default = llama3.2-vision:11b: verified working through the /v1 image
-# path. qwen3-vl:4b was the lighter first choice but its model
-# runner crashes on image input in this build ("model runner unexpectedly
-# stopped" / "png: invalid format") -- switch back via this env once fixed.
 VISION_MODEL = os.environ.get("MIOS_AGENT_PIPE_VISION_MODEL", "qwen3-vl:4b")
 VISION_ENDPOINT = os.environ.get(
     "MIOS_AGENT_PIPE_VISION_ENDPOINT", _LIGHT_BASE).rstrip("/")
 
 
-# ── Vision + client-tools responders extracted VERBATIM to mios_vision.py
-# (refactor R9). The image-bearing VISION branch (_vision_complete + the
-# inline-remote-image pre-step + the honest-error gate) and the client-tools
-# hybrid loop are moved byte-identically; re-imported here under their original
-# names so server.py's importable surface is byte-identical. Server-side deps
-# are injected via sys.modules["mios_vision"].configure() once every one is
-# defined (one-way boundary -- mios_vision never imports server).
 from mios_vision import (   # noqa: E402  (R9: VISION responders, moved verbatim)
     _messages_have_image, _vision_backend_failed, _vision_msg_response,
     _vision_unavailable_response, _resolve_media_url_from_html,
@@ -6873,13 +4131,6 @@ from mios_vision import (   # noqa: E402  (R9: VISION responders, moved verbatim
 )
 
 
-# ── WS-8 unified perceive->act->verify computer-use loop ─────────────────────
-# Composes the tested mios_cua pure core (logical-action -> per-platform verb
-# mapping + loop control + FAIL-SAFE verify) with the live VLM lane (_vision_*)
-# and the verb-dispatch chokepoint (_dispatch_mios_verb_inner). DEFAULT-OFF
-# (cua_enable=false) + VLM-gated (no vision model -> immediate honest stop), so
-# this is inert until the operator opts in AND a GPU VLM is loaded. Degrade-open
-# at every I/O hop; the loop NEVER claims a goal it did not verify.
 CUA_ENABLE = (
     str(os.environ.get("MIOS_CUA_ENABLE")
         or _DISPATCH_TOML.get("cua_enable", "false"))
@@ -6887,23 +4138,8 @@ CUA_ENABLE = (
 CUA_MAX_STEPS = _dispatch_num("MIOS_CUA_MAX_STEPS", "cua_max_steps", 12)
 
 
-# ── WS-8 computer-use I/O half moved VERBATIM to mios_cua (strangler-fig) ─────
-# The perceive->act->verify I/O loop (_cua_loop) + its screenshot/VLM helpers
-# (_cua_extract_png / _cua_screenshot_uri / _cua_vlm_json) now live in mios_cua
-# alongside the pure control core they drive; re-imported here under their EXACT
-# original names so server.py's importable surface stays byte-identical. The
-# server-owned chokepoints (_dispatch_mios_verb_inner / _get_client /
-# _vision_backend_failed) + config constants (VISION_MODEL / VISION_ENDPOINT /
-# CUA_MAX_STEPS / _BACKEND_KEY) the loop reads are injected via configure() below
-# (one-way boundary -- mios_cua never imports server). _cua_loop is NO LONGER
-# injected back into the module: it is module-local now, so v1_computer_use_logic
-# calls it directly.
 from mios_cua import (   # noqa: E402  (WS-8 computer-use I/O half, moved verbatim)
     _cua_extract_png, _cua_screenshot_uri, _cua_vlm_json, _cua_loop,
-    # R13: POST /v1/computer-use (v1_computer_use) migrated off @app onto
-    # mios_cua.cua_router. Import the router (mounted via app.include_router below) + the
-    # handler NAME so it stays in server's importable `provided` surface (parity); the
-    # served path/method set is unchanged (the live-app route gate proves it).
     cua_router, v1_computer_use,
 )
 sys.modules["mios_cua"].configure(
@@ -6920,24 +4156,12 @@ sys.modules["mios_cua"].configure(
         or _toml_section("computer_use").get("hidpi_scale_factor", 1.0)
     ),
 )
-# R13: mount the migrated /v1/computer-use route. include_router copies the router's
-# route onto the app at the SAME path/method the @app wrapper served; the body resolves
-# its module-resident v1_computer_use_logic (deps injected by the configure() above) at
-# request time.
 app.include_router(cua_router)
 
 
 from mios_lanes_resolver import (   # noqa: E402  (lane-resolver cluster, moved verbatim)
     _heavy_lane_up, _lane_resolver, _pick_tool_backend, _heavy_probe, _LANE_RESOLVER,
 )
-# Inject mios_lanes_resolver's deps. Placed AFTER _get_client + _is_remote_endpoint
-# are defined. The _LANE_RESOLVER singleton is OWNED by the module and REBOUND at
-# runtime by _lane_resolver -- the name re-imported here is a STALE None placeholder
-# kept only to preserve server's provided surface; the LIVE value is read via the
-# module's _lane_resolver_current getter (the cluster-health route reaches it through
-# sys.modules so it never reads this stale alias). One-way boundary (mios_lanes_resolver
-# never imports server; referenced via sys.modules so NO new top-level name enters
-# server's importable surface).
 sys.modules["mios_lanes_resolver"].configure(
     _get_client=_get_client,
     _is_remote_endpoint=_is_remote_endpoint,
@@ -6951,12 +4175,6 @@ from mios_vision import (   # noqa: E402  (R9: client-tools hybrid loop, moved v
     _client_tools_stream_relay, _client_tools_complete, _client_tools_relay,
     _CLIENT_TOOLS_IDENTITY,
 )
-# Inject mios_vision's deps (refactor R9). Placed AFTER every injected symbol is
-# defined: VISION_MODEL/VISION_ENDPOINT/_BACKEND_KEY, _VERB_CATALOG,
-# _verb_to_openai_tool, _resolve_verb_key, _agent_contract, _pick_tool_backend,
-# _select_child_tools, DEFAULT_TOOL_CAP, _tool_call_sig and _get_client are all
-# bound by here. One-way boundary (mios_vision never imports server; referenced
-# via sys.modules so NO new top-level name enters server's surface).
 sys.modules["mios_vision"].configure(
     vision_model=VISION_MODEL,
     vision_endpoint=VISION_ENDPOINT,
@@ -6973,15 +4191,6 @@ sys.modules["mios_vision"].configure(
 )
 
 
-# Inject mios_oscontrol's RUNTIME deps (R9: OS-control fast-path + window verify).
-# The module + its import-time render dep (_FASTPATH_VERBS / _VERB_CATALOG) are
-# wired far ABOVE (the EARLY configure() that feeds _OS_CONTROL_VERBS_RENDERED);
-# this SECOND configure() is placed AFTER every remaining injected symbol is
-# defined: the OS_CONTROL_* config scalars + _OS_CONTROL_ACTION_VERBS / _LAUNCH_VERBS,
-# _conv_key_var, _get_client, _scratchpad_note, the _db_* helpers,
-# _inline_satisfaction_check and _strip_think_tags are all bound by here. One-way
-# boundary (mios_oscontrol never imports server; referenced via sys.modules so NO new
-# top-level name enters server's importable surface).
 sys.modules["mios_oscontrol"].configure(
     os_control_launch_verify_s=OS_CONTROL_LAUNCH_VERIFY_S,
     os_control_launch_poll_s=OS_CONTROL_LAUNCH_POLL_S,
@@ -7004,16 +4213,6 @@ sys.modules["mios_oscontrol"].configure(
 )
 
 
-# ── Local-state fast-path ────────────────────────
-# A "what's on THIS machine" question (installed apps/games, hardware,
-# processes, windows, containers) is LOCAL STATE, not research. The council/
-# swarm fanned it out to weak models that HALLUCINATED "no games installed"
-# even with the real 11-game mios_apps inventory sitting in their grounding
-# ("list ALL my games" -> 2 of 11, then 0). This path runs
-# the local READ tools (via _read_tool_enrich, which forces the core inventory
-# verbs for local_state + is per-verb cap-aware) and does ONE strict faithful-
-# ENUMERATION pass -- no fan-out, no web, no hallucination, seconds not minutes.
-# Falls through (returns None) if the tools yielded nothing, so nothing is lost.
 LOCAL_STATE_FASTPATH = os.environ.get(
     "MIOS_LOCAL_STATE_FASTPATH", "true").lower() not in {"false", "0", "no"}
 
@@ -7057,12 +4256,6 @@ def _polish_post(endpoint, model, messages, max_tokens, temperature=0.0):
              "max_tokens": max_tokens, "temperature": temperature})
 
 
-# Inject the server-side constants + runtime helpers the verity/polish cluster
-# (moved to mios_verity) reads + calls back into (one-way boundary: mios_verity
-# never imports server). Placed AFTER the LAST injected symbol is defined --
-# _polish_post (above) is the latest; the rest (_recent_tool_history,
-# _store_knowledge, _write_skill_md_fire, ASK_CLARIFY_JUDGE_*,
-# _proposal_var, REFINE_*/POLISH_* constants) are all defined earlier.
 sys.modules["mios_verity"].configure(   # noqa: E402
     refine_timeout_s=REFINE_TIMEOUT_S,
     refine_endpoint=REFINE_ENDPOINT,
@@ -7084,16 +4277,10 @@ sys.modules["mios_verity"].configure(   # noqa: E402
     store_knowledge=_store_knowledge,
     write_skill_md_fire=_write_skill_md_fire,
     proposal_var=_proposal_var,
-    # SSOT figure-guard sentence-split abbreviations (mios.toml [verity]); None ->
-    # mios_verity keeps its own import-time SSOT read / Latin default (degrade-open).
     abbreviations=(_toml_section("verity").get("sentence_abbreviations") or None),
 )
 
 
-# Reflection / self-assessment cluster (mios_reflect) -- inject the server-side DB
-# writers + the live verb catalog + the REFINE_* model-call constants + the
-# _REFLECT_SYSTEM prompt. Placed here, after every injected dep is defined, so the
-# import gate proves no DI-ordering NameError.
 sys.modules["mios_reflect"].configure(   # noqa: E402
     db_read=_db_read,
     db_write=_db_write,
@@ -7108,46 +4295,14 @@ sys.modules["mios_reflect"].configure(   # noqa: E402
 )
 
 
-# ── NATIVE TOOL-LOOP ("simplify the pipeline to work
-# natively using all components and systems in MiOS") ─────────────────────────
-# The SIMPLIFIED primary path: ONE standard agentic tool-loop against the strong
-# backend (mios-heavy) with the FULL MiOS tool surface -- the model NATIVELY routes
-# itself by tool choice (internal -> system_status, external -> web_search, action
-# -> open_app/pc_type, "both" -> several calls), collapsing the bespoke refine-
-# classify + domain-route + deterministic-regex + multi_task-decompose + per-facet-
-# grounding layers (every one a place to misroute, e.g. the compound-action hang).
-# Reuses the battle-tested _v1_secondary_tool_loop, the full tool surface,
-# dispatch_mios_verb (firewall/HITL/dedup), the contract+env grounding, and
-# polish_response (anti-fabrication). GATED OFF by default (MIOS_NATIVE_LOOP) so the
-# existing pipeline is untouched until validated + promoted.
-# Default ON ("no gated off anything!!"): the native tool-loop
-# IS the pipeline now -- a substantive agent/multi_task turn self-routes via tool
-# choice. Set MIOS_NATIVE_LOOP=false ONLY to fall back to the legacy bespoke routing.
 NATIVE_LOOP_ENABLE = str(
     os.environ.get("MIOS_NATIVE_LOOP", "true")).strip().lower() not in {"false", "0", "no"}
 NATIVE_LOOP_TIMEOUT_S = int(os.environ.get("MIOS_NATIVE_LOOP_TIMEOUT_S", "120") or 120)
-# Token-by-token answer streaming in the native-loop pump (
-# "chunk the streamed answer token-by-token too"): the final synthesized answer is
-# computed whole (the tool loop + polish are non-streaming), so to make it TYPE OUT
-# live in the front-ends we chunk the string into ~CHUNK-char pieces and pace them
-# with a tiny delay. Visually identical to model token-streaming; SSOT-tunable
-# (CHUNK=0 -> emit whole, no typing; DELAY_MS=0 -> burst all chunks at once).
 NATIVE_LOOP_STREAM_TOKENS = os.environ.get(
     "MIOS_NATIVE_LOOP_STREAM_TOKENS", "true").strip().lower() not in ("0", "false", "no")
 NATIVE_LOOP_STREAM_CHUNK = int(os.environ.get("MIOS_NATIVE_LOOP_STREAM_CHUNK", "20") or 20)
 NATIVE_LOOP_STREAM_DELAY_MS = int(os.environ.get("MIOS_NATIVE_LOOP_STREAM_DELAY_MS", "10") or 10)
-# Intent-relevant tool cap for the native loop: handing an 8B
-# model all ~111 tools makes it MIS-SELECT on ambiguous queries (it called disk_usage
-# for "compare REST/GraphQL/gRPC"). _select_child_tools cosine-ranks by intent with a
-# read/web/tool_search FLOOR, so the model sees the RELEVANT surface + the always-
-# appended dispatch_to_nodes. 0 = full surface.
 NATIVE_LOOP_TOOL_CAP = int(os.environ.get("MIOS_NATIVE_LOOP_TOOL_CAP", "36") or 36)
-# Static research-strategy guidance for the native-loop system prompt (
-# "research today's global trending" failed): a BROAD request must NOT pass the whole
-# instruction to web_search as one query (mios-web-search expands a TERM well, an
-# INSTRUCTION poorly) and one search can't cover "all of X". Default on; degrade-open;
-# stays in the STABLE _sys prefix (static -> RadixAttention-safe). No topic list/regex --
-# the model self-detects "broad" from the prose criterion.
 NATIVE_LOOP_BREADTH_GUIDANCE = (os.environ.get("MIOS_NATIVE_LOOP_BREADTH_GUIDANCE")
                                 or "true").strip().lower() not in {"false", "0", "no"}
 _NATIVE_LOOP_BREADTH_PROSE = (
@@ -7162,14 +4317,6 @@ _NATIVE_LOOP_BREADTH_PROSE = (
     "headlines) so results are fresh dated stories, not evergreen year-overview pages. "
     "Start each facet with a SHORT broad query to survey, then narrow -- avoid long, "
     "over-specific first queries.")
-# AGENT PERSISTENCE preamble (OpenAI GPT-4.1 agentic prompting guide -- the documented
-# NATIVE fix for a model that stops too early / hands back a thin, partial answer: the
-# persistence + tool-calling + planning reminders make the model "eager" and lifted
-# OpenAI's SWE-bench ~20%). It lives in the SYSTEM PROMPT (the refine/polish contract
-# layer), NOT as an injected per-failure retry turn -- so it stays RadixAttention-stable
-# and carries NO hardcoded user-facing string and NO topic list. This REPLACES the earlier
-# bespoke escalation + synthesis-retry band-aids ("HARDCODES!!! RESEARCH
-# OPENAI NATIVE PATTERNS"). Default on; degrade-open.
 NATIVE_LOOP_PERSISTENCE = (os.environ.get("MIOS_NATIVE_LOOP_PERSISTENCE")
                            or "true").strip().lower() not in {"false", "0", "no"}
 _NATIVE_LOOP_PERSISTENCE_PROSE = (
@@ -7181,34 +4328,18 @@ _NATIVE_LOOP_PERSISTENCE_PROSE = (
     "rephrase something you can research yourself -- research it. Use tools to gather "
     "anything you are unsure of; do NOT guess or fabricate. Plan before each tool call "
     "and reflect on the result before the next.")
-# RESULT-SUFFICIENCY reflection (RE-Searcher goal-met + Anthropic interleaved-reflection
-# native pattern): make the model JUDGE whether each tool result actually answers the
-# facet and reformulate-then-research before concluding nothing was found -- a MODEL
-# behaviour in the system prompt, not a hardcoded retry turn or an English dead-end
-# matcher. Default on; degrade-open; RadixAttention-stable static prose.
 NATIVE_LOOP_REFLECTION = (os.environ.get("MIOS_NATIVE_LOOP_REFLECTION")
                           or "true").strip().lower() not in {"false", "0", "no"}
-# Deterministic recency/breadth defaults for web_search on time-sensitive turns: when
-# refine.news is set, the native loop fills web_search's time_range + fanout if the model
-# omitted them (coverage is the real lever per the judge panel; prose-steering
-# the params held only ~half the time). Tunable; the model can still override per call.
 NATIVE_LOOP_RECENCY_DEFAULTS = (os.environ.get("MIOS_NATIVE_LOOP_RECENCY_DEFAULTS")
                                 or "true").strip().lower() not in {"false", "0", "no"}
 NATIVE_LOOP_RECENCY_FANOUT = int(
     os.environ.get("MIOS_NATIVE_LOOP_RECENCY_FANOUT", "4") or 4)
 NATIVE_LOOP_RECENCY_RANGE = (os.environ.get("MIOS_NATIVE_LOOP_RECENCY_RANGE")
                              or "day").strip()
-# Native-loop grounding/hygiene knobs ("OWUI LITERALLY CARRIES
-# ENVIRONMENT DETAILS EVERY TURN" + fix the "list N recent X" wrong-year fabrication
-# and the verbose-imperative dictionary-anchor in web_search). All default-ON,
-# SSOT-bridged (mios.toml [dispatch] -> install.env -> ${MIOS_*}); each degrades open.
 NATIVE_LOOP_QUERY_REFORMULATE = str(os.environ.get("MIOS_NATIVE_LOOP_QUERY_REFORMULATE")
     or _DISPATCH_TOML.get("native_loop_query_reformulate", "true")).strip().lower() not in {"false", "0", "no"}
 NATIVE_LOOP_DATE_IN_QUERY = str(os.environ.get("MIOS_NATIVE_LOOP_DATE_IN_QUERY")
     or _DISPATCH_TOML.get("native_loop_date_in_query", "true")).strip().lower() not in {"false", "0", "no"}
-# R7: late-bind mios_dispatch's NATIVE_LOOP_DATE_IN_QUERY now that its SSOT/env
-# bridge is resolved (the early configure() above ran before this line). Partial
-# inject -- every other dispatch dep was already wired.
 sys.modules["mios_dispatch"].configure(
     native_loop_date_in_query=NATIVE_LOOP_DATE_IN_QUERY,
 )
@@ -7230,32 +4361,15 @@ _NATIVE_LOOP_REFLECTION_PROSE = (
     "request you can already partly answer. Deliver the digest of what you found.")
 
 
-# R-native_loop extraction: the NATIVE single-agent tool-loop responders
-# (_respond_native_loop_direct + _respond_local_state) moved VERBATIM to
-# mios_native_loop; re-imported here under their original names so the chat
-# router + the swarm native-loop fallback call them unchanged (surface-parity
-# zero-diff). Server-side deps are injected via
-# sys.modules["mios_native_loop"].configure() far below, AFTER every injected
-# symbol (incl. _usage_estimate) is defined (one-way boundary -- the module
-# never imports server).
 from mios_native_loop import (  # noqa: E402
     _respond_native_loop_direct, _respond_local_state,
     _format_local_state, _formulate_web_query, _formulate_compute_snippet,
 )
 
 
-# _usage_estimate moved -> mios_tokenize (its WS-A5 home; the module header already
-# names "the OpenAI usage estimate" as a thing it centralises). Re-imported for surface.
 from mios_tokenize import _usage_estimate  # noqa: E402
 
 
-# R7 (security wave): inject the HITL ask-to-run + runtime approval-gate deps into
-# mios_hitlflow. Placed AFTER every injected symbol is defined: the HITL_* / ASK_* /
-# ROUTER_MODEL / PLANNER_* config scalars + _PG_PRIMARY (above), the _db_* / _pg_mirror
-# helpers + _emit_session_event + _row_age_seconds (above), the _hitl_approved_var
-# ContextVar + dispatch_mios_verb (above) and _usage_estimate (just defined). HITL_SCOPE
-# is injected BY REFERENCE so a live reload stays visible. SECURITY-CRITICAL: NAME-KEYED
-# gates -- nothing renamed (one-way boundary -- mios_hitlflow never imports server).
 sys.modules["mios_hitlflow"].configure(
     hitl_enable=HITL_ENABLE,
     hitl_mode=HITL_MODE,
@@ -7279,22 +4393,9 @@ sys.modules["mios_hitlflow"].configure(
     hitl_approved_var=_hitl_approved_var,
     dispatch_mios_verb=dispatch_mios_verb,
 )
-# R13: mount the migrated /v1/hitl/pending + /v1/hitl/approve routes. include_router
-# copies the router's two routes onto the app at the SAME paths/methods the @app
-# wrappers served; the bodies resolve their module-resident names (the HITL scalars +
-# _db_read injected by the configure() above, hitl_approve_logic) at request time.
 app.include_router(hitlflow_router)
 
 
-# ── mios_native_loop extraction: inject the NATIVE tool-loop responders'
-# server-side deps (config scalars + the [routing.domains] table, the live verb
-# catalog, the orchestrator / recency / routed-domain ContextVars, and the
-# grounding / recall / prefetch / source / store / usage / worker-surface helpers)
-# now that every one is defined above (_usage_estimate is the latest). The
-# worker-tools CORE cache is REBOUND at request time, so it is injected as a live
-# getter (lambda reads the current binding each call), not by value. Referenced
-# via sys.modules so NO new top-level name enters server.py's importable surface
-# (surface gate stays 0-diff; one-way boundary -- the module never imports server).
 sys.modules["mios_native_loop"].configure(
     _LOCAL_STATE_SYSTEM=_LOCAL_STATE_SYSTEM,
     _polish_post=_polish_post,
@@ -7360,14 +4461,6 @@ sys.modules["mios_native_loop"].configure(
 )
 
 
-# ── R8 mios_swarm extraction: inject the SWARM brain's server-side deps (config
-# scalars, the live registry + verb catalog, the routed-domain ContextVar, and
-# the pool / liveness / lane / read-enrich / source / strip / usage /
-# native-loop-fallback helpers) now that every one is defined above
-# (_respond_native_loop_direct + _usage_estimate are the latest). Referenced via
-# sys.modules so NO new top-level name enters server.py's importable surface
-# (surface gate stays 0-diff). The anti-fabrication synthesis is behaviour-keyed
-# -- nothing renamed (one-way boundary -- mios_swarm never imports server).
 sys.modules["mios_swarm"].configure(
     swarm_max_width=SWARM_MAX_WIDTH,
     swarm_max_cpu_nodes=SWARM_MAX_CPU_NODES,
@@ -7376,10 +4469,6 @@ sys.modules["mios_swarm"].configure(
     dag_replan_max=DAG_REPLAN_MAX,
     dag_empty_native_fallback=DAG_EMPTY_NATIVE_FALLBACK,
     slow_lanes=SLOW_LANES,
-    # decomposer pair (_plan_swarm / _expand_facets) server-side deps -- every
-    # one is defined far above (MAX_DISPATCH_DEPTH / _dispatch_depth /
-    # _depth_exhausted, SWARM_MODEL, _render_agent_catalog / _AGENT_CATALOG_RENDERED,
-    # _SWARM_SYSTEM_HEAD) so this injection resolves with no NameError.
     max_dispatch_depth=MAX_DISPATCH_DEPTH,
     swarm_model=SWARM_MODEL,
     swarm_system_head=_SWARM_SYSTEM_HEAD,
@@ -7409,9 +4498,6 @@ sys.modules["mios_swarm"].configure(
     db_fire=_db_fire,
     db_post=_db_post,
     db_create=_db_create,
-    # T-047/T-048: the single-vector embed lane for the council diversity /
-    # aggregation-bypass gates (reuses the pipeline's nomic embed path; gates
-    # degrade-open to a no-op when unavailable).
     embed_one=_embed_one,
 )
 
@@ -7423,10 +4509,6 @@ from mios_pipe.auth import (
     configure as _configure_auth
 )
 
-# --- RELOCATED (fix NameError at import): the scratchpad + toolsurface wiring
-# --- calls lived at module top ~L1872/L1878 but reference globals defined far
-# --- below (_conv_key_var, WORKER_TOOLS_SCOPE, _VERB_CATALOG, ...). Moved here
-# --- into the late-config cluster where every dependency already exists. ---
 _configure_scratchpad(
     conv_key_var=_conv_key_var,
     mios_pg=_mios_pg,
@@ -7474,19 +4556,8 @@ app.middleware("http")(_usage_completeness_mw)
 app.middleware("http")(_inbound_auth_mw)
 
 
-# R13: BOTH chat-pipeline routes -- POST /v1/responses (responses_api) AND the capstone
-# POST /v1/chat/completions (chat_completions) -- are migrated onto mios_chat.chat_router;
-# imported + mounted via app.include_router after the mios_chat configure() pass below (the
-# router + handler names are re-imported there for `provided` parity, and the chat logic is
-# re-exported into globals() for the import-gate). 0 @app route bodies remain in server.py.
 
 
-# R12 capstone: load + dependency-inject the chat-completions router-brain sibling.
-# Loaded via __import__ (a bare expression -- NOT a bound import) so no new top-
-# level name enters server.py's importable surface; the thin wrapper above reaches
-# it through sys.modules. configure() runs HERE, at the very end of module load,
-# after every injected dep is defined (chat_completions is the last route). The
-# agent registry is re-injected on a live add/drop in _reload_membership.
 __import__("mios_chat")
 sys.modules["mios_chat"].configure(
     _db_write=_db_write,
@@ -7610,12 +4681,6 @@ sys.modules["mios_chat"].configure(
     classify_intent=classify_intent,
     _DEBUG_ENABLE=_DEBUG_ENABLE,
 )
-# Surface-parity re-import: the W0-T3 aggregate-budget admission cluster now lives
-# in mios_chat (its sole consumer is the chat-completions handler). Re-imported
-# here under the EXACT original names so `from server import _budget_admit` + the
-# importable surface stay byte-identical. A STATIC AST import (not a globals()
-# subscript) BECAUSE every one of these names is in the surface `provided` set --
-# the AST projection MUST see them.
 from mios_chat import (   # noqa: E402
     _BUDGET_TOML, _budget_num, BUDGET_CONV_TOKEN_CEIL, BUDGET_AUTO_TOKEN_CEIL,
     BUDGET_AUTO_MAX_INFLIGHT, BUDGET_WINDOW_S, BUDGET_ENABLE, _BUDGET_LEDGER,
@@ -7623,82 +4688,29 @@ from mios_chat import (   # noqa: E402
     BUDGET_INFLIGHT_TTL_S, _BUDGET_LOCK, _budget_bucket, _budget_window_total,
     _budget_debit, _budget_prune_inflight, _budget_admit, _budget_release_inflight,
 )
-# Surface-parity re-import: the micro-LLM early-reply helpers (intent=chat reply,
-# memory-hit judge, location-ask) now live in mios_chat -- their only consumer was
-# the chat path, so the injection was reversed. Re-imported here under their EXACT
-# names so the importable `provided` surface stays byte-identical (static AST import).
 from mios_chat import (   # noqa: E402
     _quick_chat_reply, _is_memory_question, _ask_for_location,
 )
-# Surface-parity re-import: the roster display-name de-namespacer (_pretty_name)
-# and the slow-lane system-prefix trimmer (_trim_sys_prefix) now live in mios_chat
-# -- their only consumer was the chat path, so the injection was reversed. Re-
-# imported here under their EXACT names so the importable `provided` surface stays
-# byte-identical (static AST import).
 from mios_chat import (   # noqa: E402
     _pretty_name, _trim_sys_prefix,
 )
-# Surface-parity re-import: the refine-driven orchestration helpers -- the action-
-# hint gate (_hints_write_action), the micro-LLM knowledge-gap judge
-# (_needs_external_knowledge) and the canonical-kanban multi-task queue writer
-# (_shadow_queue_tasks) -- now live in mios_chat; their only consumer was the chat
-# path, so the injection was reversed. Re-imported here under their EXACT names so
-# the importable `provided` surface stays byte-identical (static AST import).
 from mios_chat import (   # noqa: E402
     _hints_write_action, _needs_external_knowledge, _shadow_queue_tasks,
 )
-# R13: mount the migrated chat-pipeline routes. BOTH the OpenAI Responses API facade
-# (/v1/responses) AND the capstone /v1/chat/completions moved onto mios_chat.chat_router;
-# import the router + the handler NAMES (re-imported here for `provided` parity) and mount
-# it via app.include_router. Each body resolves its module-resident logic
-# (responses_api_logic / chat_completions_logic, deps injected by the mios_chat configure()
-# above) at request time.
 from mios_chat import chat_router, responses_api, chat_completions   # noqa: E402
 app.include_router(chat_router)
-# Runtime re-export for the import-gate parity check (test_server_import). A
-# globals() subscript, not a static binding, so mios_surface's AST `provided`
-# projection is untouched while server.chat_completions_logic resolves at runtime.
 globals()["chat_completions_logic"] = sys.modules["mios_chat"].chat_completions_logic
 globals()["responses_api_logic"] = sys.modules["mios_chat"].responses_api_logic
 globals()["hitl_approve_logic"] = sys.modules["mios_hitlflow"].hitl_approve_logic
 globals()["v1_computer_use_logic"] = sys.modules["mios_cua"].v1_computer_use_logic
 
 
-# ── Cluster/scheduler/health route LOGIC (mios_clusterhealth) ────────
-# The per-agent/per-endpoint cluster-health probe (/v1/cluster/health), the AIOS
-# scheduler-observability snapshot (/v1/scheduler), and the capability/health
-# rollup (/health) were DEFERRED from the R-CAPS wave: their bodies reach the
-# runtime-REASSIGNED lane-resolver singleton. That landmine is solved --
-# mios_lanes_resolver owns it behind _lane_resolver_current(), which the moved
-# cluster-health body already reads through sys.modules (never captured by value).
-# The three bodies are moved VERBATIM into mios_clusterhealth; the @app routes
-# above stay thin (calling *_logic through sys.modules). Loaded via __import__ (a
-# bare expression -- no new top-level name enters server's importable surface) and
-# configured HERE, after every injected dep is defined (one-way boundary:
-# mios_clusterhealth never imports server). Static config + the DCI/SLO/secset
-# constants are imported directly by the module; only server-resident runtime
-# globals/helpers are dependency-injected.
-#
-# The cluster/scheduler HELPER fns (_resolve_failover_chain / _probe_one_endpoint /
-# _lane_sched_stats / _kernel_managers_detail) also moved INTO mios_clusterhealth --
-# they had no caller but this module's *_logic, so home is here. Their server-side deps
-# (the agent registry, the auth-header builder, the live lane semaphores, the memory
-# provider + verb catalog + permission tiers) are now injected below instead. Re-imported
-# under their EXACT original names so `from server import _probe_one_endpoint` + the
-# importable surface stay byte-identical.
 __import__("mios_clusterhealth")
 from mios_clusterhealth import (   # noqa: E402
     _resolve_failover_chain,
     _probe_one_endpoint,
     _lane_sched_stats,
     _kernel_managers_detail,
-    # R13: GET /v1/cluster/health (cluster_health) + GET /v1/scheduler
-    # (scheduler_state) + GET /health (health) migrated off @app onto
-    # mios_clusterhealth.clusterhealth_router. Import the router (mounted via
-    # app.include_router after configure() below) + the three handler NAMES so they stay
-    # in server's importable `provided` surface (parity); the served path/method set is
-    # unchanged (the live-app route gate proves it). The /health body returns
-    # health_logic's bare dict (FastAPI serialises it -- same shape the @app wrapper served).
     clusterhealth_router, cluster_health, scheduler_state, health,
 )
 sys.modules["mios_clusterhealth"].configure(
@@ -7719,9 +4731,6 @@ sys.modules["mios_clusterhealth"].configure(
     _over_global_ceiling=_over_global_ceiling,
     _host_stats_cached=_host_stats_cached,
     _toml_section=_toml_section,
-    # Deps for the cluster/scheduler helper fns that now live IN mios_clusterhealth
-    # (_probe_one_endpoint / _lane_sched_stats / _kernel_managers_detail). By
-    # reference -- mutated in place / set once server-side, never rebound after this.
     _probe_auth_headers=_probe_auth_headers,
     _LANE_SEMS=_LANE_SEMS,
     _MEMORY=_MEMORY,
@@ -7774,14 +4783,7 @@ sys.modules["mios_clusterhealth"].configure(
     LAUNCHER_SOCK=LAUNCHER_SOCK,
     DB_URL=DB_URL,
 )
-# R13: mount the migrated /v1/cluster/health + /v1/scheduler routes. include_router
-# copies the router's two routes onto the app at the SAME paths/methods the @app
-# wrappers served; the bodies resolve their module-resident *_logic (deps injected by
-# the configure() above) at request time.
 app.include_router(clusterhealth_router)
-# Runtime re-exports for the import-gate parity check (test_server_import). A
-# globals() subscript, not a static binding, so mios_surface's AST `provided`
-# projection is untouched while server.<name>_logic resolves at runtime.
 globals()["cluster_health_logic"] = sys.modules["mios_clusterhealth"].cluster_health_logic
 globals()["scheduler_state_logic"] = sys.modules["mios_clusterhealth"].scheduler_state_logic
 globals()["health_logic"] = sys.modules["mios_clusterhealth"].health_logic
@@ -7794,7 +4796,6 @@ globals()["portal_login_logic"] = sys.modules["mios_portal"].portal_login_logic
 globals()["portal_page_logic"] = sys.modules["mios_portal"].portal_page_logic
 
 
-# ── Entry point ────────────────────────────────────────────────────
 
 
 

@@ -2,22 +2,14 @@
 # AI-related: usr/share/mios/sys/Containerfile, automation/57-mios-sys-build.sh
 ARG BASE_IMAGE=ghcr.io/ublue-os/ucore-hci:stable-nvidia
 
-# --- Go compiler builder stage for Firecrawl's Go HTML-to-markdown library ---
-# Float latest (SBOM-not-hardcode / ADR-0003): NOTHING is version-pinned. golang floats latest;
-# Firecrawl's newest release tag is resolved at BUILD via the releases/latest redirect (no API,
-# no rate limit) so a Day-N+ rebuild always re-resolves to the newest upstream.
 FROM docker.io/library/golang:latest AS go-builder
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/mendableai/firecrawl/releases/latest | sed 's#.*/tag/##')" \
     && git clone --depth 1 --branch "${t}" https://github.com/mendableai/firecrawl.git /tmp/firecrawl \
     && cd /tmp/firecrawl/apps/api/sharedLibs/go-html-to-md \
     && go build -o html-to-markdown.so -buildmode=c-shared html-to-markdown.go
 
-# --- Main/Final Image Stage ---
 FROM ${BASE_IMAGE}
 
-# Install core runtime packages (including chromium for headless crawling, and guacd for remote desktop).
-# NOTE: no chromium-sandbox -- it is not a separate package on Fedora 44 (dnf: "No match for
-# argument: chromium-sandbox"), and headless chromium runs --no-sandbox in this container anyway.
 RUN dnf install -y \
       python3 \
       python3-pip \
@@ -39,64 +31,34 @@ RUN dnf install -y \
       cargo \
       && dnf clean all
 
-# Download static Go/Rust/C++ binaries (Wave 1 & Wave 2)
-# 1. AdGuard Home
 RUN curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 "https://github.com/AdguardTeam/AdGuardHome/releases/latest/download/AdGuardHome_linux_amd64.tar.gz" | tar -C /usr/bin --strip-components=2 -xzf - ./AdGuardHome/AdGuardHome
-# Every release below FLOATS LATEST: resolve the newest release tag at build via the
-# releases/latest redirect (no GitHub API -> no rate limit), then download that version.
-# --wildcards keeps tar extraction version-agnostic. A Day-N+ rebuild re-resolves to newest.
-# 2. Matchbox
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/poseidon/matchbox/releases/latest | sed 's#.*/tag/##')" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 "https://github.com/poseidon/matchbox/releases/download/${t}/matchbox-${t}-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 --wildcards -xzf - '*/matchbox'
-# 3. Forgejo
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://codeberg.org/forgejo/forgejo/releases/latest | sed 's#.*/tag/##')"; v="${t#v}" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -o /usr/bin/forgejo "https://codeberg.org/forgejo/forgejo/releases/download/${t}/forgejo-${v}-linux-amd64" && chmod +x /usr/bin/forgejo
-# 4. Forgejo Runner
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://code.forgejo.org/forgejo/runner/releases/latest | sed 's#.*/tag/##')"; v="${t#v}" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -o /usr/bin/forgejo-runner "https://code.forgejo.org/forgejo/runner/releases/download/${t}/forgejo-runner-${v}-linux-amd64" && chmod +x /usr/bin/forgejo-runner
-# 5. Jaeger
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/jaegertracing/jaeger/releases/latest | sed 's#.*/tag/##')"; v="${t#v}" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 "https://github.com/jaegertracing/jaeger/releases/download/${t}/jaeger-${v}-linux-amd64.tar.gz" | tar -C /usr/bin --strip-components=1 --wildcards -xzf - '*/jaeger'
-# 6. CrowdSec -- the release ships one version-agnostic crowdsec-release.tgz whose prebuilt
-# binaries live under crowdsec-<tag>/cmd/ ; --wildcards + strip 3 lands them in /usr/bin.
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/crowdsecurity/crowdsec/releases/latest | sed 's#.*/tag/##')" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 "https://github.com/crowdsecurity/crowdsec/releases/download/${t}/crowdsec-release.tgz" | tar -C /usr/bin --strip-components=3 --wildcards -xzf - '*/cmd/crowdsec/crowdsec' '*/cmd/crowdsec-cli/cscli'
-# 7. K3s -- the +k3sN build-metadata suffix must be URL-encoded to %2B in the download path.
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/k3s-io/k3s/releases/latest | sed 's#.*/tag/##')"; te="$(printf '%s' "$t" | sed 's/+/%2B/g')" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -o /usr/bin/k3s "https://github.com/k3s-io/k3s/releases/download/${te}/k3s" && chmod +x /usr/bin/k3s
-# 8. code-server
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/coder/code-server/releases/latest | sed 's#.*/tag/##')"; v="${t#v}" \
     && curl -sSfL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 -O "https://github.com/coder/code-server/releases/download/${t}/code-server-${v}-amd64.rpm" && dnf install -y "./code-server-${v}-amd64.rpm" && rm -f "./code-server-${v}-amd64.rpm"
 
-# Setup virtualenvs and install interpreted runtime stacks (Wave 2)
-# /opt is a symlink to /var/opt on the ucore/bootc base image; inside the nested sys
-# build /var/opt does not exist yet, so `git clone` / `python -m venv` into /opt/* dies
-# with "could not create leading directories of '/opt/...': No such file or directory".
-# Materialize the symlink target up front so ALL the /opt stacks below (searxng,
-# open-webui, crawl4ai, firecrawl) resolve.
 RUN mkdir -p /var/opt /opt
 ARG SEARXNG_REF=master
-# 9. SearXNG
-# --no-build-isolation makes the editable build use the venv, so SearXNG's setup.py sees
-# msgspec (a runtime dep it imports at build time). But that ALSO means the build backend
-# (setuptools.build_meta) must already live IN the venv -- and a Python 3.12+ venv ships pip
-# ONLY, no setuptools/wheel -> "BackendUnavailable: Cannot import 'setuptools.build_meta'".
-# So install setuptools+wheel into the venv up front (before the editable install).
 RUN git clone --depth 1 --branch "${SEARXNG_REF}" https://github.com/searxng/searxng.git /opt/searxng \
     && python3 -m venv /opt/searxng-venv \
     && /opt/searxng-venv/bin/pip install --no-cache-dir setuptools wheel \
     && /opt/searxng-venv/bin/pip install --no-cache-dir -r /opt/searxng/requirements.txt \
     && /opt/searxng-venv/bin/pip install --no-build-isolation -e /opt/searxng
 
-# 10. Open WebUI -- floats latest, but MUST run on python3.12: every open-webui release caps
-# requires_python <3.13, so a default (Fedora 44 = Python 3.14) venv resolves ZERO candidates
-# ("Could not find a version that satisfies open-webui"). python3.12 is the NEWEST interpreter
-# the floating package supports -- a compatibility constraint, not a version pin.
 RUN python3.12 -m venv /opt/open-webui-venv \
     && /opt/open-webui-venv/bin/pip install --no-cache-dir open-webui \
     && ln -s /opt/open-webui-venv/bin/open-webui /usr/bin/open-webui
 
-# 11. Crawl4AI
 RUN python3 -m venv /opt/crawl4ai-venv \
     && /opt/crawl4ai-venv/bin/pip install --no-cache-dir \
          crawl4ai \
@@ -107,10 +69,7 @@ RUN python3 -m venv /opt/crawl4ai-venv \
          playwright \
     && /opt/crawl4ai-venv/bin/python3 -m camoufox fetch
 
-# Skip puppeteer's Chromium auto-download during pnpm install -- firecrawl uses the system
-# chromium via PUPPETEER_EXECUTABLE_PATH; a bake-time browser download is slow + failure-prone.
 ENV PUPPETEER_SKIP_DOWNLOAD=true
-# 12. Firecrawl -- float latest release tag + latest pnpm (same tag the go-builder resolved).
 RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeout 20 https://github.com/mendableai/firecrawl/releases/latest | sed 's#.*/tag/##')" \
     && git clone --depth 1 --branch "${t}" https://github.com/mendableai/firecrawl.git /opt/firecrawl \
     && npm install -g pnpm@latest --prefix /usr \
@@ -121,7 +80,5 @@ RUN t="$(curl -fsSL -o /dev/null -w '%{url_effective}' --retry 5 --connect-timeo
               /root/.cache /var/roothome/.cache "${HOME}/.cache" \
               /root/.npm  /var/roothome/.npm  "${HOME}/.npm" \
               /root/.rustup /var/roothome/.rustup "${HOME}/.rustup" 2>/dev/null || true
-# Firecrawl v2 relocated the Go html-to-markdown lib to apps/api/sharedLibs/go-html-to-md/
-# (was apps/api/src/lib/go-html-to-md/); mirror the .so there so the runtime client finds it.
 COPY --from=go-builder /tmp/firecrawl/apps/api/sharedLibs/go-html-to-md/html-to-markdown.so /opt/firecrawl/apps/api/sharedLibs/go-html-to-md/html-to-markdown.so
 ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/chromium"

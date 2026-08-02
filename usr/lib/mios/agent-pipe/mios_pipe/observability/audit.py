@@ -73,35 +73,20 @@ except Exception:  # noqa: BLE001 -- web stack absent (CLI / unit-test reuse): m
         return content
 
 
-# ── chain configuration (SSOT [audit] -> injected by server.configure) ────────
-# Default ON: the per-event overhead is a single sha256 over a small JSON string +
-# an in-memory cache update (no extra DB round-trip -- the chain columns ride the
-# existing INSERT), and tamper-evident audit is a security primitive other
-# workstreams depend on. Flip [audit].chain_enable=false to disable.
 CHAIN_ENABLE = True
 
-# Async pg read callable injected from server (mios_pg.execute): (sql, params=None,
-# *, fetch=False) -> rows|None. Used for the startup seed + the verify endpoint read.
 _pg_execute = None
 
-# Genesis seed: the prev_hash of the first-ever event. sha256 of the empty input --
-# a fixed, structural anchor (NOT a tunable / secret), so any independent verifier
-# starts the walk from the identical constant.
 GENESIS = hashlib.sha256(b"").hexdigest()
 
-# The IMMUTABLE content columns the chain hash binds. An allowlist (not a denylist)
-# guarantees write-time and verify-time hash the SAME field set regardless of which
-# correlation/metadata columns happen to be present on the row.
 CORE_FIELDS = ("source", "kind", "severity", "summary", "payload")
 
-# Columns the verify read pulls back (content + chain), ordered by chain_seq.
 _VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + CORE_FIELDS
 
 SESSION_CORE_FIELDS = ("id", "kind", "owui_chat_id", "meta")
 _SESSION_VERIFY_COLS = ("chain_seq", "prev_hash", "chain_hash") + SESSION_CORE_FIELDS
 
 
-# ── pure chain primitives (stdlib only; reused by server, CLI and tests) ──────
 def canonical_core(row: dict) -> str:
     """Deterministic serialization of an event row's immutable CONTENT fields.
 
@@ -203,7 +188,6 @@ class EventChainer:
             return fields
 
 
-# Module-global head (one chain per process; server seeds + drives it).
 _CHAINER = EventChainer()
 
 
@@ -306,7 +290,6 @@ def verify_session_chain(rows: Iterable[dict]) -> dict:
     return {"ok": True, "checked": checked, "first_broken_seq": None}
 
 
-# ── startup seed + endpoint read (async; pg access injected) ──────────────────
 async def seed_from_db(pg_execute=None) -> None:
     if not CHAIN_ENABLE:
         return
@@ -392,7 +375,6 @@ async def chain_verify_logic(table: str = "event", pg_execute=None):
                          **res})
 
 
-# ── DI seam (server injects the pg reader + the SSOT enable flag) ─────────────
 def configure(*, chain_enable=None, pg_execute=None) -> None:
     global CHAIN_ENABLE, _pg_execute
     if chain_enable is not None:
@@ -401,7 +383,6 @@ def configure(*, chain_enable=None, pg_execute=None) -> None:
         _pg_execute = pg_execute
 
 
-# ── admin route (co-located router; mounted once via app.include_router) ───────
 audit_router = APIRouter()
 
 

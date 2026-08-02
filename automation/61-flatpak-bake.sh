@@ -27,7 +27,7 @@ if [[ -z "${FLATPAK_LIST// /}" ]]; then
 fi
 
 if ! command -v flatpak >/dev/null 2>&1; then
-    mios_warn "flatpak binary missing (mios-flatpak-install will retry on first boot)"
+    mios_warn "Flatpak binary missing"
     exit 0
 fi
 
@@ -74,7 +74,7 @@ for raw in "${REFS[@]}"; do
                 flatpak remote-add --system --if-not-exists fedora \
                     oci+https://registry.fedoraproject.org 2>/dev/null || true ;;
             *)
-                mios_warn "unknown remote '$remote' for $ref -- attempting install anyway" ;;
+                mios_warn "Unknown remote '$remote' for $ref" ;;
         esac
     fi
 
@@ -104,7 +104,7 @@ for raw in "${REFS[@]}"; do
         INSTALLED=$((INSTALLED + 1))
     else
         FAILED=$((FAILED + 1))
-        mios_warn "${remote}:${app} install returned non-zero (exit ${install_status}) -- will retry at first boot"
+        mios_warn "${remote}:${app} install returned non-zero"
     fi
 done
 

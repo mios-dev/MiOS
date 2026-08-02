@@ -1,6 +1,4 @@
-# shellcheck shell=sh
 if command -v flatpak > /dev/null; then
-    # set XDG_DATA_DIRS to include Flatpak installations
 
     new_dirs=$(
         (

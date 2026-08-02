@@ -14,9 +14,6 @@ import json
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 
-# Providers reject/ignore several JSON-Schema keywords and choke on $ref/$schema;
-# Gemini additionally needs array items to declare a type. Relocated keywords go
-# into the field description so the model still sees the constraint as guidance.
 ANTH_REJECT_KEYS = ("$schema", "$ref", "additionalProperties")
 GEMINI_DROP_KEYS = ("format", "minLength", "maxLength", "pattern",
                     "minimum", "maximum", "default", "examples",

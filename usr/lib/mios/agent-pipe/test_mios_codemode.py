@@ -53,7 +53,6 @@ def t_session_id() -> None:
     _check("session: prefixed", a.startswith("cm-"), a)
     _check("session: safe charset",
            all(ch.islower() or ch.isdigit() or ch == "-" for ch in a), a)
-    # arbitrary nasty ids never break the token
     nasty = cm.session_id("../../etc/passwd  \n unicode-é")
     _check("session: nasty id sanitised",
            all(ch.islower() or ch.isdigit() or ch == "-" for ch in nasty), nasty)

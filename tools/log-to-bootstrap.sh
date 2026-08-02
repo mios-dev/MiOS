@@ -1,8 +1,6 @@
 #!/bin/bash
 # AI-hint: Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and RAG-enabled agent deployment.
 # AI-related: mios-bootstrap, mios-knowledge-graph, mios-context, mios-docs, mios-context-TIMESTAMP, mios-docs-TIMESTAMP, mios-rag, mios-llm-light, localhost:8642 (MIOS_AI_ENDPOINT, OpenAI /v1)
-# 'MiOS' Artifact Logging to MiOS-Bootstrap Repository
-# Purpose: Log AI RAG and build artifacts to bootstrap repo for distribution
 
 set -euo pipefail
 
@@ -14,7 +12,6 @@ MIOS_VERSION=$(cat "${REPO_ROOT}/VERSION" 2>/dev/null || echo "0.3.0")
 echo "'MiOS' Artifact Logging to Bootstrap Repository"
 echo "Version: ${MIOS_VERSION}"
 
-# Check if bootstrap repo exists
 if [[ ! -d "${BOOTSTRAP_REPO}/.git" ]]; then
     echo "ERROR: mios-bootstrap repository not found at: ${BOOTSTRAP_REPO}"
     echo ""
@@ -29,20 +26,17 @@ fi
 echo "[ok] Bootstrap repository: ${BOOTSTRAP_REPO}"
 echo ""
 
-# Create artifact directories
 ARTIFACT_DIR="${BOOTSTRAP_REPO}/ai-rag-packages/${MIOS_VERSION}"
 mkdir -p "${ARTIFACT_DIR}"
 
-echo "▶ Logging AI RAG artifacts..."
+echo "▶ Logging AI RAG artifacts"
 
-# Copy AI RAG package artifacts
 if [[ -d "${REPO_ROOT}/artifacts/ai-rag" ]]; then
     rsync -av --delete \
         "${REPO_ROOT}/artifacts/ai-rag/" \
         "${ARTIFACT_DIR}/" \
         --exclude="*.tar.gz" 2>/dev/null || true
     
-    # Copy compressed bundles separately (track in Git LFS if available)
     cp -v "${REPO_ROOT}"/artifacts/ai-rag/*.tar.gz "${ARTIFACT_DIR}/" 2>/dev/null || true
     
     echo "[ok] AI RAG artifacts copied"
@@ -50,11 +44,10 @@ else
     echo "WARN: No AI RAG artifacts found at artifacts/ai-rag/"
 fi
 
-# Copy Wiki documentation
 WIKI_DIR="${BOOTSTRAP_REPO}/wiki/${MIOS_VERSION}"
 mkdir -p "${WIKI_DIR}"
 
-echo "▶ Logging Wiki documentation..."
+echo "▶ Logging Wiki documentation"
 
 if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
     rsync -av \
@@ -63,13 +56,6 @@ if [[ -d "${REPO_ROOT}/specs/ai-integration" ]]; then
     echo "[ok] Wiki AI integration docs copied"
 fi
 
-# Copy core documentation. After the FHS-consolidation
-# pass, operator-facing docs live under usr/share/doc/mios/ and the
-# agent contract lives under usr/share/mios/ai/. Root-level
-# SECURITY.md is now a 5-line GitHub Security-tab redirector; the
-# canonical full content is at usr/share/doc/mios/guides/security.md
-# -- pull from there so the wiki bundle ships the full posture, not
-# the stub. Same reasoning for guides/self-build.md.
 for doc in \
     usr/share/mios/ai/INDEX.md \
     README.md \
@@ -84,15 +70,8 @@ done
 
 echo "[ok] Core documentation copied"
 
-# Generate artifact manifest. Compute repo metrics from the actual file
-# tree at run time -- the previous version of this script hard-coded
-# stats (928 MB, 153 markdown files) that drifted away from reality on
-# every commit.
-echo "▶ Generating artifact manifest..."
+echo "▶ Generating artifact manifest"
 
-# Repo size: 'du -sh' on the working copy minus the .git directory so we
-# count source-of-truth content, not git metadata. Falls back to a literal
-# 'unknown' if du isn't available (defensive; du is in coreutils).
 if command -v du >/dev/null 2>&1; then
     REPO_SIZE_BYTES=$(du -sb --exclude='.git' "${REPO_ROOT}" 2>/dev/null | awk '{print $1}')
     REPO_SIZE_HUMAN=$(du -sh --exclude='.git' "${REPO_ROOT}" 2>/dev/null | awk '{print $1}')
@@ -101,8 +80,6 @@ else
     REPO_SIZE_HUMAN="unknown"
 fi
 
-# Compressed-context size: pick the newest tar.gz in artifacts/ai-rag if
-# present, otherwise leave 0. Avoids hard-coding a specific bundle name.
 COMPRESSED_BYTES=0
 COMPRESSED_HUMAN="0 B"
 NEWEST_BUNDLE=$(ls -t "${REPO_ROOT}"/artifacts/ai-rag/*.tar.gz 2>/dev/null | head -1 || true)
@@ -111,15 +88,11 @@ if [[ -n "$NEWEST_BUNDLE" && -f "$NEWEST_BUNDLE" ]]; then
     COMPRESSED_HUMAN=$(du -h "$NEWEST_BUNDLE" 2>/dev/null | awk '{print $1}')
 fi
 
-# File counts: walk the tree once each. -prune the .git dir so we don't
-# double-count every fixture on disk.
 MARKDOWN_FILES=$(find "${REPO_ROOT}" -path "${REPO_ROOT}/.git" -prune -o -type f -name '*.md' -print 2>/dev/null | wc -l | tr -d ' ')
 SHELL_SCRIPTS=$(find "${REPO_ROOT}" -path "${REPO_ROOT}/.git" -prune -o -type f \( -name '*.sh' -o -name '*.bash' \) -print 2>/dev/null | wc -l | tr -d ' ')
 
-# Compression ratio. Use bc when available for the percentage; otherwise
-# fall back to integer-arithmetic two-decimal approximation.
 if [[ "$REPO_SIZE_BYTES" -gt 0 && "$COMPRESSED_BYTES" -gt 0 ]] && command -v bc >/dev/null 2>&1; then
-    COMPRESSION_RATIO=$(echo "scale=2; (1 - ${COMPRESSED_BYTES}/${REPO_SIZE_BYTES}) * 100" | bc 2>/dev/null)"%"
+    COMPRESSION_RATIO=$(echo "Scale=2; * 100" | bc 2>/dev/null)"%"
 elif [[ "$REPO_SIZE_BYTES" -gt 0 && "$COMPRESSED_BYTES" -gt 0 ]]; then
     COMPRESSION_RATIO="$(( 100 - (COMPRESSED_BYTES * 100 / REPO_SIZE_BYTES) ))%"
 else
@@ -177,17 +150,13 @@ MANIFEST
 
 echo "[ok] Manifest generated: ${ARTIFACT_DIR}/manifest.json"
 
-# Create README for bootstrap artifacts
 cat > "${ARTIFACT_DIR}/README.md" << README
-# 'MiOS' ${MIOS_VERSION} - AI RAG Artifacts
 
 **Generated:** $(date -u +%Y-%m-%d)
 **Compression:** ${REPO_SIZE_HUMAN} → ${COMPRESSED_HUMAN} (${COMPRESSION_RATIO} reduction)
 **Target:** OpenAI /v1-compatible runtimes -- the MiOS lanes mios-llm-light + mios-llm-heavy (llama.cpp / vLLM / SGLang)
 
-## Artifacts in This Package
 
-### AI RAG Components
 
 1. **mios-knowledge-graph.json** (3.3 KB)
    - Structured knowledge graph with core concepts
@@ -224,7 +193,6 @@ cat > "${ARTIFACT_DIR}/README.md" << README
 8. **mios-docs-TIMESTAMP.tar.gz** (31 KB)
    - Core documentation bundle
 
-### Wiki Documentation
 
 Located in: \`../wiki/${MIOS_VERSION}/ai-integration/\`
 
@@ -234,33 +202,21 @@ Located in: \`../wiki/${MIOS_VERSION}/ai-integration/\`
 - Prompts Library
 - Knowledge Graph
 
-## Quick Start
 
 \`\`\`bash
-# 1. Extract context
 tar -xzf mios-context-*.tar.gz -C ~/mios-rag
 
-# 2. Point at the MiOS inference lane (OpenAI /v1-compatible).
-#    On a MiOS host the lanes already run -- nothing to install:
-#      mios-llm-light -> fast iGPU/CPU lane   mios-llm-heavy -> dGPU lane (vLLM/SGLang)
-#    both served through the Hermes gateway on :8642.
 export OPENAI_BASE_URL="http://localhost:8642/v1"
-# Local /v1 key is generated at first boot (see /etc/mios/ai/v1/caller-keys.json).
 export OPENAI_API_KEY="\${MIOS_AI_KEY:-mios-local}"
 
-# 3. Create the vector store. MiOS ships pgvector (mios-pgvector) as the native
-#    RAG store; any OpenAI-/v1-compatible embedder + store also works off-MiOS.
 pip install langchain langchain-community pgvector psycopg
 
-# See README-AI-INTEGRATION.md for full setup
 \`\`\`
 
-## Usage
 
 Load knowledge graph into AI:
 
 \`\`\`bash
-# Minimal chat call against the MiOS /v1 lane (OpenAI-compatible):
 curl --retry 5 --retry-delay 3 --connect-timeout 20 "\${OPENAI_BASE_URL:-http://localhost:8642/v1}/chat/completions" -H "Authorization: Bearer \${OPENAI_API_KEY:-mios-local}" -H "Content-Type: application/json" -d '{
   "model": "mios-llm-light",
   "messages": [
@@ -269,11 +225,8 @@ curl --retry 5 --retry-delay 3 --connect-timeout 20 "\${OPENAI_BASE_URL:-http://
   ]
 }'
 
-# To ground the model in the FULL graph, build the body with jq --rawfile:
-#   jq -n --rawfile kg mios-knowledge-graph.json '{model:"mios-llm-light",messages:[{role:"system",content:\$kg},{role:"user",content:"Explain the MiOS architecture"}]}' | curl --retry 5 "\${OPENAI_BASE_URL:-http://localhost:8642/v1}/chat/completions" -H "Authorization: Bearer \${OPENAI_API_KEY:-mios-local}" -H "Content-Type: application/json" -d @-
 \`\`\`
 
-## Distribution
 
 These artifacts enable:
 - FOSS AI agent initialization with full 'MiOS' context
@@ -290,7 +243,6 @@ README
 
 echo "[ok] README generated: ${ARTIFACT_DIR}/README.md"
 
-# Summary
 echo ""
 echo "[ OK ] Artifact logging complete"
 echo ""
@@ -310,11 +262,11 @@ echo "  │  ├─ ai-prompts.md"
 echo "  │  ├─ script-inventory.json"
 echo "  │  └─ mios-docs-*.tar.gz"
 echo "  └─ wiki/${MIOS_VERSION}/"
-echo "     ├─ INDEX.md          (from usr/share/mios/ai/INDEX.md)"
-echo "     ├─ README.md         (from README.md)"
-echo "     ├─ self-build.md     (from usr/share/doc/mios/guides/self-build.md)"
-echo "     ├─ security.md       (from usr/share/doc/mios/guides/security.md)"
-echo "     ├─ llms.txt          (from llms.txt)"
+echo "     ├─ INDEX.md"
+echo "     ├─ README.md"
+echo "     ├─ self-build.md"
+echo "     ├─ security.md"
+echo "     ├─ llms.txt"
 echo "     └─ ai-integration/"
 echo "        ├─ 2026-04-27-Artifact-AI-000-Index.md"
 echo "        ├─ 2026-04-27-Artifact-AI-001-RAG-Integration.md"
@@ -324,6 +276,6 @@ echo "        └─ 2026-04-27-Artifact-AI-004-Knowledge-Graph.md"
 echo ""
 echo "Next steps:"
 echo "  cd ${BOOTSTRAP_REPO}"
-echo "  git add ."
+echo "  git add "
 echo "  git commit -m \"Add 'MiOS' ${MIOS_VERSION} AI RAG artifacts\""
 echo "  git push"

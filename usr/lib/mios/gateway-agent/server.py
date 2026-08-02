@@ -18,7 +18,6 @@ from skill_catalog import SkillCatalogLoader
 
 import session as session_db
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("mios-gateway-agent")
 
@@ -52,7 +51,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="MiOS Gateway Agent Service", lifespan=lifespan)
 
-# ── Config Loader ──
 def _toml_section(section: str) -> dict:
     _layers = [
         os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml"),
@@ -86,13 +84,11 @@ def _toml_section(section: str) -> dict:
         return v
     return _xpand(out)
 
-# ── Health Endpoints ──
 @app.get("/health")
 @app.get("/v1/cluster/health")
 async def health():
     return {"status": "ok", "service": "mios-gateway-agent"}
 
-# ── Models Endpoint ──
 @app.get("/v1/models")
 async def models():
     ai_cfg = _toml_section("ai")
@@ -108,7 +104,6 @@ async def models():
         })
     return {"object": "list", "data": data}
 
-# ── Chat Completions Endpoint ──
 class ChatCompletionRequest(BaseModel):
     model: Optional[str] = None
     messages: list[dict]
@@ -120,35 +115,25 @@ class ChatCompletionRequest(BaseModel):
 
 @app.post("/v1/chat/completions")
 async def chat_completions(req: ChatCompletionRequest):
-    # Determine session ID
     meta = req.metadata or {}
     session_id = str(meta.get("chat_id") or meta.get("session_id") or "default")
     
-    # Load session history from pgvector
     history = await session_db.get_session(session_id)
     
-    # Append new incoming messages to session history
     new_incoming = req.messages
-    # Avoid duplicating history if messages contain the history already (OpenAI stateless clients)
-    # Check if history is already a prefix of incoming messages:
     if len(history) < len(new_incoming):
-        # We append only the new turns
         history = history + new_incoming[len(history):]
     else:
         history = new_incoming
 
-    # Save updated session history to pgvector
     await session_db.save_session(session_id, history)
 
-    # Gateway / AI configs
     gateway_cfg = _toml_section("gateway")
     ai_cfg = _toml_section("ai")
 
     model_id = req.model or gateway_cfg.get("model") or ai_cfg.get("agent_model") or "granite4.1:3b"
     max_steps = gateway_cfg.get("max_steps", 30)
 
-    # Set up OpenAIServerModel pointing at MIOS_AI_ENDPOINT (Unified redirection Law 5)
-    # Defaults to localhost orchestrator port :8640
     ai_endpoint = os.environ.get("MIOS_AI_ENDPOINT", "http://localhost:8640/v1")
     
     from smolagents import OpenAIServerModel, ToolCallingAgent
@@ -163,7 +148,6 @@ async def chat_completions(req: ChatCompletionRequest):
         log.error("Failed to initialize OpenAIServerModel: %s", e)
         return JSONResponse(status_code=500, content={"error": f"Model init failed: {e}"})
 
-    # Tool loop engine initialization (T-079 & T-081)
     tools = []
     if tool_registry:
         tools.extend(tool_registry.get_tools())
@@ -172,13 +156,10 @@ async def chat_completions(req: ChatCompletionRequest):
     
     engine = gateway_cfg.get("tool_loop_engine", "smolagents")
     if engine == "native":
-        # Raw pass-through to OpenAIServerModel API directly (bypassing smolagents)
         import httpx
         async with httpx.AsyncClient() as client:
             try:
-                # Reconstruct original request dict and pass it through
                 passthrough_req = req.model_dump(exclude_none=True)
-                # Ensure the target model is respected
                 passthrough_req["model"] = model_id
                 resp = await client.post(
                     f"{ai_endpoint.rstrip('/')}/chat/completions",
@@ -192,7 +173,6 @@ async def chat_completions(req: ChatCompletionRequest):
                     return StreamingResponse(raw_stream(), media_type="text/event-stream")
                 else:
                     data = resp.json()
-                    # Store final assistant reply
                     if data.get("choices") and data["choices"][0].get("message"):
                         history.append(data["choices"][0]["message"])
                         await session_db.save_session(session_id, history)
@@ -211,7 +191,6 @@ async def chat_completions(req: ChatCompletionRequest):
         log.error("Failed to initialize ToolCallingAgent: %s", e)
         return JSONResponse(status_code=500, content={"error": f"Agent init failed: {e}"})
 
-    # Build ReAct task query from conversation history
     context = ""
     for msg in history[:-1]:
         role = msg.get("role", "")
@@ -228,7 +207,6 @@ async def chat_completions(req: ChatCompletionRequest):
         "- Perform multiple searches if necessary to gather comprehensive details."
     )
 
-    # Helper function to generate stream chunks
     def openai_chunk(content: str, finish_reason: Optional[str] = None) -> str:
         chunk = {
             "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
@@ -246,8 +224,6 @@ async def chat_completions(req: ChatCompletionRequest):
     if req.stream:
         async def stream_generator():
             try:
-                # Run the agent stream
-                # Note: agent.run() execution blocks synchronous threads, we run it in executor or stream step-by-step
                 loop = asyncio.get_running_loop()
                 steps = await loop.run_in_executor(None, lambda: list(agent.run(task, stream=True)))
                 
@@ -260,7 +236,6 @@ async def chat_completions(req: ChatCompletionRequest):
                         if step.model_output:
                             yield openai_chunk(step.model_output)
                         if step.tool_calls:
-                            # Preserve OpenAI-format tool_calls in history
                             history.append({
                                 "role": "assistant",
                                 "tool_calls": [
@@ -301,7 +276,6 @@ async def chat_completions(req: ChatCompletionRequest):
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, lambda: agent.run(task, stream=False))
             
-            # Format completion response
             response = {
                 "id": f"chatcmpl-{uuid.uuid4().hex[:24]}",
                 "object": "chat.completion",
@@ -322,8 +296,6 @@ async def chat_completions(req: ChatCompletionRequest):
                 }
             }
             
-            # Since stream=False, we don't easily get intermediate steps out of agent.run()
-            # smolagents agent.run() returns just the final result string
             history.append({"role": "assistant", "content": str(result)})
             await session_db.save_session(session_id, history)
             return response

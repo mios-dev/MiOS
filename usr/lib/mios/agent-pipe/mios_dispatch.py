@@ -54,9 +54,6 @@ import mios_quarantine       # the CaMeL dual-context quarantine gate (stricter 
 import mios_hitl             # the unified HITL verdict resolver (mios_hitl.decide)
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 import mios_scratchpad
-# Security gates imported DIRECTLY from their sibling modules (NAME-KEYED -- nothing
-# renamed). These modules are themselves DI-configured by server.py; importing the
-# function objects here binds the SAME configured callables server.py uses.
 from mios_firewall import _classify_verb_taint, _session_is_tainted, _is_external_url
 from mios_policy import (
     _hitl_block_reason,
@@ -76,38 +73,16 @@ from mios_hitlflow import (
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The dispatch chokepoint reads server.py's verb catalog, config scalars, the
-# broker socket path, the dispatch ContextVars and calls back into the DB-event /
-# sandbox-profile / enum-validate / trace / conflict-gate helpers. server.py calls
-# configure() with those AFTER every one is defined (one-way boundary: this module
-# never imports server). The placeholders below carry the documented defaults so a
-# standalone ``import mios_dispatch`` still succeeds; every consumer is async/runtime
-# so nothing fires before configure() runs.
 
-# config scalars (server SSOT/env-derived; injected at import-completion). The
-# sandbox knobs back the native _sandbox_wrap_cmd helper below; their placeholder
-# defaults are degrade-open (no enforcement / nothing self-confined) until server
-# injects the real SSOT-derived values -- they do NOT restate any server literal.
 WEB_DISPATCH_JITTER_S = 0.15
 DISPATCH_DEDUP = True
 NATIVE_LOOP_DATE_IN_QUERY = True
 LAUNCHER_SOCK = "/run/mios-launcher/launcher.sock"
 SANDBOX_ENFORCE = False
 _SANDBOX_SELF_CONFINED: tuple = ()
-# F2/T-033 Rule-of-Two architectural gate mode (SSOT [security].rule_of_two_mode):
-# off (default -- the evaluator is NOT consulted, byte-identical) | audit | enforce.
-# Placeholder default OFF until server injects the SSOT/env-derived value.
 RULE_OF_TWO_MODE = "off"
-# F2 CaMeL dual-context QUARANTINE gate mode (SSOT [security].quarantine_mode):
-# off (default -- the evaluator is NOT consulted, byte-identical) | audit | enforce.
-# The STRICTER superset of Rule-of-Two: gates the tainted + (sensitive OR state-change)
-# case. Placeholder default OFF until server injects the SSOT/env-derived value.
 QUARANTINE_MODE = "off"
 
-# mutable catalogs / sets / state / ContextVars / sync primitives (injected BY
-# REFERENCE -- server assigns each exactly once and never rebinds, so the shared
-# object stays live + context propagation works).
 _VERB_CATALOG: dict = {}
 _VERB_ARG_SYNONYMS: dict = {}
 _HIGH_PRIVILEGE_VERBS: frozenset = frozenset()
@@ -119,14 +94,9 @@ _conv_key_var = None
 _recency_ctx_var = None
 _proposal_var = None
 _dispatch_agent_var = None
-# Rule-of-Two approval downgrade: the ask-to-run turn var carrying the action_hash the
-# user EXPLICITLY approved this turn (shared with the [ai] gate; None until injected).
 _hitl_approved_var = None
 _AGENT_REGISTRY: dict = {}
 
-# server-side helpers (injected). _arg_with_synonyms / _validate_enum_args /
-# _dispatch_sandbox_profile / _sandbox_wrap_cmd now LIVE in this module (their sole
-# consumer is the dispatch chokepoint), so they are no longer injected.
 _resolve_verb_key = None
 _current_date_str = None
 _trace_span = None
@@ -286,13 +256,6 @@ def configure(*, verb_catalog=None, verb_arg_synonyms=None,
         _db_create = db_create
 
 
-# ── Verb-arg + enum validation + sandbox-profile helpers ───────────
-# Moved here from server.py: the dispatch chokepoint is their SOLE consumer
-# (_template_to_cmd / _build_dispatch_cmd resolve args via _arg_with_synonyms;
-# _dispatch_mios_verb_inner gates on _validate_enum_args then resolves +
-# opt-in-wraps the broker cmd via _dispatch_sandbox_profile / _sandbox_wrap_cmd).
-# They read the injected verb catalog / arg-synonym map / sandbox knobs above.
-# (Functions _arg_with_synonyms and _validate_enum_args are imported from mios_argval above)
 
 
 def _dispatch_sandbox_profile(tool: str) -> "mios_sandbox.SandboxProfile":
@@ -344,18 +307,14 @@ def _sandbox_wrap_cmd(tool: str, cmd: str,
     return " ".join(shlex.quote(p) for p in prefix) + " " + cmd, ws
 
 
-# ── Dispatch (broker socket bridge) ────────────────────────────────
 
 
 
 def normalize_container_exec(script: str) -> str:
-    # 1. Map docker -> podman (case-insensitively, using word boundaries)
     script = re.sub(r'\bdocker(\.exe)?\b', 'podman', script, flags=re.IGNORECASE)
     
-    # 2. Map code-server / mios-code-server -> mios-agents
     script = re.sub(r'\b(mios-)?code-server\b', 'mios-agents', script, flags=re.IGNORECASE)
     
-    # 3. Strip interactive -t / -it / -ti / --tty flags from podman exec/docker exec
     def clean_flags(match):
         flag_str = match.group(2)
         if flag_str.startswith('--'):
@@ -369,8 +328,6 @@ def normalize_container_exec(script: str) -> str:
 
     script = re.sub(r'\b(podman)\s+exec\s+(\-[a-zA-Z]+|\-\-tty\b)', clean_flags, script, flags=re.IGNORECASE)
     
-    # 4. Strip bare shell execution at the end of podman exec to prevent hangs.
-    # Replace bare shell (bash, sh, zsh, /bin/bash, etc.) with a safe 'true' command.
     script = re.sub(
         r'\b(podman\s+exec\s+(?:-[a-zA-Z\d\-]+(?:\s+[^\s]+)?\s+)*[\w\-\.]+)\s+(bash|sh|zsh|/bin/bash|/bin/sh|/bin/zsh)(\s+-[a-zA-Z\d\-]+)*\s*$',
         r'\1 true',
@@ -388,12 +345,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         for key in ("script", "code"):
             if key in args and isinstance(args[key], str):
                 args[key] = normalize_container_exec(args[key])
-    # SSOT command template takes precedence (P3): a verb with a `cmd` in
-    # mios.toml renders via the catalog; verbs without one fall through to the
-    # code branches below. Incremental migration -> zero regression.
-    # SKIP verbs with pre-processing guards (basename extraction, probe-name
-    # reject, position routing, dimension validation): they render templates
-    # explicitly AFTER validation in their own branch.
     _GUARDED_VERBS = {"launch_app", "window_op"}
     _tmpl = (_VERB_CATALOG.get(tool) or {}).get("cmd")
     if _tmpl and tool not in _GUARDED_VERBS:
@@ -455,50 +406,27 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         params = args.get("params") or {}
         if not isinstance(params, dict):
             params = {}
-        # Splice key=value pairs after the recipe name; mios-os-recipe
-        # quote-escapes each substituted value before splicing into
-        # the recipe template.
         kv_args = " ".join(
             f"{shlex.quote(str(k))}={shlex.quote(str(v))}"
             for k, v in params.items()
         )
         target_os = str(args.get("os") or "").strip().lower()
-        # HOST-DEFAULT (policy A): host-describing recipes report
-        # the MACHINE's state -- on this WSL-on-Windows deployment the operator means the
-        # WINDOWS HOST, not the Linux VM. With no explicit os=, default these to 'windows'
-        # IF the host is reachable (full-path interop present, since appendWindowsPath=false
-        # keeps bare powershell.exe off PATH); else leave to mios-os-recipe's detect (linux).
-        # service-status stays linux (systemctl is VM-specific). Fixes "show my network/disk"
-        # describing the VM instead of the operator's actual machine.
         if (not target_os
                 and name in {"show-network", "disk-usage", "list-drives", "show-process"}
                 and os.path.exists("/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")):
             target_os = "windows"
         os_flag = f"--os {shlex.quote(target_os)} " if target_os in ("linux", "windows") else ""
         return f"mios-os-recipe --json {os_flag}{shlex.quote(name)} {kv_args}".strip()
-    # ── pkg (unified package verb -- collapses 13 winget_* / flatpak_*
-    # verbs into one). Routes by (action, backend) to the existing
-    # winget / flatpak shims. backend="auto" picks winget when id looks
-    # like Publisher.AppId, flatpak otherwise -- the LLM is encouraged
-    # to be explicit. Operator-flagged "consolidate
-    # redundant" -- legacy winget_*/flatpak_* verbs kept tier='rare'
-    # for in-flight chains; this is the canonical path.
     if tool == "pkg":
         action = str(args.get("action") or "").strip().lower()
         backend = str(args.get("backend") or "auto").strip().lower()
         pid = _arg_with_synonyms(tool, "id", args).strip()
         query = _arg_with_synonyms(tool, "query", args).strip()
         if backend == "auto":
-            # winget if id contains a dot AND no slash (Publisher.AppId
-            # vs flatpak's org.foo.Bar/x86_64/stable). Bias toward
-            # flatpak when only running on the Linux surface (no .exe
-            # context). Default winget for unambiguous installs.
             ref = pid or query
             backend = "flatpak" if ("/" in ref or ref.startswith("org.")) else "winget"
         if backend not in ("winget", "flatpak"):
             return None
-        # Route to the underlying verb name + delegate to its branch
-        # below (no logic duplication).
         legacy = {
             "search":     f"{backend}_search",
             "list":       f"{backend}_list",
@@ -510,75 +438,14 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         }.get(action)
         if not legacy:
             return None
-        # Re-shape args to match the legacy verb's expected keys.
         forwarded = dict(args)
         if action == "search" and query:
             forwarded["query"] = query
         if pid:
             forwarded["id"] = pid
         return _build_dispatch_cmd(legacy, forwarded)
-    # ── Package management (Phase D.4 -- winget + flatpak surfaces) ──
-    # Both shims emit JSON envelopes by default; agent-pipe surfaces
-    # the JSON straight back to the gateway. WRITE verbs (install /
-    # upgrade / uninstall) are firewall-gated.
-    # ALL winget_* + flatpak_* verbs migrated to SSOT [verbs.*].cmd templates
-    # (P3). The two upgrade verbs + flatpak_install took the HELPER-CONTRACT
-    # path: the conditional logic lives in the helper, not dispatch --
-    #   * mios-winget/mios-flatpak `upgrade`: no-arg / "all" / --all = all.
-    #   * mios-flatpak `install <id> [scope]`: the helper's _resolve_scope owns
-    #     the system/user -> --system/--user mapping + default-scope fallback
-    #     (the old dispatch's scope branch + its dead --system/--user matches
-    #     are gone; the scope enum is validated pre-dispatch, so only
-    #     system/user/empty reach the helper, which resolves them).
-    # open_url / mios_find / mios_apps / everything_search / flatpak_preflight
-    # are migrated to SSOT [verbs.*].cmd templates (P3); they dispatch via the
-    # catalog-template check at the top of this function (incl. the {arg?FLAG}
-    # optional-flag form for --filter / -ext / the optional browser arg).
-    # web_search migrated to the SSOT [verbs.web_search].cmd template (P3):
-    # "mios-web-search -n {limit=5} --fanout {fanout=$MIOS_WEB_FANOUT:2} {query}".
-    # The {fanout=$MIOS_WEB_FANOUT:2} ENV-default form preserves the old
-    # os.environ.get("MIOS_WEB_FANOUT","2") fallback + the per-call `fanout`
-    # override; the helper does the query fan-out (K concurrent sub-queries +
-    # RRF merge) + grounds on REAL fetched data so the model never fabricates.
-    # discord_send migrated to the SSOT [verbs.discord_send].cmd template (P3):
-    # "mios-discord-send {content}{channel?--channel}". It stays a REAL dispatched
-    # verb -> a real tool_call -> truthful result (the model can't narrate a fake
-    # "posted to Discord"); the command literal + token/default-channel handling
-    # live in the mios-discord-send helper, not here.
-    # Discovery verbs knowledge_search / directory_lookup / fs_search migrated
-    # to SSOT [verbs.*].cmd templates (P3); they dispatch via the catalog-
-    # template check at the top of this function (optional-flag form for
-    # --collection / --root / --ext / --kind / -ext / -path / -type, with the
-    # int-default {top_k=5}/{limit=20}). The catalog path also resolves the
-    # declared aliases (q/text, name/filename/term) the old raw args.get(...)
-    # ignored. NB: fs_search.type enum is f/d/l but mios-locate only acts on
-    # f/d and ignores any other -type, so the template emitting `-type l`
-    # (which the old branch dropped) is harmless -- identical net behavior.
-    # app_search / tool_search stay as code: their `if not query: return None`
-    # guard is input validation the minimal template syntax can't express
-    # (an empty query would otherwise dispatch a degenerate search).
-    # System-category verbs (system_logs, process_list, container_status,
-    # container_restart, service_status, service_restart) migrated to SSOT
-    # [verbs.*].cmd templates (P3). They delegate to the mios-sysview /
-    # mios-restart / mios-os-recipe helpers, which already OWN the journalctl /
-    # ps / podman literals AND arg normalisation -- mios-sysview lowercases
-    # level/sort + defaults lines/limit itself -- so the old dispatch-side
-    # .lower()/int-coercion were redundant; the catalog path also resolves the
-    # declared aliases (service/unit/container/from/window/n) the old raw
-    # args.get(...) ignored.
-    # NOTE: disk-usage is intentionally NOT a verb -- it is a [recipes.disk-usage]
-    # recipe (command in mios.toml SSOT) reached via os_recipe(name="disk-usage").
-    # no command literals baked in code; capabilities live
-    # as native tools/skills/recipes.
-    # ── PC-input verbs (Phase A.1 -- needed for DAG chains like
-    # open_app -> focus_window -> pc_type -> pc_key Ctrl+S) ──
-    # pc_type migrated to SSOT [verbs.pc_type].cmd ("mios-pc-control type {text}");
-    # the catalog path also resolves its content/input aliases. pc_key (combo
-    # "+" -> key-combo conditional) + pc_click (int coords + button enum-clamp)
-    # stay as code.
     if tool == "pc_key":
         key = str(args.get("key", "")).strip()
-        # Modifier combos -> key-combo; single keys -> key.
         if "+" in key:
             return f"mios-pc-control key-combo {shlex.quote(key)}"
         return f"mios-pc-control key {shlex.quote(key)}"
@@ -589,23 +456,10 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
         if button not in ("left", "right", "middle"):
             button = "left"
         return f"mios-pc-control click {x} {y} {button}"
-    # ── Native text-editor verbs (replaces pc_type+pc_key save chain) ──
-    # Bodies may contain shell metacharacters + multiline content;
-    # stage them in /tmp via the broker-side mktemp + base64 so the
-    # bash command line stays sane and broker output parsing isn't
-    # tripped by literal newlines in the args.
-    # text_view migrated to SSOT [verbs.text_view].cmd (P3):
-    # "mios-text-edit view {path}{start?--start}{end?--end}". The optional-flag
-    # form maps the old `is not None` checks exactly (start=0 still emits
-    # --start 0) and is safer than the old int(start) -- an empty start string
-    # crashed the old branch, the template emits nothing. Its base64-staging
-    # siblings (text_create / text_insert / text_str_replace) stay as code.
     if tool == "text_create":
         path = shlex.quote(str(args.get("path", "")))
         body_b64 = base64.b64encode(
             str(args.get("content", "")).encode("utf-8")).decode()
-        # Pipe content via stdin (-) -- avoids the argv length limit
-        # and any quoting weirdness with newlines / embedded quotes.
         return (
             f"echo {shlex.quote(body_b64)} | base64 -d "
             f"| mios-text-edit create {path} --content -"
@@ -616,8 +470,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             str(args.get("old", "")).encode("utf-8")).decode()
         new_b64 = base64.b64encode(
             str(args.get("new", "")).encode("utf-8")).decode()
-        # Stage both blocks as files via two echo+base64 hops so
-        # mios-text-edit's @-file args read them cleanly.
         return (
             "_old=$(mktemp); _new=$(mktemp); "
             f"echo {shlex.quote(old_b64)} | base64 -d > $_old; "
@@ -634,7 +486,6 @@ def _build_dispatch_cmd(tool: str, args: dict) -> Optional[str]:
             f"echo {shlex.quote(body_b64)} | base64 -d "
             f"| mios-text-edit insert {path} --line {line} --content -"
         )
-    # ── Native PowerShell execution (Windows-side bash analogue) ──
     if tool == "powershell_run":
         script = str(args.get("script", ""))
         if not script.strip():
@@ -674,9 +525,6 @@ async def _dispatch_bounded(
     declare neither (the overwhelming majority), so this adds ~zero overhead to
     the common path while making stateful verbs fan-out-safe."""
     _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
-    # WS-A7 conflict/parallel-limit serialization (outermost so it composes with
-    # the web_search SearXNG bulkhead below). Degrade-open: unconstrained -> no-op.
-    # WS-A8: a "dispatch" span times the verb under the current request trace.
     async with _trace_span("dispatch", verb=_t), _TOOL_CONFLICT.guard(_t):
         if _t == "web_search":
             if WEB_DISPATCH_JITTER_S > 0:
@@ -755,19 +603,10 @@ async def _dispatch_mios_verb_live(
     in the same conversation collapse to ONE broker execution + share the
     result, so a side effect never fires N times across a fan-out. In-flight
     only -> sequential repeats re-run fresh."""
-    # P1 PA-Tool: a tool_call may arrive under a model_name alias (the model only ever
-    # sees the alias). Resolve to the canonical verb key HERE -- the single dispatch
-    # chokepoint -- so every downstream lookup (cmd template, permission, firewall, dedup,
-    # HITL) keys off the real verb. Idempotent for plain keys.
     tool = _resolve_verb_key(str(tool))
-    # Strict-schema safety : a strict OpenAI tool schema makes
-    # optional params nullable+required, so a model emits `null` to "skip" one. Drop
-    # null args here so the cmd-template default ({arg=default}) applies -- never pass
-    # null through as a real value. No-op for non-strict callers (no nulls present).
     if isinstance(args, dict):
         args = {k: v for k, v in args.items() if v is not None}
 
-    # T-037: Per-Agent Access Control check
     aname = (_dispatch_agent_var.get() or "").strip() if _dispatch_agent_var else ""
     if aname:
         acfg = _AGENT_REGISTRY.get(aname) or {} if _AGENT_REGISTRY else {}
@@ -825,22 +664,12 @@ async def _dispatch_mios_verb_live(
                 except Exception:
                     pass
 
-    # #62 HITL gate (off by default -> the helper early-returns, ~zero overhead).
-    # In block mode a high-risk verb is REFUSED here (never executed) pending human
-    # approval; audit mode logs + proceeds. Keys off the resolved verb above.
     _hitl_reason = _hitl_block_reason(tool, args)
     if _hitl_reason is None and _HITL_ARBITER_URL:
         _hitl_reason = await _hitl_arbiter_verdict(tool, args)  # #62 out-of-process arbiter
     if _hitl_reason is not None:
-        # ASK-TO-RUN : record the blocked action as a PENDING
-        # proposal + stash it so the final answer can OFFER "reply yes to run it" instead
-        # of silently no-op'ing or fabricating. Keyed by action_hash (idempotent pending
-        # slot, research §5); the user's next-turn approval (model-classified) re-dispatches
-        # exactly this. Stash only the FIRST proposal of the turn. Degrade-open.
         try:
             _ah = _pending_hash(tool, args or {})   # NULL-free (pg TEXT-safe)
-            # scope the pending by the STABLE conversation key (metadata.chat_id), not
-            # the per-turn session row -- so next turn's approval can find it.
             _scope = _conv_key_var.get() or session_id
             _hitl_record_pending(tool, args or {}, _ah, _scope)
             if not isinstance(_proposal_var.get(), dict):
@@ -850,19 +679,9 @@ async def _dispatch_mios_verb_live(
             pass
         return {"success": False, "output": "", "stderr": _hitl_reason,
                 "exit_code": 126, "hitl_blocked": True}
-    # Deterministic recency/breadth for web_search on a time-sensitive turn (see
-    # _recency_ctx_var): FILL IN time_range/fanout the model omitted so a "what's
-    # trending" turn always gets fresh, multi-facet coverage instead of an untimed
-    # single-facet search. Only fills MISSING keys -> an explicit model value wins.
     if tool == "web_search" and isinstance(args, dict):
         _rc = _recency_ctx_var.get()
         if _rc:
-            # DATE ANCHOR: when the turn is model-classified time-sensitive (recency ctx
-            # set), fold the resolved current date (YYYY-MM) into the query so
-            # "recent/this week/latest" resolves to the PRESENT, not a training-era year.
-            # This is the single choke-point BOTH the prefetch AND the model's own in-loop
-            # web_search calls pass through. Touches ONLY the query string (no keyword
-            # branch); idempotent (skip if already present); SSOT-gated; degrade-open.
             if NATIVE_LOOP_DATE_IN_QUERY:
                 try:
                     _q = str(args.get("query") or "").strip()
@@ -885,8 +704,6 @@ async def _dispatch_mios_verb_live(
     key = f"{_conv_key_var.get()}\x00{_action_hash(str(tool), _a)}"
     fut = _dispatch_inflight.get(key)
     if fut is not None:
-        # An identical dispatch is already in flight in this conversation --
-        # await it and reuse its result instead of firing the verb again.
         try:
             shared = await asyncio.shield(fut)
         except Exception:
@@ -896,12 +713,8 @@ async def _dispatch_mios_verb_live(
             dd = dict(shared)
             dd["deduped"] = True
             return dd
-        # Shared result unusable -> fall through and run normally.
     loop = asyncio.get_running_loop()
     fut = loop.create_future()
-    # Synchronous claim (no await between get + set) so a concurrent task
-    # either sees no future and becomes the leader, or sees this one and
-    # follows -- never two leaders for the same key.
     _dispatch_inflight[key] = fut
     try:
         res = await _dispatch_bounded(tool, args, session_id=session_id)
@@ -971,7 +784,6 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
         if mode == mios_ruleof2.MODE_OFF:
             return None
         vmeta = _VERB_CATALOG.get(tool) or {}
-        # A: the EXISTING provenance-taint signal (mios_firewall owns it; no re-derive).
         a_tainted = False
         if session_id:
             a_tainted, _chain = await _session_is_tainted(session_id)
@@ -985,9 +797,6 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
         if mode == mios_ruleof2.MODE_AUDIT:
             _emit_ro2_event(tool, args, session_id, verdict, blocked=False)
             return None  # non-blocking: observe before enforce
-        # enforce: a 3-property chain. Resolve via the single HITL verdict so it
-        # composes with the other gates' approval semantics; an explicit same-turn
-        # approval (ask-to-run set this action's hash) downgrades the block.
         approved = False
         try:
             if _hitl_approved_var is not None:
@@ -997,9 +806,6 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
             approved = False
         if mios_hitl.decide(ro2_block=True, approved=approved) != mios_hitl.BLOCK:
             return None  # approved -> downgraded -> proceed
-        # fail-safe BLOCK: record a pending_action (approvable out-of-band via
-        # /v1/hitl/approve) + refuse before the broker, in the hitl_pending shape the
-        # agent tool-loop already handles (a failure + a human-readable next step).
         _ah = _pending_hash(tool, args or {})
         try:
             _hitl_record_pending(tool, args or {}, _ah, session_id)
@@ -1072,19 +878,14 @@ async def _quarantine_gate(tool: str, args: dict, *,
         if mode == mios_quarantine.MODE_OFF:
             return None
         vmeta = _VERB_CATALOG.get(tool) or {}
-        # A: the EXISTING provenance-taint signal (mios_firewall owns it; no re-derive).
         a_tainted = False
         if session_id:
             a_tainted, _chain = await _session_is_tainted(session_id)
-            # T-033: Also check if tainted content is in the scratchpad (current context)
             if not a_tainted and mios_scratchpad.SQLITE_VEC_ENABLE:
                 scratchpad_dir = os.environ.get("MIOS_CONV_MEMORY_SCRATCHPAD_DIR", "/tmp")
                 if mios_scratchpad.has_tainted(session_id, scratchpad_dir):
                     a_tainted = True
         
-        # T-033: Determine if the verb is privileged/side-effecting:
-        # It reads sensitive data (sensitive=True) OR changes state (is_state_change=True)
-        # OR is open_url to non-allowlisted domain.
         sensitive = bool(vmeta.get("sensitive"))
         is_side_effecting = mios_ruleof2.is_state_change(vmeta.get("permission"))
         if tool == "open_url" and _is_external_url(str((args or {}).get("url", ""))):
@@ -1100,9 +901,6 @@ async def _quarantine_gate(tool: str, args: dict, *,
         if mode == mios_quarantine.MODE_AUDIT:
             _emit_quarantine_event(tool, args, session_id, verdict, blocked=False)
             return None  # non-blocking: observe before enforce
-        # enforce: untrusted content drives a privileged action. Resolve via the single
-        # HITL verdict so it composes with the other gates' approval semantics; an
-        # explicit same-turn approval (ask-to-run set this action's hash) downgrades it.
         approved = False
         try:
             if _hitl_approved_var is not None:
@@ -1112,9 +910,6 @@ async def _quarantine_gate(tool: str, args: dict, *,
             approved = False
         if mios_hitl.decide(quarantine_block=True, approved=approved) != mios_hitl.BLOCK:
             return None  # approved -> downgraded -> proceed
-        # fail-safe BLOCK: record a pending_action (approvable out-of-band via
-        # /v1/hitl/approve) + refuse before the broker, in the hitl_pending shape the
-        # agent tool-loop already handles (a failure + a human-readable next step).
         _ah = _pending_hash(tool, args or {})
         try:
             _hitl_record_pending(tool, args or {}, _ah, session_id)
@@ -1133,7 +928,6 @@ async def _dispatch_mios_verb_inner(
     session_id: Optional[str] = None,
 ) -> dict:
     res = await _dispatch_mios_verb_inner_raw(tool, args, session_id=session_id)
-    # T-033: Log: event(kind="firewall_decision", verdict=allow|block|hitl)
     try:
         verdict = "allow"
         if res.get("firewall_blocked") or "firewall_block" in str(res.get("stderr") or ""):
@@ -1177,20 +971,11 @@ async def _dispatch_mios_verb_inner_raw(
     event row is emitted (kind=firewall_block, severity=high).
     Taint of the dispatched verb itself is computed from
     _classify_verb_taint AND inherited from session state."""
-    # Normalise the verb name: capable models (qwen3.5:4b) format tool
-    # names as function calls -> "system_status()", which then misses
-    # the catalog. Strip a trailing "(...)" and
-    # surrounding whitespace/quotes so the catalog lookup is robust to
-    # however a model phrased the name.
     tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     if _letta_dispatch_handler:
         _res = await _letta_dispatch_handler(tool, args, session_id)
         if _res is not None:
             return _res
-    # ── WS-A9 dispatch-time PDP capability gate (before the firewall/HITL/enum
-    # checks): re-evaluate the caller's per-agent + per-user policy at the single
-    # chokepoint so a verb absent from the filtered surface can't still run. DENY
-    # -> refuse deterministically + emit a pdp_block audit event. Degrade-open. ──
     _pdp_deny = _dispatch_pdp_reason(tool)
     if _pdp_deny is not None:
         _db_fire(_db_post(_db_create("event", {
@@ -1207,8 +992,6 @@ async def _dispatch_mios_verb_inner_raw(
             "exit_code": 126, "latency_ms": 0,
             "pdp_blocked": True,
         }
-    # ── WS-6 per-user quota / rate-limit gate (after PDP). INERT unless the
-    # caller's [users.*] config sets rpm_limit/daily_budget; degrade-open. ──
     _q_deny = _dispatch_quota_reason(tool)
     if _q_deny is not None:
         _db_fire(_db_post(_db_create("event", {
@@ -1224,7 +1007,6 @@ async def _dispatch_mios_verb_inner_raw(
             "exit_code": 429, "latency_ms": 0,
             "quota_blocked": True,
         }
-    # ── Firewall pre-check for high-privilege verbs ──
     if tool in _HIGH_PRIVILEGE_VERBS and session_id:
         is_tainted, chain = await _session_is_tainted(session_id)
         if is_tainted:
@@ -1248,15 +1030,6 @@ async def _dispatch_mios_verb_inner_raw(
                 "taint_reason": f"firewall_block:{chain[:200]}",
             }
 
-    # ── [ai] RISK-TIER HITL gate at the INNER universal chokepoint ──
-    # The public dispatch_mios_verb entry runs this same [ai] gate, but every DIRECT
-    # _dispatch_mios_verb_inner caller (e.g. the computer-use perceive->act loop)
-    # reaches the broker WITHOUT passing it -- a silent bypass of the blocking gate.
-    # Re-applying the SAME reconciled decision here (mios_hitl.decide, via
-    # _hitl_block_reason + the out-of-process arbiter) makes the inner the single
-    # coherent HITL enforcement point: no caller can dispatch a tier-gated verb
-    # un-blocked. Idempotent on the public path (already decided there, incl. the
-    # ask-to-run approval bypass); fail-safe -- refuse on a block reason.
     _ai_hitl = _hitl_block_reason(tool, args)
     if _ai_hitl is None and _HITL_ARBITER_URL:
         _ai_hitl = await _hitl_arbiter_verdict(tool, args)
@@ -1267,44 +1040,20 @@ async def _dispatch_mios_verb_inner_raw(
             "hitl_blocked": True,
         }
 
-    # ── WS-6 runtime HITL approval gate ([hitl] verb-scope; after the taint
-    # firewall, before exec). log mode -> emits + proceeds (None); gate mode ->
-    # blocks unapproved scoped verbs with a hitl_pending result. Degrade-open: a gate
-    # error proceeds. Shares the mios_hitl.decide resolver with the [ai] gate above.
     _hitl_block = await _hitl_gate(tool, args, session_id)
     if _hitl_block is not None:
         return _hitl_block
 
-    # ── F2/T-033 Rule-of-Two architectural gate (CaMeL-class; after the taint/HITL
-    # gates so it only ADDS a refusal -- stricter-wins). The DETERMINISTIC kill-chain
-    # invariant: a dispatch may hold at most TWO of {untrusted-input (the provenance-
-    # taint chain), sensitive-access (SSOT [verbs.*].sensitive), state-change (SSOT
-    # permission tier)} without human review. INERT unless [security].rule_of_two_mode
-    # is audit/enforce: the mode guard keeps default-off BYTE-IDENTICAL (the evaluator
-    # is not consulted, no taint read, no event). Degrade-open inside the gate. ──
     if RULE_OF_TWO_MODE != mios_ruleof2.MODE_OFF:
         _ro2_block = await _rule_of_two_gate(tool, args, session_id=session_id)
         if _ro2_block is not None:
             return _ro2_block
 
-    # ── F2 CaMeL dual-context QUARANTINE gate (the deeper half of T-033; after the
-    # taint/HITL/Rule-of-Two gates so it only ADDS a refusal -- stricter-wins). The
-    # CaMeL boundary: untrusted/attacker-controllable content (a TAINTED session) must
-    # not autonomously drive a PRIVILEGED action -- one that READS sensitive data (SSOT
-    # [verbs.*].sensitive) OR CHANGES state (SSOT permission tier). Where Rule-of-Two
-    # gates only the all-three chain, quarantine-enforce ADDITIONALLY gates the
-    # tainted + (sensitive OR state-change) case -- the STRICTER posture for full CaMeL
-    # isolation. INERT unless [security].quarantine_mode is audit/enforce: the mode guard
-    # keeps default-off BYTE-IDENTICAL (the evaluator is not consulted, no taint read, no
-    # event). Same single chokepoint -> no bypass. Degrade-open inside the gate. ──
     if QUARANTINE_MODE != mios_quarantine.MODE_OFF:
         _q_block = await _quarantine_gate(tool, args, session_id=session_id)
         if _q_block is not None:
             return _q_block
 
-    # Tool-Manager enum validation (ref AIOS C 3.7): reject out-of-enum
-    # args BEFORE the broker. The structured error feeds the planner's
-    # reflection pass, which re-issues the step with a valid value.
     _enum_err = _validate_enum_args(tool, args)
     if _enum_err is not None:
         return {
@@ -1314,13 +1063,6 @@ async def _dispatch_mios_verb_inner_raw(
         }
     cmd = _build_dispatch_cmd(tool, args)
     if cmd is None:
-        # Distinguish "no such verb" from "verb known but args rejected"
-        # so the planner can see WHICH layer failed + re-plan. Operator-
-        # flagged "launch_app(path=...) -> unknown verb"
-        # error was misleading -- the verb existed but the dispatcher
-        # rejected because (a) `name` wasn't populated via any alias
-        # (now also accepts `path`), or (b) the proposed target name
-        # equals a known verb (defensive check).
         if tool in _VERB_CATALOG:
             v = _VERB_CATALOG[tool]
             required = [n for n, c in (v.get("params") or {}).items()
@@ -1350,11 +1092,6 @@ async def _dispatch_mios_verb_inner_raw(
             "output": "", "stderr": f"broker socket missing at {LAUNCHER_SOCK}",
             "exit_code": -1, "latency_ms": 0,
         }
-    # ── WS-A13 risk-tier sandbox: resolve this verb's confinement profile (recorded
-    # on the result for audit) + OPT-IN wrap the broker cmd through mios-sandbox-exec.
-    # Default-off / opt-in-per-verb => cmd is unchanged unless a verb declares
-    # [verbs.*].sandbox_profile AND MIOS_SANDBOX_ENFORCE is on (degrade-open: any
-    # resolve error falls back to the strictest profile + the unwrapped cmd).
     try:
         _sbx_profile = _dispatch_sandbox_profile(tool)
         cmd, _sbx_ws = _sandbox_wrap_cmd(tool, cmd, _sbx_profile, session_id=session_id)
@@ -1364,11 +1101,6 @@ async def _dispatch_mios_verb_inner_raw(
     try:
         def _broker_io() -> str:
             s = _socket.socket(_socket.AF_UNIX, _socket.SOCK_STREAM)
-            # 60s broker timeout: flatpak cold-launches (epiphany / chromedev
-            # via WSLg compositor + portal handshake) routinely take 25-45s
-            # to first paint. Prior 20s cap fired Broken Pipe on the broker
-            # side, surfaced as "broker: empty response" to the agent.
-            # Operator-flagged. Tunable via env.
             s.settimeout(float(os.environ.get("MIOS_BROKER_TIMEOUT_S", "60")))
             chunks: list[bytes] = []
             try:
@@ -1384,12 +1116,6 @@ async def _dispatch_mios_verb_inner_raw(
             finally:
                 s.close()
             return b"".join(chunks).decode("utf-8", errors="replace").strip()
-        # Run the BLOCKING broker socket I/O in a worker thread so the event loop
-        # stays free to serve RE-ENTRANT callbacks during the dispatch. Verbs like
-        # tool_search / a2a_delegate / handoff shell to a thin client that calls
-        # BACK into this same agent-pipe over HTTP; with a blocking socket here the
-        # loop was stalled and those callbacks deadlocked ("agent-pipe unreachable:
-        # timed out"). to_thread also lets independent verb dispatches overlap.
         raw = await asyncio.to_thread(_broker_io)
         try:
             j = _loads_lenient(raw) if raw else {}
@@ -1403,18 +1129,9 @@ async def _dispatch_mios_verb_inner_raw(
                 "exit_code": -1, "latency_ms": latency_ms,
             }
         exit_code = int(j.get("exit_code", -1))
-        # Compute taint for this verb's OWN execution (e.g. open_url
-        # to an external host marks the result as tainted).
         v_tainted, v_reason = _classify_verb_taint(tool, args)
         _out = (j.get("stdout") or "")[:6000]
         _err = (j.get("stderr") or "")[:2000]
-        # Launch verbs emit noisy resolve/fallback PROGRESS to stderr (wine
-        # attempts, per-candidate misses, "trying Windows") even when the launch
-        # ULTIMATELY SUCCEEDS via a fallback (e.g. native interop). The small
-        # agent model misread that progress as failure and NARRATED "couldn't
-        # find it" though the window opened ("LIAR"). On a
-        # SUCCESSFUL launch surface the clean stdout verdict and demote the
-        # progress noise so the agent reports the success it actually achieved.
         if tool in _LAUNCH_VERBS and exit_code == 0:
             if not _out.strip():
                 _tgt = args.get("name") or args.get("app") or args.get("url") or tool
@@ -1442,16 +1159,6 @@ async def _dispatch_mios_verb_inner_raw(
         }
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 3: single-verb dispatch) -----
-# The single-verb dispatch endpoint (/v1/dispatch) -- the HTTP front of THIS module's
-# dispatch_mios_verb chokepoint (mios-mcp-server's tools/call lands here) -- moved off
-# server.py's @app onto this co-located dispatch_router (the same routes->APIRouter
-# pattern the /a2a wave established). server.py imports dispatch_router + dispatch_verb
-# (re-imported there so its importable `provided` surface is unchanged) and mounts the
-# router via app.include_router(dispatch_router); the served path/method is identical
-# (the live-app route gate proves it). The body moved VERBATIM and calls the
-# module-resident dispatch_mios_verb DIRECTLY (no sys.modules hop). One-way boundary:
-# this module never imports server. APIRouter()/method decorators are structural.
 dispatch_router = APIRouter()
 
 
@@ -1467,9 +1174,5 @@ async def dispatch_verb(body: dict) -> JSONResponse:
         args = {}
     session_id = body.get("session_id")
     result = await dispatch_mios_verb(tool, args, session_id=session_id)
-    # A9/F2 security: persist the executed verb as a session-linked tool_call row so
-    # same-session provenance-taint (_session_is_tainted) sees verbs run through this
-    # HTTP front. The chat + DAG paths already record their executions; this closes
-    # the dispatch-path taint-blind hole. Best-effort -- never blocks the reply.
     _record_dispatch_tool_call_row(tool, result, session_id)
     return JSONResponse(result)

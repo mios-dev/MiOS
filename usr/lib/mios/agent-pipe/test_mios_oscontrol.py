@@ -63,20 +63,15 @@ def main():
     _install_stubs()
     import mios_oscontrol as m
 
-    # Wire the verb sets the verdict reads (server injects these at startup).
     m.configure(launch_verbs=frozenset({"open_app", "launch_app", "open_url"}),
                 os_control_action_verbs=frozenset({"open_app", "close_window"}))
 
-    # ── synthetic before/after window snapshots ──────────────────────
     shell = {"hwnd": 1, "title": "Program Manager", "proc": "explorer"}
     before = {"ok": True, "count": 1, "windows": [shell]}
-    # A launch opened a brand-new window (different hwnd) -- the robust signal.
     opened_win = {"hwnd": 42, "title": "Sample App - Home", "proc": "msrdc"}
     after_opened = {"ok": True, "count": 2, "windows": [shell, opened_win]}
-    # A launch that fired but produced NO new window (the fabrication trap).
     after_none = {"ok": True, "count": 1, "windows": [shell]}
 
-    # ── window-delta verify (_window_diff / _window_delta_text) ──────
     d_open = m._window_diff(before, after_opened)
     check("window_diff sees the opened window",
           [w["hwnd"] for w in d_open["opened"]] == [42] and not d_open["closed"],
@@ -93,7 +88,6 @@ def main():
           m._window_delta_text(m._window_diff(before, before))
           == "no visible window change detected")
 
-    # ── anti-fabrication launch verdict (_verify_os_action) ──────────
     fired = {"success": True, "output": "launching org.gnome.Epiphany", "exit_code": 0}
     verdict_ok = m._verify_os_action(
         "open_app", {"app": "epiphany"}, fired, before, after_opened, d_open)
@@ -107,7 +101,6 @@ def main():
           verdict_none is False,
           "exit-0 fire must NOT be claimed a success without a window")
 
-    # BLIND enumeration (count:0 both sides) -> fail-closed (False).
     blind = {"ok": False, "count": 0, "windows": []}
     verdict_blind = m._verify_os_action(
         "open_app", {"app": "epiphany"}, fired, blind, blind,
@@ -115,7 +108,6 @@ def main():
     check("blind enumeration fails action verification (fail-closed)",
           verdict_blind is False)
 
-    # close_window: target gone from AFTER == success.
     close_res = {"success": True, "output": "", "exit_code": 0}
     v_close = m._verify_os_action(
         "close_window", {"title": "Sample App"}, close_res,
@@ -127,16 +119,12 @@ def main():
     check("close verifies FALSE when the target window is still present",
           v_close_still is False)
 
-    # open_url: tab reuse verification check (T-116)
     tab_res = {"success": True, "output": '{"success": true, "target": "com.google.ChromeDev", "url": "https://example.com", "summary": "tab-opened-existing"}', "exit_code": 0}
     v_tab = m._verify_os_action(
         "open_url", {"url": "https://example.com"}, tab_res,
         before, after_none, m._window_diff(before, after_none))
     check("open_url verify is TRUE for already-running tab opens", v_tab is True)
 
-    # ── fast-path verb rendering (_render_os_control_verbs) ──────────
-    # server injects _FASTPATH_VERBS + _VERB_CATALOG at import time; the render is
-    # one sorted "  name(sig) -- desc" line per verb, desc newline-collapsed + clipped.
     m.configure(
         fastpath_verbs=frozenset({"open_app", "schedule"}),
         verb_catalog={

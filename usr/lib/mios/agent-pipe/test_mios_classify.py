@@ -1,9 +1,4 @@
 # AI-hint: Stdlib unit tests for mios_classify (layer-1 micro-LLM classifiers).
-#   Stubs httpx.AsyncClient + the injected verb-catalog / routing-domains / event-DB
-#   helpers via configure() -- NO network, NO DB. Asserts: classify_intent empty/gate
-#   -> None, parses a stubbed json verdict + fires the event row, degrades to None on
-#   a non-200; _route_domain returns a validated in-enum domain, fail-opens to None
-#   when disabled or on an out-of-enum label.
 # AI-related: mios_classify.py, mios_config.py
 """Stdlib assert-tests for mios_classify (no network/DB)."""
 

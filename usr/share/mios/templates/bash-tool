@@ -2,14 +2,9 @@
 # AI-hint: Describe the capability of this bash tool script here.
 # AI-related: /usr/share/mios/templates/bash-tool, /usr/share/mios/mios.toml
 # AI-functions: main, parse_args, log_info, log_error
-#
-# {{name}} -- Tool script template.
-# Designed for utility and helper script executions.
-#
 
 set -euo pipefail
 
-# Print helpers
 log_info() {
     printf '[%s] INFO: %s\n' "{{name}}" "$*" >&2
 }
@@ -44,7 +39,6 @@ EOF
 
 main() {
     log_info "Initializing {{name}}..."
-    # Implement tool logic here
 }
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then

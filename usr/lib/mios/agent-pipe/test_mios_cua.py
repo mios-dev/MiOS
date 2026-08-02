@@ -30,11 +30,9 @@ def t_resolve_verb():
         cua.resolve_verb("key", "linux") == "linux_desktop_press_key",
         cua.resolve_verb("find_element", "windows") == "windows_desktop_find_element_by_name",
     ]))
-    # fail-closed
     check("resolve: unknown action -> None", cua.resolve_verb("teleport", "windows") is None)
     check("resolve: unknown platform -> None", cua.resolve_verb("click", "macos") is None)
     check("resolve: blank -> None", cua.resolve_verb("", "") is None)
-    # every action maps for BOTH platforms (no half-defined action)
     for a in cua._ACTION_VERB:
         check(f"resolve: {a} defined for both platforms",
               cua.resolve_verb(a, "windows") and cua.resolve_verb(a, "linux"))
@@ -55,7 +53,6 @@ def t_verify_verdict():
           cua.parse_verify_verdict('I checked. {"done": true, "reason": "window open"} done.')["done"] is True)
     check("verify: GOAL_REACHED sentinel", cua.parse_verify_verdict("GOAL_REACHED")["done"] is True)
     check("verify: done=yes sentinel", cua.parse_verify_verdict("status done: yes")["done"] is True)
-    # FAIL-SAFE: unparseable / ambiguous -> NOT done (never false success)
     check("verify: garbage -> NOT done (fail-safe)", cua.parse_verify_verdict("uhhh maybe?")["done"] is False)
     check("verify: empty -> NOT done", cua.parse_verify_verdict("")["done"] is False)
     check("verify: NOT_DONE wins over stray 'done'",
@@ -63,7 +60,6 @@ def t_verify_verdict():
 
 
 def t_loop_status():
-    # goal wins even at the budget edge
     check("status: goal reached wins",
           cua.loop_status(step=9, max_steps=10, goal_done=True, stall_count=5) == cua.GOAL_REACHED)
     check("status: budget exhausted",
@@ -86,12 +82,10 @@ def t_trace():
     check("trace: counts steps", d["n_steps"] == 3)
     check("trace: reached flag", d["reached"] is True and d["status"] == cua.GOAL_REACHED)
     check("trace: platform/goal carried", d["platform"] == "linux" and d["goal"].startswith("open settings"))
-    # a non-reached terminal status -> reached False (no false success)
     tr2 = cua.CuaTrace("windows", "x").finish(cua.MAX_STEPS)
     check("trace: budget exhaust -> not reached", tr2.to_dict()["reached"] is False)
 
 
-# ── /v1/computer-use route LOGIC (moved verbatim from server.py) ─────────
 class _FakeReq:
     """Request stand-in: async json() returns the payload (or raises to test the
     bad-body degrade path)."""
@@ -121,10 +115,6 @@ async def _fake_loop_boom(*a, **k):
 
 
 def t_computer_use():
-    # DEFAULT-OFF gate: disabled -> the honest disabled notice (200, enabled False);
-    # the loop is never invoked. _cua_loop is module-local now (the I/O half moved
-    # home), so the fake is injected by rebinding the module global directly rather
-    # than via configure() (the old cua_loop= param was de-entangled away).
     cua.configure(cua_enable=False)
     cua._cua_loop = _fake_loop_boom
     r = asyncio.run(cua.v1_computer_use_logic(_FakeReq({"goal": "x"})))
@@ -133,7 +123,6 @@ def t_computer_use():
           b.get("enabled") is False and getattr(r, "status_code", None) == 200
           and "error" not in b)
 
-    # ENABLED + missing goal -> 400 (no loop run).
     cua.configure(cua_enable=True)
     cua._cua_loop = _fake_loop_ok
     r = asyncio.run(cua.v1_computer_use_logic(_FakeReq({"goal": "   "})))
@@ -141,7 +130,6 @@ def t_computer_use():
     check("cua route: enabled + blank goal -> 400 missing goal",
           getattr(r, "status_code", None) == 400 and "goal" in (b.get("error") or ""))
 
-    # ENABLED + goal -> runs the (injected) loop, enabled True + trace merged.
     r = asyncio.run(cua.v1_computer_use_logic(
         _FakeReq({"goal": "open settings", "platform": "linux"})))
     b = _cbody(r)
@@ -149,7 +137,6 @@ def t_computer_use():
           b.get("enabled") is True and b.get("status") == cua.GOAL_REACHED
           and b.get("reached") is True and b.get("platform") == "linux")
 
-    # loop raises -> degrade to {error} at 200 (never 500 the surface).
     cua._cua_loop = _fake_loop_boom
     r = asyncio.run(cua.v1_computer_use_logic(_FakeReq({"goal": "x"})))
     b = _cbody(r)
@@ -157,14 +144,11 @@ def t_computer_use():
           getattr(r, "status_code", None) == 200 and "boom" in (b.get("error") or ""))
 
 
-# ── computer-use I/O half (moved verbatim from server.py) ────────────────
 def t_extract_png():
-    # PNG path harvested out of a screenshot verb's stdout (linux + windows forms).
     check("extract_png: linux path",
           cua._cua_extract_png({"output": "saved to /tmp/shot.png ok"}) == "/tmp/shot.png")
     check("extract_png: windows path",
           cua._cua_extract_png({"output": r"wrote C:\Users\m\a.png done"}) == r"C:\Users\m\a.png")
-    # no png / empty / None -> None (degrade-open, never guess a path)
     check("extract_png: no png -> None", cua._cua_extract_png({"output": "nothing here"}) is None)
     check("extract_png: empty+None -> None",
           cua._cua_extract_png({}) is None and cua._cua_extract_png(None) is None)
@@ -176,13 +160,10 @@ async def _fake_dispatch_nopng(verb, args, session_id=None):
 
 
 def t_screenshot_uri_injected():
-    # The moved I/O helper reads the INJECTED verb-dispatch chokepoint. A dispatch
-    # result carrying no PNG path degrades open -> (None, output).
     cua.configure(dispatch_mios_verb_inner=_fake_dispatch_nopng)
     uri, obs = asyncio.run(cua._cua_screenshot_uri("windows", None))
     check("screenshot_uri: no png in result -> (None, output)",
           uri is None and "no path here" in obs)
-    # unknown platform -> resolve_verb None -> (None, '') BEFORE any dispatch fires.
     uri2, obs2 = asyncio.run(cua._cua_screenshot_uri("macos", None))
     check("screenshot_uri: unknown platform -> (None, '')", uri2 is None and obs2 == "")
 

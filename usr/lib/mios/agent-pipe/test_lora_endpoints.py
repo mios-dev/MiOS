@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for LoRA list/load endpoints (CONV-06).
-# Pure python/stdlib/dependency test, no running server required.
 # AI-related: ./server.py
 
 import os
@@ -11,14 +10,12 @@ import asyncio
 import unittest
 from unittest import mock
 
-# Point to repo's vendor mios.toml
 here = os.path.dirname(os.path.abspath(__file__))
 repo = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
 toml = os.path.join(repo, "usr", "share", "mios", "mios.toml")
 if "MIOS_TOML" not in os.environ and os.path.isfile(toml):
     os.environ["MIOS_TOML"] = toml
 
-# Setup minimal FastAPI/HTTPX stubs
 for name in ("websockets", "uvicorn"):
     sys.modules.setdefault(name, mock.MagicMock(name=name))
 

@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for T-040 (OBS-03 record-and-replay determinism + session hash chaining).
-# Exercises the SessionChainer primitives, the httpx patching mock behavior, and stochastic seeding.
 import copy
 import json
 import unittest
@@ -29,7 +28,6 @@ class TestRecordReplay(unittest.TestCase):
         self._enable = A.CHAIN_ENABLE
         A.CHAIN_ENABLE = True
         
-        # Reset context vars
         _record_active.set(False)
         _replay_active.set(False)
         _replay_llm_queue.set([])
@@ -53,7 +51,6 @@ class TestRecordReplay(unittest.TestCase):
         self.assertEqual([r["chain_seq"] for r in s1], [1, 2, 3])
         self.assertEqual(s1[0]["prev_hash"], A.GENESIS)
         
-        # Verify clean chain
         res = A.verify_session_chain(s1)
         self.assertTrue(res["ok"])
         self.assertEqual(res["checked"], len(s1))
@@ -64,7 +61,6 @@ class TestRecordReplay(unittest.TestCase):
         c = _fresh_session_chainer()
         rows = [c.stamp(dict(e)) for e in _synthetic_sessions()]
         
-        # Alter meta
         tampered = copy.deepcopy(rows)
         tampered[1]["meta"]["output"] = "altered output"
         res = A.verify_session_chain(tampered)
@@ -87,7 +83,6 @@ class TestRecordReplay(unittest.TestCase):
 
     def test_replay_mode_httpx_interception(self):
         """Test that patched httpx.AsyncClient.post returns the mock completion when replay is active."""
-        # Setup mock queue
         mock_completion = {"choices": [{"message": {"role": "assistant", "content": "mocked answer"}}]}
         _replay_llm_queue.set([
             {"kind": "llm_io", "meta": {"completion": mock_completion}}
@@ -101,9 +96,6 @@ class TestRecordReplay(unittest.TestCase):
                 r = await client.post("http://any-endpoint/v1/chat/completions", json={"prompt": "hello"})
                 return r
                 
-        # asyncio.run() creates and closes a fresh loop -- get_event_loop() with
-        # no running loop is an error on Python 3.12+ (the image venv may move
-        # forward), so drive the coroutine loop-agnostically.
         resp = asyncio.run(run_client_call())
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json(), mock_completion)

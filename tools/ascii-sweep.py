@@ -2,15 +2,6 @@
 # AI-hint: A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent rendering across shell scripts, config files, and documentation.
 # AI-related: /usr/share/mios/env.defaults
 # AI-functions: _shebang_is_text, is_text_file, list_tracked_files, sweep_text, bump, repl_decorative, main
-# ascii-sweep.py -- one-shot typographic + emoji scrubber for MiOS-owned text.
-#
-# Substitutions are pure presentation-layer (no shell or markdown semantics
-# change), so this is safe to run across docs, shell scripts, PowerShell,
-# TOML, JSON, YAML, and Containerfiles.
-#
-# Run from repo root:
-#   python3 tools/ascii-sweep.py [--apply] [--paths PATH ...]
-# Default is dry-run: prints per-file change counts without writing.
 
 from __future__ import annotations
 
@@ -21,9 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Pure typographic Unicode -> ASCII. Pure-substitution: every entry is the
-# same byte-count semantic mapping that Markdown/shell/TOML/JSON renderers
-# treat identically once normalized.
 TYPOGRAPHIC = {
     "—": "--",   # em-dash
     "–": "-",    # en-dash
@@ -54,31 +42,21 @@ TYPOGRAPHIC = {
     "′": "'",    # prime
     "″": '"',    # double prime
     "‐": "-",    # hyphen (U+2010)
-    # -- structural mappings folded from the retired tools/lib/ascii-sweep.py --
-    # Box drawings -> ASCII frame chars (kept readable, not stripped): these sit
-    # below DECORATIVE_RE's emoji ranges, so without an explicit map they'd
-    # survive the sweep and leave non-ASCII bytes in frames/tables.
     "─": "-", "━": "-", "═": "=",
     "│": "|", "┃": "|", "║": "|",
     "┌": "+", "┐": "+", "└": "+", "┘": "+",
     "┏": "+", "┓": "+", "┗": "+", "┛": "+",
     "╔": "+", "╗": "+", "╚": "+", "╝": "+",
     "├": "+", "┤": "+", "┬": "+", "┴": "+", "┼": "+",
-    # Arrows / triangles.
     "→": "->", "←": "<-", "↑": "^", "↓": "v",
     "▶": ">", "◀": "<", "▲": "^", "▼": "v",
     "▪": "*", "▫": "*",
-    # Math operators.
     "±": "+/-", "×": "x", "÷": "/",
-    # Currency.
     "€": "EUR", "£": "GBP", "¥": "JPY", "¢": "c",
-    # Misc symbols.
     "§": "S", "°": " deg", "©": "(c)", "®": "(R)", "™": "(TM)",
-    # Directional marks -> drop.
     "‎": "", "‏": "",
 }
 
-# Status-indicator emoji -> ASCII tags so logs stay scannable.
 STATUS_EMOJI = {
     "✅": "[ok]",      # green check
     "✓": "[ok]",      # check
@@ -97,7 +75,6 @@ STATUS_EMOJI = {
     "❗": "[!]",       # heavy exclamation
 }
 
-# Decorative emoji ranges -- strip outright (not semantically load-bearing).
 DECORATIVE_RE = re.compile(
     "[\U0001F300-\U0001FAFF"   # symbols & pictographs, transport, supplemental
     "\U0001F600-\U0001F64F"    # emoticons
@@ -109,8 +86,6 @@ DECORATIVE_RE = re.compile(
     "]"
 )
 
-# Files to scan: tracked-only via `git ls-files`. Binary detection: read
-# first 8 KiB and bail on NUL.
 TEXT_EXTS = {
     ".md", ".txt", ".sh", ".bash", ".zsh", ".ps1", ".psd1",
     ".py", ".pl", ".rb",   # interpreted scripts
@@ -124,22 +99,12 @@ TEXT_EXTS = {
 }
 TEXT_BASENAMES = {
     "Containerfile", "Justfile", "Dockerfile", "Makefile", "LICENSE", "VERSION",
-    # Repo-root dotfiles (no extension; full basename matches).
     ".gitignore", ".gitattributes", ".editorconfig",
     ".clinerules", ".cursorrules",
     ".env", ".env.mios",
-    # /usr/share/mios/env.defaults -- vendor env file; non-standard extension.
     "env.defaults",
 }
 
-# Skip:
-#   - auto-generated AI training data and embeddings (derived from KB
-#     sources; sanitizing them in place would diverge them from the
-#     regenerator output -- refresh via KB build instead).
-#   - this script and its sibling, because their substitution dicts
-#     intentionally hold the very characters being scrubbed. The dicts
-#     are written with \uXXXX escapes so a self-sweep is a no-op anyway,
-#     but skipping is belt-and-braces.
 SKIP_PATTERNS = (
     "var/lib/mios/embeddings/",
     "var/lib/mios/training/",
@@ -169,7 +134,6 @@ def is_text_file(path: Path) -> bool:
         return True
     if path.suffix.lower() in TEXT_EXTS:
         return True
-    # Extensionless files in tools/ or automation/ that begin with a shebang.
     if path.suffix == "" and _shebang_is_text(path):
         return True
     return False

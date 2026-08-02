@@ -1,12 +1,6 @@
 # AI-hint: Pure self-improvement ANALYZER (#64) -- improvement signals from local outcome data.
 # AI-related: server.py, mios_pg, mios_reputation
 # AI-functions: aggregate, analyze
-#   Reads already-fetched tool_call outcome records (+ optional peer-reputation
-#   snapshot) and computes the signals an improvement loop would act on: tools
-#   with a high failure rate, persistently slow tools, and unreliable peers.
-#   PURE + read-only + dependency-free -> unit-testable (test_mios_selfimprove.py).
-#   This is the OBSERVE/ANALYZE half; CLOSING the loop (auto-tuning) is a separate
-#   gated step (agent self-modification needs guardrails), intentionally NOT here.
 """Self-improvement analysis for #64 (federation + self-improve loop).
 
 The risky part of "self-improvement" is an agent modifying itself; the safe,
@@ -81,7 +75,6 @@ def analyze(tool_calls: list, *, reputation: "Optional[dict]" = None,
                 "severity": "medium", "detail": f"reputation {score:.2f} over {seen} delegations",
                 "suggestion": f"deprioritize or investigate peer {peer}",
             })
-    # rank: high > medium > low, stable within a tier
     order = {"high": 0, "medium": 1, "low": 2}
     findings.sort(key=lambda f: order.get(f.get("severity"), 9))
     return {

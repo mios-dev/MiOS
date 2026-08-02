@@ -37,7 +37,7 @@ if [[ "$ENABLED" != "true" ]]; then
 fi
 
 command -v oscap >/dev/null 2>&1 \
-    || die "[39-oscap] [compliance].enabled=true but 'oscap' not found (openscap-scanner missing from [packages.security]?)"
+    || die "[39-oscap] [compliance].enabled=true but 'oscap' not found"
 
 PROFILE="$(_toml_get compliance.profile standard)"
 DS_CFG="$(_toml_get compliance.datastream '')"
@@ -47,8 +47,8 @@ FETCH="$(_toml_get compliance.fetch_remote_resources false)"
 REPORT_DIR="$(_toml_get compliance.report_path /usr/share/mios/compliance)"
 
 if [[ "$REMEDIATE" == "true" ]]; then
-    mios_warn "[compliance].remediate=true is IGNORED: this is the scan-only gate."
-    mios_warn "Remediation (oscap-im / --remediate) is a future operator-opt-in step."
+    mios_warn "[compliance].remediate=true is IGNORED: this is the scan-only gate"
+    mios_warn "Remediation is a future operator-opt-in step"
 fi
 
 if [[ -n "$DS_CFG" ]]; then
@@ -60,7 +60,7 @@ else
     DS_PATH="$(rpm -ql scap-security-guide 2>/dev/null | grep -E "/${DS_FILE}$" | head -n1 || true)"
 fi
 [[ -n "$DS_PATH" && -f "$DS_PATH" ]] \
-    || die "[39-oscap] SSG datastream not found (configured='${DS_CFG}', derived from os-release ID). Is scap-security-guide installed?"
+    || die "[39-oscap] SSG datastream not found. Is scap-security-guide installed"
 
 PROFILE_ID="xccdf_org.ssgproject.content_profile_${PROFILE}"
 
@@ -78,9 +78,9 @@ oscap "${OSCAP_ARGS[@]}"
 RC=$?
 set -e
 if [[ "$RC" -gt 2 ]]; then
-    die "[39-oscap] oscap tool error (rc=${RC}) -- scan could not complete"
+    die "[39-oscap] oscap tool error"
 fi
-[[ -f "$ARF" ]] || die "[39-oscap] oscap produced no ARF (rc=${RC}) -- scan could not complete"
+[[ -f "$ARF" ]] || die "[39-oscap] oscap produced no ARF"
 
 GATE_BIN="/usr/libexec/mios/mios-oscap-gate"
 [[ -f "$GATE_BIN" ]] || GATE_BIN="$(cd "${SCRIPT_DIR}/.." && pwd)/usr/libexec/mios/mios-oscap-gate"
@@ -92,7 +92,7 @@ GRC=$?
 set -e
 mios_log "Reports baked: ${ARF} , ${HTML}"
 if [[ "$GRC" -ne 0 ]]; then
-    die "[39-oscap] compliance gate FAILED: ${FAILS} rule(s) at/above severity '${SEVERITY}' (see ${HTML})"
+    die "[39-oscap] compliance gate FAILED: ${FAILS} rule at/above severity '${SEVERITY}'"
 fi
-mios_ok "compliance gate PASSED: 0 failed rules at/above severity '${SEVERITY}'"
+mios_ok "Compliance gate PASSED: 0 failed rules at/above severity '${SEVERITY}'"
 exit 0

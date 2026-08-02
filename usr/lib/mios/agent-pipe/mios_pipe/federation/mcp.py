@@ -47,27 +47,12 @@ from mios_config import _toml_section
 log = logging.getLogger("mios-agent-pipe")
 
 
-# ── MCP protocol-revision SSOT ───────────────────────────────────────────
-# The MCP spec revision MiOS DECLARES as the latest it offers on the
-# `initialize` handshake (over BOTH the Streamable-HTTP and stdio transports).
-# A protocol-revision token (like an HTTP version string) -- declared ONCE here
-# from the [mcp].protocol_version SSOT (env MIOS_MCP_PROTOCOL_VERSION overrides),
-# never restated at a call site. The published server (mios-mcp-server) reads the
-# SAME SSOT key, so consumer + server stay in lockstep. Negotiation is
-# liberal-IN / strict-OUT: MiOS advertises the current revision out, but a server
-# that answers with an older revision is recorded as-returned and proceeds (never
-# rejected on mismatch), so an older peer still registers and stays usable.
 MCP_PROTOCOL_VERSION = str(
     os.environ.get("MIOS_MCP_PROTOCOL_VERSION")
     or (_toml_section("mcp") or {}).get("protocol_version")
     or "2025-11-25").strip()
 
 
-# ── T-032: MCP sandbox gate ──────────────────────────────────────────────
-# When [security.mcp_sandbox].enable is true, every stdio MCP server spawn is
-# routed through /usr/libexec/mios/mcp-server-runner which acts as a gatekeeper
-# (directory traversal blocking, write-path enforcement, optional rootless podman
-# sandbox). Default false (degrade-open: MCP servers execute directly on host).
 _MCP_SANDBOX_CFG = (_toml_section("security") or {}).get("mcp_sandbox") or {}
 if isinstance(_MCP_SANDBOX_CFG, str):
     _MCP_SANDBOX_CFG = {}
@@ -78,15 +63,6 @@ MCP_SANDBOX_ENABLE = (
 MCP_SANDBOX_GATEKEEPER = "/usr/libexec/mios/mcp-server-runner"
 
 
-# -- Dependency-injection seam --
-# The consume client calls back into server.py's HTTP client factory, the shared
-# MCP-tool registry + lock (server-resident -- also DI'd into the worker /
-# toolsearch / toolexec planes), the MCP-tool embedder (lives in mios_toolsearch),
-# and the worker-tool-surface cache invalidator (a probe registering new tools
-# must drop server's _WORKER_TOOLS_FULL_CACHE so it rebuilds; the module cannot
-# rebind that server global across the one-way boundary). server.py calls
-# configure() with all of them AFTER each is defined. They stay None / empty until
-# injected so a standalone ``import mios_mcp`` still succeeds for the unit tests.
 _get_client = None
 _MCP_CLIENT_TOOLS: dict = {}      # injected by reference (server-resident)
 _MCP_CLIENT_LOCK = None           # injected (server-resident asyncio.Lock)
@@ -117,10 +93,6 @@ def configure(*, get_client=None, mcp_client_tools=None, mcp_client_lock=None,
         _invalidate_worker_cache = invalidate_worker_cache
 
 
-# Module-owned MCP state. _MCP_CLIENT_TOOLS + _MCP_CLIENT_LOCK are server-resident
-# (declared as injected placeholders in the DI seam above), so they are NOT defined
-# here -- only the registry path list, the per-server status map, the long-lived
-# stdio-client registry, and the ${ENV} placeholder regex.
 _MCP_REGISTRY_PATHS = [
     "/usr/share/mios/ai/v1/mcp.json",                               # vendor
     "/etc/mios/ai/v1/mcp.json",                                     # host
@@ -227,14 +199,12 @@ class _McpStdioClient:
     async def _spawn(self) -> None:
         child_env = dict(os.environ)
         child_env.update(_mcp_render_headers(self.env))   # reuse ${ENV} expansion
-        # T-032: when MCP sandbox is enabled, route through the gatekeeper
         _cmd = self.command
         _args = list(self.args)
         if MCP_SANDBOX_ENABLE and os.path.isfile(MCP_SANDBOX_GATEKEEPER):
             log.info("mcp sandbox: routing %s through gatekeeper %s",
                      self.sid, MCP_SANDBOX_GATEKEEPER)
             child_env["MIOS_MCP_SANDBOX"] = "true"
-            # Write-allowed paths from TOML config
             _wap = _MCP_SANDBOX_CFG.get("write_allowed_paths") or []
             if isinstance(_wap, list):
                 child_env["MIOS_WRITE_ALLOWED_PATHS"] = ":".join(str(p) for p in _wap)
@@ -315,8 +285,6 @@ class _McpStdioClient:
             return {"error": {"code": -32000, "message": f"stdio error: {e}"}}
 
     async def _ensure_session(self) -> None:
-        # FIX (adversarial verdict): respawn MUST re-run initialize, else a
-        # post-crash tools/call hits an uninitialized (spec-rejecting) server.
         async with self._lock:
             if (self.proc is not None and self.proc.returncode is None
                     and self._inited):
@@ -519,8 +487,6 @@ async def _mcp_probe_server(cfg: dict) -> None:
         state["tools_count"] = sum(1 for v in _MCP_CLIENT_TOOLS.values()
                                    if v.get("server_id") == sid)
     state["status"] = "ready"
-    # Late-discovered MCP tools must appear in the memoised worker surface
-    # (P0): drop the cache so it rebuilds on next request.
     _invalidate_worker_cache()
     await _mcp_embed_new_tools()                 # P4: make this server's tools selectable
     log.info("mcp client: %s ready (%d tools, protocol %s)",
@@ -573,7 +539,6 @@ async def _mcp_call_tool(key: str, args: dict) -> dict:
     return resp.get("result") or {}
 
 
-# ── /v1/mcp/* route bodies (the @app routes stay thin in server.py) ───
 
 async def mcp_clients_logic() -> JSONResponse:
     """Inspect the consumer-side MCP client. Every external server's status +
@@ -612,17 +577,6 @@ async def mcp_dispatch_logic(request: "Request") -> JSONResponse:
     return JSONResponse(await _mcp_call_tool(tool, args))
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 2: federation/standards) ----
-# The three /v1/mcp/* consumer-side inspection + dispatch routes moved off
-# server.py's @app onto this co-located mcp_router (same routes->APIRouter pattern
-# the /a2a wave established). server.py imports mcp_router + the three handler NAMES
-# and mounts the router via app.include_router(mcp_router); the handler names are
-# re-imported there so server's importable `provided` surface is unchanged and the
-# served path/method set is identical (the live-app route gate proves it). Each body
-# now calls the module-resident *_logic DIRECTLY (same module -- no sys.modules hop).
-# One-way boundary: this module never imports server (the MCP-client deps the logic
-# reads arrive via configure()). APIRouter()/method decorators are structural, not
-# config.
 mcp_router = APIRouter()
 
 

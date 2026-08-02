@@ -39,15 +39,6 @@ from fastapi.responses import JSONResponse
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --
-# The search core calls back into server.py's HTTP client + verb catalog + the
-# MCP-client registry/lock + the per-vector embedder + the lenient JSON loader.
-# server.py calls configure() with those AFTER they are defined (one-way boundary:
-# this module never imports server). They stay None until injected, so a standalone
-# ``import mios_toolsearch`` still succeeds for the unit tests. The cosine metric +
-# the verb embed-text/fingerprint helpers are now OWNED here (native defs below),
-# no longer injected -- server.py re-imports them under their original aliases so
-# the importable surface stays byte-identical.
 _get_client = None
 _VERB_CATALOG: dict = {}
 _MCP_CLIENT_TOOLS: dict = {}
@@ -56,15 +47,6 @@ _loads_lenient = None
 _embed_one = None
 
 
-# -- Embed-backend outage cooldown --
-# When the embed backend (mios-llm-light) is DOWN, the embed loops below would
-# otherwise retry EVERY verb / app EVERY warmup cycle -> hundreds of failing HTTP
-# calls per second flooding the journal. After a failed embed attempt we arm a
-# cooldown; while it is active the loops skip further embed attempts and the service
-# STAYS UP serving whatever vectors it already has (0 on a cold outage). It
-# auto-recovers on the next cycle once the cooldown lapses and the backend answers.
-# The deadline is computed in-function (NOT at import), starting at 0 so nothing is
-# suppressed until an actual failure arms it.
 _EMBED_COOLDOWN_SECS = float(
     os.environ.get("MIOS_EMBED_COOLDOWN_SECS", "60") or 60)
 _embed_cooldown_until = 0.0
@@ -105,14 +87,6 @@ def configure(*, get_client=None, verb_catalog=None, mcp_client_tools=None,
         _embed_one = embed_one
 
 
-# -- Shared embedding primitives (owned here) --
-# The cosine similarity metric + the verb embed-text / fingerprint helpers moved
-# verbatim out of server.py: they are maximally cohesive with the verb-embedding
-# cache below (_ensure_verb_embeddings uses both). _cosine is pure vector math;
-# _verb_embed_text/_verb_embed_fingerprint read the injected _VERB_CATALOG. server.py
-# re-imports all three under their original names (surface parity) and re-injects
-# _cosine/_verb_embed_text/_verb_embed_fingerprint into the OTHER planes
-# (mios_knowledge / mios_worker_tools) that depend on them.
 def _cosine(a: list[float], b: list[float]) -> float:
     if not a or not b or len(a) != len(b):
         return 0.0
@@ -159,12 +133,6 @@ def _verb_embed_fingerprint() -> str:
 
 _VERB_EMBEDDINGS: dict[str, list[float]] = {}
 _VERB_EMBEDDINGS_LOCK = asyncio.Lock()
-# P4 : external MCP tools are surfaced as "mcp.<id>.<tool>" but were
-# NOT embedded -> the cosine tail couldn't rank them (they leaked in only by a coincidental
-# name-keyword match) and tool_search never saw them. Embed each registered MCP tool's
-# (namespace+tool+description) so the SAME tail-selection + tool_search rank them by
-# SEMANTIC relevance. Keyed by the surface name. Populated at server-probe time (off the
-# hot path); _is_core_tool still excludes mcp.* so they never enter the cached core prefix.
 _MCP_EMBEDDINGS: dict[str, list[float]] = {}
 
 
@@ -180,26 +148,14 @@ async def _mcp_embed_new_tools() -> None:
     hot path -- called at the end of a server probe). Degrade-open: an embed outage just
     leaves the tool on its name-keyword priority fallback, never breaks the surface."""
     try:
-        # The MCP registry lock is dependency-injected via configure() (server.py
-        # supplies it). When it is unset -- a probe firing before configure(), or a
-        # hermetic unit test -- degrade-open on the LOCK, not the embedding: a bare
-        # `async with None` raises TypeError, which the except below would swallow,
-        # silently disabling MCP embedding entirely. nullcontext keeps the snapshot
-        # unsynchronized-but-correct instead of crash-and-skip.
         async with (_MCP_CLIENT_LOCK or contextlib.nullcontext()):
             items = [(k, dict(v)) for k, v in _MCP_CLIENT_TOOLS.items()
                      if k not in _MCP_EMBEDDINGS]
         for k, info in items:
             tool = str(info.get("tool") or "")
             ns = str(info.get("namespace") or "")
-            # P4-fix: de-dup the namespace -- a tool already prefixed (Playwright's
-            # "browser_navigate" with namespace "browser_") must NOT embed as
-            # "browser_browser_navigate" (corrupts the vector); a bare tool ("query"
-            # with namespace "duckdb_") still gets the namespace for disambiguation.
             facing = tool if (ns and tool.startswith(ns)) else (ns + tool)
             txt = f"{facing}: {info.get('description') or ''}".strip()
-            # TDWA: per-server synthetic example queries (from the mcp.json `examples`
-            # field) sharpen retrieval just like P1 does for native verbs.
             ex = [str(e).strip() for e in (info.get("examples") or []) if str(e).strip()]
             if ex:
                 txt += "\nExample requests: " + " | ".join(ex)
@@ -220,11 +176,9 @@ async def _ensure_verb_embeddings() -> None:
             return
         fp = _verb_embed_fingerprint()
         
-        # 1. Try PostgreSQL database first
         pg_success = False
         try:
             from mios_pg import execute as pg_execute
-            # Try fetching existing embeddings
             rows = await pg_execute(
                 "SELECT name, emb, emb_model, emb_version FROM verb WHERE hidden = false AND (tier = 'core' OR tier = 'common')",
                 fetch=True
@@ -239,16 +193,12 @@ async def _ensure_verb_embeddings() -> None:
                     if name and isinstance(emb, list) and emb and ver == fp:
                         db_embs[name] = [float(x) for x in emb]
                             
-                # Populate _VERB_EMBEDDINGS with the valid db ones
                 for vname, vcfg in _VERB_CATALOG.items():
                     if vcfg.get("tier") == "rare":
                         continue
                     if vname in db_embs:
                         _VERB_EMBEDDINGS[vname] = db_embs[vname]
                 
-                # Rebuild missing or stale ones and write them to the DB.:
-                # if the embed backend is down (cooldown armed) skip the rebuild
-                # entirely -- serve whatever the DB already had, don't hammer.
                 rebuilt = False
                 for vname, vcfg in _VERB_CATALOG.items():
                     if vcfg.get("tier") == "rare":
@@ -264,7 +214,6 @@ async def _ensure_verb_embeddings() -> None:
                     _VERB_EMBEDDINGS[vname] = vec
                     rebuilt = True
                     try:
-                        # Cast list to vector on the postgres side
                         await pg_execute(
                             "UPDATE verb SET emb = %(emb)s::vector, emb_model = %(model)s, emb_version = %(ver)s WHERE name = %(name)s",
                             {"emb": vec, "model": os.environ.get("MIOS_VERB_EMBED_MODEL") or "nomic-embed-text", "ver": fp, "name": vname}
@@ -278,7 +227,6 @@ async def _ensure_verb_embeddings() -> None:
             pg_success = False
 
         if not pg_success:
-            # 2. Fallback: load/save JSON file
             cached = _load_persisted_embeddings(_VERB_EMBED_PERSIST)
             if cached and cached.get("__fingerprint__") == fp:
                 for vname, vcfg in _VERB_CATALOG.items():
@@ -308,19 +256,6 @@ async def _ensure_verb_embeddings() -> None:
                      len(_VERB_EMBEDDINGS), rebuilt)
 
 
-# -- /v1/app-search (semantic over the mios-apps inventory) --
-# Embeds every (name + description) record from `mios-apps --json` once,
-# refreshes when the cache file mtime moves. Cosine-rank queries against
-# the embeddings.
-#
-# PERSISTENCE: embeddings spill to disk under /var/lib/mios/agent-env/
-# so an agent-pipe restart doesn't trigger a 4-5s blocking rebuild of
-# 319 sequential embed calls (which floods the iGPU lane + causes
-# concurrent chat SSE streams to time out with TransferEncodingError).
-# Operator-flagged "double fail" trace.
-#
-# WARMUP: build runs as a background Task at startup -- requests during
-# warmup get the substring fallback so they never block on embeddings.
 _APP_EMBEDDINGS: dict[str, dict] = {}   # key -> {vec, record}
 _APP_INV_MTIME: float = 0.0
 _APP_INV_LOCK = asyncio.Lock()
@@ -363,7 +298,6 @@ async def _refresh_app_inventory(force: bool = False) -> None:
     restart doesn't trigger a 4-5s blocking embed flood."""
     global _APP_INV_MTIME
     async with _APP_INV_LOCK:
-        # First load: hydrate from disk if available.
         if not _APP_EMBEDDINGS:
             cached = _load_persisted_embeddings(_APP_EMBED_PERSIST)
             if isinstance(cached, dict):
@@ -396,7 +330,6 @@ async def _refresh_app_inventory(force: bool = False) -> None:
                 except: pass
                 log.warning("mios-apps inventory refresh failed: %s", e)
                 return
-        # Parse + embed any new entries.
         try:
             with open(_APP_INV_CACHE_FILE, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -416,9 +349,6 @@ async def _refresh_app_inventory(force: bool = False) -> None:
             seen_keys.add(key)
             if key in _APP_EMBEDDINGS:
                 continue
-            #: skip new-record embedding while backing off from an embed
-            # outage. seen_keys is still fully populated (we `continue`, not break),
-            # so the stale-drop below stays correct and the service stays up.
             if _embed_in_cooldown():
                 continue
             blob = f"{rec.get('name','')}: {rec.get('description','')}".strip()
@@ -428,7 +358,6 @@ async def _refresh_app_inventory(force: bool = False) -> None:
                 continue
             _APP_EMBEDDINGS[key] = {"vec": vec, "record": rec}
             added += 1
-        # Drop entries whose key disappeared (app uninstalled / inventory shrank).
         stale = [k for k in _APP_EMBEDDINGS if k not in seen_keys]
         for k in stale:
             _APP_EMBEDDINGS.pop(k, None)
@@ -493,11 +422,9 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
             if rows is not None:
                 db_names = {r["name"] for r in rows if r.get("name")}
                 scored = [(float(r["score"]), r["name"]) for r in rows if r.get("name")]
-                # Fall-open for verbs missing in DB (e.g. pending backfill)
                 for vname, vec in _VERB_EMBEDDINGS.items():
                     if vname not in db_names:
                         scored.append((_cosine(qvec, vec), vname))
-                # Add MCP tools (not in verb table)
                 scored += [(_cosine(qvec, vec), k) for k, vec in _MCP_EMBEDDINGS.items()]
                 scored.sort(reverse=True)
                 pg_success = True
@@ -518,7 +445,6 @@ async def tool_search_logic(query: str = "", limit: int = 5, namespace: str = ""
             if len(hits) >= cap:
                 break
     else:
-        # Embedding unavailable -- substring fallback over name+desc.
         q = query.lower()
         for vname, vcfg in _VERB_CATALOG.items():
             if vcfg.get("tier") == "rare" and tier_f != "rare":
@@ -549,7 +475,6 @@ async def app_search_logic(query: str = "", limit: int = 5) -> JSONResponse:
         for score, rec in scored[: max(1, min(20, int(limit or 5)))]:
             hits.append({**rec, "score": round(float(score), 4)})
     else:
-        # Embedding unavailable -- substring fallback over name + desc.
         q = query.lower()
         for entry in _APP_EMBEDDINGS.values():
             rec = entry["record"]
@@ -565,19 +490,6 @@ async def app_search_logic(query: str = "", limit: int = 5) -> JSONResponse:
     })
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 4: semantic tool/app search) --
-# The two embedding-search routes whose *_logic bodies home here -- GET
-# /v1/tool-search (verb + external-MCP-tool discovery, RAG-MCP progressive
-# disclosure) and GET /v1/app-search (semantic match over the installed-app
-# inventory) -- moved off server.py's @app onto this co-located toolsearch_router
-# (the routes->APIRouter pattern the /a2a wave established). server.py imports
-# toolsearch_router + the two handler NAMES and mounts the router via
-# app.include_router(toolsearch_router); the handler names stay in server's
-# importable `provided` surface (parity) and the served path/method set is
-# byte-identical (the live-app route gate proves it). Each body calls the
-# module-resident *_logic DIRECTLY (same module -- no sys.modules hop); every dep
-# the logic reads is already injected by the configure() pass. This module NEVER
-# imports server. APIRouter()/method decorators are structural, not config.
 toolsearch_router = APIRouter()
 
 

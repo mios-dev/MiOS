@@ -50,16 +50,6 @@ from mios_dci import (
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# Every server-resident dependency the moved logic references stays in server.py
-# and is injected here AFTER each is defined (one-way boundary: this module never
-# imports server). Objects/registries (the agent registry, priority gate, KV
-# resident map, conflict/preempt gates, tracer, cost ledger, kernel, the
-# privilege/allowlist sets, and the FastAPI ``app``) are injected BY REFERENCE so
-# server-side mutation stays visible; the flag/scalar posture constants are stable
-# config values. Placeholders keep a standalone ``import mios_clusterhealth``
-# working for the unit tests; the routes are runtime-only so nothing fires before
-# configure() runs.
 app = None
 _AGENT_REGISTRY = None
 _GLOBAL_PRIORITY_GATE = None
@@ -77,13 +67,6 @@ _agent_lane = None
 _over_global_ceiling = None
 _host_stats_cached = None
 _toml_section = None
-# Deps for the cluster/scheduler helper fns that now live HERE natively
-# (_resolve_failover_chain / _probe_one_endpoint / _lane_sched_stats /
-# _kernel_managers_detail were only ever injected back into this module, so they
-# moved home). Injected BY REFERENCE -- the
-# semaphore map / verb catalog / memory provider are mutated in place or set once
-# server-side (never rebound after configure), so this module sees the live values;
-# _probe_auth_headers is the server's per-endpoint auth-header builder.
 _probe_auth_headers = None
 _LANE_SEMS = None
 _MEMORY = None
@@ -150,11 +133,6 @@ _INJECTED = frozenset({
     '_HIGH_PRIVILEGE_CURATED',
     '_TAINT_VERBS',
     '_agent_lane',
-    # _resolve_failover_chain / _probe_one_endpoint / _lane_sched_stats /
-    # _kernel_managers_detail are NATIVE to this module now; they stay allow-listed so
-    # a test (or an alternate probe transport / failover policy) can OVERRIDE the
-    # default impl via configure(). Production server.py no longer injects them -- the
-    # in-module defaults stand.
     '_probe_one_endpoint',
     '_resolve_failover_chain',
     '_lane_sched_stats',
@@ -227,14 +205,6 @@ def configure(**deps) -> None:
             g[_k] = _v
 
 
-# -- Cluster/scheduler helper fns (moved home from server.py) ----------
-# These were defined in server.py purely to be injected BACK into this module's
-# logic; they have no other server-side caller, so they live here natively now.
-# Each reads only injected-by-reference deps (the agent registry, the agent auth-
-# header builder, the live lane semaphores, the kernel-seam objects) -- never a
-# server-rebound global -- so the move is byte-for-byte behaviour-identical. They
-# remain configure()-overridable (a unit test stubs the network probe / lane map /
-# failover chain).
 
 
 async def _probe_one_endpoint(client, ep: str, timeout_s: float = 3.0) -> tuple:
@@ -371,7 +341,6 @@ async def cluster_health_logic() -> JSONResponse:
                     if hop["kind"] != "primary" and reach:
                         fallback_ok = True
                     links.append(hop_state)
-                # "effective" = primary live OR at least one fallback live
                 agents_out.append({
                     "name": name,
                     "role": cfg.get("role", ""),
@@ -381,8 +350,6 @@ async def cluster_health_logic() -> JSONResponse:
                     "health_gate": bool(cfg.get("health_gate")),
                     "primary_up": primary_ok,
                     "any_failover_up": fallback_ok,
-                    # a peer "up" ONLY via failover is borrowing ANOTHER agent's backend
-                    # (often a SHARED one) -- not a distinct council voice. Surface it.
                     "failover_only": (fallback_ok and not primary_ok),
                     "effective_up": primary_ok or fallback_ok,
                     "single_point_of_failure": (
@@ -392,22 +359,12 @@ async def cluster_health_logic() -> JSONResponse:
         up = sum(1 for a in agents_out if a["effective_up"])
         spofs = [a["name"] for a in agents_out
                  if a["single_point_of_failure"]]
-        # A5 council honesty: a COUNCIL needs >=1 SECONDARY
-        # (non-default) peer that is ENABLED + effective_up. A DISABLED agent must NOT
-        # inflate the count just because its failover chain reaches a shared backend --
-        # that made the council look 3-strong when "opencode" (enabled=false; its
-        # headless `run` is broken upstream so its OWN :8633 is unreachable) was silently
-        # failing over to hermes (already a peer). Count only enabled, non-default,
-        # effective_up peers; `council_distinct_up` further excludes failover-only ones.
         _peers_up = sum(1 for a in agents_out
                         if a["effective_up"] and not a["default"] and a["enabled"])
         _distinct_up = sum(1 for a in agents_out
                            if a["primary_up"] and not a["default"] and a["enabled"])
         _mode = ("council" if _peers_up > 0
                  else "single-agent (no council peers up)")
-        # Read the LIVE resolver (mios_lanes_resolver REBINDS its _LANE_RESOLVER at
-        # runtime) through its getter via sys.modules -- server's re-imported
-        # _LANE_RESOLVER alias is a stale None placeholder, not the live singleton.
         _lr = sys.modules["mios_lanes_resolver"]._lane_resolver_current()
         try:
             import mios_db_config
@@ -420,11 +377,6 @@ async def cluster_health_logic() -> JSONResponse:
             "mode": _mode,
             "council_peers_up": _peers_up,
             "council_distinct_up": _distinct_up,
-            # T-047 RouteMoA input-diversity gate posture + T-048 MOSAIC
-            # aggregation-bypass posture/rate. diversity_gate_active reflects the
-            # [council].diversity_gate flag; aggregator_calls_bypassed_pct is the
-            # running share of aggregation opportunities that skipped the
-            # aggregator LLM (0.0 until the bypass gate fires).
             "diversity_gate_active": bool(COUNCIL_DIVERSITY_GATE),
             "aggregator_bypass_active": bool(COUNCIL_AGGREGATOR_BYPASS),
             "aggregator_calls_bypassed_pct": mios_council_diversity.bypassed_pct(),
@@ -432,9 +384,6 @@ async def cluster_health_logic() -> JSONResponse:
             "agents_up": up,
             "agents_total": len(agents_out),
             "spofs": spofs,
-            # WS-1: the unified lane-resolver's live health/cooldown snapshot
-            # (collapses the two heavy lanes behind [ai].heavy_engine). None until
-            # first resolved -> the resolver is lazily built on first dispatch.
             "lane_resolver": (_lr.snapshot()
                               if _lr is not None else None),
             "config_divergences": divergences,
@@ -460,16 +409,11 @@ async def scheduler_state_logic() -> JSONResponse:
         "priority_dimensions": ["complexity", "urgency", "resource_need(lane)"],
         "memory_manager_tiers": {
             "core_working": "per-conversation scratchpad (_SCRATCHPADS)",
-            # Reflect the ACTUAL recall backend (was a stale hardcoded legacy
-            # string even after the pgvector cutover -- the kernel must not
-            # misreport its own memory backend). _PG_PRIMARY when db_backend=postgres.
             "recall": ("pgvector knowledge table (embed + HNSW cosine recall)"
                        if _PG_PRIMARY else
                        "legacy knowledge table (embed + cosine recall)"),
             "archival": "episodic SKILL.md + viking:// VFS",
         },
-        # Capacity-aware admission controller (P1): live
-        # state so we can OBSERVE the gate (load/mem vs ceiling) BEFORE flipping
         # MIOS_ADMIT_ENABLE on. Default OFF -> deploy is a no-op until observed.
         "admission": {
             "enabled": ADMIT_ENABLE,
@@ -479,18 +423,11 @@ async def scheduler_state_logic() -> JSONResponse:
             "host": _host_stats_cached(),
             "turn_priority_range": "1.6-9.4",
         },
-        # WS-1 priority scheduler queue: live gate state so the
-        # reordering is OBSERVABLE before flipping MIOS_PRIORITY_QUEUE on. When
-        # disabled the gate is idle (queued 0) and the plain FIFO sem is in use.
         "priority_gate": {
             "enabled": PRIORITY_QUEUE_ENABLE,
             "starvation_s": PRIORITY_STARVATION_S,
             **_GLOBAL_PRIORITY_GATE.stats(),
         },
-        # WS-3 knowledge eviction: config posture (live counts are
-        # logged by the sweep, not computed here, to avoid a DB hit per probe).
-        # WS-8 KV-cache fork: config posture so the fork capability
-        # is OBSERVABLE before flipping MIOS_KV_FORK on (default-off, paging-gated).
         "kv_fork": {
             "enabled": KV_FORK_ENABLE,
             "paging_enabled": KV_PAGING_ENABLE,
@@ -506,33 +443,19 @@ async def scheduler_state_logic() -> JSONResponse:
             "max_rows": KNOWLEDGE_EVICT_MAX_ROWS,
             "batch": KNOWLEDGE_EVICT_BATCH,
         },
-        # WS-A7 Tool-Manager conflict/parallel-limit gate: which verbs are
-        # serialized (by per-verb limit or conflict-group) + live in-flight/queued.
         "tool_conflict": _TOOL_CONFLICT.stats(),
-        # WS-A8 per-request trace/span observability: buffer posture + recent traces.
         "trace": {**_TRACER.stats(), "recent": _TRACER.recent(10)},
-        # WS-A12 RR preemption: policy posture + live suspended/free-slot counts.
         "preempt": {"enabled": RR_ENABLE, "quantum_s": RR_QUANTUM_S,
                     "slice_tokens": RR_SLICE_TOKENS, **_PREEMPT.stats()},
-        # WS-A6 batch coalescing: posture (native lanes self-batch -> bypassed).
         "batch": {"enabled": BATCH_ENABLE, "interval_s": BATCH_INTERVAL_S,
                   "max_size": BATCH_MAX_SIZE, "native_bypass_hints": BATCH_NATIVE_HINTS},
-        # WS-A16 SmartRouting: local-first escalation posture + budget.
         "smartroute": {"enabled": SMARTROUTE_ENABLE, "budget": SMARTROUTE_BUDGET},
-        # WS-SCHED-SLO: deadline/SLO admission posture. When shed_enable, a
-        # best_effort dispatch is shed under contention (fail-CLOSED on probe
-        # failure); interactive is never shed. EDF ordering available via mios_slo.
         "slo": {"shed_enable": SLO_SHED_ENABLE,
                 "classes": [mios_slo.BEST_EFFORT, mios_slo.INTERACTIVE],
                 "model": "EDF least-deadline-first + fail-closed best_effort shed"},
-        # WS-RES-GOV: cost/energy accounting (CLASSic Cost axis). Observe-only.
         "cost": {"enabled": COST_ACCOUNTING_ENABLE, "budget_usd": COST_BUDGET_USD,
                  "over_budget": _COST_LEDGER.over_budget(COST_BUDGET_USD),
                  **_COST_LEDGER.snapshot()},
-        # WS-A11/WS-3 Kernel facade: which manager seams are wired, the
-        # Dispatcher's registered modes, and the shadow-route posture. Proves the
-        # decomposition's Router/Dispatcher/Kernel are LIVE (not inert modules);
-        # POST /v1/route to introspect a classification.
         "kernel": {
             "managers": _KERNEL.managers(),
             "manager_detail": _kernel_managers_detail(),
@@ -587,7 +510,6 @@ async def health_logic() -> dict[str, Any]:
         "security": {
             "allowlist_hosts": sorted(_ALLOWLIST_HOSTS),
             "high_privilege_verbs": sorted(_HIGH_PRIVILEGE_VERBS),
-            # WS-A14: provenance -- curated-floor vs SSOT-added origin of the set.
             "high_privilege_provenance": mios_secset.provenance(
                 _HIGH_PRIVILEGE_CURATED,
                 (_toml_section("security") or {}).get("firewall_high_privilege_verbs")),
@@ -640,20 +562,6 @@ async def health_logic() -> dict[str, Any]:
     }
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 3: cluster/scheduler) --------
-# The two public liveness/observability endpoints whose LOGIC this module already
-# owns -- the per-agent + per-endpoint health probe (/v1/cluster/health) and the
-# AIOS-style per-lane scheduler snapshot (/v1/scheduler) -- moved off server.py's
-# @app onto this co-located clusterhealth_router (the same routes->APIRouter pattern
-# the /a2a wave established). server.py imports clusterhealth_router + the two
-# handler NAMES (re-imported there so its importable `provided` surface is unchanged)
-# and mounts the router via app.include_router(clusterhealth_router); the served
-# path/method set is identical (the live-app route gate proves it). Each body calls
-# the module-resident *_logic DIRECTLY (same module -- no sys.modules hop). A later
-# R13 batch moved the capability/health rollup (/health) onto the SAME router; its
-# body returns health_logic's bare dict (FastAPI serialises the dict to JSON -- the
-# identical shape the former @app wrapper served). One-way boundary: this module
-# never imports server. APIRouter()/method decorators are structural.
 clusterhealth_router = APIRouter()
 
 

@@ -15,15 +15,11 @@ def parse_markdown_journal(file_path):
     with open(file_path, 'r', encoding='utf-8') as f:
         content = f.read()
 
-    # Match both standard and sub-header entry styles
-    # Standard: ### [05:20:00 UTC] [AI: Native CLI]
-    # Sub: [20:12:40 UTC] [AI: Agent CLI]
     regex = r'(?:###?\s+)?\[(\d{4}-\d{2}-\d{2}.*?)\] \[(AI:.*?)\]'
     
     parts = re.split(regex, content)
     
     parsed = []
-    # parts[0] is preamble
     for i in range(1, len(parts), 3):
         timestamp = parts[i].strip()
         agent = parts[i+1].strip()
@@ -47,7 +43,6 @@ def parse_markdown_journal(file_path):
             }
         }
         
-        # Extract fields using regex (case-insensitive for broad capture)
         def extract(pattern):
             m = re.search(pattern, body, re.DOTALL | re.IGNORECASE)
             return m.group(1).strip() if m else ""
@@ -56,13 +51,11 @@ def parse_markdown_journal(file_path):
         entry["data"]["discovery"] = extract(r'\*? \*\*DISCOVERY:\*\* (.*?)(?:\n\* |$)')
         entry["data"]["result"] = extract(r'\*? \*\*RESULT:\*\* (.*?)(?:\n\* |$)')
         
-        # Actions: split by digits or bullet points
         action_str = extract(r'\*? \*\*ACTION:\*\* (.*?)(?:\n\* |$)')
         if action_str:
             actions = re.split(r'\d+\. |\* ', action_str)
             entry["data"]["actions"] = [a.strip() for d in actions if (a := d.strip())]
 
-        # Learnings
         learning_str = extract(r'\*? \*\*LEARNING:\*\* (.*?)(?:\n\* |$)')
         if learning_str:
             entry["data"]["learnings"] = [learning_str]

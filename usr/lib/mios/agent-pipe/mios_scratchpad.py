@@ -1,6 +1,4 @@
 # AI-hint: In-process SQLite vector store (sqlite-vec) scratchpad module for ephemeral tool outputs (CONV-08).
-# Gated to no-op stubs when MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=false.
-# usr/lib/mios/agent-pipe/mios_scratchpad.py
 
 import os
 from pathlib import Path
@@ -70,7 +68,6 @@ if SQLITE_VEC_ENABLE:
             return False
 
 else:
-    # Stubs when disabled: no sqlite3/sqlite_vec imports, empty returns
     def create_scratchpad(session_id: str, scratchpad_dir: str) -> tuple:
         return None, None
 

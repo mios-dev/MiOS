@@ -1,13 +1,7 @@
 # AI-hint: Configures system locale environment variables and handles CJK fallback for terminal displays by parsing /etc/locale.conf and ~/.i18n to set LANG and LC_* variables.
-# /etc/profile.d/lang.sh - exports environment variables, and provides fallback
-#                          for CJK languages that can't be displayed in console.
-#                          Resets the locale if unavailable.
 
 unset LANG_backup
 
-# If unavailable, reset to the default. Do this before reading in any
-# explicit user configuration. We simply check if locale emits any
-# warnings, and assume that the settings are invalid if it does.
 if [ -n "$(/usr/bin/locale 2>&1 1>/dev/null)" ]; then
     [ -z "$LANG" ] || LANG=C.utf8
     unset LC_ALL
@@ -29,11 +23,9 @@ fi
 
 for config in /etc/locale.conf "${HOME}/.i18n"; do
     if [ -f "${config}" ]; then
-        # NOTE: We are using eval & sed here to avoid invoking of any commands & functions from those files.
         if [ -x /usr/bin/sed ]; then
             eval $(/usr/bin/sed -r -e 's/^[[:blank:]]*([[:upper:]_]+)=([[:print:][:digit:]\._-]+|"[[:print:][:digit:]\._-]+")/export \1=\2/;t;d' ${config})
         else
-            #but if we don't have sed, let's go old way and source it
             [ -f "${config}" ] && . "${config}"
         fi
     fi
@@ -45,11 +37,7 @@ fi
 
 unset LANG_backup config
 
-# ----------------------------------------------
 
-# The LC_ALL is not supposed to be set in /etc/locale.conf according to 'man 5 locale.conf'.
-# If it is set, then we we expect it is user's explicit override (most likely from ~/.i18n file).
-# See 'man 7 locale' for more info about LC_ALL.
 if [ -n "${LC_ALL}" ]; then
     if [ "${LC_ALL}" != "${LANG}" -a -n "${LANG}" ]; then
         export LC_ALL
@@ -58,7 +46,6 @@ if [ -n "${LC_ALL}" ]; then
     fi
 fi
 
-# The ${LANG} manipulation is necessary only in virtual terminal (a.k.a. console - /dev/tty*):
 if [ -n "${LANG}" ] && [ "${TERM}" = 'linux' ] && /usr/bin/tty | /usr/bin/grep --quiet -e '/dev/tty'; then
     if /usr/bin/grep --quiet -E -i -e '^.+\.utf-?8$' <<< "${LANG}"; then
         case ${LANG} in
@@ -86,7 +73,4 @@ if [ -n "${LANG}" ] && [ "${TERM}" = 'linux' ] && /usr/bin/tty | /usr/bin/grep -
         esac
     fi
 
-    # NOTE: We are not exporting the ${LANG} here again on purpose.
-    #       If user starts GUI session from console manually, then
-    #       the previously set LANG should be okay to use.
 fi

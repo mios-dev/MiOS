@@ -23,7 +23,7 @@ enabled=1
 gpgcheck=0
 priority=1
 EOF
-    mios_ok "local DNF RPM mirror configured"
+    mios_ok "Local DNF RPM mirror configured"
 else
     mios_log "Offline RPM mirror not active"
 fi

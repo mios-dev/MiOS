@@ -25,12 +25,9 @@ def check(name, cond, detail=""):
 
 
 def _load_tester():
-    # Resolve the extension-less CLI relative to this test so it loads on the
-    # image (/usr/libexec/...), a WSL checkout, or a Windows checkout alike.
     here = os.path.dirname(os.path.abspath(__file__))
     repo = os.path.abspath(os.path.join(here, "..", "..", "..", ".."))
     path = os.path.join(repo, "usr", "libexec", "mios", "mios-a2a-test")
-    # The CLI has no .py suffix, so give spec loading an explicit source loader.
     loader = importlib.machinery.SourceFileLoader("mios_a2a_test", path)
     mod = importlib.util.module_from_spec(
         importlib.util.spec_from_loader("mios_a2a_test", loader))

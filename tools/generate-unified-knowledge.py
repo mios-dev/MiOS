@@ -28,12 +28,10 @@ def parse_metadata(content, file_path):
         "logic_type": "unknown"
     }
     
-    # Extract markdown title
     title_match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
     if title_match:
         meta["title"] = title_match.group(1).strip()
 
-    # Extract json:knowledge block
     kb_match = re.search(r'```json:knowledge\s*\n(.*?)\n```', content, re.DOTALL)
     if kb_match:
         try:
@@ -42,7 +40,6 @@ def parse_metadata(content, file_path):
         except json.JSONDecodeError:
             pass
 
-    # Basic pattern matching for technologies
     tech_keywords = ["bootc", "podman", "quadlet", "k3s", "ceph", "nvidia", "gnome", "selinux", "greenboot", "composefs"]
     for tech in tech_keywords:
         if tech in content.lower():
@@ -73,7 +70,6 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
         "knowledge_nodes": []
     }
 
-    # 1. Capture and Flatten Repository Knowledge
     for root, dirs, files in os.walk("."):
         dirs[:] = [d for d in dirs if d not in ignore_dirs]
         
@@ -81,7 +77,6 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
             file_path = os.path.join(root, file)
             rel_path = os.path.relpath(file_path, start=os.getcwd())
             
-            # Skip non-text files and large files
             if not file.endswith((".md", ".json", ".sh", ".py", ".ps1", ".toml", ".yaml", ".yml", ".conf", ".txt", ".log", "Containerfile", "Justfile")) and not file.startswith("."):
                 continue
             
@@ -95,7 +90,6 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
                 content = redact_secrets(content)
                 meta = parse_metadata(content, rel_path)
                 
-                # Determine category and index
                 category = "other"
                 index_key = None
                 
@@ -136,7 +130,6 @@ def generate_unified_knowledge(output_file="artifacts/repo-rag-snapshot.json.gz"
             except Exception as e:
                 print(f"[!] Could not process {rel_path}: {e}")
 
-    # Ensure artifacts directory exists
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     
     with gzip.open(output_file, 'wt', encoding='utf-8') as f:

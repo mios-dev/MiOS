@@ -55,8 +55,6 @@ def main() -> int:
         else:
             print(f"  PASS  {label}")
 
-    # Output-cap check: an upstream node dumping 50 * 41 = 2050 chars
-    # gets capped at 1024 in the substituted arg.
     got = server._substitute_ek_refs({"x": "#En3"}, results)
     if len(got["x"]) != 1024:
         print(f"  FAIL  output-cap: got len={len(got['x'])}, expected 1024")

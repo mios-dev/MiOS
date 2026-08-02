@@ -56,8 +56,6 @@ def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
     if key:
         headers["Authorization"] = f"Bearer {key}"
     body = {"model": model, "input": texts}
-    # Optional `dimensions` parameter — set MIOS_AI_EMBED_DIMS to enable.
-    # Many local runtimes silently ignore it; nomic-embed-text default is 768-dim.
     dims = os.environ.get("MIOS_AI_EMBED_DIMS")
     if dims:
         body["dimensions"] = int(dims)
@@ -81,7 +79,6 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     key      = os.environ.get("MIOS_AI_KEY", "")
     model    = os.environ.get("MIOS_AI_EMBED_MODEL", "nomic-embed-text")
     
-    # pgvector config
     pg_host = os.environ.get("MIOS_PG_HOST", "localhost")
     pg_port = int(os.environ.get("MIOS_PORT_PGVECTOR", "5432") or 5432)
     pg_user = os.environ.get("MIOS_PG_USER", "mios")
@@ -101,7 +98,6 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     print(f"Loaded {len(chunks)} chunks from {path}")
     print(f"Embedding via {endpoint} (model={model})")
 
-    # 1. Embed in batches of 32
     all_vectors: list[list[float]] = []
     with httpx.Client() as client:
         BATCH = 32
@@ -117,16 +113,13 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
     dim = len(all_vectors[0])
     print(f"All vectors embedded (dim={dim})")
 
-    # 2. Upsert to pgvector
     dsn = f"postgresql://{pg_user}:{pg_pass}@{pg_host}:{pg_port}/{pg_db}"
     print(f"Connecting to pgvector at {pg_host}:{pg_port} (db={pg_db}, table={table_name})...")
     
     with psycopg.connect(dsn, autocommit=True) as conn:
         with conn.cursor() as cur:
-            # Enable vector extension
             cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
             
-            # Create schema
             cur.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} (
                     id bigint PRIMARY KEY,
@@ -137,7 +130,6 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                 );
             """)
             
-            # Create HNSW index
             try:
                 cur.execute(f"""
                     CREATE INDEX IF NOT EXISTS {table_name}_emb_hnsw 
@@ -148,10 +140,8 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                 
             print(f"Table {table_name} created/verified.")
             
-            # Truncate and upsert
             cur.execute(f"TRUNCATE TABLE {table_name};")
             
-            # Batch inserts
             print("Upserting vectors...")
             for c, v in zip(chunks, all_vectors):
                 cid = c["id"]
@@ -166,7 +156,6 @@ def main(chunks_path: str = "chunks.jsonl") -> int:
                 
             print(f"Upserted {len(chunks)} points into pgvector table {table_name}")
 
-            # 3. Sanity probe
             sample_query = "What is the kargs.d format in MiOS?"
             qv = embed_batch(httpx.Client(), endpoint, key, model, [sample_query])[0]
             qv_str = vector_literal(qv)

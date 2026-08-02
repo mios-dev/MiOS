@@ -58,10 +58,6 @@ import mios_tokenize  # WS-A5 token-accounting seam (shared ~chars/token measure
 
 log = logging.getLogger("mios-agent-pipe")
 
-# ── per-slice (quantum-boundary) decision outcomes for the interruptible driver ──
-# server.py's preemptible decode loop generates in bounded slices and, at every
-# slice boundary, asks decide() what to do next. Keeping the rule HERE (pure +
-# truth-tabled in tests) means the engine-side driver carries no policy of its own.
 CONTINUE = "continue"   # same task keeps the lane -- run another slice
 PREEMPT = "preempt"     # snapshot this gen's KV + yield the lane to a waiter
 COMPLETE = "complete"   # the slice hit a stop/EOS -> the generation is done
@@ -218,17 +214,11 @@ class TokenSliceQueue:
 
     __slots__ = ("_default_slice", "_cap", "_turns", "_seq")
 
-    # Row layout for a tracked turn (index constants -- avoids magic offsets).
     _PRIO, _BUDGET, _USED, _SEQ, _RUNNING = range(5)
 
     def __init__(self, default_slice_tokens: int = 0, max_turns: int = 0) -> None:
-        # Per-turn slice budget when the caller passes none (0 = slicing OFF: account()
-        # never trips a boundary -> the queue degrades to pure priority ordering).
         self._default_slice = max(0, int(default_slice_tokens or 0))
-        # Bounded advisory bookkeeping (0 = unbounded). The cap can never drop an
-        # active turn's coroutine -- only its stale queue row (see _evict_if_full).
         self._cap = max(0, int(max_turns or 0))
-        # task_id -> [priority, slice_budget, used_in_slice, enqueue_seq, running].
         self._turns: "collections.OrderedDict[str, list]" = collections.OrderedDict()
         self._seq = 0
 
@@ -295,10 +285,6 @@ class TokenSliceQueue:
         self._turns.move_to_end(str(task_id))       # mark recently used (LRU tracking)
         if budget > 0 and row[self._USED] >= budget:
             row[self._USED] -= budget               # carry the remainder forward
-            # MLFQ DEMOTION: Autellix-style program-level scheduling.
-            # We decay the turn's priority if it exceeds its slice quantum.
-            # GATED to contention: we only penalize if another turn is waiting
-            # (hurts trivial small-model turns if applied unconditionally).
             if self.head_priority(exclude=task_id) is not None:
                 row[self._PRIO] = max(0.0, row[self._PRIO] - 1.0)
             return True
@@ -344,23 +330,6 @@ class TokenSliceQueue:
         }
 
 
-# ── Turn-boundary preemption seam (T-019 / SCHED-01) ─────────────────────────────
-# The classes above are the pure POLICY primitives. This section is the agent-pipe
-# TURN-boundary INTEGRATION seam: a single async hook (turn_boundary) the dispatch
-# turn loop (mios_chat.chat_completions_logic) calls AFTER a turn's priority is
-# known. When enabled the scheduler may snapshot + yield a turn to a higher-priority
-# waiter and resume it. DISTINCT from the decode-loop RR time-slice ([dispatch].rr_*)
-# and the priority SCORER ([sched]); it is the substrate richer scheduler policies
-# (cross-turn cooperative yielding) build on.
-#
-# SSOT (NO-HARDCODE Law 7): every knob lives in mios.toml [scheduler], read via
-# mios_config._toml_section. _SCHEDULER_FALLBACK holds the degrade-open defaults --
-# each value EQUALS the documented [scheduler] default, so an absent/malformed
-# section reproduces the default behaviour (the same sanctioned fallback pattern as
-# mios_sched._SCHED_FALLBACK). Wiring: this module reads the SSOT itself (self-
-# contained + unit-testable); server.py OVERRIDES/augments via configure() -- chiefly
-# injecting the live PriorityGate "is a higher-priority turn waiting?" probe. ONE-WAY
-# BOUNDARY: this module never imports server (configure() is the only inbound seam).
 _SCHEDULER_FALLBACK = {
     "preempt_enable": False,   # MASTER FLAG (T-019) -- off => turn_boundary is a pass-through no-op
     "queue_enable": False,     # MASTER FLAG (T-020) -- off => slice_boundary is a pass-through no-op
@@ -416,8 +385,6 @@ def _scheduler_cfg() -> dict:
                                    int(out.get("max_suspended") or 4), int)
     out["quantum_s"] = _envnum("MIOS_SCHEDULER_QUANTUM_S",
                                float(out.get("quantum_s") or 0.0), float)
-    # slice_tokens / queue_max_turns: 0 is a MEANINGFUL value (slicing off /
-    # unbounded), so guard with `or 0` (keeps a configured 0) -- not `or <default>`.
     out["slice_tokens"] = _envnum("MIOS_SCHEDULER_SLICE_TOKENS",
                                   int(out.get("slice_tokens") or 0), int)
     out["queue_max_turns"] = _envnum("MIOS_SCHEDULER_QUEUE_MAX_TURNS",
@@ -429,8 +396,6 @@ def _scheduler_cfg() -> dict:
     return out
 
 
-# Module state, initialised from SSOT at import (DEFAULT-OFF unless [scheduler]
-# opts in). server.py may override any of these via configure(); tests inject spies.
 _CFG = _scheduler_cfg()
 PREEMPT_ENABLE = _as_bool(_CFG.get("preempt_enable"), False)
 QUEUE_ENABLE = _as_bool(_CFG.get("queue_enable"), False)
@@ -439,19 +404,11 @@ SLICE_TOKENS = int(_CFG.get("slice_tokens") or 0)
 QUEUE_MAX_TURNS = int(_CFG.get("queue_max_turns") or 0)
 PRIORITY_LEVELS = int(_CFG.get("priority_levels") or 0)
 MAX_PREEMPT_DEPTH = int(_CFG.get("max_preempt_depth") or 1)
-# The TURN-boundary scheduler instance -- SEPARATE from server.py's decode-loop
-# _PREEMPT (gated by [dispatch].rr_*) so the two layers' bounded slot free-lists
-# never couple.
 _TURN_SCHEDULER: "Optional[PreemptScheduler]" = PreemptScheduler(
     max_suspended=int(_CFG.get("max_suspended") or 4))
-# The TURN-level token-time-sliced priority queue (T-020). SEPARATE instance again --
-# it tracks WHOLE turns + their token slices, distinct from the snapshot free-list.
 _TURN_QUEUE: "Optional[TokenSliceQueue]" = TokenSliceQueue(
     default_slice_tokens=SLICE_TOKENS, max_turns=QUEUE_MAX_TURNS)
-# Injected by server.configure(): () -> Optional[float] = priority of the highest
-# turn currently QUEUED at the live gate (None when idle/unwired -> no preempt signal).
 _HEAD_PRIORITY = None
-# Monotonic clock (injectable for deterministic tests). Default: time.monotonic.
 _CLOCK = time.monotonic
 
 _INJECTED = frozenset((
@@ -459,7 +416,6 @@ _INJECTED = frozenset((
     "PRIORITY_LEVELS", "MAX_PREEMPT_DEPTH",
     "_TURN_SCHEDULER", "_TURN_QUEUE", "_HEAD_PRIORITY", "_CLOCK",
 ))
-# Friendly keyword aliases server.py / tests pass to configure().
 _CFG_ALIAS = {
     "preempt_enable": "PREEMPT_ENABLE", "queue_enable": "QUEUE_ENABLE",
     "quantum_s": "TURN_QUANTUM_S", "slice_tokens": "SLICE_TOKENS",
@@ -546,15 +502,10 @@ async def turn_boundary(*, task_id: str, priority: float = 5.0,
         slot = sched.acquire_slot()
         if slot is None:                       # lost the slot race -> don't preempt
             return False
-        # SNAPSHOT at the boundary: position 0 / empty partial -- a turn boundary
-        # preempts BEFORE this turn's own generation (unlike the decode-loop RR,
-        # which snapshots a partial mid-stream).
         if not sched.suspend(Snapshot(str(task_id), float(priority), position=0,
                                       partial="", slot=slot)):
             sched.release_slot(slot)           # already suspended -> release + bail
             return False
-        # YIELD: hand the event loop to the higher-priority waiter, bounded by the
-        # SSOT quantum AND max_preempt_depth ticks (no busy-wait, no starvation).
         t0 = now if now is not None else _CLOCK()
         q = Quantum(t0, TURN_QUANTUM_S)
         ticks = 0
@@ -563,9 +514,6 @@ async def turn_boundary(*, task_id: str, priority: float = 5.0,
                and not q.expired(_CLOCK())):
             await asyncio.sleep(0)
             ticks += 1
-        # RESUME: discharge OUR OWN snapshot (self-resume frees the slot). Priority
-        # ordering of waiters already lives in the gate, so the boundary self-resumes
-        # rather than popping the global highest (resume()).
         sched.discharge(str(task_id))
         return True
     except Exception:  # noqa: BLE001 -- DEGRADE-OPEN: never drop/corrupt a turn

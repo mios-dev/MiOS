@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: stdlib assert-script for mios_native_loop -- exercises the NATIVE
-#   tool-loop responder's two loop-control branches with stubs (no network/DB):
-#   (1) the deterministic `remember` fast-path TERMINATES the turn early WITHOUT
-#   entering the secondary tool loop; (2) a neutral turn RUNS the secondary tool
-#   loop (a tool message comes back) and then TERMINATES on the model's final
-#   answer. Sibling imports (mios_secondary_loop / mios_verity / mios_sse) and
-#   httpx are monkeypatched; every server-side dep is injected via configure().
 # AI-related: ./mios_native_loop.py
 # AI-functions: _run
 """Offline test for mios_native_loop._respond_native_loop_direct loop control."""
@@ -67,7 +61,6 @@ def _base_configure(verb_catalog, dispatch_calls, loop_calls):
 
     async def _secondary_loop(*a, **k):
         loop_calls.append(True)
-        # a tool executed (tool message) then the model produced a final turn
         return [
             {"role": "assistant", "tool_calls": [
                 {"function": {"name": "web_search"}}]},
@@ -76,7 +69,6 @@ def _base_configure(verb_catalog, dispatch_calls, loop_calls):
         ]
 
     M.configure(
-        # config scalars
         BACKEND="http://x/v1", BACKEND_MODEL="m", _BACKEND_KEY=None,
         _BACKEND_HOSTPORT="x", REFINE_ENDPOINT="http://x/v1", REFINE_MODEL="m",
         STABLE_PREFIX=False, STABLE_PREFIX_HINT=False, STABLE_PREFIX_TAIL=0,
@@ -90,13 +82,11 @@ def _base_configure(verb_catalog, dispatch_calls, loop_calls):
         NATIVE_LOOP_QUERY_REFORMULATE=False, NATIVE_LOOP_STREAM_TOKENS=False,
         NATIVE_LOOP_STREAM_CHUNK=0, NATIVE_LOOP_STREAM_DELAY_MS=0,
         _ROUTING_DOMAINS={},
-        # refs / contextvars
         _VERB_CATALOG=verb_catalog,
         _routed_domain_var=contextvars.ContextVar("rd", default=None),
         _orch_ctx_var=contextvars.ContextVar("orch", default=None),
         _recency_ctx_var=contextvars.ContextVar("rec", default=None),
         _worker_tools_core_cache=(lambda: None),
-        # helpers
         dispatch_mios_verb=_dispatch,
         _usage_estimate=lambda p, c: {"total_tokens": 0},
         _identity_answer=lambda: "",
@@ -123,7 +113,6 @@ def _base_configure(verb_catalog, dispatch_calls, loop_calls):
         _iter_answer_chunks=lambda text, size: [text],
         _write_skill_md_fire=lambda **k: None,
     )
-    # directly-imported siblings (module attributes) -> patch in place
     M.httpx = _FAKE_HTTPX
     M.polish_response = _async_const("")
     M._v1_secondary_tool_loop = _secondary_loop
@@ -134,7 +123,6 @@ def _body_text(resp):
 
 
 def _run():
-    # -- Branch 1: deterministic `remember` fast-path TERMINATES early ----------
     dcalls, lcalls = [], []
     _base_configure({"remember": {}}, dcalls, lcalls)
     resp = asyncio.run(M._respond_native_loop_direct(
@@ -149,7 +137,6 @@ def _run():
     assert lcalls == [], "secondary tool loop must NOT run on the remember fast-path"
     print("branch-1 remember fast-path terminates early: OK ->", repr(txt))
 
-    # -- Branch 2: neutral turn RUNS the tool loop then TERMINATES on final ----
     dcalls, lcalls = [], []
     _base_configure({}, dcalls, lcalls)  # no `remember`/`coderun` verbs -> no fast-path, no prefetch
     resp = asyncio.run(M._respond_native_loop_direct(
@@ -203,34 +190,27 @@ def _run_moved():
     """Cover the three functions extracted into mios_native_loop: the micro-LLM
     compute/web formulators + the local-state responder. All network is mocked;
     payload tokens are SYNTHETIC non-dictionary strings (no baked keywords)."""
-    # _formulate_compute_snippet: empty -> "" with NO network call
     assert asyncio.run(M._formulate_compute_snippet("")) == ""
-    # a fenced snippet is unwrapped to the runnable lines only
     M.httpx = _fake_httpx_returning("```python\nZZQX = 41 + 1\nprint(ZZQX)\n```")
     out = asyncio.run(M._formulate_compute_snippet("Vmbtok zzqx plff"))
     assert out == "ZZQX = 41 + 1\nprint(ZZQX)", repr(out)
     print("moved _formulate_compute_snippet fence-strip: OK ->", repr(out))
 
-    # _formulate_web_query: <think> scratch is stripped (hybrid/local path)
     M.httpx = _fake_httpx_returning("<think>scratch</think>QRZL Vmbtok 9000")
     out = asyncio.run(M._formulate_web_query("zzqx plff", "GPU: QRZL-9000"))
     assert out == "QRZL Vmbtok 9000", repr(out)
-    # empty user_text echoes the input unchanged (degrade-open, no network)
     assert asyncio.run(M._formulate_web_query("", "")) == ""
     print("moved _formulate_web_query think-strip + degrade: OK ->", repr(out))
 
-    # _format_local_state: empty grounding -> None with NO network call
     M._env_grounding = lambda: ""
     M._LOCAL_STATE_SYSTEM = "SSOT-LOCAL-STATE-PROMPT"
     M._polish_post = (lambda ep, model, msgs, mx, temperature=0.0:
                       ("http://x/v1/chat/completions",
                        {"model": model, "messages": msgs}))
     assert asyncio.run(M._format_local_state("zzqx", "")) is None
-    # /v1 (`choices`) shape -> content extracted via the polish call
     M.httpx = _fake_httpx_returning("QRZL Vmbtok enumerated")
     out = asyncio.run(M._format_local_state("zzqx plff", "live: QRZL=1"))
     assert out == "QRZL Vmbtok enumerated", repr(out)
-    # empty/blank polished content collapses to None (the `or None` guard)
     M.httpx = _fake_httpx_returning("   ")
     assert asyncio.run(M._format_local_state("zzqx plff", "live: QRZL=1")) is None
     print("moved _format_local_state polish + native-shape extract: OK ->", repr(out))

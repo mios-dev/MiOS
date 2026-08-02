@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-# tools/generate-bake-plan.py
 import os
 import sys
 import re
 import glob
 
-# Ensure we can load mios_toml
 ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
     os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
@@ -32,16 +30,12 @@ def main(argv):
     core = set(build_bake.get("core", []))
     groups = build_bake.get("groups", ["vllm", "sglang", "ai", "infra", "extra"])
     group_members = build_bake.get("group_members", {})
-    # firstboot tier (SSOT [build.bake].firstboot_tokens): images whose rendered
-    # ref substring-matches any token are NOT baked -- excluded from every group
-    # list -> they go to plan.d/firstboot.list and are pulled at first boot.
     firstboot_tokens = build_bake.get("firstboot_tokens", [])
     def is_firstboot(img):
         return any(tok and tok in img for tok in firstboot_tokens)
 
     enabled_map = config.get("quadlets", {}).get("enable", {})
     
-    # We will scan both *.container and *.image files from usr/share/containers/systemd/
     quadlet_dir = os.path.join(ROOT, "usr/share/containers/systemd")
     
     def classify(img):
@@ -53,17 +47,8 @@ def main(argv):
         
     var_re = re.compile(r"\$\{([A-Za-z0-9_]+):-([^}]*)\}")
     
-    # Load all sidecars to resolve variable substitutions
     sidecars = (config.get("image") or {}).get("sidecars") or {}
     
-    # An env var exported as the EMPTY string counts as UNSET -- shell
-    # `${VAR:-default}` semantics, and the same rule the mios.toml overlay uses
-    # ("empty strings do not override non-empty values below them").
-    # tools/lib/userenv.sh exports EVERY MIOS_* key it knows about, emitting ""
-    # for keys with no resolved value, so an `in os.environ` membership test
-    # alone collapsed e.g. ${MIOS_GUACD_IMAGE:-docker.io/...} to "" whenever the
-    # env was sourced -- silently dropping a bound image from the bake plan
-    # (Law 3 BOUND-IMAGES). Mirrors tools/generate-pod-quadlets.py.
     def _env(var_name):
         v = os.environ.get(var_name)
         return v if v else None
@@ -71,7 +56,6 @@ def main(argv):
     def resolve_image_val(val):
         if not val:
             return ""
-        # Resolve ${VAR:-fallback}
         def repl_fallback(m):
             var_name = m.group(1)
             fallback = m.group(2)
@@ -86,7 +70,6 @@ def main(argv):
             return fallback
         val = var_re.sub(repl_fallback, val)
 
-        # Resolve ${VAR}
         def repl_var(m):
             var_name = m.group(1)
             env_val = _env(var_name)
@@ -103,7 +86,6 @@ def main(argv):
 
     images_to_bake = []
     
-    # Scan all Quadlet files
     for q in sorted(glob.glob(os.path.join(quadlet_dir, "*.container")) +
                     glob.glob(os.path.join(quadlet_dir, "*.image"))):
         base_name = os.path.splitext(os.path.basename(q))[0]
@@ -135,17 +117,11 @@ def main(argv):
         if is_core or enabled_map.get(base_name) is not False:
             images_to_bake.append((resolved_img, base_name))
             
-    # Inject any localhost/ images defined in [build.bake].core
-    # so they get grouped and emitted to plan.d lists.
-    # Must use sorted() for deterministic output to avoid drift check failures.
     for core_img in sorted(core):
         if core_img.startswith("localhost/"):
             if not any(img == core_img for img, _ in images_to_bake):
                 images_to_bake.append((core_img, "core-localhost"))
 
-    # Group the images. Firstboot-tier images are NOT baked -> excluded from every
-    # group list (they stay in images_to_bake for the SBOM); collect them for
-    # plan.d/firstboot.list so mios-ai-firstboot / the USB stager can pull them.
     group_lists = {g: [] for g in groups}
     firstboot_images = []
     for img, base_name in images_to_bake:
@@ -157,7 +133,6 @@ def main(argv):
         if img not in group_lists[g]:
             group_lists[g].append(img)
             
-    # Assertions / Validation
     errors = []
     for tok in firstboot_tokens:
         if tok and not any(tok in img for img in core):
@@ -167,7 +142,6 @@ def main(argv):
         if img not in core:
             errors.append(f"Firstboot image '{img}' is missing from core bake list")
 
-    # Core bake-plan reconciliation pass
     discovered_non_localhost = {img for img, _ in images_to_bake if not img.startswith("localhost/")}
     core_non_localhost = {img for img in core if not img.startswith("localhost/")}
     missing_from_core = discovered_non_localhost - core_non_localhost
@@ -198,7 +172,6 @@ def main(argv):
             print(f"[bake-plan-gen] VALIDATION ERROR: {err}", file=sys.stderr)
         return 2
             
-    # Generate list files
     if not check:
         os.makedirs(out_dir, exist_ok=True)
         for f in glob.glob(os.path.join(out_dir, "*.list")):
@@ -207,7 +180,6 @@ def main(argv):
             except OSError:
                 pass
 
-        # Generate SSOT-compliant bound-images.tsv SBOM artifact
         sbom_dir = os.environ.get("MIOS_SBOM_DIR") or os.path.join(ROOT, "usr/share/mios/artifacts/sbom")
         os.makedirs(sbom_dir, exist_ok=True)
         sbom_file = os.path.join(sbom_dir, "bound-images.tsv")
@@ -259,8 +231,6 @@ def main(argv):
                 fh.write(content)
             print(f"[bake-plan-gen] wrote {plan_file}")
             
-    # firstboot tier: emit the not-baked images for mios-ai-firstboot / the USB
-    # data-partition stager. Checked in check mode and written in write mode.
     fb_file = os.path.join(out_dir, "firstboot.list")
     fb_content = "".join(f"{img}\n" for img in firstboot_images)
     if check:

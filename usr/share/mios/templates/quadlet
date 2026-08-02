@@ -1,5 +1,4 @@
 # AI-hint: Describe the container's purpose and its generator relation here.
-# /usr/share/containers/systemd/mios-{{name}}.container
 
 [Unit]
 Description=MiOS {{name}} Container

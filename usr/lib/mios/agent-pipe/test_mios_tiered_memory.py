@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for MEM-02 (tiered memory / context warning and eviction logic). Pure stdlib + asyncio, no live Letta server required. Runs as `python3 test_mios_tiered_memory.py` (exit 0 = pass).
-# usr/lib/mios/agent-pipe/test_mios_tiered_memory.py
 
 import sys
 import os
@@ -34,7 +33,6 @@ class MockRequest:
 def m(role, content):
     return {"role": role, "content": content}
 
-# Setup spys
 events_written = []
 memories_written = []
 scratch_written = []
@@ -89,11 +87,8 @@ async def test_warning_and_eviction():
     chat._scratchpad_key = lambda b, f: "test-session"
     chat._src_turn_key = lambda: "test-turn-key"
     
-    # Mock _toml_section to return a custom n_ctx (e.g. 50 tokens)
-    # Mock _toml_section to return a custom n_ctx (e.g. 100 tokens)
     chat._toml_section = lambda sect: {"n_ctx": 100, "compaction_threshold_pct": 100} if sect == "memory" else {}
     
-    # Mock other required dependencies to pass-through
     chat._conv_key_var.set("test-session")
     
     async def _async_noop(*a, **k): return None
@@ -111,7 +106,6 @@ async def test_warning_and_eviction():
     async def _async_void(*a, **k): pass
     chat._vram_checkpoint = _async_void
     
-    # 1. Test 70% threshold (between 70 and 100 tokens)
     msgs = [
         m("system", "You are an assistant."),
         m("user", "Hello " * 50) # ~75 tokens
@@ -142,8 +136,6 @@ async def test_warning_and_eviction():
         if str(e) != "success_warning_test":
             raise
             
-    # 2. Test 100% threshold eviction
-    # Set n_ctx to 40 tokens so that the messages exceed 100%
     chat._toml_section = lambda sect: {"n_ctx": 40, "compaction_threshold_pct": 100} if sect == "memory" else {}
     
     msgs_over = [

@@ -31,7 +31,6 @@ class Filter:
 
     def __init__(self):
         self.valves = self.Valves()
-        # Offline-safe base64 SVG (a wrench = forced tool action).
         self.toggle = True
         self.icon = (
             "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5v"

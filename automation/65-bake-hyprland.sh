@@ -145,4 +145,4 @@ sed -i \
     /usr/share/mios/hyprland/hyprland.conf
 
 chmod 0644 /usr/share/mios/hyprland/hyprland.conf
-mios_ok "wrote /usr/share/mios/hyprland/hyprland.conf (MIOS_COLOR_ACCENT/INFO/MUTED tokens substituted from mios.toml [colors])"
+mios_ok "Wrote /usr/share/mios/hyprland/hyprland.conf"

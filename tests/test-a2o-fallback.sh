@@ -14,7 +14,6 @@ die() {
   exit 1
 }
 
-# Setup temp paths
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
 
@@ -29,7 +28,7 @@ echo "Dummy prompt" > "$PROMPTS/$name.txt"
 : > "$LOGS/$name.log"
 
 run_test_fallback_enabled() {
-  log "Testing fallback enabled (quota hit -> retry on claude)..."
+  log "Testing fallback enabled"
   echo "RESOURCE_EXHAUSTED: quota limit reached" > "$AGY_DEBUG_LOG"
   
   LANE_B_FALLBACK_ENGINE="claude"
@@ -50,7 +49,6 @@ run_test_fallback_enabled() {
 
     if [ "$_is_quota" = 1 ] && [ -n "$EXEC_FALLBACK" ]; then
       printf '%s\n' "=== [mios-a2o] agy quota failure detected -- retrying on fallback engine '$LANE_B_FALLBACK_ENGINE' ===" | tee -a "$LOGS/$name.log"
-      # Run fallback
       PROMPT="$(cat "$PROMPTS/$name.txt")"
       eval "$EXEC_FALLBACK" 2>&1 | tee -a "$LOGS/$name.log"
       rc=0
@@ -58,14 +56,14 @@ run_test_fallback_enabled() {
     fi
   fi
 
-  [ "$rc" = 0 ] || die "Fallback did not result in successful exit code (rc=$rc)"
-  [ "$_a2o_fail" = 0 ] || die "Fallback did not reset failure flag (_a2o_fail=$_a2o_fail)"
+  [ "$rc" = 0 ] || die "Fallback did not result in successful exit code"
+  [ "$_a2o_fail" = 0 ] || die "Fallback did not reset failure flag"
   grep -q "injected-claude-fallback-execution" "$LOGS/$name.log" || die "Fallback command output was not captured in task log"
-  log "Fallback enabled test passed."
+  log "Fallback enabled test passed"
 }
 
 run_test_fallback_disabled() {
-  log "Testing fallback disabled (quota hit -> fail)..."
+  log "Testing fallback disabled"
   echo "RESOURCE_EXHAUSTED: quota limit reached" > "$AGY_DEBUG_LOG"
   : > "$LOGS/$name.log"
   
@@ -87,7 +85,6 @@ run_test_fallback_disabled() {
 
     if [ "$_is_quota" = 1 ] && [ -n "$EXEC_FALLBACK" ]; then
       printf '%s\n' "=== [mios-a2o] agy quota failure detected -- retrying on fallback engine '$LANE_B_FALLBACK_ENGINE' ===" | tee -a "$LOGS/$name.log"
-      # Run fallback
       PROMPT="$(cat "$PROMPTS/$name.txt")"
       eval "$EXEC_FALLBACK" 2>&1 | tee -a "$LOGS/$name.log"
       rc=0
@@ -95,15 +92,15 @@ run_test_fallback_disabled() {
     fi
   fi
 
-  [ "$rc" = 1 ] || die "Unset fallback did not result in failure (rc=$rc)"
-  [ "$_a2o_fail" = 1 ] || die "Unset fallback did not retain failure flag (_a2o_fail=$_a2o_fail)"
-  log "Fallback disabled test passed."
+  [ "$rc" = 1 ] || die "Unset fallback did not result in failure"
+  [ "$_a2o_fail" = 1 ] || die "Unset fallback did not retain failure flag"
+  log "Fallback disabled test passed"
 }
 
 main() {
   run_test_fallback_enabled
   run_test_fallback_disabled
-  log "All fallback tests completed successfully!"
+  log "All fallback tests completed successfully"
 }
 
 main "$@"

@@ -11,7 +11,7 @@ _self_dir="$(cd "$(dirname "$_self")" && pwd)"
 ROOT="$(cd "$_self_dir/.." && pwd)"
 
 source "$_self_dir/lib/common.sh" 2>/dev/null || {
-    mios_warn "lib/common.sh unavailable -- skipping"
+    mios_warn "Lib/common.sh unavailable"
     exit 0
 }
 
@@ -19,7 +19,7 @@ mios_log "Projecting bake-plan lists from mios.toml SSOT"
 
 if command -v miosd >/dev/null 2>&1; then
     miosd bake-plan
-    mios_ok "bake-plan lists projected via miosd"
+    mios_ok "Bake-plan lists projected via miosd"
     exit 0
 fi
 
@@ -40,5 +40,5 @@ elif ! python3 "${ROOT}/tools/generate-bake-plan.py"; then
     exit 1
 fi
 
-mios_ok "bake-plan lists projected"
+mios_ok "Bake-plan lists projected"
 exit 0

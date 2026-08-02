@@ -61,7 +61,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
             remediation_order=[],
         )
 
-    # 1. Duplicate IDs
     seen_ids: Set[str] = set()
     dup_ids: Set[str] = set()
     unique_nodes: List[Dict[str, Any]] = []
@@ -76,11 +75,9 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
 
     duplicate_list = sorted(list(dup_ids))
 
-    # 2. Map nodes by ID
     by_id: Dict[str, Dict[str, Any]] = {str(n["id"]): n for n in unique_nodes}
     valid_ids: Set[str] = set(by_id.keys())
 
-    # 3. Dangling deps & Self-loops
     dangling: Dict[str, List[str]] = {}
     clean_deps: Dict[str, Set[str]] = {}
 
@@ -91,7 +88,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
         for d in raw_deps:
             sd = str(d)
             if sd == nid:
-                # Self-loop: invalid dependency
                 pass
             elif sd not in valid_ids:
                 n_dangling.append(sd)
@@ -102,7 +98,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
             dangling[nid] = n_dangling
         clean_deps[nid] = n_clean
 
-    # Determine structural defects before Kahn
     if duplicate_list:
         remed_order = _build_linear_remediation(unique_nodes, clean_deps)
         return DAGValidationVerdict(
@@ -122,17 +117,14 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
             remediation_order=remed_order,
         )
 
-    # 4. Kahn's Algorithm for Topological Sorting & Cycle Detection
     in_degree: Dict[str, int] = {nid: len(deps_set) for nid, deps_set in clean_deps.items()}
     adjacency: Dict[str, List[str]] = collections.defaultdict(list)
     for nid, deps_set in clean_deps.items():
         for d in deps_set:
             adjacency[d].append(nid)
 
-    # Queue of nodes with in_degree == 0
     zero_in_degree = collections.deque([nid for nid in valid_ids if in_degree[nid] == 0])
 
-    # Check for cycle / orphan roots when no root node exists
     if not zero_in_degree and valid_ids:
         remed_order = _build_linear_remediation(unique_nodes, clean_deps)
         return DAGValidationVerdict(
@@ -152,7 +144,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
                 zero_in_degree.append(neighbor)
 
     if len(topo_order) == len(valid_ids):
-        # Check if any self-loops were filtered out
         has_self_loops = any(str(nid) in (n.get("deps") or []) for nid, n in by_id.items())
         if has_self_loops:
             self_loop_nodes = sorted([nid for nid, n in by_id.items() if str(nid) in (n.get("deps") or [])])
@@ -165,7 +156,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
                 remediation_order=remed_order,
             )
 
-        # Acyclic and fully valid!
         remed_order = [by_id[nid] for nid in topo_order]
         return DAGValidationVerdict(
             is_valid=True,
@@ -174,7 +164,6 @@ def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> D
             remediation_order=remed_order,
         )
 
-    # Cycle detected
     cycle_node_ids = sorted([nid for nid in valid_ids if nid not in set(topo_order)])
     remed_order = _build_linear_remediation(unique_nodes, clean_deps)
 
@@ -199,7 +188,6 @@ def _build_linear_remediation(nodes: List[Dict[str, Any]], clean_deps: Dict[str,
             continue
         seen.add(nid)
         n_copy = dict(n)
-        # Strip deps to valid previous nodes in linear order
         valid_prev = clean_deps.get(nid, set()) & (seen - {nid})
         n_copy["deps"] = sorted(list(valid_prev))
         sanitized.append(n_copy)

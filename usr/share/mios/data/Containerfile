@@ -1,6 +1,5 @@
 # AI-hint: Consolidated data plane container image ('mios-data') deriving FROM localhost/mios-base. Combines pgvector + valkey.
 # AI-related: usr/share/mios/base/Containerfile, usr/share/containers/systemd/mios-pgvector.container
-# ----------------------------------------------------------------------------
 ARG BASE_IMAGE=localhost/mios-base:latest
 FROM ${BASE_IMAGE}
 

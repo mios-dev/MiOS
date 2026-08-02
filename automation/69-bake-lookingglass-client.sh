@@ -6,7 +6,7 @@ for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mi
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"
 
 if [[ -x /usr/bin/looking-glass-client ]]; then
-    mios_ok "looking-glass-client already present (21-virt.sh)"
+    mios_ok "Looking-glass-client already present"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
     exit 0
 fi
@@ -21,8 +21,8 @@ done
 if [[ -n "$MISSING" ]]; then
     mios_skip "missing toolchain: $MISSING"
     mios_warn "21-virt.sh normally builds Looking Glass and removes cmake/gcc"
-    mios_warn "afterwards. If 21-virt.sh failed, fix it first - the LG build"
-    mios_warn "there is the canonical path."
+    mios_warn "Afterwards. If 21-virt.sh failed, fix it first - the LG build"
+    mios_warn "There is the canonical path"
     exit 0
 fi
 
@@ -45,7 +45,7 @@ if [[ -n "$_DNF" ]]; then
         pipewire-devel wayland-devel wayland-protocols-devel libxkbcommon-x11-devel \
         libXi-devel libXinerama-devel libXcursor-devel libXpresent-devel \
         libXScrnSaver-devel libXrandr-devel binutils-devel dejavu-sans-mono-fonts \
-        >/dev/null 2>&1 || mios_warn "some LG client build deps could not be installed (cmake will report specifics)"
+        >/dev/null 2>&1 || mios_warn "Some LG client build deps could not be installed"
 fi
 
 LG_OK=""
@@ -56,7 +56,7 @@ for attempt in 1 2 3; do
 
     if ! git clone --depth 1 --branch "$LG_BRANCH" --recurse-submodules \
             https://github.com/gnif/LookingGlass.git "$BUILD_DIR"; then
-        mios_warn "git clone failed on attempt $attempt"
+        mios_warn "Git clone failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -73,14 +73,14 @@ for attempt in 1 2 3; do
                -DENABLE_PULSEAUDIO=OFF \
                -DENABLE_BACKTRACE=OFF \
                ..; then
-        mios_warn "cmake configure failed on attempt $attempt"
+        mios_warn "Cmake configure failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
     
     mios_log "Build looking-glass-client)"
     if ! make -j"$(nproc)"; then
-        mios_warn "make failed on attempt $attempt"
+        mios_warn "Make failed on attempt $attempt"
         sleep $((attempt * 8))
         continue
     fi
@@ -95,7 +95,7 @@ for attempt in 1 2 3; do
 done
 
 if [[ -z "$LG_OK" ]]; then
-    mios_warn "looking-glass-client build failed after 3 attempts"
+    mios_warn "Looking-glass-client build failed after 3 attempts"
     exit 1
 fi
 
@@ -116,7 +116,7 @@ cd /
 rm -rf "$BUILD_DIR"
 
 if [[ -x /usr/bin/looking-glass-client ]]; then
-    mios_ok "looking-glass-client baked in at /usr/bin/looking-glass-client"
+    mios_ok "Looking-glass-client baked in at /usr/bin/looking-glass-client"
     /usr/bin/looking-glass-client --version 2>&1 | head -5 || true
 else
     mios_skip "binary missing after install (non-fatal)"

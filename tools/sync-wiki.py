@@ -28,7 +28,6 @@ def sync_json_embeds(file_path):
     version = get_version()
     rag_sync = get_last_rag_sync()
     
-    # 1. Update json:knowledge blocks
     def update_knowledge(match):
         try:
             data = json.loads(match.group(1))
@@ -40,7 +39,6 @@ def sync_json_embeds(file_path):
 
     content = re.sub(r"```json:knowledge\n(.*?)\n```", update_knowledge, content, flags=re.DOTALL)
 
-    # 2. Update status blocks (specifically for README.md)
     def update_status(match):
         try:
             data = json.loads(match.group(1))
@@ -52,10 +50,8 @@ def sync_json_embeds(file_path):
         except:
             return match.group(0)
 
-    # Targeted regex for the status-style JSON blocks (not knowledge)
     content = re.sub(r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n(.*?)\n```", 
                      r"#  'MiOS': Immutable Cloud-Native Workstation\n\n```json\n\1\n```", content, flags=re.DOTALL)
-    # Actually apply the update to any generic json block that looks like a status block
     content = re.sub(r"```json\n(\{.*?\})\n```", update_status, content, flags=re.DOTALL)
 
     with open(file_path, 'w') as f:
@@ -65,7 +61,6 @@ def sync_json_embeds(file_path):
 def sync_wiki():
     print(" Syncing Wiki Documentation...")
     
-    # 1. Update Scripts Index
     automation_dir = "automation"
     automation_doc = "specs/engineering/2026-04-26-Artifact-ENG-002-Scripts-Index.md"
     
@@ -78,7 +73,6 @@ def sync_wiki():
     }
 
     content = f"""<!--  'MiOS' Artifact | Proprietor: 'MiOS' Project | https://github.com/MiOS-DEV/mios -->
-#  'MiOS' Scripts Index
 > **Generated:** {datetime.now().isoformat()}
 > **Status:** Automated Sync
 
@@ -92,7 +86,6 @@ This file provides a machine-readable and human-readable index of all automation
     for script in sorted(os.listdir(automation_dir)):
         if script.endswith(".sh"):
             path = os.path.join(automation_dir, script)
-            # Try to extract a description from the first few lines
             description = "No description available."
             try:
                 with open(path, 'r') as f:
@@ -114,7 +107,6 @@ This file provides a machine-readable and human-readable index of all automation
         f.write(content)
     print(f"[ok] Updated {automation_doc}")
 
-    # 2. Sync embeds in key files
     target_files = ["README.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/INDEX.md", "specs/Home.md"]
     for f in target_files:
         sync_json_embeds(f)

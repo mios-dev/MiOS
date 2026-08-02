@@ -1,6 +1,4 @@
 # AI-hint: Hermetic unit tests for the WS-CONFIG server-side SAFETY validator
-# (mios_pipe.kernel.config.validate_config) used by POST /portal/config AFTER the
-# parse-check and BEFORE the atomic write. Pure/offline: no server, no DB, no FS.
 # AI-related: ./mios_pipe/kernel/config.py, ./mios_pipe/routing/portal.py
 """Hermetic tests for validate_config (WS-CONFIG safety net).
 
@@ -11,7 +9,6 @@ Or via pytest:   pytest test_mios_config_validate.py
 import os
 import sys
 
-# Make the co-located mios_pipe package importable when run standalone.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from mios_pipe.kernel.config import validate_config
@@ -35,7 +32,6 @@ def test_accepts_valid_config():
 
 
 def test_rejects_dropped_identity_section():
-    # Live config HAS [identity]; the replacement drops it -> reject, no write.
     posted = """
 [ports]
 agent_pipe = 8640
@@ -97,7 +93,6 @@ agent_pipe = 8640
 
 
 def test_rejects_oversize_payload():
-    # > 2 MB body -> rejected before any parse.
     big = "# pad\n" + ("x = 1\n" * 400000)
     assert len(big.encode("utf-8")) > 2 * 1024 * 1024
     ok, errors = validate_config(big, live_config={})
@@ -112,8 +107,6 @@ def test_rejects_unparseable_toml():
 
 
 def test_drop_check_degrades_open_without_live():
-    # No live_config -> the drop-check is skipped (degrade-open); a config with
-    # no [identity]/[ports] is still accepted as far as the safety net cares.
     ok, errors = validate_config("[misc]\nfoo = 1\n", live_config=None)
     assert ok is True, errors
 

@@ -9,7 +9,7 @@ set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    mios_warn "lib/common.sh unavailable -- skipping"
+    mios_warn "Lib/common.sh unavailable"
     exit 0
 }
 
@@ -38,7 +38,7 @@ for entry in "${_entries[@]}"; do
     repo="${rest%%:*}"
     file="${rest#*:}"
     if [[ -z "$dest" || -z "$repo" || -z "$file" || "$dest" == "$entry" || "$repo" == "$rest" ]]; then
-        mios_warn "malformed entry '${entry}' (want dest.gguf=repo:file) -- skipping"
+        mios_warn "Malformed entry '${entry}'"
         continue
     fi
     if [[ -s "${SEED_DIR}/${dest}" ]]; then
@@ -56,7 +56,7 @@ for entry in "${_entries[@]}"; do
        && [[ -s "${SEED_DIR}/${dest}.part" ]]; then
         mv -f "${SEED_DIR}/${dest}.part" "${SEED_DIR}/${dest}"
         baked=$((baked + 1))
-        mios_ok "baked ${repo}:${file} -> ${dest} (${_url})"
+        mios_ok "Baked ${repo}:${file} -> ${dest}"
 
         sbom_dir="/usr/share/mios/artifacts/sbom"
         mkdir -p "$sbom_dir"
@@ -67,14 +67,14 @@ for entry in "${_entries[@]}"; do
         printf '%s\t%s\t%s\t%s\t%s\n' "$dest" "gguf" "$repo" "$file" "${sha:-unknown}" >> "${sbom_dir}/models.tsv"
     else
         rm -f "${SEED_DIR}/${dest}.part" 2>/dev/null || true
-        mios_warn "download failed for ${repo}:${file} (no egress / upstream issue) -- continuing; 'mios update' can retry"
+        mios_warn "Download failed for ${repo}:${file}"
     fi
 done
 
 if [[ "$baked" -gt 0 ]]; then
     : > "${SEED_DIR}/.ready"   # the quadlet's ConditionPathExists gate -> lane eligible
     seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
-    mios_ok "baked ${baked} GGUF(s) -> ${SEED_DIR} (${seed_size:-?}); .ready set -- mios-llm-light lane eligible"
+    mios_ok "Baked ${baked} GGUF -> ${SEED_DIR}; .ready set"
 else
     mios_log "No GGUFs baked"
 fi
@@ -85,7 +85,7 @@ exit 0
 set -euo pipefail
 
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    mios_warn "lib/common.sh unavailable -- skipping"
+    mios_warn "Lib/common.sh unavailable"
     exit 0
 }
 
@@ -129,7 +129,7 @@ snapshot_download(repo_id=model, local_dir=dest,
 print(f"baked {model} -> {dest}")
 PY
 then
-    mios_warn "download failed (no egress / upstream issue) -- skipping; 'mios update' can retry"
+    mios_warn "Download failed"
     exit 0
 fi
 
@@ -148,5 +148,5 @@ if [[ -d "$SEED_DIR" ]]; then
 fi
 
 seed_size="$(du -sh "$SEED_DIR" 2>/dev/null | awk '{print $1}')"
-mios_ok "baked ${MODEL} -> ${SEED_DIR} (${seed_size:-?})"
+mios_ok "Baked ${MODEL} -> ${SEED_DIR}"
 exit 0

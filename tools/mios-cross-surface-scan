@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# tools/mios-cross-surface-scan
-# AGY-857 — Scanner for hardcoded SSOT literals (versions, refs, ports, hex colors) in non-SSOT files
 
 import os
 import sys
@@ -28,7 +26,6 @@ def load_ssot_literals():
                 if "=" in line:
                     _, val = line.split("=", 1)
                     val = val.strip()
-                    # Filter for image refs, hex colors, version numbers, or port numbers
                     if (val.startswith("ghcr.io/") or val.startswith("docker.io/") or
                         val.startswith("quay.io/") or val.startswith("#") or
                         re.match(r"^v?\d+\.\d+\.\d+", val) or

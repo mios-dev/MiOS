@@ -26,7 +26,6 @@ CAT = {
     "list_windows": {"section": "Win", "desc": "list", "permission": "read"},
     "web_search": {"section": "Web", "desc": "search", "permission": "read",
                    "parallel_limit": 3},
-    # NOT an agent verb (no `section`) -> must be skipped by load + absent here.
 }
 
 
@@ -56,18 +55,14 @@ def t_deterministic():
 def t_diff():
     base = man.project_verb_catalog(CAT)
     check("diff: identical -> no diffs", man.diff_manifest(base, base) == [])
-    # Added verb in SSOT.
     cat2 = dict(CAT); cat2["new_verb"] = {"section": "X", "desc": "n", "permission": "read"}
     d = man.diff_manifest(man.project_verb_catalog(cat2), base)
     check("diff: detects ADDED verb", any("new_verb" in x and x.startswith("+") for x in d), f"{d}")
-    # Removed verb (committed has one SSOT lost).
     d2 = man.diff_manifest(base, man.project_verb_catalog(cat2))
     check("diff: detects REMOVED verb", any("new_verb" in x and x.startswith("-") for x in d2))
-    # Changed verb.
     cat3 = dict(CAT); cat3["open_app"] = {**CAT["open_app"], "permission": "interactive"}
     d3 = man.diff_manifest(man.project_verb_catalog(cat3), base)
     check("diff: detects CHANGED verb", any("open_app" in x and x.startswith("~") for x in d3), f"{d3}")
-    # Wrong registry_kind committed.
     bad = {**base, "registry_kind": "hermes-build-tools"}
     check("diff: flags wrong registry_kind",
           any("registry_kind" in x for x in man.diff_manifest(base, bad)))

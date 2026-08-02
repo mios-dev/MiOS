@@ -1,6 +1,4 @@
-# shellcheck shell=sh
 
-# shellcheck disable=SC2153
 [ "${BASH_VERSION:-}" != "" ] || [ "${ZSH_VERSION:-}" != "" ] || return 0
 [ "$PS1" != "" ] || return 0
 
@@ -8,8 +6,6 @@ toolbox_config="$HOME/.config/toolbox"
 host_welcome_stub="$toolbox_config/host-welcome-shown"
 toolbox_welcome_stub="$toolbox_config/toolbox-welcome-shown"
 
-# shellcheck disable=SC1091
-# shellcheck disable=SC2046
 eval $(
           if [ -f /etc/os-release ]; then
               . /etc/os-release
@@ -30,14 +26,13 @@ if [ -f /run/ostree-booted ] \
         || [ "${VARIANT_ID}" = "kinoite" ] \
         || [ "${VARIANT_ID}" = "sericea" ]; }; then
     echo ""
-    echo "Welcome to ${PRETTY_NAME:-Linux}."
+    echo "Welcome to ${PRETTY_NAME:-Linux}"
     echo ""
     echo "This terminal is running on the host system. You may want to try"
-    echo "out the Toolbx for a directly mutable environment that allows "
-    echo "package installation with DNF."
+    echo "Out the Toolbx for a directly mutable environment that allows "
+    echo "Package installation with DNF"
     echo ""
     printf "For more information, see the "
-    # shellcheck disable=SC1003
     printf '\033]8;;https://docs.fedoraproject.org/en-US/fedora-silverblue/toolbox/\033\\documentation\033]8;;\033\\'
     printf ".\n"
     echo ""
@@ -54,19 +49,18 @@ if [ -f /run/.containerenv ] \
     if ! [ -f "$toolbox_welcome_stub" ]; then
         echo ""
         echo "Welcome to the Toolbx; a container where you can install and run"
-        echo "all your tools."
+        echo "All your tools"
         echo ""
 
         if [ "${ID}" = "fedora" ]; then
-            echo " - Use DNF in the usual manner to install command line tools."
-            echo " - To create a new tools container, run 'toolbox create'."
+            echo " - Use DNF in the usual manner to install command line tools"
+            echo " - To create a new tools container, run 'toolbox create'"
             echo ""
             printf "For more information, see the "
-            # shellcheck disable=SC1003
             printf '\033]8;;https://docs.fedoraproject.org/en-US/fedora-silverblue/toolbox/\033\\documentation\033]8;;\033\\'
             printf ".\n"
         else
-            echo " - To create a new tools container, run 'toolbox create'."
+            echo " - To create a new tools container, run 'toolbox create'"
         fi
 
         echo ""

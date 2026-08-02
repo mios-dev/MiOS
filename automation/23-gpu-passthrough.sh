@@ -14,15 +14,15 @@ install -d -m 0755 "${WANTS}"
 for svc in mios-gpu-status.service mios-gpu-nvidia.service mios-gpu-amd.service mios-gpu-intel.service; do
   if [[ -f "/usr/lib/systemd/system/${svc}" ]]; then
     ln -sf "../${svc}" "${WANTS}/${svc}"
-    mios_ok "enabled ${svc}"
+    mios_ok "Enabled ${svc}"
   else
-    mios_warn "${svc} missing from /usr/lib/systemd/system/ -- skipping"
+    mios_warn "${svc} missing from /usr/lib/systemd/system/"
   fi
 done
 
 if [[ -f /usr/lib/systemd/system/nvidia-cdi-refresh.path ]]; then
   ln -sf ../nvidia-cdi-refresh.path "${WANTS}/nvidia-cdi-refresh.path"
-  mios_ok "enabled nvidia-cdi-refresh.path"
+  mios_ok "Enabled nvidia-cdi-refresh.path"
 fi
 
 if command -v semanage >/dev/null 2>&1 && [[ -d /etc/selinux/targeted ]]; then

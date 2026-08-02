@@ -42,14 +42,6 @@ from mios_dci import (
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# Every server-resident dependency the moved logic references stays in server.py
-# and is injected here AFTER each is defined (one-way boundary: this module never
-# imports server). Registries/objects are injected BY REFERENCE so server-side
-# in-place mutation stays visible (_VERB_CATALOG, _A2A_PEERS, the cost ledger, the
-# tracer, the kernel). The flag/scalar constants (COST_*, BACKEND) are stable.
-# Placeholders keep a standalone ``import mios_http_caps`` working for the unit
-# tests; the routes are runtime-only so nothing fires before configure() runs.
 _VERB_CATALOG: dict = {}
 _A2A_PEERS: dict = {}
 _A2A_PEERS_LOCK = None
@@ -76,10 +68,6 @@ kg_lookup = None
 execute_skill = None
 run_dci_flow = None
 _offline_posture = None
-# R13: the read-only prompt-registry + run-template observability routes joined this
-# module's read-only admin surface. _PROMPT_REGISTRY (the live PromptRegistry instance
-# built in server) + _db_read (the DB read helper) + RUN_TEMPLATE_ENABLE (the capture
-# flag, SSOT-owned in mios_dag_exec) arrive by reference/value via configure().
 _PROMPT_REGISTRY = None
 _db_read = None
 RUN_TEMPLATE_ENABLE = False
@@ -163,7 +151,6 @@ def configure(*, verb_catalog=None, a2a_peers=None, a2a_peers_lock=None,
         g["_MCP_CLIENT_LOCK"] = mcp_client_lock
 
 
-# ── /v1/verbs + /v1/tools projections ─────────────────────────────────────
 async def list_verbs_logic(include_rare: bool = True) -> JSONResponse:
     tools = []
     for vname, vcfg in _VERB_CATALOG.items():
@@ -228,8 +215,6 @@ async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
         for vname, vcfg in _VERB_CATALOG.items()
         if include_rare or vcfg.get("tier") != "rare"
     ]
-    # (b) OS recipes -- the os_recipe verb's catalog, surfaced as first-class
-    # tools (degrade-open: a TOML parse failure drops recipes, keeps verbs).
     recipe_n = 0
     try:
         for rname, rcfg in (_load_recipe_catalog() or {}).items():
@@ -237,8 +222,6 @@ async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
             recipe_n += 1
     except Exception:  # noqa: BLE001 -- best-effort section; degrade open
         pass
-    # (c) Promoted skills -- the executable skill library, surfaced as
-    # mios_skill__* tools (degrade-open: a DB outage drops skills only).
     skill_n = 0
     try:
         for srow in (await _skill_list(status="promoted")) or []:
@@ -246,12 +229,6 @@ async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
             skill_n += 1
     except Exception:  # noqa: BLE001 -- best-effort section; degrade open
         pass
-    # WS-2: apply per-USER RBAC to the DISCOVERY manifest too -- previously the
-    # filter ran only at fan-out dispatch (server.py:14792), so /v1/tools exposed
-    # the FULL surface to a restricted user (a verb pruned from dispatch still
-    # appeared discoverable). Now the manifest matches what the user can actually
-    # run. No-op when no [users.*] policy matches (single-user unaffected); recipe/
-    # skill tools (non-verb names) pass through unless explicitly denied.
     tools = _user_rbac_filter(tools)
     _rn = sum(1 for t in tools
               if str((t.get("function") or {}).get("name") or "").startswith("mios_recipe__"))
@@ -268,7 +245,6 @@ async def list_tools_logic(include_rare: bool = True) -> JSONResponse:
     })
 
 
-# ── MCP Resource projectors (moved here; re-imported by server.py) ────────
 def _skill_to_mcp_resource(srow: dict) -> dict:
     name = str(srow.get("name") or "")
     return {
@@ -405,7 +381,6 @@ async def read_resource_logic(uri: str = "") -> JSONResponse:
         {"uri": uri, "mimeType": mime, "text": text}]})
 
 
-# ── Kernel Router shadow ──────────────────────────────────────────────────
 async def v1_route_logic(request: Request) -> JSONResponse:
     try:
         body = await request.json()
@@ -417,7 +392,6 @@ async def v1_route_logic(request: Request) -> JSONResponse:
     return JSONResponse({"object": "mios.route_decision", **dec.to_dict()})
 
 
-# ── WS-RES-GOV cost ledger ────────────────────────────────────────────────
 async def cost_ledger_logic() -> JSONResponse:
     return JSONResponse({
         "object": "mios.cost",
@@ -431,7 +405,6 @@ async def cost_ledger_logic() -> JSONResponse:
     })
 
 
-# ── WS-A8 trace ring-buffer reads ─────────────────────────────────────────
 async def trace_read_logic(trace_id: str) -> JSONResponse:
     spans = _TRACER.get_trace(str(trace_id))
     return JSONResponse({
@@ -451,20 +424,17 @@ async def trace_recent_logic() -> JSONResponse:
     })
 
 
-# ── Offline-computation posture ───────────────────────────────────────────
 async def offline_status_logic() -> JSONResponse:
     return JSONResponse({"object": "mios.offline_status", **_offline_posture(),
                          "ts": int(time.time())})
 
 
-# ── WS-LIFECYCLE-VER versioned hop-prompt registry (read-only) ─────────────
 async def prompt_registry_view_logic() -> JSONResponse:
     snap = _PROMPT_REGISTRY.snapshot()
     return JSONResponse({"object": "mios.prompt_registry",
                          "count": len(snap), "prompts": snap})
 
 
-# ── WS-6 captured DAG run-templates (read-only) ───────────────────────────
 async def run_templates_list_logic() -> JSONResponse:
     rows: list = []
     try:
@@ -484,23 +454,9 @@ async def run_templates_list_logic() -> JSONResponse:
                          "count": len(rows), "templates": rows})
 
 
-# ── /v1/models (passthrough) ───────────────────────────────────────────────
 async def list_models_logic(request: Request) -> JSONResponse:
-    # Advertise EXACTLY ONE model on the pipeline's public surface: "MiOS AI".
-    # ANY OpenAI-compatible client (OWUI, Firefox Smart Window, the desktop, the
-    # CLI) lists + selects it WITHOUT a backend key -- /v1/chat/completions runs
-    # the chain locally and needs no auth. The id is the SSOT [ai].agent_model
-    # ("MiOS AI"), NOT a hardcode. Operator directive: "JUST MiOS AI for
-    # everything advertised in the pipeline" -- so we DO NOT augment with the raw
-    # backend lane list even when the caller sends Authorization; the internal
-    # lane/model ids (granite4.1:8b, mios-heavy, mios-opencode, ...) are plumbing,
-    # never advertised. A client that genuinely needs a raw lane addresses that
-    # lane's own endpoint directly.
     created = int(time.time())
     _agent_id = str((_toml_section("ai") or {}).get("agent_model") or "MiOS AI")
-    # Advertise a large context so strict clients (e.g. the Hermes desktop, which
-    # enforces a 64K floor) accept the model. The chain manages real context budget
-    # internally per node; this is the logical window the front door exposes.
     _ctx = int(os.environ.get("MIOS_AGENT_PIPE_CTX", "65536"))
     models: list = [{
         "id": _agent_id, "object": "model",
@@ -511,7 +467,6 @@ async def list_models_logic(request: Request) -> JSONResponse:
     return JSONResponse(content={"object": "list", "data": models})
 
 
-# ── /v1/embeddings (passthrough) ───────────────────────────────────────────
 async def embeddings_logic(request: Request) -> JSONResponse:
     body = await request.body()
     client = await _get_client()
@@ -530,7 +485,6 @@ async def embeddings_logic(request: Request) -> JSONResponse:
         )
 
 
-# ── /kg/lookup (Personal Knowledge Graph) ─────────────────────────────────
 async def kg_lookup_endpoint_logic(phrase: str = "") -> JSONResponse:
     if not phrase:
         return JSONResponse(
@@ -546,7 +500,6 @@ async def kg_lookup_endpoint_logic(phrase: str = "") -> JSONResponse:
     return JSONResponse(content={"match": result, "phrase": phrase})
 
 
-# ── /skills/* (cross-agent skill catalog) ─────────────────────────────────
 async def skills_list_logic(status: str = "promoted",
                             source: str = "",
                             limit: int = 200) -> JSONResponse:
@@ -598,7 +551,6 @@ async def skills_openai_tools_logic() -> JSONResponse:
     return JSONResponse(content={"tools": tools, "count": len(tools)})
 
 
-# ── /dci/* (deliberation surface) ─────────────────────────────────────────
 async def dci_deliberate_logic(request: Request) -> JSONResponse:
     try:
         body = await request.json()
@@ -641,18 +593,6 @@ async def dci_schema_logic() -> JSONResponse:
     })
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 2: federation/standards) ----
-# The gossip peer-digest (/v1/peers) + the MCP-Resources discovery surface
-# (/v1/resources, /v1/resources/read) moved off server.py's @app onto this
-# co-located http_caps_router (same routes->APIRouter pattern the /a2a wave
-# established). server.py imports http_caps_router + the three handler NAMES and
-# mounts the router via app.include_router(http_caps_router); the handler names are
-# re-imported there so server's importable `provided` surface is unchanged and the
-# served path/method set is identical (the live-app route gate proves it). Each body
-# now calls the module-resident *_logic DIRECTLY (same module -- no sys.modules hop).
-# One-way boundary: this module never imports server (the verb catalog + peer
-# registry the logic reads arrive via configure()). APIRouter()/method decorators
-# are structural, not config.
 http_caps_router = APIRouter()
 
 
@@ -685,17 +625,6 @@ async def read_resource(uri: str = "") -> JSONResponse:
     return await read_resource_logic(uri)
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 3: capability/observability) --
-# The RBAC-filtered capability manifest + DAG, the kernel Router shadow, the cost
-# ledger, the trace ring-buffer reads, the offline posture, the versioned hop-prompt
-# registry and the captured DAG run-templates -- all read-only capability/admin
-# surfaces this module already owns the LOGIC for -- moved off server.py's @app onto
-# this co-located http_caps_router (the same routes->APIRouter pattern the /a2a wave
-# established). server.py imports the handler NAMES (re-imported there so its
-# importable `provided` surface is unchanged) + already mounts the router via
-# app.include_router(http_caps_router); the served path/method set is identical (the
-# live-app route gate proves it). Each body calls the module-resident *_logic
-# DIRECTLY (same module -- no sys.modules hop).
 @http_caps_router.get("/v1/capabilities")
 async def v1_capabilities(request: Request) -> JSONResponse:
     """WS-2 unified, RBAC-filtered capability manifest: the single list of
@@ -781,19 +710,6 @@ async def run_templates_list() -> JSONResponse:
     return await run_templates_list_logic()
 
 
-# -- @app -> APIRouter migration (refactor R13 batch 4: verb/tool catalog +
-# personal knowledge graph + cross-agent skills + DCI surface) --------------
-# The advertised-capability discovery routes whose *_logic bodies already home
-# here -- the verb catalog (MCP `inputSchema` projection + OpenAI tools twin),
-# the unified verb+recipe+skill tool feed, the personal-knowledge-graph phrase
-# lookup, the cross-agent skill catalog (list/show/run/openai-tools), and the
-# DCI deliberation+schema surface -- moved off server.py's @app onto this SAME
-# co-located http_caps_router (the routes->APIRouter pattern the /a2a wave
-# established). server.py re-imports each handler NAME so its importable
-# `provided` surface is unchanged and the served path/method set is
-# byte-identical (the live-app route gate proves it). Each body now calls the
-# module-resident *_logic DIRECTLY (same module -- no sys.modules hop); every
-# dep the logic reads is already injected by the configure() pass above.
 @http_caps_router.get("/v1/verbs")
 async def list_verbs(include_rare: bool = True) -> JSONResponse:
     """Render [verbs.*] as JSON-Schema tool specs. Same SSOT that
@@ -894,28 +810,11 @@ async def dci_schema() -> JSONResponse:
     return await dci_schema_logic()
 
 
-# -- @app -> APIRouter migration (refactor R13): the /v1/models + /v1/embeddings
-# passthrough routes whose *_logic bodies already home here moved off server.py's @app
-# onto this SAME co-located http_caps_router. server.py re-imports both handler NAMES
-# so its importable `provided` surface is unchanged and the served path/method set is
-# byte-identical (the live-app route gate proves it). Each body calls the
-# module-resident *_logic DIRECTLY (same module -- no sys.modules hop).
-# ── /v1/models (passthrough) ───────────────────────────────────────
 @http_caps_router.get("/v1/models")
 async def list_models(request: Request) -> JSONResponse:
-    # Advertise EXACTLY ONE model on the pipeline's public surface: "MiOS AI".
-    # ANY OpenAI-compatible client (OWUI, Firefox Smart Window, the desktop, the
-    # CLI) lists + selects it WITHOUT a backend key -- /v1/chat/completions runs
-    # the chain locally and needs no auth. The id is the SSOT [ai].agent_model
-    # ("MiOS AI"), NOT a hardcode. Operator directive: "JUST MiOS AI for
-    # everything advertised in the pipeline" -- so we DO NOT augment with the raw
-    # backend lane list even when the caller sends Authorization; the internal
-    # lane/model ids are plumbing, never advertised. A client that genuinely needs
-    # a raw lane addresses that lane's own endpoint directly.
     return await list_models_logic(request)
 
 
-# ── /v1/embeddings (passthrough) ───────────────────────────────────
 @http_caps_router.post("/v1/embeddings")
 async def embeddings(request: Request) -> JSONResponse:
     return await embeddings_logic(request)

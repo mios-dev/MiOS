@@ -48,8 +48,6 @@ def _load_fillers() -> list:
         key=len, reverse=True)
 
 
-# Reference impl: mirrors the post-head body of server.py _deterministic_action_
-# route. PINS the contract (the test fails if server.py's logic drifts from this).
 _TRIGGERS = {"open", "launch"}
 
 

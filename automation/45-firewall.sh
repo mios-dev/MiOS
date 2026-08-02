@@ -48,4 +48,4 @@ echo "[mios-firewall] Firewall configured"
 EOFW
 chmod +x /usr/libexec/mios-firewall-init
 
-mios_ok "firewall init script installed"
+mios_ok "Firewall init script installed"

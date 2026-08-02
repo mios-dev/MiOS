@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Stdlib assert-test for mios_dag_exec (refactor R8 DAG execution wave).
-# Stubs every injected dep (no network/DB) and asserts: (1) _execute_dag_node
-# dispatches a VERB node through the broker (dispatch_mios_verb) vs an AGENT node
-# through the agent-call path, returning the correct node_result shape for each;
-# (2) _dag_levels topological layering puts a dependent node strictly after its
-# dependency; (3) execute_dag (level path) actually executes nodes in dep order.
 # AI-related: ./mios_dag_exec.py
 # AI-functions: test
 """Offline assert-script for mios_dag_exec. Run: python test_mios_dag_exec.py"""
@@ -52,7 +47,6 @@ def test_verb_node_dispatches_via_broker():
     assert res["node_id"] == "v1", res
     assert res["args"] == {"q": "hello"}, res
     assert "_act" in res, res
-    # The broker was the ONLY execution path (no agent call).
     assert seen["calls"] == [("web_search", {"q": "hello"}, "sess-1")], seen
     print("[PASS] verb node dispatches via broker (dispatch_mios_verb)")
 
@@ -67,7 +61,6 @@ def test_agent_node_dispatches_via_agent_call():
         captured["body"] = body
         return (name, "AGENT-ANSWER")
 
-    # Force the verb broker to blow up so we PROVE the agent branch never touches it.
     async def _boom(tool, args, *, session_id=None):
         raise AssertionError("agent node must NOT dispatch a verb")
 
@@ -83,14 +76,12 @@ def test_agent_node_dispatches_via_agent_call():
     assert res["output"] == "AGENT-ANSWER", res
     assert res["node_id"] == "a1", res
     assert captured["name"] == "researcher", captured
-    # The prompt was carried into the agent body as a user message.
     msgs = captured["body"]["messages"]
     assert any(m.get("content") == "investigate X" for m in msgs), msgs
     print("[PASS] agent node dispatches via agent-call (not the broker)")
 
 
 def test_dag_levels_topo_order():
-    # Chain A -> B -> C: each must land in its own level, in order.
     nodes = [
         {"id": "A"},
         {"id": "B", "deps": ["A"]},
@@ -99,7 +90,6 @@ def test_dag_levels_topo_order():
     levels = M._dag_levels(nodes)
     ids = [[str(n["id"]) for n in lvl] for lvl in levels]
     assert ids == [["A"], ["B"], ["C"]], ids
-    # Two independent roots share one level (concurrent).
     nodes2 = [{"id": "X"}, {"id": "Y"}, {"id": "Z", "deps": ["X", "Y"]}]
     lv2 = M._dag_levels(nodes2)
     ids2 = [sorted(str(n["id"]) for n in lvl) for lvl in lv2]
@@ -128,7 +118,6 @@ def test_execute_dag_runs_in_dep_order():
     M._execute_dag_node = _fake_node
     M._record_dag_node_row = lambda res, sid: None
     M.configure(get_client=_fake_client, scratchpad_note=lambda *a, **k: None)
-    # _node_deepens is native now; DEEPEN_LANES defaults empty -> never deepen.
 
     dag = {"summary": "s", "nodes": [
         {"id": "A", "tool": "t1", "args": {}},
@@ -139,7 +128,6 @@ def test_execute_dag_runs_in_dep_order():
 
     assert result["success"] is True, result
     assert result["nodes_executed"] == 3, result
-    # A strictly before B strictly before C (dep order preserved).
     assert order.index("A") < order.index("B") < order.index("C"), order
     print("[PASS] execute_dag executes nodes in dependency order")
 
@@ -149,11 +137,8 @@ def test_smart_extract_resolves_field_ndjson_plain():
     first-object, plain-text first-line. Synthetic tokens (no dictionary words);
     the JSON keys are the module's own structural extraction contract."""
     M.configure(sanitize_tool_text=lambda s: s)   # identity sanitizer for the test
-    # Single JSON object -> 'name' wins over 'id' (module's structural order).
     assert M._smart_extract_from_jsonish('{"id": "zqxw0", "name": "vlkn7"}') == "vlkn7"
-    # NDJSON -> the FIRST object's best field.
     assert M._smart_extract_from_jsonish('{"name": "alfa9"}\n{"name": "bra8"}') == "alfa9"
-    # Non-JSON -> first non-empty line, capped.
     assert M._smart_extract_from_jsonish("plain-tok-42\nsecond-tok") == "plain-tok-42"
     print("[PASS] _smart_extract_from_jsonish field/NDJSON/plain resolution")
 
@@ -212,7 +197,6 @@ def test_deepen_early_exit():
         calls["agent"] += 1
         return (name, f"distinct coverage point {calls['agent']}")
 
-    # Deepen with NO web fetch + a small iter bound + fast stubbed passes.
     M._call_agent_complete = _fake_complete
     M.configure(
         deepen_fetch=False,
@@ -230,14 +214,12 @@ def test_deepen_early_exit():
         return asyncio.run(M._deepen_until_barrier(
             dict(node), dict(base_res), asyncio.Event(), "sess", object()))
 
-    # (1) DISABLED (the default): runs to the iter bound -- current behavior.
     calls["agent"] = 0
     M.configure(deepen_early_exit=False, judge_answer_satisfied=None)
     r = _run()
     assert calls["agent"] == _BOUND, calls
     assert r.get("deepened") == _BOUND, r
 
-    # (2) ENABLED + judge says SATISFIED: exits before burning any deepen pass.
     calls["agent"] = 0
     calls["judge"] = 0
 
@@ -250,7 +232,6 @@ def test_deepen_early_exit():
     assert calls["agent"] == 0, calls          # satisfied -> zero extra passes
     assert calls["judge"] >= 1, calls          # the judge WAS consulted
 
-    # (3) ENABLED + judge says UNSATISFIED: runs to the iter bound (never short-circuits).
     calls["agent"] = 0
 
     async def _judge_no(q, a):
@@ -261,8 +242,6 @@ def test_deepen_early_exit():
     assert calls["agent"] == _BOUND, calls
     assert r.get("deepened") == _BOUND, r
 
-    # (4) ENABLED + judge ERRORS: degrade-open -> fall through to the deadline-bound
-    #     loop (never under-computes), so the node still runs its full coverage.
     calls["agent"] = 0
 
     async def _judge_boom(q, a):

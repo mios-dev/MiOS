@@ -32,7 +32,6 @@ def t_package():
     check("package: author/name/version", p["author"] == "mios" and p["name"] == "open_app" and p["version"] == "1.2.0")
     check("package: kind", p["kind"] == "verb")
     check("package: self-describing manifest", p["manifest"]["description"] == "launch" and p["manifest"]["permission"] == "write")
-    # recipe uses 'description' not 'desc' -> still captured.
     pr = reg.build_package("disk_usage", "recipe", ITEMS[2][2], author="mios", version="1.0.0")
     check("package: recipe description captured", pr["manifest"]["description"] == "df")
 
@@ -42,7 +41,6 @@ def t_registry():
     idx = r["index"]
     check("registry: schema tag", idx["schema"] == "mios-registry/v1")
     check("registry: count matches", idx["count"] == 3 and len(r["packages"]) == 3)
-    # Deterministic order: sorted by (kind, name) -> agent, recipe, verb.
     kinds = [e["kind"] for e in idx["packages"]]
     check("registry: deterministic kind order", kinds == ["agent", "recipe", "verb"], f"{kinds}")
     oa = next(e for e in idx["packages"] if e["name"] == "open_app")

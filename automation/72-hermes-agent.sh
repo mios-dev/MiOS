@@ -7,7 +7,7 @@ set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
 source "$(dirname "$0")/lib/common.sh" 2>/dev/null || {
-    mios_warn "lib/common.sh unavailable -- skipping"
+    mios_warn "Lib/common.sh unavailable"
     exit 0
 }
 
@@ -23,7 +23,7 @@ PIP_CONSTRAINTS_ARG=""
 if [[ -f "$CONSTRAINTS_FILE" ]]; then
     PIP_CONSTRAINTS_ARG="-c ${CONSTRAINTS_FILE}"
 else
-    mios_warn "pip constraints ${CONSTRAINTS_FILE} absent -- installing UNCONSTRAINED (degrade-open)"
+    mios_warn "Pip constraints ${CONSTRAINTS_FILE} absent"
 fi
 
 mios_log "Direct install: repo=${HERMES_REPO} ref=${HERMES_REF} constraints=${PIP_CONSTRAINTS_ARG:-none}"
@@ -33,11 +33,11 @@ for tool in python3 git; do
     command -v "$tool" >/dev/null 2>&1 || _missing="${_missing} ${tool}"
 done
 if [[ -n "$_missing" ]]; then
-    mios_warn "missing build tools:${_missing} -- skipping direct install (mios-gateway-agent.service will no-op via ConditionPathExists)"
+    mios_warn "Missing build tools:${_missing}"
     exit 0
 fi
 
-install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { mios_warn "mkdir ${VENV_ROOT} failed -- skipping"; exit 0; }
+install -d -m 0755 "${AGENTS_ROOT}" "${VENV_ROOT}" "${BIN_DIR}" || { mios_warn "Mkdir ${VENV_ROOT} failed"; exit 0; }
 
 VENV_PY=python3
 for _py in python3.13 python3.12 python3.11; do
@@ -45,7 +45,7 @@ for _py in python3.13 python3.12 python3.11; do
 done
 mios_log "Venv interpreter: ${VENV_PY})"
 if ! "${VENV_PY}" -m venv "${VENV_DIR}" 2>/dev/null; then
-    mios_warn "${VENV_PY} -m venv failed -- skipping direct install"
+    mios_warn "${VENV_PY} -m venv failed"
     exit 0
 fi
 if [ -x "${VENV_DIR}/bin/${VENV_PY}" ]; then
@@ -102,14 +102,14 @@ for _venv_attempt in 1 2 3; do
         _venv_pip_ok=1; break
     fi
     if [ "${_venv_attempt}" -eq 1 ]; then
-        mios_warn "agent-venv offline install incomplete (vendored wheels missing a dep such as aiohttp) -- retrying WITH index fallback"
+        mios_warn "Agent-venv offline install incomplete"
     else
-        mios_warn "agent-venv pip install attempt ${_venv_attempt}/3 failed -- retrying in $((_venv_attempt*8))s"
+        mios_warn "Agent-venv pip install attempt ${_venv_attempt}/3 failed"
     fi
     sleep $((_venv_attempt*8))
 done
 if [ -z "${_venv_pip_ok}" ]; then
-    mios_warn "agent-venv pip install failed after 3 attempts -- removing partial venv, will retry next boot"
+    mios_warn "Agent-venv pip install failed after 3 attempts"
     rm -rf "${VENV_DIR}"
     exit 0
 fi
@@ -117,10 +117,10 @@ fi
 if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
     install -d -m 0755 "${BIN_DIR}"
     ln -sf "${VENV_DIR}/bin/hermes" "${BIN_DIR}/hermes"
-    mios_ok "installed ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
+    mios_ok "Installed ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
     record_version "hermes-agent" "${HERMES_REF}" "$(${VENV_DIR}/bin/hermes --version 2>&1 | head -1)" 2>/dev/null || true
 else
-    mios_warn "pip succeeded but no 'hermes' entry-point in venv -- skipping symlink"
+    mios_warn "Pip succeeded but no 'hermes' entry-point in venv"
     exit 0
 fi
 
@@ -128,37 +128,37 @@ shopt -s nullglob
 for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
     searxng_dir="${site_packages}/plugins/web/searxng"
     if [[ -d "$searxng_dir" && ! -f "${searxng_dir}/plugin.yaml" ]]; then
-        cat > "${searxng_dir}/plugin.yaml" <<'YAML'
+        cat > "${searxng_dir}/plugin.yaml" <<YAML
 name: searxng
 kind: backend
-version: 1.0.0
+version: ${MIOS_VERSION:-Unknown}
 description: SearXNG web-search provider (local self-hosted instance at mios-searxng:8888).
 register: plugins.web.searxng:register
 YAML
-        mios_ok "seeded ${searxng_dir#${VENV_DIR}/}/plugin.yaml"
+        mios_ok "Seeded ${searxng_dir#${VENV_DIR}/}/plugin.yaml"
     fi
     firecrawl_dir="${site_packages}/plugins/web/firecrawl"
     if [[ -d "$firecrawl_dir" && ! -f "${firecrawl_dir}/plugin.yaml" ]]; then
-        cat > "${firecrawl_dir}/plugin.yaml" <<'YAML'
+        cat > "${firecrawl_dir}/plugin.yaml" <<YAML
 name: firecrawl
 kind: backend
-version: 1.0.0
+version: ${MIOS_VERSION:-Unknown}
 description: Firecrawl web provider (self-hosted at FIRECRAWL_API_URL; DORMANT -- SDK v2 vs container v1 mismatch, web.extract_backend defaults to miosfetch).
 register: plugins.web.firecrawl:register
 YAML
-        mios_ok "seeded ${firecrawl_dir#${VENV_DIR}/}/plugin.yaml"
+        mios_ok "Seeded ${firecrawl_dir#${VENV_DIR}/}/plugin.yaml"
     fi
     _mf_src="/usr/share/mios/hermes/plugins/web/miosfetch"
     _mf_dst="${site_packages}/plugins/web/miosfetch"
     if [[ -d "$_mf_src" ]]; then
         install -d "$_mf_dst"
         cp -f "$_mf_src"/provider.py "$_mf_src"/__init__.py "$_mf_src"/plugin.yaml "$_mf_dst"/ 2>/dev/null \
-            && mios_ok "deployed miosfetch plugin -> ${_mf_dst#${VENV_DIR}/}"
+            && mios_ok "Deployed miosfetch plugin -> ${_mf_dst#${VENV_DIR}/}"
     fi
     _wt="${site_packages}/tools/web_tools.py"
     if [[ -f "$_wt" ]] && ! grep -q 'backend == "miosfetch"' "$_wt"; then
         sed -i 's/^    if backend == "exa":/    if backend == "miosfetch":  # MiOS offline direct-fetch provider (stdlib; always usable)\n        return True\n    if backend == "exa":/' "$_wt" \
-            && mios_ok "patched web_tools._is_backend_available for miosfetch"
+            && mios_ok "Patched web_tools._is_backend_available for miosfetch"
     fi
 done
 shopt -u nullglob
@@ -187,9 +187,9 @@ if command -v git >/dev/null 2>&1; then
         done
         shopt -u nullglob
         rm -rf "$DASH_TMP"
-        mios_ok "seeded plugins/{kanban,example-dashboard,hermes-achievements}/dashboard/{manifest.json,dist}"
+        mios_ok "Seeded plugins/{kanban,example-dashboard,hermes-achievements}/dashboard/{manifest.json,dist}"
     else
-        mios_warn "could not fetch upstream dashboard manifests (git archive + sparse-clone both failed); kanban tab will not appear"
+        mios_warn "Could not fetch upstream dashboard manifests; kanban tab will not appear"
         rm -rf "$DASH_TMP"
     fi
 fi
@@ -197,17 +197,17 @@ fi
 if ! "${VENV_DIR}/bin/python3" -c "import fastapi, uvicorn, ptyprocess" 2>/dev/null; then
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} \
             "fastapi>=0.110" "uvicorn[standard]>=0.30" "python-multipart" "ptyprocess>=0.7" 2>&1 | tail -3; then
-        mios_ok "installed fastapi + uvicorn + ptyprocess into venv (dashboard runtime + /chat PTY)"
+        mios_ok "Installed fastapi + uvicorn + ptyprocess into venv"
     else
-        mios_warn "dashboard runtime deps install failed -- hermes-dashboard.service will refuse to start"
+        mios_warn "Dashboard runtime deps install failed"
     fi
 fi
 
 if ! "${VENV_DIR}/bin/python3" -c "import mcp" 2>/dev/null; then
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "mcp>=1.0" 2>&1 | tail -3; then
-        mios_ok "installed mcp SDK into venv (Hermes MCP client -> global mios-mcp-server)"
+        mios_ok "Installed mcp SDK into venv"
     else
-        mios_warn "mcp SDK install failed -- Hermes MCP client disabled (mcp_servers config inert)"
+        mios_warn "Mcp SDK install failed"
     fi
 fi
 
@@ -217,18 +217,18 @@ TOK_CACHE_DIR="${MIOS_TOKENIZER_CACHE_DIR:-}"
 if [[ "$TOK_BACKEND" == "tiktoken" ]]; then
     if ! "${VENV_DIR}/bin/python3" -c "import tiktoken" 2>/dev/null; then
         if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} "tiktoken>=0.7" 2>&1 | tail -3; then
-            mios_ok "installed tiktoken into the agent venv (WS-A5 exact token counts)"
+            mios_ok "Installed tiktoken into the agent venv"
         else
-            mios_warn "tiktoken install failed -- agent-pipe degrades-open to the ~chars/token heuristic"
+            mios_warn "Tiktoken install failed"
         fi
     fi
     if [[ -n "$TOK_ENCODING" && -n "$TOK_CACHE_DIR" ]] && "${VENV_DIR}/bin/python3" -c "import tiktoken" 2>/dev/null; then
         mkdir -p "$TOK_CACHE_DIR" 2>/dev/null || true
         if TIKTOKEN_CACHE_DIR="$TOK_CACHE_DIR" "${VENV_DIR}/bin/python3" \
                 -c "import sys, tiktoken; tiktoken.get_encoding(sys.argv[1])" "$TOK_ENCODING" 2>&1 | tail -2; then
-            mios_ok "pre-warmed tiktoken encoding ${TOK_ENCODING} into ${TOK_CACHE_DIR} (offline-baked)"
+            mios_ok "Pre-warmed tiktoken encoding ${TOK_ENCODING} into ${TOK_CACHE_DIR}"
         else
-            mios_warn "tiktoken encoding pre-warm failed (${TOK_ENCODING}) -- runtime needs network or degrades-open to heuristic"
+            mios_warn "Tiktoken encoding pre-warm failed"
         fi
     fi
 fi
@@ -236,16 +236,16 @@ fi
 if ! "${VENV_DIR}/bin/python3" -c "import smolagents, litellm" 2>/dev/null; then
     if "${VENV_DIR}/bin/pip" install --no-input --disable-pip-version-check ${PIP_CONSTRAINTS_ARG} \
             "smolagents>=1.0.0" "litellm>=1.0.0" 2>&1 | tail -3; then
-        mios_ok "installed smolagents + litellm into the agent venv (queue-based gateway worker)"
+        mios_ok "Installed smolagents + litellm into the agent venv"
     else
-        mios_warn "smolagents + litellm install failed -- queue-based gateway mode will be unavailable"
+        mios_warn "Smolagents + litellm install failed"
     fi
 fi
 
 _BUILD_SPA() {
-    command -v node >/dev/null 2>&1 || { mios_warn "node not installed -- skipping SPA build (dashboard will use stub)"; return 1; }
-    command -v npm  >/dev/null 2>&1 || { mios_warn "npm not installed -- skipping SPA build"; return 1; }
-    command -v git  >/dev/null 2>&1 || { mios_warn "git not installed -- skipping SPA build"; return 1; }
+    command -v node >/dev/null 2>&1 || { mios_warn "Node not installed"; return 1; }
+    command -v npm  >/dev/null 2>&1 || { mios_warn "Npm not installed"; return 1; }
+    command -v git  >/dev/null 2>&1 || { mios_warn "Git not installed"; return 1; }
 
     local spa_tmp
     spa_tmp=$(mktemp -d)
@@ -277,7 +277,7 @@ _BUILD_SPA() {
             rm -rf "$spa_tmp"; return 1
         fi
     else
-        mios_warn "SPA: strip-externals helper missing at $strip_helper -- aborting build (would leak fonts.googleapis.com requests)"
+        mios_warn "SPA: strip-externals helper missing at $strip_helper"
         rm -rf "$spa_tmp"; return 1
     fi
 
@@ -295,13 +295,13 @@ _BUILD_SPA() {
     return 0
 }
 
-_BUILD_SPA || mios_warn "dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
+_BUILD_SPA || mios_warn "Dashboard SPA not built; hermes-dashboard.service will fall back to the web_dist_stub"
 
 _VENDOR_OPENUI="${BASH_SOURCE[0]%/*}/support/mios-vendor-openui.sh"
 if [[ -x "$_VENDOR_OPENUI" || -f "$_VENDOR_OPENUI" ]]; then
     bash "$_VENDOR_OPENUI" || mios_warn "OpenUI bundle download failed; render panel will report 'bundle missing' until re-run"
 else
-    mios_warn "mios-vendor-openui.sh missing at $_VENDOR_OPENUI"
+    mios_warn "Mios-vendor-openui.sh missing at $_VENDOR_OPENUI"
 fi
 
 _PTY_PATCH="${BASH_SOURCE[0]%/*}/support/hermes-dashboard-shell-patch.py"
@@ -312,7 +312,7 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
         if python3 "$_PTY_PATCH" "$_ws" 2>&1 | tail -2; then
             : # ok; idempotent — re-runs are no-ops once marker present
         else
-            mios_warn "HERMES_PTY_SHELL patch failed on $_ws (dashboard /chat tab will spawn hermes --tui instead of bash)"
+            mios_warn "HERMES_PTY_SHELL patch failed on $_ws"
         fi
     fi
 done
@@ -326,7 +326,7 @@ for site_packages in "${VENV_DIR}/lib/"python*/site-packages; do
         if python3 "$_BGREVIEW_PATCH" "$_br" 2>&1 | tail -2; then
             : # ok; idempotent -- re-runs are no-ops once marker present
         else
-            mios_warn "background-review tool patch failed on $_br"
+            mios_warn "Background-review tool patch failed on $_br"
         fi
     fi
 done
@@ -351,18 +351,18 @@ if [[ -f "${OPENCODE_VENDOR_CONFIG}" ]]; then
                     chgrp mios-ai "${OPENCODE_CONFIG}" 2>/dev/null \
                         && chmod 0640 "${OPENCODE_CONFIG}" 2>/dev/null || true
                 fi
-                mios_ok "landed opencode.json -> ${OPENCODE_CONFIG} (group mios-ai)"
+                mios_ok "Landed opencode.json -> ${OPENCODE_CONFIG}"
             else
-                mios_warn "failed to land opencode.json into ${OPENCODE_CONFIG}"
+                mios_warn "Failed to land opencode.json into ${OPENCODE_CONFIG}"
             fi
         else
             mios_skip "${OPENCODE_CONFIG} already present (admin override) -- not overwriting"
         fi
     else
-        mios_warn "could not create ${OPENCODE_CONFIG_DIR} -- gateway config not landed"
+        mios_warn "Could not create ${OPENCODE_CONFIG_DIR}"
     fi
 else
-    mios_warn "vendored ${OPENCODE_VENDOR_CONFIG} missing -- skipping config land (overlay drift?)"
+    mios_warn "Vendored ${OPENCODE_VENDOR_CONFIG} missing"
 fi
 
 _oc_missing=""
@@ -370,13 +370,13 @@ for tool in curl bash; do
     command -v "$tool" >/dev/null 2>&1 || _oc_missing="${_oc_missing} ${tool}"
 done
 if [[ -n "$_oc_missing" ]]; then
-    mios_warn "opencode phase: missing tools:${_oc_missing} -- skipping binary fetch (gateway no-ops via ConditionPathExists)"
+    mios_warn "Opencode phase: missing tools:${_oc_missing}"
 elif [[ -x "${OPENCODE_BIN}" ]]; then
     mios_skip "opencode binary already present at ${OPENCODE_BIN} -- skipping fetch"
 elif ! install -d -m 0755 "${OPENCODE_ROOT}" "${OPENCODE_BIN_DIR}" 2>/dev/null; then
-    mios_warn "mkdir ${OPENCODE_ROOT} failed -- skipping opencode fetch"
+    mios_warn "Mkdir ${OPENCODE_ROOT} failed"
 elif ! curl -fsSL --max-time 60 "${OPENCODE_INSTALL_URL}" -o /tmp/opencode-install.sh; then
-    mios_warn "could not fetch opencode installer from ${OPENCODE_INSTALL_URL} -- skipping; mios update will retry"
+    mios_warn "Could not fetch opencode installer from ${OPENCODE_INSTALL_URL}"
 else
     _oc_ver_env=""
     if [[ "${OPENCODE_VERSION}" != "latest" && -n "${OPENCODE_VERSION}" ]]; then
@@ -385,7 +385,7 @@ else
     OPENCODE_INSTALL_DIR="${OPENCODE_BIN_DIR}" \
     OPENCODE_VERSION="${_oc_ver_env}" \
         bash /tmp/opencode-install.sh 2>&1 | tail -10 || \
-        mios_warn "opencode installer exited non-zero -- continuing; mios update will retry"
+        mios_warn "Opencode installer exited non-zero"
     rm -f /tmp/opencode-install.sh 2>/dev/null || true
 
     if [[ ! -x "${OPENCODE_BIN}" ]]; then
@@ -396,7 +396,7 @@ else
                 if [[ "$cand" != "${OPENCODE_BIN}" ]]; then
                     install -d -m 0755 "${OPENCODE_BIN_DIR}"
                     install -m 0755 "$cand" "${OPENCODE_BIN}" \
-                        && mios_ok "copied opencode ${cand} -> ${OPENCODE_BIN}"
+                        && mios_ok "Copied opencode ${cand} -> ${OPENCODE_BIN}"
                 fi
                 break
             fi
@@ -406,11 +406,11 @@ else
     if [[ -x "${OPENCODE_BIN}" ]]; then
         ln -sf "${OPENCODE_BIN}" /usr/local/bin/opencode 2>/dev/null || true
         record_version "opencode" "${OPENCODE_VERSION}" "$("${OPENCODE_BIN}" --version 2>&1 | head -1 || echo unknown)" 2>/dev/null || true
-        mios_ok "installed opencode ${OPENCODE_BIN} (gateway -> mios-opencode-gateway.service :${MIOS_PORT_OPENCODE_GATEWAY:-8633})"
+        mios_ok "Installed opencode ${OPENCODE_BIN}"
     else
-        mios_warn "opencode binary not found at ${OPENCODE_BIN} or fallbacks -- gateway will no-op via ConditionPathExists; mios update will retry"
+        mios_warn "Opencode binary not found at ${OPENCODE_BIN} or fallbacks"
     fi
 fi
 
-mios_ok "done -- runtime: mios-gateway-agent.service (:${MIOS_PORT_HERMES:-8642}/v1) + mios-opencode-gateway.service (:${MIOS_PORT_OPENCODE_GATEWAY:-8633}/v1); shared venv = ${VENV_DIR}; backend = mios.toml [ai].hermes_backend_url"
+mios_ok "Done"
 exit 0

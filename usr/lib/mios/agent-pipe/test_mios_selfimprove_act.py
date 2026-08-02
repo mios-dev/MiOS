@@ -22,8 +22,6 @@ import mios_selfimprove_act as A
 
 _RESULTS: list = []
 
-# Synthetic surfaces -- no real-word vocabulary, so the logic under test can only
-# be structural set membership (the point of the NO-HARDCODE / no-English-gate law).
 _IMPR = ["zq_alpha", "zq_beta"]          # improvable surface (a proposal MAY target)
 _PROT = ["zp_guard", "zp_eval"]          # protected surface (the evaluator/eval/lane)
 
@@ -46,11 +44,8 @@ def t_isolation() -> None:
            not a("zp_guard", improvable=_IMPR, protected=_PROT))
     _check("isolation: unknown kind denied",
            not a("zx_other", improvable=_IMPR, protected=_PROT))
-    # DENY WINS: a kind in BOTH sets is refused (fail-safe) -- the evaluator can never
-    # be edited by adding it to the improvable list.
     _check("isolation: deny wins over allow",
            not a("zq_dup", improvable=["zq_dup"], protected=["zq_dup"]))
-    # Empty improvable surface -> nothing allowed (degrade-closed, no hardcoded default).
     _check("isolation: empty improvable -> degrade-closed",
            not a("zq_alpha", improvable=[], protected=_PROT))
     _check("isolation: blank kind denied", not a("", improvable=_IMPR, protected=_PROT))
@@ -92,10 +87,8 @@ def t_curate() -> None:
 
 
 def t_passhatk() -> None:
-    # All-correct over two tasks at k=2 -> perfect reliability.
     _check("pass^k: all-correct -> 1.0",
            abs(A.pass_hat_k_score([(3, 3), (3, 3)], k=2) - 1.0) < 1e-9)
-    # A task that never gets k consistent successes drags the worst-case score below 1.
     s = A.pass_hat_k_score([(3, 3), (3, 1)], k=2)
     _check("pass^k: an inconsistent task lowers reliability", s < 1.0, str(s))
 
@@ -118,8 +111,6 @@ def t_proof() -> None:
 
 def t_decide() -> None:
     d = A.decide_proposal
-    # A protected-target proposal is rejected on ISOLATION even with a perfect score
-    # delta -- proving isolation is checked BEFORE (and independent of) scoring.
     v = d(_prop("zp_eval"), baseline_score=0.0, proposed_score=1.0,
           improvable=_IMPR, protected=_PROT)
     _check("decide: protected target rejected before scoring",

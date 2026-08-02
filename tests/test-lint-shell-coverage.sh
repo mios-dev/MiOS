@@ -34,5 +34,5 @@ if [ ${#missing[@]} -ne 0 ]; then
     exit 1
 fi
 
-echo "[test-lint-shell-coverage] Shell directory coverage check passed clean."
+echo "[test-lint-shell-coverage] Shell directory coverage check passed clean"
 exit 0

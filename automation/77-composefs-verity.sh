@@ -44,7 +44,7 @@ MASK_REMOUNT="${MASK_REMOUNT:-true}"
 case "$MODE" in
     verity|yes|off) ;;
     *)
-        mios_warn "unknown composefs_mode='${MODE}', falling back to 'verity'"
+        mios_warn "Unknown composefs_mode='${MODE}', falling back to 'verity'"
         MODE="verity"
         ;;
 esac
@@ -96,4 +96,4 @@ if [[ "$MODE" == "verity" && "$MASK_REMOUNT" =~ ^(true|TRUE|1|yes|YES)$ ]]; then
     ln -sf /dev/null /etc/systemd/system/systemd-remount-fs.service
 fi
 
-mios_ok "composefs mode=${MODE} configured"
+mios_ok "Composefs mode=${MODE} configured"

@@ -1,5 +1,4 @@
 # AI-hint: Cold-export and zstd compression module for knowledge table eviction (CONV-09).
-# usr/lib/mios/agent-pipe/mios_cold_evict.py
 
 import os
 import json
@@ -41,7 +40,6 @@ async def export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd
                 else:
                     f.write(str(r) + "\n")
                     
-        # Compress using zstd
         subprocess.run(
             ["zstd", f"--level={zstd_level}", "-o", str(zst_path), str(tmp_path)],
             check=True,
@@ -68,7 +66,6 @@ async def cold_sweep(pg, plan: dict, table: str, dest_dir: str, zstd_level: int)
 
     row_ids = []
 
-    # 1. Select TTL candidates
     ttl_delete = plan.get("ttl_delete", 0)
     if ttl_delete > 0:
         where = mios_evict.evict_where(with_ttl=True)
@@ -78,7 +75,6 @@ async def cold_sweep(pg, plan: dict, table: str, dest_dir: str, zstd_level: int)
         rows = await pg.execute(sql, params, fetch=True)
         row_ids.extend(mios_evict.parse_ids(rows))
 
-    # 2. Select Cap candidates
     cap_delete = plan.get("cap_delete", 0)
     if cap_delete > 0:
         where = mios_evict.evict_where(with_ttl=False)
@@ -91,10 +87,8 @@ async def cold_sweep(pg, plan: dict, table: str, dest_dir: str, zstd_level: int)
     if not row_ids:
         return {"exported": 0, "dest": ""}
 
-    # 3. Export to zstd
     zst_path = await export_to_cold(pg, row_ids, table, dest_dir, zstd_level)
 
-    # 4. Delete rows from PG
     if zst_path:
         delete_sql = mios_evict.delete_ids_sql(table)
         await pg.execute(delete_sql, {"ids": row_ids}, fetch=False)

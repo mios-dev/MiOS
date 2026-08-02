@@ -1,19 +1,4 @@
 # AI-hint: PER-TURN message-prep + agent-selection helpers extracted VERBATIM from
-#   server.py (strangler-fig refactor). _extract_last_user_text pulls the latest user
-#   text out of an OpenAI messages[] (string or multimodal-parts content). _pick_agent
-#   selects a sub-agent by role (exact-role -> default -> first) and degrade-opens a
-#   gated/unreachable health_gate node back onto the local lane. _casual_agent_label maps
-#   a registered agent name -> a generic surface label (role-agent / sub-agent) so the
-#   specific daemon name never leaks to the chat UI. _live_agent_names is the per-turn
-#   LIVE roster -- non-health_gate lanes are always live, health_gate client/Tailscale
-#   nodes are connect-probed + TTL-cached in _NODE_LIVE so an outage prunes the node
-#   without re-probing every turn. _split_think_tags / _strip_think_tags lift the
-#   <think>-family reasoning out of model output (captured for a dropdown, stripped from
-#   the answer). Every server-side dep (the live agent registry + node-liveness cache,
-#   the health-probe + probe-auth helpers, the liveness TTL/connect scalars, and the
-#   think-tag regexes) is dependency-INJECTED via configure() (one-way boundary -- this
-#   module NEVER imports server). server.py re-imports the names under their exact
-#   aliases so the importable surface stays byte-identical.
 # AI-related: ./server.py, ./mios_config.py, ./test_mios_turn.py
 # AI-functions: _extract_last_user_text, _pick_agent, _casual_agent_label, _live_agent_names, _split_think_tags, _strip_think_tags, configure
 """PER-TURN message-prep + agent-selection helpers (strangler-fig refactor).
@@ -39,12 +24,6 @@ import time
 import httpx
 
 
-# -- Dependency-injection seam ----------------------------------------
-# server.py calls configure() with these AFTER every one is defined (one-way
-# boundary: this module never imports server). _AGENT_REGISTRY is REBOUND on a
-# live membership reload, so server re-injects it from _reload_membership; the
-# rest are stable bindings (mutable-by-reference for _NODE_LIVE). The placeholders
-# below let a standalone import succeed; every consumer runs after configure().
 _AGENT_REGISTRY = None
 _NODE_LIVE = None
 _should_health_probe = None
@@ -162,11 +141,6 @@ def _pick_agent(role: str) -> tuple[str, dict]:
     if cfg.get("health_gate"):
         _c = _NODE_LIVE.get(name)
         if not (_c and _c[1]):  # not confirmed reachable -> fall back to BACKEND
-            # Blank the endpoint AND swap the model: this agent's model (e.g.
-            # the worker's heavy "mios-heavy") is NOT served by BACKEND (the
-            # light llama-swap lane), so keeping it yields llama-swap "no router
-            # for requested model". Reset to MIOS_AI_MODEL (the light-lane
-            # default) so the fallback request routes. install-robustness.
             _fb_model = (os.environ.get("MIOS_AI_MODEL") or "").strip()
             cfg = {**cfg, "endpoint": "", **({"model": _fb_model} if _fb_model else {})}
     return name, cfg

@@ -39,7 +39,6 @@ def main():
             pass
 
     rendered = f"""# Cockpit configuration file
-# Generated from mios.toml -- DO NOT EDIT DIRECTLY
 [WebService]
 AllowUnencrypted = {allow_unencrypted}
 LoginTo = {login_to}

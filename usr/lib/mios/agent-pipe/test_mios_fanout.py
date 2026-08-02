@@ -75,7 +75,6 @@ def t_council_mode():
 
 
 def t_default_model():
-    # default (relevance) path -> model-driven: the model's chosen subset is honored.
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
     orig = f._model_select
     async def _stub(corpus, candidates, want):
@@ -89,7 +88,6 @@ def t_default_model():
 
 
 def t_default_degrade():
-    # model returns None -> degrade OPEN to council-equal-weight (never primary-only).
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
     orig = f._model_select
     async def _none(corpus, candidates, want):
@@ -120,16 +118,13 @@ def t_model_select():
     setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
     cands = f._eligible_candidates("primary", None, False)  # a, b
     orig = f.httpx
-    # model returns a name array with one valid + one hallucinated name -> validated
     f.httpx = _fake_httpx('Here you go: ["b", "ghost"]')
     try:
         sel = asyncio.run(f._model_select("write some code", cands, want=2))
         check("model_select: validates names (ghost dropped, b kept)", sel == ["b"], str(sel))
         check("model_select: caps at want", len(asyncio.run(f._model_select("x", cands, want=1))) <= 1)
-        # off-mode short-circuits (no model call attempted)
         setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "off"})
         check("model_select: off -> None", asyncio.run(f._model_select("x", cands, want=2)) is None)
-        # non-200 -> None (degrade-open)
         setup({"enable": True, "fanout_max": 3, "mode": "relevance", "fanout_select_mode": "model"})
         f.httpx = _fake_httpx("nope", status=503)
         check("model_select: non-200 -> None", asyncio.run(f._model_select("x", cands, want=2)) is None)
@@ -137,18 +132,12 @@ def t_model_select():
         f.httpx = orig
 
 
-# ── FED-G7 (T-051): route on the FULL published AgentCard skills[], flag-gated. ──
-# A federated peer publishes rich skills (name/description/tags); the peer
-# registration collapses them to strength-token ids. With ROUTE_ON_CARD_SKILLS the
-# full skills[] (stored as cfg["card_skills"]) is folded into the relevance corpus
-# so the model routes on the ADVERTISED skill, not just token proximity.
 _CARD_SKILL = {"id": "cr", "name": "Code Review",
                "description": "reviews source code for correctness and bugs",
                "tags": ["code-review"]}
 
 
 def t_card_skills_corpus():
-    # OFF -> byte-identical (published skill text absent); ON -> name+desc+tags folded in.
     setup({"enable": True, "fanout_max": 3})
     cfg = {"role": "general", "strengths": ["chat"], "skill_tags": ["chat"],
            "card_skills": [_CARD_SKILL]}
@@ -190,10 +179,6 @@ def _fake_httpx_cardpick(phrase):
     return types.SimpleNamespace(AsyncClient=_Client)
 
 
-# tokenmatch: strengths lexically overlap the task ("code", "review") but it does NOT
-# publish a code-review skill. skillcard: strengths are unrelated ("chat") but it
-# publishes the code-review skill. They CONFLICT -- a strength-token scorer favours
-# tokenmatch; card-skills routing must pick skillcard.
 _CS_REG = {
     "primary":    {"lane": "gpu", "role": "general", "endpoint": "e0", "skill_tags": ["chat"]},
     "tokenmatch": {"lane": "gpu", "role": "general", "endpoint": "e1",
@@ -231,9 +216,6 @@ def t_card_skills_route():
         names = [n for n, _ in sel]
         check("card-skills ON: published-skill agent wins over strength-token proximity",
               names == ["skillcard"], str(names))
-        # Same conflict, gate OFF: skillcard no longer advertises the skill in its
-        # card, so the semantic selector no longer prefers it -> the skill-card no
-        # longer beats the token-match agent (the corpus, hence the routing, differs).
         f.ROUTE_ON_CARD_SKILLS = False
         sel_off = asyncio.run(f._pick_fanout_agents(
             "primary", {"refined_text": "please code-review this pull request"}))

@@ -59,7 +59,6 @@ def t_retrieve_parity():
     check("retrieve: forwards ALL kwargs verbatim (golden parity)",
           fb.recall_calls == [([0.1, 0.2], {"table": "knowledge", "k": 3, "owner": "alice"})],
           f"{fb.recall_calls}")
-    # agent_memory-style call (no owner) -- the seam must not inject defaults.
     asyncio.run(p.retrieve([0.3], table="agent_memory", k=5))
     check("retrieve: no-owner call forwards exactly (no injected owner)",
           fb.recall_calls[-1] == ([0.3], {"table": "agent_memory", "k": 5}))

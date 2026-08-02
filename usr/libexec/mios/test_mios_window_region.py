@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # AI-hint: Offline unit-proof of the pure window-snap region geometry
-# (mios_window_region.region_rect / rect_from_layout). Asserts the named regions
-# derive their rectangles from the LIVE work-area W/H with no pixel constants,
-# that opposite halves tile the axis exactly on odd dimensions, that a non-zero
-# work-area origin offsets the result, and that unknown regions degrade to None.
-# No bash, no subprocess, no network -- pure in-process math.
 # AI-related: /usr/libexec/mios/mios_window_region.py, /usr/libexec/mios/mios-window
 """Tests for mios_window_region: pure region-rectangle geometry."""
 import importlib.util
@@ -22,7 +17,6 @@ _spec.loader.exec_module(mwr)
 
 
 class RegionRectTests(unittest.TestCase):
-    # Even work area: 1920x1080 -> clean halves.
     def test_maximize_fills_work_area(self):
         self.assertEqual(mwr.region_rect(1920, 1080, "maximize"), (0, 0, 1920, 1080))
 
@@ -45,7 +39,6 @@ class RegionRectTests(unittest.TestCase):
         self.assertEqual(lw + rw, 1920)          # full coverage
 
     def test_left_and_right_tile_exactly_odd(self):
-        # Odd width must still tile with no gap/overlap: remainder goes to right.
         lx, ly, lw, lh = mwr.region_rect(1921, 1080, "left-half")
         rx, ry, rw, rh = mwr.region_rect(1921, 1080, "right-half")
         self.assertEqual(lw, 960)
@@ -62,7 +55,6 @@ class RegionRectTests(unittest.TestCase):
         self.assertEqual(th + bh, 1081)
 
     def test_quarters_cover_work_area(self):
-        # The four corner quarters must tile the whole work area with no gaps.
         quarters = [
             mwr.region_rect(1920, 1080, q)
             for q in ("top-left", "top-right", "bottom-left", "bottom-right")
@@ -88,8 +80,6 @@ class RegionRectTests(unittest.TestCase):
         self.assertIsNone(mwr.region_rect(1920, 1080, ""))
 
     def test_no_pixel_constants_scale_with_geometry(self):
-        # Doubling the work area doubles every derived coordinate -- proof the math
-        # is derived from W/H, not from a baked resolution.
         small = mwr.region_rect(800, 600, "right-half")
         big = mwr.region_rect(1600, 1200, "right-half")
         self.assertEqual(tuple(v * 2 for v in small), big)
@@ -103,12 +93,10 @@ class RectFromLayoutTests(unittest.TestCase):
         return {"ok": True, "count": len(screens), "screens": screens}
 
     def test_origin_offset_added(self):
-        # Secondary monitor whose work area starts at (1920, 0).
         layout = self._layout(1920, 0, 1920, 1080)
         self.assertEqual(mwr.rect_from_layout(layout, "left-half"), (1920, 0, 960, 1080))
 
     def test_taskbar_offset_work_area(self):
-        # Primary with a top-docked taskbar: work origin (0, 40), height 1040.
         layout = self._layout(0, 40, 1920, 1040)
         self.assertEqual(mwr.rect_from_layout(layout, "bottom-half"), (0, 40 + 520, 1920, 520))
 

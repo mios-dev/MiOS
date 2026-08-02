@@ -19,9 +19,9 @@ WANTS=/usr/lib/systemd/system/multi-user.target.wants
 install -d -m 0755 "${WANTS}"
 if [[ -f "/usr/lib/systemd/system/uupd.timer" ]]; then
     ln -sf ../uupd.timer "${WANTS}/uupd.timer"
-    mios_ok "uupd.timer enabled"
+    mios_ok "Uupd.timer enabled"
 else
-    mios_warn "uupd.timer not present (uupd install may have failed)"
+    mios_warn "Uupd.timer not present"
 fi
 
-mios_ok "uupd configured; bootc-fetch-apply-updates.timer and rpm-ostreed-automatic.timer disabled"
+mios_ok "Uupd configured; bootc-fetch-apply-updates.timer and rpm-ostreed-automatic.timer disabled"

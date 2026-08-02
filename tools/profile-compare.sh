@@ -2,10 +2,6 @@
 # AI-hint: A diagnostic script that compares two system profile files to identify hardware discrepancies in CPU, GPU, memory, and kernel configurations for cross-system environment auditing.
 # AI-functions: print_header, compare_sections, quick_compare, main
 
-################################################################################
-# System Profile Comparator
-# Compare multiple system profiles to identify hardware/config differences
-################################################################################
 
 set -euo pipefail
 
@@ -30,7 +26,6 @@ compare_sections() {
     
     echo -e "${YELLOW}Comparing: $section${NC}"
     
-    # Extract section from both files
     local tmp1=$(mktemp)
     local tmp2=$(mktemp)
     
@@ -58,25 +53,21 @@ quick_compare() {
     echo -e "${BOLD}File 2:${NC} $(basename $file2)"
     echo ""
     
-    # CPU comparison
     echo -e "${CYAN}CPU:${NC}"
     grep "Model name:" "$file1" 2>/dev/null || echo "N/A"
     grep "Model name:" "$file2" 2>/dev/null || echo "N/A"
     echo ""
     
-    # GPU comparison
     echo -e "${CYAN}GPU:${NC}"
     grep -A5 "GRAPHICS INFORMATION" "$file1" | grep -E "(VGA|3D)" | head -3
     grep -A5 "GRAPHICS INFORMATION" "$file2" | grep -E "(VGA|3D)" | head -3
     echo ""
     
-    # RAM comparison
     echo -e "${CYAN}Memory:${NC}"
     grep "Mem:" "$file1" | head -1
     grep "Mem:" "$file2" | head -1
     echo ""
     
-    # Kernel comparison
     echo -e "${CYAN}Kernel:${NC}"
     grep "Kernel:" "$file1"
     grep "Kernel:" "$file2"
@@ -102,7 +93,6 @@ main() {
     
     quick_compare "$file1" "$file2"
     
-    # Detailed section comparison
     print_header "DETAILED SECTION COMPARISON"
     
     sections=(

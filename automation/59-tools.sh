@@ -44,9 +44,9 @@ do
 done
 if [[ -n "$USERENV_SRC" ]]; then
     install -D -m 0644 "$USERENV_SRC" /usr/lib/mios/userenv.sh
-    mios_ok "installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
+    mios_ok "Installed userenv.sh resolver to /usr/lib/mios/userenv.sh"
 else
-    mios_warn "tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
+    mios_warn "Tools/lib/userenv.sh not found in build context; mios-env will fall back to legacy env-style files only"
 fi
 
-mios_ok "CLI tools configured; run 'mios --help' for commands"
+mios_ok "CLI tools configured; run 'mios"

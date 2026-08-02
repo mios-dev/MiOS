@@ -19,16 +19,11 @@ from __future__ import annotations
 import hashlib
 from typing import Optional, Sequence
 
-# tier -> (mechanism, writable_workspace, read_only_root, network)
-# read        : pure info verb -> no sandbox needed.
-# write       : may touch the fs -> a per-dispatch writable workspace, rest RO.
-# interactive : highest risk -> strict isolation, no network.
 _TIER_PROFILE = {
     "read":        ("none",      False, False, True),
     "write":       ("workspace", True,  True,  True),
     "interactive": ("strict",    True,  True,  False),
 }
-# The strictest profile -- the fail-closed target for an unknown tier.
 _STRICT = ("strict", True, True, False)
 
 
@@ -72,7 +67,6 @@ def resolve_profile(permission_tier: str, *, explicit: Optional[str] = None,
     t = str(permission_tier or "").strip().lower()
     spec = _TIER_PROFILE.get(t)
     if spec is None:
-        # Unknown/missing tier -> fail CLOSED to the strictest confinement.
         return SandboxProfile(t or "(none)", *_STRICT)
     return SandboxProfile(t, *spec)
 

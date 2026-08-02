@@ -52,7 +52,6 @@ def check_server_reimports() -> list[str]:
     except Exception as exc:
         return [f"{SERVER_PY}: AST parse error: {exc}"]
 
-    # Collect imported symbols in server.py from mios_pipe.*
     reimported_by_module: dict[str, set[str]] = {}
     for node in ast.walk(server_ast):
         if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("mios_pipe"):

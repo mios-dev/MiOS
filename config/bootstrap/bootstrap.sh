@@ -1,9 +1,6 @@
 #!/bin/bash
 # AI-hint: Initializes the MiOS environment by creating directory structures, sourcing build configurations, and prompting for credentials (GitHub PAT, admin credentials) to prepare the local workspace for compilation.
 # AI-related: mios-build, mios-install-XXXXXX
-# 'MiOS' Public Bootstrap -- Linux / WSL2
-# Repository: MiOS-DEV/MiOS-bootstrap
-# Usage: curl -fsSL https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh | bash
 set -euo pipefail
 
 MIOS_BASE_DIR="$HOME/mios"
@@ -18,29 +15,25 @@ _r=$'\033[0m'; _b=$'\033[1m'; _dim=$'\033[2m'; _c=$'\033[36m'; _g=$'\033[32m'; _
 
 echo ""
 echo "  ${_c}╔══════════════════════════════════════════════════════════════╗${_r}"
-echo "  ${_c}║  'MiOS' -- Local Build Configuration                           ║${_r}"
+echo "  ${_c}║  'MiOS'"
 echo "  ${_c}╚══════════════════════════════════════════════════════════════╝${_r}"
 echo ""
 
-# ── Stage Directories ──────────────────────────────────────────────────────
 echo "  ${_dim}Staging 'MiOS' environment in $MIOS_BASE_DIR...${_r}"
 mkdir -p "$MIOS_CONFIG_DIR" "$MIOS_REPO_DIR" "$MIOS_BUILDS_DIR"
 
-# ── Load saved build config ────────────────────────────────────────────────
 if [[ -f "$_ENV_FILE" ]]; then
     echo "  ${_dim}Found saved config: $_ENV_FILE${_r}"
     read -rp "  Load previous build variables? [Y/n]: " _load_ok </dev/tty
     if [[ "${_load_ok,,}" != "n" ]]; then
         set +u
-        # shellcheck source=/dev/null
         source "$_ENV_FILE"
         set -u
-        echo "  ${_g}[OK]${_r} Loaded."
+        echo "  ${_g}[OK]${_r} Loaded"
         echo ""
     fi
 fi
 
-# ── GitHub PAT (required for private repo access) ─────────────────────────
 if [[ -z "${GHCR_TOKEN:-}" ]]; then
     read -rsp "  ${_b}GitHub PAT${_r} (requires 'repo' scope): " GHCR_TOKEN </dev/tty; echo ""
 fi
@@ -53,41 +46,36 @@ echo ""
 echo "  ${_y}── Build Configuration ─────────────────────────────────────────${_r}"
 echo ""
 
-# ── Admin username ─────────────────────────────────────────────────────────
 if [[ -z "${MIOS_USER:-}" ]]; then
     read -rp "  Admin username ${_dim}[mios]${_r}: " MIOS_USER </dev/tty
     MIOS_USER="${MIOS_USER:-mios}"
 else
-    echo "  Admin username: ${MIOS_USER}  ${_dim}(env)${_r}"
+    echo "  Admin username: ${MIOS_USER}  ${_dim}${_r}"
 fi
 export MIOS_USER
 
-# ── Admin password ─────────────────────────────────────────────────────────
 if [[ -z "${MIOS_PASSWORD:-}" ]]; then
     while true; do
         read -rsp "  Admin password: " MIOS_PASSWORD </dev/tty; echo ""
         [[ -z "${MIOS_PASSWORD:-}" ]] && { echo "  ${_red}[!] Password cannot be empty.${_r}"; continue; }
         read -rsp "  Confirm password: " _c2 </dev/tty; echo ""
         [[ "$MIOS_PASSWORD" == "$_c2" ]] && break
-        echo "  ${_red}[!] Mismatch -- try again.${_r}"
+        echo "  ${_red}[!] Mismatch"
     done
 else
-    echo "  Admin password: ${_dim}(env -- masked)${_r}"
+    echo "  Admin password: ${_dim}${_r}"
 fi
 export MIOS_PASSWORD
 
-# ── Hostname ───────────────────────────────────────────────────────────────
-# Suffix is generated first so the user sees the full hostname in the prompt.
 if [[ -z "${MIOS_HOSTNAME:-}" ]]; then
     _suf=$(shuf -i 10000-99999 -n1 2>/dev/null || printf '%05d' $(( RANDOM % 90000 + 10000 )))
     read -rp "  Hostname base ${_dim}[mios]${_r} (suffix -${_suf} is pre-generated -> mios-${_suf}): " _hbase </dev/tty
     _hbase="${_hbase:-mios}"
     export MIOS_HOSTNAME="${_hbase}-${_suf}"
 else
-    echo "  Hostname: ${MIOS_HOSTNAME}  ${_dim}(env)${_r}"
+    echo "  Hostname: ${MIOS_HOSTNAME}  ${_dim}${_r}"
 fi
 
-# ── Optional: GHCR push credentials ───────────────────────────────────────
 if [[ -z "${MIOS_GHCR_USER:-}" ]]; then
     echo ""
     read -rp "  GHCR push username ${_dim}[skip]${_r}: " MIOS_GHCR_USER </dev/tty
@@ -99,7 +87,6 @@ if [[ -n "$MIOS_GHCR_USER" && -z "${MIOS_GHCR_PUSH_TOKEN:-}" ]]; then
     export MIOS_GHCR_PUSH_TOKEN="${MIOS_GHCR_PUSH_TOKEN:-$GHCR_TOKEN}"
 fi
 
-# ── Summary ────────────────────────────────────────────────────────────────
 echo ""
 echo "  ${_y}── Summary ──────────────────────────────────────────────────────${_r}"
 echo ""
@@ -110,9 +97,8 @@ printf "    %-20s %s\n" "Registry push:"  "${MIOS_GHCR_USER:-none (local build o
 printf "    %-20s %s\n" "Config saved to:" "$_ENV_FILE"
 echo ""
 read -rp "  ${_b}Proceed?${_r} [Y/n]: " _ok </dev/tty
-[[ "${_ok,,}" == "n" ]] && { echo "  Aborted."; exit 0; }
+[[ "${_ok,,}" == "n" ]] && { echo "  Aborted"; exit 0; }
 
-# ── Save build config ──────────────────────────────────────────────────────
 {
     printf '# 'MiOS' Build Configuration\n'
     printf '# Generated: %s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
@@ -126,16 +112,15 @@ read -rp "  ${_b}Proceed?${_r} [Y/n]: " _ok </dev/tty
 chmod 600 "$_ENV_FILE"
 echo "  ${_g}[OK]${_r} Build config saved → ${_dim}$_ENV_FILE${_r}"
 
-# ── Fetch and execute private installer ───────────────────────────────────
 export MIOS_AUTOINSTALL=1
 export MIOS_DIR="$MIOS_REPO_DIR"
 export MIOS_BUILDS_DIR="$MIOS_BUILDS_DIR"
 echo ""
-echo "  [+] Fetching private installer..."
+echo "  [+] Fetching private installer"
 _tmp=$(mktemp /tmp/mios-install-XXXXXX.sh)
 if curl -fsSL -H "Authorization: token $GHCR_TOKEN" "$PRIVATE_INSTALLER" -o "$_tmp"; then
     chmod +x "$_tmp"
-    echo "  ${_g}[OK]${_r} Launching installer."
+    echo "  ${_g}[OK]${_r} Launching installer"
     echo ""
     bash "$_tmp"
     rm -f "$_tmp"

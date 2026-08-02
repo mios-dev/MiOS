@@ -2,68 +2,7 @@
 # AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
 # AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, /usr/lib/mios/mios.d, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy
 # AI-functions: _mios_load_unified, _mios_legacy_get
-# tools/lib/userenv.sh -- read the unified 'MiOS' user config and export
 # MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every
-# entry-point script, and any tool that needs the user-overridden values.
-#
-# THERE IS ONE CANONICAL FILE PATH PER LAYER. Higher layers shadow lower
-# layers field-by-field; the user-edit copy lives in mios-bootstrap and is
-# staged into /etc/mios/mios.toml at install time.
-#
-#   1. /usr/share/mios/mios.toml   (vendor defaults; baked into image)        lowest
-#   2. /etc/mios/mios.toml         (host-local; bootstrap-staged)
-#   3. ~/.config/mios/mios.toml    (per-user; XDG)                            highest
-#
-# Schema is the same in all three layers (TOML 1.0; section names below).
-# Resolution mode: deep merge by section.field. The Python helper below
-# reads each layer in order and writes one consolidated set of MIOS_*
-# exports back to the calling shell.
-#
-# Section -> MIOS_* env mapping (typed slots; non-typed fields can still
-# be reached via the [env] table for free-form injection):
-#
-#   [identity]    .username/.fullname/.hostname/.shell/.groups
-#                 -> MIOS_USER, MIOS_USER_FULLNAME, MIOS_HOSTNAME,
-#                    MIOS_USER_SHELL, MIOS_USER_GROUPS (CSV)
-#   [locale]      .timezone/.keyboard_layout/.language
-#                 -> MIOS_TIMEZONE, MIOS_KEYBOARD, MIOS_LOCALE
-#   [auth]        .ssh_key_action/.password_policy
-#                 -> MIOS_SSH_KEY_ACTION, MIOS_PASSWORD_POLICY
-#   [network]     .firewalld_default_zone
-#                 -> MIOS_FIREWALLD_ZONE
-#   [ai]          .endpoint/.model/.embed_model/.api_key/.system_prompt_file/.mcp_registry
-#                 -> MIOS_AI_ENDPOINT, MIOS_AI_MODEL, MIOS_AI_EMBED_MODEL,
-#                    MIOS_AI_KEY, MIOS_SYSTEM_PROMPT_FILE, MIOS_MCP_REGISTRY
-#   [desktop]     .session/.color_scheme/.flatpaks
-#                 -> MIOS_DESKTOP_SESSION, MIOS_COLOR_SCHEME,
-#                    MIOS_FLATPAKS (CSV; consumed by Containerfile build arg)
-#   [image]       .ref/.branch/.base/.bib/.name/.tag/.local_tag
-#                 -> MIOS_IMAGE_REF, MIOS_BRANCH, MIOS_BASE_IMAGE,
-#                    MIOS_BIB_IMAGE, MIOS_IMAGE_NAME, MIOS_IMAGE_TAG,
-#                    MIOS_LOCAL_TAG
-#   [bootstrap]   .mode/.mios_repo/.bootstrap_repo
-#                 -> MIOS_BOOTSTRAP_MODE, MIOS_REPO_URL, MIOS_BOOTSTRAP_REPO_URL
-#   [profile]     .role/.features
-#                 -> MIOS_PROFILE_ROLE, MIOS_PROFILE_FEATURES (CSV)
-#   [colors]      .bg/.fg/.accent/.cursor/.success/.warning/.error/.info/
-#                 .muted/.subtle/.earth/.silver/.ansi_*
-#                 -> MIOS_COLOR_BG, MIOS_COLOR_FG, MIOS_COLOR_ACCENT, ...
-#                    MIOS_ANSI_0_BLACK, MIOS_ANSI_1_RED, ...
-#                 (consumed by /etc/profile.d/mios-colors.sh, the
-#                 oh-my-posh theme, the configurator HTML's :root,
-#                 and globals.{sh,ps1} as default overrides)
-#   [env]         arbitrary KEY = "VALUE" pairs                exported verbatim
-#
-# Backwards compat:
-#   - The legacy lightweight schema ([user]/[build]/[flatpaks].install) is
-#     still understood as a fallback when [identity]/[image]/[desktop] are
-#     absent. 'just init-user-space' migrates the legacy split files.
-#   - The legacy split files (env.toml, images.toml, build.toml,
-#     flatpaks.list, the bare 'env' file) are still read when no
-#     mios.toml is present in any layer.
-#
-# Usage: source ./tools/lib/userenv.sh
-# Note: must be sourced (not executed) to affect the calling shell.
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
@@ -80,9 +19,6 @@ if [[ -z "$MIOS_ROOT" ]]; then
     fi
 fi
 
-# 1. TOML overlay (vendor -> host -> per-user). Use python tomllib (3.11+
-# stdlib; tomli fallback for older). The Python block prints shell-safe
-# 'export' lines that the surrounding shell evals.
 _mios_load_unified() {
     if command -v miosd >/dev/null 2>&1; then
         eval "$(miosd resolve --shell 2>/dev/null)" || true
@@ -95,20 +31,10 @@ _mios_load_unified() {
     else
         return 0
     fi
-    # Drop-in discovery (R1): each tier = monolith + its mios.d/*.toml fragments.
-    # Vendor fragments live in /usr/lib/mios/mios.d (Law 1 USR-OVER-ETC); admin/
-    # user fragments sit in a mios.d/ beside their monolith. Tier-major precedence
-    # (vendor < host < user); the Python block globs + orders them exactly like the
-    # peer resolver usr/lib/mios/mios_toml.py. No-op until the first fragment exists.
     local vendor_d="${MIOS_VENDOR_TOML_D:-/usr/lib/mios/mios.d}"
     local host_d="${MIOS_HOST_TOML_D:-$(dirname "$MIOS_HOST_TOML")/mios.d}"
     local user_d="${MIOS_USER_TOML_D:-${MIOS_CONFIG_DIR}/mios.d}"
     local exports
-    # LOG-HYGIENE: the resolved SSOT is thousands of MIOS_* exports. Under a caller's `set -x`
-    # (e.g. the OCI bake's `set -ex`) the `exports=` capture traces as ONE multi-KB line and the
-    # eval below traces thousands of `+ export MIOS_...` lines -- flooding the build log to where
-    # it is unreadable/un-pasteable past this point. Suppress xtrace for the resolution + eval,
-    # then restore the caller's xtrace state (set -e safe: if-form, never a failing last cmd).
     local _mios_xtrace_was_on=0; case "$-" in *x*) _mios_xtrace_was_on=1 ;; esac; set +x
     exports=$(MIOS_VENDOR_TOML="$MIOS_VENDOR_TOML" MIOS_HOST_TOML="$MIOS_HOST_TOML" \
               MIOS_USER_TOML="$MIOS_USER_TOML" MIOS_VENDOR_TOML_D="$vendor_d" \
@@ -243,7 +169,6 @@ if os.path.isfile(ref_path):
         pass
 PY
     )
-    # `if`-form so set -e treats the test as a conditional, not a fatal.
     if [[ -n "$exports" ]]; then
         eval "$exports"
     fi
@@ -251,22 +176,11 @@ PY
 }
 _mios_load_unified
 
-# WS-0 pgvector bind hardening (Wave 0): derive the concrete listener bind
-# address the quadlet renders from the [pgvector].listen_loopback boolean.
-# true (default) -> 127.0.0.1 (loopback-only; the confined agent-pipe reaches
-# it over loopback, nothing off-box can). false -> 0.0.0.0 (off-box exposure;
-# deliberately federated deployments only). Degrade-open: if the key is unset
-# we default to the safe loopback bind. The slot map can only copy a value
-# verbatim, so this boolean->address transform lives here as a post-load step.
 case "${MIOS_PG_LISTEN_LOOPBACK:-true}" in
     false|False|FALSE|0|no|off) export MIOS_PG_BIND_ADDR="0.0.0.0" ;;
     *)                          export MIOS_PG_BIND_ADDR="127.0.0.1" ;;
 esac
 
-# 2. Backwards-compat: legacy split files (per-user only). Read only when
-# none of the three TOML layers contain a [identity] or [user] section --
-# i.e., the user is on a pre-unified-schema deployment. Each is shallow
-# KEY="VALUE", grep-friendly.
 _mios_legacy_get() {
     local file="$1" key="$2"
     grep -E "^${key}\s*=" "$file" 2>/dev/null \
@@ -276,11 +190,6 @@ _mios_legacy_get() {
 }
 
 if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]; then
-    # `[[ ... ]] && cmd` returns 1 when the test is false; under set -e
-    # in callers like mios-build-driver, that's fatal even though
-    # "key not present in legacy file" is the expected case for fresh
-    # installs. Use `[[ -z ... ]] || cmd` form so set -e treats the
-    # whole expression as a guard, not a hard fail.
     if [[ -f "${MIOS_CONFIG_DIR}/env.toml" ]]; then
         f="${MIOS_CONFIG_DIR}/env.toml"
         for key in MIOS_USER MIOS_HOSTNAME MIOS_FLATPAKS MIOS_BASE_IMAGE MIOS_LOCAL_TAG; do
@@ -305,13 +214,11 @@ if [[ -z "${MIOS_USER:-}" && ! -f "$MIOS_USER_TOML" && ! -f "$MIOS_HOST_TOML" ]]
     fi
     if [[ -f "${MIOS_CONFIG_DIR}/env" ]]; then
         set -a
-        # shellcheck disable=SC1091
         source "${MIOS_CONFIG_DIR}/env"
         set +a
     fi
 fi
 
-# Whitelist of dynamically mapped ports/keys for static analysis (97-ssot-lint.sh)
 _ssot_lint_ports_dummy=(
     "MIOS_PORT_AGENT_PIPE"
     "MIOS_PORT_COCKPIT_LINK"

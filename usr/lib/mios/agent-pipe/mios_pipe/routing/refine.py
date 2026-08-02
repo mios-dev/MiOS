@@ -24,23 +24,9 @@ import mios_tokenize
 from mios_jsonsalvage import loads_lenient as _loads_lenient
 from mios_grounding import _env_grounding, _env_grounding_static, _env_grounding_dynamic
 from mios_routing import _deterministic_action_route
-# Heavy-path critic->refiner consumes the DCI Challenger critic directly (sibling,
-# one-way boundary -- mios_dci never imports this module nor server). DCI_ENABLED /
-# DCI_FLOW_TRIGGER_CONF are stable import-time constants in mios_dci (configure()
-# there only rebinds the _db_* writers), so importing them verbatim mirrors how
-# server.py froze the same values -- behaviour-identical.
 from mios_dci import dci_critic_pass, DCI_ENABLED, DCI_FLOW_TRIGGER_CONF
 
 
-# -- Dependency-injection seam ------------------------------------------------
-# Everything below stays in server.py (config consts, the live verb/agent
-# catalogs + routing-phrase globals, the ceiling/verb-resolve/domain-route
-# helpers, the contextvar, the _db_* writers, the logger). server.py calls
-# configure(...) with these AFTER they are all defined (one-way boundary: this
-# module never imports server). They keep their ORIGINAL server.py names because
-# the moved bodies reference them verbatim. The classifier is only invoked at
-# request time -- well after configure() has injected everything; the loaders'
-# defaults below just keep import + the surface check working before injection.
 log = None
 _AGENT_REGISTRY: dict = {}
 _VERB_CATALOG: dict = {}
@@ -66,21 +52,10 @@ _REMEMBER_TRIGGERS: list = []
 _FASTPATH_VERBS = frozenset()
 _ROUTING_ENABLE = False
 _ROUTING_DOMAINS: dict = {}
-# Routing length/word cutoffs (SSOT: mios.toml [refine]; injected via
-# configure() from server.py). These feed BOTH the runtime promotion guards
-# AND the classifier prompt's char cues -- the SAME constant renders the cue and
-# gates the decision, so they can never drift apart. The values below are the
-# single documented baseline; behaviour is identical at them and an operator
-# override in mios.toml shifts cue + gate together.
 REFINE_CHAT_CHARS = 40              # prompt cue: chat is for very short conversational input
 REFINE_DISPATCH_CHARS = 60         # prompt cue: dispatch is for short verb invocations
 REFINE_PROMOTE_CHARS = 100         # >this -> promote a shallow chat/dispatch to agent (also a prompt cue)
 REFINE_DISPATCH_ARG_MAX_WORDS = 3  # a dispatch arg with more words is a semantic phrase -> agent
-# Heavy-path critic->refiner knobs (SSOT [agent-pipe] env, read in server.py and
-# injected via configure()). The session-event emitter stays in server.py (it
-# writes the session-scoped event stream) and is injected under its original name.
-# Baselines below match the server env defaults so import + the surface check work
-# before injection; configure() overwrites them with the SSOT values.
 _emit_session_event = None
 CRITIC_REFINE_ENABLED = True
 CRITIC_REFINE_MAX = 1
@@ -190,8 +165,6 @@ def configure(*, logger=None, agent_registry=None, verb_catalog=None,
         _cuts_changed = True
     if dispatch_arg_max_words is not None:
         REFINE_DISPATCH_ARG_MAX_WORDS = int(dispatch_arg_max_words)
-    # Re-render the prompt's length cues whenever a char cutoff is (re)injected so
-    # the cue numbers track the runtime gate (one SSOT, no drift).
     if _cuts_changed:
         _REFINE_SYSTEM = _build_refine_system()
 
@@ -398,20 +371,9 @@ def _build_refine_system() -> str:
     )
 
 
-# Built once at import from the baseline cutoffs (byte-identical to the original
-# constant). configure() re-renders it after server.py injects the SSOT cutoffs
-# so an mios.toml override of the length cues propagates; server.py re-imports
-# the rebuilt value after its configure() call (surface-parity zero-diff).
 _REFINE_SYSTEM = _build_refine_system()
 
 
-# Compact "light refine" prompt (operator architecture the
-# micro just classifies + lightly refines/contextualizes; heavy step
-# planning belongs to the planner downstream). The full _REFINE_SYSTEM
-# above is ~1500 tokens -> 14-26s prefill on the 0.6b CPU micro AND
-# confused its classification (called a web query "chat"). This tight
-# version is ~450 tokens -> a few seconds, and the 0.6b classifies the
-# same web query correctly (operator test).
 _REFINE_SYSTEM_LITE = (
     "You are MiOS-Agent's refine pass. Read the user's message + recent\n"
     "history and output ONE compact JSON object (no prose).\n"
@@ -620,7 +582,6 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
     """
     if not content:
         return None
-    # 1) An embedded JSON object inside the prose ("...narration... {json}").
     m = re.search(r"\{.*\}", content, flags=re.DOTALL)
     if m:
         try:
@@ -629,8 +590,6 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
                 return obj
         except Exception:
             pass
-    # 2) A verb CALL in the prose: VERB(args) where VERB is a real fast-path
-    #    verb. Longest-name-first so e.g. launch_verified beats launch_app.
     verbs = sorted(_FASTPATH_VERBS, key=len, reverse=True)
     if not verbs:
         return None
@@ -641,7 +600,6 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
     tool = call.group(1)
     inner = (call.group(2) or "").strip()
     args: dict = {}
-    # key=value pairs first (name="X", url='Y', every=5m, prompt=...).
     for km in re.finditer(
             r"([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(\"[^\"]*\"|'[^']*'|[^,]+)", inner):
         k = km.group(1).strip()
@@ -649,8 +607,6 @@ def _salvage_refine_dispatch(content: str) -> dict | None:
         if k and v:
             args[k] = v
     if not args and inner:
-        # A bare positional value -> the verb's primary arg (url for open_url,
-        # else name -- the launch/window verbs all key on the target name).
         val = inner.strip().strip("\"'").strip()
         if val:
             args["url" if tool == "open_url" else "name"] = val
@@ -673,24 +629,11 @@ async def refine_intent(user_text: str,
     local compute'."""
     if not REFINE_ENABLED or not user_text or not user_text.strip():
         return None
-    # No length-based trivial bypass: it mis-classed short ACTION
-    # commands ("Check system status", "Take screenshot", "Open chrome")
-    # as chat -> the chat short-circuit then faked a reply without
-    # running the tool. The capable refine model
-    # below classifies every non-empty query instead -- greetings still
-    # land as intent=chat, real actions as intent=agent.
-    # Pull the registered agents into the prompt so the model picks
-    # one that actually exists.
     agents_summary = "\n".join(
         f"  - {n}: role={c.get('role','?')} "
         f"strengths={','.join(c.get('strengths') or [])[:80]}"
         for n, c in _AGENT_REGISTRY.items()
     )
-    # Thinking is disabled at the API level (enable_thinking=False on the
-    # /v1 call below) rather than via the `/no_think` token -- operator test
-    # proved the qwen3 micros ignore /no_think (modelfile
-    # thinking-mode override) and dump the answer into message.reasoning,
-    # leaving message.content EMPTY.
     static_parts = [
         _REFINE_SYSTEM_LITE,
         _env_grounding_static(),
@@ -724,34 +667,12 @@ async def refine_intent(user_text: str,
 
     system = "\n\n".join(static_parts) + "\n\n" + _env_grounding_dynamic()
     msgs = [{"role": "system", "content": system}]
-    # Last 2 turns of history, tightly capped -- the OWUI pipe already
-    # enhances the prompt before it reaches us, so re-feeding long
-    # history here just slows the CPU refine (
-    # refine hit 13-45s on a ~1646-char input). Keep it lean.
     if history:
         for h in history[-2:]:
             if isinstance(h, dict) and h.get("role") in ("user", "assistant"):
                 msgs.append({"role": h["role"],
                              "content": mios_tokenize.truncate_to_tokens(
                                  str(h.get("content", "")), 250)})  # WS-A5 seam (was [:200])
-    # Cap the refine input to the TAIL. OWUI's RAG ("Searching Knowledge")
-    # rewrites the user turn as "<context...>\n\nQuery: <actual question>"
-    # - the real question is at the END (operator test showed a
-    # 6207-char user_text for a one-line question; CPU refine scales with
-    # length). Keep the last 1500 chars so the question + nearby context
-    # survive while latency stays bounded.
-    # NATIVE structured outputs (WS-H1): constrain refine to a strict
-    # json_schema so the envelope is schema-VALID by construction -- the decoder
-    # cannot emit a missing/mistyped/out-of-enum field, killing the recurring
-    # parse_fail/_loads_lenient/_salvage tiers and letting the prompt shed its
-    # JSON-shape prose. Copies the PROVEN _route_domain pattern on the SAME :11450
-    # llama.cpp lane: json_schema + chat_template_kwargs.enable_thinking=False
-    # (llama.cpp #20345 silently DROPS the grammar when thinking is on -- the old
-    # "NO response_format forces reasoning" note was the qwen3:1.7b era WITHOUT the
-    # thinking-off fix). Schema validated live on :11450/granite4.1:8b
-    # (200 + 17-key JSON; args additionalProperties:true accepted by the GBNF
-    # compiler). Gated MIOS_REFINE_STRUCTURED (default on); ANY backend/refusal/
-    # parse failure still degrades to the lenient path below (fail-open).
     _refine_structured = os.environ.get(
         "MIOS_REFINE_STRUCTURED", "true").strip().lower() not in {"0", "false", "no", "off"}
     _refine_stream_structured = os.environ.get(
@@ -812,16 +733,6 @@ async def refine_intent(user_text: str,
         payload["chat_template_kwargs"] = {"enable_thinking": False}
     url = f"{REFINE_ENDPOINT}/v1/chat/completions"
     t0 = time.time()
-    # RETRY once on timeout/transport error : the first
-    # call after a VRAM eviction is a COLD model load and a loaded dGPU can push
-    # a single attempt past the deadline -> returning None drops the WHOLE turn
-    # to the council. That's what made "Focus Forza" hit the fast-path while
-    # "Focus discord" 6 min later fell to the council narrating "couldn't locate
-    # Discord" -- NOT a per-app difference (warm, refine maps discord/steam/
-    # slack/chrome to focus_window identically to forza), just a transient
-    # refine miss. The retry runs warm (the failed attempt left the model
-    # resident) so a clear OS-action routes to dispatch consistently for EVERY
-    # app. Model-decides, no hardcoded verb/app list. Tunable MIOS_REFINE_ATTEMPTS.
     async def _call_on_token(token_val: str, is_re: bool):
         if on_token:
             try:
@@ -920,11 +831,6 @@ async def refine_intent(user_text: str,
                         time.time() - t0, _attempt + 1, REFINE_ATTEMPTS, e)
             if _attempt + 1 >= REFINE_ATTEMPTS:
                 return None
-            # (load-361 incident): under host pressure a retry
-            # just stalls the turn AGAIN (the 2x-long refine that idled the dGPU
-            # while the CPU thrashed) -> degrade-open NOW (proceed without refine)
-            # instead of retrying when the box is already over the admission
-            # ceiling. Warm/healthy hosts keep the cold-load retry benefit.
             if _over_global_ceiling():
                 log.warning("refine: host over ceiling -> skip retry, degrade-open")
                 return None
@@ -935,17 +841,12 @@ async def refine_intent(user_text: str,
     if body is None:
         return None
     elapsed = time.time() - t0
-    # OpenAI /v1 choices[] shape (MiOS is /v1-only). The streaming path above
-    # already synthesises this same {choices:[{message:{content}}]} envelope.
     choices = body.get("choices") or []
     msg = (choices[0].get("message") if choices else {}) or {}
     content = (msg.get("content") or "").strip()
     if not content:
         log.warning("refine: %.1fs empty_content", elapsed)
         return None
-    # qwen3-style reasoning models sometimes wrap output in
-    # <think>...</think> blocks before the JSON. Strip them so
-    # the JSON parser sees just the structured plan.
     content = re.sub(r"<think>.*?</think>\s*", "", content,
                      flags=re.DOTALL | re.IGNORECASE)
     content = re.sub(r"^\s*```(?:json)?\s*\n?", "", content)
@@ -953,20 +854,11 @@ async def refine_intent(user_text: str,
     try:
         parsed = _loads_lenient(content)
     except json.JSONDecodeError as e:
-        # 1) STRUCTURAL repair FIRST : the common failure is
-        # near-JSON with ONE bad token (empty value / trailing comma / comment /
-        # truncated tail), NOT prose. _loads_lenient recovers the whole plan so a
-        # flawless intent/refined_text/news classification is not thrown away over
-        # one malformed field (which then degraded into the "worldwide trends
-        # today" junk query + punt). Only accept a real plan (has an intent).
         parsed = _loads_lenient(content)
         if isinstance(parsed, dict) and parsed.get("intent"):
             log.warning("refine: %.1fs parse_fail REPAIRED (%s) -> intent=%s",
                         elapsed, e.msg, parsed.get("intent"))
         else:
-            # 2) The model NARRATED instead of emitting JSON. Salvage an obvious
-            # one-verb dispatch from the prose rather than dropping the turn to the
-            # research swarm ("Open discord" -> 477s fan-out).
             parsed = _salvage_refine_dispatch(content)
             if parsed is not None:
                 log.warning(
@@ -983,36 +875,18 @@ async def refine_intent(user_text: str,
     log.info("refine: %.1fs [%s] intent=%s domain=%s target=%s",
              elapsed, REFINE_MODEL, parsed.get("intent"),
              parsed.get("domain_type"), parsed.get("target_agent"))
-    # Stash routing-metadata onto the envelope so downstream SSE
-    # emit sites can surface "refine: 17.7s qwen3:1.7b intent=agent"
-    # instead of the bare "refine" label.
     parsed["_elapsed_s"] = round(elapsed, 1)
     parsed["_model"] = REFINE_MODEL
     parsed["_endpoint"] = REFINE_ENDPOINT
-    # Normalise the model-driven `news` flag to a strict bool (format=json
-    # usually yields a real boolean; coerce common string truthy forms too).
-    # Drives _web_research_enrich -> SearXNG news category. MODEL-classified,
-    # NOT a Python keyword check (operator binding: no hardcoded keyword lists).
     _news = parsed.get("news")
     parsed["news"] = (_news is True) or (
         isinstance(_news, str) and _news.strip().lower() in {"true", "1", "yes"})
-    # Strict-bool coercion for needs_location (drives the location-required guard:
-    # ask for the city instead of fabricating one when none was forwarded).
     _nl = parsed.get("needs_location")
     parsed["needs_location"] = (_nl is True) or (
         isinstance(_nl, str) and _nl.strip().lower() in {"true", "1", "yes"})
-    # Same strict-bool coercion for browser_action (drives the fire-both browser
-    # hand-off: the swarm researches AND a pinned Hermes node drives the browser).
     _ba = parsed.get("browser_action")
     parsed["browser_action"] = (_ba is True) or (
         isinstance(_ba, str) and _ba.strip().lower() in {"true", "1", "yes"})
-    # Validate hint_tools against the verb catalog (refine sometimes
-    # HALLUCINATES a tool name -- "news_search", earlier "journalctl_tail"/"flight_search" --
-    # which the native loop then injects RAW as a STRONG preference, nudging the model toward
-    # a non-existent tool. Drop any hint that does not resolve to a real verb (alias-aware +
-    # hyphen/underscore/plural fold, the same fold _build_dispatch_cmd uses). Generic closed-
-    # vocabulary check -- NO hardcoded name, NO topic list; degrade-open (an empty hint_tools
-    # just lets the model self-route, which is the design).
     _ht = parsed.get("hint_tools")
     if isinstance(_ht, list) and _ht and _VERB_CATALOG:
         _folded_keys = {v.replace("-", "_").rstrip("s") for v in _VERB_CATALOG}
@@ -1031,10 +905,6 @@ async def refine_intent(user_text: str,
         if _dropped:
             log.info("refine: dropped %d hallucinated hint_tool(s): %s",
                      len(_dropped), _dropped)
-    # Force browser_action for a URL + READ/browse intent :
-    # "open <url> and quote/read/summarize" must hit the CDP browse path (real DOM
-    # via mios-cdp-fetch), not the open_url fast-path that only launches. Also flip
-    # intent->agent so the dispatch fast-path doesn't fire open_url first.
     if not parsed["browser_action"] and _BROWSER_ACTION_ALT:
         try:
             import re as _re_brd
@@ -1046,54 +916,20 @@ async def refine_intent(user_text: str,
                     parsed["intent"] = "agent"
         except Exception:
             pass
-    # Explicit browser-LAUNCH overrides the model's browse/research mis-route
-    # ("open the Wikipedia main page in epiphany" got
-    # routed to web-research and the agent FABRICATED "successfully opened in
-    # Epiphany" -- the narrate-instead-of-call lie). Deterministic guard: a
-    # launch verb + a named browser/app as the trailing "in/with <X>" target +
-    # a resolvable URL (explicit in the text, or the one the model already
-    # resolved into `parsed`) -> force intent=dispatch open_url. open_url then
-    # really launches (real success OR an honest failure), never a fabricated
-    # confirmation. The <X> token is resolved to a flatpak downstream by
-    # mios-open-url, so there is NO hardcoded browser list here; the trailing
 
-    # local_state: the query is about THIS machine -> fire local READ tools +
-    # SUPPRESS web research ("summarize recent activity" /
-    # "check service status" got web-searched into garbage -- random .xlsx files
-    # containing "mios", dictionary defs of "list", the "Next" fashion brand).
     _ls = parsed.get("local_state")
     parsed["local_state"] = (_ls is True) or (
         isinstance(_ls, str) and _ls.strip().lower() in {"true", "1", "yes"})
-    # domain_type: internal | external | both (agentic
-    # internal/external/both routing). Coerce + derive a default from existing
-    # signals when omitted: local_state -> internal; else external (safe default --
-    # a missing classification must not silently become a local-only answer).
-    # "both" is honored only when the model ALSO emitted a multi_task split (the
-    # concurrent-mixed-execution branch verifies the tasks before splitting).
     _dt = parsed.get("domain_type")
     _dt = _dt.strip().lower() if isinstance(_dt, str) else ""
     if _dt not in ("internal", "external", "both"):
         _dt = "internal" if parsed.get("local_state") else "external"
-    # ADDITIVE HYBRID : a local_state turn that ALSO flags a
-    # web/news knowledge gap is genuinely BOTH -- even without a multi_task split,
-    # which the model routinely omits for "the specs of MY hardware". Promote to
-    # 'both' off refine's OWN web flag (model-judged, no keyword list) so the
-    # dispatcher skips the local-only fast-path and the native loop fires BOTH the
-    # local read tools AND web_search. Pure-local (web=false) is unchanged.
     if parsed.get("local_state") and (parsed.get("web") or parsed.get("news")):
         _dt = "both"
     parsed["domain_type"] = _dt
-    # Deterministic routing for two verbs gemma4 mis-selects (
-    # tool battery: web_search punted to LOCAL data; "remember X" ran mios_apps and
-    # didn't save). Keyword-triggered like the launch/browse pre-router; the model
-    # still owns everything else.
     try:
         import re as _re_vr
         _utl = user_text or ""
-        # web_search pre-route: a TRIGGER verb co-occurring with a WEB context, both
-        # from SSOT [routing] lists. Empty lists -> skip (model self-routes). The
-        # `then|and then` split below is a STRUCTURAL conjunction boundary, not a
-        # topic keyword. NO hardcoded English routing keywords.
         if _WEB_SEARCH_TRIGGERS and _WEB_SEARCH_CONTEXTS:
             _wt = "|".join(_re_vr.escape(p) for p in _WEB_SEARCH_TRIGGERS)
             _wc = "|".join(_re_vr.escape(p) for p in _WEB_SEARCH_CONTEXTS)
@@ -1102,8 +938,6 @@ async def refine_intent(user_text: str,
                 parsed["local_state"] = False
                 if parsed.get("intent") == "chat":
                     parsed["intent"] = "agent"
-        # remember pre-route: SSOT trigger phrases + live-catalog guard. Empty list
-        # -> skip (model self-routes).
         if _REMEMBER_TRIGGERS and "remember" in (_VERB_CATALOG or {}):
             _rt = "|".join(_re_vr.escape(p) for p in _REMEMBER_TRIGGERS)
             _rm = _re_vr.match(rf'\s*(?:please\s+)?(?:{_rt})(?:\s+that)?\s+(.+)',
@@ -1117,13 +951,6 @@ async def refine_intent(user_text: str,
                     parsed["args"] = {"fact": _fact}
     except Exception:
         pass
-    # Chat-classify guard: a small refine model occasionally picks
-    # intent=chat for an input that's CLEARLY actionable (literal
-    # CLI verb, fully-qualified URL, `mios-*` shim invocation) and
-    # fabricates a confirmation `reply` text. Force-promote to
-    # dispatch when the user text is shaped like a command or URL.
-    # Language-agnostic: keyed off path / scheme prefixes, NOT on
-    # any natural-language tokens (operator binding).
     if parsed.get("intent") == "chat":
         _ut = (user_text or "").strip()
         _looks_actionable = (
@@ -1138,9 +965,6 @@ async def refine_intent(user_text: str,
                 "(text starts with verb/URL token)")
             parsed["intent"] = "dispatch"
             parsed.pop("reply", None)
-    # multi_task sanity: collapse to `agent` if the model produced
-    # the multi_task intent with <2 tasks. Avoids surfacing an empty
-    # kanban queue when the model was over-eager.
     if parsed.get("intent") == "multi_task":
         tasks = parsed.get("tasks") or []
         if not isinstance(tasks, list) or len(tasks) < 2:
@@ -1149,33 +973,9 @@ async def refine_intent(user_text: str,
                 len(tasks) if isinstance(tasks, list) else "non-list",
             )
             parsed["intent"] = "agent"
-            # Keep the MULTI-STEP signal: refine SAW multiple steps but did
-            # not itemise them. The handler hands this to the planner to
-            # decompose into a concurrent per-agent DAG.
             parsed["_multi_step"] = True
             parsed.pop("tasks", None)
-    # Long-prompt guard (language-agnostic): a real intent=chat /
-    # intent=dispatch input is short (greeting, single verb).
-    # When the user_text is >100 chars but the refine model still
-    # picked one of those shallow intents, it almost always missed
-    # multi-step structure. Promote to `agent` so the worker (or
-    # the planner DAG) decomposes properly. Operator-flagged trace:
-    # 134-char "find all games; research ratings; launch highest"
-    # was classified intent=dispatch with args="highest reviewed
-    # game" and the launcher picked Ubisoft as nearest substring.
     _ut = (user_text or "").strip()
-    # OS-control dispatch is EXEMPT from the length guard (operator
-    # trace: "Open notepad"->council, "Focus Spotify"
-    # ->web). A concrete window/app action is legitimately ONE step even
-    # when OWUI's RAG/memory enhancement pads the surrounding turn past
-    # 100 chars (it rewrites the turn as "<context...>\n\nQuery: <cmd>",
-    # documented above) -- refine still reads the tail and correctly
-    # emits dispatch+<os verb>, but this guard was then demoting it to
-    # agent purely on the padded length, sending every OS command to the
-    # council/swarm. The OS-control set is SSOT from mios.toml's
-    # "Window / app launch" section (no hardcoded verb/app/keyword list);
-    # a genuinely multi-step ask still lands as multi_task at the model,
-    # and a vague non-OS dispatch is still caught below.
     _os_dispatch = (parsed.get("intent") == "dispatch"
                     and str(parsed.get("tool") or "").strip()
                     in _FASTPATH_VERBS)
@@ -1187,16 +987,7 @@ async def refine_intent(user_text: str,
             parsed["intent"], len(_ut), REFINE_PROMOTE_CHARS)
         parsed["intent"] = "agent"
         parsed.pop("reply", None)
-    # Arg-shape guard: a dispatch arg value of >3 words is almost
-    # certainly a semantic descriptor (e.g. "highest reviewed
-    # game", "any browser will do"), not a concrete identifier the
-    # launcher can resolve. Promote to agent so the worker
-    # disambiguates with tool calls. Language-agnostic: counts
-    # whitespace-separated tokens.
     if parsed.get("intent") == "dispatch":
-        # Fast-path verbs (OS-control + schedule) resolve multi-word args by
-        # design (a window title; a research prompt), so they're exempt from
-        # the wordy-arg demotion below.
         _is_os = str(parsed.get("tool") or "").strip() in _FASTPATH_VERBS
         _args = parsed.get("args") if isinstance(parsed.get("args"), dict) else {}
         _wordy = False
@@ -1204,33 +995,16 @@ async def refine_intent(user_text: str,
             if isinstance(v, str) and len(v.strip().split()) > REFINE_DISPATCH_ARG_MAX_WORDS:
                 _wordy = True
                 break
-        # OS-control verbs (focus/close/move/launch) resolve a multi-word target
-        # by substring/fuzzy match, so a wordy title ("FakeGame 6 for me on
-        # my pc") is FINE -- do NOT demote them to the research council (operator
-        # "focus FakeGame 6" went to the council + failed). Only
-        # a wordy NON-OS dispatch is the vague descriptor the launcher can't take.
         if _wordy and not _is_os:
             log.info(
                 "refine: dispatch promoted to agent "
                 "(arg value contained a multi-word semantic phrase)")
             parsed["intent"] = "agent"
-    # Deterministic OS-action pre-router (research-backed): override a misrouted
-    # 'launch/open <app>' to dispatch+open_app so the weak refine micro can't
-    # flip a concrete action to a research swarm (the bug where "launch epiphany"
-    # fired mios_find/list_windows + fabricated success instead of launching).
     _det = _deterministic_action_route(user_text)
     if _det is not None and parsed.get("intent") != "dispatch":
         log.info("refine: deterministic OS-action override %s args=%s (was intent=%s)",
                  _det["tool"], _det["args"], parsed.get("intent"))
         parsed = _det
-    # Cross-domain mis-dispatch guard ("open discord and send a
-    # message to @someone" -> refine emitted open_url with a FABRICATED discord channel
-    # URL + fake token instead of the agent orchestrating launch+send). If refine
-    # picked a single dispatch verb that is NOT in the routed domain's SSOT verb-set,
-    # the classification and the chosen tool disagree -> the dispatch + its args are
-    # unreliable (commonly fabricated). Defer to the agent tool-loop (full surface).
-    # Data-driven on [routing.domains]; no keyword/app/URL literals. Skips the
-    # deterministic route (a clean "open X").
     if (parsed.get("intent") == "dispatch" and not parsed.get("_deterministic")
             and _ROUTING_ENABLE and _ROUTING_DOMAINS):
         _gdom = _routed_domain_var.get(None)
@@ -1249,13 +1023,10 @@ async def refine_intent(user_text: str,
             parsed.pop("tool", None)
             parsed.pop("args", None)
             parsed.pop("reply", None)
-            # Reset to the CLEAN user text + drop fabricated web hints so the
-            # invented URL/args never leak into the agent prompt or web-enrich.
             parsed["refined_text"] = user_text
             parsed.pop("hint_tools", None)
             parsed["web"] = False
             parsed["news"] = False
-    # Best-effort event row.
     _db_fire(_db_post(_db_create("event", {
         "source": "mios-agent-pipe",
         "kind": "refine",

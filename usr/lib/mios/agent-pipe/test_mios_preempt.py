@@ -46,7 +46,6 @@ def t_slots():
 
 def t_suspend_resume():
     s = pre.PreemptScheduler(max_suspended=3)
-    # suspend three tasks at different priorities into acquired slots.
     for tid, prio in [("low", 1.0), ("high", 9.0), ("mid", 5.0)]:
         slot = s.acquire_slot()
         ok = s.suspend(pre.Snapshot(tid, prio, position=0, partial="x", slot=slot))
@@ -96,14 +95,12 @@ def t_discharge():
 
 def t_decide():
     d = pre.decide
-    # finished always wins, regardless of waiters/quantum/slots.
     check("decide: finished -> COMPLETE",
           d(finished=True, quantum_expired=True, higher_priority_waiting=True,
             can_suspend=True) == pre.COMPLETE)
     check("decide: finished -> COMPLETE even when idle",
           d(finished=True, quantum_expired=False, higher_priority_waiting=False,
             can_suspend=False) == pre.COMPLETE)
-    # PREEMPT requires ALL THREE: quantum spent + a waiter + a free snapshot slot.
     check("decide: quantum+waiter+slot -> PREEMPT",
           d(finished=False, quantum_expired=True, higher_priority_waiting=True,
             can_suspend=True) == pre.PREEMPT)
@@ -127,7 +124,6 @@ def t_rr_simulation():
     sched = pre.PreemptScheduler(max_suspended=2)
     SLICE, low_total, high_total = 4, 20, 8
 
-    # Phase 1: LOW runs slices; a HIGH-priority waiter appears at t>=2 -> preempt.
     low_out = ""
     q = pre.Quantum(t0=0.0, limit_s=1.0)
     now = 0.0
@@ -152,7 +148,6 @@ def t_rr_simulation():
           f"out_len={len(low_out)}")
     check("rr: snapshot captured 1 suspended gen", sched.stats()["suspended"] == 1)
 
-    # Phase 2: HIGH runs to completion on the freed lane (nothing above it).
     high_out = ""
     qh = pre.Quantum(t0=now, limit_s=1.0)
     nowh = now
@@ -166,7 +161,6 @@ def t_rr_simulation():
             break
     check("rr: HIGH completed first", len(high_out) == high_total)
 
-    # Phase 3: resume LOW from its snapshot; finish with NO token lost/reprocessed.
     snap = sched.resume()
     check("rr: resume returns LOW", snap.task_id == "low", snap.task_id)
     check("rr: resume starts at snapshot position", len(snap.partial) == snap.position)
@@ -191,13 +185,6 @@ def t_bounded_no_preempt():
           action == pre.CONTINUE)
 
 
-# ── T-019 / SCHED-01 turn-boundary preemption seam ──────────────────────────────
-# turn_boundary() is the FLAG-GATED hook the dispatch turn loop calls AFTER a turn's
-# priority is known. These tests drive it with SYNTHETIC turns + injected spies and
-# verify the three contract guarantees: default-off = no-op (the PreemptScheduler is
-# NOT consulted), enabled = consulted with a snapshot/resume round-trip, degrade-open
-# = a scheduler error falls back to running the turn. State is snapshotted/restored
-# around each test because configure() mutates module globals.
 _PREEMPT_STATE_KEYS = ("PREEMPT_ENABLE", "QUEUE_ENABLE", "TURN_QUANTUM_S",
                        "SLICE_TOKENS", "PRIORITY_LEVELS", "MAX_PREEMPT_DEPTH",
                        "_TURN_SCHEDULER", "_TURN_QUEUE", "_HEAD_PRIORITY", "_CLOCK")
@@ -453,15 +440,6 @@ def t_configure_aliases_and_stats():
         _restore_state(snap)
 
 
-# ── T-020 / SCHED-02 token-time-sliced priority queue ────────────────────────────
-# TokenSliceQueue is the queueing POLICY (priority ordering + per-turn token-time slice
-# accounting) and slice_boundary() is the hook that sits on the T-019 turn_boundary
-# mechanism. These tests verify the pure queue structure (dispatch ordering, slice
-# accounting + remainder carry, the ready-waiter head-priority signal, bounded
-# eviction) AND the four slice_boundary contract guarantees with SYNTHETIC turns +
-# token counts: default-off = no queue interposition (the queue is NOT consulted),
-# enabled = a higher-priority turn dispatches first + a crossed slice budget triggers
-# the turn_boundary re-eval, degrade-open = a queue error falls back to running the turn.
 
 
 def t_queue_cfg_defaults():
@@ -674,7 +652,6 @@ def t_turn_boundary_default_off_ignores_queue():
     try:
         realq = pre.TokenSliceQueue(default_slice_tokens=4)
         realq.enqueue("waiter", 9.0)  # a high-priority turn sits in the queue
-        # queue OFF + probe says nothing waiting -> no preempt, queue ignored.
         pre.configure(preempt_enable=True, queue_enable=False, turn_queue=realq,
                       turn_scheduler=pre.PreemptScheduler(2), head_priority=lambda: None)
         preempted = asyncio.run(pre.turn_boundary(task_id="t1", priority=1.0))
@@ -694,7 +671,6 @@ def main():
     t_decide()
     t_rr_simulation()
     t_bounded_no_preempt()
-    # T-019 / SCHED-01 turn-boundary preemption seam.
     t_as_bool()
     t_scheduler_cfg_defaults()
     t_turn_boundary_disabled()
@@ -705,7 +681,6 @@ def main():
     t_turn_boundary_degrade_open()
     t_turn_boundary_quantum_backstop()
     t_configure_aliases_and_stats()
-    # T-020 / SCHED-02 token-time-sliced priority queue.
     t_queue_cfg_defaults()
     t_token_slice_queue_structure()
     t_token_slice_queue_fifo_tiebreak()

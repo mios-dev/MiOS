@@ -5,11 +5,9 @@ import mios_pipe.memory.embed_backfill as eb
 class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
 
     def test_text_projections(self):
-        # 1. skill
         s_row = {"name": "TestSkill", "description": "Doing cool things"}
         self.assertEqual(eb.get_text_projection("skill", s_row), "Skill: TestSkill\nDescription: Doing cool things")
         
-        # 2. verb
         v_row = {
             "name": "test_verb",
             "desc_default": "A description of a verb",
@@ -21,7 +19,6 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "TestVerb: A description of a verb\nExample requests: test standard usage | another test"
         )
         
-        # 3. tool_call
         tc_row = {
             "tool": "web_search",
             "args": {"query": "hello"},
@@ -32,7 +29,6 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             'Tool Call: web_search\nArguments: {"query": "hello"}\nResult: some search results'
         )
         
-        # 4. directory_entry
         de_row = {
             "path": "/etc/hosts",
             "kind": "file",
@@ -44,7 +40,6 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "File: /etc/hosts\nKind: file\nSize: 128 bytes\nSummary: Local DNS mappings"
         )
 
-        # 5. event
         ev_row = {
             "act_type": "critic",
             "summary": "Critic rejected action"
@@ -54,7 +49,6 @@ class TestMiosEmbedBackfill(unittest.IsolatedAsyncioTestCase):
             "Event: critic\nSummary: Critic rejected action"
         )
 
-        # 6. session
         sess_row = {
             "title": "My Session",
             "meta": {"first_prompt": "Hello AI"}

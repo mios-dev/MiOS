@@ -59,18 +59,6 @@ def block_result(tool, args, action_hash):
     }
 
 
-# ── Unified HITL verdict -- the SINGLE reconciliation of BOTH configured gates ──
-# MiOS exposes two HITL controls that historically decided INDEPENDENTLY and could
-# disagree: the [ai] RISK-TIER gate (mode off|audit|block, applied to verbs whose
-# permission tier is at/above [ai].hitl_threshold) and the [hitl] VERB-SCOPE gate
-# (enable + mode log|gate, applied to the gated verb set). They are complementary
-# COVERAGE LAYERS, not duplicates -- but a single dispatch must resolve them to ONE
-# coherent outcome, or a turn can be "HITL-enabled but not blocked". `decide` is that
-# single resolver, which BOTH gate call-sites route their decision through (so the two
-# can no longer diverge): each gate contributes a posture ONLY within its own scope,
-# the verdict is the STRICTER of the two (a safety gate errs toward blocking), and an
-# approval (ask-to-run this turn, or an out-of-band /v1/hitl/approve) downgrades a
-# block so the approved action runs.
 PROCEED, OBSERVE, BLOCK = "proceed", "observe", "block"
 _VERDICT_RANK = {PROCEED: 0, OBSERVE: 1, BLOCK: 2}
 
@@ -120,11 +108,8 @@ def decide(*, in_tier_scope=False, ai_mode="off",
     if in_name_scope:
         rank = max(rank, _VERDICT_RANK[scope_gate_posture(hitl_enable, hitl_mode)])
     if ro2_block:
-        # A confirmed all-three Rule-of-Two chain (enforce mode) errs toward blocking.
         rank = max(rank, _VERDICT_RANK[BLOCK])
     if quarantine_block:
-        # A confirmed tainted+privileged CaMeL quarantine bite (enforce mode) errs
-        # toward blocking -- the stricter dual-context posture, same fail-safe rule.
         rank = max(rank, _VERDICT_RANK[BLOCK])
     if rank == _VERDICT_RANK[BLOCK]:
         return OBSERVE if approved else BLOCK

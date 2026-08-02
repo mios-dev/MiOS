@@ -37,14 +37,6 @@ from mios_a2a_principal import _passport_sign
 log = logging.getLogger("mios-agent-pipe")
 
 
-# ── Dependency-injection seam ─────────────────────────────────
-# execute_skill runs skill steps through server.py's dispatch_mios_verb and
-# persists outcomes via its DB helpers + invocation/attribution helpers; the
-# readers call _db_read. server.py calls configure() with these AFTER they are
-# all defined (one-way boundary: this module never imports server). They stay
-# None/default until then; every consumer is async/runtime so a standalone
-# ``import mios_skills`` still succeeds. The injected globals keep their ORIGINAL
-# server.py names because the moved bodies reference them verbatim.
 _db_read = None
 _db_post = None
 _db_update = None
@@ -52,10 +44,6 @@ _db_write = None
 _pg_mirror = None
 dispatch_mios_verb = None
 SKILLS_ENABLED = True
-# Episodic SKILL.md mirror: the target dir + on/off flag are server-owned SSOT
-# (env MIOS_SKILLS_EPISODIC_* -> server consts) and stay None until configure()
-# injects them. The writer degrades-open (disabled flag -> no-op) so a standalone
-# ``import mios_skills`` stays side-effect-free.
 _SKILLS_EPISODIC_DIR = None
 _SKILLS_EPISODIC_ENABLED = None
 
@@ -104,9 +92,6 @@ async def _skill_fetch(name: str) -> Optional[dict]:
         f"description, support, confidence "
         f"FROM skill WHERE name = {json.dumps(name)} LIMIT 1;"
     )
-    # R15/G10: read pg when primary -- the legacy `skill` table is empty after
-    # the agent-plane migration (the promoted skills live in pgvector), so a raw
-    # _db_post here made the agent skill-blind. Falls back to the legacy path in dual.
     r = await _db_read(sql, pg_sql=(
         "SELECT id, name, body, status, source, version, "
         "description, support, confidence FROM skill "
@@ -131,8 +116,6 @@ async def _skill_list(*, status: str = "promoted",
         f"FROM skill WHERE {clause} "
         f"ORDER BY name LIMIT {int(limit)};"
     )
-    # R15/G10: pg-native list when primary (legacy skill table is empty; the
-    # promoted skills are in pgvector). Param-bound clause; legacy fallback.
     pg_where, pg_params = [], {}
     if status and status != "all":
         pg_where.append("status = %(status)s"); pg_params["status"] = status
@@ -180,23 +163,9 @@ async def execute_skill(name: str, params: dict, *,
     if not steps:
         return {"success": False, "skill": name,
                 "error": "empty_body", "steps": [], "failures": []}
-    # Execution mode -- "sequence" (default) halts on first FAILURE;
-    # "try-each" halts on first SUCCESS. The latter is the generic
-    # primitive resilience skills need (try variant A, then B, then
-    # C, ... succeed when any one lands). Operator directive "no
-    # hardcoded fallbacks -- ALL TOOLS AND SKILLS to solve for this":
-    # the engine extension is generic infrastructure;
-    # specific fallback orderings live in individual skill bodies.
     mode = str(body.get("mode") or "sequence").lower()
     inv_id = await _skill_invocation_open(
         row.get("id"), params or {}, session_id)
-    # expand_from: a step annotated with {"expand_from": "<param>",
-    # "bind_as": "<token>"} fans out into one step per element of
-    # the named array param, binding `$<token>` to each value. Used
-    # by try-each skills to walk an arbitrary list (e.g. browser
-    # fallback chain) without hardcoding the list in the skill. The
-    # expansion happens here so the rest of the engine (logging,
-    # event emission, invocation_close) sees a flat step list.
     expanded: list[dict] = []
     for step in steps:
         if not isinstance(step, dict):
@@ -208,9 +177,6 @@ async def execute_skill(name: str, params: dict, *,
         ba = step.get("bind_as") or "item"
         seq = (params or {}).get(ef)
         if not isinstance(seq, list) or not seq:
-            # No values to expand -> skip the step. Counts as a
-            # silent no-op rather than a missing-params failure;
-            # try-each callers can still resolve on a later step.
             continue
         for v in seq:
             inst = {k: w for k, w in step.items()
@@ -227,14 +193,10 @@ async def execute_skill(name: str, params: dict, *,
     for idx, step in enumerate(steps):
         verb = (step or {}).get("verb") or ""
         raw_args = (step or {}).get("args") or {}
-        # Already-rendered args from expand_from pass through; raw
-        # args (literal step) still need rendering. Detect by
-        # presence of the _expanded_from marker.
         if step.get("_expanded_from"):
             rendered = raw_args
         else:
             rendered = _skill_render_args(raw_args, params or {})
-        # Detect un-substituted $-tokens (operator forgot a param).
         leftover = [
             v for v in rendered.values()
             if isinstance(v, str) and _PARAM_TOKEN_RE.search(v)
@@ -246,7 +208,6 @@ async def execute_skill(name: str, params: dict, *,
                             "success": False,
                             "error": "missing_params",
                             "leftover": leftover})
-            # Halt -- can't dispatch with un-bound tokens.
             await _skill_invocation_close(inv_id, success=False)
             return {"success": False, "skill": name, "steps": results,
                     "failures": failures, "aborted": True}
@@ -260,19 +221,10 @@ async def execute_skill(name: str, params: dict, *,
             "stderr": r.get("stderr", "")[:400],
             "tainted": r.get("tainted", False),
             "taint_reason": r.get("taint_reason", ""),
-            # T-049: surface the dispatch-emitted Semantic-Firewall / HITL block
-            # markers (parallel to `tainted`) so the pass^k promotion gate can veto
-            # on a firewall_block or HITL escalation EVEN when a try-each skill
-            # recovered on a later step. Structured booleans, not text.
             "firewall_blocked": bool(r.get("firewall_blocked", False)),
             "hitl_blocked": bool(
                 r.get("hitl_blocked", False) or r.get("hitl_pending", False)),
         })
-        # Attribute the tool_call to this invocation. The
-        # dispatch_mios_verb path emits the tool_call row itself;
-        # we re-query to find the most recent matching row and
-        # RELATE it. Best-effort; the audit chain isn't load-bearing
-        # for skill correctness, just for miner-side dedup.
         if session_id:
             q = (
                 f"SELECT id, ts FROM tool_call "
@@ -288,14 +240,8 @@ async def execute_skill(name: str, params: dict, *,
                         inv_id, tc_rows[0].get("id"), idx)
         step_ok = bool(r.get("success", False))
         if mode == "try-each":
-            # try-each: halt on first SUCCESS. A failed step records
-            # the failure and continues; a successful step closes the
-            # skill as a win (any-of-N semantics).
             if step_ok:
                 await _skill_invocation_close(inv_id, success=True)
-                # WS-MEM-TIER: dead _db_post(UPDATE) on pgvector-primary left the
-                # skill's last_used_at (configurator UI + recency signal) un-bumped;
-                # route through _db_update with a parameterized PG UPDATE.
                 await _db_update(
                     f"UPDATE {row.get('id')} SET last_used_at = time::now();",
                     pg_sql="UPDATE skill SET last_used_at = now() WHERE id = %(id)s",
@@ -312,21 +258,16 @@ async def execute_skill(name: str, params: dict, *,
                 return {"success": True, "skill": name, "steps": results,
                         "failures": failures, "aborted": False,
                         "winning_step": idx, "mode": "try-each"}
-            # Failure under try-each: record + keep going. Only halt
-            # when we run out of steps below (the for-loop falls out).
             failures.append(
                 f"step {idx} ({verb}): "
                 f"exit={r.get('exit_code')} "
                 f"stderr={r.get('stderr','')[:200]}")
             continue
-        # mode == "sequence" (default).
         if not step_ok:
             failures.append(
                 f"step {idx} ({verb}): "
                 f"exit={r.get('exit_code')} "
                 f"stderr={r.get('stderr','')[:200]}")
-            # Stop on first failure -- operator can re-run with
-            # corrected params instead of cascading half-state.
             await _skill_invocation_close(inv_id, success=False)
             _db_write("event", {
                 "source": "agent-pipe",
@@ -339,8 +280,6 @@ async def execute_skill(name: str, params: dict, *,
             }, now_fields=("ts",))
             return {"success": False, "skill": name, "steps": results,
                     "failures": failures, "aborted": True}
-    # Loop fell off the end. For try-each that means every step
-    # failed (no win); for sequence that means every step succeeded.
     if mode == "try-each":
         await _skill_invocation_close(inv_id, success=False)
         _db_write("event", {
@@ -355,8 +294,6 @@ async def execute_skill(name: str, params: dict, *,
                 "failures": failures, "aborted": True,
                 "mode": "try-each"}
     await _skill_invocation_close(inv_id, success=True)
-    # Update last_used_at on the skill row for the configurator UI.
-    # WS-MEM-TIER: dead _db_post(UPDATE) on pgvector-primary -> route via _db_update.
     await _db_update(
         f"UPDATE {row.get('id')} SET last_used_at = time::now();",
         pg_sql="UPDATE skill SET last_used_at = now() WHERE id = %(id)s",
@@ -408,11 +345,6 @@ def _skill_to_openai_tool(row: dict) -> dict:
         }
         required = params
 
-    # OpenAI STRICT mode (audit P2): skill params are all required by
-    # construction (required == params), so strict mode is satisfied by just adding
-    # strict:True + additionalProperties:False -- no nullable rework needed. Brings
-    # promoted-skill tools (mios_skill__*, consumed verbatim by Hermes + OpenCode) to
-    # the same strict contract as verbs (_verb_to_openai_tool).
     return {
         "type": "function",
         "function": {
@@ -491,15 +423,6 @@ def _mcp_tool_to_openai_tool(key: str, info: dict) -> dict:
     }
 
 
-# ── Skill invocation/attribution lifecycle + arg renderer ─────────
-# The $-token arg renderer (_skill_render_args / _PARAM_TOKEN_RE) and the
-# skill_invocation open/close/attribute DB lifecycle live here alongside the
-# engine that drives them (execute_skill). They were previously defined in
-# server.py and injected back; co-locating them removes the injection while
-# keeping server.py's importable surface byte-identical (it re-imports each).
-# _passport_sign is imported directly from mios_a2a_principal; the DB-event
-# helpers (_db_post) + the pg outcome mirror (_pg_mirror) are injected via
-# configure(). One-way boundary: this module never imports server.
 _PARAM_TOKEN_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 
 
@@ -525,10 +448,6 @@ def _skill_render_args(args: dict, params: dict) -> dict:
     return out
 
 
-# P4-A0: open->close carry for the pg outcome mirror. Under pg-primary the
-# legacy CREATE in _skill_invocation_open is short-circuited (returns None),
-# so skill outcomes would persist to NOTHING and the skill miner's success-rate
-# has no data. Keyed by the (real OR synthesized) inv_id; popped at close.
 _SKILL_INV_META: dict = {}
 
 
@@ -551,10 +470,6 @@ async def _skill_invocation_open(skill_id: str,
     ]
     if session_id:
         parts.append(f"session = {session_id}")
-    # Phase C.3: passport. Same algorithm as _db_create -- include
-    # the record-ref strings (skill_id, session_id) in the hash so
-    # tampering with the attribution links re-derives a different
-    # op_hash on verify.
     hash_fields = {
         "started_at": "time::now()",
         "skill": skill_id,
@@ -574,11 +489,6 @@ async def _skill_invocation_open(skill_id: str,
             rows = last.get("result") or []
             if isinstance(rows, list) and rows and isinstance(rows[0], dict):
                 inv_id = rows[0].get("id")
-    # P4-A0: under pg-primary the legacy CREATE is short-circuited (r=None) so
-    # inv_id is None and the outcome would persist to NOTHING -- the skill miner's
-    # success-rate then has no data. Synthesize an id + remember {skill,session}
-    # so _skill_invocation_close can mirror the outcome row to pg. (legacy/dual
-    # keeps the real record id; this is purely additive.)
     if not inv_id:
         inv_id = "skill_invocation:pg-" + uuid.uuid4().hex
     _SKILL_INV_META[inv_id] = {"skill": skill_id, "session": session_id}
@@ -589,10 +499,6 @@ async def _skill_invocation_close(inv_id: Optional[str],
                                   success: bool) -> None:
     if not inv_id:
         return
-    # P4-A0: persist the OUTCOME to pg (the legacy UPDATE below no-ops under
-    # pg-primary). One row per completed invocation: {skill, success, session_id}.
-    # _pg_mirror is drift-tolerant (filters to live columns) + degrade-open, so a
-    # schema/type mismatch can never break the close.
     meta = _SKILL_INV_META.pop(inv_id, None)
     if meta:
         try:
@@ -625,14 +531,6 @@ async def _skill_attribute_tool_call(inv_id: Optional[str],
     await _db_post(sql)
 
 
-# ── Episodic SKILL.md mirror (closed-loop self-learning) ───────────────────────
-# After a substantive turn the polish/native-loop path writes a self-contained
-# SKILL.md to _SKILLS_EPISODIC_DIR so the next similar query recalls it as
-# exemplar context. _slug_for_skill + _render_skill_md are private to
-# _write_skill_md_fire (the fire-and-forget public entry, injected back into the
-# chat / native-loop / verity paths). The target dir + enable flag are server-
-# owned SSOT injected via configure(); _a2a_now is the canonical UTC-ISO stamp
-# imported from mios_a2a (one-way boundary -- this module never imports server).
 def _slug_for_skill(query: str) -> str:
     """Stable, filesystem-safe slug from the user query. Length-capped so a
     long prompt doesn't blow past max-filename on tmpfs."""

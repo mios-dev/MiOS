@@ -1,4 +1,3 @@
-# Guestfish colour prompts.  See PROMPT in guestfish(1).
 GUESTFISH_PS1='\[\e[1;32m\]><fs>\[\e[0;31m\] '
 GUESTFISH_OUTPUT='\e[0m'
 GUESTFISH_RESTORE="$GUESTFISH_OUTPUT"

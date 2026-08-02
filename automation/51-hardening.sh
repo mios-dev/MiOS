@@ -10,7 +10,7 @@ chmod 0600 /usr/lib/usbguard/usbguard-daemon.conf 2>/dev/null || true
 
 if command -v miosd >/dev/null 2>&1; then
     miosd harden
-    mios_ok "hardening services enabled via miosd"
+    mios_ok "Hardening services enabled via miosd"
 else
     WANTS=/usr/lib/systemd/system/multi-user.target.wants
     install -d -m 0755 "${WANTS}"
@@ -23,7 +23,7 @@ else
     do
         if [[ -f "/usr/lib/systemd/system/${unit}" ]]; then
             ln -sf "../${unit}" "${WANTS}/${unit}"
-            mios_ok "enabled ${unit}"
+            mios_ok "Enabled ${unit}"
         else
             mios_skip "${unit} not installed"
         fi
@@ -37,7 +37,7 @@ if command -v fagenrules &>/dev/null; then
     fapolicyd-cli --update 2>/dev/null || true
 fi
 
-mios_ok "hardening services wired"
+mios_ok "Hardening services wired"
 mkdir -p /etc/mios
 /usr/libexec/mios/mios-clevis-luks-gen > /etc/mios/clevis-luks.env
 mios_ok "Materialized clevis-luks.env"

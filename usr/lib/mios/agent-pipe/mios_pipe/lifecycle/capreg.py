@@ -111,8 +111,6 @@ def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
     verbs = verbs or {}
     for name, spec in sorted(verbs.items()):
         spec = spec or {}
-        # The RBAC tier is `permission` (read|write|interactive); `tier` on a verb
-        # is COMMONNESS (common/rare/core) -- a different axis. Default read (safest).
         tier = spec.get("permission", "read")
         if allowed(tier, ceiling, tiers):
             out.append({"name": str(name), "kind": "verb", "tier": str(tier),
@@ -135,7 +133,6 @@ def build_capability_manifest(verbs: "Optional[Dict[str, dict]]",
         tier = skill_effective_tier(name, skills, verbs, tiers)
         if not allowed(tier, ceiling, tiers):
             continue
-        # Reachability fail-closed: every component verb must itself be admitted.
         if not all(allowed(str((verbs.get(u) or {}).get("permission", "read")),
                            ceiling, tiers)
                    for u in uses if u in verbs):
@@ -157,7 +154,6 @@ def manifest_summary(manifest: "Sequence[dict]") -> dict:
     return {"total": len(manifest or []), "by_kind": by_kind, "by_tier": by_tier}
 
 
-# ── SSOT load + manifest projection + drift diff (for the generator + gate) ──
 def load_recipes_from_toml(path: str) -> "Dict[str, dict]":
     """Read the [recipes.*] table from mios.toml (file I/O, mirrors
     mios_manifest.load_verbs_from_toml). Returns {} if absent/unparseable."""
@@ -229,7 +225,6 @@ def build_capability_dag(verbs: "Optional[Dict[str, dict]]",
             if kind == "unknown":
                 dangling.add(comp)
 
-    # Cycle detection over skill->skill edges only (DFS, white/grey/black).
     adj = {s: [c for c in skill_steps(skills[s]) if c in known_skill]
            for s in skills}
     WHITE, GREY, BLACK = 0, 1, 2

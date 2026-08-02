@@ -4,13 +4,10 @@ import os
 import json
 import sys
 
-# Import the modules by adding their directories to path
 sys.path.insert(0, "/mnt/c/MiOS/usr/libexec/mios")
 
 
 def setUpModule():
-    # Test hermeticity: self-skip when no live pgvector so the
-    # offline build gate reports SKIP (not FAIL/ERROR) while still running in CI.
     try:
         import psycopg
     except ImportError:

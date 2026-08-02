@@ -38,7 +38,7 @@ NERD_TAG=$( (scurl -s https://api.github.com/repos/ryanoasis/nerd-fonts/releases
             | grep -Po '"tag_name": "\K.*?(?=")') 2>/dev/null || true)
 NERD_FALLBACK_TAG="v3.4.0"
 if [ -z "$NERD_TAG" ]; then
-    mios_warn "api.github.com release-tag lookup empty -- using fallback ${NERD_FALLBACK_TAG}"
+    mios_warn "Api.github.com release-tag lookup empty"
     NERD_TAG="$NERD_FALLBACK_TAG"
 fi
 record_version nerd-symbols-font "$NERD_TAG" \
@@ -84,12 +84,12 @@ if command -v unzip >/dev/null 2>&1; then
         rm -f /tmp/nerd-symbols.zip
         mios_ok "Symbols-Only Nerd Font ${NERD_TAG} installed"
     else
-        mios_warn "Symbols-Only Nerd Font download failed -- prompt icons will render as missing-glyph squares"
+        mios_warn "Symbols-Only Nerd Font download failed"
     fi
 else
-    mios_warn "unzip unavailable -- skipping symbols font (install unzip in packages-utils)"
+    mios_warn "Unzip unavailable"
 fi
 
 fc-cache -f /usr/share/fonts/geist /usr/share/fonts/nerd-symbols 2>/dev/null || true
 
-mios_ok "done"
+mios_ok "Done"

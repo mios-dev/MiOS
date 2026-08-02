@@ -11,7 +11,6 @@ import contextvars
 
 logging.basicConfig(level=logging.INFO)
 
-# Import targets
 import mios_pipe.routing.dag_exec as de
 import mios_pipe.routing.swarm as swarm
 
@@ -24,10 +23,8 @@ def check(name, cond, detail=""):
     print(f"[{'PASS' if cond else 'FAIL'}] {name}" + (f" -- {detail}" if detail else ""))
 
 
-# Global configuration helpers for tests
 def setup_test_stubs():
     rdv = contextvars.ContextVar("routed_domain", default=None)
-    # Configure swarm
     swarm.configure(
         swarm_max_width=6, swarm_max_cpu_nodes=2, swarm_deepen_enabled=False,
         slow_lane_block_chars=1500, dag_replan_max=1,
@@ -50,7 +47,6 @@ def setup_test_stubs():
         src_record_from_text=lambda t: None,
         usage_estimate=lambda p, c: {},
     )
-    # Configure dag_exec
     de.configure(
         agent_registry={"hermes-worker": {"model": "hermes-3"}, "gpu-node": {"model": "gpu-model"}},
         slow_lanes=set(),
@@ -62,7 +58,6 @@ def setup_test_stubs():
 
 
 def t_both_intent_deps():
-    # 1. Multi-task "both" intent: research facet (web/news) + action facet (local_state)
     tasks = [
         {"title": "Research GPU settings", "web": True, "target_agent": "hermes-worker"},
         {"title": "Apply local config changes", "local_state": True, "target_agent": "gpu-node"}
@@ -72,33 +67,28 @@ def t_both_intent_deps():
     
     check("both-intent: two nodes built", len(nodes) == 2, str(len(nodes)))
     
-    # Research node t1 should have deps=[]
     t1 = next(n for n in nodes if n["web"])
     check("both-intent: t1 is web", t1["web"] is True)
     check("both-intent: t1 deps empty", t1["deps"] == [])
     
-    # Action node t2 should have deps=['t1']
     t2 = next(n for n in nodes if n["local_state"])
     check("both-intent: t2 is local", t2["local_state"] is True)
     check("both-intent: t2 depends on t1", t2["deps"] == [t1["id"]])
 
 
 def t_parse_research_claims():
-    # Test JSON parsing
     json_out = '[{"claim": "Gemma 2 is released", "source": "Google Blog"}]'
     claims1 = de.parse_research_claims(json_out)
     check("parse-claims: JSON array parsed", len(claims1) == 1, str(claims1))
     check("parse-claims: claim text correct", claims1[0]["claim"] == "Gemma 2 is released")
     check("parse-claims: source correct", claims1[0]["source"] == "Google Blog")
 
-    # Test Markdown/fallback parsing
     text_out = "Claim: FakeGame 6 has a new teaser Source: Mock Games Website"
     claims2 = de.parse_research_claims(text_out)
     check("parse-claims: text line parsed", len(claims2) == 1, str(claims2))
     check("parse-claims: text claim text", claims2[0]["claim"] == "FakeGame 6 has a new teaser")
     check("parse-claims: text source", claims2[0]["source"] == "Mock Games Website")
 
-    # Test bracket fallback
     bracket_out = "The CPU temperature is 45C [sys_logs] and fan is at 80% [hardware_monitor]."
     claims3 = de.parse_research_claims(bracket_out)
     check("parse-claims: bracket parsed", len(claims3) == 1, str(claims3))
@@ -107,7 +97,6 @@ def t_parse_research_claims():
 
 
 def t_execute_dag_node_ledger_writes():
-    # Mock database functions
     created_queries = []
     fired_queries = []
     read_queries = []
@@ -128,7 +117,6 @@ def t_execute_dag_node_ledger_writes():
             return [{"claim": "GPU temperature is 72C", "source": "nvidia-smi"}]
         return []
 
-    # Inject mock helpers into dag_exec
     de.configure(
         db_create=mock_db_create,
         db_fire=mock_db_fire,
@@ -136,9 +124,7 @@ def t_execute_dag_node_ledger_writes():
         db_read=mock_db_read,
     )
 
-    # Mock execute_dag_node_core to return success output
     async def mock_execute_dag_node_core(node, results_by_id, seen_actions, dag_summary, session_id, client, frag_q):
-        # If it is a research node, return JSON text
         if node.get("web"):
             return {
                 "success": True,
@@ -150,7 +136,6 @@ def t_execute_dag_node_ledger_writes():
 
     de._execute_dag_node_core = mock_execute_dag_node_core
 
-    # Run research node execution
     res_node = {
         "id": "t1",
         "agent": "hermes-worker",
@@ -166,11 +151,9 @@ def t_execute_dag_node_ledger_writes():
     check("ledger-writes: fact_ledger claim logged",
           any(t == "fact_ledger" and r.get("claim") == "Gemma 2 has 27B params" for t, r, _ in created_queries))
 
-    # Clear lists
     created_queries.clear()
     fired_queries.clear()
 
-    # Run action node execution to verify fact ledger read and prompt injection
     act_node = {
         "id": "t2",
         "agent": "hermes-worker",
@@ -185,7 +168,6 @@ def t_execute_dag_node_ledger_writes():
 
 
 def t_synthesis_reducer():
-    # Configure database mock for synthesise
     async def mock_db_read(sql, pg_sql=None):
         if "fact_ledger" in sql:
             return [{"claim": "WSL memory is capped", "source": "wsl.conf"}]
@@ -201,7 +183,6 @@ def t_synthesis_reducer():
         ]
     }
     
-    # Mock execute_dag_bounded
     async def mock_exec_bounded(dag_dict, *, session_id=None, request=None, **kwargs):
         return {
             "success": True,
@@ -212,11 +193,7 @@ def t_synthesis_reducer():
         }
     swarm._execute_dag_bounded = mock_exec_bounded
 
-    # Execute respond and grab the synthesise outcome
-    # We will invoke respond_agent_dag and test it
     async def run_synth():
-        # Wrap respond_agent_dag to get output of merged synthesis
-        # We can also mock polish_response to inspect merged
         orig_polish = swarm.polish_response
         captured_merged = None
         async def mock_polish(prompt, model, **kwargs):
@@ -240,7 +217,6 @@ def t_synthesis_reducer():
 
 
 def t_replan_stall_trigger():
-    # Mock db helpers
     created_events = []
     
     def mock_db_create(table, row, now_fields=None):
@@ -254,7 +230,6 @@ def t_replan_stall_trigger():
         return sql
 
     async def mock_db_read(sql, pg_sql=None):
-        # Return count=3 stalls to trigger the >2 condition
         return [{"c": 3}]
 
     swarm.configure(
@@ -272,7 +247,6 @@ def t_replan_stall_trigger():
         ]
     }
 
-    # Track execute_dag_bounded calls
     exec_calls = 0
     async def mock_exec_bounded(dag_dict, *, session_id=None, request=None, **kwargs):
         nonlocal exec_calls

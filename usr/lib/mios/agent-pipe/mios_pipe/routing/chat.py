@@ -1,18 +1,4 @@
 # AI-hint: The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from
-#   server.py (strangler-fig refactor capstone). chat_completions_logic is the
-#   central per-turn orchestrator: it runs the full routing precedence -- vision
-#   -> client-tools -> OS fast-path -> trivial-chat -> memory/local-state ->
-#   native single-agent loop -> multi-task decompose -> council/swarm fan-out ->
-#   critic/polish -> backend self-proxy -- with every guard, header seed, budget
-#   admit/release, scratchpad rehydrate/render, source-turn accounting and SSE
-#   stream pump moved byte-identically. Each dispatched responder already lives in
-#   a sibling (mios_vision/_oscontrol/_native_loop/_swarm/_dag_exec/...) imported
-#   DIRECTLY here; every remaining server-resident helper, config scalar, ContextVar,
-#   the live verb catalog and the agent registry are dependency-INJECTED via
-#   configure() under their EXACT original names (one-way boundary -- this module
-#   NEVER imports server). server.py keeps the @app.post('/v1/chat/completions')
-#   route + async def chat_completions as a THIN wrapper that reaches this logic
-#   through sys.modules, so the importable HTTP/symbol surface is byte-identical.
 # AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_native_loop.py, ./mios_swarm.py, ./mios_dag_exec.py, ./mios_refine.py, ./mios_planner.py, ./mios_grounding.py, ./mios_verity.py, ./test_mios_chat.py
 # AI-functions: chat_completions_logic, responses_api_logic, chat_router, responses_api, configure, _quick_chat_reply, _is_memory_question, _ask_for_location, _hints_write_action, _needs_external_knowledge, _shadow_queue_tasks, _budget_num, _budget_bucket, _budget_window_total, _budget_debit, _budget_prune_inflight, _budget_admit, _budget_release_inflight
 """CHAT-COMPLETIONS router-brain (strangler-fig refactor capstone).
@@ -111,8 +97,6 @@ from mios_config import (   # layered mios.toml SSOT reader (aggregate-budget cl
     _cfg_num, _toml_section, REFINE_MODEL, REFINE_ENDPOINT, REFINE_TIMEOUT_S,
     ROUTER_MODEL, PLANNER_ENDPOINT, PLANNER_TIMEOUT_S)
 
-# Dispatched responders + leaf helpers live in siblings -- import DIRECTLY
-# (one-way boundary: this module never imports server).
 from mios_agent_call import _call_agent_complete
 from mios_dag_exec import _execute_dag_bounded, _execute_dag_emitting
 from mios_dci import critic_then_maybe_flow
@@ -137,16 +121,6 @@ from mios_web_research import _web_research_enrich
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam ----------------------------------------
-# chat_completions_logic reads server.py's config scalars + routing flags, the
-# live verb catalog + agent registry, a set of request-scoped ContextVars, and
-# calls back into many server-side helpers (grounding, recall, scratchpad,
-# budget admit/release, source accounting, header seeds, the kernel facade ...).
-# server.py injects all of them via configure() AFTER every one is defined (the
-# wrapper sits at the very end of server.py, so every dep is already bound). The
-# placeholders below let a standalone import succeed; every consumer is per-
-# request, long after configure() runs. _AGENT_REGISTRY is re-injected by
-# server's _reload_membership on a live agent add/drop.
 ASK_CLARIFY_ENABLE = None
 AUTONOMOUS_PRIORITY = None
 AUTO_FORCE_TOOL = None
@@ -326,13 +300,6 @@ def configure(**deps) -> None:
             g[_k] = _v
 
 
-# ── Roster/slow-lane prefix leaf helpers -- moved here from server.py: their
-# SOLE consumer is chat_completions_logic, so they live with it instead of being
-# injected back (reverse-the-injection). _pretty_name is pure; _trim_sys_prefix
-# reads the slow-lane SSOT scalars (SLOW_LANES / SLOW_LANE_BLOCK_CHARS, injected
-# by value) + the identity-contract pin (_agent_contract, injected by reference)
-# and routes truncation through the tokenizer seam. One-way boundary: this module
-# never imports server.
 def _pretty_name(n: str) -> str:
     """Display name for roster/credit emits -- strips the internal node:/a2a:
  namespacing so emits never show raw registry keys (
@@ -368,11 +335,6 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
     (local) keep the FULL prefix. Returns the list unchanged for a fast lane."""
     if lane not in SLOW_LANES or SLOW_LANE_BLOCK_CHARS <= 0:
         return sys_prefix
-    # WS-B NEVER truncate the /MiOS.md identity+grounding contract on a
-    # slow lane -- it was being cut to ~25% on iGPU/phone/remote, so those council
-    # members lost the contract entirely. Identify it BY CONTENT (no non-standard
-    # key added to the message dict, so nothing leaks to a strict backend). Only
-    # the big web-research / RAG blocks are meant to shrink here.
     _pin = _agent_contract()
     trimmed: list = []
     for m in sys_prefix:
@@ -381,20 +343,12 @@ def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
             trimmed.append(m)
             continue
         if len(c) > SLOW_LANE_BLOCK_CHARS:
-            # WS-A5: route through the tokenizer seam (token-budget truncation).
             c = (mios_tokenize.truncate_to_tokens(c, SLOW_LANE_BLOCK_CHARS // 4)
                  + "\n[...trimmed for the light lane...]")
         trimmed.append({**m, "content": c})
     return trimmed
 
 
-# ── Micro-LLM early-reply helpers (intent=chat reply, memory-hit judge,
-# location-ask) -- moved here from server.py: their SOLE consumer is
-# chat_completions_logic, so they live with it instead of being injected back.
-# Each opens its OWN short-timeout httpx client against the REFINE lane (SSOT
-# REFINE_* from mios_config) and degrades open (returns ''/False/a plain
-# fallback) on any miss -- never blocks or crashes a turn. One-way boundary:
-# this module never imports server.
 async def _summarize_evicted_messages(evicted_messages: list) -> str:
     """Precise summarization helper using the planner/model endpoint."""
     history_str = ""
@@ -451,18 +405,11 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
                              "content": mios_tokenize.truncate_to_tokens(
                                  str(h.get("content", "")), 50)})  # WS-A5 seam (was [:200])
     msgs.append({"role": "user", "content": user_text[:500]})
-    # OpenAI /v1 (mios-llm-light :11450). A legacy non-/v1 chat shape once 404'd
-    # here -> refine returned "" = NO refined routing/decompose/
-    # grounding hints, silently degrading every turn.
     payload = {
         "model": REFINE_MODEL,
         "messages": msgs,
         "stream": False,
         "temperature": 0.5,
-        # 1024 (was 200): gemma4:12b is the REASONING model -- 200 tokens truncate
-        # mid-reasoning so the classification JSON is incomplete -> mis-parse
-        # (e.g. local_state=true on a research comparison) -> wrong route. Give it
-        # room to finish reasoning + emit the full JSON..
         "max_tokens": 1024,
         "chat_template_kwargs": {"enable_thinking": False},
     }
@@ -477,8 +424,6 @@ async def _quick_chat_reply(user_text: str, history: list = None) -> str:
         return ""
     msg = (((body.get("choices") or [{}])[0]).get("message")
            if isinstance(body, dict) else {}) or {}
-    # gemma4 (reasoning model) sometimes emits to reasoning_content with empty
-    # content -> fall back so refine doesn't silently return "".
     return (msg.get("content") or msg.get("reasoning_content") or "").strip()
 
 
@@ -542,14 +487,6 @@ async def _ask_for_location(user_text: str) -> str:
             "Which city or area should I use?")
 
 
-# ── Refine-driven orchestration helpers -- moved here from server.py: their SOLE
-# consumer is chat_completions_logic, so they live with it instead of being
-# injected back (reverse-the-injection). _hints_write_action is pure over the
-# injected verb catalog; _needs_external_knowledge is a micro-LLM judge (SSOT
-# ROUTER_/PLANNER_* from mios_config, the injected lenient-JSON loader) sharing the
-# degrade-open shape of the early-reply judges above; _shadow_queue_tasks upserts
-# the canonical pg kanban (mios_pg) via the injected event-DB writers. One-way
-# boundary: this module never imports server.
 def _hints_write_action(refined: "Optional[dict]") -> bool:
     """True when refine hinted a state-changing (NON-read permission) verb -- the
     turn INTENDS an action, so the executor should be FORCED to emit the call
@@ -638,8 +575,6 @@ def _shadow_queue_tasks(tasks: list[dict],
     for i, t in enumerate(tasks):
         if not isinstance(t, dict):
             continue
-        # Stable id so the same task in a retried request collapses onto the
-        # same kanban row (id is the PK -> ON CONFLICT upserts the latest status).
         tid = (
             "mt-"
             + (session_id or "anon")[:12].replace(":", "")
@@ -647,8 +582,6 @@ def _shadow_queue_tasks(tasks: list[dict],
             + f"{i:02d}"
         )
         title = str(t.get("title") or t.get("refined_text") or "")[:200]
-        # First task -> in_progress; rest -> todo. The dispatcher
-        # immediately runs index 0, so its status reflects that.
         status = "in_progress" if i == 0 else "todo"
         prio = t.get("priority")
         prio_str = str(prio) if prio is not None else None
@@ -658,8 +591,6 @@ def _shadow_queue_tasks(tasks: list[dict],
             "tags": ["multi_task", "agent-pipe-refined"],
             "session_id": session_id,
         }, default=str)
-        # Parameterized upsert into the canonical pg kanban table (degrade-open
-        # via mios_pg; fire-and-forget so streaming is never delayed).
         _db_fire(_mios_pg.execute(
             "INSERT INTO kanban (id, title, status, detail) "
             "VALUES (%(id)s, %(title)s, %(status)s, %(detail)s::jsonb) "
@@ -679,22 +610,6 @@ def _shadow_queue_tasks(tasks: list[dict],
     return out
 
 
-# ── W0-T3 aggregate token/turn budget + autonomous isolation (the missing
-# runaway tripwire). The per-generation num_predict cap + the per-turn wall-clock
-# bound the latency of ONE turn, but nothing bounded the AGGREGATE compute a
-# single conversation -- or, worse, an UNATTENDED autonomous source firing on a
-# timer -- could rack up over a window. A wedged cron loop (the 3x OOM wedges)
-# could re-fire research turns indefinitely with no human present. This adds a
-# time-windowed token ledger debited per conversation AND per autonomous source;
-# when a bucket exhausts its ceiling, NEW dispatch HARD-HALTS (a graceful "budget
-# exhausted" answer) instead of dispatching more compute. This admission cluster
-# is a chat-turn concern (the only consumer is chat_completions_logic's admit/
-# release), so it lives HERE rather than being injected back from server.py.
-#
-# DEGRADE-OPEN + GENEROUS DEFAULTS: the ceilings default LARGE so normal
-# interactive use never trips; only a runaway/looping source hits them. ANY error
-# in the ledger fails OPEN (dispatch proceeds) -- the budget is a backstop, never
-# allowed to block a legitimate turn on a bookkeeping bug. SSOT [budget].*.
 _BUDGET_TOML = _toml_section("budget")
 
 
@@ -703,48 +618,21 @@ def _budget_num(env: str, key: str, default, cast=int):
     return _cfg_num(_BUDGET_TOML, env, key, default, cast)
 
 
-# Per-conversation aggregate token ceiling over the rolling window. Generous:
-# a normal interactive chat (refine + council + polish over a window) is well
-# under this; a wedged/looping conversation that keeps re-dispatching trips it.
 BUDGET_CONV_TOKEN_CEIL = _budget_num(
     "MIOS_BUDGET_CONV_TOKEN_CEIL", "conversation_token_ceil", 2_000_000)
-# Per-autonomous-source aggregate token ceiling over the window. SEPARATE bucket
-# from the conversation ledger: an unattended cron/timer source is bounded on its
-# OWN aggregate so a misfiring schedule can't burn the host with no human present.
 BUDGET_AUTO_TOKEN_CEIL = _budget_num(
     "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 1_000_000)
-# Max CONCURRENT in-flight autonomous turns across ALL autonomous sources. A
-# foreground turn always preempts (its priority is unchanged); this only caps how
-# many BACKGROUND turns dispatch at once so a runaway scheduler can't stack turns.
 BUDGET_AUTO_MAX_INFLIGHT = _budget_num(
     "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 2)
-# Rolling window (seconds) over which the token ledgers accumulate. Old debits
-# outside the window age out so a long-lived conversation isn't permanently
-# starved -- the ceiling bounds RATE, not lifetime total.
 BUDGET_WINDOW_S = _budget_num("MIOS_BUDGET_WINDOW_S", "window_s", 3600, float)
-# Master switch. Default ON but with ceilings so generous it's a pure backstop;
-# set false to disable the tripwire entirely (degrade to pre-T3 behaviour).
 BUDGET_ENABLE = str(os.environ.get(
     "MIOS_BUDGET_ENABLE",
     str(_BUDGET_TOML.get("enable", "true")))).strip().lower() not in {"0", "false", "no"}
 
-# key -> deque[(monotonic_ts, tokens)] rolling-window ledgers. Two namespaces:
-# "conv:<conv_key>" and "auto:<source>". OrderedDict so stale buckets LRU-evict.
 _BUDGET_LEDGER: "collections.OrderedDict" = collections.OrderedDict()
 _BUDGET_LEDGER_MAX = int(os.environ.get("MIOS_BUDGET_LEDGER_MAX", "1024"))
-# Per-turn token ESTIMATE debited at admission (debit-on-admit). The actual
-# usage is unknown until the turn finishes (and a streaming turn returns the
-# generator BEFORE it runs), so we debit a conservative per-turn estimate up
-# front; the rolling window ages it out. This makes the ledger a RATE limiter on
-# the NUMBER of turns a source/conversation fires per window (the runaway shape)
-# without instrumenting every return path. Generous default keeps the ceilings
-# reachable only by a genuinely looping source. SSOT [budget].per_turn_estimate.
 BUDGET_PER_TURN_ESTIMATE = _budget_num(
     "MIOS_BUDGET_PER_TURN_ESTIMATE", "per_turn_estimate", 8192)
-# token -> monotonic_ts of in-flight autonomous turns. A TTL dict (not a set) so
-# a crashed/abandoned turn's token AGES OUT instead of leaking a slot forever
-# (the streaming path returns the generator before the turn ends -> no reliable
-# explicit-removal point). Pruned on each admission. TTL >> a normal turn.
 _BUDGET_AUTO_INFLIGHT: dict = {}
 BUDGET_INFLIGHT_TTL_S = _budget_num(
     "MIOS_BUDGET_INFLIGHT_TTL_S", "inflight_ttl_s", 900, float)
@@ -832,7 +720,6 @@ async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
                     return False, ("autonomous concurrency limit reached "
                                    f"({len(_BUDGET_AUTO_INFLIGHT)}/"
                                    f"{BUDGET_AUTO_MAX_INFLIGHT} in flight)")
-            # ADMITTED -> debit-on-admit + register in-flight (atomic under lock).
             _budget_debit("conv:" + conv_key, BUDGET_PER_TURN_ESTIMATE, now)
             if autonomous_source:
                 _budget_debit("auto:" + autonomous_source,
@@ -862,7 +749,6 @@ async def _budget_release_inflight(turn_token: Optional[str]) -> None:
         log.debug("budget inflight release failed for %s", turn_token, exc_info=True)
 
 
-# T-253: gateway_sessions helper functions to load/save stateful chat history
 async def _get_gateway_session(session_id: str) -> list[dict]:
     try:
         sql = "SELECT messages FROM gateway_sessions WHERE session_id = %(session_id)s"
@@ -903,8 +789,6 @@ async def chat_completions_logic(request: Request) -> Any:
     streaming = bool(body.get("stream", False))
     messages = body.get("messages") or []
     if not messages or not isinstance(messages, list):
-        # Tier-0 conformance: a request with no usable `messages` returns a clean
-        # OpenAI error object (was crashing downstream -> connection drop / HTTP 000).
         return JSONResponse(
             content={"error": {"message": "you must provide a 'messages' array",
                                "type": "invalid_request_error",
@@ -927,8 +811,6 @@ async def chat_completions_logic(request: Request) -> Any:
                 messages = history + messages[len(history):]
             body["messages"] = messages
 
-    # Strip duplicate canonical/default system prompts sent by the client
-    # to prevent prompt duplication on the orchestrator.
     if isinstance(messages, list):
         filtered_messages = []
         for m in messages:
@@ -944,13 +826,6 @@ async def chat_completions_logic(request: Request) -> Any:
         body["messages"] = messages
 
     last_user_text = _extract_last_user_text(messages)
-    # UN-TEMPLATE : if OWUI wrapped the question in its RAG
-    # task template ("### Task: Respond to the user query using the provided
-    # context ... <user_query>REAL Q</user_query>"), recover the real question
-    # BEFORE it seeds refine / the swarm titles / per-node prompts / synthesis.
-    # Rewrite the last user message in-place too, so refine_intent(messages) and
-    # any node that consumes the raw history see the clean query, not the
-    # boilerplate that tells them to RAG-answer instead of calling tools.
     _clean_user = _strip_owui_scaffold(last_user_text)
     if _clean_user != last_user_text:
         log.info("un-templated OWUI task scaffold: %d -> %d chars",
@@ -964,15 +839,9 @@ async def chat_completions_logic(request: Request) -> Any:
         last_user_text = _clean_user
     model = body.get("model") or BACKEND_MODEL
     chat_id = f"chatcmpl-{uuid.uuid4().hex[:24]}"
-    # Per-chat scratchpad key from the forwarded OpenAI metadata.chat_id
-    # (stable across this conversation's turns); falls back to a per-request
-    # id for non-OWUI callers. Read by _scratchpad_note/_render downstream.
     _conv_key_var.set(_scratchpad_key(body, chat_id))
-    # WS-A2: rehydrate this chat's working memory from the durable pg `scratch`
-    # table on the first turn after a restart (once per chat key; degrade-open).
     await _scratchpad_rehydrate(_conv_key_var.get())
 
-    # T-040 Record-and-Replay Determinism Setup
     _record_active.set(False)
     _replay_active.set(False)
     _replay_llm_queue.set([])
@@ -1033,11 +902,9 @@ async def chat_completions_logic(request: Request) -> Any:
         except Exception as _letta_err:
             log.warning("Letta memory context threshold logic failed: %s", _letta_err)
     else:
-        # T-035/T-036: Native context warning and eviction logic
         try:
             import mios_tokenize
             import os
-            # Read context limits from the [memory] config block (SSOT)
             memory_cfg = _toml_section("memory") or {}
             n_ctx = int(os.environ.get("MIOS_MEMORY_N_CTX") or memory_cfg.get("n_ctx", 8000))
             compaction_interval = int(os.environ.get("MIOS_MEMORY_COMPACTION_INTERVAL") or memory_cfg.get("compaction_interval", 20))
@@ -1050,23 +917,19 @@ async def chat_completions_logic(request: Request) -> Any:
                 messages = _drop_stale_tool_results(messages, tool_result_ttl_turns)
                 body["messages"] = messages
 
-            # Count tokens in the incoming messages
             tok_count = mios_tokenize.count_messages(messages)
             fill = tok_count / n_ctx
             
             if fill >= compaction_threshold_pct:
                 log.info("Native context fill >= %d%% (%d/%d tokens). Evicting oldest turns and summarizing.", int(compaction_threshold_pct * 100), tok_count, n_ctx)
                 
-                # Evict oldest FIFO turns (excluding system messages)
                 import mios_compact
                 budget = int(n_ctx * 0.5)
                 plan = mios_compact.plan_compaction(messages, budget=budget, keep_recent=4, keep_system=True)
                 
                 if plan.needed and plan.to_summarize:
-                    # Summarize the evicted messages
                     summary = await _summarize_evicted_messages(plan.to_summarize)
                     
-                    # Write summary to scratchpad head (deque left)
                     if _scratchpad_for is not None:
                         _scratchpad_for(session_id).appendleft({
                             "ts": time.time(),
@@ -1076,7 +939,6 @@ async def chat_completions_logic(request: Request) -> Any:
                             "note": f"Recursive summary of evicted conversation history: {summary}",
                         })
                     
-                    # Also durably write to pg `scratch` table so it persists across restarts
                     if SCRATCHPAD_PERSIST and _db_write is not None:
                         try:
                             _db_write("scratch", {
@@ -1089,7 +951,6 @@ async def chat_completions_logic(request: Request) -> Any:
                         except Exception:
                             pass
                     
-                    # Wire to pgvector agent_memory archival (T-035)
                     emb_val = None
                     try:
                         if _embed_one is not None:
@@ -1115,7 +976,6 @@ async def chat_completions_logic(request: Request) -> Any:
                         except Exception:
                             pass
                     
-                    # Replace the evicted messages with a single system message containing the summary
                     new_messages = []
                     system_msgs = [m for m in plan.to_keep if m.get("role") in ("system", "developer")]
                     other_msgs = [m for m in plan.to_keep if m.get("role") not in ("system", "developer")]
@@ -1132,7 +992,6 @@ async def chat_completions_logic(request: Request) -> Any:
                     body["messages"] = messages
                     tokens_after = mios_tokenize.count_messages(messages)
 
-                    # Log context_compaction event
                     if _db_write is not None:
                         try:
                             _db_write("event", {
@@ -1151,7 +1010,6 @@ async def chat_completions_logic(request: Request) -> Any:
                     
             elif fill >= 0.7:
                 log.info("Native context fill >= 70%% (%d/%d tokens). Warning agent.", tok_count, n_ctx)
-                # Emit warning event to pgvector event table
                 if _db_write is not None:
                     try:
                         _db_write("event", {
@@ -1168,19 +1026,12 @@ async def chat_completions_logic(request: Request) -> Any:
                     except Exception:
                         pass
                 
-                # Warn agent by appending warning message
                 messages.append({
                     "role": "system",
                     "content": f"WARNING: Conversation context is at {int(fill*100)}% capacity ({tok_count}/{n_ctx} tokens). Please use memory_append or memory_replace to save important information before it is evicted."
                 })
         except Exception as _mem_err:
             log.warning("Native memory context threshold logic failed: %s", _mem_err)
-    # ASK-TO-RUN approval round-trip : if a high-tier action was
-    # PROPOSED on a prior turn of THIS chat (a pending_action keyed by the conv key) and
-    # the user's reply APPROVES it (MODEL-classified, no keyword list), execute it now and
-    # return -- before refine/dispatch. The judge runs ONLY when a proposal is pending, so
-    # a normal turn pays nothing. The portable text/metadata proposal is rendered as a
-    # NATIVE prompt by the OWUI pipe + Hermes app; this is the server-side round-trip.
     try:
         _atr = await _maybe_run_pending_approval(
             last_user_text, _conv_key_var.get(),
@@ -1189,59 +1040,22 @@ async def chat_completions_logic(request: Request) -> Any:
             return _atr
     except Exception as _atre:  # noqa: BLE001 -- never break the turn on the approval path
         log.debug("ask-to-run approval check skipped: %s", _atre)
-    # Turn-scoped REAL-SOURCE collector : every web_search this
-    # turn -- native loop, council secondaries, DAG workers -- records its result URLs
-    # here (child asyncio tasks inherit this contextvar), and the final answer attaches
-    # a real **Sources:** list + structured mios_sources metadata, so sources are
-    # grounded metadata, never model-invented prose.
     _sources_var.set([])
-    # WS-A8: adopt an inbound X-MiOS-Trace header (continue an upstream caller's
-    # trace) or mint a fresh trace id for this request. Pipeline stages open
-    # child spans under it; the id is propagated outbound to the Hermes hop.
     _inbound_trace = (request.headers.get("x-mios-trace") or "").strip()
     _trace_id_var.set(_inbound_trace or mios_trace.new_trace_id())
     _span_id_var.set("")
-    # P0 cross-hop recursion bound: seed the dispatch depth + Via chain from the
-    # incoming headers so the runaway-loop guard survives the HTTP hop (a worker that
-    # re-enters :8640 inherits the upstream depth + is degrade-closed if it sees its
-    # own id in the chain). Degrade-open when absent (== single-process behaviour).
     _seed_hop_from_headers(request.headers.get(_HOP_HEADER),
                            request.headers.get(_VIA_HEADER))
     _incoming_turn = request.headers.get(_SRC_TURN_HEADER)
     if _incoming_turn:
-        # SUB-request dispatched by a council/DAG node: inherit the parent turn so
-        # our web_search sources land in the PARENT's registry bucket. Do NOT
-        # re-init (that would wipe the parent's already-collected sources).
         _src_turn_var.set(_incoming_turn)
     else:
-        # TOP-LEVEL turn: pin the turn-id (= conv key) and open a fresh bucket.
         _src_turn_var.set(_src_turn_key())
         _src_turn_init()
-    # Per-request client environment (location / timezone / locale / time)
-    # the OWUI pipe forwarded as metadata.variables. Threaded into every
-    # grounded prompt via _env_grounding so "near me" resolves + "today"/
-    # "tomorrow" use the USER's wall clock.
     _client_env_var.set(_client_env(body, request.headers))
-    # Per-surface trace-channel capability (FV / visibility-doc Move A): the OWUI
-    # pipe advertises a reasoning-aware surface via `x-mios-reasoning-ok`; anything
-    # hitting /v1 directly (CLI / strict clients) leaves it unset -> None -> legacy
-    # [observability].debug routing (byte-identical, degrade-open). Threaded into the
-    # refine hop's trace emits so full visibility rides the reasoning channel on
-    # capable surfaces while the final answer stays the only thing in delta.content.
     _rok_hdr = (request.headers.get("x-mios-reasoning-ok") or "").strip().lower()
     _reasoning_ok = None if not _rok_hdr else (_rok_hdr not in {"false", "0", "no"})
-    # Stage-1 domain router: classify ONCE per request (thinking-off enum); all
-    # paths (planner + tool-loop + swarm) read _routed_domain_var to shrink the
-    # verb surface to this domain. None (router off / unsure) -> full surface.
     _routed_domain_var.set(await _route_domain(last_user_text))
-    # SWARM toggles : per-request force flags set by the
-    # OWUI chat-bar toggle-filters, injected into body.mios_flags and
-    # forwarded here verbatim by the pipe. They OVERRIDE the mios.toml SSOT
-    # defaults for THIS turn only (the tool_choice-style 'forced vs natural'
-    # control). Stripped from proxy_body before Hermes sees it.
-    #   force_council  -> engage the FULL swarm (every eligible agent)
-    #   force_delegate -> force per-agent DAG decomposition (swarm planner)
-    #   force_tool     -> tool_choice=required on the executor (anti-narrate)
     _mflags = body.get("mios_flags")
     _mflags = _mflags if isinstance(_mflags, dict) else {}
     _force_council = bool(_mflags.get("force_council"))
@@ -1250,19 +1064,8 @@ async def chat_completions_logic(request: Request) -> Any:
     if _mflags:
         log.info("swarm flags: council=%s delegate=%s tool=%s",
                  _force_council, _force_delegate, _force_tool)
-    # AUTONOMOUS turn (wedge fix): a cron/timer-fired run
-    # (mios-scheduled-research, @<prompt> briefings) sets metadata.mios_autonomous.
-    # Such a turn fires UNATTENDED, so it must NEVER trigger the WIDE research
-    # fan-out (the swarm DAG OR the council pulling in every 2-4GB research_only
-    # worker across all lanes) -- that periodic cold-load storm is exactly what
-    # OOM-wedged the VM 3x with no human present. Read ONCE here; gate BOTH the
-    # swarm-DAG path (_is_research) AND the council path on it.
     _meta_top = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}
     _autonomous = bool(_meta_top.get("mios_autonomous"))
-    # W0-T3 per-autonomous-source budget key: prefer a finer identifier (the
-    # cron rule / schedule id) when the source provides one, so distinct
-    # schedules get distinct ceilings; else all autonomous turns share one
-    # "autonomous" aggregate bucket. Only meaningful when _autonomous is set.
     _autonomous_source = None
     if _autonomous:
         _autonomous_source = str(
@@ -1272,15 +1075,9 @@ async def chat_completions_logic(request: Request) -> Any:
         log.info("AUTONOMOUS turn (source=%s) -> bounded (no wide research fan-out on either path)",
                  _autonomous_source)
 
-    # Set the ContextVars for agent_call / budget propagation
     from mios_pipe.routing.agent_call import _autonomous_var, _autonomous_source_var
     _autonomous_var.set(_autonomous)
     _autonomous_source_var.set(_autonomous_source)
-    # Operator-facing persona + environment/language/locale guidance the
-    # OWUI pipe injected as system message(s). Captured once so the final
-    # polish can apply the operator's voice + the correct language
-    # ("polish the final response with persona
-    # applied"). Joined; polish frames it as STYLE-only.
     _persona_system = "\n\n".join(
         str(m.get("content") or "").strip()
         for m in messages
@@ -1288,21 +1085,10 @@ async def chat_completions_logic(request: Request) -> Any:
         and str(m.get("content") or "").strip()
     )[:2000]
 
-    # VISION: an image-bearing turn can't be served by the text executor --
-    # route it DIRECTLY to the local VLM, bypassing
-    # refine / planning / Hermes. No session or refine overhead.
     if VISION_ENABLE and _messages_have_image(messages):
         log.info("vision: image turn -> %s", VISION_MODEL)
         return await _vision_complete(body, streaming, chat_id, model)
 
-    # CLIENT-SIDE TOOL-CALLING passthrough (Zen smart-window):
-    # a caller that supplied its OWN tools[] (browser/IDE assistants) executes them
-    # itself and expects tool_calls back -- bypass orchestration and relay verbatim
-    # to a tool-capable backend. Placed AFTER vision (an image turn needs the VLM)
-    # and BEFORE session/refine/council so client tools are never dropped as
-    # "hallucinations" nor executed server-side. Invisible to OWUI (strips tools)
-    # and the mios CLI (Hermes-direct) -> they never set tools[]. See the config
-    # block + _client_tools_complete.
     if CLIENT_TOOLS_PASSTHROUGH and _has_client_tools(body):
         if _INGRESS_KEY:
             _auth = (request.headers.get("authorization") or "")
@@ -1311,15 +1097,6 @@ async def chat_completions_logic(request: Request) -> Any:
                     content={"error": {"message": "unauthorized",
                                        "type": "invalid_request_error"}},
                     status_code=401)
-        # DETERMINISTIC OS-ACTION PRECEDENCE ("UNIFY"): an
-        # unambiguous single OS action ("open X" / "type 'Y'") must take the
-        # SERVER-SIDE deterministic fast-path (launch + read-back-verified type-chain)
-        # EVEN when the caller supplied client tools -- otherwise the hermes REPL /
-        # desktop app's tools force the weak client-tools-HYBRID loop (granite) for an
-        # action the orchestrator handles reliably (the REPL's "open notepad and type
-        # X" took the hybrid path + the literal-text/echo failures). Only the
-        # UNAMBIGUOUS deterministic route is intercepted; browser/IDE tool turns
-        # (navigate/click/edit) don't match it -> they still pass through untouched.
         _ct_user = ""
         for _m in reversed(body.get("messages") or []):
             if isinstance(_m, dict) and _m.get("role") == "user" and isinstance(_m.get("content"), str):
@@ -1333,25 +1110,11 @@ async def chat_completions_logic(request: Request) -> Any:
                 _ct_det["tool"], _ct_det.get("args") or {}, _ct_det,
                 streaming=streaming, chat_id=chat_id, model=model,
                 session_id=None, last_user_text=_ct_user, persona_system="")
-        # WEB-GROUND a research turn on the client-tools path too (operator
-        # anti-fabrication): the hybrid loop has the web_search tool but a small model
-        # ANSWERS FROM MEMORY instead of calling it -> fabrication (the unified hermes
-        # REPL said "latest kernel 6.12.1" vs the live 7.1). When the turn already
-        # routed to the `web` domain (_routed_domain_var, classified above), PRE-FETCH
-        # web_search + inject the LIVE results -- the SAME deterministic grounding the
-        # native-loop uses -- so the client-tools model synthesises from real data.
-        # Degrade-open; non-web client-tools turns (browser/IDE) are untouched.
         if not _incoming_turn and _ct_user and _routed_domain_var.get(None) == "web":
             try:
                 _refined = await refine_intent(_ct_user)
                 if not _refined or _refined.get("intent") != "chat":
                     _search_q = str((_refined or {}).get("refined_text") or "").strip() or _ct_user
-                    # TIME-SENSITIVE detection: the MODEL-emitted refine flags are the
-                    # SOLE authority (no hardcoded keyword law) -- refine.news +
-                    # refine.needs_recency. Parity with web_research.py: an English/ASCII
-                    # temporal-word list here GATED this decision and silently missed every
-                    # paraphrased / non-English temporal ask while claiming "no hardcoded
-                    # keyword" -- deleted. Degrade-open: an absent flag => not time-sensitive.
                     _time_sensitive = bool((_refined or {}).get("news") or (_refined or {}).get("needs_recency"))
                     if _time_sensitive and not re.search(r"\b(?:19|20)\d{2}\b", _search_q):
                         _search_q = f"{_search_q} {_current_year()}".strip()
@@ -1366,14 +1129,6 @@ async def chat_completions_logic(request: Request) -> Any:
                                  "(prefetched deep web_research, anti-fabrication)")
             except Exception as _e:  # noqa: BLE001 -- degrade-open
                 log.debug("client-tools web prefetch skipped: %s", _e)
-        # FILE-SEARCH GROUND a files-domain turn on the client-tools path (operator
-        #): a multi-step "find the mios.toml, read it, tell me the port"
-        # made the granite hybrid LOOP without converging -> "no final response". A
-        # filename token in the ask -> PRE-FETCH the real path(s) (everything_search=
-        # Windows, fs_search=Linux) + inject, so the model can read_file the ACTUAL
-        # path directly (one step, converges) instead of tool-looping a discovery it
-        # answers from memory. Same pattern as the native-loop file prefetch + the
-        # web grounding above. Degrade-open; non-files turns untouched.
         if _ct_user and _routed_domain_var.get(None) == "files":
             _mfn = (re.search(r"['\"]([^'\"]+\.[A-Za-z0-9]{1,8})['\"]", _ct_user)
                     or re.search(r"\b([\w.+-]+\.[A-Za-z0-9]{1,8})\b", _ct_user))
@@ -1406,21 +1161,6 @@ async def chat_completions_logic(request: Request) -> Any:
                  len(body.get("tools") or []), _TOOL_BACKEND_MODEL, _TOOL_BACKEND)
         return await _client_tools_complete(body, streaming, chat_id, model)
 
-    # session row -- the record id is captured for
-    # downstream tool_call linking + the inline confirmation engine.
-    # passport_sign=False: the `session` table is SCHEMAFULL and has
-    # NO `passport` field, so attaching the default Ed25519 envelope
-    # made the legacy backend reject the CREATE with a per-statement ERR
-    # ("Found field 'passport', but no such field exists for table
-    # 'session'"). That ERR comes back inside an HTTP 200, so _db_post
-    # returned a list whose statement result was an error STRING (not a
-    # row list) -> session_id stayed None on EVERY agent turn. That
-    # silently disabled session-scoped machinery: tool_call session
-    # links, taint propagation, AND the inline satisfaction /
-    # confirmation check (which bails on a None session_id). The
-    # session row is lightweight bookkeeping; the audit-relevant
-    # tool_call / event / firewall_block rows keep their passports
-    # (those tables carry the field)..
     session_id: Optional[str] = None
     try:
         resp = await _db_post(_db_create(
@@ -1441,20 +1181,6 @@ async def chat_completions_logic(request: Request) -> Any:
     except Exception as e:
         log.debug("session open failed: %s", e)
 
-    # Phase D.5 -- refine FIRST when input isn't trivial. The
-    # quick-refine pass on the iGPU lane produces a structured
-    # plan {intent, refined_text, intended_outcome, target_agent,
-    # hint_tools, hint_skills}. Operator directive
-    # "should always be refined/processed/enhanced", but ALSO
-    # "FAST AND EFFICIENT FOR PURE LOCAL COMPUTE" -- so trivial
-    # input (short greeting / single-token status check) skips
-    # refine and goes straight to the layer-1 router which has
-    # its own chat-reply fast path. Refine returns None on the
-    # bypass case; refine_intent + classify_intent are
-    # complementary, not redundant.
-    # Turn checkpoint : clear VRAM as needed so the
-    # pipeline-critical refine+polish models stay warm instead of thrashing
-    # against a squatting transient (e.g. the 7B coder). No-op with headroom.
     if streaming:
         outer_ctx = locals().copy()
         async def _stream_refine_and_dispatch() -> AsyncGenerator[bytes, None]:
@@ -1477,9 +1203,6 @@ async def chat_completions_logic(request: Request) -> Any:
                 while not refine_task.done() or not queue.empty():
                     try:
                         token_val, is_re = await asyncio.wait_for(queue.get(), timeout=0.05)
-                        # Surface the refine hop working LIVE: forward ONLY its
-                        # reasoning tokens (is_re=True) on the reasoning channel, so it
-                        # is folded into the Thinking pane without leaking JSON scaffold.
                         if token_val and is_re:
                             yield _sse_reasoning(token_val, chat_id=chat_id, model=model,
                                                  reasoning_ok=_reasoning_ok)
@@ -1537,7 +1260,6 @@ async def chat_completions_logic(request: Request) -> Any:
                     _label += f" ({len(_tasks)} tasks planned)"
                 yield _sse_status(chat_id=chat_id, model=model, emoji="📋", label=_label)
                 
-                # Format reasoning content delta
                 _refine_reasoning = f"💭 [refine] classified intent as '{_intent}'\n"
                 if _text:
                     _refine_reasoning += f"🎯 refined query: '{_text}'\n"
@@ -1548,10 +1270,6 @@ async def chat_completions_logic(request: Request) -> Any:
                     for _t in _tasks:
                         _refine_reasoning += f"  - {_t.get('title')}: {_t.get('refined_text')} (web={_t.get('web')}, local={_t.get('local_state')})\n"
                 
-                # Refine summary is trace, not the answer -> route by surface
-                # capability (reasoning channel on capable surfaces, inline on a
-                # declared content-only surface, legacy when unknown). Never the
-                # answer's delta.content on a reasoning-aware surface.
                 yield _sse_reasoning(_refine_reasoning, chat_id=chat_id, model=model,
                                      reasoning_ok=_reasoning_ok)
             
@@ -1646,63 +1364,26 @@ async def chat_completions_logic(request: Request) -> Any:
                             and isinstance(_m.get("content"), str):
                         messages[_i] = {**_m, "content": _refined_q}
                         break
-    # Anti-stale-recall ("data/time of requests should be weighed
-    # appropriately in an AIOS environment"): flag this turn VOLATILE when the model
-    # classified it as live local-state / current-events / location-bound -- its answer
-    # is a point-in-time snapshot (cwd, open windows, weather, latest news) that must be
-    # answered LIVE and NEVER cached into / recalled from the durable store. Read by
-    # _recall_knowledge (skip injection) + _store_knowledge (skip persist). Model-
-    # classified (refine flags), NOT a keyword list. Degrade-open: any error -> False.
     try:
         _turn_volatile_var.set(bool(refined and (
             refined.get("local_state") or refined.get("news")
             or refined.get("needs_location"))))
     except Exception:  # noqa: BLE001
         pass
-    # Turn priority (P1): resurrect the AIOS priority score
-    # (complexity+urgency+intent) so the capacity-aware _admit gate orders fan-out
-    # dispatches under load. Threaded into the council fan-out calls below. Guard:
-    # refined may be None (trivial-bypass turn) -> _sched_priority handles it ->
-    # neutral 5.0. ADVISORY when MIOS_ADMIT_ENABLE is off (no-op).
     try:
         _turn_priority = float(_sched_priority(refined).get("score", 5.0))
     except Exception:  # noqa: BLE001
         _turn_priority = 5.0
-    # W0-T3 autonomous isolation: an UNATTENDED (mios_autonomous) turn is BACKGROUND
-    # work -- it must yield the next freed GPU slot to any operator FOREGROUND turn.
-    # Clamp its priority DOWN to AUTONOMOUS_PRIORITY (default 1.0 << neutral 5.0) so
-    # the existing _priority_gate / _admit ordering admits foreground first; only
-    # lower it (never raise a turn that scored below the floor). Foreground turns
-    # keep their _sched_priority score, so a human at the keyboard always preempts.
     if _autonomous:
         _turn_priority = min(_turn_priority, AUTONOMOUS_PRIORITY)
         log.info("autonomous turn priority clamped to %.2f (foreground preempts)",
                  _turn_priority)
 
-    # T-019 (SCHED-01) turn-boundary preemption seam. This is THE point a scheduler
-    # decides whether to preempt -- the turn's AIOS priority is now known. DEFAULT-OFF
-    # ([scheduler].preempt_enable=false) -> a pass-through no-op, so the turn runs
-    # byte-identically. When enabled, mios_preempt.turn_boundary may snapshot + yield
-    # this turn to a higher-priority waiter and resume it (per the PreemptScheduler
-    # API; the live "higher-priority-waiting" probe is the global PriorityGate, wired
-    # in server.py). The hook is itself degrade-open; the extra guard here is belt-and-
-    # suspenders so the seam can NEVER drop/corrupt a turn. Substrate for T-020/T-058.
     try:
         await mios_preempt.turn_boundary(task_id=str(chat_id), priority=_turn_priority)
     except Exception:  # noqa: BLE001 -- degrade-open: a seam failure never breaks a turn
         pass
 
-    # T-020 (SCHED-02) token-time-sliced priority queue. Register this turn so the
-    # scheduler can ORDER it against concurrent turns by priority and account its token
-    # slices; at each token-slice boundary the generation path calls
-    # mios_preempt.slice_boundary, which re-evaluates via the turn_boundary mechanism
-    # (yield the lane to a higher-priority waiter, else continue). FLAG-GATED on
-    # [scheduler].queue_enable (DEFAULT-OFF -> this block is SKIPPED, so turns admit/run
-    # byte-identically -- no queue interposition) and DEGRADE-OPEN (any queue error
-    # never breaks a turn). The queue is bounded + a re-enqueue refreshes in place, so a
-    # follow-up turn on the same chat never duplicates or leaks. The live token feed
-    # (slice_boundary) + the precise gate-relative enqueue/dispatch placement are
-    # operator-live-validated; this is the turn-lifecycle registration.
     if mios_preempt.QUEUE_ENABLE:
         try:
             mios_preempt._TURN_QUEUE.enqueue(str(chat_id), _turn_priority)
@@ -1710,17 +1391,6 @@ async def chat_completions_logic(request: Request) -> Any:
         except Exception:  # noqa: BLE001 -- degrade-open: the queue never breaks a turn
             pass
 
-    # W0-T3 aggregate budget HARD-HALT (the runaway tripwire). Before dispatching
-    # ANY compute for this turn, check the rolling-window token ledgers: the
-    # per-conversation ceiling AND (for an autonomous source) the per-source
-    # ceiling + concurrent-in-flight cap. If a bucket is exhausted, return a
-    # graceful "budget exhausted" answer instead of dispatching -- this stops a
-    # wedged/looping conversation or a misfiring unattended schedule from racking
-    # up unbounded compute. DEGRADE-OPEN: _budget_admit returns allowed on any
-    # error, so a bookkeeping bug never blocks a legitimate turn.
-    # This turn's in-flight token (autonomous turns only). Registered inside
-    # _budget_admit on admit; aged out by TTL even if no explicit release fires
-    # (the streaming path returns its generator before the turn truly ends).
     _budget_turn_token = (chat_id if (_autonomous and _autonomous_source) else None)
     _budget_ok, _budget_reason = await _budget_admit(
         _scratchpad_key(body, chat_id), _autonomous_source, _budget_turn_token)
@@ -1814,17 +1484,6 @@ async def responses_api_logic(request: Request) -> Any:
     })
 
 
-# -- @app -> APIRouter migration (refactor R13): the chat-pipeline routes -----------
-# The OpenAI Responses API self-proxy facade (/v1/responses, cohesive with the chat-
-# completions pipeline it self-proxies into) AND the capstone /v1/chat/completions route
-# both moved off server.py's @app onto this co-located chat_router. server.py imports
-# chat_router + the handler NAMES and mounts it via app.include_router(chat_router); the
-# names are re-imported there so server's importable `provided` surface is unchanged and
-# the served path/method set is byte-identical (the live-app route gate proves it). Each
-# body calls its module-resident logic (responses_api_logic / chat_completions_logic)
-# DIRECTLY (same module -- no sys.modules hop). One-way boundary: this module never
-# imports server (its deps arrive via configure()). APIRouter()/method decorators are
-# structural, not config.
 chat_router = APIRouter()
 
 
@@ -1893,13 +1552,6 @@ async def _kernel_chat_handler(decision, **ctx):
         _chat_reply = str(refined.get("reply") or "").strip()
         if not _chat_reply:
             _chat_reply = await _quick_chat_reply(last_user_text, messages)
-        # Anti-fabrication (operator P0): the chat short-circuit runs NO tools, so a
-        # tool-result block in the reply is the weak refine micro NARRATING an
-        # unexecuted action (a fake '🤝 <verb> output' / {"success":true,"tool":...}
-        # with an invented pid/handle). NEVER ship a fabricated execution: drop the
-        # chat reply so the turn falls through to the real executor (decision.mode=
-        # 'agent') and the action runs for real -- or honestly fails. Flag-gated,
-        # degrade-open.
         if _chat_reply and _ANTIFAB_ENABLE and _contains_tool_result_block(_chat_reply):
             log.warning("anti-fab: chat reply narrated an unexecuted tool result; routing to real executor instead of shipping it")
             _chat_reply = ""
@@ -1932,12 +1584,6 @@ async def _kernel_chat_handler(decision, **ctx):
     return await _KERNEL.dispatcher.run(decision, **ctx)
 
 
-# Anti-fabrication guard (operator's #1 value: NEVER claim a tool ran when it did
-# not). Detects a tool-EXECUTION-shaped block in model content: the real emitter's
-# '🤝 <verb> output:' sentinel (toolexec.py) or a JSON object asserting
-# {"success": true, "tool": "<verb>", ...}. A model hop that WRITES one of these as
-# prose -- rather than a real tool_call the executor actually ran -- is fabricating.
-# SSOT flag; degrade-open (unset/false -> unchanged behaviour).
 _ANTIFAB_ENABLE = os.environ.get("MIOS_ANTIFAB_ENABLE", "true").lower() not in {"false", "0", "no", "off"}
 
 

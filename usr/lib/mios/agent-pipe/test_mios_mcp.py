@@ -106,7 +106,6 @@ def test_render_headers():
                                   "X-Plain": "v"})
     assert out["Authorization"] == "Bearer sekret", out
     assert out["X-Plain"] == "v", out
-    # unknown var expands to empty (never leaves the ${...} literal).
     out2 = mc._mcp_render_headers({"H": "${MIOS_NO_SUCH_VAR_XYZ}"})
     assert out2["H"] == "", out2
 
@@ -119,7 +118,6 @@ def test_load_registry_layered():
             _json.dump({"servers": [{"id": "a", "url": "http://v"},
                                     {"id": "b", "url": "http://b"}]}, f)
         with open(p_user, "w", encoding="utf-8") as f:
-            # user overlay REPLACES "a" (disables it) -- not a merge.
             _json.dump({"servers": [{"id": "a", "enabled": False}]}, f)
         orig = mc._MCP_REGISTRY_PATHS
         mc._MCP_REGISTRY_PATHS = [p_vendor, p_user]
@@ -175,14 +173,12 @@ def test_probe_server_projection():
             "examples": ["select 1"]}))
     finally:
         mc._mcp_http_rpc = orig
-    # projection: every remote tool registered namespaced mcp.<sid>.<tool>.
     assert "mcp.duck.query" in tools and "mcp.duck.ping" in tools, tools
     ent = tools["mcp.duck.query"]
     assert ent["server_id"] == "duck" and ent["tool"] == "query", ent
     assert ent["namespace"] == "duckdb_" and ent["tier"] == "common", ent
     assert ent["taint"] == "ro" and ent["examples"] == ["select 1"], ent
     assert ent["url"] == "http://duck", ent
-    # per-server state + side effects.
     st = mc._MCP_CLIENT_SERVERS["duck"]
     assert st["status"] == "ready" and st["tools_count"] == 2, st
     assert st["protocolVersion"] == "2025-06-18", st
@@ -203,7 +199,6 @@ def test_route_logic_shapes():
     assert tl["object"] == "mios.mcp.tools", tl
     assert tl["tools"][0]["name"] == "mcp.s.t", tl
 
-    # dispatch: missing tool -> 400; the call forwarder is stubbed for the happy path.
     class _Req:
         def __init__(self, body):
             self._b = body
@@ -254,17 +249,13 @@ def test_stdio_self_heal():
     cli._await_rpc = _fake_await_rpc
     cli._send = _fake_send
 
-    # first session: spawns once + initializes.
     _run(cli._ensure_session())
     assert cli._inited is True and len(spawns) == 1, spawns
-    # still alive + inited -> the guard short-circuits, NO respawn.
     _run(cli._ensure_session())
     assert len(spawns) == 1, spawns
-    # subprocess dies -> next call must respawn AND re-initialize (self-heal).
     cli.proc.returncode = 0
     _run(cli._ensure_session())
     assert len(spawns) == 2 and cli._inited is True, spawns
-    # an initialize that errors leaves the session un-inited (fail-closed).
     async def _err_rpc(method, params, timeout_s):
         return {"error": {"code": -32000, "message": "boom"}}
     cli._await_rpc = _err_rpc
@@ -274,14 +265,10 @@ def test_stdio_self_heal():
 
 
 def test_declared_protocol_version_is_current():
-    # MiOS DECLARES the current MCP revision as the latest it offers. SSOT:
-    # [mcp].protocol_version / env MIOS_MCP_PROTOCOL_VERSION (default = current).
     assert mc.MCP_PROTOCOL_VERSION == "2025-11-25", mc.MCP_PROTOCOL_VERSION
 
 
 def test_initialize_advertises_current_version():
-    # strict-OUT: the http initialize handshake SENDS the declared current revision
-    # (not a scattered literal) -- read from the one SSOT constant.
     _reset_registry(tools_dict={})
     sent = {}
 
@@ -302,9 +289,6 @@ def test_initialize_advertises_current_version():
 
 
 def test_back_compat_negotiation_accepts_older_revision():
-    # liberal-IN: a server answering with an OLDER revision (the previous stable
-    # one) is accepted as-returned -- status ready, tools registered. MiOS never
-    # rejects/hard-breaks a peer that speaks an older revision.
     tools = {}
     _reset_registry(tools_dict=tools)
 

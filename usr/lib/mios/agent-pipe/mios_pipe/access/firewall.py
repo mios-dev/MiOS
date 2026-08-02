@@ -26,42 +26,17 @@ from typing import Optional
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# server.py calls configure() with the SSOT-derived taint verb set, the
-# provenance-taint opt-in flag, the allowlist-host set, the live MCP client-tool
-# registry and the DB taint-chain reader AFTER every one is defined (the latest,
-# _MCP_CLIENT_TOOLS, is defined well below the firewall functions). They stay at
-# their documented defaults until injected; every consumer that reads them runs
-# at request time so a standalone ``import mios_firewall`` still succeeds. The
-# sets/dicts are injected BY REFERENCE (server assigns each exactly once and
-# never rebinds), so the shared object stays live.
 
-# SSOT-derived always-taint verb set (server: mios_secset.taint_verb_set(...) of
-# the external-fetch verbs UNION [security].taint_verbs). NEVER inlined here.
 _TAINT_VERBS: set = set()
-# AIOS gap8 provenance/taint firewall opt-in flag (default OFF; server-derived
-# from MIOS_SECURITY_PROVENANCE_TAINT / [security].provenance_taint).
 PROVENANCE_TAINT_ENABLE = False
-# operator-own-infrastructure host set (server: env CSV or compiled defaults).
 _ALLOWLIST_HOSTS: set = set()
-# live "mcp.<sid>.<tool>" -> tool metadata registry (carries per-tool taint=...).
 _MCP_CLIENT_TOOLS: dict = {}
-# pg taint-chain reader (server._db_read; async). None until injected.
 _db_read = None
-# System-path prefixes whose text_view READ taints the session (content the agent
-# did not author). SSOT [security].text_view_taint_prefixes -- the SAME write-
-# protected prefix set mios-text-edit enforces, so a tainting read and a denied
-# write stay in lock-step. The tuple below is the documented vendor default and
-# MUST match that SSOT seed; server.py injects the live value via configure().
 _TEXT_VIEW_TAINT_PREFIXES: tuple = (
     "/etc/", "/usr/", "/boot/", "/sys/", "/proc/", "/dev/",
     "/mnt/c/Windows/", "/mnt/c/Program Files/",
     "/mnt/c/Program Files (x86)/",
 )
-# Host suffixes treated as the operator's OWN (internal) infrastructure -- a URL
-# whose host ends with one of these is NOT a taint source. SSOT
-# [security].internal_tld_suffixes; the tuple below is the documented vendor
-# default and MUST match that seed (injected live via configure()).
 _INTERNAL_TLD_SUFFIXES: tuple = (".local", ".lan", ".internal")
 
 
@@ -101,8 +76,6 @@ def _is_external_url(url: str) -> bool:
             return False
         if host in _ALLOWLIST_HOSTS:
             return False
-        # Treat the SSOT internal-TLD suffixes + plain hostnames (no dots) as
-        # internal (operator-own infrastructure, not a taint source).
         if _INTERNAL_TLD_SUFFIXES and host.endswith(tuple(_INTERNAL_TLD_SUFFIXES)):
             return False
         if "." not in host:
@@ -121,26 +94,13 @@ def _classify_verb_taint(tool: str, args: dict) -> tuple[bool, str]:
         url = str((args or {}).get("url", ""))
         if _is_external_url(url):
             return True, f"external_open_url:{url[:80]}"
-    # powershell_run output reflects Windows-side execution state
-    # the agent didn't author -- treat as taint so subsequent high-
-    # privilege verbs in the same session get firewall-checked.
     if tool == "powershell_run":
         return True, "powershell_output"
-    # text_view of a system path (or any path under the write-
-    # denied prefixes) reads content the agent didn't author, so
-    # downstream high-priv verbs should be firewall-gated. The
-    # denied-prefix list is the SAME SSOT one mios-text-edit uses
-    # for write protection (injected via configure(), default in
-    # sync), so the agent-pipe never shells out to look it up.
     if tool == "text_view":
         path = str((args or {}).get("path", ""))
         for prefix in _TEXT_VIEW_TAINT_PREFIXES:
             if path.startswith(prefix):
                 return True, f"text_view_system:{prefix}"
-    # P6 : an external MCP tool from a server that declares a taint
-    # (e.g. Playwright taint=untrusted_web loads attacker-controllable HTML) taints the
-    # session, so the Semantic Firewall then refuses downstream high-privilege / exfil
-    # verbs -- closes the lethal trifecta for untrusted-web MCP servers.
     if tool.startswith("mcp."):
         _mt = str((_MCP_CLIENT_TOOLS.get(tool) or {}).get("taint") or "").strip()
         if _mt:
@@ -154,10 +114,6 @@ async def _session_is_tainted(session_id: Optional[str]) -> tuple[bool, str]:
     the upstream taint sources for the firewall event."""
     if not session_id:
         return False, ""
-    # The legacy backend requires ORDER BY fields to be in the SELECT
-    # projection -- include `ts` even though we don't use it past the
-    # ordering (parse error otherwise: "Missing order idiom `ts` in
-    # statement selection").
     sql = (
         f"SELECT ts, tool, taint_reason FROM tool_call "
         f"WHERE session = {session_id} AND tainted = true "

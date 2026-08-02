@@ -63,18 +63,15 @@ def t_run_ok(m):
 
 
 def t_gate(m):
-    # 3/3 succeed -> pass
     passed, n_ok, msg = m._passk_gate(lambda: _ok_run(), 3)
     check("gate 3/3 -> pass", passed is True and n_ok == 3, msg)
     check("gate 3/3 message", "PASS" in msg and "3/3 succeeded, required 3/3" in msg, msg)
 
-    # 1-of-3 fails (2 succeed) -> veto with the required message shape
     seq = _Counter([_ok_run(), _ok_run(), {"success": False, "steps": []}])
     passed, n_ok, msg = m._passk_gate(lambda: seq(None, None, None), 3)
     check("gate 2/3 -> veto", passed is False and n_ok == 2, msg)
     check("gate 2/3 message", "FAIL" in msg and "2/3 succeeded, required 3/3" in msg, msg)
 
-    # an unreachable replay (raises) is fail-closed
     def _boom():
         raise RuntimeError("agent-pipe unreachable")
     passed, n_ok, msg = m._passk_gate(_boom, 3)
@@ -86,7 +83,6 @@ def _promote_args(m, *extra):
 
 
 def t_promote_gate_off(m):
-    # Gate OFF (default): promote flips status WITHOUT any replay -- legacy behaviour.
     m.PASS_AND_K_GATE_ENABLED = False
     calls = {"status": 0, "run": 0}
 
@@ -118,7 +114,6 @@ def t_promote_gate_on_pass(m):
 def t_promote_gate_on_veto(m):
     m.PASS_AND_K_GATE_ENABLED = True
     m.PASS_AND_K_COUNT = 3
-    # 1-of-3 fails -> the skill must NOT be promoted.
     seq = _Counter([_ok_run(), {"success": False, "steps": []}, _ok_run()])
     flipped = {"n": 0}
     m._post_skill_run = seq
@@ -129,7 +124,6 @@ def t_promote_gate_on_veto(m):
 
 
 def t_promote_dgm_count(m):
-    # --dgm selects the stricter DGM replay count.
     m.PASS_AND_K_GATE_ENABLED = True
     m.PASS_AND_K_COUNT = 3
     m.PASS_AND_K_DGM_COUNT = 5

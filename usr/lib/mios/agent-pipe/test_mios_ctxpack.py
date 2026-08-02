@@ -23,7 +23,6 @@ def item(text, pri):
 
 
 def t_basic():
-    # Each "xxxx" (4 chars) == 1 token under the heuristic.
     items = [item("a" * 40, 1), item("b" * 40, 9), item("c" * 40, 5)]  # 10 tokens each
     r = cp.pack(items, budget=20)
     check("pack: keeps 2 of 3 within budget", len(r.kept) == 2, f"{r.to_dict()}")
@@ -41,8 +40,6 @@ def t_all_fit():
 
 
 def t_skip_oversize():
-    # A huge high-priority item that can't fit must be SKIPPED so smaller
-    # lower-priority items still get admitted (not a hard stop).
     items = [item("z" * 4000, 10), item("a" * 8, 1), item("b" * 8, 2)]  # 1000, 2, 2 tokens
     r = cp.pack(items, budget=10)
     check("pack: oversize top-priority skipped", all(len(k["text"]) < 100 for k in r.kept), f"{r.to_dict()}")

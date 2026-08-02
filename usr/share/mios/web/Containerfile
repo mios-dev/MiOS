@@ -1,6 +1,5 @@
 # AI-hint: Consolidated web tools container image ('mios-web') deriving FROM localhost/mios-base. Combines searxng + firecrawl + crawl4ai.
 # AI-related: usr/share/mios/base/Containerfile, usr/share/containers/systemd/mios-webtools-firecrawl-api.container
-# ----------------------------------------------------------------------------
 ARG BASE_IMAGE=localhost/mios-base:latest
 FROM ${BASE_IMAGE}
 

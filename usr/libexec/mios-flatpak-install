@@ -2,70 +2,40 @@
 # AI-hint: Executes during first boot to resolve and install system-wide Flatpaks defined in mios.toml or the bake-time fallback list, ensuring the desktop environment has required applications.
 # AI-related: /usr/lib/mios/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/flatpak-list, mios-flatpak-install.service, display-manager.service, network-online.target
 # AI-functions: log, parse_ref, ensure_remote
-# /usr/libexec/mios-flatpak-install -- first-boot Flatpak deployer.
-#
-# Wired in via /usr/lib/systemd/system/mios-flatpak-install.service:
-#   Type=oneshot, ConditionVirtualization=!container,
-#   After=network-online.target, Before=display-manager.service.
-#
-# Reads the operator's selected Flatpaks from the layered TOML
-# resolver and installs them system-wide via the host Flatpak.
-# Idempotent: already-installed apps short-circuit; a sentinel
-# /var/lib/mios/.flatpaks-installed records the merged set so a
-# subsequent boot reinstalls only what's NEW.
-#
-# Source order (highest precedence first):
-#   1. ~/.config/mios/mios.toml      (per-user, only meaningful on
-#                                     single-user systems)
-#   2. /etc/mios/mios.toml            (host override)
-#   3. /usr/share/mios/mios.toml      (vendor default)
-#
-# The TOML key consulted is `[desktop].flatpaks` -- a list of
-# flathub IDs. A line-delimited fallback at /usr/share/mios/flatpak-list
-# is supported for build-time injections (40-flatpak-bake.sh).
 set -uo pipefail
 
 LOG_TAG="mios-flatpak-install"
 log() { logger -t "$LOG_TAG" -- "$*"; printf '[%s] %s\n' "$LOG_TAG" "$*"; }
 
 if ! command -v flatpak >/dev/null 2>&1; then
-    log "flatpak not installed -- nothing to do"
+    log "Flatpak not installed"
     exit 0
 fi
 
-# Ensure flathub is configured (system-wide).
 if ! flatpak remote-list --system 2>/dev/null | grep -qw flathub; then
-    log "adding flathub remote (system)"
+    log "Adding flathub remote"
     flatpak remote-add --if-not-exists --system flathub \
         https://dl.flathub.org/repo/flathub.flatpakrepo 2>&1 | while read -r ln; do log "$ln"; done || true
 fi
 
-# Resolve the flatpak list. The toml resolver lives in /usr/lib/mios/userenv.sh
-# and exports MIOS_DESKTOP_FLATPAKS as a comma-separated list.
 flatpaks=""
 if [[ -r /usr/lib/mios/userenv.sh ]]; then
-    # shellcheck disable=SC1091
     source /usr/lib/mios/userenv.sh 2>/dev/null || true
     flatpaks="${MIOS_DESKTOP_FLATPAKS:-}"
 fi
 
-# Build-time bake fallback (40-flatpak-bake.sh writes this file).
 if [[ -z "$flatpaks" && -r /usr/share/mios/flatpak-list ]]; then
     flatpaks=$(tr '\n' ',' < /usr/share/mios/flatpak-list | sed 's/,$//')
 fi
 
 if [[ -z "$flatpaks" ]]; then
-    log "no flatpaks selected via mios.toml [desktop].flatpaks -- exiting"
+    log "No flatpaks selected via mios.toml [desktop].flatpaks"
     exit 0
 fi
 
-# Normalize: split on comma, trim whitespace, drop empties + comments.
 mapfile -t WANTED < <(printf '%s\n' "$flatpaks" | tr ',' '\n' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' -e '/^$/d' -e '/^#/d')
-log "operator-selected flatpaks (${#WANTED[@]}): ${WANTED[*]}"
+log "Operator-selected flatpaks: ${WANTED[*]}"
 
-# Skip those already installed system-wide. mios.toml entries may be
-# prefixed with `<remote>:<appid>`; split on the first colon. Bare
-# app ids fall back to flathub.
 parse_ref() {
     case "$1" in
         *:*) printf '%s\n%s\n' "${1%%:*}" "${1#*:}" ;;
@@ -92,7 +62,7 @@ ensure_remote() {
             flatpak remote-add --if-not-exists --system fedora \
                 oci+https://registry.fedoraproject.org 2>&1 | while read -r ln; do log "$ln"; done || true ;;
         *)
-            log "unknown remote '$remote' -- skipping remote-add" ;;
+            log "Unknown remote '$remote'" ;;
     esac
 }
 
@@ -102,60 +72,53 @@ for app in "${INSTALLED[@]}"; do have["$app"]=1; done
 
 TODO=()
 for raw in "${WANTED[@]}"; do
-    # shellcheck disable=SC2207
     pair=( $(parse_ref "$raw") )
     app="${pair[1]}"
     if [[ -n "${have[$app]:-}" ]]; then
-        log "already installed: $app"
+        log "Already installed: $app"
     else
         TODO+=("$raw")
     fi
 done
 
 if (( ${#TODO[@]} == 0 )); then
-    log "all selected flatpaks already installed"
+    log "All selected flatpaks already installed"
     install -d -m 0755 /var/lib/mios
     printf '%s\n' "${WANTED[@]}" | sort -u > /var/lib/mios/.flatpaks-installed
     exit 0
 fi
 
-log "installing ${#TODO[@]} flatpak(s)"
+log "Installing ${#TODO[@]} flatpak"
 rc=0
 for raw in "${TODO[@]}"; do
-    # shellcheck disable=SC2207
     pair=( $(parse_ref "$raw") )
     remote="${pair[0]}"
     app="${pair[1]}"
 
     ensure_remote "$remote"
 
-    # Refresh appstream for the target remote so search sees current metadata.
     flatpak update --system --appstream "$remote" 2>&1 | while read -r ln; do log "$ln"; done || true
 
     out=$(flatpak install --system --noninteractive --or-update -y "$remote" "$app" 2>&1)
     irc=$?
     printf '%s\n' "$out" | while read -r ln; do log "$ln"; done
-    # Ambiguous-branch fallback: under --noninteractive, an id that publishes
-    # several runtime branches (e.g. org.freedesktop.Platform.VulkanLayer.*)
-    # errors "Multiple refs match ... must specify one" instead of prompting.
-    # Retry once with a default //<branch> appended (unless already branched).
     if [[ $irc -ne 0 && "$app" != *//* ]] && printf '%s' "$out" | grep -qiE 'multiple refs|must specify.*branch|multiple branches'; then
         branch="${MIOS_FLATPAK_DEFAULT_BRANCH:-24.08}"
-        log "ambiguous branch for $app -- retrying with //${branch}"
+        log "Ambiguous branch for $app"
         out=$(flatpak install --system --noninteractive --or-update -y "$remote" "${app}//${branch}" 2>&1)
         irc=$?
         printf '%s\n' "$out" | while read -r ln; do log "$ln"; done
     fi
     if [[ $irc -eq 0 ]]; then
-        log "installed: ${remote}:${app}"
+        log "Installed: ${remote}:${app}"
     else
-        log "FAILED: ${remote}:${app} (continuing)"
+        log "FAILED: ${remote}:${app}"
         rc=1
     fi
 done
 
 install -d -m 0755 /var/lib/mios
 printf '%s\n' "${WANTED[@]}" | sort -u > /var/lib/mios/.flatpaks-installed
-log "wrote sentinel: /var/lib/mios/.flatpaks-installed"
+log "Wrote sentinel: /var/lib/mios/.flatpaks-installed"
 
 exit $rc

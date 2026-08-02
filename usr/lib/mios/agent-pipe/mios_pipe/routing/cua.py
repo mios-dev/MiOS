@@ -36,29 +36,11 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-# Self-import: the moved I/O half (appended below) was written in server.py and
-# references this module's pure-core names qualified as ``mios_cua.<name>``
-# (resolve_verb / observation_digest / CuaTrace / PLATFORMS / loop_status / ...).
-# Keeping the bodies byte-identical, a self-reference binds those calls to this
-# (fully-initialised by call time) module. Safe: ``mios_cua`` is already in
-# sys.modules while this module executes, and every consumer is a runtime call.
 import mios_cua  # noqa: E402
 
 log = logging.getLogger("mios-agent-pipe")
 
 
-# -- Dependency-injection seam --------------------------------------
-# The /v1/computer-use route (v1_computer_use_logic) reads the CUA_ENABLE gate flag
-# and calls the perceive->act->verify loop _cua_loop -- which now lives IN this
-# module (appended below). The loop + its screenshot/VLM helpers read server-owned
-# chokepoints (the verb-dispatch _dispatch_mios_verb_inner, the shared httpx
-# _get_client, the _vision_backend_failed gate) and config constants
-# (VISION_MODEL / VISION_ENDPOINT / CUA_MAX_STEPS / _BACKEND_KEY) -- those stay
-# OWNED by server.py (every config const is in the importable-surface golden) and
-# are injected here via configure() AFTER each is defined (one-way boundary: this
-# module never imports server). The None placeholders keep a standalone
-# ``import mios_cua`` working for the pure-core unit tests; every consumer is a
-# runtime call, so nothing fires before configure() runs.
 CUA_ENABLE = None
 _dispatch_mios_verb_inner = None
 _get_client = None
@@ -112,10 +94,6 @@ _LAST_SCREENSHOT_PATH = None
 
 PLATFORMS = ("windows", "linux")
 
-# ONE logical action -> the per-platform verb. Both desktops expose a symmetric
-# surface, so the loop is written ONCE against logical actions and resolved to
-# the host's verbs at dispatch. (Windows host = windows_desktop_*; the in-VM
-# Linux/Wayland desktop = linux_desktop_*.)
 _ACTION_VERB = {
     "screenshot":    {"windows": "windows_desktop_screenshot",
                       "linux": "linux_desktop_screenshot"},
@@ -133,7 +111,6 @@ _ACTION_VERB = {
                       "linux": "linux_desktop_window_list"},
 }
 
-# Terminal reasons returned by loop_status.
 RUNNING = "running"
 GOAL_REACHED = "goal_reached"
 MAX_STEPS = "max_steps"
@@ -264,15 +241,6 @@ async def v1_computer_use_logic(request: Request) -> JSONResponse:
                             status_code=200)
 
 
-# -- @app -> APIRouter migration (refactor R13): the /v1/computer-use route ---------
-# The WS-8 perceive->act->verify route moved off server.py's @app onto this co-located
-# router (cohesive with the CUA loop core + logic it gates). server.py imports
-# cua_router + the handler NAME and mounts it via app.include_router(cua_router); the
-# name is re-imported there so server's importable `provided` surface is unchanged and
-# the served path/method set is byte-identical (the live-app route gate proves it). The
-# body calls the module-resident v1_computer_use_logic DIRECTLY (same module -- no
-# sys.modules hop). One-way boundary: this module never imports server (its CUA gate +
-# deps arrive via configure()). APIRouter()/method decorators are structural, not config.
 cua_router = APIRouter()
 
 
@@ -314,7 +282,6 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
         _LAST_SCREENSHOT_PATH = path
         
         try:
-            # Call mios-smart-resize CLI via subprocess
             p = subprocess.Popen(
                 ["/usr/libexec/mios/mios-smart-resize"],
                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE
@@ -328,7 +295,6 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
                 _W_ORIG = meta.get("W_orig", _W_ORIG)
                 _H_ORIG = meta.get("H_orig", _H_ORIG)
         except Exception:
-            # Fallback to direct struct PNG header parsing
             try:
                 if len(raw) >= 24 and raw[12:16] == b"IHDR":
                     _W_ORIG, _H_ORIG = struct.unpack(">II", raw[16:24])
@@ -411,7 +377,6 @@ async def wait_for_stable_element(platform: str, session_id: Optional[str] = Non
 
 
 async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session_id: Optional[str] = None) -> dict:
-    # Scale coordinates
     x_raw = float(args.get("x", 0))
     y_raw = float(args.get("y", 0))
     
@@ -430,7 +395,6 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
     args_scaled["x"] = x_scaled
     args_scaled["y"] = y_scaled
     
-    # Try Tier 2: Accessibility Tree (UIA/AT-SPI) click
     list_verb = mios_cua.resolve_verb("list_windows", platform)
     if list_verb:
         res_list = await _dispatch_mios_verb_inner(list_verb, {}, session_id=session_id)
@@ -462,7 +426,6 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
                     if res_click.get("success"):
                         return res_click
                         
-    # Tier 3: Vision grounding coordinate click fallback
     return await _dispatch_mios_verb_inner(verb, args_scaled, session_id=session_id)
 
 
@@ -509,7 +472,6 @@ async def _cua_loop(goal: str, platform: str = "windows",
         if not verb:                            # no plan / bad action
             stall += 1
         elif action == "click":
-            # Retry logic up to 3 times
             retries = 0
             click_success = False
             res = {}
@@ -520,10 +482,8 @@ async def _cua_loop(goal: str, platform: str = "windows",
             while retries < 3:
                 res = await _execute_click_hierarchy(verb, dict(plan.get("args") or {}), platform, session_id)
                 
-                # Wait-for-stable-element polling
                 await wait_for_stable_element(platform, session_id)
                 
-                # Capture screenshot to verify change
                 uri2, obs2 = await _cua_screenshot_uri(platform, session_id)
                 changed = mios_cua.observation_changed(obs, obs2)
                 
@@ -531,7 +491,6 @@ async def _cua_loop(goal: str, platform: str = "windows",
                     click_success = True
                     break
                     
-                # Click failed or no state change -> retry with re-grounding!
                 retries += 1
                 if retries < 3:
                     plan = await _cua_vlm_json(plan_sys, f"GOAL: {goal}", uri2 or uri)
@@ -554,7 +513,6 @@ async def _cua_loop(goal: str, platform: str = "windows",
         else:
             res = await _dispatch_mios_verb_inner(
                 verb, dict(plan.get("args") or {}), session_id=session_id)
-            # VERIFY: re-perceive, detect a no-change stall, ask the VLM the verdict.
             uri2, obs2 = await _cua_screenshot_uri(platform, session_id)
             changed = mios_cua.observation_changed(obs, obs2)
             stall = 0 if changed else stall + 1

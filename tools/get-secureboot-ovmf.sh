@@ -1,8 +1,6 @@
 #!/bin/bash
 # AI-hint: Locates and validates the presence of vendor-enrolled OVMF Secure Boot firmware files (CODE and VARS) in /usr/share/edk2/x64 to ensure the VM environment supports Secure Boot.
 
-# Find or Obtain Vendor-Enrolled OVMF Secure Boot Files
-# No XML editing - just get the right firmware files
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,7 +14,6 @@ echo -e "${BOLD}${CYAN}═══════════════════
 echo -e "${BOLD}${CYAN}   Vendor Secure Boot OVMF File Locator/Installer${NC}"
 echo -e "${BOLD}${CYAN}══════════════════════════════════════════════════════════${NC}\n"
 
-# Check current files
 echo -e "${BLUE}Scanning for OVMF Secure Boot files...${NC}\n"
 
 X64_DIR="/usr/share/edk2/x64"
@@ -29,7 +26,6 @@ else
 fi
 echo
 
-# Check for what we need
 HAVE_CODE_SECBOOT=false
 HAVE_VARS_SECBOOT=false
 
@@ -60,7 +56,6 @@ if [ "$HAVE_VARS_SECBOOT" = true ]; then
     echo -e "${GREEN}[ok] You already have Vendor-enrolled OVMF VARS files!${NC}"
     echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}\n"
 
-    # Find the exact path
     if [ -f "$X64_DIR/OVMF_VARS.secboot.4m.fd" ]; then
         VARS_PATH="$X64_DIR/OVMF_VARS.secboot.4m.fd"
     else
@@ -113,8 +108,6 @@ case $choice in
         mkdir -p "$WORK_DIR"
         cd "$WORK_DIR"
 
-        # Try to get the latest working build
-        # Using a known-good build URL
         RPM_URL="https://www.kraxel.org/repos/jenkins/edk2/edk2.git-ovmf-x64-0-20231115.1699.gc4e558ebf9.EOL.noarch.rpm"
 
         echo -e "${CYAN}Downloading OVMF RPM package...${NC}"
@@ -135,7 +128,6 @@ case $choice in
 
         echo -e "\n${CYAN}Extracting files...${NC}"
 
-        # Check for extraction tools
         if command -v rpm2cpio &>/dev/null && command -v cpio &>/dev/null; then
             rpm2cpio ovmf.rpm | cpio -idmv 2>&1 | grep -i "OVMF" || true
         elif command -v bsdtar &>/dev/null; then
@@ -146,7 +138,6 @@ case $choice in
             exit 1
         fi
 
-        # Find extracted VARS files
         echo -e "\n${CYAN}Locating VARS.secboot files...${NC}"
 
         EXTRACTED_VARS=$(find . -type f -name "*VARS*.fd" | grep -i secboot | head -1)
@@ -165,19 +156,16 @@ case $choice in
 
         echo -e "${GREEN}Found: $EXTRACTED_VARS${NC}"
 
-        # Determine target filename
         if [[ "$EXTRACTED_VARS" =~ "4m" ]] || [ $(stat -c%s "$EXTRACTED_VARS") -gt 1000000 ]; then
             TARGET="$X64_DIR/OVMF_VARS.secboot.4m.fd"
         else
             TARGET="$X64_DIR/OVMF_VARS.secboot.fd"
         fi
 
-        # Install
         echo -e "\n${CYAN}Installing to: $TARGET${NC}"
         cp "$EXTRACTED_VARS" "$TARGET"
         chmod 644 "$TARGET"
 
-        # Cleanup
         cd /
         rm -rf "$WORK_DIR"
 
@@ -199,7 +187,6 @@ case $choice in
         mkdir -p "$WORK_DIR"
         cd "$WORK_DIR"
 
-        # Fedora 39 edk2-ovmf
         RPM_URL="https://dl.fedoraproject.org/pub/fedora/linux/releases/39/Everything/x86_64/os/Packages/e/edk2-ovmf-20231115-5.fc39.noarch.rpm"
 
         echo -e "${CYAN}Downloading Fedora OVMF package...${NC}"
@@ -222,7 +209,6 @@ case $choice in
             bsdtar -xf ovmf.rpm
         fi
 
-        # Fedora typically puts them in usr/share/edk2/ovmf
         EXTRACTED_VARS=$(find . -path "*/edk2/ovmf/*" -name "*VARS*.fd" | grep -i secboot | head -1)
 
         if [ -z "$EXTRACTED_VARS" ]; then

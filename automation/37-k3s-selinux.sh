@@ -60,4 +60,4 @@ install -m 0644 k3s.pp /usr/share/selinux/packages/mios/k3s.pp
 
 cd /
 rm -rf /tmp/k3s-selinux
-mios_ok "k3s.pp staged in /usr/share/selinux/packages/mios/"
+mios_ok "K3s.pp staged in /usr/share/selinux/packages/mios/"

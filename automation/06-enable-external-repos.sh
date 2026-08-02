@@ -51,7 +51,7 @@ try_fetch() {
     if scurl -fsSL --connect-timeout 20 --max-time 60 "$url" -o "$out" 2>/dev/null; then
         return 0
     fi
-    mios_warn "${label}: fetch failed (${url})"
+    mios_warn "${label}: fetch failed"
     rm -f "$out"
     return 1
 }
@@ -101,13 +101,13 @@ else
 fi
 
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:aleasto:waydroid.repo ]; then
-    enable_copr "aleasto/waydroid" "fedora-${_fver}-x86_64" || mios_warn "aleasto/waydroid COPR enable failed (GNOME 50 fix unavailable)"
+    enable_copr "aleasto/waydroid" "fedora-${_fver}-x86_64" || mios_warn "Aleasto/waydroid COPR enable failed"
 else
     mios_skip "aleasto/waydroid COPR already present"
 fi
 
 if ! [ -f /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:nett00n:hyprland.repo ]; then
-    enable_copr "nett00n/hyprland" "fedora-${_fver}-x86_64" || mios_warn "nett00n/hyprland COPR enable failed"
+    enable_copr "nett00n/hyprland" "fedora-${_fver}-x86_64" || mios_warn "Nett00n/hyprland COPR enable failed"
 else
     mios_skip "nett00n/hyprland COPR already present"
 fi
@@ -131,10 +131,10 @@ fi
 
 mios_log "External repos enabled; refreshing metadata"
 if ! $DNF_BIN "${DNF_SETOPT[@]}" makecache -y 2>&1 | tail -20; then
-    mios_warn "dnf makecache returned non-zero; continuing (downstream installs will retry per-repo)"
+    mios_warn "Dnf makecache returned non-zero; continuing"
 fi
 
 mios_log "Installing CrowdSec packages"
 $DNF_BIN "${DNF_SETOPT[@]}" install -y --skip-unavailable crowdsec crowdsec-firewall-bouncer-nftables 2>&1 || mios_warn "CrowdSec packages install deferred"
 
-mios_ok "external repos enabled"
+mios_ok "External repos enabled"
