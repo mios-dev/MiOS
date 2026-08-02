@@ -4,13 +4,18 @@ use toml::Value;
 
 pub fn process_val(dotted: &str, v: &Value, stack_offset: i32) -> String {
     match v {
-        Value::Boolean(b) => if *b { "true".into() } else { "false".into() },
+        Value::Boolean(b) => {
+            if *b {
+                "true".into()
+            } else {
+                "false".into()
+            }
+        }
         Value::Integer(n) => {
-            if dotted.starts_with("ports.") && dotted != "ports.stack_id" {
-                if *n != 53 {
+            if dotted.starts_with("ports.") && dotted != "ports.stack_id"
+                && *n != 53 {
                     return (*n as i32 + stack_offset).to_string();
                 }
-            }
             n.to_string()
         }
         Value::String(s) => {
@@ -28,7 +33,13 @@ pub fn process_val(dotted: &str, v: &Value, stack_offset: i32) -> String {
                 .iter()
                 .map(|item| match item {
                     Value::String(s) => s.clone(),
-                    Value::Boolean(b) => if *b { "true".into() } else { "false".into() },
+                    Value::Boolean(b) => {
+                        if *b {
+                            "true".into()
+                        } else {
+                            "false".into()
+                        }
+                    }
                     Value::Integer(i) => i.to_string(),
                     Value::Float(f) => f.to_string(),
                     _ => item.to_string(),

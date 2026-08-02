@@ -6,7 +6,10 @@ use thiserror::Error;
 #[derive(Error, Debug, Diagnostic)]
 pub enum ResolverError {
     #[error("Failed to parse TOML layer at {path}: {source}")]
-    #[diagnostic(code(mios_resolver::layer_parse), help("Check TOML syntax in layer file"))]
+    #[diagnostic(
+        code(mios_resolver::layer_parse),
+        help("Check TOML syntax in layer file")
+    )]
     LayerParse {
         path: String,
         #[source]

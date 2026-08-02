@@ -23,10 +23,13 @@ mod tests {
 
     #[test]
     fn test_emit_json() {
-        let val: Value = toml::from_str(r#"
+        let val: Value = toml::from_str(
+            r#"
 [identity]
 role = "mini"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let j_str = emit_json(&val, 0);
         let parsed: JsonValue = serde_json::from_str(&j_str).unwrap();
         assert!(parsed.get("merged").is_some());

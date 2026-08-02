@@ -10,9 +10,9 @@ pub fn shlex_quote(s: &str) -> String {
     if s.is_empty() {
         return "''".to_string();
     }
-    if !s.chars().any(|c| match c {
-        'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | ':' | '/' | '@' => false,
-        _ => true,
+    if s.chars().all(|c| {
+        matches!(c,
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' | '.' | ':' | '/' | '@')
     }) {
         return s.to_string();
     }
@@ -27,7 +27,13 @@ pub fn emit_shell(merged: &Value, stack_offset: i32, ref_names_path: Option<&Pat
         for (k, v) in env_table {
             let val_str = match v {
                 Value::String(s) => s.clone(),
-                Value::Boolean(b) => if *b { "true".into() } else { "false".into() },
+                Value::Boolean(b) => {
+                    if *b {
+                        "true".into()
+                    } else {
+                        "false".into()
+                    }
+                }
                 Value::Integer(i) => i.to_string(),
                 _ => v.to_string(),
             };

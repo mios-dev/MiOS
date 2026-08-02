@@ -55,7 +55,9 @@ pub struct MetaConfig {
 
 fn default_fedora_version() -> String {
     if let Ok(ver) = std::env::var("FEDORA_VERSION") {
-        if !ver.is_empty() { return ver; }
+        if !ver.is_empty() {
+            return ver;
+        }
     }
     "44".into()
 }
@@ -160,7 +162,8 @@ impl MiosConfig {
 
     /// Helper to get a string value from a dotted path key.
     pub fn get_string(&self, key: &str) -> Option<String> {
-        self.get_value(key).and_then(|v| v.as_str().map(|s| s.to_string()))
+        self.get_value(key)
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 
     /// Helper to get a boolean value from a dotted path key.
@@ -207,9 +210,11 @@ flag = true
             .extract()
             .expect("should parse arbitrary custom sections generically");
 
-        assert_eq!(config.get_string("foo.bar.custom_setting").as_deref(), Some("test_value"));
+        assert_eq!(
+            config.get_string("foo.bar.custom_setting").as_deref(),
+            Some("test_value")
+        );
         assert_eq!(config.get_i64("foo.bar.number_key"), Some(42));
         assert_eq!(config.get_bool("foo.bar.flag"), Some(true));
     }
 }
-

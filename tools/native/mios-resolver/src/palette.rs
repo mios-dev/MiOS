@@ -69,11 +69,14 @@ mod tests {
 
     #[test]
     fn test_palette_override() {
-        let val: Value = toml::from_str(r##"
+        let val: Value = toml::from_str(
+            r##"
 [colors]
 bg = "#000000"
 accent = "#FF0000"
-"##).unwrap();
+"##,
+        )
+        .unwrap();
 
         let p = resolve(&val);
         assert_eq!(p.get("bg").unwrap(), "#000000");

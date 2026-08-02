@@ -62,8 +62,8 @@ fn check_backfill_coverage(root_path: &Path) -> Result<(), String> {
     let backfill = fs::read_to_string(&backfill_path)
         .map_err(|e| format!("Failed to read embed_backfill.py: {}", e))?;
 
-    let table_re =
-        Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)").expect("valid regex");
+    let table_re = Regex::new(r"(?i)CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)")
+        .expect("valid regex");
     // Match the COLUMN TYPE `emb vector(...)`, not the HNSW index operator class
     // `(emb vector_cosine_ops)` -- requiring `(` after `vector` excludes the opclass.
     let emb_re = Regex::new(r"(?i)emb\s+vector\s*\(").expect("valid regex");

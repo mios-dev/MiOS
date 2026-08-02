@@ -24,10 +24,7 @@ pub fn derive_ports(merged: &mut Value) {
         None => return,
     };
 
-    let ports = match merged
-        .get_mut("ports")
-        .and_then(|p| p.as_table_mut())
-    {
+    let ports = match merged.get_mut("ports").and_then(|p| p.as_table_mut()) {
         Some(table) => table,
         None => return,
     };
@@ -47,10 +44,7 @@ pub fn derive_ports(merged: &mut Value) {
             for (idx, member) in members.iter().enumerate() {
                 if let Some(name) = member.as_str() {
                     if !name.is_empty() {
-                        ports.insert(
-                            name.to_string(),
-                            Value::Integer(base + idx as i64 * stride),
-                        );
+                        ports.insert(name.to_string(), Value::Integer(base + idx as i64 * stride));
                     }
                 }
             }

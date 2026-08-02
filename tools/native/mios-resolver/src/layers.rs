@@ -33,7 +33,7 @@ fn _frags(dirpath: &Path) -> Vec<PathBuf> {
     if let Ok(read_dir) = fs::read_dir(dirpath) {
         for entry in read_dir.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "toml") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "toml") {
                 entries.push(normalize_path(&path));
             }
         }
@@ -46,7 +46,9 @@ fn _frags(dirpath: &Path) -> Vec<PathBuf> {
     entries
 }
 
-pub fn resolve_tier_dirs(root_dir: Option<&Path>) -> (PathBuf, PathBuf, PathBuf, PathBuf, PathBuf, PathBuf) {
+pub fn resolve_tier_dirs(
+    root_dir: Option<&Path>,
+) -> (PathBuf, PathBuf, PathBuf, PathBuf, PathBuf, PathBuf) {
     let root_str = root_dir
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_else(|| env::var("MIOS_TOML_ROOT").unwrap_or_default());
@@ -62,14 +64,13 @@ pub fn resolve_tier_dirs(root_dir: Option<&Path>) -> (PathBuf, PathBuf, PathBuf,
             }
         });
 
-    let host = env::var("MIOS_HOST_TOML")
-        .unwrap_or_else(|_| {
-            if !root.is_empty() {
-                format!("{}/etc/mios/mios.toml", root)
-            } else {
-                "etc/mios/mios.toml".to_string()
-            }
-        });
+    let host = env::var("MIOS_HOST_TOML").unwrap_or_else(|_| {
+        if !root.is_empty() {
+            format!("{}/etc/mios/mios.toml", root)
+        } else {
+            "etc/mios/mios.toml".to_string()
+        }
+    });
 
     let user = env::var("MIOS_USER_TOML").unwrap_or_else(|_| {
         // Mirror userenv.sh: ${XDG_CONFIG_HOME:-$HOME/.config}. A literal "~"
@@ -151,7 +152,10 @@ mod tests {
     #[test]
     fn test_path_normalization() {
         assert_eq!(normalize_path_str("/c/MiOS/usr/share"), "c:/MiOS/usr/share");
-        assert_eq!(normalize_path_str("C:\\MiOS\\usr\\share"), "C:/MiOS/usr/share");
+        assert_eq!(
+            normalize_path_str("C:\\MiOS\\usr\\share"),
+            "C:/MiOS/usr/share"
+        );
     }
 
     #[test]

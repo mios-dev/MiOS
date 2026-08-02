@@ -4,12 +4,13 @@ use toml::Value;
 
 pub fn is_db_authoritative() -> bool {
     // By default, DB mode is inert unless MIOS_ACCOUNTS_DB_BACKED is enabled in environment or DB
-    std::env::var("MIOS_ACCOUNTS_DB_BACKED").map(|v| v == "true" || v == "1").unwrap_or(false)
+    std::env::var("MIOS_ACCOUNTS_DB_BACKED")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false)
 }
 
 pub fn maybe_apply_db_overlay(_dst: &mut Value) {
     if !is_db_authoritative() {
-        return;
     }
     // Reserved hook for DB overlay execution if enabled
 }

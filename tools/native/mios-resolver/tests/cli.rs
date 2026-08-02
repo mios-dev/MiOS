@@ -5,20 +5,26 @@ use mios_resolver::emit_shell::emit_shell;
 
 #[test]
 fn test_cli_emit_shell_snapshot() {
-    let val: toml::Value = toml::from_str(r#"
+    let val: toml::Value = toml::from_str(
+        r#"
 [identity]
 role = "mini"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     let shell_out = emit_shell(&val, 0, None);
     assert!(shell_out.contains("export MIOS_IDENTITY_ROLE='mini'"));
 }
 
 #[test]
 fn test_cli_emit_json_snapshot() {
-    let val: toml::Value = toml::from_str(r#"
+    let val: toml::Value = toml::from_str(
+        r#"
 [identity]
 role = "mini"
-"#).unwrap();
+"#,
+    )
+    .unwrap();
     let json_out = emit_json(&val, 0);
     assert!(json_out.contains("\"role\": \"mini\""));
 }

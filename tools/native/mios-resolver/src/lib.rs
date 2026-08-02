@@ -21,7 +21,6 @@ use std::path::Path;
 
 pub fn load_model(root_dir: Option<&Path>) -> Result<MiosModel, ResolverError> {
     let fig = layers::create_figment(root_dir);
-    fig.extract::<MiosModel>().map_err(|e| ResolverError::TypeShape {
-        msg: e.to_string(),
-    })
+    fig.extract::<MiosModel>()
+        .map_err(|e| ResolverError::TypeShape { msg: e.to_string() })
 }

@@ -18,9 +18,12 @@ pub fn build_exports_map(merged: &Value, stack_offset: i32) -> BTreeMap<String, 
         }
 
         let cbody = if let Some(rest) = path.strip_prefix("converge.") {
-            format!("CONV_{}", rest.to_uppercase().replace('.', "_").replace('-', "_"))
+            format!(
+                "CONV_{}",
+                rest.to_uppercase().replace(['.', '-'], "_")
+            )
         } else {
-            path.to_uppercase().replace('.', "_").replace('-', "_")
+            path.to_uppercase().replace(['.', '-'], "_")
         };
 
         let canonical = if cbody.starts_with("MIOS_") {
@@ -59,11 +62,14 @@ mod tests {
 
     #[test]
     fn test_mostly_dead_suppression() {
-        let val: Value = toml::from_str(r#"
+        let val: Value = toml::from_str(
+            r#"
 [ai]
 endpoint = "http://localhost:8000"
 random_setting = "test"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
 
         let exports = build_exports_map(&val, 0);
         assert!(exports.contains_key("MIOS_AI_ENDPOINT")); // In WALK_EMIT_KEEP

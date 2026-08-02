@@ -18,7 +18,10 @@ struct Args {
     #[arg(long, help = "Validate that mios.toml layers parse cleanly")]
     check_parse: bool,
 
-    #[arg(long, help = "Emit format (e.g. 'shell', 'powershell', 'ps', 'json', 'install-env')")]
+    #[arg(
+        long,
+        help = "Emit format (e.g. 'shell', 'powershell', 'ps', 'json', 'install-env')"
+    )]
     emit: Option<String>,
 
     #[arg(long, help = "Repository or root directory path")]
@@ -31,7 +34,10 @@ fn stack_offset_of(merged: &Value) -> i32 {
     merged
         .get("ports")
         .and_then(|p| p.get("stack_id"))
-        .and_then(|v| v.as_integer().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+        .and_then(|v| {
+            v.as_integer()
+                .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+        })
         .map(|id| id as i32 * 10000)
         .unwrap_or(0)
 }
@@ -59,7 +65,10 @@ fn main() -> Result<()> {
         let mut merged = match fig.extract::<Value>() {
             Ok(val) => val,
             Err(e) => {
-                eprintln!("[mios-resolver] Failed to extract merged TOML value: {:?}", e);
+                eprintln!(
+                    "[mios-resolver] Failed to extract merged TOML value: {:?}",
+                    e
+                );
                 std::process::exit(1);
             }
         };

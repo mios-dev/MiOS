@@ -72,20 +72,25 @@ mod tests {
 
         let extract_set = |name: &str| -> HashSet<String> {
             let marker = format!("{} = ", name);
-            let idx = content.find(&marker).expect(&format!("find {}", name));
+            let idx = content.find(&marker).unwrap_or_else(|| panic!("find {}", name));
             let sub = &content[idx + marker.len()..];
-            let end_idx = sub.find('}').expect(&format!("end brace {}", name));
+            let end_idx = sub.find('}').unwrap_or_else(|| panic!("end brace {}", name));
             let block = &sub[..end_idx];
             block
                 .split(',')
-                .map(|s| s.trim().trim_matches(|c| c == '{' || c == '"' || c == '\'' || c == '\n' || c == ' '))
+                .map(|s| {
+                    s.trim().trim_matches(|c| {
+                        c == '{' || c == '"' || c == '\'' || c == '\n' || c == ' '
+                    })
+                })
                 .filter(|s| !s.is_empty())
                 .map(String::from)
                 .collect()
         };
 
         let py_excluded = extract_set("EXCLUDED_SECTIONS");
-        let rs_excluded: HashSet<String> = EXCLUDED_SECTIONS.iter().map(|s| s.to_string()).collect();
+        let rs_excluded: HashSet<String> =
+            EXCLUDED_SECTIONS.iter().map(|s| s.to_string()).collect();
         assert_eq!(py_excluded, rs_excluded, "EXCLUDED_SECTIONS mismatch");
 
         let py_dead = extract_set("WALK_MOSTLY_DEAD");

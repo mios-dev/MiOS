@@ -42,10 +42,13 @@ mod tests {
 
     #[test]
     fn test_emit_powershell() {
-        let val: Value = toml::from_str(r#"
+        let val: Value = toml::from_str(
+            r#"
 [ports]
 vllm = 8000
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let ps = emit_powershell(&val, 0);
         assert!(ps.contains("$script:MIOS_PORT_VLLM = if ($env:MIOS_PORT_VLLM) { $env:MIOS_PORT_VLLM } else { '8000' }"));
     }

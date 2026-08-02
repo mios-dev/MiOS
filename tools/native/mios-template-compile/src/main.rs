@@ -4,16 +4,20 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn get_mock_vals(root_path: &PathBuf) -> HashMap<String, String> {
+fn get_mock_vals(root_path: &Path) -> HashMap<String, String> {
     let mut map = HashMap::new();
     let config_path = root_path.join("usr/share/mios/mios.toml");
 
     if let Ok(content) = fs::read_to_string(&config_path) {
         if let Ok(val) = toml::from_str::<toml::Value>(&content) {
-            if let Some(placeholders) = val.get("templates").and_then(|t| t.get("placeholders")).and_then(|p| p.as_table()) {
+            if let Some(placeholders) = val
+                .get("templates")
+                .and_then(|t| t.get("placeholders"))
+                .and_then(|p| p.as_table())
+            {
                 for (k, v) in placeholders {
                     if let Some(s) = v.as_str() {
                         map.insert(k.clone(), s.to_string());
@@ -39,13 +43,20 @@ fn get_mock_vals(root_path: &PathBuf) -> HashMap<String, String> {
         map.insert("uid".into(), "1000".into());
         map.insert("gid".into(), "1000".into());
         map.insert("filename".into(), "mockname.py".into());
-        map.insert("path".into(), "usr/lib/mios/agent-pipe/mios_pipe/mockname.py".into());
+        map.insert(
+            "path".into(),
+            "usr/lib/mios/agent-pipe/mios_pipe/mockname.py".into(),
+        );
     }
 
     map
 }
 
-fn compile_template(name: &str, content: &str, mock_vals: &HashMap<String, String>) -> Option<String> {
+fn compile_template(
+    name: &str,
+    content: &str,
+    mock_vals: &HashMap<String, String>,
+) -> Option<String> {
     let mut rendered = content.to_string();
     for (k, v) in mock_vals {
         rendered = rendered.replace(&format!("{{{{{}}}}}", k), v);
@@ -73,7 +84,7 @@ fn compile_template(name: &str, content: &str, mock_vals: &HashMap<String, Strin
                 .arg("import sys; compile(sys.stdin.read(), 'src', 'exec')")
                 .env_clear()
                 .spawn();
-            
+
             // Allow degrade-open fallback if python process cannot be spawned natively
             if let Ok(mut child) = res {
                 use std::io::Write;
@@ -84,9 +95,7 @@ fn compile_template(name: &str, content: &str, mock_vals: &HashMap<String, Strin
         }
         "bash" | "bash-verb" | "drift-check" | "automation-step" => {
             if cfg!(not(target_os = "windows")) {
-                let res = Command::new("bash")
-                    .arg("-n")
-                    .spawn();
+                let res = Command::new("bash").arg("-n").spawn();
                 if let Ok(mut child) = res {
                     use std::io::Write;
                     if let Some(ref mut stdin) = child.stdin {
@@ -107,7 +116,10 @@ fn main() {
     let templates_dir = root_path.join("usr/share/mios/templates");
 
     if !templates_dir.is_dir() {
-        eprintln!("[compile-templates] Templates directory not found: {:?}", templates_dir);
+        eprintln!(
+            "[compile-templates] Templates directory not found: {:?}",
+            templates_dir
+        );
         std::process::exit(1);
     }
 
@@ -126,7 +138,11 @@ fn main() {
     let mut names: Vec<String> = Vec::new();
     for entry in entries.flatten() {
         let fn_str = entry.file_name().to_string_lossy().to_string();
-        if entry.path().is_dir() || fn_str.starts_with('.') || fn_str == "conformance-grandfathered.list" || fn_str == "__pycache__" {
+        if entry.path().is_dir()
+            || fn_str.starts_with('.')
+            || fn_str == "conformance-grandfathered.list"
+            || fn_str == "__pycache__"
+        {
             continue;
         }
         names.push(fn_str);
@@ -151,12 +167,18 @@ fn main() {
     }
 
     if !failures.is_empty() {
-        eprintln!("[compile-templates] FAIL: {} template(s) failed compilation/validation:", failures.len());
+        eprintln!(
+            "[compile-templates] FAIL: {} template(s) failed compilation/validation:",
+            failures.len()
+        );
         for (fn_str, err) in &failures {
             eprintln!("  {}: {}", fn_str, err);
         }
         std::process::exit(1);
     }
 
-    println!("[compile-templates] PASS: All {} templates compiled/validated successfully.", success_count);
+    println!(
+        "[compile-templates] PASS: All {} templates compiled/validated successfully.",
+        success_count
+    );
 }

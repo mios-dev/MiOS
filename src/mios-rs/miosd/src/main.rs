@@ -518,7 +518,11 @@ fn main() {
                 std::process::exit(1);
             }
         }
-        Commands::RenderRepos { online, fedora_version, output } => {
+        Commands::RenderRepos {
+            online,
+            fedora_version,
+            output,
+        } => {
             if let Err(e) = run_render_repos(*online, fedora_version, output.as_deref()) {
                 eprintln!("[miosd] Render repos error: {}", e);
                 std::process::exit(1);
@@ -537,7 +541,8 @@ fn run_overlay_bind_images(dest_dir: &str) -> Result<(), Box<dyn std::error::Err
     let bdir = std::path::Path::new(dest_dir);
     std::fs::create_dir_all(bdir)?;
 
-    let mios_toml_path = std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
+    let mios_toml_path =
+        std::env::var("MIOS_TOML").unwrap_or_else(|_| "/usr/share/mios/mios.toml".to_string());
     let mut fb_tokens: Vec<String> = Vec::new();
     if let Ok(content) = std::fs::read_to_string(&mios_toml_path) {
         for line in content.lines() {
@@ -614,8 +619,16 @@ fn run_overlay_bind_images(dest_dir: &str) -> Result<(), Box<dyn std::error::Err
     Ok(())
 }
 
-fn run_render_repos(online: bool, fedora_version: &str, output_path: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
-    let ver = if fedora_version.is_empty() { "44" } else { fedora_version };
+fn run_render_repos(
+    online: bool,
+    fedora_version: &str,
+    output_path: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let ver = if fedora_version.is_empty() {
+        "44"
+    } else {
+        fedora_version
+    };
     let vendored = std::path::Path::new("/usr/share/mios/vendored/rpms").exists() && !online;
 
     let content = if vendored {
@@ -702,7 +715,10 @@ fn run_harden() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let fapo_configs = vec!["/usr/lib/fapolicyd/fapolicyd.conf", "/etc/fapolicyd/fapolicyd.conf"];
+    let fapo_configs = vec![
+        "/usr/lib/fapolicyd/fapolicyd.conf",
+        "/etc/fapolicyd/fapolicyd.conf",
+    ];
     for cfg in fapo_configs {
         let p = std::path::Path::new(cfg);
         if p.exists() {
@@ -762,11 +778,17 @@ fn run_build_if_missing(spec: &str) -> Result<(), Box<dyn std::error::Error>> {
         _ => return Err(format!("unknown build spec '{}'", spec).into()),
     };
 
-    println!("[miosd] build-if-missing: checking spec '{}' ({})", spec, img);
+    println!(
+        "[miosd] build-if-missing: checking spec '{}' ({})",
+        spec, img
+    );
 
     let cf_path = std::path::Path::new(cf);
     if !cf_path.exists() {
-        println!("[miosd] Containerfile {} not found, dry-run skip for {}", cf, spec);
+        println!(
+            "[miosd] Containerfile {} not found, dry-run skip for {}",
+            cf, spec
+        );
         return Ok(());
     }
 
@@ -842,7 +864,10 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
             return Err("bootc switch failed".into());
         }
     } else {
-        println!("[miosd] bootc binary not found, dry-run switch for ref {}", ref_val);
+        println!(
+            "[miosd] bootc binary not found, dry-run switch for ref {}",
+            ref_val
+        );
     }
 
     let hist_dir = std::path::Path::new("/var/lib/mios");
@@ -850,7 +875,10 @@ fn run_bootc_apply(sentinel_path: &str) -> Result<(), Box<dyn std::error::Error>
     let row = format!("{}\t{}\t{}\n", chrono_now_iso(), ts, ref_val);
     let hist_file = hist_dir.join("bootc-switch-history.tsv");
     use std::io::Write;
-    let mut f = std::fs::OpenOptions::new().create(true).append(true).open(hist_file)?;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(hist_file)?;
     f.write_all(row.as_bytes())?;
 
     println!("[miosd] [ok] staged {} for next boot.", ref_val);
@@ -870,10 +898,21 @@ fn chrono_now_iso() -> String {
     let minutes = (rem_secs % 3600) / 60;
     let seconds = rem_secs % 60;
     // Approximating year/month/day calculation or epoch day representation
-    format!("{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z", 1970 + days / 365, 1, 1, hours, minutes, seconds)
+    format!(
+        "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
+        1970 + days / 365,
+        1,
+        1,
+        hours,
+        minutes,
+        seconds
+    )
 }
 
-fn run_finalize_osrelease(path: &str, ver_opt: Option<&str>) -> Result<(), Box<dyn std::error::Error>> {
+fn run_finalize_osrelease(
+    path: &str,
+    ver_opt: Option<&str>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let ver = match ver_opt {
         Some(v) => v.to_string(),
         None => {
@@ -1031,7 +1070,11 @@ fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::er
     let dir = std::path::Path::new(conf_dir);
     std::fs::create_dir_all(dir)?;
 
-    let mode = if name.is_empty() { "none" } else { "standalone" };
+    let mode = if name.is_empty() {
+        "none"
+    } else {
+        "standalone"
+    };
     let nut_conf = format!(
         "# AI-hint: NUT framework mode. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\nMODE={}\n",
         mode
@@ -1040,7 +1083,10 @@ fn run_render_nut(toml_path: &str, conf_dir: &str) -> Result<(), Box<dyn std::er
 
     let mut ups_conf = String::from("# AI-hint: NUT drivers configuration. Generated from mios.toml [power.ups] SSOT.\n# DO NOT EDIT -- edit mios.toml [power.ups] and run automation/43-nut-render.sh\n");
     if !name.is_empty() {
-        ups_conf.push_str(&format!("\n[{}]\n    driver = {}\n    port = {}\n    desc = \"{}\"\n", name, driver, port, desc));
+        ups_conf.push_str(&format!(
+            "\n[{}]\n    driver = {}\n    port = {}\n    desc = \"{}\"\n",
+            name, driver, port, desc
+        ));
     }
     std::fs::write(dir.join("ups.conf"), ups_conf)?;
 
@@ -1087,8 +1133,12 @@ fn run_render_chrony(toml_path: &str, out_path: &str) -> Result<(), Box<dyn std:
     }
 
     let mut body = String::new();
-    body.push_str("# AI-hint: NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.\n");
-    body.push_str("# DO NOT EDIT -- edit mios.toml [network.ntp] and run automation/42-chrony-render.sh\n\n");
+    body.push_str(
+        "# AI-hint: NTP configuration for Chrony. Generated from mios.toml [network.ntp] SSOT.\n",
+    );
+    body.push_str(
+        "# DO NOT EDIT -- edit mios.toml [network.ntp] and run automation/42-chrony-render.sh\n\n",
+    );
 
     for s in &servers {
         body.push_str(&format!("server {} iburst\n", s));

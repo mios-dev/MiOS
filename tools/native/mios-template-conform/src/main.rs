@@ -42,12 +42,11 @@ fn main() {
                     i += 1;
                 }
             }
-            "--max-unconforming" => {
-                if i + 1 < args.len() {
+            "--max-unconforming"
+                if i + 1 < args.len() => {
                     cli_ceiling = args[i + 1].parse().ok();
                     i += 1;
                 }
-            }
             _ => {}
         }
         i += 1;
@@ -83,7 +82,10 @@ fn main() {
     for (tname, tcfg) in templates_map {
         if let Some(match_str) = tcfg.get("match").and_then(|v| v.as_str()) {
             if let Ok(re) = Regex::new(match_str) {
-                let required_header = tcfg.get("required_header").and_then(|v| v.as_bool()).unwrap_or(true);
+                let required_header = tcfg
+                    .get("required_header")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
                 let mut required_markers = Vec::new();
                 if let Some(arr) = tcfg.get("required_markers").and_then(|v| v.as_array()) {
                     for m in arr {
@@ -106,8 +108,17 @@ fn main() {
     let mut checked_count = 0;
 
     let ignore_dirs: HashSet<&str> = [
-        ".git", "node_modules", "target", ".venv", "dist", "build", ".system_generated"
-    ].iter().cloned().collect();
+        ".git",
+        "node_modules",
+        "target",
+        ".venv",
+        "dist",
+        "build",
+        ".system_generated",
+    ]
+    .iter()
+    .cloned()
+    .collect();
 
     for entry in WalkDir::new(&root_path)
         .into_iter()
@@ -147,12 +158,21 @@ fn main() {
         for ct in &compiled_templates {
             if ct.pattern.is_match(&rel_path) {
                 if ct.required_header && !head.contains("AI-hint:") {
-                    unconforming.push((rel_path.clone(), format!("Missing AI-hint header (required by {})", ct.name)));
+                    unconforming.push((
+                        rel_path.clone(),
+                        format!("Missing AI-hint header (required by {})", ct.name),
+                    ));
                     break;
                 }
                 for marker in &ct.required_markers {
                     if !content.contains(marker) {
-                        unconforming.push((rel_path.clone(), format!("Missing required body marker {:?} (required by {})", marker, ct.name)));
+                        unconforming.push((
+                            rel_path.clone(),
+                            format!(
+                                "Missing required body marker {:?} (required by {})",
+                                marker, ct.name
+                            ),
+                        ));
                         break;
                     }
                 }
@@ -161,7 +181,12 @@ fn main() {
         }
     }
 
-    println!("[conformance] checked={} unconforming={} ceiling={}", checked_count, unconforming.len(), ceiling);
+    println!(
+        "[conformance] checked={} unconforming={} ceiling={}",
+        checked_count,
+        unconforming.len(),
+        ceiling
+    );
 
     if !unconforming.is_empty() {
         eprintln!("Non-conforming files:");
@@ -171,7 +196,11 @@ fn main() {
     }
 
     if unconforming.len() > ceiling {
-        eprintln!("FAIL: {} unconforming files exceeds ceiling {}", unconforming.len(), ceiling);
+        eprintln!(
+            "FAIL: {} unconforming files exceeds ceiling {}",
+            unconforming.len(),
+            ceiling
+        );
         std::process::exit(1);
     }
 }

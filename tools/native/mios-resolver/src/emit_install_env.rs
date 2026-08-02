@@ -5,14 +5,24 @@ use toml::Value;
 
 use crate::emit::build_exports_map;
 
-pub fn emit_install_env(merged: &Value, stack_offset: i32, _ref_names_path: Option<&Path>) -> String {
+pub fn emit_install_env(
+    merged: &Value,
+    stack_offset: i32,
+    _ref_names_path: Option<&Path>,
+) -> String {
     let mut exports = build_exports_map(merged, stack_offset);
 
     if let Some(env_table) = merged.get("env").and_then(|v| v.as_table()) {
         for (k, v) in env_table {
             let val_str = match v {
                 Value::String(s) => s.clone(),
-                Value::Boolean(b) => if *b { "true".into() } else { "false".into() },
+                Value::Boolean(b) => {
+                    if *b {
+                        "true".into()
+                    } else {
+                        "false".into()
+                    }
+                }
                 Value::Integer(i) => i.to_string(),
                 _ => v.to_string(),
             };
@@ -42,10 +52,13 @@ mod tests {
 
     #[test]
     fn test_emit_install_env() {
-        let val: Value = toml::from_str(r#"
+        let val: Value = toml::from_str(
+            r#"
 [identity]
 role = "mini"
-"#).unwrap();
+"#,
+        )
+        .unwrap();
         let env_str = emit_install_env(&val, 0, None);
         assert!(env_str.contains("MIOS_IDENTITY_ROLE=mini"));
     }
