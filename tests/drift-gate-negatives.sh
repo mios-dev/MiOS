@@ -376,15 +376,15 @@ new = t.replace('firstboot_tokens = [', 'firstboot_tokens = ["bogus_unmatched_fi
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
+    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "Generate-bake-plan.py"
     fi
 
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "Generate-bake-plan.py"
     log "Test_bake_tokens negative test passed"
 }
@@ -418,12 +418,12 @@ test_firstboot_tier() {
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
         cp "$bak_file" "$fb_list" && rm -f "$bak_file"
-        python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "Check_firstboot_tier passed despite unmatched firstboot.list entry"
     fi
 
     cp "$bak_file" "$fb_list" && rm -f "$bak_file"
-    python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "Check_firstboot_tier failed after restoration"
     log "Check_firstboot_tier negative test passed"
@@ -465,15 +465,15 @@ new = t.replace('"quay.io/poseidon/matchbox:latest"', '"quay.io/poseidon/matchbo
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    if MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
+    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         die "Generate-bake-plan.py"
     fi
 
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-    MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
         || die "Generate-bake-plan.py"
     log "Test_bake_core_reconcile negative test passed"
 }
@@ -1483,12 +1483,12 @@ test_bake_plan() {
 
         if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
             cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-            MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+            MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
             die "Check_bake_plan passed despite stale/invalid bake plan"
         fi
 
         cp "$bak_file" "$plan_file" && rm -f "$bak_file"
-        MIOS_ROOT="$ROOT" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
+        MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
             || die "Check_bake_plan failed after restoration"
     fi
@@ -1586,7 +1586,10 @@ test_guacamole_consistency() {
     local orig_val
     orig_val="$(cat "$desktop_file")"
 
-    sed -i 's/8080/9999/g' "$desktop_file"
+    # Port-agnostic injection: hardcoding the current port here means the test
+    # silently stops injecting anything the moment [ports].guacamole_web moves,
+    # and then "passes" for the wrong reason.
+    sed -i -E 's#(localhost:)[0-9]+#\19999#g' "$desktop_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_guacamole_consistency >/dev/null 2>&1; then
         echo "$orig_val" > "$desktop_file"

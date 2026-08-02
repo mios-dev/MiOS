@@ -1,12 +1,12 @@
 # AI-hint: Desktop entry for the code-server web IDE, providing a launcher for agents to identify and open the MiOS development environment at the local port 8080 via the system's default browser.
-# AI-related: localhost:8080
+# AI-related: localhost:8900
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=MiOS Code (code-server)
 GenericName=VS Code in a Browser
-Comment=Open code-server at http://localhost:8080/ in the default browser
-Exec=xdg-open http://localhost:8080/
+Comment=Open code-server at http://localhost:8900/ in the default browser
+Exec=xdg-open http://localhost:8900/
 Icon=visual-studio-code
 Categories=Development;IDE;TextEditor;
 Keywords=mios;code-server;vscode;editor;ide;git;

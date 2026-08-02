@@ -153,7 +153,7 @@ check_dead_lane() {
     done
     if [[ -n "$hits" ]]; then
         printf '%s' "$hits" >&2
-        _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane, e.g. mios-llm-light :8450"
+        _violation "retired :11434 (ollama) lane in active source config -- MiOS is /v1-only; use the live lane (mios-llm-light on \${MIOS_PORT_LLM_LIGHT})"
     else
         echo "[98-drift-checks]   no retired :11434 lane in active config"
     fi
@@ -5687,7 +5687,11 @@ for line in lines:
     k, v = parts[0], parts[1]
     val_map.setdefault(v, []).append(k)
 
-EXEMPT_VALUES = {"", "true", "false", "0", "1", "80", "443", "8080", "53", "22", "8222"}
+# Well-known/protocol values only. A MiOS-allocated port must NOT be listed
+# here -- 8222 (the old ssh port) sat in this set and silently went dead when
+# [ports.categories] moved ssh, which is exactly how a stale exemption hides a
+# real duplicate.
+EXEMPT_VALUES = {"", "true", "false", "0", "1", "80", "443", "8080", "53", "22"}
 
 dups = []
 for val, keys in val_map.items():

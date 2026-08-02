@@ -1,12 +1,12 @@
 # AI-hint: Desktop entry for the MiOS Cockpit web console, providing a shortcut to the system administration interface at port 9090 for remote management and monitoring.
-# AI-related: localhost:9090
+# AI-related: localhost:8110
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=MiOS Cockpit
 GenericName=System Console
-Comment=Open the Cockpit host web console at https://localhost:9090/
-Exec=xdg-open https://localhost:9090/
+Comment=Open the Cockpit host web console at https://localhost:8110/
+Exec=xdg-open https://localhost:8110/
 Icon=utilities-system-monitor-symbolic
 Categories=System;Network;Settings;
 Keywords=mios;cockpit;admin;console;system;

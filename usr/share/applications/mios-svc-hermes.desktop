@@ -1,12 +1,12 @@
 # AI-hint: Desktop entry for the Hermes Agent gateway, providing a shortcut to the local /v1 API surface at port 8642 for interacting with the primary MiOS AI agent.
-# AI-related: localhost:8642
+# AI-related: localhost:8720
 [Desktop Entry]
 Type=Application
 Version=1.0
 Name=MiOS Hermes Agent
 GenericName=AI Agent Gateway
 Comment=Open the Hermes-Agent /v1 surface (the LIVE MiOS agent at root)
-Exec=xdg-open http://localhost:8642/v1
+Exec=xdg-open http://localhost:8720/v1
 Icon=applications-science-symbolic
 Categories=Development;Network;
 Keywords=mios;hermes;agent;api;openai;v1;

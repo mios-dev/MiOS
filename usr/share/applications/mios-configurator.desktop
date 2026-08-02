@@ -1,5 +1,5 @@
-# AI-hint: Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:8640/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop).
-# AI-related: /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:8640/configure
+# AI-hint: Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:8700/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop).
+# AI-related: /etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:8700/configure
 [Desktop Entry]
 Type=Application
 Version=1.0
