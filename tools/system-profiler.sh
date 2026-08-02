@@ -434,8 +434,8 @@ collect_sensors_thermal() {
     print_section "Thermal Zones"
     if [ -d /sys/class/thermal ]; then
         for zone in /sys/class/thermal/thermal_zone*; do
-            if [ -e "$zone/type" ]; then
-                echo "$: $Â°C" | tee -a "$OUTPUT_FILE"
+            if [ -e "$zone/type" ] && [ -e "$zone/temp" ]; then
+                echo "$(cat "$zone/type"): $(awk '{print $1/1000}' "$zone/temp")°C" | tee -a "$OUTPUT_FILE"
             fi
         done
     fi

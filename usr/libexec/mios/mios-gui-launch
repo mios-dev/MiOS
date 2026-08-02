@@ -80,6 +80,6 @@ PID=$!
 disown "$PID" 2>/dev/null || true
 
 echo "[mios-gui-launch] dispatched pid=$PID log=$LOG_FILE"
-echo "[mios-gui-launch] verify: mios-window-active"$(basename "$APP")\""
+echo "[mios-gui-launch] verify: mios-window-active \"$(basename "$APP")\""
 
 exit 0

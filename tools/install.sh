@@ -53,7 +53,7 @@ echo "  OCI Archive: $OCI_ARCHIVE"
 echo "  Transport:   oci-archive"
 
 if (( DRY_RUN )); then
-    echo "[install.sh] DRY-RUN: Would execute -> bootc install to-disk"oci-archive:$OCI_ARCHIVE\" \"${TARGET_DISK:-/dev/sda}\""
+    echo "[install.sh] DRY-RUN: Would execute -> bootc install to-disk --target-no-signature-verification --source-imgref \"oci-archive:$OCI_ARCHIVE\" \"${TARGET_DISK:-/dev/sda}\""
     exit 0
 fi
 
