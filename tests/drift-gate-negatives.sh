@@ -67,6 +67,7 @@ test_eval_safety() {
     rm -f "$temp_verb"
 
     cat << 'EOF' > "$temp_verb"
+#!/bin/bash
 eval "$1"
 EOF
     chmod +x "$temp_verb"
