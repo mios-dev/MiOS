@@ -13,7 +13,7 @@ if [ "${1:-}" = "--config" ]; then
         fi
     done
     PG_HOST="${MIOS_PG_HOST:-localhost}"
-    PG_PORT="${MIOS_PORT_PGVECTOR:-5432}"
+    PG_PORT="${MIOS_PORT_PGVECTOR:-8600}"
     PG_USER="${MIOS_PG_USER:-mios}"
     PG_PASS="${MIOS_PG_PASS:-mios}"
     PG_DB="${MIOS_PG_DB:-mios}"
@@ -44,10 +44,10 @@ for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
 done
 
 OWUI_DB="${MIOS_OWUI_DB:-/var/lib/mios/open-webui/webui.db}"
-EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-8450}}"
+EMBED_URL="${MIOS_EMBED_URL:-http://localhost:${MIOS_PORT_LLM_LIGHT:-8500}}"
 EMBED_MODEL="${MIOS_EMBED_MODEL:-nomic-embed-text}"
 PG_HOST="${MIOS_PG_HOST:-localhost}"
-PG_PORT="${MIOS_PORT_PGVECTOR:-8432}"
+PG_PORT="${MIOS_PORT_PGVECTOR:-8600}"
 PG_USER="${MIOS_PG_USER:-mios}"
 PG_PASS="${MIOS_PG_PASS:-mios}"
 PG_DB="${MIOS_PG_DB:-mios}"

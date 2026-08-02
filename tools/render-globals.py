@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+# AI-hint: Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants and no shim indirection. --check is the drift gate.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, automation/lib/globals.ps1, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh
+# AI-functions: build_exports, expand_template, render_sh, render_ps1, main
+"""render-globals.py -- generate BOTH globals resolvers from the SSOT.
+
+automation/lib/globals.sh and globals.ps1 used to be two divergent hand-typed
+registries (~200 literals each) kept in step with mios.toml only by drift
+checks. They are now generated in full, directly, under their original names --
+every consumer that sources/dot-sources them is untouched, and there is no
+`.generated` sidecar and no shim layer.
+
+Only ONE thing cannot be a constant: the version, which is read from a file at
+run time. That logic is emitted as a preamble from this generator, so it still
+lives in exactly one place.
+
+Usage:
+    tools/render-globals.py           # write both resolvers
+    tools/render-globals.py --check   # exit 1 if either has drifted
+"""
+from __future__ import annotations
+
+import os
+import re
+import sys
+
+ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+os.environ.setdefault("MIOS_TOML_ROOT", ROOT)
+sys.path.insert(0, os.path.join(ROOT, "usr/lib/mios"))
+
+import mios_toml  # noqa: E402
+
+SH_OUT = os.path.join(ROOT, "automation/lib/globals.sh")
+PS_OUT = os.path.join(ROOT, "automation/lib/globals.ps1")
+
+# Emitted in dependency order: a template may only reference a name already set.
+_SECTION_ORDER = ("identity", "services", "image", "ports", "paths", "units", "urls")
+
+_TEMPLATE_RE = re.compile(r"\$\{(MIOS_[A-Z0-9_]+)\}")
+_UNSAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_]")
+
+
+def _sanitize(name: str) -> str:
+    """Force a legal identifier in BOTH sh and PowerShell."""
+    return _UNSAFE_NAME_RE.sub("_", name)
+
+
+def build_exports() -> dict:
+    """Resolve mios.toml exactly as userenv.sh does: walk + aliases + palette."""
+    data = mios_toml.load_merged()
+    ports = data.get("ports") or {}
+    try:
+        stack_offset = int(ports.get("stack_id", 0)) * 10000
+    except (TypeError, ValueError):
+        stack_offset = 0
+
+    exports: dict[str, str] = {}
+    for dotted, val in mios_toml.walk(data):
+        section = dotted.split(".")[0]
+        # Honour the resolver's own partition: [containers], [messages],
+        # [verbs] etc. are data, not environment. Emitting them produced
+        # invalid identifiers (a container key like `mios-llm-worker@` became
+        # MIOS_..._WORKER@_... which is neither valid sh nor valid PowerShell).
+        if section in mios_toml.EXCLUDED_SECTIONS:
+            continue
+        processed = mios_toml.process_val(dotted, val, stack_offset)
+        if processed == "":
+            continue
+        canonical = _sanitize("MIOS_" + dotted.upper().replace(".", "_"))
+        if not (section in mios_toml.WALK_MOSTLY_DEAD
+                and canonical not in mios_toml.WALK_EMIT_KEEP):
+            exports[canonical] = processed
+        for alias in mios_toml.get_aliases(dotted):
+            exports[_sanitize(alias)] = processed
+
+    for name, value in (mios_toml.colors(data) or {}).items():
+        exports.setdefault("MIOS_COLOR_" + name.upper(), value)
+
+    return {k: (v if isinstance(v, str) else str(v)) for k, v in exports.items()}
+
+
+def ordered_names(exports: dict) -> list:
+    """Names sorted so `${...}` templates resolve against earlier lines."""
+    def rank(name: str) -> tuple:
+        body = name[5:] if name.startswith("MIOS_") else name
+        for i, sec in enumerate(_SECTION_ORDER):
+            if body.startswith(sec.upper() + "_") or body == sec.upper():
+                return (i, name)
+        # a value containing a template must come after its dependencies
+        return (len(_SECTION_ORDER) if _TEMPLATE_RE.search(exports[name]) else 0, name)
+    return sorted(exports, key=rank)
+
+
+def expand_template(value: str, lang: str) -> str:
+    """Keep `${MIOS_X}` live in the emitted language rather than baking a literal."""
+    if lang == "sh":
+        return value
+    return _TEMPLATE_RE.sub(lambda m: "$($script:%s)" % m.group(1), value)
+
+
+HEADER_SH = '''#!/usr/bin/env bash
+# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
+# AI-functions: _mios_resolve_version
+#
+# Shell sibling of automation/lib/globals.ps1 -- both are rendered from the same
+# SSOT by the same generator, so they cannot diverge. Dot-source from any entry
+# point; every constant uses `:=` so an environment variable exported BEFORE
+# sourcing still wins.
+
+_mios_resolve_version() {
+    local v=""
+    if   [[ -n "${MIOS_VERSION:-}" ]];        then v="$MIOS_VERSION"
+    elif [[ -f /ctx/VERSION ]];               then v="$(cat /ctx/VERSION)"
+    elif [[ -f /usr/share/mios/VERSION ]];    then v="$(cat /usr/share/mios/VERSION)"
+    else
+        local _root
+        _root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd)"
+        if [[ -n "$_root" && -f "${_root}/VERSION" ]]; then
+            v="$(cat "${_root}/VERSION")"
+        fi
+    fi
+    printf '%s' "${v:-VERSION_FALLBACK}" | tr -d '[:space:]'
+}
+: "${MIOS_VERSION:=$(_mios_resolve_version)}"
+export MIOS_VERSION
+'''
+
+HEADER_PS = '''# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
+# AI-functions: Resolve-MiosVersion
+#
+# PowerShell sibling of automation/lib/globals.sh -- both are rendered from the
+# same SSOT by the same generator, so they cannot diverge. Dot-source from any
+# entry point:
+#
+#     . (Join-Path $PSScriptRoot 'automation/lib/globals.ps1')
+#
+# Override any constant with an environment variable BEFORE dot-sourcing -- e.g.
+# `$env:MIOS_VERSION = ' - rc1'; . globals.ps1`.
+
+function Resolve-MiosVersion {
+    if ($env:MIOS_VERSION) { return ([string]$env:MIOS_VERSION).Trim() }
+    foreach ($p in @(
+        '/ctx/VERSION',
+        '/usr/share/mios/VERSION',
+        (Join-Path $PSScriptRoot '..\\..\\VERSION')
+    )) {
+        if ($p -and (Test-Path $p)) {
+            $v = (Get-Content $p -EA SilentlyContinue | Out-String).Trim()
+            if ($v) { return $v }
+        }
+    }
+    return 'VERSION_FALLBACK'
+}
+$script:MIOS_VERSION = Resolve-MiosVersion
+'''
+
+# Windows-host paths resolve from the live environment, so they stay expressions.
+PS_HOST_PATHS = '''
+# ── WINDOWS HOST PATHS (resolved from the live environment) ──────────
+$script:MIOS_WIN_APPDATA_DIR = if ($env:APPDATA)     { $env:APPDATA }     else { "$HOME/AppData/Roaming" }
+$script:MIOS_WIN_DOCS_DIR    = if ($env:USERPROFILE) { "$env:USERPROFILE/Documents" } else { "$HOME/Documents" }
+$script:MIOS_WIN_REPO_DIR    = if ($env:MIOS_WIN_REPO_DIR) { $env:MIOS_WIN_REPO_DIR } else { "$HOME/MiOS" }
+'''
+
+
+def _sh_squote(text: str) -> str:
+    """POSIX single-quote: safe for EVERY byte, including } ( ) \\ and $."""
+    return "'" + text.replace("'", "'\"'\"'") + "'"
+
+
+def _sh_assign(name: str, value: str) -> str:
+    """Assign-if-unset without `${VAR:=...}`.
+
+    `: "${VAR:=value}"` is unusable here: a value containing `}` (message
+    templates carry `{placeholder}`) closes the expansion early and the file
+    becomes a syntax error. `[ -n "${VAR+x}" ] ||` has the same
+    already-set-wins semantics with no parsing hazard.
+    """
+    parts = _TEMPLATE_RE.split(value)
+    if len(parts) == 1:
+        rendered = _sh_squote(value)
+    else:
+        # odd indices are captured MIOS_* names -> keep them live as "$NAME"
+        chunks = []
+        for i, part in enumerate(parts):
+            if i % 2:
+                chunks.append('"${%s}"' % part)
+            elif part:
+                chunks.append(_sh_squote(part))
+        rendered = "".join(chunks) or "''"
+    return '[ -n "${%s+x}" ] || %s=%s' % (name, name, rendered)
+
+
+def _ps_assign(name: str, value: str) -> str:
+    parts = _TEMPLATE_RE.split(value)
+    if len(parts) == 1:
+        rendered = "'%s'" % value.replace("'", "''")
+    else:
+        chunks = []
+        for i, part in enumerate(parts):
+            if i % 2:
+                chunks.append("$($script:%s)" % part)
+            elif part:
+                # inside a PS double-quoted string, ` " $ are the metacharacters
+                chunks.append(part.replace("`", "``").replace('"', '`"')
+                              .replace("$", "`$"))
+        rendered = '"%s"' % "".join(chunks)
+    return "$script:%s = if ($env:%s) { $env:%s } else { %s }" % (
+        name, name, name, rendered)
+
+
+def render_sh(exports: dict, names: list, version_fallback: str) -> str:
+    lines = [HEADER_SH.replace("VERSION_FALLBACK", version_fallback)]
+    for name in names:
+        if name == "MIOS_VERSION":
+            continue
+        lines.append(_sh_assign(name, exports[name]))
+    lines.append("")
+    return "\n".join(lines)
+
+
+def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
+    lines = [HEADER_PS.replace("VERSION_FALLBACK", version_fallback)]
+    for name in names:
+        if name == "MIOS_VERSION":
+            continue
+        lines.append(_ps_assign(name, exports[name]))
+    lines.append(PS_HOST_PATHS)
+    return "\n".join(lines)
+
+
+def main() -> int:
+    check = "--check" in sys.argv
+    exports = build_exports()
+    version_fallback = exports.get("MIOS_META_VERSION") or exports.get("MIOS_VERSION") or "0.3.0"
+    names = ordered_names(exports)
+
+    outputs = {SH_OUT: render_sh(exports, names, version_fallback),
+               PS_OUT: render_ps1(exports, names, version_fallback)}
+
+    drifted = []
+    for path, body in outputs.items():
+        existing = None
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8", newline="") as fh:
+                existing = fh.read()
+        if existing != body:
+            drifted.append(path)
+            if not check:
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(body)
+
+    if check:
+        if drifted:
+            sys.stderr.write("[render-globals] resolvers are stale vs SSOT:\n")
+            for p in drifted:
+                sys.stderr.write(f"    {os.path.relpath(p, ROOT)}\n")
+            sys.stderr.write("    run: python3 tools/render-globals.py\n")
+            return 1
+        print(f"[render-globals] both resolvers match SSOT ({len(names)} constants)")
+        return 0
+
+    print(f"[render-globals] generated {len(names)} constants into "
+          f"globals.sh + globals.ps1 (no hand-written literals remain)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

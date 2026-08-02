@@ -18,7 +18,7 @@ fi
 
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp          # mios-hermes (Hermes-Agent /v1)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp     # mios-open-webui (rich chat UI)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8800}/tcp # mios-code-server (VS Code in a browser)
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8900}/tcp # mios-code-server (VS Code in a browser)
 firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp       # mios-guacamole (Browser desktop)
 firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp  # Ceph dashboard
 firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp         # K3s API
@@ -26,7 +26,7 @@ firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp             #
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_HTTP}/tcp      # mios-forge HTTP
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_SSH}/tcp       # mios-forge git+ssh
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT_LINK}/tcp    # mios-cockpit-link discovery shim
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-8053}/tcp  # mios-adguard web UI/API
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-8050}/tcp  # mios-adguard web UI/API
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp   # mios-adguard DNS (TCP: large/AXFR)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/udp   # mios-adguard DNS (UDP: normal queries)
 firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_SSH}/tcp             # host admin sshd (hardened off :22; was --add-service=ssh, which opened only 22 and locked out the 49955 sshd)

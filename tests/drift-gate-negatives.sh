@@ -1875,8 +1875,15 @@ test_no_duplicate_value_key() {
 
 test_no_hardcoded_ssot_literal() {
     log "Testing check_no_hardcoded_ssot_literal"
+    local inj_file="${ROOT}/automation/temp_inj_test_hardcode.sh"
+    echo 'echo "hardcoded fedora-99"' > "$inj_file"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1; then
+        rm -f "$inj_file"
+        die "check_no_hardcoded_ssot_literal passed despite injected hardcoded fedora-99 literal"
+    fi
+    rm -f "$inj_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1 \
-        || die "Check_no_hardcoded_ssot_literal failed"
+        || die "Check_no_hardcoded_ssot_literal failed after restoration"
     log "Test_no_hardcoded_ssot_literal passed"
 }
 
@@ -1969,6 +1976,74 @@ test_check_skip_list_covered() {
     else
         die "check_skip_list_covered failed on HEAD"
     fi
+}
+
+test_ai_manifests_fresh() {
+    log "Testing check_ai_manifests_fresh"
+    local mf="${ROOT}/tools/manifest.json"
+    local backup; backup="$(mktemp)"
+    cp "$mf" "$backup"
+    echo '{"drift":"injected"}' > "$mf"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh >/dev/null 2>&1; then
+        cp "$backup" "$mf"; rm -f "$backup"
+        die "check_ai_manifests_fresh passed despite injected manifest drift"
+    fi
+    cp "$backup" "$mf"; rm -f "$backup"
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh >/dev/null 2>&1 \
+        || die "check_ai_manifests_fresh failed after restoration"
+    log "test_ai_manifests_fresh passed"
+}
+
+test_ports_category_schema() {
+    log "Testing check_ports_category_schema"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup; backup="$(mktemp)"
+    cp "$toml" "$backup"
+
+    # Collide two categories by dragging one band on top of another.
+    python3 - "$toml" <<'PY'
+import re, sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    text = fh.read()
+# line-ending agnostic: the file is CRLF, so a literal "\n" match silently no-ops
+new, n = re.subn(r"(\[ports\.categories\.webtools\]\s*\r?\n\s*base\s*=\s*)8800",
+                 r"\g<1>8700", text, count=1)
+if n != 1:
+    sys.exit("negative-test injection did not apply")
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(new)
+PY
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_category_schema >/dev/null 2>&1; then
+        cp "$backup" "$toml"; rm -f "$backup"
+        die "check_ports_category_schema passed despite an injected category band collision"
+    fi
+    cp "$backup" "$toml"; rm -f "$backup"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_category_schema >/dev/null 2>&1 \
+        || die "check_ports_category_schema failed after restoration"
+    log "test_ports_category_schema passed"
+}
+
+test_globals_generated() {
+    log "Testing check_globals_generated"
+    local target="${ROOT}/automation/lib/globals.sh"
+    local backup; backup="$(mktemp)"
+    cp "$target" "$backup"
+
+    # Hand-edit a generated constant -- exactly what the gate exists to catch.
+    printf '\n[ -n "${MIOS_INJECTED_DRIFT+x}" ] || MIOS_INJECTED_DRIFT=1\n' >> "$target"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated >/dev/null 2>&1; then
+        cp "$backup" "$target"; rm -f "$backup"
+        die "check_globals_generated passed despite a hand-edited generated resolver"
+    fi
+    cp "$backup" "$target"; rm -f "$backup"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated >/dev/null 2>&1 \
+        || die "check_globals_generated failed after restoration"
+    log "test_globals_generated passed"
 }
 
 main() {
@@ -2069,6 +2144,9 @@ main() {
     test_pipeline_numbering
     test_value_aliases
     test_bash_phase_ratchet
+    test_ai_manifests_fresh
+    test_ports_category_schema
+    test_globals_generated
     log "All negative tests completed successfully"
 }
 

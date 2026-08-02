@@ -5196,8 +5196,8 @@ check_pipe_boundaries() {
 }
 
 check_vllm_name_canonical() {
-    if grep -rn "MIOS_AI_VLL[M]_\|MIOS_AI_SGLAN[G]_" "${ROOT}/root-manifest.json" "${ROOT}/automation/" >/dev/null 2>&1; then
-        _violation "found legacy M""IOS_AI_VLLM_ or M""IOS_AI_SGLANG_ long names in root-manifest.json or automation"
+    if grep -rn --exclude="98-drift-checks.sh" "MIOS_AI_VLL[M]_\|MIOS_AI_SGLAN[G]_" "${ROOT}/automation/" "${ROOT}/usr/lib/mios/" >/dev/null 2>&1; then
+        _violation "found legacy M""IOS_AI_VLLM_ or M""IOS_AI_SGLANG_ long names in active code or automation"
     else
         echo "[98-drift-checks]   vLLM / SGLang canonical names reconciled to short consumer form"
     fi
@@ -5792,14 +5792,17 @@ PY
 }
 
 check_no_hardcoded_ssot_literal() {
-    echo "[98-drift-checks]   checking for hardcoded fedora-XX strings"
+    echo "[98-drift-checks]   checking for hardcoded fedora-XX / version literals"
     local hardcodes
-    hardcodes=$(grep -rE "fedora-[0-9]{2}" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" || true)
+    # Keep usr/share/containers in scope: the Quadlets are exactly where a
+    # baked fedora-NN would land (they carry ${FEDORA_VERSION} placeholders,
+    # which the fedora-\$ filter below exempts).
+    hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/knowledge/" | grep -v "/configurator/" || true)
     
     if [[ -n "$hardcodes" ]]; then
-        local violations=$(echo "$hardcodes" | grep -vE "fedora-\\\$|fedora-%")
+        local violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
         if [[ -n "$violations" ]]; then
-            _violation "Hardcoded fedora-XX strings found in SSOT (use \${FEDORA_VERSION} instead):"
+            _violation "Hardcoded version literals found in SSOT (use \${FEDORA_VERSION} / \${MIOS_K3S_VERSION} instead):"
             echo "$violations" | head -n 10 >&2
         fi
     fi
@@ -5919,6 +5922,50 @@ PY
         echo "[98-drift-checks]   workflow skip-list coverage and parity verified"
     else
         _violation "workflow skip-list coverage or parity failure"
+    fi
+}
+
+# Both renderers resolve mios.toml through the shared layered resolver, which
+# honours MIOS_ROOT / MIOS_TOML* from the environment. The gate runs with
+# userenv.sh sourced, so those point at the INSTALLED system, not the tree under
+# test -- pin every tier to $ROOT or the check silently grades the wrong file.
+_render_env() {
+    printf '%s\n' \
+        "MIOS_ROOT=$ROOT" \
+        "MIOS_TOML_ROOT=$ROOT" \
+        "MIOS_TOML=$ROOT/usr/share/mios/mios.toml" \
+        "MIOS_VENDOR_TOML=$ROOT/usr/share/mios/mios.toml" \
+        "MIOS_VENDOR_TOML_D=$ROOT/usr/lib/mios/mios.d" \
+        "MIOS_HOST_TOML=$ROOT/etc/mios/mios.toml" \
+        "MIOS_HOST_TOML_D=$ROOT/etc/mios/mios.d" \
+        "MIOS_USER_TOML=$ROOT/.mios-absent.toml" \
+        "MIOS_USER_TOML_D=$ROOT/.mios-absent.d"
+}
+
+check_ports_category_schema() {
+    echo "[98-drift-checks]   checking port category schema (allocation + collisions)"
+    local out
+    if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-ports.py --check 2>&1); then
+        printf '%s\n' "$out" | head -n 20 >&2
+        _violation "port schema drift: every port must derive from [ports.categories] (base + index*stride), belong to exactly one category, and not collide -- run tools/render-ports.py"
+    fi
+}
+
+check_globals_generated() {
+    echo "[98-drift-checks]   checking generated globals resolvers match SSOT"
+    local out
+    if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-globals.py --check 2>&1); then
+        printf '%s\n' "$out" | head -n 10 >&2
+        _violation "automation/lib/globals.{sh,ps1} are stale -- they are GENERATED IN FULL from mios.toml; run tools/render-globals.py (never hand-edit them)"
+    fi
+}
+
+check_ai_manifests_fresh() {
+    echo "[98-drift-checks]   checking AI manifest freshness"
+    # generate-ai-manifest.py resolves its targets and relpaths against the CWD,
+    # so it MUST run from $ROOT or it compares the wrong (or no) trees.
+    if ! ( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check ) >/dev/null 2>&1; then
+        _violation "AI manifests are stale or out of date (run python3 tools/generate-ai-manifest.py to refresh)"
     fi
 }
 
@@ -6059,11 +6106,15 @@ main() {
     check_no_duplicate_value_key
     check_pipeline_numbering
     check_value_aliases
+
     check_no_hardcoded_ssot_literal
     check_bash_phase_ratchet
     check_no_silent_tool_skips
     check_negatives_are_effective
     check_skip_list_covered
+    check_ai_manifests_fresh
+    check_ports_category_schema
+    check_globals_generated
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

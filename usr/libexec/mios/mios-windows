@@ -65,7 +65,7 @@ _mios_executor_endpoint() {
     fi
     if [ -z "$_ep" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
         _gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}')"
-        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_PORT_OSCONTROL:-11437}"
+        [ -n "$_gw" ] && _ep="http://${_gw}:${MIOS_PORT_OSCONTROL:-8950}"
     fi
     printf '%s' "${_ep%/}"
 }

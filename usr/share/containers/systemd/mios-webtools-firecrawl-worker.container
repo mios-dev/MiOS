@@ -11,7 +11,7 @@ ContainerName=mios-webtools-firecrawl-worker
 Environment=REDIS_URL=redis://127.0.0.1:6380
 Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
 Environment=HOST=127.0.0.1
-Environment=PORT=${MIOS_PORT_FIRECRAWL}
+Environment=PORT=${MIOS_PORT_FIRECRAWL:-8820}
 Environment=USE_DB_AUTHENTICATION=false
 Environment=NUM_WORKERS_PER_QUEUE=2
 Environment=PLAYWRIGHT_MICROSERVICE_URL=

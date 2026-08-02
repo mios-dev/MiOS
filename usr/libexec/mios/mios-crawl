@@ -28,7 +28,7 @@ answer from the fetched markdown.
 
 SSOT (env rendered from mios.toml [crawl] via globals/userenv):
   MIOS_CRAWL_SERVICE_URL  base URL of the local crawl service
-                          (default http://127.0.0.1:${MIOS_PORT_CRAWL4AI:-11235})
+                          (default http://127.0.0.1:${MIOS_PORT_CRAWL4AI:-8810})
 
 Usage:
   mios-crawl <http(s)-url> [--max-chars N] [--camoufox] [--timeout S] [--json]

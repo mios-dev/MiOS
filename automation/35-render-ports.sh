@@ -20,6 +20,47 @@ fi
 
 sed -i '/^MIOS_PORT_/d' "$ENV_FILE"
 
+# Ports are ALLOCATED from [ports.categories] (base + index*stride), not read
+# off the flat table -- and the allocation must honour the layered override
+# chain (vendor/OEM default < /etc operator < user). The shared resolver is the
+# only thing that does both, so prefer it; the awk fallback below can only see
+# the flat vendor projection and exists purely so a stripped build host without
+# python still produces SOMETHING rather than an empty install.env.
+if command -v python3 >/dev/null 2>&1; then
+    if python3 - "$ENV_FILE" <<'PY'
+import sys, os
+for cand in ("/usr/lib/mios", os.path.join(os.path.dirname(os.path.abspath(__file__)), "../usr/lib/mios")):
+    if os.path.isdir(cand):
+        sys.path.insert(0, cand)
+try:
+    import mios_toml
+except Exception:
+    sys.exit(1)
+
+merged = mios_toml.load_merged()
+ports = merged.get("ports") or {}
+try:
+    offset = int(ports.get("stack_id", 0)) * 10000
+except (TypeError, ValueError):
+    offset = 0
+
+lines = []
+for name, value in sorted(ports.items()):
+    if name in ("stack_id", "categories") or not isinstance(value, int):
+        continue
+    lines.append("MIOS_PORT_%s=%d" % (name.upper(), value if value == 53 else value + offset))
+if not lines:
+    sys.exit(1)
+with open(sys.argv[1], "a", encoding="utf-8") as fh:
+    fh.write("\n".join(lines) + "\n")
+PY
+    then
+        mios_ok "Wrote MIOS_PORT_* to $ENV_FILE via the layered SSOT allocator"
+        exit 0
+    fi
+    mios_skip "SSOT allocator unavailable; falling back to flat-table awk"
+fi
+
 awk '
 BEGIN { stack_id = 0 }
 /^\[ports\]/ {flag=1; next}

@@ -44,10 +44,10 @@ EOF
     fi
 }
 
-CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 "http://localhost:${MIOS_PORT_AGENT_PIPE:-8640}/configure" || echo "000")
+CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 1 "http://localhost:${MIOS_PORT_AGENT_PIPE:-8700}/configure" || echo "000")
 
 if [[ "$CODE" == "303" || "$CODE" == "200" ]]; then
-    URL="http://localhost:${MIOS_PORT_AGENT_PIPE:-8640}/configure"
+    URL="http://localhost:${MIOS_PORT_AGENT_PIPE:-8700}/configure"
 else
     stage_offline
     URL="file://$DL_DIR/mios-configurator.html"

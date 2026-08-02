@@ -64,6 +64,10 @@ def generate_referenced_vars(root):
         "usr/libexec/mios/system-sync-env.sh",
         "usr/share/mios/names.generated.txt",
         "usr/share/doc/mios/reference/naming-unification.md",
+        # Generated in full by tools/render-globals.py -- they DEFINE the whole
+        # namespace, they do not consume it. Scanning them makes the registry
+        # circular: every emitted name would count as a reference to itself.
+        "automation/lib/globals.sh", "automation/lib/globals.ps1",
     )
     var_re = re.compile(r"MIOS_[A-Z0-9_]+")
     consumer_globs = ("*.container", "*.service", "*.timer", "*.py", "*.sh", "*.toml",
@@ -98,7 +102,9 @@ def generate_referenced_vars(root):
                 with open(path, encoding="utf-8", errors="ignore") as fh:
                     for line in fh:
                         for m in var_re.finditer(line):
-                            v = m.group(0)
+                            v = m.group(0).rstrip("_")
+                            if not v or v == "MIOS":
+                                continue
                             if re.match(rf"\s*(export\s+)?{v}=", line):
                                 continue
                             refs.add(v)
@@ -119,7 +125,9 @@ def generate_referenced_vars(root):
                     with open(path, encoding="utf-8", errors="ignore") as fh:
                         for line in fh:
                             for m in var_re.finditer(line):
-                                v = m.group(0)
+                                v = m.group(0).rstrip("_")
+                                if not v or v == "MIOS":
+                                    continue
                                 if re.match(rf"\s*(export\s+)?{v}=", line):
                                     continue
                                 refs.add(v)

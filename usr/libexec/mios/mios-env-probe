@@ -10,8 +10,8 @@ if [ -r /etc/mios/install.env ]; then
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
-_PORT_AGENT_PIPE="${MIOS_PORT_AGENT_PIPE:-8640}"
-_PORT_LLM_LIGHT="${MIOS_PORT_LLM_LIGHT:-8450}"
+_PORT_AGENT_PIPE="${MIOS_PORT_AGENT_PIPE:-8700}"
+_PORT_LLM_LIGHT="${MIOS_PORT_LLM_LIGHT:-8500}"
 
 
 MODE="${1:-brief}"
@@ -86,7 +86,7 @@ SVC_BROWSER=$(_svc_active mios-hermes-browser.service)
 SVC_CROND=$(_svc_active crond.service)
 SVC_ATD=$(_svc_active atd.service)
 
-LLM_MODELS="$( (curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8450}/v1/models 2>/dev/null || true) \
+LLM_MODELS="$( (curl -sS --max-time 2 http://127.0.0.1:${MIOS_PORT_LLM_LIGHT:-8500}/v1/models 2>/dev/null || true) \
     | python3 -c 'import sys, json
 try:
   d = json.load(sys.stdin)

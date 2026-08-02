@@ -397,12 +397,12 @@ if [ -r /etc/mios/install.env ]; then
     set +u; set -a; . /etc/mios/install.env 2>/dev/null || true; set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
-_SVC_PORT_COCKPIT="${MIOS_PORT_COCKPIT:-8090}"
-_SVC_PORT_OWUI="${MIOS_PORT_OPEN_WEBUI:-8033}"
-_SVC_PORT_HERMES="${MIOS_PORT_HERMES:-8642}"
-_SVC_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8641}"
-_SVC_PORT_SEARXNG="${MIOS_PORT_SEARXNG:-8899}"
-_SVC_PORT_FORGE="${MIOS_PORT_FORGE_HTTP:-8300}"
+_SVC_PORT_COCKPIT="${MIOS_PORT_COCKPIT:-8110}"
+_SVC_PORT_OWUI="${MIOS_PORT_OPEN_WEBUI:-8200}"
+_SVC_PORT_HERMES="${MIOS_PORT_HERMES:-8720}"
+_SVC_PORT_PREFILTER="${MIOS_PORT_PREFILTER:-8710}"
+_SVC_PORT_SEARXNG="${MIOS_PORT_SEARXNG:-8800}"
+_SVC_PORT_FORGE="${MIOS_PORT_FORGE_HTTP:-8400}"
 emit service-url "cockpit"   "Web system console"                                   "mios-open-url http://localhost:${_SVC_PORT_COCKPIT}"
 emit service-url "owui"      "MiOS Open WebUI (browser chat front)"                 "mios-open-url http://localhost:${_SVC_PORT_OWUI}"
 emit service-url "hermes"    "Hermes-Agent OpenAI gateway"                          "mios-open-url http://localhost:${_SVC_PORT_HERMES}/v1"

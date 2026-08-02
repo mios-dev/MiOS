@@ -41,6 +41,17 @@ def _sidecar_image(var_name: str):
     val = _SIDECARS.get(m.group(1).lower())
     return val if isinstance(val, str) and val else None
 
+_PLACEHOLDER_VARS: set[str] = {"FEDORA_VERSION", "MIOS_VERSION"}
+
+def load_placeholders(toml_path: str) -> set[str]:
+    try:
+        with open(toml_path, "rb") as f:
+            d = tomllib.load(f)
+        phs = (d.get("generator") or {}).get("placeholders") or []
+        return set(phs) | {"FEDORA_VERSION", "MIOS_VERSION"}
+    except Exception:
+        return {"FEDORA_VERSION", "MIOS_VERSION"}
+
 def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     if isinstance(val, list):
         return [resolve_env_vars(x) for x in val]
@@ -56,12 +67,7 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
     def repl_fallback(m):
         var_name = m.group(1)
         fallback = m.group(2)
-        if var_name.startswith("MIOS_PORT_"):
-            return f"${{{var_name}}}"
-        # FEDORA_VERSION floats from SSOT: keep it a placeholder (like MIOS_PORT_*) so the
-        # committed Quadlet is NOT baked to a hardcoded fedora-NN at generation. Resolved at
-        # build/render, keeping check_pod_quadlets and check_no_hardcoded_ssot_literal both happy.
-        if var_name == "FEDORA_VERSION":
+        if var_name.startswith("MIOS_PORT_") or var_name in _PLACEHOLDER_VARS or var_name.endswith("_VERSION"):
             return m.group(0)
         env_val = _env(var_name)
         if env_val is not None:
@@ -74,9 +80,7 @@ def resolve_env_vars(val: str | bool | list | dict) -> str | bool | list | dict:
 
     def repl_var(m):
         var_name = m.group(1)
-        if var_name.startswith("MIOS_PORT_"):
-            return m.group(0)
-        if var_name == "FEDORA_VERSION":
+        if var_name.startswith("MIOS_PORT_") or var_name in _PLACEHOLDER_VARS or var_name.endswith("_VERSION"):
             return m.group(0)
         env_val = _env(var_name)
         if env_val is not None:
@@ -99,6 +103,10 @@ ROOT = os.environ.get("MIOS_ROOT") or os.path.dirname(
 TOML = os.environ.get("MIOS_TOML") or os.path.join(ROOT, "usr/share/mios/mios.toml")
 OUT_DIR = os.environ.get("MIOS_POD_OUT") or os.path.join(
     ROOT, "usr/share/containers/systemd")
+
+# The preserve-as-placeholder var set is operator-defined in [generator].
+# Resolve it here (TOML is known) rather than leaving the renderer hardcoded.
+_PLACEHOLDER_VARS = load_placeholders(TOML)
 
 
 def _wrap_doc(doc: str, width: int = 76) -> "list[str]":

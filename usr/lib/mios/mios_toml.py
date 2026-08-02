@@ -106,17 +106,90 @@ def _load_one(path):
         return {}
 
 
+import json
+import shutil
+import subprocess
+
+def _native_resolver_json():
+    if os.environ.get("MIOS_RESOLVER_NATIVE") == "0":
+        return None
+    binary = shutil.which("mios-resolver")
+    if not binary:
+        return None
+    try:
+        res = subprocess.run([binary, "--emit=json"], capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            return json.loads(res.stdout)
+    except Exception:
+        pass
+    return None
+
 _LOAD_MERGED_CACHE = None
 
 def clear_cache():
     global _LOAD_MERGED_CACHE
     _LOAD_MERGED_CACHE = None
 
+
+def derive_ports(merged):
+    """Allocate every [ports] value from the [ports.categories] schema, IN PLACE.
+
+    This runs AFTER layer merging, so it is the live runtime allocator: a
+    factory/OEM default in the vendor mios.toml, an operator override in
+    /etc/mios/mios.toml, or a user override in ~/.config/mios/mios.toml all feed
+    the same derivation and the result is what every consumer sees -- userenv.sh
+    exports, /etc/mios/install.env, the Quadlet render, the firewall phases and
+    the Containerfile build args.
+
+    A member's port is  base + index_in_members * stride.  Because `members` is
+    ordered, adding or removing a service reallocates the category with no hand
+    edit and no chance of a collision. `pinned` entries are protocol contracts
+    (DNS/53) and are emitted verbatim.
+
+    The flat [ports] table in the vendor file is a rendered projection kept for
+    readability and drift-gating; the derivation OVERRIDES it, so an operator who
+    retargets a category base is never silently beaten by a stale vendor literal.
+    """
+    ports = merged.get("ports")
+    if not isinstance(ports, dict):
+        return merged
+    cats = ports.get("categories")
+    if not isinstance(cats, dict):
+        return merged
+
+    for _cat, cfg in sorted(cats.items()):
+        if not isinstance(cfg, dict):
+            continue
+        try:
+            base = int(cfg.get("base", 0))
+            stride = int(cfg.get("stride", 1))
+        except (TypeError, ValueError):
+            continue
+        members = cfg.get("members")
+        if isinstance(members, list):
+            for idx, member in enumerate(members):
+                if isinstance(member, str) and member:
+                    ports[member] = base + idx * stride
+        pinned = cfg.get("pinned")
+        if isinstance(pinned, dict):
+            for name, value in pinned.items():
+                try:
+                    ports[name] = int(value)
+                except (TypeError, ValueError):
+                    continue
+    return merged
+
 def load_merged(layers=None):
     """Full three-layer overlay (vendor < host < user), highest wins."""
     global _LOAD_MERGED_CACHE
     if layers is None and _LOAD_MERGED_CACHE is not None:
         return _LOAD_MERGED_CACHE
+
+    if layers is None:
+        nat = _native_resolver_json()
+        if nat and "merged" in nat:
+            _LOAD_MERGED_CACHE = derive_ports(nat["merged"])
+            return _LOAD_MERGED_CACHE
 
     merged = {}
     for p in (layers if layers is not None else layer_paths()):
@@ -131,6 +204,11 @@ def load_merged(layers=None):
                     deep_merge(merged, db_cfg)
         except Exception:
             pass
+
+    # Allocate ports from [ports.categories] AFTER every layer (and the DB
+    # overlay) has merged, so operator/user overrides of a category base or
+    # member list re-derive live instead of losing to the vendor flat table.
+    derive_ports(merged)
 
     if layers is None:
         _LOAD_MERGED_CACHE = merged
@@ -350,6 +428,20 @@ def get_aliases(dotted_path):
             aliases.append("MIOS_LAUNCHER_SOCKET")
         else:
             aliases.append(f"MIOS_{name}")
+
+    elif dotted_path.startswith("units."):
+        # [units].forge -> MIOS_UNIT_FORGE (the name every consumer already uses)
+        aliases.append("MIOS_UNIT_" + dotted_path[len("units."):].upper())
+
+    elif dotted_path.startswith("urls."):
+        # [urls].forge -> MIOS_FORGE_URL; the two repo URLs keep their own shape.
+        name = dotted_path[len("urls."):].upper()
+        if name in ("REPO", "BOOTSTRAP_REPO"):
+            aliases.append(f"MIOS_{name}_URL")
+        elif name == "LOCAL_FORGE_REPO":
+            aliases.append("MIOS_LOCAL_FORGE_REPO")
+        else:
+            aliases.append(f"MIOS_{name}_URL")
 
     elif dotted_path.startswith("pgvector.") or dotted_path.startswith("pg."):
         prefix_len = len("pgvector.") if dotted_path.startswith("pgvector.") else len("pg.")

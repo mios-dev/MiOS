@@ -107,7 +107,7 @@ fi
     _OSC_EP="$(awk -F\" '/^[[:space:]]*executor_endpoint[[:space:]]*=/{print $2; exit}' /usr/share/mios/mios.toml 2>/dev/null)"
 if [ -z "$_OSC_EP" ] && grep -qiE 'microsoft|wsl' /proc/sys/kernel/osrelease 2>/dev/null; then
     _osc_gw="$(ip route show default 2>/dev/null | awk '/default/{print $3; exit}' || true)"
-    [ -n "$_osc_gw" ] && _OSC_EP="http://${_osc_gw}:${MIOS_PORT_OSCONTROL:-11437}"
+    [ -n "$_osc_gw" ] && _OSC_EP="http://${_osc_gw}:${MIOS_PORT_OSCONTROL:-8950}"
 fi
 _OSC_EP="${_OSC_EP%/}"
 
