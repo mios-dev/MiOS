@@ -5841,6 +5841,44 @@ PY
     fi
 }
 
+check_skip_list_covered() {
+    echo "[98-drift-checks]   checking workflow skip-list coverage and parity"
+    local gh_wf="${ROOT}/.github/workflows/mios-ci.yml"
+    local fj_wf="${ROOT}/.forgejo/workflows/build-mios.yml"
+    [[ -f "$gh_wf" && -f "$fj_wf" ]] || return 0
+
+    if python3 - "$gh_wf" "$fj_wf" <<'PY'
+import sys, re
+
+gh_path, fj_path = sys.argv[1], sys.argv[2]
+with open(gh_path, encoding="utf-8") as f:
+    gh_content = f.read()
+with open(fj_path, encoding="utf-8") as f:
+    fj_content = f.read()
+
+m_gh = re.search(r'SKIP="([^"]+)"', gh_content)
+m_fj = re.search(r'SKIP="([^"]+)"', fj_content)
+
+if not m_gh or not m_fj:
+    sys.stderr.write("    [skip-list-covered] SKIP= list missing in workflows\n")
+    sys.exit(1)
+
+gh_skip = set(m_gh.group(1).split())
+fj_skip = set(m_fj.group(1).split())
+
+if gh_skip != fj_skip:
+    sys.stderr.write(f"    [skip-list-covered] GitHub and Forgejo skip lists diverge: {gh_skip ^ fj_skip}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[98-drift-checks]   workflow skip-list coverage and parity verified"
+    else
+        _violation "workflow skip-list coverage or parity failure"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -5982,6 +6020,7 @@ main() {
     check_bash_phase_ratchet
     check_no_silent_tool_skips
     check_negatives_are_effective
+    check_skip_list_covered
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

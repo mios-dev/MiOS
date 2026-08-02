@@ -1953,6 +1953,15 @@ test_check_negatives_are_effective() {
     fi
 }
 
+test_check_skip_list_covered() {
+    log "Testing check_skip_list_covered..."
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_skip_list_covered >/dev/null 2>&1; then
+        log "check_skip_list_covered passed on HEAD"
+    else
+        die "check_skip_list_covered failed on HEAD"
+    fi
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -1966,6 +1975,7 @@ main() {
     test_version_ssot
     test_check_no_silent_tool_skips
     test_check_negatives_are_effective
+    test_check_skip_list_covered
     test_resolver_equivalence
     test_eval_safety
     test_shellcheck_failure
