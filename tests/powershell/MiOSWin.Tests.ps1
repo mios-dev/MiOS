@@ -7,6 +7,9 @@ $winModulePath = Join-Path $scriptDir '../../automation/lib/MiOS.Win.psm1'
 
 Describe "MiOS.Win.psm1 Module" {
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $winModulePath = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Win.psm1'
         Import-Module $winModulePath -Force -Global
     }
 

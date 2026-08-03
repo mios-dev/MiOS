@@ -9,6 +9,9 @@ Describe "MiOS.Console.psm1 Module" {
     # Top-level Import-Module runs during Pester 5 DISCOVERY, not run; the
     # imported commands are not reliably visible to the It blocks.
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $consoleModulePath = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Console.psm1'
         Import-Module $consoleModulePath -Force -Global
     }
 

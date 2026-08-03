@@ -3,6 +3,9 @@ $modulePath = Join-Path $here '../../automation/lib/MiOS.Log.psm1'
 
 Describe 'MiOS.Log.psm1 Module' {
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $modulePath = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Log.psm1'
         Import-Module $modulePath -Force -Global
     }
 

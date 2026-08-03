@@ -10,6 +10,9 @@ Describe "MiOS.Build Sub-modules" {
     # is invisible to the next -- which is why Format-BuildSpan was reported as
     # "not recognized". Import once, in BeforeAll.
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $buildModuleDir = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Build'
         $script:buildFiles = @(Get-ChildItem -Path $buildModuleDir -Filter '*.psm1')
         foreach ($f in $script:buildFiles) {
             Import-Module $f.FullName -Force -Global

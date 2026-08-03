@@ -9,6 +9,9 @@ Describe "MiOS.Install Sub-modules" {
     # Import once in BeforeAll: Pester 5 isolates each It, so modules imported
     # inside one are invisible to the next.
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $installModuleDir = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Install'
         $script:installFiles = @(Get-ChildItem -Path $installModuleDir -Filter '*.psm1')
         foreach ($f in $script:installFiles) {
             Import-Module $f.FullName -Force -Global
@@ -30,10 +33,14 @@ Describe "MiOS.Install Sub-modules" {
     }
 
     It "Should return existing target dir when sentinel exists" {
-        $common = Join-Path $scriptDir '../../installation/mios-common.ps1'
+        # $scriptDir is discovery-phase and null here; $env:TEMP does not exist
+        # on Linux, where CI runs pwsh; and 'cat\autounattend' is not a path
+        # there either.
+        $common = Join-Path $PSScriptRoot '../../installation/mios-common.ps1'
         . $common
-        $tempDir = Join-Path $env:TEMP ('mios-test-sentinel-' + [Guid]::NewGuid().ToString('N'))
-        $sentinelDir = Join-Path $tempDir 'cat\autounattend'
+        $tempRoot = [System.IO.Path]::GetTempPath()
+        $tempDir = Join-Path $tempRoot ('mios-test-sentinel-' + [Guid]::NewGuid().ToString('N'))
+        $sentinelDir = Join-Path $tempDir 'cat/autounattend'
         New-Item -ItemType Directory -Force -Path $sentinelDir | Out-Null
         Set-Content -Path (Join-Path $sentinelDir 'Build-MiOSXboxISO.ps1') -Value '# test sentinel'
         try {

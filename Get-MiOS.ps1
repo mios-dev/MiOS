@@ -113,28 +113,56 @@ Disable-ConsoleQuickEdit
 # FIRST (this router precedes the bootstrap). Fetch it here (git if present, else a GitHub zip)
 # so a factory Windows can go straight from the web one-liner to a build/flash with no manual clone.
 function Ensure-MiosBootstrapRepo {
-    $root = 'C:\mios-bootstrap'
-    if (Test-Path (Join-Path $root 'cat\autounattend\Build-MiOSXboxISO.ps1')) { return $root }
-    Write-Host "  [*] mios-bootstrap not present -- fetching it for this action (bare-Windows path)..." -ForegroundColor Cyan
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-        try { & git clone --depth 1 'https://github.com/mios-dev/mios-bootstrap.git' $root 2>&1 | Out-Null } catch {}
+    param(
+        [string]$TargetDir = 'C:\mios-bootstrap',
+        [string]$RepoUrl = 'https://github.com/mios-dev/mios-bootstrap.git',
+        [string]$ZipUrl = 'https://codeload.github.com/mios-dev/mios-bootstrap/zip/refs/heads/main',
+        [string]$SentinelFile = 'cat\autounattend\Build-MiOSXboxISO.ps1'
+    )
+    if (Get-Command Get-MiosTomlValue -ErrorAction SilentlyContinue) {
+        # The clone URL lives in [urls].bootstrap_repo -- NOT [bootstrap].mios_repo,
+        # which is the LOCAL MiOS checkout path (C:/MiOS). Reading mios_repo here
+        # would hand a filesystem path to `git clone <url>`.
+        $cfgRepo = Get-MiosTomlValue -Key 'urls.bootstrap_repo' -Default $RepoUrl
+        if ($cfgRepo) { $RepoUrl = $cfgRepo }
+        $cfgDir = Get-MiosTomlValue -Key 'bootstrap.bootstrap_repo' -Default $TargetDir
+        if ($cfgDir) { $TargetDir = $cfgDir }
     }
-    if (-not (Test-Path (Join-Path $root 'cat\autounattend\Build-MiOSXboxISO.ps1'))) {
+
+    $sentinelPath = Join-Path $TargetDir $SentinelFile
+    if (Test-Path $sentinelPath) { return $TargetDir }
+
+    Write-Host "  [*] mios-bootstrap repo missing -- fetching to $TargetDir ..." -ForegroundColor Cyan
+
+    if (Get-Command git -ErrorAction SilentlyContinue) {
+        try { & git clone --depth 1 $RepoUrl $TargetDir 2>&1 | Out-Null } catch {}
+    }
+
+    if (-not (Test-Path $sentinelPath)) {
         $zip = Join-Path $env:TEMP 'mios-bootstrap.zip'
         $tmp = Join-Path $env:TEMP ('mios-bs-' + [System.Guid]::NewGuid().ToString('N').Substring(0,8))
         try {
             [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-            Invoke-WebRequest -Uri 'https://codeload.github.com/mios-dev/mios-bootstrap/zip/refs/heads/main' -OutFile $zip -UseBasicParsing -ErrorAction Stop
+            Invoke-WebRequest -Uri $ZipUrl -OutFile $zip -UseBasicParsing -ErrorAction Stop
             Expand-Archive -Path $zip -DestinationPath $tmp -Force
             $inner = Get-ChildItem $tmp -Directory | Select-Object -First 1
-            if ($inner) { New-Item -ItemType Directory -Force -Path $root | Out-Null; Copy-Item -Path (Join-Path $inner.FullName '*') -Destination $root -Recurse -Force }
+            if ($inner) {
+                New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
+                Copy-Item -Path (Join-Path $inner.FullName '*') -Destination $TargetDir -Recurse -Force
+            }
         } catch {
             Write-Host "  [!] Could not fetch mios-bootstrap: $($_.Exception.Message)" -ForegroundColor Yellow
         } finally {
             Remove-Item $zip,$tmp -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
-    return $root
+
+    if (-not (Test-Path $sentinelPath)) {
+        Write-Error "Failed to fetch mios-bootstrap repository to $TargetDir (sentinel $SentinelFile missing)"
+        exit 1
+    }
+
+    return $TargetDir
 }
 
 # Consolidated Action Router

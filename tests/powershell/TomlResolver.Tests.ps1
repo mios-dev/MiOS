@@ -7,6 +7,9 @@ $modulePath = Join-Path $scriptDir '../../automation/lib/MiOS.Toml.psm1'
 
 Describe "MiOS.Toml.psm1 Module" {
     BeforeAll {
+        # Pester 5 runs BeforeAll in a different scope from the
+        # discovery-phase top level, so recompute paths here.
+        $modulePath = Join-Path $PSScriptRoot '../../automation/lib/MiOS.Toml.psm1'
         Import-Module $modulePath -Force -Global
         # The resolver must find the repo's SSOT when no MiOS host install
         # exists (CI runs pwsh on a bare Linux runner).
