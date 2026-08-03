@@ -27,6 +27,29 @@ function Resolve-MiosVersion {
 }
 $script:MIOS_VERSION = Resolve-MiosVersion
 
+function Resolve-MiosDistro {
+    param([string]$Default = 'podman-MiOS-DEV')
+    if ($env:MIOS_WSL_DISTRO) { return $env:MIOS_WSL_DISTRO }
+    try {
+        $lxss = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss'
+        if (Test-Path $lxss) {
+            $all = @(Get-ChildItem $lxss -ErrorAction SilentlyContinue |
+                     ForEach-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DistributionName } |
+                     Where-Object { $_ })
+            $resolved = ($all | Where-Object { $_ -match 'MiOS' } | Select-Object -First 1)
+            if ($resolved) { return $resolved }
+            $defGuid = (Get-ItemProperty $lxss -Name DefaultDistribution -ErrorAction SilentlyContinue).DefaultDistribution
+            if ($defGuid) {
+                $defName = (Get-ItemProperty (Join-Path $lxss $defGuid) -ErrorAction SilentlyContinue).DistributionName
+                if ($defName) { return $defName }
+            }
+            if ($all.Count -gt 0) { return $all[0] }
+        }
+    } catch {}
+    return $Default
+}
+$script:MIOS_WSL_DISTRO = Resolve-MiosDistro
+
 $script:MIOS_A2A_COUNCIL = if ($env:MIOS_A2A_COUNCIL) { $env:MIOS_A2A_COUNCIL } else { 'false' }
 $script:MIOS_A2A_DISCOVER_PORT = if ($env:MIOS_A2A_DISCOVER_PORT) { $env:MIOS_A2A_DISCOVER_PORT } else { 8700 }
 $script:MIOS_A2A_MDNS_ADVERTISE = if ($env:MIOS_A2A_MDNS_ADVERTISE) { $env:MIOS_A2A_MDNS_ADVERTISE } else { 'false' }

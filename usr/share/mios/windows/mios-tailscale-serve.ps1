@@ -81,7 +81,7 @@ $SERVICES = @(
     @{ port=$cephPort;       name='ceph';        label='Ceph dashboard' }
 )
 
-$DISTRO = 'podman-MiOS-DEV'
+$DISTRO = if (Get-Command Resolve-MiosDistro -ErrorAction SilentlyContinue) { Resolve-MiosDistro } else { 'podman-MiOS-DEV' }
 
 # Liveness is checked IN THE VM, not on Windows 127.0.0.1. The services run in the
 # WSL2 VM; a Windows-side TCP probe false-positives when a Windows process shadows

@@ -6111,6 +6111,7 @@ main() {
     check_windows_exe_provenance
     check_unpinned_runtime_fetches
     check_secret_handling
+    check_wsl_distro_resolution
 
 
     check_chrony_ptp_dropin
@@ -6436,6 +6437,24 @@ check_secret_handling() {
         fi
     done
     echo "[98-drift-checks]   No PS script writes secrets to plaintext %TEMP% files"
+}
+
+check_wsl_distro_resolution() {
+    echo "[98-drift-checks]   check_wsl_distro_resolution"
+    local win_dir="$ROOT/usr/share/mios/windows"
+    if [[ -d "$win_dir" ]]; then
+        local f
+        for f in "$win_dir"/*.ps1; do
+            if [[ -f "$f" ]]; then
+                if grep -q "podman-MiOS-DEV" "$f"; then
+                    if ! grep -q "Resolve-MiosDistro" "$f"; then
+                        _violation "Script $(basename "$f") carries a hardcoded 'podman-MiOS-DEV' distro literal instead of calling Resolve-MiosDistro"
+                    fi
+                fi
+            fi
+        done
+        echo "[98-drift-checks]   All Windows scripts perform generative Resolve-MiosDistro resolution"
+    fi
 }
 
 

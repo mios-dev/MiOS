@@ -33,11 +33,16 @@
 
 [CmdletBinding()]
 param(
-    [string]$Distro   = 'podman-MiOS-DEV',
+    [string]$Distro   = '',
     [string]$TaskName = 'MiOS-WSL-KeepAlive',
     [switch]$Install,
     [switch]$Uninstall
 )
+
+if (-not $Distro) {
+    if (Get-Command Resolve-MiosDistro -ErrorAction SilentlyContinue) { $Distro = Resolve-MiosDistro }
+    else { $Distro = 'podman-MiOS-DEV' }
+}
 
 if ($Uninstall) {
     # Stop and remove Windows Service if it exists

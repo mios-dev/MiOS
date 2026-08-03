@@ -24,9 +24,14 @@
 # To remove:  Unregister-ScheduledTask -TaskName 'MiOS-WSL-Session' -Confirm:$false
 
 param(
-    [string]$Distro   = 'podman-MiOS-DEV',
+    [string]$Distro   = '',
     [string]$TaskName = 'MiOS-WSL-Session'
 )
+
+if (-not $Distro) {
+    if (Get-Command Resolve-MiosDistro -ErrorAction SilentlyContinue) { $Distro = Resolve-MiosDistro }
+    else { $Distro = 'podman-MiOS-DEV' }
+}
 
 $toolExe   = Join-Path $PSScriptRoot 'MiosServiceTool.exe'
 $wslExe    = Join-Path $env:SystemRoot 'System32\wsl.exe'

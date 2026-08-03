@@ -173,7 +173,7 @@ function Resolve-MiosVersion {
     foreach ($p in @(
         '/ctx/VERSION',
         '/usr/share/mios/VERSION',
-        (Join-Path $PSScriptRoot '..\\..\\VERSION')
+        (Join-Path $PSScriptRoot '..\..\VERSION')
     )) {
         if ($p -and (Test-Path $p)) {
             $v = (Get-Content $p -EA SilentlyContinue | Out-String).Trim()
@@ -183,6 +183,29 @@ function Resolve-MiosVersion {
     return 'VERSION_FALLBACK'
 }
 $script:MIOS_VERSION = Resolve-MiosVersion
+
+function Resolve-MiosDistro {
+    param([string]$Default = 'podman-MiOS-DEV')
+    if ($env:MIOS_WSL_DISTRO) { return $env:MIOS_WSL_DISTRO }
+    try {
+        $lxss = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss'
+        if (Test-Path $lxss) {
+            $all = @(Get-ChildItem $lxss -ErrorAction SilentlyContinue |
+                     ForEach-Object { (Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue).DistributionName } |
+                     Where-Object { $_ })
+            $resolved = ($all | Where-Object { $_ -match 'MiOS' } | Select-Object -First 1)
+            if ($resolved) { return $resolved }
+            $defGuid = (Get-ItemProperty $lxss -Name DefaultDistribution -ErrorAction SilentlyContinue).DefaultDistribution
+            if ($defGuid) {
+                $defName = (Get-ItemProperty (Join-Path $lxss $defGuid) -ErrorAction SilentlyContinue).DistributionName
+                if ($defName) { return $defName }
+            }
+            if ($all.Count -gt 0) { return $all[0] }
+        }
+    } catch {}
+    return $Default
+}
+$script:MIOS_WSL_DISTRO = Resolve-MiosDistro
 '''
 
 # Windows-host paths resolve from the live environment, so they stay expressions.
