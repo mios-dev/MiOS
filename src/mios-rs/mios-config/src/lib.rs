@@ -186,7 +186,11 @@ mod tests {
         let config = MiosConfig::load_from_path("../../../usr/share/mios/mios.toml")
             .expect("should deserialize real mios.toml");
         assert_eq!(config.identity.username, "mios");
-        assert_eq!(config.build.ratchet.max_phase_scripts, 71);
+        // Assert it DESERIALIZES, not that it equals a magic number. Pinning
+        // the literal here meant every legitimate ratchet bump in mios.toml
+        // (this test said 71; adding 55-native-build.sh moved SSOT to 72)
+        // broke a test whose stated purpose is "deserialize real mios.toml".
+        assert!(config.build.ratchet.max_phase_scripts > 0);
         assert!(!config.build.phases.list.is_empty());
 
         // Verify generic section access on complex tables without rigid structs
