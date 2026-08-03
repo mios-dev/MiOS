@@ -26,11 +26,14 @@ struct Args {
 
     #[arg(long, help = "Repository or root directory path")]
     root: Option<PathBuf>,
+
+    #[arg(long, help = "Include DB authoritative overlay if enabled")]
+    db_overlay: bool,
 }
 
 /// stack_offset = [ports].stack_id * 10000 -- the multi-stack port shift the
 /// Python resolver applies in process_val(). Absent stack_id means no shift.
-fn stack_offset_of(merged: &Value) -> i32 {
+fn stack_offset_of(merged: &Value) -> i64 {
     merged
         .get("ports")
         .and_then(|p| p.get("stack_id"))
@@ -38,7 +41,7 @@ fn stack_offset_of(merged: &Value) -> i32 {
             v.as_integer()
                 .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
         })
-        .map(|id| id as i32 * 10000)
+        .map(|id| id * 10000)
         .unwrap_or(0)
 }
 
@@ -72,6 +75,9 @@ fn main() -> Result<()> {
                 std::process::exit(1);
             }
         };
+
+        // Apply DB authoritative overlay if active or requested
+        mios_resolver::db_overlay::maybe_apply_db_overlay(&mut merged, args.db_overlay);
 
         // Allocate [ports] from [ports.categories] after every layer has merged,
         // so an OEM default or an operator override re-derives live.

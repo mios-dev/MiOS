@@ -21,16 +21,34 @@ fi
 
 VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
 
-env -i \
-    PATH="${PATH}:/usr/bin:/bin" \
-    HOME=/nonexistent \
-    XDG_CONFIG_HOME=/nonexistent/.config \
-    MIOS_ROOT="${ROOT_DIR}" \
-    MIOS_TOML_ROOT="${ROOT_DIR}" \
-    MIOS_VENDOR_TOML="${VENDOR_TOML}" \
-    MIOS_USER_TOML=/nonexistent/user.toml \
-    MIOS_USER_TOML_D=/nonexistent/user.d \
-    bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
-    | grep '^MIOS_' \
-    | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D)=' \
-    | sort
+RESOLVER_BIN="${ROOT_DIR}/tools/native/target/debug/mios-resolver"
+if [[ -x "${RESOLVER_BIN}" ]]; then
+    env -i \
+        PATH="${PATH}:/usr/bin:/bin" \
+        HOME=/nonexistent \
+        XDG_CONFIG_HOME=/nonexistent/.config \
+        MIOS_ROOT="${ROOT_DIR}" \
+        MIOS_TOML_ROOT="${ROOT_DIR}" \
+        MIOS_VENDOR_TOML="${VENDOR_TOML}" \
+        MIOS_USER_TOML=/nonexistent/user.toml \
+        MIOS_USER_TOML_D=/nonexistent/user.d \
+        "${RESOLVER_BIN}" --emit=shell \
+        | grep '^export MIOS_' \
+        | sed 's/^export //' \
+        | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D)=' \
+        | sort
+else
+    env -i \
+        PATH="${PATH}:/usr/bin:/bin" \
+        HOME=/nonexistent \
+        XDG_CONFIG_HOME=/nonexistent/.config \
+        MIOS_ROOT="${ROOT_DIR}" \
+        MIOS_TOML_ROOT="${ROOT_DIR}" \
+        MIOS_VENDOR_TOML="${VENDOR_TOML}" \
+        MIOS_USER_TOML=/nonexistent/user.toml \
+        MIOS_USER_TOML_D=/nonexistent/user.d \
+        bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
+        | grep '^MIOS_' \
+        | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D)=' \
+        | sort
+fi

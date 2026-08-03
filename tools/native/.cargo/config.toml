@@ -1,0 +1,3 @@
+# AI-hint: Cargo aliases for native tools workspace.
+[alias]
+xtask = "run --package xtask --"

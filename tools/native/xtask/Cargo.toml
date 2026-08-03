@@ -1,0 +1,8 @@
+# AI-hint: Cargo xtask crate for cross-platform build, install, and artifact regeneration tasks.
+# AI-related: tools/native/Cargo.toml, automation/98-drift-checks.sh
+[package]
+name = "xtask"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]

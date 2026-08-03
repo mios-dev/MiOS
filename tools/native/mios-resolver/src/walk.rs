@@ -101,12 +101,13 @@ mod tests {
 
     #[test]
     fn test_walk_basic() {
-        let tree = toml! {
+        let tree: Value = toml! {
             [system]
             name = "mios"
             [ports]
             web = 8080
-        };
+        }
+        .into();
 
         let walked = walk(&tree);
         assert_eq!(walked.len(), 2);
@@ -116,11 +117,12 @@ mod tests {
 
     #[test]
     fn test_walk_skips_routing_domains() {
-        let tree = toml! {
+        let tree: Value = toml! {
             [routing]
             mode = "traefik"
             domains = ["example.com"]
-        };
+        }
+        .into();
 
         let walked = walk(&tree);
         assert_eq!(walked.len(), 1);
@@ -158,10 +160,11 @@ mod tests {
 
     #[test]
     fn test_compute_stack_offset() {
-        let tree = toml! {
+        let tree: Value = toml! {
             [ports]
             stack_id = 3
-        };
+        }
+        .into();
 
         assert_eq!(compute_stack_offset(&tree), 30000);
     }

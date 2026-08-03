@@ -57,33 +57,40 @@ mod tests {
 
     #[test]
     fn test_empty_string_shadowing() {
-        let mut base = toml! {
+        let mut base: Value = toml! {
             [system]
             name = "mios"
             description = "Main OS"
-        };
+        }
+        .into();
 
-        let overlay = toml! {
+        let overlay: Value = toml! {
             [system]
             name = ""
             description = "Updated OS"
-        };
+        }
+        .into();
 
         deep_merge(&mut base, overlay);
 
         assert_eq!(base["system"]["name"].as_str().unwrap(), "mios");
-        assert_eq!(base["system"]["description"].as_str().unwrap(), "Updated OS");
+        assert_eq!(
+            base["system"]["description"].as_str().unwrap(),
+            "Updated OS"
+        );
     }
 
     #[test]
     fn test_list_replace_not_append() {
-        let mut base = toml! {
+        let mut base: Value = toml! {
             ports = [80, 443]
-        };
+        }
+        .into();
 
-        let overlay = toml! {
+        let overlay: Value = toml! {
             ports = [8080]
-        };
+        }
+        .into();
 
         deep_merge(&mut base, overlay);
 
@@ -98,32 +105,40 @@ mod tests {
 
     #[test]
     fn test_nested_table_merge() {
-        let mut base = toml! {
+        let mut base: Value = toml! {
             [ai.vllm]
             model = "llama"
             tp = 2
-        };
+        }
+        .into();
 
-        let overlay = toml! {
+        let overlay: Value = toml! {
             [ai.vllm]
             model = "qwen"
             gpu_memory_utilization = 0.9
-        };
+        }
+        .into();
 
         deep_merge(&mut base, overlay);
 
         assert_eq!(base["ai"]["vllm"]["model"].as_str().unwrap(), "qwen");
         assert_eq!(base["ai"]["vllm"]["tp"].as_integer().unwrap(), 2);
-        assert_eq!(base["ai"]["vllm"]["gpu_memory_utilization"].as_float().unwrap(), 0.9);
+        assert_eq!(
+            base["ai"]["vllm"]["gpu_memory_utilization"]
+                .as_float()
+                .unwrap(),
+            0.9
+        );
     }
 
     #[test]
     fn test_absent_layer_noop() {
-        let mut base = toml! {
+        let mut base: Value = toml! {
             key = "value"
-        };
+        }
+        .into();
 
-        let overlay = toml! {};
+        let overlay = Value::Table(toml::map::Map::new());
 
         deep_merge(&mut base, overlay);
 
@@ -132,13 +147,15 @@ mod tests {
 
     #[test]
     fn test_empty_string_initialization() {
-        let mut base = toml! {
+        let mut base: Value = toml! {
             key = ""
-        };
+        }
+        .into();
 
-        let overlay = toml! {
+        let overlay: Value = toml! {
             other = ""
-        };
+        }
+        .into();
 
         deep_merge(&mut base, overlay);
 

@@ -27,6 +27,15 @@ enum Commands {
         /// Advisory mode (exit 0 on failure)
         #[arg(long)]
         soft: bool,
+        /// List registered drift check IDs
+        #[arg(long)]
+        list: bool,
+        /// Run only a specific drift check ID
+        #[arg(long)]
+        only: Option<String>,
+        /// Run differential parity check vs bash twin
+        #[arg(long)]
+        parity: bool,
     },
     /// Scaffold a new file from a template
     Scaffold {
@@ -164,25 +173,35 @@ enum Commands {
 }
 
 fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let repo_root = match std::env::var("MIOS_DRIFT_CHECK_ROOT").or_else(|_| std::env::var("MIOS_THEME_ROOT")) {
+    let repo_root = match std::env::var("MIOS_DRIFT_CHECK_ROOT")
+        .or_else(|_| std::env::var("MIOS_THEME_ROOT"))
+    {
         Ok(r) => std::path::PathBuf::from(r),
         Err(_) => std::env::current_dir()?,
     };
 
     let tmpl_file = repo_root.join("usr/share/mios/templates").join(type_name);
     if !tmpl_file.is_file() {
-        eprintln!("Error: Template for '{}' not found at {:?}", type_name, tmpl_file);
+        eprintln!(
+            "Error: Template for '{}' not found at {:?}",
+            type_name, tmpl_file
+        );
         std::process::exit(1);
     }
     let content = std::fs::read_to_string(&tmpl_file)?;
 
     let toml_path = repo_root.join("usr/share/mios/mios.toml");
-    let mut placeholders: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut placeholders: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
     let mut tmpl_cfg: Option<toml::Value> = None;
 
     if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
         if let Ok(val) = toml_str.parse::<toml::Value>() {
-            if let Some(p_tab) = val.get("templates").and_then(|t| t.get("placeholders")).and_then(|p| p.as_table()) {
+            if let Some(p_tab) = val
+                .get("templates")
+                .and_then(|t| t.get("placeholders"))
+                .and_then(|p| p.as_table())
+            {
                 for (k, v) in p_tab {
                     if let Some(s) = v.as_str() {
                         placeholders.insert(k.clone(), s.to_string());
@@ -197,12 +216,13 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
 
     let mut rendered = content;
     if type_name == "adr" {
-        let (adr_id, clean_name) = if let Some(m) = regex::Regex::new(r"^(\d{4})[-_]?(.*)$")?.captures(name) {
-            (m[1].to_string(), m[2].to_string())
-        } else {
-            ("0012".to_string(), name.to_string())
-        };
-        let raw_title = clean_name.replace('-', " ").replace('_', " ");
+        let (adr_id, clean_name) =
+            if let Some(m) = regex::Regex::new(r"^(\d{4})[-_]?(.*)$")?.captures(name) {
+                (m[1].to_string(), m[2].to_string())
+            } else {
+                ("0012".to_string(), name.to_string())
+            };
+        let raw_title = clean_name.replace(['-', '_'], " ");
         let title = if raw_title.is_empty() {
             "New decision".to_string()
         } else {
@@ -248,13 +268,16 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
 
     let pascal_name = {
         let words: Vec<&str> = name.split(&['-', '_'][..]).collect();
-        words.iter().map(|w| {
-            let mut c = w.chars();
-            match c.next() {
-                None => String::new(),
-                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-            }
-        }).collect::<String>()
+        words
+            .iter()
+            .map(|w| {
+                let mut c = w.chars();
+                match c.next() {
+                    None => String::new(),
+                    Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                }
+            })
+            .collect::<String>()
     };
     rendered = rendered.replace("{{PascalName}}", &pascal_name);
 
@@ -272,7 +295,11 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
                 std::process::exit(1);
             }
             std::fs::write(&dest_path, rendered)?;
-            println!("Scaffolded new {} at: {}", type_name, dest_path.display().to_string().replace('\\', "/"));
+            println!(
+                "Scaffolded new {} at: {}",
+                type_name,
+                dest_path.display().to_string().replace('\\', "/")
+            );
             return Ok(());
         }
 
@@ -303,7 +330,11 @@ fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::E
             std::process::exit(1);
         }
         std::fs::write(&dest_path, rendered)?;
-        println!("Scaffolded new {} at: {}", type_name, dest_path.display().to_string().replace('\\', "/"));
+        println!(
+            "Scaffolded new {} at: {}",
+            type_name,
+            dest_path.display().to_string().replace('\\', "/")
+        );
     }
 
     Ok(())
@@ -550,9 +581,15 @@ fn main() {
     let cli = Cli::parse();
 
     match &cli.command {
-        Commands::DriftCheck { root, soft } => {
+        Commands::DriftCheck {
+            root,
+            soft,
+            list,
+            only,
+            parity,
+        } => {
             let root_dir = root.as_deref().unwrap_or(".");
-            drift::run_checks(root_dir, *soft);
+            drift::run_checks_cli(root_dir, *soft, *list, only.as_deref(), *parity);
         }
         Commands::Scaffold {
             template_type,

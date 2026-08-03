@@ -19,7 +19,7 @@ pub fn shlex_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\"'\"'"))
 }
 
-pub fn emit_shell(merged: &Value, stack_offset: i32, ref_names_path: Option<&Path>) -> String {
+pub fn emit_shell(merged: &Value, stack_offset: i64, ref_names_path: Option<&Path>) -> String {
     let mut exports = build_exports_map(merged, stack_offset);
 
     // Merge [env] table verbatim sorted
@@ -39,6 +39,17 @@ pub fn emit_shell(merged: &Value, stack_offset: i32, ref_names_path: Option<&Pat
             };
             exports.insert(k.clone(), val_str);
         }
+    }
+
+    if !exports.contains_key("MIOS_PG_BIND_ADDR") {
+        let is_loopback = exports
+            .get("MIOS_PGVECTOR_LISTEN_LOOPBACK")
+            .map(|s| s == "true" || s == "1")
+            .unwrap_or(true);
+        exports.insert(
+            "MIOS_PG_BIND_ADDR".to_string(),
+            if is_loopback { "127.0.0.1" } else { "0.0.0.0" }.to_string(),
+        );
     }
 
     let mut lines = Vec::new();

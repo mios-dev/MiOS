@@ -39,13 +39,18 @@ def main() -> None:
     content = f"""# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.
 [workspace]
 members = [
-    "mios-version-check",
-    "mios-wallpaperd",
     "generate-names-registry",
-    "mios-ssot-walk",
     "mios-aiplane-lint",
     "mios-bake-plan",
+    "mios-drift-runner",
+    "mios-resolver",
     "mios-ssot-lint",
+    "mios-ssot-walk",
+    "mios-template-compile",
+    "mios-template-conform",
+    "mios-version-check",
+    "mios-wallpaperd",
+    "xtask",
 ]
 resolver = "2"
 

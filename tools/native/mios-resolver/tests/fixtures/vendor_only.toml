@@ -1,0 +1,10 @@
+# AI-hint: Fixture overlay for mios-resolver characterization tests -- vendor only.
+[meta]
+mios_version = "0.3.0"
+
+[identity]
+role = "mini"
+
+[ports]
+stack_id = 0
+hermes = 8080

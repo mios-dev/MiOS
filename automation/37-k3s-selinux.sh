@@ -46,12 +46,12 @@ fi
 
 cd /tmp/k3s-selinux
 
-# Layout differs by upstream version. >=0.2 nests the sources under
-# policy/<distro>/; <=0.1.x (which is what the vendored tarball is --
-# k3s-selinux-0.1.1-rc2) keeps k3s.te FLAT at the archive root with no policy/
-# directory at all. The old `find policy ...` had no fallback for that and, with
-# `set -euo pipefail`, a missing policy/ aborted the whole phase two seconds in
-# with a bare exit 1 -- which is what the bake logged as "[WARN] 37-k3s-selinux".
+# Layout differs by upstream release. Newer tags nest the sources under
+# policy/<distro>/; older ones -- which is what the vendored tarball is --
+# keep k3s.te FLAT at the archive root with no policy/ directory at all. The
+# old `find policy ...` had no fallback for that and, with `set -euo pipefail`,
+# a missing policy/ aborted the whole phase two seconds in with a bare exit 1 --
+# which is what the bake logged as "[WARN] 37-k3s-selinux".
 POLICY_DIR=""
 if [ -d "policy/coreos" ]; then
     POLICY_DIR="policy/coreos"

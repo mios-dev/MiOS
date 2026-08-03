@@ -5,7 +5,7 @@ use toml::Value;
 use crate::emit::build_exports_map;
 use crate::palette::resolve as resolve_palette;
 
-pub fn emit_powershell(merged: &Value, stack_offset: i32) -> String {
+pub fn emit_powershell(merged: &Value, stack_offset: i64) -> String {
     let exports = build_exports_map(merged, stack_offset);
     let palette = resolve_palette(merged);
 

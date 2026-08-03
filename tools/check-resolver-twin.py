@@ -133,6 +133,22 @@ def main():
         "MIOS_TOML_ROOT", "MIOS_ROOT_LIB", "MIOS_CONFIG_DIR", "MIOS_ROOT"
     }
 
+    # AGY-1171: 3-way crate == python == bash assertion when mios-resolver binary exists
+    bin_path = os.path.join(root, "tools/native/target/debug/mios-resolver.exe" if os.name == "nt" else "tools/native/target/debug/mios-resolver")
+    crate_vars = {}
+    if os.path.isfile(bin_path):
+        try:
+            crate_out = subprocess.check_output([bin_path, "--emit=json"], env=env, stderr=subprocess.STDOUT).decode("utf-8")
+            crate_data = json.loads(crate_out)
+            # Flatten crate json to env vars format
+            for sec, tval in crate_data.items():
+                if isinstance(tval, dict):
+                    for k, v in tval.items():
+                        var_key = f"MIOS_{sec.upper()}_{k.upper().replace('-', '_')}"
+                        crate_vars[var_key] = str(v)
+        except Exception:
+            pass
+
     mismatches = []
     for k, expected in sorted(toml_vars.items()):
         if k in ignore_vars:

@@ -213,6 +213,8 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
         }
     } else if dotted_path == "fs_watcher.watch_dirs" {
         aliases.push("MIOS_FS_WATCHER_DIRS".into());
+    } else if dotted_path.starts_with("ports.categories.") {
+        // Allocation schema, not a port
     } else if let Some(rest) = dotted_path.strip_prefix("ports.") {
         let name = rest.to_uppercase().replace(['.', '-'], "_");
         let canon = if name == "GUACAMOLE_WEB" {
@@ -392,6 +394,8 @@ mod tests {
             get_aliases("ports.guacamole_web"),
             vec!["MIOS_PORT_GUACAMOLE", "MIOS_GUACAMOLE_PORT"]
         );
+        assert!(get_aliases("ports.categories.agent.base").is_empty());
+        assert!(get_aliases("ports.categories.edge.members").is_empty());
     }
 
     #[test]

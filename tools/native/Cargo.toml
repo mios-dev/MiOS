@@ -1,5 +1,5 @@
+# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.
 [workspace]
-resolver = "2"
 members = [
     "generate-names-registry",
     "mios-aiplane-lint",
@@ -12,7 +12,9 @@ members = [
     "mios-template-conform",
     "mios-version-check",
     "mios-wallpaperd",
+    "xtask",
 ]
+resolver = "2"
 
 [workspace.package]
 version = "0.3.0"

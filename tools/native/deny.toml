@@ -1,27 +1,36 @@
-# AI-hint: cargo-deny configuration for tools/native workspace supply-chain security.
-[advisories]
-vulnerability = "deny"
-unmaintained = "warn"
+# AI-hint: Supply-chain security & license policy for native Rust crates.
+# AI-related: tools/native/Cargo.toml, automation/98-drift-checks.sh
 
 [licenses]
-unlicensed = "deny"
 allow = [
     "MIT",
     "Apache-2.0",
-    "BSD-3-Clause",
     "BSD-2-Clause",
-    "ISC",
+    "BSD-3-Clause",
     "Unicode-3.0",
-    "Unicode-DFS-2016",
     "CC0-1.0",
+    "ISC",
+    "Zlib",
 ]
 confidence-threshold = 0.8
 
 [bans]
 multiple-versions = "warn"
 wildcards = "allow"
+highlight = "all"
+skip = []
+skip-tree = []
+
+[advisories]
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+vulnerability = "deny"
+unmaintained = "warn"
+notice = "warn"
+ignore = []
 
 [sources]
 unknown-registry = "deny"
-unknown-git = "deny"
+unknown-git = "warn"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = []

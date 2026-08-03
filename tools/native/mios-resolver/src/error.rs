@@ -23,4 +23,18 @@ pub enum ResolverError {
     #[error("Missing expected configuration layer: {path}")]
     #[diagnostic(code(mios_resolver::missing_layer))]
     MissingLayer { path: String },
+
+    #[error("Invalid hex color format: '{value}' under [colors].{key}")]
+    #[diagnostic(
+        code(mios_resolver::invalid_color_hex),
+        help("Colors must be valid 6-digit or 3-digit hex strings (e.g. #FFFFFF or #FFF)")
+    )]
+    InvalidColorHex { key: String, value: String },
+
+    #[error("Invalid non-integer port specification under [ports].{key}: '{value}'")]
+    #[diagnostic(
+        code(mios_resolver::invalid_port),
+        help("Port values must be valid 16-bit unsigned integers between 1 and 65535")
+    )]
+    InvalidPortValue { key: String, value: String },
 }

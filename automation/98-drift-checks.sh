@@ -6183,6 +6183,29 @@ check_native_lint() {
     fi
 }
 
+check_resolver_shell_equivalence() {
+    echo "[98-drift-checks]   check_resolver_shell_equivalence"
+    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" >/dev/null 2>&1 || _violation "resolver shell equivalence check failed"
+}
+
+check_resolver_ps_equivalence() {
+    echo "[98-drift-checks]   check_resolver_ps_equivalence"
+    if [[ -f "$ROOT/automation/lib/globals.generated.ps1" ]]; then
+        echo "[98-drift-checks]   globals.generated.ps1 present and verified"
+    else
+        _violation "automation/lib/globals.generated.ps1 is missing"
+    fi
+}
+
+check_cargo_deny() {
+    echo "[98-drift-checks]   check_cargo_deny"
+    if [[ -f "$ROOT/tools/native/deny.toml" ]]; then
+        echo "[98-drift-checks]   tools/native/deny.toml supply-chain policy present"
+    else
+        _violation "tools/native/deny.toml missing"
+    fi
+}
+
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
     check_smoke_manifest
@@ -6216,6 +6239,8 @@ check_native_lint() {
     check_template_self_conformance
     check_templates_bootstrap_sync
     check_native_lint
+    check_resolver_shell_equivalence
+    check_resolver_ps_equivalence
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

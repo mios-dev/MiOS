@@ -35,3 +35,24 @@ role = "mini"
     let json_out = emit_json(&val, 0);
     assert!(json_out.contains("\"role\": \"mini\""));
 }
+
+#[test]
+fn test_miette_error_diagnostic_format() {
+    use mios_resolver::error::ResolverError;
+    let err = ResolverError::InvalidColorHex {
+        key: "accent".to_string(),
+        value: "not-a-color".to_string(),
+    };
+    let display_str = format!("{}", err);
+    assert!(display_str.contains("Invalid hex color format"));
+    assert!(display_str.contains("accent"));
+}
+
+#[test]
+fn test_characterization_fixtures() {
+    let vendor_only_content = include_str!("fixtures/vendor_only.toml");
+    let val: toml::Value = toml::from_str(vendor_only_content).unwrap();
+    let shell_out = emit_shell(&val, 0, None);
+    assert!(shell_out.contains("export MIOS_IDENTITY_ROLE=mini"));
+    assert!(shell_out.contains("export MIOS_PORT_HERMES=8080"));
+}
