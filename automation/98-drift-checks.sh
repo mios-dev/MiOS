@@ -5977,7 +5977,7 @@ check_ai_manifests_fresh() {
         # Surface WHICH manifest drifted -- swallowing this turned every
         # failure into a guessing game.
         printf '%s\n' "$out" | grep -i 'drift\|missing' | head -n 5 >&2
-        _violation "AI manifests are stale or out of date (run python3 tools/generate-ai-manifest.py to refresh)"
+        _violation "AI manifests are stale or out of date (run 'just sync', or bash tools/sync-generated.sh, which regenerates every projection in dependency order)"
     fi
 }
 

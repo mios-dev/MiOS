@@ -51,6 +51,13 @@ lint-shell:
     @echo "[lint-shell] Running shellcheck"
     bash ./automation/lint-shell.sh
 
+# Regenerate every SSOT projection in dependency order. Run this before
+# committing any change under automation/ or tools/ -- several drift gates
+# compare a committed artefact against a fresh render, and the AI manifests
+# embed file CONTENT, so a stale one turns the gate red for the wrong reason.
+sync:
+    bash ./tools/sync-generated.sh
+
 drift-gate:
     @echo "[drift-gate] 97-ssot-lint.sh"
     bash ./automation/97-ssot-lint.sh
