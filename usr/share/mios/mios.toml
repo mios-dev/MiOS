@@ -11871,6 +11871,10 @@ python_entries = [
 # with real negative tests in the same change. The two cheap deterministic new
 # checks (check_cargo_deny, check_powershell_parse) have real tests instead.
 exempt = [
+  # Law-15 cross-repo parity: early-returns when the sibling mios-bootstrap
+  # checkout is absent, which is always the case on a CI runner, so an injected
+  # fault would be skipped rather than caught.
+  "check_ps_repo_parity",
   "check_native_lint",
   "check_resolver_ps_equivalence",
   "check_resolver_shell_equivalence",

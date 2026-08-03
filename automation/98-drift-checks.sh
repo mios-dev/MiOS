@@ -6104,6 +6104,8 @@ main() {
     check_resolver_shell_equivalence
     check_resolver_ps_equivalence
     check_cargo_deny
+    check_ps_repo_parity
+    check_ps_redirectors
     check_powershell_parse
 
 

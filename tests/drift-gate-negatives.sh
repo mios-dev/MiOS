@@ -2005,6 +2005,36 @@ test_ai_manifests_fresh() {
     log "test_ai_manifests_fresh passed"
 }
 
+test_ps_redirectors() {
+    log "Testing check_ps_redirectors"
+    # The check asserts the thin redirector .ps1 entry points stay thin.
+    # Pick whichever one this tree actually has.
+    local target=""
+    local f
+    for f in install.ps1 mios-build-local.ps1 run-pipeline.ps1; do
+        if [ -f "${ROOT}/$f" ]; then target="${ROOT}/$f"; break; fi
+    done
+    if [ -z "$target" ]; then
+        log "no redirector present -- skipping test_ps_redirectors"
+        return 0
+    fi
+
+    local backup; backup="$(mktemp)"
+    cp "$target" "$backup"
+    # Fatten it well past the line ceiling.
+    for _ in $(seq 1 120); do echo "# negative-test filler line" >> "$target"; done
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ps_redirectors >/dev/null 2>&1; then
+        cp "$backup" "$target"; rm -f "$backup"
+        die "check_ps_redirectors passed despite an over-long redirector"
+    fi
+    cp "$backup" "$target"; rm -f "$backup"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ps_redirectors >/dev/null 2>&1 \
+        || die "check_ps_redirectors failed after restoration"
+    log "test_ps_redirectors passed"
+}
+
 test_cargo_deny() {
     log "Testing check_cargo_deny"
     local policy="${ROOT}/tools/native/deny.toml"
@@ -2214,6 +2244,7 @@ main() {
     test_globals_generated
     test_cargo_deny
     test_powershell_parse
+    test_ps_redirectors
     log "All negative tests completed successfully"
 }
 
