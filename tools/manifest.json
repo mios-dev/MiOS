@@ -521,7 +521,7 @@
       "path": "tools/native/mios-unit-gen/Cargo.toml",
       "title": "Cargo.toml",
       "type": "source_code",
-      "full_content": "[package]\nname = \"mios-unit-gen\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nserde = { version = \"1.0\", features = [\"derive\"] }\ntoml = \"0.8\"\nthiserror = \"1.0\"\n"
+      "full_content": "# AI-hint: Cargo manifest for the systemd unit + Quadlet drop-in generator, with a golden-master parity test against usr/lib/systemd/system.\n[package]\nname = \"mios-unit-gen\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nserde = { version = \"1.0\", features = [\"derive\"] }\ntoml = \"0.8\"\nthiserror = \"1.0\"\n"
     },
     {
       "path": "tools/native/mios-unit-gen/README.md",

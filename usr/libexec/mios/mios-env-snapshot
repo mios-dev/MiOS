@@ -21,34 +21,31 @@ fi
 
 VENDOR_TOML="${MIOS_VENDOR_TOML:-${ROOT_DIR}/usr/share/mios/mios.toml}"
 
-RESOLVER_BIN="${ROOT_DIR}/tools/native/target/debug/mios-resolver"
-if [[ -x "${RESOLVER_BIN}" ]]; then
-    env -i \
-        PATH="${PATH}:/usr/bin:/bin" \
-        HOME=/nonexistent \
-        XDG_CONFIG_HOME=/nonexistent/.config \
-        MIOS_ROOT="${ROOT_DIR}" \
-        MIOS_TOML_ROOT="${ROOT_DIR}" \
-        MIOS_VENDOR_TOML="${VENDOR_TOML}" \
-        MIOS_USER_TOML=/nonexistent/user.toml \
-        MIOS_USER_TOML_D=/nonexistent/user.d \
-        "${RESOLVER_BIN}" --emit=shell \
-        | grep '^export MIOS_' \
-        | sed 's/^export //' \
-        | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D)=' \
-        | sort
-else
-    env -i \
-        PATH="${PATH}:/usr/bin:/bin" \
-        HOME=/nonexistent \
-        XDG_CONFIG_HOME=/nonexistent/.config \
-        MIOS_ROOT="${ROOT_DIR}" \
-        MIOS_TOML_ROOT="${ROOT_DIR}" \
-        MIOS_VENDOR_TOML="${VENDOR_TOML}" \
-        MIOS_USER_TOML=/nonexistent/user.toml \
-        MIOS_USER_TOML_D=/nonexistent/user.d \
-        bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
-        | grep '^MIOS_' \
-        | grep -vE '^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D)=' \
-        | sort
-fi
+# Vars whose VALUE is derived from where the repo happens to sit, or which name
+# the resolver's own inputs. They differ between a contributor checkout and a CI
+# runner, so a baseline containing them can never match anywhere but the machine
+# that wrote it.
+_MIOS_ENV_SNAPSHOT_EXCLUDE='^(MIOS_ROOT|MIOS_TOML_ROOT|MIOS_VENDOR_TOML|MIOS_CONFIG_DIR|MIOS_USER_TOML|MIOS_USER_TOML_D|MIOS_HOST_TOML_D|MIOS_REPO_URL|MIOS_REPO_ROOT|MIOS_REPO_DIR)='
+
+# ONE resolver, always the shell twin. This snapshot is a committed BASELINE that
+# CI re-derives and diffs, so it must depend on the tree alone. Preferring the
+# native mios-resolver when tools/native/target/debug happened to be built made
+# the output depend on BUILD STATE: the Rust path emits shell-QUOTED values
+# (MIOS_X='a b') while the shell path emits raw ones (MIOS_X=a b), so the same
+# commit produced two different baselines and whichever machine regenerated last
+# broke the gate for the other. The twins are proven equivalent by
+# check_resolver_twin_parity / check_resolver_twin_equivalence; this file just
+# needs the reproducible one.
+env -i \
+    PATH="${PATH}:/usr/bin:/bin" \
+    HOME=/nonexistent \
+    XDG_CONFIG_HOME=/nonexistent/.config \
+    MIOS_ROOT="${ROOT_DIR}" \
+    MIOS_TOML_ROOT="${ROOT_DIR}" \
+    MIOS_VENDOR_TOML="${VENDOR_TOML}" \
+    MIOS_USER_TOML=/nonexistent/user.toml \
+    MIOS_USER_TOML_D=/nonexistent/user.d \
+    bash -c "source \"${USERENV_SH}\" >/dev/null 2>&1 && env" \
+    | grep '^MIOS_' \
+    | grep -vE "${_MIOS_ENV_SNAPSHOT_EXCLUDE}" \
+    | sort

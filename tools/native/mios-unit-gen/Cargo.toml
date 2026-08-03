@@ -1,3 +1,4 @@
+# AI-hint: Cargo manifest for the systemd unit + Quadlet drop-in generator, with a golden-master parity test against usr/lib/systemd/system.
 [package]
 name = "mios-unit-gen"
 version.workspace = true
