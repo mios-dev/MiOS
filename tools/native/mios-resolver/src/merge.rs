@@ -1,110 +1,148 @@
-// AI-hint: deep_merge overlay semantics -- recursive table merge where a non-empty value overrides and an empty string never does.
-// AI-related: usr/lib/mios/mios_toml.py
 use toml::Value;
 
-pub fn deep_merge(dst: &mut Value, src: &Value) {
-    if let (Value::Table(dst_map), Value::Table(src_map)) = (dst, src) {
-        for (k, src_val) in src_map {
-            if let Some(dst_val) = dst_map.get_mut(k) {
-                if let (Value::String(s), Value::String(d)) = (src_val, &*dst_val) {
-                    if s.is_empty() && !d.is_empty() {
-                        continue; // empty string never overrides non-empty lower-layer value
-                    }
-                }
-                if src_val.is_table() && dst_val.is_table() {
-                    deep_merge(dst_val, src_val);
+/// Recursively merge `src` into `dst` following MiOS overlay semantics:
+/// - Nested tables are recursively merged.
+/// - An empty string in `src` NEVER overrides a non-empty string in `dst`.
+/// - Lists and non-empty scalars in `src` overwrite values in `dst`.
+pub fn deep_merge(dst: &mut Value, src: Value) {
+    match (dst, src) {
+        (Value::Table(dst_table), Value::Table(src_table)) => {
+            deep_merge_table(dst_table, src_table);
+        }
+        (dst_val, src_val) => {
+            if is_empty_string_shadow(dst_val, &src_val) {
+                return;
+            }
+            *dst_val = src_val;
+        }
+    }
+}
+
+pub fn deep_merge_table(dst: &mut toml::Table, src: toml::Table) {
+    for (k, v) in src {
+        match dst.get_mut(&k) {
+            Some(dst_v) => {
+                if dst_v.is_table() && v.is_table() {
+                    deep_merge(dst_v, v);
+                } else if is_empty_string_shadow(dst_v, &v) {
+                    continue;
                 } else {
-                    dst_map.insert(k.clone(), src_val.clone());
+                    dst.insert(k, v);
                 }
-            } else {
-                dst_map.insert(k.clone(), src_val.clone());
+            }
+            None => {
+                dst.insert(k, v);
             }
         }
     }
 }
 
+fn is_empty_string_shadow(dst_val: &Value, src_val: &Value) -> bool {
+    if let Value::String(s_src) = src_val {
+        if s_src.is_empty() {
+            if let Value::String(s_dst) = dst_val {
+                if !s_dst.is_empty() {
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use toml::toml;
 
     #[test]
-    fn test_empty_string_never_overrides() {
-        let mut dst: Value = toml::from_str(
-            r#"
-[identity]
-role = "admin"
-username = "operator"
-"#,
-        )
-        .unwrap();
+    fn test_empty_string_shadowing() {
+        let mut base = toml! {
+            [system]
+            name = "mios"
+            description = "Main OS"
+        };
 
-        let src: Value = toml::from_str(
-            r#"
-[identity]
-role = ""
-username = "new_operator"
-"#,
-        )
-        .unwrap();
+        let overlay = toml! {
+            [system]
+            name = ""
+            description = "Updated OS"
+        };
 
-        deep_merge(&mut dst, &src);
+        deep_merge(&mut base, overlay);
 
-        let role = dst
-            .get("identity")
-            .unwrap()
-            .get("role")
-            .unwrap()
-            .as_str()
-            .unwrap();
-        let user = dst
-            .get("identity")
-            .unwrap()
-            .get("username")
-            .unwrap()
-            .as_str()
-            .unwrap();
+        assert_eq!(base["system"]["name"].as_str().unwrap(), "mios");
+        assert_eq!(base["system"]["description"].as_str().unwrap(), "Updated OS");
+    }
 
-        assert_eq!(role, "admin");
-        assert_eq!(user, "new_operator");
+    #[test]
+    fn test_list_replace_not_append() {
+        let mut base = toml! {
+            ports = [80, 443]
+        };
+
+        let overlay = toml! {
+            ports = [8080]
+        };
+
+        deep_merge(&mut base, overlay);
+
+        let ports: Vec<i64> = base["ports"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_integer().unwrap())
+            .collect();
+        assert_eq!(ports, vec![8080]);
     }
 
     #[test]
     fn test_nested_table_merge() {
-        let mut dst: Value = toml::from_str(
-            r#"
-[ai]
-endpoint = "http://localhost:8000"
-model = "qwen"
-"#,
-        )
-        .unwrap();
+        let mut base = toml! {
+            [ai.vllm]
+            model = "llama"
+            tp = 2
+        };
 
-        let src: Value = toml::from_str(
-            r#"
-[ai]
-model = "llama3"
-"#,
-        )
-        .unwrap();
+        let overlay = toml! {
+            [ai.vllm]
+            model = "qwen"
+            gpu_memory_utilization = 0.9
+        };
 
-        deep_merge(&mut dst, &src);
+        deep_merge(&mut base, overlay);
 
-        let endpoint = dst
-            .get("ai")
-            .unwrap()
-            .get("endpoint")
-            .unwrap()
-            .as_str()
-            .unwrap();
-        let model = dst
-            .get("ai")
-            .unwrap()
-            .get("model")
-            .unwrap()
-            .as_str()
-            .unwrap();
+        assert_eq!(base["ai"]["vllm"]["model"].as_str().unwrap(), "qwen");
+        assert_eq!(base["ai"]["vllm"]["tp"].as_integer().unwrap(), 2);
+        assert_eq!(base["ai"]["vllm"]["gpu_memory_utilization"].as_float().unwrap(), 0.9);
+    }
 
-        assert_eq!(endpoint, "http://localhost:8000");
-        assert_eq!(model, "llama3");
+    #[test]
+    fn test_absent_layer_noop() {
+        let mut base = toml! {
+            key = "value"
+        };
+
+        let overlay = toml! {};
+
+        deep_merge(&mut base, overlay);
+
+        assert_eq!(base["key"].as_str().unwrap(), "value");
+    }
+
+    #[test]
+    fn test_empty_string_initialization() {
+        let mut base = toml! {
+            key = ""
+        };
+
+        let overlay = toml! {
+            other = ""
+        };
+
+        deep_merge(&mut base, overlay);
+
+        assert_eq!(base["key"].as_str().unwrap(), "");
+        assert_eq!(base["other"].as_str().unwrap(), "");
     }
 }

@@ -13,6 +13,7 @@ struct CompiledTemplate {
     pattern: Regex,
     required_header: bool,
     required_markers: Vec<String>,
+    required_ordered: Vec<String>,
 }
 
 fn load_grandfathered(root: &Path) -> HashSet<String> {
@@ -93,11 +94,20 @@ fn main() {
                         }
                     }
                 }
+                let mut required_ordered = Vec::new();
+                if let Some(arr) = tcfg.get("required_ordered").and_then(|v| v.as_array()) {
+                    for m in arr {
+                        if let Some(s) = m.as_str() {
+                            required_ordered.push(s.to_string());
+                        }
+                    }
+                }
                 compiled_templates.push(CompiledTemplate {
                     name: tname,
                     pattern: re,
                     required_header,
                     required_markers,
+                    required_ordered,
                 });
             }
         }
@@ -144,7 +154,6 @@ fn main() {
             Err(_) => continue,
         };
 
-        // Slice on a char boundary -- a raw byte index would panic mid-codepoint.
         let head_end = content
             .char_indices()
             .map(|(i, _)| i)
@@ -163,12 +172,32 @@ fn main() {
                     ));
                     break;
                 }
+                let mut marker_failed = false;
                 for marker in &ct.required_markers {
                     if !content.contains(marker) {
                         unconforming.push((
                             rel_path.clone(),
                             format!(
                                 "Missing required body marker {:?} (required by {})",
+                                marker, ct.name
+                            ),
+                        ));
+                        marker_failed = true;
+                        break;
+                    }
+                }
+                if marker_failed {
+                    break;
+                }
+                let mut last_pos = 0;
+                for marker in &ct.required_ordered {
+                    if let Some(pos) = content[last_pos..].find(marker) {
+                        last_pos += pos + marker.len();
+                    } else {
+                        unconforming.push((
+                            rel_path.clone(),
+                            format!(
+                                "Out-of-order or missing required ordered marker {:?} (required by {})",
                                 marker, ct.name
                             ),
                         ));

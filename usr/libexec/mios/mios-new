@@ -53,102 +53,66 @@ def render_template(content, name, type_name):
     return content
 
 def get_dest_path(name, type_name, repo_root):
-    if type_name == "adr":
-        if not re.match(r"^\d{4}-", name):
-            name = "0012-" + name
-        if not name.endswith(".md"):
-            name += ".md"
-        return os.path.join(repo_root, "usr/share/doc/mios/adr", name)
-    elif type_name == "roadmap-ws":
-        if not name.endswith(".md"):
-            name += ".md"
-        return os.path.join(repo_root, "usr/share/doc/mios/roadmap", name)
-    elif type_name == "markdown-doc":
-        if not name.endswith(".md"):
-            name += ".md"
-        return os.path.join(repo_root, "usr/share/doc/mios", name)
-    elif type_name == "roadmap":
-        return os.path.join(repo_root, "ROADMAP.md")
-    elif type_name == "automation-step":
-        if not re.match(r"^\d{2}-", name):
-            name = "99-" + name
-        if not name.endswith(".sh"):
-            name += ".sh"
-        return os.path.join(repo_root, "automation", name)
-    elif type_name == "drift-check":
+    cfg = mios_toml.load_merged()
+    tmpl_cfg = cfg.get("templates", {}).get(type_name, {})
+    if not tmpl_cfg:
         return None
-    elif type_name == "bash-verb":
-        if not name.startswith("mios-"):
-            name = "mios-" + name
-        if not name.endswith(".sh"):
-            name += ".sh"
-        return os.path.join(repo_root, "usr/libexec/mios", name)
-    elif type_name == "bash-tool":
-        if not name.startswith("mios-"):
-            name = "mios-" + name
-        return os.path.join(repo_root, "usr/libexec/mios", name)
-    elif type_name == "bash":
-        if not name.endswith(".sh"):
-            name += ".sh"
-        return os.path.join(repo_root, "usr/libexec/mios", name)
-    elif type_name == "python-module":
-        if not name.endswith(".py"):
-            name += ".py"
-        return os.path.join(repo_root, "usr/lib/mios/agent-pipe/mios_pipe", name)
-    elif type_name == "python-test":
-        if not name.startswith("test_mios_"):
-            name = "test_mios_" + name
-        if not name.endswith(".py"):
-            name += ".py"
-        return os.path.join(repo_root, "usr/lib/mios/agent-pipe", name)
-    elif type_name == "python-tool":
-        if not name.startswith("mios-"):
-            name = "mios-" + name
-        if not name.endswith(".py"):
-            name += ".py"
-        return os.path.join(repo_root, "usr/libexec/mios", name)
-    elif type_name == "rust":
-        if not name.endswith(".rs"):
-            name += ".rs"
-        return os.path.join(repo_root, "tools/native", name)
-    elif type_name == "typescript":
-        if not name.endswith(".ts"):
-            name += ".ts"
-        return os.path.join(repo_root, "tools", name)
-    elif type_name == "powershell":
-        if not name.endswith(".ps1"):
-            name += ".ps1"
-        return os.path.join(repo_root, "tools", name)
-    elif type_name == "toml-config":
-        if not name.endswith(".toml"):
-            name += ".toml"
-        return os.path.join(repo_root, "usr/share/mios", name)
-    elif type_name == "yaml":
-        if not (name.endswith(".yaml") or name.endswith(".yml")):
-            name += ".yaml"
-        return os.path.join(repo_root, "usr/share/mios", name)
-    elif type_name == "json-schema":
-        if not name.endswith(".json"):
-            name += ".json"
-        return os.path.join(repo_root, "usr/share/mios", name)
-    elif type_name == "systemd-unit":
-        if not name.startswith("mios-"):
-            name = "mios-" + name
-        if not name.endswith(".service"):
-            name += ".service"
-        return os.path.join(repo_root, "usr/lib/systemd/system", name)
-    elif type_name == "quadlet":
-        if not name.startswith("mios-"):
-            name = "mios-" + name
-        if not any(name.endswith(ext) for ext in [".container", ".pod", ".network", ".volume", ".image"]):
-            name += ".container"
-        return os.path.join(repo_root, "usr/share/containers/systemd", name)
-    return None
+
+    if tmpl_cfg.get("emit") == "stdout":
+        return None
+
+    if "fixed_name" in tmpl_cfg:
+        return os.path.join(repo_root, tmpl_cfg["fixed_name"])
+
+    prefix = tmpl_cfg.get("name_prefix", "")
+    if prefix:
+        if prefix == "0012-" and not re.match(r"^\d{4}-", name):
+            name = prefix + name
+        elif prefix == "99-" and not re.match(r"^\d{2}-", name):
+            name = prefix + name
+        elif not name.startswith(prefix):
+            name = prefix + name
+
+    suffix = tmpl_cfg.get("name_suffix", "")
+    if suffix and not name.endswith(suffix):
+        name += suffix
+
+    dest_dir = tmpl_cfg.get("dest_dir", ".")
+    return os.path.join(repo_root, dest_dir, name)
+
+def get_registered_types():
+    cfg = mios_toml.load_merged()
+    return sorted(cfg.get("templates", {}).keys())
+
+import subprocess
+
+def _try_native_bin(args_list):
+    if len(args_list) < 2 or args_list[0] == "--list":
+        return
+    bin_path = os.environ.get("MIOS_MIOSD")
+    if not bin_path:
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+        candidate = os.path.join(repo_root, "target/release/miosd.exe" if os.name == "nt" else "target/release/miosd")
+        if os.path.isfile(candidate):
+            bin_path = candidate
+    if bin_path and os.path.isfile(bin_path):
+        try:
+            res = subprocess.run([bin_path, "scaffold", args_list[0], args_list[1]], stdout=sys.stdout, stderr=sys.stderr)
+            sys.exit(res.returncode)
+        except Exception:
+            pass
 
 def main():
+    _try_native_bin(sys.argv[1:])
+    types = get_registered_types()
+    if len(sys.argv) >= 2 and sys.argv[1] == "--list":
+        for t in types:
+            print(t)
+        sys.exit(0)
+
     if len(sys.argv) < 3:
         print("Usage: mios-new <type> <name>")
-        print("Types: adr, roadmap-ws, markdown-doc, roadmap, automation-step, drift-check, bash-verb, bash-tool, bash, python-module, python-test, python-tool, rust, typescript, powershell, toml-config, yaml, json-schema, systemd-unit, quadlet")
+        print("Types: " + ", ".join(types))
         sys.exit(1)
         
     type_name = sys.argv[1]

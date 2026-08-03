@@ -1,0 +1,11 @@
+# AI-hint: Quadlet network file for mios-{{name}}.
+# AI-related: /usr/share/containers/systemd/mios-{{name}}.network, /usr/share/mios/mios.toml
+
+[Unit]
+Description=MiOS {{name}} Network
+
+[Network]
+NetworkName=mios-{{name}}
+
+[Install]
+WantedBy=multi-user.target default.target

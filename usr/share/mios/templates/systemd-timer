@@ -1,0 +1,12 @@
+# AI-hint: systemd timer file for the mios-{{name}} service.
+# AI-related: /usr/lib/systemd/system/mios-{{name}}.timer, /usr/share/mios/mios.toml
+
+[Unit]
+Description=MiOS {{name}} Timer
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

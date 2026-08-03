@@ -1,0 +1,22 @@
+# AI-hint: Quadlet container file for mios-{{name}}.
+# AI-related: /usr/share/containers/systemd/mios-{{name}}.container, /usr/share/mios/mios.toml
+
+[Unit]
+Description=MiOS {{name}} Container
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=mios-{{name}}
+Image={{image}}
+User={{uid}}
+Group={{gid}}
+
+[Install]
+WantedBy=multi-user.target default.target
+
+[Service]
+Delegate=yes
+Restart=on-failure
+RestartSec=10s
+TimeoutStartSec=300s

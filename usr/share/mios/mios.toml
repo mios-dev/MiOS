@@ -11538,6 +11538,10 @@ required_header = true
 required_markers = ["## Status", "## Context", "## Decision", "## Rationale", "## Consequences"]
 generated = false
 scaffold = true
+dest_dir = "usr/share/doc/mios/adr"
+name_prefix = "0012-"
+name_suffix = ".md"
+emit = "file"
 
 [templates.drift-check]
 match = "^automation/98-drift-checks\\.sh$"
@@ -11546,6 +11550,7 @@ required_header = true
 required_markers = ["check_"]
 generated = false
 scaffold = true
+emit = "stdout"
 
 [templates.automation-step]
 match = "^automation/\\d{2}-.*\\.sh$"
@@ -11554,6 +11559,10 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "automation"
+name_prefix = "99-"
+name_suffix = ".sh"
+emit = "file"
 
 [templates.bash-verb]
 match = "^usr/libexec/mios/mios-[\\w-]+\\.sh$"
@@ -11562,6 +11571,10 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/libexec/mios"
+name_prefix = "mios-"
+name_suffix = ".sh"
+emit = "file"
 
 [templates.bash-tool]
 match = "^usr/libexec/mios/mios-[\\w-]+$|^usr/bin/[\\w-]+$"
@@ -11570,6 +11583,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/libexec/mios"
+name_prefix = "mios-"
+emit = "file"
 
 [templates.bash]
 match = "^(?:tools/|usr/bin/|usr/libexec/mios/|automation/)[\\w./-]+\\.sh$"
@@ -11578,6 +11594,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/libexec/mios"
+name_suffix = ".sh"
+emit = "file"
 
 [templates.python-module]
 match = "^usr/lib/mios/agent-pipe/mios_pipe/[\\w-]+\\.py$"
@@ -11586,6 +11605,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/lib/mios/agent-pipe/mios_pipe"
+name_suffix = ".py"
+emit = "file"
 
 [templates.python-test]
 match = "^usr/lib/mios/agent-pipe/test_mios_[\\w-]+\\.py$"
@@ -11594,6 +11616,10 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/lib/mios/agent-pipe"
+name_prefix = "test_mios_"
+name_suffix = ".py"
+emit = "file"
 
 [templates.python-tool]
 match = "^usr/libexec/mios/mios-[\\w-]+\\.py$"
@@ -11602,6 +11628,10 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/libexec/mios"
+name_prefix = "mios-"
+name_suffix = ".py"
+emit = "file"
 
 [templates.rust]
 match = "^tools/native/[\\w./-]+\\.rs$|^src/mios-rs/[\\w./-]+\\.rs$"
@@ -11610,6 +11640,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "tools/native"
+name_suffix = ".rs"
+emit = "file"
 
 [templates.typescript]
 match = "^[\\w./-]+\\.ts$"
@@ -11618,6 +11651,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "tools"
+name_suffix = ".ts"
+emit = "file"
 
 [templates.powershell]
 match = "^[\\w./-]+\\.ps1$"
@@ -11626,6 +11662,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "tools"
+name_suffix = ".ps1"
+emit = "file"
 
 [templates.toml-config]
 match = "^[\\w./-]+\\.toml$"
@@ -11634,6 +11673,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/share/mios"
+name_suffix = ".toml"
+emit = "file"
 
 [templates.yaml]
 match = "^[\\w./-]+\\.yaml$|^[\\w./-]+\\.yml$"
@@ -11642,6 +11684,9 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/share/mios"
+name_suffix = ".yaml"
+emit = "file"
 
 [templates.json-schema]
 match = "^[\\w./-]+\\.json$"
@@ -11650,6 +11695,9 @@ required_header = false
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/share/mios"
+name_suffix = ".json"
+emit = "file"
 
 [templates.roadmap]
 match = "^ROADMAP\\.md$"
@@ -11658,6 +11706,9 @@ required_header = true
 required_markers = ["### Workstream Status Rollup", "# Desktop & UX", "# Fleet & Federation"]
 generated = false
 scaffold = true
+dest_dir = "."
+fixed_name = "ROADMAP.md"
+emit = "file"
 
 [templates.roadmap-ws]
 match = "^usr/share/doc/mios/roadmap/[\\w-]+\\.md$"
@@ -11666,6 +11717,9 @@ required_header = true
 required_markers = ["## WS-", "acceptance:"]
 generated = false
 scaffold = true
+dest_dir = "usr/share/doc/mios/roadmap"
+name_suffix = ".md"
+emit = "file"
 
 [templates.markdown-doc]
 match = "^usr/share/doc/mios/[\\w./-]+\\.md$|^README\\.md$"
@@ -11674,14 +11728,22 @@ required_header = true
 required_markers = []
 generated = false
 scaffold = true
+dest_dir = "usr/share/doc/mios"
+name_suffix = ".md"
+emit = "file"
 
 [templates.systemd-unit]
 match = "^usr/lib/systemd/system/[\\w-]+\\.service$"
 comment = "hash"
 required_header = true
 required_markers = ["[Unit]", "[Service]", "[Install]"]
+required_ordered = ["[Unit]", "[Service]", "[Install]"]
 generated = false
 scaffold = true
+dest_dir = "usr/lib/systemd/system"
+name_prefix = "mios-"
+name_suffix = ".service"
+emit = "file"
 
 [templates.quadlet]
 match = "^usr/share/containers/systemd/[\\w-]+\\.(?:container|pod|network|volume|image)$"
@@ -11690,6 +11752,87 @@ required_header = true
 required_markers = []
 generated = true
 scaffold = true
+dest_dir = "usr/share/containers/systemd"
+name_prefix = "mios-"
+name_suffix = ".container"
+emit = "file"
+
+[templates.quadlet-container]
+match = "^usr/share/containers/systemd/[\\w-]+\\.container$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Container]", "[Install]"]
+required_ordered = ["[Unit]", "[Container]", "[Install]"]
+generated = true
+scaffold = true
+dest_dir = "usr/share/containers/systemd"
+name_prefix = "mios-"
+name_suffix = ".container"
+emit = "file"
+
+[templates.quadlet-pod]
+match = "^usr/share/containers/systemd/[\\w-]+\\.pod$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Pod]", "[Install]"]
+required_ordered = ["[Unit]", "[Pod]", "[Install]"]
+generated = true
+scaffold = true
+dest_dir = "usr/share/containers/systemd"
+name_prefix = "mios-"
+name_suffix = ".pod"
+emit = "file"
+
+[templates.quadlet-network]
+match = "^usr/share/containers/systemd/[\\w-]+\\.network$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Network]", "[Install]"]
+required_ordered = ["[Unit]", "[Network]", "[Install]"]
+generated = true
+scaffold = true
+dest_dir = "usr/share/containers/systemd"
+name_prefix = "mios-"
+name_suffix = ".network"
+emit = "file"
+
+[templates.quadlet-volume]
+match = "^usr/share/containers/systemd/[\\w-]+\\.volume$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Volume]", "[Install]"]
+required_ordered = ["[Unit]", "[Volume]", "[Install]"]
+generated = true
+scaffold = true
+dest_dir = "usr/share/containers/systemd"
+name_prefix = "mios-"
+name_suffix = ".volume"
+emit = "file"
+
+[templates.cargo-manifest]
+match = "^tools/native/[\\w-]+/Cargo\\.toml$"
+comment = "hash"
+required_header = true
+required_markers = ["[package]", "name =", "version.workspace = true"]
+generated = false
+scaffold = true
+dest_dir = "tools/native"
+name_prefix = ""
+name_suffix = "/Cargo.toml"
+emit = "file"
+
+[templates.systemd-timer]
+match = "^usr/lib/systemd/system/[\\w-]+\\.timer$"
+comment = "hash"
+required_header = true
+required_markers = ["[Unit]", "[Timer]", "[Install]"]
+required_ordered = ["[Unit]", "[Timer]", "[Install]"]
+generated = false
+scaffold = true
+dest_dir = "usr/lib/systemd/system"
+name_prefix = "mios-"
+name_suffix = ".timer"
+emit = "file"
 
 # ----------------------------------------------------------------------------
 # [kargs] -- Immutable kernel boot arguments, rendered into kargs.d fragments

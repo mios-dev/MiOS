@@ -6097,6 +6097,92 @@ main() {
     check_uki_cmdline_projection
     check_composefs_projection
     check_cockpit_projection
+check_template_self_conformance() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys, subprocess, tempfile
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+tmpl_dir = os.path.join(root, "usr/share/mios/templates")
+scaffold_script = os.path.join(root, "usr/libexec/mios/mios-new")
+
+if not os.path.isdir(tmpl_dir) or not os.path.isfile(scaffold_script):
+    sys.exit(0)
+
+templates = [f for f in os.listdir(tmpl_dir) if not f.startswith(".") and os.path.isfile(os.path.join(tmpl_dir, f))]
+failures = []
+
+for t in sorted(templates):
+    if t in ("conformance-grandfathered.list", "PLACEHOLDERS.md"):
+        continue
+    with tempfile.TemporaryDirectory() as tmpdir:
+        env = dict(os.environ, MIOS_DRIFT_CHECK_ROOT=tmpdir, MIOS_THEME_ROOT=tmpdir)
+        cmd = [sys.executable, scaffold_script, t, "testmock"]
+        res = subprocess.run(cmd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode != 0:
+            failures.append(f"Template '{t}' failed to scaffold: {res.stderr.strip()}")
+            continue
+
+if failures:
+    for f in failures:
+        print("Violation:", f, file=sys.stderr)
+    sys.exit(1)
+PY
+    then
+        echo "[98-drift-checks]   every template scaffolds to a self-conforming output"
+    else
+        _violation "Template self-conformance failure"
+    fi
+}
+
+check_templates_bootstrap_sync() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        return 0
+    fi
+    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+main_toml = os.path.join(root, "usr/share/mios/mios.toml")
+boot_toml = os.path.join(root, "submodules/mios-bootstrap/usr/share/mios/mios.toml")
+
+if not os.path.isfile(boot_toml):
+    sys.exit(0)
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+with open(main_toml, "rb") as f:
+    m_data = tomllib.load(f).get("templates", {})
+with open(boot_toml, "rb") as f:
+    b_data = tomllib.load(f).get("templates", {})
+
+if m_data != b_data:
+    print("Violation: [templates] section in main mios.toml and mios-bootstrap mios.toml differ", file=sys.stderr)
+    sys.exit(1)
+PY
+    then
+        echo "[98-drift-checks]   [templates.*] in sync between mios.toml and mios-bootstrap"
+    else
+        _violation "[templates.*] SSOT mismatch between mios.toml and submodules/mios-bootstrap"
+    fi
+}
+
+check_native_lint() {
+    if ! command -v cargo >/dev/null 2>&1; then
+        return 0
+    fi
+    if (cd "$ROOT/tools/native" && cargo check --workspace) >/dev/null 2>&1; then
+        echo "[98-drift-checks]   native workspace cargo check passed"
+    else
+        _violation "tools/native cargo check failed"
+    fi
+}
+
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
     check_smoke_manifest
@@ -6127,6 +6213,9 @@ main() {
     check_ai_manifests_fresh
     check_ports_category_schema
     check_globals_generated
+    check_template_self_conformance
+    check_templates_bootstrap_sync
+    check_native_lint
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then

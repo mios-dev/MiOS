@@ -163,6 +163,152 @@ enum Commands {
     },
 }
 
+fn run_scaffold(type_name: &str, name: &str) -> Result<(), Box<dyn std::error::Error>> {
+    let repo_root = match std::env::var("MIOS_DRIFT_CHECK_ROOT").or_else(|_| std::env::var("MIOS_THEME_ROOT")) {
+        Ok(r) => std::path::PathBuf::from(r),
+        Err(_) => std::env::current_dir()?,
+    };
+
+    let tmpl_file = repo_root.join("usr/share/mios/templates").join(type_name);
+    if !tmpl_file.is_file() {
+        eprintln!("Error: Template for '{}' not found at {:?}", type_name, tmpl_file);
+        std::process::exit(1);
+    }
+    let content = std::fs::read_to_string(&tmpl_file)?;
+
+    let toml_path = repo_root.join("usr/share/mios/mios.toml");
+    let mut placeholders: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let mut tmpl_cfg: Option<toml::Value> = None;
+
+    if let Ok(toml_str) = std::fs::read_to_string(&toml_path) {
+        if let Ok(val) = toml_str.parse::<toml::Value>() {
+            if let Some(p_tab) = val.get("templates").and_then(|t| t.get("placeholders")).and_then(|p| p.as_table()) {
+                for (k, v) in p_tab {
+                    if let Some(s) = v.as_str() {
+                        placeholders.insert(k.clone(), s.to_string());
+                    }
+                }
+            }
+            if let Some(t_tab) = val.get("templates").and_then(|t| t.get(type_name)) {
+                tmpl_cfg = Some(t_tab.clone());
+            }
+        }
+    }
+
+    let mut rendered = content;
+    if type_name == "adr" {
+        let (adr_id, clean_name) = if let Some(m) = regex::Regex::new(r"^(\d{4})[-_]?(.*)$")?.captures(name) {
+            (m[1].to_string(), m[2].to_string())
+        } else {
+            ("0012".to_string(), name.to_string())
+        };
+        let raw_title = clean_name.replace('-', " ").replace('_', " ");
+        let title = if raw_title.is_empty() {
+            "New decision".to_string()
+        } else {
+            let mut c = raw_title.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        };
+        rendered = rendered.replace("{{id}}", &adr_id);
+        rendered = rendered.replace("{{title}}", &title);
+        rendered = rendered.replace("{{status}}", "accepted");
+    } else if type_name == "drift-check" {
+        rendered = rendered.replace("{{id}}", "99");
+        rendered = rendered.replace("{{description}}", &format!("static check for {}", name));
+    } else if type_name == "quadlet" {
+        rendered = rendered.replace("{{image}}", &format!("docker.io/library/{}:latest", name));
+        rendered = rendered.replace("{{uid}}", "1000");
+        rendered = rendered.replace("{{gid}}", "1000");
+    } else if type_name == "roadmap-ws" {
+        rendered = rendered.replace("{{id}}", &name.to_uppercase());
+        let title = name.replace('-', " ");
+        let title_cap = {
+            let mut c = title.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        };
+        rendered = rendered.replace("{{title}}", &title_cap);
+        rendered = rendered.replace("{{theme}}", "OS-Image & Build");
+        rendered = rendered.replace("{{status}}", "proposed");
+        rendered = rendered.replace("{{priority}}", "P2");
+        rendered = rendered.replace("{{description}}", &format!("Description of {}", name));
+        rendered = rendered.replace("{{task_title}}", &format!("Task 1 for {}", name));
+        rendered = rendered.replace("{{task_id}}", "999");
+    }
+
+    for (k, v) in &placeholders {
+        rendered = rendered.replace(&format!("{{{{{}}}}}", k), v);
+    }
+    rendered = rendered.replace("{{name}}", name);
+
+    let pascal_name = {
+        let words: Vec<&str> = name.split(&['-', '_'][..]).collect();
+        words.iter().map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                None => String::new(),
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+            }
+        }).collect::<String>()
+    };
+    rendered = rendered.replace("{{PascalName}}", &pascal_name);
+
+    if let Some(cfg) = tmpl_cfg {
+        if cfg.get("emit").and_then(|e| e.as_str()) == Some("stdout") {
+            print!("{}", rendered);
+            return Ok(());
+        }
+
+        let mut final_name = name.to_string();
+        if let Some(fixed) = cfg.get("fixed_name").and_then(|f| f.as_str()) {
+            let dest_path = repo_root.join(fixed);
+            if dest_path.exists() {
+                eprintln!("Error: Target file already exists at {:?}", dest_path);
+                std::process::exit(1);
+            }
+            std::fs::write(&dest_path, rendered)?;
+            println!("Scaffolded new {} at: {}", type_name, dest_path.display().to_string().replace('\\', "/"));
+            return Ok(());
+        }
+
+        if let Some(prefix) = cfg.get("name_prefix").and_then(|p| p.as_str()) {
+            if prefix == "0012-" && !regex::Regex::new(r"^\d{4}-")?.is_match(&final_name) {
+                final_name = format!("0012-{}", final_name);
+            } else if prefix == "99-" && !regex::Regex::new(r"^\d{2}-")?.is_match(&final_name) {
+                final_name = format!("99-{}", final_name);
+            } else if !final_name.starts_with(prefix) {
+                final_name = format!("{}{}", prefix, final_name);
+            }
+        }
+
+        if let Some(suffix) = cfg.get("name_suffix").and_then(|s| s.as_str()) {
+            if !final_name.ends_with(suffix) {
+                final_name = format!("{}{}", final_name, suffix);
+            }
+        }
+
+        let dest_dir = cfg.get("dest_dir").and_then(|d| d.as_str()).unwrap_or(".");
+        let dest_path = repo_root.join(dest_dir).join(final_name);
+
+        if let Some(parent) = dest_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        if dest_path.exists() {
+            eprintln!("Error: Target file already exists at {:?}", dest_path);
+            std::process::exit(1);
+        }
+        std::fs::write(&dest_path, rendered)?;
+        println!("Scaffolded new {} at: {}", type_name, dest_path.display().to_string().replace('\\', "/"));
+    }
+
+    Ok(())
+}
+
 fn run_render_kargs(toml_path: &str, kargs_dir: &str) -> Result<(), Box<dyn std::error::Error>> {
     let content = std::fs::read_to_string(toml_path).unwrap_or_default();
     let mut iommu = "on".to_string();
@@ -412,9 +558,10 @@ fn main() {
             template_type,
             name,
         } => {
-            println!("[miosd] Scaffolding {} as {}...", template_type, name);
-            // TODO: Fold mios-new Python logic into this Rust command.
-            println!("[miosd] (Stub) Scaffolding complete.");
+            if let Err(e) = run_scaffold(template_type, name) {
+                eprintln!("[miosd] Scaffold error: {}", e);
+                std::process::exit(1);
+            }
         }
         Commands::Build { phase, plan, list } => {
             if let Err(e) = mios_build::run_build(phase, *plan, *list) {

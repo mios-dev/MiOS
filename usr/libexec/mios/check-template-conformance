@@ -80,6 +80,7 @@ def main():
                 "pattern": re.compile(tcfg["match"]),
                 "required_header": tcfg.get("required_header", True),
                 "required_markers": tcfg.get("required_markers", []),
+                "required_ordered": tcfg.get("required_ordered", []),
             })
 
     unconforming = []
@@ -104,9 +105,21 @@ def main():
                     if not tagger.existing_hint(head):
                         unconforming.append((rel_path, f"Missing AI-hint header (required by {ct['name']})"))
                         break
+                marker_failed = False
                 for marker in ct["required_markers"]:
                     if marker not in content:
                         unconforming.append((rel_path, f"Missing required body marker {marker!r} (required by {ct['name']})"))
+                        marker_failed = True
+                        break
+                if marker_failed:
+                    break
+                last_pos = 0
+                for marker in ct["required_ordered"]:
+                    pos = content.find(marker, last_pos)
+                    if pos != -1:
+                        last_pos = pos + len(marker)
+                    else:
+                        unconforming.append((rel_path, f"Out-of-order or missing required ordered marker {marker!r} (required by {ct['name']})"))
                         break
                 break
 
