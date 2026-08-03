@@ -39,6 +39,12 @@
 # the Pester suite all dot-source -- was absent from every clean checkout.
 !/installation/
 !/installation/**
+# ...except the .bat shims. Law 14 (TARGET-LANGUAGES) bans .bat outright, and
+# grandfathered_cs is a C#-only list its own comment says must never grow.
+# These two have never been tracked, so leaving them untracked is the status
+# quo -- un-ignoring them would have smuggled a fresh Law-14 violation in as a
+# side effect of rescuing mios-common.ps1.
+/installation/*.bat
 !/powershell/
 !/powershell/**
 !/ROADMAP.md
