@@ -390,6 +390,7 @@ observability.channels.tool_result  MIOS_OBSERVABILITY_CHANNELS_TOOL_RESULT
 observability.channels.source  MIOS_OBSERVABILITY_CHANNELS_SOURCE
 observability.channels.content  MIOS_OBSERVABILITY_CHANNELS_CONTENT
 sandbox.enable  MIOS_SANDBOX_ENABLE
+security.privileged_units.unconfined  MIOS_SECURITY_PRIVILEGED_UNITS_UNCONFINED
 security.enable_units  MIOS_SECURITY_ENABLE_UNITS
 security.composefs_mode  MIOS_SECURITY_COMPOSEFS_MODE
 security.mask_systemd_remount_fs  MIOS_SECURITY_MASK_SYSTEMD_REMOUNT_FS

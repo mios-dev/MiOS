@@ -1536,6 +1536,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-unit-gen"
+version = "0.3.0"
+dependencies = [
+ "serde",
+ "thiserror",
+ "toml",
+]
+
+[[package]]
 name = "mios-version-check"
 version = "0.3.0"
 

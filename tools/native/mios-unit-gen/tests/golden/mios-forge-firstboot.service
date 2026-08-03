@@ -1,0 +1,63 @@
+# AI-hint: Executes the forge-firstboot.sh script to bootstrap the Forgejo instance, creating the initial admin user and repository credentials required for the MiOS self-replication and CI runner integration.
+# AI-related: /etc/mios/install.env, /usr/libexec/mios/forge-firstboot.sh, /etc/mios/forge, mios-dev, mios-forge, mios-sync-env, mios-forgejo-runner, mios-forge.container, mios-forge.service, mios-forgejo-runner.service
+[Unit]
+Description='MiOS' Forge first-boot admin-bootstrap (Forgejo)
+Documentation=https://github.com/mios-dev/MiOS/blob/main/etc/containers/systemd/mios-forge.container
+After=mios-forge.service network-online.target
+Wants=mios-forge.service network-online.target
+# /etc/mios/install.env is the optional layered-TOML resolver output
+# from mios-sync-env. The firstboot script tolerates its absence:
+# admin user, email, password all resolve from MIOS_DEFAULT_* or
+# fall back to "mios" / mios@hostname.local. Keep the unit gated only
+# by the firstboot sentinel.
+ConditionPathExists=!/var/lib/mios/forge/.firstboot-done
+# Forgejo bootstrap MUST run on WSL too (the localhost:3000 git origin
+# is the heart of the MiOS self-replication loop on every shape). A
+# plain `!container` would skip WSL because systemd reports virtualization
+# as `wsl` -- a container variant. Use OR: "not a container OR is WSL".
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
+StartLimitIntervalSec=1200
+StartLimitBurst=6
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/mios/install.env
+ExecStart=/usr/libexec/mios/forge-firstboot.sh
+TimeoutStartSec=600s
+Restart=on-failure
+RestartSec=30
+
+# Hardening: this service writes to a small set of paths plus calls
+# 'podman exec' against the running mios-forge container. RestrictNamespaces
+# and RestrictAddressFamilies were tried but break Podman's CRIU/conmon
+# attach path on rootful container exec; we drop them and lean on the
+# read-write path scoping + ProtectHome instead, which is sufficient for
+# this script's actual surface area.
+#
+# /run is LOAD-BEARING and must be writable as a whole: rootful
+# `podman exec` -- even a plain exec, no container lifecycle -- grabs
+# coordination locks across multiple /run subtrees: /run/libpod/
+# alive.lck (runtime init lock), /run/lock/netavark.lock (network
+# coordination), /run/containers/ (storage runroot). Listing them
+# individually is whack-a-mole; each missing one surfaces only at
+# runtime as "open <path>: read-only file system" (exit 125). /run is
+# tmpfs runtime state, so granting it RW is low-risk and is exactly
+# podman's requirement. That exit-125 failure is silent-deadly here:
+# forge-firstboot.sh's `admin user create` idempotency guard mis-reads
+# 125 as "user already exists", so the admin is never created, the
+# repo-create 401s, the runner-token mint fails, and the entire
+# self-replication CI chain (runner-firstboot -> .runner ->
+# mios-forgejo-runner.service) stays dead behind unmet
+# ConditionPathExists guards. Operator-confirmed regression 2026-05-14.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge /var/lib/containers /run
+PrivateTmp=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

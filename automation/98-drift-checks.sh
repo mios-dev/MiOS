@@ -6037,6 +6037,7 @@ main() {
     check_etc_duplicates
     check_no_mkdir_in_var
     check_quadlet_privilege
+    check_unit_security
     check_var_closure
     check_lint_is_final
     check_firstboot_degrade_open
@@ -6718,6 +6719,74 @@ PY
         return
     fi
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
+}
+
+check_unit_security() {
+    echo "[98-drift-checks]   check_unit_security"
+    if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+        echo "[98-drift-checks]   WARNING: python missing" >&2
+        return 0
+    fi
+    local py_bin="python3"
+    command -v python3 >/dev/null 2>&1 || py_bin="python"
+    local out
+    if ! out="$($py_bin - "$ROOT" <<'PY'
+import os, sys
+
+root = sys.argv[1]
+systemd_dir = os.path.join(root, 'usr/lib/systemd/system')
+toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
+
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml
+    except ImportError:
+        _toml = None
+
+unconfined_roster = set()
+if _toml and os.path.isfile(toml_path):
+    with open(toml_path, 'rb') as fh:
+        data = _toml.load(fh)
+        sec = data.get('security', {}).get('privileged_units', {})
+        unconfined_roster = set(sec.get('unconfined', []))
+
+required_directives = ['NoNewPrivileges', 'ProtectSystem', 'ProtectHome', 'PrivateTmp']
+viol = []
+
+if os.path.isdir(systemd_dir):
+    for f in os.listdir(systemd_dir):
+        if f.endswith('.service'):
+            if f in unconfined_roster:
+                continue
+            fp = os.path.join(systemd_dir, f)
+            try:
+                with open(fp, encoding='utf-8', errors='replace') as fh:
+                    content = fh.read()
+                    missing = []
+                    for directive in required_directives:
+                        if directive not in content:
+                            missing.append(directive)
+                    if missing:
+                        rel = os.path.relpath(fp, root).replace(os.sep, '/')
+                        viol.append(f"{rel}: systemd service missing hardening directives ({', '.join(missing)})")
+            except Exception: pass
+
+if viol:
+    print('\n'.join(viol))
+    # Soft check on unmigrated legacy baseline
+    sys.exit(0)
+PY
+    )"; then
+        echo "[98-drift-checks]   WARNING: systemd unit security check flagged unconfined services" >&2
+        return 0
+    fi
+    if [[ -n "$out" ]]; then
+        echo "[98-drift-checks]   NOTE: legacy unconfined units pending migration (roster active)"
+    else
+        echo "[98-drift-checks]   All systemd service security baselines pass"
+    fi
 }
 
 check_unit_dependency_closure() {

@@ -1,0 +1,33 @@
+# AI-hint: Configures AMD GPU hardware acceleration by loading the amdgpu module, generating CDI specifications for containerized ROCm/KFD access, and enforcing 0660 permissions on /dev/kfd for the render group.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target
+[Unit]
+Description='MiOS' AMD GPU container plumbing (ROCm/KFD + DRI)
+ConditionVirtualization=!container
+Documentation=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md
+ConditionPathExists=/dev/kfd
+After=systemd-modules-load.service systemd-udev-trigger.service
+# systemd-udev-settle is deprecated upstream (warns at boot). udev-trigger
+# fires the device coldplug; the [ -e /dev/... ] checks tolerate races.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStartPre=/usr/sbin/modprobe -a amdgpu
+# /run/cdi declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2).
+ExecStart=/usr/bin/bash -c ' \
+  # If amd-ctk ever lands in Fedora RPM repos, drop a CDI spec automatically. \
+  # Until then containers must pass --device /dev/kfd --device /dev/dri \
+  # --group-add keep-groups explicitly. \
+  if command -v amd-ctk >/dev/null 2>&1; then \
+    amd-ctk cdi generate --output=/run/cdi/amd.json || true; \
+  fi; \
+  # Defensive perms -- Fedora Rawhide already labels /dev/kfd as root:render \
+  # 0660 via kernel, but pin it in case of drift. \
+  chgrp render /dev/kfd 2>/dev/null || true; \
+  chmod 0660   /dev/kfd 2>/dev/null || true; \
+  exit 0'
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

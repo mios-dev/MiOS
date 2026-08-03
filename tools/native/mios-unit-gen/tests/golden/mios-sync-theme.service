@@ -1,0 +1,26 @@
+# AI-hint: Oneshot that regenerates /etc/mios/theme/{theme.json,mios-theme.css}
+# from mios.toml via usr/libexec/mios/mios-sync-theme. Mirrors the existing
+# mios-forge-firstboot.service / mios-sync-env pattern: runs once at boot so
+# the bridge file exists before mios-agent-pipe.service (Portal),
+# hermes-dashboard.service, and Quickshell's Theme.qml try to read it, and is
+# safe to `systemctl start mios-sync-theme.service` by hand after editing
+# mios.toml [colors] instead of hand-editing CSS/QML hex codes.
+# AI-related: usr/libexec/mios/mios-sync-theme, usr/lib/tmpfiles.d/mios-theme.conf,
+# usr/share/mios/quickshell/Theme.qml, usr/share/mios/branding/mios-theme.css
+
+[Unit]
+Description=MiOS theme bridge -- regenerate /etc/mios/theme from mios.toml [colors]
+After=local-fs.target
+Before=mios-agent-pipe.service hermes-dashboard.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-sync-theme
+# Best-effort: a missing python3/tomllib must never block boot. Consumers
+# (Theme.qml, mios-app-shell.css include sites) all degrade-open to the
+# vendor-default palette when /etc/mios/theme/* is absent.
+SuccessExitStatus=0 1
+
+[Install]
+WantedBy=multi-user.target

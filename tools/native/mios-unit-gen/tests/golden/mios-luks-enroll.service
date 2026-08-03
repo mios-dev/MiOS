@@ -1,0 +1,14 @@
+[Unit]
+# AI-hint: Service for auto-enrolling LUKS disk encryption keys with systemd-cryptenroll / clevis
+Description=Enroll LUKS keys automatically using TPM2
+DefaultDependencies=no
+After=cryptsetup.target local-fs.target
+ConditionSecurity=tpm2
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/mios/mios-luks-enroll
+
+[Install]
+WantedBy=multi-user.target

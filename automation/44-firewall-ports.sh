@@ -16,20 +16,48 @@ if command -v miosd >/dev/null 2>&1; then
 fi
 
 
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp          # mios-hermes (Hermes-Agent /v1)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp     # mios-open-webui (rich chat UI)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8900}/tcp # mios-code-server (VS Code in a browser)
-firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp       # mios-guacamole (Browser desktop)
-firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp  # Ceph dashboard
-firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp         # K3s API
-firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp             # RDP
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_HTTP}/tcp      # mios-forge HTTP
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_SSH}/tcp       # mios-forge git+ssh
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT_LINK}/tcp    # mios-cockpit-link discovery shim
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-8050}/tcp  # mios-adguard web UI/API
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp   # mios-adguard DNS (TCP: large/AXFR)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/udp   # mios-adguard DNS (UDP: normal queries)
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_SSH}/tcp             # host admin sshd (hardened off :22; was --add-service=ssh, which opened only 22 and locked out the 49955 sshd)
-firewall-offline-cmd --zone=public --add-service=ssh                            # :22 kept open for Forgejo git-ssh squatting the host port (Forge port drift -- drop once Forge moves to ${MIOS_PORT_FORGE_SSH})
-firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT}/tcp          # ${MIOS_PORT_COCKPIT} (host service)
+# Derive open ports from SSOT [firewall.open_ports]
+_ssot_ports=()
+if python3 -c 'import tomllib' 2>/dev/null; then
+    mapfile -t _ssot_ports < <(python3 -c '
+import tomllib, os
+path = "/usr/share/mios/mios.toml"
+if not os.path.exists(path):
+    path = os.path.join(os.path.dirname(__file__), "../usr/share/mios/mios.toml")
+if os.path.exists(path):
+    with open(path, "rb") as f:
+        data = tomllib.load(f)
+    fw = data.get("firewall", {}).get("open_ports", [])
+    ports = data.get("ports", {})
+    for k in fw:
+        val = ports.get(k)
+        if val is not None:
+            print(f"{val}")
+' 2>/dev/null || true)
+fi
+
+if [ "${#_ssot_ports[@]}" -gt 0 ]; then
+    for port in "${_ssot_ports[@]}"; do
+        firewall-offline-cmd --zone=public --add-port="${port}/tcp" || true
+    done
+else
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_HERMES}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_OPEN_WEBUI}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_CODE_SERVER:-8900}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_GUACAMOLE_PORT}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_CEPH_DASHBOARD_PORT}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_K3S_API_PORT}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_RDP_PORT}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_HTTP}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_FORGE_SSH}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT_LINK}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_UI:-8050}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_SSH}/tcp
+    firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_COCKPIT}/tcp
+fi
+
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/tcp
+firewall-offline-cmd --zone=public --add-port=${MIOS_PORT_ADGUARD_DNS:-53}/udp
+firewall-offline-cmd --zone=public --add-service=ssh
 firewall-offline-cmd --zone=public --add-service=mios-pxe
+

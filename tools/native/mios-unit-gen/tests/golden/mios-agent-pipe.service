@@ -1,0 +1,153 @@
+# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORT_LLM_LIGHT), composed in server.py via _LIGHT_BASE.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, /usr/lib/mios/agents/.venv/bin/python3, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes, mios-env
+[Unit]
+Description='MiOS' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)
+Documentation=file:///usr/lib/mios/agent-pipe/server.py
+# R8: NOT ordered After=mios-ai-firstboot.service. The plane needs the VENV (baked
+# into the image) + pgvector, NOT the boot-time model fetch; ordering behind
+# firstboot's multi-GB download blocked the router for the whole download. firstboot
+# `systemctl restart --no-block`s this unit once models land, so the edge is redundant.
+After=network-online.target mios-pgvector.service mios-passport-provision.service
+Wants=network-online.target mios-passport-provision.service
+# R6: the pipe touches pgvector on every route, so upgrade the DB edge from After=
+# (ordering only) to a hard Requires= -- a missing DB should hold/fail the unit.
+Requires=mios-pgvector.service
+# R6: bound the existing Restart=on-failure so a DB-down window (many quick
+# restarts) can't trip the default 5/10s start limit and land permanently failed.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+# The venv python is baked into the FINAL image, but on the podman-MiOS-DEV substrate it is
+# built at first boot by mios-ai-firstboot. Skip (rather than 203/EXEC-fail) until it exists,
+# so the unit never lands in a "failed" state during the firstboot venv-build window; firstboot
+# `systemctl restart --no-block`s it once the venv lands (R8 still holds: no After= edge here,
+# so no blocking on the multi-GB model download).
+ConditionPathExists=/usr/lib/mios/agents/.venv/bin/python3
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+# Run with the mios-hermes supplementary group so the service can read
+# /etc/mios/hermes/api.env (mode 0640, group mios-hermes) and load the
+# backend API_SERVER_KEY. Without it, _BACKEND_KEY stays empty and KEYLESS
+# direct callers (Firefox Smart Window, curl, MCP) reach Hermes with no auth
+# and get 401 -- only the OWUI path worked because it forwards the operator
+# token. The agent-pipe fronts Hermes, so sharing its key group is intended.
+SupplementaryGroups=mios-hermes
+WorkingDirectory=/var/lib/mios/agent-pipe
+
+# SSOT chain: every operator-tunable knob sources from mios.toml via
+# /etc/profile.d/mios-env.sh, which exports MIOS_* into the service
+# environment. The service code reads MIOS_PORT_AGENT_PIPE +
+# MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
+EnvironmentFile=-/etc/mios/agent-pipe.env
+# WS-0B: source the SSOT env bridge (same pattern as hermes-agent.service) so the
+# derived MIOS_PORT_LLM_LIGHT ([ports].llm_light in mios.toml) reaches the service
+# -> server.py composes EVERY light-lane endpoint from it via _LIGHT_BASE. ONE
+# owned port key; no per-endpoint :11450 literal in this unit anymore.
+EnvironmentFile=-/etc/mios/install.env
+Environment=MIOS_PORT_AGENT_PIPE=8640
+# WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP"): the agent-pipe
+# reasons DIRECTLY on mios-llm-light (:11450) instead of via a Hermes hop. All
+# inference is on the dGPU via llama.cpp.
+# 2026-06-15 (Claude): model fleet swapped gemma4:12b -> granite4.1:8b (the served
+# brain on mios-llm-light; see mios-llm-light.yaml + mios.toml:4061). gemma4:12b is
+# NO LONGER SERVED -> any role still naming it 404s on llama-swap ("no model id").
+# Align EVERY pipeline role to the ONE resident served brain (granite4.1:8b): set the
+# BASE default MIOS_STACK_MODEL (which _MICRO/DCI/SWARM/refine/polish/planner inherit
+# via server.py) + the explicit BACKEND/SWARM/MICRO names. ONE resident model = no
+# llama-swap thrash. Override per-deployment in /etc/mios/agent-pipe.env.
+# WS-0B: the agent-pipe reasons DIRECTLY on the light lane (NOT fronting Hermes
+# :8642). Opt in by FLAG -- server.py composes the URL from _LIGHT_BASE, so the
+# port lives in ONE place ([ports].llm_light), not a literal here. MICRO/ROUTER/
+# LLM_CPU/PLANNER/REFINE/POLISH endpoints ALSO derive from _LIGHT_BASE now and
+# are no longer pinned in this unit.
+Environment=MIOS_AGENT_PIPE_BACKEND_LIGHT=1
+# WS-0B: ONE owned model key. BACKEND/MICRO/SWARM/PLANNER/REFINE/POLISH all
+# INHERIT this via server.py (_STACK_MODEL), which ALSO honors MIOS_AI_MODEL
+# ([ai].model SSOT) -- so set the model in ONE place, not seven. Override
+# per-deploy in /etc/mios/agent-pipe.env, or globally via [ai].model -> MIOS_AI_MODEL.
+Environment=MIOS_AI_MODEL=granite4.1:8b
+# llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no legacy /api/chat, /api/ps)
+# and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
+# skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
+# literal in routing code -- these are the env-SSOT hint lists.
+# llama.cpp b9519 (the dGPU mios-llm-light) ACCEPTS tool_choice=required (verified) --
+# only the older iGPU b9305 (:11436) rejects it. So :11450 must NOT be in the
+# no-tool-choice list, or the pipe drops/auto's tool_choice and gemma4 NARRATES
+# the call instead of executing it. Keep :11450 in KV_PAGING (it does /slots).
+Environment=MIOS_NO_TOOL_CHOICE_HINTS=11436
+Environment=MIOS_KV_PAGING_HINTS=11436,11450
+Environment=MIOS_LLM_API_HINTS=
+# WS-0B: ROUTER + the CPU-offload light-lane (MIOS_LLM_CPU_ENDPOINT) both now
+# default to _LIGHT_BASE in server.py (mios-llm-light) -- no per-endpoint pin here.
+# Override either via /etc/mios/agent-pipe.env only if a deployment splits lanes.
+# Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to
+# whatever lane is reachable if :11434 is down.
+# Model: mios-agent -- the canonical "MiOS AI" model (Modelfile FROM
+# qwen3.5:4b as of 2026-05-22 consolidation; was gemma4:e4b). ONE light
+# brain now serves plan + refine + polish with the full MiOS agent SYSTEM
+# (act-don't-narrate / right-tool-for-goal / SSOT mios-os-control surface,
+# ENGLISH-default, no hardcodes). The planner emits a single structured
+# verb/recipe DAG; if it ever empties, DAG mode degrades to the backend
+# proxy. Override via /etc/mios/agent-pipe.env.
+# History: qwen2.5-coder:7b -> mios-planner(gemma4) -> mios-agent(gemma4)
+# -> mios-agent(qwen3.5:4b, consolidated brain) 2026-05-22.
+# WS-0B: PLANNER endpoint+model both derive from server.py (_LIGHT_BASE +
+# MIOS_STACK_MODEL) -- no per-role pin here.
+# WS-A3 de-rot: the legacy DB (:8000) is RETIRED -> the agent DB is Postgres+pgvector
+# (MIOS_PG_* / mios-pgvector). The former MIOS_DB_URL/USER/PASS/NS/DB legacy env
+# is removed (the pg client reads MIOS_PG_* + the pgvector quadlet creds).
+# Phase C.3 -- this service signs agent-plane writes (pgvector + A2A) as agent-pipe.
+Environment=MIOS_PASSPORT_AGENT_NAME=agent-pipe
+# refine (input prompt-enhancement -> the structured plan every downstream node
+# consumes; THE quality lever) + polish (final-answer shaping WITH the MiOS
+# persona) both run on the ONE resident served brain via the agent-pipe lane
+# resolver (mios-llm-light; the retired qwen3.5:4b/qwen3:1.7b dGPU :11434 pins are
+# GONE). WS-0B: their endpoint AND model now derive from server.py (_LIGHT_BASE +
+# MIOS_AI_MODEL, the one owned keys) -- NEITHER is pinned in this unit anymore. The
+# CONCURRENT swarm secondaries still fan out to OTHER lanes at the same dispatch
+# step ([[mios_heterogeneous_parallel_dispatch]]). Override via
+# /etc/mios/agent-pipe.env only to split a lane.
+# Phase D.5 -- refine + polish timeouts on CPU-bound dev hardware.
+# Real ROCm/CUDA finishes the LLM call in <1s; WSL CPU takes 15-30s
+# for the same prompt. Generous timeout works on both.
+Environment=MIOS_REFINE_TIMEOUT_S=45
+Environment=MIOS_POLISH_TIMEOUT_S=45
+Environment=MIOS_REFINE_MAX_TOKENS=1200
+# Agent self-memory recall (operator 2026-06-20): inject the agent's OWN durable
+# self-edited facts (remember/memory_update -> agent_memory, embed-on-write) into
+# context so a "what did I tell you" / "what is my X" turn RETRIEVES the stored fact
+# instead of replying "I don't have that" (the WRITE half worked; the READ half was
+# default-OFF only to keep the hot path byte-identical until flipped). Safe: the
+# agent's OWN facts, same injection class as knowledge recall, NOT env-detection (the
+# no-context-injection rule is scoped to env discovery). RLS fail-closed still applies
+# under rls_mode=enforce; default rls_mode=off -> unchanged.
+Environment=MIOS_AGENT_MEMORY_RECALL=1
+
+# Reuse hermes-agent's venv interpreter for fastapi/uvicorn/httpx/
+# starlette -- they're already installed there. Cleaner option for a
+# bootc deploy is `dnf install python3-fastapi python3-uvicorn` +
+# /usr/bin/python3 (operator-confirmed 2026-05-18: python3-fastapi is
+# in updates/, python3-httpx already installed). Switching to dnf
+# packages is the v1 follow-up; for the scaffold commit we ride the
+# hermes-agent venv to skip a package-list bump in the same change.
+ExecStart=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=60s
+
+# Hardening: no-new-privs, private tmp, read-only system surfaces.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log /var/lib/mios/agent-env /var/lib/mios/ai
+# Read-only mount of the agent-passport tree so this service can
+# load its own private key + every other agent's public key for
+# /passport/verify.
+ReadOnlyPaths=/var/lib/mios/agent-passports
+
+[Install]
+WantedBy=multi-user.target

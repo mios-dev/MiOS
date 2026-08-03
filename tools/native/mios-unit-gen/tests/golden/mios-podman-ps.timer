@@ -1,0 +1,12 @@
+# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.
+# AI-related: mios-podman-ps, mios-podman-ps.service, timers.target
+[Unit]
+Description='MiOS' refresh the podman container snapshot for the dashboard
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=15s
+AccuracySec=2s
+
+[Install]
+WantedBy=timers.target

@@ -2360,6 +2360,7 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_unit_dependency_closure
+    test_unit_dependency_closure
     test_test_hermeticity
     test_no_mkdir_in_var
     test_quadlet_privilege

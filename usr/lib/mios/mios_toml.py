@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 
 try:
     import tomllib as _toml
@@ -432,8 +433,12 @@ def get_aliases(dotted_path):
             aliases.append(f"MIOS_{name}")
 
     elif dotted_path.startswith("units."):
-        # [units].forge -> MIOS_UNIT_FORGE (the name every consumer already uses)
-        aliases.append("MIOS_UNIT_" + dotted_path[len("units."):].upper())
+        # [units].forge -> MIOS_UNIT_FORGE (the name every consumer already uses).
+        # Unit names carry '-' and '.' (var-lib-nfs-rpc_pipefs.mount), neither of
+        # which is legal in a shell identifier -- left raw, `export` rejects the
+        # whole assignment and the var is silently never emitted.
+        tail = dotted_path[len("units."):].upper()
+        aliases.append("MIOS_UNIT_" + re.sub(r"[^A-Z0-9]", "_", tail))
 
     elif dotted_path.startswith("urls."):
         # [urls].forge -> MIOS_FORGE_URL; the two repo URLs keep their own shape.

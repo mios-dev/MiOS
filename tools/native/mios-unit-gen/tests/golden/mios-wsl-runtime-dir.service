@@ -1,0 +1,48 @@
+# AI-hint: Ensures the /run/user/1000 directory and Wayland symlinks exist for the mios user on WSL2 to prevent GTK/dbus failures when pam_systemd is bypassed.
+# AI-related: systemd-sysusers.service, UID_.service, local-fs.target, multi-user.target
+[Unit]
+# 'MiOS' WSL2 user-runtime-directory fallback.
+# pam_systemd creates /run/user/<uid> on a real PAM login session. WSL2's
+# default-user invocation does open a PAM session, but `wsl -u root` followed
+# by `su - mios` bypasses pam_systemd and leaves /run/user/1000 missing,
+# which then surfaces as "Unsupported or missing session type ''" in GTK
+# apps, dconf "Permission denied", and dbus user-session failures.
+#
+# This service unconditionally creates the directory for the canonical mios
+# user on WSL2 boots so the cascade can't happen. On a real logind session
+# the directory already exists -- install -d is idempotent and a no-op.
+Description='MiOS' WSL2 user-runtime-dir fallback
+Documentation=https://github.com/MiOS-DEV/MiOS
+ConditionVirtualization=wsl
+After=local-fs.target systemd-sysusers.service
+Before=multi-user.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# Resolve mios uid/gid via getent (handles future renumbering). Failures are
+# non-fatal -- if the user doesn't exist yet, sysusers / wsl-firstboot will
+# create it and a subsequent boot will populate the directory.
+ExecStart=/bin/bash -c '\
+    getent passwd mios >/dev/null 2>&1 || exit 0; \
+    UID_=$(id -u mios); GID_=$(id -g mios); \
+    install -d -m 0700 -o "$UID_" -g "$GID_" "/run/user/$UID_"; \
+    # WSLg materializes /mnt/wslg/runtime-dir/wayland-0 a few seconds \
+    # after distro init. Wait up to 30s before bailing so the symlink \
+    # ALWAYS gets created on a healthy WSLg distro. \
+    for _ in $(seq 1 60); do \
+        [ -S /mnt/wslg/runtime-dir/wayland-0 ] && break; \
+        [ -S /mnt/wslg/wayland-0 ] && break; \
+        sleep 0.5; \
+    done; \
+    if [ -S /mnt/wslg/runtime-dir/wayland-0 ] || [ -S /mnt/wslg/wayland-0 ]; then \
+        src=/mnt/wslg/runtime-dir/wayland-0; [ -S "$src" ] || src=/mnt/wslg/wayland-0; \
+        ln -sfn "$src" "/run/user/$UID_/wayland-0"; \
+        [ -S "${src}.lock" ] && ln -sfn "${src}.lock" "/run/user/$UID_/wayland-0.lock" || true; \
+        chown -h "$UID_:$GID_" "/run/user/$UID_/wayland-0" "/run/user/$UID_/wayland-0.lock" 2>/dev/null || true; \
+    fi; \
+    : > "/var/lib/systemd/linger/mios" 2>/dev/null || true; \
+    systemctl start "user@$UID_.service" 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target

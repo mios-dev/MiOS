@@ -1,0 +1,41 @@
+# AI-hint: Enforces world exec+read (go+rX) perms on /usr/libexec/mios via a systemd oneshot at early boot, so MiOS services that run as a non-owner user (mios-ai, mios-skills, mios-hermes, ...) can execute their libexec scripts instead of crash-looping with 203/EXEC "Permission denied". Guards the case where the deployed root / (a git working tree of mios.git) is checked out without core.fileMode / exec bits.
+# AI-related: mios-additionalimagestores-perms.service, mios-libexec-perms.path, mios-hermes-browser.service, mios-skills-miner.service, mios-daemon.service, local-fs.target, multi-user.target
+[Unit]
+# Enforce go+rX on /usr/libexec/mios so services running as a DIFFERENT user
+# than the file owner can exec their scripts.
+#
+# Why this exists: the deployed root / is a git working tree of mios.git. A
+# checkout without core.fileMode (or a committed source lacking the exec bit)
+# strips group/other execute from the libexec scripts, leaving them mode 0744
+# owned by the operator user. Any service that ExecStart's such a script as a
+# non-owner service user (mios-ai / mios-skills / mios-hermes / ...) then fails
+# EXEC with 203/"Permission denied" and crash-loops (observed: hermes-browser at
+# 12k+ restarts, skills-miner failed, daemon/mcp inert). `chmod -R go+rX` is
+# idempotent and, via the capital X, only propagates EXISTING owner-execute --
+# it never makes a data file executable.
+Description='MiOS': enforce exec perms (go+rX) on /usr/libexec/mios
+DefaultDependencies=no
+After=local-fs.target
+Before=multi-user.target
+ConditionPathIsDirectory=/usr/libexec/mios
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/chmod -R go+rX /usr/libexec/mios
+RemainAfterExit=yes
+
+# Hardening (this unit only chmods one path).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/usr/libexec/mios
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=multi-user.target

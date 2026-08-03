@@ -1,0 +1,25 @@
+# AI-hint: Systemd oneshot service that generates a world-readable JSON snapshot of all running podman containers to allow non-root entities (agent-pipe, dashboard, and SSH users) to view container status.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, mios-agent-pipe, podman.socket, multi-user.target
+[Unit]
+Description='MiOS' rootful podman snapshot for the agent-pipe portal/dashboard
+Documentation=file:///usr/lib/mios/agent-pipe/server.py
+After=podman.socket
+Wants=podman.socket
+
+[Service]
+Type=oneshot
+# Containers run ROOTFUL; any NON-root context -- the hardened agent-pipe
+# (User=mios-agent-pipe), the launcher broker, AND an operator's interactive
+# SSH/Termius shell -- running `podman ps` sees NOTHING (/run/podman is 0700
+# root:root). This root oneshot writes a READ-ONLY `podman ps` snapshot that
+# every non-root reader (portal, container_status verb, operator shell)
+# consumes instead. Operator 2026-05-23: containers invisible in the dashboard
+# AND in the Termius iPhone app -- same root cause.
+#
+# WORLD-READABLE shared path: /var/lib/mios is root:root 755 (traversable by
+# all), and the file is chmod 0644 -- so the operator's SSH user can read it,
+# not just mios-agent-pipe (whose state dir is 0750 and blocked everyone else).
+ExecStart=/bin/sh -c '/usr/bin/podman ps -a --format json > /var/lib/mios/podman-ps.json.tmp 2>/dev/null && mv -f /var/lib/mios/podman-ps.json.tmp /var/lib/mios/podman-ps.json && chmod 0644 /var/lib/mios/podman-ps.json'
+
+[Install]
+WantedBy=multi-user.target

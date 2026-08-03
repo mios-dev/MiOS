@@ -1,0 +1,61 @@
+# AI-hint: Systemd unit file defining the core MiOS daemon; it consolidates log watching, cron gating, and agent nudging into a single process using a local qwen3 model to update the state.json file used by the OWUI sidecar.
+# AI-related: /usr/libexec/mios/mios-daemon, /etc/mios/secrets.env, /etc/mios/daemon/cron.toml, mios-daemon, mios-log-watcher, mios-cron-director, mios-agent-nudger, mios-ai, mios-delegation-prefilter, mios-open-webui
+[Unit]
+# /usr/lib/systemd/system/mios-daemon.service
+#
+# MiOS consolidated micro-LLM daemon. Replaces three predecessors
+# (mios-log-watcher + mios-cron-director + mios-agent-nudger) with
+# ONE process that subscribes to journald once, holds a single
+# qwen3:0.6b-cpu client (keep_alive=-1 forever, num_gpu=0 CPU-only
+# per Law 7 OFFLINE-FIRST + "always-on agentic OS"), and dispatches
+# the three handlers off a single event stream. Writes a unified
+# /var/lib/mios/daemon/state.json the OWUI mios_sidecar Filter polls.
+#
+# Operator directive 2026-05-17: "ALL to be consolidated to one
+# mios daemon/agent" + "keep_alive should be TRUE for a TRULY
+# Agentic OS--MiOS!"
+
+Description='MiOS' consolidated micro-LLM daemon (log classify + refusal detect + cron gate)
+Documentation=file:///usr/libexec/mios/mios-daemon
+After=mios-llm-light.service network.target
+Wants=mios-llm-light.service
+ConditionPathExists=/usr/libexec/mios/mios-daemon
+
+[Service]
+Type=simple
+ExecStart=/usr/libexec/mios/mios-daemon
+Restart=on-failure
+RestartSec=5s
+User=mios-ai
+Group=mios-ai
+Environment=PYTHONUNBUFFERED=1
+
+# Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):
+#   Environment=MIOS_DAEMON_MODEL=qwen3:1.7b
+#   Environment=MIOS_DAEMON_ENDPOINT=http://127.0.0.1:11434
+#   Environment=MIOS_DAEMON_STATE_DIR=/var/lib/mios/daemon
+#   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml
+#   Environment=MIOS_DAEMON_CLASSIFY_S=30
+#   Environment=MIOS_DAEMON_CRON_TICK_S=60
+#   Environment=MIOS_DAEMON_WATCH_UNITS=mios-agent-pipe.service,mios-open-webui.service
+
+# Hardening (kept loose enough to allow journalctl subscription +
+# subprocess.Popen for cron actions).
+NoNewPrivileges=true
+ProtectSystem=strict
+# /var/lib/mios/daemon = the daemon's own state (state.json, launch_failures).
+# /var/lib/mios/scratch = the SHARED cross-agent blackboard the task_collector
+# drops agent-nudges into for other agents to read (operator 2026-05-24: under
+# ProtectSystem=strict it was read-only, so task_collector EROFS-failed writing
+# agent-nudges.md -- the nudge feature was silently dead).
+ReadWritePaths=/var/lib/mios/daemon /var/lib/mios/scratch
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+RestrictRealtime=true
+
+[Install]
+WantedBy=multi-user.target

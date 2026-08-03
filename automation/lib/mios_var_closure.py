@@ -46,6 +46,14 @@ def referenced_set():
     for dirpath, _dirs, files in os.walk(ROOT):
         if "/.git" in dirpath.replace("\\", "/"):
             continue
+        reldir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
+        # A design-doc proposal bundle: a docs/ directory carrying _design.md
+        # alongside files that encode their FUTURE install path in the filename
+        # (g1__automation__build__foo.sh) plus a proposed mios.toml fragment.
+        # Nothing installs these, so they are proposals rather than consumers,
+        # and the vars they name only exist once the bundle lands.
+        if reldir.startswith("docs/") and "_design.md" in files:
+            continue
         for fn in files:
             path = os.path.join(dirpath, fn)
             rel = os.path.relpath(path, ROOT).replace("\\", "/")
@@ -59,6 +67,16 @@ def referenced_set():
                         for m in VAR_RE.finditer(line):
                             v = m.group(0)
                             if v in DIRECTIVE_VARS:
+                                continue
+                            # A trailing '_' means the regex stopped on a
+                            # non-name character, so this is a FRAGMENT, not a
+                            # variable: an f-string prefix (f"MIOS_A2A_{name}"),
+                            # a build-time template placeholder
+                            # (__MIOS_COCKPIT_PORT__), or a doc wildcard
+                            # (MIOS_COLOR_*). No emitted name ends in '_', so
+                            # these can never be satisfied and would wedge the
+                            # gate permanently.
+                            if v.endswith("_"):
                                 continue
                             if re.match(rf"\s*(export\s+)?{v}=", line):
                                 continue

@@ -1,0 +1,18 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-userdb-render to project PostgreSQL account records into systemd userdb JSON drop-ins.
+# AI-related: /usr/libexec/mios/mios-userdb-render, mios-pgvector.service, multi-user.target
+
+[Unit]
+Description='MiOS' PostgreSQL account systemd userdb drop-in renderer
+Documentation=file:///usr/libexec/mios/mios-userdb-render
+After=mios-pgvector.service
+Requires=mios-pgvector.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/mios/install.env
+ExecStartPre=-/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p 8432 -U mios -d mios
+ExecStart=/usr/libexec/mios/mios-userdb-render
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

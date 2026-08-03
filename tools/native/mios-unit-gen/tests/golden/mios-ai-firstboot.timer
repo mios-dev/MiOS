@@ -1,0 +1,24 @@
+# AI-hint: Timer that re-triggers mios-ai-firstboot.service on a cadence until the .ai-firstboot-done sentinel exists, replacing the unit's former Restart=on-failure retry storm so a partial (network-less) AI provision degrades open instead of crash-looping.
+# AI-related: /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot.service, /var/lib/mios/.ai-firstboot-done
+[Unit]
+Description='MiOS' AI first-boot provisioning retry (until the sentinel is written)
+Documentation=https://github.com/mios-dev/mios
+# Re-fire mios-ai-firstboot.service until the venv+GGUFs+vLLM weights are all in
+# place. The .service degrades open (exit 0) on a partial provision and carries
+# ConditionPathExists=!<sentinel>, so once /var/lib/mios/.ai-firstboot-done is
+# written the timer-fired run no-ops. The same condition here stops the timer
+# itself from firing needlessly once provisioning is complete.
+ConditionPathExists=!/var/lib/mios/.ai-firstboot-done
+
+[Timer]
+# First retry shortly after boot, then every 10min while the service sits
+# inactive and the sentinel is still absent. Persistent catches up a missed
+# window across a shutdown. The timer OWNS retry now (the .service no longer
+# carries Restart=on-failure / StartLimitBurst).
+OnBootSec=2min
+OnUnitInactiveSec=10min
+Persistent=true
+Unit=mios-ai-firstboot.service
+
+[Install]
+WantedBy=timers.target

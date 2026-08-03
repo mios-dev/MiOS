@@ -1,0 +1,36 @@
+# AI-hint: Systemd unit file defining the mios-mcp.service daemon, which provides the Model Context Protocol (MCP) server for autonomous agents to access system context via a hardened, high-availability userspace listener.
+# AI-related: /usr/libexec/mios/mcp-init.sh, /usr/libexec/mios/mcp-server-runner, mios-mcp, mios-ai, redis.service, network.target, multi-user.target
+[Unit]
+Description='MiOS' Agent Context Service (MCP)
+# High-availability context provider for autonomous agents. Pure
+# userspace daemon (no kernel/audit/hardware coupling) so it runs on
+# every MiOS shape -- bare-metal, Hyper-V, QEMU, WSL, Podman-WSL.
+# The previous `ConditionVirtualization=!container` would silently skip
+# WSL, since systemd reports WSL as a `container` virt variant.
+After=network.target redis.service
+Wants=redis.service
+
+[Service]
+Type=simple
+User=mios-ai
+Group=mios-ai
+# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener
+ExecStartPre=/usr/libexec/mios/mcp-init.sh
+ExecStart=/usr/libexec/mios/mcp-server-runner
+Restart=always
+RestartSec=5
+# Security hardening: isolate the MCP server from writing to the core OS
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/mios/mcp /var/log/mios/mcp
+# Hardening parity with sibling mios-* daemons (log-watcher, cron-
+# director, hermes-browser) -- consolidation pass 2026-05-15.
+PrivateTmp=true
+NoNewPrivileges=true
+
+# Drain timeout: MCP serves a long-lived TCP socket but in-flight
+# context requests are sub-second; 30 s is generous.
+TimeoutStopSec=30s
+
+[Install]
+WantedBy=multi-user.target

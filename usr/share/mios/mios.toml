@@ -41,6 +41,540 @@ use_compiled_oscontrol = true
 use_compiled_ainode = true
 
 # ----------------------------------------------------------------------------
+# [security.privileged_units] -- Roster of systemd units requiring privileged access.
+# ----------------------------------------------------------------------------
+[security.privileged_units]
+unconfined = [
+  "mios-hermes-worker.service",
+  "mios-ceph-bootstrap.service",
+]
+
+# ----------------------------------------------------------------------------
+# [firewall] -- Firewall open ports SSOT selector for public zone.
+# ----------------------------------------------------------------------------
+[firewall]
+open_ports = [
+  "forge_http",
+  "open_webui",
+  "code_server",
+  "hermes",
+  "searxng",
+  "cockpit",
+  "hermes_dashboard",
+  "llm_light",
+  "pgvector",
+  "cockpit_link",
+  "adguard_ui",
+  "ssh",
+  "forge_ssh",
+  "vllm",
+  "sglang",
+  "cpu_node",
+]
+
+
+
+# ----------------------------------------------------------------------------
+# [units] -- Systemd unit definitions SSOT (WS-SYSTEMD schema).
+# ----------------------------------------------------------------------------
+[units."mios-podman-gc.service".Unit]
+comment = "# AI-hint: Systemd unit that executes a forced Podman system prune to reclaim disk space from unused images and containers, specifically targeting WSL and non-containerized environments."
+Description = "'MiOS' Podman Garbage Collection"
+ConditionVirtualization = ["|!container", "|wsl"]
+
+[units."mios-podman-gc.service".Service]
+Type = "oneshot"
+ExecStart = "/usr/bin/podman system prune -a -f"
+
+[units."mios-podman-gc.timer".Unit]
+comment = "# AI-hint: Systemd timer unit that triggers the mios-podman-gc.service weekly to automate the removal of stale Podman containers, images, and networks to reclaim disk space.\n# AI-related: mios-podman-gc, mios-podman-gc.service, timers.target"
+Description = "Weekly Podman Cleanup"
+
+[units."mios-podman-gc.timer".Timer]
+OnCalendar = "weekly"
+Persistent = true
+
+[units."mios-podman-gc.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-ai-firstboot.timer".Unit]
+comment = "# AI-hint: Defines the systemd timer for mios-ai-firstboot.service, controlling post-boot AI provisioning retries until the sentinel file is present.\n# AI-related: /var/lib/mios/.ai-firstboot-done, mios-ai-firstboot.service, timers.target\n# /usr/lib/systemd/system/mios-ai-firstboot.timer\n# Retries the first-boot AI stack deployment if it didn't complete on\n# initial boot (e.g. machine rebooted mid-pull, or GPU drivers were\n# mid-dkms build). The timer is enabled by default so the attempt happens\n# automatically, but is gated on the absence of the sentinel file in\n# place. The .service degrades open (exit 0) on a partial provision and carries\n# ConditionPathExists=!<sentinel>, so once /var/lib/mios/.ai-firstboot-done is\n# written the timer-fired run no-ops. The same condition here stops the timer\n# itself from firing needlessly once provisioning is complete."
+Description = "'MiOS' AI Plane First-Boot Provisioning Retry Schedule"
+Documentation = "file:///usr/libexec/mios/mios-ai-firstboot-provision.sh"
+ConditionPathExists = "!/var/lib/mios/.ai-firstboot-done"
+
+[units."mios-ai-firstboot.timer".Timer]
+comment = "# First retry shortly after boot, then every 10min while the service sits\n# inactive and the sentinel is still absent. Persistent catches up a missed\n# window across a shutdown. The timer OWNS retry now (the .service no longer\n# carries Restart=on-failure / StartLimitBurst)."
+OnBootSec = "2min"
+OnUnitInactiveSec = "10min"
+Persistent = true
+Unit = "mios-ai-firstboot.service"
+
+[units."mios-ai-firstboot.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-aios-refresh.timer".Unit]
+comment = "# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.\n# AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target"
+Description = "Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)"
+
+[units."mios-aios-refresh.timer".Timer]
+comment = "# 2 min after boot (agent-pipe up by then), then every 15 min so the role\n# SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet."
+OnBootSec = "2min"
+OnUnitActiveSec = "15min"
+Persistent = true
+
+[units."mios-aios-refresh.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-dashboard-issue.timer".Unit]
+comment = "# AI-hint: Systemd timer that triggers mios-dashboard-issue.service every 5 minutes to refresh the /etc/issue.d/ banner with real-time Quadlet status updates like service flapping and endpoint reachability.\n# AI-related: /usr/libexec/mios/mios-dashboard-render-issue.sh, mios-dashboard-issue, mios-dashboard-render-issue, mios-dashboard-issue.service, timers.target\n# /usr/lib/systemd/system/mios-dashboard-issue.timer\n# Refresh the /etc/issue.d/ dashboard snippet every 5 minutes so\n# Quadlet state changes (services flapping, endpoint reachability\n# coming and going) reach the pre-login banner without operator\n# intervention."
+Description = "'MiOS' dashboard /etc/issue.d refresh timer"
+Documentation = "file:///usr/libexec/mios/mios-dashboard-render-issue.sh"
+
+[units."mios-dashboard-issue.timer".Timer]
+OnBootSec = "2min"
+OnUnitActiveSec = "5min"
+AccuracySec = "30s"
+Unit = "mios-dashboard-issue.service"
+Persistent = false
+
+[units."mios-dashboard-issue.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-embed-backfill.timer".Unit]
+comment = "# AI-hint: Defines the systemd timer for the mios-embed-backfill.service, controlling the periodic execution interval (default 15m) for background embedding backfilling.\n# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.service, timers.target\n# /usr/lib/systemd/system/mios-embed-backfill.timer"
+Description = "'MiOS' Embedding Backfill Timer"
+Documentation = "file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py"
+
+[units."mios-embed-backfill.timer".Timer]
+OnBootSec = "5min"
+OnUnitActiveSec = "15min"
+AccuracySec = "1min"
+Unit = "mios-embed-backfill.service"
+Persistent = true
+
+[units."mios-embed-backfill.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-pgvector-backup.timer".Unit]
+comment = "# AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot.\n# AI-related: mios-pgvector-backup.service, timers.target\n# /usr/lib/systemd/system/mios-pgvector-backup.timer\n# WS-0 pgvector durability: schedules the daily logical backup of the unified\n# agent-plane datastore. The service itself is degrade-open + gated on\n# MIOS_PG_BACKUP_ENABLE, so the timer can stay enabled unconditionally."
+Description = "'MiOS' daily pgvector datastore backup schedule"
+Documentation = "file:///usr/lib/systemd/system/mios-pgvector-backup.service"
+
+[units."mios-pgvector-backup.timer".Timer]
+comment = "# Daily, shortly after midnight local time. Persistent=true catches up a missed\n# run (machine asleep/off at the scheduled time) on the next boot. Randomized\n# delay spreads the dump off the exact minute so it doesn't collide with other\n# midnight jobs."
+OnCalendar = "*-*-* 00:30:00"
+Persistent = true
+RandomizedDelaySec = "15m"
+AccuracySec = "5m"
+
+[units."mios-pgvector-backup.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-podman-ps.timer".Unit]
+comment = "# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.\n# AI-related: mios-podman-ps, mios-podman-ps.service, timers.target"
+Description = "'MiOS' refresh the podman container snapshot for the dashboard"
+
+[units."mios-podman-ps.timer".Timer]
+OnBootSec = "10s"
+OnUnitActiveSec = "15s"
+AccuracySec = "2s"
+
+[units."mios-podman-ps.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-skills-miner.timer".Unit]
+comment = "# AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.\n# AI-related: /usr/libexec/mios/mios-skills, mios-skills-miner, mios-skills, mios-skills-miner.service, timers.target\n# /usr/lib/systemd/system/mios-skills-miner.timer\n# Phase C.2 of the AgentOS roadmap: cadence for the background\n# skill miner. Interval lifted to mios.toml [skills].\n# mine_interval_minutes (default 60). Operator override:\n#   sudo systemctl edit mios-skills-miner.timer\n#   [Timer]\n#   OnUnitActiveSec=30min\n#\n# Disabled by default; operator opts in (or it inherits enablement\n# from the configurator HTML \"Skills mining\" toggle which maps to\n# [skills].enable). The .service ConditionPathExists guard means a\n# stripped-down deployment with the libexec script absent skips\n# silently."
+Description = "'MiOS' Phase C.2 skill-miner cadence (sequential pattern mining)"
+Documentation = "file:///usr/libexec/mios/mios-skills"
+
+[units."mios-skills-miner.timer".Timer]
+OnBootSec = "10min"
+OnUnitActiveSec = "60min"
+AccuracySec = "2min"
+Unit = "mios-skills-miner.service"
+Persistent = true
+
+[units."mios-skills-miner.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-suggestion-refresh.timer".Unit]
+comment = "# AI-hint: Systemd timer that triggers mios-suggestion-refresh.service every 10 minutes to update OWUI starter chips based on current system state, kanban data, and recent user intents.\n# AI-related: /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-suggestion-refresh.service, timers.target\n# /usr/lib/systemd/system/mios-suggestion-refresh.timer\n# Fires mios-suggestion-refresh.service every 10 minutes so the\n# OWUI starter chips revolve based on current MiOS state (recent\n# kanban, daemon nudges, recent refine intents). Operators tune\n# the cadence with:\n#   sudo systemctl edit mios-suggestion-refresh.timer\n#   [Timer]\n#   OnUnitActiveSec=30min"
+Description = "'MiOS' starter-chip refresh cadence"
+Documentation = "file:///usr/libexec/mios/mios-suggestion-refresh"
+
+[units."mios-suggestion-refresh.timer".Timer]
+comment = "# First refresh 2 min after boot so the chain has warmed up.\n# Then every 10 min while running."
+OnBootSec = "2min"
+OnUnitActiveSec = "10min"
+AccuracySec = "1min"
+Unit = "mios-suggestion-refresh.service"
+Persistent = true
+
+[units."mios-suggestion-refresh.timer".Install]
+WantedBy = "timers.target"
+
+[units."mios-sys-env-refresh.timer".Unit]
+comment = "# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.\n# AI-related: mios-sys-env-refresh, timers.target"
+Description = "'MiOS' refresh cadence for the sys_env environment cache"
+
+[units."mios-sys-env-refresh.timer".Timer]
+comment = "# Mirrors the daemon's directory_entry refresh cadence (~15 min): installed\n# apps / services / loaded models change far slower than container state, so a\n# 15-min refresh keeps the shared snapshot current without churn. The manual\n# sys_env_refresh verb covers the \"I just installed X\" case immediately."
+OnBootSec = "45s"
+OnUnitActiveSec = "900s"
+AccuracySec = "10s"
+Persistent = true
+
+[units."mios-sys-env-refresh.timer".Install]
+WantedBy = "timers.target"
+
+
+[units."mios-firstboot.target".Unit]
+comment = "# AI-hint: Defines the mios-firstboot.target unit to orchestrate initial provisioning services (CDI, libvirtd, and GRD setup) during the first boot sequence of the MiOS system.\n# AI-related: mios-firstboot, mios-cdi-detect, mios-libvirtd-setup, mios-grd-setup, mios-cdi-detect.service, mios-libvirtd-setup.service, mios-grd-setup.service, multi-user.target"
+Description = "'MiOS' first-boot provisioning"
+Documentation = "https://github.com/MiOS-DEV/MiOS"
+After = "multi-user.target"
+Wants = "mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service"
+
+[units."mios-firstboot.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-ai.target".Unit]
+comment = "# AI-hint: systemd target grouping all MiOS AI plane services (T-076).\n# usr/lib/systemd/system/mios-ai.target"
+Description = "MiOS AI Services Target"
+After = "multi-user.target"
+Wants = "mios-agent-pipe.service"
+
+[units."mios-ai.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-compute.target".Unit]
+comment = "# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.\n# AI-related: mios-compute, mios-headless.target"
+Description = "'MiOS' Compute Role"
+Requires = "multi-user.target"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-headless.target"
+AllowIsolate = true
+
+[units."mios-compute.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-controller.target".Unit]
+comment = "# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.\n# AI-related: mios-controller, mios-headless.target"
+Description = "'MiOS' Controller Role"
+Requires = "multi-user.target"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-headless.target"
+AllowIsolate = true
+
+[units."mios-controller.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-desktop.target".Unit]
+comment = "# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.\n# AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service"
+Description = "'MiOS' Desktop Role"
+Requires = "multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service"
+After = "multi-user.target"
+Conflicts = "mios-headless.target mios-k3s-master.target mios-ha-node.target"
+AllowIsolate = true
+
+[units."mios-desktop.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-endpoint.target".Unit]
+comment = "# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.\n# AI-related: mios-endpoint, mios-headless.target"
+Description = "'MiOS' Endpoint Role"
+Requires = "multi-user.target"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-headless.target"
+AllowIsolate = true
+
+[units."mios-endpoint.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-ha-node.target".Unit]
+comment = "# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.\n# AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target"
+Description = "'MiOS' HA Cluster Node Role"
+Requires = "multi-user.target corosync.service pacemaker.service"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-headless.target mios-k3s-master.target"
+AllowIsolate = true
+
+[units."mios-ha-node.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-headless.target".Unit]
+comment = "# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.\n# AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target"
+Description = "'MiOS' Headless Role"
+Requires = "multi-user.target"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-k3s-master.target mios-ha-node.target"
+AllowIsolate = true
+
+[units."mios-headless.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-hybrid.target".Unit]
+comment = "# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.\n# AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target"
+Description = "'MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)"
+Requires = "graphical.target"
+After = "graphical.target"
+AllowIsolate = true
+Wants = "k3s-agent.service"
+
+[units."mios-hybrid.target".Install]
+Alias = "default.target.mios-hybrid"
+
+[units."mios-k3s-master.target".Unit]
+comment = "# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.\n# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target"
+Description = "'MiOS' K3s Master Role"
+Requires = "multi-user.target k3s.service"
+After = "multi-user.target"
+Conflicts = "mios-desktop.target mios-headless.target mios-ha-node.target"
+AllowIsolate = true
+
+[units."mios-k3s-master.target".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-k3s-worker.target".Unit]
+comment = "# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.\n# AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target"
+Description = "'MiOS' K3s worker role (agent)"
+Requires = "multi-user.target"
+After = "multi-user.target"
+AllowIsolate = true
+Wants = "k3s-agent.service"
+
+[units."mios-k3s-worker.target".Install]
+Alias = "default.target.mios-k3s-worker"
+
+[units."mios-cockpit-link.socket".Unit]
+comment = "# AI-hint: Socket file for mios-cockpit-link proxy. Maps port 8091 on host/WSL to the cockpit service.\n# AI-related: usr/lib/systemd/system/mios-cockpit-link.service"
+Description = "'MiOS' Cockpit Link Proxy Socket"
+ConditionVirtualization = "!container"
+
+[units."mios-cockpit-link.socket".Socket]
+ListenStream = "0.0.0.0:${MIOS_PORT_COCKPIT_LINK}"
+BindIPv6Only = "both"
+
+[units."mios-cockpit-link.socket".Install]
+WantedBy = "sockets.target"
+
+[units."mios-firewall-ports.service".Unit]
+comment = "# AI-hint: Ensures critical MiOS service ports (3000, 3030, 8080, 8642, 8888, 9090, 9119, 11434, 19090, 3053, 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and SearXNG.\n# AI-related: mios-open-webui, mios-searxng, mios-crawl4ai, firewalld.service, hermes-agent.service, mios-open-webui.service, mios-searxng.service, mios-crawl4ai.service, network-online.target, multi-user.target\n# Ensure MiOS service ports are open in firewalld at every boot.\n#\n# Why this exists: automation/44-firewall-ports.sh writes the firewalld\n# zone XML at OCI build time via firewall-offline-cmd. On stale OCI\n# images (pre-2026-05) OR when the install-time script didn't run / the\n# XML didn't persist, firewalld comes up with no ports open and ALL\n# Windows->WSL bridging silently times out (operator-confirmed\n# regression 2026-05-15: Open WebUI/Hermes/Cockpit/SearXNG inaccessible\n# post-reinstall; firewall-cmd --list-ports returned empty; adding the\n# ports manually instantly restored all 4 services).\n#\n# This unit runs at every boot and is idempotent: --add-port on a port\n# that's already open is a no-op. No-ops cleanly when firewalld is\n# absent (ConditionPathExists) or inactive."
+Description = "'MiOS': ensure firewalld has the MiOS service ports open"
+After = "firewalld.service network-online.target"
+Wants = "firewalld.service network-online.target"
+Before = "mios-agent-pipe.service mios-open-webui.service mios-searxng.service"
+ConditionPathExists = "/usr/bin/firewall-cmd"
+
+[units."mios-firewall-ports.service".Service]
+comment = "# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,\n#        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,\n#        11450=LLM-Light, 5432=pgvector, 19090=Cockpit-link, 3053=AdGuard UI, 53=AdGuard DNS.\n# (crawl4ai :11235 removed 2026-05-24: the crawl engine is now a LOOPBACK-only\n#  venv service -- mios-crawl4ai.service binds 127.0.0.1, never LAN-exposed.)\n# AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).\n# Hardening: only the firewall-cmd binary needs system privileges; lock\n# everything else down."
+Type = "oneshot"
+RemainAfterExit = "yes"
+ExecStart = '''/bin/bash -c '\
+    set +e; \
+    if [ -f /etc/mios/install.env ]; then source /etc/mios/install.env; fi; \
+    ports=(\
+        "${MIOS_PORT_FORGE_HTTP:-8400}" \
+        "${MIOS_PORT_OPEN_WEBUI:-8200}" \
+        "${MIOS_PORT_CODE_SERVER:-8900}" \
+        "${MIOS_PORT_HERMES:-8720}" \
+        "${MIOS_PORT_SEARXNG:-8800}" \
+        "${MIOS_PORT_COCKPIT:-8110}" \
+        "${MIOS_PORT_HERMES_DASHBOARD:-8210}" \
+        "${MIOS_PORT_LLM_LIGHT:-8500}" \
+        "${MIOS_PORT_PGVECTOR:-8600}" \
+        "${MIOS_PORT_COCKPIT_LINK:-8120}" \
+        "${MIOS_PORT_ADGUARD_UI:-8050}" \
+        "${MIOS_PORT_SSH:-8100}" \
+        "${MIOS_PORT_FORGE_SSH:-8410}" \
+        "${MIOS_PORT_VLLM:-8520}" \
+        "${MIOS_PORT_SGLANG:-8530}" \
+        "${MIOS_PORT_CPU_NODE:-8510}" \
+        53 \
+    ); \
+    for p in "${ports[@]}"; do \
+        /usr/bin/firewall-cmd --permanent --add-port=${p}/tcp >/dev/null 2>&1; \
+    done; \
+    /usr/bin/firewall-cmd --permanent --add-port=53/udp >/dev/null 2>&1; \
+    /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
+    echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
+    exit 0\''''
+ProtectKernelTunables = true
+ProtectControlGroups = true
+
+[units."mios-firewall-ports.service".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-bootc-switch.path".Unit]
+comment = "# AI-hint: Systemd path unit that monitors /var/lib/mios/forge-runner/last-build.txt to trigger mios-bootc-switch.service, automating the bootc kernel/image switch immediately after a Forgejo Runner build completes.\n# AI-related: /usr/libexec/mios/bootc-switch-from-build.sh, mios-bootc-switch, mios-bootc-switch.service, multi-user.target\n# /usr/lib/systemd/system/mios-bootc-switch.path\n# Watches the build-output sentinel that the Forgejo Runner workflow\n# writes after a successful `podman build`. PathChanged fires on\n# either creation or modification, so re-running the workflow with\n# the same image ref still triggers a re-stage (bootc switch is\n# idempotent on identical refs -- this is fine)."
+Description = "'MiOS' watch for Forgejo Runner build output -> bootc switch"
+Documentation = "file:///usr/libexec/mios/bootc-switch-from-build.sh"
+
+[units."mios-bootc-switch.path".Path]
+PathChanged = "/var/lib/mios/forge-runner/last-build.txt"
+Unit = "mios-bootc-switch.service"
+
+[units."mios-bootc-switch.path".Install]
+WantedBy = "multi-user.target"
+
+
+[units."mios-additionalimagestores-perms.path".Unit]
+comment = "# AI-hint: Systemd path unit that monitors container storage directories for permission changes and triggers mios-additionalimagestores-perms.service to restore go+rX permissions on image store subdirectories.\n# AI-related: mios-additionalimagestores-perms, mios-additionalimagestores-perms.service, multi-user.target\n# Path-watcher companion to mios-additionalimagestores-perms.service.\n# Re-runs the chmod whenever any of the additional image store's per-\n# driver subdirs change (e.g. podman extracts new layers and resets\n# the perms back to 0700 -- happens on first runtime pull into the\n# additional store, though that's atypical since this store is built\n# at OCI bake time and meant to be read-only at runtime).\n#\n# Together with the .service unit (runs at boot) this makes the\n# go+rX state self-healing: any way the perms get reset, they snap\n# back within seconds."
+Description = "'MiOS': watch additionalimagestores for perm changes; retrigger chmod"
+ConditionPathIsDirectory = "/usr/lib/containers/storage"
+
+[units."mios-additionalimagestores-perms.path".Path]
+PathChanged = [
+  "/usr/lib/containers/storage/overlay-images",
+  "/usr/lib/containers/storage/overlay-containers",
+  "/usr/lib/containers/storage/overlay-layers",
+  "/usr/lib/containers/storage/libpod",
+]
+Unit = "mios-additionalimagestores-perms.service"
+
+[units."mios-additionalimagestores-perms.path".Install]
+WantedBy = "multi-user.target"
+
+
+[units."mios-libexec-perms.path".Unit]
+comment = "# AI-hint: Path-watcher companion to mios-libexec-perms.service -- re-runs the go+rX chmod whenever /usr/libexec/mios changes (e.g. a git checkout of / restages the scripts without exec bits), so exec perms self-heal within seconds instead of leaving services crash-looping on 203/EXEC.\n# AI-related: mios-libexec-perms.service, mios-additionalimagestores-perms.path, multi-user.target\n# Path-watcher companion to mios-libexec-perms.service. Any way the exec bits\n# get reset on /usr/libexec/mios (most commonly a `git checkout` of the deployed\n# root /), this snaps them back to go+rX within seconds so no service is left\n# crash-looping on 203/\"Permission denied\"."
+Description = "'MiOS': watch /usr/libexec/mios for perm changes; retrigger chmod"
+ConditionPathIsDirectory = "/usr/libexec/mios"
+
+[units."mios-libexec-perms.path".Path]
+PathChanged = "/usr/libexec/mios"
+Unit = "mios-libexec-perms.service"
+
+[units."mios-libexec-perms.path".Install]
+WantedBy = "multi-user.target"
+
+
+[units."mios-wsl-flatpak-export-sync.path".Unit]
+comment = "# AI-hint: Systemd path unit that triggers a synchronization script when flatpak application or icon files are modified in the export directory, ensuring .desktop files are updated for WSL integration.\n# AI-related: mios-is-wsl, multi-user.target, default.target"
+Description = "'MiOS' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land"
+ConditionPathExists = "/run/mios-is-wsl"
+
+[units."mios-wsl-flatpak-export-sync.path".Path]
+comment = "# Trigger whenever flatpak adds/removes an exported .desktop (any\n# system-wide install / uninstall touches this dir mtime)."
+PathChanged = [
+  "/var/lib/flatpak/exports/share/applications",
+  "/var/lib/flatpak/exports/share/icons",
+]
+
+[units."mios-wsl-flatpak-export-sync.path".Install]
+WantedBy = "multi-user.target default.target"
+
+
+[units."hermes-worker.path".Unit]
+comment = "# AI-hint: Systemd path unit (WS-A4 boot-ordering fix) that watches for the Hermes venv binary and (re)starts hermes-worker.service once it exists, so a worker that failed its ConditionPathExists at first boot (venv not yet built) comes up automatically when the venv lands -- instead of staying inactive until a manual restart.\n# AI-related: hermes-worker.service, hermes-worker-firstboot.service, /usr/lib/mios/agents/.venv/bin/hermes, multi-user.target, 90-mios.preset\n# /usr/lib/systemd/system/hermes-worker.path\n# WS-A4 (operator 2026-06-22): hermes-worker.service carries\n# ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes. On a fresh boot the\n# venv is not built yet -> the Condition fails -> the worker is skipped, and once\n# the venv-build/firstboot finishes systemd never retries it (so :8643 stays\n# inactive forever and the orchestrator silently runs single-agent). This .path\n# closes that gap: PathExists is satisfied the moment the venv binary EXISTS\n# (on creation AND if already present at activation), starting the worker. The\n# worker's own Condition still guards against a half-built venv; start is idempotent."
+Description = "'MiOS' watch for the Hermes venv -> (re)start hermes-worker"
+Documentation = "file:///usr/lib/systemd/system/hermes-worker.service"
+After = "hermes-worker-firstboot.service"
+
+[units."hermes-worker.path".Path]
+PathExists = "/usr/lib/mios/agents/.venv/bin/hermes"
+Unit = "hermes-worker.service"
+
+[units."hermes-worker.path".Install]
+WantedBy = "multi-user.target"
+
+[units."var-home.mount".Unit]
+comment = "# AI-hint: Systemd mount unit for mapping the CephFS cluster to /var/home, providing persistent storage for user home directories using the mios.secret for authentication.\n# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target"
+Description = "CephFS mount for user home directories"
+Documentation = "man:mount.ceph(8)"
+ConditionPathExists = [
+  "/etc/ceph/ceph.conf",
+  "/etc/ceph/mios.secret",
+]
+After = "ceph.target network-online.target"
+Wants = "network-online.target"
+
+[units."var-home.mount".Mount]
+What = "mios@.cephfs=/home"
+Where = "/var/home"
+Type = "ceph"
+Options = "secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30"
+
+[units."var-home.mount".Install]
+WantedBy = "remote-fs.target"
+
+
+[units."var-lib-containers.mount".Unit]
+comment = "# AI-hint: Systemd mount unit for the CephFS storage backend at /var/lib/containers, used by the system to provide persistent, shared storage for Podman containers via the mios.secret credential.\n# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target"
+Description = "CephFS mount for Podman container storage"
+ConditionPathExists = [
+  "/etc/ceph/ceph.conf",
+  "/etc/ceph/mios.secret",
+]
+After = "ceph.target network-online.target"
+Wants = "network-online.target"
+RequiresMountsFor = "/var/lib"
+
+[units."var-lib-containers.mount".Mount]
+What = "mios@.cephfs=/containers"
+Where = "/var/lib/containers"
+Type = "ceph"
+Options = "secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30"
+
+[units."var-lib-containers.mount".Install]
+WantedBy = "remote-fs.target"
+
+
+[units."var-lib-machines.mount".Unit]
+comment = "#  SPDX-License-Identifier: LGPL-2.1-or-later\n#\n#  This file is part of systemd.\n#\n#  systemd is free software; you can redistribute it and/or modify it\n#  under the terms of the GNU Lesser General Public License as published by\n#  the Free Software Foundation; either version 2.1 of the License, or\n#  (at your option) any later version.\n# This unit is required for pre-240 versions of systemd that automatically set\n# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later\n# versions don't do that anymore, but let's keep minimal compatibility by\n# mounting the image still, if it exists."
+Description = "Virtual Machine and Container Storage (Compatibility)"
+ConditionPathExists = "/var/lib/machines.raw"
+
+[units."var-lib-machines.mount".Mount]
+What = "/var/lib/machines.raw"
+Where = "/var/lib/machines"
+Type = "btrfs"
+Options = "loop"
+
+
+[units."var-lib-nfs-rpc_pipefs.mount".Unit]
+comment = "# AI-hint: Mounts the RPC pipe file system at /var/lib/nfs/rpc_pipefs to provide the necessary mount points for NFS RPC services and client operations.\n# AI-related: systemd-tmpfiles-setup.service, umount.target"
+Description = "RPC Pipe File System"
+DefaultDependencies = "no"
+After = "systemd-tmpfiles-setup.service"
+Conflicts = "umount.target"
+
+[units."var-lib-nfs-rpc_pipefs.mount".Mount]
+What = "sunrpc"
+Where = "/var/lib/nfs/rpc_pipefs"
+Type = "rpc_pipefs"
+
+
+
+
+
+
+[units."mios-ceph-bootstrap.service".Unit]
+comment = "# AI-hint: Systemd unit to execute /usr/libexec/mios/ceph-bootstrap.sh script to initialize the Ceph cluster (first boot only).\n# AI-related: /usr/libexec/mios/ceph-bootstrap.sh, podman.socket, network-online.target, multi-user.target"
+Description = "'MiOS' Ceph Cluster Bootstrap"
+Documentation = "https://docs.ceph.com/en/latest/cephadm/"
+ConditionVirtualization = "no"
+ConditionPathExists = ["!/etc/ceph/ceph.conf", "!/var/lib/ceph/.bootstrapped"]
+After = "network-online.target podman.socket"
+Wants = "network-online.target podman.socket"
+StartLimitIntervalSec = "0"
+
+[units."mios-ceph-bootstrap.service".Service]
+Type = "oneshot"
+RemainAfterExit = "yes"
+ExecStart = "/usr/libexec/mios/ceph-bootstrap.sh"
+ExecStartPost = ["/usr/bin/touch /var/lib/ceph/.bootstrapped", "-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring"]
+TimeoutStartSec = "600"
+StandardOutput = "journal+console"
+StandardError = "journal+console"
+
+[units."mios-ceph-bootstrap.service".Install]
+WantedBy = "multi-user.target"
+
+
+
+# ----------------------------------------------------------------------------
 # [identity] -- Linux account, hostname, GECOS, login shell, group membership.
 # Maps to MIOS_USER, MIOS_HOSTNAME, MIOS_USER_FULLNAME, MIOS_USER_SHELL,
 # MIOS_USER_GROUPS.
@@ -11963,6 +12497,7 @@ exempt = [
   "check_template_conformance",
   "check_unwired_modules",
   "check_userenv_parity",
+  "check_unit_security",
   "check_var_closure",
   "check_vendor_urls",
   "check_verb_backends"

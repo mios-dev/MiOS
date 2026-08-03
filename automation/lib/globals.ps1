@@ -854,6 +854,7 @@ $script:MIOS_FIRECRAWL_LOG_LEVEL = if ($env:MIOS_FIRECRAWL_LOG_LEVEL) { $env:MIO
 $script:MIOS_FIRECRAWL_PORT = if ($env:MIOS_FIRECRAWL_PORT) { $env:MIOS_FIRECRAWL_PORT } else { 8820 }
 $script:MIOS_FIRECRAWL_WORKERS = if ($env:MIOS_FIRECRAWL_WORKERS) { $env:MIOS_FIRECRAWL_WORKERS } else { 2 }
 $script:MIOS_FIREWALLD_ZONE = if ($env:MIOS_FIREWALLD_ZONE) { $env:MIOS_FIREWALLD_ZONE } else { 'drop' }
+$script:MIOS_FIREWALL_OPEN_PORTS = if ($env:MIOS_FIREWALL_OPEN_PORTS) { $env:MIOS_FIREWALL_OPEN_PORTS } else { 'forge_http,open_webui,code_server,hermes,searxng,cockpit,hermes_dashboard,llm_light,pgvector,cockpit_link,adguard_ui,ssh,forge_ssh,vllm,sglang,cpu_node' }
 $script:MIOS_VAR_DIR = if ($env:MIOS_VAR_DIR) { $env:MIOS_VAR_DIR } else { '/var/lib/mios' }
 $script:MIOS_FIRSTBOOT_SENTINEL = if ($env:MIOS_FIRSTBOOT_SENTINEL) { $env:MIOS_FIRSTBOOT_SENTINEL } else { "$($script:MIOS_VAR_DIR)/.wsl-firstboot-done" }
 $script:MIOS_FLATPAKS = if ($env:MIOS_FLATPAKS) { $env:MIOS_FLATPAKS } else { 'org.gtk.Gtk3theme.adw-gtk3-dark,org.gtk.Gtk3theme.adw-gtk3,app.devsuite.Ptyxis,gnome-nightly:org.gnome.Nautilus.Devel,fedora:org.gnome.Epiphany,com.github.tchx84.Flatseal,com.mattjakeman.ExtensionManager,com.google.ChromeDev' }
@@ -2085,7 +2086,7 @@ $script:MIOS_TERMINAL_READING_ROWS = if ($env:MIOS_TERMINAL_READING_ROWS) { $env
 $script:MIOS_TERMINAL_RIGHT_MARGIN = if ($env:MIOS_TERMINAL_RIGHT_MARGIN) { $env:MIOS_TERMINAL_RIGHT_MARGIN } else { 0 }
 $script:MIOS_TERMINAL_ROWS = if ($env:MIOS_TERMINAL_ROWS) { $env:MIOS_TERMINAL_ROWS } else { 20 }
 $script:MIOS_TERMINAL_SCROLLBACK_ROWS = if ($env:MIOS_TERMINAL_SCROLLBACK_ROWS) { $env:MIOS_TERMINAL_SCROLLBACK_ROWS } else { 9000 }
-$script:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT = if ($env:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT) { $env:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT } else { 'check_ps_repo_parity,check_ps_signatures,check_native_lint,check_resolver_ps_equivalence,check_resolver_shell_equivalence,check_template_self_conformance,check_templates_bootstrap_sync,check_agent_schema,check_ai_manifest,check_bib_rootfs_label_policy,check_blade_dropins,check_bootstrap_ports_drift,check_canonical_bools,check_capability_manifest,check_cephfs_ssot,check_cli_sql_safety,check_container_ports,check_converge_ssot,check_coordination_hygiene,check_dag_integrity,check_dotfiles_projection,check_drift_build_catalog,check_drift_projection,check_egress_firewall,check_etc_duplicates,check_fluff_tokens,check_gate_index,check_globals_image_parity,check_globals_ports,check_greenboot,check_greenboot_enablement,check_hint_coverage,check_hummingbird,check_kargs_projection,check_module_boundary,check_negative_test_coverage,check_no_bare_port_literals,check_no_hardcode,check_package_registry,check_pod_quadlets,check_python_lint,check_raw_toml_readers,check_rbac_tiers,check_resolver_twin_parity,check_retired_models,check_structured,check_surface_parity,check_template_conformance,check_unwired_modules,check_userenv_parity,check_var_closure,check_vendor_urls,check_verb_backends' }
+$script:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT = if ($env:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT) { $env:MIOS_TESTING_NEGATIVE_COVERAGE_EXEMPT_EXEMPT } else { 'check_ps_repo_parity,check_ps_signatures,check_native_lint,check_resolver_ps_equivalence,check_resolver_shell_equivalence,check_template_self_conformance,check_templates_bootstrap_sync,check_agent_schema,check_ai_manifest,check_bib_rootfs_label_policy,check_blade_dropins,check_bootstrap_ports_drift,check_canonical_bools,check_capability_manifest,check_cephfs_ssot,check_cli_sql_safety,check_container_ports,check_converge_ssot,check_coordination_hygiene,check_dag_integrity,check_dotfiles_projection,check_drift_build_catalog,check_drift_projection,check_egress_firewall,check_etc_duplicates,check_fluff_tokens,check_gate_index,check_globals_image_parity,check_globals_ports,check_greenboot,check_greenboot_enablement,check_hint_coverage,check_hummingbird,check_kargs_projection,check_module_boundary,check_negative_test_coverage,check_no_bare_port_literals,check_no_hardcode,check_package_registry,check_pod_quadlets,check_python_lint,check_raw_toml_readers,check_rbac_tiers,check_resolver_twin_parity,check_retired_models,check_structured,check_surface_parity,check_template_conformance,check_unwired_modules,check_userenv_parity,check_unit_security,check_var_closure,check_vendor_urls,check_verb_backends' }
 $script:MIOS_TESTING_SMOKE_COMPONENTS_PYTHON_ENTRIES = if ($env:MIOS_TESTING_SMOKE_COMPONENTS_PYTHON_ENTRIES) { $env:MIOS_TESTING_SMOKE_COMPONENTS_PYTHON_ENTRIES } else { 'usr/lib/mios/agent-pipe/server.py' }
 $script:MIOS_TESTING_SMOKE_COMPONENTS_SHIMS = if ($env:MIOS_TESTING_SMOKE_COMPONENTS_SHIMS) { $env:MIOS_TESTING_SMOKE_COMPONENTS_SHIMS } else { 'usr/libexec/mios/flatpak-launch,usr/libexec/mios/mios-pc-control,usr/libexec/mios/mios-launcher-daemon,usr/libexec/mios/mios-flatpak-icon-sanitize' }
 $script:MIOS_TESTING_SMOKE_COMPONENTS_UNITS = if ($env:MIOS_TESTING_SMOKE_COMPONENTS_UNITS) { $env:MIOS_TESTING_SMOKE_COMPONENTS_UNITS } else { 'usr/lib/systemd/system/mios-wsl-interop-priority.service' }
@@ -2116,12 +2117,449 @@ $script:MIOS_UNITS_FORGE = if ($env:MIOS_UNITS_FORGE) { $env:MIOS_UNITS_FORGE } 
 $script:MIOS_UNITS_FORGE_RUNNER = if ($env:MIOS_UNITS_FORGE_RUNNER) { $env:MIOS_UNITS_FORGE_RUNNER } else { 'mios-forgejo-runner.service' }
 $script:MIOS_UNITS_HERMES = if ($env:MIOS_UNITS_HERMES) { $env:MIOS_UNITS_HERMES } else { 'mios-hermes.service' }
 $script:MIOS_UNITS_HERMES_FIRSTBOOT = if ($env:MIOS_UNITS_HERMES_FIRSTBOOT) { $env:MIOS_UNITS_HERMES_FIRSTBOOT } else { 'mios-hermes-firstboot.service' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNITS_HERMES_WORKER_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_PATH_PATHEXISTS = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_PATH_PATHEXISTS) { $env:MIOS_UNITS_HERMES_WORKER_PATH_PATH_PATHEXISTS } else { '/usr/lib/mios/agents/.venv/bin/hermes' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_PATH_UNIT = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_PATH_UNIT) { $env:MIOS_UNITS_HERMES_WORKER_PATH_PATH_UNIT } else { 'hermes-worker.service' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_AFTER = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_AFTER) { $env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_AFTER } else { 'hermes-worker-firstboot.service' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_COMMENT = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_COMMENT) { $env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit (WS-A4 boot-ordering fix) that watches for the Hermes venv binary and (re)starts hermes-worker.service once it exists, so a worker that failed its ConditionPathExists at first boot (venv not yet built) comes up automatically when the venv lands -- instead of staying inactive until a manual restart.
+# AI-related: hermes-worker.service, hermes-worker-firstboot.service, /usr/lib/mios/agents/.venv/bin/hermes, multi-user.target, 90-mios.preset
+# /usr/lib/systemd/system/hermes-worker.path
+# WS-A4 (operator 2026-06-22): hermes-worker.service carries
+# ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes. On a fresh boot the
+# venv is not built yet -> the Condition fails -> the worker is skipped, and once
+# the venv-build/firstboot finishes systemd never retries it (so :8643 stays
+# inactive forever and the orchestrator silently runs single-agent). This .path
+# closes that gap: PathExists is satisfied the moment the venv binary EXISTS
+# (on creation AND if already present at activation), starting the worker. The
+# worker''s own Condition still guards against a half-built venv; start is idempotent.' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION } else { '''MiOS'' watch for the Hermes venv -> (re)start hermes-worker' }
+$script:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DOCUMENTATION } else { 'file:///usr/lib/systemd/system/hermes-worker.service' }
 $script:MIOS_UNITS_K3S = if ($env:MIOS_UNITS_K3S) { $env:MIOS_UNITS_K3S } else { 'mios-k3s.service' }
 $script:MIOS_UNITS_LLM_LIGHT = if ($env:MIOS_UNITS_LLM_LIGHT) { $env:MIOS_UNITS_LLM_LIGHT } else { 'mios-llm-light.service' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED } else { '/usr/lib/containers/storage/overlay-images,/usr/lib/containers/storage/overlay-containers,/usr/lib/containers/storage/overlay-layers,/usr/lib/containers/storage/libpod' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT } else { 'mios-additionalimagestores-perms.service' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that monitors container storage directories for permission changes and triggers mios-additionalimagestores-perms.service to restore go+rX permissions on image store subdirectories.
+# AI-related: mios-additionalimagestores-perms, mios-additionalimagestores-perms.service, multi-user.target
+# Path-watcher companion to mios-additionalimagestores-perms.service.
+# Re-runs the chmod whenever any of the additional image store''s per-
+# driver subdirs change (e.g. podman extracts new layers and resets
+# the perms back to 0700 -- happens on first runtime pull into the
+# additional store, though that''s atypical since this store is built
+# at OCI bake time and meant to be read-only at runtime).
+#
+# Together with the .service unit (runs at boot) this makes the
+# go+rX state self-healing: any way the perms get reset, they snap
+# back within seconds.' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY } else { '/usr/lib/containers/storage' }
+$script:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION } else { '''MiOS'': watch additionalimagestores for perm changes; retrigger chmod' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT } else { '# 2 min after boot (agent-pipe up by then), then every 15 min so the role
+# SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet.' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '15min' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.
+# AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target' }
+$script:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION } else { 'Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT } else { '# First retry shortly after boot, then every 10min while the service sits
+# inactive and the sentinel is still absent. Persistent catches up a missed
+# window across a shutdown. The timer OWNS retry now (the .service no longer
+# carries Restart=on-failure / StartLimitBurst).' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC } else { '10min' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT } else { 'mios-ai-firstboot.service' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for mios-ai-firstboot.service, controlling post-boot AI provisioning retries until the sentinel file is present.
+# AI-related: /var/lib/mios/.ai-firstboot-done, mios-ai-firstboot.service, timers.target
+# /usr/lib/systemd/system/mios-ai-firstboot.timer
+# Retries the first-boot AI stack deployment if it didn''t complete on
+# initial boot (e.g. machine rebooted mid-pull, or GPU drivers were
+# mid-dkms build). The timer is enabled by default so the attempt happens
+# automatically, but is gated on the absence of the sentinel file in
+# place. The .service degrades open (exit 0) on a partial provision and carries
+# ConditionPathExists=!<sentinel>, so once /var/lib/mios/.ai-firstboot-done is
+# written the timer-fired run no-ops. The same condition here stops the timer
+# itself from firing needlessly once provisioning is complete.' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS } else { '!/var/lib/mios/.ai-firstboot-done' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' AI Plane First-Boot Provisioning Retry Schedule' }
+$script:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-ai-firstboot-provision.sh' }
+$script:MIOS_UNITS_MIOS_AI_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_AI_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_AI_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_AI_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_AI_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_COMMENT } else { '# AI-hint: systemd target grouping all MiOS AI plane services (T-076).
+# usr/lib/systemd/system/mios-ai.target' }
+$script:MIOS_UNITS_MIOS_AI_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_DESCRIPTION } else { 'MiOS AI Services Target' }
+$script:MIOS_UNITS_MIOS_AI_TARGET_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_AI_TARGET_UNIT_WANTS } else { 'mios-agent-pipe.service' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED } else { '/var/lib/mios/forge-runner/last-build.txt' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT } else { 'mios-bootc-switch.service' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that monitors /var/lib/mios/forge-runner/last-build.txt to trigger mios-bootc-switch.service, automating the bootc kernel/image switch immediately after a Forgejo Runner build completes.
+# AI-related: /usr/libexec/mios/bootc-switch-from-build.sh, mios-bootc-switch, mios-bootc-switch.service, multi-user.target
+# /usr/lib/systemd/system/mios-bootc-switch.path
+# Watches the build-output sentinel that the Forgejo Runner workflow
+# writes after a successful `podman build`. PathChanged fires on
+# either creation or modification, so re-running the workflow with
+# the same image ref still triggers a re-stage (bootc switch is
+# idempotent on identical refs -- this is fine).' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION } else { '''MiOS'' watch for Forgejo Runner build output -> bootc switch' }
+$script:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/bootc-switch-from-build.sh' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART } else { '/usr/libexec/mios/ceph-bootstrap.sh' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST } else { '/usr/bin/touch /var/lib/ceph/.bootstrapped,-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT } else { 'yes' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR } else { 'journal+console' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT } else { 'journal+console' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC } else { 600 }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER } else { 'network-online.target podman.socket' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT } else { '# AI-hint: Systemd unit to execute /usr/libexec/mios/ceph-bootstrap.sh script to initialize the Ceph cluster (first boot only).
+# AI-related: /usr/libexec/mios/ceph-bootstrap.sh, podman.socket, network-online.target, multi-user.target' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS } else { '!/etc/ceph/ceph.conf,!/var/lib/ceph/.bootstrapped' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION } else { 'no' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'' Ceph Cluster Bootstrap' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION } else { 'https://docs.ceph.com/en/latest/cephadm/' }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC } else { 0 }
+$script:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS } else { 'network-online.target podman.socket' }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY } else { 'sockets.target' }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY } else { 'both' }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM } else { "0.0.0.0:$($script:MIOS_PORT_COCKPIT_LINK)" }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT } else { '# AI-hint: Socket file for mios-cockpit-link proxy. Maps port 8091 on host/WSL to the cockpit service.
+# AI-related: usr/lib/systemd/system/mios-cockpit-link.service' }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION } else { '!container' }
+$script:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION } else { '''MiOS'' Cockpit Link Proxy Socket' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
+# AI-related: mios-compute, mios-headless.target' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Compute Role' }
+$script:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
+# AI-related: mios-controller, mios-headless.target' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Controller Role' }
+$script:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC } else { '30s' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC } else { '5min' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT } else { 'false' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT } else { 'mios-dashboard-issue.service' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-dashboard-issue.service every 5 minutes to refresh the /etc/issue.d/ banner with real-time Quadlet status updates like service flapping and endpoint reachability.
+# AI-related: /usr/libexec/mios/mios-dashboard-render-issue.sh, mios-dashboard-issue, mios-dashboard-render-issue, mios-dashboard-issue.service, timers.target
+# /usr/lib/systemd/system/mios-dashboard-issue.timer
+# Refresh the /etc/issue.d/ dashboard snippet every 5 minutes so
+# Quadlet state changes (services flapping, endpoint reachability
+# coming and going) reach the pre-login banner without operator
+# intervention.' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' dashboard /etc/issue.d refresh timer' }
+$script:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-dashboard-render-issue.sh' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
+# AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS } else { 'mios-headless.target mios-k3s-master.target mios-ha-node.target' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Desktop Role' }
+$script:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_REQUIRES } else { 'multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC } else { '1min' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC } else { '5min' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC } else { '15min' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT } else { 'mios-embed-backfill.service' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for the mios-embed-backfill.service, controlling the periodic execution interval (default 15m) for background embedding backfilling.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.service, timers.target
+# /usr/lib/systemd/system/mios-embed-backfill.timer' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' Embedding Backfill Timer' }
+$script:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
+# AI-related: mios-endpoint, mios-headless.target' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Endpoint Role' }
+$script:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT } else { '# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
+#        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
+#        11450=LLM-Light, 5432=pgvector, 19090=Cockpit-link, 3053=AdGuard UI, 53=AdGuard DNS.
+# (crawl4ai :11235 removed 2026-05-24: the crawl engine is now a LOOPBACK-only
+#  venv service -- mios-crawl4ai.service binds 127.0.0.1, never LAN-exposed.)
+# AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).
+# Hardening: only the firewall-cmd binary needs system privileges; lock
+# everything else down.' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART } else { '/bin/bash -c ''\
+    set +e; \
+    if [ -f /etc/mios/install.env ]; then source /etc/mios/install.env; fi; \
+    ports=(\
+        "${MIOS_PORT_FORGE_HTTP:-8400}" \
+        "${MIOS_PORT_OPEN_WEBUI:-8200}" \
+        "${MIOS_PORT_CODE_SERVER:-8900}" \
+        "${MIOS_PORT_HERMES:-8720}" \
+        "${MIOS_PORT_SEARXNG:-8800}" \
+        "${MIOS_PORT_COCKPIT:-8110}" \
+        "${MIOS_PORT_HERMES_DASHBOARD:-8210}" \
+        "${MIOS_PORT_LLM_LIGHT:-8500}" \
+        "${MIOS_PORT_PGVECTOR:-8600}" \
+        "${MIOS_PORT_COCKPIT_LINK:-8120}" \
+        "${MIOS_PORT_ADGUARD_UI:-8050}" \
+        "${MIOS_PORT_SSH:-8100}" \
+        "${MIOS_PORT_FORGE_SSH:-8410}" \
+        "${MIOS_PORT_VLLM:-8520}" \
+        "${MIOS_PORT_SGLANG:-8530}" \
+        "${MIOS_PORT_CPU_NODE:-8510}" \
+        53 \
+    ); \
+    for p in "${ports[@]}"; do \
+        /usr/bin/firewall-cmd --permanent --add-port=${p}/tcp >/dev/null 2>&1; \
+    done; \
+    /usr/bin/firewall-cmd --permanent --add-port=53/udp >/dev/null 2>&1; \
+    /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
+    echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
+    exit 0\''' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS } else { 'true' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES } else { 'true' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT } else { 'yes' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER } else { 'firewalld.service network-online.target' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE } else { 'mios-agent-pipe.service mios-open-webui.service mios-searxng.service' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT } else { '# AI-hint: Ensures critical MiOS service ports (3000, 3030, 8080, 8642, 8888, 9090, 9119, 11434, 19090, 3053, 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and SearXNG.
+# AI-related: mios-open-webui, mios-searxng, mios-crawl4ai, firewalld.service, hermes-agent.service, mios-open-webui.service, mios-searxng.service, mios-crawl4ai.service, network-online.target, multi-user.target
+# Ensure MiOS service ports are open in firewalld at every boot.
+#
+# Why this exists: automation/44-firewall-ports.sh writes the firewalld
+# zone XML at OCI build time via firewall-offline-cmd. On stale OCI
+# images (pre-2026-05) OR when the install-time script didn''t run / the
+# XML didn''t persist, firewalld comes up with no ports open and ALL
+# Windows->WSL bridging silently times out (operator-confirmed
+# regression 2026-05-15: Open WebUI/Hermes/Cockpit/SearXNG inaccessible
+# post-reinstall; firewall-cmd --list-ports returned empty; adding the
+# ports manually instantly restored all 4 services).
+#
+# This unit runs at every boot and is idempotent: --add-port on a port
+# that''s already open is a no-op. No-ops cleanly when firewalld is
+# absent (ConditionPathExists) or inactive.' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS } else { '/usr/bin/firewall-cmd' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'': ensure firewalld has the MiOS service ports open' }
+$script:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS } else { 'firewalld.service network-online.target' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-firstboot.target unit to orchestrate initial provisioning services (CDI, libvirtd, and GRD setup) during the first boot sequence of the MiOS system.
+# AI-related: mios-firstboot, mios-cdi-detect, mios-libvirtd-setup, mios-grd-setup, mios-cdi-detect.service, mios-libvirtd-setup.service, mios-grd-setup.service, multi-user.target' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' first-boot provisioning' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION } else { 'https://github.com/MiOS-DEV/MiOS' }
+$script:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS } else { 'mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
+# AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target mios-k3s-master.target' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' HA Cluster Node Role' }
+$script:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_REQUIRES } else { 'multi-user.target corosync.service pacemaker.service' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
+# AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-k3s-master.target mios-ha-node.target' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Headless Role' }
+$script:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_ALIAS = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_ALIAS) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_ALIAS } else { 'default.target.mios-hybrid' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER } else { 'graphical.target' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
+# AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Hybrid role (desktop + k3s-worker + ceph-osd)' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_REQUIRES } else { 'graphical.target' }
+$script:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_WANTS } else { 'k3s-agent.service' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
+# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target mios-ha-node.target' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' K3s Master Role' }
+$script:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES } else { 'multi-user.target k3s.service' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS } else { 'default.target.mios-k3s-worker' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_AFTER = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_AFTER) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
+# AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' K3s worker role (agent)' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_WANTS = if ($env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_WANTS) { $env:MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_WANTS } else { 'k3s-agent.service' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED } else { '/usr/libexec/mios' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT } else { 'mios-libexec-perms.service' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT } else { '# AI-hint: Path-watcher companion to mios-libexec-perms.service -- re-runs the go+rX chmod whenever /usr/libexec/mios changes (e.g. a git checkout of / restages the scripts without exec bits), so exec perms self-heal within seconds instead of leaving services crash-looping on 203/EXEC.
+# AI-related: mios-libexec-perms.service, mios-additionalimagestores-perms.path, multi-user.target
+# Path-watcher companion to mios-libexec-perms.service. Any way the exec bits
+# get reset on /usr/libexec/mios (most commonly a `git checkout` of the deployed
+# root /), this snaps them back to go+rX within seconds so no service is left
+# crash-looping on 203/"Permission denied".' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY } else { '/usr/libexec/mios' }
+$script:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION } else { '''MiOS'': watch /usr/libexec/mios for perm changes; retrigger chmod' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC } else { '5m' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT } else { '# Daily, shortly after midnight local time. Persistent=true catches up a missed
+# run (machine asleep/off at the scheduled time) on the next boot. Randomized
+# delay spreads the dump off the exact minute so it doesn''t collide with other
+# midnight jobs.' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR } else { '*-*-* 00:30:00' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC } else { '15m' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT } else { '# AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot.
+# AI-related: mios-pgvector-backup.service, timers.target
+# /usr/lib/systemd/system/mios-pgvector-backup.timer
+# WS-0 pgvector durability: schedules the daily logical backup of the unified
+# agent-plane datastore. The service itself is degrade-open + gated on
+# MIOS_PG_BACKUP_ENABLE, so the timer can stay enabled unconditionally.' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' daily pgvector datastore backup schedule' }
+$script:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/lib/systemd/system/mios-pgvector-backup.service' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART } else { '/usr/bin/podman system prune -a -f' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE) { $env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT } else { '# AI-hint: Systemd unit that executes a forced Podman system prune to reclaim disk space from unused images and containers, specifically targeting WSL and non-containerized environments.' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION } else { '|!container,|wsl' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'' Podman Garbage Collection' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR) { $env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR } else { 'weekly' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer unit that triggers the mios-podman-gc.service weekly to automate the removal of stale Podman containers, images, and networks to reclaim disk space.
+# AI-related: mios-podman-gc, mios-podman-gc.service, timers.target' }
+$script:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION } else { 'Weekly Podman Cleanup' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC } else { '2s' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC } else { '10s' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC } else { '15s' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.
+# AI-related: mios-podman-ps, mios-podman-ps.service, timers.target' }
+$script:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' refresh the podman container snapshot for the dashboard' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC } else { '2min' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC } else { '10min' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC } else { '60min' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT } else { 'mios-skills-miner.service' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.
+# AI-related: /usr/libexec/mios/mios-skills, mios-skills-miner, mios-skills, mios-skills-miner.service, timers.target
+# /usr/lib/systemd/system/mios-skills-miner.timer
+# Phase C.2 of the AgentOS roadmap: cadence for the background
+# skill miner. Interval lifted to mios.toml [skills].
+# mine_interval_minutes (default 60). Operator override:
+#   sudo systemctl edit mios-skills-miner.timer
+#   [Timer]
+#   OnUnitActiveSec=30min
+#
+# Disabled by default; operator opts in (or it inherits enablement
+# from the configurator HTML "Skills mining" toggle which maps to
+# [skills].enable). The .service ConditionPathExists guard means a
+# stripped-down deployment with the libexec script absent skips
+# silently.' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' Phase C.2 skill-miner cadence (sequential pattern mining)' }
+$script:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-skills' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC } else { '1min' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT } else { '# First refresh 2 min after boot so the chain has warmed up.
+# Then every 10 min while running.' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '10min' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT } else { 'mios-suggestion-refresh.service' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-suggestion-refresh.service every 10 minutes to update OWUI starter chips based on current system state, kanban data, and recent user intents.
+# AI-related: /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-suggestion-refresh.service, timers.target
+# /usr/lib/systemd/system/mios-suggestion-refresh.timer
+# Fires mios-suggestion-refresh.service every 10 minutes so the
+# OWUI starter chips revolve based on current MiOS state (recent
+# kanban, daemon nudges, recent refine intents). Operators tune
+# the cadence with:
+#   sudo systemctl edit mios-suggestion-refresh.timer
+#   [Timer]
+#   OnUnitActiveSec=30min' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' starter-chip refresh cadence' }
+$script:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-suggestion-refresh' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC } else { '10s' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT } else { '# Mirrors the daemon''s directory_entry refresh cadence (~15 min): installed
+# apps / services / loaded models change far slower than container state, so a
+# 15-min refresh keeps the shared snapshot current without churn. The manual
+# sys_env_refresh verb covers the "I just installed X" case immediately.' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '45s' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '900s' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.
+# AI-related: mios-sys-env-refresh, timers.target' }
+$script:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' refresh cadence for the sys_env environment cache' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY } else { 'multi-user.target default.target' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT } else { '# Trigger whenever flatpak adds/removes an exported .desktop (any
+# system-wide install / uninstall touches this dir mtime).' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED } else { '/var/lib/flatpak/exports/share/applications,/var/lib/flatpak/exports/share/icons' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that triggers a synchronization script when flatpak application or icon files are modified in the export directory, ensuring .desktop files are updated for WSL integration.
+# AI-related: mios-is-wsl, multi-user.target, default.target' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS } else { '/run/mios-is-wsl' }
+$script:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION } else { '''MiOS'' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land' }
 $script:MIOS_UNITS_OPEN_WEBUI = if ($env:MIOS_UNITS_OPEN_WEBUI) { $env:MIOS_UNITS_OPEN_WEBUI } else { 'mios-open-webui.service' }
 $script:MIOS_UNITS_PGVECTOR = if ($env:MIOS_UNITS_PGVECTOR) { $env:MIOS_UNITS_PGVECTOR } else { 'mios-pgvector.service' }
 $script:MIOS_UNITS_SEARXNG = if ($env:MIOS_UNITS_SEARXNG) { $env:MIOS_UNITS_SEARXNG } else { 'mios-searxng.service' }
 $script:MIOS_UNITS_USER_SESSION = if ($env:MIOS_UNITS_USER_SESSION) { $env:MIOS_UNITS_USER_SESSION } else { 'user@${MIOS_UID}.service' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_INSTALL_WANTEDBY) { $env:MIOS_UNITS_VAR_HOME_MOUNT_INSTALL_WANTEDBY } else { 'remote-fs.target' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_OPTIONS } else { 'secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_TYPE) { $env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_TYPE } else { 'ceph' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHAT) { $env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHAT } else { 'mios@.cephfs=/home' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHERE) { $env:MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_WHERE } else { '/var/home' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_AFTER = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_AFTER) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_AFTER } else { 'ceph.target network-online.target' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_COMMENT) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_COMMENT } else { '# AI-hint: Systemd mount unit for mapping the CephFS cluster to /var/home, providing persistent storage for user home directories using the mios.secret for authentication.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/etc/ceph/ceph.conf,/etc/ceph/mios.secret' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DESCRIPTION } else { 'CephFS mount for user home directories' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DOCUMENTATION = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DOCUMENTATION) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_DOCUMENTATION } else { 'man:mount.ceph(8)' }
+$script:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_WANTS = if ($env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_WANTS) { $env:MIOS_UNITS_VAR_HOME_MOUNT_UNIT_WANTS } else { 'network-online.target' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY } else { 'remote-fs.target' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS } else { 'secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE } else { 'ceph' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT } else { 'mios@.cephfs=/containers' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE } else { '/var/lib/containers' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER } else { 'ceph.target network-online.target' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT } else { '# AI-hint: Systemd mount unit for the CephFS storage backend at /var/lib/containers, used by the system to provide persistent, shared storage for Podman containers via the mios.secret credential.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/etc/ceph/ceph.conf,/etc/ceph/mios.secret' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION } else { 'CephFS mount for Podman container storage' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR } else { '/var/lib' }
+$script:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS = if ($env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS) { $env:MIOS_UNITS_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS } else { 'network-online.target' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS } else { 'loop' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE } else { 'btrfs' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT } else { '/var/lib/machines.raw' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE } else { '/var/lib/machines' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT } else { '#  SPDX-License-Identifier: LGPL-2.1-or-later
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+# This unit is required for pre-240 versions of systemd that automatically set
+# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later
+# versions don''t do that anymore, but let''s keep minimal compatibility by
+# mounting the image still, if it exists.' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/var/lib/machines.raw' }
+$script:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNITS_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION } else { 'Virtual Machine and Container Storage (Compatibility)' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE } else { 'rpc_pipefs' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT } else { 'sunrpc' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE } else { '/var/lib/nfs/rpc_pipefs' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER } else { 'systemd-tmpfiles-setup.service' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT } else { '# AI-hint: Mounts the RPC pipe file system at /var/lib/nfs/rpc_pipefs to provide the necessary mount points for NFS RPC services and client operations.
+# AI-related: systemd-tmpfiles-setup.service, umount.target' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS } else { 'umount.target' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES } else { 'no' }
+$script:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNITS_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION } else { 'RPC Pipe File System' }
 $script:MIOS_UNITS_WSL_FIRSTBOOT = if ($env:MIOS_UNITS_WSL_FIRSTBOOT) { $env:MIOS_UNITS_WSL_FIRSTBOOT } else { 'mios-wsl-firstboot.service' }
 $script:MIOS_UNIT_AGENT_PIPE = if ($env:MIOS_UNIT_AGENT_PIPE) { $env:MIOS_UNIT_AGENT_PIPE } else { 'mios-agent-pipe.service' }
 $script:MIOS_UNIT_CEPH = if ($env:MIOS_UNIT_CEPH) { $env:MIOS_UNIT_CEPH } else { 'mios-ceph.service' }
@@ -2132,12 +2570,449 @@ $script:MIOS_UNIT_FORGE = if ($env:MIOS_UNIT_FORGE) { $env:MIOS_UNIT_FORGE } els
 $script:MIOS_UNIT_FORGE_RUNNER = if ($env:MIOS_UNIT_FORGE_RUNNER) { $env:MIOS_UNIT_FORGE_RUNNER } else { 'mios-forgejo-runner.service' }
 $script:MIOS_UNIT_HERMES = if ($env:MIOS_UNIT_HERMES) { $env:MIOS_UNIT_HERMES } else { 'mios-hermes.service' }
 $script:MIOS_UNIT_HERMES_FIRSTBOOT = if ($env:MIOS_UNIT_HERMES_FIRSTBOOT) { $env:MIOS_UNIT_HERMES_FIRSTBOOT } else { 'mios-hermes-firstboot.service' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNIT_HERMES_WORKER_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_PATH_PATHEXISTS = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_PATH_PATHEXISTS) { $env:MIOS_UNIT_HERMES_WORKER_PATH_PATH_PATHEXISTS } else { '/usr/lib/mios/agents/.venv/bin/hermes' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_PATH_UNIT = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_PATH_UNIT) { $env:MIOS_UNIT_HERMES_WORKER_PATH_PATH_UNIT } else { 'hermes-worker.service' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_AFTER = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_AFTER) { $env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_AFTER } else { 'hermes-worker-firstboot.service' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_COMMENT = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_COMMENT) { $env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit (WS-A4 boot-ordering fix) that watches for the Hermes venv binary and (re)starts hermes-worker.service once it exists, so a worker that failed its ConditionPathExists at first boot (venv not yet built) comes up automatically when the venv lands -- instead of staying inactive until a manual restart.
+# AI-related: hermes-worker.service, hermes-worker-firstboot.service, /usr/lib/mios/agents/.venv/bin/hermes, multi-user.target, 90-mios.preset
+# /usr/lib/systemd/system/hermes-worker.path
+# WS-A4 (operator 2026-06-22): hermes-worker.service carries
+# ConditionPathExists=/usr/lib/mios/agents/.venv/bin/hermes. On a fresh boot the
+# venv is not built yet -> the Condition fails -> the worker is skipped, and once
+# the venv-build/firstboot finishes systemd never retries it (so :8643 stays
+# inactive forever and the orchestrator silently runs single-agent). This .path
+# closes that gap: PathExists is satisfied the moment the venv binary EXISTS
+# (on creation AND if already present at activation), starting the worker. The
+# worker''s own Condition still guards against a half-built venv; start is idempotent.' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION } else { '''MiOS'' watch for the Hermes venv -> (re)start hermes-worker' }
+$script:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DOCUMENTATION } else { 'file:///usr/lib/systemd/system/hermes-worker.service' }
 $script:MIOS_UNIT_K3S = if ($env:MIOS_UNIT_K3S) { $env:MIOS_UNIT_K3S } else { 'mios-k3s.service' }
 $script:MIOS_UNIT_LLM_LIGHT = if ($env:MIOS_UNIT_LLM_LIGHT) { $env:MIOS_UNIT_LLM_LIGHT } else { 'mios-llm-light.service' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED } else { '/usr/lib/containers/storage/overlay-images,/usr/lib/containers/storage/overlay-containers,/usr/lib/containers/storage/overlay-layers,/usr/lib/containers/storage/libpod' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT } else { 'mios-additionalimagestores-perms.service' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that monitors container storage directories for permission changes and triggers mios-additionalimagestores-perms.service to restore go+rX permissions on image store subdirectories.
+# AI-related: mios-additionalimagestores-perms, mios-additionalimagestores-perms.service, multi-user.target
+# Path-watcher companion to mios-additionalimagestores-perms.service.
+# Re-runs the chmod whenever any of the additional image store''s per-
+# driver subdirs change (e.g. podman extracts new layers and resets
+# the perms back to 0700 -- happens on first runtime pull into the
+# additional store, though that''s atypical since this store is built
+# at OCI bake time and meant to be read-only at runtime).
+#
+# Together with the .service unit (runs at boot) this makes the
+# go+rX state self-healing: any way the perms get reset, they snap
+# back within seconds.' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY } else { '/usr/lib/containers/storage' }
+$script:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION } else { '''MiOS'': watch additionalimagestores for perm changes; retrigger chmod' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT } else { '# 2 min after boot (agent-pipe up by then), then every 15 min so the role
+# SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet.' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '15min' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.
+# AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target' }
+$script:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION } else { 'Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT } else { '# First retry shortly after boot, then every 10min while the service sits
+# inactive and the sentinel is still absent. Persistent catches up a missed
+# window across a shutdown. The timer OWNS retry now (the .service no longer
+# carries Restart=on-failure / StartLimitBurst).' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_ONUNITINACTIVESEC } else { '10min' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_UNIT } else { 'mios-ai-firstboot.service' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for mios-ai-firstboot.service, controlling post-boot AI provisioning retries until the sentinel file is present.
+# AI-related: /var/lib/mios/.ai-firstboot-done, mios-ai-firstboot.service, timers.target
+# /usr/lib/systemd/system/mios-ai-firstboot.timer
+# Retries the first-boot AI stack deployment if it didn''t complete on
+# initial boot (e.g. machine rebooted mid-pull, or GPU drivers were
+# mid-dkms build). The timer is enabled by default so the attempt happens
+# automatically, but is gated on the absence of the sentinel file in
+# place. The .service degrades open (exit 0) on a partial provision and carries
+# ConditionPathExists=!<sentinel>, so once /var/lib/mios/.ai-firstboot-done is
+# written the timer-fired run no-ops. The same condition here stops the timer
+# itself from firing needlessly once provisioning is complete.' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_CONDITIONPATHEXISTS } else { '!/var/lib/mios/.ai-firstboot-done' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' AI Plane First-Boot Provisioning Retry Schedule' }
+$script:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-ai-firstboot-provision.sh' }
+$script:MIOS_UNIT_MIOS_AI_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_AI_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_AI_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_AI_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_AI_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_COMMENT } else { '# AI-hint: systemd target grouping all MiOS AI plane services (T-076).
+# usr/lib/systemd/system/mios-ai.target' }
+$script:MIOS_UNIT_MIOS_AI_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_DESCRIPTION } else { 'MiOS AI Services Target' }
+$script:MIOS_UNIT_MIOS_AI_TARGET_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_AI_TARGET_UNIT_WANTS } else { 'mios-agent-pipe.service' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_PATHCHANGED } else { '/var/lib/mios/forge-runner/last-build.txt' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_PATH_UNIT } else { 'mios-bootc-switch.service' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that monitors /var/lib/mios/forge-runner/last-build.txt to trigger mios-bootc-switch.service, automating the bootc kernel/image switch immediately after a Forgejo Runner build completes.
+# AI-related: /usr/libexec/mios/bootc-switch-from-build.sh, mios-bootc-switch, mios-bootc-switch.service, multi-user.target
+# /usr/lib/systemd/system/mios-bootc-switch.path
+# Watches the build-output sentinel that the Forgejo Runner workflow
+# writes after a successful `podman build`. PathChanged fires on
+# either creation or modification, so re-running the workflow with
+# the same image ref still triggers a re-stage (bootc switch is
+# idempotent on identical refs -- this is fine).' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION } else { '''MiOS'' watch for Forgejo Runner build output -> bootc switch' }
+$script:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/bootc-switch-from-build.sh' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART } else { '/usr/libexec/mios/ceph-bootstrap.sh' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST } else { '/usr/bin/touch /var/lib/ceph/.bootstrapped,-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_REMAINAFTEREXIT } else { 'yes' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDERROR } else { 'journal+console' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_STANDARDOUTPUT } else { 'journal+console' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TIMEOUTSTARTSEC } else { 600 }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_AFTER } else { 'network-online.target podman.socket' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_COMMENT } else { '# AI-hint: Systemd unit to execute /usr/libexec/mios/ceph-bootstrap.sh script to initialize the Ceph cluster (first boot only).
+# AI-related: /usr/libexec/mios/ceph-bootstrap.sh, podman.socket, network-online.target, multi-user.target' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONPATHEXISTS } else { '!/etc/ceph/ceph.conf,!/var/lib/ceph/.bootstrapped' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_CONDITIONVIRTUALIZATION } else { 'no' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'' Ceph Cluster Bootstrap' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_DOCUMENTATION } else { 'https://docs.ceph.com/en/latest/cephadm/' }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_STARTLIMITINTERVALSEC } else { 0 }
+$script:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS } else { 'network-online.target podman.socket' }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY } else { 'sockets.target' }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY } else { 'both' }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM } else { "0.0.0.0:$($script:MIOS_PORT_COCKPIT_LINK)" }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_COMMENT } else { '# AI-hint: Socket file for mios-cockpit-link proxy. Maps port 8091 on host/WSL to the cockpit service.
+# AI-related: usr/lib/systemd/system/mios-cockpit-link.service' }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION } else { '!container' }
+$script:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION } else { '''MiOS'' Cockpit Link Proxy Socket' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
+# AI-related: mios-compute, mios-headless.target' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Compute Role' }
+$script:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
+# AI-related: mios-controller, mios-headless.target' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Controller Role' }
+$script:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC } else { '30s' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONUNITACTIVESEC } else { '5min' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_PERSISTENT } else { 'false' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_UNIT } else { 'mios-dashboard-issue.service' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-dashboard-issue.service every 5 minutes to refresh the /etc/issue.d/ banner with real-time Quadlet status updates like service flapping and endpoint reachability.
+# AI-related: /usr/libexec/mios/mios-dashboard-render-issue.sh, mios-dashboard-issue, mios-dashboard-render-issue, mios-dashboard-issue.service, timers.target
+# /usr/lib/systemd/system/mios-dashboard-issue.timer
+# Refresh the /etc/issue.d/ dashboard snippet every 5 minutes so
+# Quadlet state changes (services flapping, endpoint reachability
+# coming and going) reach the pre-login banner without operator
+# intervention.' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' dashboard /etc/issue.d refresh timer' }
+$script:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-dashboard-render-issue.sh' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
+# AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS } else { 'mios-headless.target mios-k3s-master.target mios-ha-node.target' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Desktop Role' }
+$script:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_REQUIRES } else { 'multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC } else { '1min' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC } else { '5min' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONUNITACTIVESEC } else { '15min' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_UNIT } else { 'mios-embed-backfill.service' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for the mios-embed-backfill.service, controlling the periodic execution interval (default 15m) for background embedding backfilling.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.service, timers.target
+# /usr/lib/systemd/system/mios-embed-backfill.timer' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' Embedding Backfill Timer' }
+$script:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
+# AI-related: mios-endpoint, mios-headless.target' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Endpoint Role' }
+$script:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT } else { '# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
+#        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
+#        11450=LLM-Light, 5432=pgvector, 19090=Cockpit-link, 3053=AdGuard UI, 53=AdGuard DNS.
+# (crawl4ai :11235 removed 2026-05-24: the crawl engine is now a LOOPBACK-only
+#  venv service -- mios-crawl4ai.service binds 127.0.0.1, never LAN-exposed.)
+# AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).
+# Hardening: only the firewall-cmd binary needs system privileges; lock
+# everything else down.' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_EXECSTART } else { '/bin/bash -c ''\
+    set +e; \
+    if [ -f /etc/mios/install.env ]; then source /etc/mios/install.env; fi; \
+    ports=(\
+        "${MIOS_PORT_FORGE_HTTP:-8400}" \
+        "${MIOS_PORT_OPEN_WEBUI:-8200}" \
+        "${MIOS_PORT_CODE_SERVER:-8900}" \
+        "${MIOS_PORT_HERMES:-8720}" \
+        "${MIOS_PORT_SEARXNG:-8800}" \
+        "${MIOS_PORT_COCKPIT:-8110}" \
+        "${MIOS_PORT_HERMES_DASHBOARD:-8210}" \
+        "${MIOS_PORT_LLM_LIGHT:-8500}" \
+        "${MIOS_PORT_PGVECTOR:-8600}" \
+        "${MIOS_PORT_COCKPIT_LINK:-8120}" \
+        "${MIOS_PORT_ADGUARD_UI:-8050}" \
+        "${MIOS_PORT_SSH:-8100}" \
+        "${MIOS_PORT_FORGE_SSH:-8410}" \
+        "${MIOS_PORT_VLLM:-8520}" \
+        "${MIOS_PORT_SGLANG:-8530}" \
+        "${MIOS_PORT_CPU_NODE:-8510}" \
+        53 \
+    ); \
+    for p in "${ports[@]}"; do \
+        /usr/bin/firewall-cmd --permanent --add-port=${p}/tcp >/dev/null 2>&1; \
+    done; \
+    /usr/bin/firewall-cmd --permanent --add-port=53/udp >/dev/null 2>&1; \
+    /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
+    echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
+    exit 0\''' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS } else { 'true' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES } else { 'true' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT } else { 'yes' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER } else { 'firewalld.service network-online.target' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_BEFORE } else { 'mios-agent-pipe.service mios-open-webui.service mios-searxng.service' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_COMMENT } else { '# AI-hint: Ensures critical MiOS service ports (3000, 3030, 8080, 8642, 8888, 9090, 9119, 11434, 19090, 3053, 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and SearXNG.
+# AI-related: mios-open-webui, mios-searxng, mios-crawl4ai, firewalld.service, hermes-agent.service, mios-open-webui.service, mios-searxng.service, mios-crawl4ai.service, network-online.target, multi-user.target
+# Ensure MiOS service ports are open in firewalld at every boot.
+#
+# Why this exists: automation/44-firewall-ports.sh writes the firewalld
+# zone XML at OCI build time via firewall-offline-cmd. On stale OCI
+# images (pre-2026-05) OR when the install-time script didn''t run / the
+# XML didn''t persist, firewalld comes up with no ports open and ALL
+# Windows->WSL bridging silently times out (operator-confirmed
+# regression 2026-05-15: Open WebUI/Hermes/Cockpit/SearXNG inaccessible
+# post-reinstall; firewall-cmd --list-ports returned empty; adding the
+# ports manually instantly restored all 4 services).
+#
+# This unit runs at every boot and is idempotent: --add-port on a port
+# that''s already open is a no-op. No-ops cleanly when firewalld is
+# absent (ConditionPathExists) or inactive.' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_CONDITIONPATHEXISTS } else { '/usr/bin/firewall-cmd' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'': ensure firewalld has the MiOS service ports open' }
+$script:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_WANTS } else { 'firewalld.service network-online.target' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-firstboot.target unit to orchestrate initial provisioning services (CDI, libvirtd, and GRD setup) during the first boot sequence of the MiOS system.
+# AI-related: mios-firstboot, mios-cdi-detect, mios-libvirtd-setup, mios-grd-setup, mios-cdi-detect.service, mios-libvirtd-setup.service, mios-grd-setup.service, multi-user.target' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' first-boot provisioning' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION } else { 'https://github.com/MiOS-DEV/MiOS' }
+$script:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS } else { 'mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
+# AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target mios-k3s-master.target' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' HA Cluster Node Role' }
+$script:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_REQUIRES } else { 'multi-user.target corosync.service pacemaker.service' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
+# AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-k3s-master.target mios-ha-node.target' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Headless Role' }
+$script:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_ALIAS = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_ALIAS) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_ALIAS } else { 'default.target.mios-hybrid' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER } else { 'graphical.target' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
+# AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' Hybrid role (desktop + k3s-worker + ceph-osd)' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_REQUIRES } else { 'graphical.target' }
+$script:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_WANTS } else { 'k3s-agent.service' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
+# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS } else { 'mios-desktop.target mios-headless.target mios-ha-node.target' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' K3s Master Role' }
+$script:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES } else { 'multi-user.target k3s.service' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS } else { 'default.target.mios-k3s-worker' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_AFTER = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_AFTER) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_AFTER } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE } else { 'true' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT } else { '# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
+# AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION } else { '''MiOS'' K3s worker role (agent)' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_REQUIRES } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_WANTS = if ($env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_WANTS) { $env:MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_WANTS } else { 'k3s-agent.service' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_INSTALL_WANTEDBY } else { 'multi-user.target' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_PATHCHANGED } else { '/usr/libexec/mios' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_PATH_UNIT } else { 'mios-libexec-perms.service' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_COMMENT } else { '# AI-hint: Path-watcher companion to mios-libexec-perms.service -- re-runs the go+rX chmod whenever /usr/libexec/mios changes (e.g. a git checkout of / restages the scripts without exec bits), so exec perms self-heal within seconds instead of leaving services crash-looping on 203/EXEC.
+# AI-related: mios-libexec-perms.service, mios-additionalimagestores-perms.path, multi-user.target
+# Path-watcher companion to mios-libexec-perms.service. Any way the exec bits
+# get reset on /usr/libexec/mios (most commonly a `git checkout` of the deployed
+# root /), this snaps them back to go+rX within seconds so no service is left
+# crash-looping on 203/"Permission denied".' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY } else { '/usr/libexec/mios' }
+$script:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION } else { '''MiOS'': watch /usr/libexec/mios for perm changes; retrigger chmod' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC } else { '5m' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT } else { '# Daily, shortly after midnight local time. Persistent=true catches up a missed
+# run (machine asleep/off at the scheduled time) on the next boot. Randomized
+# delay spreads the dump off the exact minute so it doesn''t collide with other
+# midnight jobs.' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ONCALENDAR } else { '*-*-* 00:30:00' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_RANDOMIZEDDELAYSEC } else { '15m' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_COMMENT } else { '# AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot.
+# AI-related: mios-pgvector-backup.service, timers.target
+# /usr/lib/systemd/system/mios-pgvector-backup.timer
+# WS-0 pgvector durability: schedules the daily logical backup of the unified
+# agent-plane datastore. The service itself is degrade-open + gated on
+# MIOS_PG_BACKUP_ENABLE, so the timer can stay enabled unconditionally.' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' daily pgvector datastore backup schedule' }
+$script:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/lib/systemd/system/mios-pgvector-backup.service' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_EXECSTART } else { '/usr/bin/podman system prune -a -f' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE) { $env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_SERVICE_TYPE } else { 'oneshot' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_COMMENT } else { '# AI-hint: Systemd unit that executes a forced Podman system prune to reclaim disk space from unused images and containers, specifically targeting WSL and non-containerized environments.' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION) { $env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_CONDITIONVIRTUALIZATION } else { '|!container,|wsl' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_PODMAN_GC_SERVICE_UNIT_DESCRIPTION } else { '''MiOS'' Podman Garbage Collection' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR) { $env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_ONCALENDAR } else { 'weekly' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer unit that triggers the mios-podman-gc.service weekly to automate the removal of stale Podman containers, images, and networks to reclaim disk space.
+# AI-related: mios-podman-gc, mios-podman-gc.service, timers.target' }
+$script:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_PODMAN_GC_TIMER_UNIT_DESCRIPTION } else { 'Weekly Podman Cleanup' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ACCURACYSEC } else { '2s' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONBOOTSEC } else { '10s' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_TIMER_ONUNITACTIVESEC } else { '15s' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.
+# AI-related: mios-podman-ps, mios-podman-ps.service, timers.target' }
+$script:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' refresh the podman container snapshot for the dashboard' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC } else { '2min' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC } else { '10min' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONUNITACTIVESEC } else { '60min' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_UNIT } else { 'mios-skills-miner.service' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_COMMENT } else { '# AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.
+# AI-related: /usr/libexec/mios/mios-skills, mios-skills-miner, mios-skills, mios-skills-miner.service, timers.target
+# /usr/lib/systemd/system/mios-skills-miner.timer
+# Phase C.2 of the AgentOS roadmap: cadence for the background
+# skill miner. Interval lifted to mios.toml [skills].
+# mine_interval_minutes (default 60). Operator override:
+#   sudo systemctl edit mios-skills-miner.timer
+#   [Timer]
+#   OnUnitActiveSec=30min
+#
+# Disabled by default; operator opts in (or it inherits enablement
+# from the configurator HTML "Skills mining" toggle which maps to
+# [skills].enable). The .service ConditionPathExists guard means a
+# stripped-down deployment with the libexec script absent skips
+# silently.' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' Phase C.2 skill-miner cadence (sequential pattern mining)' }
+$script:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-skills' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ACCURACYSEC } else { '1min' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_COMMENT } else { '# First refresh 2 min after boot so the chain has warmed up.
+# Then every 10 min while running.' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '2min' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '10min' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_TIMER_UNIT } else { 'mios-suggestion-refresh.service' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers mios-suggestion-refresh.service every 10 minutes to update OWUI starter chips based on current system state, kanban data, and recent user intents.
+# AI-related: /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-suggestion-refresh.service, timers.target
+# /usr/lib/systemd/system/mios-suggestion-refresh.timer
+# Fires mios-suggestion-refresh.service every 10 minutes so the
+# OWUI starter chips revolve based on current MiOS state (recent
+# kanban, daemon nudges, recent refine intents). Operators tune
+# the cadence with:
+#   sudo systemctl edit mios-suggestion-refresh.timer
+#   [Timer]
+#   OnUnitActiveSec=30min' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' starter-chip refresh cadence' }
+$script:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION } else { 'file:///usr/libexec/mios/mios-suggestion-refresh' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY } else { 'timers.target' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC } else { '10s' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT } else { '# Mirrors the daemon''s directory_entry refresh cadence (~15 min): installed
+# apps / services / loaded models change far slower than container state, so a
+# 15-min refresh keeps the shared snapshot current without churn. The manual
+# sys_env_refresh verb covers the "I just installed X" case immediately.' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONBOOTSEC } else { '45s' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ONUNITACTIVESEC } else { '900s' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_PERSISTENT } else { 'true' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT } else { '# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.
+# AI-related: mios-sys-env-refresh, timers.target' }
+$script:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION } else { '''MiOS'' refresh cadence for the sys_env environment cache' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY } else { 'multi-user.target default.target' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT } else { '# Trigger whenever flatpak adds/removes an exported .desktop (any
+# system-wide install / uninstall touches this dir mtime).' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_PATHCHANGED } else { '/var/lib/flatpak/exports/share/applications,/var/lib/flatpak/exports/share/icons' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_COMMENT } else { '# AI-hint: Systemd path unit that triggers a synchronization script when flatpak application or icon files are modified in the export directory, ensuring .desktop files are updated for WSL integration.
+# AI-related: mios-is-wsl, multi-user.target, default.target' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_CONDITIONPATHEXISTS } else { '/run/mios-is-wsl' }
+$script:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION) { $env:MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION } else { '''MiOS'' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land' }
 $script:MIOS_UNIT_OPEN_WEBUI = if ($env:MIOS_UNIT_OPEN_WEBUI) { $env:MIOS_UNIT_OPEN_WEBUI } else { 'mios-open-webui.service' }
 $script:MIOS_UNIT_PGVECTOR = if ($env:MIOS_UNIT_PGVECTOR) { $env:MIOS_UNIT_PGVECTOR } else { 'mios-pgvector.service' }
 $script:MIOS_UNIT_SEARXNG = if ($env:MIOS_UNIT_SEARXNG) { $env:MIOS_UNIT_SEARXNG } else { 'mios-searxng.service' }
 $script:MIOS_UNIT_USER_SESSION = if ($env:MIOS_UNIT_USER_SESSION) { $env:MIOS_UNIT_USER_SESSION } else { 'user@${MIOS_UID}.service' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY) { $env:MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY } else { 'remote-fs.target' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_OPTIONS } else { 'secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_TYPE) { $env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_TYPE } else { 'ceph' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHAT) { $env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHAT } else { 'mios@.cephfs=/home' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHERE) { $env:MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_WHERE } else { '/var/home' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_AFTER = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_AFTER) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_AFTER } else { 'ceph.target network-online.target' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_COMMENT) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_COMMENT } else { '# AI-hint: Systemd mount unit for mapping the CephFS cluster to /var/home, providing persistent storage for user home directories using the mios.secret for authentication.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/etc/ceph/ceph.conf,/etc/ceph/mios.secret' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DESCRIPTION } else { 'CephFS mount for user home directories' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DOCUMENTATION = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DOCUMENTATION) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_DOCUMENTATION } else { 'man:mount.ceph(8)' }
+$script:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_WANTS = if ($env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_WANTS) { $env:MIOS_UNIT_VAR_HOME_MOUNT_UNIT_WANTS } else { 'network-online.target' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_INSTALL_WANTEDBY } else { 'remote-fs.target' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_OPTIONS } else { 'secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_TYPE } else { 'ceph' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHAT } else { 'mios@.cephfs=/containers' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_MOUNT_WHERE } else { '/var/lib/containers' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_AFTER } else { 'ceph.target network-online.target' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_COMMENT } else { '# AI-hint: Systemd mount unit for the CephFS storage backend at /var/lib/containers, used by the system to provide persistent, shared storage for Podman containers via the mios.secret credential.
+# AI-related: ceph.target, network-online.target, x-systemd.mount, remote-fs.target' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/etc/ceph/ceph.conf,/etc/ceph/mios.secret' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_DESCRIPTION } else { 'CephFS mount for Podman container storage' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_REQUIRESMOUNTSFOR } else { '/var/lib' }
+$script:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS = if ($env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS) { $env:MIOS_UNIT_VAR_LIB_CONTAINERS_MOUNT_UNIT_WANTS } else { 'network-online.target' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_OPTIONS } else { 'loop' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_TYPE } else { 'btrfs' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHAT } else { '/var/lib/machines.raw' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_MOUNT_WHERE } else { '/var/lib/machines' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_COMMENT } else { '#  SPDX-License-Identifier: LGPL-2.1-or-later
+#
+#  This file is part of systemd.
+#
+#  systemd is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU Lesser General Public License as published by
+#  the Free Software Foundation; either version 2.1 of the License, or
+#  (at your option) any later version.
+# This unit is required for pre-240 versions of systemd that automatically set
+# up /var/lib/machines.raw as loopback-mounted btrfs file system. Later
+# versions don''t do that anymore, but let''s keep minimal compatibility by
+# mounting the image still, if it exists.' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_CONDITIONPATHEXISTS } else { '/var/lib/machines.raw' }
+$script:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNIT_VAR_LIB_MACHINES_MOUNT_UNIT_DESCRIPTION } else { 'Virtual Machine and Container Storage (Compatibility)' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_TYPE } else { 'rpc_pipefs' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHAT } else { 'sunrpc' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_MOUNT_WHERE } else { '/var/lib/nfs/rpc_pipefs' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_AFTER } else { 'systemd-tmpfiles-setup.service' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_COMMENT } else { '# AI-hint: Mounts the RPC pipe file system at /var/lib/nfs/rpc_pipefs to provide the necessary mount points for NFS RPC services and client operations.
+# AI-related: systemd-tmpfiles-setup.service, umount.target' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_CONFLICTS } else { 'umount.target' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DEFAULTDEPENDENCIES } else { 'no' }
+$script:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION = if ($env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION) { $env:MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION } else { 'RPC Pipe File System' }
 $script:MIOS_UNIT_WSL_FIRSTBOOT = if ($env:MIOS_UNIT_WSL_FIRSTBOOT) { $env:MIOS_UNIT_WSL_FIRSTBOOT } else { 'mios-wsl-firstboot.service' }
 $script:MIOS_URLS_BOOTSTRAP_REPO = if ($env:MIOS_URLS_BOOTSTRAP_REPO) { $env:MIOS_URLS_BOOTSTRAP_REPO } else { 'https://github.com/mios-dev/mios-bootstrap.git' }
 $script:MIOS_URLS_COCKPIT = if ($env:MIOS_URLS_COCKPIT) { $env:MIOS_URLS_COCKPIT } else { "https://localhost:$($script:MIOS_PORT_COCKPIT)" }

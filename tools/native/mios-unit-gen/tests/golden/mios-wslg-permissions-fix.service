@@ -1,0 +1,64 @@
+# AI-hint: A systemd oneshot service that enforces 0700 permissions on /mnt/wslg/runtime-dir to enable Wayland VAIL mode and replaces the /tmp/.X11-unix symlink with a physical directory to ensure Flatpak/bwrap compatibility.
+# AI-related: /usr/libexec/mios/mios-flatpak-icon-sanitize, mios-flatpak-icon-sanitize, mios-dev, systemd-tmpfiles-setup.service, wslg-x11.service, wslg-wayland.service, multi-user.target, default.target
+[Unit]
+Description='MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR
+Documentation=https://github.com/mios-dev/MiOS
+Documentation=https://github.com/microsoft/wslg/discussions/312
+
+# WSL2 mounts /mnt/wslg/runtime-dir with mode 0777 (world-writable),
+# but weston's wayland-server treats anything looser than 0700 as a
+# protocol violation and refuses to advance past the RAIL fallback
+# into VAIL (shared-memory) mode. Operator-confirmed via weston.log:
+#   warning: XDG_RUNTIME_DIR "/mnt/wslg/runtime-dir" is not configured
+#   correctly.  Unix access mode must be 0700 (current mode is 777)
+#
+# This service runs ONCE at boot, BEFORE weston starts, chmoding the
+# directory to 0700. It's a precondition for VAIL; combined with WSL
+# 2.7.3+'s shared-memory handshake (provided wslservice on the
+# Windows host successfully exposes the Section object), this should
+# nudge weston past COPY MODE into native VAIL rendering.
+#
+# Note: this is a NECESSARY but not SUFFICIENT condition. Some
+# COPY MODE deployments persist due to host-side wslservice problems
+# that no Linux-side fix can address (per WSLg upstream issues #312,
+# #972, #982, #1278). When that's the case the warning disappears
+# but RAIL fallback stays -- diagnose via `WAYLAND_DEBUG=client
+# weston-info` on the host side.
+
+ConditionPathIsDirectory=/mnt/wslg/runtime-dir
+DefaultDependencies=no
+After=systemd-tmpfiles-setup.service
+Before=wslg-x11.service
+Before=wslg-wayland.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/chmod 0700 /mnt/wslg/runtime-dir
+ExecStart=/usr/bin/chown user:user /mnt/wslg/runtime-dir
+# /tmp/.X11-unix: WSL2 ships it as a SYMLINK -> /mnt/wslg/.X11-unix.
+# Flatpak bwrap chokes on symlinks ("Can't mount tmpfs on
+# /newroot/tmp/.X11-unix: No such file or directory") for any GUI app
+# that uses --socket=fallback-x11 (Nautilus.Devel, gnome-text-editor,
+# epiphany under XWayland fallback, etc.). Replace symlink with a
+# real directory + bind-mount the host's WSLg X11 socket dir onto
+# it so bwrap can chroot freely without losing X11 access.
+# Operator-flagged 2026-05-10: "bwrap: Can't mount tmpfs on
+# /newroot/tmp/.X11-unix: No such file or directory" when launching
+# Nautilus.Devel from gnome-nightly.
+ExecStart=-/usr/bin/test -L /tmp/.X11-unix
+ExecStart=-/usr/bin/rm -f /tmp/.X11-unix
+ExecStart=/usr/bin/mkdir -p /tmp/.X11-unix
+ExecStart=-/usr/bin/chmod 1777 /tmp/.X11-unix
+ExecStart=-/usr/bin/mountpoint -q /tmp/.X11-unix
+ExecStart=-/usr/bin/mount --bind /mnt/wslg/.X11-unix /tmp/.X11-unix
+# Sanitize malformed flatpak-exported icons (a ".svg" that is really a PNG)
+# BEFORE weston builds its RAIL app-list. rsvg returns NULL on a non-SVG
+# and weston NULL-derefs -> SIGSEGV-loops until WSLGd gives up, which makes
+# the wayland/X11 sockets refuse ALL clients (every GUI launch invisible).
+# Operator-hit 2026-06-06: com.google.ChromeDev shipped a PNG named
+# com.google.ChromeDev.svg on WSL 2.7.7.0. See the helper's header.
+ExecStart=-/usr/libexec/mios/mios-flatpak-icon-sanitize
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target default.target

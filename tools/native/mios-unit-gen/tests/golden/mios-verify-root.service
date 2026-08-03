@@ -1,0 +1,38 @@
+# AI-hint: Systemd unit that executes /usr/libexec/mios/verify-root.sh to validate the integrity of the root filesystem during early boot, gated by the presence of /run/ostree-booted.
+# AI-related: /usr/libexec/mios/verify-root.sh, greenboot-healthcheck.service, ostree-remount.service, basic.target, local-fs.target
+[Unit]
+Description='MiOS' Root Filesystem Verification
+Documentation=file:///usr/share/doc/mios/COMPOSEFS-VERIFICATION.md
+DefaultDependencies=no
+Before=greenboot-healthcheck.service basic.target local-fs.target
+After=ostree-remount.service
+# Already gated by /run/ostree-booted -- WSL doesn't have an ostree
+# deployment so the marker is absent and the unit no-ops naturally.
+# The previous virt-gate was redundant and silently skipped WSL even
+# when ostree-booted was somehow present (e.g. nested test setup).
+ConditionPathExists=/run/ostree-booted
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/mios/verify-root.sh
+RemainAfterExit=yes
+
+# Hardening -- this unit runs very early and touches no writable state.
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+LockPersonality=yes
+PrivateDevices=yes
+BindReadOnlyPaths=/usr /etc /run/ostree-booted
+
+[Install]
+WantedBy=local-fs.target

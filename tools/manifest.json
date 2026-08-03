@@ -437,7 +437,7 @@
       "path": "tools/native/Cargo.toml",
       "title": "Cargo.toml",
       "type": "source_code",
-      "full_content": "# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.\n[workspace]\nmembers = [\n    \"generate-names-registry\",\n    \"mios-aiplane-lint\",\n    \"mios-bake-plan\",\n    \"mios-drift-runner\",\n    \"mios-resolver\",\n    \"mios-ssot-lint\",\n    \"mios-ssot-walk\",\n    \"mios-template-compile\",\n    \"mios-template-conform\",\n    \"mios-version-check\",\n    \"mios-wallpaperd\",\n    \"xtask\",\n]\nresolver = \"2\"\n\n[workspace.package]\nversion = \"0.3.0\"\nedition = \"2021\"\n"
+      "full_content": "# AI-hint: Generated from mios.toml SSOT by tools/generate-cargo-manifests.py. DO NOT EDIT DIRECTLY.\n[workspace]\nmembers = [\n    \"generate-names-registry\",\n    \"mios-aiplane-lint\",\n    \"mios-bake-plan\",\n    \"mios-drift-runner\",\n    \"mios-resolver\",\n    \"mios-ssot-lint\",\n    \"mios-ssot-walk\",\n    \"mios-template-compile\",\n    \"mios-template-conform\",\n    \"mios-unit-gen\",\n    \"mios-version-check\",\n    \"mios-wallpaperd\",\n    \"xtask\",\n]\nresolver = \"2\"\n\n[workspace.package]\nversion = \"0.3.0\"\nedition = \"2021\"\n"
     },
     {
       "path": "tools/native/deny.toml",
