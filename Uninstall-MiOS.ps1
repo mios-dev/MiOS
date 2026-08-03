@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Hardened, idempotent COMPLETE uninstaller for MiOS on a Windows host.
 

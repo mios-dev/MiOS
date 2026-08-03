@@ -1,4 +1,4 @@
-<#
+﻿<#
   Set-MiOSWallpaper.ps1 — resolve the MiOS Living Wallpaper URL from the
   mios.toml [colors] SSOT and write it to HKLM\SOFTWARE\MiOS\WallpaperUrl.
 

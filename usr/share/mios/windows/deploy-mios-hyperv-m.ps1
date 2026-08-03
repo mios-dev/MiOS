@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+﻿#Requires -Version 7.0
 #Requires -RunAsAdministrator
 # AI-hint: Generated for MiOS M: drive Hyper-V deployment
 # Creates a Generation-2 Hyper-V VM attached to the converted MiOS vhdx on the M: drive.

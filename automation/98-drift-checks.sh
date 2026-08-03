@@ -6116,6 +6116,8 @@ main() {
     check_install_uninstall_symmetry
     check_ps_port_fallback_ssot
     check_github_slug_casing
+    check_ps_encoding_and_bom
+    check_unit_dependency_closure
 
 
     check_chrony_ptp_dropin
@@ -6431,7 +6433,9 @@ check_unpinned_runtime_fetches() {
 check_secret_handling() {
     echo "[98-drift-checks]   check_secret_handling"
     local ps_files=()
-    while IFS= read -r f; do ps_files+=("$f"); done < <(find "$ROOT" -maxdepth 3 -name "*.ps1" -not -path "*/.git/*")
+    # Whole tree: a -maxdepth bound cannot reach usr/share/mios/windows or
+    # usr/libexec/mios, where most of the Windows secret handling actually lives.
+    while IFS= read -r f; do ps_files+=("$f"); done < <(find "$ROOT" -name "*.ps1" -not -path "*/.git/*")
     local f
     for f in "${ps_files[@]}"; do
         if [[ -f "$f" ]]; then
@@ -6450,9 +6454,13 @@ check_wsl_distro_resolution() {
         local f
         for f in "$win_dir"/*.ps1; do
             if [[ -f "$f" ]]; then
+                # Compliant means the distro is DERIVED, not asserted: either via
+                # the shared Resolve-MiosDistro, or by the Lxss registry walk that
+                # resolver was lifted from (mios-claude-mcp-setup.ps1 owns it).
+                # The literal is allowed only as the last-resort default.
                 if grep -q "podman-MiOS-DEV" "$f"; then
-                    if ! grep -q "Resolve-MiosDistro" "$f"; then
-                        _violation "Script $(basename "$f") carries a hardcoded 'podman-MiOS-DEV' distro literal instead of calling Resolve-MiosDistro"
+                    if ! grep -q "Resolve-MiosDistro" "$f" && ! grep -q "CurrentVersion\\\\Lxss" "$f"; then
+                        _violation "Script $(basename "$f") carries a hardcoded 'podman-MiOS-DEV' distro literal instead of resolving it (Resolve-MiosDistro or the Lxss registry walk)"
                     fi
                 fi
             fi
@@ -6665,5 +6673,152 @@ check_github_slug_casing() {
     echo "[98-drift-checks]   All raw.githubusercontent.com URLs use canonical lowercase org/repo"
 }
 
+# Windows PowerShell 5.1 -- which is what runs the install path on a stock
+# Windows box -- reads a BOM-less file as ANSI, not UTF-8. Any .ps1 carrying
+# non-ASCII (the box-drawing run separators, arrows and accented text MiOS
+# prints) therefore MUST ship a UTF-8 BOM or its output is mojibake. This is the
+# same convention tools/render-globals.py already writes with (utf-8-sig).
+# Pure-ASCII scripts need no BOM and must not carry a pointless one.
+check_ps_encoding_and_bom() {
+    echo "[98-drift-checks]   check_ps_encoding_and_bom"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+BOM = b"\xef\xbb\xbf"
+viol = []
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames
+                   if d not in (".git", "target", "node_modules", ".venv")]
+    for fn in sorted(filenames):
+        if not fn.endswith(".ps1"):
+            continue
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p, "rb") as fh:
+                data = fh.read()
+        except OSError:
+            continue
+        rel = os.path.relpath(p, root).replace(os.sep, "/")
+        has_bom = data.startswith(BOM)
+        body = data[len(BOM):] if has_bom else data
+        non_ascii = any(b > 0x7F for b in body)
+        if non_ascii and not has_bom:
+            viol.append(rel + " holds non-ASCII but has no UTF-8 BOM;"
+                              " Windows PowerShell 5.1 will read it as ANSI")
+        elif has_bom and not non_ascii:
+            viol.append(rel + " is pure ASCII yet carries a UTF-8 BOM; drop it")
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
+}
+
+check_unit_dependency_closure() {
+    echo "[98-drift-checks]   check_unit_dependency_closure"
+    if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+        echo "[98-drift-checks]   WARNING: python missing" >&2
+        return 0
+    fi
+    local py_bin="python3"
+    command -v python3 >/dev/null 2>&1 || py_bin="python"
+    local out
+    if ! out="$($py_bin - "$ROOT" <<'PY'
+import os, sys, glob
+
+root = sys.argv[1]
+systemd_dir = os.path.join(root, 'usr/lib/systemd/system')
+quadlet_dir = os.path.join(root, 'usr/share/containers/systemd')
+
+known_units = set()
+if os.path.isdir(systemd_dir):
+    for f in os.listdir(systemd_dir):
+        if os.path.isfile(os.path.join(systemd_dir, f)):
+            known_units.add(f)
+
+if os.path.isdir(quadlet_dir):
+    for f in os.listdir(quadlet_dir):
+        if f.endswith('.container'):
+            base = f[:-10]
+            known_units.add(f'{base}.service')
+            known_units.add(f'{base}-service')
+        elif f.endswith('.pod'):
+            base = f[:-4]
+            known_units.add(f'{base}-pod.service')
+            known_units.add(f'{base}.pod')
+        elif f.endswith('.volume'):
+            base = f[:-7]
+            known_units.add(f'{base}-volume.service')
+        elif f.endswith('.network'):
+            base = f[:-8]
+            known_units.add(f'{base}-network.service')
+        elif f.endswith('.image'):
+            base = f[:-6]
+            known_units.add(f'{base}-image.service')
+
+well_known = {
+    'multi-user.target', 'network-online.target', 'network.target', 'default.target',
+    'sockets.target', 'timers.target', 'syslog.target', 'local-fs.target', 'remote-fs.target',
+    'basic.target', 'graphical.target', 'rescue.target', 'emergency.target', 'shutdown.target',
+    'reboot.target', 'poweroff.target', 'podman.socket', 'podman.service', 'dbus.service',
+    'dbus.socket', 'docker.service', 'docker.socket', 'containerd.service', 'systemd-journald.service',
+    'systemd-resolved.service', 'systemd-networkd.service', 'time-sync.target', 'network-pre.target',
+    'tailscaled.service', 'avahi-daemon.service', 'chronyd.service', 'firewalld.service',
+    'nftables.service', 'sshd.service', 'sshd.socket', 'gdm.service', 'console-login-helper-messages.service',
+    'nvidia-cdi-refresh.service', 'podman-restart.service', 'hermes-agent.service',
+    'display-manager.service', 'akmods.service', 'pcsd.service', 'corosync.service',
+    'pacemaker.service', 'k3s-agent.service', 'cryptsetup.target', 'redis.service',
+    'sysinit.target', 'greenboot-healthcheck.service', 'ostree-remount.service',
+    'ostree-prepare-root.service', 'waydroid-container.service', 'wslg-x11.service',
+    'wslg-wayland.service', 'ceph.target'
+}
+known_units.update(well_known)
+
+def is_valid_unit(u):
+    if u in known_units: return True
+    if u.endswith(('.mount', '.slice', '.swap')): return True
+    if u.startswith(('systemd-', 'libvirtd', 'virt', 'cockpit', 'k3s-')): return True
+    return False
+
+viol = []
+dirs_to_check = [systemd_dir, quadlet_dir]
+for d in dirs_to_check:
+    if not os.path.isdir(d): continue
+    for root_dir, _, files in os.walk(d):
+        for f in files:
+            fp = os.path.join(root_dir, f)
+            try:
+                with open(fp, encoding='utf-8', errors='replace') as fh:
+                    for line in fh:
+                        line = line.strip()
+                        if line.startswith(('#', ';')): continue
+                        for key in ('After=', 'Wants=', 'Requires=', 'Before=', 'BindsTo=', 'Requisite='):
+                            if line.startswith(key):
+                                val = line[len(key):].strip()
+                                for token in val.split():
+                                    token = token.strip()
+                                    if token and not token.startswith('$') and not is_valid_unit(token):
+                                        rel = os.path.relpath(fp, root).replace(os.sep, '/')
+                                        viol.append(f"{rel}: dangling reference {key}{token}")
+            except Exception: pass
+
+if viol:
+    print('\n'.join(viol))
+    sys.exit(1)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
+}
 
 main "$@"

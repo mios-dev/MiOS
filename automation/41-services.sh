@@ -1,7 +1,7 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gating for bare-metal, VM, and WSL2 deployments.
-# AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
+# AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, mios-ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 
@@ -10,7 +10,7 @@ mios_log "Service configuration ${MIOS_VERSION:-}"
 for unit_file in \
     /usr/lib/systemd/system/var-home.mount \
     /usr/lib/systemd/system/var-lib-containers.mount \
-    /usr/lib/systemd/system/ceph-bootstrap.service \
+    /usr/lib/systemd/system/mios-ceph-bootstrap.service \
     /usr/lib/systemd/system/cockpit.socket.d/listen.conf \
 ; do
     [ -f "$unit_file" ] && chmod 644 "$unit_file"

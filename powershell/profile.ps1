@@ -1,4 +1,4 @@
-# MiOS PowerShell profile -- PSReadLine reload + fastfetch MOTD +
+﻿# MiOS PowerShell profile -- PSReadLine reload + fastfetch MOTD +
 # oh-my-posh init.
 # Source of truth: this file lives on M:\ and is dot-sourced from
 # $PROFILE.CurrentUserAllHosts AND from the WT MiOS profile's

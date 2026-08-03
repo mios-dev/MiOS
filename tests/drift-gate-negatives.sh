@@ -2227,6 +2227,90 @@ test_ps_port_fallback_ssot() {
     log "check_ps_port_fallback_ssot negative test passed"
 }
 
+test_github_slug_casing() {
+    log "Testing check_github_slug_casing"
+    local probe="${ROOT}/tests/mios-negtest-slug.txt"
+    # Assembled from fragments: spelling the bad slug literally here would make
+    # this very file a standing violation of the check it is testing.
+    local host='raw.githubusercontent.com'
+    local badorg='MiOS'
+    badorg="${badorg}-DEV"
+    printf 'curl https://%s/%s/mios-bootstrap/main/bootstrap.ps1\n' "$host" "$badorg" > "$probe"
+    if _neg_gate check_github_slug_casing; then
+        rm -f "$probe"
+        die "check_github_slug_casing passed despite a non-canonical org slug"
+    fi
+    rm -f "$probe"
+    _neg_gate check_github_slug_casing \
+        || die "check_github_slug_casing failed after restoration"
+    log "check_github_slug_casing negative test passed"
+}
+
+test_ps_encoding_and_bom() {
+    log "Testing check_ps_encoding_and_bom"
+    local probe="${ROOT}/tests/mios-negtest-bom.ps1"
+    # Non-ASCII with no BOM: exactly what PowerShell 5.1 would read as ANSI.
+    printf 'Write-Host "run \xE2\x94\x80\xE2\x94\x80 done"\n' > "$probe"
+    if _neg_gate check_ps_encoding_and_bom; then
+        rm -f "$probe"
+        die "check_ps_encoding_and_bom passed despite non-ASCII with no BOM"
+    fi
+    rm -f "$probe"
+    _neg_gate check_ps_encoding_and_bom \
+        || die "check_ps_encoding_and_bom failed after restoration"
+    log "check_ps_encoding_and_bom negative test passed"
+}
+
+test_secret_handling() {
+    log "Testing check_secret_handling"
+    local probe="${ROOT}/tests/mios-negtest-secrets.ps1"
+    printf '$SecretsFile = Join-Path $env:TEMP "mios-secrets.env"\n' > "$probe"
+    if _neg_gate check_secret_handling; then
+        rm -f "$probe"
+        die "check_secret_handling passed despite a plaintext %TEMP% secrets path"
+    fi
+    rm -f "$probe"
+    _neg_gate check_secret_handling \
+        || die "check_secret_handling failed after restoration"
+    log "check_secret_handling negative test passed"
+}
+
+test_wsl_distro_resolution() {
+    log "Testing check_wsl_distro_resolution"
+    # The check only scans usr/share/mios/windows, so the probe must live there.
+    local probe="${ROOT}/usr/share/mios/windows/mios-negtest-distro.ps1"
+    printf 'wsl.exe -d podman-MiOS-DEV -- true\n' > "$probe"
+    if _neg_gate check_wsl_distro_resolution; then
+        rm -f "$probe"
+        die "check_wsl_distro_resolution passed despite a hardcoded distro literal"
+    fi
+    rm -f "$probe"
+    _neg_gate check_wsl_distro_resolution \
+        || die "check_wsl_distro_resolution failed after restoration"
+    log "check_wsl_distro_resolution negative test passed"
+}
+
+test_unit_dependency_closure() {
+    log "Testing check_unit_dependency_closure"
+    local probe="${ROOT}/usr/lib/systemd/system/mios-negtest-dangling.service"
+    cat > "$probe" <<'UNIT'
+[Unit]
+Description=negative-test probe with a dependency that resolves to nothing
+After=mios-this-unit-does-not-exist.service
+
+[Service]
+ExecStart=/bin/true
+UNIT
+    if _neg_gate check_unit_dependency_closure; then
+        rm -f "$probe"
+        die "check_unit_dependency_closure passed despite a dangling After= target"
+    fi
+    rm -f "$probe"
+    _neg_gate check_unit_dependency_closure \
+        || die "check_unit_dependency_closure failed after restoration"
+    log "check_unit_dependency_closure negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2271,6 +2355,11 @@ main() {
     test_adhoc_toml_parsers
     test_install_uninstall_symmetry
     test_ps_port_fallback_ssot
+    test_github_slug_casing
+    test_ps_encoding_and_bom
+    test_secret_handling
+    test_wsl_distro_resolution
+    test_unit_dependency_closure
     test_test_hermeticity
     test_no_mkdir_in_var
     test_quadlet_privilege

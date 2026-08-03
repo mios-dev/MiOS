@@ -4,7 +4,7 @@
 [Unit]
 Description=MiOS AI Services Target
 After=multi-user.target
-Wants=mios-letta-server.service
+Wants=mios-agent-pipe.service
 
 [Install]
 WantedBy=multi-user.target

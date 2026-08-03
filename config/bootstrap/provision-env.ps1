@@ -1,4 +1,4 @@
-# AI-hint: Initializes the MiOS environment by defining directory structures, handling secure credential input, and managing .env file parsing for the build and deployment pipeline.
+﻿# AI-hint: Initializes the MiOS environment by defining directory structures, handling secure credential input, and managing .env file parsing for the build and deployment pipeline.
 # AI-related: mios-build, mios-secrets, mios-install
 # AI-functions: Read-Secret, Read-WithDefault, Import-EnvFile, Export-EnvFile
 # 'MiOS' Public Bootstrap -- Windows (PowerShell 5.1+)

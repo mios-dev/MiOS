@@ -131,7 +131,6 @@ usr/lib/mios/agent-pipe/test_mios_verity.py
 usr/lib/mios/agent-pipe/test_mios_vision.py
 usr/lib/mios/agent-pipe/test_mios_web_research.py
 usr/lib/mios/agent-pipe/test_mios_worker_tools.py
-usr/lib/systemd/system/ceph-bootstrap.service
 usr/lib/systemd/system/hermes-dashboard.service
 usr/lib/systemd/system/hermes-worker-firstboot.service
 usr/lib/systemd/system/hermes-worker.service
