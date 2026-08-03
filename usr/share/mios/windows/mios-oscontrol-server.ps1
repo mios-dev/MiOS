@@ -145,6 +145,23 @@ if ($Install) {
     return
 }
 
+# Strangler check: if compiled binary exists and toggle is enabled, delegate to it
+$compiledExe = Join-Path $PSScriptRoot '..\..\..\src\mios-oscontrol\mios-oscontrol.exe'
+if (-not (Test-Path $compiledExe)) {
+    $compiledExe = 'C:\MiOS\src\mios-oscontrol\mios-oscontrol.exe'
+}
+
+$useCompiled = $env:MIOS_MIGRATION_USE_COMPILED_OSCONTROL
+if ($null -eq $useCompiled -or $useCompiled -eq '') {
+    $useCompiled = 'true'
+}
+
+if (($useCompiled -eq 'true' -or $useCompiled -eq '1') -and (Test-Path $compiledExe)) {
+    Write-Host "[mios-oscontrol-server] launching compiled binary: $compiledExe $Port"
+    & $compiledExe $Port
+    exit $LASTEXITCODE
+}
+
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
 
 # Foreground run also ensures the firewall rule exists + has the current scope.

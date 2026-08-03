@@ -85,7 +85,7 @@ function Get-MiosTomlValue {
         if ($raw -eq 'false') { return $false }
         return $Default
     }
-    if (($raw.StartsWith('"') -and $raw.EndsWith('"')) -or ($raw.StartsWith("'") -and $raw.EndsWith("'"))) {
+    if ($raw.Length -ge 2 -and (($raw.StartsWith('"') -and $raw.EndsWith('"')) -or ($raw.StartsWith("'") -and $raw.EndsWith("'")))) {
         return $raw.Substring(1, $raw.Length - 2)
     }
     return $raw

@@ -25,6 +25,18 @@ param(
     [Parameter(ValueFromRemainingArguments=$true)][string[]]$Args
 )
 
+$compiledExe = Join-Path $PSScriptRoot '..\..\..\src\mios-launch.exe'
+if (-not (Test-Path $compiledExe)) {
+    $compiledExe = 'C:\MiOS\src\mios-launch.exe'
+}
+
+if (Test-Path $compiledExe) {
+    if ($Action -in @('click', 'move', 'resize', 'foreground')) {
+        & $compiledExe $Action $Args
+        exit $LASTEXITCODE
+    }
+}
+
 # ─── Win32 P/Invoke surface (loaded once) ─────────────────────────
 $Win32Sig = @"
 using System;

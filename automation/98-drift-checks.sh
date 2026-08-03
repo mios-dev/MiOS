@@ -6272,4 +6272,4 @@ check_powershell_parse() {
 }
 
 
-main "$@"
+main "$@  

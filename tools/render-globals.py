@@ -101,13 +101,17 @@ def ordered_names(exports: dict) -> list:
     visiting = set()
 
     def visit(node):
-        if node in visiting:
+        if node in visited:
             return
+        if node in visiting:
+            visited.add(node)
+            res.append(node)
+            return
+        visiting.add(node)
+        for dep in sorted(deps.get(node, [])):
+            visit(dep)
+        visiting.remove(node)
         if node not in visited:
-            visiting.add(node)
-            for dep in sorted(deps.get(node, [])):
-                visit(dep)
-            visiting.remove(node)
             visited.add(node)
             res.append(node)
 

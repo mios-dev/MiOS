@@ -5,6 +5,16 @@ param(
     [int]$MaxDepth = 15
 )
 
+$compiledExe = Join-Path $PSScriptRoot '..\..\..\src\mios-launch.exe'
+if (-not (Test-Path $compiledExe)) {
+    $compiledExe = 'C:\MiOS\src\mios-launch.exe'
+}
+
+if (Test-Path $compiledExe) {
+    & $compiledExe dump
+    exit $LASTEXITCODE
+}
+
 Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
 Add-Type -AssemblyName UIAutomationTypes -ErrorAction Stop
 Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue

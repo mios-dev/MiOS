@@ -37,6 +37,7 @@ use_rust_resolver_shell = true
 use_rust_resolver_powershell = true
 use_rust_resolver_python = true
 use_rust_resolver_install_env = true
+use_compiled_oscontrol = true
 
 # ----------------------------------------------------------------------------
 # [identity] -- Linux account, hostname, GECOS, login shell, group membership.
@@ -12077,6 +12078,5 @@ uid         = "1000"
 gid         = "1000"
 filename    = "mockname.py"
 path        = "usr/lib/mios/agent-pipe/mios_pipe/mockname.py"
-
 
 

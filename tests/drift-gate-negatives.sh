@@ -1864,8 +1864,13 @@ test_resolved_env_lossless() {
 
     cp "$backup_tmp" "$base_file"
     rm -f "$backup_tmp"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless >/dev/null 2>&1 \
-        || die "Check_resolved_env_lossless failed after restoration"
+    local lossless_out
+    if ! lossless_out=$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless 2>&1); then
+        # The check prints the actual +/- diff; swallowing it makes an
+        # environment-dependent baseline impossible to diagnose from CI.
+        printf '%s\n' "$lossless_out" | tail -n 25 >&2
+        die "Check_resolved_env_lossless failed after restoration"
+    fi
     log "Test_resolved_env_lossless negative test passed"
 }
 
