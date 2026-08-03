@@ -67,6 +67,9 @@ jobs:
       - name: Python linting (lint-python.sh)
         run: bash ./automation/lint-python.sh
 
+      - name: PowerShell AST parse-gate (lint-powershell.sh)
+        run: bash ./automation/lint-powershell.sh
+
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 

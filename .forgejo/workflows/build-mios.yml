@@ -52,6 +52,9 @@ jobs:
       - name: Python linting (lint-python.sh)
         run: bash ./automation/lint-python.sh
 
+      - name: PowerShell AST parse-gate (lint-powershell.sh)
+        run: bash ./automation/lint-powershell.sh
+
       - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
         run: |
           bash ./automation/97-ssot-lint.sh

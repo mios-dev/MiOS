@@ -5974,9 +5974,10 @@ check_ai_manifests_fresh() {
     # so it MUST run from $ROOT or it compares the wrong (or no) trees.
     local out
     if ! out=$( cd "$ROOT" && python3 tools/generate-ai-manifest.py --check 2>&1 ); then
-        # Surface WHICH manifest drifted -- swallowing this turned every
-        # failure into a guessing game.
-        printf '%s\n' "$out" | grep -i 'drift\|missing' | head -n 5 >&2
+        # Surface WHICH manifest drifted AND why. A 'drift|missing' grep was
+        # too narrow -- it filtered out the generator's own entry-level
+        # diagnostics, so the failure stayed unactionable.
+        printf '%s\n' "$out" | grep -v '^Generated ' | head -n 14 >&2
         _violation "AI manifests are stale or out of date (run 'just sync', or bash tools/sync-generated.sh, which regenerates every projection in dependency order)"
     fi
 }
@@ -6206,6 +6207,18 @@ check_cargo_deny() {
     fi
 }
 
+check_powershell_parse() {
+    echo "[98-drift-checks]   check_powershell_parse"
+    if [[ -f "$ROOT/automation/lint-powershell.sh" ]]; then
+        if ! bash "$ROOT/automation/lint-powershell.sh"; then
+            _violation "PowerShell AST parse check failed (lint-powershell.sh)"
+        fi
+    else
+        _violation "automation/lint-powershell.sh missing"
+    fi
+}
+
+
     check_chrony_ptp_dropin
     check_renderer_gate_coverage
     check_smoke_manifest
@@ -6241,6 +6254,7 @@ check_cargo_deny() {
     check_native_lint
     check_resolver_shell_equivalence
     check_resolver_ps_equivalence
+    check_powershell_parse
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
