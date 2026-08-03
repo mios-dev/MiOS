@@ -16,7 +16,7 @@ function Write-MiosInstallEnv {
     param(
         [Parameter(Mandatory)][string]$WslDistro,
         [Parameter(Mandatory)][string]$User,
-        [Parameter(Mandatory)][string]$PasswordHash,
+        [Parameter(Mandatory)][string]$PassHash,
         [Parameter(Mandatory)][string]$Hostname,
         [string]$ForgeAdminUser  = "",
         [string]$ForgeAdminEmail = ""
@@ -25,9 +25,9 @@ function Write-MiosInstallEnv {
     # The hash MUST be sha512crypt ($6$salt$digest). Anything else is a bug
     # upstream in the build script -- refuse rather than ship a broken
     # install.env that wsl-firstboot would silently reject.
-    if ($PasswordHash -notmatch '^\$6\$') {
-        $preview = if ($PasswordHash.Length -ge 8) { $PasswordHash.Substring(0,8) } else { $PasswordHash }
-        Write-Warning "Refusing to write install.env: PasswordHash is not sha512crypt (got prefix '$preview...')"
+    if ($PassHash -notmatch '^\$6\$') {
+        $preview = if ($PassHash.Length -ge 8) { $PassHash.Substring(0,8) } else { $PassHash }
+        Write-Warning "Refusing to write install.env: PassHash is not sha512crypt (got prefix '$preview...')"
         return $false
     }
 
@@ -45,7 +45,7 @@ function Write-MiosInstallEnv {
         "# and /usr/libexec/mios/forge-firstboot.sh.",
         "# Vendor defaults: /usr/share/mios/env.defaults",
         "MIOS_USER=$User",
-        "MIOS_USER_PASSWORD_HASH='$PasswordHash'",
+        "MIOS_USER_PASSWORD_HASH='$PassHash'",
         "MIOS_HOSTNAME=$Hostname",
         "MIOS_FORGE_ADMIN_USER=$ForgeAdminUser",
         "MIOS_FORGE_ADMIN_EMAIL=$ForgeAdminEmail",

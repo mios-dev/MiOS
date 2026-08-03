@@ -1,5 +1,5 @@
 # AI-hint: Configures Windows Firewall and netsh portproxy rules to map physical NIC ports to local WSL containers, enabling LAN-wide access to MiOS services like Forge, Open-WebUI, and mios-llm-light.
-# AI-related: /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1
+# AI-related: /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1, usr/share/mios/windows/Setup-MiOSLanPortProxy.ps1
 # /usr/libexec/mios/Setup-MiOSLanPortProxy.ps1
 #
 # Open the MiOS service ports on Windows' physical NIC so other LAN
@@ -11,14 +11,20 @@
 # MUST run elevated. The script self-checks and re-launches itself
 # via UAC if not already admin.
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+param(
+    [switch]$AiNode
+)
 
 # Self-elevate if not admin.
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
     Write-Host '  [*] Not elevated. Re-launching via UAC...' -ForegroundColor Yellow
-    $args = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath)
-    Start-Process -FilePath 'pwsh.exe' -ArgumentList $args -Verb RunAs
+    $psArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$PSCommandPath)
+    if ($AiNode) { $psArgs += '-AiNode' }
+    Start-Process -FilePath 'pwsh.exe' -ArgumentList $psArgs -Verb RunAs
     return
 }
 
@@ -44,10 +50,8 @@ $portMap = @(
     @{ Port = (_MiosPort 'MIOS_PORT_RDP'              8389); Name = 'rdp'         }
 )
 
-# Clean up retired legacy portproxy and firewall rules
+# Clean up retired legacy portproxy and firewall rules (retired ports, zero hardcodes)
 $retiredPorts = @(
-    @{ Port = 11434; Name = 'ollama' }
-    @{ Port = 11450; Name = 'llm-light' }
     @{ Port = 9090;  Name = 'cockpit' }
     @{ Port = 9119;  Name = 'dash-ai' }
     @{ Port = 8443;  Name = 'ceph-dash' }
@@ -79,6 +83,25 @@ foreach ($p in $portMap) {
     } else {
         Write-Host ("  [!] portproxy add for {0} failed" -f $port) -ForegroundColor Red
     }
+}
+
+# 2b. AI-Node Tailscale v4tov6 bridge if requested
+if ($AiNode) {
+    $llmLightPort = _MiosPort 'MIOS_PORT_LLM_LIGHT' 8450
+    $aiEntryName = "MiOS AI Node - mios-llm-light ($llmLightPort/tcp)"
+    $existingAiRule = Get-NetFirewallRule -DisplayName $aiEntryName -ErrorAction SilentlyContinue
+    if ($existingAiRule) {
+        Set-NetFirewallRule -DisplayName $aiEntryName -Enabled True -Action Allow -ErrorAction SilentlyContinue
+    } else {
+        New-NetFirewallRule -DisplayName $aiEntryName `
+            -Direction Inbound -Action Allow -Protocol TCP `
+            -LocalPort $llmLightPort -RemoteAddress '100.64.0.0/10' `
+            -Profile Any | Out-Null
+    }
+    & netsh interface portproxy delete v4tov6 listenaddress=0.0.0.0 listenport=$llmLightPort 2>$null | Out-Null
+    & netsh interface portproxy add    v4tov6 listenaddress=0.0.0.0 listenport=$llmLightPort `
+          connectaddress=::1 connectport=$llmLightPort | Out-Null
+    Write-Host ("  [+] v4tov6 portproxy 0.0.0.0:{0} -> [::1]:{0}" -f $llmLightPort) -ForegroundColor Green
 }
 
 # 3. Windows Defender Firewall inbound allow rules for each port.

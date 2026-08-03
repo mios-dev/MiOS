@@ -70,6 +70,9 @@ jobs:
       - name: PowerShell AST parse-gate (lint-powershell.sh)
         run: bash ./automation/lint-powershell.sh
 
+      - name: PSScriptAnalyzer static analysis (lint-ps-analyzer.sh)
+        run: bash ./automation/lint-ps-analyzer.sh
+
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 
