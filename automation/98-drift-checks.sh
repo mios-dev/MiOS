@@ -6364,15 +6364,39 @@ check_ps_signatures() {
 check_windows_exe_provenance() {
     echo "[98-drift-checks]   check_windows_exe_provenance"
     local win_dir="$ROOT/usr/share/mios/windows"
+    local _WIN_EXE_SOURCE_EXEMPT
+    _WIN_EXE_SOURCE_EXEMPT="$(MIOS_DRIFT_ROOT="$ROOT" python3 -c "
+import os, sys
+try:
+    import tomllib
+except ImportError:
+    sys.exit(0)
+p = os.path.join(os.environ['MIOS_DRIFT_ROOT'], 'usr/share/mios/mios.toml')
+try:
+    with open(p, 'rb') as fh:
+        d = tomllib.load(fh)
+except Exception:
+    sys.exit(0)
+for name in ((d.get('security') or {}).get('windows_binaries') or {}).get('source_exempt', []):
+    print('\"%s\"' % name)
+" 2>/dev/null || true)"
     if [[ -d "$win_dir" ]]; then
         local exe base cs_src cs_src2
         for exe in "$win_dir"/*.exe; do
             if [[ -f "$exe" ]]; then
                 base="$(basename "$exe" .exe)"
                 cs_src="$win_dir/$base.cs"
-                cs_src2="$win_dir/MiosServiceTool.cs"
-                if [[ ! -f "$cs_src" && ! -f "$cs_src2" ]]; then
-                    _violation "Tracked Windows binary $(basename "$exe") lacks reproducible source build (ADR-0003 violation)"
+                # The old fallback tested a FIXED path (MiosServiceTool.cs)
+                # which always exists, so `! -f cs_src && ! -f cs_src2` was
+                # never true and this gate could not fire for ANY binary.
+                # Each .exe must now have its own .cs, with known source-less
+                # binaries declared in SSOT so the gap is recorded, not hidden.
+                if [[ ! -f "$cs_src" ]]; then
+                    if grep -q "\"$(basename "$exe")\"" <<<"$_WIN_EXE_SOURCE_EXEMPT"; then
+                        echo "[98-drift-checks]   NOTE: $(basename "$exe") has no in-repo source (declared in [security.windows_binaries].source_exempt)" >&2
+                    else
+                        _violation "Tracked Windows binary $(basename "$exe") lacks reproducible source build (ADR-0003 violation)"
+                    fi
                 fi
             fi
         done

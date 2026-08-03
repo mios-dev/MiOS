@@ -2005,6 +2005,40 @@ test_ai_manifests_fresh() {
     log "test_ai_manifests_fresh passed"
 }
 
+test_unpinned_runtime_fetches() {
+    log "Testing check_unpinned_runtime_fetches"
+    local probe="${ROOT}/usr/share/mios/windows/negative-probe-fetch.ps1"
+    # A runtime download with no SHA-256 verification (ADR-0003).
+    printf 'Invoke-WebRequest -Uri "https://example.com/x.zip" -OutFile x.zip\n' > "$probe"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_unpinned_runtime_fetches >/dev/null 2>&1; then
+        rm -f "$probe"
+        die "check_unpinned_runtime_fetches passed despite an unverified download"
+    fi
+    rm -f "$probe"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_unpinned_runtime_fetches >/dev/null 2>&1 \
+        || die "check_unpinned_runtime_fetches failed after restoration"
+    log "test_unpinned_runtime_fetches passed"
+}
+
+test_windows_exe_provenance() {
+    log "Testing check_windows_exe_provenance"
+    local probe="${ROOT}/usr/share/mios/windows/negative-probe-tool.exe"
+    # A shipped .exe with no corresponding .cs source to build it from.
+    printf 'MZ-not-a-real-binary\n' > "$probe"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_windows_exe_provenance >/dev/null 2>&1; then
+        rm -f "$probe"
+        die "check_windows_exe_provenance passed despite a source-less .exe"
+    fi
+    rm -f "$probe"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_windows_exe_provenance >/dev/null 2>&1 \
+        || die "check_windows_exe_provenance failed after restoration"
+    log "test_windows_exe_provenance passed"
+}
+
 test_ps_redirectors() {
     log "Testing check_ps_redirectors"
     # The check asserts the thin redirector .ps1 entry points stay thin.
@@ -2245,6 +2279,8 @@ main() {
     test_cargo_deny
     test_powershell_parse
     test_ps_redirectors
+    test_unpinned_runtime_fetches
+    test_windows_exe_provenance
     log "All negative tests completed successfully"
 }
 

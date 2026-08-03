@@ -148,6 +148,15 @@ mask_systemd_remount_fs = true
 [security.cosign]
 policy_mode = "matchRepository"
 
+[security.windows_binaries]
+# Tracked .exe files that have NO reproducible source in this repo. ADR-0003
+# says a shipped binary must be buildable from committed source, so every entry
+# here is a real gap to CLOSE, not a permanent allowance -- this list should
+# only shrink. MiOS-iGPU-Server.exe is tracked but
+# automation/build-windows-binaries.sh only defines a source for
+# MiosServiceTool.cs, so nothing in-repo can rebuild it.
+source_exempt = ["MiOS-iGPU-Server.exe"]
+
 [security.powershell_signing]
 # Certificate PATH or thumbprint only. There is deliberately no password key
 # here: mios.toml is committed, so a signing secret in SSOT is a leaked secret.
@@ -11889,6 +11898,10 @@ exempt = [
   # checkout is absent, which is always the case on a CI runner, so an injected
   # fault would be skipped rather than caught.
   "check_ps_repo_parity",
+  # Authenticode verification: no-ops unless [security.powershell_signing]
+  # names a cert AND a Windows PowerShell is present, neither of which holds on
+  # a Linux runner -- an injected fault would be skipped, not caught.
+  "check_ps_signatures",
   "check_native_lint",
   "check_resolver_ps_equivalence",
   "check_resolver_shell_equivalence",
