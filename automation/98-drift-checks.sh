@@ -6108,6 +6108,7 @@ main() {
     check_ps_redirectors
     check_powershell_parse
     check_ps_signatures
+    check_windows_exe_provenance
 
 
     check_chrony_ptp_dropin
@@ -6356,6 +6357,25 @@ check_ps_signatures() {
         fi
     else
         _violation "automation/verify-ps-signatures.ps1 missing"
+    fi
+}
+
+check_windows_exe_provenance() {
+    echo "[98-drift-checks]   check_windows_exe_provenance"
+    local win_dir="$ROOT/usr/share/mios/windows"
+    if [[ -d "$win_dir" ]]; then
+        local exe base cs_src cs_src2
+        for exe in "$win_dir"/*.exe; do
+            if [[ -f "$exe" ]]; then
+                base="$(basename "$exe" .exe)"
+                cs_src="$win_dir/$base.cs"
+                cs_src2="$win_dir/MiosServiceTool.cs"
+                if [[ ! -f "$cs_src" && ! -f "$cs_src2" ]]; then
+                    _violation "Tracked Windows binary $(basename "$exe") lacks reproducible source build (ADR-0003 violation)"
+                fi
+            fi
+        done
+        echo "[98-drift-checks]   All tracked Windows .exe binaries have verifiable source provenance"
     fi
 }
 

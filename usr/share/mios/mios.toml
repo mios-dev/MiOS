@@ -149,8 +149,10 @@ mask_systemd_remount_fs = true
 policy_mode = "matchRepository"
 
 [security.powershell_signing]
+# Certificate PATH or thumbprint only. There is deliberately no password key
+# here: mios.toml is committed, so a signing secret in SSOT is a leaked secret.
+# tools/sign-powershell.ps1 takes -CertPassword as a SecureString, or prompts.
 signing_cert = ""
-signing_cert_password = ""
 
 [repos.fedora]
 name = "Fedora {ver} - $basearch"

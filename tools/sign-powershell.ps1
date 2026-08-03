@@ -2,7 +2,11 @@
 [CmdletBinding()]
 param(
     [string]$CertPath = "",
-    [string]$CertPassword = "",
+    # SecureString, never [string]. A plaintext password parameter forces
+    # ConvertTo-SecureString -AsPlainText, which PSScriptAnalyzer rejects
+    # (PSAvoidUsingConvertToSecureStringWithPlainText) because it puts the
+    # secret in process memory and command history in the clear.
+    [System.Security.SecureString]$CertPassword,
     [string[]]$ScriptPaths = @()
 )
 
@@ -28,9 +32,10 @@ if (-not $CertPath) {
             if ($inSec -and $line -match '^\s*signing_cert\s*=\s*"(.*)"') {
                 $CertPath = $matches[1]
             }
-            if ($inSec -and $line -match '^\s*signing_cert_password\s*=\s*"(.*)"') {
-                $CertPassword = $matches[1]
-            }
+            # NOTE: the signing password is deliberately NOT read from
+            # mios.toml. SSOT is committed to git; a signing secret there is
+            # a leaked secret. Supply it as a SecureString parameter, or let
+            # the prompt below collect it.
         }
     }
 }
@@ -60,9 +65,10 @@ if ($ScriptPaths.Count -eq 0) {
 
 Write-Host "[sign-powershell] Signing $($ScriptPaths.Count) script(s) with $CertPath..." -ForegroundColor Cyan
 
-$securePass = $null
-if ($CertPassword) {
-    $securePass = ConvertTo-SecureString $CertPassword -AsPlainText -Force
+$securePass = $CertPassword
+if ($CertPath -match '\.pfx$|\.p12$' -and -not $securePass) {
+    # Collect interactively rather than accepting plaintext from anywhere.
+    $securePass = Read-Host -Prompt "Password for $CertPath" -AsSecureString
 }
 
 $cert = $null
