@@ -19,8 +19,23 @@ set -euo pipefail
 ROOT="${MIOS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$ROOT"
 
-PY="${PYTHON:-python3}"
-command -v "$PY" >/dev/null 2>&1 || PY=python
+# Resolve a python that actually RUNS. `command -v python` succeeds on Windows
+# even when it is only the Microsoft Store alias stub, which prints
+# "Python was not found" and exits 0 -- so every generator below silently did
+# nothing and the tree looked synced while the manifests went stale. Probe by
+# executing, not by existence, and fail loudly if none works.
+PY=""
+for _cand in "${PYTHON:-}" python3 python py; do
+    [ -n "$_cand" ] || continue
+    if "$_cand" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
+        PY="$_cand"
+        break
+    fi
+done
+if [ -z "$PY" ]; then
+    echo "[sync-generated] FATAL: no working python interpreter (tried \$PYTHON, python3, python, py)" >&2
+    exit 1
+fi
 
 # EVERY renderer resolves through the layered resolver, which honours
 # MIOS_ROOT / MIOS_TOML* from the environment. On a MiOS host (or the MiOS-DEV
