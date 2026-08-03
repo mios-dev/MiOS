@@ -148,6 +148,10 @@ mask_systemd_remount_fs = true
 [security.cosign]
 policy_mode = "matchRepository"
 
+[security.powershell_signing]
+signing_cert = ""
+signing_cert_password = ""
+
 [repos.fedora]
 name = "Fedora {ver} - $basearch"
 metalink = "https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch"

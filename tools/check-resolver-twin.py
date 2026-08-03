@@ -36,6 +36,23 @@ def main():
         sys.exit(1)
 
     env = os.environ.copy()
+
+    # Strip INHERITED MIOS_* before running the bash twin. The comparison asks
+    # "what does userenv.sh resolve from SSOT?", but bash reports every MIOS_*
+    # in its environment -- so any ambient var the TOML side has no key for
+    # shows up as a mismatch. CI sets MIOS_DRIFT_REQUIRE_TOOLS=1 as a workflow
+    # knob, which failed the check with:
+    #   Var MIOS_DRIFT_REQUIRE_TOOLS: Toml resolved '', Bash resolved '1'
+    # Keep only the tier pointers the resolver needs to find the SSOT layers.
+    _TIER_VARS = {
+        "MIOS_ROOT", "MIOS_TOML", "MIOS_TOML_ROOT",
+        "MIOS_VENDOR_TOML", "MIOS_VENDOR_TOML_D",
+        "MIOS_HOST_TOML", "MIOS_HOST_TOML_D",
+        "MIOS_USER_TOML", "MIOS_USER_TOML_D",
+    }
+    for _k in [k for k in env if k.startswith("MIOS_") and k not in _TIER_VARS]:
+        env.pop(_k, None)
+
     env["MSYS_NO_PATHCONV"] = "1"
     env["PYTHONPATH"] = os.path.join(root, "usr/lib/mios").replace('\\', '/') + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
     env.pop("MIOS_TOML_RESOLVED", None)

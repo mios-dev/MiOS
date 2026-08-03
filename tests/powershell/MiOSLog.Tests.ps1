@@ -1,3 +1,6 @@
+# AI-hint: Pester characterization tests for MiOS.Log.psm1 -- asserts the module loads, exposes its logging functions, and that they execute without throwing.
+# AI-related: automation/lib/MiOS.Log.psm1, tests/powershell/run-pester.sh
+
 $here = $PSScriptRoot
 $modulePath = Join-Path $here '../../automation/lib/MiOS.Log.psm1'
 

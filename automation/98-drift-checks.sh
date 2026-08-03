@@ -6107,6 +6107,7 @@ main() {
     check_ps_repo_parity
     check_ps_redirectors
     check_powershell_parse
+    check_ps_signatures
 
 
     check_chrony_ptp_dropin
@@ -6330,6 +6331,32 @@ check_ps_redirectors() {
         fi
     done
     echo "[98-drift-checks]   PS redirectors within line budget"
+}
+
+check_ps_signatures() {
+    echo "[98-drift-checks]   check_ps_signatures"
+    if [[ -f "$ROOT/automation/verify-ps-signatures.ps1" ]]; then
+        local ps_bin=""
+        for candidate in pwsh powershell powershell.exe \
+            /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+            /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
+            "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
+            if command -v "$candidate" >/dev/null 2>&1 || [ -f "$candidate" ]; then
+                ps_bin="$candidate"
+                break
+            fi
+        done
+
+        if [ -n "$ps_bin" ]; then
+            if ! "$ps_bin" -NoProfile -NonInteractive -File "$ROOT/automation/verify-ps-signatures.ps1" -RepoRoot "$ROOT"; then
+                _violation "PowerShell Authenticode signature verification failed"
+            fi
+        else
+            echo "[98-drift-checks]   WARNING: powershell absent, skipping signature check" >&2
+        fi
+    else
+        _violation "automation/verify-ps-signatures.ps1 missing"
+    fi
 }
 
 

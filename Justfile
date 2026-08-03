@@ -51,6 +51,12 @@ lint-shell:
     @echo "[lint-shell] Running shellcheck"
     bash ./automation/lint-shell.sh
 
+ps-gate:
+    @echo "[ps-gate] Running PowerShell AST parse, PSScriptAnalyzer, Pester, and Signature gates"
+    bash ./automation/lint-powershell.sh
+    bash ./automation/lint-ps-analyzer.sh
+    bash ./tests/powershell/run-pester.sh
+
 # Regenerate every SSOT projection in dependency order. Run this before
 # committing any change under automation/ or tools/ -- several drift gates
 # compare a committed artefact against a fresh render, and the AI manifests
