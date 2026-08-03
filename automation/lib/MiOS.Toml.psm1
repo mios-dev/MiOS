@@ -11,14 +11,35 @@ function Resolve-MiosTomlText {
         return $script:_MiosTomlCache['_text']
     }
 
-    $candidates = @(
-        (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
-        'M:\etc\mios\mios.toml',
-        'M:\usr\share\mios\mios.toml',
-        'C:\mios-bootstrap\mios.toml',
-        'C:\ProgramData\MiOS\mios.toml',
-        (Join-Path $PSScriptRoot '..\..\usr\share\mios\mios.toml')
+    # MiOS is cross-platform, and this module runs under pwsh on Linux too (CI
+    # lints and Pester-tests it there). Every entry must therefore be built
+    # defensively: on Linux $env:USERPROFILE is null, and `Join-Path $null ...`
+    # throws ParameterBindingValidationException under StrictMode +
+    # ErrorActionPreference='Stop', which took out the whole Pester suite.
+    #
+    # Order mirrors the layered resolver contract used everywhere else in MiOS:
+    # explicit env override, then user tier, then host tier, then vendor.
+    $candidates = @()
+    foreach ($envVar in @($env:MIOS_TOML, $env:MIOS_VENDOR_TOML)) {
+        if ($envVar) { $candidates += $envVar }
+    }
+    if ($env:MIOS_TOML_ROOT) {
+        $candidates += (Join-Path $env:MIOS_TOML_ROOT 'usr/share/mios/mios.toml')
+    }
+    foreach ($home_ in @($env:USERPROFILE, $env:HOME)) {
+        if ($home_) { $candidates += (Join-Path $home_ '.config/mios/mios.toml') }
+    }
+    $candidates += @(
+        'M:/etc/mios/mios.toml',
+        'M:/usr/share/mios/mios.toml',
+        'C:/mios-bootstrap/mios.toml',
+        'C:/ProgramData/MiOS/mios.toml',
+        '/etc/mios/mios.toml',
+        '/usr/share/mios/mios.toml'
     )
+    if ($PSScriptRoot) {
+        $candidates += (Join-Path $PSScriptRoot '../../usr/share/mios/mios.toml')
+    }
 
     foreach ($p in $candidates) {
         if ($p -and (Test-Path -LiteralPath $p)) {

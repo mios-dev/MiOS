@@ -59,19 +59,27 @@ OUT=$("$PS_BIN" -NoProfile -NonInteractive -Command "
     try {
         \$config = [PesterConfiguration]::Default
         \$config.Run.Path = '${win_test_dir}'
+        # PassThru is REQUIRED. Without it Invoke-Pester returns nothing, so
+        # \$result is \$null, \$null.FailedCount is \$null, and (\$null -gt 0) is
+        # \$false -- the runner printed PESTER_PASS on a run with 13 failures.
+        \$config.Run.PassThru = \$true
         \$config.Output.Verbosity = 'Normal'
         \$result = Invoke-Pester -Configuration \$config
-        if (\$result.FailedCount -gt 0) {
-            Write-Output (\"PESTER_FAIL: \" + \$result.FailedCount + \" test(s) failed\")
+        if (\$null -eq \$result) {
+            Write-Output 'PESTER_FAIL: Invoke-Pester returned no result object'
+        } elseif (\$result.FailedCount -gt 0 -or \$result.FailedContainersCount -gt 0) {
+            Write-Output (\"PESTER_FAIL: \" + \$result.FailedCount + \" test(s), \" + \$result.FailedContainersCount + \" container(s) failed\")
+        } elseif (\$result.PassedCount -eq 0) {
+            Write-Output 'PESTER_FAIL: no tests ran (discovery produced nothing)'
         } else {
-            Write-Output 'PESTER_PASS'
+            Write-Output ('PESTER_PASS: ' + \$result.PassedCount + ' test(s) passed')
         }
     } catch {
         \$res = Invoke-Pester -Path '${win_test_dir}' -PassThru -ErrorAction SilentlyContinue
-        if (\$res.FailedCount -gt 0) {
-            Write-Output (\"PESTER_FAIL: \" + \$res.FailedCount + \" test(s) failed\")
+        if (\$null -eq \$res -or \$res.FailedCount -gt 0 -or \$res.PassedCount -eq 0) {
+            Write-Output ('PESTER_FAIL: fallback run -- ' + \$res.FailedCount + ' failed, ' + \$res.PassedCount + ' passed')
         } else {
-            Write-Output 'PESTER_PASS'
+            Write-Output ('PESTER_PASS: ' + \$res.PassedCount + ' test(s) passed')
         }
     }
 " 2>&1 || true)
@@ -82,6 +90,16 @@ if echo "$OUT" | grep -q "PESTER_FAIL"; then
     exit 1
 fi
 
+# Require the PASS marker rather than inferring it from the absence of FAIL.
+# `pwsh ... || true` swallows the exit code, so a crash, a missing Pester
+# module or a discovery abort produced neither marker and fell through to the
+# success path.
+if ! echo "$OUT" | grep -q "PESTER_PASS"; then
+    echo "$OUT" >&2
+    echo "[run-pester] FAIL: Pester produced no PASS marker (crash / discovery abort?)" >&2
+    exit 1
+fi
+
 echo "$OUT"
-echo "[run-pester] PASS: All Pester tests passed"
+echo "[run-pester] PASS: Pester test suite passed"
 exit 0
