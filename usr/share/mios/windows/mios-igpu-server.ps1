@@ -198,7 +198,7 @@ function Test-SHA256Integrity {
         }
         Ok "SHA256 verified: $FilePath ($actualHash)"
     } else {
-        Info "SHA256 checksum for $FilePath: $actualHash"
+        Info "SHA256 checksum for ${FilePath}: $actualHash"
     }
 }
 
