@@ -73,6 +73,9 @@ jobs:
       - name: PSScriptAnalyzer static analysis (lint-ps-analyzer.sh)
         run: bash ./automation/lint-ps-analyzer.sh
 
+      - name: PowerShell Pester test suite (run-pester.sh)
+        run: bash ./tests/powershell/run-pester.sh
+
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 

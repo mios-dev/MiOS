@@ -2000,6 +2000,47 @@ test_ai_manifests_fresh() {
     log "test_ai_manifests_fresh passed"
 }
 
+test_cargo_deny() {
+    log "Testing check_cargo_deny"
+    local policy="${ROOT}/tools/native/deny.toml"
+    local backup; backup="$(mktemp)"
+    cp "$policy" "$backup"
+    rm -f "$policy"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cargo_deny >/dev/null 2>&1; then
+        cp "$backup" "$policy"; rm -f "$backup"
+        die "check_cargo_deny passed despite a missing supply-chain policy"
+    fi
+    cp "$backup" "$policy"; rm -f "$backup"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cargo_deny >/dev/null 2>&1 \
+        || die "check_cargo_deny failed after restoration"
+    log "test_cargo_deny passed"
+}
+
+test_powershell_parse() {
+    log "Testing check_powershell_parse"
+    local bad="${ROOT}/automation/lint-ps-negative-probe.ps1"
+    # An unterminated block is an AST parse error in any PowerShell version.
+    printf 'function Broken {\n' > "$bad"
+    # lint-powershell.sh enumerates `git ls-files "*.ps1"`, so an UNTRACKED
+    # probe is invisible and the check would pass for the wrong reason.
+    # `add -N` records intent-to-add, which is enough for ls-files.
+    git -C "$ROOT" add -N "$bad" >/dev/null 2>&1 || true
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_powershell_parse >/dev/null 2>&1; then
+        git -C "$ROOT" rm --cached -q --force "$bad" >/dev/null 2>&1 || true
+        rm -f "$bad"
+        die "check_powershell_parse passed despite an unparseable .ps1"
+    fi
+    git -C "$ROOT" rm --cached -q --force "$bad" >/dev/null 2>&1 || true
+    rm -f "$bad"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_powershell_parse >/dev/null 2>&1 \
+        || die "check_powershell_parse failed after restoration"
+    log "test_powershell_parse passed"
+}
+
 test_ports_category_schema() {
     log "Testing check_ports_category_schema"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2166,6 +2207,8 @@ main() {
     test_bash_phase_ratchet
     test_ports_category_schema
     test_globals_generated
+    test_cargo_deny
+    test_powershell_parse
     log "All negative tests completed successfully"
 }
 

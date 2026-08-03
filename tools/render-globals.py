@@ -91,15 +91,29 @@ def build_exports() -> dict:
 
 
 def ordered_names(exports: dict) -> list:
-    """Names sorted so `${...}` templates resolve against earlier lines."""
-    def rank(name: str) -> tuple:
-        body = name[5:] if name.startswith("MIOS_") else name
-        for i, sec in enumerate(_SECTION_ORDER):
-            if body.startswith(sec.upper() + "_") or body == sec.upper():
-                return (i, name)
-        # a value containing a template must come after its dependencies
-        return (len(_SECTION_ORDER) if _TEMPLATE_RE.search(exports[name]) else 0, name)
-    return sorted(exports, key=rank)
+    """Names topologically sorted so `${...}` templates resolve against earlier lines."""
+    deps = {}
+    for k, v in exports.items():
+        deps[k] = set(_TEMPLATE_RE.findall(v)) & set(exports.keys())
+    
+    res = []
+    visited = set()
+    visiting = set()
+
+    def visit(node):
+        if node in visiting:
+            return
+        if node not in visited:
+            visiting.add(node)
+            for dep in sorted(deps.get(node, [])):
+                visit(dep)
+            visiting.remove(node)
+            visited.add(node)
+            res.append(node)
+
+    for name in sorted(exports.keys()):
+        visit(name)
+    return res
 
 
 def expand_template(value: str, lang: str) -> str:
@@ -216,7 +230,7 @@ def _sh_assign(name: str, value: str) -> str:
     return '[ -n "${%s+x}" ] || %s=%s' % (name, name, rendered)
 
 
-def _ps_assign(name: str, value: str) -> str:
+def _ps_assign(name: str, value: str, exports: dict | None = None) -> str:
     parts = _TEMPLATE_RE.split(value)
     if len(parts) == 1 and re.fullmatch(r"\d+", value):
         # Bare integer, not a quoted string: ports really are numbers here, and
@@ -225,15 +239,22 @@ def _ps_assign(name: str, value: str) -> str:
     elif len(parts) == 1:
         rendered = "'%s'" % value.replace("'", "''")
     else:
-        chunks = []
-        for i, part in enumerate(parts):
-            if i % 2:
-                chunks.append("$($script:%s)" % part)
-            elif part:
-                # inside a PS double-quoted string, ` " $ are the metacharacters
-                chunks.append(part.replace("`", "``").replace('"', '`"')
-                              .replace("$", "`$"))
-        rendered = '"%s"' % "".join(chunks)
+        live_parts = [p for i, p in enumerate(parts) if i % 2 and (exports is not None and p in exports)]
+        if not live_parts:
+            rendered = "'%s'" % value.replace("'", "''")
+        else:
+            chunks = []
+            for i, part in enumerate(parts):
+                if i % 2:
+                    if exports is None or part in exports:
+                        chunks.append("$($script:%s)" % part)
+                    else:
+                        chunks.append("${%s}" % part)
+                elif part:
+                    # inside a PS double-quoted string, ` " $ are the metacharacters
+                    chunks.append(part.replace("`", "``").replace('"', '`"')
+                                  .replace("$", "`$"))
+            rendered = '"%s"' % "".join(chunks)
     return "$script:%s = if ($env:%s) { $env:%s } else { %s }" % (
         name, name, name, rendered)
 
@@ -253,7 +274,7 @@ def render_ps1(exports: dict, names: list, version_fallback: str) -> str:
     for name in names:
         if name == "MIOS_VERSION":
             continue
-        lines.append(_ps_assign(name, exports[name]))
+        lines.append(_ps_assign(name, exports[name], exports))
     lines.append(PS_HOST_PATHS.replace(
         "IMAGE_NAME_LITERAL",
         exports.get("MIOS_IMAGE_NAME", "ghcr.io/mios-dev/mios").replace("'", "''")))
@@ -279,12 +300,13 @@ def main() -> int:
         eol = "\r\n" if path.endswith(".ps1") else "\n"
         existing = None
         if os.path.isfile(path):
-            with open(path, encoding="utf-8") as fh:  # universal newlines
+            with open(path, encoding="utf-8-sig" if path.endswith(".ps1") else "utf-8") as fh:  # universal newlines
                 existing = fh.read()
         if existing != body:
             drifted.append(path)
             if not check:
-                with open(path, "w", encoding="utf-8", newline=eol) as fh:
+                enc = "utf-8-sig" if path.endswith(".ps1") else "utf-8"
+                with open(path, "w", encoding=enc, newline=eol) as fh:
                     fh.write(body)
 
     if check:

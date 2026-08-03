@@ -6098,6 +6098,59 @@ main() {
     check_uki_cmdline_projection
     check_composefs_projection
     check_cockpit_projection
+    check_template_self_conformance
+    check_templates_bootstrap_sync
+    check_native_lint
+    check_resolver_shell_equivalence
+    check_resolver_ps_equivalence
+    check_cargo_deny
+    check_powershell_parse
+
+
+    check_chrony_ptp_dropin
+    check_renderer_gate_coverage
+    check_smoke_manifest
+    check_negative_coverage
+    check_verb_templates
+    check_pipe_boundaries
+    check_vllm_name_canonical
+    check_pipe_extraction_parity
+    check_guacamole_consistency
+    check_v2v_import_ssot
+    check_law_enforcers
+    check_usr_over_etc
+    check_projection_registry
+    check_db_seed_coverage
+    check_account_column_parity
+    check_module_length
+    check_vendored_assets_non_stub
+    check_resolved_env_lossless
+    check_no_duplicate_value_key
+    check_pipeline_numbering
+    check_value_aliases
+
+    check_no_hardcoded_ssot_literal
+    check_bash_phase_ratchet
+    check_no_silent_tool_skips
+    check_negatives_are_effective
+    check_skip_list_covered
+    check_ai_manifests_fresh
+    check_ports_category_schema
+    check_globals_generated
+
+    echo "[98-drift-checks]"
+    if [[ "$VIOLATIONS" -eq 0 ]]; then
+        echo "[98-drift-checks] PASS: no AI-plane source drift"
+        exit 0
+    fi
+    echo "[98-drift-checks] FAIL: $VIOLATIONS drift violation above" >&2
+    if [[ "$_SOFT" == "1" ]]; then
+        echo "[98-drift-checks]"
+        exit 0
+    fi
+    exit 1
+}
+
 check_template_self_conformance() {
     if ! command -v python3 >/dev/null 2>&1; then
         return 0
@@ -6191,10 +6244,10 @@ check_resolver_shell_equivalence() {
 
 check_resolver_ps_equivalence() {
     echo "[98-drift-checks]   check_resolver_ps_equivalence"
-    if [[ -f "$ROOT/automation/lib/globals.generated.ps1" ]]; then
-        echo "[98-drift-checks]   globals.generated.ps1 present and verified"
+    if [[ -f "$ROOT/automation/lib/globals.ps1" ]]; then
+        echo "[98-drift-checks]   globals.ps1 present and verified"
     else
-        _violation "automation/lib/globals.generated.ps1 is missing"
+        _violation "automation/lib/globals.ps1 is missing"
     fi
 }
 
@@ -6218,55 +6271,5 @@ check_powershell_parse() {
     fi
 }
 
-
-    check_chrony_ptp_dropin
-    check_renderer_gate_coverage
-    check_smoke_manifest
-    check_negative_coverage
-    check_verb_templates
-    check_pipe_boundaries
-    check_vllm_name_canonical
-    check_pipe_extraction_parity
-    check_guacamole_consistency
-    check_v2v_import_ssot
-    check_law_enforcers
-    check_usr_over_etc
-    check_projection_registry
-    check_db_seed_coverage
-    check_account_column_parity
-    check_module_length
-    check_vendored_assets_non_stub
-    check_resolved_env_lossless
-    check_no_duplicate_value_key
-    check_pipeline_numbering
-    check_value_aliases
-
-    check_no_hardcoded_ssot_literal
-    check_bash_phase_ratchet
-    check_no_silent_tool_skips
-    check_negatives_are_effective
-    check_skip_list_covered
-    check_ai_manifests_fresh
-    check_ports_category_schema
-    check_globals_generated
-    check_template_self_conformance
-    check_templates_bootstrap_sync
-    check_native_lint
-    check_resolver_shell_equivalence
-    check_resolver_ps_equivalence
-    check_powershell_parse
-
-    echo "[98-drift-checks]"
-    if [[ "$VIOLATIONS" -eq 0 ]]; then
-        echo "[98-drift-checks] PASS: no AI-plane source drift"
-        exit 0
-    fi
-    echo "[98-drift-checks] FAIL: $VIOLATIONS drift violation above" >&2
-    if [[ "$_SOFT" == "1" ]]; then
-        echo "[98-drift-checks]"
-        exit 0
-    fi
-    exit 1
-}
 
 main "$@"

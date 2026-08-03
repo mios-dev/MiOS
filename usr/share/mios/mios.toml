@@ -11862,7 +11862,18 @@ python_entries = [
 ]
 
 [testing.negative_coverage_exempt]
+# WS-RESOLVER checks that cannot be exercised by a negative test yet: they
+# no-op unless the mios-resolver binary is installed in the image, so an
+# injected fault would be skipped rather than caught and the "test" would pass
+# for the wrong reason. AGY-1572 installs the binary; these come off this list
+# with real negative tests in the same change. The two cheap deterministic new
+# checks (check_cargo_deny, check_powershell_parse) have real tests instead.
 exempt = [
+  "check_native_lint",
+  "check_resolver_ps_equivalence",
+  "check_resolver_shell_equivalence",
+  "check_template_self_conformance",
+  "check_templates_bootstrap_sync",
   "check_agent_schema",
   "check_ai_manifest",
   "check_bib_rootfs_label_policy",

@@ -314,6 +314,8 @@ def get_aliases(dotted_path):
 
     elif dotted_path == "identity.username":
         aliases.extend(["MIOS_USER", "MIOS_DEFAULT_USER"])
+    elif dotted_path == "identity.uid":
+        aliases.extend(["MIOS_UID", "MIOS_USER_UID"])
     elif dotted_path == "identity.fullname":
         aliases.append("MIOS_USER_FULLNAME")
     elif dotted_path == "identity.hostname":

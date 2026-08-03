@@ -22,7 +22,13 @@ def main():
     os.environ["MIOS_HOST_TOML_D"] = os.path.join(root, "etc/mios/mios.d").replace('\\', '/')
     os.environ["MIOS_USER_TOML_D"] = os.path.join(root, "nonexistent_d").replace('\\', '/')
 
-    sys.path.insert(0, os.path.join(root, "usr/lib/mios"))
+    lib_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../usr/lib/mios"))
+    sys.path.insert(0, lib_path)
+    if root:
+        alt_path = os.path.join(root, "usr/lib/mios")
+        if os.name == "nt" and alt_path.startswith("/mnt/c/"):
+            alt_path = "C:/" + alt_path[7:]
+        sys.path.insert(0, alt_path)
     try:
         import mios_toml
     except ImportError as e:
@@ -31,6 +37,7 @@ def main():
 
     env = os.environ.copy()
     env["MSYS_NO_PATHCONV"] = "1"
+    env["PYTHONPATH"] = os.path.join(root, "usr/lib/mios").replace('\\', '/') + (os.pathsep + env["PYTHONPATH"] if "PYTHONPATH" in env else "")
     env.pop("MIOS_TOML_RESOLVED", None)
 
     bash_exe = "bash"

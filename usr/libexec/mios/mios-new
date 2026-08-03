@@ -8,6 +8,10 @@ import os
 import re
 from datetime import datetime
 
+repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+sys.path.insert(0, os.path.join(repo_root, "usr/lib/mios"))
+import mios_toml
+
 TEMPLATES_DIR = os.environ.get("MIOS_TEMPLATES_DIR", "/usr/share/mios/templates")
 if not os.path.exists(TEMPLATES_DIR):
     repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))

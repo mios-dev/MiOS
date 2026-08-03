@@ -55,6 +55,9 @@ jobs:
       - name: PowerShell AST parse-gate (lint-powershell.sh)
         run: bash ./automation/lint-powershell.sh
 
+      - name: PowerShell Pester test suite (run-pester.sh)
+        run: bash ./tests/powershell/run-pester.sh
+
       - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
         run: |
           bash ./automation/97-ssot-lint.sh
