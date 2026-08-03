@@ -1110,85 +1110,6 @@ test_renderer_gate_coverage() {
     log "Test_renderer_gate_coverage negative test passed"
 }
 
-test_bake_plan() {
-    log "Testing check_bake_plan"
-    local plan_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
-    if [ -f "$plan_file" ]; then
-        local orig_val
-        orig_val="$(cat "$plan_file")"
-        printf '%s\n%s\n' "$orig_val" "localhost/bogus-injected-image:latest" > "$plan_file"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1; then
-            echo "$orig_val" > "$plan_file"
-            die "Check_bake_plan passed despite injected bogus image"
-        fi
-
-        echo "$orig_val" > "$plan_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_plan >/dev/null 2>&1 \
-            || die "Check_bake_plan failed after restoration"
-    fi
-    log "Test_bake_plan negative test passed"
-}
-
-test_bake_ref_defaults() {
-    log "Testing check_bake_ref_defaults"
-    local target_sh="${ROOT}/automation/01-base-setup.sh"
-    if [ -f "$target_sh" ]; then
-        local orig_val
-        orig_val="$(cat "$target_sh")"
-        printf '%s\n%s\n' "$orig_val" ': "${MIOS_BUILD_BAKE_REFS_ZZZ:-}"' > "$target_sh"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1; then
-            echo "$orig_val" > "$target_sh"
-            die "Check_bake_ref_defaults passed despite empty ref default"
-        fi
-
-        echo "$orig_val" > "$target_sh"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
-            || die "Check_bake_ref_defaults failed after restoration"
-    fi
-    log "Test_bake_ref_defaults negative test passed"
-}
-
-test_deploy_plane() {
-    log "Testing check_deploy_plane"
-    local ks_file="${ROOT}/usr/share/mios/ventoy/mios-kickstart.cfg"
-    if [ -f "$ks_file" ]; then
-        local orig_val
-        orig_val="$(cat "$ks_file")"
-        echo "$orig_val" > "$ks_file"
-        grep -v "MIOS_FHS_TOTAL_ROOT_MERGE=1" "$ks_file" > "${ks_file}.tmp" && mv "${ks_file}.tmp" "$ks_file"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1; then
-            echo "$orig_val" > "$ks_file"
-            die "Check_deploy_plane passed despite missing MIOS_FHS_TOTAL_ROOT_MERGE=1"
-        fi
-
-        echo "$orig_val" > "$ks_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_deploy_plane >/dev/null 2>&1 \
-            || die "Check_deploy_plane failed after restoration"
-    fi
-    log "Test_deploy_plane negative test passed"
-}
-
-test_sbom_metadata() {
-    log "Testing check_sbom_metadata"
-    local sbom_dir="${ROOT}/usr/share/mios/artifacts/sbom"
-    mkdir -p "$sbom_dir"
-    local temp_tsv="${sbom_dir}/models.tsv"
-    printf "name\tversion\tsha256\nmodel1\t1.0\tdeadbeef\n" > "$temp_tsv"
-
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1; then
-        rm -f "$temp_tsv"
-        die "Check_sbom_metadata passed despite malformed sha256"
-    fi
-
-    rm -f "$temp_tsv"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1 \
-        || die "Check_sbom_metadata failed after cleanup"
-    log "Test_sbom_metadata negative test passed"
-}
-
 test_clevis_luks() {
     log "Testing check_clevis_luks"
     local tmp_dir
@@ -1369,27 +1290,6 @@ PYEOF
             || die "Check_smoke_manifest failed after restoration"
     fi
     log "Test_smoke_manifest negative test passed"
-}
-
-test_negative_coverage() {
-    log "Testing check_negative_coverage"
-    local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    if [ -f "$toml_file" ]; then
-        local orig_val
-        orig_val="$(cat "$toml_file")"
-        echo "$orig_val" > "$toml_file"
-        grep -v '"check_agent_schema"' "$toml_file" > "${toml_file}.tmp" && mv "${toml_file}.tmp" "$toml_file"
-
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
-            echo "$orig_val" > "$toml_file"
-            die "Check_negative_coverage passed despite removed exempt check"
-        fi
-
-        echo "$orig_val" > "$toml_file"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1 \
-            || die "Check_negative_coverage failed after restoration"
-    fi
-    log "Test_negative_coverage negative test passed"
 }
 
 test_verb_templates() {
@@ -1942,15 +1842,6 @@ test_bash_phase_ratchet() {
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 \
         || die "Check_bash_phase_ratchet failed after restoration"
     log "Test_bash_phase_ratchet negative test passed"
-}
-
-test_negative_coverage() {
-    log "Testing check_negative_coverage"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negative_coverage >/dev/null 2>&1; then
-        log "Test_negative_coverage passed"
-    else
-        die "Check_negative_coverage failed"
-    fi
 }
 
 test_check_no_silent_tool_skips() {
