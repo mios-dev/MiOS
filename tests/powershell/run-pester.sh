@@ -50,7 +50,20 @@ elif [[ "$win_test_dir" =~ ^/c/ ]]; then
 fi
 
 OUT=$("$PS_BIN" -NoProfile -NonInteractive -Command "
-    Import-Module Pester -ErrorAction SilentlyContinue
+    # Pester 5 is the target: CI ships it, and its assertion syntax
+    # (Should -Be) is incompatible with the Pester 3.4 that Windows PowerShell
+    # bundles. Binding 'whatever is installed' silently ran the suite under v3
+    # locally and v5 in CI, so the same file could not pass both.
+    Import-Module Pester -MinimumVersion 5.0.0 -ErrorAction SilentlyContinue
+    \$pesterVer = (Get-Module Pester | Sort-Object Version -Descending | Select-Object -First 1).Version
+    if (-not \$pesterVer -or \$pesterVer.Major -lt 5) {
+        if (\$env:CI) {
+            Write-Output (\"PESTER_FAIL: Pester 5+ required, found '\" + \$pesterVer + \"'\")
+        } else {
+            Write-Output (\"PESTER_SKIP: Pester 5+ not installed (found '\" + \$pesterVer + \"') -- CI is authoritative\")
+        }
+        exit 0
+    }
     \$testFiles = Get-ChildItem -Path '${win_test_dir}' -Filter '*.Tests.ps1' -Recurse
     if (-not \$testFiles) {
         Write-Output 'PESTER_PASS'
