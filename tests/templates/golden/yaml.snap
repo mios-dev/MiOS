@@ -1,0 +1,6 @@
+# AI-hint: YAML configuration or deployment manifest.
+# AI-related: /usr/share/mios/templates/yaml
+
+version: "1.0"
+metadata:
+  name: template

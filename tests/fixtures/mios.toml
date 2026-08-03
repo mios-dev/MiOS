@@ -1,0 +1,50 @@
+# AI-hint: TOML Configuration
+[meta]
+mios_version = "0.3.0"
+
+[ports]
+stack_id = 0
+agent_pipe = 8640
+llm_light = 8641
+pgvector = 8642
+hermes = 8643
+
+[image]
+ref = "ghcr.io/mios-dev/mios:latest"
+tag = "latest"
+name = "mios"
+
+[network.ntp]
+servers = ["time.cloudflare.com", "pool.ntp.org"]
+
+[power.ups]
+name = "mios-ups"
+driver = "usbhid-ups"
+port = "auto"
+desc = "MiOS Uninterruptible Power Supply"
+
+[kargs]
+iommu = "on"
+vfio_ids = "10de:2206,10de:1aef"
+hugepages = "1024"
+isolcpus = "2-7"
+nohz_full = "2-7"
+rcu_nocbs = "2-7"
+THP = "never"
+
+[security.luks]
+enabled = false
+pin = "tpm2"
+pcrs = "7"
+
+[mini]
+enabled = false
+guest_cpu_percent = 80
+guest_ram_percent = 80
+dgpumode = "vfio-pci"
+
+[mini.mesh]
+enabled = false
+headscale_domain = "mesh.mios.internal"
+vnet_cidr = "10.42.0.0/16"
+swtpm_vtpm = true

@@ -1,0 +1,26 @@
+<!-- AI-hint: Describe the key decision made in this ADR here. -->
+<!-- AI-related: /usr/share/doc/mios/adr/README.md -->
+---
+adr: 0012
+title: Sample test
+status: accepted
+date: 2026-07-17
+deciders: [operator, ai-pair]
+tags: []
+laws: []
+ssot_keys: []
+related_ws: []
+supersedes: []
+superseded_by: []
+---
+
+
+accepted — 2026-07-17
+
+Describe the context, problem, forces, and alignment constraints here.
+
+Detail the decision and the concrete architectural commits made.
+
+Why was this decision chosen over alternatives?
+
+What are the outcomes, trade-offs, and done criteria?

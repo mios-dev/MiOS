@@ -27,6 +27,13 @@
 !/images/**
 !/.forgejo/
 !/.forgejo/**
+# The block-all `/*` rule never un-ignored tests/. Files already tracked there
+# (drift-gate-negatives.sh) survived only because tracking predates the rule --
+# any NEW test was silently unstageable, which is how tests/powershell/ came to
+# be referenced by a CI step while being impossible to commit (exit 127,
+# "No such file or directory").
+!/tests/
+!/tests/**
 !/powershell/
 !/powershell/**
 !/ROADMAP.md

@@ -85,6 +85,14 @@ function Disable-ConsoleQuickEdit {
 }
 Disable-ConsoleQuickEdit
 
+# Import MiOS.Build sub-modules
+$buildModuleDir = Join-Path $PSScriptRoot 'automation\lib\MiOS.Build'
+if (Test-Path $buildModuleDir) {
+    Get-ChildItem -Path $buildModuleDir -Filter '*.psm1' -ErrorAction SilentlyContinue | ForEach-Object {
+        Import-Module $_.FullName -Force -ErrorAction SilentlyContinue
+    }
+}
+
 # ── mios.toml layered-overlay reader (mirrors Get-MiOS.ps1's helper) ─────────
 # mios.toml is THE global dotfile (per feedback_mios_toml_html_global_dotfile).
 # Every tunable -- terminal dims, retry delays, dev VM image tag, distro

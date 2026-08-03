@@ -1,0 +1,21 @@
+<!-- AI-hint: Describe the roadmap workstream tasks and progress here. -->
+<!--
+id: WS-SAMPLE-TEST
+title: Sample test
+theme: OS-Image & Build
+status: proposed
+priority: P2
+laws: []
+ssot_keys: []
+adr: []
+deps: []
+acceptance: |
+  Describe the acceptance criteria here.
+-->
+*Description of sample-test*
+
+- **What:** Detail the task description.
+- **Why:** Explain the rationale.
+- **Files:** List of modified/new files.
+- **Accept:** Criteria for completion.
+- **Deps:** Task dependencies.

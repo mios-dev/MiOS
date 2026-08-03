@@ -396,6 +396,14 @@ if (-not $env:MIOS_CACHE_BUSTED -and -not $env:MIOS_GETMIOS_RELAUNCHED) {
 # Vendor defaults are sufficient (per feedback_mios_defaults_baseline):
 # the stack works with no user toml present. Get-MiosTomlValue returns
 # its `-Default` arg if the key is missing anywhere.
+# Import MiOS.Install sub-modules
+$installModuleDir = Join-Path $PSScriptRoot 'automation\lib\MiOS.Install'
+if (Test-Path $installModuleDir) {
+    Get-ChildItem -Path $installModuleDir -Filter '*.psm1' -ErrorAction SilentlyContinue | ForEach-Object {
+        Import-Module $_.FullName -Force -ErrorAction SilentlyContinue
+    }
+}
+
 $script:_MiosTomlCache = @{}
 
 function Resolve-MiosTomlText {
