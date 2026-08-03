@@ -13,10 +13,14 @@ impl Check for PodQuadletsCheck {
         "Assert generated pod quadlets match committed quadlet files"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
+        // Quadlets are emitted into usr/share/containers/systemd (29 units), the
+        // path automation/98-drift-checks.sh has always checked. The old
+        // usr/share/mios/quadlets has never existed, so this check hard-failed
+        // the in-image `miosd drift-check` on every build.
         regen_and_diff(
             ctx,
             "tools/generate-pod-quadlets.py",
-            &["usr/share/mios/quadlets"],
+            &["usr/share/containers/systemd"],
             &["--check"],
         )
     }
@@ -141,8 +145,11 @@ impl Check for IPAEnrollProjectionCheck {
     fn run(&self, ctx: &DriftCtx) -> Verdict {
         regen_and_diff(
             ctx,
-            "tools/generate-ipa-enroll.py",
-            &["usr/libexec/mios/ipa-enroll"],
+            // Real generator is generate-ipa-enroll-ENV.py and it projects the
+            // env file, not a libexec binary. Under the old names the generator
+            // did not exist, so this check silently returned Skip and never ran.
+            "tools/generate-ipa-enroll-env.py",
+            &["etc/mios/ipa-enroll.env"],
             &["--check"],
         )
     }

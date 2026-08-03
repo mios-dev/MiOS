@@ -104,6 +104,12 @@
 !/etc/
 etc/**
 !/etc/.keep
+# SSOT projections re-derived by `miosd drift-check` during the container build.
+# See the usr/lib/kernel note below: untracked here means invisible to CI.
+!/etc/cockpit/
+!/etc/cockpit/cockpit.conf
+!/etc/mios/
+!/etc/mios/ipa-enroll.env
 !/etc/containers/
 etc/containers/*
 !/etc/containers/storage.conf
@@ -279,6 +285,11 @@ usr/lib/*
 !/usr/lib/mios/
 !/usr/lib/mios/**
 !/usr/lib/os-release
+# SSOT projections the in-image `miosd drift-check` re-derives at BUILD time.
+# Stranded by the block-all rule above they exist for a contributor but are
+# invisible to CI, so the build fails on an artifact the local gate says is fine.
+!/usr/lib/kernel/
+!/usr/lib/kernel/cmdline
 
 !/usr/lib/NetworkManager/
 usr/lib/NetworkManager/*

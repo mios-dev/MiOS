@@ -2092,6 +2092,17 @@ to" / "let me know".
 : "${MIOS_UNITS_FORGE_RUNNER:=mios-forgejo-runner.service}"
 : "${MIOS_UNITS_HERMES:=mios-hermes.service}"
 : "${MIOS_UNITS_HERMES_FIRSTBOOT:=mios-hermes-firstboot.service}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/hermes-worker-firstboot}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target systemd-tmpfiles-setup.service}"
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_BEFORE:=hermes-worker.service multi-user.target}"
+[ -n "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Oneshot that seeds the non-thin Hermes WORKER config (/var/lib/mios/hermes-worker/config.yaml) from the vendor template before hermes-worker.service starts. Distinct from mios-hermes-firstboot (which owns and re-thins the primary :8642 config); this one NEVER touches the primary path.
+# AI-related: /usr/libexec/mios/hermes-worker-firstboot, /usr/share/mios/hermes/config-worker.yaml, /var/lib/mios/hermes-worker/config.yaml, hermes-worker.service'
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/hermes-worker-firstboot}"
+[ -n "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Worker first-boot config seed (:8643 non-thin worker)'
+: "${MIOS_UNITS_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNITS_HERMES_WORKER_PATH_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_HERMES_WORKER_PATH_PATH_PATHEXISTS:=/usr/lib/mios/agents/.venv/bin/hermes}"
 : "${MIOS_UNITS_HERMES_WORKER_PATH_PATH_UNIT:=hermes-worker.service}"
@@ -2109,8 +2120,76 @@ to" / "let me know".
 # worker'"'"'s own Condition still guards against a half-built venv; start is idempotent.'
 [ -n "${MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for the Hermes venv -> (re)start hermes-worker'
 : "${MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/hermes-worker.service}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
+# distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
+# never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_LIMITNOFILE:=1048576}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_NONEWPRIVILEGES:=false}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_PROTECTHOME:=false}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios /var/lib/mios /run/mios-launcher}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_TIMEOUTSTARTSEC:=300s}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=240s}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_AFTER:=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service}"
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for the SECOND (non-thin) Hermes WORKER gateway on :8643 -- a real agent that runs its OWN native browser/CDP/terminal/skills tool loop with its OWN inference on the heavy lane (:11441 mios-heavy). Coexists with the thin :8642 Discord gateway (hermes-agent.service) via a SEPARATE HERMES_HOME and no Discord token.
+# AI-related: /usr/lib/mios/agents/.venv/bin/hermes, /var/lib/mios/hermes-worker, /var/lib/mios/hermes-worker/config.yaml, /etc/mios/hermes/api.env, hermes-agent.service, mios-hermes-browser-worker.service, mios-llm-heavy.service, mios-llm-light.service
+# /usr/lib/systemd/system/hermes-worker.service
+#
+# The MiOS Hermes WORKER (P1, operator 2026-06-19). A SECOND `hermes gateway
+# run` instance, fully ISOLATED from the live :8642 Discord gateway:
+#   * SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker => its own gateway.pid /
+#     gateway.lock / gateway_state.json / state.db / kanban.db / config.yaml.
+#     No shared-DB WAL contention with the :8642 instance.
+#   * API_SERVER_PORT=8643 (the LOAD-BEARING bind var -- `PORT` is inert; Hermes
+#     reads API_SERVER_PORT and otherwise binds DEFAULT_PORT=8642).
+#   * NO discord.env / NO DISCORD_BOT_TOKEN => the Discord adapter never calls
+#     _acquire_platform_lock('"'"'discord-bot-token'"'"', ...), so the host-global
+#     gateway-locks/discord-bot-token-*.lock held by the :8642 gateway is never
+#     contended (no SIGTERM flap). Discord stays the EXCLUSIVE job of :8642.
+#   * NO --replace: the worker'"'"'s HERMES_HOME-scoped pidfile is its own; the
+#     :8642 gateway'"'"'s eviction scan is profile/HERMES_HOME-scoped (only --all
+#     crosses profiles, which is not used) so neither instance touches the other.
+#
+# This worker is the WORKER-DISPATCH target of [agents.hermes].endpoint in
+# mios.toml (repointed :11441 -> :8643 in P1). It does its OWN heavy-lane
+# inference (:11441 mios-heavy) so it never relays to :8640 -- no recursion.'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT2='# R8: dropped After=mios-ai-firstboot.service -- the worker rides the venv + its own
+# provisioner (hermes-worker-firstboot) + the inference lanes, NOT the boot-time
+# GGUF/vLLM fetch owned by mios-ai-firstboot.'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_COMMENT3='# Skip cleanly if the direct install didn'"'"'t land.'
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/.venv/bin/hermes}"
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Worker (non-thin agent, native tool loop, :8643)'
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_DOCUMENTATION:=https://github.com/NousResearch/hermes-agent}"
+: "${MIOS_UNITS_HERMES_WORKER_SERVICE_UNIT_WANTS:=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service}"
 : "${MIOS_UNITS_K3S:=mios-k3s.service}"
 : "${MIOS_UNITS_LLM_LIGHT:=mios-llm-light.service}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_COMMENT:=# Ensure postgres container is ready before launching the daemon}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-account-sync --daemon}"
+[ -n "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTARTPRE+x}" ] || MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTARTPRE='/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios'
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_RESTART:=always}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-account-sync in daemon mode to keep local Linux accounts synchronized with PostgreSQL accounts and aliases.
+# AI-related: /usr/libexec/mios/mios-account-sync, mios-pgvector.service'
+[ -n "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' live PostgreSQL-to-OS user account sync daemon'
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-account-sync}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_STARTLIMITBURST:=5}"
+: "${MIOS_UNITS_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_STARTLIMITINTERVALSEC:=300}"
 : "${MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED:=/usr/lib/containers/storage/overlay-images,/usr/lib/containers/storage/overlay-containers,/usr/lib/containers/storage/overlay-layers,/usr/lib/containers/storage/libpod}"
 : "${MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT:=mios-additionalimagestores-perms.service}"
@@ -2128,6 +2207,85 @@ to" / "let me know".
 # back within seconds.'
 : "${MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY:=/usr/lib/containers/storage}"
 [ -n "${MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"': watch additionalimagestores for perm changes; retrigger chmod'
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-adguard-firstboot}"
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target tailscaled.service}"
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-adguard.service}"
+[ -n "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-adguard-firstboot to generate the AdGuardHome.yaml config from mios.toml, injecting Tailscale IPs before the AdGuard container starts.
+# AI-related: /usr/libexec/mios/mios-adguard-firstboot, /etc/mios/adguard/AdGuardHome.yaml, tailscaled.service, mios-adguard.service, network-online.target
+# /usr/lib/systemd/system/mios-adguard-firstboot.service
+# Generates /etc/mios/adguard/AdGuardHome.yaml from mios.toml [adguard]/[ports]
+# + the live Tailscale IP/MagicDNS suffix, BEFORE the AdGuard container starts.
+# Idempotent + non-destructive (skips if the config already exists), so it is
+# safe to leave enabled across boots. mios-adguard.container Requires= + After=
+# this unit, so it is pulled in automatically; it is also enabled directly for
+# fresh installs.'
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-adguard-firstboot}"
+[ -n "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AdGuard Home first-boot config generator'
+: "${MIOS_UNITS_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_INSTALL_WANTEDBY:=multi-user.target default.target}"
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_COMMENT='# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to
+# empty (code-server then dies "Invalid URL"). Set the defaults here; install.env
+# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses
+# plain ${VAR}.'
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_COMMENT2:=# Build the local super-container image on first deploy (idempotent no-op after).}"
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900},MIOS_DEFAULT_PASSWORD=mios'
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mios-agents-firstboot.sh}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTOP:=/usr/sbin/podman stop -t 10 mios-agents}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_TIMEOUTSTARTSEC:=1200s}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_AFTER:=network-online.target podman.socket}"
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_COMMENT='# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. ExecStartPre builds the local image if absent; ExecStart runs it every boot on the code-server port MIOS_PORT_CODE_SERVER (mios-agents REPLACES the retired mios-code-server -- one IDE, no duplicate service).
+# AI-related: /usr/share/mios/agents/Containerfile, /usr/share/mios/agents/mios-a2o, /usr/libexec/mios/mios-agents-firstboot.sh, /etc/mios/install.env, /var/lib/mios/agents
+# /usr/lib/systemd/system/mios-agents.service'
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/share/mios/agents/Containerfile}"
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server)'
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/agents/ACTIVATION.md}"
+: "${MIOS_UNITS_MIOS_AGENTS_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE:-8700},MIOS_AGENT_PIPE_BACKEND_LIGHT=1,MIOS_AI_MODEL=granite4.1:8b,MIOS_NO_TOOL_CHOICE_HINTS=11436,MIOS_KV_PAGING_HINTS=11436,11450,MIOS_LLM_API_HINTS=,MIOS_REFINE_TIMEOUT_S=45,MIOS_POLISH_TIMEOUT_S=45,MIOS_REFINE_MAX_TOKENS=1200,MIOS_AGENT_MEMORY_RECALL=1,MIOS_PASSPORT_AGENT_NAME=agent-pipe'
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/agent-pipe.env,-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_NONEWPRIVILEGES:=yes}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_PROTECTHOME:=yes}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_READONLYPATHS:=/var/lib/mios/agent-passports}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log /var/lib/mios/agent-env /var/lib/mios/ai}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_SUPPLEMENTARYGROUPS:=mios-hermes}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_TIMEOUTSTARTSEC:=60s}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_SERVICE_WORKINGDIRECTORY:=/var/lib/mios/agent-pipe}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_AFTER:=network-online.target mios-pgvector.service mios-passport-provision.service}"
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORT_LLM_LIGHT), composed in server.py via _LIGHT_BASE.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes'
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT2='# R8: NOT ordered After=mios-ai-firstboot.service. The plane needs the VENV (baked
+# into the image) + pgvector, NOT the boot-time model fetch; ordering behind
+# firstboot'"'"'s multi-GB download blocked the router for the whole download. firstboot
+# `systemctl restart --no-block`s this unit once models land, so the edge is redundant.'
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT3='# R6: the pipe touches pgvector on every route, so upgrade the DB edge from After=
+# (ordering only) to a hard Requires= -- a missing DB should hold/fail the unit.'
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT4+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT4='# R6: bound the existing Restart=on-failure so a DB-down window (many quick
+# restarts) can'"'"'t trip the default 5/10s start limit and land permanently failed.'
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT5+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT5='# The venv python is baked into the FINAL image, but on the podman-MiOS-DEV substrate it is
+# built at first boot by mios-ai-firstboot. Skip (rather than 203/EXEC-fail) until it exists.'
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/.venv/bin/python3}"
+[ -n "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)'
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/server.py}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_STARTLIMITBURST:=5}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_STARTLIMITINTERVALSEC:=300}"
+: "${MIOS_UNITS_MIOS_AGENT_PIPE_SERVICE_UNIT_WANTS:=network-online.target mios-passport-provision.service}"
 : "${MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY:=timers.target}"
 [ -n "${MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT='# 2 min after boot (agent-pipe up by then), then every 15 min so the role
 # SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet.'
@@ -2137,6 +2295,37 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.
 # AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target'
 : "${MIOS_UNITS_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION:=Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Cap a hung fetch (multi-GB model download) at 10min so it can'"'"'t wedge the unit
+# forever; the timer re-fires the run afterwards. (Was 2400s.)'
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT2+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT2='# The script reads MIOS_LLAMACPP_BAKE_MODELS (the GGUF download spec) +
+# MIOS_AI_* from the env bridge. Without this, a fresh systemd boot has an
+# EMPTY environment -> bake_models reads empty -> "GGUFs not baked" -> the
+# llm-light lane stays inert forever. The leading '"'"'-'"'"' makes it optional so
+# the unit still starts (and retries) if the bridge isn'"'"'t generated yet.
+# install-robustness 2026-06-21.'
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-ai-firstboot}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=1800}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
+# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
+# Completes the build-time AI setup on deployments that didn'"'"'t bake it (the
+# overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh'"'"'s header
+# explicitly anticipates this: "a firstboot retry can complete it later".
+# Needs network (pip + model pull); GGUF blobs come from Hugging Face.'
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# The script writes the sentinel ONLY when both the venv and the GGUFs are
+# present, so a network-less first boot simply retries on the next one.'
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT3='# Retry is owned by mios-ai-firstboot.timer (OnBootSec + OnUnitInactiveSec), NOT
+# an in-unit Restart=on-failure / StartLimitBurst storm. The script degrades open
+# (exit 0) on a partial provision, so the unit shows success and the timer simply
+# re-fires it on its cadence until the sentinel above is written.'
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.ai-firstboot-done}"
+[ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AI first-boot provisioning (agent venv + llama.cpp GGUFs)'
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/mios}"
+: "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY:=timers.target}"
 [ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT='# First retry shortly after boot, then every 10min while the service sits
 # inactive and the sentinel is still absent. Persistent catches up a missed
@@ -2179,6 +2368,19 @@ to" / "let me know".
 # idempotent on identical refs -- this is fine).'
 [ -n "${MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for Forgejo Runner build output -> bootc switch'
 : "${MIOS_UNITS_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/bootc-switch-from-build.sh}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-bound-images-firstboot}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1 2 3}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=10800}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open).
+# Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset.
+# AI-related: /usr/libexec/mios/mios-bound-images-firstboot, /usr/share/mios/mios.toml'
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.bound-images-firstboot-done}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION:=First-boot Bound Images Provisioner}"
+: "${MIOS_UNITS_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/ceph-bootstrap.sh}"
 : "${MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST:=/usr/bin/touch /var/lib/ceph/.bootstrapped,-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring}"
@@ -2219,6 +2421,59 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
 [ -n "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Controller Role'
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT='# Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):
+#   Environment=MIOS_DAEMON_MODEL=qwen3:1.7b
+#   Environment=MIOS_DAEMON_ENDPOINT=http://127.0.0.1:11434
+#   Environment=MIOS_DAEMON_STATE_DIR=/var/lib/mios/daemon
+#   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml
+#   Environment=MIOS_DAEMON_CLASSIFY_S=30
+#   Environment=MIOS_DAEMON_CRON_TICK_S=60
+#   Environment=MIOS_DAEMON_WATCH_UNITS=mios-agent-pipe.service,mios-open-webui.service'
+[ -n "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT2+x}" ] || MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT2='# Hardening (kept loose enough to allow journalctl subscription +
+# subprocess.Popen for cron actions).'
+[ -n "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_COMMENT3='# /var/lib/mios/daemon = the daemon'"'"'s own state (state.json, launch_failures).
+# /var/lib/mios/scratch = the SHARED cross-agent blackboard the task_collector
+# drops agent-nudges into for other agents to read (operator 2026-05-24: under
+# ProtectSystem=strict it was read-only, so task_collector EROFS-failed writing
+# agent-nudges.md -- the nudge feature was silently dead).'
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_ENVIRONMENT:=PYTHONUNBUFFERED=1}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-daemon}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_LOCKPERSONALITY:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/daemon /var/lib/mios/scratch}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_RESTRICTADDRESSFAMILIES:=AF_INET AF_INET6 AF_UNIX}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_RESTRICTREALTIME:=true}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_AFTER:=mios-llm-light.service network.target}"
+[ -n "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit file defining the core MiOS daemon; it consolidates log watching, cron gating, and agent nudging into a single process using a local qwen3 model to update the state.json file used by the OWUI sidecar.
+# AI-related: /usr/libexec/mios/mios-daemon, /etc/mios/secrets.env, /etc/mios/daemon/cron.toml, mios-ai, mios-open-webui
+# /usr/lib/systemd/system/mios-daemon.service
+#
+# MiOS consolidated micro-LLM daemon. Replaces three predecessors
+# (mios-log-watcher + mios-cron-director + mios-agent-nudger) with
+# ONE process that subscribes to journald once, holds a single
+# qwen3:0.6b-cpu client (keep_alive=-1 forever, num_gpu=0 CPU-only
+# per Law 7 OFFLINE-FIRST + "always-on agentic OS"), and dispatches
+# the three handlers off a single event stream. Writes a unified
+# /var/lib/mios/daemon/state.json the OWUI mios_sidecar Filter polls.
+#
+# Operator directive 2026-05-17: "ALL to be consolidated to one
+# mios daemon/agent" + "keep_alive should be TRUE for a TRULY
+# Agentic OS--MiOS!"'
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-daemon}"
+[ -n "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' consolidated micro-LLM daemon (log classify + refusal detect + cron gate)'
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-daemon}"
+: "${MIOS_UNITS_MIOS_DAEMON_SERVICE_UNIT_WANTS:=mios-llm-light.service}"
 : "${MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC:=30s}"
 : "${MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC:=2min}"
@@ -2242,6 +2497,27 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-headless.target mios-k3s-master.target mios-ha-node.target}"
 [ -n "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Desktop Role'
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_REQUIRES:=multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_COMMENT:=# Low-privilege execution}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_ENVIRONMENT:=PYTHONPATH=/usr/lib/mios/agent-pipe}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/userenv.sh,-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u -m mios_pipe.memory.embed_backfill}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_AFTER:=mios-pgvector.service mios-llm-light.service mios-agent-pipe.service}"
+[ -n "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that runs the mios_pipe.memory.embed_backfill worker to periodically re-embed database rows with stale or missing vector versions.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.timer, mios-pgvector.service, mios-llm-light.service
+# /usr/lib/systemd/system/mios-embed-backfill.service'
+[ -n "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT2='# R8: dropped After=mios-ai-firstboot.service -- the backfill worker needs pgvector
+# + the embedding lane (mios-llm-light), NOT the boot-time model fetch.'
+[ -n "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Embedding Backfill Worker'
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
+: "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC:=1min}"
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC:=5min}"
@@ -2261,6 +2537,25 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
 [ -n "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Endpoint Role'
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_COMMENT:=# model load + first request can take ~40s on a cold GPU}"
+[ -n "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_ENVIRONMENT='HF_HOME=/var/home/mios/.cache/huggingface,MIOS_FINETUNE_SERVE_PORT=${MIOS_PORT_FINETUNE_SERVE:-11438}'
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_EXECSTART:=/var/lib/mios/finetune/venv/bin/python /usr/libexec/mios/mios-finetune-serve}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_GROUP:=mios}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_RESTARTSEC:=5}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_TIMEOUTSTARTSEC:=180}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_USER:=mios}"
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI /v1-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster llama.cpp path.
+# AI-related: /usr/libexec/mios/mios-finetune-serve, network-online.target
+# '"'"'MiOS'"'"' fine-tune serve -- serves the trained role adapter (base + LoRA) as an
+# OpenAI /v1 endpoint so the fine-tuned refiner can be adopted/A-B'"'"'d
+# in the agent-pipe. OPT-IN: NOT enabled by default (the transformers-served 2B is
+# correct but slower than the GGUF lane on the hot path; enable to evaluate).'
+[ -n "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' fine-tune serve (base+adapter refiner backend)'
+: "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
 [ -n "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT='# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
 #        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
@@ -2331,6 +2626,214 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' first-boot provisioning'
 : "${MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNITS_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS:=mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-forgejo-runner-firstboot.sh}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=180s}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_AFTER:=mios-forge.service mios-forge-firstboot.service}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-forgejo-runner.service}"
+[ -n "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: One-shot systemd service that executes the initial registration of the Forgejo runner using the local token if the runner is not yet configured, ensuring the runner is registered before the main service starts.
+# AI-related: /etc/mios/forge/runner-token, /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, mios-forge.service, mios-forge-firstboot.service, mios-forgejo-runner.service'
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/etc/mios/forge/runner-token,!/srv/mios/forge-runner/.runner}"
+[ -n "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Forgejo Runner first-boot registration'
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://forgejo.org/docs/latest/admin/actions/}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNITS_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_WANTS:=mios-forge.service}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Hardening: this service writes to a small set of paths plus calls
+# '"'"'podman exec'"'"' against the running mios-forge container. RestrictNamespaces
+# and RestrictAddressFamilies were tried but break Podman'"'"'s CRIU/conmon
+# attach path on rootful container exec; we drop them and lean on the
+# read-write path scoping + ProtectHome instead, which is sufficient for
+# this script'"'"'s actual surface area.
+#
+# /run is LOAD-BEARING and must be writable as a whole: rootful
+# `podman exec` -- even a plain exec, no container lifecycle -- grabs
+# coordination locks across multiple /run subtrees: /run/libpod/
+# alive.lck (runtime init lock), /run/lock/netavark.lock (network
+# coordination), /run/containers/ (storage runroot). Listing them
+# individually is whack-a-mole; each missing one surfaces only at
+# runtime as "open <path>: read-only file system" (exit 125). /run is
+# tmpfs runtime state, so granting it RW is low-risk and is exactly
+# podman'"'"'s requirement. That exit-125 failure is silent-deadly here:
+# forge-firstboot.sh'"'"'s `admin user create` idempotency guard mis-reads
+# 125 as "user already exists", so the admin is never created, the
+# repo-create 401s, the runner-token mint fails, and the entire
+# self-replication CI chain (runner-firstboot -> .runner ->
+# mios-forgejo-runner.service) stays dead behind unmet
+# ConditionPathExists guards. Operator-confirmed regression 2026-05-14.'
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/forge-firstboot.sh}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_LOCKPERSONALITY:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_NONEWPRIVILEGES:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PROTECTHOME:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge /var/lib/containers /run}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTRICTREALTIME:=yes}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=600s}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_AFTER:=mios-forge.service network-online.target}"
+[ -n "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Executes the forge-firstboot.sh script to bootstrap the Forgejo instance, creating the initial admin user and repository credentials required for the MiOS self-replication and CI runner integration.
+# AI-related: /etc/mios/install.env, /usr/libexec/mios/forge-firstboot.sh, mios-forge.service, mios-forgejo-runner.service
+# /etc/mios/install.env is the optional layered-TOML resolver output
+# from mios-sync-env. The firstboot script tolerates its absence:
+# admin user, email, password all resolve from MIOS_DEFAULT_* or
+# fall back to "mios" / mios@hostname.local. Keep the unit gated only
+# by the firstboot sentinel.'
+[ -n "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# Forgejo bootstrap MUST run on WSL too (the localhost:3000 git origin
+# is the heart of the MiOS self-replication loop on every shape). A
+# plain `!container` would skip WSL because systemd reports virtualization
+# as `wsl` -- a container variant. Use OR: "not a container OR is WSL".'
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/forge/.firstboot-done}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=|!container,|wsl}"
+[ -n "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Forge first-boot admin-bootstrap (Forgejo)'
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/MiOS/blob/main/etc/containers/systemd/mios-forge.container}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNITS_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_WANTS:=mios-forge.service network-online.target}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  # If amd-ctk ever lands in Fedora RPM repos, drop a CDI spec automatically. \
+  # Until then containers must pass --device /dev/kfd --device /dev/dri \
+  # --group-add keep-groups explicitly. \
+  if command -v amd-ctk >/dev/null 2>&1; then \
+    amd-ctk cdi generate --output=/run/cdi/amd.json || true; \
+  fi; \
+  # Defensive perms -- Fedora Rawhide already labels /dev/kfd as root:render \
+  # 0660 via kernel, but pin it in case of drift. \
+  chgrp render /dev/kfd 2>/dev/null || true; \
+  chmod 0660   /dev/kfd 2>/dev/null || true; \
+  exit 0\'"'"''
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTARTPRE:=/usr/sbin/modprobe -a amdgpu}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service}"
+[ -n "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_COMMENT='# AI-hint: Configures AMD GPU hardware acceleration by loading the amdgpu module, generating CDI specifications for containerized ROCm/KFD access, and enforcing 0660 permissions on /dev/kfd for the render group.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target'
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/kfd}"
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+[ -n "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AMD GPU container plumbing (ROCm/KFD + DRI)'
+: "${MIOS_UNITS_MIOS_GPU_AMD_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_INSTALL_WANTEDBY:=sysinit.target}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/gpu-detect}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_AFTER:=systemd-journald.socket}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_BEFORE:=gdm.service display-manager.service systemd-modules-load.service systemd-udevd.service}"
+[ -n "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-detect to identify hardware GPU capabilities during boot, setting environment flags for display managers and graphics drivers.
+# AI-related: /usr/libexec/mios/gpu-detect, mios-gpu-detected, gdm.service, display-manager.service, systemd-modules-load.service, systemd-udevd.service, systemd-journald.socket, sysinit.target'
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/run/mios-gpu-detected}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+: "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_DEFAULTDEPENDENCIES:=no}"
+[ -n "${MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_DETECT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' GPU Environment Detection'
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  # Defensive perms on primary render node -- do not touch card* nodes (video group \
+  # handled by 99-mios-gpu.rules at udev-add time). \
+  if [ -e /dev/dri/renderD128 ]; then \
+    chgrp render /dev/dri/renderD128 2>/dev/null || true; \
+    chmod 0660   /dev/dri/renderD128 2>/dev/null || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTARTPRE:=-/usr/sbin/modprobe -a i915 xe amdgpu}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service}"
+[ -n "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that initializes iGPU drivers (i915/xe/amdgpu) and configures permissions for /dev/dri/renderD128 to enable hardware acceleration and unified render node access for Intel/AMD hardware.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target'
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/dri/renderD128}"
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+[ -n "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)'
+: "${MIOS_UNITS_MIOS_GPU_INTEL_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_AFTER:=sysinit.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_COMMENT='# AI-hint: Overrides the mios-gpu-nvidia.service unit to ensure it runs during the early sysinit.target phase, bypassing standard dependency delays to ensure GPU drivers are initialized early in the boot sequence.
+# AI-related: mios-gpu-nvidia, mios-gpu-nvidia.service, sysinit.target'
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_DEFAULTDEPENDENCIES:=no}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_REQUIRES:=sysinit.target}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
+       | grep -q nvidia-cdi-refresh; then \
+    echo "nvidia-cdi-refresh.service present; deferring CDI generation to upstream"; \
+    exit 0; \
+  fi; \
+  if command -v nvidia-ctk >/dev/null 2>&1; then \
+    nvidia-ctk cdi generate --output=/run/cdi/nvidia.yaml || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTARTPRE:=/usr/sbin/modprobe -a nvidia nvidia_uvm nvidia_modeset nvidia_drm}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service akmods.service}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_BEFORE:=nvidia-cdi-refresh.service}"
+[ -n "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that ensures NVIDIA GPU modules are loaded and CDI configurations are generated for container passthrough, acting as a fallback or prerequisite for nvidia-cdi-refresh.service.
+# AI-related: mios-gpu, nvidia-cdi-refresh.service, systemd-modules-load.service, systemd-udev-trigger.service, akmods.service, multi-user.target'
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/nvidia0}"
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container,!wsl}"
+[ -n "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' NVIDIA GPU container plumbing'
+: "${MIOS_UNITS_MIOS_GPU_NVIDIA_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/gpu-pv-detect}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_AFTER:=systemd-modules-load.service}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_BEFORE:=display-manager.service}"
+[ -n "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-pv-detect to detect Hyper-V GPU Partitioning (GPU-PV) capabilities during boot, enabling hardware acceleration for guests on Microsoft Hyper-V hosts.
+# AI-related: /usr/libexec/mios/gpu-pv-detect, systemd-modules-load.service, display-manager.service, multi-user.target'
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=microsoft}"
+: "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DEFAULTDEPENDENCIES:=no}"
+[ -n "${MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hyper-V GPU-PV Guest Detection'
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  set +e; \
+  HAS_NV=0; HAS_AMD=0; HAS_INTEL=0; \
+  [ -e /dev/nvidia0 ]            && HAS_NV=1; \
+  [ -e /dev/kfd ]                && HAS_AMD=1; \
+  [ -e /dev/dri/renderD128 ]     && HAS_INTEL=1; \
+  VIRT=$(systemd-detect-virt || echo none); \
+  # /run/mios, /run/cdi, /var/lib/mios/gpu declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2). \
+  { \
+    echo "timestamp=$(date -Is)"; \
+    echo "virtualization=${VIRT}"; \
+    echo "nvidia=${HAS_NV}"; \
+    echo "amd=${HAS_AMD}"; \
+    echo "intel=${HAS_INTEL}"; \
+    lspci -nn 2>/dev/null | grep -iE "vga|3d|display" || true; \
+  } > /run/mios/gpu-passthrough.status; \
+  # Non-persistent (in-memory) SELinux boolean -- build-time semanage handles \
+  # persistence; this guarantees the boolean is on even if the policy merge \
+  # dropped it. No-op on permissive / disabled / missing boolean. \
+  if command -v setsebool >/dev/null 2>&1; then \
+    setsebool container_use_devices on 2>/dev/null || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0755}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_AFTER:=systemd-udev-trigger.service systemd-modules-load.service local-fs.target}"
+[ -n "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that detects GPU hardware (NVIDIA, AMD, Intel) and virtualization status, exporting the results to /run/mios/gpu-passthrough.status and enabling the container_use_devices SELinux boolean.
+# AI-related: mios-gpu, systemd-udev-trigger.service, systemd-modules-load.service, podman.socket, docker.socket, local-fs.target, basic.target, sockets.target, multi-user.target'
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DEFAULTDEPENDENCIES:=yes}"
+[ -n "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' GPU passthrough detection and status'
+: "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
@@ -2347,6 +2850,99 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-k3s-master.target mios-ha-node.target}"
 [ -n "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Headless Role'
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_COMMENT:=# Flatpak needs HOME to bootstrap its per-user state dir.}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_ENVIRONMENT:=HOME=/var/lib/mios/hermes,XDG_RUNTIME_DIR=/run/mios-hermes-browser,HERMES_BROWSER_HEADLESS=1,NO_AT_BRIDGE=1}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-browser start}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_PRIVATETMP:=false}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios-hermes-browser}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0700}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_STATEDIRECTORY:=mios/hermes-browser/profile}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_STATEDIRECTORYMODE:=0700}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_AFTER:=mios-agent-pipe.service}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit to manage the local ChromeDev flatpak instance providing a Chrome DevTools Protocol (CDP) endpoint at 127.0.0.1:9222 for the Hermes-Agent'"'"'s browser_tool.py to perform navigation and interaction.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, mios-ai, hermes-agent.service
+# /usr/lib/systemd/system/mios-hermes-browser.service
+#
+# Headless ChromeDev (com.google.ChromeDev flatpak) with Chrome
+# DevTools Protocol on 127.0.0.1:9222 -- the CDP endpoint that
+# Hermes-Agent'"'"'s browser tool attaches to (see browser.cdp_url in
+# /var/lib/mios/hermes/config.yaml). Operator directive 2026-05-15:
+# "Hermes-Browser isn'"'"'t enabled!! Should be using the locally
+# installed ChromeDev flatpak install".'
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT2='# ChromeDev flatpak must be installed (system or user scope). If
+# missing, the unit no-ops cleanly instead of crash-looping.'
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_CONDITIONPATHEXISTS:=|/var/lib/flatpak/app/com.google.ChromeDev,|%h/.local/share/flatpak/app/com.google.ChromeDev}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent)'
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_DOCUMENTATION:=https://chromedevtools.github.io/devtools-protocol/}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_UNIT_WANTS:=mios-agent-pipe.service}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,XDG_RUNTIME_DIR=/run/mios-hermes-browser-worker,HERMES_BROWSER_HEADLESS=1,HERMES_BROWSER_CDP_PORT=${MIOS_PORT_CHROME_CDP_WORKER:-9223},HERMES_BROWSER_PROFILE_DIR=/var/lib/mios/hermes-browser/profile-w2,HERMES_BROWSER_LOG=/var/lib/mios/hermes-browser/launch-w2.log,NO_AT_BRIDGE=1'
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-browser start}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_PRIVATETMP:=false}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios-hermes-browser-worker}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0700}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_STATEDIRECTORY:=mios/hermes-browser/profile-w2}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_STATEDIRECTORYMODE:=0700}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_AFTER:=hermes-worker.service}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for a SECOND headless ChromeDev flatpak providing a dedicated CDP endpoint at 127.0.0.1:9223 (own profile dir profile-w2) for the Hermes WORKER (:8643), so the worker'"'"'s browser_* tool loop never stomps the primary :9222 browser'"'"'s first-page target / cookies.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, hermes-worker.service, mios-hermes-browser.service, mios-ai, com.google.ChromeDev
+# /usr/lib/systemd/system/mios-hermes-browser-worker.service
+#
+# A SECOND headless ChromeDev (com.google.ChromeDev flatpak) with CDP on
+# 127.0.0.1:9223 -- the dedicated browser for the Hermes WORKER (:8643).
+# Distinct from the primary :9222 browser (mios-hermes-browser.service): the CDP
+# supervisor attaches to the FIRST page target.'
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_CONDITIONPATHEXISTS:=|/var/lib/flatpak/app/com.google.ChromeDev,|%h/.local/share/flatpak/app/com.google.ChromeDev}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker)'
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DOCUMENTATION:=https://chromedevtools.github.io/devtools-protocol/}"
+: "${MIOS_UNITS_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_WANTS:=hermes-worker.service}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Read MIOS_AI_* + model-tier vars from the env bridge so a fresh systemd
+# boot has the resolved config (model pick, endpoints). Optional ('"'"'-'"'"') so
+# the unit still self-heals if the bridge isn'"'"'t generated yet.
+# install-robustness 2026-06-21.'
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-firstboot}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target systemd-tmpfiles-setup.service}"
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-agent-pipe.service multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Initializes the Hermes gateway by generating the api.env file and ensuring the config.yaml matches the current schema, acting as a self-healing pre-boot step to provide required credentials and configuration for hermes-agent.service.
+# AI-related: /etc/mios/hermes/api.env., /usr/libexec/mios/mios-hermes-firstboot, hermes-agent.service, systemd-tmpfiles-setup.service
+# Runs before the DIRECT-install hermes-agent.service so the gateway
+# starts with a valid $HERMES_HOME/config.yaml + api.env already on
+# disk. The pre-2026-05-14 ordering targeted mios-hermes.service /
+# mios-hermes-workspace.service -- both deleted when the Hermes
+# container Quadlets were removed; hermes-agent.service is the runtime
+# now.'
+[ -n "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
+# this unit a true once-ever oneshot -- but the script does TWO jobs:
+# (1) mint api.env (genuinely once), and (2) seed/heal
+# /var/lib/mios/hermes/config.yaml (must re-run when the Hermes config
+# SCHEMA drifts across upgrades, or when the container->direct-install
+# migration left $HERMES_HOME orphan-owned). The script is fully
+# idempotent -- it skips keygen when API_SERVER_KEY exists and only
+# rewrites config.yaml on detected drift -- so letting it run every
+# boot is cheap and self-healing. Operator-confirmed 2026-05-14: the
+# gate left a stale pre-0.13 config.yaml in place that the firstboot
+# rewrite could never reach.'
+[ -n "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Agent first-boot config + key generation'
+: "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_ALIAS:=default.target.mios-hybrid}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
@@ -2382,6 +2978,117 @@ to" / "let me know".
 # crash-looping on 203/"Permission denied".'
 : "${MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY:=/usr/libexec/mios}"
 [ -n "${MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"': watch /usr/libexec/mios for perm changes; retrigger chmod'
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT:=# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT2:=# Security hardening: isolate the MCP server from writing to the core OS}"
+[ -n "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT3='# Hardening parity with sibling mios-* daemons (log-watcher, cron-
+# director, hermes-browser) -- consolidation pass 2026-05-15.'
+[ -n "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT4+x}" ] || MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_COMMENT4='# Drain timeout: MCP serves a long-lived TCP socket but in-flight
+# context requests are sub-second; 30 s is generous.'
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mcp-server-runner}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mcp-init.sh}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_PROTECTHOME:=read-only}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/mcp /var/log/mios/mcp}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_RESTART:=always}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_RESTARTSEC:=5}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_AFTER:=network.target redis.service}"
+[ -n "${MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit file defining the mios-mcp.service daemon, which provides the Model Context Protocol (MCP) server for autonomous agents to access system context via a hardened, high-availability userspace listener.
+# AI-related: /usr/libexec/mios/mcp-init.sh, /usr/libexec/mios/mcp-server-runner, mios-ai, redis.service'
+[ -n "${MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_COMMENT2='# High-availability context provider for autonomous agents. Pure
+# userspace daemon (no kernel/audit/hardware coupling) so it runs on
+# every MiOS shape -- bare-metal, Hyper-V, QEMU, WSL, Podman-WSL.
+# The previous `ConditionVirtualization=!container` would silently skip
+# WSL, since systemd reports WSL as a `container` virt variant.'
+[ -n "${MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Agent Context Service (MCP)'
+: "${MIOS_UNITS_MIOS_MCP_SERVICE_UNIT_WANTS:=redis.service}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_COMMENT:=# Degrade-open: never block boot on a failed pull}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-models-firstboot}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1 2 3}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=10800}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: FBM first-boot large-model provisioner unit (oneshot, sentinel-guarded, degrade-open).
+# Runs mios-models-firstboot once at first boot to fetch [ai].firstboot_models GGUFs; enabled via 90-mios.preset.
+# AI-related: /usr/libexec/mios/mios-models-firstboot, /usr/share/mios/mios.toml'
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.models-firstboot-done}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION:=First-boot Large-model Provisioner}"
+: "${MIOS_UNITS_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/opencode-gateway/work,MIOS_PORT_OPENCODE_GATEWAY=${MIOS_PORT_OPENCODE_GATEWAY:-8780},MIOS_OPENCODE_HOST=127.0.0.1,MIOS_OPENCODE_BIN=/usr/lib/mios/agents/opencode/bin/opencode,MIOS_OPENCODE_MODEL=mios-opencode:latest,MIOS_OPENCODE_PROVIDER=local,MIOS_OPENCODE_CONFIG=/etc/mios/opencode/opencode.json,MIOS_OPENCODE_TIMEOUT_S=90'
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agents/opencode-gateway/server.py}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_LOCKPERSONALITY:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTKERNELMODULES:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios /var/lib/mios}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTRICTSUIDSGID:=true}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_TIMEOUTSTARTSEC:=30s}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_WORKINGDIRECTORY:=/var/lib/mios/opencode-gateway/work}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_AFTER:=network-online.target mios-llm-light.service}"
+[ -n "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via mios-llm-light.
+# AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /usr/lib/mios/agents/.venv, mios-llm-light.service
+# R8: dropped After=mios-ai-firstboot.service -- the coder gateway rides the venv +
+# the light inference lane (mios-llm-light), NOT the boot-time model fetch.'
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT2:=# Skip cleanly if the opencode binary never landed (build-time fetch failure)}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/opencode/bin/opencode}"
+[ -n "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)'
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agents/opencode-gateway/server.py}"
+: "${MIOS_UNITS_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_WANTS:=network-online.target mios-llm-light.service}"
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT='# SSOT env: MIOS_PG_USER / MIOS_PG_DB / MIOS_PORT_PGVECTOR / MIOS_PG_BACKUP_*
+# all flow from mios.toml [pgvector] -> userenv.sh. '"'"'-'"'"' = tolerate absence
+# (degrade-open to the inline defaults below).'
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT2:=# Inline-default the knobs so the unit is correct even with no env file present.}"
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT3='# Runs as root to `podman exec` into the mios-ai.pod pgvector container.
+# ProtectSystem=strict / ReadWritePaths dropped so podman can reach its runtime.'
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT4+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT4='# Logical dump over loopback-trust, gzip'"'"'d + timestamped, then prune to the
+# newest N. Pure POSIX sh so it runs on the minimal base. Every branch exits 0
+# (degrade-open): gate-off, missing client, or a dump error logs and succeeds.'
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENT='MIOS_PG_BACKUP_ENABLE=true,MIOS_PG_BACKUP_DIR=/var/lib/mios/backups,MIOS_PG_BACKUP_KEEP=7,MIOS_PG_USER=mios,MIOS_PG_DB=mios,MIOS_PORT_PGVECTOR=${MIOS_PORT_PGVECTOR:-8600}'
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/userenv.sh}"
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_EXECSTART='/bin/sh -c '"'"'case "$$MIOS_PG_BACKUP_ENABLE" in 0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PG_BACKUP_ENABLE=$$MIOS_PG_BACKUP_ENABLE)"; exit 0 ;; esac; DIR="$$MIOS_PG_BACKUP_DIR"; [ -z "$$DIR" ] && DIR="/var/lib/mios/backups"; KEEP="$$MIOS_PG_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; [ "$$KEEP" -lt 1 ] && KEEP=1; PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; if ! command -v podman >/dev/null 2>&1; then echo "mios-pgvector-backup: podman not found on PATH -- skipping (need podman to exec pg_dump inside the pod)"; exit 0; fi; mkdir -p "$$DIR" 2>/dev/null || true; TS=$$(date -u +%%Y%%m%%dT%%H%%M%%SZ); OUT="$$DIR/mios-pgvector-$$TS.sql.gz"; RAW="$$DIR/.mios-pgvector-$$TS.sql.partial"; ERR="$$DIR/.mios-pgbackup.err"; rc=0; podman exec mios-pgvector pg_dump -h 127.0.0.1 -p "$$PORT" -U "$$USR" --no-password "$$DB" >"$$RAW" 2>"$$ERR" || rc=$$?; if [ "$$rc" -ne 0 ] || [ ! -s "$$RAW" ]; then echo "mios-pgvector-backup: pg_dump failed (rc=$$rc, degrade-open): $$(tail -n1 "$$ERR" 2>/dev/null)"; rm -f "$$RAW" "$$ERR" 2>/dev/null || true; exit 0; fi; if gzip -c "$$RAW" >"$$OUT.partial" && mv -f "$$OUT.partial" "$$OUT"; then chmod 0640 "$$OUT" 2>/dev/null || true; echo "mios-pgvector-backup: wrote $$OUT"; else echo "mios-pgvector-backup: gzip failed (degrade-open)"; rm -f "$$OUT.partial" "$$RAW" "$$ERR" 2>/dev/null || true; exit 0; fi; rm -f "$$RAW" "$$ERR" 2>/dev/null || true; N=$$(ls -1 "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | wc -l); if [ "$$N" -gt "$$KEEP" ]; then ls -1t "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | tail -n +$$((KEEP+1)) | while IFS= read -r f; do rm -f "$$f" && echo "mios-pgvector-backup: pruned $$f"; done; fi; exit 0'"'"''
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT='# AI-hint: Unprivileged daily oneshot that pg_dumps the unified agent-plane Postgres+pgvector database to /var/lib/mios/backups over loopback-trust and prunes to the newest MIOS_PG_BACKUP_KEEP snapshots; degrade-open so a backup failure never blocks the DB.
+# AI-related: mios-pgvector-backup.timer, mios-pgvector.service, /usr/lib/tmpfiles.d/mios-backups.conf, mios-pg-query
+# /usr/lib/systemd/system/mios-pgvector-backup.service
+# WS-0 pgvector durability: periodic logical backup of the unified agent-plane
+# datastore (tiered memory / knowledge / skills / sessions / scratch / sys_env /
+# kanban / ...). Losing pgvector is expensive, so this snapshots it daily.
+#
+# UNPRIVILEGED (Architectural Law 6 spirit): runs as the pgvector sysuser
+# (mios-pgvector, uid 826) -- it owns /var/lib/mios/backups (tmpfiles) and
+# reaches Postgres over the pg_hba loopback-trust line.
+#
+# DEGRADE-OPEN: every failure path (gate off, no pg_dump client, dump error)
+# logs and exits 0. A backup miss must NEVER fault the boot/timer or affect the
+# live DB. backup_enable ships TRUE; flip MIOS_PG_BACKUP_ENABLE=false to disable.'
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT2='# Same virtualization guard as the pgvector container: the DB only runs on
+# bare-metal/WSL (not a nested container), so there'"'"'s nothing to back up there.'
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=|!container,|wsl}"
+[ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' daily pg_dump backup of the unified agent-plane datastore (pgvector)'
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/mios-pgvector-backup.service}"
+: "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_WANTS:=mios-pgvector.service}"
 : "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC:=5m}"
 [ -n "${MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNITS_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT='# Daily, shortly after midnight local time. Persistent=true catches up a missed
@@ -2417,6 +3124,31 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.
 # AI-related: mios-podman-ps, mios-podman-ps.service, timers.target'
 [ -n "${MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' refresh the podman container snapshot for the dashboard'
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_COMMENT:=# Hardening: a stateless loopback decision service needs nothing but Python.}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_ENVIRONMENT:=MIOS_AGENT_PIPE_DIR=/usr/lib/mios/agent-pipe}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_EXECSTART:=/usr/bin/python3 /usr/libexec/mios/mios-policy-arbiter}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_RESTARTSEC:=15s}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_AFTER:=network-online.target mios-agent-pipe.service}"
+[ -n "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for the WS-9 out-of-process HITL policy arbiter -- runs /usr/libexec/mios/mios-policy-arbiter (a stdlib loopback HTTP service) as the mios-ai user, answering the agent-pipe'"'"'s HITL arbiter client with allow/deny verdicts decided by mios_arbiter over the operator policy. Idle/no-op until [ai].hitl_arbiter_url points at it; default policy is allow-all so enabling it changes nothing until a deny-list/block-tier is set.
+# AI-related: /usr/libexec/mios/mios-policy-arbiter, /usr/lib/mios/agent-pipe/mios_arbiter.py, mios-agent-pipe.service
+# /usr/lib/systemd/system/mios-policy-arbiter.service
+# '"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9). A second, operator-ownable
+# opinion ON TOP of the in-process #62 HITL gate + WS-A9 PDP: the agent-pipe POSTs
+# each high-risk (tier >= [ai].hitl_threshold) action here for an allow/deny
+# verdict. Runs as mios-ai (least privilege); binds 127.0.0.1 only.'
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-policy-arbiter}"
+[ -n "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9)'
+: "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC:=2min}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC:=10min}"
@@ -2460,6 +3192,24 @@ to" / "let me know".
 #   OnUnitActiveSec=30min'
 [ -n "${MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' starter-chip refresh cadence'
 : "${MIOS_UNITS_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-suggestion-refresh}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_COMMENT:=# Never wedge boot on a pack problem.}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-swarm-pack-firstboot}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=120}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target mios-cdi-detect.service mios-ai-firstboot.service}"
+[ -n "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes mios-swarm-pack-firstboot to arm concurrent small-model worker units if gpu_profile is "swarm", enforcing VRAM budgets and provisioning GGUFs during the first boot sequence.
+# AI-related: /usr/libexec/mios/mios-swarm-pack-firstboot, mios-cdi-detect.service, mios-ai-firstboot.service, network-online.target
+# SWARM Phase-2 (operator 2026-06-12): arm the concurrent small-model server pack
+# at boot IF [dispatch].gpu_profile == "swarm" (else the script is a no-op). The
+# script self-gates + enforces the VRAM budget, so this unit is safe to enable
+# unconditionally; it only ever starts mios-llm-worker@<name> units when the
+# operator has flipped the profile + provisioned GGUFs.'
+[ -n "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# Don'"'"'t even try before the agent stack'"'"'s prerequisites; the script is idempotent.'
+[ -n "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' swarm small-model pack arming (gpu_profile=swarm only)'
+: "${MIOS_UNITS_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC:=10s}"
 [ -n "${MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT='# Mirrors the daemon'"'"'s directory_entry refresh cadence (~15 min): installed
@@ -2472,6 +3222,46 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.
 # AI-related: mios-sys-env-refresh, timers.target'
 [ -n "${MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' refresh cadence for the sys_env environment cache'
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-userdb-render}"
+[ -n "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTARTPRE+x}" ] || MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTARTPRE='-/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios'
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-userdb-render to project PostgreSQL account records into systemd userdb JSON drop-ins.
+# AI-related: /usr/libexec/mios/mios-userdb-render, mios-pgvector.service'
+[ -n "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' PostgreSQL account systemd userdb drop-in renderer'
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-userdb-render}"
+: "${MIOS_UNITS_MIOS_USERDB_RENDER_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Retry the build if an image is still missing (a transient network/CDN blip
+# during first install must not leave webtools permanently down).'
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-webtools-firstboot.sh}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-webtools-pod.service}"
+[ -n "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_COMMENT='# WS-DEPLOY: allow the build to retry (script exits non-zero on a missing image)
+# without tripping the start-limit too fast under sustained install contention.'
+[ -n "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' web-tools images build-on-demand firstboot service'
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNITS_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/wsl-firstboot}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_BEFORE:=systemd-user-sessions.service multi-user.target}"
+[ -n "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/wsl-firstboot to perform one-time initialization tasks specifically for WSL2 instances if the first-boot flag is not yet set.
+# AI-related: /usr/libexec/mios/wsl-firstboot, systemd-user-sessions.service, local-fs.target, multi-user.target'
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.wsl-firstboot-done}"
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=wsl}"
+[ -n "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' WSL2 First Boot Initialization'
+: "${MIOS_UNITS_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY:=multi-user.target default.target}"
 [ -n "${MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT+x}" ] || MIOS_UNITS_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT='# Trigger whenever flatpak adds/removes an exported .desktop (any
 # system-wide install / uninstall touches this dir mtime).'
@@ -2545,6 +3335,17 @@ to" / "let me know".
 : "${MIOS_UNIT_FORGE_RUNNER:=mios-forgejo-runner.service}"
 : "${MIOS_UNIT_HERMES:=mios-hermes.service}"
 : "${MIOS_UNIT_HERMES_FIRSTBOOT:=mios-hermes-firstboot.service}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/hermes-worker-firstboot}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target systemd-tmpfiles-setup.service}"
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_BEFORE:=hermes-worker.service multi-user.target}"
+[ -n "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Oneshot that seeds the non-thin Hermes WORKER config (/var/lib/mios/hermes-worker/config.yaml) from the vendor template before hermes-worker.service starts. Distinct from mios-hermes-firstboot (which owns and re-thins the primary :8642 config); this one NEVER touches the primary path.
+# AI-related: /usr/libexec/mios/hermes-worker-firstboot, /usr/share/mios/hermes/config-worker.yaml, /var/lib/mios/hermes-worker/config.yaml, hermes-worker.service'
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/hermes-worker-firstboot}"
+[ -n "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Worker first-boot config seed (:8643 non-thin worker)'
+: "${MIOS_UNIT_HERMES_WORKER_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNIT_HERMES_WORKER_PATH_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_HERMES_WORKER_PATH_PATH_PATHEXISTS:=/usr/lib/mios/agents/.venv/bin/hermes}"
 : "${MIOS_UNIT_HERMES_WORKER_PATH_PATH_UNIT:=hermes-worker.service}"
@@ -2562,8 +3363,76 @@ to" / "let me know".
 # worker'"'"'s own Condition still guards against a half-built venv; start is idempotent.'
 [ -n "${MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for the Hermes venv -> (re)start hermes-worker'
 : "${MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/hermes-worker.service}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
+# distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
+# never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_LIMITNOFILE:=1048576}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_NONEWPRIVILEGES:=false}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_PROTECTHOME:=false}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios /var/lib/mios /run/mios-launcher}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_TIMEOUTSTARTSEC:=300s}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=240s}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_AFTER:=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service}"
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for the SECOND (non-thin) Hermes WORKER gateway on :8643 -- a real agent that runs its OWN native browser/CDP/terminal/skills tool loop with its OWN inference on the heavy lane (:11441 mios-heavy). Coexists with the thin :8642 Discord gateway (hermes-agent.service) via a SEPARATE HERMES_HOME and no Discord token.
+# AI-related: /usr/lib/mios/agents/.venv/bin/hermes, /var/lib/mios/hermes-worker, /var/lib/mios/hermes-worker/config.yaml, /etc/mios/hermes/api.env, hermes-agent.service, mios-hermes-browser-worker.service, mios-llm-heavy.service, mios-llm-light.service
+# /usr/lib/systemd/system/hermes-worker.service
+#
+# The MiOS Hermes WORKER (P1, operator 2026-06-19). A SECOND `hermes gateway
+# run` instance, fully ISOLATED from the live :8642 Discord gateway:
+#   * SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker => its own gateway.pid /
+#     gateway.lock / gateway_state.json / state.db / kanban.db / config.yaml.
+#     No shared-DB WAL contention with the :8642 instance.
+#   * API_SERVER_PORT=8643 (the LOAD-BEARING bind var -- `PORT` is inert; Hermes
+#     reads API_SERVER_PORT and otherwise binds DEFAULT_PORT=8642).
+#   * NO discord.env / NO DISCORD_BOT_TOKEN => the Discord adapter never calls
+#     _acquire_platform_lock('"'"'discord-bot-token'"'"', ...), so the host-global
+#     gateway-locks/discord-bot-token-*.lock held by the :8642 gateway is never
+#     contended (no SIGTERM flap). Discord stays the EXCLUSIVE job of :8642.
+#   * NO --replace: the worker'"'"'s HERMES_HOME-scoped pidfile is its own; the
+#     :8642 gateway'"'"'s eviction scan is profile/HERMES_HOME-scoped (only --all
+#     crosses profiles, which is not used) so neither instance touches the other.
+#
+# This worker is the WORKER-DISPATCH target of [agents.hermes].endpoint in
+# mios.toml (repointed :11441 -> :8643 in P1). It does its OWN heavy-lane
+# inference (:11441 mios-heavy) so it never relays to :8640 -- no recursion.'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT2='# R8: dropped After=mios-ai-firstboot.service -- the worker rides the venv + its own
+# provisioner (hermes-worker-firstboot) + the inference lanes, NOT the boot-time
+# GGUF/vLLM fetch owned by mios-ai-firstboot.'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_COMMENT3='# Skip cleanly if the direct install didn'"'"'t land.'
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/.venv/bin/hermes}"
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Worker (non-thin agent, native tool loop, :8643)'
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_DOCUMENTATION:=https://github.com/NousResearch/hermes-agent}"
+: "${MIOS_UNIT_HERMES_WORKER_SERVICE_UNIT_WANTS:=network-online.target mios-llm-heavy.service mios-llm-light.service hermes-worker-firstboot.service}"
 : "${MIOS_UNIT_K3S:=mios-k3s.service}"
 : "${MIOS_UNIT_LLM_LIGHT:=mios-llm-light.service}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_COMMENT:=# Ensure postgres container is ready before launching the daemon}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-account-sync --daemon}"
+[ -n "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTARTPRE+x}" ] || MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_EXECSTARTPRE='/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios'
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_RESTART:=always}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-account-sync in daemon mode to keep local Linux accounts synchronized with PostgreSQL accounts and aliases.
+# AI-related: /usr/libexec/mios/mios-account-sync, mios-pgvector.service'
+[ -n "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' live PostgreSQL-to-OS user account sync daemon'
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-account-sync}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_STARTLIMITBURST:=5}"
+: "${MIOS_UNIT_MIOS_ACCOUNT_SYNC_SERVICE_UNIT_STARTLIMITINTERVALSEC:=300}"
 : "${MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_PATHCHANGED:=/usr/lib/containers/storage/overlay-images,/usr/lib/containers/storage/overlay-containers,/usr/lib/containers/storage/overlay-layers,/usr/lib/containers/storage/libpod}"
 : "${MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_PATH_UNIT:=mios-additionalimagestores-perms.service}"
@@ -2581,6 +3450,85 @@ to" / "let me know".
 # back within seconds.'
 : "${MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY:=/usr/lib/containers/storage}"
 [ -n "${MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_ADDITIONALIMAGESTORES_PERMS_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"': watch additionalimagestores for perm changes; retrigger chmod'
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-adguard-firstboot}"
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target tailscaled.service}"
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-adguard.service}"
+[ -n "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-adguard-firstboot to generate the AdGuardHome.yaml config from mios.toml, injecting Tailscale IPs before the AdGuard container starts.
+# AI-related: /usr/libexec/mios/mios-adguard-firstboot, /etc/mios/adguard/AdGuardHome.yaml, tailscaled.service, mios-adguard.service, network-online.target
+# /usr/lib/systemd/system/mios-adguard-firstboot.service
+# Generates /etc/mios/adguard/AdGuardHome.yaml from mios.toml [adguard]/[ports]
+# + the live Tailscale IP/MagicDNS suffix, BEFORE the AdGuard container starts.
+# Idempotent + non-destructive (skips if the config already exists), so it is
+# safe to leave enabled across boots. mios-adguard.container Requires= + After=
+# this unit, so it is pulled in automatically; it is also enabled directly for
+# fresh installs.'
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-adguard-firstboot}"
+[ -n "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AdGuard Home first-boot config generator'
+: "${MIOS_UNIT_MIOS_ADGUARD_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_INSTALL_WANTEDBY:=multi-user.target default.target}"
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_COMMENT='# systemd does NOT expand bash ${VAR:-default} in ExecStart -- it resolves to
+# empty (code-server then dies "Invalid URL"). Set the defaults here; install.env
+# (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses
+# plain ${VAR}.'
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_COMMENT2:=# Build the local super-container image on first deploy (idempotent no-op after).}"
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900},MIOS_DEFAULT_PASSWORD=mios'
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mios-agents-firstboot.sh}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTOP:=/usr/sbin/podman stop -t 10 mios-agents}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_TIMEOUTSTARTSEC:=1200s}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_AFTER:=network-online.target podman.socket}"
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_COMMENT='# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. ExecStartPre builds the local image if absent; ExecStart runs it every boot on the code-server port MIOS_PORT_CODE_SERVER (mios-agents REPLACES the retired mios-code-server -- one IDE, no duplicate service).
+# AI-related: /usr/share/mios/agents/Containerfile, /usr/share/mios/agents/mios-a2o, /usr/libexec/mios/mios-agents-firstboot.sh, /etc/mios/install.env, /var/lib/mios/agents
+# /usr/lib/systemd/system/mios-agents.service'
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/share/mios/agents/Containerfile}"
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server)'
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/MiOS/blob/main/usr/share/mios/agents/ACTIVATION.md}"
+: "${MIOS_UNIT_MIOS_AGENTS_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_AGENT_PIPE=${MIOS_PORT_AGENT_PIPE:-8700},MIOS_AGENT_PIPE_BACKEND_LIGHT=1,MIOS_AI_MODEL=granite4.1:8b,MIOS_NO_TOOL_CHOICE_HINTS=11436,MIOS_KV_PAGING_HINTS=11436,11450,MIOS_LLM_API_HINTS=,MIOS_REFINE_TIMEOUT_S=45,MIOS_POLISH_TIMEOUT_S=45,MIOS_REFINE_MAX_TOKENS=1200,MIOS_AGENT_MEMORY_RECALL=1,MIOS_PASSPORT_AGENT_NAME=agent-pipe'
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/agent-pipe.env,-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agent-pipe/server.py}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_NONEWPRIVILEGES:=yes}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_PROTECTHOME:=yes}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_READONLYPATHS:=/var/lib/mios/agent-passports}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/agent-pipe /var/lib/mios/skills /var/log /var/lib/mios/agent-env /var/lib/mios/ai}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_SUPPLEMENTARYGROUPS:=mios-hermes}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_TIMEOUTSTARTSEC:=60s}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_SERVICE_WORKINGDIRECTORY:=/var/lib/mios/agent-pipe}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_AFTER:=network-online.target mios-pgvector.service mios-passport-provision.service}"
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit defining the agent-pipe FastAPI service which acts as a router, refiner, and critic for the Hermes gateway, routing inference requests to the llama.cpp light lane (mios-llm-light); the lane port is the single SSOT key [ports].llm_light (MIOS_PORT_LLM_LIGHT), composed in server.py via _LIGHT_BASE.
+# AI-related: /usr/lib/mios/agent-pipe/server.py, /etc/mios/install.env, /etc/mios/agent-pipe.env, mios-pgvector, mios-passport-provision, mios-ai, mios-hermes'
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT2='# R8: NOT ordered After=mios-ai-firstboot.service. The plane needs the VENV (baked
+# into the image) + pgvector, NOT the boot-time model fetch; ordering behind
+# firstboot'"'"'s multi-GB download blocked the router for the whole download. firstboot
+# `systemctl restart --no-block`s this unit once models land, so the edge is redundant.'
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT3='# R6: the pipe touches pgvector on every route, so upgrade the DB edge from After=
+# (ordering only) to a hard Requires= -- a missing DB should hold/fail the unit.'
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT4+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT4='# R6: bound the existing Restart=on-failure so a DB-down window (many quick
+# restarts) can'"'"'t trip the default 5/10s start limit and land permanently failed.'
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT5+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_COMMENT5='# The venv python is baked into the FINAL image, but on the podman-MiOS-DEV substrate it is
+# built at first boot by mios-ai-firstboot. Skip (rather than 203/EXEC-fail) until it exists.'
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/.venv/bin/python3}"
+[ -n "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Agent Pipe (router + refine + critic FastAPI; fronts hermes for every gateway)'
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/server.py}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_STARTLIMITBURST:=5}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_STARTLIMITINTERVALSEC:=300}"
+: "${MIOS_UNIT_MIOS_AGENT_PIPE_SERVICE_UNIT_WANTS:=network-online.target mios-passport-provision.service}"
 : "${MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_INSTALL_WANTEDBY:=timers.target}"
 [ -n "${MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_TIMER_COMMENT='# 2 min after boot (agent-pipe up by then), then every 15 min so the role
 # SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet.'
@@ -2590,6 +3538,37 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers mios-aios-refresh.service every 15 minutes to synchronize the Single Source of Truth (SSOT) and update the A2A fleet discovery peer list.
 # AI-related: mios-aios-refresh, mios-aios-refresh.service, timers.target'
 : "${MIOS_UNIT_MIOS_AIOS_REFRESH_TIMER_UNIT_DESCRIPTION:=Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discovery)}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Cap a hung fetch (multi-GB model download) at 10min so it can'"'"'t wedge the unit
+# forever; the timer re-fires the run afterwards. (Was 2400s.)'
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT2+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_COMMENT2='# The script reads MIOS_LLAMACPP_BAKE_MODELS (the GGUF download spec) +
+# MIOS_AI_* from the env bridge. Without this, a fresh systemd boot has an
+# EMPTY environment -> bake_models reads empty -> "GGUFs not baked" -> the
+# llm-light lane stays inert forever. The leading '"'"'-'"'"' makes it optional so
+# the unit still starts (and retries) if the bridge isn'"'"'t generated yet.
+# install-robustness 2026-06-21.'
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-ai-firstboot}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=1800}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
+# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
+# Completes the build-time AI setup on deployments that didn'"'"'t bake it (the
+# overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh'"'"'s header
+# explicitly anticipates this: "a firstboot retry can complete it later".
+# Needs network (pip + model pull); GGUF blobs come from Hugging Face.'
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# The script writes the sentinel ONLY when both the venv and the GGUFs are
+# present, so a network-less first boot simply retries on the next one.'
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT3+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT3='# Retry is owned by mios-ai-firstboot.timer (OnBootSec + OnUnitInactiveSec), NOT
+# an in-unit Restart=on-failure / StartLimitBurst storm. The script degrades open
+# (exit 0) on a partial provision, so the unit shows success and the timer simply
+# re-fires it on its cadence until the sentinel above is written.'
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.ai-firstboot-done}"
+[ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AI first-boot provisioning (agent venv + llama.cpp GGUFs)'
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/mios}"
+: "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_INSTALL_WANTEDBY:=timers.target}"
 [ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_TIMER_TIMER_COMMENT='# First retry shortly after boot, then every 10min while the service sits
 # inactive and the sentinel is still absent. Persistent catches up a missed
@@ -2632,6 +3611,19 @@ to" / "let me know".
 # idempotent on identical refs -- this is fine).'
 [ -n "${MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for Forgejo Runner build output -> bootc switch'
 : "${MIOS_UNIT_MIOS_BOOTC_SWITCH_PATH_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/bootc-switch-from-build.sh}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-bound-images-firstboot}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1 2 3}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=10800}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open).
+# Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset.
+# AI-related: /usr/libexec/mios/mios-bound-images-firstboot, /usr/share/mios/mios.toml'
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.bound-images-firstboot-done}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION:=First-boot Bound Images Provisioner}"
+: "${MIOS_UNIT_MIOS_BOUND_IMAGES_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/ceph-bootstrap.sh}"
 : "${MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_SERVICE_EXECSTARTPOST:=/usr/bin/touch /var/lib/ceph/.bootstrapped,-/bin/chmod 0600 /etc/ceph/ceph.client.admin.keyring}"
@@ -2672,6 +3664,59 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
 [ -n "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Controller Role'
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT='# Operator-tunable knobs (override via drop-in or /etc/mios/secrets.env):
+#   Environment=MIOS_DAEMON_MODEL=qwen3:1.7b
+#   Environment=MIOS_DAEMON_ENDPOINT=http://127.0.0.1:11434
+#   Environment=MIOS_DAEMON_STATE_DIR=/var/lib/mios/daemon
+#   Environment=MIOS_DAEMON_CRON_TOML=/etc/mios/daemon/cron.toml
+#   Environment=MIOS_DAEMON_CLASSIFY_S=30
+#   Environment=MIOS_DAEMON_CRON_TICK_S=60
+#   Environment=MIOS_DAEMON_WATCH_UNITS=mios-agent-pipe.service,mios-open-webui.service'
+[ -n "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT2+x}" ] || MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT2='# Hardening (kept loose enough to allow journalctl subscription +
+# subprocess.Popen for cron actions).'
+[ -n "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_COMMENT3='# /var/lib/mios/daemon = the daemon'"'"'s own state (state.json, launch_failures).
+# /var/lib/mios/scratch = the SHARED cross-agent blackboard the task_collector
+# drops agent-nudges into for other agents to read (operator 2026-05-24: under
+# ProtectSystem=strict it was read-only, so task_collector EROFS-failed writing
+# agent-nudges.md -- the nudge feature was silently dead).'
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_ENVIRONMENT:=PYTHONUNBUFFERED=1}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-daemon}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_LOCKPERSONALITY:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/daemon /var/lib/mios/scratch}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_RESTRICTADDRESSFAMILIES:=AF_INET AF_INET6 AF_UNIX}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_RESTRICTREALTIME:=true}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_AFTER:=mios-llm-light.service network.target}"
+[ -n "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit file defining the core MiOS daemon; it consolidates log watching, cron gating, and agent nudging into a single process using a local qwen3 model to update the state.json file used by the OWUI sidecar.
+# AI-related: /usr/libexec/mios/mios-daemon, /etc/mios/secrets.env, /etc/mios/daemon/cron.toml, mios-ai, mios-open-webui
+# /usr/lib/systemd/system/mios-daemon.service
+#
+# MiOS consolidated micro-LLM daemon. Replaces three predecessors
+# (mios-log-watcher + mios-cron-director + mios-agent-nudger) with
+# ONE process that subscribes to journald once, holds a single
+# qwen3:0.6b-cpu client (keep_alive=-1 forever, num_gpu=0 CPU-only
+# per Law 7 OFFLINE-FIRST + "always-on agentic OS"), and dispatches
+# the three handlers off a single event stream. Writes a unified
+# /var/lib/mios/daemon/state.json the OWUI mios_sidecar Filter polls.
+#
+# Operator directive 2026-05-17: "ALL to be consolidated to one
+# mios daemon/agent" + "keep_alive should be TRUE for a TRULY
+# Agentic OS--MiOS!"'
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-daemon}"
+[ -n "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' consolidated micro-LLM daemon (log classify + refusal detect + cron gate)'
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-daemon}"
+: "${MIOS_UNIT_MIOS_DAEMON_SERVICE_UNIT_WANTS:=mios-llm-light.service}"
 : "${MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ACCURACYSEC:=30s}"
 : "${MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_TIMER_ONBOOTSEC:=2min}"
@@ -2695,6 +3740,27 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-headless.target mios-k3s-master.target mios-ha-node.target}"
 [ -n "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Desktop Role'
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_REQUIRES:=multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_COMMENT:=# Low-privilege execution}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_ENVIRONMENT:=PYTHONPATH=/usr/lib/mios/agent-pipe}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/userenv.sh,-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u -m mios_pipe.memory.embed_backfill}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_AFTER:=mios-pgvector.service mios-llm-light.service mios-agent-pipe.service}"
+[ -n "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that runs the mios_pipe.memory.embed_backfill worker to periodically re-embed database rows with stale or missing vector versions.
+# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py, mios-embed-backfill.timer, mios-pgvector.service, mios-llm-light.service
+# /usr/lib/systemd/system/mios-embed-backfill.service'
+[ -n "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_COMMENT2='# R8: dropped After=mios-ai-firstboot.service -- the backfill worker needs pgvector
+# + the embedding lane (mios-llm-light), NOT the boot-time model fetch.'
+[ -n "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Embedding Backfill Worker'
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
+: "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ACCURACYSEC:=1min}"
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_TIMER_ONBOOTSEC:=5min}"
@@ -2714,6 +3780,25 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
 [ -n "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Endpoint Role'
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_COMMENT:=# model load + first request can take ~40s on a cold GPU}"
+[ -n "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_ENVIRONMENT='HF_HOME=/var/home/mios/.cache/huggingface,MIOS_FINETUNE_SERVE_PORT=${MIOS_PORT_FINETUNE_SERVE:-11438}'
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_EXECSTART:=/var/lib/mios/finetune/venv/bin/python /usr/libexec/mios/mios-finetune-serve}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_GROUP:=mios}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_RESTARTSEC:=5}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_TIMEOUTSTARTSEC:=180}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_SERVICE_USER:=mios}"
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI /v1-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster llama.cpp path.
+# AI-related: /usr/libexec/mios/mios-finetune-serve, network-online.target
+# '"'"'MiOS'"'"' fine-tune serve -- serves the trained role adapter (base + LoRA) as an
+# OpenAI /v1 endpoint so the fine-tuned refiner can be adopted/A-B'"'"'d
+# in the agent-pipe. OPT-IN: NOT enabled by default (the transformers-served 2B is
+# correct but slower than the GGUF lane on the hot path; enable to evaluate).'
+[ -n "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' fine-tune serve (base+adapter refiner backend)'
+: "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
 [ -n "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_COMMENT='# Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
 #        8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
@@ -2784,6 +3869,214 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' first-boot provisioning'
 : "${MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNIT_MIOS_FIRSTBOOT_TARGET_UNIT_WANTS:=mios-cdi-detect.service mios-libvirtd-setup.service mios-grd-setup.service}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-forgejo-runner-firstboot.sh}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=180s}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_AFTER:=mios-forge.service mios-forge-firstboot.service}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-forgejo-runner.service}"
+[ -n "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: One-shot systemd service that executes the initial registration of the Forgejo runner using the local token if the runner is not yet configured, ensuring the runner is registered before the main service starts.
+# AI-related: /etc/mios/forge/runner-token, /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, mios-forge.service, mios-forge-firstboot.service, mios-forgejo-runner.service'
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=/etc/mios/forge/runner-token,!/srv/mios/forge-runner/.runner}"
+[ -n "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Forgejo Runner first-boot registration'
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://forgejo.org/docs/latest/admin/actions/}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNIT_MIOS_FORGEJO_RUNNER_FIRSTBOOT_SERVICE_UNIT_WANTS:=mios-forge.service}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Hardening: this service writes to a small set of paths plus calls
+# '"'"'podman exec'"'"' against the running mios-forge container. RestrictNamespaces
+# and RestrictAddressFamilies were tried but break Podman'"'"'s CRIU/conmon
+# attach path on rootful container exec; we drop them and lean on the
+# read-write path scoping + ProtectHome instead, which is sufficient for
+# this script'"'"'s actual surface area.
+#
+# /run is LOAD-BEARING and must be writable as a whole: rootful
+# `podman exec` -- even a plain exec, no container lifecycle -- grabs
+# coordination locks across multiple /run subtrees: /run/libpod/
+# alive.lck (runtime init lock), /run/lock/netavark.lock (network
+# coordination), /run/containers/ (storage runroot). Listing them
+# individually is whack-a-mole; each missing one surfaces only at
+# runtime as "open <path>: read-only file system" (exit 125). /run is
+# tmpfs runtime state, so granting it RW is low-risk and is exactly
+# podman'"'"'s requirement. That exit-125 failure is silent-deadly here:
+# forge-firstboot.sh'"'"'s `admin user create` idempotency guard mis-reads
+# 125 as "user already exists", so the admin is never created, the
+# repo-create 401s, the runner-token mint fails, and the entire
+# self-replication CI chain (runner-firstboot -> .runner ->
+# mios-forgejo-runner.service) stays dead behind unmet
+# ConditionPathExists guards. Operator-confirmed regression 2026-05-14.'
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/forge-firstboot.sh}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_LOCKPERSONALITY:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_NONEWPRIVILEGES:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PRIVATETMP:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PROTECTHOME:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios/forge /var/lib/mios/forge /var/log/mios/forge /var/lib/containers /run}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_RESTRICTREALTIME:=yes}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=600s}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_AFTER:=mios-forge.service network-online.target}"
+[ -n "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Executes the forge-firstboot.sh script to bootstrap the Forgejo instance, creating the initial admin user and repository credentials required for the MiOS self-replication and CI runner integration.
+# AI-related: /etc/mios/install.env, /usr/libexec/mios/forge-firstboot.sh, mios-forge.service, mios-forgejo-runner.service
+# /etc/mios/install.env is the optional layered-TOML resolver output
+# from mios-sync-env. The firstboot script tolerates its absence:
+# admin user, email, password all resolve from MIOS_DEFAULT_* or
+# fall back to "mios" / mios@hostname.local. Keep the unit gated only
+# by the firstboot sentinel.'
+[ -n "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# Forgejo bootstrap MUST run on WSL too (the localhost:3000 git origin
+# is the heart of the MiOS self-replication loop on every shape). A
+# plain `!container` would skip WSL because systemd reports virtualization
+# as `wsl` -- a container variant. Use OR: "not a container OR is WSL".'
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/forge/.firstboot-done}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=|!container,|wsl}"
+[ -n "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Forge first-boot admin-bootstrap (Forgejo)'
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/mios-dev/MiOS/blob/main/etc/containers/systemd/mios-forge.container}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNIT_MIOS_FORGE_FIRSTBOOT_SERVICE_UNIT_WANTS:=mios-forge.service network-online.target}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  # If amd-ctk ever lands in Fedora RPM repos, drop a CDI spec automatically. \
+  # Until then containers must pass --device /dev/kfd --device /dev/dri \
+  # --group-add keep-groups explicitly. \
+  if command -v amd-ctk >/dev/null 2>&1; then \
+    amd-ctk cdi generate --output=/run/cdi/amd.json || true; \
+  fi; \
+  # Defensive perms -- Fedora Rawhide already labels /dev/kfd as root:render \
+  # 0660 via kernel, but pin it in case of drift. \
+  chgrp render /dev/kfd 2>/dev/null || true; \
+  chmod 0660   /dev/kfd 2>/dev/null || true; \
+  exit 0\'"'"''
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_EXECSTARTPRE:=/usr/sbin/modprobe -a amdgpu}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service}"
+[ -n "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_COMMENT='# AI-hint: Configures AMD GPU hardware acceleration by loading the amdgpu module, generating CDI specifications for containerized ROCm/KFD access, and enforcing 0660 permissions on /dev/kfd for the render group.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target'
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/kfd}"
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+[ -n "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' AMD GPU container plumbing (ROCm/KFD + DRI)'
+: "${MIOS_UNIT_MIOS_GPU_AMD_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_INSTALL_WANTEDBY:=sysinit.target}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/gpu-detect}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_AFTER:=systemd-journald.socket}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_BEFORE:=gdm.service display-manager.service systemd-modules-load.service systemd-udevd.service}"
+[ -n "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-detect to identify hardware GPU capabilities during boot, setting environment flags for display managers and graphics drivers.
+# AI-related: /usr/libexec/mios/gpu-detect, mios-gpu-detected, gdm.service, display-manager.service, systemd-modules-load.service, systemd-udevd.service, systemd-journald.socket, sysinit.target'
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/run/mios-gpu-detected}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+: "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_DEFAULTDEPENDENCIES:=no}"
+[ -n "${MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_DETECT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' GPU Environment Detection'
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  # Defensive perms on primary render node -- do not touch card* nodes (video group \
+  # handled by 99-mios-gpu.rules at udev-add time). \
+  if [ -e /dev/dri/renderD128 ]; then \
+    chgrp render /dev/dri/renderD128 2>/dev/null || true; \
+    chmod 0660   /dev/dri/renderD128 2>/dev/null || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_EXECSTARTPRE:=-/usr/sbin/modprobe -a i915 xe amdgpu}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service}"
+[ -n "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that initializes iGPU drivers (i915/xe/amdgpu) and configures permissions for /dev/dri/renderD128 to enable hardware acceleration and unified render node access for Intel/AMD hardware.
+# AI-related: mios-gpu, systemd-modules-load.service, systemd-udev-trigger.service, multi-user.target'
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/dri/renderD128}"
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+[ -n "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Intel/AMD iGPU Container Plumbing (i915/xe/amdgpu)'
+: "${MIOS_UNIT_MIOS_GPU_INTEL_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_AFTER:=sysinit.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_COMMENT='# AI-hint: Overrides the mios-gpu-nvidia.service unit to ensure it runs during the early sysinit.target phase, bypassing standard dependency delays to ensure GPU drivers are initialized early in the boot sequence.
+# AI-related: mios-gpu-nvidia, mios-gpu-nvidia.service, sysinit.target'
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_DEFAULTDEPENDENCIES:=no}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_D_10_CYCLE_FIX_CONF_UNIT_REQUIRES:=sysinit.target}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  if systemctl list-unit-files nvidia-cdi-refresh.service 2>/dev/null \
+       | grep -q nvidia-cdi-refresh; then \
+    echo "nvidia-cdi-refresh.service present; deferring CDI generation to upstream"; \
+    exit 0; \
+  fi; \
+  if command -v nvidia-ctk >/dev/null 2>&1; then \
+    nvidia-ctk cdi generate --output=/run/cdi/nvidia.yaml || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_EXECSTARTPRE:=/usr/sbin/modprobe -a nvidia nvidia_uvm nvidia_modeset nvidia_drm}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_AFTER:=systemd-modules-load.service systemd-udev-trigger.service akmods.service}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_BEFORE:=nvidia-cdi-refresh.service}"
+[ -n "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that ensures NVIDIA GPU modules are loaded and CDI configurations are generated for container passthrough, acting as a fallback or prerequisite for nvidia-cdi-refresh.service.
+# AI-related: mios-gpu, nvidia-cdi-refresh.service, systemd-modules-load.service, systemd-udev-trigger.service, akmods.service, multi-user.target'
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_CONDITIONPATHEXISTS:=/dev/nvidia0}"
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container,!wsl}"
+[ -n "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' NVIDIA GPU container plumbing'
+: "${MIOS_UNIT_MIOS_GPU_NVIDIA_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/gpu-pv-detect}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_AFTER:=systemd-modules-load.service}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_BEFORE:=display-manager.service}"
+[ -n "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/gpu-pv-detect to detect Hyper-V GPU Partitioning (GPU-PV) capabilities during boot, enabling hardware acceleration for guests on Microsoft Hyper-V hosts.
+# AI-related: /usr/libexec/mios/gpu-pv-detect, systemd-modules-load.service, display-manager.service, multi-user.target'
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=microsoft}"
+: "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DEFAULTDEPENDENCIES:=no}"
+[ -n "${MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_PV_DETECT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hyper-V GPU-PV Guest Detection'
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_EXECSTART='/usr/bin/bash -c '"'"' \
+  set +e; \
+  HAS_NV=0; HAS_AMD=0; HAS_INTEL=0; \
+  [ -e /dev/nvidia0 ]            && HAS_NV=1; \
+  [ -e /dev/kfd ]                && HAS_AMD=1; \
+  [ -e /dev/dri/renderD128 ]     && HAS_INTEL=1; \
+  VIRT=$(systemd-detect-virt || echo none); \
+  # /run/mios, /run/cdi, /var/lib/mios/gpu declared in usr/lib/tmpfiles.d/mios-gpu.conf (LAW 2). \
+  { \
+    echo "timestamp=$(date -Is)"; \
+    echo "virtualization=${VIRT}"; \
+    echo "nvidia=${HAS_NV}"; \
+    echo "amd=${HAS_AMD}"; \
+    echo "intel=${HAS_INTEL}"; \
+    lspci -nn 2>/dev/null | grep -iE "vga|3d|display" || true; \
+  } > /run/mios/gpu-passthrough.status; \
+  # Non-persistent (in-memory) SELinux boolean -- build-time semanage handles \
+  # persistence; this guarantees the boolean is on even if the policy merge \
+  # dropped it. No-op on permissive / disabled / missing boolean. \
+  if command -v setsebool >/dev/null 2>&1; then \
+    setsebool container_use_devices on 2>/dev/null || true; \
+  fi; \
+  exit 0\'"'"''
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0755}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_STANDARDERROR:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_STANDARDOUTPUT:=journal}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_AFTER:=systemd-udev-trigger.service systemd-modules-load.service local-fs.target}"
+[ -n "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that detects GPU hardware (NVIDIA, AMD, Intel) and virtualization status, exporting the results to /run/mios/gpu-passthrough.status and enabling the container_use_devices SELinux boolean.
+# AI-related: mios-gpu, systemd-udev-trigger.service, systemd-modules-load.service, podman.socket, docker.socket, local-fs.target, basic.target, sockets.target, multi-user.target'
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=!container}"
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DEFAULTDEPENDENCIES:=yes}"
+[ -n "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' GPU passthrough detection and status'
+: "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
@@ -2800,6 +4093,99 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-k3s-master.target mios-ha-node.target}"
 [ -n "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Headless Role'
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_REQUIRES:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_COMMENT:=# Flatpak needs HOME to bootstrap its per-user state dir.}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_ENVIRONMENT:=HOME=/var/lib/mios/hermes,XDG_RUNTIME_DIR=/run/mios-hermes-browser,HERMES_BROWSER_HEADLESS=1,NO_AT_BRIDGE=1}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-browser start}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_PRIVATETMP:=false}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios-hermes-browser}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0700}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_STATEDIRECTORY:=mios/hermes-browser/profile}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_STATEDIRECTORYMODE:=0700}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_AFTER:=mios-agent-pipe.service}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit to manage the local ChromeDev flatpak instance providing a Chrome DevTools Protocol (CDP) endpoint at 127.0.0.1:9222 for the Hermes-Agent'"'"'s browser_tool.py to perform navigation and interaction.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, mios-ai, hermes-agent.service
+# /usr/lib/systemd/system/mios-hermes-browser.service
+#
+# Headless ChromeDev (com.google.ChromeDev flatpak) with Chrome
+# DevTools Protocol on 127.0.0.1:9222 -- the CDP endpoint that
+# Hermes-Agent'"'"'s browser tool attaches to (see browser.cdp_url in
+# /var/lib/mios/hermes/config.yaml). Operator directive 2026-05-15:
+# "Hermes-Browser isn'"'"'t enabled!! Should be using the locally
+# installed ChromeDev flatpak install".'
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_COMMENT2='# ChromeDev flatpak must be installed (system or user scope). If
+# missing, the unit no-ops cleanly instead of crash-looping.'
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_CONDITIONPATHEXISTS:=|/var/lib/flatpak/app/com.google.ChromeDev,|%h/.local/share/flatpak/app/com.google.ChromeDev}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Browser (ChromeDev w/ CDP for Hermes-Agent)'
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_DOCUMENTATION:=https://chromedevtools.github.io/devtools-protocol/}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_UNIT_WANTS:=mios-agent-pipe.service}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,XDG_RUNTIME_DIR=/run/mios-hermes-browser-worker,HERMES_BROWSER_HEADLESS=1,HERMES_BROWSER_CDP_PORT=${MIOS_PORT_CHROME_CDP_WORKER:-9223},HERMES_BROWSER_PROFILE_DIR=/var/lib/mios/hermes-browser/profile-w2,HERMES_BROWSER_LOG=/var/lib/mios/hermes-browser/launch-w2.log,NO_AT_BRIDGE=1'
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-browser start}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_PRIVATETMP:=false}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RESTARTSEC:=5s}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RUNTIMEDIRECTORY:=mios-hermes-browser-worker}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_RUNTIMEDIRECTORYMODE:=0700}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_STATEDIRECTORY:=mios/hermes-browser/profile-w2}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_STATEDIRECTORYMODE:=0700}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_AFTER:=hermes-worker.service}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for a SECOND headless ChromeDev flatpak providing a dedicated CDP endpoint at 127.0.0.1:9223 (own profile dir profile-w2) for the Hermes WORKER (:8643), so the worker'"'"'s browser_* tool loop never stomps the primary :9222 browser'"'"'s first-page target / cookies.
+# AI-related: /usr/libexec/mios/mios-hermes-browser, hermes-worker.service, mios-hermes-browser.service, mios-ai, com.google.ChromeDev
+# /usr/lib/systemd/system/mios-hermes-browser-worker.service
+#
+# A SECOND headless ChromeDev (com.google.ChromeDev flatpak) with CDP on
+# 127.0.0.1:9223 -- the dedicated browser for the Hermes WORKER (:8643).
+# Distinct from the primary :9222 browser (mios-hermes-browser.service): the CDP
+# supervisor attaches to the FIRST page target.'
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_CONDITIONPATHEXISTS:=|/var/lib/flatpak/app/com.google.ChromeDev,|%h/.local/share/flatpak/app/com.google.ChromeDev}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Browser-Worker (ChromeDev CDP :9223 for the worker)'
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_DOCUMENTATION:=https://chromedevtools.github.io/devtools-protocol/}"
+: "${MIOS_UNIT_MIOS_HERMES_BROWSER_WORKER_SERVICE_UNIT_WANTS:=hermes-worker.service}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Read MIOS_AI_* + model-tier vars from the env bridge so a fresh systemd
+# boot has the resolved config (model pick, endpoints). Optional ('"'"'-'"'"') so
+# the unit still self-heals if the bridge isn'"'"'t generated yet.
+# install-robustness 2026-06-21.'
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-hermes-firstboot}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target systemd-tmpfiles-setup.service}"
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-agent-pipe.service multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Initializes the Hermes gateway by generating the api.env file and ensuring the config.yaml matches the current schema, acting as a self-healing pre-boot step to provide required credentials and configuration for hermes-agent.service.
+# AI-related: /etc/mios/hermes/api.env., /usr/libexec/mios/mios-hermes-firstboot, hermes-agent.service, systemd-tmpfiles-setup.service
+# Runs before the DIRECT-install hermes-agent.service so the gateway
+# starts with a valid $HERMES_HOME/config.yaml + api.env already on
+# disk. The pre-2026-05-14 ordering targeted mios-hermes.service /
+# mios-hermes-workspace.service -- both deleted when the Hermes
+# container Quadlets were removed; hermes-agent.service is the runtime
+# now.'
+[ -n "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# NO ConditionPathExists=!/etc/mios/hermes/api.env. The old gate made
+# this unit a true once-ever oneshot -- but the script does TWO jobs:
+# (1) mint api.env (genuinely once), and (2) seed/heal
+# /var/lib/mios/hermes/config.yaml (must re-run when the Hermes config
+# SCHEMA drifts across upgrades, or when the container->direct-install
+# migration left $HERMES_HOME orphan-owned). The script is fully
+# idempotent -- it skips keygen when API_SERVER_KEY exists and only
+# rewrites config.yaml on detected drift -- so letting it run every
+# boot is cheap and self-healing. Operator-confirmed 2026-05-14: the
+# gate left a stale pre-0.13 config.yaml in place that the firstboot
+# rewrite could never reach.'
+[ -n "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Agent first-boot config + key generation'
+: "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_ALIAS:=default.target.mios-hybrid}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
@@ -2835,6 +4221,117 @@ to" / "let me know".
 # crash-looping on 203/"Permission denied".'
 : "${MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_CONDITIONPATHISDIRECTORY:=/usr/libexec/mios}"
 [ -n "${MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_LIBEXEC_PERMS_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"': watch /usr/libexec/mios for perm changes; retrigger chmod'
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT:=# Execution wrapper that verifies SQLite vaults exist before starting the MCP listener}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT2:=# Security hardening: isolate the MCP server from writing to the core OS}"
+[ -n "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT3='# Hardening parity with sibling mios-* daemons (log-watcher, cron-
+# director, hermes-browser) -- consolidation pass 2026-05-15.'
+[ -n "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT4+x}" ] || MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_COMMENT4='# Drain timeout: MCP serves a long-lived TCP socket but in-flight
+# context requests are sub-second; 30 s is generous.'
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mcp-server-runner}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mcp-init.sh}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_PROTECTHOME:=read-only}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_READWRITEPATHS:=/var/lib/mios/mcp /var/log/mios/mcp}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_RESTART:=always}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_RESTARTSEC:=5}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_TIMEOUTSTOPSEC:=30s}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_AFTER:=network.target redis.service}"
+[ -n "${MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit file defining the mios-mcp.service daemon, which provides the Model Context Protocol (MCP) server for autonomous agents to access system context via a hardened, high-availability userspace listener.
+# AI-related: /usr/libexec/mios/mcp-init.sh, /usr/libexec/mios/mcp-server-runner, mios-ai, redis.service'
+[ -n "${MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_COMMENT2='# High-availability context provider for autonomous agents. Pure
+# userspace daemon (no kernel/audit/hardware coupling) so it runs on
+# every MiOS shape -- bare-metal, Hyper-V, QEMU, WSL, Podman-WSL.
+# The previous `ConditionVirtualization=!container` would silently skip
+# WSL, since systemd reports WSL as a `container` virt variant.'
+[ -n "${MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Agent Context Service (MCP)'
+: "${MIOS_UNIT_MIOS_MCP_SERVICE_UNIT_WANTS:=redis.service}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_COMMENT:=# Degrade-open: never block boot on a failed pull}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-models-firstboot}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1 2 3}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=10800}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+[ -n "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: FBM first-boot large-model provisioner unit (oneshot, sentinel-guarded, degrade-open).
+# Runs mios-models-firstboot once at first boot to fetch [ai].firstboot_models GGUFs; enabled via 90-mios.preset.
+# AI-related: /usr/libexec/mios/mios-models-firstboot, /usr/share/mios/mios.toml'
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.models-firstboot-done}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION:=First-boot Large-model Provisioner}"
+: "${MIOS_UNIT_MIOS_MODELS_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/opencode-gateway/work,MIOS_PORT_OPENCODE_GATEWAY=${MIOS_PORT_OPENCODE_GATEWAY:-8780},MIOS_OPENCODE_HOST=127.0.0.1,MIOS_OPENCODE_BIN=/usr/lib/mios/agents/opencode/bin/opencode,MIOS_OPENCODE_MODEL=mios-opencode:latest,MIOS_OPENCODE_PROVIDER=local,MIOS_OPENCODE_CONFIG=/etc/mios/opencode/opencode.json,MIOS_OPENCODE_TIMEOUT_S=90'
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/python3 -u /usr/lib/mios/agents/opencode-gateway/server.py}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_LOCKPERSONALITY:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTKERNELMODULES:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_READWRITEPATHS:=/etc/mios /var/lib/mios}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTARTSEC:=10s}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_RESTRICTSUIDSGID:=true}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_TIMEOUTSTARTSEC:=30s}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_SERVICE_WORKINGDIRECTORY:=/var/lib/mios/opencode-gateway/work}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_AFTER:=network-online.target mios-llm-light.service}"
+[ -n "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via mios-llm-light.
+# AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /usr/lib/mios/agents/.venv, mios-llm-light.service
+# R8: dropped After=mios-ai-firstboot.service -- the coder gateway rides the venv +
+# the light inference lane (mios-llm-light), NOT the boot-time model fetch.'
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_COMMENT2:=# Skip cleanly if the opencode binary never landed (build-time fetch failure)}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/lib/mios/agents/opencode/bin/opencode}"
+[ -n "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)'
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agents/opencode-gateway/server.py}"
+: "${MIOS_UNIT_MIOS_OPENCODE_GATEWAY_SERVICE_UNIT_WANTS:=network-online.target mios-llm-light.service}"
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT='# SSOT env: MIOS_PG_USER / MIOS_PG_DB / MIOS_PORT_PGVECTOR / MIOS_PG_BACKUP_*
+# all flow from mios.toml [pgvector] -> userenv.sh. '"'"'-'"'"' = tolerate absence
+# (degrade-open to the inline defaults below).'
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT2:=# Inline-default the knobs so the unit is correct even with no env file present.}"
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT3+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT3='# Runs as root to `podman exec` into the mios-ai.pod pgvector container.
+# ProtectSystem=strict / ReadWritePaths dropped so podman can reach its runtime.'
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT4+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_COMMENT4='# Logical dump over loopback-trust, gzip'"'"'d + timestamped, then prune to the
+# newest N. Pure POSIX sh so it runs on the minimal base. Every branch exits 0
+# (degrade-open): gate-off, missing client, or a dump error logs and succeeds.'
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENT='MIOS_PG_BACKUP_ENABLE=true,MIOS_PG_BACKUP_DIR=/var/lib/mios/backups,MIOS_PG_BACKUP_KEEP=7,MIOS_PG_USER=mios,MIOS_PG_DB=mios,MIOS_PORT_PGVECTOR=${MIOS_PORT_PGVECTOR:-8600}'
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/userenv.sh}"
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_EXECSTART='/bin/sh -c '"'"'case "$$MIOS_PG_BACKUP_ENABLE" in 0|false|False|FALSE|no|off) echo "mios-pgvector-backup: disabled (MIOS_PG_BACKUP_ENABLE=$$MIOS_PG_BACKUP_ENABLE)"; exit 0 ;; esac; DIR="$$MIOS_PG_BACKUP_DIR"; [ -z "$$DIR" ] && DIR="/var/lib/mios/backups"; KEEP="$$MIOS_PG_BACKUP_KEEP"; [ -z "$$KEEP" ] && KEEP="7"; case "$$KEEP" in *[!0-9]*|"") KEEP=7 ;; esac; [ "$$KEEP" -lt 1 ] && KEEP=1; PORT="$$MIOS_PORT_PGVECTOR"; [ -z "$$PORT" ] && PORT="8432"; USR="$$MIOS_PG_USER"; [ -z "$$USR" ] && USR="mios"; DB="$$MIOS_PG_DB"; [ -z "$$DB" ] && DB="mios"; if ! command -v podman >/dev/null 2>&1; then echo "mios-pgvector-backup: podman not found on PATH -- skipping (need podman to exec pg_dump inside the pod)"; exit 0; fi; mkdir -p "$$DIR" 2>/dev/null || true; TS=$$(date -u +%%Y%%m%%dT%%H%%M%%SZ); OUT="$$DIR/mios-pgvector-$$TS.sql.gz"; RAW="$$DIR/.mios-pgvector-$$TS.sql.partial"; ERR="$$DIR/.mios-pgbackup.err"; rc=0; podman exec mios-pgvector pg_dump -h 127.0.0.1 -p "$$PORT" -U "$$USR" --no-password "$$DB" >"$$RAW" 2>"$$ERR" || rc=$$?; if [ "$$rc" -ne 0 ] || [ ! -s "$$RAW" ]; then echo "mios-pgvector-backup: pg_dump failed (rc=$$rc, degrade-open): $$(tail -n1 "$$ERR" 2>/dev/null)"; rm -f "$$RAW" "$$ERR" 2>/dev/null || true; exit 0; fi; if gzip -c "$$RAW" >"$$OUT.partial" && mv -f "$$OUT.partial" "$$OUT"; then chmod 0640 "$$OUT" 2>/dev/null || true; echo "mios-pgvector-backup: wrote $$OUT"; else echo "mios-pgvector-backup: gzip failed (degrade-open)"; rm -f "$$OUT.partial" "$$RAW" "$$ERR" 2>/dev/null || true; exit 0; fi; rm -f "$$RAW" "$$ERR" 2>/dev/null || true; N=$$(ls -1 "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | wc -l); if [ "$$N" -gt "$$KEEP" ]; then ls -1t "$$DIR"/mios-pgvector-*.sql.gz 2>/dev/null | tail -n +$$((KEEP+1)) | while IFS= read -r f; do rm -f "$$f" && echo "mios-pgvector-backup: pruned $$f"; done; fi; exit 0'"'"''
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT='# AI-hint: Unprivileged daily oneshot that pg_dumps the unified agent-plane Postgres+pgvector database to /var/lib/mios/backups over loopback-trust and prunes to the newest MIOS_PG_BACKUP_KEEP snapshots; degrade-open so a backup failure never blocks the DB.
+# AI-related: mios-pgvector-backup.timer, mios-pgvector.service, /usr/lib/tmpfiles.d/mios-backups.conf, mios-pg-query
+# /usr/lib/systemd/system/mios-pgvector-backup.service
+# WS-0 pgvector durability: periodic logical backup of the unified agent-plane
+# datastore (tiered memory / knowledge / skills / sessions / scratch / sys_env /
+# kanban / ...). Losing pgvector is expensive, so this snapshots it daily.
+#
+# UNPRIVILEGED (Architectural Law 6 spirit): runs as the pgvector sysuser
+# (mios-pgvector, uid 826) -- it owns /var/lib/mios/backups (tmpfiles) and
+# reaches Postgres over the pg_hba loopback-trust line.
+#
+# DEGRADE-OPEN: every failure path (gate off, no pg_dump client, dump error)
+# logs and exits 0. A backup miss must NEVER fault the boot/timer or affect the
+# live DB. backup_enable ships TRUE; flip MIOS_PG_BACKUP_ENABLE=false to disable.'
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_COMMENT2='# Same virtualization guard as the pgvector container: the DB only runs on
+# bare-metal/WSL (not a nested container), so there'"'"'s nothing to back up there.'
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=|!container,|wsl}"
+[ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' daily pg_dump backup of the unified agent-plane datastore (pgvector)'
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/mios-pgvector-backup.service}"
+: "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_SERVICE_UNIT_WANTS:=mios-pgvector.service}"
 : "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_ACCURACYSEC:=5m}"
 [ -n "${MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNIT_MIOS_PGVECTOR_BACKUP_TIMER_TIMER_COMMENT='# Daily, shortly after midnight local time. Persistent=true catches up a missed
@@ -2870,6 +4367,31 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers mios-podman-ps.service every 15 seconds to refresh the podman container snapshot data for the MiOS dashboard display.
 # AI-related: mios-podman-ps, mios-podman-ps.service, timers.target'
 [ -n "${MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_PODMAN_PS_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' refresh the podman container snapshot for the dashboard'
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_COMMENT:=# Hardening: a stateless loopback decision service needs nothing but Python.}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_ENVIRONMENT:=MIOS_AGENT_PIPE_DIR=/usr/lib/mios/agent-pipe}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_EXECSTART:=/usr/bin/python3 /usr/libexec/mios/mios-policy-arbiter}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_NONEWPRIVILEGES:=true}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PRIVATETMP:=true}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PROTECTHOME:=true}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_PROTECTSYSTEM:=strict}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_RESTARTSEC:=15s}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_TYPE:=simple}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_SERVICE_USER:=mios-ai}"
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_AFTER:=network-online.target mios-agent-pipe.service}"
+[ -n "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit for the WS-9 out-of-process HITL policy arbiter -- runs /usr/libexec/mios/mios-policy-arbiter (a stdlib loopback HTTP service) as the mios-ai user, answering the agent-pipe'"'"'s HITL arbiter client with allow/deny verdicts decided by mios_arbiter over the operator policy. Idle/no-op until [ai].hitl_arbiter_url points at it; default policy is allow-all so enabling it changes nothing until a deny-list/block-tier is set.
+# AI-related: /usr/libexec/mios/mios-policy-arbiter, /usr/lib/mios/agent-pipe/mios_arbiter.py, mios-agent-pipe.service
+# /usr/lib/systemd/system/mios-policy-arbiter.service
+# '"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9). A second, operator-ownable
+# opinion ON TOP of the in-process #62 HITL gate + WS-A9 PDP: the agent-pipe POSTs
+# each high-risk (tier >= [ai].hitl_threshold) action here for an allow/deny
+# verdict. Runs as mios-ai (least privilege); binds 127.0.0.1 only.'
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-policy-arbiter}"
+[ -n "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9)'
+: "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC:=2min}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC:=10min}"
@@ -2913,6 +4435,24 @@ to" / "let me know".
 #   OnUnitActiveSec=30min'
 [ -n "${MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' starter-chip refresh cadence'
 : "${MIOS_UNIT_MIOS_SUGGESTION_REFRESH_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-suggestion-refresh}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_COMMENT:=# Never wedge boot on a pack problem.}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-swarm-pack-firstboot}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_TIMEOUTSTARTSEC:=120}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target mios-cdi-detect.service mios-ai-firstboot.service}"
+[ -n "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes mios-swarm-pack-firstboot to arm concurrent small-model worker units if gpu_profile is "swarm", enforcing VRAM budgets and provisioning GGUFs during the first boot sequence.
+# AI-related: /usr/libexec/mios/mios-swarm-pack-firstboot, mios-cdi-detect.service, mios-ai-firstboot.service, network-online.target
+# SWARM Phase-2 (operator 2026-06-12): arm the concurrent small-model server pack
+# at boot IF [dispatch].gpu_profile == "swarm" (else the script is a no-op). The
+# script self-gates + enforces the VRAM budget, so this unit is safe to enable
+# unconditionally; it only ever starts mios-llm-worker@<name> units when the
+# operator has flipped the profile + provisioned GGUFs.'
+[ -n "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# Don'"'"'t even try before the agent stack'"'"'s prerequisites; the script is idempotent.'
+[ -n "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' swarm small-model pack arming (gpu_profile=swarm only)'
+: "${MIOS_UNIT_MIOS_SWARM_PACK_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
 : "${MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_ACCURACYSEC:=10s}"
 [ -n "${MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT+x}" ] || MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_TIMER_COMMENT='# Mirrors the daemon'"'"'s directory_entry refresh cadence (~15 min): installed
@@ -2925,6 +4465,46 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_COMMENT='# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.
 # AI-related: mios-sys-env-refresh, timers.target'
 [ -n "${MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_SYS_ENV_REFRESH_TIMER_UNIT_DESCRIPTION=''"'"'MiOS'"'"' refresh cadence for the sys_env environment cache'
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-userdb-render}"
+[ -n "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTARTPRE+x}" ] || MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_EXECSTARTPRE='-/usr/bin/podman exec mios-pgvector pg_isready -q -h 127.0.0.1 -p ${MIOS_PORT_PGVECTOR:-8600} -U mios -d mios'
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_AFTER:=mios-pgvector.service}"
+[ -n "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-userdb-render to project PostgreSQL account records into systemd userdb JSON drop-ins.
+# AI-related: /usr/libexec/mios/mios-userdb-render, mios-pgvector.service'
+[ -n "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' PostgreSQL account systemd userdb drop-in renderer'
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-userdb-render}"
+: "${MIOS_UNIT_MIOS_USERDB_RENDER_SERVICE_UNIT_REQUIRES:=mios-pgvector.service}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_COMMENT='# Retry the build if an image is still missing (a transient network/CDN blip
+# during first install must not leave webtools permanently down).'
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-webtools-firstboot.sh}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_RESTART:=on-failure}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_RESTARTSEC:=30}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_BEFORE:=mios-webtools-pod.service}"
+[ -n "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_COMMENT='# WS-DEPLOY: allow the build to retry (script exits non-zero on a missing image)
+# without tripping the start-limit too fast under sustained install contention.'
+[ -n "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' web-tools images build-on-demand firstboot service'
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_STARTLIMITBURST:=6}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_STARTLIMITINTERVALSEC:=1200}"
+: "${MIOS_UNIT_MIOS_WEBTOOLS_FIRSTBOOT_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/wsl-firstboot}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_AFTER:=local-fs.target}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_BEFORE:=systemd-user-sessions.service multi-user.target}"
+[ -n "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes /usr/libexec/mios/wsl-firstboot to perform one-time initialization tasks specifically for WSL2 instances if the first-boot flag is not yet set.
+# AI-related: /usr/libexec/mios/wsl-firstboot, systemd-user-sessions.service, local-fs.target, multi-user.target'
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_CONDITIONPATHEXISTS:=!/var/lib/mios/.wsl-firstboot-done}"
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_CONDITIONVIRTUALIZATION:=wsl}"
+[ -n "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' WSL2 First Boot Initialization'
+: "${MIOS_UNIT_MIOS_WSL_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_INSTALL_WANTEDBY:=multi-user.target default.target}"
 [ -n "${MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT+x}" ] || MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_PATH_COMMENT='# Trigger whenever flatpak adds/removes an exported .desktop (any
 # system-wide install / uninstall touches this dir mtime).'
