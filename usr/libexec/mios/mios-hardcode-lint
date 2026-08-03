@@ -311,14 +311,27 @@ def scan(roots):
                         if 'chpasswd' in line and re.search(r'echo\s+["\'][a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+["\']\s*\|\s*chpasswd', line):
                             violations.append((p, idx, f"PLAINTEXT-CHPASSWD: {line.strip()[:80]}"))
                         
-                if fn.endswith('.py'):
-                    for ln, snip in _date_in_comment_py(text):
-                        violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
-                    for ln, snip in _date_in_string_py(text):
-                        violations.append((p, ln, f"DATE-IN-STRING: {snip}"))
-                else:
-                    for ln, snip in _date_in_comment_generic(text):
-                        violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
+                # A GENERATED file is exempt from the timeless-comment rule: its
+                # comments are PROJECTED from mios.toml `comment = "..."` values,
+                # where a date is a value and legitimately exempt (the lint is
+                # value-aware). It only becomes a #-comment once rendered, and a
+                # "DO NOT EDIT" file cannot be hand-corrected -- the fix belongs
+                # in mios.toml. Keyed off the file's own generated marker rather
+                # than an allowlist, so it can never drift out of date.
+                # Both tokens, and only in the file's own top banner -- a
+                # GENERATOR mentions "DO NOT EDIT" in the header it EMITS, and
+                # generators are authored files that must stay linted.
+                _banner = '\n'.join(text.splitlines()[:4])
+                is_generated = 'GENERATED' in _banner and 'DO NOT EDIT' in _banner
+                if not is_generated:
+                    if fn.endswith('.py'):
+                        for ln, snip in _date_in_comment_py(text):
+                            violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
+                        for ln, snip in _date_in_string_py(text):
+                            violations.append((p, ln, f"DATE-IN-STRING: {snip}"))
+                    else:
+                        for ln, snip in _date_in_comment_generic(text):
+                            violations.append((p, ln, f"DATE-IN-COMMENT: {snip}"))
     return violations
 
 
