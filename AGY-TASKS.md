@@ -5926,3 +5926,76 @@ Each assertion echoes a `[sys-smoke] <stack> OK` line so a bake log shows exactl
 **What + How:** Replace the hardcoded branches with a declared float-list sourced from SSOT (e.g. `mios.toml [render.float_vars] = ["MIOS_PORT_*", "FEDORA_VERSION", …]` with glob support), so operators add a floating var without editing python. Keep the `_sidecar_image` digest fallback. Prove `--check` still shows all units match.
 **Where:** `tools/generate-pod-quadlets.py`, `usr/share/mios/mios.toml`.
 **Done When:** adding a new float var needs only an SSOT edit; `generate-pod-quadlets.py --check` + `--selftest` green; no per-var `if` branches remain.  **Dep:** AGY-1563.
+
+---
+
+## WS-PORTFLOAT -- finish the port-allocation cutover (AGY-1568..1579)
+
+Context: `[ports.categories]` now ALLOCATES every port (`base + index*stride`,
+ordered `members`, `pinned` for protocol contracts) and both resolvers derive it
+at runtime, so an operator retargets a whole category by changing one base and
+new services get a collision-free port automatically. Gates 129
+(`check_ports_category_schema`) and 130 (`check_globals_generated`) enforce it,
+`automation/lib/globals.{sh,ps1}` are generated in full, and `just sync`
+regenerates every projection in dependency order. The items below are the parts
+that are NOT done -- each is a code change, not a note.
+
+## AGY-1568  (WS-PORTFLOAT, P1) -- Generate the .desktop launchers from SSOT instead of hand-editing them
+**What+How:** `usr/share/applications/mios-svc-*.desktop` + `mios-configurator.desktop` carry `Exec=`/`URL=` lines with literal `localhost:<port>`. They were hand-corrected once; four of them (cockpit 9090, forge 3000, code-server 8080, llm-light 11450) had been silently wrong for a long time because nothing gated them, and only `mios-svc-guacamole.desktop` was covered (by `check_guacamole_consistency`). Add `tools/render-desktop.py` that renders every launcher from a new `[desktop.launchers.<name>]` SSOT table (`title`, `icon`, `port_key`, `path`, `categories`), map each existing file onto it, and add a `--check` mode. Register the renderer in `tools/sync-generated.sh` between the globals and quadlet steps, and add drift-check `check_desktop_launchers` that fails when a rendered launcher differs from the committed one. Retire `check_guacamole_consistency` into it once every launcher is covered.
+**Where:** `tools/render-desktop.py (new), usr/share/mios/mios.toml, usr/share/applications/*.desktop, tools/sync-generated.sh, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/reference/drift-gate-index.tsv`
+**Done When:** every `.desktop` port derives from `[ports]`; `--check` is clean; a hand-edit to any launcher OR a category-base change is caught; the negative test injects port-agnostically (no literal in the test).  **Why:** the launchers are the one user-visible surface still hand-maintained, and they rotted undetected for months.  **Dep:** none
+
+## AGY-1569  (WS-PORTFLOAT, P1) -- Vendor `aiohttp` (and the rest of the hermes-agent closure) into the offline wheels dir
+**What+How:** `72-hermes-agent.sh` fails its offline install with `ERROR: Could not find a version that satisfies the requirement aiohttp (from versions: none)` and degrades to `WARN Agent-venv offline install incomplete`, so the baked image ships a hermes-agent venv missing its HTTP client. `usr/share/mios/vendored/wheels/` does not contain the full dependency closure. Resolve hermes-agent's `pyproject.toml` against `usr/share/mios/agents/constraints.txt` with `pip download --only-binary=:all:` for the image's Python (3.13), commit the resulting wheels, and make the phase FAIL rather than WARN when the closure is incomplete so this cannot silently regress.
+**Where:** `automation/72-hermes-agent.sh, usr/share/mios/vendored/wheels/, usr/share/mios/agents/constraints.txt, automation/98-drift-checks.sh`
+**Done When:** the phase installs the venv with no network and no WARN; a deliberately removed wheel fails the phase; the bake log shows 0 warned for this step.  **Why:** the agent plane is the product; shipping it with a broken venv defeats the image.  **Dep:** none
+
+## AGY-1570  (WS-PORTFLOAT, P2) -- Fix `37-k3s-selinux.sh` exiting 1
+**What+How:** the bake completes with `[WARN] 37-k3s-selinux.sh (2s) exit=1`. Diagnose (likely a `semodule`/`restorecon` call against a policy module absent in the ucore base, or a missing `-N` flag under the bake's read-only /sys), fix the root cause, and make the script either succeed or degrade explicitly via `mios_skip` with a reason -- a bare non-zero exit in a build phase is indistinguishable from a real failure.
+**Where:** `automation/37-k3s-selinux.sh`
+**Done When:** the bake reports 0 warned; the script's failure mode is an explicit `mios_skip` with a logged reason on hosts where the policy is unavailable.  **Why:** it is the only warning left in an otherwise clean 67-script bake.  **Dep:** none
+
+## AGY-1571  (WS-PORTFLOAT, P2) -- Fold checks 28/52 into check_globals_generated
+**What+How:** `check_globals_ports` (28) and `check_globals_image_parity` (52) parse literals out of `automation/lib/globals.{sh,ps1}` with bespoke regexes -- `else { <digits> }` and `MIOS_IMAGE_NAME:=`. Those files are now GENERATED in full and byte-gated by check 130, so 28/52 are redundant coverage that additionally constrains the renderer's output shape (it must keep emitting `:=` and bare integers purely to satisfy them, and it must keep a `$defaultImageName` line that nothing reads). Replace their bodies with a delegation to `check_globals_generated`, delete the literal parsers, and free the renderer to choose its own formatting.
+**Where:** `automation/98-drift-checks.sh, tools/render-globals.py, usr/share/mios/reference/drift-gate-index.tsv, tests/drift-gate-negatives.sh`
+**Done When:** 28/52 delegate (or are retired with coverage preserved by 130); `render-globals.py` no longer carries shape workarounds for them; negatives still catch a hand-edit.  **Why:** completes AGY-1169, which is still open, and removes a hidden coupling that already forced two CI round-trips.  **Dep:** none
+
+## AGY-1572  (WS-PORTFLOAT, P1) -- Install the mios-resolver binary in the image and cut generation over to it
+**What+How:** `tools/render-globals.py` and the `[ports]` derivation currently run through the PYTHON resolver (`usr/lib/mios/mios_toml.py`); `mios-resolver` (Rust) mirrors the logic in `ports.rs`/`emit_ps.rs`/`emit_shell.rs` but is never built into the image, so `userenv.sh`'s `command -v mios-resolver` branch is dead in production. Add a bake phase that compiles `tools/native` and installs the binary to `/usr/libexec/mios/mios-resolver`, with a degrade-chain to the Python path when the binary is absent. Then add a differential gate asserting `mios-resolver --emit=shell|powershell|json` is byte-identical to the Python render for the real SSOT.
+**Where:** `automation/ (new phase), Containerfile, tools/native/mios-resolver/, automation/98-drift-checks.sh`
+**Done When:** the binary ships; the differential gate is green; `userenv.sh` demonstrably takes the native path on a booted image.  **Why:** the whole WS-RESOLVER crate is currently inert -- it compiles and tests, but nothing in the product calls it.  **Dep:** none
+
+## AGY-1573  (WS-PORTFLOAT, P2) -- Wire or delete the inert `[migration]` and `[versions]` tables
+**What+How:** `[migration].use_rust_resolver_*` has ZERO consumers (grep-verified) and `[versions]` duplicates data already flowing from `[image.sidecars]` (`MIOS_K3S_VERSION` is emitted from the sidecar tag today), so both are decoration that a reader will mistake for live config. Either (a) make `userenv.sh`/`mios_toml.py` honour `[migration]` when choosing the native vs Python resolver and make `[versions]` the single source that `[image.sidecars]` tags derive FROM, or (b) delete both and record why in the ADR. Do not leave them inert.
+**Where:** `usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, tools/lib/userenv.sh, automation/98-drift-checks.sh`
+**Done When:** every key in both tables has a consumer that a grep can find, or the tables are gone; a drift-check fails on a re-introduced inert top-level table.  **Why:** inert SSOT is worse than absent SSOT -- it lies to the operator and to the configurator UI.  **Dep:** none
+
+## AGY-1574  (WS-PORTFLOAT, P2) -- Clean the var-closure "referenced but NOT emitted" backlog
+**What+How:** `check_var_closure` reports ~180 names as referenced-but-unemitted. The generated resolvers and renderers are now excluded as emitters, so what remains is real signal in three classes: (1) PREFIX ARTEFACTS -- `MIOS_A2A_`, `MIOS_AGENT_`, `MIOS_PORT_` etc. are regex captures of a dynamic expansion like `MIOS_PORT_${name}`, not variables; teach the scanner to drop a trailing `_` capture that is a strict prefix of a known name. (2) DOUBLE-PREFIX -- `[mios]` walks to `MIOS_MIOS_NAME`, `MIOS_MIOS_FIND_ALIASES_*`; either alias the `mios.*` section to a single `MIOS_` prefix in `get_aliases()` or rename the section. (3) GENUINELY MISSING -- `MIOS_CONVERGE_*` and `MIOS_COLOR_ANSI_*` are emitted only into globals.sh; confirm the resolver emits them too. Then flip the check from SOFT WARNING to a hard violation.
+**Where:** `automation/lib/mios_var_closure.py, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh`
+**Done When:** the report is empty and the check is hard-failing; a newly referenced-but-unemitted var fails the gate.  **Why:** a soft warning nobody can read is not a gate; this one has been printing 180 lines of noise for long enough that real regressions hide in it.  **Dep:** none
+
+## AGY-1575  (WS-PORTFLOAT, P2) -- Enforce `just sync` in CI instead of trusting contributors to remember
+**What+How:** several generated artefacts (AI manifests, globals, quadlets, names registry, env-baseline) go stale on any edit under `automation/` or `tools/`, and the only defence is remembering to run the renderers in the right order. Add a CI step that runs `bash tools/sync-generated.sh` on a clean checkout and fails if `git status --porcelain` is non-empty, naming the files that moved. That converts five separate "X is stale" gates into one actionable message and makes the ordering constraint executable rather than documented.
+**Where:** `.github/workflows/mios-ci.yml, .forgejo/workflows/, tools/sync-generated.sh`
+**Done When:** a deliberately stale manifest fails the new step with the exact file list; the step is green on a synced tree.  **Why:** stale-artefact failures cost more CI round-trips than any real defect during the port campaign.  **Dep:** none
+
+## AGY-1576  (WS-PORTFLOAT, P3) -- Make `mios-template-engine` honour its documented contract or retire it
+**What+How:** it advertises `<kind> <target_filepath> [description]` but delegates to `mios-new`, which is name-addressed and picks its own canonical destination; the shim now relocates the result and re-substitutes `{{description}}`, which works but is a workaround. It also has ZERO callers (grep-verified: only itself and AGY-TASKS.md). Either give `mios-new` a real `--out <path>` and `--description` and make the engine a straight pass-through, or delete `mios-template-engine` and update the docs that mention it.
+**Where:** `usr/libexec/mios/mios-template-engine, usr/libexec/mios/mios-new, usr/share/doc/mios/`
+**Done When:** one generator with one contract; no relocation workaround; no orphaned entry point.  **Why:** two overlapping scaffolders is exactly the duplication this campaign exists to remove.  **Dep:** none
+
+## AGY-1577  (WS-PORTFLOAT, P2) -- Delete the userenv.sh Python heredoc once the native path is proven
+**What+How:** AGY-1176 claimed this was done; the ~200-line embedded Python heredoc in `usr/lib/mios/userenv.sh` (and its byte-parity twin `tools/lib/userenv.sh`) is still present and is still the production resolver. It can only be removed after AGY-1572 ships the binary AND the differential gate is green. Then reduce both twins to: try `mios-resolver --emit=shell`, else `miosd`, else fail loudly -- and retire `check_userenv_parity` (27) since a one-line file cannot drift.
+**Where:** `usr/lib/mios/userenv.sh, tools/lib/userenv.sh, automation/98-drift-checks.sh`
+**Done When:** neither twin contains a heredoc; the resolver-twin-equivalence checks are retired or repointed; a booted image resolves an identical MIOS_* set before and after.  **Why:** the heredoc is the last copy of the resolver logic and the reason the twin-parity gates exist at all.  **Dep:** AGY-1572
+
+## AGY-1578  (WS-PORTFLOAT, P3) -- Add a `stack_id` end-to-end test
+**What+How:** `[ports].stack_id` shifts every non-pinned port by `stack_id * 10000` and is implemented in three places (`mios_toml.process_val`, `walk.rs::process_val`, `35-render-ports.sh`), but nothing tests it end to end -- the Rust CLI ignored it entirely until this campaign. Add a test that sets `stack_id = 1`, resolves through each surface, and asserts every port shifted by 10000 EXCEPT `adguard_dns` (53) and `stack_id` itself, and that no two shifted ports collide.
+**Where:** `tools/test_render_ports.py, tools/native/mios-resolver/src/ports.rs, tests/drift-gate-negatives.sh`
+**Done When:** the offset is asserted on all three surfaces; a regression in any one fails.  **Why:** multi-stack is the feature that makes two MiOS hosts co-exist on one LAN, and it is currently unverified.  **Dep:** none
+
+## AGY-1579  (WS-PORTFLOAT, P3) -- Reconcile in-container ports with the host allocation
+**What+How:** several Quadlets pass `${MIOS_PORT_X:-<upstream-default>}` where the fallback is the UPSTREAM in-container port (pgvector 5432, vllm 11441, cpu-node 11451, crawl4ai 11235), so the fallback and the SSOT value deliberately disagree. That is defensible but undocumented, and `[ports.categories.sidecar]` now allocates real keys for the sidecar daemons (guacd, redis, chrome_cdp, otelcol, pxe_hub_api, forge_ssh_git). Decide per service whether the container binds the SSOT port or the upstream default with a host-side publish, write the decision into the `[ports.categories]` `doc` field, and make the fallbacks consistent with it.
+**Where:** `usr/share/mios/mios.toml, usr/share/containers/systemd/*.container, tools/generate-pod-quadlets.py`
+**Done When:** every `:-N` fallback in a Quadlet is either the SSOT value or a documented upstream default; the rule is stated in SSOT and gate-enforced.  **Why:** the one remaining place where a port literal legitimately differs from SSOT, and nothing records why.  **Dep:** none
