@@ -21,28 +21,30 @@ if [ -z "$PS_BIN" ]; then
     exit 0
 fi
 
-# Gather tracked .ps1 files
+# Gather tracked PowerShell sources. .psm1 modules are parsed too -- they hold
+# real code (MiOS.Export, MiOSShortcutUtils) and a parse error there breaks every
+# script that imports them.
 files=()
 if [ -d "$ROOT/.git" ] && command -v git >/dev/null 2>&1; then
     while IFS= read -r f; do
-        if [ -f "$ROOT/$f" ] && [[ "$f" =~ \.ps1$ ]]; then
+        if [ -f "$ROOT/$f" ] && [[ "$f" =~ \.ps(m?)1$ ]]; then
             files+=("$ROOT/$f")
         fi
-    done < <(git -C "$ROOT" ls-files "*.ps1" 2>/dev/null || true)
+    done < <(git -C "$ROOT" ls-files "*.ps1" "*.psm1" 2>/dev/null || true)
 fi
 
 if [ ${#files[@]} -eq 0 ]; then
     while IFS= read -r f; do
         files+=("$f")
-    done < <(find "$ROOT" -name "*.ps1" -type f 2>/dev/null || true)
+    done < <(find "$ROOT" \( -name "*.ps1" -o -name "*.psm1" \) -type f 2>/dev/null || true)
 fi
 
 if [ ${#files[@]} -eq 0 ]; then
-    echo "[lint-powershell] No .ps1 files found to lint"
+    echo "[lint-powershell] No PowerShell files found to lint"
     exit 0
 fi
 
-echo "[lint-powershell] Parsing AST for ${#files[@]} PowerShell (.ps1) files using $PS_BIN..."
+echo "[lint-powershell] Parsing AST for ${#files[@]} PowerShell (.ps1/.psm1) files using $PS_BIN..."
 
 ERRORS_FOUND=0
 

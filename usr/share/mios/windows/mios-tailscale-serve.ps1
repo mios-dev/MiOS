@@ -48,22 +48,37 @@ $ts = "C:\Program Files\Tailscale\tailscale.exe"
 if (-not (Test-Path $ts)) { $ts = (Get-Command tailscale.exe -ErrorAction SilentlyContinue).Source }
 if (-not $ts) { throw "tailscale.exe not found (install Tailscale for Windows)" }
 
-# User-facing MiOS services. Port numbers MIRROR /usr/share/mios/mios.toml [ports]
-# (the SSOT) -- update both if a port changes. Internal LLM lanes / DBs / loopback
-# tools are intentionally NOT exposed.
-$openWebuiPort = if ($env:MIOS_PORT_OPEN_WEBUI) { [int]$env:MIOS_PORT_OPEN_WEBUI } else { 3030 }
-$hermesPort    = if ($env:MIOS_PORT_HERMES) { [int]$env:MIOS_PORT_HERMES } else { 8642 }
-$agentPipePort = if ($env:MIOS_PORT_AGENT_PIPE) { [int]$env:MIOS_PORT_AGENT_PIPE } else { 8640 }
-$hermesDashPort= if ($env:MIOS_PORT_HERMES_DASHBOARD) { [int]$env:MIOS_PORT_HERMES_DASHBOARD } else { 9119 }
-$forgePort     = if ($env:MIOS_PORT_FORGE_HTTP) { [int]$env:MIOS_PORT_FORGE_HTTP } else { 3000 }
-$cockpitPort   = if ($env:MIOS_PORT_COCKPIT) { [int]$env:MIOS_PORT_COCKPIT } else { 9090 }
-$adguardPort   = if ($env:MIOS_PORT_ADGUARD_UI) { [int]$env:MIOS_PORT_ADGUARD_UI } else { 3053 }
-$guacPort      = if ($env:MIOS_PORT_GUACAMOLE_WEB) { [int]$env:MIOS_PORT_GUACAMOLE_WEB } else { 8080 }
-$searxngPort   = if ($env:MIOS_PORT_SEARXNG) { [int]$env:MIOS_PORT_SEARXNG } else { 8888 }
-$codePort      = if ($env:MIOS_PORT_CODE_SERVER) { [int]$env:MIOS_PORT_CODE_SERVER } else { 8800 }
-$ttydBashPort  = if ($env:MIOS_PORT_TTYD_BASH) { [int]$env:MIOS_PORT_TTYD_BASH } else { 7681 }
-$ttydPwshPort  = if ($env:MIOS_PORT_TTYD_POWERSHELL) { [int]$env:MIOS_PORT_TTYD_POWERSHELL } else { 7682 }
-$cephPort      = if ($env:MIOS_PORT_CEPH_DASHBOARD) { [int]$env:MIOS_PORT_CEPH_DASHBOARD } else { 8443 }
+# Dot-source mios-common.ps1 if Get-MiosSsotValue isn't available yet
+if (-not (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue)) {
+    $commonScript = Join-Path $PSScriptRoot '..\..\..\installation\mios-common.ps1'
+    if (Test-Path $commonScript) { . $commonScript }
+}
+
+function Get-PortFromSsot([string]$envVar, [string]$key, [int]$default) {
+    $envVal = [System.Environment]::GetEnvironmentVariable($envVar)
+    if ($envVal -and $envVal -match '^\d+$') { return [int]$envVal }
+    if (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue) {
+        $ssotVal = Get-MiosSsotValue -Section 'ports' -Key $key -Default $default
+        if ($ssotVal -and $ssotVal -match '^\d+$') { return [int]$ssotVal }
+    }
+    return $default
+}
+
+# Last-resort defaults MUST equal mios.toml [ports]; check_ps_port_fallback_ssot
+# in 98-drift-checks.sh fails the gate if any literal here drifts from the SSOT.
+$openWebuiPort = Get-PortFromSsot 'MIOS_PORT_OPEN_WEBUI' 'open_webui' 8200
+$hermesPort    = Get-PortFromSsot 'MIOS_PORT_HERMES' 'hermes' 8720
+$agentPipePort = Get-PortFromSsot 'MIOS_PORT_AGENT_PIPE' 'agent_pipe' 8700
+$hermesDashPort= Get-PortFromSsot 'MIOS_PORT_HERMES_DASHBOARD' 'hermes_dashboard' 8210
+$forgePort     = Get-PortFromSsot 'MIOS_PORT_FORGE_HTTP' 'forge_http' 8400
+$cockpitPort   = Get-PortFromSsot 'MIOS_PORT_COCKPIT' 'cockpit' 8110
+$adguardPort   = Get-PortFromSsot 'MIOS_PORT_ADGUARD_UI' 'adguard_ui' 8050
+$guacPort      = Get-PortFromSsot 'MIOS_PORT_GUACAMOLE_WEB' 'guacamole_web' 8220
+$searxngPort   = Get-PortFromSsot 'MIOS_PORT_SEARXNG' 'searxng' 8800
+$codePort      = Get-PortFromSsot 'MIOS_PORT_CODE_SERVER' 'code_server' 8900
+$ttydBashPort  = Get-PortFromSsot 'MIOS_PORT_TTYD_BASH' 'ttyd_bash' 8310
+$ttydPwshPort  = Get-PortFromSsot 'MIOS_PORT_TTYD_POWERSHELL' 'ttyd_powershell' 8320
+$cephPort      = Get-PortFromSsot 'MIOS_PORT_CEPH_DASHBOARD' 'ceph_dashboard' 8460
 
 $SERVICES = @(
     @{ port=$openWebuiPort;  name='open-webui';  label='Open WebUI' }

@@ -2169,6 +2169,64 @@ test_globals_generated() {
     log "test_globals_generated passed"
 }
 
+_neg_gate() {
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
+}
+
+test_adhoc_toml_parsers() {
+    log "Testing check_adhoc_toml_parsers"
+    local probe="${ROOT}/tests/mios-negtest-adhoc-toml.ps1"
+    cat > "$probe" <<'PS1'
+# negative-test probe: a hand-rolled TOML reader, which the gate must reject
+$raw = Get-Content -Raw 'mios.toml'
+if ($raw -match '(?s)\[ports\](.*)') { $ports = $Matches[1] }
+PS1
+    if _neg_gate check_adhoc_toml_parsers; then
+        rm -f "$probe"
+        die "check_adhoc_toml_parsers passed despite a hand-rolled TOML parser"
+    fi
+    rm -f "$probe"
+    _neg_gate check_adhoc_toml_parsers \
+        || die "check_adhoc_toml_parsers failed after restoration"
+    log "check_adhoc_toml_parsers negative test passed"
+}
+
+test_install_uninstall_symmetry() {
+    log "Testing check_install_uninstall_symmetry"
+    local uninst="${ROOT}/Uninstall-MiOS.ps1"
+    local bak="${uninst}.negbak"
+    cp "$uninst" "$bak"
+    # Delete the scheduled-task sweep while [windows.owned_artifacts].task_names
+    # still declares tasks -- the asymmetry the gate exists to catch.
+    grep -v 'Unregister-ScheduledTask' "$bak" > "$uninst"
+    if _neg_gate check_install_uninstall_symmetry; then
+        cp "$bak" "$uninst" && rm -f "$bak"
+        die "check_install_uninstall_symmetry passed despite a missing task sweep"
+    fi
+    cp "$bak" "$uninst" && rm -f "$bak"
+    _neg_gate check_install_uninstall_symmetry \
+        || die "check_install_uninstall_symmetry failed after restoration"
+    log "check_install_uninstall_symmetry negative test passed"
+}
+
+test_ps_port_fallback_ssot() {
+    log "Testing check_ps_port_fallback_ssot"
+    local f="${ROOT}/usr/share/mios/windows/mios-tailscale-serve.ps1"
+    local bak="${f}.negbak"
+    cp "$f" "$bak"
+    # Drift one last-resort literal away from mios.toml [ports].cockpit.
+    sed "s/'cockpit' 8110/'cockpit' 9090/" "$bak" > "$f"
+    if _neg_gate check_ps_port_fallback_ssot; then
+        cp "$bak" "$f" && rm -f "$bak"
+        die "check_ps_port_fallback_ssot passed despite a drifted port fallback"
+    fi
+    cp "$bak" "$f" && rm -f "$bak"
+    _neg_gate check_ps_port_fallback_ssot \
+        || die "check_ps_port_fallback_ssot failed after restoration"
+    log "check_ps_port_fallback_ssot negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2210,6 +2268,9 @@ main() {
     test_bake_core_reconcile
     test_nested_podman_retry
     test_gate_registry
+    test_adhoc_toml_parsers
+    test_install_uninstall_symmetry
+    test_ps_port_fallback_ssot
     test_test_hermeticity
     test_no_mkdir_in_var
     test_quadlet_privilege

@@ -30,51 +30,37 @@ if (-not $isAdmin) {
     return
 }
 
-# Resolve mios.toml path
-$tomlPath = $null
-foreach ($path in @(
-    (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
-    'M:\etc\mios\mios.toml',
-    'M:\usr\share\mios\mios.toml',
-    'C:\mios-bootstrap\mios.toml'
-)) {
-    if (Test-Path $path) {
-        $tomlPath = $path
-        break
-    }
+# Dot-source mios-common.ps1 if Get-MiosSsotValue isn't available yet
+if (-not (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue)) {
+    $commonScript = Join-Path $PSScriptRoot '..\..\installation\mios-common.ps1'
+    if (Test-Path $commonScript) { . $commonScript }
 }
 
-# Simple toml parser for [ports]
-function Get-MiosPort ($key, $default) {
-    if ($tomlPath) {
-        $content = Get-Content $tomlPath -Raw
-        # Extract the [ports] section
-        if ($content -match '(?s)\[ports\]\s*\r?\n(.*?)(?=\r?\n\[|$)') {
-            $portsSec = $Matches[1]
-            if ($portsSec -match "(?m)^\s*$key\s*=\s*([0-9]+)") {
-                return [int]$Matches[1]
-            }
-        }
-    }
-    return $default
-}
-
+# Last-resort defaults MUST equal mios.toml [ports]; check_ps_port_fallback_ssot
+# in 98-drift-checks.sh fails the gate if any literal here drifts from the SSOT.
 $portKeys = @(
-    @{ Key = 'hermes'; Default = 8642 },
-    @{ Key = 'cockpit'; Default = 8090 },
-    @{ Key = 'forge_http'; Default = 8300 },
-    @{ Key = 'code_server'; Default = 8800 },
-    @{ Key = 'open_webui'; Default = 8033 },
-    @{ Key = 'searxng'; Default = 8899 },
-    @{ Key = 'llm_light'; Default = 8450 },
-    @{ Key = 'agent_pipe'; Default = 8640 },
-    @{ Key = 'hermes_dashboard'; Default = 8119 }
+    @{ Key = 'hermes'; Default = 8720 },
+    @{ Key = 'cockpit'; Default = 8110 },
+    @{ Key = 'forge_http'; Default = 8400 },
+    @{ Key = 'code_server'; Default = 8900 },
+    @{ Key = 'open_webui'; Default = 8200 },
+    @{ Key = 'searxng'; Default = 8800 },
+    @{ Key = 'llm_light'; Default = 8500 },
+    @{ Key = 'agent_pipe'; Default = 8700 },
+    @{ Key = 'hermes_dashboard'; Default = 8210 }
 )
 
-$ports = foreach ($pk in $portKeys) {
-    Get-MiosPort -key $pk.Key -default $pk.Default
+$resolvedPorts = [ordered]@{}
+foreach ($pk in $portKeys) {
+    $resolvedPorts[$pk.Key] = if (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue) {
+        [int](Get-MiosSsotValue -Section 'ports' -Key $pk.Key -Default $pk.Default)
+    } else {
+        $pk.Default
+    }
 }
-$cockpitPort = Get-MiosPort -key 'cockpit' -default 8090
+$ports = @($resolvedPorts.Values)
+# Cockpit speaks TLS; the probe below picks its scheme off this value.
+$cockpitPort = $resolvedPorts['cockpit']
 
 Write-Host '--- current portproxy table ---' -ForegroundColor Cyan
 & netsh interface portproxy show all

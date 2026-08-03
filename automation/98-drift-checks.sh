@@ -6112,6 +6112,10 @@ main() {
     check_unpinned_runtime_fetches
     check_secret_handling
     check_wsl_distro_resolution
+    check_adhoc_toml_parsers
+    check_install_uninstall_symmetry
+    check_ps_port_fallback_ssot
+    check_github_slug_casing
 
 
     check_chrony_ptp_dropin
@@ -6455,6 +6459,210 @@ check_wsl_distro_resolution() {
         done
         echo "[98-drift-checks]   All Windows scripts perform generative Resolve-MiosDistro resolution"
     fi
+}
+
+check_adhoc_toml_parsers() {
+    echo "[98-drift-checks]   check_adhoc_toml_parsers"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, re, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+# mios-common.ps1 is the ONE PowerShell reader allowed to regex-parse mios.toml.
+EXEMPT = {"mios-common.ps1"}
+# Signatures of a hand-rolled TOML reader: a regex matching a [section] header,
+# or a per-key regex applied to a captured section body.
+PATTERNS = [
+    re.compile(r"\(\?s\)\s*\\\["),                 # '(?s)\[ports\]'
+    re.compile(r"\(\?ms\)\^\\s\*\\\["),            # "(?ms)^\s*\[" + section
+    re.compile(r"-match\s+'\^\\\[\(\.\+\)\\\]'"),  # -match '^\[(.+)\]'
+]
+viol = []
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames
+                   if d not in (".git", "target", "node_modules", ".venv")]
+    for fn in sorted(filenames):
+        if not fn.endswith(".ps1") or fn in EXEMPT:
+            continue
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if any(pat.search(src) for pat in PATTERNS):
+            rel = os.path.relpath(p, root).replace(os.sep, "/")
+            viol.append(rel + " regex-parses mios.toml itself; call Get-MiosSsotValue"
+                              " from installation/mios-common.ps1 instead")
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   No ad-hoc regex TOML parsers outside the shared resolver"
+}
+
+# Every Windows artifact MiOS creates is registered in mios.toml
+# [windows.owned_artifacts]; the uninstaller must remove each one. Driving the
+# check off the SSOT means adding an artifact there fails the gate until
+# Uninstall-MiOS.ps1 learns to clean it up.
+check_install_uninstall_symmetry() {
+    echo "[98-drift-checks]   check_install_uninstall_symmetry"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, re, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        _toml = None
+
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+uninst = os.path.join(root, "Uninstall-MiOS.ps1")
+viol = []
+if _toml is None:
+    sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli"
+                     " -- skipping install/uninstall symmetry\n")
+elif not os.path.isfile(uninst):
+    viol.append("Uninstall-MiOS.ps1 is missing; the Windows install has no uninstaller")
+else:
+    with open(toml_path, "rb") as fh:
+        data = _toml.load(fh)
+    owned = (data.get("windows", {}) or {}).get("owned_artifacts", {}) or {}
+    if not owned:
+        viol.append("mios.toml [windows.owned_artifacts] is empty;"
+                    " the uninstaller has no SSOT to be checked against")
+    with open(uninst, encoding="utf-8", errors="replace") as fh:
+        src = fh.read()
+
+    # The uninstaller sweeps by pattern rather than by literal name, so a
+    # declared artifact counts as covered if it is named outright OR caught by
+    # one of the -match regexes / -Filter globs the uninstaller actually runs.
+    sweeps = [re.compile(p) for p in re.findall(r"-match\s+'([^']*)'", src)]
+    for glob in re.findall(r"-Filter\s+'([^']*)'", src):
+        sweeps.append(re.compile(re.escape(glob).replace(r"\*", ".*")))
+
+    def covered(name):
+        return name in src or any(s.search(name) for s in sweeps)
+
+    # Each artifact class must also have its removal verb present at all.
+    MECHANISM = {
+        "task_names":     ("Unregister-ScheduledTask",),
+        "service_names":  ("sc.exe delete", "Remove-Service"),
+        "process_names":  ("Stop-Process",),
+        "firewall_rules": ("Remove-NetFirewallRule",),
+        "registry_roots": ("Remove-Item", "Remove-ItemProperty"),
+        "shortcut_dirs":  ("Remove-Item",),
+    }
+    for field, verbs in MECHANISM.items():
+        names = owned.get(field, []) or []
+        if not names:
+            continue
+        if not any(v in src for v in verbs):
+            viol.append("Uninstall-MiOS.ps1 has no %s removal step (none of %s)"
+                        " yet mios.toml declares %d in [windows.owned_artifacts].%s"
+                        % (field[:-1].replace("_", " "), "/".join(verbs),
+                           len(names), field))
+        for name in names:
+            if not covered(name):
+                viol.append("Uninstall-MiOS.ps1 never removes %s %r"
+                            " (declared in mios.toml [windows.owned_artifacts].%s)"
+                            % (field[:-1].replace("_", " "), name, field))
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every artifact in [windows.owned_artifacts]"
+}
+
+# The Windows scripts carry last-resort port literals for the case where
+# mios.toml cannot be found at all. They are still SSOT-derived values, so they
+# must equal [ports] exactly -- otherwise two MiOS scripts on one host resolve
+# different ports for the same lane (the bug this gate was written for).
+check_ps_port_fallback_ssot() {
+    echo "[98-drift-checks]   check_ps_port_fallback_ssot"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, re, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        _toml = None
+
+if _toml is None:
+    sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli"
+                     " -- skipping PS port-fallback check\n")
+    sys.exit(0)
+
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    ports = _toml.load(fh).get("ports", {}) or {}
+
+# Get-PortFromSsot 'MIOS_PORT_COCKPIT' 'cockpit' 8110
+CALL = re.compile(r"Get-PortFromSsot\s+'[^']*'\s+'([a-z0-9_]+)'\s+(\d+)")
+# @{ Key = 'cockpit'; Default = 8110 }
+ENTRY = re.compile(r"Key\s*=\s*'([a-z0-9_]+)'\s*;\s*Default\s*=\s*(\d+)")
+
+viol = []
+for dirpath, dirnames, filenames in os.walk(root):
+    dirnames[:] = [d for d in dirnames
+                   if d not in (".git", "target", "node_modules", ".venv")]
+    for fn in sorted(filenames):
+        if not fn.endswith(".ps1"):
+            continue
+        p = os.path.join(dirpath, fn)
+        try:
+            with open(p, encoding="utf-8", errors="replace") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        rel = os.path.relpath(p, root).replace(os.sep, "/")
+        for pat in (CALL, ENTRY):
+            for key, literal in pat.findall(src):
+                want = ports.get(key)
+                if want is None:
+                    viol.append("%s falls back on port key %r which does not exist"
+                                " in mios.toml [ports]" % (rel, key))
+                elif int(literal) != int(want):
+                    viol.append("%s fallback %s=%s drifted from mios.toml [ports].%s=%s"
+                                % (rel, key, literal, key, want))
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
+}
+
+check_github_slug_casing() {
+    echo "[98-drift-checks]   check_github_slug_casing"
+    local bad_files
+    bad_files="$(grep -rnI --exclude-dir=".git" "raw.githubusercontent.com/MiOS-DEV" "$ROOT" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
+    if [[ -n "$bad_files" ]]; then
+        while IFS= read -r line; do
+            _violation "Non-canonical GitHub raw URL slug casing found: $line"
+        done <<<"$bad_files"
+        return
+    fi
+    echo "[98-drift-checks]   All raw.githubusercontent.com URLs use canonical lowercase org/repo"
 }
 
 

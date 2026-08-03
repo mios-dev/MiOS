@@ -10,7 +10,7 @@ echo "[check-build-urls] Starting pre-flight build asset URL liveness probe"
 
 urls=(
     "https://raw.githubusercontent.com/anchore/syft/main/install.sh"
-    "https://raw.githubusercontent.com/MiOS-DEV/MiOS-bootstrap/main/bootstrap.sh"
+    "https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/bootstrap.sh"
     "https://github.com"
 )
 

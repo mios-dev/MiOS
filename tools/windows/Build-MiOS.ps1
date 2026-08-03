@@ -34,11 +34,14 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ── Colour helpers ─────────────────────────────────────────────────────────
-function Write-Step   { param([string]$Msg) Write-Host "==> $Msg" -ForegroundColor Cyan }
-function Write-Ok     { param([string]$Msg) Write-Host " ok $Msg" -ForegroundColor Green }
-function Write-Warn   { param([string]$Msg) Write-Host "WARN $Msg" -ForegroundColor Yellow }
-function Write-Fail   { param([string]$Msg) Write-Host "FAIL $Msg" -ForegroundColor Red; exit 1 }
+$exportModule = Join-Path $PSScriptRoot '..\..\usr\libexec\mios\MiOS.Export.psm1'
+if (Test-Path $exportModule) { Import-Module $exportModule -ErrorAction SilentlyContinue }
+if (-not (Get-Command Write-Step -ErrorAction SilentlyContinue)) {
+    function Write-Step { param([string]$Msg) Write-Host "==> $Msg" -ForegroundColor Cyan }
+    function Write-Ok   { param([string]$Msg) Write-Host " ok $Msg" -ForegroundColor Green }
+    function Write-Warn { param([string]$Msg) Write-Host "WARN $Msg" -ForegroundColor Yellow }
+    function Write-Fail { param([string]$Msg) Write-Host "FAIL $Msg" -ForegroundColor Red; exit 1 }
+}
 
 # ── Preflight ──────────────────────────────────────────────────────────────
 Write-Step "Preflight checks"

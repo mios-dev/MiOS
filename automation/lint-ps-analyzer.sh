@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Runner for PSScriptAnalyzer static analysis across tracked *.ps1 files. Degrades open if PSScriptAnalyzer is absent.
+# AI-hint: Runner for PSScriptAnalyzer static analysis; -Recurse covers *.ps1, *.psm1 and *.psd1 under the repo root. Degrades open if PSScriptAnalyzer is absent.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

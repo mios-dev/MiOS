@@ -101,13 +101,10 @@ foreach ($path in $desktopPaths) {
         }
     }
 
-    $lnk = $wsh.CreateShortcut($lnkPath)
-    $lnk.TargetPath = $wslg
-    $lnk.Arguments = "-d $Distro --cd `"~`" -- $args_"
-    $lnk.WorkingDirectory = "C:\WINDOWS\system32"
-    $lnk.IconLocation = "$env:windir\System32\imageres.dll,150"
-    $lnk.Description = "$name ($Distro)"
-    $lnk.Save()
+$modulePath = Join-Path $PSScriptRoot '..\usr\libexec\mios\MiOSShortcutUtils.psm1'
+if (Test-Path $modulePath) { Import-Module $modulePath -ErrorAction SilentlyContinue }
+
+    New-MiosWslShortcut -LnkPath $lnkPath -Distro $Distro -ExecCmd $args_ -Description "$name ($Distro)"
     $created++
     Write-Output "  created: $lnkName"
 }

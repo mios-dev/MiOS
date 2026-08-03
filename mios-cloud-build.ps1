@@ -81,42 +81,11 @@ param(
     [string]   $BibImage   = 'quay.io/centos-bootc/bootc-image-builder:latest'
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-# ── Helpers ───────────────────────────────────────────────────────────────
-function Write-Step([string]$Msg) {
-    Write-Host ('▶ ' + $Msg) -ForegroundColor Cyan
-}
-function Write-Ok([string]$Msg) {
-    Write-Host ('  [+] ' + $Msg) -ForegroundColor Green
-}
-function Write-Warn([string]$Msg) {
-    Write-Host ('  [!] ' + $Msg) -ForegroundColor Yellow
-}
-function Write-Bad([string]$Msg) {
-    Write-Host ('  [X] ' + $Msg) -ForegroundColor Red
-}
-
-# Convert Windows path -> WSL mount path so podman run -v can use it
-# regardless of which drive M: lives on. Windows C:\foo\bar becomes
-# /mnt/c/foo/bar inside any WSL distro the operator has registered.
-function ConvertTo-WslPath([string]$WinPath) {
-    if (-not $WinPath) { return '' }
-    $drive = $WinPath.Substring(0,1).ToLower()
-    $rest  = $WinPath.Substring(2) -replace '\\','/'
-    return "/mnt/$drive$rest"
-}
-
-# Resolve the output base. Prefer M:\ (the MiOS data disk) when present,
-# fall back to %USERPROFILE%\MiOS-Build for operators that haven't run
-# Initialize-DataDisk yet. The dev VM mounts both transparently.
-function Resolve-OutputBase {
-    if ($script:OutputDir) { return $script:OutputDir }
-    if (Test-Path -LiteralPath 'M:\') {
-        return 'M:\MiOS\build'
-    }
-    return Join-Path $env:USERPROFILE 'MiOS-Build'
-}
+$exportModule = Join-Path $PSScriptRoot 'usr\libexec\mios\MiOS.Export.psm1'
+if (Test-Path $exportModule) { Import-Module $exportModule -ErrorAction SilentlyContinue }
 
 # Run a podman command bound to the named machine. Routes through
 # wsl.exe -d podman-MiOS-DEV so the build runs INSIDE the dev VM (where

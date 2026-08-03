@@ -2180,6 +2180,12 @@ to" / "let me know".
 : "${MIOS_WEB_RESEARCH_TOP_N:=6}"
 : "${MIOS_WEB_SEARCH_TRIGGER_CONTEXTS:=web,internet,online}"
 : "${MIOS_WEB_SEARCH_TRIGGER_PHRASES:=search,look up,google,find,search the web,search online}"
+: "${MIOS_WINDOWS_OWNED_ARTIFACTS_FIREWALL_RULES:=MiOS - igpu-llm,MiOS - ai-node,MiOS}"
+: "${MIOS_WINDOWS_OWNED_ARTIFACTS_PROCESS_NAMES:=MiOS-Wallpaper,MiOS-Wallpaper-Service,MiOS-Launcher,MiOS-iGPU-Server}"
+[ -n "${MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS+x}" ] || MIOS_WINDOWS_OWNED_ARTIFACTS_REGISTRY_ROOTS='HKLM:\SOFTWARE\MiOS,HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\MiOS,HKCU:\Control Panel\Cursors\Schemes'
+: "${MIOS_WINDOWS_OWNED_ARTIFACTS_SERVICE_NAMES:=MiOS-Wallpaper-Service,MiOS-iGPU-Server}"
+: "${MIOS_WINDOWS_OWNED_ARTIFACTS_SHORTCUT_DIRS:=MiOS,podman-MiOS-DEV}"
+: "${MIOS_WINDOWS_OWNED_ARTIFACTS_TASK_NAMES:=MiOS-Autostart,MiOS-Resume-Bootstrap,MiOS-WSL-KeepAlive,MiOS-WSL-Session,MiOS-iGPU-Server}"
 : "${MIOS_WORKER_TOOLS_BM25_B:=0.75}"
 : "${MIOS_WORKER_TOOLS_BM25_K1:=1.2}"
 : "${MIOS_WORKER_TOOLS_PRIORITY_FALLBACK_SCORES:=0.55,0.45,0.3,0.25,0.15}"

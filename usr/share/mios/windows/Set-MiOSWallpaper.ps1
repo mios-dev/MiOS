@@ -48,36 +48,22 @@ $Tokens = [ordered]@{
     bg  = '#282262'; fg  = '#E7DFD3'
 }
 
-# Three-layer overlay candidate paths, ordered HIGHEST priority first.
-$Layers = @(
-    (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),   # user
-    'C:\ProgramData\MiOS\mios.toml',                         # host / admin
-    'C:\Windows\Web\MiOS\mios.toml',                         # vendor (deployed)
-    (Join-Path $PSScriptRoot '..\mios.toml')                # vendor (repo layout)
-)
-
-function Get-ColorsFromToml([string]$path) {
-    $out = @{}
-    if (-not (Test-Path -LiteralPath $path)) { return $out }
-    $inColors = $false
-    foreach ($line in Get-Content -LiteralPath $path) {
-        $t = $line.Trim()
-        if ($t -match '^\[(.+)\]') { $inColors = ($Matches[1].Trim() -eq 'colors'); continue }
-        if (-not $inColors) { continue }
-        # key = "#rrggbb"   # comment
-        if ($t -match '^([A-Za-z0-9_]+)\s*=\s*"?#?([0-9A-Fa-f]{3,8})"?') {
-            $out[$Matches[1]] = '#' + $Matches[2]
-        }
-    }
-    return $out
+# Dot-source mios-common.ps1 if Get-MiosSsotValue isn't available yet
+if (-not (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue)) {
+    $commonScript = Join-Path $PSScriptRoot '..\..\..\installation\mios-common.ps1'
+    if (Test-Path $commonScript) { . $commonScript }
 }
 
-# Start from defaults, then apply layers low->high so the highest-priority layer wins.
 $resolved = [ordered]@{}
-foreach ($k in $Tokens.Keys) { $resolved[$k] = $Tokens[$k] }
-for ($i = $Layers.Count - 1; $i -ge 0; $i--) {
-    $c = Get-ColorsFromToml $Layers[$i]
-    foreach ($k in $Tokens.Keys) { $src = $AnsiSrc[$k]; if ($c.ContainsKey($src) -and $c[$src]) { $resolved[$k] = $c[$src] } }
+foreach ($k in $Tokens.Keys) {
+    $src = $AnsiSrc[$k]
+    $val = if (Get-Command Get-MiosSsotValue -ErrorAction SilentlyContinue) {
+        Get-MiosSsotValue -Section 'colors' -Key $src -Default $Tokens[$k]
+    } else {
+        $Tokens[$k]
+    }
+    if ($val -and $val -notmatch '^#') { $val = '#' + $val }
+    $resolved[$k] = $val
 }
 
 # Mode: 'auto' (default) omits the mode param so the page follows the host light/dark theme LIVE

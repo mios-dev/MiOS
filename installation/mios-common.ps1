@@ -34,26 +34,34 @@ function Get-MiosSsotValue {
         [string]$Default = '',
         [string]$TomlPath = ''
     )
-    if (-not $TomlPath) {
-        $TomlPath = @(
-            (Join-Path (Split-Path -Parent $PSScriptRoot) 'mios.toml'),
+    $candidatePaths = if ($TomlPath) { @($TomlPath) } else {
+        @(
+            (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
+            'C:\ProgramData\MiOS\mios.toml',
             'C:\MiOS\usr\share\mios\mios.toml',
+            'C:\Windows\Web\MiOS\mios.toml',
+            'M:\etc\mios\mios.toml',
+            'M:\usr\share\mios\mios.toml',
+            (Join-Path (Split-Path -Parent $PSScriptRoot) 'mios.toml'),
+            (Join-Path (Split-Path -Parent $PSScriptRoot) 'usr\share\mios\mios.toml'),
             '/usr/share/mios/mios.toml'
-        ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+        )
     }
-    if (-not $TomlPath -or -not (Test-Path $TomlPath)) { return $Default }
-    try {
-        $raw = Get-Content -Raw -LiteralPath $TomlPath -ErrorAction Stop
-        $secMatch = [regex]::Match($raw, "(?ms)^\s*\[" + [regex]::Escape($Section) + "\]\s*(.*?)(?=^\s*\[|\z)")
-        if ($secMatch.Success) {
-            $keyMatch = [regex]::Match($secMatch.Groups[1].Value, "(?m)^\s*" + [regex]::Escape($Key) + "\s*=\s*(?:`"([^`"]*)`"|'([^']*)'|(\S+))")
-            if ($keyMatch.Success) {
-                for ($g = 1; $g -le 3; $g++) {
-                    if ($keyMatch.Groups[$g].Success) { return $keyMatch.Groups[$g].Value }
+    foreach ($p in $candidatePaths) {
+        if (-not (Test-Path -LiteralPath $p)) { continue }
+        try {
+            $raw = Get-Content -Raw -LiteralPath $p -ErrorAction Stop
+            $secMatch = [regex]::Match($raw, "(?ms)^\s*\[" + [regex]::Escape($Section) + "\]\s*(.*?)(?=^\s*\[|\z)")
+            if ($secMatch.Success) {
+                $keyMatch = [regex]::Match($secMatch.Groups[1].Value, "(?m)^\s*" + [regex]::Escape($Key) + "\s*=\s*(?:`"([^`"]*)`"|'([^']*)'|(\S+))")
+                if ($keyMatch.Success) {
+                    for ($g = 1; $g -le 3; $g++) {
+                        if ($keyMatch.Groups[$g].Success) { return $keyMatch.Groups[$g].Value }
+                    }
                 }
             }
-        }
-    } catch {}
+        } catch {}
+    }
     return $Default
 }
 

@@ -9828,6 +9828,19 @@ mios_config = { name = "MiOS Config", bin = "mios-config.ps1", icon = "mios-conf
 mios_help   = { name = "MiOS Help",   bin = "mios-help.ps1",   icon = "mios-help.ico",   description = "Full verb + functionality reference (every MiOS command and where things live)" }
 
 # ----------------------------------------------------------------------------
+# [windows.owned_artifacts] -- SSOT registry of MiOS-owned Windows artifacts
+# (tasks, services, processes, firewall rules, registry keys, shortcuts).
+# Used by Uninstall-MiOS.ps1 and enforced by the symmetry drift check.
+# ----------------------------------------------------------------------------
+[windows.owned_artifacts]
+task_names     = ["MiOS-Autostart", "MiOS-Resume-Bootstrap", "MiOS-WSL-KeepAlive", "MiOS-WSL-Session", "MiOS-iGPU-Server"]
+service_names  = ["MiOS-Wallpaper-Service", "MiOS-iGPU-Server"]
+process_names  = ["MiOS-Wallpaper", "MiOS-Wallpaper-Service", "MiOS-Launcher", "MiOS-iGPU-Server"]
+firewall_rules = ["MiOS - igpu-llm", "MiOS - ai-node", "MiOS"]
+registry_roots = ["HKLM:\\SOFTWARE\\MiOS", "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MiOS", "HKCU:\\Control Panel\\Cursors\\Schemes"]
+shortcut_dirs  = ["MiOS", "podman-MiOS-DEV"]
+
+# ----------------------------------------------------------------------------
 # [preflight] -- minimum host requirements. Get-MiOS.ps1 checks these
 # before starting the install; a violation aborts with a clear message
 # pointing at which knob the operator can lower (e.g. via mios.html).

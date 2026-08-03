@@ -51,7 +51,11 @@ param(
     [string]$Folder    = 'MiOS Apps'
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
+
+$modulePath = Join-Path $PSScriptRoot 'MiOSShortcutUtils.psm1'
+if (Test-Path $modulePath) { Import-Module $modulePath -ErrorAction SilentlyContinue }
 
 $wslgExe = 'C:\Program Files\WSL\wslg.exe'
 if (-not (Test-Path $wslgExe)) {

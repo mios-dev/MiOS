@@ -155,7 +155,9 @@ _mios_resolve_version() {
 export MIOS_VERSION
 '''
 
-HEADER_PS = '''# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# Raw: the emitted PowerShell carries Windows path separators ('..\\..\\VERSION'),
+# which Python would otherwise read as escape sequences.
+HEADER_PS = r'''# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
 # AI-functions: Resolve-MiosVersion
 #

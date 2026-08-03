@@ -95,10 +95,10 @@ if (Get-Command podman.exe -ErrorAction SilentlyContinue) {
 
 # ── 2. Windows-side services + processes ────────────────────────────────────
 _say "`n[2/6] Windows services + processes" 'Cyan'
-foreach ($p in @('MiOS-Wallpaper','MiOS-Wallpaper-Service','MiOS-Launcher')) {
+foreach ($p in @('MiOS-Wallpaper','MiOS-Wallpaper-Service','MiOS-Launcher','MiOS-iGPU-Server')) {
     if (Get-Process -Name $p -ErrorAction SilentlyContinue) { _act "kill process $p" { Get-Process -Name $p -ErrorAction SilentlyContinue | Stop-Process -Force } }
 }
-foreach ($svc in @('MiOS-Wallpaper-Service')) {
+foreach ($svc in @('MiOS-Wallpaper-Service','MiOS-iGPU-Server')) {
     if (Get-Service -Name $svc -ErrorAction SilentlyContinue) {
         _act "service $svc (stop+delete)" { Stop-Service $svc -Force -ErrorAction SilentlyContinue; & sc.exe delete $svc *> $null }
     }

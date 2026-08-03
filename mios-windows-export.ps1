@@ -86,14 +86,12 @@ param(
     [string]   $HyperVName = 'MiOS-Auto'
 )
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$ProgressPreference    = 'SilentlyContinue'   # 10-20x speedup for IWR
+$ProgressPreference    = 'SilentlyContinue'
 
-# ── Console helpers ───────────────────────────────────────────────────────
-function Write-Step([string]$m) { Write-Host ("▶ "    + $m) -ForegroundColor Cyan  }
-function Write-Ok  ([string]$m) { Write-Host ("  [+] " + $m) -ForegroundColor Green }
-function Write-Warn([string]$m) { Write-Host ("  [!] " + $m) -ForegroundColor Yellow }
-function Write-Bad ([string]$m) { Write-Host ("  [X] " + $m) -ForegroundColor Red   }
+$exportModule = Join-Path $PSScriptRoot 'usr\libexec\mios\MiOS.Export.psm1'
+if (Test-Path $exportModule) { Import-Module $exportModule -ErrorAction SilentlyContinue }
 
 # ── winget helper -- auto-install qemu + zstd if missing ─────────────────
 # We use winget rather than chocolatey/scoop because winget is bundled in
