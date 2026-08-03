@@ -252,3 +252,69 @@ function Start-MiosMonitor {
     & python $mon
     return $null
 }
+
+function Read-MiosSecret {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$false)][string]$Prompt = "Secret:",
+        [switch]$AsSecureString,
+        [switch]$PersistDpapi,
+        [string]$PersistPath = ""
+    )
+    if ($Prompt) {
+        Write-Host "  $Prompt " -NoNewline -ForegroundColor White
+    }
+    
+    $secure = Read-Host -MaskInput -AsSecureString
+    if ($AsSecureString) {
+        return $secure
+    }
+
+    $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
+    $plain = ""
+    try {
+        $plain = [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    } finally {
+        [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
+    }
+
+    if ($PersistDpapi) {
+        if (-not $PersistPath) {
+            $MiosAppDir = Join-Path $env:LOCALAPPDATA "MiOS"
+            if (-not (Test-Path $MiosAppDir)) { New-Item -ItemType Directory -Path $MiosAppDir -Force | Out-Null }
+            $PersistPath = Join-Path $MiosAppDir ".mios-secrets.dpapi"
+        }
+        $dir = Split-Path $PersistPath -Parent
+        if ($dir -and -not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        
+        $encrypted = ConvertFrom-SecureString -SecureString $secure
+        Set-Content -Path $PersistPath -Value $encrypted -Encoding UTF8
+        
+        try {
+            $acl = Get-Acl $PersistPath
+            $acl.SetAccessRuleProtection($true, $false)
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                [System.Security.Principal.WindowsIdentity]::GetCurrent().Name,
+                "FullControl", "Allow"
+            )
+            $acl.AddAccessRule($rule)
+            Set-Acl $PersistPath $acl
+        } catch {}
+    }
+
+    return $plain
+}
+
+function Get-MiosSecretDpapi {
+    param([string]$PersistPath = "")
+    if (-not $PersistPath) {
+        $PersistPath = Join-Path $env:LOCALAPPDATA "MiOS\.mios-secrets.dpapi"
+    }
+    if (-not (Test-Path $PersistPath)) { return $null }
+    try {
+        $encrypted = Get-Content -Raw -Path $PersistPath
+        return ConvertTo-SecureString $encrypted.Trim()
+    } catch {
+        return $null
+    }
+}

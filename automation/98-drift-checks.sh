@@ -6110,6 +6110,7 @@ main() {
     check_ps_signatures
     check_windows_exe_provenance
     check_unpinned_runtime_fetches
+    check_secret_handling
 
 
     check_chrony_ptp_dropin
@@ -6420,6 +6421,21 @@ check_unpinned_runtime_fetches() {
         done
         echo "[98-drift-checks]   All Windows runtime downloads carry SHA-256 integrity checks"
     fi
+}
+
+check_secret_handling() {
+    echo "[98-drift-checks]   check_secret_handling"
+    local ps_files=()
+    while IFS= read -r f; do ps_files+=("$f"); done < <(find "$ROOT" -maxdepth 3 -name "*.ps1" -not -path "*/.git/*")
+    local f
+    for f in "${ps_files[@]}"; do
+        if [[ -f "$f" ]]; then
+            if grep -q "mios-secrets.env" "$f"; then
+                _violation "Script $(basename "$f") writes/reads secrets in plaintext %TEMP%\mios-secrets.env"
+            fi
+        fi
+    done
+    echo "[98-drift-checks]   No PS script writes secrets to plaintext %TEMP% files"
 }
 
 

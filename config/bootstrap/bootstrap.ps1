@@ -21,17 +21,14 @@ $MiosImagesDir = Join-Path $MiosDocsDir "images"
 
 $PrivateInstaller = "https://raw.githubusercontent.com/MiOS-DEV/mios/main/install.ps1"
 $EnvFile = Join-Path $MiosEnvDir "mios-build.env"
-$SecretsFile = Join-Path $env:TEMP "mios-secrets.env"
+$SecretsFile = Join-Path $MiosAppDir ".mios-secrets.dpapi"
 
 function Read-Secret {
     param([string]$Prompt)
     Write-Host "  $Prompt " -NoNewline -ForegroundColor White
-    if ($PSVersionTable.PSVersion.Major -ge 7) {
-        return Read-Host -MaskInput
-    }
-    $sec  = Read-Host -AsSecureString
+    $sec = Read-Host -MaskInput -AsSecureString
     $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-    try   { return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
+    try { return [System.Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr) }
     finally { [System.Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) }
 }
 
@@ -70,12 +67,11 @@ function Export-EnvFile {
     if ($env:MIOS_GHCR_USER)       { $lines += "MIOS_GHCR_USER=$env:MIOS_GHCR_USER" }
     $lines | Set-Content $Path -Encoding UTF8
 
-    $secretLines = @(
-        "GHCR_TOKEN=$env:GHCR_TOKEN"
-        "MIOS_PASSWORD=$env:MIOS_PASSWORD"
-    )
-    if ($env:MIOS_GHCR_PUSH_TOKEN) { $secretLines += "MIOS_GHCR_PUSH_TOKEN=$env:MIOS_GHCR_PUSH_TOKEN" }
-    $secretLines | Set-Content $SecretsFile -Encoding UTF8
+    $secretStr = "GHCR_TOKEN=$env:GHCR_TOKEN`nMIOS_PASSWORD=$env:MIOS_PASSWORD"
+    if ($env:MIOS_GHCR_PUSH_TOKEN) { $secretStr += "`nMIOS_GHCR_PUSH_TOKEN=$env:MIOS_GHCR_PUSH_TOKEN" }
+    $secureSecret = ConvertTo-SecureString $secretStr -AsPlainText -Force
+    $encryptedSecret = ConvertFrom-SecureString $secureSecret
+    $encryptedSecret | Set-Content $SecretsFile -Encoding UTF8
 
     # Restrict secrets file to current user only
     try {
