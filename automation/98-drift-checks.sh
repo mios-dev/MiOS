@@ -6232,16 +6232,30 @@ check_native_lint() {
     if ! command -v cargo >/dev/null 2>&1; then
         return 0
     fi
-    if (cd "$ROOT/tools/native" && cargo check --workspace) >/dev/null 2>&1; then
+    # mios-wallpaperd is Windows-only (windows-sys) and cannot build on Linux,
+    # which is why mios-ci.yml excludes it from both fmt and clippy. Without the
+    # same exclusion this check failed on every Linux runner -- and swallowed
+    # the compiler output, so it just said "cargo check failed".
+    local out
+    if out=$(cd "$ROOT/tools/native" && cargo check --workspace --exclude mios-wallpaperd 2>&1); then
         echo "[98-drift-checks]   native workspace cargo check passed"
     else
+        printf '%s\n' "$out" | grep -E '^(error|warning)' | head -n 10 >&2
         _violation "tools/native cargo check failed"
     fi
 }
 
 check_resolver_shell_equivalence() {
     echo "[98-drift-checks]   check_resolver_shell_equivalence"
-    MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" >/dev/null 2>&1 || _violation "resolver shell equivalence check failed"
+    # Pin the SSOT tier explicitly (an inherited MIOS_TOML would grade the
+    # installed system) and surface the mismatch instead of swallowing it.
+    local out
+    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \
+                 MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
+                 python3 tools/check-resolver-twin.py 2>&1); then
+        printf '%s\n' "$out" | tail -n 12 >&2
+        _violation "resolver shell equivalence check failed"
+    fi
 }
 
 check_resolver_ps_equivalence() {
