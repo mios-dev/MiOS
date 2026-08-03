@@ -6298,7 +6298,12 @@ check_ps_repo_parity() {
 
 check_ps_redirectors() {
     echo "[98-drift-checks]   check_ps_redirectors"
-    local redirectors=("install.ps1" "mios-build-local.ps1" "run-pipeline.ps1")
+    # Only files the repo actually SHIPS. run-pipeline.ps1 was listed here but
+    # is an untracked 3-line local wrapper around mios-pipeline.ps1, so the
+    # "Redirector file missing" branch fired unconditionally on every clean
+    # checkout. (mios-pipeline.ps1 itself is 415 lines -- it is the real
+    # pipeline script, not a thin redirector, so it does not belong here.)
+    local redirectors=("install.ps1" "mios-build-local.ps1")
     local f line_count max_lines=50
     for f in "${redirectors[@]}"; do
         if [[ -f "$ROOT/$f" ]]; then
