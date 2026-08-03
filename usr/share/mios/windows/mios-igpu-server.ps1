@@ -188,6 +188,20 @@ if ($Install) {
 # ---- ensure dirs ------------------------------------------------------------
 foreach ($d in @($root,$binDir,$modelsDir,$logDir,$slotDir)) { New-Item -ItemType Directory -Force -Path $d | Out-Null }
 
+function Test-SHA256Integrity {
+    param([string]$FilePath, [string]$ExpectedSha256)
+    if (-not (Test-Path $FilePath)) { return }
+    $actualHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash.ToLower()
+    if ($ExpectedSha256 -and $ExpectedSha256.Trim() -ne '') {
+        if ($actualHash -ne $ExpectedSha256.ToLower()) {
+            throw "SHA256 verification failed for $FilePath! Expected: $ExpectedSha256, Actual: $actualHash. Refusing untrusted artifact."
+        }
+        Ok "SHA256 verified: $FilePath ($actualHash)"
+    } else {
+        Info "SHA256 checksum for $FilePath: $actualHash"
+    }
+}
+
 # ---- ensure llama.cpp Vulkan binary -----------------------------------------
 if (-not (Test-Path $exe)) {
     Info 'llama-server not found -- fetching llama.cpp Vulkan release...'
@@ -203,6 +217,7 @@ if (-not (Test-Path $exe)) {
     $zip = Join-Path $env:TEMP $asset.name
     Info "downloading $($asset.name) ($([math]::Round($asset.size/1MB)) MB)..."
     Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -Headers $headers
+    Test-SHA256Integrity -FilePath $zip -ExpectedSha256 $env:MIOS_LLAMA_VULKAN_ZIP_SHA256
     Info 'extracting...'
     Expand-Archive -Path $zip -DestinationPath $binDir -Force
     Remove-Item $zip -Force -ErrorAction SilentlyContinue
@@ -227,6 +242,7 @@ if (-not $Model) {
         $Model = Join-Path $modelsDir (Split-Path $ModelUrl -Leaf)
         Info "no GGUF present -- downloading default model ($(Split-Path $ModelUrl -Leaf))..."
         Invoke-WebRequest -Uri $ModelUrl -OutFile $Model
+        Test-SHA256Integrity -FilePath $Model -ExpectedSha256 $env:MIOS_QWEN_GGUF_SHA256
         Ok "model -> $Model"
     }
 }

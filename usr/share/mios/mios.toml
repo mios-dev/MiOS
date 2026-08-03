@@ -154,6 +154,14 @@ policy_mode = "matchRepository"
 # tools/sign-powershell.ps1 takes -CertPassword as a SecureString, or prompts.
 signing_cert = ""
 
+[artifacts.windows]
+# Pinned SHA-256 digests for runtime downloads per ADR-0003
+llama_vulkan_zip_sha256 = ""
+qwen_gguf_sha256 = ""
+granite_gguf_sha256 = ""
+lfm2_gguf_sha256 = ""
+nomic_embed_sha256 = ""
+
 [repos.fedora]
 name = "Fedora {ver} - $basearch"
 metalink = "https://mirrors.fedoraproject.org/metalink?repo=fedora-{ver}&arch=$basearch"

@@ -111,32 +111,33 @@
 110	check_powershell_parse	check_powershell_parse
 111	check_ps_signatures	check_ps_signatures
 112	check_windows_exe_provenance	check_windows_exe_provenance
-113	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
-114	check_renderer_gate_coverage	renderer gate coverage verified clean
-115	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
-116	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
-117	check_verb_templates	verb templates compile and validate against SSOT args
-118	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
-119	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-120	check_pipe_extraction_parity	python3 absent
-121	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
-122	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-123	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
-124	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
-125	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-126	check_db_seed_coverage	DB seed coverage gate verified clean
-127	check_account_column_parity	account column parity gate verified clean
-128	check_module_length	mios_pipe sibling modules are all <= 800 lines
-129	check_vendored_assets_non_stub	vendored assets dir absent
-130	check_resolved_env_lossless	resolved environment is lossless
-131	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-132	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-133	check_value_aliases	value-alias consistency verified
-134	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-135	check_bash_phase_ratchet	bash phase script count ratchet check
-136	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-137	check_negatives_are_effective	negative-test effectiveness check
-138	check_skip_list_covered	checking workflow skip-list coverage and parity
-139	check_ai_manifests_fresh	checking AI manifest freshness
-140	check_ports_category_schema	checking port category schema (allocation + collisions)
-141	check_globals_generated	checking generated globals resolvers match SSOT
+113	check_unpinned_runtime_fetches	check_unpinned_runtime_fetches
+114	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
+115	check_renderer_gate_coverage	renderer gate coverage verified clean
+116	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
+117	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
+118	check_verb_templates	verb templates compile and validate against SSOT args
+119	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
+120	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
+121	check_pipe_extraction_parity	python3 absent
+122	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
+123	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
+124	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
+125	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
+126	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
+127	check_db_seed_coverage	DB seed coverage gate verified clean
+128	check_account_column_parity	account column parity gate verified clean
+129	check_module_length	mios_pipe sibling modules are all <= 800 lines
+130	check_vendored_assets_non_stub	vendored assets dir absent
+131	check_resolved_env_lossless	resolved environment is lossless
+132	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+133	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+134	check_value_aliases	value-alias consistency verified
+135	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+136	check_bash_phase_ratchet	bash phase script count ratchet check
+137	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+138	check_negatives_are_effective	negative-test effectiveness check
+139	check_skip_list_covered	checking workflow skip-list coverage and parity
+140	check_ai_manifests_fresh	checking AI manifest freshness
+141	check_ports_category_schema	checking port category schema (allocation + collisions)
+142	check_globals_generated	checking generated globals resolvers match SSOT

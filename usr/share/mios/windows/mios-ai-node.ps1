@@ -357,6 +357,10 @@ _url=\"https://huggingface.co/${repo}/resolve/main/${srcfile}\"
 if [ ! -s \"/var/lib/mios/llamacpp/models/${file}\" ]; then
     echo \"Downloading ${file}...\"
     curl -fL -C - --retry 3 --max-time 1800 -o \"/var/lib/mios/llamacpp/models/${file}.part\" \"\$_url\"
+    if [ -n \"\${MIOS_MODEL_SHA256:-}\" ]; then
+        echo \"Verifying SHA256 pin...\"
+        echo \"\${MIOS_MODEL_SHA256}  /var/lib/mios/llamacpp/models/${file}.part\" | sha256sum -c -
+    fi
     mv -f \"/var/lib/mios/llamacpp/models/${file}.part\" \"/var/lib/mios/llamacpp/models/${file}\"
     echo \"[OK] Complete\"
 else

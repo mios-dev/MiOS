@@ -6109,6 +6109,7 @@ main() {
     check_powershell_parse
     check_ps_signatures
     check_windows_exe_provenance
+    check_unpinned_runtime_fetches
 
 
     check_chrony_ptp_dropin
@@ -6376,6 +6377,24 @@ check_windows_exe_provenance() {
             fi
         done
         echo "[98-drift-checks]   All tracked Windows .exe binaries have verifiable source provenance"
+    fi
+}
+
+check_unpinned_runtime_fetches() {
+    echo "[98-drift-checks]   check_unpinned_runtime_fetches"
+    local win_dir="$ROOT/usr/share/mios/windows"
+    if [[ -d "$win_dir" ]]; then
+        local f
+        for f in "$win_dir"/*.ps1; do
+            if [[ -f "$f" ]]; then
+                if grep -q -E 'Invoke-WebRequest|curl' "$f"; then
+                    if ! grep -q -E 'Test-SHA256Integrity|sha256sum' "$f"; then
+                        _violation "Runtime download in $(basename "$f") lacks SHA-256 integrity verification (ADR-0003 violation)"
+                    fi
+                fi
+            fi
+        done
+        echo "[98-drift-checks]   All Windows runtime downloads carry SHA-256 integrity checks"
     fi
 }
 
