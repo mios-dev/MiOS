@@ -272,6 +272,12 @@
       "full_content": "#!/usr/bin/env bash\n# MIOS_APPLY_CLASS=universal\n# AI-hint: Configures GNOME Remote Desktop for Wayland-native RDP support and masks legacy xrdp services to ensure a clean remote desktop environment in MiOS.\n# AI-related: xrdp.service, xrdp-sesman.service\nset -euo pipefail\nfor _mlog in \"$(dirname \"${BASH_SOURCE[0]}\")/../usr/lib/mios/log.sh\" /usr/lib/mios/log.sh; do [ -r \"$_mlog\" ] && . \"$_mlog\" && break; done\n\nmios_log \"Mask xrdp.service, xrdp-sesman.service; GNOME Remote Desktop via 90-mios.preset\"\n\nsystemctl mask xrdp.service xrdp-sesman.service 2>/dev/null || true\n\n\nmios_ok \"Xrdp.service, xrdp-sesman.service masked\"\n"
     },
     {
+      "path": "automation/58-native-build.sh",
+      "title": "58-native-build.sh",
+      "type": "source_code",
+      "full_content": "#!/usr/bin/env bash\n# AI-hint: Compiles native Rust workspace crates and installs binaries into /usr/libexec/mios during image bake.\n# AI-related: tools/native/Cargo.toml, automation/85-bake-plan.sh, /usr/libexec/mios/\nset -euo pipefail\n\nSCRIPT_DIR=\"$(cd \"$(dirname \"${BASH_SOURCE[0]}\")\" && pwd)\"\nROOT_DIR=\"$(cd \"${SCRIPT_DIR}/..\" && pwd)\"\n\nDEST_DIR=\"/usr/libexec/mios\"\nif [[ \"${EUID}\" -ne 0 && -n \"${DEST_DIR}\" ]]; then\n    DEST_DIR=\"${ROOT_DIR}/usr/libexec/mios\"\nfi\n\nmkdir -p \"${DEST_DIR}\"\n\nif command -v cargo >/dev/null 2>&1; then\n    echo \"[58-native-build] Compiling native workspace crates...\"\n    (cd \"${ROOT_DIR}/tools/native\" && cargo build --release)\n    \n    for bin in mios-resolver mios-drift-runner mios-ssot-lint mios-version-check; do\n        if [[ -f \"${ROOT_DIR}/tools/native/target/release/${bin}\" ]]; then\n            echo \"[58-native-build] Installing ${bin} to ${DEST_DIR}...\"\n            cp \"${ROOT_DIR}/tools/native/target/release/${bin}\" \"${DEST_DIR}/${bin}\"\n            chmod +x \"${DEST_DIR}/${bin}\"\n        fi\n    done\nelse\n    echo \"[58-native-build] WARNING: cargo toolchain not available; skipping native build.\"\nfi\n"
+    },
+    {
       "path": "automation/59-tools.sh",
       "title": "59-tools.sh",
       "type": "source_code",

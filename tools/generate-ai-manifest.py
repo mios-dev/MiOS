@@ -255,6 +255,24 @@ if __name__ == "__main__":
                             d2 = f2.read()
                     if d1 != d2:
                         print(f"[generate-ai-manifest] Manifest drift detected: {output_file}", file=sys.stderr)
+                        # Name the actual difference. "stale" with no evidence
+                        # is unactionable when the committed and regenerated
+                        # trees look identical to the committer.
+                        try:
+                            e1 = {e.get("path") for e in json.loads(d1).get("entries", [])}
+                            e2 = {e.get("path") for e in json.loads(d2).get("entries", [])}
+                            only1, only2 = sorted(e1 - e2), sorted(e2 - e1)
+                            if only1:
+                                print(f"    committed-only entries ({len(only1)}): {only1[:8]}", file=sys.stderr)
+                            if only2:
+                                print(f"    regenerated-only entries ({len(only2)}): {only2[:8]}", file=sys.stderr)
+                            if not only1 and not only2:
+                                m1 = {e.get("path"): e for e in json.loads(d1).get("entries", [])}
+                                m2 = {e.get("path"): e for e in json.loads(d2).get("entries", [])}
+                                changed = [p for p in sorted(m1) if m1[p] != m2.get(p)]
+                                print(f"    same {len(m1)} entries; content differs in {len(changed)}: {changed[:8]}", file=sys.stderr)
+                        except Exception as exc:  # diagnostics must never mask the drift
+                            print(f"    (could not diff: {exc})", file=sys.stderr)
                         has_drift = True
                 else:
                     print(f"[generate-ai-manifest] Missing manifest file: {output_file}", file=sys.stderr)
