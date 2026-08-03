@@ -5,7 +5,7 @@ use toml::Value;
 
 use crate::emit::build_exports_map;
 
-pub fn emit_json(merged: &Value, stack_offset: i32) -> String {
+pub fn emit_json(merged: &Value, stack_offset: i64) -> String {
     let exports = build_exports_map(merged, stack_offset);
     let merged_json: JsonValue = serde_json::to_value(merged).unwrap_or(json!({}));
 

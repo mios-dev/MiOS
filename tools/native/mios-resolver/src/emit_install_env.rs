@@ -7,7 +7,7 @@ use crate::emit::build_exports_map;
 
 pub fn emit_install_env(
     merged: &Value,
-    stack_offset: i32,
+    stack_offset: i64,
     _ref_names_path: Option<&Path>,
 ) -> String {
     let mut exports = build_exports_map(merged, stack_offset);

@@ -5,11 +5,11 @@ use std::collections::BTreeMap;
 use toml::Value;
 
 use crate::aliases::get_aliases;
-use crate::walk::{process_val, walk_table};
+use crate::walk::{process_val, walk};
 
-pub fn build_exports_map(merged: &Value, stack_offset: i32) -> BTreeMap<String, String> {
+pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, String> {
     let mut exports = BTreeMap::new();
-    let all_pairs = walk_table(merged, "");
+    let all_pairs = walk(merged);
 
     for (path, val) in all_pairs {
         let val_processed = process_val(&path, &val, stack_offset);
