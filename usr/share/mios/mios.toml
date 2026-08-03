@@ -38,6 +38,7 @@ use_rust_resolver_powershell = true
 use_rust_resolver_python = true
 use_rust_resolver_install_env = true
 use_compiled_oscontrol = true
+use_compiled_ainode = true
 
 # ----------------------------------------------------------------------------
 # [identity] -- Linux account, hostname, GECOS, login shell, group membership.

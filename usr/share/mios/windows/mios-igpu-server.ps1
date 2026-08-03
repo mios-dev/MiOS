@@ -82,6 +82,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$compiledExe = Join-Path $PSScriptRoot '..\..\..\src\mios-ainode\mios-ainode.exe'
+if (-not (Test-Path $compiledExe)) {
+    $compiledExe = 'C:\MiOS\src\mios-ainode\mios-ainode.exe'
+}
+
+$useCompiled = $env:MIOS_MIGRATION_USE_COMPILED_AINODE
+if ($null -eq $useCompiled -or $useCompiled -eq '') {
+    $useCompiled = 'true'
+}
+
+if (($useCompiled -eq 'true' -or $useCompiled -eq '1') -and (Test-Path $compiledExe)) {
+    Write-Host "[mios-igpu-server] launching compiled binary: $compiledExe $Port"
+    & $compiledExe $Port
+    exit $LASTEXITCODE
+}
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 $root      = Join-Path $env:ProgramData 'mios\igpu'
 $binDir    = Join-Path $root 'bin'
