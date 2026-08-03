@@ -22,6 +22,22 @@ cd "$ROOT"
 PY="${PYTHON:-python3}"
 command -v "$PY" >/dev/null 2>&1 || PY=python
 
+# EVERY renderer resolves through the layered resolver, which honours
+# MIOS_ROOT / MIOS_TOML* from the environment. On a MiOS host (or the MiOS-DEV
+# container) those are already exported and point at the INSTALLED system, so
+# an unpinned run silently renders the installed SSOT into this repo's
+# artefacts -- which is how globals.ps1 ended up carrying 'MiOS User' and
+# :8640. Pin every tier to the tree being synced.
+export MIOS_ROOT="$ROOT"
+export MIOS_TOML_ROOT="$ROOT"
+export MIOS_TOML="$ROOT/usr/share/mios/mios.toml"
+export MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml"
+export MIOS_VENDOR_TOML_D="$ROOT/usr/lib/mios/mios.d"
+export MIOS_HOST_TOML="$ROOT/etc/mios/mios.toml"
+export MIOS_HOST_TOML_D="$ROOT/etc/mios/mios.d"
+export MIOS_USER_TOML="$ROOT/.mios-absent.toml"
+export MIOS_USER_TOML_D="$ROOT/.mios-absent.d"
+
 step() { printf '[sync-generated] %s\n' "$1"; }
 
 main() {
