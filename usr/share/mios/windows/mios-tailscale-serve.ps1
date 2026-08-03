@@ -51,20 +51,34 @@ if (-not $ts) { throw "tailscale.exe not found (install Tailscale for Windows)" 
 # User-facing MiOS services. Port numbers MIRROR /usr/share/mios/mios.toml [ports]
 # (the SSOT) -- update both if a port changes. Internal LLM lanes / DBs / loopback
 # tools are intentionally NOT exposed.
+$openWebuiPort = if ($env:MIOS_PORT_OPEN_WEBUI) { [int]$env:MIOS_PORT_OPEN_WEBUI } else { 3030 }
+$hermesPort    = if ($env:MIOS_PORT_HERMES) { [int]$env:MIOS_PORT_HERMES } else { 8642 }
+$agentPipePort = if ($env:MIOS_PORT_AGENT_PIPE) { [int]$env:MIOS_PORT_AGENT_PIPE } else { 8640 }
+$hermesDashPort= if ($env:MIOS_PORT_HERMES_DASHBOARD) { [int]$env:MIOS_PORT_HERMES_DASHBOARD } else { 9119 }
+$forgePort     = if ($env:MIOS_PORT_FORGE_HTTP) { [int]$env:MIOS_PORT_FORGE_HTTP } else { 3000 }
+$cockpitPort   = if ($env:MIOS_PORT_COCKPIT) { [int]$env:MIOS_PORT_COCKPIT } else { 9090 }
+$adguardPort   = if ($env:MIOS_PORT_ADGUARD_UI) { [int]$env:MIOS_PORT_ADGUARD_UI } else { 3053 }
+$guacPort      = if ($env:MIOS_PORT_GUACAMOLE_WEB) { [int]$env:MIOS_PORT_GUACAMOLE_WEB } else { 8080 }
+$searxngPort   = if ($env:MIOS_PORT_SEARXNG) { [int]$env:MIOS_PORT_SEARXNG } else { 8888 }
+$codePort      = if ($env:MIOS_PORT_CODE_SERVER) { [int]$env:MIOS_PORT_CODE_SERVER } else { 8800 }
+$ttydBashPort  = if ($env:MIOS_PORT_TTYD_BASH) { [int]$env:MIOS_PORT_TTYD_BASH } else { 7681 }
+$ttydPwshPort  = if ($env:MIOS_PORT_TTYD_POWERSHELL) { [int]$env:MIOS_PORT_TTYD_POWERSHELL } else { 7682 }
+$cephPort      = if ($env:MIOS_PORT_CEPH_DASHBOARD) { [int]$env:MIOS_PORT_CEPH_DASHBOARD } else { 8443 }
+
 $SERVICES = @(
-    @{ port=3030; name='open-webui';  label='Open WebUI' }
-    @{ port=8642; name='hermes';      label='Hermes-Agent (/v1 + agent)' }
-    @{ port=8640; name='agent-pipe';  label='agent-pipe (/v1 MiOS-Agent)' }
-    @{ port=9119; name='hermes-dash'; label='Hermes Dashboard' }
-    @{ port=3000; name='forgejo';     label='Forgejo (git web)' }
-    @{ port=9090; name='cockpit';     label='Cockpit (host console)' }
-    @{ port=3053; name='adguard';     label='AdGuard Home UI' }
-    @{ port=8080; name='guacamole';   label='Guacamole (browser desktop)' }
-    @{ port=8888; name='searxng';     label='SearXNG' }
-    @{ port=8800; name='code-server'; label='code-server (VS Code)' }
-    @{ port=7681; name='ttyd-bash';   label='ttyd (bash)' }
-    @{ port=7682; name='ttyd-pwsh';   label='ttyd (PowerShell)' }
-    @{ port=8443; name='ceph';        label='Ceph dashboard' }
+    @{ port=$openWebuiPort;  name='open-webui';  label='Open WebUI' }
+    @{ port=$hermesPort;     name='hermes';      label='Hermes-Agent (/v1 + agent)' }
+    @{ port=$agentPipePort;  name='agent-pipe';  label='agent-pipe (/v1 MiOS-Agent)' }
+    @{ port=$hermesDashPort; name='hermes-dash'; label='Hermes Dashboard' }
+    @{ port=$forgePort;      name='forgejo';     label='Forgejo (git web)' }
+    @{ port=$cockpitPort;    name='cockpit';     label='Cockpit (host console)' }
+    @{ port=$adguardPort;    name='adguard';     label='AdGuard Home UI' }
+    @{ port=$guacPort;       name='guacamole';   label='Guacamole (browser desktop)' }
+    @{ port=$searxngPort;    name='searxng';     label='SearXNG' }
+    @{ port=$codePort;       name='code-server'; label='code-server (VS Code)' }
+    @{ port=$ttydBashPort;   name='ttyd-bash';   label='ttyd (bash)' }
+    @{ port=$ttydPwshPort;   name='ttyd-pwsh';   label='ttyd (PowerShell)' }
+    @{ port=$cephPort;       name='ceph';        label='Ceph dashboard' }
 )
 
 $DISTRO = 'podman-MiOS-DEV'

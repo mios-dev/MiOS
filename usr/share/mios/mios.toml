@@ -12057,7 +12057,7 @@ list = [
 ]
 
 [build.ratchet]
-max_phase_scripts = 71
+max_phase_scripts = 72   # +1: 55-native-build.sh (builds the tools/native Rust workspace in-bake)
 
 # ----------------------------------------------------------------------------
 # [templates.placeholders] -- Unified SSOT token vocabulary for scaffolding

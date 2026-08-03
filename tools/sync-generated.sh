@@ -19,13 +19,28 @@ set -euo pipefail
 ROOT="${MIOS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 cd "$ROOT"
 
-# Resolve a python that actually RUNS. `command -v python` succeeds on Windows
-# even when it is only the Microsoft Store alias stub, which prints
-# "Python was not found" and exits 0 -- so every generator below silently did
-# nothing and the tree looked synced while the manifests went stale. Probe by
-# executing, not by existence, and fail loudly if none works.
+# Resolve the python MiOS itself provisions.
+#
+# Python is a DECLARED MiOS dependency, not something to hope for: mios.toml
+# [apps.winget].pkgs lists "Python.Python.3.14" under "Critical runtime /
+# toolchain", so every MiOS host has it globally (dnf python3 on Linux, winget
+# on Windows), and installation/mios-install.ps1 + Reinstall-MiOSDEV.ps1 already
+# resolve it at %LOCALAPPDATA%\Programs\Python\Python314\python.exe.
+#
+# The trap: `command -v python` SUCCEEDS on Windows even when it resolves to the
+# Microsoft Store alias stub, which prints "Python was not found" and exits. The
+# old probe (`command -v python3 || PY=python`) therefore set PY to the stub, and
+# every generator below silently did nothing while sync reported success -- the
+# tree looked synced while the manifests went stale. So probe by EXECUTING, and
+# try the MiOS-installed interpreter before bare names.
 PY=""
-for _cand in "${PYTHON:-}" python3 python py; do
+_mios_pythons="${PYTHON:-}"
+if [ -n "${LOCALAPPDATA:-}" ]; then
+    # MSYS/Git-Bash sees the Windows var; translate to a POSIX path.
+    _lad="$(printf '%s' "$LOCALAPPDATA" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\L\1|')"
+    _mios_pythons="$_mios_pythons $_lad/Programs/Python/Python314/python.exe"
+fi
+for _cand in $_mios_pythons python3 python py; do
     [ -n "$_cand" ] || continue
     if "$_cand" -c 'import sys; sys.exit(0)' >/dev/null 2>&1; then
         PY="$_cand"
@@ -33,7 +48,9 @@ for _cand in "${PYTHON:-}" python3 python py; do
     fi
 done
 if [ -z "$PY" ]; then
-    echo "[sync-generated] FATAL: no working python interpreter (tried \$PYTHON, python3, python, py)" >&2
+    echo "[sync-generated] FATAL: no working python. Python is a declared MiOS" >&2
+    echo "  dependency (mios.toml [apps.winget].pkgs -> Python.Python.3.14;" >&2
+    echo "  python3 on Linux). Install it, or set \$PYTHON." >&2
     exit 1
 fi
 

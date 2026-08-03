@@ -6271,5 +6271,45 @@ check_powershell_parse() {
     fi
 }
 
+check_ps_repo_parity() {
+    echo "[98-drift-checks]   check_ps_repo_parity"
+    local sibling_dir="${MIOS_BOOTSTRAP_DIR:-../mios-bootstrap}"
+    if [[ ! -d "$sibling_dir" ]]; then
+        echo "[98-drift-checks]   WARNING: mios-bootstrap repo absent ($sibling_dir), skipping Law-15 parity check" >&2
+        return 0
+    fi
+    local shared_files=("build-mios.ps1" "Get-MiOS.ps1" "automation/lib/globals.ps1" "installation/mios-common.ps1")
+    local f f1 f2 sum1 sum2
+    for f in "${shared_files[@]}"; do
+        f1="$ROOT/$f"
+        f2="$sibling_dir/$f"
+        if [[ -f "$f1" && -f "$f2" ]]; then
+            sum1=$(sha256sum "$f1" | awk '{print $1}')
+            sum2=$(sha256sum "$f2" | awk '{print $1}')
+            if [[ "$sum1" != "$sum2" ]]; then
+                _violation "Law-15 drift: $f diverges between mios and mios-bootstrap ($sum1 vs $sum2)"
+            fi
+        fi
+    done
+    echo "[98-drift-checks]   Law-15 shared PS surfaces byte-identical across repos"
+}
+
+check_ps_redirectors() {
+    echo "[98-drift-checks]   check_ps_redirectors"
+    local redirectors=("install.ps1" "mios-build-local.ps1" "run-pipeline.ps1")
+    local f line_count max_lines=50
+    for f in "${redirectors[@]}"; do
+        if [[ -f "$ROOT/$f" ]]; then
+            line_count=$(wc -l < "$ROOT/$f")
+            if (( line_count > max_lines )); then
+                _violation "Redirector $f exceeds max line budget ($line_count > $max_lines)"
+            fi
+        else
+            _violation "Redirector file $f missing"
+        fi
+    done
+    echo "[98-drift-checks]   PS redirectors within line budget"
+}
+
 
 main "$@"

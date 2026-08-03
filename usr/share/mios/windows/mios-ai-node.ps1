@@ -50,6 +50,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$compiledExe = Join-Path $PSScriptRoot '..\..\..\src\mios-ainode\mios-ainode.exe'
+if (-not (Test-Path $compiledExe)) {
+    $compiledExe = 'C:\MiOS\src\mios-ainode\mios-ainode.exe'
+}
+
+$useCompiled = $env:MIOS_MIGRATION_USE_COMPILED_AINODE
+if ($null -eq $useCompiled -or $useCompiled -eq '') {
+    $useCompiled = 'true'
+}
+
+if (($useCompiled -eq 'true' -or $useCompiled -eq '1') -and (Test-Path $compiledExe)) {
+    Write-Host "[mios-ai-node] launching compiled binary: $compiledExe"
+    & $compiledExe
+    exit $LASTEXITCODE
+}
 $QuadletSrc = Join-Path $PSScriptRoot 'quadlets'
 
 function Info($m) { Write-Host "  [*] $m" -ForegroundColor Cyan    }
