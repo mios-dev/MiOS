@@ -518,6 +518,21 @@
       "full_content": "# AI-hint: Cargo manifest for mios-template-conform -- compiled template conformance checker.\n[package]\nname = \"mios-template-conform\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\ntoml = \"0.8\"\nregex = \"1.10\"\nserde = { version = \"1.0\", features = [\"derive\"] }\nserde_json = \"1.0\"\nwalkdir = \"2.4\"\n"
     },
     {
+      "path": "tools/native/mios-unit-gen/Cargo.toml",
+      "title": "Cargo.toml",
+      "type": "source_code",
+      "full_content": "[package]\nname = \"mios-unit-gen\"\nversion.workspace = true\nedition.workspace = true\n\n[dependencies]\nserde = { version = \"1.0\", features = [\"derive\"] }\ntoml = \"0.8\"\nthiserror = \"1.0\"\n"
+    },
+    {
+      "path": "tools/native/mios-unit-gen/README.md",
+      "title": "mios-unit-gen",
+      "type": "documentation",
+      "metadata": {},
+      "knowledge": {},
+      "content_preview": "# mios-unit-gen\n\nMiOS Systemd Unit Generator & Golden Master Deviance Oracle.\n\n## Regeneration Workflow\n\nTo regenerate golden master snapshots after intentional systemd unit edits:\n\n```bash\npython -c \"import os, shutil; shutil.rmtree('tools/native/mios-unit-gen/tests/golden', ignore_errors=True); shutil.copytree('usr/lib/systemd/system', 'tools/native/mios-unit-gen/tests/golden')\"\ncargo test -p mios-unit-gen\n```\n",
+      "full_content": "# mios-unit-gen\n\nMiOS Systemd Unit Generator & Golden Master Deviance Oracle.\n\n## Regeneration Workflow\n\nTo regenerate golden master snapshots after intentional systemd unit edits:\n\n```bash\npython -c \"import os, shutil; shutil.rmtree('tools/native/mios-unit-gen/tests/golden', ignore_errors=True); shutil.copytree('usr/lib/systemd/system', 'tools/native/mios-unit-gen/tests/golden')\"\ncargo test -p mios-unit-gen\n```\n"
+    },
+    {
       "path": "tools/native/mios-version-check/Cargo.toml",
       "title": "Cargo.toml",
       "type": "source_code",
