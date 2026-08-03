@@ -3281,6 +3281,14 @@ for path in tracked:
         continue
     if rel.endswith((".pyc", ".png", ".jpg", ".generated", ".json", ".log", ".ready", ".lock", ".d", ".o", ".rlib", ".rmeta", ".a")):
         continue
+    # Golden-master fixtures are byte-for-byte copies of files that live
+    # OUTSIDE this scan's prefixes (usr/lib/systemd/system), so the originals
+    # are never version-scanned. The copy happens to sit under tools/, and
+    # re-scanning it reports UPSTREAM version literals -- such as the
+    # nvidia-container-toolkit minimum noted in a unit comment -- as MiOS
+    # version drift. The crate's own test already asserts copy == original.
+    if "/tests/golden/" in rel:
+        continue
     if not os.path.isfile(path):
         continue
 
