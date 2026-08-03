@@ -111,8 +111,13 @@ mod tests {
 
         let walked = walk(&tree);
         assert_eq!(walked.len(), 2);
-        assert_eq!(walked[0].0, "system.name");
-        assert_eq!(walked[1].0, "ports.web");
+        // Assert membership, not position: toml::Table iterates keys in sorted
+        // order, so [system] then [ports] in the source yields ports.web FIRST.
+        // The previous positional assertions encoded source order and could
+        // never hold.
+        let paths: Vec<&str> = walked.iter().map(|(p, _)| p.as_str()).collect();
+        assert!(paths.contains(&"system.name"), "got: {paths:?}");
+        assert!(paths.contains(&"ports.web"), "got: {paths:?}");
     }
 
     #[test]
