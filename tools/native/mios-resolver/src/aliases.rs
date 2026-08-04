@@ -4,14 +4,14 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     let mut aliases = Vec::new();
 
     if let Some(rest) = dotted_path.strip_prefix("ai.vllm.") {
-        let suffix = rest.to_uppercase().replace(['.', '-'], "_");
+        let suffix = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if suffix == "V1_ENGINE" {
             aliases.push("MIOS_VLLM_USE_V1".into());
         } else {
             aliases.push(format!("MIOS_VLLM_{}", suffix));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("ai.sglang.") {
-        let suffix = rest.to_uppercase().replace(['.', '-'], "_");
+        let suffix = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if suffix == "UNIFIED_RADIX_TREE" {
             aliases.push("MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE".into());
         } else if suffix == "HIERARCHICAL_CACHE" {
@@ -53,14 +53,14 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     } else if dotted_path == "network.firewalld_default_zone" {
         aliases.push("MIOS_FIREWALLD_ZONE".into());
     } else if let Some(rest) = dotted_path.strip_prefix("portal.") {
-        let suffix = rest.to_uppercase().replace(['.', '-'], "_");
+        let suffix = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if suffix == "PUBLIC_HOST" {
             aliases.push("MIOS_PUBLIC_HOST".into());
         } else {
             aliases.push(format!("MIOS_PORTAL_{}", suffix));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("a2a.") {
-        let name = rest.to_uppercase().replace('.', "_");
+        let name = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if name == "DISCOVER_PORT" {
             aliases.push("MIOS_A2A_DISCOVER_PORT".into());
         } else if name == "PUBLIC_DOMAIN" {
@@ -76,7 +76,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     {
         let suffix = dotted_path["ai.".len()..]
             .to_uppercase()
-            .replace(['.', '-'], "_");
+            .replace(['.', '-', '/'], "_");
         if suffix == "API_KEY" || suffix == "KEY" {
             aliases.push("MIOS_AI_KEY".into());
         } else if suffix == "EMBED_MODEL" {
@@ -117,7 +117,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_{}", suffix));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("build.") {
-        let name = rest.to_uppercase().replace('.', "_");
+        let name = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if matches!(
             name.as_str(),
             "LOCAL_TAG" | "AI_RAM_FLOOR_GB" | "RECHUNK_MAX_LAYERS"
@@ -172,7 +172,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     } else if dotted_path.starts_with("routing.") && !dotted_path.starts_with("routing.domains.") {
         let name = dotted_path["routing.".len()..]
             .to_uppercase()
-            .replace('.', "_");
+            .replace(['.', '-', '/'], "_");
         aliases.push(format!("MIOS_{}", name));
     } else if dotted_path == "polish.timeout_seconds" {
         aliases.push("MIOS_POLISH_TIMEOUT_S".into());
@@ -216,7 +216,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     } else if dotted_path.starts_with("ports.categories.") {
         // Allocation schema, not a port
     } else if let Some(rest) = dotted_path.strip_prefix("ports.") {
-        let name = rest.to_uppercase().replace(['.', '-'], "_");
+        let name = rest.to_uppercase().replace(['.', '-', '/'], "_");
         let canon = if name == "GUACAMOLE_WEB" {
             "GUACAMOLE"
         } else {
@@ -225,7 +225,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
         aliases.push(format!("MIOS_PORT_{}", canon));
         aliases.push(format!("MIOS_{}_PORT", canon));
     } else if let Some(rest) = dotted_path.strip_prefix("image.sidecars.") {
-        let name = rest.to_uppercase().replace(['.', '-'], "_");
+        let name = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if name.ends_with("_VERSION") {
             let base = &name[..name.len() - "_VERSION".len()];
             aliases.push(format!("MIOS_{}_VERSION", base));
@@ -255,14 +255,14 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             }
         }
     } else if let Some(rest) = dotted_path.strip_prefix("storage.cephfs.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if key == "XDG_CACHE_HOME_OVERRIDE" {
             aliases.push("MIOS_XDG_CACHE_LOCAL_PATH".into());
         } else {
             aliases.push(format!("MIOS_CEPHFS_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("wsl2.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if key == "DESKTOP_COMPAT_GDK_BACKEND" {
             aliases.push("MIOS_WSLG_GDK_BACKEND".into());
         } else if key == "DESKTOP_COMPAT_MOZ_WAYLAND" {
@@ -279,7 +279,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     } else if dotted_path.starts_with("image.") && !dotted_path.starts_with("image.sidecars.") {
         let key = dotted_path["image.".len()..]
             .to_uppercase()
-            .replace(['.', '-'], "_");
+            .replace(['.', '-', '/'], "_");
         if key == "BRANCH" {
             aliases.push("MIOS_BRANCH".into());
         } else if key == "BASE" {
@@ -292,7 +292,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_IMAGE_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("desktop.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if key == "COLOR_SCHEME" {
             aliases.push("MIOS_COLOR_SCHEME".into());
         } else if key == "FLATPAKS" {
@@ -301,7 +301,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_DESKTOP_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("bootstrap.dev_vm.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if key == "MACHINE_NAME" {
             aliases.push("MIOS_BUILDER_DISTRO".into());
         } else if key == "WSL_DISTRO" {
@@ -324,7 +324,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_DEV_VM_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("bootstrap.host_storage.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         if key == "SHRINK_MB" {
             aliases.push("MIOS_DATA_DISK_MB".into());
         } else if key == "DRIVE_LETTER" {
@@ -336,7 +336,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
     {
         let key = dotted_path["bootstrap.".len()..]
             .to_uppercase()
-            .replace(['.', '-'], "_");
+            .replace(['.', '-', '/'], "_");
         if key == "MIOS_REPO" {
             aliases.push("MIOS_REPO_URL".into());
         } else if key == "BOOTSTRAP_REPO" {
@@ -345,10 +345,10 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
             aliases.push(format!("MIOS_BOOTSTRAP_{}", key));
         }
     } else if let Some(rest) = dotted_path.strip_prefix("reliability.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         aliases.push(format!("MIOS_RELIABILITY_{}", key));
     } else if let Some(rest) = dotted_path.strip_prefix("routing.") {
-        let key = rest.to_uppercase().replace(['.', '-'], "_");
+        let key = rest.to_uppercase().replace(['.', '-', '/'], "_");
         aliases.push(format!("MIOS_ROUTING_{}", key));
         if key.starts_with("LAUNCH_") {
             aliases.push(format!("MIOS_{}", key));
@@ -361,7 +361,7 @@ pub fn get_aliases(dotted_path: &str) -> Vec<String> {
         };
         let key = dotted_path[prefix_len..]
             .to_uppercase()
-            .replace(['.', '-'], "_");
+            .replace(['.', '-', '/'], "_");
         aliases.push(format!("MIOS_FIND_{}", key));
     }
 

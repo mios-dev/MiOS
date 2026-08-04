@@ -72,6 +72,7 @@ def main():
     ]
     try:
         out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")
+        print(f"BASH OUTPUT: {out}", file=sys.stderr)
         bash_vars = json.loads(out)
     except subprocess.CalledProcessError as e:
         print("Error: userenv.sh execution failed:\n", e.output.decode("utf-8", errors="ignore"), file=sys.stderr)
@@ -109,9 +110,9 @@ def main():
         if val_processed is None or val_processed == "":
             continue
         if path.startswith("converge."):
-            _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+            _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
         else:
-            _cbody = path.upper().replace(".", "_").replace("-", "_")
+            _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
         canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
         sec_name = path.split(".", 1)[0]
         if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:

@@ -36,7 +36,7 @@ def _alias_for(path):
         return a
     for pfx, rep in SHORT_ALIAS_PREFIX.items():
         if path.startswith(pfx + "."):
-            return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_")
+            return rep + path[len(pfx):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
     return None
 
 def walk(d, prefix=""):
@@ -54,7 +54,7 @@ def walk(d, prefix=""):
             results.extend(walk(v, path))
         else:
             alias = _alias_for(path)
-            env_name = alias if alias else "MIOS_" + path.upper().replace(".", "_").replace("-", "_")
+            env_name = alias if alias else "MIOS_" + path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
             results.append((path, env_name))
     return results
 

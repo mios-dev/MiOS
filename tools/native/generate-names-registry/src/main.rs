@@ -39,13 +39,13 @@ fn alias_for(path: &str) -> Option<String> {
             if let Some(rest) = path.strip_prefix("ai.vllm.") {
                 Some(format!(
                     "MIOS_VLLM_{}",
-                    rest.to_uppercase().replace(['.', '-'], "_")
+                    rest.to_uppercase().replace(['.', '-', '/'], "_")
                 ))
             } else {
                 path.strip_prefix("ai.sglang.").map(|rest| {
                     format!(
                         "MIOS_SGLANG_{}",
-                        rest.to_uppercase().replace(['.', '-'], "_")
+                        rest.to_uppercase().replace(['.', '-', '/'], "_")
                     )
                 })
             }
@@ -70,7 +70,7 @@ fn walk_value(val: &toml::Value, prefix: &str, results: &mut Vec<(String, String
                 let env_name = if let Some(alias) = alias_for(&path) {
                     alias
                 } else {
-                    format!("MIOS_{}", path.to_uppercase().replace(['.', '-'], "_"))
+                    format!("MIOS_{}", path.to_uppercase().replace(['.', '-', '/'], "_"))
                 };
                 results.push((path, env_name));
             }

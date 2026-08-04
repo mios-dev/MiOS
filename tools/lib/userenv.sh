@@ -7,7 +7,7 @@
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
 MIOS_CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/mios"
-MIOS_USER_TOML="${MIOS_CONFIG_DIR}/mios.toml"
+MIOS_USER_TOML="${MIOS_USER_TOML:-${MIOS_CONFIG_DIR}/mios.toml}"
 
 MIOS_ROOT="${MIOS_ROOT:-}"
 if [[ -z "$MIOS_ROOT" ]]; then
@@ -136,9 +136,9 @@ for path, val in all_pairs:
         continue
     
     if path.startswith("converge."):
-        _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_")
+        _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
     else:
-        _cbody = path.upper().replace(".", "_").replace("-", "_")
+        _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
     canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
     
     sec_name = path.split(".", 1)[0]

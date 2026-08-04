@@ -6361,8 +6361,10 @@ check_ps_signatures() {
             /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
             "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
             if command -v "$candidate" >/dev/null 2>&1 || [ -f "$candidate" ]; then
-                ps_bin="$candidate"
-                break
+                if "$candidate" -NoProfile -Command "exit 0" >/dev/null 2>&1; then
+                    ps_bin="$candidate"
+                    break
+                fi
             fi
         done
 
@@ -6672,7 +6674,7 @@ PY
 check_github_slug_casing() {
     echo "[98-drift-checks]   check_github_slug_casing"
     local bad_files
-    bad_files="$(grep -rnI --exclude-dir=".git" "raw.githubusercontent.com/MiOS-DEV" "$ROOT" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
+    bad_files="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard | xargs -0 grep -HnI "raw.githubusercontent.com/MiOS-DEV" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
     if [[ -n "$bad_files" ]]; then
         while IFS= read -r line; do
             _violation "Non-canonical GitHub raw URL slug casing found: $line"

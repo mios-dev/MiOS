@@ -1335,21 +1335,18 @@ test_pipe_boundaries() {
 
 test_vllm_name_canonical() {
     log "Testing check_vllm_name_canonical"
-    local manifest="${ROOT}/root-manifest.json"
-    if [ -f "$manifest" ]; then
-        local orig_val
-        orig_val="$(cat "$manifest")"
-        echo '"MIOS_AI_VLLM_SERVED_NAME": "test"' >> "$manifest"
+    local dummy="${ROOT}/usr/lib/mios/dummy_vllm_negative_test.sh"
+    echo 'MIOS_AI_VLLM_SERVED_NAME="test"' > "$dummy"
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1; then
-            echo "$orig_val" > "$manifest"
-            die "Check_vllm_name_canonical passed despite legacy long name"
-        fi
-
-        echo "$orig_val" > "$manifest"
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1 \
-            || die "Check_vllm_name_canonical failed after restoration"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1; then
+        rm -f "$dummy"
+        die "Check_vllm_name_canonical passed despite legacy long name"
     fi
+
+    rm -f "$dummy"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1 \
+        || die "Check_vllm_name_canonical failed after restoration"
+
     log "Test_vllm_name_canonical negative test passed"
 }
 
@@ -1980,6 +1977,15 @@ test_cargo_deny() {
 
 test_powershell_parse() {
     log "Testing check_powershell_parse"
+
+    # Check if we can actually run the parser, skip if not available
+    local dry_run
+    dry_run=$(bash "${ROOT}/automation/lint-powershell.sh" 2>&1 || true)
+    if echo "$dry_run" | grep -q "skipping AST parse-gate"; then
+        log "powershell missing or un-executable, skipping negative test"
+        return 0
+    fi
+
     local bad="${ROOT}/automation/lint-ps-negative-probe.ps1"
     # An unterminated block is an AST parse error in any PowerShell version.
     printf 'function Broken {\n' > "$bad"

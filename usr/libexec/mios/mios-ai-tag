@@ -45,7 +45,7 @@ BASENAMES = {
 SKIP_DIR = re.compile(
     r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|web_dist|"
     r"dist|assets|\.cache|\.mypy_cache|\.pytest_cache|\.ruff_cache|target|"
-    r"base-qwen[^/]*|\.idea|\.vscode-test|finetune/venv)(/|$)")
+    r"base-qwen[^/]*|\.idea|\.vscode-test|finetune/venv|\.gemini)(/|$)")
 SKIP_SUFFIX = re.compile(
     r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|svg|woff2?|"
     r"ttf|otf|so|o|a|zip|gz|xz|zst|tar|whl|pyc|wasm|pdf|mp4|mp3|lock)$", re.I)

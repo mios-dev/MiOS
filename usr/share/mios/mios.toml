@@ -13561,5 +13561,3 @@ uid         = "1000"
 gid         = "1000"
 filename    = "mockname.py"
 path        = "usr/lib/mios/agent-pipe/mios_pipe/mockname.py"
-
-

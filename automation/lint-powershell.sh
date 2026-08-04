@@ -11,8 +11,10 @@ for candidate in pwsh powershell powershell.exe \
     /c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe \
     "C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
     if command -v "$candidate" >/dev/null 2>&1 || [ -f "$candidate" ]; then
-        PS_BIN="$candidate"
-        break
+        if "$candidate" -NoProfile -NonInteractive -Command "exit 0" >/dev/null 2>&1; then
+            PS_BIN="$candidate"
+            break
+        fi
     fi
 done
 
