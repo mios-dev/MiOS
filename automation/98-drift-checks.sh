@@ -5715,16 +5715,16 @@ PY
 }
 
 check_pipeline_numbering() {
-    local bad=0
+    local is_bad=0
     nn=$(grep -cE '\[98-drift-checks\][[:space:]]+\([0-9]+\)' "$ROOT/automation/98-drift-checks.sh" 2>/dev/null || true)
     nn="${nn:-0}"
     if [[ "$nn" -ne 0 ]]; then
         echo "  [pipeline-numbering-drift] $nn hand-written check label reintroduced in 98-drift-checks.sh; the SSOT drift-gate-index.tsv ordinal is the single check number" >&2
-        bad=1
+        is_bad=1
     fi
     if grep -qE 'Step count in chain: \$\(ls .*mios-step.*wc -l\)' "$ROOT/automation/build.sh" 2>/dev/null; then
         echo "  [pipeline-numbering-drift] build.sh re-counts the chain via ls|wc -l instead of \$SCRIPT_COUNT" >&2
-        bad=1
+        is_bad=1
     fi
     local idx="$ROOT/usr/share/mios/reference/drift-gate-index.tsv"
     if [[ -f "$idx" ]]; then
@@ -5732,7 +5732,7 @@ check_pipeline_numbering() {
         dense=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {n++; if($1!=n){print "gap-at-"$1; exit}} END{if(n==0)print "empty"}' "$idx")
         if [[ -n "$dense" ]]; then
             echo "  [pipeline-numbering-drift] drift-gate-index.tsv ordinals not dense 1..N" >&2
-            bad=1
+            is_bad=1
         fi
     fi
     if [[ -f "$ROOT/tools/generate-pipeline-index.py" ]]; then
@@ -5748,10 +5748,10 @@ check_pipeline_numbering() {
             echo "  [pipeline-index] SKIPPED: $_pi_skip at \$ROOT" >&2
         elif ! "$PYTHON" "$ROOT/tools/generate-pipeline-index.py" --check >/dev/null 2>&1; then
             echo "  [pipeline-numbering-drift] pipeline-index.tsv is out of sync with automation/NN-*.sh scripts" >&2
-            bad=1
+            is_bad=1
         fi
     fi
-    if [[ "$bad" -ne 0 ]]; then
+    if [[ "$is_bad" -ne 0 ]]; then
         _violation "pipeline numbering drift (WS-NUMBER AGY-642; see reference/audit-numbering-unification.md)"
     else
         echo "[98-drift-checks]   pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync"
@@ -5816,7 +5816,8 @@ check_no_hardcoded_ssot_literal() {
     hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/knowledge/" | grep -v "/configurator/" || true)
     
     if [[ -n "$hardcodes" ]]; then
-        local violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
+        local violations
+        violations=$(echo "$hardcodes" | grep -vE "(fedora-\$|fedora-%|\$MIOS_|\$FEDORA_|mios\.toml)")
         if [[ -n "$violations" ]]; then
             _violation "Hardcoded version literals found in SSOT (use \${FEDORA_VERSION} / \${MIOS_K3S_VERSION} instead):"
             echo "$violations" | head -n 10 >&2
@@ -5837,7 +5838,7 @@ check_bash_phase_ratchet() {
 
 check_no_silent_tool_skips() {
     local require_tools="${MIOS_DRIFT_REQUIRE_TOOLS:-0}"
-    local bad_skips=""
+    local bad_skips=()
     local f
 
     for f in "$ROOT/automation/98-drift-checks.sh" "$ROOT"/automation/lint-*.sh; do
@@ -5845,16 +5846,14 @@ check_no_silent_tool_skips() {
         local hits
         hits=$(grep -nE 'command -v.*\|\|[[:space:]]*(return 0|exit 0)' "$f" | grep -v 'MIOS_DRIFT_REQUIRE_TOOLS' || true)
         if [[ -n "$hits" ]]; then
-            bad_skips+="$f:"$'
-'"$hits"$'
-'
+            bad_skips+=("$f:" "$hits")
         fi
     done
 
-    if [[ -n "$bad_skips" ]]; then
+    if [[ "${#bad_skips[@]}" -gt 0 ]]; then
         if [[ "$require_tools" == "1" ]]; then
-            _violation "Silent tool skips found under MIOS_DRIFT_REQUIRE_TOOLS=1:"$'
-'"$bad_skips"
+            _violation "Silent tool skips found under MIOS_DRIFT_REQUIRE_TOOLS=1:"
+            printf '%s\n' "${bad_skips[@]}" >&2
         else
             echo "[98-drift-checks]   WARNING: silent tool skips present (enable MIOS_DRIFT_REQUIRE_TOOLS=1 to enforce)"
         fi
@@ -5961,6 +5960,8 @@ _render_env() {
 check_ports_category_schema() {
     echo "[98-drift-checks]   checking port category schema (allocation + collisions)"
     local out
+    
+    # shellcheck disable=SC2046
     if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-ports.py --check 2>&1); then
         printf '%s\n' "$out" | head -n 20 >&2
         _violation "port schema drift: every port must derive from [ports.categories] (base + index*stride), belong to exactly one category, and not collide -- run tools/render-ports.py"
@@ -5970,6 +5971,8 @@ check_ports_category_schema() {
 check_globals_generated() {
     echo "[98-drift-checks]   checking generated globals resolvers match SSOT"
     local out
+    
+    # shellcheck disable=SC2046
     if ! out=$(cd "$ROOT" && env $(_render_env) python3 tools/render-globals.py --check 2>&1); then
         printf '%s\n' "$out" | head -n 10 >&2
         _violation "automation/lib/globals.{sh,ps1} are stale -- they are GENERATED IN FULL from mios.toml; run tools/render-globals.py (never hand-edit them)"
@@ -6400,9 +6403,9 @@ for name in ((d.get('security') or {}).get('windows_binaries') or {}).get('sourc
     print('\"%s\"' % name)
 " 2>/dev/null || true)"
     if [[ -d "$win_dir" ]]; then
-        local exe base cs_src cs_src2
         for exe in "$win_dir"/*.exe; do
             if [[ -f "$exe" ]]; then
+                local base cs_src
                 base="$(basename "$exe" .exe)"
                 cs_src="$win_dir/$base.cs"
                 # The old fallback tested a FIXED path (MiosServiceTool.cs)
