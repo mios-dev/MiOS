@@ -25,7 +25,7 @@ files=()
 
 for f in "${ROOT}"/automation/*.sh "${ROOT}"/automation/tests/*.sh "${ROOT}"/automation/support/*.sh "${ROOT}"/automation/lib/*.sh; do
     if [ -f "$f" ]; then
-        # Exclude generated globals.sh as its thousands of variables cause shellcheck 0.9.0 to OOM
+        # Exclude generated globals.sh as its thousands of variables cause shellcheck to OOM
         if [[ "$(basename "$f")" == "globals.sh" ]]; then
             continue
         fi
