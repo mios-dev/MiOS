@@ -56,6 +56,7 @@ RUN git clone --depth 1 --branch "${SEARXNG_REF}" https://github.com/searxng/sea
     && /opt/searxng-venv/bin/pip install --no-build-isolation -e /opt/searxng
 
 RUN python3.12 -m venv /opt/open-webui-venv \
+    && /opt/open-webui-venv/bin/pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu \
     && /opt/open-webui-venv/bin/pip install --no-cache-dir open-webui \
     && ln -s /opt/open-webui-venv/bin/open-webui /usr/bin/open-webui
 
