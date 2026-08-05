@@ -24,7 +24,13 @@ fi
 files=()
 
 for f in "${ROOT}"/automation/*.sh "${ROOT}"/automation/tests/*.sh "${ROOT}"/automation/support/*.sh "${ROOT}"/automation/lib/*.sh; do
-    [ -f "$f" ] && files+=("$f")
+    if [ -f "$f" ]; then
+        # Exclude generated globals.sh as its thousands of variables cause shellcheck 0.9.0 to OOM
+        if [[ "$(basename "$f")" == "globals.sh" ]]; then
+            continue
+        fi
+        files+=("$f")
+    fi
 done
 
 for f in "${ROOT}"/tools/*.sh "${ROOT}"/tools/lib/*.sh; do
@@ -74,7 +80,9 @@ if [ -d ".git" ] && command -v git >/dev/null 2>&1; then
         while IFS= read -r f; do
             if [ -f "$f" ]; then
                 if [[ "$f" =~ \.sh$ ]]; then
-                    modified_files+=("$f")
+                    if [[ "$(basename "$f")" != "globals.sh" ]]; then
+                        modified_files+=("$f")
+                    fi
                 elif [[ "$f" =~ ^usr/libexec/mios/mios- ]]; then
                     read -r first_line < "$f" || true
                     if [[ "$first_line" =~ ^#\!.*(bash|sh) ]]; then

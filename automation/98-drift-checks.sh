@@ -5817,7 +5817,7 @@ check_no_hardcoded_ssot_literal() {
     
     if [[ -n "$hardcodes" ]]; then
         local violations
-        violations=$(echo "$hardcodes" | grep -vE "(fedora-\$|fedora-%|\$MIOS_|\$FEDORA_|mios\.toml)")
+        violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
         if [[ -n "$violations" ]]; then
             _violation "Hardcoded version literals found in SSOT (use \${FEDORA_VERSION} / \${MIOS_K3S_VERSION} instead):"
             echo "$violations" | head -n 10 >&2
