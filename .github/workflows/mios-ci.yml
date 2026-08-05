@@ -41,7 +41,7 @@ env:
   # pulled at first boot, not baked. That drops peak build disk from ~60GB to
   # ~20-25GB, which fits a standard ubuntu-24.04 runner, so GitHub now bakes the
   # core AI + service images, rechunks, pushes, and cosign-signs as a full equal.
-  PUBLISH: 'true'
+  PUBLISH: 'false'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.
