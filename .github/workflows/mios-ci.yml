@@ -41,7 +41,7 @@ env:
   # pulled at first boot, not baked. That drops peak build disk from ~60GB to
   # ~20-25GB, which fits a standard ubuntu-24.04 runner, so GitHub now bakes the
   # core AI + service images, rechunks, pushes, and cosign-signs as a full equal.
-  PUBLISH: 'false'
+  PUBLISH: 'true'
 
 jobs:
   # WS-0A drift gate: source-tree fitness-functions that need NO built image.
@@ -323,7 +323,7 @@ jobs:
           # across both large disks (/mnt store + / temp), each holding ~1x.
           SOURCE_DATE_EPOCH=$(git -C "$GITHUB_WORKSPACE" log -1 --format=%ct 2>/dev/null || date +%s)
           export SOURCE_DATE_EPOCH
-          sudo TMPDIR=/tmp SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" podman build \
+          sudo TMPDIR=/mnt/tmp SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" podman build \
               "${BUILD_ARGS[@]}" \
               --timestamp "$SOURCE_DATE_EPOCH" \
               --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \

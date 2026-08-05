@@ -17,6 +17,11 @@ fi
 
 log() { printf '[57-mios-sys-build] %s\n' "$*"; }
 
+if [ "${MIOS_BAKE_BOUND_IMAGES:-1}" != "1" ]; then
+    log "SKIP bound-images bake for mios-sys and mios-cuda"
+    exit 0
+fi
+
 BASE="${MIOS_BASE_IMAGE:-ghcr.io/ublue-os/ucore-hci:stable-nvidia}"
 
 log "Base image configured: $BASE"
