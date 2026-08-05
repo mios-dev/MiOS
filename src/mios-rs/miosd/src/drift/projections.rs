@@ -167,7 +167,7 @@ impl Check for UKICmdlineProjectionCheck {
         regen_and_diff(
             ctx,
             "tools/generate-uki-cmdline.py",
-            &["usr/share/mios/uki-cmdline"],
+            &["usr/lib/kernel/cmdline"],
             &["--check"],
         )
     }
