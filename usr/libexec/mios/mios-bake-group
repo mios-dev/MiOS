@@ -66,6 +66,26 @@ if [ "${#IMAGES[@]}" -eq 0 ]; then
     exit 0
 fi
 
+# localhost/ refs have no registry behind them -- podman pull can NEVER succeed
+# (it dials https://localhost/v2/ and dies on connection refused after the full
+# retry ladder). Locally-built images are baked by their own builder step
+# (57-mios-sys-build.sh) or deferred to the firstboot tier
+# ([build.bake].firstboot_tokens -> plan.d/firstboot.list ->
+# mios-webtools-firstboot.service builds them on first boot). One landing in a
+# pull group is a bake-plan bug: fail fast with the fix instead of retry-spinning.
+for img in "${IMAGES[@]}"; do
+    case "$img" in
+        localhost/*)
+            echo "ERROR: bake-plan group ${GROUP} lists locally-built image ${img}."
+            echo "  mios-bake-group can only PULL registry images. Build ${img} in its"
+            echo "  own builder step (57-mios-sys-build.sh) or route it to the firstboot"
+            echo "  tier via [build.bake].firstboot_tokens in mios.toml, then regenerate"
+            echo "  the plan (tools/generate-bake-plan.py)."
+            exit 1
+            ;;
+    esac
+done
+
 echo "Bound-images: group=${GROUP} -> ${#IMAGES[@]} image"
 baked=0; failed=0
 for img in "${IMAGES[@]}"; do

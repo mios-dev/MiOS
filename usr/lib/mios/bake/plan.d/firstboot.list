@@ -1,2 +1,4 @@
 docker.io/lmsysorg/sglang:latest
 docker.io/vllm/vllm-openai:latest
+localhost/mios-crawl4ai-slim:latest
+localhost/mios-firecrawl:v1.0.0

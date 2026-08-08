@@ -93,4 +93,30 @@ if [[ -f "$fb_file" ]]; then
 fi
 log "Case 3 passed"
 
+log "Case 4: localhost/ ref in a pull group fails fast with zero pulls"
+cat << 'EOF' > "${plan_dir}/02-badgroup.list"
+localhost/mios-testonly:latest
+docker.io/library/alpine:latest
+EOF
+
+rm -f "$pull_log"
+set +e
+out="$(MIOS_PLAN_DIR="$plan_dir" \
+    STORE="${tmp_dir}/store" \
+    SCRATCH="${tmp_dir}/scratch" \
+    SBOM_DIR="$sbom_dir" \
+    bash "${ROOT}/usr/libexec/mios/mios-bake-group" badgroup 2>&1)"
+rc=$?
+set -e
+if [[ "$rc" -eq 0 ]]; then
+    die "Case 4 failed: bake-group succeeded on a plan containing a localhost/ ref"
+fi
+if [[ "$out" != *"locally-built image localhost/mios-testonly:latest"* ]]; then
+    die "Case 4 failed: missing fail-fast diagnostic in output: $out"
+fi
+if [[ -f "$pull_log" && -s "$pull_log" ]]; then
+    die "Case 4 failed: pulls were attempted despite localhost/ ref in the plan"
+fi
+log "Case 4 passed"
+
 log "All mios-bake-group unit tests passed"

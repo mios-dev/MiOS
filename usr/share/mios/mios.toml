@@ -10383,7 +10383,17 @@ groups = ["sys", "cuda", "extra"]
 # the image on first start (mios-ai-firstboot already seeds the model weights into
 # /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data partition for an
 # offline first boot). Empty list = bake everything (previous behavior).
-firstboot_tokens = ["vllm", "sglang"]
+# crawl4ai + firecrawl: the two LOCALLY-BUILT webtools images (localhost/
+# mios-crawl4ai-slim, localhost/mios-firecrawl -- see [image.sidecars] notes).
+# A localhost/ ref can never be PULLED by mios-bake-group (there is no registry
+# behind it; leaving them in a bake group fails the whole bake with
+# "dial tcp [::1]:443: connect: connection refused"). Their firstboot path is
+# BUILD, not web-pull: mios-webtools-firstboot.service (enabled in
+# multi-user.target.wants by automation/47-init-service.sh, ordered Before= the
+# webtools pod) builds them from their in-image contexts
+# (usr/share/mios/crawl4ai/Containerfile, usr/share/mios/webtools/
+# firecrawl.Containerfile) if missing -- degrade-open per BAKE-NOT-FETCH.
+firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
 
 [build.bake.group_members]
 sys = ["sys"]

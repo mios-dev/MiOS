@@ -542,6 +542,15 @@ if [ -f "$FBLIST" ] && command -v podman >/dev/null 2>&1; then
     while IFS= read -r fb_img; do
         fb_img="$(echo "$fb_img" | sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//')"
         [ -z "$fb_img" ] && continue
+        # localhost/ firstboot-tier images are BUILT on-host (mios-webtools-
+        # firstboot.service build-if-missing), never web-pulled -- a pull of a
+        # localhost ref can only retry-spin against a registry that isn't there.
+        case "$fb_img" in
+            localhost/*)
+                log "Firstboot-tier image $fb_img is locally built (webtools firstboot); skipping web pre-stage"
+                continue
+                ;;
+        esac
         if podman --root "$STORE" image exists "$fb_img" 2>/dev/null; then
             log "Firstboot-tier image $fb_img already present in store"
             continue
