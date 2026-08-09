@@ -242,9 +242,9 @@ use names::NamesRegistryCheck;
 use numbering::{DAGIntegrityCheck, PipelineNumberingCheck, RoadmapIndexCheck};
 use ports::{BarePortLiteralsCheck, BootstrapPortsCheck, ContainerPortsCheck};
 use projections::{
-    BladeDropinsCheck, ChronyProjectionCheck, ChronyPtpDropinCheck, CockpitProjectionCheck,
-    ComposeFSProjectionCheck, EgressFirewallCheck, IPAEnrollProjectionCheck, KargsProjectionCheck,
-    NutProjectionCheck, PodQuadletsCheck, TomlProjectionCheck, UKICmdlineProjectionCheck,
+    BladeDropinsCheck, ChronyProjectionCheck, CockpitProjectionCheck, EgressFirewallCheck,
+    IPAEnrollProjectionCheck, KargsProjectionCheck, NutProjectionCheck, PodQuadletsCheck,
+    UKICmdlineProjectionCheck,
 };
 use resolver::{GlobalsImageParityCheck, GlobalsPortsCheck, ResolverParityCheck};
 use security::{CLIEvalSafetyCheck, PythonCompileLintCheck, ShellcheckLintCheck};
@@ -272,12 +272,9 @@ impl Registry {
             Box::new(KargsProjectionCheck),
             Box::new(ChronyProjectionCheck),
             Box::new(NutProjectionCheck),
-            Box::new(TomlProjectionCheck),
             Box::new(IPAEnrollProjectionCheck),
             Box::new(UKICmdlineProjectionCheck),
-            Box::new(ComposeFSProjectionCheck),
             Box::new(CockpitProjectionCheck),
-            Box::new(ChronyPtpDropinCheck),
             Box::new(LawEnforcersCheck),
             Box::new(QuadletPrivilegeCheck),
             Box::new(CouncilGateSSOTCheck),

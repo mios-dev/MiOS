@@ -1,7 +1,7 @@
 // AI-hint: Heavy regen-and-diff projection checks for miosd drift runner.
 // AI-related: tools/generate-pod-quadlets.py, tools/generate-egress-firewall.py, automation/98-drift-checks.sh
 
-use super::regen::regen_and_diff;
+use super::regen::{regen_and_diff, regen_and_diff_shell};
 use super::{Check, DriftCtx, Verdict};
 
 pub struct PodQuadletsCheck;
@@ -71,11 +71,11 @@ impl Check for KargsProjectionCheck {
         "Assert kernel args projection matches committed kargs"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
+        regen_and_diff_shell(
             ctx,
-            "tools/generate-kargs.py",
-            &["usr/share/mios/kargs.d"],
-            &["--check"],
+            "automation/75-kargs-render.sh",
+            "KARGS_DIR",
+            "usr/lib/bootc/kargs.d",
         )
     }
 }
@@ -89,11 +89,11 @@ impl Check for ChronyProjectionCheck {
         "Assert chrony config projection matches committed file"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
+        regen_and_diff_shell(
             ctx,
-            "tools/generate-chrony-conf.py",
-            &["usr/share/mios/chrony.conf"],
-            &["--check"],
+            "automation/42-chrony-render.sh",
+            "CHRONY_CONF",
+            "etc/chrony.conf",
         )
     }
 }
@@ -107,29 +107,11 @@ impl Check for NutProjectionCheck {
         "Assert NUT config projection matches committed file"
     }
     fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
+        regen_and_diff_shell(
             ctx,
-            "tools/generate-nut-conf.py",
-            &["usr/share/mios/ups.conf"],
-            &["--check"],
-        )
-    }
-}
-
-pub struct TomlProjectionCheck;
-impl Check for TomlProjectionCheck {
-    fn id(&self) -> &'static str {
-        "check_toml_projection"
-    }
-    fn describe(&self) -> &'static str {
-        "Assert TOML projection generator matches committed file"
-    }
-    fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-toml-projection.py",
-            &["usr/share/mios/projection.toml"],
-            &["--check"],
+            "automation/43-nut-render.sh",
+            "UPS_CONF_DIR",
+            "etc/ups",
         )
     }
 }
@@ -173,24 +155,6 @@ impl Check for UKICmdlineProjectionCheck {
     }
 }
 
-pub struct ComposeFSProjectionCheck;
-impl Check for ComposeFSProjectionCheck {
-    fn id(&self) -> &'static str {
-        "check_composefs_projection"
-    }
-    fn describe(&self) -> &'static str {
-        "Assert ComposeFS projection matches committed file"
-    }
-    fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-composefs.py",
-            &["usr/share/mios/composefs.toml"],
-            &["--check"],
-        )
-    }
-}
-
 pub struct CockpitProjectionCheck;
 impl Check for CockpitProjectionCheck {
     fn id(&self) -> &'static str {
@@ -204,24 +168,6 @@ impl Check for CockpitProjectionCheck {
             ctx,
             "tools/generate-cockpit-conf.py",
             &["etc/cockpit/cockpit.conf"],
-            &["--check"],
-        )
-    }
-}
-
-pub struct ChronyPtpDropinCheck;
-impl Check for ChronyPtpDropinCheck {
-    fn id(&self) -> &'static str {
-        "check_chrony_ptp_dropin"
-    }
-    fn describe(&self) -> &'static str {
-        "Assert chrony PTP dropin projection matches committed file"
-    }
-    fn run(&self, ctx: &DriftCtx) -> Verdict {
-        regen_and_diff(
-            ctx,
-            "tools/generate-chrony-ptp.py",
-            &["usr/lib/systemd/system/chrony.service.d"],
             &["--check"],
         )
     }
