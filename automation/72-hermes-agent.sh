@@ -65,12 +65,43 @@ elif [ -f "/usr/share/mios/vendored/hermes-agent.zip" ]; then
 elif [ -f "/usr/share/mios/vendored/hermes_agent.whl" ]; then
     mios_log "Found offline vendored hermes_agent.whl"
     LOCAL_SOURCE="/usr/share/mios/vendored/hermes_agent.whl"
+elif [ -f "/usr/share/mios/vendored/wheels/hermes_agent.tar.gz" ]; then
+    # The 42 MB asset we actually ship. It is a SOURCE SNAPSHOT (pyproject.toml
+    # + setup.py under a hermes-agent-main/ root), not a wheelhouse -- it holds
+    # zero .whl files. Nothing consumed it: none of the probes above name it,
+    # and pip's --find-links ignores it because an sdist filename must carry a
+    # version (hermes_agent-<ver>.tar.gz) for the finder to parse a candidate.
+    # So every "offline" build silently fell through to the git clone below.
+    mios_log "Found offline vendored hermes_agent.tar.gz, extracting"
+    rm -rf /tmp/hermes-agent-src
+    mkdir -p /tmp/hermes-agent-src
+    # tar's exit status is not the test: it returns non-zero for benign
+    # per-entry warnings while still unpacking the tree. Judge on the result.
+    tar -xzf /usr/share/mios/vendored/wheels/hermes_agent.tar.gz \
+        -C /tmp/hermes-agent-src 2>/dev/null || true
+    # Take whatever single top-level directory the archive unpacked to, rather
+    # than hardcoding the upstream's branch-derived name (hermes-agent-main).
+    for _cand in /tmp/hermes-agent-src/*/; do
+        [ -f "${_cand}pyproject.toml" ] || [ -f "${_cand}setup.py" ] || continue
+        LOCAL_SOURCE="${_cand%/}"
+        break
+    done
+    [ -n "$LOCAL_SOURCE" ] \
+        || mios_warn "hermes_agent.tar.gz unusable: no python project root after extract"
 fi
 
 if [ -n "$LOCAL_SOURCE" ]; then
     PIP_OFFLINE_ARGS="--no-index --find-links=/usr/share/mios/vendored/wheels/"
     INSTALL_TARGET="-e $LOCAL_SOURCE"
 else
+    # No usable vendored source. That is fine for an online build, but on an
+    # offline/air-gapped build the clone below cannot succeed, and failing
+    # quietly is what let the broken vendored asset go unnoticed.
+    if [[ "${MIOS_ONLINE_BUILD:-0}" != "1" ]]; then
+        mios_warn "OFFLINE build found no usable vendored hermes-agent source" \
+                  "(checked vendored/hermes-agent{,.zip}, hermes_agent.whl," \
+                  "wheels/hermes_agent.tar.gz) -- falling back to a network clone"
+    fi
     if [ ! -d "${VENV_ROOT}/.git" ]; then
         mios_log "Cloning ${HERMES_REPO} to ${VENV_ROOT}"
         rm -rf "${VENV_ROOT}"
