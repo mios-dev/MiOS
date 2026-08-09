@@ -1672,6 +1672,15 @@ ip_resolve = 4
 max_untagged = 122
 max_unconforming = 0
 
+# Hint length cap. Was hardcoded 260 in mios-ai-tag, where it also silently
+# TRUNCATED hand-written hints on every re-tag. Raised so a re-tag is lossless;
+# ratcheted down once the over-cap hints have been shortened deliberately.
+hint_max_chars = 3000
+# Teacher lane for generating a hint when a file has none. The former defaults
+# were port 8450 (SSOT says 8500) and model gemma4:12b, which is not in
+# [ai].available_models -- so the lane could never have worked.
+teacher_model = "granite4.1:3b"
+
 # ----------------------------------------------------------------------------
 # [selfimprove] -- #64 self-improvement ANALYSIS (the safe observe half). The
 # read-only GET /v1/self-improve/report surfaces what to improve from local
@@ -13596,7 +13605,7 @@ landing_min_word_ratio = 0.90   # a doc passage must retain this much of the blo
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md
 max_unmigrated_narrative = 1759   # MIGRATE blocks still in source
-max_overlong_hints       = 424    # AI-hint headers over [ai_tag].hint_max_chars
+max_overlong_hints       = 1    # AI-hint headers over [ai_tag].hint_max_chars
 
 # Generated artifacts are never a migration SOURCE: globals.{sh,ps1} embed whole
 # unit-comment bodies as string literals and tests/golden holds byte-copies of

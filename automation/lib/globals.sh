@@ -178,8 +178,10 @@ export MIOS_VERSION
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
 [ -n "${MIOS_SHARE_AI_DIR+x}" ] || MIOS_SHARE_AI_DIR="${MIOS_SHARE_DIR}"'/ai'
 [ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR}"'/system.md'
+: "${MIOS_AI_TAG_HINT_MAX_CHARS:=3000}"
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
 : "${MIOS_AI_TAG_MAX_UNTAGGED:=122}"
+: "${MIOS_AI_TAG_TEACHER_MODEL:=granite4.1:3b}"
 : "${MIOS_ANSI_0_BLACK:=#282262}"
 : "${MIOS_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
 : "${MIOS_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
@@ -678,7 +680,7 @@ export MIOS_VERSION
 : "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
-: "${MIOS_DOCS_MAX_OVERLONG_HINTS:=424}"
+: "${MIOS_DOCS_MAX_OVERLONG_HINTS:=1}"
 : "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1759}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
 : "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"

@@ -91,7 +91,53 @@ def make_block(style: str, hint: str, related: str, funcs: str) -> list[str]:
     return [f"{pfx}{k}: {v}" for k, v in rows]
 
 
-def _clean(s: str, n: int = 260) -> str:
+def _ssot() -> dict:
+    """mios.toml, read once. Empty dict if unreadable -- tagging must not hard-fail
+    on a missing SSOT, but every value below then falls back explicitly."""
+    global _SSOT_CACHE
+    if _SSOT_CACHE is not None:
+        return _SSOT_CACHE
+    _SSOT_CACHE = {}
+    try:
+        import tomllib
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.abspath(os.path.join(here, "..", "..", ".."))
+        with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+            _SSOT_CACHE = tomllib.load(fh)
+    except Exception:
+        pass
+    return _SSOT_CACHE
+
+
+_SSOT_CACHE = None
+
+
+def hint_cap() -> int:
+    """Hint length cap, from [ai_tag].hint_max_chars.
+
+    Was a hardcoded 260 (Law 7). That number also silently TRUNCATED existing
+    hand-written hints on every re-tag, because _clean slices to it.
+    """
+    return int((_ssot().get("ai_tag", {}) or {}).get("hint_max_chars", 3000))
+
+
+def teacher_defaults() -> tuple[str, str]:
+    """(endpoint, model) from SSOT.
+
+    The old defaults were both wrong, not merely hardcoded: port 8450 while
+    [ports].llm_light is 8500, and model "gemma4:12b" which is not in
+    [ai].available_models at all -- so the teacher lane could never have worked.
+    """
+    d = _ssot()
+    port = (d.get("ports", {}) or {}).get("llm_light", 8500)
+    ai_tag = d.get("ai_tag", {}) or {}
+    models = (d.get("ai", {}) or {}).get("available_models", []) or []
+    model = ai_tag.get("teacher_model") or (models[0] if models else "granite4.1:3b")
+    return f"http://localhost:{port}", str(model)
+
+
+def _clean(s: str, n: int | None = None) -> str:
+    n = hint_cap() if n is None else n
     s = re.sub(r"\s+", " ", (s or "").strip())
     return re.sub(r'^["\'\s]+|["\'\s]+$', "", s)[:n]
 
@@ -275,8 +321,10 @@ def main() -> int:
     ap.add_argument("--hints-json", default=None,
                     help="JSON {abs_path: hint}; override the hint for listed files "
                          "(an agent-refined/verified hint) -- structure still regex-derived")
-    ap.add_argument("--teacher-endpoint", default=f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
-    ap.add_argument("--teacher-model", default="gemma4:12b")
+    _ep, _model = teacher_defaults()
+    ap.add_argument("--teacher-endpoint",
+                    default=os.environ.get("MIOS_AI_TEACHER_ENDPOINT") or _ep)
+    ap.add_argument("--teacher-model", default=_model)
     a = ap.parse_args()
 
     hints_map = {}
