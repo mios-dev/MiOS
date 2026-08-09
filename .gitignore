@@ -34,6 +34,20 @@
 # "No such file or directory").
 !/tests/
 !/tests/**
+
+# The ADRs and the north-star design docs. The block-all rule at the top left
+# these ENTIRELY untracked -- 43 files, including every docs/adr decision record
+# that the governance model cites (36 tracked files reference docs/adr) and the
+# doc-*.md north stars. They existed only on a contributor's disk.
+!/docs/
+!/docs/**
+!/specs/
+!/specs/**
+# ...except the w10-live-boot staging dump: path-mangled edit-target artifacts
+# from an unlanded design session ("EDIT TARGET: C:\MiOS\Justfile ..."), not
+# documentation. Its two real design notes are .md and stay tracked.
+docs/agy/w10-live-boot/*
+!docs/agy/w10-live-boot/*.md
 # Same trap as tests/: the block-all `/*` rule never un-ignored installation/,
 # so installation/mios-common.ps1 -- which Get-MiOS.ps1, mios-install.ps1 and
 # the Pester suite all dot-source -- was absent from every clean checkout.

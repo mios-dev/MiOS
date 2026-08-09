@@ -4,6 +4,7 @@
 import os
 import argparse
 import shutil
+import subprocess
 
 def main():
     parser = argparse.ArgumentParser(description="MiOS User Manual Generator")
@@ -24,10 +25,25 @@ def main():
 
     print(f"Target manual file: {manual_path}")
 
-    manual_dir = os.path.join(repo_root, "usr", "share", "doc", "mios", "manual")
-    if os.path.exists(manual_dir):
-        print(f"Cleaning up old manual directory: {manual_dir}")
-        shutil.rmtree(manual_dir)
+    # This used to rmtree repo_root/usr/share/doc/mios/manual unconditionally,
+    # derived from repo_root and ignoring --output entirely: pointing --output at
+    # a scratch file still deleted the in-repo directory. That directory is where
+    # AUTHORED manual prose is meant to live, so the tool could destroy
+    # hand-written content that no generator can reproduce. Clean only a stale
+    # split-page directory that sits beside the file we are actually writing, and
+    # never one holding git-tracked files.
+    manual_dir = os.path.join(os.path.dirname(manual_path), "manual")
+    if os.path.isdir(manual_dir):
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", manual_dir],
+            cwd=repo_root, capture_output=True, text=True,
+        ).returncode == 0
+        if tracked:
+            print(f"REFUSING to delete {manual_dir}: it holds git-tracked files. "
+                  "Remove them deliberately if that is really intended.")
+        else:
+            print(f"Cleaning up old manual directory: {manual_dir}")
+            shutil.rmtree(manual_dir)
 
     parent_dir = os.path.dirname(manual_path)
     os.makedirs(parent_dir, exist_ok=True)
