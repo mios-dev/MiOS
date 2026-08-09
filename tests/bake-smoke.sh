@@ -19,25 +19,80 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     PODMAN_CMD="sudo podman"
 fi
 
-SHIMS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('shims', [])))" 2>/dev/null || echo "Usr/libexec/mios/flatpak-launch usr/libexec/mios/mios-pc-control usr/libexec/mios/mios-launcher-daemon usr/libexec/mios/mios-flatpak-icon-sanitize")
-UNITS=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('units', [])))" 2>/dev/null || echo "Usr/lib/systemd/system/mios-wsl-interop-priority.service")
-PY_ENTRIES=$(python3 -c "import tomllib; t = tomllib.load(open('${TOML_PATH}', 'rb')); print(' '.join(t.get('testing', {}).get('smoke_components', {}).get('python_entries', [])))" 2>/dev/null || echo "Usr/lib/mios/agent-pipe/server.py")
+# Read the component lists from SSOT. A missing or empty list is FATAL, not a
+# fallback: `for x in ${EMPTY}` runs zero iterations and the loop still prints
+# "OK", so an SSOT edit that dropped a list would turn this whole harness into a
+# vacuous pass. The old fallbacks also hardcoded paths (Law 7) and capitalised
+# them ("Usr/..."), so they could never have matched anything anyway.
+_ssot_list() {
+    python3 -c "
+import sys, tomllib
+t = tomllib.load(open('${TOML_PATH}', 'rb'))
+v = t.get('testing', {}).get('smoke_components', {}).get('$1', [])
+if not v:
+    sys.stderr.write('empty\n'); sys.exit(1)
+print(' '.join(v))
+" || {
+        echo "ERROR: mios.toml [testing.smoke_components].$1 is missing or empty --" \
+             "refusing to report PASS without assertions" >&2
+        exit 1
+    }
+}
+
+SHIMS=$(_ssot_list shims)
+UNITS=$(_ssot_list units)
+PY_ENTRIES=$(_ssot_list python_entries)
+
+# Counts are passed into the container so it can prove it ran every assertion,
+# rather than trusting that the loops iterated.
+N_SHIMS=$(printf '%s\n' ${SHIMS} | grep -c .)
+N_UNITS=$(printf '%s\n' ${UNITS} | grep -c .)
+N_PY=$(printf '%s\n' ${PY_ENTRIES} | grep -c .)
+echo "[bake-smoke] SSOT components: ${N_PY} python, ${N_SHIMS} shims, ${N_UNITS} units"
 
 ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     set -e
+    n=0
     for py in ${PY_ENTRIES}; do
         python3 -m py_compile \"/\${py}\" && echo \"py_compile \${py}: OK\"
+        n=\$((n+1))
     done
+    [ \"\$n\" -eq ${N_PY} ] || { echo \"ASSERTION COUNT MISMATCH: python \$n != ${N_PY}\"; exit 1; }
+
+    n=0
     for s in ${SHIMS}; do
         test -e \"/\${s}\" || { echo \"MISSING shim: /\${s}\"; exit 1; }
+        n=\$((n+1))
     done
-    echo \"shims: OK\"
+    [ \"\$n\" -eq ${N_SHIMS} ] || { echo \"ASSERTION COUNT MISMATCH: shims \$n != ${N_SHIMS}\"; exit 1; }
+    echo \"shims: OK (\$n)\"
+
+    n=0
     for u in ${UNITS}; do
         test -f \"/\${u}\" || { echo \"MISSING unit: /\${u}\"; exit 1; }
+        n=\$((n+1))
     done
-    echo \"units: OK\"
-    echo \"SMOKE_RUN_PASS\"
-"
+    [ \"\$n\" -eq ${N_UNITS} ] || { echo \"ASSERTION COUNT MISMATCH: units \$n != ${N_UNITS}\"; exit 1; }
+    echo \"units: OK (\$n)\"
 
-echo "[bake-smoke] PASS: All smoke assertions passed clean"
+    echo \"SMOKE_RUN_PASS\"
+" | tee /tmp/mios-bake-smoke.$$.log
+
+# The container's own exit status is what matters -- `| tee` would otherwise
+# hand us tee's. And the marker must actually appear: a run that dies after the
+# last echo but before exiting non-zero would otherwise read as a pass.
+run_rc=${PIPESTATUS[0]}
+if [ "${run_rc}" -ne 0 ]; then
+    rm -f "/tmp/mios-bake-smoke.$$.log"
+    echo "[bake-smoke] FAIL: container assertions exited ${run_rc}" >&2
+    exit 1
+fi
+if ! grep -q '^SMOKE_RUN_PASS$' "/tmp/mios-bake-smoke.$$.log"; then
+    rm -f "/tmp/mios-bake-smoke.$$.log"
+    echo "[bake-smoke] FAIL: SMOKE_RUN_PASS marker absent -- assertions did not complete" >&2
+    exit 1
+fi
+rm -f "/tmp/mios-bake-smoke.$$.log"
+
+echo "[bake-smoke] PASS: ${N_PY} python + ${N_SHIMS} shim + ${N_UNITS} unit assertions verified in ${IMAGE_REF}"
 exit 0
