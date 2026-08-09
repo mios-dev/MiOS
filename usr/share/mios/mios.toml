@@ -10347,6 +10347,13 @@ searxng = "master"
 # The two CUDA GPU engines (vLLM ~25GB, SGLang ~22GB) each get their OWN group so
 # no single commit serializes more than ONE whale (~25GB) -- bundling both would
 # leave a ~49GB commit, barely better than the monolith. They commit first.
+# With those engines evicted to the firstboot tier, the residual whales are
+# open-webui (~9GB) + ceph (~3.5GB): the "heavy" group commits them in their own
+# RUN so the extra catch-all commit stays ~10GB. buildah needs ~2-3x a layer's
+# diff in transient scratch during each commit, so halving the biggest layer is
+# what keeps the bake inside a standard GHA runner's /mnt (operator-confirmed
+# ENOSPC at 'committing container for step ... mios-bake-group extra' when all
+# 14 residual images landed in ONE commit).
 [build.bake]
 runner_disk_budget_gb = 40
 core = [
@@ -10372,7 +10379,7 @@ core = [
   "quay.io/ceph/ceph:v19",
   "quay.io/poseidon/matchbox:latest"
 ]
-groups = ["sys", "cuda", "extra"]
+groups = ["sys", "cuda", "heavy", "extra"]
 # firstboot tier -- bound images whose rendered ref substring-matches ANY token
 # here are NOT baked into the OS image. They are the multi-GB GPU-engine "whales"
 # (vLLM ~25GB, SGLang ~22GB) that overran disk-constrained CI runners (exit 125 /
@@ -10398,6 +10405,7 @@ firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
 [build.bake.group_members]
 sys = ["sys"]
 cuda = ["cuda"]
+heavy = ["open-webui", "ceph"]
 extra = []
 
 [deploy.artifacts.raw]
