@@ -674,6 +674,19 @@ export MIOS_VERSION
 : "${MIOS_DISPATCH_VRAM_COLOAD_RESERVE_MB:=3000}"
 : "${MIOS_DISPATCH_VRAM_RECLAIM_IDLE:=false}"
 : "${MIOS_DISPATCH_WORKER_MCP_TOOLS:=true}"
+: "${MIOS_DOCS_BLOCKLIST_GLOBS:=automation/lib/globals.sh,automation/lib/globals.ps1,tools/native/mios-unit-gen/tests/golden/**,**/*.generated.*,usr/share/mios/names.generated.txt}"
+: "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
+: "${MIOS_DOCS_LINK_BASE:=repo}"
+: "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
+: "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
+: "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"
+: "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_}"
+[ -n "${MIOS_DOCS_SIGNALS_CODE+x}" ] || MIOS_DOCS_SIGNALS_CODE='^\s*(if|for|while|def|class|function|export|set|return|elif|else|fi|done|esac|end)\b|[;{]\s*$|^\s*[\w.]+\s*=[^=]'
+[ -n "${MIOS_DOCS_SIGNALS_FACT+x}" ] || MIOS_DOCS_SIGNALS_FACT='\b(broken|deprecated|removed|disabled|not supported|only on|requires|since|as of|WS-[A-Z]+|AGY-[0-9]+|ADR-[0-9]+|Law [0-9]+)\b'
+[ -n "${MIOS_DOCS_SIGNALS_NARRATIVE+x}" ] || MIOS_DOCS_SIGNALS_NARRATIVE='\b(operator|used to|no longer|previously|regression|root cause|incident|reverted|scrapped|rejected|instead of|alternative|rationale|invariant|degrade|ADR-[0-9]+|Law [0-9]+|AGY-[0-9]+|WS-[A-Z]+|[0-9]{4}-[0-9]{2}-[0-9]{2})\b'
+[ -n "${MIOS_DOCS_SIGNALS_WHY+x}" ] || MIOS_DOCS_SIGNALS_WHY='\b(because|so that|otherwise|avoid|prevents?|must not|never|do not|fail-open|fail-closed|deliberately|intentionally|noqa|workaround|upstream bug|race|deadlock)\b'
+: "${MIOS_DOCS_STAY_MAX_LINES:=2}"
+: "${MIOS_DOCS_STAY_MAX_WORDS:=25}"
 : "${MIOS_DRIFT_DENYLIST:=mios_batch,mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_DEBLOAT_PROFILE:=minimal}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_POSTURE:=B}"
