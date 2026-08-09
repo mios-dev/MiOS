@@ -122,6 +122,8 @@ ARG MIOS_BAKE_BOUND_IMAGES=1
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
     MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/57-mios-sys-build.sh
 RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
+    MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group heavy
+RUN --network=host --mount=type=cache,target=/var/tmp/mios-bakescratch \
     MIOS_BAKE_BOUND_IMAGES="${MIOS_BAKE_BOUND_IMAGES}" bash /usr/libexec/mios/mios-bake-group extra
 RUN chmod 0755 /usr/lib/containers/storage
 

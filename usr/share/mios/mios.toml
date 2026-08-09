@@ -10347,6 +10347,13 @@ searxng = "master"
 # The two CUDA GPU engines (vLLM ~25GB, SGLang ~22GB) each get their OWN group so
 # no single commit serializes more than ONE whale (~25GB) -- bundling both would
 # leave a ~49GB commit, barely better than the monolith. They commit first.
+# With those engines evicted to the firstboot tier, the residual whales are
+# open-webui (~9GB) + ceph (~3.5GB): the "heavy" group commits them in their own
+# RUN so the extra catch-all commit stays ~10GB. buildah needs ~2-3x a layer's
+# diff in transient scratch during each commit, so halving the biggest layer is
+# what keeps the bake inside a standard GHA runner's /mnt (operator-confirmed
+# ENOSPC at 'committing container for step ... mios-bake-group extra' when all
+# 14 residual images landed in ONE commit).
 [build.bake]
 runner_disk_budget_gb = 40
 core = [
@@ -10372,7 +10379,7 @@ core = [
   "quay.io/ceph/ceph:v19",
   "quay.io/poseidon/matchbox:latest"
 ]
-groups = ["sys", "cuda", "extra"]
+groups = ["sys", "cuda", "heavy", "extra"]
 # firstboot tier -- bound images whose rendered ref substring-matches ANY token
 # here are NOT baked into the OS image. They are the multi-GB GPU-engine "whales"
 # (vLLM ~25GB, SGLang ~22GB) that overran disk-constrained CI runners (exit 125 /
@@ -10383,11 +10390,22 @@ groups = ["sys", "cuda", "extra"]
 # the image on first start (mios-ai-firstboot already seeds the model weights into
 # /var; MiOS-Cat can pre-stage the image on a 128GB+ USB data partition for an
 # offline first boot). Empty list = bake everything (previous behavior).
-firstboot_tokens = ["vllm", "sglang"]
+# crawl4ai + firecrawl: the two LOCALLY-BUILT webtools images (localhost/
+# mios-crawl4ai-slim, localhost/mios-firecrawl -- see [image.sidecars] notes).
+# A localhost/ ref can never be PULLED by mios-bake-group (there is no registry
+# behind it; leaving them in a bake group fails the whole bake with
+# "dial tcp [::1]:443: connect: connection refused"). Their firstboot path is
+# BUILD, not web-pull: mios-webtools-firstboot.service (enabled in
+# multi-user.target.wants by automation/47-init-service.sh, ordered Before= the
+# webtools pod) builds them from their in-image contexts
+# (usr/share/mios/crawl4ai/Containerfile, usr/share/mios/webtools/
+# firecrawl.Containerfile) if missing -- degrade-open per BAKE-NOT-FETCH.
+firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
 
 [build.bake.group_members]
 sys = ["sys"]
 cuda = ["cuda"]
+heavy = ["open-webui", "ceph"]
 extra = []
 
 [deploy.artifacts.raw]
