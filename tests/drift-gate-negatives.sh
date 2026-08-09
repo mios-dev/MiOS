@@ -2305,6 +2305,7 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_docs_ratchet
+    test_docs_ratchet_monotone
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

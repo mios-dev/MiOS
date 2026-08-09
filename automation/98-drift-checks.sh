@@ -6131,6 +6131,7 @@ main() {
     check_ps_encoding_and_bom
     check_unit_dependency_closure
     check_docs_ratchet
+    check_docs_ratchet_monotone
 
 
     check_chrony_ptp_dropin
