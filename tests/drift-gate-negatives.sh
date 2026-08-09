@@ -2215,6 +2215,47 @@ UNIT
     log "check_unit_dependency_closure negative test passed"
 }
 
+test_docs_ratchet() {
+    log "Testing check_docs_ratchet"
+    local probe="${ROOT}/automation/mios-negtest-narrative.sh"
+    # A block that must classify MIGRATE: >= migrate_min_lines with narrative
+    # signal words, so it pushes the census one past its floor.
+    cat > "$probe" <<'EOF'
+#!/usr/bin/env bash
+# The operator hit a regression here previously and the root cause was a race.
+# This was reverted once, then reinstated with a different invariant entirely.
+# See ADR-0004 and Law 8 for why the projection must never be bypassed here.
+# Previously the alternative was rejected because it degraded the serving lane.
+# The rationale is recorded so the next reader does not repeat the experiment.
+# An incident followed and the operator asked for this guard to remain in place.
+true
+EOF
+    if _neg_gate check_docs_ratchet; then
+        rm -f "$probe"
+        die "check_docs_ratchet passed despite an unharvested narrative block"
+    fi
+    rm -f "$probe"
+    _neg_gate check_docs_ratchet || die "check_docs_ratchet failed after restoration"
+    log "check_docs_ratchet negative test passed"
+}
+
+test_docs_ratchet_monotone() {
+    log "Testing check_docs_ratchet_monotone"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup; backup="$(mktemp)"
+    cp "$toml" "$backup"
+    # Raising a ceiling is the loosening move the gate exists to reject.
+    sed -i 's/^max_unmigrated_narrative = .*/max_unmigrated_narrative = 99999/' "$toml"
+    if _neg_gate check_docs_ratchet_monotone; then
+        cp "$backup" "$toml"; rm -f "$backup"
+        die "check_docs_ratchet_monotone passed despite a RAISED ceiling"
+    fi
+    cp "$backup" "$toml"; rm -f "$backup"
+    _neg_gate check_docs_ratchet_monotone \
+        || die "check_docs_ratchet_monotone failed after restoration"
+    log "check_docs_ratchet_monotone negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2263,6 +2304,7 @@ main() {
     test_ps_encoding_and_bom
     test_secret_handling
     test_wsl_distro_resolution
+    test_docs_ratchet
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

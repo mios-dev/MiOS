@@ -225,6 +225,11 @@ class RefIndex:
 # --------------------------------------------------------------------------
 # Lexing
 # --------------------------------------------------------------------------
+# `<<EOF`, `<<-'PY'`, `<<"SQL"` -- captures the terminator so the body can be
+# skipped. Not matched when it is itself inside a comment.
+_HEREDOC = re.compile(r"(?<!\S)<<-?\s*(?P<tag>'[A-Za-z_][A-Za-z0-9_]*'"
+                      r'|"[A-Za-z_][A-Za-z0-9_]*"'
+                      r"|[A-Za-z_][A-Za-z0-9_]*)")
 _MARKER = re.compile(r"^\s*(?:#+|//+|;+|--|<!--|\*|/\*)\s?")
 _END_MARKER = re.compile(r"\s*(?:-->|\*/)\s*$")
 _WORD = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_./:-]*")
@@ -354,8 +359,23 @@ def _lex_generic(path: str, src: str, style: str) -> list[Block]:
     in_block = False
     block_lines: list[str] = []
     block_start = 0
+    heredoc_end: str | None = None
     for i, raw in enumerate(lines, 1):
         s = raw.strip()
+
+        # A heredoc BODY is data, not source: '#' lines inside one are Python
+        # comments in an embedded script, or plain text. Counting them attributes
+        # another language's comments to this file and inflates the census --
+        # 98-drift-checks.sh alone embeds many Python heredocs.
+        if heredoc_end is not None:
+            if s == heredoc_end or s == heredoc_end + "'":
+                heredoc_end = None
+            continue
+        m = _HEREDOC.search(raw)
+        if m:
+            flush(i - 1)
+            heredoc_end = m.group("tag").strip("'\"")
+            continue
         if style == "<!--":
             if not in_block and s.startswith("<!--"):
                 in_block, block_start, block_lines = True, i, [_strip(raw)]

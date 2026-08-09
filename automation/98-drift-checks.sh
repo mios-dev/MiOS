@@ -6130,6 +6130,7 @@ main() {
     check_github_slug_casing
     check_ps_encoding_and_bom
     check_unit_dependency_closure
+    check_docs_ratchet
 
 
     check_chrony_ptp_dropin
@@ -6901,6 +6902,127 @@ PY
         return
     fi
     echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
+}
+
+# Documentation ratchet: see docs/agy/doc-generative-documentation.md
+check_docs_ratchet() {
+    echo "[98-drift-checks]   check_docs_ratchet"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+sys.path.insert(0, os.path.join(root, "usr", "lib", "mios"))
+try:
+    import tomllib
+    import mios_comments as mc
+except Exception as e:
+    sys.stderr.write("[98-drift-checks]   WARNING: docs ratchet unavailable (%s)\n" % e)
+    sys.exit(0)
+
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    data = tomllib.load(fh)
+docs = data.get("docs", {}) or {}
+pol = mc.Policy.from_toml(data)
+
+ceil_narr = docs.get("max_unmigrated_narrative")
+ceil_hint = docs.get("max_overlong_hints")
+viol = []
+if ceil_narr is None or ceil_hint is None:
+    viol.append("mios.toml [docs] is missing max_unmigrated_narrative/max_overlong_hints"
+                " -- the ratchet has no floor and would pass vacuously")
+    print("\n".join(viol)); sys.exit(1)
+
+EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
+       ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
+SKIP = {".git", "target", "node_modules", "__pycache__", ".venv"}
+narr = hints = 0
+for dp, dn, fns in os.walk(root):
+    dn[:] = [d for d in dn if d not in SKIP]
+    for fn in fns:
+        if not fn.endswith(EXT):
+            continue
+        full = os.path.join(dp, fn)
+        rel = os.path.relpath(full, root).replace(os.sep, "/")
+        try:
+            blocks = mc.lex(full)
+        except Exception:
+            continue
+        for b in blocks:
+            b = mc.Block(**{**b.__dict__, "path": rel})
+            v = mc.classify(b, pol, None)
+            if v.cls == "MIGRATE":
+                narr += 1
+            elif v.cls == "MIGRATE_HEADER":
+                hints += 1
+
+if narr > ceil_narr:
+    viol.append("unmigrated narrative comment blocks %d > ceiling %d --"
+                " harvest them into docs, do NOT raise [docs].max_unmigrated_narrative"
+                % (narr, ceil_narr))
+if hints > ceil_hint:
+    viol.append("over-cap AI-hint headers %d > ceiling %d --"
+                " shorten them, do NOT raise [docs].max_overlong_hints"
+                % (hints, ceil_hint))
+print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d"
+      % (narr, ceil_narr, hints, ceil_hint), file=sys.stderr)
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   documentation ratchet holding (narrative + hint ceilings)"
+}
+
+# Ceilings must fall, never rise. Compared against HEAD.
+check_docs_ratchet_monotone() {
+    echo "[98-drift-checks]   check_docs_ratchet_monotone"
+    local out
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+import os, subprocess, sys
+root = os.environ["MIOS_DRIFT_ROOT"]
+try:
+    import tomllib
+except Exception:
+    sys.exit(0)
+KEYS = ("max_unmigrated_narrative", "max_overlong_hints")
+
+def load(blob):
+    try:
+        return (tomllib.loads(blob).get("docs", {}) or {})
+    except Exception:
+        return None
+
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    now = tomllib.load(fh).get("docs", {}) or {}
+prev_raw = subprocess.run(["git", "show", "HEAD:usr/share/mios/mios.toml"],
+                          cwd=root, capture_output=True, text=True,
+                          encoding="utf-8", errors="replace")
+if prev_raw.returncode != 0:
+    sys.exit(0)                       # no HEAD yet: nothing to compare
+prev = load(prev_raw.stdout)
+if prev is None:
+    sys.exit(0)
+
+viol = []
+for k in KEYS:
+    if k in prev and k in now and now[k] > prev[k]:
+        viol.append("[docs].%s RAISED %s -> %s. The ratchet only goes down:"
+                    " harvest the comments instead of widening the ceiling."
+                    % (k, prev[k], now[k]))
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PY
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
 
 main "$@"
