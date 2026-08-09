@@ -1372,8 +1372,11 @@ test_pipe_extraction_parity() {
 
 test_bake_plan() {
     log "Testing check_bake_plan"
-    local plan_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
-    if [ -f "$plan_file" ]; then
+    # The extra group is the catch-all: its numeric prefix shifts whenever the
+    # bake sharding gains a group, so resolve it by glob instead of hardcoding.
+    local plan_file
+    plan_file="$(find "${ROOT}/usr/lib/mios/bake/plan.d" -maxdepth 1 -name '[0-9][0-9]-extra.list' -print -quit 2>/dev/null)"
+    if [ -n "$plan_file" ] && [ -f "$plan_file" ]; then
         local bak_file="${plan_file}.bak"
         cp "$plan_file" "$bak_file"
         echo "docker.io/library/bogus-image-never-exists:latest" >> "$plan_file"
@@ -1620,7 +1623,11 @@ test_projection_registry() {
 
 test_bake_plan_integrity() {
     log "Testing check_bake_plan_integrity"
-    local list_file="${ROOT}/usr/lib/mios/bake/plan.d/03-extra.list"
+    # Resolve the extra catch-all list by glob -- its numeric prefix shifts
+    # whenever the bake sharding gains a group (03- became 04- with 'heavy').
+    local list_file
+    list_file="$(find "${ROOT}/usr/lib/mios/bake/plan.d" -maxdepth 1 -name '[0-9][0-9]-extra.list' -print -quit 2>/dev/null)"
+    [ -n "$list_file" ] && [ -f "$list_file" ] || die "No [0-9][0-9]-extra.list found in plan.d -- bake plan not generated?"
     local orig_val
     orig_val="$(cat "$list_file")"
 
