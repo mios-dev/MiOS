@@ -112,7 +112,7 @@ listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 | Engine | Role | Upstream |
 |---|---|---|
 | llama-swap | Default served runtime; model-swapping proxy fronting llama.cpp, OpenAI-compatible at `/v1` | <https://github.com/mostlygeek/llama-swap> |
-| Ollama | Drop-in substitute (`/v1` compatible at `:11434`) | <https://github.com/ollama/ollama> |
+| Ollama | **Not a supported lane.** Credited as an OpenAI-`/v1` compatibility reference only -- the local `:11434` lane is RETIRED and `check_dead_lane` in `automation/98-drift-checks.sh` fails the build if it reappears in active config | <https://github.com/ollama/ollama> |
 | vLLM | High-throughput server (`vllm serve <model>`) | <https://github.com/vllm-project/vllm> |
 | llama.cpp server | CPU/GPU GGUF reference server | <https://github.com/ggerganov/llama.cpp> |
 | LM Studio | Desktop OpenAI-compatible server | <https://lmstudio.ai/> |
@@ -450,9 +450,10 @@ For people scanning quickly:
   + `osbuild/` + `ostreedev/` + `composefs/` orgs on GitHub.
 - **Image distribution (GHCR, cosign, syft, rechunk):** GitHub, Sigstore,
   Anchore, hhd-dev.
-- **Local AI runtime (llama.cpp, llama-swap, Ollama, vLLM):** independent
-  open-source projects -- 'MiOS' deploys llama.cpp behind llama-swap by
-  default; the rest are swap-in via `MIOS_AI_ENDPOINT`.
+- **Local AI runtime (llama.cpp, llama-swap, vLLM):** independent open-source
+  projects -- 'MiOS' deploys llama.cpp behind llama-swap by default; the rest
+  are swap-in via `MIOS_AI_ENDPOINT`. Ollama is credited above as an API-compat
+  reference only; it is not shipped and its lane is retired.
 - **AI surface (the `/v1` API spec):** OpenAI's published reference docs,
   treated as a public/community standard for OpenAI-compatible runtimes.
 - **Orchestration patterns (Quadlet, sysusers.d, tmpfiles.d, kargs.d, FHS):**
