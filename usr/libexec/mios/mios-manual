@@ -1,0 +1,258 @@
+#!/usr/bin/env python3
+# AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Read-only over source: it never edits or deletes a comment.
+# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/agy/doc-generative-documentation.md
+# AI-functions: cmd_ledger, cmd_audit, cmd_coverage, landed, main
+"""mios-manual -- corpus ledger and census for the MiOS documentation system.
+
+Spec: docs/agy/doc-generative-documentation.md sections 3.4 and 5.
+
+Subcommands:
+  ledger   rebuild usr/share/mios/reference/manual-corpus.tsv from the tree
+  audit    census as JSON (counts by class and reason)
+  coverage the two ratchet numbers, for the gate and for humans
+
+The ledger is the safety mechanism for the whole programme. Deletion of a
+comment is only ever permitted once a ledger row proves its knowledge reached a
+doc, so the landing columns must survive ordinary code churn: they are carried
+forward BY CONTENT HASH, never recomputed. Moving a block within a file, or
+reformatting the code around it, keeps its landing record.
+
+Rows for blocks that no longer exist but were pruned are kept as tombstones --
+that retention is what lets a gate prove, after the fact, that a comment which
+is gone did land somewhere first.
+"""
+from __future__ import annotations
+
+import argparse
+import collections
+import json
+import os
+import sys
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT_DEFAULT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))
+sys.path.insert(0, os.path.join(_ROOT_DEFAULT, "usr", "lib", "mios"))
+
+try:
+    import tomllib
+except ImportError:  # pragma: no cover
+    tomllib = None
+
+import mios_comments as mc  # noqa: E402
+
+LEDGER_REL = "usr/share/mios/reference/manual-corpus.tsv"
+
+COLUMNS = ["path", "start_line", "end_line", "lines", "words", "sha12", "class",
+           "reason", "as", "stale", "landed_doc", "landed_anchor", "landed_words",
+           "pruned"]
+
+SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
+            ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
+SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv"}
+
+
+def _policy(root: str) -> mc.Policy:
+    if tomllib is None:
+        return mc.Policy()
+    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+        return mc.Policy.from_toml(tomllib.load(fh))
+
+
+def _iter_blocks(root: str, policy: mc.Policy, refindex=None):
+    for dp, dn, fns in os.walk(root):
+        dn[:] = [d for d in dn if d not in SKIP_DIRS]
+        for fn in sorted(fns):
+            if not fn.endswith(SCAN_EXT):
+                continue
+            full = os.path.join(dp, fn)
+            rel = os.path.relpath(full, root).replace(os.sep, "/")
+            try:
+                blocks = mc.lex(full)
+            except Exception:
+                continue
+            for b in blocks:
+                b = mc.Block(**{**b.__dict__, "path": rel})
+                yield b, mc.classify(b, policy, refindex)
+
+
+def _read_ledger(path: str) -> dict[str, dict]:
+    """Existing rows keyed by sha12, so landing survives code churn."""
+    out: dict[str, dict] = {}
+    if not os.path.isfile(path):
+        return out
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) != len(COLUMNS):
+                continue
+            row = dict(zip(COLUMNS, parts))
+            out[row["sha12"]] = row
+    return out
+
+
+def cmd_ledger(args) -> int:
+    root = args.root
+    policy = _policy(root)
+    dest = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    prior = _read_ledger(dest)
+
+    rows = []
+    seen: set[str] = set()
+    for b, v in _iter_blocks(root, policy):
+        old = prior.get(b.sha12, {})
+        seen.add(b.sha12)
+        rows.append({
+            "path": b.path, "start_line": str(b.start_line), "end_line": str(b.end_line),
+            "lines": str(b.lines), "words": str(b.words), "sha12": b.sha12,
+            "class": v.cls, "reason": v.reason, "as": v.as_,
+            "stale": "1" if v.stale else "0",
+            # Carried forward by hash, never recomputed.
+            "landed_doc": old.get("landed_doc", ""),
+            "landed_anchor": old.get("landed_anchor", ""),
+            "landed_words": old.get("landed_words", ""),
+            "pruned": old.get("pruned", "0"),
+        })
+
+    # Tombstones: a pruned block is gone from the tree but its landing proof
+    # must outlive it, otherwise nothing can show the deletion was safe.
+    tombstones = [r for sha, r in prior.items()
+                  if sha not in seen and r.get("pruned") == "1"]
+    rows.extend(tombstones)
+    rows.sort(key=lambda r: (r["path"], int(r["start_line"] or 0)))
+
+    body = ["# " + "\t".join(COLUMNS)]
+    body += ["\t".join(r[c] for c in COLUMNS) for r in rows]
+    text = "\n".join(body) + "\n"
+
+    if args.check:
+        current = ""
+        if os.path.isfile(dest):
+            with open(dest, encoding="utf-8", newline="") as fh:
+                current = fh.read()
+        if current.replace("\r\n", "\n") != text:
+            print(f"{LEDGER_REL} is stale -- run `mios-manual ledger --write`",
+                  file=sys.stderr)
+            return 1
+        print(f"{LEDGER_REL} up to date ({len(rows)} rows)")
+        return 0
+
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
+    with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(text)
+    print(f"wrote {LEDGER_REL}: {len(rows)} rows "
+          f"({len(tombstones)} tombstones carried)")
+    return 0
+
+
+def landed(row: dict, root: str, policy: mc.Policy) -> bool:
+    """True when this row's knowledge is provably in a doc.
+
+    The predicate `prune` and the landing gate both use. Deliberately strict:
+    the doc must exist, must carry the block's own content hash as an anchor,
+    and the passage must retain most of the words. Anything weaker would let a
+    one-line stub authorise deleting a 90-line design note.
+    """
+    doc = row.get("landed_doc") or ""
+    if not doc:
+        return False
+    p = os.path.join(root, doc.replace("/", os.sep))
+    if not os.path.isfile(p):
+        return False
+    try:
+        with open(p, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+    except OSError:
+        return False
+    marker = f"mios-src:{row['sha12']}"
+    if marker not in text:
+        return False
+    try:
+        want = int(row.get("words") or 0)
+        got = int(row.get("landed_words") or 0)
+    except ValueError:
+        return False
+    return got >= policy.landing_min_word_ratio * want
+
+
+def cmd_audit(args) -> int:
+    root = args.root
+    policy = _policy(root)
+    refindex = mc.RefIndex.build(root) if args.stale else None
+    by_class = collections.Counter()
+    by_reason = collections.Counter()
+    words = collections.Counter()
+    stale_n = 0
+    total = 0
+    for b, v in _iter_blocks(root, policy, refindex):
+        total += 1
+        by_class[v.cls] += 1
+        by_reason[v.reason] += 1
+        words[v.cls] += b.words
+        if v.stale:
+            stale_n += 1
+    report = {
+        "blocks": total,
+        "by_class": dict(by_class.most_common()),
+        "by_reason": dict(by_reason.most_common()),
+        "words_by_class": dict(words.most_common()),
+        "stale": stale_n if refindex else None,
+    }
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"comment blocks: {total}")
+        for k, v in by_class.most_common():
+            print(f"  {k:16s} {v:6d}  ({words[k]:,} words)")
+        if refindex:
+            print(f"  stale refs      {stale_n:6d}")
+    return 0
+
+
+def cmd_coverage(args) -> int:
+    """The two ratchet numbers, so the gate and a human read the same figures."""
+    root = args.root
+    policy = _policy(root)
+    narrative = hints = 0
+    for _b, v in _iter_blocks(root, policy):
+        if v.cls == "MIGRATE":
+            narrative += 1
+        elif v.cls == "MIGRATE_HEADER":
+            hints += 1
+    out = {"unmigrated_narrative": narrative, "overlong_hints": hints}
+    if args.json:
+        print(json.dumps(out))
+    else:
+        print(f"unmigrated narrative blocks: {narrative}")
+        print(f"over-cap AI-hint headers:    {hints}")
+    return 0
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(prog="mios-manual", description=__doc__.splitlines()[0])
+    ap.add_argument("--root", default=os.environ.get("MIOS_ROOT") or _ROOT_DEFAULT)
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    p = sub.add_parser("ledger", help="rebuild or verify the corpus ledger")
+    p.add_argument("--write", action="store_true")
+    p.add_argument("--check", action="store_true")
+    p.set_defaults(fn=cmd_ledger)
+
+    p = sub.add_parser("audit", help="census of the comment corpus")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--stale", action="store_true", help="also resolve references (slow)")
+    p.set_defaults(fn=cmd_audit)
+
+    p = sub.add_parser("coverage", help="the two ratchet numbers")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_coverage)
+
+    args = ap.parse_args(argv)
+    if args.cmd == "ledger" and not (args.write or args.check):
+        args.write = True
+    return args.fn(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
