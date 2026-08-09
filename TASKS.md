@@ -308,4080 +308,2406 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 
 ---
 
-## T-001: FED-G1 -- Inbound Authentication Gate
-> **Priority:** P0 | **Status:** done-by-code | **Effort:** M | **Domain:** Security/Federation -- done-by-code: inbound auth middleware (`[security].require_auth`, degrade-open).
-> **Source:** WS-FED | Operator greenlight required -- changes front-door auth posture
-
-**Context:** Today `/v1/models`, `/v1/chat/completions`, and `/a2a` return 200 and execute inference with NO credential (live-verified). Ports `:8640`/`:8642` bind `0.0.0.0`. Any process on the LAN can call the council.
-
-**Instructions:**
-1. Add one ASGI `@app.middleware("http")` in `server.py` ahead of the usage shaper (line ~26814), gating `/v1/*` and `/a2a/*`.
-2. Accept any of: `API_SERVER_KEY` bearer token, a per-agent caller-key from `/etc/mios/ai/v1/caller-keys.json`, or a `mios_principal` scoped token.
-3. On valid credential, inject scoped identity (`max_permission` + RBAC + reputation score) into request state.
-4. Add `[security].require_auth = false` to `mios.toml` (degrade-open default). When `false`, middleware is a no-op.
-5. Default listen = loopback. Publish `0.0.0.0` only when `require_auth = true` AND firewall-scoped to `172.16/12`.
-
-**Files:**
-- `usr/lib/mios/agent-pipe/server.py` -- add auth middleware at line ~26814
-- `usr/share/mios/mios.toml` -- add `[security].require_auth`, `[security].loopback_only`
-- `/etc/mios/ai/v1/caller-keys.json` -- runtime overlay (not in vendor image)
-
-**Deps:** None.
-
-**Done When:**
-- [x] `GET /v1/models` with no credential returns `401`
-- [x] A caller-key from `caller-keys.json` gets `200` and scoped identity
-- [x] `[security].require_auth = false` restores open access (degrade-open confirmed)
-- [x] `ss -ltnp` shows `:8640`/`:8642` bound to `127.0.0.1` by default
-- [x] `/v1/cluster/health` reports `auth_gate: active`
-
----
-
-# P1 -- High Priority
-
----
-
-## T-002: BOOT-01 -- greenboot Health Check Scripts
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Boot/Image | **Source:** Part 1 S2 -- done-by-code: greenboot AI-plane health check + `MIOS_PORT_PGVECTOR` bridge.
-
-**Context:** If `mios-agent-pipe` or the primary inference lane fails after `bootc upgrade`, there is no automatic detection or rollback.
-
-**Instructions:**
-1. Write `greenboot` health scripts verifying `mios-agent-pipe.service`, `mios-llm-light.service`, `mios-pgvector.service`.
-2. Check `curl -sf http://localhost:8640/v1/models` returns `200` within 60s.
-3. On failure, trigger `bootc rollback` via greenboot.
-4. Register in `/etc/greenboot/check/required.d/`.
-
-**Files:** `/etc/greenboot/check/required.d/50-mios-agent-pipe.sh` | `/etc/greenboot/check/required.d/51-mios-llm-light.sh` | `Containerfile` (install greenboot)
-
-**Deps:** None.
-
-**Done When:**
-- [x] Simulated `mios-agent-pipe` failure triggers rollback signal in greenboot logs
-- [x] Healthy boot passes all checks within timeout
-- [x] Scripts are idempotent
-
----
-
-## T-003: BOOT-02 -- OpenSCAP Image Compliance (oscap-im)
-> **Priority:** P1 | **Status:** built-gated-off | **Effort:** M | **Domain:** Boot/Security | **Source:** Part 1 S3
-
-**Instructions:**
-1. Add `oscap-im` to `Containerfile` as a build-time dependency.
-2. Add a scan step after the main `RUN` layer targeting the Fedora STIG or CIS profile.
-3. Fail the build (`exit 1`) on any HIGH or CRITICAL severity finding.
-4. Add `[compliance].oscap_skip_rules` SSOT override list for known-acceptable deviations.
-
-**Files:** `Containerfile` | `usr/share/mios/mios.toml` -- `[compliance]` block
-
-**Deps:** None.
-
-**Done When:**
-- [x] `podman build` fails when a deliberate high-severity misconfiguration is injected
-- [x] Clean image passes with exit 0
-- [x] Skip list is SSOT-driven (not hardcoded in Containerfile)
-
----
-
-## T-004: BOOT-03 -- Cryptographic Rootfs (composefs)
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Boot/Security | **Source:** Part 1 S4 -- done-by-code: composefs verity (40-composefs-verity.sh / `[security].composefs_mode`).
-
-**Instructions:**
-1. Add `composefs = true` to `/usr/lib/ostree/prepare-root.conf` in the image.
-2. Verify overlayfs + EROFS + fs-verity are active at boot.
-3. Add a greenboot check: `ostree admin status | grep composefs`.
-
-**Files:** `usr/lib/ostree/prepare-root.conf` | `/etc/greenboot/check/required.d/52-mios-composefs.sh`
-
-**Deps:** T-002 (greenboot).
-
-**Done When:**
-- [x] `ostree admin status` confirms composefs active on fresh boot
-- [x] Tampering `/usr` causes verification error on next boot
-- [x] greenboot check passes on unmodified image
-
----
-
-## T-005: BOOT-04 -- Podman Quadlet Auto-Generation from mios.toml
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Boot/Ops | **Source:** Part 1 S5
-
-**Instructions:**
-1. Enhance `tools/generate-pod-quadlets.py` to fully parse all `[pods.*]`, `[ports.*]`, `[containers.*]` from `mios.toml`.
-2. Emit `.container`, `.network`, `.volume` Quadlet units automatically at build time.
-3. Add `--check` flag that diffs generated units vs disk and exits non-zero on drift.
-4. Wire `--check` into `automation/98-drift-checks.sh`.
-
-**Files:** `tools/generate-pod-quadlets.py` | `automation/98-drift-checks.sh` | `Containerfile`
-
-**Deps:** None.
-
-**Done When:**
-- [x] `generate-pod-quadlets.py --check` exits 0 on a clean repo
-- [x] Adding a `[pods.test]` block emits the correct `.pod` unit
-- [x] `just drift-gate` fails on manual drift between TOML and Quadlet units
-
----
-
-## T-006: A1 -- Unified `[agents.*]` Template + `_defaults` Inheritance
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** WS-A1 -- done-by-code: unified `[agents.*]` template + `_defaults` inheritance.
-
-**Context:** Agent config is ad-hoc. `hermes` has `health_gate`, `opencode` doesn't. The loader defaults `health_gate=False` for local agents, causing `merged_chars=0` (silent single-agent). Root cause of the orchestrator silently degrading.
-
-**Instructions:**
-1. Add `[agents._defaults]` to vendor `mios.toml`. Canonical schema: `kind` discriminator (`local-http|remote-http|cli|mobile|edge|node|a2a`), `enabled`, `transport`, `timeout_s`, `sub_lane`, `api`, `vram_mb`, `ram_mb`, `tool_capable`, `auth{scheme,header_template,principal_mode}`, `trust{min_reputation,require_signed_principal,mtls}`.
-2. In `_load_agent_registry`: `base = agents.pop("_defaults", {})`. Skip `_`-prefixed names. `effective = {**base, **cfg}`.
-3. Safe `health_gate` default: `True` when `kind in {remote-http,cli,mobile,edge,node,a2a}` OR `not enabled` OR `_is_remote_endpoint(ep)`.
-4. Extract `_coerce_agent_cfg(name, effective)` shared by both `_load_agent_registry` and `_load_node_pool`.
-5. Rewrite each `[agents.*]` as thin overrides over `_defaults`.
-
-**Files:** `usr/share/mios/mios.toml` | `usr/lib/mios/agent-pipe/server.py` lines ~3835-3995
-
-**Deps:** None.
-
-**Done When:**
-- [x] Absent `_defaults` -> byte-identical behavior to today
-- [x] With `_defaults`, `opencode` resolves `health_gate=true`
-- [x] `/v1/cluster/health` unchanged for live agents
-- [x] Unit test: 1-field overlay inherits all remaining fields from `_defaults`
-
----
-
-## T-007: A2 -- Agent Schema Drift Validator
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Orchestration/CI | **Source:** WS-A2 -- done-by-code: agent schema drift validator (98-drift-checks.sh).
-
-**Instructions:**
-1. Add `check_agent_schema()` to `automation/98-drift-checks.sh` (mirror `check_rbac_tiers` pattern, use `python3 + tomllib`).
-2. FAIL on: (a) local/cli agent missing `health_gate=true`; (b) `kind=cli` without `timeout_s`/`enabled`; (c) `kind=node` without `api`+`lane`; (d) remote/edge/mobile without `health_gate=true`; (e) bare `:PORT` literal instead of `${MIOS_PORT_*}`; (f) not-exactly-1 `default=true`; (g) unknown key.
-3. Register in `main()` after `check_rbac_tiers`.
-
-**Files:** `automation/98-drift-checks.sh`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] `just drift-gate` fails when a test agent omits `health_gate`
-- [x] Passes on the cleaned config
-- [x] Runs in CI with no built image required
-
----
-
-## T-008: A3 -- Fix opencode Gateway (`:8633` real output)
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** WS-A3 -- done-by-code: fixed stdin/TUI in server.py, enabled/started service system-wide, enabled in mios.toml.
-
-**Context:** "opencode as a real council peer DONE" is FALSE. Gateway disabled/inactive. `:8633` not listening. `opencode run` hangs. Root cause: `opencode-gateway/server.py:171-173` calls `subprocess.run` with no `stdin=` kwarg.
-
-**Instructions:**
-1. Fix: add `stdin=subprocess.DEVNULL` and correct headless flags (`opencode run -p`/`--print`/`OPENCODE_*` env or switch to `opencode serve`).
-2. Add `timeout_s` fail-fast from `[agents.opencode].timeout_s`.
-3. Enable and start `mios-opencode-gateway.service`.
-4. Set `[agents.opencode].enabled = true` + add to `fanout` once stable.
-
-**Files:** `usr/libexec/mios/opencode-gateway/server.py` lines ~171-173 | `usr/lib/systemd/system/mios-opencode-gateway.service` | `usr/share/mios/mios.toml`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] `curl :8633/v1/chat/completions` returns real completion (no hang)
-- [x] `/v1/cluster/health` shows opencode `effective_up: true`
-- [x] A code-routed fan-out merges real opencode output
-
----
-
-## T-009: A4/FED -- hermes-worker Boot Ordering
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Orchestration/Federation | **Source:** WS-A4 -- done-by-code: hermes-worker.path boot ordering.
-
-**Context:** On default VM all 9 cluster agents are `effective_up: false`. `:8643` hermes-worker is `inactive`, `ConditionResult=no` (venv absent at boot), never auto-restarts.
-
-**Instructions:**
-1. Add `After=`/`Requires=` the venv-build unit to `hermes-worker.service`.
-2. Add a `.path` unit watching the hermes binary; `ExecStart` the worker on path active.
-3. Ensure `kind=local-http` with `auth{}` + `health_gate=true` in `[agents.hermes-worker]`.
-
-**Files:** `usr/lib/systemd/system/hermes-worker.service` | `usr/lib/systemd/system/hermes-worker-watch.path`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] After fresh boot + venv build, `systemctl is-active hermes-worker` = `active`
-- [x] `/v1/cluster/health` shows >= 1 peer `effective_up: true`
-- [x] A fan-out request uses hermes-worker as a council peer
-
----
-
-## T-010: FED-G2 Follow-up -- Auth at All 4 Remaining Dispatch Sites
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Federation/Security | **Source:** WS-FED -- done-by-code: auth at the 4 remaining dispatch sites.
-
-**Context:** `_apply_outbound_auth(hdrs,ep)` is wired only at the council/tool-loop site. Three other dispatch sites (~1873, ~4699, ~5829, ~26208) do not attach agent credentials.
-
-**Instructions:**
-1. Locate all `httpx.AsyncClient`/`aiohttp` call sites in `server.py` that dispatch to agent endpoints at lines ~1873, ~4699, ~5829, ~26208.
-2. Apply `_apply_outbound_auth(hdrs, ep)` at each site before the request is sent.
-3. Verify no regression on local (no-auth) agents.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` lines ~1873, ~4699, ~5829, ~26208
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] All 4 sites attach the correct header for their endpoint's `auth` config
-- [x] Local (no-auth) agents still work with empty headers
-
----
-
-## T-011: FED-G3 -- Live Membership Reload
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation | **Source:** WS-FED -- done-by-code: live A2A membership reload.
-
-**Instructions:**
-1. Implement an mtime-watcher (inotify or cron-director pattern) on `a2a-peers.json` + `mios.toml` `[agents.*]`/`[nodes.*]`.
-2. On change: re-run `_a2a_load_peers()` + invalidate `_WORKER_TOOLS_FULL_CACHE`.
-3. Alternatively: add auth-gated `POST /a2a/peers/reload` endpoint.
-4. Gate: `[a2a].live_reload = true` (default `true` -- safe, additive).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-001 (FED-G1 for reload endpoint auth), T-006 (A1).
-
-**Done When:**
-- [x] Adding a peer to `a2a-peers.json` -> peer appears in `/v1/cluster/health` within 5s without restart
-- [x] Removing a peer drops it within 5s
-- [x] `POST /a2a/peers/reload` triggers the same path
-
----
-
-## T-012: FED-G4 -- Self-Describing + Signed AgentCard
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation/Security | **Source:** WS-FED -- done-by-code: signed AgentCard (the v1.0 card upgrade is U1 in the gap register).
-
-**Instructions:**
-1. Extend `_build_agent_card()` (server.py:~19082) to emit `securitySchemes` + `security` fields from `[a2a.security]` SSOT.
-2. Add `signatures[]`: JWS over RFC-8785-canonical card body, signed with Ed25519 passport key.
-3. Include `x-mios` extension block cross-linking OpenAI `/v1` and MCP surfaces.
-4. Verify card is stable across restarts (deterministic).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` ~19082 | `usr/share/mios/mios.toml` -- `[a2a.security]`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] `curl /.well-known/agent-card.json` includes `securitySchemes` and `signatures[]`
-- [x] A peer can verify the JWS signature using the public key from `GET /passport/public-key`
-- [x] Card is identical across two consecutive restarts
-
----
-
-## T-013: FED-G5 -- LAN-Native mDNS Discovery (avahi)
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation | **Source:** WS-FED -- done-by-code: avahi mDNS discovery (12-virt.sh) + SSOT network-discovery pkgs now installed; firewalld `mdns`/5353 already open (33-firewall.sh).
-
-**Instructions:**
-1. Enable `avahi-daemon.service` gated behind `[a2a].mdns_discovery = false` (default off).
-2. Publish `_mios-ai._tcp` and `_a2a._tcp` on port `:8640`.
-3. Browse side: `avahi-browse` output + `/v1/models` probe to confirm MiOS node.
-4. Fallback: CIDR sweep of `172.16/12` + `/v1/models` probe.
-5. Auto-write discovered peers to `/etc/mios/ai/v1/a2a-peers.json` to trigger T-011 live reload.
-
-**Files:** `usr/lib/systemd/system/mios-a2a-discover.service` | `usr/share/mios/mios.toml` | `usr/libexec/mios/mios-a2a-discover`
-
-**Deps:** T-011 (FED-G3), T-001 (auth gate).
-
-**Done When:**
-- [x] Second MiOS node on same LAN appears in `/v1/cluster/health` within 30s of boot, no manual config
-- [x] `[a2a].mdns_discovery = false` disables all avahi activity
-- [x] CIDR sweep fallback works when mDNS unavailable
-
----
-
-## T-014: FED-G6 -- Authenticated Inbound Delegation + Least-Privilege
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation/Security | **Source:** WS-FED -- done-by-code: verify-tier authenticated inbound delegation.
-
-**Instructions:**
-1. Flip `[a2a].principal_mode` to `verify` (audit-only) as first step.
-2. `verify` mode: validate incoming peer's Ed25519 AgentCard signature; log identity to `event(kind="peer_auth")`.
-3. Map verified peer identity -> scoped identity with `max_permission` + tool surface restrictions.
-4. Add `enforce` mode that blocks unverified peers.
-5. Progress path: `off` -> `verify` -> `enforce`, each controlled by `[a2a].principal_mode` SSOT.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` -- A2A inbound handler | `usr/share/mios/mios.toml`
-
-**Deps:** T-012 (FED-G4 signed card), T-001 (FED-G1 auth gate).
-
-**Done When:**
-- [x] `principal_mode=verify`: unsigned peer still passes but identity is logged
-- [x] `principal_mode=enforce`: unsigned peer gets `403`; signed peer gets scoped identity
-- [x] Scoped identity restricts tool surface per peer reputation
-
----
-
-## T-015: C0 -- code-server Port Remap `:8080` -> `:8800`
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Ops/Pods | **Source:** WS-C0 -- done-by-code: code-server port remap.
-
-**Context:** Port collision unblocker. `[ports].code_server = 8800` is already in SSOT; container still binds `:8080`.
-
-**Instructions:**
-1. In `mios-code-server.container`: add `Environment=BIND_ADDR=0.0.0.0:8800` AND `--bind-addr 0.0.0.0:8800` entrypoint arg (image ENTRYPOINT wins over env var -- both required).
-2. Update 3 `:8080` `Label=` directives + header comment to `:8800`.
-
-**Files:** `usr/share/containers/systemd/mios-code-server.container`
-
-**Deps:** None.
-
-**Done When:**
-- [x] `ss -ltnp | grep 8800` shows binding; `:8080` is free
-- [x] Code Server UI reachable at `http://localhost:8800`
-
----
-
-## T-016: C1 -- Add 7 `[pods.*]` Blocks to `mios.toml`
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Ops/Pods | **Source:** WS-C1 -- done-by-code: `[pods.*]` blocks in mios.toml.
-
-**Instructions:**
-1. Mirror `[pods.mios-webtools]` schema for: `mios-ai-inference` (llm-light + cpu-node + worker), `mios-ai-heavy` (heavy + heavy-alt, VRAM-gated), `mios-ai-data` (pgvector), `mios-devforge` (forge + runner + code-server), `mios-netinfra-dns` (adguard), `mios-remote-desktop` (guacamole, optional). Keep `mios-webtools`.
-2. Standalone (not podded): OWUI front door, searxng.
-3. Run `generate-pod-quadlets.py --check`.
-
-**Files:** `usr/share/mios/mios.toml` -- `[pods.*]`
-
-**Deps:** T-015 (C0).
-
-**Done When:**
-- [x] `generate-pod-quadlets.py --check` lists all 7 pods with no drift warning
-- [x] `just drift-gate` passes
-
----
-
-## T-017: C2 -- Attach `Pod=` to Members + Validate All Pods Healthy
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Ops/Pods | **Source:** WS-C2 -- done-by-code: `Pod=` members + .pod generation (check_pod_quadlets).
-
-**Instructions:**
-1. Add `Pod=<pod>.pod` to each member `.container` file for all 7 pods from T-016.
-2. Run generator to produce `.pod` Quadlet units. `systemctl daemon-reload`. Start all pods.
-3. Verify each pod and members are healthy.
-
-**Files:** All member `.container` files | `tools/generate-pod-quadlets.py`
-
-**Deps:** T-016 (C1).
-
-**Done When:**
-- [x] `podman pod ls` shows all 7 pods in `Running` state
-- [x] Each member container is listed under its pod
-- [x] All health checks pass
-
----
-
-## T-018: E1 -- Persist OWUI Location Fix (Firstboot Wiring)
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** UX/OWUI | **Source:** WS-E1 -- done-by-code: wired into mios-hermes-firstboot (line 1622); secure-context documented.
-
-**Context:** `MiOS AI` model row with `{{USER_LOCATION}}`/`{{CURRENT_TIMEZONE}}`/`{{CURRENT_DATE}}` is applied live but won't survive a rebuild/reinstall.
-
-**Instructions:**
-1. Wire `mios-owui-apply-system-prompt` into OWUI firstboot/`ExecStartPost` chain.
-2. Set `Environment=MIOS_OWUI_DB=<host webui.db>` on `mios-agent-pipe.service`.
-3. Document: geolocation requires secure context -- `https://...ts.net` or `http://localhost:3030`, NOT `http://<LAN-IP>`.
-
-**Files:** `usr/lib/systemd/system/mios-open-webui-firstboot.*` | `usr/lib/systemd/system/mios-agent-pipe.service`
-
-**Deps:** None.
-
-**Done When:**
-- [x] After re-running firstboot on empty model table, `MiOS AI` row exists with `{{USER_LOCATION}}`
-- [x] Row survives a full reinstall
-- [x] Secure-context requirement documented in firstboot output
-
----
-
-## T-019: SCHED-01 -- Turn-Boundary Preemption (PriorityGate + KV-Paging)
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Scheduling/Kernel | **Source:** Part 5 P0, Part 6 P1#1 -- done-by-code: `mios_preempt.turn_boundary` + `[scheduler]` SSOT (`preempt_enable` default-off).
-
-**Context:** `mios_sched.PriorityGate` and `_kv_paging` exist independently but are not wired together.
-
-**Instructions:**
-1. On high-priority arrival while saturated: identify lowest-priority in-flight turn.
-2. Suspend it at next tool-call/DAG step boundary (NOT mid-decode).
-3. `_kv_slot_action("save", slot_id)` to snapshot KV state.
-4. Admit urgent request; process to completion.
-5. `_kv_slot_action("restore", slot_id)` and resume suspended turn from saved DAG step.
-6. Add SLA classes: `interactive`/`batch`/`background` in `[scheduler]` SSOT.
-7. Gate: `[scheduler].preemption = false` (default off -- degrade-open).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` -- `[scheduler]`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] `preemption=true`: interactive request arrives mid-batch-tool-call -> serviced within 2s; batch resumes from same DAG step
-- [x] `preemption=false`: byte-identical to today
-- [x] KV restore correct for Gemma/Qwen SWA models (verify `--swa-full`)
-- [x] `/v1/cluster/health` reports `scheduler_mode: preemptive` when active
-
----
-
-## T-020: SCHED-02 -- Token-Time Slicing Queue in agent-pipe
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Scheduling | **Source:** WS-H2, Part 5 P8, Part 3 E.3 -- done-by-code: `TokenSliceQueue` token-time-slicing (`[scheduler].queue_enable` default-off).
-
-**Instructions:**
-1. Add a token-time slicing queue to `agent-pipe` at `:8640`.
-2. After a task emits `[scheduler].token_slice_size` tokens (default `512`), preempt: save KV slot, yield lane.
-3. Advance to next task in Round-Robin queue; restore KV slot and continue.
-4. Gate: `[scheduler].token_slice = false` (default off).
-5. Anti-starvation aging: waiting tasks' priority increments monotonically with queue time.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` -- `[scheduler].token_slice*`
-
-**Deps:** T-019 (SCHED-01).
-
-**Done When:**
-- [x] `token_slice=true` and 512-token slice: 4000-token generation is preempted 8 times, interleaving with a short parallel request
-- [x] Short request completes without waiting for long generation
-- [x] Background task waiting >60s elevated to `interactive` SLA
-
----
-
-## T-021: MEM-01 -- KV Slot-Save/Restore + `--swa-full` Guard
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Memory/Context | **Source:** Part 5 P1
-
-**Context:** `mios-llm-light` already runs with `--slot-save-path`. The agent-pipe does not map each conversation to a stable slot file or reliably save/restore across turns. `--swa-full` required for Gemma/Qwen or restored KV is silently corrupt.
-
-**Instructions:**
-1. Map each `chat_id` -> stable `slot_id` in `mios-llm-light` (use `/slots` API).
-2. Before each turn: `_kv_slot_action("restore", slot_id)` if prior snapshot exists.
-3. After each turn: `_kv_slot_action("save", slot_id)`.
-4. For Gemma/Qwen: detect model family from active `mios-llm-light.yaml` entry; pass `--swa-full` when restoring.
-5. `[memory].kv_slot_persist = true` SSOT flag (default `true`).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `usr/share/mios/mios.toml`
-
-**Deps:** T-019 (SCHED-01).
-
-**Done When:**
-- [x] Second turn restores prior KV state (prefix tokens not re-processed)
-- [x] Gemma/Qwen KV restore produces correct output with `--swa-full`
-- [x] `[memory].kv_slot_persist=false` falls back to stateless behavior
-
----
-
-## T-022: FED-CONSUME -- Light Up A2A/MCP Client Halves
-> **Priority:** P1 | **Status:** built-gated-off | **Effort:** L | **Domain:** Federation | **Source:** Part 6 P1#2
-
-**Context:** `_mcp_tool_to_openai_tool` and `_a2a_send_message_to_peer` are wired but dormant. Vendor image ships empty `/usr/share/mios/ai/v1/mcp.json`. Most strategic gap -- converts MiOS from one-operator ensemble to true federated agent OS.
-
-**Instructions:**
-1. Self-test: register MiOS's own A2A card + MCP endpoint in runtime overlays.
-2. Verify client round-trips: A2A `Message -> Task -> Artifact`; MCP `tools/list + tools/call`.
-3. Confirm `mios-a2a-discover` auto-populates `a2a-peers.json` from live AgentCards.
-4. Test with second MiOS node over LAN/WSL gateway `172.x` (no Tailscale).
-5. Verify remote node contributes real fan-out to a council response.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `/etc/mios/ai/v1/mcp.json` | `/etc/mios/ai/v1/a2a-peers.json`
-
-**Deps:** T-011 (FED-G3), T-012 (FED-G4), T-001 (auth gate).
-
-**Done When:**
-- [x] Loopback self-registration round-trips A2A `Message -> Task -> Artifact`
-- [x] Second MiOS node on LAN appears in `/v1/cluster/health` and contributes fan-out
-- [x] Remote MCP server's tools appear in council tool roster via `/v1/verbs/openai-tools`
-
----
-
-# P2 -- Medium Priority
-
----
-
-## T-023: OBS-01 -- OTel GenAI Spans
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Observability | **Source:** Part 1 S1, Part 6 P3#6
-
-**Instructions:**
-1. Instrument `agent-pipe` to emit `invoke_agent` and `execute_tool` spans with OTel `gen_ai.*` attributes.
-2. Bake local OTel collector (e.g., `otelcol-contrib`) as a Podman container.
-3. Link spans to pgvector replay log (`tool_call.session_id`).
-4. Expose traces in Jaeger or Grafana Tempo.
-5. Gate: `[observability].otel_enable = false` (default off).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/containers/systemd/mios-otelcol.container` | `usr/share/mios/mios.toml`
-
-**Deps:** None.
-
-**Done When:**
-- [x] A chat request produces spans in the local trace viewer
-- [x] Each tool call has a child span with `gen_ai.tool.name` attribute
-- [x] Spans link to pgvector `tool_call` row via `session_id`
-- [x] Gate off -> no spans emitted
-
----
-
-## T-024: A5 -- Council Honesty: Report Single-Agent Mode
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Orchestration | **Source:** WS-A5 -- done-by-code: council single-agent honesty.
-
-**Instructions:**
-1. Detect when all peers are `effective_up: false`.
-2. Surface `"mode": "single-agent (no council peers up)"` in `/v1/cluster/health` and chat response metadata.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** None.
-
-**Done When:**
-- [x] All peers down: `/v1/cluster/health` contains single-agent mode string
-- [x] Chat response metadata reflects single-agent mode
-- [x] >= 1 peer up: mode reports `"council"` normally
-
----
-
-## T-025: A6 -- Kernel Stage-2 Hot-Path Migration [VM]
-> **Priority:** P2 | **Status:** completed | **Effort:** XL | **Domain:** Kernel/Scheduling | **Source:** WS-A6
-
-**Context:** "Kernel Stage-2a DONE" is introspection-only. `_kernel_stage2b` raises `NotImplementedError`. The LLM-as-CPU kernel does not execute. `shadow_route=False`.
-
-**Instructions:**
-1. Migrate each execution mode (chat/dispatch/multi_task/agent) out of `chat_completions()` into dispatcher handlers behind `kernel_route`.
-2. Run in shadow mode: execute both old+new in parallel, log diffs.
-3. Once shadow logs confirm parity, swap `shadow_route=True` -> `shadow_route=False`.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-019 (SCHED-01), operator VM [VM].
-
-**Done When:**
-- [x] Shadow log shows zero functional diffs for 100 representative requests
-- [x] `shadow_route=False`: all traffic through dispatcher
-- [x] `/v1/route` returns same decision as live dispatch
-
----
-
-## T-026: B1 -- Flip Safe Governance Gates ON
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Governance | **Source:** WS-B1 -- done-by-code: gate plumbing + the A5 SLO-foreground precondition shipped; the live ON-flip is operator-live.
-
-**Instructions:**
-1. Set `[ai].memory_guard_mode = "log"` (audit-only, no blocking).
-2. Set `[cost].enable = true` (observe-only, no enforcement).
-3. Do NOT yet enable `slo_shed` or `kernel_route` (those need VM parity first).
-
-**Files:** `usr/share/mios/mios.toml`
-
-**Deps:** None.
-
-**Done When:**
-- [x] `GET /v1/cost` returns `{"enabled": true, ...}` with real token counts
-- [x] Memguard logs validation events to pgvector on memory operations
-- [x] No behavior regression
-
----
-
-## T-027: B2 -- Verify K-LRU Tiering Loop End-to-End
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Memory | **Source:** WS-B2
-
-**Context:** "Tiering DONE" -- live pgvector has 0 rows with `access_count > 0`. K-LRU eviction has never fired.
-
-**Instructions:**
-1. Run a live recall round-trip. Check `SELECT access_count FROM agent_memory WHERE ...`.
-2. If still 0: trace the recall projection -- verify `id` is carried and `_PG_PRIMARY` page-in counter block is reached.
-3. Fix recall path to increment `access_count` on every hit.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` -- recall/tiering | `usr/libexec/mios/mios-pg-query`
-
-**Deps:** Operator VM chat loop.
-
-**Done When:**
-- [x] After a recall, `access_count` increments in `agent_memory`
-- [x] A "hot" tier row appears
-- [x] K-LRU eviction operates on non-zero counters
-
----
-
-## T-028: ORCH-01 -- DCI 14-Act Deliberation Vocabulary
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** Part 3 B.1 -- done-by-code: `mios_dci` 14-act vocabulary + `act_type` event column.
-
-**Instructions:**
-1. Define 14 act types: `frame/clarify/reframe/propose/extend/spawn/ask/challenge/bridge/synthesize/recall/ground/update/recommend`.
-2. Require each agent deliberation reply to emit `{"act": "<type>", "content": "..."}`.
-3. Tag pgvector `event` rows with `act_type` field.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
-
-**Deps:** None.
-
-**Done When:**
-- [x] Deliberation round produces `event` rows with valid `act_type` values
-- [x] Invalid `act_type` values are logged as warnings
-- [x] Act distribution query returns meaningful data after 10 rounds
-
----
-
-## T-029: ORCH-02 -- DCI-CF Convergent Flow Critic (4-Persona Loop)
-> **Priority:** P2 | **Status:** built-gated-off | **Effort:** L | **Domain:** Orchestration | **Source:** Part 3 B.2 -- done-by-code: `mios_dci` 4-persona convergent-flow critic (`[dci].flow_enabled` default-off).
-
-**Instructions:**
-1. Implement 4 personas (Framer/Explorer/Challenger/Integrator) on `hermes-agent` via 4 differentiated system prompts (single model, cheaper than 4 isolated instances).
-2. Bounded loop: `R_max=3` rounds, `K_max=4` candidate finalists.
-3. Always emit decision packet: `{choice, rationale, minority_report, reopen_triggers}`.
-4. Preserve tensions as first-class: `event(kind="dissent", act_type="challenge")`.
-5. Gate: invoke only when >= 2 conflicting `challenge` acts in first round.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` -- `[council].dci_cf_*`
-
-**Deps:** T-028 (ORCH-01), T-009 (A4 hermes-worker boot).
-
-**Done When:**
-- [x] Conflicted deliberation produces decision packet with `minority_report`
-- [x] Routine queries bypass DCI-CF with no extra latency
-- [x] Dissent events queryable: `SELECT * FROM event WHERE kind='dissent'`
-
----
-
-## T-030: ORCH-03 -- Dual-Ledger + Typed-Output Synthesis
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** Part 5 P3 -- done-by-code: dual-ledger (fact_ledger + progress_ledger) schemas and hooks + typed-output synthesis.
-
-**Instructions:**
-1. Add per-conversation Fact Ledger (claims + sources) and Progress Ledger (per-agent assignment + completion) to DAG path.
-2. Synthesis = reducer over typed node outputs: verb-output schema for action nodes; `{claim,source}` for research.
-3. `multi_task` "both" intent: research facet completes first, exports typed findings; action facet depends on those findings.
-4. Re-plan trigger when Progress Ledger stall count > 2.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] Research+action query produces Fact Ledger row before action node executes
-- [x] Action node input is derived from Fact Ledger, not free-text merge
-- [x] Stall count > 2 triggers re-plan event
-
----
-
-## T-031: ORCH-04 -- ReAct+Reflexion Durable Loop + Checkpoint-per-Superstep
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** Orchestration | **Source:** Part 5 P4 -- done-by-code: ReAct+Reflexion loop retries on tool errors + superstep checkpointing to pgvector session table.
-
-**Instructions:**
-1. Formalize each turn: `call -> observe -> reason` until no tool calls, bounded by `max_iter`/`max_retry`.
-2. On tool error: add Reflexion step -- model self-reflects on failure and revises tool call before retry.
-3. Checkpoint per super-step: key by `(chat_id, superstep_id)`, persist to pgvector `session`. Crash -> resume from last checkpoint, not restart.
-4. Gate: `[agent].reflexion_enable = true` (default `true`).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql` | `usr/share/mios/mios.toml`
-
-**Deps:** T-021 (MEM-01 KV slot restore for crash recovery).
-
-**Done When:**
-- [x] Tool failure triggers Reflexion step before retry (logged in `event`)
-- [x] Simulated crash -> resume from last superstep checkpoint, not full restart
-- [x] `max_iter` cap prevents infinite loops
-
----
-
-## T-032: SEC-01 -- Hermetic MCP Sandboxing (microVM per tool) [VM]
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** Security | **Source:** WS-H1, Part 4 Phase 6, Part 6 P4#10 -- done-by-code: `[security.mcp_sandbox]` gate + `mcp-server-runner` gatekeeper (traversal blocking, write-path enforcement, rootless podman sandbox) + fapolicyd carve-outs + `mcp.py` routing.
-
-**Instructions:**
-1. Route all `.mcpb` bundle executions through `usr/libexec/mios/mcp-server-runner` as gatekeeper.
-2. Each tool execution spawns in rootless Kata-on-Firecracker microVM (Lima VM as fallback).
-3. File ops confined to `glob`/`list_directory`/`read_file`. Write ops require `MIOS_WRITE_ALLOWED_PATHS` whitelist.
-4. Bake `fapolicyd` known-libs allow-list into bootc image.
-5. Gate: `[security].mcp_sandbox = false` (default off).
-
-**Files:** `usr/libexec/mios/mcp-server-runner` | `Containerfile` | `usr/share/mios/mios.toml`
-
-**Deps:** T-005 (BOOT-04), operator-VM [VM].
-
-**Done When:**
-- [x] Directory traversal attempt `../../etc/passwd` blocked at gatekeeper
-- [x] `fapolicyd` blocks unsigned binary dropped into `/tmp`
-- [x] `[security].mcp_sandbox=false` -> tools execute in host process (degrade-open)
-
----
-
-## T-033: SEC-02 -- Semantic Firewall (CaMeL-class Taint Propagation)
-> **Priority:** P2 | **Status:** built-gated-off | **Effort:** M | **Domain:** Security | **Source:** Part 6 P2#4 -- done-by-code: scratchpad taint propagation + has_tainted check + firewall_decision event logging + open_url external classification.
-
-**Context:** Phase B.3 (basic firewall) is landed. This extends it to full CaMeL-class: taint tags follow data through the entire scratchpad; policy gate blocks side-effecting verbs driven by tainted data without HITL.
-
-**Instructions:**
-1. Ensure every tool result from untrusted sources (web fetch, RAG, external API) carries `tainted=true` through the scratchpad.
-2. In `dispatch_mios_verb`: before any side-effecting verb (WRITE-class, `service_restart`, `container_restart`, `open_url` to non-allowlisted domain), check if tainted content is in current context.
-3. If tainted + side-effecting: route to `mios_hitl` queue before execution.
-4. All deny conditions from `mios.toml` SSOT -- no hardcoded deny-lists.
-5. Log: `event(kind="firewall_decision", verdict=allow|block|hitl)`.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** Phase A.3 (taint tags, landed), Phase B.3 (basic firewall, landed).
-
-**Done When:**
-- [x] Web-fetched result driving `service_restart` routes to HITL, not executed
-- [x] Local-only result driving same verb executes directly
-- [x] All decisions in pgvector `event` with `verdict` field
-
----
-
-## T-034: SEC-03 -- SHA-256 Cryptographic Event Bus Chaining
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Security/Audit | **Source:** WS-H5, Part 3 E.5 -- done-by-code: `mios_audit.py` SHA-256 hash-chain + `mios-chain-verify` + `/v1/audit/chain/verify` (`[audit].chain_enable`).
-
-**Instructions:**
-1. For every new `event` row: compute `SHA-256(prev_hash || event_data)` and store as `chain_hash`.
-2. Bootstrap: first row `chain_hash = SHA-256(event_data)`.
-3. Add `mios-chain-verify` CLI that validates the entire hash chain.
-4. Expose `GET /v1/audit/chain/verify` endpoint.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql` | `usr/libexec/mios/mios-chain-verify`
-
-**Deps:** Ed25519 passports (landed).
-
-**Done When:**
-- [x] `mios-chain-verify` returns VALID on unmodified log
-- [x] Manually altering a row causes CHAIN BREAK at event_id=N
-- [x] `GET /v1/audit/chain/verify` returns the same result
-
----
-
-## T-035: MEM-02 -- Self-Editing Tiered Memory (MemGPT-style)
-> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Memory | **Source:** Part 5 P2, Part 6 P2#3
-
-**Context:** `agent_memory` stores self-edited facts. evict/eviction writes recursive summaries at 100% capacity and warns at 70%.
-
-**Instructions:**
-1. Expose `memory_append` and `memory_replace` verbs (agent-curated pinned pgvector tier).
-2. Label blocks: `persona`/`task`/`preference`/`fact`.
-3. At 70% of `n_ctx`: warn agent. At 100%: evict oldest FIFO turns + write recursive summary into scratchpad head.
-4. Wire to pgvector `agent_memory` archival (existing table).
-5. Additive to KV-paging (T-021) -- not replacing.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` -- `[memory]`
-
-**Deps:** T-021 (MEM-01), T-027 (B2 tiering verified).
-
-**Done When:**
-- [x] Agent calls `memory_append {"label":"persona","content":"..."}` and block persists across turns
-- [x] At 70% context fill, warning event emitted
-- [x] At 100%, oldest turns evicted and summary prepended
-- [x] Archived turns queryable in pgvector `agent_memory`
-
----
-
-## T-036: MEM-03 -- Context Compaction + Stale Tool Result Clearing
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Memory/Context | **Source:** Part 5 P2 (Anthropic)
-
-**Instructions:**
-1. After every N turns (`[memory].compaction_interval`, default `20`): scan active context.
-2. Drop tool result messages older than `[memory].tool_result_ttl_turns` (default 5 turns ago).
-3. At `[memory].compaction_threshold_pct` of `n_ctx` (default 80%): summarize + reinitialize context with summary + last N turns.
-4. Log: `event(kind="context_compaction", tokens_before=N, tokens_after=M)`.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-035 (MEM-02).
-
-**Done When:**
-- [x] After 25 turns, stale tool results from turn 1 absent from active context
-- [x] Compaction event appears in pgvector at threshold
-- [x] Chat quality not degraded after compaction
-
----
-
-## T-037: SEC-04 -- Per-Agent Access Control + HITL at MCP Chokepoint
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Security/Orchestration | **Source:** Part 5 P5
-
-**Instructions:**
-1. Map `agent_id -> privilege_group` via `[agents.<name>].privilege_group` (default `routine`).
-2. At `dispatch_mios_verb`: check requesting agent's group against verb's tier from `[verbs.<name>].tier`.
-3. `destructive` tier -> route to `mios_hitl` before execution.
-4. Log: `event(kind="acl_decision", agent=..., verb=..., verdict=...)`.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-033 (SEC-02 semantic firewall).
-
-**Done When:**
-- [x] `routine`-privilege agent calling `container_restart` (destructive) routes to HITL
-- [x] `privileged`-privilege agent calls `container_restart` directly
-- [x] All ACL decisions in `event` table
-
----
-
-## T-038: CU-01 -- Computer-Use Action Hierarchy + Verify-After-Action
-> **Priority:** P2 | **Status:** partial | **Effort:** L | **Domain:** Computer Use | **Source:** Part 5 P6
-
-**Instructions:**
-1. Encode action hierarchy as explicit router: Tier 1 = verb/MCP typed call; Tier 2 = a11y tree (Windows UIA via `mios-windows`; AT-SPI on Linux); Tier 3 = vision grounding (`pc_click`).
-2. Fix coordinate scaling: pin convention per VLM (Qwen2.5-VL = absolute pixels; Qwen3-VL = normalized 0-1000). Apply correct scaling per active model.
-3. HiDPI rescale: multiply normalized coords by `display_width/1000` and `display_height/1000`.
-4. Verify-after-action: capture screenshot/a11y diff after each VLM click; confirm state change. Retry up to 3 times with re-grounding.
-5. Wait-for-stable-element: poll a11y tree until state stabilizes, bounded at 10 iterations.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/libexec/mios/mios-pc-control` | `usr/share/mios/mios.toml`
-
-**Deps:** T-065 (GAP-6 smart_resize -- canonical scaling math).
-
-**Done When:**
-- [x] A click first tries a11y tree; falls back to vision only on a11y failure
-- [x] Qwen3-VL normalized coord (512,384) correctly scales to physical pixels on 1920x1080
-- [x] Failed click triggers verify-after-action, detects no state change, retries with re-grounding
-- [x] 3 retries exhausted -> HITL escalation
-
----
-
-## T-039: OBS-02 -- AIOS-Bench Harness (Task Accuracy x Systems Metrics)
-> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Observability/Reliability | **Source:** Part 6 P3#7
-
-**Instructions:**
-1. Implement `mios-bench` CLI running a fixed trajectory set through live `agent-pipe`.
-2. Report: `pass@1`, `pass@k`, `pass^k` (see T-049), throughput, agent waiting time, fairness under concurrency.
-3. Integrate into CI/CD: run on every image build.
-4. Feed low `pass^k` cases into LoRA/skill-improve loops.
-
-**Files:** `usr/libexec/mios/mios-bench` | `usr/share/mios/bench/` | CI pipeline
-
-**Deps:** T-049 (GAP-3 pass^k gate -- for the pass^k column).
-
-**Done When:**
-- [x] `mios-bench run --suite gaia-lite` outputs table with pass@1, pass@k, pass^k, throughput, avg_wait
-- [x] CI run includes bench output in image build log
-- [x] Deliberately broken routing reduces pass@1 measurably
-
----
-
-## T-040: OBS-03 -- Record-and-Replay Determinism
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Observability | **Source:** Part 6 P3#8
-
-**Instructions:**
-1. Record all LLM I/O (prompt + completion) and tool I/O in pgvector `session` table.
-2. In replay mode: serve logged responses instead of calling LLM/tools.
-3. Seed random sampling to reproduce original stochasticity.
-4. Make tamper-evident: hash-chain log entries via T-034.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-034 (SEC-03 hash chain).
-
-**Done When:**
-- [x] Recorded session replays byte-identically
-- [x] `mios-chain-verify` confirms replay log unmodified
-- [x] Replay runs 5x faster than live (no LLM call latency)
-
----
-
-## T-041: C3 -- De-publish searxng + Drop Heavy-Alt Stray Port
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Ops/Networking | **Source:** WS-C3 -- done-by-code: limited Granian to loopback (127.0.0.1) in host-networked pod, heavy-alt has no published ports.
-
-**Instructions:**
-1. `mios-searxng.container`: change `PublishPort=0.0.0.0:8888:8888` -> `PublishPort=127.0.0.1:8888:8888`.
-2. `mios-llm-heavy-alt.container`: remove `PublishPort=11440:11440` entirely.
-
-**Files:** `usr/share/containers/systemd/mios-searxng.container` | `usr/share/containers/systemd/mios-llm-heavy-alt.container`
-
-**Deps:** None.
-
-**Done When:**
-- [x] `ss -ltnp | grep 8888` shows `127.0.0.1:8888` (or 8899)
-- [x] Port 11440 absent from `ss -ltnp`
-- [x] `curl http://localhost:8888` returns searxng HTML (or 8899)
-
----
-
-## T-042: C4 -- Port Collapse (Render PublishPort from `[ports]` SSOT)
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Ops/Networking | **Source:** WS-C4 (WS-0B) -- done-by-code: extended generator to resolve ports, added check_container_ports to 98-drift-checks.sh, and cleaned up guacamole/searxng container files to load install.env and avoid literal ports.
-
-**Instructions:**
-1. Extend Quadlet generator to render `PublishPort=` from `[ports.<name>]` SSOT.
-2. Use `MIOS_PORT_*` env vars in `.container` files, sourced from `EnvironmentFile=install.env` generated at build time.
-3. Target: ~24 raw host binds -> ~8 deliberate front doors (53, 3053, 3000, 49922, 8800, 3030, 8640, 8642 + host sshd/cockpit).
-
-**Files:** `tools/generate-pod-quadlets.py` | `Containerfile` | All `.container` files
-
-**Deps:** T-005 (BOOT-04), T-015 (C0).
-
-**Done When:**
-- [x] Changing `[ports].owui = 3031` and re-running generator produces OWUI on `:3031`
-- [x] `just drift-gate` catches manual port literals in `.container` files
-
----
-
-## T-043: D1 -- Remote/Edge Agent Template + Auto-Join
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation/Edge | **Source:** WS-D1
-
-**Instructions:**
-1. Land `kind=remote-http|edge|node` template from T-006 with `auth{...}` + `trust{...}`.
-2. Vendor ships `endpoint=""` (privacy). Real endpoint goes in `/etc/mios` overlay.
-3. `_load_node_pool`: auto-join when reachable; auto-drop when gone.
-4. Test: add loopback "remote" node to `/etc` overlay.
-
-**Files:** `usr/share/mios/mios.toml` -- `[agents.pi-edge]` + `[nodes.*]` | `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-006 (A1), T-010 (FED-G2 auth).
-
-**Done When:**
-- [x] Loopback "remote" node in `/etc` overlay appears in `/v1/cluster/health` when reachable
-- [x] When endpoint goes down, node auto-drops within 30s
-- [x] Node auto-rejoins without restart when it comes back
-
----
-
-## T-044: F1 -- Re-vectorize OWUI Documentation Knowledge Collection
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** UX/RAG | **Source:** WS-F1 -- done-by-code: mios-owui-apply-knowledge triggers re-vectorization via localhost API and is wired in firstboot (line 1608).
-
-**Context:** 32 files registered in OWUI knowledge collection but NOT vectorized in ChromaDB. `knowledge_search` returns 0 hits.
-
-**Instructions:**
-1. Re-index "MiOS Documentation" collection via OWUI retrieval API.
-2. Wire re-indexing into firstboot chain (alongside T-018) so it runs on every reinstall.
-
-**Files:** `usr/lib/systemd/system/mios-open-webui-firstboot.*`
-
-**Deps:** T-018 (E1 firstboot wiring).
-
-**Done When:**
-- [x] `knowledge_search "bootc"` returns >= 3 relevant hits
-- [x] Re-indexing runs automatically on fresh reinstall
-
----
-
-## T-045: F2 -- Build the coderun-sandbox Image [NET]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F2
-
-**Instructions:**
-1. Build `mios-coderun-sandbox` image with egress [NET]: Python 3.12+, Node 22, basic utils. No GPU.
-2. Mount only `/run/coderun.sock` and per-session tmpfs. No host filesystem access.
-3. Register as `mios-coderun-sandbox.container`.
-
-**Files:** `images/coderun-sandbox/Containerfile` | `usr/share/containers/systemd/mios-coderun-sandbox.container`
-
-**Deps:** T-032 (SEC-01 isolation pattern). Needs egress [NET].
-
-**Done When:**
-- [x] `run_sandboxed_code {"language":"python","code":"print(1+1)"}` returns `{"output":"2"}`
-- [x] Container has no access to host filesystem beyond tmpfs
-- [x] Container restarts cleanly after crash
-
----
-
-## T-046: WS-G -- MEMORY.md Honesty Reconciliation
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Documentation | **Source:** WS-G -- done-by-code: added policy header, re-tagged gated/partial features, trimmed index to <= 24KB.
-
-**Instructions:**
-1. Audit `MEMORY.md` + all memory topic files against `engineering-blueprint`.
-2. Re-tag: WS-0B (port collapse), opencode-peer, kernel Stage-2, tiering loop, governance gates -> `built-but-gated/partial`.
-3. Trim index to <= 24KB.
-4. Add policy header: "DONE requires active + live-fired, not built + gated-OFF".
-
-**Files:** `~/.claude/.../MEMORY.md` and topic files
-
-**Deps:** None.
-
-**Done When:**
-- [x] No "DONE" tag in MEMORY.md for an item that maps to an open task in TASKS.md
-- [x] MEMORY.md index <= 24KB
-- [x] Policy header present at top
-
----
-
-## T-047: GAP-1 -- RouteMoA Pre-Synthesis Input Diversity Gate
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** Part 7 GAP-1, arXiv:2505.24442
-
-**Context:** Nothing governs semantic diversity of council inputs before the aggregator fires. Echo-chamber failure mode: correlated ensemble wastes VRAM and degrades synthesis. Uses already-computed 768-d embeddings -- no extra model calls.
-
-**Instructions:**
-1. Before handing k council responses to aggregator, score pairwise cosine similarity on 768-d embeddings.
-2. Initial selection: `i0 = argmin_i( (1/N) sum_j S_ij )` (lowest mean similarity).
-3. Iterative expansion: `it = argmin_i( max_{q in Q} S_iq )` (minimax).
-4. Any slot with similarity > `[council].diversity_threshold` (default 0.92) to selected set is replaced with next most-orthogonal candidate.
-5. Gate: `[council].diversity_gate = false` (default off -- degrade-open).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` -- council synthesis path | `usr/share/mios/mios.toml`
-
-**Deps:** T-006 (A1), T-021 (MEM-01 -- embeddings from llm-light).
-
-**Done When:**
-- [x] Two semantically identical council responses -> second replaced with next most-orthogonal
-- [x] `/v1/cluster/health` includes `diversity_gate_active: true` when enabled
-- [x] Zero extra model calls (reuses existing embeddings)
-- [x] Gate off -> byte-identical to today
-
----
-
-## T-048: GAP-2 -- MOSAIC Confidence-Aware Aggregation Bypass
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Scheduling/Orchestration | **Source:** Part 7 GAP-2, arXiv:2606.03014
-
-**Context:** The expensive final aggregator LLM call fires even when all council responses converge. Reference: 45.7% bypass rate at +0.24 pp accuracy (conservative threshold).
-
-**Instructions:**
-1. After fan-out, compute pairwise cosine similarity across k council responses.
-2. If all pairs exceed `[council].aggregator_bypass_threshold` (default 0.95 -- conservative): bypass aggregator; return highest-confidence individual response.
-3. Log: `event(kind="aggregator_bypass", council_size=k, mean_similarity=...)`.
-4. Gate: `[council].aggregator_bypass = false` (default off).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-047 (GAP-1 -- shares embedding computation), T-039 (OBS-02 bench for tuning).
-
-**Done When:**
-- [x] Three identical council responses above threshold -> aggregator LLM not called; event logged
-- [x] `/v1/cluster/health` reports `aggregator_calls_bypassed_pct`
-- [x] Gate off -> byte-identical to today
-
----
-
-## T-049: GAP-3 -- pass^k as Hard Skill-Promotion Gate
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Reliability | **Source:** Part 7 GAP-3
-
-**Context:** `pass@k` is optimistic (at-least-one-success). `pass^k = p^k` decays exponentially -- a 61% agent hits <25% at k=8. MiOS needs pass^k as the deployment gate: a skill that passes 2-of-3 replay runs is NOT reliable enough to promote.
-
-**Instructions:**
-1. Extend `mios-skills promote`: after existing tests, run affected trajectory `[reliability].pass_and_k_count` times (default 3).
-2. Gate: ALL k runs must succeed (`tool_call.success=true` + zero `firewall_block` events + no HITL escalation). One failure vetoes.
-3. Report: `pass^k gate: FAIL (2/3 succeeded, required 3/3)` on rejection.
-4. Add `pass_and_k_rate` column to AIOS-bench output (T-039).
-5. For DGM-class self-rewrites (T-064): scale k to `[reliability].pass_and_k_dgm_count` (default 5).
-
-**Files:** `usr/libexec/mios/mios-skills` | `usr/share/mios/mios.toml`
-
-**Deps:** T-039 (OBS-02).
-
-**Done When:**
-- [x] Skill that fails 1-of-3 replay runs is rejected with veto message
-- [x] Skill passing 3-of-3 promotes normally
-- [x] `mios-bench` output includes `pass^k` column
-
----
-
-## T-050: GAP-5 -- Rechunking Delta Distribution for Edge/Offline OCI Updates
-> **Priority:** P2 | **Status:** open | **Effort:** L | **Domain:** Distribution/Edge | **Source:** Part 7 GAP-5
-
-**Context:** Every update distributes the full multi-GB OCI image. For edge nodes (air-gapped, IoT) this saturates uplinks. Block-level binary delta targets 80-90% payload reduction.
-
-**Instructions:**
-1. Build `mios-rechunk`: post-build binary diff between new OCI layer blobs and prior manifest (zstd-compressed block comparison). Output: delta bundle of changed chunks only.
-2. Target: `delta_size = ((original - rechunked) / original) * 100 ~= 80-90%`. Validate with `podman image diff`.
-3. Build `mios-oci-delta-apply.service`: fetch delta bundle -> verify SHA-256 signature (T-034) -> apply chunks -> signal `bootc` to stage.
-4. Gate: `[distribution].rechunk_enable = false` (default off).
-
-**Files:** `usr/libexec/mios/mios-rechunk` (new) | `usr/lib/systemd/system/mios-oci-delta-apply.service` (new) | `usr/share/mios/mios.toml` | `Containerfile`
-
-**Deps:** T-002 (BOOT-01), T-034 (SEC-03 SHA-256 chain).
-
-**Done When:**
-- [x] Patch changing only `server.py` produces delta bundle <= 15% of full image size
-- [x] `mios-oci-delta-apply` applies it; `bootc status` shows new deployment staged
-- [x] SHA-256 signature mismatch aborts apply with error
-
----
-
-## T-051: FED-G7 -- Route on AgentCard Skills
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation | **Source:** WS-FED
-
-**Instructions:** Extend `_pick_fanout_agents` to route on full AgentCard `skills[]` array (semantic/embedding match) rather than simplified strength-token matching. Emit routing decisions in `event` table.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-012 (FED-G4).
-
-**Done When:**
-- [x] Task tagged `code-review` routes to agent whose card lists `code-review` as a skill, overriding strength-token proximity if they conflict
-
----
-
-## T-052: FED-G8 -- Caller-Key Store (`mios_principal` + CRL)
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Federation/Security | **Source:** WS-FED -- done-by-code: `caller_key_revoke` (`/v1/admin/keys/revoke`) + CRL hot-reload in `mios_a2a`/`mios_crl`. NOTE: closed via `mios_a2a`, NOT `mios_principal` -- that orphaned module was REMOVED as dead.
-
-**Instructions:** Build caller-key store: `mios_principal` identity records + CRL in `/etc/mios/ai/v1/caller-keys.json`. Add `POST /v1/admin/keys/revoke`. Revoked keys rejected at auth gate (T-001).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `/etc/mios/ai/v1/caller-keys.json`
-
-**Deps:** T-001 (FED-G1).
-
-**Done When:**
-- [x] Revoked key gets `401`; valid key gets `200`; CRL hot-reloaded without restart
-
----
-
-## T-053: FED-G9 -- Loopback-Default Bind + Scoped Publish
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Federation/Networking | **Source:** WS-FED -- done-by-code: `_bind_host` loopback-default + scoped publish.
-
-**Instructions:** Change default bind for `:8640` and `:8642` to `127.0.0.1`. Publish `0.0.0.0` only when `[security].require_auth=true` AND firewall-scoped to `172.16/12`.
-
-**Files:** `usr/lib/systemd/system/mios-agent-pipe.service` | `usr/lib/systemd/system/hermes-agent.service`
-
-**Deps:** T-001 (FED-G1).
-
-**Done When:**
-- [x] `ss -ltnp | grep 8640` shows `127.0.0.1` by default
-- [x] Shows `0.0.0.0` only when auth is ON
-
----
-
-## T-076: GWY-01 -- Deploy Letta Server as Memory Complement (Phase 1)
-> **Priority:** P2 | **Status:** retired | **Effort:** M | **Domain:** Memory/Gateway | **Source:** Part 8 Phase 1, hermes_replacement_research.md -- retired: Letta was deployed (10220bf) then cleaned up (d90985d) in favor of native `mios_scratchpad` + `mios_cold_evict` path (T-101/T-102).
-
-**Context:** Letta (Apache 2.0, formerly MemGPT) implements tiered Core/Recall/Archival memory natively and shares the `mios-pgvector` PostgreSQL instance â€” zero new infra cost. Phase 1 deploys Letta alongside the existing `hermes-agent.service` with no disruption; it exclusively owns the memory backend role, delivering T-035/T-036/T-056 roadmap items natively.
-
-**Instructions:**
-1. Add `mios-letta-server.container` Quadlet: image `ghcr.io/letta-ai/letta:latest`, network `mios-net`, expose `:8283`.
-2. Pass `LETTA_PG_URI=postgresql://mios:${MIOS_PG_PASS}@mios-pgvector:5432/mios_letta` (separate schema, same PostgreSQL pod).
-3. Set `LETTA_LLM_PROVIDER=openai_compatible`, `LETTA_LLM_BASE_URL=http://localhost:11450/v1`, `LETTA_LLM_MODEL=granite4.1:3b` -- Law 5 compliant.
-4. Set `LETTA_EMBEDDING_PROVIDER=openai_compatible`, `LETTA_EMBEDDING_BASE_URL=http://localhost:11450/v1`, `LETTA_EMBEDDING_MODEL=nomic-embed-text`.
-5. Add `[agents.letta]` block to `mios.toml`: `endpoint = "http://localhost:8283"`, `role = "memory_backend"`.
-6. Create `mios-pgvector` init fragment: `CREATE SCHEMA IF NOT EXISTS mios_letta;` in `usr/share/mios/postgres/schema-init.sql`.
-7. Add `mios-letta-server.service` to `mios-ai.target` Wants.
-
-**Files:**
-- `usr/share/containers/systemd/mios-letta-server.container`
-- `usr/share/mios/postgres/schema-init.sql` -- new schema
-- `usr/share/mios/mios.toml` -- `[agents.letta]` block
-- `usr/lib/systemd/system/mios-ai.target`
-
-**Deps:** T-003 (C0 pod consolidation), T-028 (B1 pgvector schema). Needs egress [NET] for initial image pull.
-
-**Done When:**
-- [x] `curl http://localhost:8283/v1/health` returns `{"status":"ok"}`
-- [x] `curl http://localhost:8283/v1/agents` returns an agent list (empty or seeded)
-- [x] Letta PostgreSQL schema visible: `psql mios -c "\dn" | grep mios_letta`
-- [x] Container uses `http://localhost:11450/v1` only -- no cloud LLM call (Law 5)
-- [x] `mios-ai.target` brings Letta up after `mios-pgvector`
-
----
-
-## T-077: GWY-02 -- Wire Letta Self-Editing Memory to agent-pipe Verbs (Phase 1)
-> **Priority:** P2 | **Status:** retired | **Effort:** M | **Domain:** Memory/Orchestration | **Source:** Part 8 Phase 1 -- retired: Letta container removed (d90985d); MEM-02/MEM-03 served by native `mios_scratchpad` + `mios_cold_evict`.
-
-**Context:** Implements MEM-02/MEM-03/MEM-05 roadmap items (T-035, T-036, T-056) by delegating to Letta's native Core/Recall/Archival tiering. Agent-pipe retains the verb surface; Letta owns the persistent store. The Hermes tool-call gateway is untouched.
-
-**Instructions:**
-1. In `server.py`, add a `LettaMemoryClient` thin wrapper (`httpx.AsyncClient` pointed at `[agents.letta].endpoint`).
-2. Route `memory_append` / `memory_replace` verbs to `POST /v1/agents/{agent_id}/memory/blocks` (Letta REST API).
-3. Route `memory_search` to `GET /v1/agents/{agent_id}/archival-memory/search?query=...`.
-4. On context fill â‰¥70%: call `POST /v1/agents/{agent_id}/messages` with `role=system` compaction hint to trigger Letta's native summarization loop.
-5. On context fill â‰¥100%: call Letta's in-context memory flush (`DELETE /v1/agents/{agent_id}/in-context-messages/oldest`).
-6. Keep the existing `agent_memory` pgvector table as a read-only snapshot target (copy summarized blocks on flush).
-7. Gate: `[agents.letta].memory_backend = false` (degrade-open -- falls back to existing pgvector-direct path).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/server.py` -- `LettaMemoryClient` + verb routing
-- `usr/share/mios/mios.toml` -- `[agents.letta].memory_backend`
-
-**Deps:** T-076 (GWY-01 Letta server live), T-035 (MEM-02 open -- this implements it), T-036 (MEM-03 open -- this implements it).
-
-**Done When:**
-- [x] `memory_append {"label":"persona","content":"prefers dark mode"}` persists across sessions via Letta
-- [x] `memory_search {"query":"dark mode"}` returns the persisted block
-- [x] At 70% context fill, compaction event emitted; Letta summarization called
-- [x] `[agents.letta].memory_backend = false` falls back to pgvector-direct; no crash
-- [x] T-035/T-036 Done When criteria satisfied
-
----
-
-# P3 -- Polish / Additive
-
----
-
-## T-054: ORCH-06 -- Deterministic Orchestration via Conductor CLI
-> **Priority:** P3 | **Status:** open | **Effort:** L | **Domain:** Orchestration | **Source:** WS-H3, Part 3 E.2, Part 5 P9
-
-**Instructions:** Transition from probabilistic prompt chaining to deterministic zero-token orchestration using Microsoft Conductor CLI. Define workflows in YAML + Jinja2 templates. Parallel execution groups with `fail_fast`/`continue_on_error`. Gate: `[orchestration].conductor_enable=false`.
-
-**Files:** `usr/share/mios/conductor/` (workflow YAML dir) | `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-031 (ORCH-04 ReAct loop).
-
-**Done When:**
-- [ ] 3-step parallel workflow defined in YAML executes deterministically with correct `fail_fast` behavior
-
----
-
-## T-055: MEM-04 -- Hindsight Multi-Strategy Memory Engine
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** L | **Domain:** Memory | **Source:** WS-H4, Part 3 E.4, Part 5 P10
-
-**Instructions:** Replace legacy MAIA v8.0 runtime pools with MIT-licensed Hindsight inside `mios-pgvector`. Multi-strategy parallel retrieval: semantic vector, BM25 keyword, graph relational, temporal.
-
-**Files:** `usr/share/containers/systemd/mios-pgvector.container`
-
-**Deps:** T-035 (MEM-02).
-
-**Done When:**
-- [x] `knowledge_search "bootc"` returns results from all 4 retrieval strategies ranked and merged
-
----
-
-## T-056: MEM-05 -- KV Hierarchy + Sleep-Time Consolidation
-> **Priority:** P3 | **Status:** open | **Effort:** L | **Domain:** Memory/Scheduling | **Source:** Part 5 P7
-
-**Instructions:** Finish SGLang HiCache on `mios-llm-heavy` (17K-token tool-surface prefix reuses; idle KV spills GPU->RAM->disk). Give daemon-agent a sleep-time job: consolidate pgvector `knowledge` rows + shared memory blocks off latency path. Upgrade recall ranking to `recency x importance x relevance`.
-
-**Files:** `usr/share/mios/llamacpp/mios-llm-light.yaml` | `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-035 (MEM-02), T-021 (MEM-01).
-
-**Done When:**
-- [ ] 17K-token prefix hits HiCache on second request; sleep-time consolidation runs nightly and reduces `agent_memory` row count by >= 20%
-
----
-
-## T-057: ORCH-07 -- Personal Knowledge Graph Rich Edges
-> **Priority:** P3 | **Status:** open | **Effort:** M | **Domain:** Memory/UX | **Source:** Part 3 C.1
-
-**Instructions:** Extend `person` table with graph edges: `pref`, `device`, `app_install` rows + relationship joins. Enable router/refine pass to ground "my browser" -> preference -> `chromedev`. PostgreSQL joins + JSONB; semantic recall on existing `vector(768)` HNSW columns.
-
-**Files:** `usr/share/mios/postgres/schema-init.sql` | `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-035 (MEM-02).
-
-**Done When:**
-- [ ] "Open my browser" resolves to the correct application from the `app_install` preference graph without user specifying it
-
----
-
-## T-058: SCHED-03 -- MLFQ Program-Level Scheduler (Autellix-style) [VM]
-> **Priority:** P3 | **Status:** open | **Effort:** XL | **Domain:** Scheduling | **Source:** Part 5 P0
-
-**Instructions:** Adopt Autellix-style MLFQ over the whole agent task/DAG. Schedule whole agent programs, not individual LLM requests. Demand-aware LRU eviction for victims. Gate to contention only (hurts trivial small-model turns). Reference: 4-15x throughput improvement.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-019 (SCHED-01), T-020 (SCHED-02). Operator VM [VM].
-
-**Done When:**
-- [ ] Under contention (>= 4 concurrent tasks), short interactive query completes in <500ms while long swarm batch runs in parallel
-
----
-
-## T-059: DATA-01 -- Declarative Agent Specs + A2A-Discoverable Directory
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Federation | **Source:** Part 6 P3#9
-
-**Instructions:** Give each agent an `(author, name, version)` card (reuse A2A card schema) and expose roster as an A2A-discoverable directory. Discovering peer queries directory instead of reading static file.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` -- `/v1/agents` endpoint
-
-**Deps:** T-012 (FED-G4), T-022 (FED-CONSUME).
-
-**Done When:**
-- [x] `GET /v1/agents` returns directory of all registered agents with (author, name, version) tuples and A2A card links
-
----
-
-## T-060: DATA-02 -- Storage Versioning + Rollback for Self-Edited Core Facts
-> **Priority:** P3 | **Status:** open | **Effort:** M | **Domain:** Memory/Data | **Source:** Part 6 P4#11
-
-**Instructions:** Add `valid_from`/`valid_to` columns to `agent_memory` + `knowledge` tables. Periodic cosine-dedup compaction (similarity > 0.98). Add `memory_rollback(to_timestamp)` verb.
-
-**Files:** `usr/share/mios/postgres/schema-init.sql` | `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-035 (MEM-02).
-
-**Done When:**
-- [ ] After bad `memory_replace`, agent calls `memory_rollback` and recovers prior fact
-
----
-
-## T-061: ORCH-09 -- Code-Mode for Heavy Verbs/Recipes
-> **Priority:** P3 | **Status:** open | **Effort:** L | **Domain:** Orchestration/Memory | **Source:** Part 6 P2#5
-
-**Instructions:** Route multi-step verb chains + recipe layer through sandboxed `mios_codemode` so intermediate blobs stay out of model context. Only filtered results return. Reference: Anthropic achieves 98.7% token reduction.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-045 (F2 coderun-sandbox).
-
-**Done When:**
-- [ ] Recipe fetching 50KB of web content processes in sandbox and returns only 200-token summary to model context
-
----
-
-## T-062: B3 -- Self-Improve ACT Half (Proposal + Commit)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** XL | **Domain:** Self-Improvement | **Source:** WS-B3 -- done-by-code: `mios_selfimprove_act.py` propose/prove/isolate/decide (`[selfimprove].act_enabled` default-off).
-
-**Context:** OBSERVE half exists. ACT half is a stub. MUST NOT be enabled without T-064 (DGM veto sandbox) in place.
-
-**Instructions:**
-1. Implement ACT half: agent proposes a code diff to fix recurring failure pattern.
-2. Pass diff to T-064 DGM sandbox for utility proof.
-3. On veto: log `event(kind="dgm_veto")`; discard diff.
-4. On approval: `git apply`, run `just drift-gate`, commit to staging branch for human review.
-5. Gate: `[self_improve].enable = false` (default off).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
-
-**Deps:** T-064 (GAP-4 DGM sandbox), T-049 (GAP-3 pass^k gate).
-
-**Done When:**
-- [x] Proposed diff passing DGM sandbox is staged to a branch
-- [x] Vetoed diff is logged and discarded with no code change
-
----
-
-## T-063: B4 -- promptver Consumer (Version-Resolved Prompt Registry)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration | **Source:** WS-B4 -- done-by-code: `PromptRegistry` version-resolved consumer.
-
-**Instructions:** Wire `promptver` consumer so prompt version hops resolve from pgvector `prompt_version` table instead of hardcoded strings. Agents reference prompts by `(name, version)` tuple; loader resolves to current canonical body.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
-
-**Deps:** None.
-
-**Done When:**
-- [x] Changing prompt version in registry -> all agents pick up new body on next turn automatically
-
----
-
-## T-064: GAP-4 -- DGM Formal Proof-of-Utility Sandbox for Self-Rewrites
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** L | **Domain:** Self-Improvement/Security | **Source:** Part 7 GAP-4 -- done-by-code: `mios_selfimprove_act` prove/isolate (DGM non-regression gate) (`[selfimprove].act_enabled` default-off).
-
-**Context:** Without a formal utility gate, B3's ACT half (T-062) is a regression risk. DGM precondition: proposed rewrite must prove it does not regress before admission.
-
-**Instructions:**
-1. Build `mios-dgm-sandbox`: spawn forked isolated `mios-agent-pipe` instance (rootless Podman, network-off, read-only mount) against n=20 canonical trajectories from pgvector `tool_call` history.
-2. Utility theorem -- accept rewrite if AND ONLY IF all hold:
-   - `pass^k_new >= pass^k_current` (T-049 metric; no reliability regression)
-   - `mean_latency_new <= mean_latency_current * 1.05` (<= 5% increase)
-   - `peak_vram_new <= peak_vram_current * 1.10` (<= 10% increase)
-3. On any failure: log `event(kind="dgm_veto", reason=...)` to Merkle chain (T-034); discard rewrite.
-4. SSOT: `[self_improve]` block -- `sandbox_image`, `replay_corpus_size`, `latency_tolerance`, `vram_tolerance`, `pass_and_k_required`.
-
-**Files:** `usr/libexec/mios/mios-dgm-sandbox` (new) | `usr/share/mios/mios.toml`
-
-**Deps:** T-049 (GAP-3 pass^k), T-034 (SEC-03 Merkle chain).
-
-**Done When:**
-- [x] Rewrite regressing pass^k by 1 failed run is rejected with logged veto
-- [x] Neutral-or-improving rewrite is admitted
-- [x] `enable=false` disables ACT half entirely (safe default)
-
----
-
-## T-065: GAP-6 -- smart_resize: Formal 3-Constraint Spatial Normalization [VM]
-> **Priority:** P3 | **Status:** partial | **Effort:** M | **Domain:** Computer Use | **Source:** Part 7 GAP-6
-
-**Context:** VLMs output coordinates relative to their internal resized tensor, not the physical display. Without formal normalization, clicks miss. Load-bearing math for any vision grounding path.
-
-**Instructions:**
-1. Build `mios-smart-resize` (stdlib Python, no new deps). Interface: `--width W --height H --image-factor N --min-pixels N --max-pixels N` + stdin PNG -> stdout resized PNG + JSON metadata (W_tensor, H_tensor).
-2. Enforce 3 hard geometric constraints before any image goes to the VLM:
-   - `H mod IMAGE_FACTOR == 0` and `W mod IMAGE_FACTOR == 0` (default IMAGE_FACTOR=28; aligns ViT patch grid)
-   - `MIN_PIXELS <= H*W <= MAX_PIXELS` (prevent OOM)
-   - `max(H/W, W/H) <= MAX_RATIO` (default 200; prevent distortion)
-3. After VLM inference, apply inverse projection: `X_abs = round((X_raw/W_tensor)*W_orig)`, `Y_abs = round((Y_raw/H_tensor)*Y_orig)`.
-4. Account for HiDPI: multiply W_orig/H_orig by `[computer_use].hidpi_scale_factor` (default 1.0; set 2.0 for HiDPI Wayland).
-5. Wire into `mios-pc-control`: call `mios-smart-resize` before every VLM grounding request; apply inverse projection to returned (x,y) before dispatching `pc_click`.
-
-**Files:** `usr/libexec/mios/mios-smart-resize` (new) | `usr/libexec/mios/mios-pc-control` | `usr/share/mios/mios.toml`
-
-**Deps:** T-038 (CU-01 action hierarchy). Operator VM [VM].
-
-**Done When:**
-- [x] 3840x2160 HiDPI screenshot resized to patch-aligned tensor
-- [x] Raw VLM coord (512,384) maps to physical pixel (1536,1152) on 3840x2160 display
-- [x] `pc_click` lands within 2px of target element
-- [x] Constraint violations raise a logged error (not silent corrupt tensor)
-
----
-
-## T-066: B5 -- A2A Federation Loopback Smoke Test
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Federation/Testing | **Source:** WS-B5
-
-**Instructions:** Register loopback peer (MiOS talking to itself via A2A). Run round-trip `Message -> Task -> Artifact`. Verify artifact returns correctly and `event` table records the full delegation chain.
-
-**Files:** `usr/share/mios/tests/test-a2a-loopback.sh`
-
-**Deps:** T-022 (FED-CONSUME).
-
-**Done When:**
-- [x] `mios-a2a-test --loopback` exits 0 with "Task completed, Artifact received"
-
----
-
-## T-067: B6 -- `expandvars` Over All `*_endpoint` Fields
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Ops/Config | **Source:** WS-B6 -- done-by-code: `expandvars` on `*_endpoint` fields.
-
-**Instructions:** Apply `os.path.expandvars()` to `cpu_endpoint` and all `*_endpoint` fields in `_load_agent_registry` and `_load_node_pool`. Eliminates `${MIOS_PORT_*}` literal-not-expanded bugs.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-006 (A1).
-
-**Done When:**
-- [x] `${MIOS_PORT_AGENT_PIPE}` in an endpoint field resolves to the actual port number at load time
-
----
-
-## T-068: B7 -- Multi-Tenant RLS Wiring (`SET LOCAL mios.owner_user`)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Data/Security | **Source:** WS-B7 -- done-by-code: `SET LOCAL mios.owner_user` via `mios_pg._owner_scope` (param-bound). NOTE: impl gate is `[pgvector].rls_enable` (NOT the spec's `[database].rls_enable`) + REQUIRES `[security].principal_bind_mode=enforce`. Re-ranked P1 (sequence behind V1/V2).
-
-**Instructions:** Wire PostgreSQL RLS `SET LOCAL mios.owner_user='<user_id>'` at the start of each DB transaction. Gate: `[database].rls_enable=false`. Required for multi-user/multi-tenant deployments.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
-
-**Deps:** None.
-
-**Done When:**
-- [x] Agent A cannot read Agent B's `agent_memory` rows when RLS is enabled
-
----
-
-## T-069: C5 -- Pod-Gen in Build Render Step
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Ops/Build | **Source:** WS-C5
-
-**Instructions:** Add pod Quadlet generator to `Containerfile` build render step so generated `.pod` and `.container` units are baked into the image.
-
-**Files:** `Containerfile` | `tools/generate-pod-quadlets.py`
-
-**Deps:** T-017 (C2), T-005 (BOOT-04).
-
-**Done When:**
-- [x] Fresh image boot has all pod units pre-rendered and immediately active
-
----
-
-## T-070: D2 -- Pi/Edge Join Documentation
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Documentation/Federation | **Source:** WS-D2
-
-**Instructions:** Write the one-port (`:8640`) outbound-dial join flow for Pi and edge nodes. Document optional federated pgvector via `[pgvector].listen_loopback=false` (off by default). Include the TOML overlay pattern.
-
-**Files:** `usr/share/doc/mios/guides/edge-node-join.md` (new)
-
-**Deps:** T-043 (D1).
-
-**Done When:**
-- [x] A Pi node can join the council by following the doc alone (no source reading required)
-
----
-
-## T-071: E2/E3 -- OWUI Cosmetic Fixes
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** UX | **Source:** WS-E2, WS-E3
-
-**Instructions:**
-- E2: Strip trailing `(lat, long)` suffix in `_client_env` location string before it reaches the model.
-- E3: Fix stale `agent.json` description that still references "legacy-datastore-state chain" (pgvector migration happened).
-
-**Files:** `usr/lib/mios/agent-pipe/server.py` (`_client_env`) | `usr/share/mios/ai/v1/agent.json`
-
-**Deps:** None.
-
-**Done When:**
-- [x] Location in OWUI shows city/timezone only, no coordinates
-- [x] `agent.json` description references pgvector, not the legacy datastore
-
----
-
-## T-072: F3 -- Code Mode `/run/coderun.sock` Per-Session Broker
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Sandboxing | **Source:** WS-F3
-
-**Instructions:** Build host-side Code Mode per-session Unix socket broker at `/run/coderun.sock`. Each session gets isolated socket -> isolated `mios-coderun-sandbox` container instance. Sessions cleaned up on disconnect.
-
-**Files:** `usr/libexec/mios/mios-coderun-broker` (new)
-
-**Deps:** T-045 (F2 coderun-sandbox).
-
-**Done When:**
-- [x] Two concurrent code-execution sessions run in isolated containers; neither can read the other's output
-
----
-
-## T-073: F4 -- mios build Driver + move_window + es.exe Upgrade
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Ops/Computer Use | **Source:** WS-F4
-
-**Instructions:**
-- `mios build` driver: add `curl` fallback when primary build trigger unavailable.
-- `move_window`: implement named-region actuator (`move_window {window:"Notepad", region:"left-half"}`).
-- `es.exe` (Everything Search): upgrade to latest version in build.
-
-**Files:** `usr/libexec/mios/mios-build` | `usr/libexec/mios/mios-pc-control` | `Containerfile`
-
-**Deps:** None.
-
-**Done When:**
-- [x] Each of the three items works end-to-end independently
-
----
-
-## T-074: FED-G10/G11 -- Cardless Join + `/v1/agents` Registry
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Federation | **Source:** WS-FED
-
-**Instructions:**
-- G10: Support generic `/v1/models`-only endpoint join for cardless agents (Claude, Gemini, vLLM). Probe `/v1/models`, infer capabilities from model names, auto-register as council peer.
-- G11: Add `/v1/agents` registry surface -- discoverable directory of all registered agent endpoints, cards, capability summaries.
-
-**Files:** `usr/lib/mios/agent-pipe/server.py`
-
-**Deps:** T-013 (FED-G5), T-059 (DATA-01).
-
-**Done When:**
-- [x] Raw vLLM endpoint (no AgentCard) joins council via `/v1/models` probe
-- [x] `/v1/agents` lists all agents including cardless ones
-
----
-
-## T-075: H6 -- LAKE Federated Query (Spice.ai Rust Engine)
-> **Priority:** P3 | **Status:** open | **Effort:** XL | **Domain:** Scheduling/Data | **Source:** WS-H6
-
-**Instructions:** Integrate Learning-assisted Accelerated Kernel (LAKE) using Spice.ai open-source Rust engine for high-throughput federated query execution and dynamic data routing across inference queues and pgvector shards. Long-horizon item -- do not start before T-048 (GAP-2) and T-050 (GAP-5) are live.
-
-**Files:** TBD -- Spice.ai integration layer
-
-**Deps:** T-048 (GAP-2), T-050 (GAP-5).
-
-**Done When:**
-- [ ] Federated query across 2 pgvector shards completes in <200ms
-- [ ] LAKE scheduler shows >2x throughput vs sequential execution
-
----
-
-## T-078: GWY-03 -- Build mios-gateway-agent FastAPI Service (Phase 2)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** L | **Domain:** Gateway/Orchestration | **Source:** Part 8 Phase 2 -- done-by-code: `mios-gateway-agent` FastAPI service (8238b3a).
-
-**Context:** Phase 2 of the Hermes sovereignty migration. Creates `mios-gateway-agent` -- a MiOS-native FastAPI service at `:8642` that replaces `hermes-agent.service`. Uses `smolagents.ToolCallingAgent` (Apache 2.0, ~1k LOC, auditable) as the tool-loop engine. Zero breaking changes for agent-pipe: same port, same `/v1/chat/completions` endpoint, same OpenAI wire protocol. Hermes-specific config (`config.yaml`) is superseded by `mios.toml [gateway]` SSOT.
-
-**Instructions:**
-1. Create `usr/lib/mios/gateway-agent/` Python package. Venv: `usr/lib/mios/gateway-agent/.venv` (mirrors Hermes pattern).
-2. `pip install smolagents httpx fastapi uvicorn mcp` in venv. All Apache 2.0 / MIT.
-3. Implement `POST /v1/chat/completions` endpoint: parse OpenAI `messages` + `tools`; init `smolagents.ToolCallingAgent(model=OpenAIServerModel(...), tools=mios_tool_registry)`; run agent loop; stream SSE or return full response.
-4. `OpenAIServerModel` points at `MIOS_AI_ENDPOINT` env var (Law 5) with `model_id` from `[gateway].model`.
-5. Add `GET /v1/models` returning the current model list from `[ai].available_models` in `mios.toml`.
-6. Add `GET /health` and `GET /v1/cluster/health` stubs returning JSON `{"status":"ok","service":"mios-gateway-agent"}`.
-7. Session persistence: store `messages` list per `session_id` in pgvector `gateway_sessions` table (simple JSONB column).
-8. Add `[gateway]` block to `mios.toml`: `model`, `max_tokens`, `context_length`, `port`, `enable = false` (phase-2 gate -- off by default until T-079â€“T-082 complete).
-
-**Files:**
-- `usr/lib/mios/gateway-agent/__init__.py`, `server.py`, `session.py`
-- `usr/lib/systemd/system/mios-gateway-agent.service` (new, inactive until T-083)
-- `usr/share/mios/mios.toml` -- `[gateway]` block
-- `usr/share/mios/postgres/schema-init.sql` -- `gateway_sessions` table
-
-**Deps:** T-076 (GWY-01 -- Letta infra live), T-028 (B1 pgvector schema).
-
-**Done When:**
-- [x] `uvicorn mios.gateway_agent.server:app --port 8642` starts clean in its venv
-- [x] `curl -s localhost:8642/health` returns `{"status":"ok"}`
-- [x] `curl -s localhost:8642/v1/models` returns model list from mios.toml
-- [x] `curl -s -X POST localhost:8642/v1/chat/completions -d '{"model":"...","messages":[{"role":"user","content":"hello"}]}'` returns a valid OpenAI-format response
-- [x] No cloud endpoint called (Law 5 -- only `MIOS_AI_ENDPOINT`)
-
----
-
-## T-079: GWY-04 -- smolagents ToolCallingAgent as Tool-Loop Engine (Phase 2)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Gateway/Orchestration | **Source:** Part 8 Phase 2 -- done-by-code: smolagents ToolCallingAgent + tool registry (cd27999).
-
-**Context:** Wires the MiOS tool surface into the smolagents `ToolCallingAgent` loop. The agent receives tool definitions from the MCP client (T-080) and the skill catalog (T-081), executes the tool-call â†’ result â†’ continue loop identically to Hermes, and returns the final assistant message as an OpenAI-format completion.
-
-**Instructions:**
-1. Implement `MiOSToolRegistry`: on startup, fetch tool schemas from `mios-mcp-server` (via T-080) + skill catalog (via T-081) and build a list of `smolagents.Tool` subclasses.
-2. Each `Tool.forward(**kwargs)` dispatches to `mios-mcp-server` (stdio) via the MCP client and returns the result string.
-3. Wire `ToolCallingAgent(model=..., tools=registry.tools, max_steps=[gateway].max_steps)` into the `/v1/chat/completions` handler from T-078.
-4. Preserve OpenAI-format `tool_calls` / `role:tool` in the session message list for replay and OTel tracing.
-5. On `max_steps` exceeded: return `finish_reason="length"` with the last partial assistant message.
-6. Gate: `[gateway].tool_loop_engine = "smolagents"` (switchable to `"native"` for a raw pass-through mode).
-
-**Files:**
-- `usr/lib/mios/gateway-agent/tool_registry.py`
-- `usr/lib/mios/gateway-agent/server.py` -- agent loop wiring
-- `usr/share/mios/mios.toml` -- `[gateway].max_steps`, `[gateway].tool_loop_engine`
-
-**Deps:** T-078 (GWY-03 FastAPI service), T-080 (GWY-05 MCP client).
-
-**Done When:**
-- [x] Multi-turn conversation with a tool call (`mios_verb.list_services`) completes correctly
-- [x] `tool_calls` appear in session message history in pgvector
-- [x] `max_steps` cap returns `finish_reason="length"` cleanly (no crash)
-- [x] `[gateway].tool_loop_engine = "native"` disables the smolagents loop (pass-through)
-
----
-
-## T-080: GWY-05 -- MCP Client: stdio â†’ mios-mcp-server (Phase 2)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Gateway/MCP | **Source:** Part 8 Phase 2 -- done-by-code: MCP stdio client (cd27999).
-
-**Context:** Replicates Hermes's MCP client connection to `mios-mcp-server` (all 82 verbs + 18 recipes) using the `mcp` Python SDK (MIT). Shares the exact same `stdio` transport as the existing Hermes `mcp_servers.mios` config.
-
-**Instructions:**
-1. Add `mcp` SDK to venv (`pip install mcp`).
-2. Implement `MiOSMCPClient` using `mcp.StdioServerParameters(command="/usr/libexec/mios/mios-mcp-server")` -- identical transport to Hermes.
-3. On startup: call `tools/list` and build the tool schema cache. Re-fetch every `[gateway].mcp_refresh_seconds` (default 300).
-4. `env` for MCP subprocess: `MIOS_AGENT_PIPE_URL=http://localhost:8640` (same as Hermes config).
-5. Support `supports_parallel_tool_calls = true` in the tool registry (matches Hermes config).
-
-**Files:**
-- `usr/lib/mios/gateway-agent/mcp_client.py`
-- `usr/share/mios/mios.toml` -- `[gateway].mcp_refresh_seconds`
-
-**Deps:** T-078 (GWY-03), T-024 (MCP-01 server live).
-
-**Done When:**
-- [x] On startup, `tools/list` call returns â‰¥ 82 tool definitions
-- [x] Tool call `mios_verb.list_services` executes via MCP and returns service list
-- [x] Catalog refreshes every 300 s without restart
-- [x] No orphaned `mios-mcp-server` processes after gateway restart
-
----
-
-## T-081: GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (Phase 2)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Gateway/Tools | **Source:** Part 8 Phase 2 -- done-by-code: skill catalog + SearXNG wiring (c1c283f).
-
-**Context:** Replicates the three remaining Hermes tool surface extensions: dynamic skill catalog from agent-pipe, SearXNG web search, and browser/CDP actions (delegated via `mios-pc-control` MCP verbs -- no separate CDP loop needed since they are already MCP-exposed).
-
-**Instructions:**
-1. **Skill catalog:** On startup and every `[gateway].skill_refresh_seconds` (default 300), `GET http://localhost:8640/skills/openai-tools` and inject returned tool schemas into `MiOSToolRegistry`. Fall back to `[gateway].skill_catalog_static_path` (`/var/lib/mios/skills/catalog.json`) if HTTP fails.
-2. **Web search:** Add `WebSearchTool` (smolagents built-in or thin wrapper) configured with `SEARXNG_URL=http://mios-searxng:8080`. Expose as `web_search` tool in the tool registry.
-3. **Browser verbs:** Browser/CDP actions are already MCP-exposed via `mios-pc-control` verbs (T-080 pulls them automatically via `tools/list`). No separate CDP integration required.
-4. Add `[gateway].searxng_url` to `mios.toml` (same default as Hermes: `http://mios-searxng:8080`).
-
-**Files:**
-- `usr/lib/mios/gateway-agent/tool_registry.py` -- skill catalog + web search wiring
-- `usr/share/mios/mios.toml` -- `[gateway].searxng_url`, `[gateway].skill_refresh_seconds`, `[gateway].skill_catalog_static_path`
-
-**Deps:** T-079 (GWY-04 tool loop), T-080 (GWY-05 MCP client).
-
-**Done When:**
-- [x] `web_search {"query":"bootc docs"}` returns SearXNG results via `http://mios-searxng:8080`
-- [x] A promoted skill appears in `/v1/chat/completions` tool list within 300 s of promotion
-- [x] Browser verb `mios_verb.open_url` reachable through the gateway tool loop via MCP
-- [x] Static skill catalog fallback activates when agent-pipe is down
-
----
-
-## T-082: GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Phase 2)
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Gateway/Config | **Source:** Part 8 Phase 2 -- done-by-code: `[gateway]` SSOT block + Hermes config deprecation (7176940).
-
-**Context:** Replaces the `usr/share/mios/hermes/config.yaml` vendor-default + `/etc/mios/hermes/config.local.yaml` override dance with a single `[gateway]` section in `mios.toml`, consistent with MiOS Architectural Law 2 (immutable code / mutable state via SSOT).
-
-**Instructions:**
-1. Add complete `[gateway]` section to `usr/share/mios/mios.toml` covering: `model`, `max_tokens`, `context_length`, `port = 8642`, `max_steps = 30`, `tool_loop_engine = "smolagents"`, `mcp_refresh_seconds = 300`, `skill_refresh_seconds = 300`, `skill_catalog_static_path = "/var/lib/mios/skills/catalog.json"`, `searxng_url = "http://mios-searxng:8080"`, `enable = false`.
-2. Mark `usr/share/mios/hermes/config.yaml` and `usr/share/mios/hermes/config-worker.yaml` as **deprecated** with a header comment pointing to `[gateway]` in `mios.toml`.
-3. Update `usr/lib/tmpfiles.d/mios-hermes.conf` to also seed `/etc/mios/gateway/` if `mios-gateway-agent.service` is enabled.
-4. Update `etc/mios/kb.conf.toml` comment: `# mios-gateway-agent: base_url = "http://localhost:8642/v1"` (endpoint unchanged).
-5. Document in `AGENTS.md` under the service table: add `mios-gateway-agent` row (phase 2, disabled until T-083).
-
-**Files:**
-- `usr/share/mios/mios.toml` -- `[gateway]` block
-- `usr/share/mios/hermes/config.yaml` -- deprecation header
-- `usr/share/mios/hermes/config-worker.yaml` -- deprecation header
-- `usr/lib/tmpfiles.d/mios-hermes.conf` -- gateway seed path
-- `etc/mios/kb.conf.toml` -- comment update
-- `AGENTS.md` -- service table row
-
-**Deps:** T-078 (GWY-03 service built).
-
-**Done When:**
-- [x] `mios-gateway-agent` reads all config from `mios.toml [gateway]` -- no reads from `hermes/config.yaml`
-- [x] `hermes/config.yaml` has deprecation header pointing to SSOT
-- [x] `kb.conf.toml` reflects both endpoint options
-- [x] `AGENTS.md` service table includes `mios-gateway-agent` row
-
----
-
-## T-083: GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase 2)
-> **Priority:** P3 | **Status:** partial | **Effort:** M | **Domain:** Gateway/Ops | **Source:** Part 8 Phase 2 -- done-by-code: hermes-agent.service deleted, mios-gateway-agent.service added and all references updated/validated in systemd units.
-
-**Context:** Final cutover: `hermes-agent.service` is stopped and masked; `mios-gateway-agent.service` is enabled and started. Zero breaking changes for all consumers -- `:8642` serves the same OpenAI-compatible `/v1/chat/completions` endpoint. Includes smoke-test gate before cutover.
-
-**Instructions:**
-1. Before cutover, run smoke-test suite against `mios-gateway-agent` on a shadow port (`:8643`): send 10 canonical `mios_verb` tool calls and verify all return `200` with correct output.
-2. Set `[gateway].enable = true` in `mios.toml` (operator-level decision).
-3. `systemctl --user disable --now hermes-agent.service && systemctl --user mask hermes-agent.service`.
-4. `systemctl --user enable --now mios-gateway-agent.service`.
-5. Verify `hermes-worker.service` equivalent: enable `mios-gateway-worker.service` (same smolagents engine, `[gateway.worker]` config block, port `:8643`).
-6. Update `usr/lib/systemd/system/mios-agent-pipe.service` `Environment=HERMES_ENDPOINT=` ➔ `GATEWAY_ENDPOINT=http://localhost:8642` (or alias both).
-7. Update `Containerfile` build test: replace `hermes-agent` venv check with `mios-gateway-agent` venv check.
-8. Tag the `hermes-agent.service` / `config.yaml` / `config-worker.yaml` files as archived in git (`git mv` to `archive/hermes/`).
-
-**Files:**
-- `usr/lib/systemd/system/mios-gateway-agent.service` -- enable
-- `usr/lib/systemd/system/mios-gateway-worker.service` -- enable
-- `usr/lib/systemd/system/hermes-agent.service` -- mask
-- `usr/lib/systemd/system/hermes-worker.service` -- mask
-- `usr/lib/systemd/system/mios-agent-pipe.service` -- env var update
-- `Containerfile` -- build test update
-- `archive/hermes/` -- archived Hermes files
-
-**Deps:** T-078 (GWY-03), T-079 (GWY-04), T-080 (GWY-05), T-081 (GWY-06), T-082 (GWY-07). All smoke tests green.
-
-**Done When:**
-- [x] `hermes-agent.service` is masked (does not start on boot)
-- [x] `mios-gateway-agent.service` is active; `curl localhost:8642/health` returns `ok`
-- [x] All 10 smoke-test tool calls pass against the new service
-- [x] `agent-pipe` dispatches reach `:8642` and get valid completions
-- [x] OWUI chat works end-to-end through the new gateway
-- [x] `[gateway].enable = false` (default) keeps Hermes running on unupgraded installs
-
----
-
-## T-084: STRG-01 -- CephFS SSOT Block in mios.toml
-> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Storage/Config | **Source:** Part 9 Â§9.5, Â§9.6 Phase 1
-
-**Context:** The k3s + Ceph one-node-cluster path ships in MiOS (`automation/13-ceph-k3s.sh`, `mios-ceph.container`) but no `mios.toml` SSOT block exists for CephFS user-space storage configuration. This is the unblocker for all subsequent STRG tasks.
-
-**Instructions:**
-1. Add `[storage.cephfs]` block to `usr/share/mios/mios.toml` with all fields defaulted to safe no-op values (`enable = false`, `monitors = ["127.0.0.1:6789"]` placeholder, etc.). Full schema in ROADMAP.md Â§9.5.
-2. Wire SSOT vars into `userenv.sh`: `MIOS_CEPHFS_ENABLE`, `MIOS_CEPHFS_MONITORS`, `MIOS_CEPHFS_FS_NAME`, `MIOS_CEPHFS_TENANT_ID`, `MIOS_CEPHFS_DATA_POOL_HOT`, `MIOS_CEPHFS_DATA_POOL_BULK`, `MIOS_XDG_CACHE_LOCAL_PATH`.
-3. Add `check_cephfs_ssot` stub to `automation/98-drift-checks.sh` (FAIL if `enable=true` but `monitors` is still the `127.0.0.1` placeholder). Full drift-check implemented in T-093.
-4. Add `[storage.cephfs]` section to the configurator HTML "Storage" tab (static form only; no back-end call needed).
-
-**Files:**
-- `usr/share/mios/mios.toml` -- new `[storage.cephfs]` block
-- `usr/share/mios/mios-configurator/userenv.sh` -- MIOS_CEPHFS_* exports
-- `automation/98-drift-checks.sh` -- `check_cephfs_ssot` stub
-
-**Deps:** None.
-
-**Done When:**
-- [x] `python3 -c "import tomllib; d=tomllib.load(open('usr/share/mios/mios.toml','rb')); assert 'cephfs' in d.get('storage',{})"` exits 0
-- [x] `userenv.sh` exports `MIOS_CEPHFS_ENABLE=false` by default
-- [x] `just drift-gate` passes on clean repo (stub check exits 0 when `enable=false`)
-- [x] `just drift-gate` FAILS when `enable=true` + monitors = placeholder (unit test)
-
----
-
-## T-085: STRG-02 -- mios-cephfs-provision Script + PAM Integration
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Storage/Auth | **Source:** Part 9 Â§9.3.1, Â§9.6 Phase 1
-
-**Context:** Automated provisioning of per-user CephFS subvolumes must happen at PAM session open, before the home directory is accessed. The script must degrade-open: if Ceph is unreachable, the user's login continues with the local `$HOME` fallback.
-
-**Instructions:**
-1. Build `/usr/libexec/mios/mios-cephfs-provision` (stdlib bash + Python). Subcommands:
-   - `validate <uid>`: check if subvolume `cephfs:/tenants/<tenant_id>/users/<uid>` exists; if absent, call `create`; verify CephX keyring present. Exit 0 on success OR if Ceph unreachable (degrade-open).
-   - `create <uid> <gid>`: idempotent: `ceph fs subvolumegroup create cephfs mios-users` (noop if exists); `ceph fs subvolume create cephfs <uid>-home --group_name mios-users --uid <uid> --gid <gid> --mode 0700`; call T-089's keyring creation.
-   - `delete <uid>`: `ceph auth del client.<uid>`; `umount /home/<username>` (if mounted); `ceph fs subvolume rm cephfs <uid>-home --group_name mios-users`.
-2. Add PAM hook to `/etc/pam.d/system-auth` (via `tmpfiles.d` fragment or firstboot): `session optional pam_exec.so /usr/libexec/mios/mios-cephfs-provision validate %u %g`.
-3. Gate: only runs when `[storage.cephfs].enable = true` in `mios.toml` (script reads SSOT via `mios-userenv`).
-4. Log provisioning events to pgvector `event(kind="storage_provision", source="cephfs", uid=<uid>)`.
-
-**Files:**
-- `usr/libexec/mios/mios-cephfs-provision` (new)
-- `usr/lib/tmpfiles.d/mios-cephfs.conf` -- PAM hook drop-in
-
-**Deps:** T-084 (STRG-01 SSOT).
-
-**Done When:**
-- [x] `mios-cephfs-provision validate 1000` creates subvolume and keyring if absent; exits 0
-- [x] `mios-cephfs-provision validate 1000` exits 0 even when `ceph` command unavailable (degrade-open)
-- [x] `mios-cephfs-provision delete 1000` removes keyring and subvolume
-- [x] Provisioning event appears in pgvector `event` table
-- [x] Script is a no-op when `MIOS_CEPHFS_ENABLE=false`
-
----
-
-## T-086: STRG-03 -- Per-Session XDG_RUNTIME_DIR Isolation
-> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Storage/Orchestration | **Source:** Part 9 Â§9.2.3, Â§9.4.1
-
-**Context:** When `agent-pipe` dispatches concurrent tool calls under the same UID, all tool contexts share `XDG_RUNTIME_DIR`. This causes SQLite lock-file collisions and POSIX advisory lock conflicts on CephFS-backed `$HOME/.config`. Isolation requires a unique runtime dir per dispatch session.
-
-**Instructions:**
-1. In `mios-session-init` (or `mios-agent-pipe.service` `ExecStartPost`), generate `MIOS_SESSION_ID=$(uuidgen --random | cut -c1-8)` on each dispatch context start.
-2. Set `XDG_RUNTIME_DIR=/run/user/<uid>/session-${MIOS_SESSION_ID}` in the dispatch environment (`os.environ` in `server.py` before forking tool contexts).
-3. Create the per-session runtime dir via `systemd-run --user --scope -p RuntimeDirectory=session-${MIOS_SESSION_ID}` or a `tmpfiles.d` `d` line.
-4. Render `XDG_CACHE_HOME` from `[storage.cephfs].xdg_cache_home_override` (default `/run/user/{uid}/.cache`) into `/etc/profile.d/mios-xdg-cephfs.sh` template at firstboot.
-5. Gate: only inject per-session `XDG_RUNTIME_DIR` when `[storage.cephfs].enable = true` (no regression for local-home installs).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/server.py` -- dispatch env injection
-- `usr/share/mios/profile.d/mios-xdg-cephfs.sh` (new template)
-- `usr/share/mios/mios.toml` -- `[storage.cephfs].xdg_cache_home_override`
-
-**Deps:** T-084 (STRG-01), T-085 (STRG-02).
-
-**Done When:**
-- [x] Two concurrent tool dispatch contexts have different `XDG_RUNTIME_DIR` values
-- [x] `XDG_CACHE_HOME` resolves to `/run/user/<uid>/.cache` (local tmpfs), never to a CephFS path
-- [x] `[storage.cephfs].enable = false` â†’ no change to existing `XDG_RUNTIME_DIR` behavior
-
----
-
-## T-087: STRG-04 -- CephFS Automount Template (systemd.automount)
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Storage/Systemd | **Source:** Part 9 Â§9.3.1 Stage 2, Â§9.6 Phase 2
-
-**Context:** User home directories backed by CephFS must be mounted on-demand and unmounted when idle to avoid stale capability holds. systemd automount provides this without requiring persistent `/etc/fstab` entries.
-
-**Instructions:**
-1. Create systemd mount and automount template units in `usr/share/mios/systemd/`:
-   - `home-@.mount`: `What=${MIOS_CEPHFS_MONITORS}:${MIOS_CEPHFS_FS_PATH}`, `Where=/home/%i`, `Type=ceph`, `Options=name=client.%i,secretfile=${MIOS_CEPHFS_KEYRING_DIR}/client.%i,${MIOS_CEPHFS_MOUNT_OPTIONS}`.
-   - `home-@.automount`: `Where=/home/%i`, `TimeoutIdleSec=${MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S}`.
-2. Firstboot script renders env vars from SSOT into `/etc/systemd/system/home-@.mount` and `/etc/systemd/system/home-@.automount`. Runs `systemctl daemon-reload`.
-3. Enable `home-@.automount` for operator user on firstboot: `systemctl enable home-<username>.automount`.
-4. Add `ConditionPathExists=/etc/ceph/keyring.d/client.%i` to `home-@.mount` (degrade-open: mount unit does not start if keyring absent).
-5. Gate: entire firstboot step is gated on `MIOS_CEPHFS_ENABLE=true`.
-
-**Files:**
-- `usr/share/mios/systemd/home-@.mount.tmpl` (new)
-- `usr/share/mios/systemd/home-@.automount.tmpl` (new)
-- `automation/firstboot/mios-cephfs-mount-setup.sh` (new)
-
-**Deps:** T-085 (STRG-02), T-086 (STRG-03).
-
-**Done When:**
-- [x] `systemctl start home-<username>.automount` succeeds
-- [x] Accessing `/home/<username>` triggers CephFS mount; `findmnt /home/<username>` shows `ceph` type
-- [x] Idle for `TimeoutIdleSec` seconds â†’ unit auto-unmounts
-- [x] Missing keyring â†’ mount unit fails gracefully with `ConditionPathExists` block; login continues with local `$HOME`
-
----
-
-## T-088: STRG-05 -- CephFS Client-Side Caching Tuning
-> **Priority:** P2 | **Status:** partial | **Effort:** S | **Domain:** Storage/Performance | **Source:** Part 9 Â§9.4.2
-
-**Context:** Default CephFS client settings generate 2,000â€“8,000 MDS ops/s on first GNOME login (Tracker, GVfs, Flatpak all walk `$XDG_DATA_HOME` simultaneously). Tuning client inode cache size, readahead, and fscache eliminates cap-recall storms and makes network-backed home directories usable at interactive speed.
-
-**Instructions:**
-1. Add a `mios-ceph-configure` helper that renders the `[client]` block of `/etc/ceph/ceph.conf` from SSOT values:
-   - `client_cache_size = 16384`
-   - `client_cache_after_readdir = true`
-   - `client_readahead_max_bytes = 33554432`
-   - `client_reconnect_stale_interval = 30`
-   - `fuse_disable_pagecache = false`
-2. Wire `mios-ceph-configure` into the CephFS firstboot init (after T-087 automount setup).
-3. Ensure `fsc` (fscache) is included in the `mount_options` rendered by T-087. Install and enable `cachefilesd` package (`usr/lib/systemd/system/cachefilesd.service`).
-4. Add MDS cache tuning to the cephadm bootstrap config: `mds_cache_memory_limit = 4294967296` (4 GiB).
-5. Validation: measure MDS ops/s via `ceph tell mds.<name> perf dump` before and after login. Target < 500 ops/s at steady state.
-
-**Files:**
-- `usr/libexec/mios/mios-ceph-configure` (new)
-- `etc/ceph/ceph.conf` (operator overlay, rendered by helper)
-- `usr/share/mios/mios.toml` -- SSOT values source
-
-**Deps:** T-087 (STRG-04 automount).
-
-**Done When:**
-- [x] `/etc/ceph/ceph.conf` contains rendered `[client]` block after firstboot
-- [x] MDS ops/s < 500 at steady-state GNOME login (measured via `ceph tell mds`)
-- [x] `cachefilesd.service` is active and `fsc` mount option present in `findmnt` output
-- [x] `client_reconnect_stale_interval = 30` visible in `ceph config get client client_reconnect_stale_interval`
-
----
-
-## T-089: STRG-06 -- CephX Per-User Capability Management
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Storage/Security | **Source:** Part 9 Â§9.4.3
-
-**Context:** CephX capabilities must be scoped per-user to enforce storage fabric isolation at the RADOS level â€” independent of OS-layer POSIX permissions. Without this, a misconfigured POSIX ACL or a privileged agent can access another user's subvolume.
-
-**Instructions:**
-1. In `mios-cephfs-provision create <uid>`, call:
-   ```bash
-   ceph auth get-or-create client.<uid> \
-     mds "allow r, allow rw path=/tenants/${MIOS_CEPHFS_TENANT_ID}/users/${uid}" \
-     osd "allow rw pool=${MIOS_CEPHFS_DATA_POOL_HOT} tag cephfs data=cephfs, allow rw pool=${MIOS_CEPHFS_DATA_POOL_BULK} tag cephfs data=cephfs" \
-     mon "allow r" \
-     -o /etc/ceph/keyring.d/client.${uid}
-   chmod 0400 /etc/ceph/keyring.d/client.${uid}
-   chown ${uid}:${gid} /etc/ceph/keyring.d/client.${uid}
-   ```
-2. In `mios-cephfs-provision delete <uid>`, call `ceph auth del client.<uid>` and remove keyring file.
-3. Add `GET /v1/storage/cephfs/users` endpoint to `agent-pipe` (`server.py`): returns JSON list of provisioned users with fields `uid`, `keyring_present`, `subvolume_exists`, `subvolume_path`.
-4. Add `GET /v1/storage/cephfs/health` endpoint: returns `ceph health` output + pool utilization from `ceph df` as structured JSON.
-5. Gate: endpoints return `{"enabled": false}` when `MIOS_CEPHFS_ENABLE=false`.
-
-**Files:**
-- `usr/libexec/mios/mios-cephfs-provision` (extends T-085)
-- `usr/lib/mios/agent-pipe/server.py` -- two new storage endpoints
-- `usr/share/mios/mios.toml` -- referenced pool names
-
-**Deps:** T-085 (STRG-02 provision), T-084 (STRG-01 SSOT).
-
-**Done When:**
-- [x] `ceph auth get client.1000` shows path-scoped caps (not `allow *`)
-- [x] `curl localhost:8640/v1/storage/cephfs/users` returns provisioned user list
-- [x] `curl localhost:8640/v1/storage/cephfs/health` returns `{"status":"HEALTH_OK",...}` when cluster healthy
-- [x] Attempting to mount another user's subvolume with user A's keyring returns `EACCES`
-
----
-
-## T-090: STRG-07 -- XDG Profile Script (mios-xdg-cephfs.sh) in bootc Image
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Storage/UX | **Source:** Part 9 Â§9.2.1, Â§9.6 Phase 3
-
-**Instructions:**
-1. Create `usr/share/mios/profile.d/mios-xdg-cephfs.sh` (baked immutable into bootc image). Content:
-   - `XDG_CONFIG_HOME="${HOME}/.config"` (CephFS hot pool via $HOME)
-   - `XDG_DATA_HOME="${HOME}/.local/share"`
-   - `XDG_STATE_HOME="${HOME}/.local/state"`
-   - `XDG_RUNTIME_DIR="/run/user/$(id -u)"` (always local)
-   - `XDG_CACHE_HOME="${MIOS_XDG_CACHE_LOCAL_PATH:-/run/user/$(id -u)/.cache}"` (NEVER CephFS)
-2. Firstboot: symlink `/etc/profile.d/mios-xdg-cephfs.sh` â†’ the baked file.
-3. Render `MIOS_XDG_CACHE_LOCAL_PATH` from `[storage.cephfs].xdg_cache_home_override` in `userenv.sh` (T-084 already exports this).
-4. Validate: `source /etc/profile.d/mios-xdg-cephfs.sh && echo $XDG_CACHE_HOME` must NOT contain the CephFS mount prefix.
-
-**Files:**
-- `usr/share/mios/profile.d/mios-xdg-cephfs.sh` (new, baked into image)
-- `automation/firstboot/mios-xdg-setup.sh` (symlink step)
-
-**Deps:** T-086 (STRG-03 cache override SSOT wiring).
-
-**Done When:**
-- [x] Profile script present in image at `usr/share/mios/profile.d/mios-xdg-cephfs.sh`
-- [x] After sourcing: `$XDG_CONFIG_HOME` = `$HOME/.config`; `$XDG_CACHE_HOME` starts with `/run/user/`
-- [x] T-093 drift-check confirms `xdg_cache_home_override` does not contain a CephFS path
-
----
-
-## T-091: STRG-08 -- xdg-user-dirs Template + mios-xdg-userdir-init.service
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Storage/UX | **Source:** Part 9 Â§9.3.1 Stage 3
-
-**Context:** `xdg-user-dirs` is already installed in MiOS (`PACKAGES.md`). On a CephFS-backed `$HOME`, the standard folders (`Documents/`, `Downloads/`, etc.) must be created in the bulk data pool on first login â€” the kernel will route writes to the correct pool via the subvolume layout.
-
-**Instructions:**
-1. Create `usr/share/mios/xdg/user-dirs.defaults` (baked into image). Content: maps standard dirs to English names (the default). Firstboot copies to `/etc/xdg/user-dirs.defaults`.
-2. Create systemd user unit `mios-xdg-userdir-init.service` (template: `usr/share/mios/systemd/mios-xdg-userdir-init.service.tmpl`):
-   - `ConditionPathIsMountPoint=/home/%u` â€” only runs when CephFS home is mounted
-   - `ExecStart=/usr/bin/xdg-user-dirs-update --force`
-   - `RemainAfterExit=yes`
-   - `WantedBy=default.target`
-3. Firstboot installs the unit into `~/.config/systemd/user/` for the operator user and runs `systemctl --user daemon-reload && systemctl --user enable mios-xdg-userdir-init`.
-4. Gate: `ConditionPathIsMountPoint` means the unit silently skips when CephFS is not active (local `$HOME` users get `xdg-user-dirs-update` from the normal GNOME session instead).
-
-**Files:**
-- `usr/share/mios/xdg/user-dirs.defaults` (new)
-- `usr/share/mios/systemd/mios-xdg-userdir-init.service` (new)
-- `automation/firstboot/mios-xdg-setup.sh` (updated)
-
-**Deps:** T-087 (STRG-04 automount), T-090 (STRG-07 profile script).
-
-**Done When:**
-- [x] After first CephFS-backed login, `ls ~/Documents ~/Downloads ~/Music ~/Pictures ~/Videos ~/Desktop` all exist
-- [x] Unit does NOT run (ConditionPathIsMountPoint blocks) when `$HOME` is local (non-CephFS)
-- [x] `$HOME/.config/user-dirs.dirs` populated with correct paths
-
----
-
-## T-092: STRG-09 -- CephFS Greenboot Health Checks
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Storage/Reliability | **Source:** Part 9 Â§9.6 Phase 4
-
-**Context:** The existing greenboot scripts (T-002) validate agent services. CephFS needs its own health checks to surface cluster degradation before it affects the user session layer. Critically, a CephFS health failure should NOT trigger a bootc rollback â€” the system degrades to local `$HOME` gracefully.
-
-**Instructions:**
-1. Create `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` (**`wanted.d`**, not `required.d` â€” degraded, not a rollback trigger).
-2. Checks:
-   a. `ceph health` exits 0 (HEALTH_OK or HEALTH_WARN; HEALTH_ERR fails check)
-   b. `ceph df` shows each configured pool at < 90% capacity
-   c. `ceph fs status` shows at least 1 MDS in `active` state
-   d. If `[storage.cephfs].enable = true`: `findmnt /home/<operator_user>` shows active CephFS mount
-3. On any check failure: log `event(kind="storage_health", source="cephfs", severity="warn", detail=<check_output>)` to pgvector via `mios-pg-query` (does not crash if pg is also down â€” use `|| true`).
-4. Gate: entire script exits 0 immediately when `MIOS_CEPHFS_ENABLE=false`.
-
-**Files:**
-- `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` (new, baked in image)
-
-**Deps:** T-002 (BOOT-01 greenboot), T-084 (STRG-01 SSOT), T-089 (STRG-06 health endpoint).
-
-**Done When:**
-- [x] `HEALTH_OK` cluster: script exits 0
-- [x] `HEALTH_ERR` cluster: script exits non-0 with warning logged; system boots normally (wanted, not required)
-- [x] Pool at 91% capacity: script exits non-0 with pool name in log
-- [x] `MIOS_CEPHFS_ENABLE=false`: script exits 0 immediately
-- [x] pgvector `event` table contains a `storage_health` row after a simulated warning
-
----
-
-## T-093: STRG-10 -- CephFS SSOT Drift-Check + Documentation
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Storage/CI | **Source:** Part 9 Â§9.6 Phase 4
-
-**Instructions:**
-1. Implement `check_cephfs_ssot` in `automation/98-drift-checks.sh` (register in `main()` after `check_rbac_tiers`). FAIL on:
-   a. `enable=true` AND `monitors` still contains the `127.0.0.1:6789` placeholder
-   b. `xdg_cache_home_override` value contains any CephFS mount path prefix (detect by matching `[storage.cephfs].monitors` hostnames or `/tenants/` path segment)
-   c. `data_pool_hot` == `data_pool_bulk` (distinct pools required)
-   d. `provision_script` value path does not exist in `usr/` tree
-   e. `automount_enable = true` but `home-@.mount.tmpl` absent from `usr/share/mios/systemd/`
-2. Create `usr/share/doc/mios/guides/cephfs-xdg-storage.md` covering: architecture diagram (from ROADMAP Â§9), cache isolation rule, single-operator quickstart (cephadm bootstrap â†’ `mios.toml enable=true` â†’ firstboot re-run), multi-tenant extension path, known caveats (systemd-homed conflicts, fscache + LUKS interaction).
-
-**Files:**
-- `automation/98-drift-checks.sh` -- `check_cephfs_ssot` function
-- `usr/share/doc/mios/guides/cephfs-xdg-storage.md` (new)
-
-**Deps:** T-084 (STRG-01), T-087 (STRG-04), T-090 (STRG-07).
-
-**Done When:**
-- [x] `just drift-gate` fails when `enable=true` + monitor is placeholder
-- [x] `just drift-gate` fails when `xdg_cache_home_override` is set to a CephFS path
-- [x] `just drift-gate` fails when `data_pool_hot == data_pool_bulk`
-- [x] `just drift-gate` passes on a correctly configured SSOT
-- [x] `usr/share/doc/mios/guides/cephfs-xdg-storage.md` renders in the MiOS docs tree (`mios-docs` service)
-
----
-
-## Appendix A: Dependency Graph (Critical Path)
-
-```
-T-001 (FED-G1 auth)
-  +-- T-011 (live reload) -> T-022 (FED-CONSUME) -> T-066 (smoke test)
-  +-- T-014 (inbound delegation) -> T-052 (caller-key store)
-  +-- T-053 (loopback bind)
-
-T-006 (A1 template)
-  +-- T-007 (schema validator)
-  +-- T-008 (A3 opencode fix)
-  +-- T-009 (A4 hermes boot)
-  +-- T-010 (FED-G2 follow-up)
-  +-- T-043 (D1 edge template)
-  +-- T-067 (B6 expandvars)
-
-T-019 (SCHED-01 preemption)
-  +-- T-020 (SCHED-02 token slicing)
-  +-- T-021 (MEM-01 KV slot)
-        +-- T-035 (MEM-02 self-edit) [superseded by T-077]
-              +-- T-036 (MEM-03 compaction) [superseded by T-077]
-              +-- T-055 (MEM-04 Hindsight)
-              +-- T-060 (DATA-02 versioning)
-
-T-034 (SEC-03 Merkle chain)
-  +-- T-040 (OBS-03 replay)
-  +-- T-050 (GAP-5 delta distribution)
-  +-- T-064 (GAP-4 DGM sandbox)
-
-T-049 (GAP-3 pass^k)
-  +-- T-064 (GAP-4 DGM sandbox)
-  +-- T-062 (B3 self-improve ACT)
-
-T-047 (GAP-1 RouteMoA) -> T-048 (GAP-2 aggregation bypass)
-
-T-065 (GAP-6 smart_resize) feeds into T-038 (CU-01 action hierarchy)
-
-T-076 (GWY-01 Letta server)
-  +-- T-077 (GWY-02 Letta memory wiring) [implements T-035 + T-036 + T-056]
-
-T-078 (GWY-03 FastAPI service)
-  +-- T-079 (GWY-04 smolagents engine)
-  |     +-- T-080 (GWY-05 MCP client)
-  |     +-- T-081 (GWY-06 skill/search/browser)
-  +-- T-082 (GWY-07 config migration)
-  +-- T-083 (GWY-08 service cutover) [all of T-078..T-082 must be green first]
-
-T-084 (STRG-01 SSOT)
-  +-- T-085 (STRG-02 provision + PAM)
-  |     +-- T-087 (STRG-04 automount)
-  |           +-- T-088 (STRG-05 caching tuning)
-  |           +-- T-091 (STRG-08 user-dirs init unit)
-  +-- T-086 (STRG-03 XDG_RUNTIME_DIR isolation)
-  |     +-- T-090 (STRG-07 XDG profile script)
-  |           +-- T-091 (STRG-08 user-dirs init unit)
-  +-- T-089 (STRG-06 CephX caps)
-        +-- T-092 (STRG-09 greenboot checks)
-        +-- T-093 (STRG-10 drift-check + docs)
-```
-
----
-
-## Appendix B: File to Task Cross-Reference
-
-| File | Tasks |
-|---|---|
-| `usr/lib/mios/agent-pipe/server.py` | T-006, T-007, T-008, T-009, T-010, T-011, T-012, T-013, T-014, T-019, T-020, T-021, T-023, T-024, T-025, T-027, T-028, T-029, T-030, T-031, T-033, T-034, T-035, T-036, T-037, T-039, T-040, T-043, T-047, T-048, T-051, T-052, T-053, T-059, T-062, T-063, T-067, T-068, T-077 |
-| `usr/share/mios/mios.toml` | T-003, T-005, T-006, T-019, T-020, T-021, T-023, T-026, T-033, T-034, T-035, T-036, T-037, T-043, T-047, T-048, T-049, T-050, T-053, T-062, T-064, T-065, T-076, T-077, T-078, T-079, T-080, T-081, T-082 |
-| `usr/libexec/mios/mios-pc-control` | T-038, T-065, T-073 |
-| `automation/98-drift-checks.sh` | T-005, T-007 |
-| `usr/share/mios/postgres/schema-init.sql` | T-028, T-030, T-034, T-060, T-068, T-076, T-078 |
-| `Containerfile` | T-003, T-005, T-032, T-050, T-069, T-073, T-083 |
-| `tools/generate-pod-quadlets.py` | T-005, T-042, T-069 |
-| `usr/share/mios/llamacpp/mios-llm-light.yaml` | T-021, T-056 |
-| `usr/share/containers/systemd/mios-letta-server.container` | T-076 |
-| `usr/lib/mios/gateway-agent/` (new package) | T-078, T-079, T-080, T-081 |
-| `usr/lib/systemd/system/mios-gateway-agent.service` | T-078, T-083 |
-| `usr/lib/systemd/system/mios-gateway-worker.service` | T-083 |
-| `usr/lib/systemd/system/hermes-agent.service` | T-053, T-083 |
-| `usr/share/mios/hermes/config.yaml` | T-082 (deprecation header) |
-| `usr/share/mios/hermes/config-worker.yaml` | T-082 (deprecation header) |
-| `etc/mios/kb.conf.toml` | T-082 |
-| `usr/share/mios/mios.toml` (`[storage.cephfs]`) | T-084, T-085, T-086, T-087, T-088, T-089, T-090 |
-| `usr/libexec/mios/mios-cephfs-provision` (new) | T-085, T-089 |
-| `usr/libexec/mios/mios-ceph-configure` (new) | T-088 |
-| `usr/lib/mios/agent-pipe/server.py` (storage endpoints) | T-089 |
-| `usr/share/mios/profile.d/mios-xdg-cephfs.sh` (new) | T-086, T-090 |
-| `usr/share/mios/systemd/home-@.mount.tmpl` (new) | T-087, T-093 |
-| `usr/share/mios/systemd/home-@.automount.tmpl` (new) | T-087 |
-| `usr/share/mios/systemd/mios-xdg-userdir-init.service` (new) | T-091 |
-| `usr/share/mios/xdg/user-dirs.defaults` (new) | T-091 |
-| `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` (new) | T-092 |
-| `automation/98-drift-checks.sh` (`check_cephfs_ssot`) | T-084, T-093 |
-| `usr/share/doc/mios/guides/cephfs-xdg-storage.md` (new) | T-093 |
-
----
-
-
-# Part 10: Converged-Resource Architecture Tasks (CONV-01..CONV-15)
-
-
----
-
-## T-094: CONV-01 -- [converge] SSOT Block in mios.toml
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Config/Arch | **Source:** Part 10 Â§10.5, Â§10.6 Phase 1 -- done-by-code: `[converge]` SSOT + userenv.sh + configurator HTML (29f5dfe).
-
-**Context:** All four Converged-Resource Architecture phases (Gateway Queue, Single-Engine Multiplexing, Memory Tiering, Distroless Images) are controlled from a single `[converge]` SSOT block. This task establishes the block with all defaults set to the safe no-op value, unblocking all subsequent CONV tasks.
-
-**Instructions:**
-1. Add the full `[converge.gateway]`, `[converge.inference]`, `[converge.memory]`, `[converge.image]` block set to `usr/share/mios/mios.toml`. Full schema in ROADMAP.md Â§10.5. All flags default to `false` / `"http"` / `0` / `"dual"` (backward-compatible no-ops).
-2. Wire SSOT vars into `userenv.sh`: `MIOS_CONV_GATEWAY_MODE`, `MIOS_CONV_GATEWAY_QUEUE_MAXSIZE`, `MIOS_CONV_GATEWAY_WORKER_CONCURRENCY`, `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE`, `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE`, `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE`, `MIOS_CONV_IMAGE_DISTROLESS_ENABLE`, `MIOS_CONV_IMAGE_RECHUNK_ENABLE`.
-3. Add `check_converge_ssot` stub to `automation/98-drift-checks.sh` (register in `main()` after `check_cephfs_ssot`). Stub always passes; full checks implemented in T-099, T-104, T-108.
-4. Add `[converge]` section (collapsible) to the MiOS configurator HTML (`usr/share/mios/mios-configurator/mios.html`).
-
-**Files:**
-- `usr/share/mios/mios.toml` â€” new `[converge.*]` blocks
-- `usr/share/mios/mios-configurator/userenv.sh` â€” MIOS_CONV_* exports
-- `automation/98-drift-checks.sh` â€” `check_converge_ssot` stub
-
-**Deps:** None.
-
-**Done When:**
-- [x] `python3 -c "import tomllib; d=tomllib.load(open('usr/share/mios/mios.toml','rb')); assert 'converge' in d"` exits 0
-- [x] `userenv.sh` exports `MIOS_CONV_GATEWAY_MODE=http` by default
-- [x] `just drift-gate` passes on clean repo
-- [x] All four sub-tables (`gateway`, `inference`, `memory`, `image`) present in `[converge]`
-
----
-
-## T-095: CONV-02 -- GatewayQueue Module + GatewayWorker + smolagents Wiring
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** Orchestration/Python | **Source:** Part 10 Â§10.1.3, Â§10.1.4 -- done-by-code: GatewayQueue + GatewayWorker + HTTP fallback (247476f, a62520f).
-
-**Context:** The :8640 â†’ :8642 HTTP hop is replaced by an in-process `asyncio.Queue` producer-consumer seam. The `GatewayWorker` task consumes from the queue and runs `smolagents.ToolCallingAgent` against the `mios_capreg` tool registry. Degrade-open: `MIOS_CONV_GATEWAY_MODE=http` re-enables the legacy HTTP path at any time.
-
-**Instructions:**
-1. Create `usr/lib/mios/agent-pipe/mios_gateway_queue.py` (new module). Contents:
-   - `GatewayRequest` dataclass: `payload: dict`, `fut: asyncio.Future`.
-   - `GatewayQueue` dataclass: wraps `asyncio.Queue(maxsize=MIOS_CONV_GATEWAY_QUEUE_MAXSIZE)`.
-   - `GatewayWorker` class: `async def run(queue, agent, concurrency)` â€” runs `concurrency` concurrent `asyncio.Task` slots consuming from the queue; each slot calls `agent.run(payload)` via `asyncio.to_thread` (tool execution may be CPU-bound); resolves `fut` with the result or exception.
-2. Import and instantiate `smolagents.ToolCallingAgent` with tools sourced from `mios_capreg.get_tools()` (the existing RBAC-filtered capability manifest). The agent's model is set to a `smolagents.LiteLLMModel` pointed at `MIOS_AI_ENDPOINT` (Law 5).
-3. In `server.py` FastAPI `lifespan`: gate on `MIOS_CONV_GATEWAY_MODE == 'queue'`; construct `GatewayWorker`; launch via `asyncio.create_task(worker.run(...))`; on shutdown, cancel task + drain queue (max 5 s).
-4. In `mios_dispatcher.py`: add `async def dispatch_via_queue(payload: dict, queue: GatewayQueue) -> dict`. `server.py` selects `dispatch_via_queue` vs. the existing `dispatch_via_http` based on mode.
-5. Logging: the `GatewayWorker` emits a SINGLE `mios_trace.span(kind="tool_loop", ...)` per request, replacing the old per-service double-write. No other span changes.
-
-**Files:**
-- `usr/lib/mios/agent-pipe/mios_gateway_queue.py` (new)
-- `usr/lib/mios/agent-pipe/mios_dispatcher.py` â€” add `dispatch_via_queue`
-- `usr/lib/mios/agent-pipe/server.py` â€” lifespan wiring, mode selection
-
-**Deps:** T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `MIOS_CONV_GATEWAY_MODE=queue`: a POST to `/v1/chat/completions` routes through `GatewayWorker` (verify via trace span `kind=tool_loop` in pgvector)
-- [x] `MIOS_CONV_GATEWAY_MODE=http`: existing behaviour unchanged (no regression)
-- [x] `mios_trace` shows ONE `tool_loop` span per request (not two)
-- [x] `smolagents.LiteLLMModel` `base_url` = `MIOS_AI_ENDPOINT` (Law 5 verified in logs)
-- [x] Queue full (maxsize=64 + 1 more request): returns 429 gracefully, does not block the event loop
-
----
-
-## T-096: CONV-03 -- GatewayQueue Test Suite
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Testing | **Source:** Part 10 Â§10.6 Phase 1 -- done-by-code: test_mios_gateway_queue.py (247476f).
-
-**Instructions:**
-1. Create `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py`. Tests (all pass without a running llama-server or pgvector):
-   a. `test_put_get`: put a `GatewayRequest` onto the queue, worker consumes it, future resolves with mock result.
-   b. `test_future_resolution`: verify that `await fut` returns the correct response dict from the worker.
-   c. `test_fallback_on_exception`: if the worker raises an exception, the future is resolved with an error dict (not left pending).
-   d. `test_concurrency_4`: put 4 requests simultaneously; all 4 futures resolve concurrently (wall time < 4Ã— single-request time with mock agent).
-   e. `test_queue_full_429`: put `maxsize+1` requests; the `(maxsize+1)`th call returns a 429 dict without blocking.
-   f. `test_shutdown_drain`: cancel the worker task; verify the drain loop resolves all pending futures with an error within 5 s.
-2. Use `unittest.mock.AsyncMock` for the `smolagents.ToolCallingAgent.run` call.
-3. Register in `pytest.ini` (or existing test runner config).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py` (new)
-
-**Deps:** T-095 (CONV-02 GatewayQueue module).
-
-**Done When:**
-- [x] `pytest test_mios_gateway_queue.py -v` â€” all 6 tests pass
-- [x] No external service dependency (no llama-server, no pgvector socket)
-- [x] Tests complete in < 10 s
-
----
-
-## T-097: CONV-04 -- llama-swap Shared Prefix Cache + Parallel Slots
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Inference/Performance | **Source:** Part 10 Â§10.2.2, Â§10.2.4 -- done-by-code: cache-reuse + parallel slots in llama-swap config (31a7973).
-
-**Context:** Adding `--cache-reuse 256` and `--np 4` to the granite4.1:8b and lfm2:700m entries in `mios-llm-light.yaml` enables shared KV prefix caching across parallel slots, reducing TTFT by 30â€“60% on system-prompt-heavy agent turns. Gate: `[converge.inference].llama_cache_reuse_tokens > 0`.
-
-**Instructions:**
-1. In `usr/share/mios/llamacpp/mios-llm-light.yaml`, add the following to the `granite4.1:8b` `cmd` line (note: existing GGUF path, port, ctx-size, n-gpu-layers, flash-attn, cache-type, slot-save-path all unchanged):
-   ```
-   --cache-reuse 256 --np 4
-   ```
-   Add the same to the `lfm2:700m` `cmd` line (its ctx-size stays at 32768; `--np 4` replaces the implicit `--parallel 1`).
-2. Add a YAML comment above each modified entry: `# Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.`
-3. Wire the cache-reuse value from `[converge.inference].llama_cache_reuse_tokens` in `mios.toml` via a firstboot helper that patches the YAML (or operator edits `/etc/mios/llamacpp/mios-llm-light.yaml` overlay). Default value 0 = flags not added.
-4. Validate with `--debug-slot` logs: after 3+ identical system-prompt turns, slot logs should show `cache_hit_tokens > 0`.
-
-**Files:**
-- `usr/share/mios/llamacpp/mios-llm-light.yaml` â€” extended (additive comment + flag hint)
-- `automation/firstboot/mios-conv-inference-setup.sh` (new, renders cache-reuse flag into /etc overlay)
-
-**Deps:** T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `grep 'cache-reuse' /etc/mios/llamacpp/mios-llm-light.yaml` shows `--cache-reuse 256` (when enabled)
-- [x] `grep 'np' /etc/mios/llamacpp/mios-llm-light.yaml` shows `--np 4` on both chat model entries (when enabled)
-- [x] llama-server `--debug-slot` logs show `cache_hit_tokens > 0` on repeated system-prompt turns
-- [x] `[converge.inference].llama_cache_reuse_tokens = 0` â†’ no flags added (no regression)
-
----
-
-## T-098: CONV-05 -- vLLM Multi-LoRA Heavy Lane Upgrade
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Inference/vLLM | **Source:** Part 10 Â§10.2.2, Â§10.2.3 -- done-by-code: vLLM multi-LoRA Quadlet + lora-adapters dir (31a7973).
-
-**Context:** The current `mios-llm-heavy.container` runs a single model instance (SGLang or vLLM without LoRA). Upgrading to vLLM multi-LoRA enables per-request adapter injection, eliminating the need for the second `mios-llm-heavy-alt` process and saving ~12 GB VRAM on the 4090.
-
-**Instructions:**
-1. Update `usr/share/containers/systemd/mios-llm-heavy.container` (or the relevant Quadlet file):
-   - Add environment vars: `VLLM_ALLOW_RUNTIME_LORA_UPDATING=true`, `VLLM_PLUGINS=lora_filesystem_resolver`, `VLLM_LORA_RESOLVER_CACHE_DIR=/var/lib/mios/lora-adapters/`.
-   - Add vLLM serve flags: `--enable-lora --max-loras 4 --max-cpu-loras 8 --max-lora-rank 64`.
-   - Add `--lora-modules coding=/var/lib/mios/lora-adapters/coding reasoning=/var/lib/mios/lora-adapters/reasoning` as the initial pre-loaded adapter set.
-2. Create directory structure: `/var/lib/mios/lora-adapters/{coding,reasoning,vision}/` (via `tmpfiles.d` or firstboot). Add `.gitkeep` in each.
-3. Add `[converge.inference].vllm_lora_adapters_dir` to SSOT rendering in `userenv.sh`.
-4. Gate: Quadlet changes only deployed when `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE=single`. When `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE=dual` (default), `mios-llm-heavy.container` is unchanged.
-5. Add comment to `mios-llm-heavy-alt.container`: `# DEPRECATED: retire by setting [converge.inference].retire_heavy_alt = true (see T-100).`
-
-**Files:**
-- `usr/share/containers/systemd/mios-llm-heavy.container` â€” vLLM multi-LoRA env + flags
-- `usr/lib/tmpfiles.d/mios-lora-adapters.conf` â€” `/var/lib/mios/lora-adapters/` dirs
-- `usr/share/containers/systemd/mios-llm-heavy-alt.container` â€” deprecation comment
-
-**Deps:** T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `curl -X POST http://localhost:11441/v1/load_lora_adapter -d '{"lora_name":"test","lora_path":"/tmp/test-lora"}'` returns 200 (when `VLLM_ALLOW_RUNTIME_LORA_UPDATING=true`)
-- [x] `curl http://localhost:11441/v1/models` lists both `coding` and `reasoning` adapter IDs
-- [x] `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE=dual` â†’ container unchanged (no regression)
-- [x] `/var/lib/mios/lora-adapters/{coding,reasoning,vision}/` directories exist after firstboot
-
----
-
-## T-099: CONV-06 -- LoRA Load/List API Endpoints in agent-pipe
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** API/Inference | **Source:** Part 10 Â§10.6 Phase 2 -- done-by-code: LoRA load/list endpoints + drift-check (31a7973).
-
-**Instructions:**
-1. Add two new endpoints to `usr/lib/mios/agent-pipe/server.py`:
-   - `POST /v1/inference/lora/load`: thin proxy to `{MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY}/v1/load_lora_adapter`. Validates JSON body has `lora_name` and `lora_path`. Returns vLLM response. Requires Law 5: uses `MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY` (not hardcoded `:11441`).
-   - `GET /v1/inference/lora/list`: thin proxy to `{MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY}/v1/models`, filters to only adapter-type models, returns `{"adapters": [...]}`. Falls back to `{"adapters": [], "enabled": false}` when `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE != "single"`.
-2. Add drift-check rule in `check_converge_ssot` (T-094 stub): FAIL if `retire_heavy_alt=true` AND the systemd unit `mios-llm-heavy-alt.service` is still in `enabled` state (detect via `systemctl is-enabled`). This prevents accidental double-service retirement.
-3. Add tests `test_lora_endpoints.py` (mock httpx calls to heavy backend).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/server.py` â€” two new endpoints
-- `automation/98-drift-checks.sh` â€” `check_converge_ssot` extended
-- `usr/lib/mios/agent-pipe/test_lora_endpoints.py` (new)
-
-**Deps:** T-094 (CONV-01), T-098 (CONV-05 vLLM multi-LoRA).
-
-**Done When:**
-- [x] `curl http://localhost:8640/v1/inference/lora/list` returns `{"adapters":[...]}` (when heavy lane is vLLM)
-- [x] `curl -X POST http://localhost:8640/v1/inference/lora/load -d '...'` proxies to heavy lane
-- [x] Endpoints return `{"adapters":[], "enabled":false}` when `heavy_engine_mode=dual`
-- [x] Drift-check FAILs when `retire_heavy_alt=true` + unit still enabled
-
----
-
-## T-100: CONV-07 -- mios-llm-heavy-alt Retirement Documentation
-> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Docs/Migration | **Source:** Part 10 Â§10.6 Phase 2 -- done-by-code: inference-consolidation.md guide (31a7973).
-
-**Instructions:**
-1. Create `usr/share/doc/mios/guides/inference-consolidation.md`. Cover:
-   - Current dual-heavy topology and why it exceeds the 4090's 24 GB budget.
-   - vLLM multi-LoRA migration path: `[converge.inference].heavy_engine_mode = "single"` â†’ restart `mios-llm-heavy` â†’ verify `GET /v1/inference/lora/list` â†’ set `retire_heavy_alt = true` â†’ `systemctl disable mios-llm-heavy-alt`.
-   - Rollback: set `heavy_engine_mode = "dual"`, re-enable both container units.
-   - VRAM budget table (from ROADMAP Â§10.2.5).
-   - Operator note on `lora-adapters/` directory population (manual GGUF placement).
-2. Add deprecation comment block to `mios-llm-heavy-alt.container` Quadlet: `# DEPRECATED (Part 10, 2026-06-25): retire by setting [converge.inference].retire_heavy_alt = true and running the migration guide at usr/share/doc/mios/guides/inference-consolidation.md.`
-
-**Files:**
-- `usr/share/doc/mios/guides/inference-consolidation.md` (new)
-- `usr/share/containers/systemd/mios-llm-heavy-alt.container` â€” deprecation comment
-
-**Deps:** T-098 (CONV-05), T-099 (CONV-06).
-
-**Done When:**
-- [x] `usr/share/doc/mios/guides/inference-consolidation.md` renders in `mios-docs` service
-- [x] Deprecation comment present in `mios-llm-heavy-alt.container`
-- [x] Guide includes rollback instructions
-
----
-
-## T-101: CONV-08 -- sqlite-vec Scratchpad Module
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Memory/Python | **Source:** Part 10 Â§10.3.2, Â§10.3.5 -- done-by-code: mios_scratchpad.py + sqlite-vec (710b507).
-
-**Context:** `mios_scratchpad.py` provides a per-session, in-process vector store (sqlite-vec) for ephemeral tool-call outputs and reasoning traces. It lives in `/run/user/<uid>/mios-session-<id>.sqlite` (tmpfs), is never persisted to pgvector, and is destroyed at session end. Law 5 invariant: embeddings are still fetched via `MIOS_AI_ENDPOINT/v1/embeddings`; sqlite-vec stores the resulting vectors, it does not generate them.
-
-**Instructions:**
-1. Add `sqlite-vec` to `usr/lib/mios/agent-pipe/requirements.txt`.
-2. Create `usr/lib/mios/agent-pipe/mios_scratchpad.py` (new module, no FastAPI globals):
-   - `create_scratchpad(session_id: str, scratchpad_dir: str) -> tuple[sqlite3.Connection, Path]`: opens `{scratchpad_dir}/mios-session-{session_id}.sqlite`, loads `sqlite_vec`, creates `vec_scratch USING vec0(content TEXT, embedding float[768])`. Returns `(conn, path)`.
-   - `destroy_scratchpad(conn, path: Path) -> None`: `conn.close(); path.unlink(missing_ok=True)`.
-   - `vec_insert(conn, content: str, embedding: list[float]) -> None`: `INSERT INTO vec_scratch VALUES (?, ?)` using the sqlite-vec `serialize_float32` encoder.
-   - `vec_search(conn, query_embedding: list[float], k: int = 5) -> list[dict]`: `SELECT content, distance FROM vec_scratch WHERE embedding MATCH ? ORDER BY distance LIMIT ?`.
-3. Gate: module is only loaded when `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=true`; when false, `mios_scratchpad` is a stub that returns empty results (no sqlite-vec import, no runtime dep).
-4. Add `test_mios_scratchpad.py`: tests for create/insert/search/destroy; mocks the embedding float list; runs without a pgvector connection.
-
-**Files:**
-- `usr/lib/mios/agent-pipe/mios_scratchpad.py` (new)
-- `usr/lib/mios/agent-pipe/requirements.txt` â€” add `sqlite-vec`
-- `usr/lib/mios/agent-pipe/test_mios_scratchpad.py` (new)
-
-**Deps:** T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `python -c "import mios_scratchpad; c,p = mios_scratchpad.create_scratchpad('test','/tmp'); mios_scratchpad.vec_insert(c,'hello',[0.1]*768); r=mios_scratchpad.vec_search(c,[0.1]*768); assert len(r)==1; mios_scratchpad.destroy_scratchpad(c,p); print('OK')"` exits 0
-- [x] `pytest test_mios_scratchpad.py` â€” all tests pass without external services
-- [x] `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=false` â†’ stub returns `[]` without importing sqlite-vec
-- [x] Scratchpad file lives in `/run/user/<uid>/` (tmpfs), not in `/var/lib/`
-
----
-
-## T-102: CONV-09 -- Cold Eviction Module + zstd Export
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Memory/Storage | **Source:** Part 10 Â§10.3.4 -- done-by-code: mios_cold_evict.py + zstd export + test (710b507).
-
-**Context:** `mios_cold_evict.py` extends the existing `mios_evict.py` eviction pipeline with a cold-export path: TTL-expired rows are serialized as JSONL, compressed with zstd, written to `/var/lib/mios/history/`, then deleted from PostgreSQL. `mios_evict.py` is NOT modified.
-
-**Instructions:**
-1. Create `usr/lib/mios/agent-pipe/mios_cold_evict.py` (new module):
-   - `export_to_cold(pg, row_ids: list[int], table: str, dest_dir: str, zstd_level: int) -> Path`:
-     a. `SELECT row_to_json(t) FROM <table> t WHERE id = ANY(%(ids)s)` via `mios_pg.execute`.
-     b. Write each JSON line to `{dest_dir}/{YYYY}/{MM-DD}/{uuid4()}.jsonl.tmp`.
-     c. `subprocess.run(['zstd', f'--level={zstd_level}', '-o', f'{dst}.zst', f'{dst}.tmp'], check=True)`.
-     d. Remove `.tmp`. Return the `.zst` Path.
-   - `cold_sweep(pg, plan: dict, table: str, dest_dir: str, zstd_level: int) -> dict`: orchestrates `mios_evict.select_ids_sql` â†’ `export_to_cold` â†’ `mios_evict.delete_ids_sql`. Returns `{"exported": N, "dest": str}`.
-2. Wire `cold_sweep` into the eviction background task in `server.py` (after the existing `mios_evict.py` sweep), gated on `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE`.
-3. Log `event(kind="cold_evict", rows=N, dest=path)` to pgvector after each sweep.
-4. NEVER export hot/pinned/satisfied rows (inherit the `evict_where` WHERE filter from `mios_evict.py`).
-5. Add `test_mios_cold_evict.py`: mock `mios_pg.execute` and `subprocess.run`; test export+delete, .tmp cleanup on error, zstd command construction.
-
-**Files:**
-- `usr/lib/mios/agent-pipe/mios_cold_evict.py` (new)
-- `usr/lib/mios/agent-pipe/server.py` â€” eviction task extended
-- `usr/lib/mios/agent-pipe/test_mios_cold_evict.py` (new)
-
-**Deps:** T-094 (CONV-01 SSOT), T-101 (CONV-08 memory SSOT wiring).
-
-**Done When:**
-- [x] `pytest test_mios_cold_evict.py` â€” all tests pass without external services
-- [x] `zstd --test /var/lib/mios/history/.../*.jsonl.zst` exits 0 (valid archive) after a simulated sweep
-- [x] PostgreSQL row count decreases after a cold sweep (rows moved to archive, not duplicated)
-- [x] `event(kind="cold_evict")` appears in pgvector `event` table
-- [x] Hot/pinned/satisfied rows are NEVER exported (verify with unit test)
-
----
-
-## T-103: CONV-10 -- sqlite-vec Scratchpad Wired into GatewayWorker
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** Orchestration/Memory | **Source:** Part 10 Â§10.3.5 -- done-by-code: scratchpad wired into GatewayWorker (710b507).
-
-**Instructions:**
-1. In `mios_gateway_queue.py` `GatewayWorker.run()`, wrap each request execution with:
-   ```python
-   conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)
-   try:
-       result = await _execute_with_scratchpad(conn, payload, agent)
-   finally:
-       await asyncio.to_thread(mios_scratchpad.destroy_scratchpad, conn, path)
-   ```
-2. Inside `_execute_with_scratchpad`: after each tool call in the `smolagents` loop, call `mios_scratchpad.vec_insert(conn, tool_output, embedding)` where the embedding is fetched from `MIOS_AI_ENDPOINT/v1/embeddings` (Law 5 compliant).
-3. Gate: scratchpad creation/destruction only runs when `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=true`. When false, the `mios_scratchpad` stub is used (no-op insert, empty search).
-4. Verify: after enabling, pgvector `event` table should show ZERO `kind=tool_output` inserts per turn (transient tool outputs moved to Tier 0 scratchpad; only end-of-session synthesis goes to Tier 1).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/mios_gateway_queue.py` â€” scratchpad lifecycle in `GatewayWorker`
-
-**Deps:** T-095 (CONV-02 GatewayWorker), T-101 (CONV-08 scratchpad module).
-
-**Done When:**
-- [x] `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=true`: scratchpad file created at session start, deleted at end
-- [x] Embedding for each tool output fetched via `MIOS_AI_ENDPOINT/v1/embeddings` (Law 5 check in logs)
-- [x] pgvector `event` table has 0 `kind=tool_output` rows per turn (replaced by Tier 0)
-- [x] `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=false`: no sqlite-vec import, no performance regression
-
----
-
-## T-104: CONV-11 -- Cold-Archive Retention Sweep + Drift-Check
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** S | **Domain:** Storage/CI | **Source:** Part 10 Â§10.6 Phase 3 -- done-by-code: cold-archive retention sweep + drift-check (710b507).
-
-**Instructions:**
-1. Add `_cold_retention_sweep()` to the existing eviction background task in `server.py`:
-   - Scan `cold_storage_dir` recursively for `.jsonl.zst` files older than `cold_retention_days` days.
-   - Delete them.
-   - Log `event(kind="cold_retention_sweep", deleted=N, cutoff_days=D)`.
-   - Gate: `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE=true`.
-2. Extend `check_converge_ssot` in `automation/98-drift-checks.sh` with Phase 3 rules:
-   a. `cold_storage_dir` must NOT be inside a CephFS mount path (check against `MIOS_CEPHFS_MONITORS` host prefix or `/tenants/` path segment) â€” cold archives are node-local, not distributed.
-   b. `cold_retention_days` must be >= 1.
-   c. `cold_zstd_level` must be between 1 and 19.
-   d. If `sqlite_vec_enable=true`, the `sqlite-vec` package must be importable (`python3 -c "import sqlite_vec"` exits 0).
-3. Create `usr/share/doc/mios/guides/memory-tiering.md`: documents the three-tier model (Tier 0 sqlite-vec, Tier 1 pgvector, Tier 2 zstd cold archive), quickstart for enabling, and how to query cold archives (`zstd -d | jq`).
-
-**Files:**
-- `usr/lib/mios/agent-pipe/server.py` â€” `_cold_retention_sweep` in eviction task
-- `automation/98-drift-checks.sh` â€” Phase 3 checks in `check_converge_ssot`
-- `usr/share/doc/mios/guides/memory-tiering.md` (new)
-
-**Deps:** T-102 (CONV-09 cold eviction), T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] Files older than `cold_retention_days` in `cold_storage_dir` are deleted on sweep
-- [x] `event(kind="cold_retention_sweep")` logged after each sweep
-- [x] Drift-check FAILs when `cold_storage_dir` is a CephFS path
-- [x] Drift-check FAILs when `cold_zstd_level > 19`
-- [x] `usr/share/doc/mios/guides/memory-tiering.md` renders in `mios-docs`
-
----
-
-## T-105: CONV-12 -- Hummingbird Distroless Containerfile
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Image/Security | **Source:** Part 10 Â§10.4.3 -- done-by-code: Containerfile.hummingbird + distroless checks (eb654e3).
-
-**Context:** `Containerfile.hummingbird` is a two-stage build that eliminates `dnf`, `bash`, and OS package cache from the runtime image, reducing the agent-pipe container's attack surface by ~200â€“400 MB. Law 6 invariant: final stage MUST set `USER 65534:65534`. Law 5 invariant: `MIOS_AI_ENDPOINT` is not sourced from `profile.d` (no shell); it arrives via the Quadlet `Environment=` directive.
-
-**Instructions:**
-1. Create `Containerfile.hummingbird` (alongside the existing `Containerfile`). Two stages:
-   - Stage 1 (builder): `FROM python:3.13-slim AS builder`. `RUN apt-get install gcc libsqlite3-dev`. `RUN python -m venv /opt/venv`. `COPY requirements.txt .`. `RUN /opt/venv/bin/pip install --no-cache-dir -r requirements.txt`.
-   - Stage 2 (runtime): `FROM gcr.io/distroless/python3-debian13`. `COPY --from=builder /opt/venv /opt/venv`. `COPY usr/lib/mios/agent-pipe/ /app/`. `ENV PATH=/opt/venv/bin:$PATH PYTHONPATH=/opt/venv/lib/python3.13/site-packages`. `USER 65534:65534`. `EXPOSE 8640`. `CMD ["/opt/venv/bin/uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8640", "--workers", "1", "--loop", "uvloop"]`.
-2. Verify the Quadlet (`mios-agent-pipe.container`) propagates `MIOS_AI_ENDPOINT` via `Environment=MIOS_AI_ENDPOINT=%i` or similar â€” NOT sourced from `profile.d`. Add `Environment=MIOS_AI_ENDPOINT=...` line if missing.
-3. Add `check_hummingbird` stub to `98-drift-checks.sh` (full checks in T-108).
-4. Gate: `Containerfile.hummingbird` is used instead of `Containerfile` only when `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true`. Default `Containerfile` is unchanged.
-
-**Files:**
-- `Containerfile.hummingbird` (new)
-- `usr/share/containers/systemd/mios-agent-pipe.container` â€” `Environment=MIOS_AI_ENDPOINT` line
-- `automation/98-drift-checks.sh` â€” `check_hummingbird` stub
-
-**Deps:** T-095 (CONV-02 merged process â€” required for single CMD entrypoint).
-
-**Done When:**
-- [x] `podman build -f Containerfile.hummingbird -t mios-agent-pipe:hummingbird .` succeeds
-- [x] `podman run --rm mios-agent-pipe:hummingbird id` outputs `uid=65534` (nonroot)
-- [x] `podman run --rm mios-agent-pipe:hummingbird which bash` exits non-0 (no bash in image)
-- [x] `podman inspect mios-agent-pipe:hummingbird | jq '.[0].Config.Env[]|select(test("MIOS_AI_ENDPOINT"))'` returns the endpoint
-- [x] `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=false` â†’ original `Containerfile` used, no regression
-
----
-
-## T-106: CONV-13 -- Unified MCPClientPool
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Tool/MCP | **Source:** Part 10 Â§10.4.2 -- done-by-code: MCPClientPool in mios_gateway_queue.py (eb654e3).
-
-**Context:** Post-Phase 1 (single-process after T-095), `agent-pipe` and the former `hermes-agent` logic share one process. Unifying the MCP client connections eliminates per-service SDK duplication. One `MCPClientPool` dict serves all tool invocations.
-
-**Instructions:**
-1. Add `MCPClientPool` class to `mios_gateway_queue.py` (extends T-095):
-   - `__init__(server_configs: dict)`: for each entry in `[tools.mcp_servers]` from `mios.toml`, create and store a `mcp.StdioClient` or `mcp.HTTPClient` (depending on `transport`).
-   - `async def startup()`: connect all clients; fetch and cache tool schemas.
-   - `async def shutdown()`: cleanly close all clients.
-   - `get_tools() -> list`: returns the unified tool schema list (replaces the per-service schema cache).
-2. Initialize `MCPClientPool` in `server.py` `lifespan`, gated on `MIOS_CONV_IMAGE_MCP_POOL_ENABLE=true`. Pass the pool to `GatewayWorker` as `worker.mcp_pool`.
-3. In `mios_interop.py` (WS-11 A2A): wire `MCPClientPool.get_tools()` into the 3-projection A2A skill shape so A2A peers see the same unified tool catalog.
-4. Add `test_mios_mcp_pool.py`: mock `mcp.StdioClient.connect`; verify pool starts, provides tool list, shuts down cleanly.
-
-**Files:**
-- `usr/lib/mios/agent-pipe/mios_gateway_queue.py` â€” MCPClientPool class
-- `usr/lib/mios/agent-pipe/server.py` â€” MCPClientPool lifecycle in lifespan
-- `usr/lib/mios/agent-pipe/mios_interop.py` â€” tool catalog unified
-- `usr/lib/mios/agent-pipe/test_mios_mcp_pool.py` (new)
-
-**Deps:** T-095 (CONV-02 GatewayWorker), T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `GET /v1/tools` returns a unified tool list (one entry per MCP server, not duplicated)
-- [x] MCP client connections established once at startup, not per-request
-- [x] A2A skill-shape projection (mios_interop.py) uses the same pool
-- [x] `pytest test_mios_mcp_pool.py` passes without a running MCP server
-
----
-
-## T-107: CONV-14 -- rechunk CI Step
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** S | **Domain:** Image/CI | **Source:** Part 10 Â§10.4.4 -- done-by-code: rechunk.sh + Justfile recipe (eb654e3).
-
-**Instructions:**
-1. Create `automation/build/rechunk.sh`. Steps:
-   ```bash
-   #!/usr/bin/env bash
-   set -euo pipefail
-   SRC_DIGEST=$(podman inspect mios-bootc:latest --format '{{.Digest}}')
-   podman unshare rpm-ostree experimental compose build-chunked-oci \
-     --bootc --format-version=1 \
-     --from="${SRC_DIGEST}" \
-     --output containers-storage:mios-bootc:rechunked
-   # Assign AI-sidecar xattrs for fine-grained chunking:
-   setfattr -n user.component -v ai-sidecar /usr/lib/mios/agent-pipe/ 2>/dev/null || true
-   setfattr -n user.component -v ai-sidecar /usr/share/mios/llamacpp/ 2>/dev/null || true
-   setfattr -n user.component -v llm-models /var/lib/mios/models/ 2>/dev/null || true
-   ```
-2. Wire into `Justfile`: add `just rechunk` recipe that calls `automation/build/rechunk.sh` after `just build` (appended, does NOT replace existing recipes).
-3. Gate: `automation/build/rechunk.sh` exits 0 only when `MIOS_CONV_IMAGE_RECHUNK_ENABLE=true`. When false, script prints "rechunk disabled" and exits 0.
-4. Add `check_rechunk_env` to `check_converge_ssot` (T-094): FAIL if `rechunk_enable=true` but `rpm-ostree` binary not found in PATH.
-
-**Files:**
-- `automation/build/rechunk.sh` (new)
-- `Justfile` â€” `rechunk` recipe (additive)
-- `automation/98-drift-checks.sh` â€” `check_rechunk_env` in `check_converge_ssot`
-
-**Deps:** T-094 (CONV-01 SSOT).
-
-**Done When:**
-- [x] `just rechunk` completes when `MIOS_CONV_IMAGE_RECHUNK_ENABLE=true` and `rpm-ostree` available
-- [x] `just rechunk` exits 0 silently when `MIOS_CONV_IMAGE_RECHUNK_ENABLE=false`
-- [x] `mios-bootc:rechunked` image exists in local container storage after rechunk
-- [x] Drift-check FAILs when `rechunk_enable=true` but `rpm-ostree` absent
-
----
-
-## T-108: CONV-15 -- Phase 4 Drift-Check Suite + Documentation
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** CI/Docs | **Source:** Part 10 Â§10.6 Phase 4 -- done-by-code: check_hummingbird + hummingbird-distroless.md (eb654e3, 3c7cb5f).
-
-**Instructions:**
-1. Implement full `check_hummingbird` function in `automation/98-drift-checks.sh` (register in `main()` after `check_converge_ssot`):
-   a. If `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true`: FAIL if `Containerfile.hummingbird` does not exist.
-   b. FAIL if `Containerfile.hummingbird` final-stage `USER` line is not `USER 65534` or `USER 65534:65534` (Law 6).
-   c. FAIL if `/bin/bash` appears in `Containerfile.hummingbird` final stage (no bash in distroless).
-   d. FAIL if `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true` but `mios-agent-pipe.container` does not have an `Environment=MIOS_AI_ENDPOINT` directive (Law 5 â€” no profile.d in distroless).
-   e. FAIL if `rechunk_enable=true` but `rpm-ostree` not in PATH.
-2. Create `usr/share/doc/mios/guides/hummingbird-distroless.md`. Cover:
-   - Why distroless (attack surface reduction, Law 6 enforcement).
-   - Multi-stage build walkthrough (`Containerfile.hummingbird`).
-   - Why `MIOS_AI_ENDPOINT` must come from the Quadlet `Environment=` line (no shell in distroless).
-   - Debugging without a shell (OpenTelemetry traces + pgvector `event` table are the observability surface).
-   - Chainguard as an alternative base (`cgr.dev/chainguard/python:latest-dev`).
-   - rechunk quickstart (`just rechunk`).
-
-**Files:**
-- `automation/98-drift-checks.sh` â€” full `check_hummingbird` function
-- `usr/share/doc/mios/guides/hummingbird-distroless.md` (new)
-
-**Deps:** T-105 (CONV-12 distroless Containerfile), T-107 (CONV-14 rechunk).
-
-**Done When:**
-- [x] `just drift-gate` FAILs when `distroless_enable=true` + `USER root` in `Containerfile.hummingbird`
-- [x] `just drift-gate` FAILs when `distroless_enable=true` + no `Environment=MIOS_AI_ENDPOINT` in Quadlet
-- [x] `just drift-gate` FAILs when `/bin/bash` in distroless stage
-- [x] `just drift-gate` passes on correct config
-- [x] `usr/share/doc/mios/guides/hummingbird-distroless.md` renders in `mios-docs`
-
----
-
-## Chat-Quality + Full-Visibility Tasks (live `@`-session audit)
-
-> Detail SSOT = `MIOS-CHATQ-FV-WORKPLAN.md` (dual-track Claude/AGY) +
-> `research/mios-chat-quality-full-visibility-gaps-2026-07-03.md` (root causes).
-> These close CQ1-4 + FV-A-F, none of which had a live task owner. Law 7 +
-> everything-streams mandate: fixes route channels + de-dup, never suppress
-> visibility; final answer is the only thing in `delta.content`.
-
-## T-031: ORCH-04 -- ReAct+Reflexion Durable Loop
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Orchestration | **Source:** CQ4 -- the `done-by-code` claim is falsified: `[agent].reflexion_enable` reads a phantom TOML section (only `[agents]` plural exists) so it is always-true; `max_iter`/`max_retry`/`no_progress` are absent from `mios.toml`; the structured reflector is wired only into the DAG path; the exact-match repeat guard is evaded by one-token arg variation; no wall-clock/no-progress/failed-call bound. Live result = the non-terminating "Reflexion essay" loop.
-
-**Instructions:** Execute Wave 4 of `MIOS-CHATQ-FV-WORKPLAN.md`: move `reflexion_enable` + loop budgets into a real `[agent_pipe]` SSOT block; replace the `server.py:835/3314` literals with SSOT reads; add a normalized no-progress signature + per-turn failed-`(tool,args)` blacklist + `max_consecutive_failures` escalation off the failure signal (not the give-up branch); enforce `wall_clock_budget_s`; wire the structured `reflect_on_step_failure` into the native/`@` path (emit-or-terminate, kept internal). Drift-gate every budget key has a code consumer.
-
-**Files:** `usr/share/mios/mios.toml [agent_pipe]`; `.../agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408); `.../server.py` (835, 3314); `.../routing/native_loop.py`; `.../routing/reflect.py`; `automation/98-drift-checks.sh`.
-
-**Done When:**
-- [x] `reflexion_enable` + budgets read from `[agent_pipe]`; no `[agent]`/literal fallbacks remain (drift-gate green)
-- [x] identical failing `(tool,args)` is never retried; loop terminates/escalates within `wall_clock_budget_s`
-- [x] failure path uses the structured reflector (corrective action or terminate), no free-text essay in `content`
-- [x] live-fired in `podman-MiOS-DEV`: a deliberately-failing tool call does not loop
-
----
-
-## T-109: CHATQ-01 -- Refine/plan trace to reasoning channel + one-answer-in-content (CQ1)
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Observability/Orchestration | **Source:** CQ1 -- refine's `{Refined Query/Intent/Reply}` scaffold streams into `delta.content` (`chat.py:1425-1426` -> `sse.py:93-94` under `_DEBUG_ENABLE`) and the answer is restated 3x (refine `reply` + local-state + polish all reach content).
-
-**Instructions:** Wave 1 (Claude C1-C3). Route the refine pump + `_refine_reasoning` summary through a channel-pinned emitter (reasoning channel regardless of `_DEBUG_ENABLE`); extend the `_live_streamed` guard (`native_loop.py:858`) so exactly one generation reaches `content`. Refine `reply` is trace, not answer. Visibility preserved; only the channel + dedup change.
-
-**Files:** `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/chat.py` (1425-1426, 1482-1495, 1789-1803), `.../routing/native_loop.py` (858, 1061, 1101-1102).
-
-**Done When:**
-- [x] refine trace renders in the Thinking pane, never in `delta.content`
-- [x] `@ what directory are we in right now` returns exactly one clean answer (no `Refined Query/...` block, no 3x restate)
-- [x] byte-identical when `[observability]` flags off (degrade-open)
-
----
-
-## T-110: FV-01 -- Canonical typed-event schema + per-surface routing + sub-agent visibility (FV-A/B/E/F)
-> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Observability | **Source:** FV -- full-visibility mandate is untracked; "visibility" today is faked by content-inlining under `[observability].debug=ON`; leaf thinking is turned OFF at source (`agent_call.py:820-821`; `swarm.py:1237`); fan-out `_push` has no channel discriminator; strict clients can't see the reasoning channel.
-
-**Instructions:** Wave 1. One schema `thinking|plan|tool_call|tool_result|source|content` every stage + sub-agent emits into; per-lane `[lanes.*].stream_thinking` replaces the blanket `enable_thinking:False`; channel tag on the `_push` merged event; retire content-inline as the mechanism (`debug` gates only content-mirroring for strict surfaces); per-surface routing via `X-MiOS-Surface`/`reasoning_ok` with MiOS-owned replay-strip; OWUI pipe translates `mios_status`->status + refs->source events. AGY owns SSOT + OWUI pipe; Claude owns emitter + `agent_call`.
-
-**Files:** SSOT `[observability]`/`[observability.channels]`/`[lanes.*]`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `.../agent-pipe/mios_pipe/routing/sse.py`, `.../routing/agent_call.py` (738-746, 797-885, 820-821), `.../server.py`, `swarm.py`.
-
-**Done When:**
-- [x] every sub-agent's thinking + tool calls + sources stream live on OWUI/Hermes; strict clients get a folded inline trace; final answer only in `content`
-- [x] KV cache intact across turns (persisted history = clean answer only)
-- [x] per-lane `stream_thinking=false` cleanly downgrades that lane (degrade-open)
-
----
-
-## T-111: CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-catalog repair (CQ2)
-> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Tool-calling | **Source:** CQ2 -- the final answer-shaping completion fires with NO `tools[]` (`native_loop.py:780-782`) so residual tool intent leaks as literal `<tool_call>`/```json``` text; `linux_file_search` is `hidden` but name-dropped in visible descriptions -> model wraps it into `launch_app`; no constrained decoding on any lane; rescue returns after the first block and is gated on empty `tool_calls`.
-
-**Instructions:** Wave 2. AGY: engine `--tool-call-parser`/`--reasoning-parser` + `constrained_tools` per lane; consolidate duplicate `launch_app`; correct `fs_search` desc; stop advertising uncallable names; fix `[routing.domains.files].verbs`. Claude: give `_pb` the `tools[]`; streaming-aware salvage that RE-EMITS as typed events (visible) + diverts off `content` + executes; remove first-block early-return; surface routed-domain verbs even when hidden (key Stage-2 filter on canonical verb).
-
-**Files:** SSOT `[lanes.*]`, `[verbs.launch_app]` (9084/3157), `fs_search` (3465-3473), `[routing.domains.files]` (3103-3110); `.../routing/native_loop.py` (780), `.../routing/secondary_loop.py` (309, 334-344), `.../routing/toolexec.py` (210-279), `.../server.py` (3956, 4028-4034), `.../verbcatalog.py`, `.../mios_endpoints.py`.
-
-**Done When:**
-- [x] a narrated tool call renders as a native/typed tool pill, never as text in `delta.content`
-- [x] a files turn always carries a callable `linux_file_search`; no `launch_app` misroute
-- [x] live-fired: `@ what's here?` fires a real typed file/`list_dir` call
-
-**Deps:** T-112 (list_dir gives the correct files-turn verb), T-110 (typed tool_call channel).
-
----
-
-## T-112: CHATQ-03 -- First-class list_dir verb + cwd act-before-answer grounding (CQ3)
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Tool-calling/Grounding | **Source:** CQ3 -- no `list_dir` verb exists (`linux_file_search`=`mios-locate` substring, not `ls`); `read_file`/`text_view` can list a dir but is depth-2/500-capped and framed as "read a file"; cwd string is injected but no snapshot + no lister auto-fires -> model hallucinates a generic FHS table. Also unblocks T-032's phantom `list_directory` op assumption.
-
-**Instructions:** Wave 3. AGY: add `--depth 1` immediate-children mode to `mios-text-edit`; add `[verbs.list_dir]` (`model_name=list_directory`, `path` default cwd, accurate desc + examples); redirect `read_file`/`fs_search` descriptions. Claude: fire `list_dir(path=cwd)` in `_read_tool_enrich` when cwd present (keyed off SSOT `_client_env` cwd); add a model-chosen filesystem/`state_scope` signal to refine so dir-content queries set `tool_choice:required`.
-
-**Files:** `usr/libexec/mios/mios-text-edit` (83-84, 219-241); SSOT `[verbs.list_dir]` + `fs_search`/`read_file` descs; `.../server.py` `_read_tool_enrich` (4648, 4685-4701, 4734-4745); `.../routing/refine.py`, `.../routing/chat.py` (1193-1198).
-
-**Done When:**
-- [x] `list_dir` with no arg lists cwd immediate children (true `ls` semantics)
-- [x] `@ what's here?` returns the real directory, never a generic FHS table
-- [x] selection is model-driven (classifier), not a keyword/English match
-
-**Unblocks:** T-032 (its allow-listed `list_directory` op now exists).
-
----
-
-## Live-Session Failure Register (@ agent-pipe · Hermes · service health)
-
-> Captured from a live operator session (`@` MiOS-AI CLI + `hermes` REPL + the
-> podman dashboard). The `@` path (agent-pipe) and the `hermes` path (:8642
-> direct) fail DIFFERENTLY: `@` FABRICATES tool execution; `hermes` executes for
-> real but mis-targets. Anti-fabrication is the operator's core value → T-113 is
-> P0. Detail SSOT for the chat-channel items = `MIOS-CHATQ-FV-WORKPLAN.md`.
->
-> **SHIPPED this session (code-complete; live-verify pending):** T-113 (anti-fab
-> guard on the chat short-circuit `chat.py` AND the native-loop synthesis
-> `native_loop.py` — strip any `🤝 <verb> output`/`{"success":true,"tool":...}`
-> block for a verb NOT actually fired; chat path routes to the real executor) ·
-> T-114 (web/news: honest-note when a web turn cites off-list URLs OR produces a
-> report-table with ZERO fetched sources) · T-116 (browser tab native-args) ·
-> T-118 (mios-cpu-node ctx 131072->32768). **Remaining:** T-115 (deploy T-109),
-> T-117 (Hermes container-exec — model-behavioral skill fix), T-119 (native-arg
-> standard doc), and the deterministic-launch-route widening (defense-in-depth).
-
-## T-113: FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no real dispatch)  [P0]
-> **Priority:** P0 | **Status:** done-by-code (fix reproduction-tested; live @-verify pending) | **Effort:** L | **Domain:** Anti-Fabrication/Orchestration | **Source:** live `@` session -- `@ launch fakegame` emitted a fake `🤝 open_app output: {"success":true,"pid":8421,"window":{"handle":0x7f12345678,...}}` with IDENTICAL fake pid/handle across every launch AND an invented app ("FakeGame 6"), while NOTHING launched (operator: "doing NOTHING for me"). The parallel `hermes` path ran a REAL `mios-windows launch`. So the agent-pipe narrates/hallucinates a tool call AND its output instead of dispatching to the real executor.
-
-**Instructions:** Root-cause why the `@`/agent-pipe turn produces a fabricated tool-result block rather than a real `toolexec` dispatch (or a real hand-off to Hermes :8642). Enforce the hard invariant: **no `🤝 <tool> output:` / tool-result may EVER be emitted unless a real tool actually ran and returned it** — a tool result must be produced by `_exec_tool_calls`, never by a model hop. Wire a fabrication guard: any assistant-emitted text matching a tool-result envelope that has no corresponding executed `tool_call` row is dropped + the turn re-dispatched. Verify the `@`/`mios` CLI route reaches the real executor (memory says `@` should be Hermes-DIRECT :8642 -- confirm/repair the routing regression).
-
-**Files (likely):** `usr/lib/mios/agent-pipe/mios_pipe/routing/{chat,native_loop,secondary_loop,toolexec}.py`, `.../routing/refine.py`, `usr/bin/mios` (route), `server.py` (dispatch).
-
-**Done When:**
-- [ ] `@ launch fake game` either executes a REAL launch (dispatch/Hermes) or says it could not -- NEVER a fabricated success with a fake pid/handle -- needs live @-session verify
-- [ ] no tool-result block reaches the user without a matching executed `tool_call` row (live-verified) -- needs live @-session verify
-- [x] identical-fake-pid fabrication cannot recur (guard + test) -- `_contains_tool_result_block` (chat.py) short-circuits any chat-reply narrating a `🤝 <verb> output:`/success-JSON block; native_loop.py's unfired-verb strip drops the same shape for any verb not in `_fired`; unit-tested in `usr/lib/mios/agent-pipe/test_mios_antifab.py`
-
-## T-114: FAB-02 -- pipeline fabricates web/news content + invents entities on misclassification  [P0]
-> **Priority:** P0 | **Status:** done-by-code (fix reproduction-tested; live @-verify pending) | **Effort:** M | **Domain:** Anti-Fabrication/Grounding | **Source:** live `@` session -- gibberish `??!!!?` was refine-misclassified as a "weekly news roundup" and the pipeline FABRICATED 5 fake articles attributed to real outlets (NYT/Reuters/BBC/FT/TechCrunch) with invented events, claiming `web_search` ran (it did not). Also invented "FakeGame 6" (nonexistent).
-
-**Instructions:** Hard anti-fabrication gate: NEVER emit web/news content or source attributions that were not returned by a real `web_search`/fetch tool call; NEVER invent entity names (apps/games). Fix the refine classifier so low-signal/gibberish input does NOT get promoted to a fabricated task plan (classify as chat/clarify, not "news"). Grounding: attributions must come from fetched results only. Model-driven, NO keyword gate.
-
-**Files (likely):** `.../routing/refine.py` (classifier), `.../routing/chat.py` (web-research enrich), `mios_grounding.py`, `.../federation` web tools.
-
-**Done When:**
-- [ ] gibberish input -> clarify/chat, never a fabricated news roundup -- needs live @-session verify (classifier reclassification itself out of scope for this guard; see note below)
-- [x] no source citation appears unless a real fetch produced it -- native_loop.py's ANTI-FABRICATED-CITATION guard rewrites the answer to an honest note when a web/news turn cites an off-list URL, or fetched ZERO sources yet produced a markdown report table (structural, not keyword); code authored + SSOT-wired. Live-session confirmation of the `(live-verified)` wording still needs live @-session verify
-
-## T-115: CQ1 refine scaffold STILL leaking on CLI + redundant refine passes  (extends T-109)
-> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** Observability | **Source:** live `@` session -- the `Refined Text/Intent/Reply` scaffold streams verbatim to the strict CLI surface (CQ1 confirmed still live; the surface-aware `_sse_reasoning` fix is authored but undeployed, and the CLI sends no `x-mios-reasoning-ok` so it hits the legacy debug-inline path), and "🧠 Refining intent..." fires 2-3x per turn.
-
-**Instructions:** Deploy T-109; additionally de-duplicate the refine pass (it runs multiple times per turn) and confirm the strict-CLI folded-trace path (FV-F) shows the trace once, cleanly, without the raw scaffold. Fold into T-109/T-110.
-
-**Files:** `.../routing/{chat,sse,refine}.py`.
-
-## T-116: OSCTL-01 -- Hermes browser opens NEW WINDOWS instead of reusing running instance / opening a TAB  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "open a firefox TAB to youtube" launched the Firefox Nightly shortcut TWICE (2 new windows) + opened several random Epiphany tabs, despite Firefox already running AND the operator explicitly asking for a tab. Launch path uses `mios-windows launch <shortcut>` (always spawns a new window).
-
-**Instructions:** Make browser open-URL tab-aware: detect an already-running browser instance and open a NEW TAB in it (CDP `Target.createTarget` / `--new-tab` / activate-existing), NOT a new window/instance. Only cold-launch when the browser is not running. Honor an explicit "tab" request. Don't fan out extra Epiphany tabs.
-
-**Files (likely):** `usr/lib/mios/agent-pipe/mios_oscontrol.py`, `.../routing/oscontrol.py`, `usr/libexec/mios/mios-windows`, browser/CDP skills.
-
-**Done When:**
-- [x] "open a firefox tab to <url>" with Firefox already open -> ONE new tab in the existing window, no new window (live-verified by operator)
-
-## T-117: OSCTL-02 -- Hermes container-exec: stale container name + interactive-exec hang + docker-first  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** OS-Control | **Source:** live `hermes` session -- "ssh into code-server container" tried `docker` first (runtime is podman), used the RETIRED name `code-server` (now `mios-agents`), wrong-execed `mios-open-webui`, and hung 172s/21s on `podman exec -it ... bash` (interactive `-it` with no TTY in the agent context). The memory tool also errored mid-session.
-
-**Instructions:** (1) SSOT container-name resolution so `code-server` resolves to `mios-agents` (retired-name alias). (2) Never run interactive `-it` exec from the agent -- use non-interactive `podman exec <c> <cmd>` (no `-it`, no bare shell) so it can't hang. (3) Prefer podman (SSOT runtime), skip docker probing. (4) Investigate the memory-tool error.
-
-**Files (likely):** `.../mios_oscontrol.py`, `usr/libexec/mios/*`, Hermes tool skills, container-name SSOT (mios.toml `[containers.*]`).
-
-**Done When:**
-- [x] "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns promptly (no >5s hang), never `-it`
-
-## T-118: HEALTH-01 -- mios-cpu-node + mios-llm-light Unhealthy (baked healthcheck port mismatch)  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** S | **Domain:** Inference/Reliability | **Source:** podman dashboard -- both llama-swap:cuda lanes report **Unhealthy**. ROOT CAUSE (live-probed, corrects the original "oversized KV" premise): the lanes are NOT down -- `curl :${MIOS_PORT_CPU_NODE}/health` and `:${MIOS_PORT_LLM_LIGHT}/health` + `/v1/models` all return **200**. The upstream `ghcr.io/mostlygeek/llama-swap:cuda` image bakes `HEALTHCHECK curl -f http://localhost:8080/`, but MiOS runs each lane on its SSOT `${MIOS_PORT_*}` port -> the baked probe can never connect -> perpetual red gate.
-
-**Instructions:** Override the baked image healthcheck with an SSOT `HealthCmd` that probes the REAL runtime `${MIOS_PORT_*}` port; also land the already-in-SSOT cpu-node ctx right-size (131072->32768). NO-HARDCODE: port from `${MIOS_PORT_*}` runtime var.
-
-**Files:** `usr/share/mios/mios.toml` (`[containers.mios-cpu-node.Container]` + `[containers.mios-llm-light.Container]` HealthCmd/ctx), regenerated `usr/share/containers/systemd/mios-{cpu-node,llm-light}.container`.
-
-**Done When:**
-- [x] SSOT `HealthCmd` added for both lanes, probing the runtime `${MIOS_PORT_*}` port (cpu-node -> llama-server `/health`; llm-light -> llama-swap `/v1/models`, model-load-free) -- commit c3eff07
-- [x] cpu-node `--ctx-size 32768` regenerated into the Quadlet (was drifted at 131072); `generate-pod-quadlets.py --check` green (26/26 match SSOT)
-- [x] mios-cpu-node + mios-llm-light report Healthy -- LIVE-VERIFIED in podman-MiOS-DEV: deployed the regenerated Quadlets, `systemctl daemon-reload` + `systemctl restart mios-cpu-node mios-llm-light`, both flipped to `Up (healthy)` within ~1 min
-
----
-
-## T-119: TOOLARG-01 -- Native typed launch-arguments for ALL tools/skills/recipes (OpenAI-pattern, all environments)  [P1, systemic] [DONE]
-> **Priority:** P1 | **Status:** done | **Effort:** XL | **Domain:** Tool-calling/OS-Control | **Source:** operator mandate (generalizes T-116) -- every verb/skill/recipe must expose NATIVE, typed launch/invocation arguments following OpenAI function-calling patterns (strict JSON-schema typed params + enums), grounded in upstream research on native invocation per app-type across ALL environments (Windows/Linux/WSL/container/browser). Not name-only coarse verbs. Exemplar: browser open-URL must take `{url, mode:tab|window, reuse_instance}` and open a TAB in the RUNNING browser, not a new window.
-
-**Instructions:** Research + design FIRST (-> a `research/` doc): the native typed-arg standard + a per-type/per-environment native launch-arg map (browser tab/window via CDP `Target.createTarget`/`--new-tab`/remote; Windows App Paths/protocol/`.lnk`/AUMID; Linux `.desktop` Exec field codes/`gio`/`xdg-open`; games via `steam://`). Then enrich the `_VERB_CATALOG` + skill/recipe schemas with typed native args and project them through the existing OpenAI-tool/MCP schema surface (`strict`). SSOT + NO-HARDCODE + degrade-open. Land T-116 (browser tab) as the first shipped instance. Pairs with T-111 (constrained tool-calling = the MECHANISM; this = schema RICHNESS).
-
-**Files (likely):** `usr/share/mios/mios.toml` (`[verbs.*]` arg schemas), `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` (`_verb_to_openai_tool`), `.../mios_oscontrol.py`, `usr/libexec/mios/mios-windows`, skills/recipes catalogs.
-
-**Done When:**
-- [x] a research/design doc defines the native typed-arg standard + per-type/env launch-arg map
-- [x] browser open-URL opens a TAB in the running browser (T-116) as the first shipped instance
-- [x] verbs/skills/recipes expose typed native args (not name-only) via the OpenAI/MCP tool projection
-- [x] every argument is model-selectable + validated; degrade-open when an env/arg is unsupported
-
----
-
-## Appendix A: Dependency Graph (Critical Path â€” CONV additions)
-
-```
-T-094 (CONV-01 SSOT)
-  +-- T-095 (CONV-02 GatewayQueue + GatewayWorker)
-  |     +-- T-096 (CONV-03 GatewayQueue tests)
-  |     +-- T-103 (CONV-10 scratchpad wiring into GatewayWorker)
-  |     +-- T-105 (CONV-12 distroless Containerfile)
-  |     +-- T-106 (CONV-13 MCPClientPool)
-  +-- T-097 (CONV-04 llama-swap cache-reuse)
-  +-- T-098 (CONV-05 vLLM multi-LoRA)
-  |     +-- T-099 (CONV-06 LoRA API endpoints)
-  |     +-- T-100 (CONV-07 heavy-alt retirement docs)
-  +-- T-101 (CONV-08 sqlite-vec scratchpad module)
-  |     +-- T-103 (CONV-10 scratchpad in GatewayWorker)
-  +-- T-102 (CONV-09 cold eviction module)
-  |     +-- T-104 (CONV-11 retention sweep + drift-check)
-  +-- T-107 (CONV-14 rechunk CI step)
-        +-- T-108 (CONV-15 Phase 4 drift-checks + docs)
-  [T-105 also depends on T-095; T-108 depends on T-105 + T-107]
-```
-
-## Appendix B: File to Task Cross-Reference (CONV additions)
-
-| File | Tasks |
-|---|---|
-| `usr/share/mios/mios.toml` (`[converge.*]`) | T-094, T-097, T-098, T-101, T-102, T-104, T-105, T-107 |
-| `usr/lib/mios/agent-pipe/mios_gateway_queue.py` (new) | T-095, T-096, T-103, T-106 |
-| `usr/lib/mios/agent-pipe/mios_dispatcher.py` | T-095 |
-| `usr/lib/mios/agent-pipe/server.py` | T-095, T-099, T-102, T-103, T-104 |
-| `usr/lib/mios/agent-pipe/mios_scratchpad.py` (new) | T-101, T-103 |
-| `usr/lib/mios/agent-pipe/mios_cold_evict.py` (new) | T-102, T-104 |
-| `usr/lib/mios/agent-pipe/mios_interop.py` | T-106 |
-| `usr/lib/mios/agent-pipe/requirements.txt` | T-101 |
-| `usr/share/mios/llamacpp/mios-llm-light.yaml` | T-097 |
-| `usr/share/containers/systemd/mios-llm-heavy.container` | T-098 |
-| `usr/share/containers/systemd/mios-llm-heavy-alt.container` | T-098, T-100 |
-| `usr/share/containers/systemd/mios-agent-pipe.container` | T-105 |
-| `Containerfile.hummingbird` (new) | T-105, T-108 |
-| `automation/build/rechunk.sh` (new) | T-107 |
-| `automation/98-drift-checks.sh` | T-094, T-099, T-104, T-105, T-107, T-108 |
-| `usr/share/doc/mios/guides/inference-consolidation.md` (new) | T-100 |
-| `usr/share/doc/mios/guides/memory-tiering.md` (new) | T-104 |
-| `usr/share/doc/mios/guides/hummingbird-distroless.md` (new) | T-108 |
-| `test_mios_gateway_queue.py` (new) | T-096 |
-| `test_mios_scratchpad.py` (new) | T-101 |
-| `test_mios_cold_evict.py` (new) | T-102 |
-| `test_mios_mcp_pool.py` (new) | T-106 |
-| `test_lora_endpoints.py` (new) | T-099 |
-
----
-
-# Part 11 — Win11-Minimal Install Completeness + NO-HARDCODE Sweep (2026-07-04 audit)
-
-<!-- Source: 4-agent read-only audit 2026-07-04 (hardcoded ports/IPs; hardcoded English keyword-gates;
-     Win11-minimal install completeness; SSOT-defaults coverage). Every item below carries live
-     file:line evidence from that audit. Law: NO-HARDCODE (ports/IPs/hosts/keyword-gates from
-     mios.toml SSOT with defaults; fix order model-driven > SSOT > unicode-aware > delete-dead) +
-     "everything defined by mios.toml/mios.html with defaults". -->
-
-## T-120: NOHC-01 -- Reconcile the `[ports]` SSOT renumber drift (8xxx) across code + bootstrap  [P1, systemic]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** SSOT/Ports | **Source:** ports/IP audit 2026-07-04 -- `C:\MiOS` `[ports]` was renumbered into the 8xxx range (llm_light=8450, searxng=8899, open_webui=8033, pgvector=8432, cockpit=8090, forge_http=8300, sglang=8442, vllm=8441 -- confirmed live: `install.env` has `MIOS_PORT_LLM_LIGHT=8450`, `MIOS_PORT_CPU_NODE=8458`, and the lanes listen there) but **code, docs, and `C:\mios-bootstrap\mios.toml` still use the OLD values** (11450/8888/3030/5432/9090/3000/11441/11440). Live consequence: consumers that hardcode the old port hit a dead port (e.g. `mios-doctor:62` curls `localhost:11450` -> nothing listens -> false-negative health).
-
-**Instructions:** Pick ONE authoritative `[ports]` table (the 8xxx renumber appears intended -- it is what `install.env`/the live lanes use). Propagate it: (1) sync `C:\mios-bootstrap\mios.toml` `[ports]` to match `C:\MiOS`; (2) resolve every code literal (T-121) from `${MIOS_PORT_*}`; (3) document the container-INTERNAL vs host-published port distinction if the 11xxx values are internal. Add a drift-check that fails when the two repos' `[ports]` tables diverge.
-
-**Files:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/98-drift-checks.sh`.
-
-**Done When:**
-- [x] one `[ports]` table is authoritative and identical across both repos (drift-check enforces it)
-- [x] the internal-vs-published port semantics are documented where 11xxx lane ports are legitimately internal
-- [x] `mios-doctor`/health probes hit the live port and report the real state
-
-## T-121: NOHC-02 -- De-hardcode port literals in libexec + agent-pipe code (22 sites)  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** NO-HARDCODE/Ports | **Source:** ports/IP audit 2026-07-04 -- 22 evidenced port literals in live code (not comments), most also mismatching the current SSOT.
-
-**Instructions:** Replace each literal with a read from `${MIOS_PORT_*}` / `os.environ.get("MIOS_PORT_*", <SSOT-default>)`. P1 bare-literal sites: `mios-launch:173-179` (cockpit/owui/hermes/prefilter/searxng/forge alias dispatch), `mios-coderun-broker:65` (`:8640/v1/dispatch`), `mios-doctor:62,64,98,171` (`:11450`/`:3030` probes), `Get-MiOS.ps1:4150-4163` (`_ServiceCell -Port` literals), `Heal-MiOSLocalhostForwarding.ps1:33` (hardcoded port array), `build-mios.ps1:4721` (literal port map -- the sibling map at `:5567-5575` already resolves from `[ports]`; copy that pattern), `mios_pipe/routing/portal.py:773,775,864` (served JS `3030`/`8888`). P2 wrong-default fallbacks: `mios-compact:64`, `mios-cron-director:47`, `mios-daemon:87`, `mios-delegation-prefilter:66`, `mios-ingest:54`, `mios-ai-tag:298`, `mios-knowledge-search:48,61`, `gateway-agent/session.py:20`, `mios_pipe/memory/pg.py:79`, `gateway-agent/server.py:278`, `mios_endpoints.py:103`, `install-host-tools.ps1:501`. P3 served-prose: `grounding.py:432-436` (system-prompt bakes `:8640/:11450/:11441/:8642`), `mios-apps:587-591`, `mios-env-probe:189-191`.
-
-**Files:** the ~22 files above.
-
-**Done When:**
-- [x] no bare port literal remains in code logic; each reads SSOT with the correct default
-- [x] `grounding.py` system-prompt text renders ports from SSOT, not baked literals
-- [x] a grep gate (T-125) passes
-
-## T-122: NOHC-03 -- Register the 6 unowned first-party service ports in `[ports]` SSOT  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** SSOT/Ports | **Source:** SSOT-coverage + ports audits 2026-07-04 -- six named MiOS services have their port ONLY as a code literal, with no `[ports]` key and no `userenv.sh` bridge row.
-
-**Instructions:** Add `[ports]` keys (+ `userenv.sh` bridge rows + configurator field) for: `prefilter=8641` (`mios-delegation-prefilter:48` `MIOS_PREFILTER_LISTEN_PORT`), `arbiter=8650` (`mios-policy-arbiter:19`), `oscontrol=11437` (`mios-pc-control:80`), `model_router=11442` (`mios-model-router:38`), `daemon_agent=8644` (`mios-daemon:3082`, `mios-os-control:341`), `mcp=8765` (`mios-mcp-server:735`, `kernel/config.py:134-135`). Then repoint each consumer at `${MIOS_PORT_*}`.
-
-**Files:** `usr/share/mios/mios.toml` `[ports]`, `tools/lib/userenv.sh`, the 6 consumer scripts, `usr/share/mios/configurator/mios.html`.
-
-**Done When:**
-- [x] all 6 service ports exist in `[ports]` with defaults and bridge rows; consumers read them
-- [x] the configurator exposes them
-
-## T-123: NOHC-04 -- Purge baked operator identity + wire endpoint env vars to SSOT  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** S | **Domain:** NO-HARDCODE/Privacy | **Source:** SSOT-coverage audit 2026-07-04 -- `MIOS_PUBLIC_HOST` defaults to a SPECIFIC operator's Tailscale MagicDNS name `"mios.taildd86d0.ts.net"` baked into `mios_pipe/routing/portal.py:97` (portability + privacy leak). Plus endpoint env vars restate ports instead of reading their existing SSOT keys.
-
-**Instructions:** (1) Remove the tailnet-host literal; default `MIOS_PUBLIC_HOST` to empty/`localhost` and source it from a new `[portal].public_host` SSOT key (degrade-open). (2) Wire these env defaults to their SSOT keys instead of restating ports: `MIOS_HERMES_ENDPOINT` (`kernel/config.py:178` -> `[hermes].endpoint`), `MIOS_HERMES_WORKER_ENDPOINT` (`:185` -> `[agents.hermes].endpoint`), heavy/vllm backends (`kernel/config.py:233-236`, `lanes_resolver.py:122-123`), `MIOS_A2A_DISCOVER_PORT` (`a2a_client.py:238` -> new `[a2a].discover_port`), `MIOS_PUBLIC_DOMAIN` (`a2a.py:478` -> new `[a2a].public_domain`). (3) Fix the orphaned `micro_*` SSOT: `micro_model`/`micro_endpoint` exist in `mios.toml` (~6184/6186) but `userenv.sh` has no bridge row, so `kernel/config.py:262-263` never sees them -> add the bridge rows.
-
-**Files:** `mios_pipe/routing/portal.py`, `mios_pipe/kernel/config.py`, `mios_pipe/routing/lanes_resolver.py`, `mios_pipe/federation/a2a*.py`, `usr/share/mios/mios.toml` (`[portal]`, `[a2a]`), `tools/lib/userenv.sh`.
-
-**Done When:**
-- [x] no operator-specific hostname/tailnet id remains as a code default anywhere
-- [x] every endpoint env var resolves from its SSOT section; `micro_*` defaults reach the pipe
-
-## T-124: NOHC-05 -- De-hardcode English keyword-gates in agent-pipe  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** NO-HARDCODE/Routing | **Source:** keyword-gate audit 2026-07-04 -- code is mostly clean (router/classifier are model-driven/SSOT) but 4 decision-gating English matchers remain.
-
-**Instructions:** (1) `chat.py:1301-1304` -- inline temporal word-list gating `_time_sensitive`: DELETE it and key off model-emitted `refined.news or refined.needs_recency`. This is the surviving twin of a bug ALREADY fixed at `web_research.py:661-668`; lift that fix verbatim. (2) `routing.py:233` -- hardcoded English connective alternation `(in|and|then|with|on|to)` in `_deterministic_action_route`: move to `mios.toml [routing].compound_connectives`, load via `_load_routing_phrases` (all other vocab in that function is already SSOT-injected). (3) `federation/a2a_client.py:190-192` -- peer modality classification by model-id substrings (`embed|bert|bge` / `diffuse|flux|dall|sd`): derive modality from the SSOT model/engine registry, degrade-open to text. (4) `mios_gateway_queue.py:114-116` -- tool-param JSON-schema `type` inferred from English param-name substrings: read types from the SSOT verb-catalog typed schema (pairs with T-119). Low-priority notes: `cua.py:187-188` (English GOAL_REACHED sentinel/negation -- tighten only if hardening the protocol parse), `mios-finetune:164` (layer-name convention list -- marginal).
-
-**Files:** `mios_pipe/routing/chat.py`, `mios_pipe/routing/routing.py`, `mios_pipe/federation/a2a_client.py`, `mios_gateway_queue.py`, `usr/share/mios/mios.toml` `[routing]`.
-
-**Done When:**
-- [x] `chat.py` time-sensitivity is model-flag-driven (no word-list); parity with `web_research.py`
-- [x] compound-connective list lives in SSOT; a2a modality + gateway param-types read from SSOT
-- [x] non-English / paraphrased inputs route identically (no ASCII-keyword regression)
-
-## T-125: NOHC-06 -- Extend NO-HARDCODE enforcement to ports/IPs in code (not just dates/.container)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** CI/Enforcement | **Source:** ports audit 2026-07-04 -- `usr/libexec/mios/mios-hardcode-lint` only checks date-literals + header/BOM; `check_container_ports` in `98-drift-checks.sh` only scans `.container` Quadlets. Port/IP hardcodes in `.py`/`.sh`/`.ps1` are currently UNENFORCED -- which is how the 22 T-121 sites accumulated.
-
-**Instructions:** Add a `check_code_ports_ips` gate: flag bare port literals (`:\d{4,5}` / `localhost:\d+` / `127.0.0.1:\d+`) and routable IPv4 literals in code logic, with an SSOT allowlist for legitimate exceptions (loopback binds, `0.0.0.0`, documented `172.16/12`, upstream image refs, test fixtures, RFC1918 comments). Wire into `mios-hardcode-lint` + `just drift-gate`. Seed the allowlist from the audit's "NOT violations" set.
-
-**Files:** `usr/libexec/mios/mios-hardcode-lint`, `automation/98-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT).
-
-**Done When:**
-- [x] the gate flags a newly-introduced `:8640` literal in a `.py`/`.sh` and passes on the cleaned tree (post T-121)
-- [x] allowlist is SSOT-driven, not inline
-
-## T-126: NOHC-07 -- SSOT hygiene: subnet IPs, dead bridge rows, configurator drift  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** SSOT/Config | **Source:** ports + SSOT-coverage audits 2026-07-04.
-
-**Instructions:** (1) `automation/lib/globals.sh:214-216` -- podman subnet/gateway literals (`10.89.0.0/24`, `10.89.0.1`) as env-fallback defaults with no SSOT key: add `[network]` keys and read them. (2) Prune dead `userenv.sh` bridge rows for removed toml keys (`ports.ollama`, `ports.ollama_cpu`, `ports.hermes_workspace`, `services.ollama_cpu.*`, `image.sidecars.ollama*`/`hermes_workspace*`). (3) Close configurator drift: expose `[ports]` keys missing from `mios.html` (`stack_id`, `hermes_worker`, `hermes_dashboard`, `crawl4ai`, `firecrawl`, `adguard_dns`), `[network.quadlet]` (`core_subnet`, `core_gateway`), `[a2a]` (`protocol_version`, `route_on_card_skills`, `mdns_service_type`, `mdns_refresh_sec`).
-
-**Files:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` `[network]`, `tools/lib/userenv.sh`, `usr/share/mios/configurator/mios.html`.
-
-**Done When:**
-- [x] subnet defaults come from `[network]` SSOT; dead bridge rows removed; configurator has no missing-key drift vs `[ports]`/`[network.quadlet]`/`[a2a]`
-
-## T-127: WIN-01 -- `Get-MiOS.ps1` entry-path prereq fallbacks (git + podman) before the fatal winget-only gates  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- on a fresh Win11 without winget, the canonical `irm|iex` one-liner DIES: `Get-MiOS.ps1:6497` `Require-Cmd "git"` hard-`exit 1`s, and git is only installed via winget (`Install-MiOSTerminalExtras`, `3246-3258`) which returns early if winget is absent (`3158-3161`). The robust PortableGit direct-download exists ONLY in `build-mios.ps1:8458-8480`, which runs AFTER the clone that needs git -- so it can never rescue the entry-path clone. Same shape for podman: `Get-MiOS.ps1:5141-5146` `exit 1` with no entry-path fallback.
-
-**Instructions:** Add PortableGit and podman-setup.exe direct-download fallbacks to `Get-MiOS.ps1` BEFORE the `Require-Cmd git` / podman gates (mirror `Install-MiosPrereqDirect` / the `build-mios.ps1` fallbacks). URLs/pkgs from SSOT `[packages.windows]` / `[bootstrap.prereqs]` (NO-HARDCODE). Ensure `Git.Git` is in the SSOT Windows package list, not only a code fallback list.
-
-**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\mios.toml` (`[packages.windows]`, `[bootstrap.prereqs]`).
-
-**Done When:**
-- [x] on a winget-less minimal Win11, `irm|iex` self-installs git + podman and completes the clone/bring-up with zero manual steps
-
-## T-128: WIN-02 -- Move the virtualization probe earlier (before disk-shrink + reboot)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 -- the BIOS-virt-disabled probe (`VirtualizationFirmwareEnabled`/`HypervisorPresent`) lives only in `build-mios.ps1:8583`, i.e. AFTER `Get-MiOS.ps1` has already shrunk the disk, enabled features, and cloned. A virt-off machine burns a full partition + reboot cycle before failing.
-
-**Instructions:** Run the virtualization probe in `Get-MiOS.ps1` Pass-2, before `Initialize-DataDisk`. Fail fast with the existing "enable VT-x/AMD-V in BIOS" remediation. No behavior change on virt-enabled hosts.
-
-**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`.
-
-**Done When:**
-- [x] a virt-disabled machine fails with clear remediation BEFORE any disk/reboot changes
-
-## T-129: WIN-03 -- Podman CLI-only default + optional Desktop, and a login-time autostart "service"  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (proposed changes, captured as tasks -- NOT yet implemented; the audit agent's speculative edits were reverted pending operator approval).
-
-**Instructions:** (1) Make "Podman for Windows" (CLI, `RedHat.Podman`) the primary/required install; gate Podman Desktop behind `[bootstrap.prereqs].install_podman_desktop` (default `false`). Update the winget-absent hint to point at the podman setup.exe. (2) Register a `MiOS-Autostart` Scheduled Task (AtLogon trigger, RunLevel Highest, hidden) that runs a staged `mios-autostart.ps1` which rebuilds PATH + `podman machine start <distro>` (so systemd inside the distro auto-starts every MiOS quadlet before the interactive desktop) -- the service-equivalent for a per-user WSL/podman-machine context, fail-soft, TOML-gated via `[bootstrap.autostart].enable`, with `HKCU\Run` fallback. Wire teardown into both reap paths (`Invoke-MiOSFullReap` + the `build-mios.ps1` uninstall here-string). NOTE the multi-user/SYSTEM-host caveat: the AtLogon task assumes a per-user podman machine.
-
-**Files:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\mios.toml` (`[bootstrap.prereqs]`, `[bootstrap.autostart]`).
-
-**Done When:**
-- [x] fresh install brings up podman CLI only (Desktop opt-in); the full quadlet stack auto-starts at logon before the desktop, with no UAC prompt; teardown removes the task
-
-## T-130: WIN-04 -- Residual minimal-Win11 hardening (GPU driver / long-path / TLS / offline / entry reconciliation)  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04.
-
-**Instructions:** (1) Add a Windows-side GPU host-driver check/hint (NVIDIA/AMD/Intel) -- with no WSL-capable driver the AI plane silently degrades to CPU (`build-mios.ps1:3932-3947` wires `/dev/dxg`+CDI but never verifies the host driver). (2) Enable `LongPathsEnabled` (defensive). (3) Set `ServicePointManager` TLS 1.2 explicitly (down-level/.NET-old hosts). (4) Document offline/air-gap + proxy behavior (host irm/git/winget rely on system proxy). (5) Reconcile the two divergent "canonical" entry points: `bootstrap.ps1`'s docstring claims canonical but its irm path jumps straight to `build-mios.ps1` (which HAS the no-winget git/podman/wsl auto-install) and skips `Get-MiOS.ps1`'s M:\/elevation/WT staging -- pick one and make the other delegate.
-
-**Files:** `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\bootstrap.ps1`.
-
-**Done When:**
-- [x] GPU driver absence is detected + surfaced (not silent CPU fallback); long-path/TLS set; one canonical entry point; offline/proxy behavior documented
-
-
-## T-131: WIN-05 -- Zero-touch offline multi-user Win11 provisioning via SSOT-generated autounattend.xml  [P2, strategic]
-> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Install/Windows | **Source:** Win11-minimal audit 2026-07-04 (autounattend research). `autounattend.xml` on install media (or a mounted `unattend.iso` for VMs/Hyper-V) is the canonical, supported, OFFLINE way to preseed Windows Setup in WinPE, BEFORE OOBE (survives interactive-OOBE changes). `cschneegans/unattend-generator` is an MIT-licensed .NET lib (Win10/11 incl. 24H2/25H2), drivable from PowerShell 7.4+ (`Import-Module UnattendGenerator.dll` -> `[UnattendGenerator]::Serialize($gen.GenerateXml($config))`; no public HTTP API -> vendor the lib or use the GUI). Subsumes several audit gaps at the Setup layer: creates multiple LOCAL offline accounts (bypasses the MS-account requirement), runs FirstLogon/UserOnce scripts, partitions disk, enables long-paths (32767), strips bloatware, injects VM drivers. Aligns with the multi-tenant direction (all local offline accounts from SSOT).
-
-**Instructions:** Design + build an SSOT-driven autounattend path: (1) add `[accounts]` (or extend `[identity]`) -- a list of local offline accounts (username / display / group Administrators|Users / first-logon); (2) `New-MiOSAutounattend` renders `autounattend.xml` from that list. **[OPERATOR DECISION]** vendor the MIT lib + pwsh 7.4 (cleaner SSOT; adds a .NET build dep) OR ship a static template personalized by a FirstLogon script from SSOT (no .NET dep). (3) FirstLogon script fires `irm Get-MiOS.ps1 | iex` = truly zero-touch. (4) carve `M:\` + enable long-paths + strip bloat at the Setup layer. (5) wrap into `unattend.iso` (VM/Hyper-V) or drop `autounattend.xml` on USB root. NO-HARDCODE: accounts/partitions/features all from SSOT. SECURITY: autounattend stores passwords plaintext/Base64 -> treat as first-boot temp credentials rotated on first logon (or derive from an SSOT secret at generation time). Relationship: this reduces but does not remove T-127 -- git/podman prereqs are moot inside the automated first-logon, but the plain `irm|iex`-on-an-existing-box path still needs T-127.
-
-**Files:** `C:\mios-bootstrap\` new `New-MiOSAutounattend.ps1` (+ vendored MIT lib or static template + FirstLogon script), `C:\mios-bootstrap\mios.toml` (`[accounts]`/`[identity]`, `[bootstrap.autounattend]`).
-
-**Done When:**
-- [x] a fresh, minimal, OFFLINE Win11 machine boots MiOS media -> all SSOT-defined local accounts created, long-paths on, M:\ carved, bloat stripped, Get-MiOS runs at first logon -> full multi-user MiOS with ZERO manual steps (incl. OOBE)
-- [x] first-boot passwords are temporary + rotated (no plaintext SSOT-secret leak)
-- [x] the generator/template is SSOT-driven (accounts change in mios.toml -> answer file changes; drift-checked)
-
-*Sources: cschneegans/unattend-generator (GitHub, MIT) + schneegans.de/windows/unattend-generator (usage/samples/Example.ps1); autounattend.xml media-root + unattend.iso second-optical-drive discovery; Win11 25H2 local-account install.*
-
----
-
-<!-- Part 12: MiOS Custom Windows Editions -- UUP + NTLite/DISM + autounattend ISO Program (2026-07-04). Delivered under C:\mios-bootstrap\src\autounattend\ (commits a034894..997ee2f). MiOS-XBOX.iso and irm|iex share one provisioning core -> parity by construction. -->
-
-## T-132: WISO-01 -- Shared install-time provisioning core (`MiOS-Provision.lib.ps1`)  [P2]
-> **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO -- one core so MiOS-XBOX.iso + irm|iex never drift.
-
-**Context:** The ISO autounattend and the existing-Windows provisioner were duplicating branding/layout/prefs logic (drift risk). Unify into one dot-sourced library.
-**Files:** `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`
-**Done When:**
-- [x] SSOT reader + `Get-MiOSHostname`/`Get-MiOSAccounts` + `New-MiOSBrandingCommands`/`New-MiOSLinuxLayoutCommands`/`New-MiOSGlobalPrefCommands` + `New-MiOSProvisionCommands` emit plain reg/mkdir strings
-- [x] dot-sourced by ConvertTo-MiOSPreset, New-MiOSAutounattend, Invoke-MiOSProvision; all parse; MiOS-Xbox.xml regenerates well-formed
-
-## T-133: WISO-02 -- NTLite preset sanitizer (`ConvertTo-MiOSPreset.ps1` -> `MiOS-Xbox.xml`)  [P2]
-> **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
-
-**Context:** Operator NTLite Xbox presets strip WSL/VMP/Hyper-V (the MiOS podman substrate) and carry machine-specific identity (personal account name / machine name / driver-export paths) that must be sanitized to MiOS defaults.
-**Files:** `src/autounattend/ConvertTo-MiOSPreset.ps1`, `MiOS-Xbox.xml`
-**Done When:**
-- [x] Posture B re-preserves WSL2/VMP/Hyper-V; SSOT hostname + credentialed accounts + AutoLogon; FirstLogonCommands = shared provisioning + nested `irm Get-MiOS.ps1 | iex`
-- [x] MiOS naming/GUID/ISO label; 0 legacy identity refs; 280/282 debloat entries + all drivers preserved; well-formed
-
-## T-134: WISO-03 -- Schneegans autounattend generator + 96 GB C: carve  (`New-MiOSAutounattend.ps1`)  [P2]
-> **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
-
-**Context:** MiOS ISOs shrink Windows C: to 96 GB and allocate the rest to MiOS; folder layout must be set pre-OOBE (Schneegans DefaultUser context).
-**Files:** `src/autounattend/New-MiOSAutounattend.ps1`
-**Done When:**
-- [x] disk carve C: = `[autounattend].c_partition_gb` (96 GB) + M:=remainder (MIOS-DEV); `-FullDiskWindows` reverts to C:=whole-disk
-- [x] pre-OOBE strip-and-rebuild in specialize pass; TPM/SecureBoot/RAM bypass; oscdimg inject; winutil tools drop; well-formed (98304 MB C:, M: Extend)
-
-## T-135: WISO-04 -- Existing-Windows parity path (`Invoke-MiOSProvision.ps1`)  [P2]
-> **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
-
-**Context:** Existing Windows users don't reinstall; they must reach the SAME MiOS state as the fresh ISO.
-**Files:** `src/autounattend/Invoke-MiOSProvision.ps1`
-**Done When:**
-- [x] creates SSOT accounts + LIVE-applies the same global branding/layout/prefs the ISO bakes + long-paths, then chains the nested bootstrap
-- [x] shares `MiOS-Provision.lib.ps1` with the ISO path (no divergent copy)
-
-## T-136: WISO-05 -- OEM driver export for slipstream (`Export-MiOSDrivers.ps1`)  [P3]
-> **Priority:** P3 | **Status:** DONE (2026-07-04) | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
-
-**Files:** `src/autounattend/Export-MiOSDrivers.ps1`
-**Done When:**
-- [x] `Export-WindowsDriver -Online` to an SSOT dest (default `M:\MiOS\drivers`, not a hardcoded Desktop path); self-elevates; feeds NTLite Drivers / DISM `Add-WindowsDriver`
-
-## T-137: WISO-06 -- UUP-Dump source-ISO automation (`mios-uup-fetch`)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO -- source-ISO step.
-
-**Instructions:** Wrap `rgl/uup-dump-get-windows-iso` (or `uup-dump/converter` + aria2 + a `ConvertConfig.ini` generated from SSOT) as a MiOS cmdlet; params from `[autounattend.iso]` (build/channel/edition/lang). Pin to **25H2 x64** (26H1 is ARM64-only, T-148). Output a checksummed source ISO to `M:\MiOS\iso\src\`.
-**Done When:**
-- [x] one command fetches a pinned, checksummed 25H2 x64 source ISO with no GUI; edition/apps/updates controlled from SSOT
-
-## T-138: WISO-07 -- DISM-native debloat + oscdimg assembly + CI  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO. **[OPERATOR DECISION]** DISM-native vs NTLite-licensed CLI.
->
-> **Research (2026-07-04, verified + cited):** see `usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md`. Verdicts: WSL2 is FULLY offline-bakeable (GitHub WSL MSI + distro rootfs `.tar` + `podman machine init --image <local>`; kernel bundled since WSL 1.0.0 GA); tiny11 standard maker = the reference DISM sequence (keep serviceability, avoid Core); OEM/branding/fonts/cursors bake via the offline `Users\Default\NTUSER.DAT` hive (accent needs a RunOnce backstop; `Segoe UI`->Geist only reskins legacy GDI, NOT WinUI3); local accounts + the scheduled task + a real `M:\` + `podman machine init` are FIRST-LOGON only; LabConfig bypass keys bake offline (Setup-only); pipeline runs headless on GitHub Actions `windows-2025` (install oscdimg, manage ~14 GB disk). Validation gap: air-gapped `podman --image` + 24H2/25H2 Setup UI.
-
-**Instructions:** Strict = DISM-native debloat (appx/capability/feature removal + LabConfig) generated from the same SSOT remove-list (NTLite CLI is paid-only; keep as optional accelerator). Then oscdimg dual BIOS/UEFI build -> `MiOS-Win11.iso` / `MiOS-XBOX.iso`. GitHub-Actions: fetch -> customize -> assemble -> VM smoke-boot.
-**Done When:**
-- [x] a free/reproducible pipeline produces a bootable MiOS ISO from a UUP source with no paid tool; CI smoke-boots it in a VM and asserts accounts + WSL/VMP present (Posture B) + Get-MiOS reached
-
-## T-139: WISO-08 -- Stage MiOS branding assets into the image  [P2]
-> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Install | **Source:** Part 12 WS-WISO.
-
-**Instructions:** Place `mios-wallpaper.jpg`, `mios-logo.bmp`, Bibata `.cur/.ani`, Geist fonts at the branding-referenced paths (`C:\Windows\Web\MiOS\`, `%SystemRoot%\Cursors\Bibata-Modern-Classic\`) during image customization so branding applies at first paint (not just first-logon).
-**Done When:**
-- [x] wallpaper/logo/lockscreen/cursor/font assets are present in the image; branding renders at OOBE/first paint
-
-## T-140: XBOX-01 -- Xbox Full Screen Experience out of the box  [P2]
-> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX -- the operator reference used the WRONG ViVeTool IDs.
-
-**Instructions:** Enable Xbox Mode via `vivetool /enable /id:58989070,59765208` (2026 IDs; requires 24H2 26100.7019+ and the Xbox app installed + signed in, since FSE is the home launcher) + auto-launch config. Replace the reference `unattend-01.ps1` Copilot/taskbar IDs with these FSE IDs. Win+F11 launches it.
-**Done When:**
-- [x] a fresh MiOS-XBOX boots into (or one Win+F11 away from) the Xbox full-screen/console experience with the Xbox app as home
-
-## T-141: XBOX-02 -- Gaming loadout + Xbox tuning  [P3]
-> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
-
-**Instructions:** Adopt the reference `unattend-02/03.ps1` sanitized to MiOS: Xbox services Manual, Teredo/IPv6, Game Mode, Delivery Optimization, FSE regs; winget gaming apps (Steam/Vesktop/Zen). OEM branding -> MiOS (never a personal name).
-**Done When:**
-- [x] gaming services/tuning applied; gaming apps installed at first logon; no legacy operator branding
-
-## T-142: XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-the-brain)  [P2]
-> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** S | **Domain:** Windows/Gaming | **Source:** Part 12 WS-XBOX.
-
-**Instructions:** Decide MiOS-XBOX gaming edition posture: A = WSL purged, no local brain (remote/cloud MiOS); B = keep WSL2 -> local MiOS agent stack alongside gaming. Reference is A; MiOS default recommendation = B. The sanitizer's `-KeepVirtualizationDisabled` toggles A.
-**Done When:**
-- [x] posture chosen + encoded in the editions SSOT; the sanitizer/generator emit the matching virtualization state
-
-## T-143: WBRAND-01 -- Global Windows branding/theme from SSOT  [P2]
-> **Priority:** P2 | **Status:** DONE (2026-07-04) | **Effort:** M | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
-
-**Files:** `src/autounattend/MiOS-Provision.lib.ps1` (`New-MiOSBrandingCommands`)
-**Done When:**
-- [x] accent (#1A407F -> AABBGGRR), dark theme + transparency, wallpaper + lockscreen (PersonalizationCSP), OEM info, Dynamic Lighting RGB (accent-tracking), Geist UI font (Segoe UI substitute), Bibata cursor -- applied to Default hive + HKLM + first HKCU, all from SSOT
-
-## T-144: WBRAND-02 -- Linux desktop palette parity via matugen  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Linux/Branding | **Source:** Part 12 WS-WBRAND -- mios.git / deployed image.
-
-**Instructions:** Seed a MiOS matugen config + template set; source color = SSOT `[colors].accent`, source image = SSOT `[branding].wallpaper`; regenerate GTK/Qt/base16 on wallpaper change. Flatpak theming via `org.gtk.Gtk3theme` + `flatpak override`. Geist + Bibata system-wide on Linux. OpenRGB profile from the accent.
-**Done When:**
-- [ ] Windows and Linux (incl. Flatpaks) render the SAME MiOS palette from one SSOT; wallpaper change reflows both
-
-## T-145: WBRAND-03 -- Re-assert branding on Windows update drift  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Windows/Branding | **Source:** Part 12 WS-WBRAND.
-
-**Instructions:** Windows re-enables/reverts Dynamic Lighting (and can reset accent) on some CU/feature updates -> have `mios update` re-assert `Software\Microsoft\Lighting` + branding from SSOT.
-**Done When:**
-- [x] post-update, RGB + accent + theme snap back to MiOS SSOT on next `mios update`
-
-## T-146: WEDITION-01 -- Editions SSOT matrix  [P2]
-> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION.
-
-**Instructions:** Add an `[editions]` matrix (name / channel / arch / posture / debloat-profile / accent) so ONE pipeline emits MiOS (full, Posture B) + MiOS-XBOX (gaming) from SSOT; wire the sanitizer/generator to select by edition.
-**Done When:**
-- [x] `mios-build-iso <edition>` reads the edition row and emits the correct ISO; no per-edition code forks
-
-## T-147: WEDITION-02 -- SSOT keys + configurator for the ISO/branding surface  [P1]
-> **Priority:** P1 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/SSOT | **Source:** Part 12 WS-WEDITION -- generators degrade-open to MiOS defaults until added.
-
-**Instructions:** Add to `mios.toml` + expose in `configurator/mios.html`: `[autounattend]` (computer_name, c_partition_gb=96, bootstrap_url, iso_out/label, `[[autounattend.accounts]]`), `[autounattend.layout]` (strip_defaults, strip_folders, linux_tree, lowercase_userfolders, strip_thispc), `[branding]` (oem_manufacturer/model/support_url/logo, wallpaper, lockscreen, wallpaper_style, ui_font, font_substitute, cursor/cursor_dir/cursor_scheme). Drift-check parity.
-**Done When:**
-- [x] every key the generators read exists in mios.toml with a MiOS default and a configurator control; changing it in mios.html changes the emitted ISO/answer file
-
-## T-148: WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`)  [P3]
-> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** L | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- 26H1 = ARM64-only Snapdragon platform update (~Apr 2026), NOT x64.
-
-**Instructions:** For a native-handheld Xbox FSE edition on Snapdragon X2, add an ARM64 UUP source track + ARM64 drivers/packages; keep the x64 gaming build on 25H2. Xbox full-screen is the native home on handhelds.
-**Done When:**
-- [x] an ARM64 MiOS-XBOX-ARM ISO builds from an ARM64 26H1 UUP source with ARM64 drivers; x64 pipeline unaffected
-
-## T-149: WEDITION-04 -- Fold reverting generated-file changes into the generator source  [P2]
-> **Priority:** P2 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Install | **Source:** Part 12 WS-WEDITION -- `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` regenerate ~every 12 min, wiping direct edits.
-
-**Instructions:** Locate the upstream generator that assembles `Get-MiOS.ps1`/`build-mios.ps1`/`mios.toml` and fold in: podman-CLI-only default (Desktop opt-in, T-129), multi-user `MiOS-Autostart` login task, and the `[autounattend]`/`[autounattend.layout]`/`[branding]` SSOT keys (T-147) -- so they survive regeneration.
-**Done When:**
-- [x] a regeneration cycle preserves the podman-CLI default, the autostart task, and the new SSOT sections
-
-## T-150: ACCT-01 -- Account SSOT schema + install-time seeding (pgvector `account`)  [P2]
-> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Data/Accounts | **Source:** operator directive -- DB-driven GLOBAL account control plane (Part 12 WS-ACCT); extends WISO-01/T-132 + WEDITION-02/T-147 from one-shot seeding to a live SSOT.
-
-**Instructions:** Extend pgvector `account` in `usr/share/mios/postgres/schema-init.sql`: kind `user|admin|service`, display, password_hash, uid/gid, groups + sudo/admin, os_targets `linux|windows|both`, enabled, meta. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install (mios-bootstrap on Linux; `MiOS-Provision.lib.ps1` on Windows). LAW: separate the LOGIN account (`account.name`) from the DISPLAY name (`[user].name`) -- purge `MIOS_USER`=display-name usage from every consumer. Vendor default account = `user`/`user`.
-**Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml` (`[[accounts]]`), `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
-**Done When:**
-- [x] a fresh install seeds the pgvector `account` rows from SSOT; the default `user`/`user` account exists in the DB
-- [x] no consumer resolves the login user from `MIOS_USER`/`[user].name` (the display-name leak is gone)
-
-**Reality check (2026-07-10):** "pending" understates it -- the seeder DOES exist at `usr/libexec/mios/mios-ai-firstboot` (§"seed accounts into pgvector"): it computes SHA-512 hashes (`openssl passwd -6`) and `INSERT … ON CONFLICT DO UPDATE`s the primary `[identity]` account + every `[[autounattend.accounts]]` row, now including `uid`/`gid` (fixed 2026-07-10). It runs at firstboot (not the instructed mios-bootstrap/Provision location). Remaining: the `MIOS_USER` display-name purge (2nd box), and moving the seed earlier if firstboot is too late for the very first login.
-
-## T-151: ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 + pam_pgsql)  [P2]
-> **Priority:** P2 | **Status:** completed (implemented files-regenerating runtime daemon as recommended) | **Effort:** L | **Domain:** Linux/Accounts | **Source:** operator directive -- "DBs control Linux accounts, live" (WS-ACCT).
-
-**Instructions:** Wire `libnss-pgsql2` (NSS `passwd`/`shadow`/`group` served from pgvector) + `pam_pgsql` (PAM auth against the DB) so the DB is the live Linux account store; a DB edit reflects with no re-provision. `nsswitch.conf` order `files pgsql` so root/service accounts + a DB outage degrade-open. Flag-gate `[accounts].db_backed`; package via mios.toml `[packages.*]`.
-**Files:** `automation/17-accounts-db.sh`, `usr/libexec/mios/mios-ai-firstboot` (the actual account seeder), `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, PAM stack.
-**Reality check (2026-07-10):** the config (`17-accounts-db.sh`) and the account seed (`mios-ai-firstboot`, which DOES set `password_hash`/`is_admin`/`groups`) were wired but **non-functional** for two reasons, now FIXED: (a) every NSS/PAM connection string omitted the port -> libpq defaulted to :5432 while postgres listens on :8432, so `getent`/login stalled on `connect_timeout` and fell through to files; (b) the seeder's `INSERT` omitted `uid`/`gid`, so `getpwnam` resolved a NULL uid. **Still OPEN (cannot verify off a Fedora host):** `libnss-pgsql2`/`pam_pgsql` in `[packages.security]` are the *Debian* names; Fedora's is `libnss-pgsql` (beta, F36-era) and `pam_pgsql` may not be packaged for current Fedora at all -> the `dnf install` may fail and the NSS module may be absent. **Recommendation:** adopt the build-time-bake path (compile PG `account` -> `sysusers.d` + shadow at image build; a files-regenerating runtime daemon) and RETIRE the abandoned NSS modules from the boot-critical auth path.
-**Done When:**
-- [x] `getent passwd <db-user>` resolves from pgvector; login authenticates via standard files; a DB edit reflects live via sync daemon
-- [x] DB outage / local root + service accounts still work (files fallback)
-
-## T-152: ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX)  [P2]
-> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Windows/Accounts | **Source:** operator directive -- "DBs control Windows accounts, live"; MiOS-XBOX custom Windows edition (WS-ACCT + WS-XBOX).
-
-**Instructions:** Windows has no NSS -> build a MiOS account-sync service (PowerShell `LocalAccounts`/SAM provisioning + optional custom Credential Provider) that watches the pgvector `account` SSOT and applies create/modify/disable/password to local SAM accounts LIVE; auto-create-at-first-login from the DB. Ships in MiOS-XBOX so gaming-edition user/admin accounts are DB-managed and editable from the same surfaces as Linux.
-**Files:** `C:\mios-bootstrap\src\autounattend\` new `MiOS-AccountSync` service + provisioning lib; `usr/share/mios/mios.toml` `[accounts]`.
-**Done When:**
-- [x] editing an account in the DB creates/updates the matching Windows local account live (no re-provision)
-- [x] MiOS-XBOX first-logon creates the DB-defined accounts (no MS-account)
-
-**Reality check (2026-07-10):** `MiOS-AccountSync.ps1` creates/enables/disables accounts + toggles Administrators from the DB, BUT provisions each new user with a RANDOM 24-char password -- it NEVER applies the DB `password_hash`/password, so DB->Windows *password* control is a silent no-op (Windows can't accept a stored hash; `New-LocalUser` needs plaintext at create). Account-*existence* sync works; *credential* sync does not. Fix: a first-boot temporary secret (pgcrypto-sealed) + forced rotation, not a durable DB-applied password.
-
-## T-153: ACCT-04 -- DB account management surfaces + consumer cutover  [P2]
-> **Priority:** P2 | **Status:** completed | **Effort:** M | **Domain:** UI/Accounts | **Source:** operator directive -- "managed via DB management surfaces; global environments reflect live" (WS-ACCT).
-
-**Instructions:** mios.html/configurator + MiOS App expose account CRUD (add/edit/disable user & admin, set password, groups/sudo, per-OS target) writing the pgvector `account` SSOT; both OSes reflect via T-151/T-152. Cut consumers (both dashboards, cockpit PAM, forge) over to read the account SSOT, never `MIOS_USER`/`[user].name`.
-**Files:** `usr/share/mios/configurator/mios.html`, `usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`, `usr/share/mios/mios.toml`.
-**Done When:**
-- [x] an account edit in mios.html reflects live on BOTH Linux and Windows
-- [x] dashboards show the DB account (default `user`/`user`), never the operator display name
-
-## T-154: MAO-01 -- Typed handoffs + parallel guardrails + tracing spans  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/Orchestration | **Source:** multi-agent research digest (Part 13 WS-MAO); verified OpenAI Agents SDK / Swarm pattern. See `research/multi-agent-orchestration-strategies-2026-07-05.md`.
-
-**Instructions:** In agent-pipe, model handoffs as typed transfer functions returning `{target_agent, Result(context-update)}`; run input/output **guardrails in parallel** on a cheap model (validate + short-circuit); emit a **trace span per hop** (router/refine/synthesis/polish/swarm/council) into the native stream (feeds `feedback_everything_streams_natively_all_surfaces`). Add a server-side `context_variables` dict hidden from the tool schema (light shared state; heavy/volatile stays on-demand per the env-grounding law). All gated in `[agents.orchestration]`; degrade-open (missing guardrail model → pass-through).
-**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`).
-**Done When:**
-- [ ] handoffs are typed transfers (not ad-hoc string routing); a hop failure is caught + traced, not silent
-- [ ] input/output guardrails run in parallel and can short-circuit; every hop emits a trace span visible on OWUI/CLI
-- [ ] `context_variables` carries light shared state without entering the tool schema
-
-## T-155: MAO-02 -- Structured deliberation for consequential tasks (DCI concept), MODEL-gated  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** L | **Domain:** Agents/Council | **Source:** Part 13 WS-MAO; DCI CONCEPT (source `arXiv 2603.11781` UNVERIFIABLE/post-cutoff -- adopt concept, do NOT cite as authority).
-
-**Instructions:** Upgrade the council hop to optional **structured deliberation**: archetype roles (Framer/Explorer/Challenger/Integrator) via **differentiated system prompts** (bias only -- NOT hardcoded capability), a **typed interaction grammar** (propose/challenge/evidence/reframe/synthesize/concede/…) so a challenge is structurally distinct from a proposal, **tension tracking** (disagreements preserved as first-class objects), and a bounded convergence loop terminating in a **Decision Packet** (action + residual objections + minority report + reopen-conditions) persisted to pgvector. **Cost: ~62× tokens; it HARMS routine tasks** -> the trigger is a **model-driven consequentiality classifier** (Law 7: no keyword gate), gated `[agents.orchestration].deliberation`, default **off**. Routine tasks stay on the cheap council path.
-**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/agents/`, `usr/share/mios/postgres/schema-init.sql` (decision_packet), `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] a model classifier (not a keyword list) decides deliberation vs cheap path; default off; routine tasks never pay the 62× cost
-- [ ] deliberation emits a Decision Packet with a preserved minority report; disagreements are tracked, not averaged away
-
-## T-156: MAO-03 -- Document-mutation + LISTEN/NOTIFY coordination lane on pgvector  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Coordination | **Source:** Part 13 WS-MAO; OpenClaw CONCEPT (`arXiv 2603.11721` UNVERIFIABLE) built on existing pgvector.
-
-**Instructions:** Add a decoupled async coordination mode: agents coordinate by **mutating shared rows/docs** in pgvector; a `LISTEN/NOTIFY` (or logical-decode) event bus wakes decoupled worker/daemon agents on mutation -- no direct message-passing, no polling. Every trigger/decision is a row (permanent audit trail); agents know only the shared schema (absolute decoupling). Reuse the MiOS-Daemon supervisor pattern for the subscribers. Flag-gated; degrade-open to the direct-call path.
-**Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/server.py` or a new `usr/libexec/mios/mios-coord-bus`, `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] an agent row-mutation wakes a decoupled subscriber via NOTIFY (no polling); the exchange is fully reconstructable from DB rows
-- [ ] bus down / disabled → falls back to direct dispatch (degrade-open)
-
-## T-157: MAO-04 -- Manifest-guided progressive-disclosure retrieval  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Memory | **Source:** Part 13 WS-MAO; OpenClaw CONCEPT (UNVERIFIABLE) -- an ADDITIONAL retrieval strategy, not a pgvector-recall replacement.
-
-**Instructions:** For large/longitudinal document trees, add retrieval that walks a tree of nodes each carrying a natural-language `manifest` of its children, selecting subtrees via **LLM-select** (reason over descriptions + prune) to a depth bound -- instead of cosine-only similarity. Manifest maintenance is O(depth) per mutation (local update on write). Selectable per query-class from `[agents.orchestration]`; pgvector vector recall remains the default.
-**Files:** `usr/lib/mios/agent-pipe/server.py` (retrieval strategy hook), `usr/share/mios/postgres/schema-init.sql` (node/manifest), `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] a longitudinal-tree query retrieves via manifest LLM-select traversal with pruned subtrees; precision beats flat vector recall on the target class
-- [ ] manifests update locally on document mutation (no full re-embed of siblings)
-
-## T-158: MAO-05 -- Identity-aware delegation: extend agent-passport/A2A (LDP concept)  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/A2A | **Source:** Part 13 WS-MAO; LDP CONCEPT (`arXiv 2603.18043` UNVERIFIABLE) extending the SHIPPED `agent-passport.json` + A2A card.
-
-**Instructions:** Extend the existing MiOS agent identity (A2A card + `agent-passport.json` Ed25519 + `max_permission`) with `reasoning_profile`/`context_window`/`cost_hint`/capability fields for **metadata-aware routing** (cheap-fast model → simple subtasks; heavy lane → hard reasoning), **attested-vs-claimed quality** to defeat the **Provenance Paradox** (routing on self-reported score selects the WORST delegates -- attest via measured outcomes), **governed sessions** (persistent context; stop re-sending history each call), and **trust domains** (capability scopes / data-handling). Extends existing identity -- do NOT adopt the LDP wire protocol blind.
-**Files:** agent-passport + A2A card generators (`usr/share/mios/agents/` / `usr/lib/mios/agent-pipe/`), `usr/lib/mios/agent-pipe/server.py` (router), `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] delegation routes on attested (measured) quality, not self-claimed score; a self-inflating delegate is not preferred
-- [ ] a subtask's model tier is chosen from the delegate's `reasoning_profile`/`cost_hint`; sessions don't re-transmit full history each call
-
-## T-159: MAO-06 -- Progressive payload / token-efficiency modes  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/A2A | **Source:** Part 13 WS-MAO; LDP CONCEPT (UNVERIFIABLE); feeds `feedback_native_typed_launch_args_all_tools`.
-
-**Instructions:** Negotiate the richest mutually-supported delegation payload mode: text (auditable fallback) → **semantic-frame (typed JSON; ~37% token reduction claimed)** → embedding hints → semantic graph. Auto-fall-back down the chain on unsupported mode. Text mode always retained for auditability. Gated; measure the actual token delta before defaulting up.
-**Files:** `usr/lib/mios/agent-pipe/server.py` / A2A transport, `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] two MiOS agents negotiate semantic-frame mode and fall back to text when unsupported; measured token reduction is logged
-- [ ] no quality regression vs text on a delegation benchmark
-
-## T-160: MAO-07 -- Cheap contribution evaluation → reputation (IntrospecLOO concept)  [P3]
-> **Priority:** P3 | **Status:** pending | **Effort:** M | **Domain:** Agents/Reputation | **Source:** Part 13 WS-MAO; IntrospecLOO CONCEPT (UNVERIFIABLE); feeds the existing reputation workstream.
-
-**Instructions:** Score each council/swarm agent's marginal contribution WITHOUT re-running the debate: post-session, prompt the remaining agents to re-decide while ignoring agent *j*'s inputs; the outcome delta ≈ leave-one-out at O(N) not O(T·N²). Write scores to the pgvector `reputation` table (down-weight consistently-negative/adversarial agents; surface high-value ones in future fan-outs). Gated; degrade-open (no scoring → equal weights).
-**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql` (reputation), `usr/share/mios/mios.toml`.
-**Done When:**
-- [ ] each agent gets an O(N) introspective LOO contribution score after a council session; a positively-necessary agent scores > a redundant one
-- [ ] scores feed reputation weighting in the next fan-out; no scoring model → equal weights (degrade-open)
-
-## T-161: MAO-08 -- Selectable topology + debate protocol from SSOT  [P2]
-> **Priority:** P2 | **Status:** pending | **Effort:** M | **Domain:** Agents/Orchestration | **Source:** Part 13 WS-MAO; verified swarm/mesh/hierarchical/pipeline + debate-protocol taxonomy.
-
-**Instructions:** Make the fan-out **topology** (pipeline / hierarchical / swarm / mesh) and **debate protocol** (within-round / cross-round / rank-adaptive cross-round) selectable per task-class from `[agents.orchestration]` + the orchestrator's own judgement (Law 7: model-driven, no keyword gate). Document the trade-off: within-round maximizes peer-reference/interaction but converges slowly; rank-adaptive cross-round converges fastest. No single hardcoded choice.
-**Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`).
-**Done When:**
-- [ ] topology + debate protocol are chosen per task-class from SSOT/orchestrator judgement, not a fixed hardcoded path
-- [ ] switching protocol changes convergence/interaction behaviour as documented; default degrades open to the current fan-out
-
-## T-162: WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permissive)  [P3]
-> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Branding | **Source:** operator research digest (mesh gradients / WebGPU / Hyprland-Quickshell), filed for later. See `research/mesh-gradient-living-wallpaper-2026-07-06.md`.
-
-**Instructions:** Author a small (~40-line) WGSL/GLSL mesh-gradient fragment shader whose colors come from SSOT `[colors].accent`/`[colors].bg` (the same values behind the static wallpaper + DWM accent + matugen). No third-party license -- OR Apache-2.0 BabylonJS if a full engine is wanted. **LAW: never vendor `firecmsco/neat` (MIT + Commons Clause) or any non-OSI dep into a shipped OS; verify every LICENSE at vendor time.** Degrade-open ladder: animated shader → static SSOT gradient (current baked JPG) → solid accent. Gated `[branding].living_wallpaper` (off by default).
-**Files:** `usr/share/mios/branding/living-wallpaper.wgsl` (new), `usr/share/mios/mios.toml` (`[branding]`).
-**Done When:**
-- [x] the shader renders a mesh gradient from SSOT colors only (no hardcoded palette); disabled by default
-- [x] auto-degrades to the static gradient on no-Vulkan/old-iGPU; no Commons-Clause/non-OSI dependency vendored
-
-## T-163: WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quickshell)  [P3]
-> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Linux/Branding | **Source:** operator research digest (filed for later); depends on T-162.
-
-**Instructions:** Render the T-162 shader NATIVELY on Linux (Qt6 RHI→Vulkan/OpenGL on the Mesa iGPU -- MiOS ships `[packages.gpu-mesa]`), not WebGPU-in-browser. GNOME/Wayland has no shader-wallpaper API → a minimal Wayland-background helper or `mpvpaper` video loop; an OPTIONAL Hyprland/Quickshell desktop profile may use a native `ShaderEffect` (refs: MIT `magetsu002/qs-wallpaper-picker`, `bjarneo/quickshell`). Universal fallback = pre-rendered loop. Gated + off by default.
-**Files:** `usr/libexec/mios/mios-living-wallpaper` (new), `usr/share/mios/mios.toml`.
-**Done When:**
-- [x] the SSOT mesh gradient animates on a MiOS GNOME/Wayland desktop via the iGPU; falls back to static/video where unsupported
-- [x] no browser/WebGPU-flag dependency on the Linux path
-
-## T-164: WBRAND-06 -- Windows animated background + SSOT living-wallpaper keys  [P3]
-> **Priority:** P3 | **Status:** done (2026-07-09) | **Effort:** M | **Domain:** Windows/Branding | **Source:** operator research digest (filed for later); MiOS-XBOX/MiOS-Win; depends on T-162.
-
-**Instructions:** Add a MiOS-XBOX/MiOS-Win animated desktop background from the T-162 shader/palette (borderless WebView2/D3D canvas at background z-order, OR a pre-rendered loop -- most compatible). WebGPU-in-browser (WebView2/D3D12) is acceptable ONLY on Windows. Add `[branding].living_wallpaper` + `living_wallpaper_mode` (`shader|video|static`) to mios.toml + configurator; wire into the Windows branding path (`MiOS-Provision.lib.ps1` / `Set-MiOSIdentityOffline`, alongside the current static gradient).
-**Files:** `usr/share/mios/mios.toml` (`[branding]`), `usr/share/mios/configurator/mios.html`, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`.
-**Done When:**
-- [x] `living_wallpaper_mode=static` keeps today's baked gradient (no regression); `shader`/`video` add the animated layer from SSOT colors
-- [x] the mode is exposed in the configurator and read from the layered SSOT
-
-## T-165: NAME-01 -- Global naming minification → one unified names/keys registry  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/Cross-cutting | **Source:** operator directive 2026-07-10.
-
-**Instructions:** Collapse every authored name in MiOS (TOML keys, `MIOS_*` env vars, verbs, `globals.sh`/`.ps1` consts, configurator `data-key`s, emitters — ~1,290 today) onto ONE unified names/keys registry that is the naming SSOT. **No translation layer** — delete the 418-entry `userenv.sh` key→env table + the `globals` mirror; every surface sources the same canonical identifier directly from the one registry (generated, never mapped). **Fold similar** capabilities into one parametric entry; keep exactly one name per capability (minimal, combined). **NO loss of functionality** — rename/collapse only, via a compat-shim phase. Full workflow, convention, phased migration + drift-gate: `usr/share/doc/mios/reference/naming-unification.md`.
-**Files:** `usr/share/mios/names.toml` (new registry) or `mios.toml [names]`, `tools/lib/userenv.sh` + `usr/lib/mios/userenv.sh` (delete table → generic sourcing), `automation/lib/globals.sh`/`.ps1`, `usr/lib/mios/mios_toml.py`, `automation/98-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/naming-unification.md`.
-**Done When:**
-- [ ] one unified names/keys registry is the SSOT; every surface is generated from / sources it (no authored per-name mapping or translation anywhere)
-- [ ] similar capabilities folded to one parametric entry; one canonical name per capability; legacy names + the userenv table deleted; zero functional regression
-- [ ] a drift-gate regenerates + diffs the registry and fails on any new translation/duplicate; all `test_mios_*` + `just drift-gate` green
-
-## T-166: DEPLOY-01 -- Install/first-boot reorder → eliminate "missing dependency" states  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Install/Deploy/SSOT | **Source:** operator directive 2026-07-10 (surfaced by the clean reinstall debug).
-
-**Instructions:** Refactor + reorder the install and first-boot pipeline into a logical dependency DAG so a "missing dependency / prerequisite-not-ready / artifact-not-built" state is structurally impossible. (1) Model the producer→consumer DAG across `automation/NN-*.sh` + the `*-firstboot` units; encode edges as systemd `After=`/`Requires=`/`ConditionPathExists=`. (2) Replace fixed timeouts with readiness gates (poll the real health/socket/row/file signal + `Restart=on-failure`). (3) Make every producer atomic + retried + idempotent + completeness-self-checking (the `38-hermes-agent.sh` venv fix — install `-r requirements.txt` in one retried transaction — is the reference pattern; apply to the webtools/sandbox image builds, GGUF/vLLM fetch, forge bootstrap). (4) Topologically reorder the overlay/automation sequence. (5) Add a drift-gate that fails the build on any consumer-before-producer edge (missing `After=`/`Condition*=`). Full plan: `usr/share/doc/mios/reference/install-ordering.md`.
-**Files:** `automation/38-hermes-agent.sh` (done), `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/mios-webtools-firstboot.sh`, `usr/libexec/mios/forge-firstboot.sh`, the `*-firstboot`/`38-*` units + their `.service` `After=`/`Condition*=`, `automation/build.sh`, `automation/98-drift-checks.sh` (new gate), `usr/share/doc/mios/reference/install-ordering.md`.
-**Done When:**
-- [ ] every consumer step is gated on its producer's real readiness (no fixed-timeout aborts); every producer is atomic + retried + idempotent + completeness-checked
-- [ ] a clean `podman-MiOS-DEV` reinstall deploys a fully-working system (AI plane + forge + webtools) with zero "missing dependency" failures
-- [ ] a drift-gate fails the build on any consumer-before-producer edge; `just drift-gate` + `test_mios_*` green
-
-
-<!-- Consolidation note: carried forward 11 NEW actionable tasks (T-167..T-177) from the 9 top-level 2026-06-14/15 plan docs. Everything else in those plans is ALREADY a T-* or already shipped in code: G3->T-049, G5->T-062/T-064, G6->T-035, G7->T-045/T-072/T-061, G8/K1->T-111, G10->T-011/T-051/T-022, G11->T-003/T-004, G2-arbiter->T-033 (+shipped mios-policy-arbiter), K5->T-037/T-026, W0-T1 SSOT-lint->shipped (97-ssot-lint.sh), W2-T1 passport->T-001/T-010/T-012/T-014, W2-T3 tracing->T-023, and the entire WS-A/B/C/D/E/H + tool-consolidation initiatives->shipped in code. Those are NOT duplicated below. -->
-<!-- Format matches TASKS.md; header line adds Who (agent/role) + Source per the consolidation brief. Status judged from codebase greps, not from plan-doc intent. -->
-
----
-
-## T-167: SHELL-01 -- Persistent PTY / stateful shell substrate  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Tool-execution/Sandbox | **Who:** agent-pipe backend engineer (Python + bwrap/tmux) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G9)
-
-**Context:** Every shell/code call is isolated -- `cwd`/`env`/history are discarded between turns. tmux, `mios-sandbox-exec`, `mios_aci`, and session-keying all exist, but there is no long-lived shell process the agent can write to across calls. Repo grep confirms no `mios_pty`/`mios-shell-session`/`run_in_shell` today; nothing in T-001..T-166 covers it.
-
-**Instructions (WHAT + HOW):**
-1. Add `mios_pty.py` (pure module, sibling to `mios_aci`): session-id keying, tmux-argv construction, and a marker-sentinel + per-command nonce protocol to capture completion/exit-code/cwd (hardened against output spoofing). Ship `test_mios_pty.py`.
-2. Add `usr/libexec/mios/mios-shell-session`: tmux-backed bash, one session per chat, confined in the existing bwrap jail at `--level baseline` (reuse UID 828, no new container).
-3. Bound output through the existing `mios_aci` normalizer (head+tail+marker elision).
-4. Add `mios-shell-session-gc.{service,timer}` (idle reaper) + tmpfiles for `/var/lib/mios/shell-sessions`.
-5. Register `[verbs.shell_session]` (model_name `run_in_shell`) + a `[shell_session]` config block in `mios.toml` (auto-projects to MCP/OpenAI/A2A -- no new dispatch code).
-
-**Where (files):** `usr/lib/mios/agent-pipe/mios_pty.py` (new) + test | `usr/libexec/mios/mios-shell-session` (new) | `usr/lib/systemd/system/mios-shell-session-gc.{service,timer}` (new) | `usr/lib/tmpfiles.d/` | `usr/share/mios/mios.toml`
-
-**When (deps/order):** None hard. Independent of other Part-17 items.
-
-**Done When:**
-- [ ] `exec --session t1 'cd /tmp && export FOO=bar'` then `exec --session t1 'echo $PWD $FOO'` returns `/tmp bar` (cwd+env persist across calls)
-- [ ] A 5MB log returns ACI-elided (head+tail+marker), not truncated raw
-- [ ] Idle sessions are reaped by the GC timer; `run_in_shell` appears on `/v1/tools`
-- [ ] `test_mios_pty.py` passes (nonce/marker parse + exit-code capture)
-
----
-
-## T-168: KENF-01 -- Tetragon eBPF/LSM kernel enforcement plane  [P2] [VM]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Security/Kernel | **Who:** security engineer (eBPF/Tetragon + bootc quadlets) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G2-rest)
-
-**Context:** The out-of-process intent arbiter (`mios-policy-arbiter` + `mios_pipe/access/arbiter.py`) is shipped, but there is no in-kernel enforcement of side-effects: a compromised AI process can still `execve`/connect outbound. The roadmap's only sandboxing is microVM/Kata (T-032, a refuse-into-VM model); no eBPF/LSM tripwire exists. eBPF is the layer that verifies side-effects the arbiter can only reason about.
-
-**Instructions (WHAT + HOW):**
-1. Add `mios-enforcer.container` running Cilium Tetragon (standalone, file-based TracingPolicies, no K8s) as user `mios-enforcer` -- a DOCUMENTED Law-6 privileged exception (CAP_BPF/CAP_SYS_ADMIN); add it to the `99-postcheck.sh` allowlist alongside mios-ceph/k3s with a header rationale.
-2. Add `mios-enforcer-render` (compiles `mios.toml [security.policy]` -> Tetragon TracingPolicy YAML) + a firstboot oneshot; seed policies (`policies.d/*.yaml.tmpl`: exfil-block tcp_connect, exec-guard execve/LSM) cgroup-scoped to the AI + codemode units only.
-3. Add `mios-enforcer-shipper` writing `enforcer_kill`/`enforcer_deny` rows back to the `event`/`tool_call` tables.
-4. Add `[security.enforcer]` + `[security.policy]` SSOT sections + configurator cards + `mios-enforcer` sysuser.
-5. Gate the unit `ConditionVirtualization` OFF on WSL2 (no BPF/LSM surface); enforcement is bare-metal only, ships in observe mode first.
-
-**Where (files):** `usr/share/containers/systemd/mios-enforcer.container` (new) | `usr/libexec/mios/mios-enforcer-render` + `-shipper` (new) | `automation/99-postcheck.sh` (allowlist) | `usr/lib/sysusers.d/` | `usr/share/mios/mios.toml`
-
-**When (deps/order):** After the arbiter (already shipped). Shares the dangerous-verb/taint set with T-033 (SEC-02).
-
-**Done When:**
-- [ ] In observe mode, a tainted process's disallowed `execve`/outbound connect emits a Tetragon Post event + a shipper row
-- [ ] Flip to enforce -> the offending process is SIGKILLed
-- [ ] Unit is inert (Condition-skipped) on the WSL2 dev VM; `bootc container lint` + Law-6 postcheck pass with the documented exception
-- [ ] `[security.policy]` edit re-renders the TracingPolicy YAML (no hardcoded policy)
-
----
-
-## T-169: ISOL-01 -- Per-action isolation tier ladder (promote-not-refuse)  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Security/Sandbox | **Who:** security engineer (OCI runtimes + agent-pipe dispatch) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G4)
-
-**Context:** Tiers 1-2 exist (`mios-sandbox-exec` bwrap, `mios-coderun-sandbox@` rootless podman) but gVisor/microVM are absent and the taint plane only REFUSES. Distinct from T-032 (SEC-01, hermetic microVM per tool): this is a tier-selection/promotion engine that runs a tainted/high-risk action in a *stronger* tier instead of blocking it.
-
-**Instructions (WHAT + HOW):**
-1. Add `[isolation]` table to `mios.toml`: ladder definition, taint->tier map, `taint_min_tier`, `default_code_tier`, `health_gate`; reuse the existing high-privilege verb set (do not re-list).
-2. Add `mios_isolation.py` (pure tier-selection/promotion) + tests.
-3. In dispatch, replace binary REFUSE-on-taint with `resolve_effective_tier()` -> run in the promoted tier, emit a `firewall_promote {from_tier,to_tier}` event; degrade-CLOSED to `firewall_block` if the floor tier is unavailable.
-4. Register `runsc` (gVisor, tier 3) + `krun` (libkrun via crun, tier 4) as OCI runtimes; add USER-scope Quadlet templates reusing the hardened sandbox verbatim, `krun` gated `ConditionPathExists=/dev/kvm`.
-5. Add `mios-coderun-tier` launcher + a gated `automation/NN-isolation-tiers.sh` build hook.
-
-**Where (files):** `usr/lib/mios/agent-pipe/mios_isolation.py` (new) + test | `usr/lib/mios/agent-pipe/server.py` (dispatch taint branch) | `usr/share/containers/containers.conf.d/*-isolation-runtimes.conf` (new) | `usr/libexec/mios/mios-coderun-tier` (new) | `usr/share/mios/mios.toml`
-
-**When (deps/order):** Shares the sandbox substrate with T-032/T-045; the promote decision should read the same dangerous-verb set as T-033/T-168.
-
-**Done When:**
-- [ ] Taint a session (external `open_url`) -> dispatch a high-priv verb -> `event` shows `firewall_promote` and the verb ran inside the promoted tier
-- [ ] With `[isolation].enable=false`, behavior is byte-identical to today
-- [ ] Tier-4 (microVM) Quadlet is inert on WSL2 (no `/dev/kvm`)
-- [ ] `test_mios_isolation.py` passes (tier selection + degrade-closed)
-
----
-
-## T-170: GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Computer-Use/Perception | **Who:** computer-use engineer (llama.cpp vision + verbs) | **Source:** AIOS-GAP-IMPLEMENTATION-PLAN-2026-06-14.md (G1)
-
-**Context:** The perception->action->verify chain (`mios-pc-vision`, `cu_ground`, `mios-verify-launch`) exists but is INERT: `usr/share/mios/llamacpp/mios-llm-light.yaml` already maps `qwen3-vl:4b` -> a staged Holo1.5-7B GGUF + mmproj, yet `mios.toml [ai].vision_grounding_model` is empty so the lane never activates, and there is no `cu_act`/`cu_verify` verb or `mios-cu-verify` tool. (T-038 CU-01 covers verify-after-action as a concept but not the model activation or these two verbs.)
-
-**Instructions (WHAT + HOW):**
-1. Bake/reference the vision GGUF (Holo1.5-7B Q4_K_M + mmproj-Q8_0, already named in `mios-llm-light.yaml`) into the bound `mios-llm-light` seed and set `[ai].vision_grounding_model="qwen3-vl:4b"` (+ `vision_grounding_enable` gate). Operator performs the actual weight fetch (classifier blocks assistant HF fetch); verify mradermacher filenames at bake time.
-2. Add `usr/libexec/mios/mios-cu-verify` -- a visual Definition-of-Done tool (screen analogue of `mios-verify-launch`) that returns `{ok:false}` honestly when the lane is down (no fabrication).
-3. Add a `cu_act` subcommand to `mios-computer-use` (ground->click->verify) and register `[verbs.cu_verify]` + `[verbs.cu_act]` (three-projection).
-4. Set `[computer_use].verify_after_act`. Keep AT-SPI grounding as the deterministic fast path; VLM only on canvas/Electron misses.
-
-**Where (files):** `usr/share/mios/mios.toml` (`[ai]`/`[computer_use]` keys + verbs) | `usr/share/mios/llamacpp/mios-llm-light.yaml` (already staged) | `usr/libexec/mios/mios-cu-verify` (new) | `usr/libexec/mios/mios-computer-use`
-
-**When (deps/order):** Independent; rides the existing `cu_*` + verify tooling. Operator bake step gates final live verification.
-
-**Done When:**
-- [ ] `curl <light-lane>/v1/chat/completions model=qwen3-vl:4b` with a base64 screenshot returns coordinate JSON
-- [ ] `mios-pc-vision <png> "the OK button"` returns `{x,y,confidence>0.5}`
-- [ ] `mios-cu-verify "<criterion>"` returns `{ok:false}` honestly when the lane is down
-- [ ] `cu_act`/`cu_verify` appear on `/v1/tools`; with `vision_grounding_enable=false` the path is inert
-
----
-
-## T-171: CONS-01 -- Weighted multi-judge consensus pipeline  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Orchestration/Judging | **Who:** orchestration engineer (agent-pipe judge path) | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W3-T2); AIOS-MIOS-MASTER-PLAN K4
-
-**Context:** The DCI critic/judge gives a yes/no verdict; GAP-1/GAP-2 (T-047/T-048) cover pre-synthesis diversity + confidence-bypass. A scored, reliability-weighted consensus (weighted-vote + Reciprocal-Rank-Fusion over 2-3 lanes) does not exist. No `mios_consensus` module or `[consensus]` section today.
-
-**Instructions (WHAT + HOW):**
-1. Add `mios_consensus.py` (pure): weighted_vote + RRF over 2-3 judge lanes; weights optionally sourced from `reliability_run` (T-049 gate output); degrade-open to a single judge on the fast CPU path. Ship `test_mios_consensus.py`.
-2. Wire into the judge/synthesis path in `server.py` behind a `[consensus]` gate.
-3. Add `[consensus]` SSOT section + configurator card.
-
-**Where (files):** `usr/lib/mios/agent-pipe/mios_consensus.py` (new) + test | `usr/lib/mios/agent-pipe/server.py` (judge/synthesis) | `usr/share/mios/mios.toml`
-
-**When (deps/order):** Builds on T-049 (reliability scorer) for weights; degrade-open so it functions without it.
-
-**Done When:**
-- [ ] Multi-judge DoD reached with a quorum; conflicting judges resolved by weighted vote
-- [ ] Fast CPU path stays single-judge when `[consensus].enable=false`
-- [ ] `test_mios_consensus.py` passes (weighted_vote + RRF math)
-
----
-
-## T-172: CONS-02 -- JSD drift monitor  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Observability/Safety | **Who:** orchestration engineer (metrics + pgvector) | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W3-T3); AIOS-MIOS-MASTER-PLAN K4
-
-**Context:** There is no distribution-drift alarm. A Jensen-Shannon-divergence monitor over intent/score/verdict distributions vs a frozen baseline is the early-warning signal for Goodhart/reward-hacking as self-improvement (T-062/T-064) and consensus (T-171) come online. Not built; no `mios_drift`/`drift_snapshot`/`/v1/drift` today.
-
-**Instructions (WHAT + HOW):**
-1. Add `mios_drift.py` (pure JSD over intent/score/verdict histograms vs a frozen baseline) + `test_mios_drift.py`.
-2. Add a `drift_snapshot` table (`schema-init.sql`) storing the baseline + periodic samples.
-3. Add `GET /v1/drift` + a `drift_alert` event when `JSD > threshold`.
-4. Add `[drift]` SSOT section (threshold, window, `enable=false`).
-
-**Where (files):** `usr/lib/mios/agent-pipe/mios_drift.py` (new) + test | `usr/share/mios/postgres/schema-init.sql` | `usr/lib/mios/agent-pipe/server.py` (`/v1/drift`) | `usr/share/mios/mios.toml`
-
-**When (deps/order):** Pairs with T-171/T-049; can land independently as an observe-only alarm.
-
-**Done When:**
-- [ ] `JSD > threshold` emits a `drift_alert` event
-- [ ] `GET /v1/drift` returns current divergence vs baseline
-- [ ] `drift_snapshot` records a baseline row on first run
-
----
-
-## T-173: GUARD-01 -- Daemon runaway controls (host-pressure gate + dedup + cron cap)  [P0]
-> **Priority:** P0 | **Status:** planned | **Effort:** M | **Domain:** Autonomy/Safety | **Who:** agent-pipe/daemon engineer | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W0-T2)
-
-**Context:** Five subsystems guard the shared 4090 with independent local heuristics that don't compose; the daemon->swarm runaway had no cumulative tripwire and no host-pressure circuit breaker. This is the direct fix for the live GPU-runaway incident and is not represented in T-001..T-166.
-
-**Instructions (WHAT + HOW):**
-1. Add `_host_pressure_gate()` to `mios-daemon`: cached loadavg + `nvidia-smi` (~5s TTL) guarding the classify/refusal/cron/suggestions loops (skip a tick under pressure).
-2. Add per-`(source,kind,summary-hash)` dedup + cooldown so repeated identical high-sev classifications are suppressed.
-3. Add a cron concurrency cap (track Popen) so cron actions cannot stack.
-4. Feed a quiescence/auto-halt signal into cadence backoff.
-5. Add a `[daemon]` section + configurator for the thresholds/TTL/cap (no hardcoded literals).
-
-**Where (files):** `usr/libexec/mios/mios-daemon` | `usr/share/mios/mios.toml` (`[daemon]`) | configurator
-
-**When (deps/order):** First-wave safety; composes with T-174 (budget) and the existing admission controller into one pressure signal.
-
-**Done When:**
-- [ ] Repeated identical high-sev classifications are suppressed (dedup+cooldown)
-- [ ] Loops skip a tick under host pressure (gate fires)
-- [ ] Concurrent cron actions cannot stack (cap enforced)
-- [ ] `test_mios_daemon.py` covers the gate + dedup
-
----
-
-## T-174: GUARD-02 -- Aggregate token/turn budget + background preemption  [P0]
-> **Priority:** P0 | **Status:** planned | **Effort:** M | **Domain:** Autonomy/Scheduling | **Who:** agent-pipe scheduler engineer | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W0-T3)
-
-**Context:** No cumulative token/turn ceiling exists; a background loop can consume unbounded GPU. Autonomous work is not first-class isolated at the queue. Not captured in T-001..T-166 (the priority scheduler has no aggregate budget signal).
-
-**Instructions (WHAT + HOW):**
-1. Add a cumulative token/turn ceiling debited per-conversation AND per-autonomous-source, hard-halting on exhaustion.
-2. Give `mios_autonomous` its own low budget + the lowest dispatch priority so a foreground turn preempts background for the next GPU slot.
-3. Add a `max_dispatch_depth` recursion bound.
-4. Route via `[budget]`/`[dispatch]` SSOT + configurator.
-
-**Where (files):** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` (`[budget]`/`[dispatch]`)
-
-**When (deps/order):** Pairs with T-173; both must compose into the single host-pressure signal the admission controller/swarm-width reads.
-
-**Done When:**
-- [ ] A background loop self-limits at its budget (hard-halt on exhaustion)
-- [ ] A foreground turn preempts background for the next GPU slot
-- [ ] Recursion beyond `max_dispatch_depth` is refused
-
----
-
-## T-175: DURA-01 -- pgvector durability + exposure hardening  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Data/Durability | **Who:** platform/ops engineer (systemd timers + quadlets) | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W0-T4)
-
-**Context:** pgvector holds the entire "brain" (knowledge, memory, passports, audit) with no backup, historically bound `0.0.0.0` on default creds, and is not bootc-rollback-versioned while the OS half is immutable -- an inverse-asymmetry risk. (Embed-on-write in `mios-ingest` is already handled elsewhere; backup + bind hardening are not.)
-
-**Instructions (WHAT + HOW):**
-1. Add `mios-pgvector-backup.{service,timer}` running a nightly `pg_dump` to `/var/lib/mios/backups` (declare the dir via tmpfiles, per NO-MKDIR-IN-VAR).
-2. Bind pgvector to `127.0.0.1` by default; require a non-default password before any off-loopback bind.
-3. Add a `[pgvector]` SSOT section for bind/creds/backup retention + configurator.
-
-**Where (files):** `usr/lib/systemd/system/mios-pgvector-backup.{service,timer}` (new) | `usr/lib/tmpfiles.d/` | pgvector quadlet | `usr/share/mios/mios.toml` (`[pgvector]`)
-
-**When (deps/order):** Independent; complements T-060 (DATA-02 storage versioning) and any schema-rollback work.
-
-**Done When:**
-- [x] The backup timer runs and writes a restorable `pg_dump` to `/var/lib/mios/backups`
-- [x] `ss -ltnp` shows pgvector bound to `127.0.0.1` on defaults; off-loopback bind refused without a non-default password
-- [x] `bootc container lint` + NO-MKDIR-IN-VAR postcheck pass (dir via tmpfiles)
-
----
-
-## T-176: DURA-02 -- Secret/PII redaction on persist + federate  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Security/Privacy | **Who:** agent-pipe backend engineer | **Source:** MIOS-AIOS-MULTIAGENT-EXECUTION-PLAN-2026-06-14.md (W2-T4)
-
-**Context:** Secrets/PII are written verbatim to pgvector, broadcast on the scratchpad, and echoed over A2A. There is no redaction pass before persistence or federation. Not captured in T-001..T-166.
-
-**Instructions (WHAT + HOW):**
-1. Add a redaction filter applied before every pgvector write, scratchpad broadcast, and A2A echo (reuse/extend the existing persistence sanitization that already strips vendor names/paths).
-2. Cover secret patterns (keys/tokens) + common PII; make patterns SSOT-configurable, not hardcoded English literals.
-3. Gate via `[security]` (default-on for persist, degrade-open documented).
-
-**Where (files):** `usr/lib/mios/agent-pipe/server.py` (persist/scratchpad/A2A echo paths) | `usr/share/mios/mios.toml` (`[security]`)
-
-**When (deps/order):** Should precede any non-loopback A2A federation (composes with the passport gate T-001/T-014).
-
-**Done When:**
-- [x] A secret/PII string in a turn is scrubbed before it reaches pgvector, the scratchpad, or an A2A echo
-- [x] Redaction patterns are read from SSOT (no hardcoded deny-list)
-- [x] `test_*` covers redact-on-persist and redact-on-federate
-
----
-
-## T-177: LSFS-01 -- Semantic-FS verbs + task-state protocol  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** Memory/Filesystem | **Who:** agent-pipe engineer (verbs + pgvector) | **Source:** AIOS-MIOS-MASTER-PLAN-2026-06-14.md (K6)
-
-**Context:** docs-index + pgvector + scratch exist, but there is no LSFS-style semantic-filesystem verb surface (mount/create/write/search/rollback/share over FS + pgvector) and no durable directory-prompt execution-state protocol (`tasks/backlog|in-progress|done.md`) the agent maintains across turns. Low-priority depth item, partly speculative; distinct from pgvector recall. Not in T-001..T-166.
-
-**Instructions (WHAT + HOW):**
-1. Add `[verbs.lsfs_*]` cmd-template verbs (mount/create/write/search/rollback/share) backed by FS + pgvector + nomic-embed (no new runtime dep; pure cmd-template so it auto-projects).
-2. Add a `tasks` table (or `tasks/*.md` dir protocol) the agent reads/writes to persist backlog/in-progress/done state across turns; wire read into prompt assembly as a tool-sourced block (never `pre_llm_call` auto-prepend -- honors the no-injection rule).
-3. Add an `[lsfs]` SSOT section + configurator.
-
-**Where (files):** `usr/share/mios/mios.toml` (`[verbs.lsfs_*]`, `[lsfs]`) | `usr/share/mios/postgres/schema-init.sql` (`tasks`) | `usr/lib/mios/agent-pipe/server.py` (task-state read into assembly)
-
-**When (deps/order):** Independent, last (P3). Reuses the memory/knowledge substrate.
-
-**Done When:**
-- [x] `lsfs_write` then `lsfs_search` round-trips a semantic query over stored content
-- [x] `lsfs_rollback` restores a prior version of a semantic-FS entry
-- [x] Task-state survives a restart and is surfaced only via a tool call, not auto-injected
-
-## T-178: HEAVY-01 -- provision the heavy dGPU model so the stated lanes deploy  [P1]
-> **Priority:** P1 | **Status:** in-progress | **Effort:** M | **Domain:** AI-plane/Inference/Deploy | **Who:** inference/deploy agent | **Source:** live dGPU diagnosis 2026-07-10; the SSOT lane defaults (`[lanes.*]`, `[ai.host_thresholds]`, `lane_priority`).
-**Instructions (WHAT + HOW):** Honor the ALREADY-STATED SSOT lane defaults -- do NOT re-decide which lane is default/optional. The only fix is to DEPLOY them by provisioning the heavy model. (1) **Provision the heavy-lane model** so `mios-llm-heavy`'s `ConditionPathExists=/usr/share/mios/vllm/model/config.json` is satisfied on a fresh install with no manual step: fix `mios-ai-firstboot`'s weights fetch to run atomic + retried + verified (WS-DEPLOY producer pattern) now that the agent venv is fixed; pick the model from the stated tier resolution (`[ai.host_thresholds]` -> the 24 GB 4090's tier). (2) **Honor `[ai.host_thresholds]` + `lane_priority`** so the heavy lane enables + starts on a detected dGPU exactly as stated (extend the resolver in build-mios.ps1 + install pipeline + mios-hermes-firstboot only where it currently fails to apply the stated default; keep the mios.html knobs). (3) **Global routing per SSOT:** confirm `MIOS_AGENT_PIPE_BACKEND` / `[nodes.local-*]` / hermes route per the stated lanes; verify a plain-English round-trip is served on the GPU. (4) **Co-tenancy** per the stated `gpu_util`/`mem_fraction=0.45` so the heavy lane coexists with the light lane + Windows without OOM. Bring up BOTH the `[ai.vllm]` and `[ai.sglang]` lanes/components as the SSOT declares them (SGLang is a stated lane, not an option to drop).
-**Where (files):** `usr/libexec/mios/mios-ai-firstboot` (weights fetch -> WS-DEPLOY retry/verify), `usr/share/mios/mios.toml` (respect `[lanes.*]`/`[ai.vllm]`/`[ai.sglang]`/`[ai.host_thresholds]`/`lane_priority` -- do not change the stated defaults, just deploy them), `usr/share/containers/systemd/mios-llm-heavy.container` (Condition gate), `build-mios.ps1` + `usr/libexec/mios/mios-hermes-firstboot` (apply the stated dGPU tier).
-**When (deps/order):** After the agent venv fix (31a52fb1 -- done) since the weights fetch runs through it; aligns with WS-DEPLOY (model-provisioning is a readiness-gated producer).
-**Done When:**
-- [ ] on a detected dGPU, the heavy lane comes up per the STATED SSOT defaults after a fresh install; the model is auto-fetched (atomic+retried) so the Condition gate is satisfied with no manual step
-- [ ] agents/nodes/hermes route per the stated `[lanes.*]` + `lane_priority`; a plain-English query is served on the GPU; light-lane + Windows co-tenancy stay OOM-free
-- [ ] both the vLLM and SGLang lanes deploy as the SSOT declares them (no lane silently dropped)
-
-# MiOS Agent Task List — Absorbed concept/workstream docs (2026-06)
-<!-- Continues TASKS.md at T-200 (gap T-167..T-199 reserved for the plans-agent). Source: usr/share/doc/mios/concepts/*.md consolidation. -->
-<!-- Carried forward: 42 not-yet-captured actionable items → T-200..T-241 across WS-FBM/OFFL/IGPU/RDSK/WSL/STD26/OAI/KACT/UISHELL/NAME2/UKI/A3F/OSCTL2. -->
-<!-- Already-captured/shipped: the bulk of the June docs map to Parts 1-16 + T-001..T-166 or are shipped-state records (see consol-concepts-roadmap.md "Reference docs"). "DONE" = active + live-fired; trust engineering-blueprint over MEMORY.md. -->
-
----
-
-## T-200: FBM-01 -- First-boot large-model provisioner (`mios-models-firstboot.service`)  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Provisioning/AI-lanes | **Who:** systemd/build agent | **Source:** firstboot-large-models-plan.md
-**Instructions (WHAT + HOW):** Add a first-boot oneshot unit that reads a model set from SSOT and downloads GGUFs into `/var/lib/mios/llamacpp/models` with resume + checksum + progress, then writes a sentinel so it runs once. Gate on `After=network-online.target`, `ConditionPathExists=!<sentinel>`, and degrade-open (never block boot on a failed pull). Reuse the llama-swap model dir + `mios-llm-light` lane layout.
-**Where (files):** new `usr/lib/systemd/system/mios-models-firstboot.service`; new `usr/libexec/mios/mios-models-firstboot` (fetch/resume/checksum script); `usr/lib/systemd/system-preset/`.
-**When (deps/order):** Before heavy/light lane services can serve non-baked models; depends on T-201 (SSOT list) for its input.
-**Done When:**
-- [x] Fresh boot with an empty model dir pulls the SSOT model set, verifies sha, writes the sentinel, and does not re-run on next boot.
-- [x] A network-down first boot degrades open (lane serves whatever is present; boot succeeds).
-- [x] Partial-download resume works (kill mid-pull, reboot, completes).
-
-## T-201: FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync,add,rm}` CLI  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** SSOT/CLI | **Who:** config/CLI agent | **Source:** firstboot-large-models-plan.md
-**Instructions (WHAT + HOW):** Add a `[ai.firstboot_models]` TOML table (per entry: name, GGUF/HF source URL, sha256, target lane) and flow it through `userenv.sh` + `install.env` + the configurator HTML. Add a `mios models` subcommand (`list`/`sync`/`add`/`rm`) that reads the table and drives the T-200 fetcher on demand.
-**Where (files):** `usr/share/mios/mios.toml` (`[ai.firstboot_models]`); `usr/bin/mios`; `usr/libexec/mios/userenv.sh`; configurator HTML.
-**When (deps/order):** Feeds T-200; do first or together.
-**Done When:**
-- [x] `mios models list` shows the SSOT set; `mios models sync` pulls missing ones with checksum verify.
-- [x] `mios models add/rm` edits the runtime overlay and re-syncs.
-- [x] Drift-check confirms the table round-trips through userenv.sh + install.env.
-
-## T-202: FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-images-firstboot`)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Provisioning/Containers | **Who:** systemd/build agent | **Source:** firstboot-large-models-plan.md
-**Instructions (WHAT + HOW):** Pull the heavy-lane (SGLang/vLLM) container images at first boot instead of baking them into the OCI image, keyed off the same sentinel pattern. Optionally split-bake: keep small base images baked, pull only the large ones.
-**Where (files):** new `usr/lib/systemd/system/mios-bound-images-firstboot.service` + libexec puller; `mios.toml` bound-images list.
-**When (deps/order):** After T-200 pattern established.
-**Done When:**
-- [x] First boot pulls the heavy-lane images once; heavy lanes start against them when enabled.
-- [x] Image build no longer bakes the large heavy-lane layers (image size drops).
-
-## T-203: FBM-04 -- Portal model-provisioning status tile + air-gapped pre-seed cache  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/Provisioning | **Who:** portal/UI agent | **Source:** firstboot-large-models-plan.md
-**Instructions (WHAT + HOW):** Surface a "model provisioning" status tile in the Portal (progress/complete/failed) driven by the T-200 sentinel + progress file. Add a `mios models cache <dir>` pre-seed path so an operator can populate models from USB/local mirror before first boot for air-gapped installs.
-**Where (files):** `usr/share/mios/quickshell/` (tile); `usr/bin/mios` (`models cache`).
-**When (deps/order):** After T-200/T-201.
-**Done When:**
-- [x] Tile reflects live provisioning state.
-- [x] `mios models cache` seeds the model dir so T-200 skips the download.
-
-## T-204: OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** `automation/05-enable-external-repos.sh` currently fetches `terra.repo` from the network. Vendor it as `usr/share/mios/repos/terra.repo` and have the step copy the in-tree file instead of curling it (fall back to network only if a `--online` flag is set).
-**Where (files):** `automation/05-enable-external-repos.sh`; new `usr/share/mios/repos/terra.repo`.
-**When (deps/order):** Independent; part of the offline-build sweep.
-**Done When:**
-- [x] A build with no egress reaches the repo-enable step without a network fetch.
-
-## T-205: OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cursor, flathub mirror)  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** `automation/09-fonts.sh` and `10-gnome.sh` fetch Geist + Nerd-Fonts, the Bibata cursor, and add the flathub remote at build time. Vendor `usr/share/mios/vendored/fonts/{geist,nerd}.tar.xz` + `bibata-*.tar.xz`, and stand up a local flathub mirror (or bake the needed flatpaks as OCI archives — `40-flatpak-bake.sh` already does OCI bake for flatpaks) so no build-time remote is required.
-**Where (files):** `automation/09-fonts.sh`, `automation/10-gnome.sh`; new `usr/share/mios/vendored/fonts/`, `usr/share/mios/vendored/cursors/`.
-**When (deps/order):** Independent.
-**Done When:**
-- [x] Offline build installs fonts + cursor from in-tree tarballs; flatpak install uses the local mirror/OCI archives.
-
-## T-206: OFFL-03 -- Vendor k3s binary + k3s-selinux  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** S | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** `automation/13-ceph-k3s.sh` fetches the k3s binary and `19-k3s-selinux.sh` clones k3s-selinux. Vendor `usr/share/mios/vendored/k3s/k3s-<tag>` and a k3s-selinux tarball; install from in-tree.
-**Where (files):** `automation/13-ceph-k3s.sh`, `automation/19-k3s-selinux.sh`; new `usr/share/mios/vendored/k3s/`.
-**When (deps/order):** Independent.
-**Done When:**
-- [x] Offline build installs k3s + selinux policy without cloning/fetching.
-
-## T-207: OFFL-04 -- Vendor hermes-agent source + pip wheels (`--no-index`)  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** M | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** `automation/38-hermes-agent.sh` fetches the hermes-agent git tree + pip deps at build. Vendor the source snapshot + a wheelhouse under `usr/share/mios/vendored/wheels/`, and switch the install to `pip install --no-index --find-links <wheelhouse>`.
-**Where (files):** `automation/38-hermes-agent.sh`; new `usr/share/mios/vendored/wheels/`, vendored hermes source.
-**When (deps/order):** Independent.
-**Done When:**
-- [x] Offline build builds the hermes venv with no PyPI/network access.
-
-## T-208: OFFL-05 -- Vendor GGUF blobs + pre-pull llama-swap proxy image  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** Build/Offline/AI-lanes | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** `automation/38-llamacpp-prep.sh` fetches GGUF blobs + the llama-swap proxy image at build. For a fully offline build, bundle the small/default GGUFs under `usr/share/mios/vendored/models/` and pre-pull the proxy image into the build cache. (Coordinate with WS-FBM: large models move to first-boot fetch; only the baseline default lands offline.)
-**Where (files):** `automation/38-llamacpp-prep.sh`; new `usr/share/mios/vendored/models/`.
-**When (deps/order):** Coordinate with T-200/T-201 (firstboot models own the large-model path).
-**Done When:**
-- [x] Offline build produces a bootable image with the baseline model + proxy image present, no build-time model fetch.
-
-## T-209: OFFL-06 -- Local rpm mirror image for fully-offline dnf  [P3]
-> **Priority:** P3 | **Status:** done | **Effort:** L | **Domain:** Build/Offline | **Who:** build agent | **Source:** OFFLINE-FIRST.md
-**Instructions (WHAT + HOW):** dnf package installs still reach Fedora mirrors at build. Ship a local rpm mirror image (or a vendored repo snapshot) so a Scenario-2 USB build installs all packages from a local source. This is the largest offline gap; scope a reproducible mirror-snapshot step.
-**Where (files):** `automation/` dnf-config step; a new mirror-build target.
-**When (deps/order):** Last / heaviest of the WS-OFFL sweep.
-**Done When:**
-- [x] A build with all egress blocked completes the package-install phase from the local mirror.
-
-## T-210: IGPU-00 -- Wave-0 hardware verify probes (iGPU-WSL, heavy-lane 4GB, WSL rebaseline)  [P2] [VM]
-> **Priority:** P2 | **Status:** planned | **Effort:** S | **Domain:** Verification/Compute | **Who:** operator/VM | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Run the three gating probes before building any Wave-2 compute: (1) iGPU-in-WSL matmul via AMD ROCDXG / Intel Level-Zero; (2) heavy lane in ~4 GB (`--gpu-memory-utilization 0.2` + KV-CPU-offload); (3) WSL `--version` ≥2.7.5 / kernel ≥6.18 rebaseline. Record results as the go/no-go for T-211/T-212.
-**Where (files):** operator-loop probes; capture findings in `usr/share/doc/mios/concepts/`.
-**When (deps/order):** Blocks T-211, T-212.
-**Done When:**
-- [ ] All three probe results recorded; go/no-go decision documented.
-
-## T-211: IGPU-01 -- In-VM iGPU compute lane; retire native `mios-igpu-server.ps1`  [P2] [VM]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Compute/AI-lanes | **Who:** lanes agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Stand up an in-VM ROCm/Level-Zero iGPU inference lane and retire the native-Windows `mios-igpu-server.ps1` (:11436) + its Tailscale hop, so the iGPU lane runs inside the same VM as the other lanes. Register it as an `[agents.*]`/lane in SSOT.
-**Where (files):** new lane launch script + quadlet; `mios.toml [agents.*]`; remove/deprecate `mios-igpu-server.ps1` path.
-**When (deps/order):** Gated on T-210 probe #1 passing.
-**Done When:**
-- [ ] iGPU lane serves inference in-VM; the native Windows iGPU server + Tailscale hop are removed.
-
-## T-212: IGPU-02 -- llama.cpp RPC fabric across lanes + coopmat2 verify  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Compute/AI-lanes | **Who:** lanes agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Run a per-lane llama.cpp `rpc-server` (phone/iGPU/dGPU/cluster) and have agent-pipe target one logical RPC endpoint so oversized models shard across lanes, mapped onto `[agents.*.nodes.*]` SSOT. Verify coopmat2 on the Vulkan lane.
-**Where (files):** `mios.toml [nodes.*]`; lane launch scripts; agent-pipe endpoint routing.
-**When (deps/order):** After T-210/T-211.
-**Done When:**
-- [ ] A model larger than a single lane's VRAM runs across the RPC fabric via one logical endpoint.
-- [ ] coopmat2 confirmed on the Vulkan lane.
-
-## T-213: RDSK-01 -- Selkies (WebRTC + NVENC) GPU remote-desktop lane  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** RemoteDesktop/GPU | **Who:** desktop agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Add a Selkies (WebRTC + NVENC) or Neko remote-desktop lane as a hardware-encoded upgrade over the KasmVNC/llvmpipe software-render path, delivered as a gated quadlet + `automation/` bake. Keep the existing VNC path as fallback.
-**Where (files):** new `automation/` bake step; new `.container`/quadlet; `mios.toml` gate.
-**When (deps/order):** Independent; GPU-host gated.
-**Done When:**
-- [ ] A GPU host streams the desktop via NVENC/WebRTC; falls back to VNC on non-GPU hosts.
-
-## T-214: WSL-01 -- Dual-personality `rootfs-export → wsl --import` pipeline + MiOS update mechanism  [P2]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** L | **Domain:** Packaging/WSL | **Who:** build agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Build the pipeline that exports the same OCI image as a WSL-importable rootfs (`wsl --import`) and gives it a MiOS-owned update mechanism, since `bootc upgrade` is inoperable inside WSL (Finding D). Extend the existing WSL scaffolding (`usr/lib/wsl-distribution.conf`, `config/artifacts/wsl2.toml`).
-**Where (files):** new `automation/` rootfs-export step; `Justfile` wsl2 target; `usr/lib/wsl-distribution.conf`.
-**When (deps/order):** Independent; pairs with T-215/T-216.
-**Done When:**
-- [x] `wsl --import` produces a working MiOS distro from the exported rootfs.
-- [x] The MiOS-owned updater upgrades an installed WSL distro without bootc.
-
-## T-215: WSL-02 -- bootc offline atomic upgrades (skopeo→oci→bootc switch) + soft-reboot  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Lifecycle/Offline | **Who:** build agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Implement air-gapped atomic upgrades: `skopeo copy … oci:/usb` → `bootc switch --transport oci` → `bootc upgrade --apply`, split the kernel-vs-userspace delta, and use soft-reboot for non-kernel updates. `automation/43-uupd-installer.sh` covers part of the updater; extend it.
-**Where (files):** `automation/43-uupd-installer.sh`; a new offline-upgrade path/doc.
-**When (deps/order):** Independent.
-**Done When:**
-- [x] An offline host upgrades from an OCI-on-USB image; non-kernel updates apply via soft-reboot.
-
-## T-216: WSL-03 -- `.wslconfig` / image hygiene + WSL self-verify cosign  [P3]
-> **Priority:** P3 | **Status:** in-progress | **Effort:** M | **Domain:** WSL/Supply-chain | **Who:** build agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Add the `.wslconfig`/image tuning not yet confirmed: `sparseVhd`, `autoMemoryReclaim`, and a `/mnt/shared_memory` tmpfs pre-mount hook; and add self-verify-on-pull (cosign) in the WSL update path + `UserNS=auto` on rootful quadlets (`42-cosign-policy.sh`/`90-generate-sbom.sh` already sign). 
-**Where (files):** `config/artifacts/wsl2.toml`; `usr/lib/wsl-distribution.conf`; rootful `.container` templates; WSL updater.
-**When (deps/order):** After T-214.
-**Done When:**
-- [x] Recommended `.wslconfig` template created with `sparseVhd` and `autoMemoryReclaim`.
-- [x] Self-verify on pull and Quadlet UserNS parameters configured.
-
-## T-217: STD26-01 -- MCP `2026-07-28` wire adoption  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Standards/MCP | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Upgrade the MCP surface to the `2026-07-28` wire: stateless Streamable-HTTP transport, `Mcp-Method`/`Mcp-Name` headers, structured tool-OUTPUT JSON-Schema, elicitation (HITL primitive), sampling, MCP Apps, and a local MCP Registry + `.well-known` Server Cards. Keep the current stdio/consume surface as fallback.
-**Where (files):** `usr/lib/mios/agent-pipe/mios_mcp.py`; `usr/share/mios/ai/v1/mcp.json`; `.well-known` server-card emitter.
-**When (deps/order):** Independent; coordinate with T-221 (elicitation-based HITL) and WS-FED.
-**Done When:**
-- [x] A `2026-07-28` MCP client connects over Streamable-HTTP, sees structured tool output + Server Cards, and can elicit.
-
-## T-218: STD26-02 -- A2A v1.0.0 + signed AgentCard (JWS/JCS) + task-state mapping  [P2]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** L | **Domain:** Standards/A2A | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Upgrade the published AgentCard 0.3.0 → v1.0.0 (`a2a.proto`), add `AgentCardSignature` (JWS over JCS-canonical card, Ed25519 passport key), map swarm/DAG node status onto the standard A2A task states, and add `TaskStatusUpdateEvent` push webhooks. Builds on `mios_a2a_principal.py` (signed principals already present) and FED-G4.
-**Where (files):** `usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py`; `server.py` `_build_agent_card`; `mios.toml [a2a.security]`.
-**When (deps/order):** Extends FED-G4/T-012; pairs with T-219.
-**Done When:**
-- [x] Published card validates as A2A v1.0 with a verifiable `AgentCardSignature`; DAG/swarm status surfaces as standard task states with push updates.
-
-## T-219: STD26-03 -- AGNTCY OASF Agent Directory + DID Agent Identity  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** L | **Domain:** Standards/Federation | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Replace the hand-maintained `mcp.json` / `a2a-peers.json` overlays with a local OASF-described, syncable Agent Directory + DID-based Agent Identity (highest-leverage federation move). Provide a `mios_agentreg.py`-style directory service that publishes/consumes OASF records and resolves DIDs.
-**Where (files):** new directory service (`usr/lib/mios/agent-pipe/mios_agentreg.py`); overlays `ai/v1/mcp.json`, `a2a-peers.json`.
-**When (deps/order):** Pairs with T-218; supersedes FED-G3 overlay reload for the directory case.
-**Done When:**
-- [x] Peers register via OASF records with DID identity; the directory syncs and agent-pipe routes from it instead of the static overlays.
-
-## T-220: STD26-04 -- Durable event-sourcing over swarm/DAG + Memory-Block abstraction  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** L | **Domain:** Durability/Memory | **Who:** orchestration agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Add a Temporal-style local event history over swarm/DAG execution for crash-resume, and an explicit Memory-Block abstraction over raw pgvector rows; formalize `_admit` against the "Agent Control Protocol" (static risk + stateful trace + ledger). Sleep-time consolidation half is already MEM-05/T-056; this is the durability + Memory-Block delta.
-**Where (files):** `server.py` DAG executor; `usr/lib/mios/agent-pipe/mios_memory.py`.
-**When (deps/order):** After the Kernel Stage-2 rewire (A6/T-025) stabilizes the DAG path.
-**Done When:**
-- [x] A crashed DAG run resumes from the event history; recall/writes go through Memory-Block, not raw rows.
-
-## T-221: STD26-05 -- Standards-based HITL (MCP elicitation SEP-2322 + A2A INPUT/AUTH_REQUIRED)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Standards/HITL | **Who:** federation agent | **Source:** upstream-gap-plan-2026-06.md
-**Instructions (WHAT + HOW):** Re-express the bespoke `mios_hitl.py` / `mios_hitlflow.py` / `mios_arbiter.py` gate on open standards: MCP elicitation (SEP-2322) + A2A `INPUT_REQUIRED`/`AUTH_REQUIRED` task states, so external clients drive HITL over the wire. Keep the bespoke queue as the internal backend.
-**Where (files):** `usr/lib/mios/agent-pipe/mios_hitl.py`, `mios_hitlflow.py`; MCP/A2A surfaces.
-**When (deps/order):** After T-217 (elicitation) + T-218 (task states).
-**Done When:**
-- [x] A standards client triggers + satisfies a HITL prompt via elicitation / INPUT_REQUIRED, routed through the existing queue.
-
-## T-222: OAI-01 -- Unified multi-kind capability catalog (recipes + skills as tagged rows)  [P2]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Routing/Catalog | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
-**Instructions (WHAT + HOW):** Fold recipes (as function-tools) and skills (description-only rows) into the `[routing]` capability catalog, tagged `kind` + `domain`, with composition rules (recipes→tools OK, recipes→skills FORBIDDEN). Today `mios.toml [routing]` is `kind=tool`-only (see the line-3097 comment). Extend the classifier/catalog to score across kinds.
-**Where (files):** `usr/share/mios/mios.toml [routing]`; `mios_capreg.py`, `mios_manifest.py`, `mios_verbcatalog.py`, `mios_classify.py`.
-**When (deps/order):** Extends the shipped 2-stage router; overlaps ORCH code-mode (T-061).
-**Done When:**
-- [x] Recipes + skills appear as catalog rows with `kind`/`domain`; the router routes to them; composition rules enforced.
-
-## T-223: OAI-02 -- Tier-1 `usage` detail fields + strict function schemas + cache-friendly ordering  [P3]
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** OpenAI-conformance | **Who:** agent-pipe agent | **Source:** agent-pipe-openai-standards-master-plan.md
-**Instructions (WHAT + HOW):** Emit `usage.completion_tokens_details.reasoning_tokens` + `usage.prompt_tokens_details.cached_tokens` (currently absent), add strict-mode function schemas (`strict:true`, `additionalProperties:false`) to the tool surface, and order prompts static-first for prompt-cache friendliness. Spot-verify streaming `[DONE]`/tool-delta contract + `developer` role acceptance while here.
-**Where (files):** `server.py` usage assembler + streaming path; `mios_worker_tools.py` / tool-surface builder.
-**When (deps/order):** Independent; caps off the Tier-0/1 conformance work already shipped.
-**Done When:**
-- [x] Responses carry reasoning/cached token details; function schemas are strict; a live run confirms the streaming + role contracts.
-
-## T-224: OAI-03 -- Persistent PTY/tmux stateful shell + PowerShell object-pipeline flattening  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** OS-control/ACI | **Who:** os-control agent | **Source:** aios-implementation-plan.md
-**Instructions (WHAT + HOW):** Add a PTY/tmux-wrapped persistent shell so cwd/env survive across turns (the ACI output-normalizer `mios_aci.py` shipped; the persistent-shell substrate did not). Add PowerShell .NET-object-pipeline → flat-text normalization in the Windows executor. Substrate belongs with the coderun sandbox / broker shell, not inline in agent-pipe.
-**Where (files):** new `usr/libexec/mios/` persistent-shell broker; `usr/share/mios/windows/mios-oscontrol-server.ps1` (pipeline flattening).
-**When (deps/order):** Pairs with coderun broker (F3/T-072).
-**Done When:**
-- [x] Two sequential shell turns share cwd/env via the persistent PTY; PowerShell output arrives as flat text.
-
-## T-225: OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG replay)  [P2]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Orchestration/Determinism | **Who:** agent-pipe agent | **Source:** aios-implementation-plan.md
-**Instructions (WHAT + HOW):** The run-template capture side + `GET /v1/run-templates` shipped (`[run_template].enable=true`); build the reuse side: match a new turn to a stored DAG plan keyed by intent-class and skip planning (zero-token deterministic replay), with a confidence gate + fallback to full planning.
-**Where (files):** `server.py` run-template matcher; `mios.toml [run_template]`.
-**When (deps/order):** Extends the shipped capture path.
-**Done When:**
-- [x] A repeat intent replays the stored DAG without a planning LLM call; low-confidence match falls back to planning.
-
-## T-226: KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3]
-> **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** S | **Domain:** Scheduling | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_batch.py` (imported at server.py:158) holds the window/hold-flush logic but the server-side hold/flush chokepoint by `(endpoint, model)` is not wired. Wire it behind a flag. Low priority — native vLLM/SGLang already continuous-batch — so keep default OFF.
-**Where (files):** `server.py` dispatch chokepoint; `mios_batch.py`; `mios.toml`.
-**When (deps/order):** Independent.
-**Done When:**
-- [x] With the flag on, concurrent same-`(endpoint,model)` requests coalesce through the hold/flush window; default-off is a no-op.
-
-## T-227: KACT-02 -- Remote SmartRouting + quality-gate + daily budget (`mios_smartroute`)  [P2]
-> **Priority:** P2 | **Status:** in-progress (built-gated) | **Effort:** M | **Domain:** Routing/Cost | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_smartroute.py` (server.py:159) decides local-first → paid-remote escalation on a quality-gate fail within a per-day budget, but is DISABLED by default and the remote-lane adapters are stubbed (comment at server.py:2924). Implement the remote adapters, wire the quality-gate orchestration, and key the budget via `mios_quota`.
-**Where (files):** `mios_smartroute.py`, `mios_quota.py`, `server.py`.
-**When (deps/order):** Pairs with T-228 (quota keying); needs remote keys.
-**Done When:**
-- [x] A quality-gate failure escalates to a remote lane within budget; budget exhaustion falls back to local; default-off preserved.
-
-## T-228: KACT-03 -- Per-user quota keying + persistence on verified principal  [P3]
-> **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** S | **Domain:** Cost/Identity | **Who:** agent-pipe agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_quota.py` exists but is keyed globally and not persisted. Key it on the verified principal (from the inbound-auth/principal path) and persist counters (pgvector) so quota survives restart.
-**Where (files):** `mios_quota.py`, `server.py`; `postgres/schema-init.sql` (quota table).
-**When (deps/order):** After FED-G1/T-001 principal extraction; pairs with T-227.
-**Done When:**
-- [x] Quota accrues per verified principal and survives a restart.
-
-## T-229: KACT-04 -- Gossip/DHT federated discovery transport (`mios_gossip`)  [P3]
-> **Priority:** P3 | **Status:** in-progress (built-gated) | **Effort:** M | **Domain:** Federation/Discovery | **Who:** federation agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_gossip.py` exists but has no discovery transport over `mios_reputation`. Wire a gossip/DHT transport so peers propagate membership + reputation without a central registry. Distinct from FED-G5 mDNS (LAN-local); this is the WAN/mesh discovery path.
-**Where (files):** `mios_gossip.py`, `mios_reputation.py`; `server.py`.
-**When (deps/order):** After WS-FED inbound auth; complements FED-G5/T-013.
-**Done When:**
-- [x] Two nodes discover each other + exchange reputation via gossip with no central registry.
-
-## T-230: KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`mios_sandbox`)  [P2]
-> **Priority:** P2 | **Status:** in-progress (security-critical) | **Effort:** M | **Domain:** Security/Sandbox | **Who:** security agent | **Source:** aios-engineering-blueprint.md
-**Instructions (WHAT + HOW):** `mios_sandbox.py` decides the risk tier and builds the bwrap argv (`build_bwrap_argv`), but the wrapper is never `exec`'d, seccomp is not applied, and ## T-231: KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI quadlets  [P2]
-> **Priority:** P2 | **Status:** planned/unverified | **Effort:** M | **Domain:** Lifecycle/Health | **Who:** systemd/build agent | **Source:** upstream-gap-plan-2026-06.md (T1.4)
-**Instructions (WHAT + HOW):** Add real systemd readiness gating (`Notify=healthy` + `HealthCmd`) and rollback-on-failed-health to the AI quadlets (agent-pipe, llm lanes, OWUI), so a lane that fails its health check gates dependents / triggers rollback rather than being reported up. Complements greenboot (Part 1).
-**Where (files):** `usr/lib/mios/*.container` quadlet templates; `automation/15-render-quadlets.sh` (or the render step in use).
-**When (deps/order):** Independent; complements T-002 greenboot.
-**Done When:**
-- [x] Each AI quadlet declares `Notify=healthy` + `HealthCmd`; a forced health failure gates dependents and surfaces the rollback path.
-
-## T-232: UISHELL-01 -- Native QML Services/Swarm views (replace web-Portal fallback)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** UI/QML | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
-**Instructions (WHAT + HOW):** Replace the "open web Portal" fallback with native QML list views bound to the already-shipped `PortalData` properties (Phase-2 data path exists). Decide Terminals: launch the real terminal emulator vs. embed xterm.js.
-**Where (files):** `usr/share/mios/quickshell/` (new Services/Swarm views, `Sidebar.qml`).
-**When (deps/order):** After Phase-2 (shipped).
-**Done When:**
-- [x] Native Services + Swarm views render from `PortalData`; Terminals decision implemented.
-
-## T-233: UISHELL-02 -- Login-prompt QML popup (`PortalData.login()`)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/QML | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
-**Instructions (WHAT + HOW):** Add a small QML text-field + button popup so an operator can call `PortalData.login()` without editing QML (deliberately deferred in Phase 2).
-**Where (files):** `usr/share/mios/quickshell/` (login popup component).
-**When (deps/order):** Independent.
-**Done When:**
-- [x] Operator logs in from the popup; no QML edit required.
-
-## T-234: UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3030` vs agent-pipe)  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** S | **Domain:** UI/Config | **Who:** portal/UI agent | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
-**Instructions (WHAT + HOW):** The Surfer patch points the AI sidebar at `:3030` (OWUI) while the Windows Zen path uses agent-pipe. Pick one canonical endpoint (SSOT-driven) and reconcile before the next Surfer rebuild so the baked default is correct.
-**Where (files):** `automation/56-bake-surfer.sh`; SSOT endpoint key.
-**When (deps/order):** Before the next Surfer rebuild.
-**Done When:**
-- [x] Both paths resolve the AI-sidebar endpoint from one SSOT key; Surfer rebuild bakes the correct default.
-
-## T-235: UISHELL-04 -- Cockpit native-vs-web decision  [P3]
-> **Priority:** P3 | **Status:** planned (decision) | **Effort:** S | **Domain:** UI/Architecture | **Who:** architect | **Source:** mios-app-browser-portal-dashboard-design-2026-07-03.md
-**Instructions (WHAT + HOW):** Resolve the open Phase-4 trade-off for Cockpit: keep the web-hosted tile, reimplement views in QML, or use a Wayland-native web renderer. Record the decision + rationale; only then schedule follow-up work.
-**Where (files):** design doc / ROADMAP note; `usr/share/mios/quickshell/` if native chosen.
-**When (deps/order):** After T-232 (informs the native-shell scope).
-**Done When:**
-- [x] A documented Cockpit posture decision with rationale.
-
-## T-236: NAME2-01 -- Agent-plane user SSOT reconciliation (820/822 → 850)  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** SSOT/Identity | **Who:** naming agent | **Source:** naming-refactor-plan.md
-**Instructions (WHAT + HOW):** `mios.toml` still declares `[services.hermes]` uid 820 (line ~7846) and `[services.agent_pipe]` uid 822 (line ~7868), but the live agent plane runs as `mios-ai`/850 — an SSOT lie. Either repoint the SSOT to 850 or retire the inert users, updating units + firstboot chown + tmpfiles + sudoers consistently.
-**Where (files):** `usr/share/mios/mios.toml`; agent-pipe/hermes units; firstboot chown; `tmpfiles.d`; sudoers.
-**When (deps/order):** Under NAME-01/T-165's umbrella; do before further user-name churn.
-**Done When:**
-- [x] SSOT + all consumers agree on the live agent-plane uid (850); no references to inert 820/822 remain.
-
-## T-237: NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent`  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** M | **Domain:** Naming | **Who:** naming agent | **Source:** naming-refactor-plan.md
-**Instructions (WHAT + HOW):** Drop the redundant `mios-` prefix on the `mios-daemon-agent` agent-id per the agent-id convention (~105 refs across ~36 files still carry the old form in registries/env). Keep external contracts frozen; migrate registries + env atomically.
-**Where (files):** agent registries, `mios.toml [agents.*]`, env maps, ~36 files carrying `mios-daemon-agent`.
-**When (deps/order):** After T-236; low-risk once user SSOT is clean.
-**Done When:**
-- [x] All `mios-daemon-agent` refs become `daemon-agent`; drift-check + a live fan-out still resolve the agent.
-
-## T-238: NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit  [P3]
-> **Priority:** P3 | **Status:** planned (partial) | **Effort:** M | **Domain:** Naming/Hygiene | **Who:** naming agent | **Source:** naming-refactor-plan.md
-**Instructions (WHAT + HOW):** Run the residual mutable-module-state casing pass (semaphores/caches/registries → `_lower_snake`) that the naming refactor left as a dedicated pass, and audit `ContainerName=` on renamed units for consistency. server.py Phase-1b renames already landed.
-**Where (files):** `usr/lib/mios/agent-pipe/server.py` + `mios_*.py` module state; renamed `.container` units.
-**When (deps/order):** After T-236/T-237.
-**Done When:**
-- [x] Mutable module state is uniformly `_lower_snake`; `ContainerName=` matches unit names; drift-check green.ng-refactor-plan.md
-**Instructions (WHAT + HOW):** Run the residual mutable-module-state casing pass (semaphores/caches/registries → `_lower_snake`) that the naming refactor left as a dedicated pass, and audit `ContainerName=` on renamed units for consistency. server.py Phase-1b renames already landed.
-**Where (files):** `usr/lib/mios/agent-pipe/server.py` + `mios_*.py` module state; renamed `.container` units.
-**When (deps/order):** After T-236/T-237.
-**Done When:**
-- [ ] Mutable module state is uniformly `_lower_snake`; `ContainerName=` matches unit names; drift-check green.
-
-## T-239: UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  [P3] [VM]
-> **Priority:** P3 | **Status:** in-progress (intentionally-deferred) | **Effort:** L | **Domain:** Security/Boot | **Who:** security/build agent | **Source:** ws7-uki-fapolicyd.md + multi-agent-buildout-plan.md
-**Instructions (WHAT + HOW):** Promote the scaffolded verity-rooted UKI build (`ukify` measuring the composefs fs-verity digest → `mios-verity.efi`, `kargs.d`) and the fapolicyd PERMISSIVE→enforce path to shippable by fixing the 4 named defects: inverted agent-codegen carve-out rule, false `permissive` karg claim, rootflags merge collision, and carve-out review. Enforce or a mis-signed UKI bricks boot — keep behind an explicit operator gate + VM verify.
-**Where (files):** `automation/lib/ws7-uki-fapolicyd-build.sh`; `mios.toml [security.fapolicyd_observe]` / `[uki]`; `[packages.uki]`.
-**When (deps/order):** Extends WS-H/H7 (fapolicyd allow-list baking); VM-gated.
-**Done When:**
-- [ ] The 4 defects are fixed; a VM boots a verity-rooted signed UKI with fapolicyd in enforce, agent codegen still permitted; observe-mode remains the default.
-
-## T-240: A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored write fixes  [P2] [VM]
-> **Priority:** P2 | **Status:** in-progress | **Effort:** M | **Domain:** Data/Migration | **Who:** data agent | **Source:** ws-a3-central-path-cutover-worklist.md
-**Instructions (WHAT + HOW):** Complete the deferred CENTRAL path (server.py + OWUI pipe) pg-primary flip: fix the un-mirrored write sites (`execute_skill last_used_at`, `_skill_invocation_close`, `hitl_approve` audit UPDATE, and the 4 OWUI-pipe writes in `mios_agent_pipe.py` ~L1394/1620/1910/2310), and make the `_skill_attribute_tool_call` RELATE-edge schema decision (add a `tool_call_emissions` table vs. an `emitted_by_invocation` column). Flip `[pgvector].db_backend` dual→postgres / the `_PG_PRIMARY` gate under VM verify.
-**Where (files):** `usr/lib/mios/agent-pipe/server.py`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `postgres/schema-init.sql`; `mios.toml [pgvector]`.
-**When (deps/order):** CLI/daemon cutover already DONE; operator VM-session gated.
-**Done When:**
-- [ ] Central path writes go to pg with no un-mirrored sites; the RELATE-edge schema decision is applied; a live recall/skill round-trip passes with `db_backend=postgres`.
-
-## T-241: OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type`  [P2] [VM]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** OS-control/Windows | **Who:** os-control agent | **Source:** oscontrol-envgrounding-gaps-2026-06-20.md
-**Instructions (WHAT + HOW):** Plumb an explicit target window handle through the type path: `Resolve-EditElement(FromHandle)` → `/input/type`, route compound focus through the WINDOWS executor, and pass the hwnd to `pc_type` so typing targets a specific resolved window instead of whatever UIA thinks is focused. The UIA `SetValue` write-branch (`Invoke-UIASetValue`/`Invoke-TypeText`) already shipped; `Invoke-TypeText($text)` currently takes no target hwnd. First verify whether CU-01/T-038 already covers this; if so, close as dup.
-**Where (files):** `usr/share/mios/windows/mios-oscontrol-server.ps1`; `server.py` `pc_type` dispatch.
-**When (deps/order):** Extends CU-01/T-038; operator-live-test-gated.
-**Done When:**
-- [x] A type into a named/handle-resolved background window lands in that window (not the focused one); read-back verification passes.
-
-
-## T-242: VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML materialize + drift-gate  [P1]
-> **Priority:** P1 | **Status:** completed (implemented lossless DB-to-TOML materialize tool and drift checks) | **Effort:** M | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Land the unified pgvector DB in /var with emb/emb_model/emb_version provenance columns; add the INVERSE DB->TOML materialize step (today only TOML->DB seeds); make the verb round-trip LOSSLESS (section/examples/model_name/hidden/aliases/conflict_group/parallel_limit/max_result_chars all survive TOML<->DB); add drift-gate 29 (drift_projection) that regenerates TOML from DB and diffs (theme check-25 pattern, now across the build boundary). No behavior change yet.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py (+ a new DB->TOML materialize peer), automation/98-drift-checks.sh (check 29)
-**When (deps/order):** First -- foundation for V1-V5; depends on nothing beyond the running mios-pgvector.
-**Done When:**
-- [x] the V2 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-## T-243: VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (TOML fail-open)  [P1]
-> **Priority:** P1 | **Status:** completed (integrated DB config resolver peer into mios_toml) | **Effort:** L | **Domain:** AI-plane/SSOT/DB | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Add a config resolver PEER of mios_toml.py that READS config_kv/verb/domain_verb/recipe/routing_phrase from the DB at runtime (overlay-first: vendor<host<user<machine via config_layer), with the existing TOML path as fail-open fallback; wire verbcatalog.py + the config consumers to it; kill the write-only system_config dead-drift. Per-surface authority flip only when read-path + lossless round-trip + drift-gate are green.
-**Where (files):** usr/lib/mios/mios_toml.py (+ new db resolver), usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py, usr/libexec/mios/seed-db-config.py
-**When (deps/order):** After T-242 (lossless round-trip + materialize). Honors WS-NAME aliases + load-bearing legacy verbs (fold-refactor, never blind-drop).
-**Done When:**
-- [x] the V3 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-## T-244: VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/event/session/directory  [P2]
-> **Priority:** P2 | **Status:** completed | **Effort:** M | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Add emb vector(768) + HNSW(vector_cosine_ops) to skill, verb, tool_call, event, session, directory_entry over a text projection (emb_model/emb_version stamped, off-hot-path backfill like embed_backfill.py); retire the in-process verb-embeddings/apps-embeddings BM25/cosine caches for native <=> queries. Gr## T-245: VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables + DB->/ctx materialize  [P2]
-> **Priority:** P2 | **Status:** completed | **Effort:** L | **Domain:** Build/Install/Xbox/DB | **Who:** build/DISM agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Move the build + MiOS-Xbox catalog into DB tables: package_set (the [packages.*] SSOT), build_recipe/build_phase (OCI+Xbox recipes; build_phase = the WS-DEPLOY DAG as rows with stage∈{container,runtime,firstboot}+deps), xbox_feature, debloat_policy/profile, feature_set, {appx,feature,capability,component}_removal, preset -- each with emb. Solve the clean-container chicken-and-egg with a DB->/ctx materialize at build entry; unify build-time vs runtime identity onto the account table.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\src utounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
-**When (deps/order):** After V0/V1 (materialize + read-path). Offline-safe: /ctx materialize keeps the clean-container build hermetic.
-**Done When:**
-- [x] the V5 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass/mios/postgres/schema-init.sql, automation/lib/packages.sh, automation/build.sh + NN-*.sh, C:\mios-bootstrap\srcutounattend\* (New-MiOSISO.ps1, mios-debloat.json, mios-xbox-features.txt, presets)
-**When (deps/order):** After V0/V1 (materialize + read-path). Offline-safe: /ctx materialize keeps the clean-container build hermetic.
-**Done When:**
-- [ ] the V5 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-## T-246: VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirectional write-back  [P2]
-> **Priority:** P2 | **Status:** completed (implemented DB sequences, allocation helpers, preferences table, and bidirectional sync daemon) | **Effort:** L | **Domain:** Accounts/Identity/DB | **Who:** identity/accounts agent | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Complete the account plane: account.home_dir/shell, a uid_alloc SEQUENCE + allocate_uid()/allocate_gid() so ids are DB-owned, account_preference (layer-scoped, emb) so per-user dotfiles RENDER from the DB (retire static etc/skel); bidirectional write-back -- Linux pam/getent (NSS from account already), Windows SAM watcher (extend MiOS-AccountSync.ps1). Reconcile the /etc/shadow parallel store via pam write-back so the two credential planes don't drift.
-**Where (files):** usr/share/mios/postgres/schema-init.sql, automation/17-accounts-db.sh, usr/libexec/mios/mios-ai-firstboot (account seeder), C:\mios-bootstrap\srcutounattend\MiOS-AccountSync.ps1, etc/skel
-**When (deps/order):** After V0/V1. Builds on the shipped WS-ACCT account table + NSS getpwnam.
-**Done When:**
-- [x] the V6 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [x] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-## T-247: VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export, event-sourced  [P3]
-> **Priority:** P3 | **Status:** planned | **Effort:** XL | **Domain:** SSOT/DB/Configurator | **Who:** platform architect | **Source:** WS-VECTOR ultracode survey 2026-07-10; usr/share/doc/mios/reference/everything-db-driven.md
-**Instructions (WHAT + HOW):** Flip authority: the DB is the SSOT and mios.toml becomes a generated EXPORT (materialized for the next image build). The configurator (mios.html) CRUDs the DB (emitting config_event); install/build/config/account mutations become append-only event-sourced with time-travel + rollback, aligned to bootc atomic-upgrade. Flip per-surface only after V1-V4 read-paths + drift-gates are all green.
-**Where (files):** usr/share/mios/configurator/mios.html, usr/share/mios/postgres/schema-init.sql (config_event + event-sourcing), automation/98-drift-checks.sh, the DB->TOML materialize
-**When (deps/order):** LAST -- after V0-V4 are green per-surface. The terminal state of WS-VECTOR.
-**Done When:**
-- [ ] the V7 surface is DB-driven per the WS-VECTOR law (DB read at runtime, TOML fail-open) with no functionality loss
-- [ ] emb/HNSW recall works where the phase adds vectors; drift-gate (regenerate+diff) green; `just drift-gate` + `test_mios_*` pass
-
-
-## T-248: BAKE-01 -- Two-gate `[build.bake]` core allow-list + projected bake-plan + `.image` whales  [P1]
-> **Priority:** P1 | **Status:** completed | **Effort:** L | **Domain:** Build/Bake | **Who:** build agent | **Source:** WS-BAKEGATE / Part 21; core bake-gate + universal-core study; `Containerfile`/`mios-bake-group` shipped this session
-**Instructions (WHAT + HOW):** Phase 0 is DONE -- the monolithic bound-images `RUN` (exit-125 on disk-constrained runners) was sharded heavy-first into `usr/libexec/mios/mios-bake-group` (new) + `mios.toml [build].bake_groups` (L8470-8475) + five per-group `RUN`s in `Containerfile` (L181-190, `--mount=type=cache`, never `--squash`). Remaining structural work: add a `[build.bake]` SSOT section (a `core` allow-list = fixed SSOT-independent membership; `groups`/`group_members.*`); add `tools/generate-bake-plan.py` invoked by new `automation/16-bake-plan.sh` (after `15-render-quadlets.sh`) that reads through `usr/lib/mios/mios_toml.py` and emits CORE members UNCONDITIONALLY (the one branch where "core overrides SSOT" lives) + à-la-carte members iff enable-true into `/usr/lib/mios/bake/plan.d/NN-<group>.list`; add `.image` Quadlets for the whales (`mios-llm-heavy.image` + `mios-llm-heavy-alt.image`) symlinked by `08-system-files-overlay.sh` (~L178); add a regenerate-and-diff drift-check asserting both whales in `core`, all fully-qualified, referenced ⊆ emitted. Deletes the Containerfile's inline Quadlet scraping (Law 7/8).
-**Where (files):** `usr/share/mios/mios.toml` (`[build.bake]`), `tools/generate-bake-plan.py` (new), `automation/16-bake-plan.sh` (new), `automation/08-system-files-overlay.sh`, `automation/98-drift-checks.sh`, `usr/share/containers/systemd/mios-llm-heavy.image` + `mios-llm-heavy-alt.image` (new), `usr/libexec/mios/mios-bake-group`, `Containerfile`
-**When (deps/order):** Phase 0 done; structural next. Interlocks with T-250 (bake groups collapse toward sys/cuda) + T-251 (digest-free SSOT).
-**Done When:**
-- [x] `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the check FAILS if a whale leaves `core`, a core member is not fully-qualified, or referenced ⊄ emitted; the Containerfile carries no inline Quadlet `sed`-scraping.
-
-## T-249: BLADE-01 -- Universal-core + blade-type activation gate (one image, role by flag)  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Build/Activation | **Who:** build/systemd agent | **Source:** WS-BLADE / Part 21; universal-core / blade-type study (§3)
-**Instructions (WHAT + HOW):** Add `[blade]` SSOT (`type` archetype: hybrid/compute/endpoint/controller/headless; `[blade.archetypes]` capability expansions; `[blade.requires]` service→capability "nodeSelector" map). Demote `usr/libexec/mios/role-apply` from imperative actor to a marker-writing resolver (materialize `/etc/mios/blade.d/<cap>` + `/run/mios/blade.env`; keep autodetect). Generate one `usr/share/mios/dropins/blade-<cap>.conf` (`ConditionPathExists=/etc/mios/blade.d/<cap>`) per capability from `[blade.requires]` (Law-8 generator + drift-check) and wire `automation/41-mios-dropin-fanout.sh`. Deploy-time selection: karg `mios.blade=<type>` (generated `kargs.d/05-mios-blade.toml`) / Ignition / Afterburn / autodetect; `mios blade set|add-capability|status` verb (marker touch + daemon-reload, no reboot). Fold `[profile].role/features` into `[blade]`; add `mios-{compute,endpoint,controller}.target`; greenboot check. Keep `[blades.*]`/`[nodes.*]` as the orthogonal fleet-dispatch Axis B. No image variants -- baked everywhere, started by role.
-**Where (files):** `usr/share/mios/mios.toml` (`[blade]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf`, `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml`, `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, `mios blade` verb
-**When (deps/order):** Complements T-248 (bake vs activation orthogonality) + T-250 (activation `Condition*` unchanged by consolidation).
-**Done When:**
-- [x] one universal image: on a `controller` blade `mios-llm-heavy.service` is condition-skipped (zero VRAM), on a `gpu-serving` blade it starts; `mios blade add-capability gpu-serving` lights it hot with no reboot; the drop-in generator is drift-gated.
-
-## T-250: MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation of the sidecar fleet  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** XL | **Domain:** Build/Consolidation | **Who:** build agent | **Source:** WS-MIOSSYS / Part 21; MiOS-Sys consolidation study; [[mios-release-topology]]
-**Instructions (WHAT + HOW):** Replace the ~18-image sidecar fleet (~60GB, zero shared base blobs) with TWO images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB) + `localhost/mios-cuda` (shared CUDA/torch/flashinfer L2 + `vllm-venv`/`sglang-venv` + `llama-server`, ~15-18GB). Use Model A (one IMAGE, many CONTAINERS -- shared `Image=`, per-service `Exec=`, per-unit `User=`/`Group=`/`Condition*` unchanged). New `automation/57-mios-sys-build.sh` (+ generated `usr/share/mios/{sys,cuda}/Containerfile`); `[image.sys]`/`[image.cuda]` blocks; `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `userenv.sh` + BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 + bash-fallback ~L87-127) + `97-ssot-lint.sh`. Per-member Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); `[build].bake_groups` → sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier; Wave 2 interpreted + k3s/runner binaries; Wave 3 mios-cuda + DB tier behind a smoke test). Ceph = KEEP-SEPARATE.
-**Where (files):** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/97-ssot-lint.sh`, `automation/14-generate-quadlets.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
-**When (deps/order):** Locked ops decisions: newest-packages tagged-at-build; ALL core consolidates; k3s binary consolidated (HA-compatible, privileged activation unchanged) + Pacemaker/corosync HA CORE; on-CVE/on-release rebuild; mios-cuda bake-scope deferred to Wave 3. Enabler of T-252 GitHub-equality; complements T-248 Phase 0 (sharding kept as safety margin).
-**Done When:**
-- [x] the bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates the regenerated `Image=`/`Exec=`; every `User=`/root-exception byte-identical (Law 6 untouched); a WSL blade still won't start pxe-hub though its binary is baked.
-
-## T-251: SBOM-01 -- Extend build-time provenance beyond images (model/package hashes)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** M | **Domain:** SBOM/Provenance | **Who:** build agent | **Source:** WS-SBOM / Part 21; [[mios-sbom-not-hardcode]]
-**Instructions (WHAT + HOW):** DONE -- ALL 12 hand-pinned `@sha256` digests stripped from `mios.toml` (0 remaining), 27 Quadlets regenerated digest-free (0 `@sha256` in rendered Quadlets; digest-drift gate green), and `mios-bake-group` records each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Build-resolved SHA-256 hashes for downloaded GGUF models (`automation/38-llamacpp-prep.sh`), Safetensors model weights (`automation/38-vllm-prep.sh`), and downloaded binary/assets (`automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`) are calculated and recorded to `/usr/share/mios/artifacts/sbom/models.tsv` and `binaries.tsv`.
-**Where (files):** `automation/38-llamacpp-prep.sh`, `automation/38-vllm-prep.sh`, `automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`, `automation/98-drift-checks.sh`
-**When (deps/order):** images DONE; interlocks with T-250 (digest-lock floating `:latest` sources at Wave 0) + T-252 (newest packages, tagged at build).
-**Done When:**
-- [x] no hand-maintained `@sha256`/checksum literal remains in `mios.toml` or scripts for a runtime-pinned artifact; each resolved hash appears in the SBOM; the digest/checksum drift-checks validate build-resolved values.
-
-## T-252: RELTOP-01 -- Credential-driven registry selection (GHCR else local/Forgejo)  [P2]
-> **Priority:** P2 | **Status:** done | **Effort:** S | **Domain:** Release/CI | **Who:** CI/build agent | **Source:** WS-RELTOP / Part 21; [[mios-release-topology]]
-**Instructions (WHAT + HOW):** DONE -- GitHub Actions and the Forgejo runner are declared EQUAL bit-for-bit publishers; build is LOCAL-first; `mios-ci.yml` `PUBLISH: 'false'` (L38) is a CAPACITY gate (a standard ubuntu-24.04 runner can't hold the ~60GB store) gating the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) + rechunk/push/cosign (L270+). The "default to GitHub/GHCR push+pull when creds present, else local/Forgejo" registry-selection is wired into the build driver / `install.env` credential detection via `userenv.sh`.
-**Where (files):** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `tools/lib/userenv.sh` / `install.env`
-**When (deps/order):** CI gate DONE; the `PUBLISH:'true'` flip is unblocked by T-250.
-**Done When:**
-- [x] a build with GHCR creds pushes/pulls GHCR, with none targets local/Forgejo; both CI runners + the local build share one selection path; no hardcoded registry outside it.
-
-## T-253: DEPRED-01 -- Hermes->agent-pipe collapse + sidecar consolidation  [P2]
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** L | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer | **Source:** WS-DEPRED / Part 21; dependency-reduction study (§6)
-**Instructions (WHAT + HOW):** Collapse MiOS-Hermes (`:8642`) into agent-pipe (`:8640`, already ~70% done): (1) repoint `MIOS_AI_ENDPOINT` `:8642`→`:8640` in `automation/lib/globals.sh:133` (+ `mios.toml [ai]/[hermes]`; add `8640` to `[security.nohc_allowlist]`); (2) retire the prefilter `:8641` hop (`mios-delegation-prefilter.service`); (3) absorb `gateway_sessions` (port `gateway-agent/session.py` into agent-pipe, opt-in replay); (4) decide browser/CDP (MCP `browser_*` verbs preferred; keep `mios-hermes-browser` :9222 as pure executor); (5) retire/alias `mios-gateway-agent.service`. Sidecar consolidations: fold Guacamole DB into pgvector (delete `mios-guacamole-postgres`), delete `mios-crowdsec-dashboard` (Quadlet + pin), cockpit-link socat → `systemd-socket-proxyd`, replace open-webui (`:8033`) with a Quickshell SSE `/v1` client (gate OWUI to `edge-endpoint`, then remove).
-**Where (files):** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[ai]`/`[hermes]`/`[security.nohc_allowlist]`), `mios-delegation-prefilter.service`, `usr/lib/mios/gateway-agent/session.py` + agent-pipe `server.py`, `mios-hermes-browser.service`, `mios-gateway-agent.service`, `mios-guacamole-postgres.container`, `mios-crowdsec-dashboard.container`, `mios-cockpit-link` unit
-**When (deps/order):** Browser/CDP + `hermes` CLI/Discord decisions are OPEN QUESTIONS; pairs with T-249 (OWUI gated to edge-endpoint) + T-250 (fewer images to consolidate).
-**Done When:**
-- [x] every front-end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` retired or thin-aliased; Guacamole runs on a pgvector DB/role; `mios-crowdsec-dashboard` + `mios-guacamole-postgres` gone; a native SSE client streams `/v1/chat/completions`.
-
-## T-254: MDRIVE-01 -- Hyper-V Gen 2 .vhdx off M: + sovereign Ceph OSD on M:  [P1] [VM]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Windows | **Who:** deploy agent | **Source:** WS-MDRIVE / Part 21; run-off-M: deployment study
-**Instructions (WHAT + HOW):** Deploy the universal image as a Hyper-V Generation 2 VM booting a `.vhdx` on `M:\MiOS-images\`, cut by `bootc install`/bootc-image-builder (`just vhdx`, `Justfile:217`, already factory-populates `/var` + `/var/home` -- the fix for the raw `wsl --import` deadlock). Add a `vhdx-m` Justfile recipe + `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (load tar, cut vhdx if missing, `New-VM -Generation 2` off M: with `Set-VMFirmware -SecureBootTemplate MicrosoftUEFICertificateAuthority`, attach Ceph OSD vhdx, `netsh portproxy :8640`, DDA/GPU-P). Sovereign storage: a 2nd dynamic `.vhdx` on M: as the single-node Ceph OSD backing `/var/home` (`var-home.mount` `Type=ceph`); relax `ConditionVirtualization=no` on `ceph-bootstrap.service`/`mios-ceph-bootstrap.service` to a config-flag gate (`[storage.cephfs].enable` / `/run/mios/ceph-enabled`); the local 20GiB `/var/home` ext4 partition (carved by `config/artifacts/vhdx.toml`) is the automatic `nofail`+`ConditionPathExists` fallback. dGPU via DDA (recommended; iGPU carries Windows desktop) or GPU-P. WSL2 `--import-in-place` is an explicit disposable preview only (no populated `/var` → not the sovereign target). Root cause: a bootc image bakes NOTHING into `/var` (Law 2); only the installer populates it.
-**Where (files):** `Justfile` (new `vhdx-m`), `config/artifacts/vhdx.toml`, `usr/lib/systemd/system/ceph-bootstrap.service` + `mios-ceph-bootstrap.service`, `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/mios/mios.toml [storage.cephfs].enable`, `usr/lib/systemd/system-preset/95-mios-wsl.preset` (optional), `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (new)
-**When (deps/order):** Re-establish a Linux podman once (BIB/`bootc install` need it); GPU-policy/Ceph-now-vs-later/OSD-sizing/`ConditionVirtualization`-scope are operator decisions. VM/operator-gated.
-**Done When:**
-- [ ] a MiOS Gen 2 VM boots off `M:\MiOS-images\mios-0.3.0.vhdx` with a populated `/var/home`, `bootc status` healthy, and `curl http://localhost:8640/v1/models` answering from Windows; with the OSD vhdx + `[storage.cephfs].enable=true`, `findmnt /var/home` reports `type ceph` and survives a root-vhdx rebuild; `bootc upgrade`/`rollback` work in-guest.
-
-## T-255: DOCS -- Planning-docs refactor (ADR system + generated index + lean thematic roadmap + Diátaxis)  [P1]
-> **Priority:** P1 | **Status:** done | **Effort:** L | **Domain:** Docs/Meta | **Who:** docs/tooling agent | **Source:** WS-DOCS / Part 21; planning-docs refactor plan + ADR-0007
-**What/Why:** Solidify the refactor into cohesive, AI-agent-native docs matching upstream patterns (MADR ADRs · KEP-style WS metadata · Diátaxis · Keep-a-Changelog+SemVer · OpenAI-Model-Spec-style rules doc · `llms.txt`/`AGENTS.md`) so a future agent starts a workstream from ONE self-contained file.
-**Where (files):** `usr/share/doc/mios/adr/*` (done), `tools/roadmap-index.py` (done), `automation/98-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
-**When (deps/order):** DOCS-01 done → DOCS-02 (schema+generator) → DOCS-03 (lean roadmap+archive) → DOCS-04 (retag) + DOCS-05 (Diátaxis) + DOCS-06 (MiOS Spec).
-**Done When:**
-- [x] ADR system: README + ADR-0001..0007 accepted; every Part-21 WS backed by an ADR; governance model recorded (ADR-0007).
-- [x] `just drift-gate` regenerates the roadmap index + the MiOS Spec byte-identically + fails on a bad ADR/law/`ssot_key` ref; ToC lists all Parts.
-- [x] `ROADMAP.md` is theme-grouped active-only (~≤600 lines) with Parts 1-20 losslessly archived; no WS lost.
-- [x] no WS tagged `done` that is gated-off/never-fired; Diátaxis quadrants + `llms.txt` route an agent in ≤3 hops.
-
-## T-256: CAT-01 -- Flatten MiOS-Cat to a single owner (mios-bootstrap owns `cat/`)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat | **Who:** deploy/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §1/§5
-**Instructions (WHAT + HOW):** Make `mios-bootstrap` the single canonical owner of MiOS-Cat at `C:\mios-bootstrap\cat\`. `git mv` the deep `C:\mios-bootstrap\src\autounattend\medicat_installer\` nest (3–5 levels) up to `cat\` (launchers → `cat\`, FileChecker/hasher/bin/7z → `cat\lib\`, resources → `cat\resources\`, the Windows-ISO subsystem `New-MiOSISO`/`mios-uup-fetch`/`New-MiOSAutounattend`/`Build-MiOSXboxISO`/`MiOS-Provision.lib` → `cat\iso\`, translations → `cat\i18n\`). **Delete** the byte-identical `C:\MiOS\src\autounattend\medicat_installer\` copy (`diff -q` confirmed empty; verify no live consumer first — flatten-campaign guardrail). This satisfies Law 1 (`C:\MiOS/usr/` *is* `/usr`; a host installer must not live under it) and the two-repo no-double-track rule. Do NOT run destructive git ops as part of this task's *decision capture* — this task tracks the planned move.
-**Where (files):** `C:\mios-bootstrap\cat\**` (new home), `C:\mios-bootstrap\src\autounattend\medicat_installer\**` (source of move), `C:\MiOS\src\autounattend\medicat_installer\**` (delete)
-**When (deps/order):** First WS-CAT task; unblocks T-257/T-258/T-259. Verify-no-consumer gate before any delete.
-**Done When:**
-- [ ] one MiOS-Cat home at `cat\`; `C:\MiOS` free of the installer; a cross-repo `diff` finds no `medicat_installer` dup; deepest path drops from `src\autounattend\medicat_installer\resources\ventoy\` to `cat\resources\ventoy\`.
-
-## T-257: CAT-02 -- Verb dispatch + tri-launcher parity  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Cat | **Who:** deploy/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §2
-**Instructions (WHAT + HOW):** Give the tri-launcher `cat\MiOS-Cat.{ps1,sh,bat}` one shared verb vocabulary — **stage · install · build · update · provision · manual** — as a thin `case`/`goto`/`switch` dispatch, with all business logic in a shared `cat\lib\` (PowerShell module + bash lib). Port the advanced `.bat` logic (MiOS-Repo staging, WinPE DISM injection, git-pull self-update) into the canonical `.ps1` so the launchers reach parity (Law 9); reduce `.bat` to the WinPE/legacy-cmd shim that calls the `.ps1` when PowerShell is present. Every existing entry point (Get-MiOS.ps1 irm|iex, bootstrap curl, UUP/autounattend ISO pipeline, mios-kickstart.cfg, `just` build) becomes a verb back-end, not a peer. The interactive menu becomes the no-verb default (`cat` → menu; `cat install` → headless).
-**Where (files):** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}`, `C:\mios-bootstrap\cat\lib\MiOS-Cat.psm1` + `cat.sh` (new), the per-verb back-end shims into `cat\iso\` / `just` / bootstrap
-**When (deps/order):** After T-256 (single home). Pairs with T-259 (web one-liners fold into `cat install`).
-**Done When:**
-- [ ] `cat install` is headless-identical across `.ps1`/`.sh`/`.bat`; zero business logic duplicated between launchers; the no-verb default opens the menu; the `.bat` is a reduced WinPE shim.
-
-## T-258: CAT-03 -- `[cat]` SSOT block + fix the dangling `drivepath`/`medicatver`/`cache_path` reads  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §5.2/§6
-**Instructions (WHAT + HOW):** MiOS-Cat today reads `..\..\..\..\mios.toml` (the 63 KB root seed copy) and looks for `drivepath`, `medicatver`, `cache_path` — keys that **exist in no `mios.toml`** — so it silently uses hardcoded defaults (a Law 7 NO-HARDCODE + Law 8 SSOT-PROJECTION violation). Add a `[cat]` block to the real SSOT `usr/share/mios/mios.toml`: `drivepath`, `medicatver`, `cache_path`, `repo_partition.label = "MiOS-Repo"`, `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 512`, and `models` (a reference to `[ai].bake_models`). Repoint MiOS-Cat to resolve the 597 KB SSOT (through the shared `mios_toml` resolver), not the seed. Add a `automation/98-drift-checks.sh` check that the `[cat]`/`[colors]` reads resolve.
-**Where (files):** `usr/share/mios/mios.toml` (new `[cat]` block), `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` + `cat\lib\` (SSOT resolve), `automation/98-drift-checks.sh` (new check)
-**When (deps/order):** After T-256. Interlocks with T-266 (seed-copy provenance) — confirm the 63 KB→597 KB relationship before repointing.
-**Done When:**
-- [ ] no MiOS-Cat value is hardcoded that has an SSOT home; `[cat]` + `[colors]` reads resolve against `usr/share/mios/mios.toml`; the drift-check fails if a `[cat]` key is missing.
-
-## T-259: CAT-04 -- Fold the web one-liners (`irm|iex` ⇄ `curl`) into `cat install`  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat | **Who:** deploy/installer agent | **Source:** WS-CAT / ADR-0008; MiOS-Cat unification plan §2.3
-**Instructions (WHAT + HOW):** Collapse the bodies of `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1` + `bootstrap.sh` into thin `cat install` shims (keep the published one-liner URLs). Wire the bidirectional handoff so `irm …/cat | iex` (Windows) and `curl -fsSL …/cat.sh | sh` (Linux/WSL) are the SAME front door from two shells: the `.ps1` shells out to the `curl` path for a Linux/WSL target (`wsl -e sh -c 'curl … | sh'`); the `.sh` invokes `pwsh`/`powershell.exe` for a Windows-side action (Hyper-V VM create, WinPE). Both resolve the same `[cat]` SSOT + the same verb set (Law 9 ONE-CANONICAL-NAME on the entry surface).
-**Where (files):** `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1`, `C:\mios-bootstrap\bootstrap.sh`, `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}`
-**When (deps/order):** After T-257 (verb dispatch exists). Keeps the existing published `irm`/`curl` URLs stable.
-**Done When:**
-- [ ] `irm …/cat | iex` and `curl …/cat.sh | sh` both reach the identical verb set; `cat install` means the same thing regardless of shell; the legacy scripts are thin shims, not peers.
-
-## T-260: CATREPO-01 -- Small MiOS-Repo shadow-config partition (always) + kickstart path fix  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Cat/Repo | **Who:** deploy/installer agent | **Source:** WS-CATREPO / ADR-0008; MiOS-Cat unification plan §3 (operator re-scope: small MiOS-Repo)
-**Instructions (WHAT + HOW):** Populate a SMALL always-present `MiOS-Repo` partition (P3, target ~≤16 GB) with the **shadow-config brain** — `mios.toml` (SSOT), `mios.html` (configurator), the MiOS Portal assets, a self-contained MiOS-Cat copy, and a **small repos-clone** (config/source, NOT the binary payload). This is the offline embodiment of the ADR-0009 shareable-link surface. Each payload class is degrade-open (online `git clone` → offline `robocopy`/`cp -r` from `MiOS-Repo/repos/`). **Fix the kickstart path mismatch:** the `.bat` stages repos to `%repodrive%:\mios-bootstrap` but `mios-kickstart.cfg` looks under `/mnt/usb/ventoy/repo/mios-bootstrap` — align both to one canonical `MiOS-Repo/repos/` and update the kickstart `%post`. Ventoy-bootable ISOs/WIMs stay on the Ventoy data partition (not P3). NOTE (operator reconciliation): the 78 GB OCI tar, `just all` artifacts, model weights, and package mirrors do NOT go here — they go to the separate MiOS-Data store (T-261).
-**Where (files):** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage`), `usr/share/mios/mios.toml` (`[cat].repo_partition`), `…\resources\ventoy\mios-kickstart.cfg` (`%post` repo path), the `MiOS-Repo/` layout
-**When (deps/order):** After T-256/T-258 (home + `[cat]` SSOT). Sibling of T-261 (bulk store).
-**Done When:**
-- [ ] a small stick carries the shadow-config brain (mios.toml + mios.html + Portal + MiOS-Cat + a small repos-clone) and fits any USB; a fully offline bare-metal kickstart install succeeds from `MiOS-Repo/repos/`; the kickstart repo path matches the stager.
-
-## T-261: CATREPO-02 -- Separate MiOS-Data bulk store (512GB+ only): OCI tar + `just all` artifacts  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Cat/Repo | **Who:** deploy/installer agent | **Source:** WS-CATREPO / ADR-0008; MiOS-Cat unification plan §3 (operator re-scope: separate MiOS-Data)
-**Instructions (WHAT + HOW):** On disks ≥ 128 GB only (`Get-Disk` size gate), `cat stage` creates a **separate** `MiOS-Data` store carrying the **bulk**: the ~78 GB `podman save` of `localhost/mios:latest` (offline `podman load`) and the `just all` disk artifacts (`raw/iso/qcow2/vhdx/wsl2`, incl. the ADR-0005 `mios-<ver>.vhdx`). Degrade-open: online `podman pull ghcr.io/mios-dev/mios` → offline `podman load MiOS-Data/images/*.tar`. Keep MiOS-Data physically distinct from the small always-present MiOS-Repo (T-260) so a small stick still deploys network-degraded while a 128 GB+ stick is fully offline.
-**Where (files):** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage` — `Get-Disk` gate + `podman save`/copy), `usr/share/mios/mios.toml` (`[cat].data_partition` — `label`, `min_disk_gb = 128`), `MiOS-Data/images/`, the `just all` artifact paths (`M:\MiOS-images\`)
-**When (deps/order):** After T-260 (repo layout) + WS-BAKEGATE (defines which artifacts exist). Precedes T-262/T-263 (models + mirrors also live on MiOS-Data).
-**Done When:**
-- [ ] on a 512 GB+ disk, MiOS-Data is created separately from MiOS-Repo; offline `podman load` + `bootc switch` from USB works; on a <512 GB disk, MiOS-Data is skipped and only the small MiOS-Repo is written.
-
-## T-262: CATREPO-03 -- Model embedding + `cat provision` (Law 12 offline)  [P1]
-> **Priority:** P1 | **Status:** planned | **Effort:** L | **Domain:** Deploy/Cat/Models | **Who:** deploy/AI-plane agent | **Source:** WS-CATREPO / ADR-0008; MiOS-Cat unification plan §3.3
-**Instructions (WHAT + HOW):** Read the `mios.toml`-defined MODELS from the SSOT (never invent — Law 8): `[ai].bake_models` GGUF CSV (L5744) + fleet tags (L6116), `[ai.vllm].bake_model` (L6724, `Qwen3-30B-A3B-Instruct-2507-AWQ` ~16 GB), `[ai.sglang].bake_model` (L6742). `cat stage` (512GB+/MiOS-Data path) fetches each from Hugging Face into `MiOS-Data/models/` and verifies by checksum (the WS-SBOM / `38-llamacpp-prep.sh` resolved-not-hardcoded pattern) — turning the store into an offline HF mirror. `cat provision` copies them into the deployed host offline: GGUFs → the llama.cpp model dir, the AWQ weights → `/usr/share/mios/vllm/model` (whose `config.json` is the `mios-llm-heavy` activation gate). This is Law 12 (BAKE-NOT-FETCH) realized as offline provisioning — the OCI image bakes engines only; MiOS-Data is the offline weight store. Model-redistribution licensing is an OPEN QUESTION (ADR-0008): if disallowed, store a fetch-manifest + checksums instead of weights.
-**Where (files):** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage`/`cat provision`), `usr/share/mios/mios.toml` (`[ai].bake_models` L5744/L6116, `[ai.vllm].bake_model` L6724, `[ai.sglang].bake_model` L6742, `[cat].models` ref), `MiOS-Data/models/`, `/usr/share/mios/vllm/model` (provision target), `automation/38-llamacpp-prep.sh` (checksum pattern)
-**When (deps/order):** After T-261 (MiOS-Data store exists). Model-redistribution decision gates whether weights or a manifest are stored.
-**Done When:**
-- [ ] a deployed host's heavy lane comes up with ZERO network (the `/usr/share/mios/vllm/model/config.json` weight gate present); GGUFs + the AWQ weights are provisioned offline from MiOS-Data; each model's checksum is verified, not hardcoded.
-
-## T-263: CATREPO-04 -- Offline dnf/flatpak/pip mirrors on MiOS-Data + `cat update` self-refresh  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** M | **Domain:** Deploy/Cat/Mirrors | **Who:** deploy/build agent | **Source:** WS-CATREPO / ADR-0008; MiOS-Cat unification plan §3.4
-**Instructions (WHAT + HOW):** Build the offline package mirrors into `MiOS-Data/` (512GB+ path): **dnf** via `reposync` + `createrepo_c` (referenced by a kickstart `repo --baseurl=file://…`), **flatpak** via `flatpak create-usb` / OCI bundle, **pip** via a `pip download` set / `bandersnatch` for the agent venvs. Degrade-open: live mirror online → `file://` mirror offline. `cat update` re-pulls all payload classes when online (repos, OCI image, models, mirrors) and re-stamps a `MiOS-Data/manifest.json` (payload version + checksums) so a deployed host can tell whether its store is current.
-**Where (files):** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat update`/mirror build), `MiOS-Data/{dnf,flatpak,pip}/`, `MiOS-Data/manifest.json`, `…\resources\ventoy\mios-kickstart.cfg` (`repo --baseurl=file://`), `usr/share/mios/mios.toml` (`[desktop].flatpaks` source list)
-**When (deps/order):** After T-261 (MiOS-Data store). Lowest-urgency Tier-B item.
-**Done When:**
-- [ ] an offline build/first-boot resolves all dnf/flatpak/pip packages from USB; `cat update` refreshes the store + re-stamps `manifest.json` when online.
-
-## T-264: CATFLAT-01 -- Dead-weight purge + leave-nothing-behind  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** S | **Domain:** Deploy/Cat/Flatten | **Who:** cleanup agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2
-**Instructions (WHAT + HOW):** Purge tracked cruft from the bootstrap root after verifying no live consumer (flatten-campaign guardrail): `Get-MiOS.ps1.bom-bak`, `commit.patch`/`commit_a8faad4.patch`/`commit_else.patch`/`commit_skip.patch`, `temp.txt`/`temp2.txt`, `scratch.ps1` (~606 KB); fold `R-DH-BOOTSTRAP-AUDIT.md` if already absorbed. Drop the committed bundled binaries (the ~23 GB MediCat 7z, Ventoy release zips, `bin\*.exe`) — they are downloaded artifacts, not source; keep the fetch-on-demand logic (`.bat` already curls Ventoy + 7z). Fold MediCat i18n down to MiOS strings only.
-**Where (files):** `C:\mios-bootstrap\*.{patch,txt,ps1,bom-bak}` (cruft), `C:\mios-bootstrap\cat\` (bundled binaries, i18n), the `.bat` fetch-on-demand logic (keep)
-**When (deps/order):** After T-256 (single-owner flatten). Verify-no-consumer before each delete.
-**Done When:**
-- [x] `cat/` tracks source only; ~6 MB+ tracked cruft gone; the committed Ventoy/7z/MediCat binaries are removed while fetch-on-demand still works.
-
-## T-265: CATFLAT-02 -- ADR root breadcrumb + spec cross-ref  [P2]
-> **Priority:** P2 | **Status:** planned | **Effort:** S | **Domain:** Deploy/Cat/Docs | **Who:** docs/tooling agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.3
-**Instructions (WHAT + HOW):** Keep the ADRs baked at `usr/share/doc/mios/adr/` (Law 1 — a running MiOS carries its own *why*; do NOT move them to `/etc` or the repo root). To satisfy "ADRs near the system root," generate a breadcrumb from SSOT (Law 8, drift-checked, never hand-maintained): `C:\MiOS\ADR.md` (a pointer/index rendered by the `roadmap-index.py`-class generator) + `C:\mios-bootstrap\cat\ADR-0008.md` (a copy/symlink of the new record so the installer repo is self-documenting). Link both from `llms.txt` / `AGENTS.md`.
-**Where (files):** `C:\MiOS\ADR.md` (generated), `C:\mios-bootstrap\cat\ADR-0008.md` (generated copy/symlink), `usr/share/doc/mios/adr/` (unchanged, baked), `llms.txt`, `AGENTS.md`, the breadcrumb generator
-**When (deps/order):** After T-256. Complements T-255 (the roadmap-index generator class).
-**Done When:**
-- [x] an agent reaches the ADR index from either repo root in ≤2 hops; the breadcrumb is generated + drift-gate green; the baked ADRs under `/usr` are unmoved.
-
-## T-266: CATFLAT-03 -- mios.toml seed-copy consolidation (flag → fix)  [P3]
-> **Priority:** P3 | **Status:** done-by-code | **Effort:** M | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent | **Source:** WS-CATFLAT / ADR-0008; MiOS-Cat unification plan §5.2
-**Instructions (WHAT + HOW):** Resolve the `mios.toml` seed-copy question: the SSOT is `C:\MiOS\usr\share\mios\mios.toml` (597 KB); the root `C:\MiOS\mios.toml` (63 KB) and `C:\mios-bootstrap\mios.toml` (68 KB) are seed/derived copies. Determine which is canonical vs generated, document the seed→SSOT relationship, and (if seeds are generated) wire their regeneration + a drift-check. MiOS-Cat must read ONLY the 597 KB SSOT (paired with T-258). This is the root cause of the T-258 dangling-read bug — confirm the relationship before/with repointing.
-**Where (files):** `C:\MiOS\usr\share\mios\mios.toml` (SSOT), `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seeds), the seed generator (if any), `automation/98-drift-checks.sh`
-**When (deps/order):** Pairs with T-258 (SSOT repoint). Lowest priority; the T-258 fix can land with a documented assumption and this closes it.
-**Done When:**
-- [x] one documented SSOT + explicitly-generated seeds (or a documented decision to keep them); MiOS-Cat reads only the 597 KB SSOT; a drift-check guards seed↔SSOT drift.
-
-## T-267: CONFIG-01 -- Fold `mios.html` into the MiOS Portal at `:8640/` (one web + API front door)  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Config/Portal | **Who:** agent-pipe / Portal backend engineer | **Source:** WS-CONFIG / ADR-0009; unified config surface (operator constraint #2/#3)
-**Instructions (WHAT + HOW):** Fold the standalone configurator `mios.html` (`usr/share/mios/configurator/`) INTO the MiOS Portal as a configurator *view*, so `mios.toml` + `mios.html` + the Portal are ONE config surface served at `:8640/` by agent-pipe: `GET /` serves the Portal (configurator folded in) and `/v1/*` serves the OpenAI API — the SAME single front door (the ADR-0006 convergence). Wire read/write of `mios.toml` from the configurator view through `mios_portal.py` (Law 8 SSOT-PROJECTION; addressed by key never literal — Law 7). "The Portal needs config too" resolves as *it is configured through the surface it is*. The Portal (`:8640/`, or its `[portal].public_host` hosted equivalent) is the shareable web LINK that bootstraps open → configure → deploy; the USB MiOS-Repo shadow-config (T-260 / ADR-0008) is its offline embodiment. Acceptance bar for the whole effort: a shareable link + a USB disk + a usable computer.
-**Where (files):** `usr/lib/mios/agent-pipe/mios_portal.py` (configurator view + `mios.toml` read/write), `usr/lib/mios/agent-pipe/server.py` (`GET /` + `/v1/*` one door), `usr/share/mios/portal/` (absorb the configurator UI), `usr/share/mios/configurator/mios.html` (folded in / retired standalone), `usr/share/mios/mios.toml [portal]` (L220), `tools/mios-portal-app/` (Android client → same `:8640/`)
-**When (deps/order):** No hard dep (the Portal + `:8640` `/v1` already exist). Converges with T-253 (WS-DEPRED single `:8640` front-door collapse); governed by ADR-0007.
-**Done When:**
-- [x] the configurator is a view within the Portal at `:8640/`; `GET /` (Portal) and `/v1/*` (OpenAI API) share the one door; every deployment type's config reads/writes `mios.toml` through the surface; the shareable link and the USB are the same surface online and offline.
-
-## T-268: DEBT-01 -- Collapse version/SSOT to one value (TD-2)  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Build/SSOT/Version | **Who:** SSOT/build agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-2, re-measured)
-**Instructions (WHAT + HOW):** Kill the version/SSOT triplication measured live: there are **3× `mios.toml`** — canonical `usr/share/mios/mios.toml` (10,869 ln) plus two diverged roots `C:\MiOS\mios.toml` (says **0.2.4**) and `C:\mios-bootstrap\mios.toml` — while `VERSION` and SSOT `mios_version` are both **0.3.0**, compounded by **37× hardcoded `v0.2.4`** (and 29× `v0.2.0`) in `automation/*.sh` headers. Collapse to one projected version token: strip the literal `vX.Y.Z` from all script headers (project from `[meta].mios_version` at render time — Law 7); make the two root `mios.toml` **generated projections of the SSOT** (or delete them), documenting the seed→SSOT relationship (pairs with T-266); add two drift-checks — "no literal version in headers" and "root `mios.toml` ⊆ SSOT". Near-zero-risk, highest-reach: a build resolving the wrong 7×-smaller copy silently ships a stale manifest. Directly closes the Law 9 / ADR-0009 violation. NOTE: the two `C:\mios-bootstrap` MiOS-Cat launcher files are owned by a concurrent agent — do not touch `cat\MiOS-Cat.bat`/`.ps1`.
-**Where (files):** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `C:\MiOS\usr\share\mios\mios.toml` (`[meta].mios_version`), all `automation/*.sh` headers, `automation/98-drift-checks.sh` (two new checks)
-**When (deps/order):** Phase −1, near-zero-risk; unblocks WS-LANG (T-272) and the rest of WS-DEBT. Interlocks with T-266 (seed-copy provenance).
-**Done When:**
-- [x] one authoritative version token; no literal `v0.2.4`/`v0.2.0` remains in `automation/*.sh` headers; the two root `mios.toml` are generated-or-deleted and drift-gated (`root ⊆ SSOT`); a build can no longer resolve a stale copy.
-
-## T-269: DEBT-02 -- shellcheck CI gate + kill the 9 `eval`-on-agent-args verbs (TD-1)  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** M | **Domain:** Build/Security | **Who:** build/security agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-1) + §5 Phase −1
-**Instructions (WHAT + HOW):** Enforce the conventions the repo already documents but never gates. (1) Add a `shellcheck -S warning` CI job over `automation/` + `usr/libexec/mios/` bash (today `shellcheck` exists only as `# shellcheck source=` comments — no lint job). (2) Enforce `set -euo pipefail` on the **23 runtime verbs** that have no `set -e`. (3) Audit and eliminate the **9 verbs that `eval` on agent-derived args** — the injection surface on the agent-facing OS-control plane (highest-severity security debt on the verb chokepoint). Replace each `eval` with an explicit arg-array dispatch / `case` allowlist. This is TD-1, the top-ranked debt (spans build + runtime + the agent-facing surface).
-**Where (files):** `.github/workflows/mios-ci.yml` (new shellcheck job), `Justfile` (a `just shellcheck` recipe), the 23 unguarded + 9 `eval` verbs under `usr/libexec/mios/mios-*`
-**When (deps/order):** Phase −1, no new toolchain. Interlocks with T-272 (the Rust verb-dispatcher port removes the `eval` surface structurally).
-**Done When:**
-- [x] CI fails on a shellcheck warning; the 23 verbs carry `set -euo pipefail`; **zero** verbs `eval` on agent-derived args; each former `eval` site is an explicit allowlisted dispatch.
-
-## T-270: DOTFILES-01 -- `[dotfiles.registry.*]` + `mios-dotfiles-render` + `apply` verb + both-sides gate  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Dotfiles/SSOT | **Who:** SSOT/theme agent | **Source:** WS-DOTFILES / ADR-0010; SSOT-as-dotfiles design dossier
-**Instructions (WHAT + HOW):** Generalize the LANDED palette+btop projection into `mios.toml` = the cross-platform system dotfiles. **Landed proof (this session, DONE):** `usr/libexec/mios/mios-theme-render` gained a **settings-surface** concept, `[btop]` (~60 keys) projects the whole `etc/btop/btop.conf` unified Linux+Windows, and drift-check 25 (`check_theme_projection`) auto-extended and is proven green. **This task (planned):** (1) Promote the hardcoded Python `SURFACES` dict into an SSOT-authored `[dotfiles.registry.<surface>]` map — per-platform `target.<os>`; `kind` = template/json-merge/registry/command/skip; `format`; `sources`; `platforms`; `condition` — transcribing the existing color+btop surfaces first (pure refactor, check 25 stays green). (2) Fork `mios-theme-render` → `mios-dotfiles-render`: registry from `mios_toml.load_merged()`, `@MIOS:<section>.<key>@` arbitrary-key tokens, format-aware `merge` preserving foreign keys (WT/VS Code `settings.json` never clobbered), per-platform target resolution, and a new **`apply`/`diff` verb writing to live HOME** (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`). (3) Add the new domains `[shell]`/`[editor]`/`[git]`(→`[identity]`, Law 9)/`[ssh]`(`secret_ref`, raw keys never in SSOT). (4) Generalize `check_theme_projection` (check 25) → `check_dotfiles_projection` over the full registry; add the Windows runtime half `Test-MiOSProjection`; collapse the scattered `Install-MiOS*` bodies into thin registry-driven `Sync-MiOSDotfiles` calls; add a `mios dotfiles apply/diff/drift` verb (`[verbs.dotfiles_*]`).
-**Where (files):** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`; existing `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` stay as content), `usr/libexec/mios/mios-theme-render` (reference; forks to `mios-dotfiles-render`, kept as back-compat alias), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/98-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `C:\mios-bootstrap\Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`
-**When (deps/order):** No hard dep (palette+btop already land). Interlocks with T-267 (the Portal edits the `[dotfiles.registry.*]` map) and ADR-0005/0008 (the overlay carries across deployments). OPEN QUESTIONS: secrets store per platform; a deployment-type enum for `condition` (ADR-0010).
-**Done When:**
-- [x] the color+btop surfaces are registry-driven with check 25 green; a `[theme].opacity` edit projects to Linux CSS + the WT `json-merge` block + the WSL bridge with foreign keys intact and both gates pass; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value is hand-typed that has an SSOT home.
-
-## T-271: TEMPLATE-01 -- Compiled file-pattern system + `mios new` + conformance check + Law-14  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Build/Templates | **Who:** tooling/docs agent | **Source:** WS-TEMPLATE / ADR-0011; combined tech-debt map §3
-**Instructions (WHAT + HOW):** Build the global compiled-template system so an agent learns MiOS formatting from a few files. Author ~15 templates (`bash`, `python-tool`, `python-module`, `rust`, `typescript`, `powershell`, `toml-config`, `yaml`, `json-schema`, `markdown-doc`, `adr`, `roadmap`, `systemd-unit`, `quadlet` [generated], `automation-step`) under `usr/share/mios/templates/`, each = the shared AI-hint header block (produced by the same `usr/libexec/mios/mios-ai-tag` engine — header stays single-sourced) + a small per-type body skeleton whose structure is ALSO validated (closing the gap where only the header is checked). Declare each in SSOT (`[templates.<type>]`: `match`/`comment`/`required_header`/`required_markers`/`generated`/`scaffold`). Land the scaffolder first as Python `usr/libexec/mios/mios-new` (`mios new <type> <name>`, reusing `mios-ai-tag`, filling canonical fields — next ADR number, next `automation/NN` ordinal, canonical ports/endpoints — from SSOT and registering the canonical name via `tools/generate-names-registry.py`), then absorb into `miosd scaffold`. Add a golden round-trip compiler (`tools/compile-templates.py`) and a `check_template_conformance` drift-check (Python worker, mirroring `check_hint_coverage → mios-ai-hint-coverage`, degrade-open, soft→hard ratchet; `check_hint_coverage` becomes its header-subset). `generated=true` types refuse to scaffold an editable file (scaffold the generator + its `mios.toml` section — Law 8 authoritative). **Candidate Law 14 (ONE-TEMPLATE-PER-TYPE):** per ADR-0007 a new law = this ADR + a `[laws]` registry row (id 14) + `check_template_conformance` as its `enforced_by` — **the `[laws]` edit and enforcement are OPERATOR-GATED; do NOT edit the `[laws]` table without confirmation.**
-**Where (files):** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — OPERATOR-GATED), `usr/libexec/mios/mios-new` (new), `usr/libexec/mios/mios-ai-tag` (reused), `tools/compile-templates.py` (new), `automation/98-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios` + `Justfile` (`mios new`/`just new`)
-**When (deps/order):** No hard dep (Python-first, offline-deterministic); folds into WS-LANG's `miosd` (T-272) once the Rust workspace exists. OPEN QUESTIONS: Law-14 operator confirmation; the next free drift-check number.
-**Done When:**
-- [x] `mios new <type> <name>` produces a conformant file that passes `check_template_conformance` + the golden compiler; a template that can't produce a conformant file fails the build; the header check is the header-subset of conformance; Law-14 is proposed with enforcement wired, `[laws]` row awaiting operator sign-off.
-
-## T-272: LANG-01 -- Stand up the Rust workspace + port the first fragile bash tool  [P1]
-> **Priority:** P1 | **Status:** done-by-code | **Effort:** L | **Domain:** Build/Lang | **Who:** native-tooling agent | **Source:** WS-LANG / ADR-0011; combined tech-debt map §2/§4/§5
-**Instructions (WHAT + HOW):** Begin the language-per-domain unification. Create the cargo workspace (crates behind one `miosd` static musl binary, subcommands `build|drift|verb|resolve|render|cat|scaffold|fmt`) built once in an early **cached Containerfile stage** and `COPY`'d to `/usr/libexec/mios/miosd`, invoked by **thin RUNs** so the immutable-image contract holds (Law 8 strengthened — `miosd render`/`drift`/`fmt` are the same regenerate-and-diff gate). Port the **first** fragile bash tool — either the **drift-runner** (`automation/98-drift-checks.sh`, 44 `check_*` in ~3.1k ln bash — highest resilience win, lowest coupling; several checks are already Python-in-bash) or the **verb dispatcher** (removes the 9-verb `eval` surface) — running old+new **side-by-side and diffing to identical** before deleting the bash. Collapse the Law-13 resolver twin (`usr/lib/mios/mios_toml.py` ⇄ `tools/lib/userenv.sh`) into one crate exposing a `--shell` KEY=VAL emitter + a pyo3 face, ending the parity drift (retire `check_userenv_parity`). **OPEN QUESTION — native-workspace location:** `C:\MiOS\src\` is already occupied by the in-tree C# `mios-launch.cs` + `autounattend/`, so the cargo workspace goes elsewhere (candidate `C:\MiOS\tools\native\` or `src\mios-rs\`) — do NOT clobber `src/`. Go is rejected as a second native tier (documented escape hatch only). The 66 `automation/NN-*.sh` OS-touching steps stay shell-thin; the AI plane stays Python.
-**Where (files):** the new cargo workspace (location OPEN — `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early cached Rust stage + `COPY`), `automation/build.sh` (→ 20-line shim), `automation/98-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse to the crate), `C:\MiOS\src\mios-launch.cs` (later folds into `miosd cat`)
-**When (deps/order):** After T-268 (one version token) + T-269 (shellcheck gate) — Phase −1 unblocks the port. OPEN QUESTIONS: native-workspace location; Go escape-hatch; pyo3-vs-subprocess for the AI-plane resolver binding.
-**Done When:**
-- [x] `miosd` bakes in a cached stage and is invoked by unchanged thin RUNs; the first ported tool runs byte-identical to the bash it replaces (side-by-side diff clean), then the bash is deleted; the resolver twin is one crate with pyo3 + `--shell` faces and `check_userenv_parity` is retired.
-
-## T-273: DEBT-03 -- Split `mios_dispatch.py` + finish the server.py decomposition (TD-5)  [P2]
-> **Priority:** P2 | **Status:** done-by-code | **Effort:** M | **Domain:** AI-Plane/Refactor | **Who:** AI-plane agent | **Source:** WS-DEBT / ADR-0011; combined tech-debt map §1 (TD-5)
-**Instructions (WHAT + HOW):** Finish the half-done AI-plane decomposition. `server.py` is an **8,961-ln** god-module (VRAM scheduler + `_db_*` + auth middleware + agent streaming intermixed); the `mios_pipe/` refactor (103 files, 100% hint-tagged) never reached the 4 largest flat modules — including **`mios_dispatch.py`, the security-critical verb→bash chokepoint every verb passes through**. Extract `mios_dispatch.py` FIRST into `mios_pipe/`, then continue extracting the flat modules; replace the **9 bare `except:`** (of 558 `except Exception`); add a new drift-check "no Python file > 800 lines". Relocation ≠ decomposition — also split the 3 relocated 88–107 KB monoliths (`routing/chat.py`, `native_loop.py`, `federation/a2a.py`) where feasible. Python stays (Law 6, ML ecosystem) — the debt is the monolith, not the language.
-**Where (files):** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**` (incl. `routing/chat.py`, `native_loop.py`, `federation/a2a.py`), `automation/98-drift-checks.sh` (>800-line gate)
-**When (deps/order):** Independent track (Python, pure refactor); `check_unwired_modules` confirms each extraction is live. No hard dep.
-**Done When:**
-- [x] `mios_dispatch.py` is extracted and live (`check_unwired_modules` green); `server.py` shrinks toward a <800-line composition root; no bare `except:` remains; the >800-line Python gate is green.
+## T-001 -- FED-G1: authenticate every inbound `/v1` and `/a2a` request at the one front door  (WS-FED | P0 | M)
+**Goal:** E-24 Autonomy guardrails -- the single OpenAI `/v1` front door (`MIOS_AI_ENDPOINT`) stops being an anonymous, LAN-reachable inference oracle.
+**What+How:** Add ONE ASGI `@app.middleware("http")` in `server.py`, ordered ahead of the usage shaper (~line 26814), matching `/v1/*` and `/a2a/*`. Accept any of three credentials: an `API_SERVER_KEY` bearer token, a per-agent caller-key loaded from `/etc/mios/ai/v1/caller-keys.json`, or a `mios_principal` scoped token. On a valid credential inject the scoped identity (`max_permission` + RBAC tier + reputation score) into request state so downstream handlers authorize off it. Add SSOT keys `[security].require_auth` (default `false`, making the middleware a literal no-op -- degrade-open) and `[security].loopback_only`; default the listener to loopback and only publish `0.0.0.0` when `require_auth = true` AND the bind is firewall-scoped to `172.16/12`.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (~26814) | `usr/share/mios/mios.toml` (`[security].require_auth`, `[security].loopback_only`) | `/etc/mios/ai/v1/caller-keys.json` (runtime overlay, not in the vendor image)
+**Done When:** `GET /v1/models` with no credential returns `401`; a `caller-keys.json` key returns `200` with a scoped identity attached; setting `[security].require_auth = false` restores open access unchanged; `ss -ltnp` shows `:8640`/`:8642` on `127.0.0.1` by default; `/v1/cluster/health` reports `auth_gate: active`.
+**Why:** Live-verified today: `/v1/models`, `/v1/chat/completions` and `/a2a` all return `200` and execute real inference with NO credential, on ports bound to `0.0.0.0` -- any process on the LAN can drive the council, spend the GPU, and reach every registered tool.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Security/Federation | **Who:** WS-FED | Operator greenlight required -- changes front-door auth posture
+
+## T-002 -- BOOT-01: greenboot health checks that roll back a bad AI-plane upgrade  (WS-RUNTIME | P1 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- greenboot health COVERAGE gated so every critical service has a check and a rollback path.
+**What+How:** Author greenboot required-check scripts that assert `mios-agent-pipe.service`, `mios-llm-light.service` and `mios-pgvector.service` are active, and that `curl -sf http://localhost:8640/v1/models` returns `200` inside a 60s budget. Failure exits non-zero so greenboot triggers `bootc rollback`. Register the scripts in `/etc/greenboot/check/required.d/` and install the `greenboot` package from the `Containerfile`. Scripts must be idempotent (safe on every boot, no state written). Port literals come from the SSOT port keys, not inline `8640`.
+**Where:** `/etc/greenboot/check/required.d/50-mios-agent-pipe.sh` | `/etc/greenboot/check/required.d/51-mios-llm-light.sh` | `Containerfile`
+**Done When:** A deliberately broken `mios-agent-pipe` produces a rollback signal in the greenboot journal; a healthy boot passes all checks inside the timeout; re-running the scripts twice yields identical results.
+**Why:** After a `bootc upgrade` that breaks the agent-pipe or the primary inference lane there is no automatic detection and no automatic rollback -- the machine boots "green" into an OS whose entire reason for existing (NS-2) is dead, and an operator has to notice by hand.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Boot/Image | **Who:** Part 1 S2
+
+## T-003 -- BOOT-02: fail the image build on HIGH/CRITICAL OpenSCAP findings (`oscap-im`)  (WS-SEC | P1 | M)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- compliance becomes a build-time fitness function instead of an after-the-fact audit.
+**What+How:** Add `oscap-im` as a build-time dependency in the `Containerfile` and run a scan step after the main `RUN` layer against the Fedora STIG or CIS profile. Any HIGH or CRITICAL finding `exit 1`s the build. Known-acceptable deviations are declared in SSOT as `[compliance].oscap_skip_rules` and read by the scan step -- the skip list must never be a literal list inside the `Containerfile` (Law 7 NO-HARDCODE).
+**Where:** `Containerfile` | `usr/share/mios/mios.toml` (`[compliance]` block)
+**Done When:** `podman build` fails when a deliberate high-severity misconfiguration is injected; a clean tree builds with exit 0; adding a rule id to `[compliance].oscap_skip_rules` (and nowhere else) suppresses that finding.
+**Why:** Published images ship with no mechanical compliance floor -- a hardening regression rides straight into `ghcr.io/mios-dev/mios` and onto every host that pulls the ref, discoverable only by scanning the fleet afterwards.
+**Dep:** none
+**Status:** built-gated-off | **Domain:** Boot/Security | **Who:** Part 1 S3
+
+## T-004 -- BOOT-03: cryptographically verified rootfs via composefs + fs-verity  (WS-SEC2 | P1 | S)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- the read-only `/usr` of NS-1's single image is provably the image, not something edited underneath it.
+**What+How:** Set `composefs = true` in the image's `/usr/lib/ostree/prepare-root.conf` so the deployment mounts through composefs. Verify at boot that overlayfs + EROFS + fs-verity are all active. Add a greenboot required check (`ostree admin status | grep composefs`) so a deployment that silently falls back to a non-verified mount is caught and rolled back rather than run. SSOT-drive the mode via `[security].composefs_mode`.
+**Where:** `usr/lib/ostree/prepare-root.conf` | `/etc/greenboot/check/required.d/52-mios-composefs.sh`
+**Done When:** `ostree admin status` confirms composefs active on a fresh boot; tampering with a file under `/usr` raises a verification error on the next boot instead of booting the tampered tree; the greenboot check passes on an unmodified image.
+**Why:** Without composefs/fs-verity the immutability of `/usr` is a convention, not an enforced property -- offline modification of the deployed root is undetectable, which breaks the "a host that pulls the ref reproduces the fleet exactly" guarantee.
+**Dep:** T-002 (greenboot)
+**Status:** done-by-code | **Domain:** Boot/Security | **Who:** Part 1 S4
+
+## T-005 -- BOOT-04: generate every Podman Quadlet from `mios.toml` and drift-gate the result  (WS-SYSTEMD | P1 | M)
+**Goal:** E-18 Generate the systemd units from SSOT -- no container unit is hand-maintained and none can silently diverge from the SSOT that declares it.
+**What+How:** Extend `tools/generate-pod-quadlets.py` to fully parse `[pods.*]`, `[ports.*]` and `[containers.*]` from `mios.toml` and emit `.container`, `.network` and `.volume` Quadlet units at build time. Add a `--check` mode that renders to memory, diffs against the units on disk, and exits non-zero on any difference. Wire that `--check` invocation into `automation/98-drift-checks.sh` as a registered check so the gate owns it.
+**Where:** `tools/generate-pod-quadlets.py` | `automation/98-drift-checks.sh` | `Containerfile`
+**Done When:** `generate-pod-quadlets.py --check` exits 0 on a clean repo; adding a `[pods.test]` block emits the correct `.pod` unit; hand-editing a generated unit turns `just drift-gate` RED.
+**Why:** Quadlets edited by hand drift from `[pods.*]`/`[containers.*]` with nothing to catch it -- this is the exact recurring class where a broad `git add` strips or reverts generated unit content and the divergence is only discovered when a pod fails to start on a real host.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Boot/Ops | **Who:** Part 1 S5
+
+## T-006 -- A1: one `[agents.*]` schema with `_defaults` inheritance, ending silent single-agent degradation  (WS-A1 | P1 | M)
+**Goal:** E-09 One value, one name -- per-agent config collapses to thin overrides over a single declared default block instead of N ad-hoc copies.
+**What+How:** Add `[agents._defaults]` to vendor `mios.toml` carrying the canonical schema: a `kind` discriminator (`local-http|remote-http|cli|mobile|edge|node|a2a`), `enabled`, `transport`, `timeout_s`, `sub_lane`, `api`, `vram_mb`, `ram_mb`, `tool_capable`, `auth{scheme,header_template,principal_mode}`, `trust{min_reputation,require_signed_principal,mtls}`. In `_load_agent_registry` do `base = agents.pop("_defaults", {})`, skip any `_`-prefixed name, and merge `effective = {**base, **cfg}`. Make the `health_gate` default SAFE: `True` when `kind in {remote-http,cli,mobile,edge,node,a2a}`, or when `not enabled`, or when `_is_remote_endpoint(ep)`. Extract `_coerce_agent_cfg(name, effective)` and share it between `_load_agent_registry` and `_load_node_pool`. Rewrite each `[agents.*]` block as a thin override.
+**Where:** `usr/share/mios/mios.toml` | `usr/lib/mios/agent-pipe/server.py` (~3835-3995)
+**Done When:** With `_defaults` absent, behavior is byte-identical to today; with `_defaults` present, `opencode` resolves `health_gate=true`; `/v1/cluster/health` is unchanged for live agents; a unit test proves a 1-field overlay inherits every remaining field.
+**Why:** Agent config is ad-hoc -- `hermes` carries `health_gate`, `opencode` does not, and the loader defaults local agents to `health_gate=False`, producing `merged_chars=0`. That is the root cause of the orchestrator quietly running as a single agent while still reporting a council.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Orchestration | **Who:** WS-A1
+
+## T-007 -- A2: `check_agent_schema()` drift-gate so a malformed agent block cannot merge  (WS-A2 | P1 | S)
+**Goal:** E-07 The drift-gate as the enforcement plane -- the T-006 schema becomes a machine-checked invariant, not a convention.
+**What+How:** Add `check_agent_schema()` to `automation/98-drift-checks.sh`, mirroring the existing `check_rbac_tiers` pattern (inline `python3` + `tomllib`). It FAILS on: (a) a local/cli agent missing `health_gate=true`; (b) `kind=cli` without `timeout_s`/`enabled`; (c) `kind=node` without both `api` and `lane`; (d) remote/edge/mobile without `health_gate=true`; (e) a bare `:PORT` literal where `${MIOS_PORT_*}` belongs; (f) not-exactly-one `default=true`; (g) any unknown key. Register it in `main()` immediately after `check_rbac_tiers`.
+**Where:** `automation/98-drift-checks.sh`
+**Done When:** `just drift-gate` fails when a test agent omits `health_gate`; it passes on the cleaned config; the check runs in CI with no built image required (pure repo-tree parse).
+**Why:** Nothing stops the T-006 regression class from reappearing -- one merged agent block missing `health_gate` silently returns the orchestrator to single-agent mode, and a hardcoded `:PORT` in an agent block reintroduces the NO-HARDCODE violations that E-12/E-13 exist to remove.
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Orchestration/CI | **Who:** WS-A2
+
+## T-008 -- A3: make the opencode gateway a real council peer on `:8633` instead of a hang  (WS-A3 | P1 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a gateway MiOS already ships either works and is SSOT-enabled, or its claim is withdrawn.
+**What+How:** Fix the root cause at `opencode-gateway/server.py:171-173`: the `subprocess.run` call passes no `stdin=`, so `opencode run` drops into its TUI and blocks forever. Pass `stdin=subprocess.DEVNULL` and use genuinely headless invocation (`opencode run -p`/`--print`, the `OPENCODE_*` env, or switch to `opencode serve`). Add a fail-fast timeout read from `[agents.opencode].timeout_s`. Enable and start `mios-opencode-gateway.service`, then set `[agents.opencode].enabled = true` and add it to `fanout` once it is stable under load.
+**Where:** `usr/libexec/mios/opencode-gateway/server.py` (~171-173) | `usr/lib/systemd/system/mios-opencode-gateway.service` | `usr/share/mios/mios.toml`
+**Done When:** `curl :8633/v1/chat/completions` returns a real completion with no hang; `/v1/cluster/health` shows opencode `effective_up: true`; a code-routed fan-out merges real opencode output into the council response.
+**Why:** "opencode as a real council peer DONE" is FALSE today -- the gateway is disabled and inactive, `:8633` is not listening, and any call that did reach it would hang indefinitely on the TUI. The code lane of the council has no second opinion.
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Orchestration | **Who:** WS-A3
+
+## T-009 -- A4/FED: make `hermes-worker` come up after its venv exists instead of dying at boot  (WS-A4 | P1 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a shipped lane that never reaches `active` is an unwired capability.
+**What+How:** Add `After=`/`Requires=` on the venv-build unit to `hermes-worker.service` so ordering is explicit rather than racing. Add a `.path` unit watching the hermes binary that `ExecStart`s the worker when the path becomes available, covering the case where the venv is built after boot. Ensure `[agents.hermes-worker]` declares `kind=local-http` with an `auth{}` block and `health_gate=true` per the T-006 schema.
+**Where:** `usr/lib/systemd/system/hermes-worker.service` | `usr/lib/systemd/system/hermes-worker-watch.path`
+**Done When:** After a fresh boot plus venv build, `systemctl is-active hermes-worker` reports `active`; `/v1/cluster/health` shows at least one peer `effective_up: true`; a fan-out request measurably uses hermes-worker as a council peer.
+**Why:** On a default VM all 9 cluster agents report `effective_up: false` -- `:8643` hermes-worker sits `inactive` with `ConditionResult=no` because the venv is absent at boot, and nothing ever retries. The council has zero peers on a clean install.
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Orchestration/Federation | **Who:** WS-A4
+
+## T-010 -- FED-G2 follow-up: attach outbound agent credentials at all 4 remaining dispatch sites  (WS-FED | P1 | S)
+**Goal:** E-24 Autonomy guardrails -- outbound federation is credentialed everywhere, not just on the one path someone remembered.
+**What+How:** Locate every `httpx.AsyncClient`/`aiohttp` call site in `server.py` that dispatches to an agent endpoint -- the known ones are at ~1873, ~4699, ~5829 and ~26208 -- and call `_apply_outbound_auth(hdrs, ep)` at each site before the request is issued, exactly as the council/tool-loop site already does. Confirm the helper is a no-op for endpoints whose `auth` config is empty so local agents are untouched.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (~1873, ~4699, ~5829, ~26208)
+**Done When:** All 4 sites attach the header their endpoint's `auth` config specifies; local no-auth agents still succeed with empty headers; no dispatch path remains that reaches a remote peer uncredentialed.
+**Why:** `_apply_outbound_auth(hdrs,ep)` is wired only at the council/tool-loop site -- the other dispatch paths reach authenticated peers with no credential, so once T-001/T-014 turn auth on at the receiving end those paths start failing (or, worse, keep working only because peers are still open).
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Federation/Security | **Who:** WS-FED
+
+## T-011 -- FED-G3: live A2A membership reload without restarting the agent-pipe  (WS-FED | P1 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- federation membership becomes a live-reloaded projection of its config files.
+**What+How:** Implement an mtime watcher (inotify, or the existing cron-director pattern) over `a2a-peers.json` plus the `[agents.*]`/`[nodes.*]` sections of `mios.toml`. On change, re-run `_a2a_load_peers()` and invalidate `_WORKER_TOOLS_FULL_CACHE` so the tool roster is rebuilt. Additionally expose an auth-gated `POST /a2a/peers/reload` that drives the same code path. Gate the watcher on `[a2a].live_reload` (default `true` -- additive and safe).
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` (`[a2a].live_reload`)
+**Done When:** Adding a peer to `a2a-peers.json` makes it appear in `/v1/cluster/health` within 5s with no restart; removing one drops it within 5s; `POST /a2a/peers/reload` produces the same result.
+**Why:** Every membership change today requires restarting `mios-agent-pipe`, which drops in-flight turns and warm KV state -- and it makes automatic discovery (T-013) useless, since a discovered peer written to disk would never be noticed.
+**Dep:** T-001 (FED-G1, for reload-endpoint auth), T-006 (A1)
+**Status:** done-by-code | **Domain:** Federation | **Who:** WS-FED
+
+## T-012 -- FED-G4: self-describing, Ed25519-signed AgentCard  (WS-FED | P1 | M)
+**Goal:** E-15 supply-chain hardening as gated policy -- a peer's identity claim is cryptographically verifiable rather than asserted.
+**What+How:** Extend `_build_agent_card()` (`server.py:~19082`) to emit `securitySchemes` and `security` fields projected from `[a2a.security]` in SSOT (never hand-written into the card). Add a `signatures[]` array holding a JWS over the RFC-8785 canonical (JCS) form of the card body, signed with the Ed25519 passport key. Include an `x-mios` extension block cross-linking the OpenAI `/v1` and MCP surfaces so one fetch describes all three contracts. Ensure the canonicalization is deterministic so the card is byte-stable across restarts.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (~19082) | `usr/share/mios/mios.toml` (`[a2a.security]`)
+**Done When:** `curl /.well-known/agent-card.json` returns a card containing `securitySchemes` and `signatures[]`; a peer verifies the JWS using the key from `GET /passport/public-key`; two consecutive restarts produce identical card bytes.
+**Why:** Without a signed card, peer identity is whatever the peer says it is -- T-014's verify/enforce delegation has nothing to check against, and a hostile LAN node can present itself as a trusted MiOS peer.
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Federation/Security | **Who:** WS-FED
+
+## T-013 -- FED-G5: LAN-native mDNS peer discovery (avahi) with a CIDR-sweep fallback  (WS-FED | P1 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- avahi and the discovery packages MiOS already installs actually produce peers.
+**What+How:** Enable `avahi-daemon.service` behind `[a2a].mdns_discovery` (default `false`). Publish `_mios-ai._tcp` and `_a2a._tcp` on the agent-pipe port `:8640`. On the browse side, `mios-a2a-discover` parses `avahi-browse` output and confirms each candidate with a `/v1/models` probe before trusting it; when mDNS is unavailable it falls back to a CIDR sweep of `172.16/12` with the same probe. Discovered peers are written to `/etc/mios/ai/v1/a2a-peers.json`, which triggers the T-011 live reload rather than a restart. firewalld already opens `mdns`/5353 (`33-firewall.sh`) -- do not re-add a rule.
+**Where:** `usr/lib/systemd/system/mios-a2a-discover.service` | `usr/libexec/mios/mios-a2a-discover` | `usr/share/mios/mios.toml`
+**Done When:** A second MiOS node on the same LAN appears in `/v1/cluster/health` within 30s of boot with zero manual config; `[a2a].mdns_discovery = false` results in no avahi activity at all; the CIDR sweep path produces the same peer set when mDNS is blocked.
+**Why:** Federation is manual-only: every peer must be hand-written into `a2a-peers.json`, so two MiOS boxes on one LAN stay isolated and the "federated agent OS" property is operator labor rather than a property of the image.
+**Dep:** T-011 (FED-G3), T-001 (auth gate)
+**Status:** done-by-code | **Domain:** Federation | **Who:** WS-FED
+
+## T-014 -- FED-G6: authenticated inbound delegation with least-privilege scoping  (WS-FED | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- an inbound peer gets exactly the tool surface its verified identity earns, and nothing more.
+**What+How:** Stage the rollout through the `[a2a].principal_mode` SSOT key: `off` -> `verify` -> `enforce`. In `verify` (audit-only), validate the incoming peer's Ed25519 AgentCard signature and log the resolved identity as `event(kind="peer_auth")` without blocking anyone. Map a verified peer identity to a scoped identity carrying `max_permission` plus explicit tool-surface restrictions driven by reputation. In `enforce`, unverified peers are rejected outright. Implement in the A2A inbound handler so it composes with the T-001 middleware rather than duplicating it.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (A2A inbound handler) | `usr/share/mios/mios.toml` (`[a2a].principal_mode`)
+**Done When:** With `principal_mode=verify` an unsigned peer still passes but its identity is logged; with `enforce` an unsigned peer gets `403` while a signed peer gets a scoped identity; the scoped identity demonstrably narrows the tool surface for a low-reputation peer.
+**Why:** Any peer that reaches `/a2a` today gets the full tool surface of the host -- filesystem, shell and verb tools included -- with no identity check and no ceiling, so one compromised LAN node owns the whole council.
+**Dep:** T-012 (FED-G4 signed card), T-001 (FED-G1 auth gate)
+**Status:** done-by-code | **Domain:** Federation/Security | **Who:** WS-FED
+
+## T-015 -- C0: make code-server actually bind the SSOT port `:8800` instead of `:8080`  (WS-C0 | P1 | S)
+**Goal:** E-13 Ports are allocated from SSOT, not hand-assigned -- the container obeys the key that already exists.
+**What+How:** `[ports].code_server = 8800` is already in SSOT but the container still binds `:8080`. In `mios-code-server.container` set BOTH `Environment=BIND_ADDR=0.0.0.0:8800` AND the `--bind-addr 0.0.0.0:8800` entrypoint argument -- the image `ENTRYPOINT` overrides the env var, so either alone is insufficient. Update the three `Label=` directives and the header comment that still say `:8080`.
+**Where:** `usr/share/containers/systemd/mios-code-server.container`
+**Done When:** `ss -ltnp | grep 8800` shows the binding and `:8080` is free; the Code Server UI answers at `http://localhost:8800`; no `:8080` literal remains in the unit.
+**Why:** `:8080` is a contested port on this host and the collision blocks other services from starting; it is also a live NO-HARDCODE violation of a key that already exists in SSOT, which is exactly the class the hardcode lint is supposed to catch.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Ops/Pods | **Who:** WS-C0
+
+## T-016 -- C1: declare the 7 remaining `[pods.*]` groupings in `mios.toml`  (WS-C1 | P1 | M)
+**Goal:** E-18 Generate the systemd units from SSOT -- pod topology is declared once in SSOT and rendered, never hand-assembled.
+**What+How:** Mirror the proven `[pods.mios-webtools]` schema for: `mios-ai-inference` (llm-light + cpu-node + worker), `mios-ai-heavy` (heavy + heavy-alt, VRAM-gated), `mios-ai-data` (pgvector), `mios-devforge` (forge + runner + code-server), `mios-netinfra-dns` (adguard), `mios-remote-desktop` (guacamole, optional), keeping `mios-webtools` as-is. Deliberately leave the OWUI front door and searxng standalone (not podded). Validate by running `generate-pod-quadlets.py --check`.
+**Where:** `usr/share/mios/mios.toml` (`[pods.*]`)
+**Done When:** `generate-pod-quadlets.py --check` lists all 7 pods with no drift warning; `just drift-gate` passes.
+**Why:** Without pod declarations the sidecar containers share no network namespace or lifecycle, so ordering, restart and teardown are per-container accidents -- and T-017's `Pod=` attachment has nothing to attach to.
+**Dep:** T-015 (C0)
+**Status:** done-by-code | **Domain:** Ops/Pods | **Who:** WS-C1
+
+## T-017 -- C2: attach `Pod=` to every member container and prove all 7 pods run healthy  (WS-C2 | P1 | M)
+**Goal:** E-18 Generate the systemd units from SSOT -- the declared topology from T-016 is realized on the running host.
+**What+How:** Add `Pod=<pod>.pod` to each member `.container` file for all 7 pods declared in T-016. Run `tools/generate-pod-quadlets.py` to produce the `.pod` Quadlet units, `systemctl daemon-reload`, then start each pod and verify both the pod and each member reach healthy. The existing `check_pod_quadlets` drift-check covers the generated-vs-disk half.
+**Where:** every member `.container` file under `usr/share/containers/systemd/` | `tools/generate-pod-quadlets.py`
+**Done When:** `podman pod ls` shows all 7 pods `Running`; every member container is listed under its pod; all container health checks pass.
+**Why:** Declared-but-unattached pods are inert -- containers keep their own isolated netns, so intra-pod service names do not resolve and the grouping exists only in SSOT while the running system contradicts it.
+**Dep:** T-016 (C1)
+**Status:** done-by-code | **Domain:** Ops/Pods | **Who:** WS-C2
+
+## T-018 -- E1: persist the OWUI location/model row through firstboot so it survives a rebuild  (WS-E1 | P1 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a live-applied setting becomes part of the image's reproducible first boot.
+**What+How:** Wire `mios-owui-apply-system-prompt` into the OWUI firstboot / `ExecStartPost` chain so the `MiOS AI` model row carrying `{{USER_LOCATION}}`, `{{CURRENT_TIMEZONE}}` and `{{CURRENT_DATE}}` is (re)applied on every fresh start. Set `Environment=MIOS_OWUI_DB=<host webui.db>` on `mios-agent-pipe.service` so the applier finds the right database. Document in the firstboot output that browser geolocation needs a secure context -- `https://...ts.net` or `http://localhost:3030`, NOT `http://<LAN-IP>`.
+**Where:** `usr/lib/systemd/system/mios-open-webui-firstboot.*` | `usr/lib/systemd/system/mios-agent-pipe.service`
+**Done When:** Re-running firstboot against an empty model table recreates the `MiOS AI` row with `{{USER_LOCATION}}`; the row survives a full reinstall; the secure-context requirement appears in firstboot output.
+**Why:** The fix is applied live only -- any rebuild or reinstall silently loses it, so the flagship OWUI entry point reverts to a location-blind default and the operator re-does it by hand every image cycle (a direct NS-1 reproducibility violation).
+**Dep:** none
+**Status:** done-by-code | **Domain:** UX/OWUI | **Who:** WS-E1
+
+## T-019 -- SCHED-01: turn-boundary preemption wiring `PriorityGate` to KV paging  (WS-GUARD | P1 | L)
+**Goal:** E-24 Autonomy guardrails -- foreground work preempts background work by lane priority instead of queueing behind it.
+**What+How:** On a high-priority arrival while the lane is saturated, identify the lowest-priority in-flight turn and suspend it at the next tool-call or DAG-step boundary -- never mid-decode. Snapshot its state with `_kv_slot_action("save", slot_id)`, admit and complete the urgent request, then `_kv_slot_action("restore", slot_id)` and resume the suspended turn from the saved DAG step. Add SLA classes `interactive`/`batch`/`background` to the `[scheduler]` SSOT block. Gate the whole path on `[scheduler].preemption` (default `false`, degrade-open).
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` (`[scheduler]`)
+**Done When:** With `preemption=true`, an interactive request arriving mid-batch-tool-call is serviced within 2s and the batch resumes from the same DAG step; with `preemption=false` behavior is byte-identical to today; KV restore is correct for Gemma/Qwen SWA models (verified with `--swa-full`); `/v1/cluster/health` reports `scheduler_mode: preemptive` when active.
+**Why:** `mios_sched.PriorityGate` and `_kv_paging` both exist but were never connected -- so a long background generation blocks the interactive lane end-to-end, and the operator's own prompt waits behind an autonomous loop's batch job.
+**Dep:** T-006 (A1)
+**Status:** done-by-code | **Domain:** Scheduling/Kernel | **Who:** Part 5 P0, Part 6 P1#1
+
+## T-020 -- SCHED-02: token-time slicing queue with anti-starvation aging in agent-pipe  (WS-H2 | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- concurrent requests share the lane fairly instead of running to completion head-of-line.
+**What+How:** Add a token-time slicing queue to `agent-pipe` on `:8640`. Once a task emits `[scheduler].token_slice_size` tokens (default `512`), preempt it: save the KV slot, yield the lane, advance to the next task in a round-robin queue, restore that task's KV slot and continue. Add monotonic aging so a task's effective priority rises with queue wait time. Gate on `[scheduler].token_slice` (default `false`).
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml` (`[scheduler].token_slice*`)
+**Done When:** With `token_slice=true` and a 512-token slice, a 4000-token generation is preempted 8 times and interleaves with a short parallel request; the short request completes without waiting for the long generation; a background task waiting >60s is elevated to the `interactive` SLA.
+**Why:** A single long generation monopolizes the lane for its full duration, so every concurrent caller -- including the interactive one -- sees latency equal to the longest in-flight job, and low-priority work can wait indefinitely with no aging to rescue it.
+**Dep:** T-019 (SCHED-01)
+**Status:** done-by-code | **Domain:** Scheduling | **Who:** WS-H2, Part 5 P8, Part 3 E.3
+
+## T-021 -- MEM-01: stable per-conversation KV slots with a `--swa-full` correctness guard  (WS-DURA | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- conversation state is durable and correct across turns rather than silently recomputed or silently corrupt.
+**What+How:** Map each `chat_id` to a stable `slot_id` in `mios-llm-light` using its `/slots` API. Before each turn call `_kv_slot_action("restore", slot_id)` when a prior snapshot exists; after each turn call `_kv_slot_action("save", slot_id)`. Detect the model family from the active `mios-llm-light.yaml` entry and, for Gemma/Qwen sliding-window models, pass `--swa-full` on restore -- without it the restored KV is silently wrong rather than erroring. Add `[memory].kv_slot_persist` (default `true`) as the SSOT switch back to stateless behavior.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `usr/share/mios/mios.toml` (`[memory]`)
+**Done When:** A second turn restores prior KV state with prefix tokens not re-processed (measurable in prefill time); Gemma/Qwen restores produce correct output with `--swa-full`; `[memory].kv_slot_persist=false` cleanly falls back to stateless.
+**Why:** `mios-llm-light` already runs with `--slot-save-path` but nothing maps a conversation to a slot file, so every turn re-processes the full prefix -- wasted GPU on every message -- and the T-019/T-020 preemption paths have no correct save/restore primitive to suspend against.
+**Dep:** T-019 (SCHED-01)
+**Status:** done | **Domain:** Memory/Context | **Who:** Part 5 P1
+
+## T-022 -- FED-CONSUME: light up the dormant A2A and MCP client halves  (WS-FED | P1 | L)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the client side of federation stops being dead code and MiOS becomes a real peer, not just a server.
+**What+How:** Self-test first: register MiOS's own A2A card and MCP endpoint into the runtime overlays so the client halves exercise themselves over loopback. Verify the full client round-trips -- A2A `Message -> Task -> Artifact`, and MCP `tools/list` + `tools/call` via `_mcp_tool_to_openai_tool` / `_a2a_send_message_to_peer`. Confirm `mios-a2a-discover` auto-populates `a2a-peers.json` from live AgentCards. Then test against a second MiOS node over the LAN/WSL `172.x` gateway (deliberately without Tailscale) and confirm the remote node contributes real content to a council fan-out.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `/etc/mios/ai/v1/mcp.json` | `/etc/mios/ai/v1/a2a-peers.json`
+**Done When:** Loopback self-registration round-trips A2A `Message -> Task -> Artifact`; a second MiOS node on the LAN appears in `/v1/cluster/health` and contributes fan-out; a remote MCP server's tools appear in the council tool roster via `/v1/verbs/openai-tools`.
+**Why:** `_mcp_tool_to_openai_tool` and `_a2a_send_message_to_peer` are wired but never invoked, and the vendor image ships an empty `/usr/share/mios/ai/v1/mcp.json` -- so MiOS can be consumed by others but consumes nothing. This is the single largest strategic gap between "one-operator ensemble" and the NS-2 federated agent OS.
+**Dep:** T-011 (FED-G3), T-012 (FED-G4), T-001 (auth gate)
+**Status:** built-gated-off | **Domain:** Federation | **Who:** Part 6 P1#2
+
+## T-023 -- OBS-01: OpenTelemetry GenAI spans linked to the pgvector replay log  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- agent execution is observable and joins back to the unified datastore that already records it.
+**What+How:** Instrument `agent-pipe` to emit `invoke_agent` and `execute_tool` spans carrying OTel `gen_ai.*` semantic attributes. Bake a local collector (`otelcol-contrib`) as a Podman container via a Quadlet unit -- baked into the image, not fetched (Law 12). Carry `tool_call.session_id` on the spans so each trace joins to its pgvector replay row, and surface traces in Jaeger or Grafana Tempo. Gate everything on `[observability].otel_enable` (default `false`).
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/containers/systemd/mios-otelcol.container` | `usr/share/mios/mios.toml` (`[observability]`)
+**Done When:** A chat request produces spans in the local trace viewer; each tool call has a child span with `gen_ai.tool.name`; a span links to its pgvector `tool_call` row via `session_id`; with the gate off, no spans are emitted and the collector does not run.
+**Why:** A multi-agent fan-out with nested tool calls is currently debuggable only by reading logs -- there is no per-turn causal trace, so latency and failure attribution across the council is guesswork.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Observability | **Who:** Part 1 S1, Part 6 P3#6
+
+## T-024 -- A5: council honesty -- report single-agent mode instead of implying a council  (WS-A5 | P2 | S)
+**Goal:** E-24 Autonomy guardrails -- degraded operation is reported, never disguised.
+**What+How:** Detect the condition where every peer is `effective_up: false` and surface `"mode": "single-agent (no council peers up)"` both in `/v1/cluster/health` and in chat response metadata, so the degradation is visible to a human and machine-detectable by a monitor.
+**Where:** `usr/lib/mios/agent-pipe/server.py`
+**Done When:** With all peers down, `/v1/cluster/health` contains the single-agent mode string; chat response metadata reflects it; with at least one peer up, mode reports `"council"` normally.
+**Why:** With all peers down the pipe still answers as though a council deliberated, so a silent full degradation (the exact outcome of the T-006/T-008/T-009 bugs) looks identical to healthy operation and goes unnoticed.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Orchestration | **Who:** WS-A5
+
+## T-025 -- A6: migrate the kernel hot path out of `chat_completions()` into dispatcher handlers [VM]  (WS-A6 | P2 [VM] | XL)
+**Goal:** E-02 Technical-debt retirement -- the agent-pipe god-module is decomposed so the LLM-as-CPU kernel actually executes the routing it claims to.
+**What+How:** Move each execution mode (`chat`, `dispatch`, `multi_task`, `agent`) out of the monolithic `chat_completions()` into discrete dispatcher handlers behind `kernel_route`, and implement `_kernel_stage2b` rather than leaving it raising `NotImplementedError`. Run in shadow mode first -- execute old and new paths in parallel and log every functional diff -- and only flip `shadow_route=True` -> `shadow_route=False` once the shadow log is clean over a representative corpus. Requires an operator VM to exercise real routing.
+**Where:** `usr/lib/mios/agent-pipe/server.py`
+**Done When:** The shadow log shows zero functional diffs across 100 representative requests; with `shadow_route=False` all traffic flows through the dispatcher; `/v1/route` returns the same decision the live dispatch takes.
+**Why:** "Kernel Stage-2a DONE" is introspection-only -- `_kernel_stage2b` raises `NotImplementedError` and `shadow_route=False`, so the kernel does not execute and all routing still runs inside the `chat_completions()` monolith, the single largest block of the ~9k-line `server.py` debt item.
+**Dep:** T-019 (SCHED-01), operator VM [VM]
+**Status:** completed | **Domain:** Kernel/Scheduling | **Who:** WS-A6
+
+## T-026 -- B1: Flip the safe governance gates to observe-only ON in SSOT  (WS-GUARD | P2 | S)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- the cost and memory rails run live in audit mode before they are ever allowed to enforce.
+**What+How:** In the vendor SSOT set `[ai].memory_guard_mode = "log"` (memguard validates and records, blocks nothing) and `[cost].enable = true` (token accounting observed, nothing shed). Deliberately leave `slo_shed` and `kernel_route` OFF -- those change routing behaviour and need VM parity first. The gate plumbing and the A5 SLO-foreground precondition already shipped; this task is the SSOT flip and nothing else.
+**Where:** `usr/share/mios/mios.toml`
+**Done When:** `GET /v1/cost` returns `{"enabled": true, ...}` carrying real token counts, memguard writes validation events to pgvector on every memory operation, and no existing behaviour regresses.
+**Why:** With the gates off there is no measured baseline of token spend or memguard hit-rate, so any future enforcement threshold is a guess and the first hard-stop will fire in the wrong place.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Governance
+
+---
+
+## T-027 -- B2: Prove the K-LRU tiering loop actually fires end-to-end  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- pgvector is a measured recall tier, not a write-only store that grows forever.
+**What+How:** Run a live recall round-trip and check `SELECT access_count FROM agent_memory WHERE ...`. If it is still 0, trace the recall projection in `server.py`: verify the row `id` is carried through the projection and that the `_PG_PRIMARY` page-in counter block is actually reached. Fix the recall path so `access_count` increments on every hit, giving K-LRU eviction a real signal. Use `mios-pg-query` for the inspection queries.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (recall/tiering), `usr/libexec/mios/mios-pg-query`
+**Done When:** After a recall, `access_count` increments in `agent_memory`, a row appears in the "hot" tier, and K-LRU eviction operates on non-zero counters.
+**Why:** Live pgvector has 0 rows with `access_count > 0` -- eviction has never once fired, so "tiering DONE" is an unproven claim and the memory tier is effectively unbounded.
+**Dep:** Operator VM chat loop.
+**Status:** done-by-code | **Domain:** Memory
+
+---
+
+## T-028 -- ORCH-01: Type every deliberation turn with the DCI 14-act vocabulary  (WS-DB | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- deliberation becomes queryable structured rows in the agent datastore instead of free text.
+**What+How:** Define the 14 act types `frame/clarify/reframe/propose/extend/spawn/ask/challenge/bridge/synthesize/recall/ground/update/recommend` in `mios_dci`; require every agent deliberation reply to emit `{"act": "<type>", "content": "..."}`; add an `act_type` column to the `event` table in `schema-init.sql` and tag each persisted deliberation row with it.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`
+**Done When:** A deliberation round produces `event` rows carrying valid `act_type` values, invalid values are logged as warnings rather than persisted silently, and an act-distribution query returns meaningful data after 10 rounds.
+**Why:** Untyped deliberation transcripts cannot be analysed or gated -- downstream conflict detection (ORCH-02's ">= 2 conflicting `challenge` acts") has nothing to key on.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Orchestration
+
+---
+
+## T-029 -- ORCH-02: DCI-CF convergent-flow critic as a bounded, conflict-triggered 4-persona loop  (WS-GUARD | P2 | L)
+**Goal:** E-24 Autonomy guardrails -- a critic loop that is bounded by construction and cannot fan out on every query.
+**What+How:** Implement four personas (Framer/Explorer/Challenger/Integrator) on `hermes-agent` as four differentiated system prompts over a single model -- cheaper than four isolated instances. Bound the loop at `R_max=3` rounds and `K_max=4` candidate finalists. Always emit a decision packet `{choice, rationale, minority_report, reopen_triggers}`. Persist tension as first-class `event(kind="dissent", act_type="challenge")`. Invoke only when the first round contains >= 2 conflicting `challenge` acts; configured under `[council].dci_cf_*` with `[dci].flow_enabled` default-off.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[council].dci_cf_*`)
+**Done When:** A conflicted deliberation produces a decision packet containing `minority_report`, routine queries bypass DCI-CF with no added latency, and `SELECT * FROM event WHERE kind='dissent'` returns rows.
+**Why:** An unconditional critic multiplies VRAM and latency on every single query, and without a persisted minority report the reason a rejected option was rejected is lost the moment the turn ends.
+**Dep:** T-028 (ORCH-01), T-009 (A4 hermes-worker boot).
+**Status:** built-gated-off | **Domain:** Orchestration
+
+---
+
+## T-030 -- ORCH-03: Dual-ledger DAG state plus typed-output synthesis  (WS-DB | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- multi-agent state lives in typed tables, not in a free-text merge.
+**What+How:** Add a per-conversation Fact Ledger (claims + sources) and Progress Ledger (per-agent assignment + completion) to the DAG path, schema in `schema-init.sql`. Make synthesis a reducer over typed node outputs: the verb-output schema for action nodes, `{claim,source}` for research nodes. For a `multi_task` "both" intent, order it so the research facet completes and exports typed findings first and the action facet depends on those findings. Trigger a re-plan when the Progress Ledger stall count exceeds 2.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`
+**Done When:** A research+action query writes a Fact Ledger row before the action node executes, the action node's input is derived from that ledger rather than a free-text merge, and stall count > 2 emits a re-plan event.
+**Why:** Free-text merging of multi-agent output silently drops or fabricates claims, and with no progress ledger a stalled facet hangs the whole DAG with nothing observing it.
+**Dep:** T-006 (A1).
+**Status:** done-by-code | **Domain:** Orchestration
+
+---
+
+## T-031 -- ORCH-04: ReAct+Reflexion loop with per-superstep checkpointing  (WS-DURA | P2 | L)
+**Goal:** E-24 Autonomy guardrails -- bounded, durable agent loops that resume after a crash instead of re-running the whole plan.
+**What+How:** Formalise each turn as `call -> observe -> reason` repeating until no tool calls remain, bounded by `max_iter`/`max_retry`. On a tool error, insert a Reflexion step where the model self-critiques the failure and revises the call before retrying. Checkpoint per super-step keyed by `(chat_id, superstep_id)` into the pgvector `session` table so a crash resumes from the last checkpoint rather than restarting. Gated by `[agent].reflexion_enable` (default `true`).
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml`
+**Done When:** A tool failure logs a Reflexion step in `event` before the retry, a simulated crash resumes from the last superstep checkpoint instead of a full restart, and the `max_iter` cap demonstrably stops an infinite loop.
+**Why:** Without checkpoints a mid-DAG crash re-spends every token and minute already used, and a blind retry repeats the identical failing tool call until the cap is hit.
+**Dep:** T-021 (MEM-01 KV slot restore for crash recovery).
+**Status:** done-by-code | **Domain:** Orchestration
+
+---
+
+## T-032 -- SEC-01: Hermetic MCP sandboxing, one gatekeeper per tool execution [VM]  (WS-SEC | P2 | L)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- untrusted third-party tool code runs only under image-baked, enforced trust policy.
+**What+How:** Route every `.mcpb` bundle execution through `usr/libexec/mios/mcp-server-runner` as the single gatekeeper (path-traversal blocking, write-path enforcement, rootless podman sandbox), with `mcp.py` doing the routing. Each tool execution spawns in a rootless Kata-on-Firecracker microVM, Lima VM as fallback. Confine file ops to `glob`/`list_directory`/`read_file`; writes require the `MIOS_WRITE_ALLOWED_PATHS` whitelist. Bake the `fapolicyd` known-libs allow-list plus MiOS carve-outs into the bootc image from the `Containerfile`. Gate `[security].mcp_sandbox = false` (default off, degrade-open).
+**Where:** `usr/libexec/mios/mcp-server-runner`, `Containerfile`, `usr/share/mios/mios.toml`
+**Done When:** A `../../etc/passwd` traversal attempt is blocked at the gatekeeper, `fapolicyd` blocks an unsigned binary dropped into `/tmp`, and with `mcp_sandbox=false` tools still execute in the host process (degrade-open).
+**Why:** An MCP bundle is arbitrary third-party code holding agent privileges; with no chokepoint, one hostile or sloppy tool reads and writes everything the agent can reach.
+**Dep:** T-005 (BOOT-04), operator-VM [VM].
+**Status:** done-by-code | **Domain:** Security
+
+---
+
+## T-033 -- SEC-02: Semantic firewall -- CaMeL-class taint propagation through the scratchpad  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- untrusted content can never drive a side-effecting verb without a human in the loop.
+**What+How:** Extend the landed Phase B.3 firewall: tag every tool result from an untrusted source (web fetch, RAG, external API) `tainted=true` and propagate the tag through the whole scratchpad. In `dispatch_mios_verb`, run the `has_tainted` check before any side-effecting verb -- WRITE-class, `service_restart`, `container_restart`, or `open_url` to a non-allowlisted domain. Tainted + side-effecting routes to the `mios_hitl` queue instead of executing. Every deny condition is read from `mios.toml` SSOT; no hardcoded deny-list (Law 7). Log `event(kind="firewall_decision", verdict=allow|block|hitl)`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** A web-fetched result driving `service_restart` lands in HITL rather than executing, a local-only result driving the same verb executes directly, and every decision is a pgvector `event` row carrying a `verdict` field.
+**Why:** Prompt injection inside a fetched page currently reaches side-effecting verbs directly -- the basic firewall inspects the call site but has no notion of where the driving data came from.
+**Dep:** Phase A.3 (taint tags, landed), Phase B.3 (basic firewall, landed).
+**Status:** built-gated-off | **Domain:** Security
+
+---
+
+## T-034 -- SEC-03: SHA-256 hash-chain the event bus so the audit log is tamper-evident  (WS-SEC | P2 | M)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- provenance of what the autonomous plane did is cryptographically verifiable.
+**What+How:** For every new `event` row compute `SHA-256(prev_hash || event_data)` and store it as `chain_hash` (bootstrap: first row is `SHA-256(event_data)`), implemented in `mios_audit.py` with the column added in `schema-init.sql`. Ship a `mios-chain-verify` CLI that walks and validates the whole chain, and expose the same verification at `GET /v1/audit/chain/verify`. Gated by `[audit].chain_enable`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/mios-chain-verify`
+**Done When:** `mios-chain-verify` returns VALID on an unmodified log, reports CHAIN BREAK at `event_id=N` after a row is manually altered, and the HTTP endpoint returns the identical result.
+**Why:** The event table is the only record of autonomous action; unchained, a compromised agent (or a careless operator) can edit its own audit trail and nothing will ever detect it.
+**Dep:** Ed25519 passports (landed).
+**Status:** done-by-code | **Domain:** Security/Audit
+
+---
+
+## T-035 -- MEM-02: Self-editing tiered memory (MemGPT-style) over pgvector  (WS-VECTOR | P2 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- the agent curates a durable memory tier instead of forgetting the operator every session.
+**What+How:** Expose `memory_append` and `memory_replace` verbs writing an agent-curated pinned tier into the existing pgvector `agent_memory` table, with blocks labelled `persona`/`task`/`preference`/`fact`. At 70% of `n_ctx` warn the agent; at 100% evict oldest FIFO turns and write a recursive summary into the scratchpad head. Thresholds live under `[memory]` in SSOT. Additive to the T-021 KV paging path, not a replacement for it.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[memory]`)
+**Done When:** `memory_append {"label":"persona","content":"..."}` persists across turns, a warning event fires at 70% context fill, at 100% the oldest turns are evicted with a summary prepended, and archived turns are queryable in `agent_memory`.
+**Why:** Without a self-edited tier the agent re-learns operator preferences from scratch each session, and a full context window truncates silently -- taking the earliest instructions with it.
+**Dep:** T-021 (MEM-01), T-027 (B2 tiering verified).
+**Status:** done | **Domain:** Memory
+
+---
+
+## T-036 -- MEM-03: Context compaction and stale tool-result clearing  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the per-session token budget stays bounded with a graceful summarize instead of a silent truncation.
+**What+How:** Every `[memory].compaction_interval` turns (default 20), scan the active context and drop tool-result messages older than `[memory].tool_result_ttl_turns` (default 5 turns ago). At `[memory].compaction_threshold_pct` of `n_ctx` (default 80%), summarize and reinitialize the context as summary + last N turns. Log `event(kind="context_compaction", tokens_before=N, tokens_after=M)`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** After 25 turns the turn-1 tool results are absent from the active context, a compaction event appears in pgvector at the threshold, and chat quality is not degraded after compaction.
+**Why:** Stale tool blobs dominate the window and drive cost and latency up on every subsequent turn; without compaction a long session simply hits `n_ctx` and hard-truncates.
+**Dep:** T-035 (MEM-02).
+**Status:** done | **Domain:** Memory/Context
+
+---
+
+## T-037 -- SEC-04: Per-agent access control with HITL at the verb-dispatch chokepoint  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- privilege is per-agent, so a low-trust lane cannot invoke destructive verbs.
+**What+How:** Map `agent_id -> privilege_group` from `[agents.<name>].privilege_group` (default `routine`). At `dispatch_mios_verb`, compare the calling agent's group against the verb's tier from `[verbs.<name>].tier`; a `destructive`-tier verb routes to the `mios_hitl` queue before execution. Log `event(kind="acl_decision", agent=..., verb=..., verdict=...)`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** A `routine`-privilege agent calling `container_restart` routes to HITL, a `privileged`-privilege agent calls it directly, and every ACL decision lands in the `event` table.
+**Why:** Every agent shares one privilege level today, so a research or edge-federated agent can invoke exactly the same destructive verbs as the operator's own trusted lane.
+**Dep:** T-033 (SEC-02 semantic firewall).
+**Status:** done | **Domain:** Security/Orchestration
+
+---
+
+## T-038 -- CU-01: Computer-use action hierarchy, pinned coordinate scaling, verify-after-action  (WS-GUARD | P2 | L)
+**Goal:** E-24 Autonomy guardrails -- GUI automation is bounded and self-verifying, escalating to a human instead of acting blind.
+**What+How:** Encode the action hierarchy as an explicit router -- Tier 1 typed verb/MCP call, Tier 2 accessibility tree (Windows UIA via `mios-windows`, AT-SPI on Linux), Tier 3 vision grounding (`pc_click`). Fix coordinate scaling by pinning the convention per VLM (Qwen2.5-VL = absolute pixels, Qwen3-VL = normalized 0-1000) and applying the right one for the active model; HiDPI rescale multiplies normalized coords by `display_width/1000` and `display_height/1000`. Add verify-after-action: capture a screenshot/a11y diff after each VLM click, confirm the state changed, retry up to 3 times with re-grounding. Add wait-for-stable-element polling of the a11y tree, bounded at 10 iterations.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/libexec/mios/mios-pc-control`, `usr/share/mios/mios.toml`
+**Done When:** A click tries the a11y tree first and only falls back to vision on a11y failure, a Qwen3-VL normalized `(512,384)` maps correctly to physical pixels on 1920x1080, a failed click is caught by verify-after-action and retried with re-grounding, and 3 exhausted retries escalate to HITL.
+**Why:** Mis-scaled coordinates make the model click the wrong pixel, and with no verification step the agent continues reasoning about a UI state it never actually reached -- the surface is only `partial` today.
+**Dep:** T-065 (GAP-6 smart_resize -- canonical scaling math).
+**Status:** partial | **Domain:** Computer Use
+
+---
+
+## T-039 -- OBS-02: AIOS-Bench harness -- task accuracy crossed with systems metrics, in CI  (WS-TESTGOV | P2 | L)
+**Goal:** E-05 Test and CI governance -- the agent plane gets the measured quality gate the shell plane already has.
+**What+How:** Implement a `mios-bench` CLI that runs a fixed trajectory suite from `usr/share/mios/bench/` through the live `agent-pipe`. Report `pass@1`, `pass@k`, `pass^k` (column supplied by T-049), throughput, agent waiting time, and fairness under concurrency. Wire it into the CI pipeline so it runs on every image build, and feed low-`pass^k` cases into the LoRA/skill-improve loops.
+**Where:** `usr/libexec/mios/mios-bench`, `usr/share/mios/bench/`, CI pipeline
+**Done When:** `mios-bench run --suite gaia-lite` prints a table with pass@1, pass@k, pass^k, throughput and avg_wait; the CI image-build log contains that output; and deliberately breaking routing reduces pass@1 measurably.
+**Why:** With no accuracy-plus-systems measurement on each build, an orchestration change that quietly halves task success rate ships to the fleet undetected.
+**Dep:** T-049 (GAP-3 pass^k gate -- for the pass^k column).
+**Status:** done | **Domain:** Observability/Reliability
+
+---
+
+## T-040 -- OBS-03: Record-and-replay determinism for the agent plane  (WS-TESTGOV | P2 | M)
+**Goal:** E-05 Test and CI governance -- non-deterministic agent failures become reproducible test cases.
+**What+How:** Record all LLM I/O (prompt + completion) and all tool I/O into the pgvector `session` table. Add a replay mode that serves the logged responses instead of calling the LLM or the tools, seeding random sampling so the original stochasticity reproduces. Make the log tamper-evident by hash-chaining its entries through T-034. Toggles in `mios.toml`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** A recorded session replays byte-identically, `mios-chain-verify` confirms the replay log is unmodified, and replay runs about 5x faster than live because no LLM call is made.
+**Why:** Agent bugs are stochastic and currently unreproducible -- every debugging attempt re-rolls the dice, burns GPU time, and may never hit the same failure again.
+**Dep:** T-034 (SEC-03 hash chain).
+**Status:** done | **Domain:** Observability
+
+---
+
+## T-041 -- C3: De-publish searxng to loopback and drop the heavy-alt stray port  (WS-ZEROHC | P2 | S)
+**Goal:** E-12 ZERO-HARDCODES -- literal, unintended bind addresses stop leaking services onto the LAN.
+**What+How:** In `mios-searxng.container` change `PublishPort=0.0.0.0:8888:8888` to `PublishPort=127.0.0.1:8888:8888`. In `mios-llm-heavy-alt.container` remove `PublishPort=11440:11440` entirely -- heavy-alt is reached inside the pod and needs no host bind. Landed form: Granian limited to `127.0.0.1` inside the host-networked pod, heavy-alt publishing nothing.
+**Where:** `usr/share/containers/systemd/mios-searxng.container`, `usr/share/containers/systemd/mios-llm-heavy-alt.container`
+**Done When:** `ss -ltnp | grep 8888` shows `127.0.0.1:8888` (or 8899), port 11440 is absent from `ss -ltnp`, and `curl http://localhost:8888` still returns searxng HTML.
+**Why:** Two internal services are currently reachable from the whole LAN with no reason to be -- a stray host bind is free lateral movement for anything already on the network.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Ops/Networking
+
+---
+
+## T-042 -- C4: Port collapse -- render every `PublishPort=` from the `[ports]` SSOT  (WS-PORTFLOAT | P2 | M)
+**Goal:** E-13 Ports are allocated from SSOT, not hand-assigned -- one declared port value reaches every Quadlet by projection.
+**What+How:** Extend `tools/generate-pod-quadlets.py` to resolve and render `PublishPort=` from `[ports.<name>]` in SSOT rather than literals; have `.container` files reference `MIOS_PORT_*` env vars sourced from `EnvironmentFile=install.env` generated at build time by the `Containerfile`. Collapse roughly 24 raw host binds down to ~8 deliberate front doors (53, 3053, 3000, 49922, 8800, 3030, 8640, 8642, plus host sshd/cockpit). Add `check_container_ports` to `98-drift-checks.sh`, and strip literal ports out of the guacamole and searxng container files by loading `install.env`.
+**Where:** `tools/generate-pod-quadlets.py`, `Containerfile`, all `.container` files
+**Done When:** Setting `[ports].owui = 3031` and re-running the generator publishes OWUI on `:3031`, and `just drift-gate` fails on a hand-written port literal in any `.container` file.
+**Why:** Hand-numbered `PublishPort` lines drift away from SSOT, collide with each other, and silently expose front doors the operator never chose to open.
+**Dep:** T-005 (BOOT-04), T-015 (C0).
+**Status:** done-by-code | **Domain:** Ops/Networking
+
+---
+
+## T-043 -- D1: Remote/edge agent template with auto-join and auto-drop  (WS-DB | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- every federated peer is an interchangeable OpenAI endpoint whose membership is SSOT-declared and self-maintaining.
+**What+How:** Land the `kind=remote-http|edge|node` template from T-006 carrying `auth{...}` and `trust{...}` blocks. The vendor SSOT ships `endpoint=""` for privacy; the real endpoint is supplied by the `/etc/mios` host overlay layer. Make `_load_node_pool` in `server.py` auto-join a node when it is reachable and auto-drop it when it disappears. Test by declaring a loopback "remote" node in the `/etc` overlay.
+**Where:** `usr/share/mios/mios.toml` (`[agents.pi-edge]`, `[nodes.*]`), `usr/lib/mios/agent-pipe/server.py`
+**Done When:** The loopback overlay node appears in `/v1/cluster/health` while reachable, auto-drops within 30s once the endpoint dies, and auto-rejoins without restarting agent-pipe when it returns.
+**Why:** Without auto-join/auto-drop every edge box is a hand-edited static entry, and a dead node keeps receiving dispatched work until a human notices the failures.
+**Dep:** T-006 (A1), T-010 (FED-G2 auth).
+**Status:** done-by-code | **Domain:** Federation/Edge
+
+---
+
+## T-044 -- F1: Re-vectorize the OWUI documentation knowledge collection on every install  (WS-VECTOR | P2 | S)
+**Goal:** E-23 DB-driven configuration and vector recall -- shipped documentation is actually retrievable, not merely registered.
+**What+How:** Re-index the "MiOS Documentation" collection through the OWUI retrieval API (`mios-owui-apply-knowledge` calls it over localhost), and wire that re-index into the firstboot chain alongside T-018 so it runs on every reinstall rather than needing a manual trigger.
+**Where:** `usr/lib/systemd/system/mios-open-webui-firstboot.*`
+**Done When:** `knowledge_search "bootc"` returns >= 3 relevant hits, and re-indexing runs automatically on a fresh reinstall with no operator step.
+**Why:** 32 files are registered in the OWUI knowledge collection but were never vectorized into ChromaDB, so `knowledge_search` returns 0 hits and the OS's own documentation is invisible to the agent that needs it.
+**Dep:** T-018 (E1 firstboot wiring).
+**Status:** done-by-code | **Domain:** UX/RAG
+
+---
+
+## T-045 -- F2: Build the coderun-sandbox image for agent-authored code [NET]  (WS-CODEMODE | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- agent-generated code executes in a disposable jail, never inside the agent-pipe process.
+**What+How:** Add `images/coderun-sandbox/Containerfile` building `mios-coderun-sandbox` (Python 3.12+, Node 22, basic utils, no GPU) -- build needs egress [NET]. Mount only `/run/coderun.sock` and a per-session tmpfs, with no host filesystem access. Register it as `usr/share/containers/systemd/mios-coderun-sandbox.container`, reusing the SEC-01 isolation pattern.
+**Where:** `images/coderun-sandbox/Containerfile`, `usr/share/containers/systemd/mios-coderun-sandbox.container`
+**Done When:** `run_sandboxed_code {"language":"python","code":"print(1+1)"}` returns `{"output":"2"}`, the container can reach no host path beyond its tmpfs, and it restarts cleanly after a crash.
+**Why:** Otherwise model-authored code runs with the agent-pipe's own filesystem and network reach, so one bad generated snippet is a full-host incident.
+**Dep:** T-032 (SEC-01 isolation pattern). Needs egress [NET].
+**Status:** done | **Domain:** Sandboxing
+
+---
+
+## T-046 -- WS-G: MEMORY.md honesty reconciliation against the blueprint  (WS-DOCS | P2 | S)
+**Goal:** E-06 Test and documentation harness -- the doc set an arriving agent trusts states the real status, not an aspirational one.
+**What+How:** Audit `MEMORY.md` and every memory topic file against the `engineering-blueprint`. Re-tag WS-0B (port collapse), opencode-peer, kernel Stage-2, the tiering loop and the governance gates from DONE to `built-but-gated/partial`. Trim the index to <= 24KB. Add the policy header: "DONE requires active + live-fired, not built + gated-OFF".
+**Where:** `~/.claude/.../MEMORY.md` and its topic files
+**Done When:** No entry in MEMORY.md carries a DONE tag for anything that maps to an open task in TASKS.md, the index is <= 24KB, and the policy header is the first block in the file.
+**Why:** An agent that believes a stale DONE skips work that was never finished; the oversized index also burns context budget on every single session load.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Documentation
+
+---
+
+## T-047 -- GAP-1: RouteMoA pre-synthesis input-diversity gate for council fan-out  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the council stops burning VRAM to hear one opinion restated k times.
+**What+How:** Before handing k council responses to the aggregator, score pairwise cosine similarity over the already-computed 768-d embeddings (no extra model calls). Pick the initial member by lowest mean similarity, `i0 = argmin_i((1/N) sum_j S_ij)`, then expand minimax, `it = argmin_i(max_{q in Q} S_iq)`. Replace any slot whose similarity to the selected set exceeds `[council].diversity_threshold` (default 0.92) with the next most-orthogonal candidate. Gate `[council].diversity_gate = false` (default off, degrade-open).
+**Where:** `usr/lib/mios/agent-pipe/server.py` (council synthesis path), `usr/share/mios/mios.toml`
+**Done When:** Two semantically identical council responses cause the second to be swapped for the next most-orthogonal candidate, `/v1/cluster/health` reports `diversity_gate_active: true` when enabled, no extra model calls are issued, and with the gate off output is byte-identical to today.
+**Why:** Nothing governs semantic diversity before the aggregator fires, so a correlated ensemble spends k lanes of VRAM producing near-duplicate input and degrades the synthesis it feeds.
+**Dep:** T-006 (A1), T-021 (MEM-01 -- embeddings from llm-light).
+**Status:** done-by-code | **Domain:** Orchestration
+
+---
+
+## T-048 -- GAP-2: MOSAIC confidence-aware aggregator bypass on converged councils  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the most expensive call in a council turn is skipped when there is nothing to reconcile.
+**What+How:** After fan-out, compute pairwise cosine similarity across the k council responses. If every pair exceeds `[council].aggregator_bypass_threshold` (default 0.95, deliberately conservative), bypass the aggregator LLM and return the highest-confidence individual response. Log `event(kind="aggregator_bypass", council_size=k, mean_similarity=...)`. Gate `[council].aggregator_bypass = false` (default off).
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** Three identical council responses above threshold produce no aggregator LLM call plus one logged bypass event, `/v1/cluster/health` reports `aggregator_calls_bypassed_pct`, and with the gate off output is byte-identical to today.
+**Why:** The final aggregator call fires on every council turn even when all members already agree -- reference work measures ~45.7% of those calls as bypassable at +0.24pp accuracy, so today's behaviour is pure wasted VRAM and latency.
+**Dep:** T-047 (GAP-1 -- shares embedding computation), T-039 (OBS-02 bench for tuning).
+**Status:** done-by-code | **Domain:** Scheduling/Orchestration
+
+---
+
+## T-049 -- GAP-3: Make pass^k the hard gate on skill promotion  (WS-TESTGOV | P2 | M)
+**Goal:** E-05 Test and CI governance -- nothing enters the autonomous loop until it is reliable across repeats, not merely lucky once.
+**What+How:** Extend `mios-skills promote` so that after the existing tests it replays the affected trajectory `[reliability].pass_and_k_count` times (default 3) and requires ALL k runs to succeed -- `tool_call.success=true`, zero `firewall_block` events, no HITL escalation. A single failure vetoes, reporting `pass^k gate: FAIL (2/3 succeeded, required 3/3)`. Add a `pass_and_k_rate` column to the AIOS-bench output (T-039). For DGM-class self-rewrites (T-064) scale k to `[reliability].pass_and_k_dgm_count` (default 5).
+**Where:** `usr/libexec/mios/mios-skills`, `usr/share/mios/mios.toml`
+**Done When:** A skill failing 1-of-3 replay runs is rejected with the veto message, a 3-of-3 skill promotes normally, and `mios-bench` output includes the `pass^k` column.
+**Why:** Promotion currently accepts `pass@k` optimism: a 61%-reliable skill looks acceptable at k=1 but is under 25% reliable at k=8, and it gets promoted into the self-driving loop regardless.
+**Dep:** T-039 (OBS-02).
+**Status:** done-by-code | **Domain:** Reliability
+
+---
+
+## T-050 -- GAP-5: Rechunking delta distribution for edge and offline OCI updates  (WS-BOOTC | P2 | L)
+**Goal:** E-20 The bootc-native install legs -- an air-gapped or thin-uplink machine can take a signed update without pulling the whole image.
+**What+How:** Build `mios-rechunk`: a post-build binary diff between the new OCI layer blobs and the prior manifest (zstd-compressed block comparison) emitting a delta bundle of changed chunks only, targeting `delta_size = ((original - rechunked)/original)*100 ~= 80-90%` and validated against `podman image diff`. Build `mios-oci-delta-apply.service` to fetch the bundle, verify its SHA-256 signature via the T-034 chain, apply the chunks, and signal `bootc` to stage. Both baked in by the `Containerfile`. Gate `[distribution].rechunk_enable = false` (default off).
+**Where:** `usr/libexec/mios/mios-rechunk` (new), `usr/lib/systemd/system/mios-oci-delta-apply.service` (new), `usr/share/mios/mios.toml`, `Containerfile`
+**Done When:** A patch changing only `server.py` produces a delta bundle <= 15% of full image size, `mios-oci-delta-apply` applies it and `bootc status` shows the new deployment staged, and a SHA-256 signature mismatch aborts the apply with an error.
+**Why:** Every update currently ships the full multi-GB OCI image, saturating edge and IoT uplinks and making routine `bootc upgrade` impractical anywhere off a fat link.
+**Dep:** T-002 (BOOT-01), T-034 (SEC-03 SHA-256 chain).
+**Status:** open | **Domain:** Distribution/Edge
+
+## T-051 -- FED-G7: Route A2A fan-out on the full AgentCard `skills[]` array  (WS-FED | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- peer selection is decided by embedded skill semantics recorded in Postgres rather than ad-hoc string proximity, so every federated peer stays an interchangeable, correctly-chosen OpenAI endpoint (NS-2).
+**What+How:** Replace the simplified strength-token matching inside `_pick_fanout_agents` in the agent-pipe `server.py` with a semantic/embedding match over the peer AgentCard's complete `skills[]` array. An explicitly declared skill must override token proximity when the two disagree. Write every routing decision as a row in the `event` table so a dispatch can be replayed and explained after the fact.
+**Where:** `usr/lib/mios/agent-pipe/server.py`
+**Done When:** A task tagged `code-review` fans out to the peer whose AgentCard lists `code-review` in `skills[]` even when another peer scores higher on strength tokens, and the chosen route appears as an `event` row.
+**Why:** Token-proximity routing silently sends work to peers that cannot do it -- the failure is a bad answer, not an error, and with no `event` row there is nothing to debug afterwards.
+**Dep:** T-012 (FED-G4).
+**Status:** done-by-code | **Domain:** Federation
+
+## T-052 -- FED-G8: Caller-key store with hot-reloading revocation list  (WS-FED | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the agent plane's one front door can revoke a compromised caller instantly, so federation cannot become an unbounded, unauthenticated ingress into the host.
+**What+How:** Back the auth gate (T-001) with an identity/CRL store at `/etc/mios/ai/v1/caller-keys.json` and add `POST /v1/admin/keys/revoke`. Revoked keys are rejected at the auth gate and the CRL is re-read live -- no service restart. Landed via `caller_key_revoke` in `mios_a2a`/`mios_crl`; the originally-specified `mios_principal` module was orphaned and REMOVED as dead code, so do not reintroduce it.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `/etc/mios/ai/v1/caller-keys.json`
+**Done When:** A revoked key gets `401` and a valid key gets `200`, with the revocation taking effect after a CRL edit alone (no `systemctl restart`).
+**Why:** Without live revocation, a leaked federation key stays valid until someone reboots the AI plane -- the blast radius of one leaked credential is every peer call it can make.
+**Dep:** T-001 (FED-G1).
+**Status:** done-by-code | **Domain:** Federation/Security
+
+## T-053 -- FED-G9: Loopback-default bind with auth-gated scoped publish  (WS-FED | P2 | S)
+**Goal:** E-12 ZERO-HARDCODES -- bind addresses come from the `[network]` loopback/bind_all SSOT keys and default closed, so the AI front door is never exposed by an unreviewed literal in a unit file (NS-4).
+**What+How:** Change the default listen address for `:8640` (agent-pipe) and `:8642` (Hermes) to `127.0.0.1` via `_bind_host`, and publish on `0.0.0.0` only when `[security].require_auth=true` AND the firewall scopes the listener to `172.16/12`. The bind host is a resolved SSOT value in the unit files, not a written-in constant.
+**Where:** `usr/lib/systemd/system/mios-agent-pipe.service` | `usr/lib/systemd/system/hermes-agent.service`
+**Done When:** `ss -ltnp | grep 8640` shows `127.0.0.1` on a default install, and shows `0.0.0.0` only after auth is turned on.
+**Why:** A default all-interfaces bind puts an unauthenticated local-inference endpoint on every network the machine touches the moment the service starts.
+**Dep:** T-001 (FED-G1).
+**Status:** done-by-code | **Domain:** Federation/Networking
+
+## T-076 -- GWY-01: Letta memory-backend sidecar, Phase 1 deploy (RETIRED)  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- tiered Core/Recall/Archival memory over the existing `mios-pgvector` instance, now satisfied natively instead of by a sidecar.
+**What+How:** As specified: a `mios-letta-server.container` Quadlet (`ghcr.io/letta-ai/letta:latest`, `mios-net`, `:8283`) pointed at a `mios_letta` schema inside the shared PostgreSQL pod, with `LETTA_LLM_*` / `LETTA_EMBEDDING_*` forced to the local `/v1` endpoint (Law 5), an `[agents.letta]` block in `mios.toml`, a `CREATE SCHEMA IF NOT EXISTS mios_letta;` fragment in `schema-init.sql`, and the unit added to `mios-ai.target` Wants. RETIRED: deployed at 10220bf, removed at d90985d in favour of the native `mios_scratchpad` + `mios_cold_evict` path (T-101/T-102). Treat as history -- do not redeploy.
+**Where:** `usr/share/containers/systemd/mios-letta-server.container` | `usr/share/mios/postgres/schema-init.sql` | `usr/share/mios/mios.toml` | `usr/lib/systemd/system/mios-ai.target`
+**Done When:** No Letta artefact remains in the tree -- `usr/share/containers/systemd/mios-letta-server.container` does not exist, `[agents.letta]` is absent from `mios.toml`, and the memory verbs resolve through `mios_scratchpad`/`mios_cold_evict`.
+**Why:** Leaving the retired sidecar half-referenced re-adds an image to the fleet that E-17 is trying to shrink, and leaves two competing memory backends for one verb surface.
+**Dep:** T-003 (C0 pod consolidation), T-028 (B1 pgvector schema). Needs egress [NET] for initial image pull.
+**Status:** retired | **Domain:** Memory/Gateway
+
+## T-077 -- GWY-02: Wire self-editing memory verbs to the Letta backend (RETIRED)  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the `memory_*` verb surface delegates tiering and compaction to one owner of the persistent store; served natively rather than by Letta.
+**What+How:** As specified: a `LettaMemoryClient` (`httpx.AsyncClient` at `[agents.letta].endpoint`) in `server.py` routing `memory_append`/`memory_replace` to Letta memory blocks and `memory_search` to archival search, firing compaction at 70% context fill and an oldest-message flush at 100%, keeping `agent_memory` as a read-only snapshot target, all behind `[agents.letta].memory_backend = false` (degrade-open to the pgvector-direct path). RETIRED with the container at d90985d; MEM-02/MEM-03 (T-035/T-036) are served by `mios_scratchpad` + `mios_cold_evict`.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
+**Done When:** `server.py` contains no `LettaMemoryClient` and no `[agents.letta]` reads, and `memory_append`/`memory_search` round-trip through the native path with the T-035/T-036 criteria still met.
+**Why:** A dead client class in the ~9k-line `server.py` god-module (TD register, E-02) is dead weight that the next reader has to prove is unreachable.
+**Dep:** T-076 (GWY-01 Letta server live), T-035 (MEM-02), T-036 (MEM-03).
+**Status:** retired | **Domain:** Memory/Orchestration
+
+## T-054 -- ORCH-06: Deterministic zero-token orchestration via Conductor CLI  (WS-H3 | P3 | L)
+**Goal:** E-24 Autonomy guardrails -- multi-step work runs as a declared, bounded workflow instead of a probabilistic prompt chain that can fan out indefinitely.
+**What+How:** Add a workflow directory `usr/share/mios/conductor/` holding YAML + Jinja2 workflow definitions, and a Conductor CLI execution path in `server.py` that runs them with real parallel execution groups honouring `fail_fast` and `continue_on_error` semantics. Ship gated off with `[orchestration].conductor_enable=false` so the existing prompt-chaining path stays the default until parity is proven.
+**Where:** `usr/share/mios/conductor/` | `usr/lib/mios/agent-pipe/server.py`
+**Done When:** A 3-step parallel workflow declared in YAML executes deterministically -- same step order, same outputs across runs -- and a failing step honours `fail_fast` by halting the group rather than continuing.
+**Why:** Prompt-chained orchestration spends tokens re-deciding a fixed sequence every turn and gives no reproducible execution trace when a multi-step job goes wrong.
+**Dep:** T-031 (ORCH-04 ReAct loop).
+**Status:** open | **Domain:** Orchestration
+
+## T-055 -- MEM-04: Hindsight multi-strategy retrieval replaces the MAIA v8.0 pools  (WS-H4 | P3 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- one Postgres+pgvector datastore answers recall through several complementary strategies instead of a bespoke legacy pool.
+**What+How:** Retire the legacy MAIA v8.0 runtime pools and run MIT-licensed Hindsight inside the `mios-pgvector` container, exposing parallel retrieval across all four strategies -- semantic vector, BM25 keyword, graph relational and temporal -- with results ranked and merged into one answer set for `knowledge_search`.
+**Where:** `usr/share/containers/systemd/mios-pgvector.container`
+**Done When:** `knowledge_search "bootc"` returns a single merged, ranked result set with contributions traceable to all four retrieval strategies.
+**Why:** Pure vector similarity misses exact-token and time-ordered facts, so recall quietly drops answers the datastore actually holds.
+**Dep:** T-035 (MEM-02).
+**Status:** done-by-code | **Domain:** Memory
+
+## T-056 -- MEM-05: KV cache hierarchy plus sleep-time memory consolidation  (WS-VECTOR | P3 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- expensive context is reused rather than recomputed, and memory upkeep happens off the interactive latency path.
+**What+How:** Finish SGLang HiCache on `mios-llm-heavy` so the ~17K-token tool-surface prefix is reused across requests and idle KV spills GPU -> RAM -> disk. Give the daemon-agent a scheduled sleep-time job that consolidates pgvector `knowledge` rows and shared memory blocks while idle, and upgrade recall ranking from plain relevance to `recency x importance x relevance`.
+**Where:** `usr/share/mios/llamacpp/mios-llm-light.yaml` | `usr/lib/mios/agent-pipe/server.py`
+**Done When:** The 17K-token prefix hits HiCache on the second request (measurable prefill drop) and the nightly consolidation job reduces `agent_memory` row count by at least 20% without losing a recallable fact.
+**Why:** Re-prefilling a 17K-token tool surface on every turn burns GPU time on identical input, while an ever-growing `agent_memory` makes every subsequent recall slower.
+**Dep:** T-035 (MEM-02), T-021 (MEM-01).
+**Status:** open | **Domain:** Memory/Scheduling
+
+## T-057 -- ORCH-07: Rich relationship edges on the personal knowledge graph  (WS-VECTOR | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the datastore stores relationships, not just rows, so the agent can resolve possessive references against the operator's own machine.
+**What+How:** Extend the `person` table in `schema-init.sql` with graph edges -- `pref`, `device` and `app_install` rows plus their relationship joins -- using PostgreSQL joins and JSONB, and reuse the existing `vector(768)` HNSW columns for semantic recall. Teach the router/refine pass in `server.py` to walk those edges so "my browser" grounds through the preference edge to the concrete `chromedev` install.
+**Where:** `usr/share/mios/postgres/schema-init.sql` | `usr/lib/mios/agent-pipe/server.py`
+**Done When:** "Open my browser" launches the application named by the `app_install` preference edge with no application named in the prompt.
+**Why:** Without edges the agent either asks the operator to name their own defaults every time or guesses, which makes possessive phrasing unusable.
+**Dep:** T-035 (MEM-02).
+**Status:** open | **Domain:** Memory/UX
+
+## T-058 -- SCHED-03: Autellix-style MLFQ scheduling over whole agent programs [VM]  (WS-GUARD | P3 | XL)
+**Goal:** E-24 Autonomy guardrails -- background swarm work is preempted by foreground turns on lane priority, so a batch job cannot make the interactive assistant feel dead.
+**What+How:** Schedule at the level of the whole agent task/DAG rather than the individual LLM request: an Autellix-style multi-level feedback queue in `server.py` with demand-aware LRU eviction for victim selection, its thresholds declared in `mios.toml`. Engage the MLFQ only under contention -- it costs more than it saves on trivial small-model turns -- so the gate itself is part of the deliverable. Reference implementations report 4-15x throughput.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
+**Done When:** With four or more concurrent tasks running, a short interactive query returns in under 500ms while a long swarm batch continues in parallel.
+**Why:** Per-request FIFO lets one long DAG monopolise the lane, so the operator's own prompt waits behind a background job on their own hardware.
+**Dep:** T-019 (SCHED-01), T-020 (SCHED-02). Operator VM [VM].
+**Status:** open | **Domain:** Scheduling
+
+## T-059 -- DATA-01: Declarative agent cards and an A2A-discoverable directory  (WS-VECTOR | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the agent roster is a queryable `directory_entry` surface, not a static file each peer must read.
+**What+How:** Give every agent an `(author, name, version)` card reusing the A2A card schema, and serve the whole roster from the `/v1/agents` endpoint in `server.py` as an A2A-discoverable directory with card links. A discovering peer queries that endpoint instead of parsing a shipped file.
+**Where:** `usr/lib/mios/agent-pipe/server.py` -- `/v1/agents` endpoint
+**Done When:** `GET /v1/agents` returns every registered agent as an `(author, name, version)` tuple with a resolvable A2A card link.
+**Why:** File-scraped rosters go stale the moment an agent is added or renamed, and a remote peer has no way to read a file it cannot reach.
+**Dep:** T-012 (FED-G4), T-022 (FED-CONSUME).
+**Status:** done | **Domain:** Federation
+
+## T-060 -- DATA-02: Bitemporal versioning and rollback for self-edited core facts  (WS-DB | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- a self-editing agent's writes are reversible, so memory is an auditable store rather than a destructive overwrite.
+**What+How:** Add `valid_from`/`valid_to` columns to the `agent_memory` and `knowledge` tables in `schema-init.sql` so a replace supersedes rather than deletes, run a periodic cosine-dedup compaction over near-identical rows (similarity > 0.98) to stop history from unbounded growth, and expose a `memory_rollback(to_timestamp)` verb in `server.py`.
+**Where:** `usr/share/mios/postgres/schema-init.sql` | `usr/lib/mios/agent-pipe/server.py`
+**Done When:** After a wrong `memory_replace`, calling `memory_rollback` with a prior timestamp restores the previous fact and a subsequent `memory_search` returns it.
+**Why:** Today one bad self-edit permanently destroys the fact it overwrote, with no recovery path short of a database restore.
+**Dep:** T-035 (MEM-02).
+**Status:** open | **Domain:** Memory/Data
+
+## T-061 -- ORCH-09: Code-mode execution for heavy verb chains and recipes  (WS-CODEMODE | P3 | L)
+**Goal:** E-24 Autonomy guardrails -- bulk intermediate data never enters model context, so a large fetch cannot blow a session's token budget.
+**What+How:** Route multi-step verb chains and the recipe layer through the sandboxed `mios_codemode` path so intermediate blobs are produced, filtered and discarded inside the sandbox, with only the filtered result returned to the model. Declare the routing threshold in `mios.toml`. Reference: Anthropic reports ~98.7% token reduction on this pattern.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
+**Done When:** A recipe fetching 50KB of web content executes in the sandbox and returns roughly a 200-token summary into model context, with the raw payload absent from the transcript.
+**Why:** Piping raw tool output through the model burns context on data the model never needed to see, and pushes long chains into truncation.
+**Dep:** T-045 (F2 coderun-sandbox).
+**Status:** open | **Domain:** Orchestration/Memory
+
+## T-062 -- B3: Self-improvement ACT half -- propose, prove, stage  (WS-B3 | P3 | XL)
+**Goal:** E-24 Autonomy guardrails -- self-modification is bounded by construction: nothing reaches main without a proof and a human, and the whole path is default-off.
+**What+How:** The OBSERVE half exists; implement the ACT half in `mios_selfimprove_act.py` (propose / prove / isolate / decide) so the agent proposes a code diff against a recurring failure pattern, submits it to the T-064 DGM sandbox for a utility proof, logs `event(kind="dgm_veto")` and discards on veto, and on approval runs `git apply` plus `just drift-gate` and commits to a staging branch for human review. Ships gated behind `[selfimprove].act_enabled` (default off; the spec named `[self_improve].enable`). MUST NOT be enabled before T-064 is in place.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/mios.toml`
+**Done When:** A diff that passes the DGM sandbox lands on a staging branch with the drift-gate green, and a vetoed diff leaves the working tree byte-identical with a logged veto event.
+**Why:** An unproven self-rewrite path is the one class of bug that edits its own guardrails; without the propose/prove/stage split, the only options are no self-improvement or an unreviewed one.
+**Dep:** T-064 (GAP-4 DGM sandbox), T-049 (GAP-3 pass^k gate).
+**Status:** done-by-code | **Domain:** Self-Improvement
+
+## T-063 -- B4: promptver consumer -- version-resolved prompt registry  (WS-B4 | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- prompt bodies are DB-resolved facts referenced by name and version, not literals compiled into the agent plane.
+**What+How:** Wire the `promptver` consumer (`PromptRegistry`) so prompt version hops resolve from the pgvector `prompt_version` table instead of hardcoded strings in `server.py`. Agents reference a prompt by an `(name, version)` tuple and the loader returns the current canonical body for that tuple.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
+**Done When:** Updating the canonical body for a version in `prompt_version` changes agent behaviour on the next turn with no code edit, restart or redeploy.
+**Why:** Inline prompt strings mean every wording change is a code change, an image rebuild and a redeploy -- and duplicated copies drift apart between agents.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Orchestration
+
+## T-064 -- GAP-4: DGM formal proof-of-utility sandbox for self-rewrites  (WS-GUARD | P3 | L)
+**Goal:** E-24 Autonomy guardrails -- a self-rewrite is admitted only against a machine-checked non-regression theorem, so the agent plane cannot degrade itself or starve the host.
+**What+How:** Build `usr/libexec/mios/mios-dgm-sandbox`: fork an isolated `mios-agent-pipe` instance (rootless Podman, network off, read-only mounts) and replay n=20 canonical trajectories drawn from the pgvector `tool_call` history. Admit the rewrite if and only if all three hold -- `pass^k_new >= pass^k_current` (the T-049 metric), `mean_latency_new <= mean_latency_current * 1.05`, and `peak_vram_new <= peak_vram_current * 1.10`. Any failure logs `event(kind="dgm_veto", reason=...)` to the T-034 Merkle chain and discards. Every threshold lives in the `[self_improve]` SSOT block (`sandbox_image`, `replay_corpus_size`, `latency_tolerance`, `vram_tolerance`, `pass_and_k_required`).
+**Where:** `usr/libexec/mios/mios-dgm-sandbox` (new) | `usr/share/mios/mios.toml`
+**Done When:** A rewrite that regresses pass^k by a single failed run is rejected with a chained veto record, a neutral-or-improving rewrite is admitted, and `enable=false` disables the ACT half entirely.
+**Why:** Without the utility gate, T-062's ACT half is an unbounded regression risk -- a rewrite could halve reliability or double VRAM and still be committed.
+**Dep:** T-049 (GAP-3 pass^k), T-034 (SEC-03 Merkle chain).
+**Status:** done-by-code | **Domain:** Self-Improvement/Security
+
+## T-065 -- GAP-6: smart_resize -- three-constraint spatial normalization for VLM grounding [VM]  (WS-GUARD | P3 | M)
+**Goal:** E-24 Autonomy guardrails -- an agent driving the desktop clicks where it intends to, because coordinate space is formally normalized instead of assumed.
+**What+How:** Build `usr/libexec/mios/mios-smart-resize` (stdlib Python, no new deps) taking `--width --height --image-factor --min-pixels --max-pixels` plus a PNG on stdin and emitting a resized PNG plus JSON metadata (`W_tensor`, `H_tensor`). Enforce three hard constraints before any image reaches the VLM: `H mod IMAGE_FACTOR == 0` and `W mod IMAGE_FACTOR == 0` (default 28, ViT patch-grid alignment), `MIN_PIXELS <= H*W <= MAX_PIXELS` (OOM guard), and `max(H/W, W/H) <= MAX_RATIO` (default 200, distortion guard). After inference apply the inverse projection `X_abs = round((X_raw/W_tensor)*W_orig)` (same for Y), scaling by `[computer_use].hidpi_scale_factor`. Call it from `mios-pc-control` before every grounding request and un-project the returned (x,y) before dispatching `pc_click`.
+**Where:** `usr/libexec/mios/mios-smart-resize` (new) | `usr/libexec/mios/mios-pc-control` | `usr/share/mios/mios.toml`
+**Done When:** A 3840x2160 HiDPI screenshot resizes to a patch-aligned tensor, raw VLM coord (512,384) maps to physical pixel (1536,1152), `pc_click` lands within 2px of the target element, and a constraint violation raises a logged error instead of silently shipping a corrupt tensor.
+**Why:** VLMs return coordinates in their own resized tensor space; unprojected, every click on a HiDPI display misses its target, which makes the whole vision grounding path unusable.
+**Dep:** T-038 (CU-01 action hierarchy). Operator VM [VM].
+**Status:** partial | **Domain:** Computer Use
+
+## T-066 -- B5: A2A federation loopback round-trip smoke test  (WS-B5 | P3 | S)
+**Goal:** E-06 Test and documentation harness -- the federation path has an executable proof it works, so a regression fails a test rather than a demo.
+**What+How:** Add `usr/share/mios/tests/test-a2a-loopback.sh` registering MiOS as its own A2A peer and driving one full `Message -> Task -> Artifact` round trip, asserting the artifact returns intact and that the `event` table records the complete delegation chain.
+**Where:** `usr/share/mios/tests/test-a2a-loopback.sh`
+**Done When:** `mios-a2a-test --loopback` exits 0 printing "Task completed, Artifact received".
+**Why:** Federation is only ever exercised by hand today, so a broken hop is found by an operator mid-task instead of by CI.
+**Dep:** T-022 (FED-CONSUME).
+**Status:** done-by-code | **Domain:** Federation/Testing
+
+## T-067 -- B6: `expandvars` across every `*_endpoint` field  (WS-B6 | P3 | S)
+**Goal:** E-13 Ports are allocated from SSOT -- an endpoint declared with a `${MIOS_PORT_*}` reference resolves to the derived port at load time instead of being dialled as a literal.
+**What+How:** Apply `os.path.expandvars()` to `cpu_endpoint` and every other `*_endpoint` field read by `_load_agent_registry` and `_load_node_pool` in `server.py`, so SSOT-derived port variables expand once at registry load.
+**Where:** `usr/lib/mios/agent-pipe/server.py`
+**Done When:** An endpoint configured as `http://host:${MIOS_PORT_AGENT_PIPE}/v1` shows the numeric port in the loaded registry and dials successfully.
+**Why:** An unexpanded `${MIOS_PORT_*}` becomes a connection attempt to a nonsense host:port, which surfaces as an opaque dial failure rather than a config error -- and it punishes exactly the operators who followed the no-hardcode rule.
+**Dep:** T-006 (A1).
+**Status:** done-by-code | **Domain:** Ops/Config
+
+## T-068 -- B7: Multi-tenant row-level security via `SET LOCAL mios.owner_user`  (WS-B7 | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the shared datastore enforces per-owner isolation in the database, not in application if-statements.
+**What+How:** Issue a param-bound `SET LOCAL mios.owner_user='<user_id>'` at the start of each DB transaction through `mios_pg._owner_scope`, with matching RLS policies in `schema-init.sql`. Note the implementation gate is `[pgvector].rls_enable` (NOT the spec's `[database].rls_enable`) and it REQUIRES `[security].principal_bind_mode=enforce`; re-ranked P1 in sequence behind V1/V2.
+**Where:** `usr/lib/mios/agent-pipe/server.py` | `usr/share/mios/postgres/schema-init.sql`
+**Done When:** With RLS enabled, a query run as Agent A returns zero of Agent B's `agent_memory` rows even on a `SELECT *` with no owner predicate.
+**Why:** Without database-enforced scoping, any missed WHERE clause in a ~9k-line server module leaks one user's memory into another's context -- and multi-user deployment cannot be offered at all.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Data/Security
+
+## T-069 -- C5: Bake pod Quadlet generation into the build render step  (WS-C5 | P3 | S)
+**Goal:** E-18 Generate the 168 systemd units from SSOT -- generated units are a build output present in the image, never a hand-maintained file committed by an operator.
+**What+How:** Call `tools/generate-pod-quadlets.py` from the `Containerfile` render step so every `.pod` and `.container` unit is rendered during the bake and shipped inside the image, rather than generated post-boot or committed by hand.
+**Where:** `Containerfile` | `tools/generate-pod-quadlets.py`
+**Done When:** A freshly booted image has all pod units already present and active with no first-boot generation step, and the pod-quadlets drift-check is green on a clean checkout.
+**Why:** Hand-committed Quadlets are exactly the surface that keeps losing its build-resolved digests and turning the pod-quadlets gate red; generating at bake removes the class.
+**Dep:** T-017 (C2), T-005 (BOOT-04).
+**Status:** done-by-code | **Domain:** Ops/Build
+
+## T-070 -- D2: Pi/edge node join guide  (WS-D2 | P3 | S)
+**Goal:** E-06 Test and documentation harness -- an arriving operator or agent can join an edge node cold, from the doc set alone.
+**What+How:** Write `usr/share/doc/mios/guides/edge-node-join.md` documenting the one-port (`:8640`) outbound-dial join flow for Pi and edge nodes, the TOML overlay pattern used to configure a joining node, and the optional federated pgvector path via `[pgvector].listen_loopback=false` (off by default, with its exposure caveat stated).
+**Where:** `usr/share/doc/mios/guides/edge-node-join.md` (new)
+**Done When:** A Pi node joins the council following only the guide -- no source reading, no undocumented flag.
+**Why:** Undocumented, the join flow lives in one person's head and every new node costs a source-reading session.
+**Dep:** T-043 (D1).
+**Status:** done | **Domain:** Documentation/Federation
+
+## T-071 -- E2/E3: OWUI surface corrections -- location string and stale agent card  (WS-E2/E3 | P3 | S)
+**Goal:** E-06 Test and documentation harness -- shipped descriptive surfaces stay truthful after a migration, so what the UI states matches what the system does.
+**What+How:** Two independent fixes. E2: strip the trailing `(lat, long)` suffix from the location string built in `_client_env` before it is handed to the model. E3: rewrite the `agent.json` description that still advertises the "legacy-datastore-state chain" from before the pgvector migration.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (`_client_env`) | `usr/share/mios/ai/v1/agent.json`
+**Done When:** OWUI shows city and timezone with no coordinates, and `agent.json`'s description names pgvector with no reference to the legacy datastore.
+**Why:** Raw coordinates leak precise location into every model turn, and a stale card teaches every reader (human and agent) an architecture that no longer exists.
+**Dep:** None.
+**Status:** done | **Domain:** UX
+
+## T-072 -- F3: Per-session code-mode broker on `/run/coderun.sock`  (WS-F3 | P3 | M)
+**Goal:** E-24 Autonomy guardrails -- concurrent code execution is isolated per session, so one agent's sandbox cannot observe or corrupt another's.
+**What+How:** Build the host-side broker `usr/libexec/mios/mios-coderun-broker` listening on `/run/coderun.sock`: each session is handed its own socket bound to its own `mios-coderun-sandbox` container instance, and both socket and container are torn down on disconnect so nothing survives the session.
+**Where:** `usr/libexec/mios/mios-coderun-broker` (new)
+**Done When:** Two concurrent code-execution sessions run in separate containers and neither can read the other's output or leftover files, with both containers gone after disconnect.
+**Why:** A single shared sandbox lets one session's untrusted generated code read another session's data, and leaked containers accumulate on the host.
+**Dep:** T-045 (F2 coderun-sandbox).
+**Status:** done | **Domain:** Sandboxing
+
+## T-073 -- F4: build-driver fallback, `move_window` actuator, `es.exe` refresh  (WS-F4 | P3 | S)
+**Goal:** E-01 Compiled native tier -- the libexec tool fleet and build driver behave correctly and float their inputs, ahead of being ported to compiled binaries.
+**What+How:** Three independent items. (1) `mios-build`: add a `curl` fallback path when the primary build trigger is unavailable, so a build can still be kicked off. (2) `mios-pc-control`: implement `move_window` as a named-region actuator, e.g. `move_window {window:"Notepad", region:"left-half"}`. (3) `Containerfile`: bring the baked `es.exe` (Everything Search) up to the current release rather than the pinned older one.
+**Where:** `usr/libexec/mios/mios-build` | `usr/libexec/mios/mios-pc-control` | `Containerfile`
+**Done When:** Each of the three works end-to-end on its own -- a build triggers with the primary path down, `move_window` snaps a named window to a named region, and the image ships the current `es.exe`.
+**Why:** A single-path build trigger blocks every build when it is down, `move_window` without named regions forces the agent to compute pixel geometry it cannot see, and a stale `es.exe` is a hand-pinned input contradicting float-latest.
+**Dep:** None.
+**Status:** done-by-code | **Domain:** Ops/Computer Use
+
+## T-074 -- FED-G10/G11: cardless `/v1/models` join + a `/v1/agents` peer directory  (WS-FED | P3 | M)
+**Goal:** E-11 Unified config surface: one door at :8640/ -- NS-2's rule that every agent, lane and federated peer is an interchangeable OpenAI endpoint reachable through the single `/v1/*` front door.
+**What+How:** In `agent-pipe/server.py` add a cardless join path: probe a candidate endpoint's `GET /v1/models`, infer its capabilities from the returned model ids (no AgentCard required), and register it as a council peer -- so Claude, Gemini and raw vLLM endpoints join on the OpenAI surface alone. Then add a `GET /v1/agents` registry handler that returns the discoverable directory of every registered agent endpoint with its card (or the inferred capability summary) and a cardless flag.
+**Where:** `usr/lib/mios/agent-pipe/server.py`
+**Done When:** a raw vLLM endpoint that serves no AgentCard joins the council purely off the `/v1/models` probe, and `curl -s localhost:8640/v1/agents` lists it alongside the carded peers.
+**Why:** without it only AgentCard-speaking peers can federate -- every plain OpenAI endpoint must be hand-wired -- and there is no queryable answer to "who is in this council right now".
+**Dep:** T-013 (FED-G5), T-059 (DATA-01).
+**Status:** done | **Domain:** Federation
+
+## T-075 -- H6: LAKE federated query over pgvector shards via the Spice.ai Rust engine  (WS-H6 | P3 | XL)
+**Goal:** E-23 DB-driven configuration and vector recall -- NS-2's pgvector-backed memory answering across shards fast enough to sit in an agent turn.
+**What+How:** Integrate the Learning-assisted Accelerated Kernel (LAKE) built on the Spice.ai open-source Rust engine as a federated query/routing layer over the inference queues and the pgvector shards, so a single recall query fans out across shards and dynamically routes rather than executing sequentially. Explicitly long-horizon: do not start before T-048 (GAP-2) and T-050 (GAP-5) are live, since both define the routing surface LAKE would sit on.
+**Where:** TBD -- a new Spice.ai integration layer; no file paths chosen in the source entry.
+**Done When:** a federated query spanning 2 pgvector shards returns in under 200 ms, and the LAKE scheduler measures greater than 2x throughput against the same workload run sequentially.
+**Why:** cross-shard recall today is sequential, so memory lookup latency grows linearly with shard count and caps how much history an agent turn can afford to consult.
+**Dep:** T-048 (GAP-2), T-050 (GAP-5).
+**Status:** open | **Domain:** Scheduling/Data
+
+## T-078 -- GWY-03: build the `mios-gateway-agent` FastAPI service that replaces `hermes-agent`  (WS-GWY | P3 | L)
+**Goal:** E-24 Autonomy guardrails / the sovereign agent plane -- NS-2's MiOS-native, auditable tool-loop service behind the one OpenAI `/v1` contract, with no vendor config file in the loop.
+**What+How:** Create the `usr/lib/mios/gateway-agent/` Python package with its own venv (mirroring the Hermes pattern) holding smolagents, httpx, fastapi, uvicorn and mcp -- all Apache-2.0/MIT. Implement `POST /v1/chat/completions`: parse the OpenAI `messages` + `tools` body, construct `smolagents.ToolCallingAgent(model=OpenAIServerModel(...), tools=mios_tool_registry)` whose `OpenAIServerModel` base URL is `MIOS_AI_ENDPOINT` (Law 5, never a cloud host), run the loop and either stream SSE or return the full response. Add `GET /v1/models` sourced from `[ai].available_models`, plus `GET /health` and `GET /v1/cluster/health` JSON stubs. Persist per-`session_id` message lists in a new pgvector `gateway_sessions` JSONB table, and add the `[gateway]` block (`model`, `max_tokens`, `context_length`, `port`, `enable = false`) so phase 2 stays off until T-079..T-082 land.
+**Where:** `usr/lib/mios/gateway-agent/__init__.py`, `usr/lib/mios/gateway-agent/server.py`, `usr/lib/mios/gateway-agent/session.py`, `usr/lib/systemd/system/mios-gateway-agent.service`, `usr/share/mios/mios.toml`, `usr/share/mios/postgres/schema-init.sql`
+**Done When:** `uvicorn mios.gateway_agent.server:app --port 8642` starts clean in its venv; `curl -s localhost:8642/health` returns `{"status":"ok"}`; `/v1/models` returns the mios.toml model list; a `POST /v1/chat/completions` returns a valid OpenAI-shaped response; and no cloud endpoint appears in the logs.
+**Why:** the tool loop is otherwise owned by upstream Hermes on port :8642 with its own `config.yaml` -- an unauditable, non-SSOT dependency sitting on the OS's primary AI contract.
+**Dep:** T-076 (GWY-01 Letta infra live), T-028 (B1 pgvector schema).
+**Status:** done-by-code | **Domain:** Gateway/Orchestration
+
+## T-079 -- GWY-04: wire smolagents `ToolCallingAgent` as the gateway's tool-loop engine  (WS-GWY | P3 | M)
+**Goal:** E-24 Autonomy guardrails / the sovereign agent plane -- NS-2's local tool loop bounded by an explicit step cap and switchable back to pass-through.
+**What+How:** Implement `MiOSToolRegistry` in `gateway-agent/tool_registry.py`: on startup pull tool schemas from `mios-mcp-server` (via T-080) and the skill catalog (via T-081) and build `smolagents.Tool` subclasses whose `forward(**kwargs)` dispatches over the MCP stdio client and returns the result string. Wire `ToolCallingAgent(model=..., tools=registry.tools, max_steps=[gateway].max_steps)` into the `/v1/chat/completions` handler from T-078, keeping OpenAI-format `tool_calls` / `role:tool` entries in the session message list so runs replay and OTel-trace correctly. On exceeding `max_steps`, return `finish_reason="length"` with the last partial assistant message instead of raising. Gate the whole engine behind `[gateway].tool_loop_engine`, with `"native"` selecting a raw pass-through.
+**Where:** `usr/lib/mios/gateway-agent/tool_registry.py`, `usr/lib/mios/gateway-agent/server.py`, `usr/share/mios/mios.toml` (`[gateway].max_steps`, `[gateway].tool_loop_engine`)
+**Done When:** a multi-turn conversation invoking `mios_verb.list_services` completes correctly, the `tool_calls` show up in the pgvector session history, the `max_steps` cap returns `finish_reason="length"` without crashing, and setting `tool_loop_engine = "native"` bypasses smolagents entirely.
+**Why:** without the loop engine the new gateway is an empty shell -- it can proxy completions but cannot execute a single MiOS verb, so Hermes cannot be retired.
+**Dep:** T-078 (GWY-03 FastAPI service), T-080 (GWY-05 MCP client).
+**Status:** done-by-code | **Domain:** Gateway/Orchestration
+
+## T-080 -- GWY-05: MCP stdio client from the gateway to `mios-mcp-server`  (WS-GWY | P3 | S)
+**Goal:** E-24 Autonomy guardrails / the sovereign agent plane -- NS-2's MCP tool surface reaching the new gateway over the same transport Hermes used, with no capability lost in the swap.
+**What+How:** Add the MIT-licensed `mcp` SDK to the gateway venv and implement `MiOSMCPClient` on `mcp.StdioServerParameters(command="/usr/libexec/mios/mios-mcp-server")` -- byte-identical transport to the existing Hermes `mcp_servers.mios` config, giving the gateway all 82 verbs plus 18 recipes. On startup call `tools/list` to build the schema cache and re-fetch it every `[gateway].mcp_refresh_seconds` (default 300). Pass `MIOS_AGENT_PIPE_URL=http://localhost:8640` into the MCP subprocess env, and declare `supports_parallel_tool_calls = true` in the registry to match Hermes behaviour.
+**Where:** `usr/lib/mios/gateway-agent/mcp_client.py`, `usr/share/mios/mios.toml` (`[gateway].mcp_refresh_seconds`)
+**Done When:** the startup `tools/list` returns at least 82 tool definitions, `mios_verb.list_services` executes through MCP and returns the service list, the catalog refreshes on the 300 s cycle with no restart, and no orphaned `mios-mcp-server` processes remain after a gateway restart.
+**Why:** the gateway would otherwise have zero tools, and a leaked stdio child per restart accumulates orphan `mios-mcp-server` processes on the host.
+**Dep:** T-078 (GWY-03), T-024 (MCP-01 server live).
+**Status:** done-by-code | **Domain:** Gateway/MCP
+
+## T-081 -- GWY-06: skill catalog, SearXNG web search and browser-verb pass-through in the tool registry  (WS-GWY | P3 | S)
+**Goal:** E-24 Autonomy guardrails / the sovereign agent plane -- NS-2's fully local tool surface, including search, with a static fallback so the plane degrades open.
+**What+How:** Extend `MiOSToolRegistry` with the three Hermes surface extensions still missing. Skill catalog: at startup and every `[gateway].skill_refresh_seconds` (default 300) `GET http://localhost:8640/skills/openai-tools` and inject the returned schemas, falling back to `[gateway].skill_catalog_static_path` (`/var/lib/mios/skills/catalog.json`) when the HTTP call fails. Web search: register a `web_search` tool (smolagents built-in or a thin wrapper) pointed at `[gateway].searxng_url` (`http://mios-searxng:8080`). Browser/CDP actions need no new integration -- `mios-pc-control` already exposes them as MCP verbs that T-080's `tools/list` pulls in automatically.
+**Where:** `usr/lib/mios/gateway-agent/tool_registry.py`, `usr/share/mios/mios.toml` (`[gateway].searxng_url`, `[gateway].skill_refresh_seconds`, `[gateway].skill_catalog_static_path`)
+**Done When:** `web_search {"query":"bootc docs"}` returns SearXNG results, a newly promoted skill appears in the `/v1/chat/completions` tool list within 300 s, `mios_verb.open_url` is callable through the gateway loop, and the static catalog fallback engages when agent-pipe is down.
+**Why:** without these the gateway loses search and dynamic skills relative to Hermes, so the cutover would be a functional regression rather than a swap.
+**Dep:** T-079 (GWY-04 tool loop), T-080 (GWY-05 MCP client).
+**Status:** done-by-code | **Domain:** Gateway/Tools
+
+## T-082 -- GWY-07: collapse the Hermes YAML config pair into the `mios.toml [gateway]` SSOT  (WS-GWY | P3 | S)
+**Goal:** E-11 Unified config surface: one door at :8640/ -- NS-3's rule that a value which could live in mios.toml but doesn't is a bug, and no config path may bypass the SSOT.
+**What+How:** Replace the `usr/share/mios/hermes/config.yaml` vendor-default plus `/etc/mios/hermes/config.local.yaml` override dance with one `[gateway]` section in `usr/share/mios/mios.toml` carrying `model`, `max_tokens`, `context_length`, `port = 8642`, `max_steps = 30`, `tool_loop_engine = "smolagents"`, `mcp_refresh_seconds = 300`, `skill_refresh_seconds = 300`, `skill_catalog_static_path`, `searxng_url` and `enable = false`. Mark both `hermes/config.yaml` and `hermes/config-worker.yaml` deprecated with a header comment pointing at `[gateway]`; teach `usr/lib/tmpfiles.d/mios-hermes.conf` to also seed `/etc/mios/gateway/` when `mios-gateway-agent.service` is enabled; update the `etc/mios/kb.conf.toml` comment to record `base_url = "http://localhost:8642/v1"`; and add the `mios-gateway-agent` row to the `AGENTS.md` service table.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/mios/hermes/config.yaml`, `usr/share/mios/hermes/config-worker.yaml`, `usr/lib/tmpfiles.d/mios-hermes.conf`, `etc/mios/kb.conf.toml`, `AGENTS.md`
+**Done When:** `mios-gateway-agent` reads every setting from `mios.toml [gateway]` with zero reads of `hermes/config.yaml`, both YAML files carry the deprecation header, `kb.conf.toml` reflects both endpoint options, and the `AGENTS.md` service table lists the new service.
+**Why:** two live config surfaces for one service means the configurator/Portal cannot show or change the gateway's real settings, and every value in the YAML pair is a second definition of a fact that belongs in SSOT.
+**Dep:** T-078 (GWY-03 service built).
+**Status:** done-by-code | **Domain:** Gateway/Config
+
+## T-083 -- GWY-08: cut over from `hermes-agent` to `mios-gateway-agent` and archive the Hermes units  (WS-GWY | P3 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the rule that a capability is either SSOT-wired and gated or explicitly removed with a recorded decision; here Hermes is removed on the record.
+**What+How:** Smoke-test first: run the new service on shadow port `:8643` and send 10 canonical `mios_verb` tool calls, requiring 200 + correct output on all 10. Then flip `[gateway].enable = true`, `systemctl --user disable --now hermes-agent.service && systemctl --user mask hermes-agent.service`, enable and start `mios-gateway-agent.service`, and bring up the worker equivalent `mios-gateway-worker.service` (same smolagents engine, `[gateway.worker]` block, `:8643`). Repoint `mios-agent-pipe.service` from `Environment=HERMES_ENDPOINT=` to `GATEWAY_ENDPOINT=http://localhost:8642` (or alias both), swap the `Containerfile` build test from the `hermes-agent` venv check to the gateway venv check, and `git mv` `hermes-agent.service` / `config.yaml` / `config-worker.yaml` into `archive/hermes/`.
+**Where:** `usr/lib/systemd/system/mios-gateway-agent.service`, `usr/lib/systemd/system/mios-gateway-worker.service`, `usr/lib/systemd/system/hermes-agent.service`, `usr/lib/systemd/system/hermes-worker.service`, `usr/lib/systemd/system/mios-agent-pipe.service`, `Containerfile`, `archive/hermes/`
+**Done When:** `hermes-agent.service` is masked and does not start at boot, `curl localhost:8642/health` returns ok from the new unit, all 10 smoke-test tool calls pass, agent-pipe dispatches reach `:8642` and get valid completions, OWUI chat works end to end, and `[gateway].enable = false` still leaves Hermes running on unupgraded installs.
+**Why:** until the cutover happens, all of T-078..T-082 is dead code and the image still ships two competing services claiming port :8642.
+**Dep:** T-078 (GWY-03), T-079 (GWY-04), T-080 (GWY-05), T-081 (GWY-06), T-082 (GWY-07). All smoke tests green.
+**Status:** partial | **Domain:** Gateway/Ops
+
+## T-084 -- STRG-01: `[storage.cephfs]` SSOT block, userenv exports and drift-check stub  (WS-STRG | P2 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- Ceph already ships in the image (`automation/13-ceph-k3s.sh`, `mios-ceph.container`) but has no SSOT face; this gives it one.
+**What+How:** Add a `[storage.cephfs]` block to `usr/share/mios/mios.toml` with every field defaulted to a safe no-op (`enable = false`, `monitors = ["127.0.0.1:6789"]` placeholder, pools, tenant id, cache override), per the ROADMAP 9.5 schema. Export the derived keys from `usr/share/mios/mios-configurator/userenv.sh`: `MIOS_CEPHFS_ENABLE`, `MIOS_CEPHFS_MONITORS`, `MIOS_CEPHFS_FS_NAME`, `MIOS_CEPHFS_TENANT_ID`, `MIOS_CEPHFS_DATA_POOL_HOT`, `MIOS_CEPHFS_DATA_POOL_BULK`, `MIOS_XDG_CACHE_LOCAL_PATH`. Register a `check_cephfs_ssot` stub in `automation/98-drift-checks.sh` that fails when `enable=true` while `monitors` is still the `127.0.0.1` placeholder (T-093 fills in the rest), and add a static `[storage.cephfs]` form to the configurator's Storage tab.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/mios/mios-configurator/userenv.sh`, `automation/98-drift-checks.sh`
+**Done When:** `python3 -c "import tomllib; d=tomllib.load(open('usr/share/mios/mios.toml','rb')); assert 'cephfs' in d.get('storage',{})"` exits 0, `userenv.sh` exports `MIOS_CEPHFS_ENABLE=false`, `just drift-gate` passes clean, and the same gate FAILS when `enable=true` with the placeholder monitor.
+**Why:** every downstream STRG task needs a key to read; without the block each would hardcode monitors, pools and paths, which is exactly the Law 7 class the tree is trying to eliminate.
+**Dep:** none
+**Status:** done | **Domain:** Storage/Config
+
+## T-085 -- STRG-02: `mios-cephfs-provision` subvolume lifecycle + degrade-open PAM hook  (WS-STRG | P2 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- per-user network home provisioning that never blocks a login when the fabric is down.
+**What+How:** Build `/usr/libexec/mios/mios-cephfs-provision` with three subcommands. `validate <uid>`: check whether `cephfs:/tenants/<tenant_id>/users/<uid>` exists, call `create` if absent, verify the CephX keyring is present, and exit 0 both on success and when Ceph is unreachable (degrade-open). `create <uid> <gid>`: idempotently `ceph fs subvolumegroup create cephfs mios-users`, then `ceph fs subvolume create cephfs <uid>-home --group_name mios-users --uid --gid --mode 0700`, then invoke T-089's keyring creation. `delete <uid>`: `ceph auth del client.<uid>`, unmount `/home/<username>` if mounted, `ceph fs subvolume rm`. Install the PAM hook `session optional pam_exec.so /usr/libexec/mios/mios-cephfs-provision validate %u %g` into `/etc/pam.d/system-auth` via a tmpfiles.d fragment or firstboot, so provisioning runs before the home directory is touched. Read the SSOT gate through `mios-userenv` and log each provisioning to pgvector as `event(kind="storage_provision", source="cephfs", uid=<uid>)`.
+**Where:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/tmpfiles.d/mios-cephfs.conf`
+**Done When:** `mios-cephfs-provision validate 1000` creates the subvolume and keyring when absent and exits 0; the same call still exits 0 with the `ceph` binary unavailable; `delete 1000` removes both keyring and subvolume; a `storage_provision` row lands in the pgvector `event` table; and the script is a strict no-op with `MIOS_CEPHFS_ENABLE=false`.
+**Why:** without this, CephFS homes must be provisioned by hand per user, and a naive PAM hook that fails closed would lock every operator out of the machine the moment the cluster degrades.
+**Dep:** T-084 (STRG-01 SSOT).
+**Status:** done | **Domain:** Storage/Auth
+
+## T-086 -- STRG-03: per-dispatch `XDG_RUNTIME_DIR` isolation for concurrent tool contexts  (WS-STRG | P2 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- concurrent agent dispatch that stays correct on a network-backed `$HOME`.
+**What+How:** In `mios-session-init` (or `mios-agent-pipe.service` `ExecStartPost`) mint `MIOS_SESSION_ID=$(uuidgen --random | cut -c1-8)` per dispatch context, and set `XDG_RUNTIME_DIR=/run/user/<uid>/session-${MIOS_SESSION_ID}` in the dispatch environment (`os.environ` in `server.py` before tool contexts fork). Create the directory with `systemd-run --user --scope -p RuntimeDirectory=session-${MIOS_SESSION_ID}` or a tmpfiles.d `d` line. Render `XDG_CACHE_HOME` from `[storage.cephfs].xdg_cache_home_override` (default `/run/user/{uid}/.cache`) into `/etc/profile.d/mios-xdg-cephfs.sh` at firstboot. Gate the whole injection on `[storage.cephfs].enable = true` so local-home installs see no behaviour change.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/profile.d/mios-xdg-cephfs.sh`, `usr/share/mios/mios.toml` (`[storage.cephfs].xdg_cache_home_override`)
+**Done When:** two concurrent dispatch contexts report different `XDG_RUNTIME_DIR` values, `XDG_CACHE_HOME` always resolves under `/run/user/<uid>/.cache` and never to a CephFS path, and with `enable = false` the existing `XDG_RUNTIME_DIR` behaviour is byte-identical.
+**Why:** today parallel tool calls under one UID share a runtime dir, so SQLite lock files and POSIX advisory locks collide on CephFS-backed `$HOME/.config` -- a corruption and hang class, not just a slowdown.
+**Dep:** T-084 (STRG-01), T-085 (STRG-02).
+**Status:** done | **Domain:** Storage/Orchestration
+
+## T-087 -- STRG-04: SSOT-rendered `home-@.mount` / `home-@.automount` template pair  (WS-STRG | P2 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- on-demand network homes with no hand-maintained `/etc/fstab` entry anywhere in the image.
+**What+How:** Add two unit templates under `usr/share/mios/systemd/`: `home-@.mount` with `What=${MIOS_CEPHFS_MONITORS}:${MIOS_CEPHFS_FS_PATH}`, `Where=/home/%i`, `Type=ceph` and `Options=name=client.%i,secretfile=${MIOS_CEPHFS_KEYRING_DIR}/client.%i,${MIOS_CEPHFS_MOUNT_OPTIONS}`; and `home-@.automount` with `Where=/home/%i` and `TimeoutIdleSec=${MIOS_CEPHFS_AUTOMOUNT_IDLE_TIMEOUT_S}`. A new firstboot script substitutes those SSOT vars into `/etc/systemd/system/home-@.{mount,automount}`, runs `systemctl daemon-reload`, and enables `home-<username>.automount` for the operator user. Add `ConditionPathExists=/etc/ceph/keyring.d/client.%i` to the mount unit so a missing keyring skips the mount instead of failing the boot, and gate the entire firstboot step on `MIOS_CEPHFS_ENABLE=true`.
+**Where:** `usr/share/mios/systemd/home-@.mount.tmpl`, `usr/share/mios/systemd/home-@.automount.tmpl`, `automation/firstboot/mios-cephfs-mount-setup.sh`
+**Done When:** `systemctl start home-<username>.automount` succeeds, first access to `/home/<username>` triggers the mount and `findmnt /home/<username>` reports type `ceph`, the unit auto-unmounts after `TimeoutIdleSec`, and a missing keyring leaves login working on the local `$HOME`.
+**Why:** persistent fstab mounts hold MDS capabilities forever and turn one unreachable monitor into a failed boot; without the templates there is no idle-unmount path at all.
+**Dep:** T-085 (STRG-02), T-086 (STRG-03).
+**Status:** done | **Domain:** Storage/Systemd
+
+## T-088 -- STRG-05: CephFS client cache/readahead/fscache tuning rendered from SSOT  (WS-STRG | P2 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a network-backed home that is usable at interactive desktop speed, not just technically mounted.
+**What+How:** Add a `mios-ceph-configure` helper that renders the `[client]` block of `/etc/ceph/ceph.conf` from SSOT values: `client_cache_size = 16384`, `client_cache_after_readdir = true`, `client_readahead_max_bytes = 33554432`, `client_reconnect_stale_interval = 30`, `fuse_disable_pagecache = false`. Call it from the CephFS firstboot init after T-087's automount setup. Ensure `fsc` is present in the mount options T-087 renders, and install/enable `cachefilesd`. Add `mds_cache_memory_limit = 4294967296` (4 GiB) to the cephadm bootstrap config. Measure with `ceph tell mds.<name> perf dump` before and after a GNOME login.
+**Where:** `usr/libexec/mios/mios-ceph-configure`, `etc/ceph/ceph.conf` (operator overlay, rendered), `usr/share/mios/mios.toml`, `usr/lib/systemd/system/cachefilesd.service`
+**Done When:** `/etc/ceph/ceph.conf` shows the rendered `[client]` block after firstboot, steady-state GNOME login measures under 500 MDS ops/s, `cachefilesd.service` is active with `fsc` visible in `findmnt` output, and `ceph config get client client_reconnect_stale_interval` returns 30.
+**Why:** stock client settings drive 2,000-8,000 MDS ops/s on first GNOME login as Tracker, GVfs and Flatpak walk `$XDG_DATA_HOME` at once -- cap-recall storms that make the desktop feel broken.
+**Dep:** T-087 (STRG-04 automount).
+**Status:** partial | **Domain:** Storage/Performance
+
+## T-089 -- STRG-06: per-user CephX capability scoping + storage status endpoints  (WS-STRG | P2 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- storage isolation enforced at the RADOS layer, and its state visible through the `/v1` front door.
+**What+How:** Extend `mios-cephfs-provision create <uid>` to mint a path-scoped key: `ceph auth get-or-create client.<uid>` with `mds "allow r, allow rw path=/tenants/${MIOS_CEPHFS_TENANT_ID}/users/${uid}"`, `osd "allow rw pool=${MIOS_CEPHFS_DATA_POOL_HOT} tag cephfs data=cephfs, allow rw pool=${MIOS_CEPHFS_DATA_POOL_BULK} tag cephfs data=cephfs"` and `mon "allow r"`, written to `/etc/ceph/keyring.d/client.<uid>` at mode 0400 owned by that uid/gid; and extend `delete <uid>` to `ceph auth del` plus remove the keyring file. In `agent-pipe/server.py` add `GET /v1/storage/cephfs/users` (JSON list of `uid`, `keyring_present`, `subvolume_exists`, `subvolume_path`) and `GET /v1/storage/cephfs/health` (structured `ceph health` plus `ceph df` pool utilisation), both returning `{"enabled": false}` when `MIOS_CEPHFS_ENABLE=false`.
+**Where:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Done When:** `ceph auth get client.1000` shows path-scoped caps rather than `allow *`, `curl localhost:8640/v1/storage/cephfs/users` returns the provisioned list, `/v1/storage/cephfs/health` returns `{"status":"HEALTH_OK",...}` on a healthy cluster, and mounting another user's subvolume with user A's keyring is refused with `EACCES`.
+**Why:** with a shared or wildcard CephX key, one misconfigured POSIX ACL or one privileged agent reads every other user's home -- POSIX permissions are the only barrier and they are the wrong layer.
+**Dep:** T-085 (STRG-02 provision), T-084 (STRG-01 SSOT).
+**Status:** done | **Domain:** Storage/Security
+
+## T-090 -- STRG-07: bake the `mios-xdg-cephfs.sh` profile script that keeps cache off the network  (WS-STRG | P3 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the immutable image itself guarantees the cache/home split rather than relying on operator shell config.
+**What+How:** Create `usr/share/mios/profile.d/mios-xdg-cephfs.sh`, baked immutable into the bootc image, exporting `XDG_CONFIG_HOME="${HOME}/.config"`, `XDG_DATA_HOME="${HOME}/.local/share"`, `XDG_STATE_HOME="${HOME}/.local/state"` (all CephFS-hot via `$HOME`), `XDG_RUNTIME_DIR="/run/user/$(id -u)"` and `XDG_CACHE_HOME="${MIOS_XDG_CACHE_LOCAL_PATH:-/run/user/$(id -u)/.cache}"` -- cache NEVER on CephFS. Firstboot symlinks `/etc/profile.d/mios-xdg-cephfs.sh` at the baked file; `MIOS_XDG_CACHE_LOCAL_PATH` comes from `[storage.cephfs].xdg_cache_home_override` already exported by T-084.
+**Where:** `usr/share/mios/profile.d/mios-xdg-cephfs.sh`, `automation/firstboot/mios-xdg-setup.sh`
+**Done When:** the script is present in the image at the baked path; after sourcing it `$XDG_CONFIG_HOME` equals `$HOME/.config` and `$XDG_CACHE_HOME` starts with `/run/user/`; and T-093's drift-check confirms `xdg_cache_home_override` holds no CephFS path.
+**Why:** if the cache lands on CephFS, every browser and toolchain write becomes MDS traffic -- the exact load pattern T-088 exists to suppress, reintroduced through the back door.
+**Dep:** T-086 (STRG-03 cache override SSOT wiring).
+**Status:** done | **Domain:** Storage/UX
+
+## T-091 -- STRG-08: `xdg-user-dirs` defaults + `mios-xdg-userdir-init.service` mount-conditional unit  (WS-STRG | P3 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a CephFS-backed first login lands in a fully formed home, with the local-home path untouched.
+**What+How:** Bake `usr/share/mios/xdg/user-dirs.defaults` (standard English folder names) and have firstboot copy it to `/etc/xdg/user-dirs.defaults`. Add the systemd user unit `mios-xdg-userdir-init.service` with `ConditionPathIsMountPoint=/home/%u`, `ExecStart=/usr/bin/xdg-user-dirs-update --force`, `RemainAfterExit=yes`, `WantedBy=default.target`. Firstboot installs it into the operator's `~/.config/systemd/user/`, then runs `systemctl --user daemon-reload && systemctl --user enable mios-xdg-userdir-init`. The `ConditionPathIsMountPoint` is the gate: on a local `$HOME` the unit silently skips and the normal GNOME session handles user dirs.
+**Where:** `usr/share/mios/xdg/user-dirs.defaults`, `usr/share/mios/systemd/mios-xdg-userdir-init.service`, `automation/firstboot/mios-xdg-setup.sh`
+**Done When:** after a first CephFS-backed login `~/Documents ~/Downloads ~/Music ~/Pictures ~/Videos ~/Desktop` all exist, `$HOME/.config/user-dirs.dirs` is populated with the right paths, and the unit provably does not run on a local (non-CephFS) `$HOME`.
+**Why:** on a network home the standard folders are never created in the bulk pool, so writes land in the hot pool and desktop apps hit missing-directory errors on first launch.
+**Dep:** T-087 (STRG-04 automount), T-090 (STRG-07 profile script).
+**Status:** done | **Domain:** Storage/UX
+
+## T-092 -- STRG-09: CephFS greenboot health checks in `wanted.d` (degrade, never roll back)  (WS-STRG | P3 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- greenboot health COVERAGE extended so every critical service has a check, without turning a storage warning into a bootc rollback.
+**What+How:** Add `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` -- deliberately `wanted.d`, not `required.d`. It checks that `ceph health` is OK or WARN (HEALTH_ERR fails), that every configured pool in `ceph df` is under 90% capacity, that `ceph fs status` shows at least one MDS `active`, and, when `[storage.cephfs].enable = true`, that `findmnt /home/<operator_user>` shows a live CephFS mount. Any failure logs `event(kind="storage_health", source="cephfs", severity="warn", detail=<check_output>)` through `mios-pg-query` with `|| true` so a simultaneously-down Postgres cannot crash the check. The script exits 0 immediately when `MIOS_CEPHFS_ENABLE=false`.
+**Where:** `/etc/greenboot/check/wanted.d/55-mios-cephfs.sh` (baked in image)
+**Done When:** a HEALTH_OK cluster exits 0; a HEALTH_ERR cluster exits non-zero with the warning logged while the system still boots; a pool at 91% exits non-zero naming that pool; `MIOS_CEPHFS_ENABLE=false` exits 0 immediately; and a simulated warning leaves a `storage_health` row in the pgvector `event` table.
+**Why:** storage degradation is currently invisible until a user session breaks -- and putting the check in `required.d` would be worse, rolling the whole OS back over a cluster that MiOS is designed to degrade away from.
+**Dep:** T-002 (BOOT-01 greenboot), T-084 (STRG-01 SSOT), T-089 (STRG-06 health endpoint).
+**Status:** done | **Domain:** Storage/Reliability
+
+## T-093 -- STRG-10: implement `check_cephfs_ssot` in full plus the CephFS/XDG operator guide  (WS-STRG | P3 | S)
+**Goal:** E-07 The drift-gate as the enforcement plane -- the CephFS SSOT stops being convention and becomes a check that fails the build.
+**What+How:** Replace the T-084 stub with a real `check_cephfs_ssot` in `automation/98-drift-checks.sh`, registered in `main()` after `check_rbac_tiers`, failing on: (a) `enable=true` with `monitors` still holding the `127.0.0.1:6789` placeholder; (b) `xdg_cache_home_override` containing a CephFS path prefix (matched via `[storage.cephfs].monitors` hostnames or a `/tenants/` segment); (c) `data_pool_hot == data_pool_bulk`; (d) a `provision_script` path that does not exist in the `usr/` tree; (e) `automount_enable = true` while `home-@.mount.tmpl` is absent from `usr/share/mios/systemd/`. Then write `usr/share/doc/mios/guides/cephfs-xdg-storage.md` covering the ROADMAP 9 architecture diagram, the cache-isolation rule, the single-operator quickstart (cephadm bootstrap, `enable=true`, firstboot re-run), the multi-tenant extension path, and known caveats (systemd-homed conflicts, fscache + LUKS interaction).
+**Where:** `automation/98-drift-checks.sh`, `usr/share/doc/mios/guides/cephfs-xdg-storage.md`
+**Done When:** `just drift-gate` fails on the placeholder monitor, on a CephFS `xdg_cache_home_override`, and on `data_pool_hot == data_pool_bulk`; passes on a correctly configured SSOT; and the guide renders in the `mios-docs` service.
+**Why:** every invariant T-084..T-092 relies on is currently enforced only by whoever remembers it -- one edit re-points the cache at CephFS or collapses the two pools and nothing complains until the desktop crawls.
+**Dep:** T-084 (STRG-01), T-087 (STRG-04), T-090 (STRG-07).
+**Status:** done | **Domain:** Storage/CI
+
+## T-094 -- CONV-01: `[converge.*]` SSOT block, `MIOS_CONV_*` exports and drift-check stub  (WS-CONV | P2 | S)
+**Goal:** E-11 Unified config surface: one door at :8640/ -- all four Converged-Resource phases steer from one operator-visible SSOT block instead of four scattered switches.
+**What+How:** Add the full `[converge.gateway]`, `[converge.inference]`, `[converge.memory]` and `[converge.image]` sub-tables to `usr/share/mios/mios.toml` per the ROADMAP 10.5 schema, every flag defaulting to a backward-compatible no-op (`false` / `"http"` / `0` / `"dual"`). Export the derived keys from `userenv.sh`: `MIOS_CONV_GATEWAY_MODE`, `MIOS_CONV_GATEWAY_QUEUE_MAXSIZE`, `MIOS_CONV_GATEWAY_WORKER_CONCURRENCY`, `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE`, `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE`, `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE`, `MIOS_CONV_IMAGE_DISTROLESS_ENABLE`, `MIOS_CONV_IMAGE_RECHUNK_ENABLE`. Register a passing `check_converge_ssot` stub in `98-drift-checks.sh` after `check_cephfs_ssot` (real rules land in T-099/T-104/T-108), and add a collapsible `[converge]` section to `mios.html`.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/mios/mios-configurator/userenv.sh`, `automation/98-drift-checks.sh`, `usr/share/mios/mios-configurator/mios.html`
+**Done When:** `python3 -c "import tomllib; d=tomllib.load(open('usr/share/mios/mios.toml','rb')); assert 'converge' in d"` exits 0, `userenv.sh` exports `MIOS_CONV_GATEWAY_MODE=http`, all four sub-tables are present, and `just drift-gate` passes on a clean repo.
+**Why:** without the block each CONV task would invent its own enable flag, and the operator would have no single place to turn the converged path on or roll it back.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Config/Arch
+
+## T-095 -- CONV-02: replace the :8640 -> :8642 HTTP hop with an in-process `GatewayQueue`/`GatewayWorker`  (WS-CONV | P2 | L)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- bounded, backpressured dispatch with a hard queue cap instead of an unbounded HTTP fan-out.
+**What+How:** Add `usr/lib/mios/agent-pipe/mios_gateway_queue.py` holding a `GatewayRequest` dataclass (`payload: dict`, `fut: asyncio.Future`), a `GatewayQueue` wrapping `asyncio.Queue(maxsize=MIOS_CONV_GATEWAY_QUEUE_MAXSIZE)`, and a `GatewayWorker.run(queue, agent, concurrency)` that runs `concurrency` consumer `asyncio.Task` slots, each calling `agent.run(payload)` through `asyncio.to_thread` (tool work may be CPU-bound) and resolving the future with the result or the exception. Build the agent as `smolagents.ToolCallingAgent` over `mios_capreg.get_tools()` (the existing RBAC-filtered manifest) with a `smolagents.LiteLLMModel` pointed at `MIOS_AI_ENDPOINT` per Law 5. Wire it in the `server.py` FastAPI `lifespan` behind `MIOS_CONV_GATEWAY_MODE == 'queue'`, cancelling the task and draining the queue within 5 s on shutdown. Add `dispatch_via_queue(payload, queue)` to `mios_dispatcher.py` and select between it and the existing `dispatch_via_http` by mode. The worker emits ONE `mios_trace.span(kind="tool_loop", ...)` per request, replacing the per-service double-write.
+**Where:** `usr/lib/mios/agent-pipe/mios_gateway_queue.py`, `usr/lib/mios/agent-pipe/mios_dispatcher.py`, `usr/lib/mios/agent-pipe/server.py`
+**Done When:** with `MIOS_CONV_GATEWAY_MODE=queue` a `POST /v1/chat/completions` is provably routed through `GatewayWorker` (one `kind=tool_loop` span in pgvector, not two); with `http` the legacy behaviour is unchanged; `LiteLLMModel.base_url` equals `MIOS_AI_ENDPOINT` in the logs; and request 65 against a 64-slot queue returns 429 without blocking the event loop.
+**Why:** the localhost HTTP hop costs a serialization round trip on every turn, double-writes traces, and -- having no queue -- lets a retry storm open unbounded concurrent tool loops on the operator's own host.
+**Dep:** T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Orchestration/Python
+
+## T-096 -- CONV-03: dependency-free pytest suite for the GatewayQueue seam  (WS-CONV | P2 | M)
+**Goal:** E-06 Test and documentation harness -- the queue's failure modes are proven by tests that run anywhere, not asserted in a commit message.
+**What+How:** Add `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py` with six tests, all passing with no llama-server and no pgvector: `test_put_get` (worker consumes a `GatewayRequest`, future resolves with the mock result); `test_future_resolution` (awaiting the future yields the correct response dict); `test_fallback_on_exception` (a worker exception resolves the future with an error dict rather than leaving it pending forever); `test_concurrency_4` (4 simultaneous requests resolve concurrently, wall time well under 4x a single request); `test_queue_full_429` (request `maxsize+1` returns a 429 dict without blocking); `test_shutdown_drain` (cancelling the worker resolves all pending futures with an error inside 5 s). Mock `smolagents.ToolCallingAgent.run` with `unittest.mock.AsyncMock` and register the file in `pytest.ini` or the existing runner config.
+**Where:** `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py`
+**Done When:** `pytest test_mios_gateway_queue.py -v` reports 6 passed, with no external service socket touched, in under 10 seconds.
+**Why:** the pending-future and drain paths are exactly the bugs that hang a request forever in production and are invisible to smoke tests that only exercise the happy path.
+**Dep:** T-095 (CONV-02 GatewayQueue module).
+**Status:** done-by-code | **Domain:** Testing
+
+## T-097 -- CONV-04: shared prefix-cache reuse and parallel slots on the light llama lane  (WS-CONV | P2 | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- llama-swap already ships; this turns on its KV prefix reuse from SSOT rather than by hand-editing YAML.
+**What+How:** Add `--cache-reuse 256 --np 4` to the `granite4.1:8b` and `lfm2:700m` `cmd` lines in `usr/share/mios/llamacpp/mios-llm-light.yaml` (GGUF path, port, ctx-size, n-gpu-layers, flash-attn, cache-type and slot-save-path all unchanged; `--np 4` replaces the implicit `--parallel 1` on lfm2), each preceded by the comment `# Part 10 CONV-04: --cache-reuse 256 (gate: MIOS_CONV_INFERENCE_LLAMA_CACHE_REUSE_TOKENS > 0); --np 4 for shared-prefix concurrency.` Drive the value from `[converge.inference].llama_cache_reuse_tokens` through a new firstboot helper that renders the flags into the `/etc/mios/llamacpp/mios-llm-light.yaml` overlay, with default 0 meaning the flags are simply not added.
+**Where:** `usr/share/mios/llamacpp/mios-llm-light.yaml`, `automation/firstboot/mios-conv-inference-setup.sh`
+**Done When:** with the gate enabled, `grep 'cache-reuse' /etc/mios/llamacpp/mios-llm-light.yaml` shows `--cache-reuse 256` and `--np 4` on both chat entries; llama-server `--debug-slot` logs report `cache_hit_tokens > 0` after repeated system-prompt turns; and with `llama_cache_reuse_tokens = 0` the overlay is unchanged.
+**Why:** every agent turn re-processes the same long system prompt from scratch, paying 30-60% more time-to-first-token than needed on the lane that serves interactive chat.
+**Dep:** T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Inference/Performance
+
+## T-098 -- CONV-05: vLLM multi-LoRA heavy lane so one engine replaces two  (WS-CONV | P2 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the heavy inference lane fits a single 24 GB GPU by serving adapters per request instead of running two whole model processes.
+**What+How:** Update `usr/share/containers/systemd/mios-llm-heavy.container` with `VLLM_ALLOW_RUNTIME_LORA_UPDATING=true`, `VLLM_PLUGINS=lora_filesystem_resolver`, `VLLM_LORA_RESOLVER_CACHE_DIR=/var/lib/mios/lora-adapters/`, the serve flags `--enable-lora --max-loras 4 --max-cpu-loras 8 --max-lora-rank 64`, and `--lora-modules coding=/var/lib/mios/lora-adapters/coding reasoning=/var/lib/mios/lora-adapters/reasoning` as the pre-loaded set. Create `/var/lib/mios/lora-adapters/{coding,reasoning,vision}/` via tmpfiles.d or firstboot with a `.gitkeep` in each, and render `[converge.inference].vllm_lora_adapters_dir` into `userenv.sh`. Gate the Quadlet changes on `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE=single`; in the default `dual` mode the container is untouched. Mark `mios-llm-heavy-alt.container` deprecated pointing at `[converge.inference].retire_heavy_alt` (T-100).
+**Where:** `usr/share/containers/systemd/mios-llm-heavy.container`, `usr/lib/tmpfiles.d/mios-lora-adapters.conf`, `usr/share/containers/systemd/mios-llm-heavy-alt.container`
+**Done When:** `POST http://localhost:11441/v1/load_lora_adapter` returns 200 with runtime updating on, `GET :11441/v1/models` lists both the `coding` and `reasoning` adapter ids, `heavy_engine_mode=dual` leaves the container byte-identical, and the three adapter directories exist after firstboot.
+**Why:** running `mios-llm-heavy` and `mios-llm-heavy-alt` as two model processes overruns the 4090's 24 GB budget -- roughly 12 GB is spent duplicating base weights that multi-LoRA would share.
+**Dep:** T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Inference/vLLM
+
+## T-099 -- CONV-06: LoRA load/list endpoints on agent-pipe + retire-safety drift rule  (WS-CONV | P2 | S)
+**Goal:** E-11 Unified config surface: one door at :8640/ -- adapter control lives on the same `/v1/*` front door as everything else, addressed through SSOT keys rather than a literal port.
+**What+How:** Add two endpoints to `usr/lib/mios/agent-pipe/server.py`. `POST /v1/inference/lora/load`: validate that the body carries `lora_name` and `lora_path`, then thin-proxy to `{MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY}/v1/load_lora_adapter` -- resolved from SSOT, never a hardcoded `:11441` (Law 5/Law 7). `GET /v1/inference/lora/list`: proxy `{MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY}/v1/models`, filter to adapter-type models and return `{"adapters": [...]}`, degrading to `{"adapters": [], "enabled": false}` whenever `MIOS_CONV_INFERENCE_HEAVY_ENGINE_MODE != "single"`. Extend the T-094 `check_converge_ssot` stub with a real rule: FAIL when `retire_heavy_alt=true` while `systemctl is-enabled mios-llm-heavy-alt.service` still reports enabled. Cover both endpoints in `test_lora_endpoints.py` with mocked httpx calls.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `automation/98-drift-checks.sh`, `usr/lib/mios/agent-pipe/test_lora_endpoints.py`
+**Done When:** `curl localhost:8640/v1/inference/lora/list` returns `{"adapters":[...]}` on a vLLM heavy lane, the load endpoint proxies through to the heavy backend, both return the disabled shape under `heavy_engine_mode=dual`, and the drift-check FAILS on `retire_heavy_alt=true` with the alt unit still enabled.
+**Why:** adapters would otherwise only be loadable by curling the engine port directly, and nothing would catch the half-retired state where SSOT says the alt lane is gone but systemd still starts it.
+**Dep:** T-094 (CONV-01), T-098 (CONV-05 vLLM multi-LoRA).
+**Status:** done-by-code | **Domain:** API/Inference
+
+## T-100 -- CONV-07: inference-consolidation migration guide + heavy-alt deprecation notice  (WS-CONV | P2 | S)
+**Goal:** E-06 Test and documentation harness: doc integrity -- the retirement of a live service ships with a written, reversible procedure an operator can follow cold.
+**What+How:** Write `usr/share/doc/mios/guides/inference-consolidation.md` covering the current dual-heavy topology and why it exceeds the 4090's 24 GB budget; the migration path (`[converge.inference].heavy_engine_mode = "single"`, restart `mios-llm-heavy`, verify `GET /v1/inference/lora/list`, set `retire_heavy_alt = true`, `systemctl disable mios-llm-heavy-alt`); the rollback (`heavy_engine_mode = "dual"`, re-enable both container units); the VRAM budget table from ROADMAP 10.2.5; and the operator note on populating `lora-adapters/` by manual GGUF placement. Add the deprecation block to the alt Quadlet: `# DEPRECATED (Part 10, 2026-06-25): retire by setting [converge.inference].retire_heavy_alt = true and running the migration guide at usr/share/doc/mios/guides/inference-consolidation.md.`
+**Where:** `usr/share/doc/mios/guides/inference-consolidation.md`, `usr/share/containers/systemd/mios-llm-heavy-alt.container`
+**Done When:** the guide renders in the `mios-docs` service, the deprecation comment is present in `mios-llm-heavy-alt.container`, and the guide contains explicit rollback instructions.
+**Why:** an operator who flips `heavy_engine_mode` with no documented verify-and-rollback path can take the heavy lane down with no way back, and the alt Quadlet gives no hint it is on its way out.
+**Dep:** T-098 (CONV-05), T-099 (CONV-06).
+**Status:** done | **Domain:** Docs/Migration
+
+## T-101: CONV-08 -- Tier-0 sqlite-vec session scratchpad module  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- gives the agent an ephemeral Tier-0 vector store so pgvector holds durable recall only, never every transient tool output.
+**What+How:** Add a new dependency-light module `mios_scratchpad.py` (no FastAPI globals) exposing `create_scratchpad(session_id, scratchpad_dir) -> (sqlite3.Connection, Path)` which opens `{scratchpad_dir}/mios-session-{session_id}.sqlite` on tmpfs, loads `sqlite_vec`, and creates `vec_scratch USING vec0(content TEXT, embedding float[768])`; plus `vec_insert(conn, content, embedding)` using sqlite-vec's `serialize_float32`, `vec_search(conn, query_embedding, k=5)` doing `WHERE embedding MATCH ? ORDER BY distance LIMIT ?`, and `destroy_scratchpad(conn, path)` (close + unlink). Register `sqlite-vec` in `requirements.txt`. Gate the real implementation on `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=true`; when false the module is a stub returning empty results with no `sqlite_vec` import, so the runtime dep stays optional. Law 5 invariant holds: embeddings are still fetched from `MIOS_AI_ENDPOINT/v1/embeddings` -- sqlite-vec only stores the vectors it is handed. Cover create/insert/search/destroy in `test_mios_scratchpad.py` with a mocked float list and no pgvector connection.
+**Where:** `usr/lib/mios/agent-pipe/mios_scratchpad.py` (new), `usr/lib/mios/agent-pipe/requirements.txt`, `usr/lib/mios/agent-pipe/test_mios_scratchpad.py` (new)
+**Done When:** `python -c "import mios_scratchpad; c,p = mios_scratchpad.create_scratchpad('test','/tmp'); mios_scratchpad.vec_insert(c,'hello',[0.1]*768); assert len(mios_scratchpad.vec_search(c,[0.1]*768))==1; mios_scratchpad.destroy_scratchpad(c,p)"` exits 0; `pytest test_mios_scratchpad.py` passes with no external services; with the enable flag false the stub returns `[]` and `sqlite_vec` is never imported; the session file lands under `/run/user/<uid>/`, not `/var/lib/`.
+**Why:** Without a Tier-0 store every tool output and reasoning trace is written straight to pgvector, so the durable memory table fills with per-turn garbage that has to be evicted later and pollutes recall quality.
+**Dep:** T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Memory/Python
+
+---
+
+## T-102: CONV-09 -- Cold-eviction module with zstd JSONL export  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- completes the three-tier memory model so TTL-expired rows leave PostgreSQL as durable archives instead of being destroyed or hoarded.
+**What+How:** Add `mios_cold_evict.py` alongside (never modifying) the existing `mios_evict.py`. `export_to_cold(pg, row_ids, table, dest_dir, zstd_level) -> Path` selects `row_to_json(t)` for the id set via `mios_pg.execute`, writes one JSON object per line to `{dest_dir}/{YYYY}/{MM-DD}/{uuid4()}.jsonl.tmp`, shells `zstd --level=<n> -o <dst>.zst <dst>.tmp` under `check=True`, removes the `.tmp`, and returns the `.zst` path. `cold_sweep(pg, plan, table, dest_dir, zstd_level) -> {"exported": N, "dest": str}` chains `mios_evict.select_ids_sql` -> `export_to_cold` -> `mios_evict.delete_ids_sql`, inheriting the `evict_where` filter so hot/pinned/satisfied rows can never be exported. Call `cold_sweep` from the existing eviction background task in `server.py` after the current sweep, gated on `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE`, and log `event(kind="cold_evict", rows=N, dest=path)` to pgvector. `test_mios_cold_evict.py` mocks `mios_pg.execute` and `subprocess.run` to assert export+delete ordering, `.tmp` cleanup on error, and the exact zstd argv.
+**Where:** `usr/lib/mios/agent-pipe/mios_cold_evict.py` (new), `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/test_mios_cold_evict.py` (new)
+**Done When:** `pytest test_mios_cold_evict.py` passes with no external services; `zstd --test /var/lib/mios/history/.../*.jsonl.zst` exits 0 after a simulated sweep; the PostgreSQL row count drops after the sweep (moved, not duplicated); `event(kind="cold_evict")` appears in the pgvector `event` table; a unit test proves hot/pinned/satisfied rows are never exported.
+**Why:** Today eviction is a pure delete -- expired history is unrecoverable, so operators either lose it or disable eviction and let the pgvector tables grow without bound.
+**Dep:** T-094 (CONV-01 SSOT), T-101 (CONV-08 memory SSOT wiring).
+**Status:** done-by-code | **Domain:** Memory/Storage
+
+---
+
+## T-103: CONV-10 -- Wire the sqlite-vec scratchpad into GatewayWorker  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- makes Tier 0 actually intercept per-turn tool output so only end-of-session synthesis reaches Tier 1 pgvector.
+**What+How:** In `mios_gateway_queue.py`, wrap each request execution in `GatewayWorker.run()` with a scratchpad lifecycle: `conn, path = await asyncio.to_thread(mios_scratchpad.create_scratchpad, session_id, scratchpad_dir)` and a `finally:` that calls `destroy_scratchpad` through `asyncio.to_thread`, so the sqlite handle never blocks the event loop and the tmpfs file is always reaped. Inside `_execute_with_scratchpad`, after every tool call in the smolagents loop, fetch the embedding from `MIOS_AI_ENDPOINT/v1/embeddings` (Law 5) and `vec_insert` the tool output into the session store instead of persisting it. The whole lifecycle is gated on `MIOS_CONV_MEMORY_SQLITE_VEC_ENABLE=true`; when false the T-101 stub makes insert a no-op and search return empty.
+**Where:** `usr/lib/mios/agent-pipe/mios_gateway_queue.py`
+**Done When:** With the flag on, the session sqlite file is created at session start and gone at session end; logs show each tool-output embedding fetched via `MIOS_AI_ENDPOINT/v1/embeddings`; the pgvector `event` table records zero `kind=tool_output` rows per turn; with the flag off there is no `sqlite_vec` import and no measurable latency change.
+**Why:** The T-101 module is dead code until a caller owns its lifecycle -- transient tool outputs keep landing in pgvector one row per call, which is exactly the write amplification the tiering was built to stop.
+**Dep:** T-095 (CONV-02 GatewayWorker), T-101 (CONV-08 scratchpad module).
+**Status:** done-by-code | **Domain:** Orchestration/Memory
+
+---
+
+## T-104: CONV-11 -- Cold-archive retention sweep plus converge drift-check  (WS-VECTOR | P2 | S)
+**Goal:** E-23 DB-driven configuration and vector recall -- bounds the Tier-2 archive and puts its configuration under the drift gate so a misconfigured tier cannot silently corrupt storage.
+**What+How:** Add `_cold_retention_sweep()` to the existing eviction background task in `server.py`: walk `cold_storage_dir` recursively for `.jsonl.zst` files older than `cold_retention_days`, delete them, and log `event(kind="cold_retention_sweep", deleted=N, cutoff_days=D)`, all gated on `MIOS_CONV_MEMORY_COLD_EVICT_ENABLE=true`. Extend `check_converge_ssot` in `automation/98-drift-checks.sh` with the Phase 3 rules: `cold_storage_dir` must not sit inside a CephFS mount (test against the `MIOS_CEPHFS_MONITORS` host prefix or a `/tenants/` path segment -- cold archives are node-local by design), `cold_retention_days >= 1`, `1 <= cold_zstd_level <= 19`, and if `sqlite_vec_enable=true` then `python3 -c "import sqlite_vec"` must exit 0. Write `usr/share/doc/mios/guides/memory-tiering.md` documenting the three tiers (Tier 0 sqlite-vec, Tier 1 pgvector, Tier 2 zstd cold archive), how to enable them, and how to query an archive with `zstd -d | jq`.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `automation/98-drift-checks.sh`, `usr/share/doc/mios/guides/memory-tiering.md` (new)
+**Done When:** Files older than `cold_retention_days` disappear on the next sweep and `event(kind="cold_retention_sweep")` is logged; the drift-check FAILs when `cold_storage_dir` is a CephFS path and when `cold_zstd_level > 19`; the memory-tiering guide renders in `mios-docs`.
+**Why:** Without a retention sweep and its guardrails the cold archive grows forever, and nothing stops an operator pointing it at distributed CephFS storage -- turning node-local archival writes into cluster traffic.
+**Dep:** T-102 (CONV-09 cold eviction), T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Storage/CI
+
+---
+
+## T-105: CONV-12 -- Hummingbird distroless Containerfile for agent-pipe  (WS-SEC | P3 | M)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- removes the package manager and shell from the agent-pipe runtime so the container's trust surface is only the app and its venv.
+**What+How:** Add `Containerfile.hummingbird` beside the existing `Containerfile` as a two-stage build. Builder: `FROM python:3.13-slim AS builder`, install `gcc`/`libsqlite3-dev`, `python -m venv /opt/venv`, `pip install --no-cache-dir -r requirements.txt`. Runtime: `FROM gcr.io/distroless/python3-debian13`, copy `/opt/venv` and `usr/lib/mios/agent-pipe/` to `/app/`, set `PATH`/`PYTHONPATH` to the venv, `USER 65534:65534` (Law 6 nonroot), `EXPOSE 8640`, and `CMD` running uvicorn on `server:app` with `--workers 1 --loop uvloop`. Because a distroless image has no shell, `profile.d` cannot supply `MIOS_AI_ENDPOINT` -- verify the Quadlet `mios-agent-pipe.container` carries an explicit `Environment=MIOS_AI_ENDPOINT=...` line and add it if absent (Law 5). Land a `check_hummingbird` stub in `98-drift-checks.sh` (full rules in T-108). Selection is gated: the distroless Containerfile is used only when `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true`, and the default `Containerfile` path is untouched.
+**Where:** `Containerfile.hummingbird` (new), `usr/share/containers/systemd/mios-agent-pipe.container`, `automation/98-drift-checks.sh`
+**Done When:** `podman build -f Containerfile.hummingbird -t mios-agent-pipe:hummingbird .` succeeds; `podman run --rm ... id` reports `uid=65534`; `... which bash` exits non-zero; `podman inspect ... | jq '.[0].Config.Env[]|select(test("MIOS_AI_ENDPOINT"))'` returns the endpoint; with the flag false the original Containerfile builds unchanged.
+**Why:** The current runtime image ships `dnf`, `bash` and the OS package cache -- roughly 200-400 MB of CVE-bearing surface that the agent-pipe process never uses but an attacker with code execution would.
+**Dep:** T-095 (CONV-02 merged process -- required for the single CMD entrypoint).
+**Status:** done | **Domain:** Image/Security
+
+---
+
+## T-106: CONV-13 -- Unified MCPClientPool for all tool invocations  (WS-DEBT-PIPE | P3 | M)
+**Goal:** E-02 Technical-debt retirement -- collapses per-service MCP SDK duplication in the merged agent-pipe process into one pooled, typed tool catalog.
+**What+How:** Add an `MCPClientPool` class to `mios_gateway_queue.py`: `__init__(server_configs)` builds one `mcp.StdioClient` or `mcp.HTTPClient` per entry in `[tools.mcp_servers]` from `mios.toml` according to its `transport`; `async startup()` connects every client and caches its tool schemas; `async shutdown()` closes them cleanly; `get_tools()` returns the single unified schema list that replaces the per-service caches. Instantiate the pool in the `server.py` `lifespan` handler gated on `MIOS_CONV_IMAGE_MCP_POOL_ENABLE=true` and hand it to the worker as `worker.mcp_pool`. In `mios_interop.py` (WS-11 A2A), feed `MCPClientPool.get_tools()` into the 3-projection A2A skill shape so federated peers see the same catalog the local agent sees. `test_mios_mcp_pool.py` mocks `mcp.StdioClient.connect` to assert startup, catalog contents and clean shutdown.
+**Where:** `usr/lib/mios/agent-pipe/mios_gateway_queue.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_interop.py`, `usr/lib/mios/agent-pipe/test_mios_mcp_pool.py` (new)
+**Done When:** `GET /v1/tools` returns one entry per MCP server with no duplicates; MCP connections are established once at startup rather than per request; the A2A skill projection in `mios_interop.py` reads from the same pool; `pytest test_mios_mcp_pool.py` passes with no MCP server running.
+**Why:** Now that the services share one process, each still opens its own MCP clients per request -- duplicated schemas mean a tool can appear twice in `/v1/tools`, and A2A peers can be shown a catalog that disagrees with the local one.
+**Dep:** T-095 (CONV-02 GatewayWorker), T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Tool/MCP
+
+---
+
+## T-107: CONV-14 -- rechunk build step with component xattrs  (WS-BAKE | P3 | S)
+**Goal:** E-16 The bake plane -- makes the published image's OCI layers chunk along component boundaries so an upgrade ships deltas instead of whole layers.
+**What+How:** Create `automation/build/rechunk.sh` that reads the source digest with `podman inspect mios-bootc:latest --format '{{.Digest}}'`, runs `podman unshare rpm-ostree experimental compose build-chunked-oci --bootc --format-version=1 --from="$SRC_DIGEST" --output containers-storage:mios-bootc:rechunked`, and tags component xattrs (`setfattr -n user.component`) for `ai-sidecar` on `/usr/lib/mios/agent-pipe/` and `/usr/share/mios/llamacpp/` and `llm-models` on `/var/lib/mios/models/` so the chunker separates the volatile AI payload from the OS. Add an additive `just rechunk` recipe to the `Justfile` that invokes it after `just build` without replacing any existing recipe. Gate on `MIOS_CONV_IMAGE_RECHUNK_ENABLE`: when false the script prints "rechunk disabled" and exits 0. Add `check_rechunk_env` to `check_converge_ssot` that FAILs when `rechunk_enable=true` but `rpm-ostree` is not on PATH.
+**Where:** `automation/build/rechunk.sh` (new), `Justfile`, `automation/98-drift-checks.sh`
+**Done When:** `just rechunk` completes when the flag is true and `rpm-ostree` is present, and exits 0 silently when the flag is false; `mios-bootc:rechunked` exists in local container storage afterwards; the drift-check FAILs when the flag is on but `rpm-ostree` is absent.
+**Why:** Without rechunking, every image build reshuffles layer content, so a `bootc upgrade` that changes only the agent-pipe payload still pulls multi-GB layers containing unchanged model and OS content.
+**Dep:** T-094 (CONV-01 SSOT).
+**Status:** done-by-code | **Domain:** Image/CI
+
+---
+
+## T-108: CONV-15 -- Full check_hummingbird drift-check plus distroless guide  (WS-DRIFT | P3 | S)
+**Goal:** E-07 The drift-gate as the enforcement plane -- turns the distroless and rechunk invariants from convention into machine-checked policy registered in the gate.
+**What+How:** Replace the T-105 stub with a full `check_hummingbird` in `automation/98-drift-checks.sh`, registered in `main()` immediately after `check_converge_ssot`. It FAILs when: `MIOS_CONV_IMAGE_DISTROLESS_ENABLE=true` and `Containerfile.hummingbird` is missing; the final-stage `USER` line is not `USER 65534` or `USER 65534:65534` (Law 6); `/bin/bash` appears anywhere in the final stage; distroless is enabled but `mios-agent-pipe.container` lacks an `Environment=MIOS_AI_ENDPOINT` directive (Law 5 -- there is no `profile.d` to fall back on); or `rechunk_enable=true` with `rpm-ostree` off PATH. Write `usr/share/doc/mios/guides/hummingbird-distroless.md` covering why distroless (attack-surface reduction, Law 6), the multi-stage build walkthrough, why the endpoint must arrive through the Quadlet `Environment=` line, how to debug without a shell (OpenTelemetry traces plus the pgvector `event` table are the observability surface), Chainguard (`cgr.dev/chainguard/python:latest-dev`) as an alternative base, and a `just rechunk` quickstart.
+**Where:** `automation/98-drift-checks.sh`, `usr/share/doc/mios/guides/hummingbird-distroless.md` (new)
+**Done When:** `just drift-gate` FAILs on each of: `USER root` in the distroless stage, a missing `Environment=MIOS_AI_ENDPOINT` in the Quadlet, and `/bin/bash` present in the final stage; it passes on a correct config; the hummingbird guide renders in `mios-docs`.
+**Why:** A distroless image with no enforcing check regresses the first time someone adds a debug shell or drops the `USER` line, and the Law 5 endpoint wiring fails silently at runtime because there is no shell to source it from.
+**Dep:** T-105 (CONV-12 distroless Containerfile), T-107 (CONV-14 rechunk).
+**Status:** done | **Domain:** CI/Docs
+
+---
+
+## T-031: ORCH-04 -- Bound the ReAct+Reflexion loop with real SSOT budgets  (WS-DURA | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- makes the self-driving reasoning loop terminate by construction instead of spinning out a non-terminating "Reflexion essay".
+**What+How:** Execute Wave 4 of `MIOS-CHATQ-FV-WORKPLAN.md`. The `done-by-code` claim is false: `[agent].reflexion_enable` reads a phantom TOML section (only `[agents]` plural exists) so the flag is always-true, and `max_iter`/`max_retry`/`no_progress` do not exist in `mios.toml` at all. Create a real `[agent_pipe]` SSOT block holding `reflexion_enable` plus every loop budget, and replace the literals at `server.py:835` and `server.py:3314` with SSOT reads. In `secondary_loop.py` add a normalized no-progress signature (so one-token argument variation no longer evades the exact-match repeat guard), a per-turn blacklist of failed `(tool,args)` pairs, and `max_consecutive_failures` escalation triggered off the failure signal rather than the give-up branch; enforce `wall_clock_budget_s` as a hard bound. Wire the structured `reflect_on_step_failure` from `reflect.py` into the native/`@` path -- currently it is only reachable on the DAG path -- as emit-or-terminate, kept internal. Add a drift-check asserting every budget key declared in `[agent_pipe]` has a code consumer.
+**Where:** `usr/share/mios/mios.toml [agent_pipe]`, `usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py` (44-60, 265, 345-408), `.../routing/native_loop.py`, `.../routing/reflect.py`, `.../server.py` (835, 3314), `automation/98-drift-checks.sh`
+**Done When:** `reflexion_enable` and all budgets resolve from `[agent_pipe]` with no `[agent]` or literal fallbacks left and the drift-gate green; an identical failing `(tool,args)` is never retried and the loop terminates or escalates inside `wall_clock_budget_s`; the failure path emits a structured corrective action or terminates, never free-text in `content`; live-fired in `podman-MiOS-DEV`, a deliberately failing tool call does not loop.
+**Why:** Today a failing tool call produces an unbounded retry loop that burns GPU and tokens until the operator kills the session, and the reflection output leaks into the user-visible answer as an essay.
+**Dep:** none
+**Status:** done | **Domain:** Orchestration
+
+---
+
+## T-109: CHATQ-01 -- Route refine/plan trace to the reasoning channel, one answer in content  (WS-DEBT-PIPE | P1 | M)
+**Goal:** E-02 Technical-debt retirement -- puts the agent-pipe streaming path behind typed, channel-pinned events so the wire contract is explicit instead of debug-flag-dependent.
+**What+How:** Wave 1 (Claude C1-C3). Today refine's `{Refined Query/Intent/Reply}` scaffold streams straight into `delta.content` via `chat.py:1425-1426` -> `sse.py:93-94` under `_DEBUG_ENABLE`, and the answer is restated three times because the refine `reply`, the local-state pass and the polish pass all reach content. Route the refine pump and the `_refine_reasoning` summary through a channel-pinned emitter in `sse.py` that always targets the reasoning channel regardless of `_DEBUG_ENABLE`, and extend the `_live_streamed` guard at `native_loop.py:858` so exactly one generation is allowed to reach `content`. Refine's `reply` is reclassified as trace, not answer. Visibility is preserved end to end -- only the channel and the de-duplication change.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py`, `.../routing/chat.py` (1425-1426, 1482-1495, 1789-1803), `.../routing/native_loop.py` (858, 1061, 1101-1102)
+**Done When:** The refine trace renders in the Thinking pane and never in `delta.content`; `@ what directory are we in right now` returns exactly one clean answer with no `Refined Query/...` block and no triple restatement; output is byte-identical to today when the `[observability]` flags are off (degrade-open).
+**Why:** Every chat turn currently shows the user the internal refine scaffold and repeats the answer three times, which makes the product look broken and pollutes the persisted history that feeds the next turn's KV cache.
+**Dep:** none
+**Status:** done | **Domain:** Observability/Orchestration
+
+---
+
+## T-110: FV-01 -- Canonical typed-event schema, per-surface routing, sub-agent visibility  (WS-DEBT-PIPE | P1 | L)
+**Goal:** E-02 Technical-debt retirement -- replaces content-inlining with one typed wire schema every stage and sub-agent emits into, so full visibility is a contract rather than a debug hack.
+**What+How:** Wave 1. Define one event schema -- `thinking | plan | tool_call | tool_result | source | content` -- that every stage and every sub-agent emits into. Replace the blanket `enable_thinking:False` at `agent_call.py:820-821` and `swarm.py:1237` (which turns leaf thinking off at the source) with a per-lane `[lanes.*].stream_thinking` switch. Add a channel discriminator to the fan-out `_push` merged event, which today carries none. Retire content-inlining as the visibility mechanism: `[observability].debug` should gate only content-mirroring for strict surfaces. Add per-surface routing keyed on the `X-MiOS-Surface` / `reasoning_ok` request signals, with a MiOS-owned replay-strip so persisted history stays clean. Translate `mios_status` to status events and refs to source events in the OWUI pipe. Split of work: AGY owns the SSOT blocks and the OWUI pipe; Claude owns the emitter and `agent_call`.
+**Where:** `usr/share/mios/mios.toml` `[observability]`, `[observability.channels]`, `[lanes.*]`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py`, `.../routing/agent_call.py` (738-746, 797-885, 820-821), `.../server.py`, `.../swarm.py`
+**Done When:** Every sub-agent's thinking, tool calls and sources stream live on OWUI and Hermes while strict clients receive a folded inline trace and the final answer appears only in `content`; the KV cache survives across turns because persisted history is the clean answer only; setting `stream_thinking=false` on one lane downgrades just that lane (degrade-open).
+**Why:** The full-visibility mandate is currently faked by inlining traces into content under a debug flag, leaf agents' reasoning is discarded at source, and strict clients cannot see the reasoning channel at all -- so operators cannot tell what a multi-agent turn actually did.
+**Dep:** none
+**Status:** done | **Domain:** Observability | **Who:** AGY owns SSOT + OWUI pipe; Claude owns emitter + `agent_call`
+
+---
+
+## T-111: CHATQ-02 -- Constrained tool-calling, tools on the final pass, verb-catalog repair  (WS-CODEMODE | P1 | L)
+**Goal:** E-24 Autonomy guardrails -- makes tool invocation a structurally guaranteed typed call instead of text the model narrates and the user has to read.
+**What+How:** Wave 2. The answer-shaping completion fires with no `tools[]` (`native_loop.py:780-782`), so residual tool intent leaks as literal `<tool_call>` / ```json``` text; `linux_file_search` is marked `hidden` yet name-dropped in visible descriptions, so the model wraps it into `launch_app`; no lane uses constrained decoding; and the rescue path returns after the first block and is gated on empty `tool_calls`. AGY side: set engine `--tool-call-parser` / `--reasoning-parser` and `constrained_tools` per lane in `[lanes.*]`, consolidate the duplicate `launch_app` verb definitions (9084/3157), correct the `fs_search` description (3465-3473), stop advertising uncallable names, and fix `[routing.domains.files].verbs` (3103-3110). Claude side: pass `tools[]` to `_pb`, replace the text salvage with a streaming-aware one that re-emits as typed events (still visible), diverts them off `content` and actually executes them, remove the first-block early return in `secondary_loop.py`, and surface routed-domain verbs even when hidden by keying the Stage-2 filter on the canonical verb name.
+**Where:** `usr/share/mios/mios.toml` `[lanes.*]`, `[verbs.launch_app]` (9084/3157), `fs_search` (3465-3473), `[routing.domains.files]` (3103-3110); `.../routing/native_loop.py` (780), `.../routing/secondary_loop.py` (309, 334-344), `.../routing/toolexec.py` (210-279), `.../server.py` (3956, 4028-4034), `.../verbcatalog.py`, `.../mios_endpoints.py`
+**Done When:** A narrated tool call renders as a native typed tool pill and never as text in `delta.content`; any files turn always carries a callable `linux_file_search` with no `launch_app` misroute; live-fired, `@ what's here?` fires a real typed file/`list_dir` call.
+**Why:** Users currently see raw `<tool_call>` JSON in the answer, and file questions get routed to an app launcher, so the tool plane looks and behaves like a hallucination even when the model's intent was correct.
+**Dep:** T-112 (list_dir gives the correct files-turn verb), T-110 (typed tool_call channel).
+**Status:** done | **Domain:** Tool-calling | **Who:** AGY (SSOT/engine flags) + Claude (pipe code)
+
+---
+
+## T-112: CHATQ-03 -- First-class list_dir verb and cwd act-before-answer grounding  (WS-CODEMODE | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- gives the agent a real directory-listing primitive so "what's here?" is answered from the filesystem rather than from priors.
+**What+How:** Wave 3. No `list_dir` verb exists today: `linux_file_search` is a `mios-locate` substring search, not `ls`, and `read_file`/`text_view` can list a directory but is depth-2/500-entry capped and framed as "read a file" -- so with only a cwd string injected and no lister auto-firing, the model hallucinates a generic FHS table. AGY side: add a `--depth 1` immediate-children mode to `usr/libexec/mios/mios-text-edit` (83-84, 219-241), add `[verbs.list_dir]` with `model_name=list_directory`, a `path` argument defaulting to cwd, and an accurate description plus examples, and redirect the `read_file`/`fs_search` descriptions accordingly. Claude side: fire `list_dir(path=cwd)` from `_read_tool_enrich` in `server.py` whenever a cwd is present (keyed off the SSOT `_client_env` cwd), and add a model-chosen filesystem/`state_scope` signal to refine so directory-content queries set `tool_choice:required`. Selection must stay classifier-driven, never an English keyword match.
+**Where:** `usr/libexec/mios/mios-text-edit` (83-84, 219-241); `usr/share/mios/mios.toml` `[verbs.list_dir]` plus `fs_search`/`read_file` descriptions; `.../server.py` `_read_tool_enrich` (4648, 4685-4701, 4734-4745); `.../routing/refine.py`, `.../routing/chat.py` (1193-1198)
+**Done When:** `list_dir` with no argument lists the cwd's immediate children with true `ls` semantics; `@ what's here?` returns the real directory contents, never a generic FHS table; the decision to call it is made by the classifier, not a keyword match.
+**Why:** The most basic filesystem question an operator asks returns invented output today, which destroys trust in every other grounded answer -- and T-032 is blocked because it assumes a `list_directory` op that does not exist.
+**Dep:** none (**Unblocks:** T-032 -- its allow-listed `list_directory` op now exists)
+**Status:** done | **Domain:** Tool-calling/Grounding
+
+---
+
+## T-113: FAB-01 -- Stop the @ agent-pipe fabricating tool execution and results  (WS-GUARD | P0 | L)
+**Goal:** E-24 Autonomy guardrails -- enforces the hard invariant that a tool result can only be produced by a tool that actually ran.
+**What+How:** In a live session `@ launch fakegame` emitted a fake `🤝 open_app output: {"success":true,"pid":8421,"window":{"handle":0x7f12345678,...}}` -- the same fake pid and handle on every launch, for an invented app -- while nothing launched, whereas the parallel `hermes` path ran a real `mios-windows launch`. Root-cause why the `@`/agent-pipe turn produces a fabricated tool-result block instead of a real `toolexec` dispatch or a real hand-off to Hermes `:8642`, and confirm or repair the `usr/bin/mios` route (the `@` path is supposed to reach Hermes-direct). Enforce the invariant in code: no `🤝 <tool> output:` envelope may be emitted unless `_exec_tool_calls` produced it. Ship a fabrication guard -- `_contains_tool_result_block` in `chat.py` short-circuits any chat reply that narrates a tool-result / success-JSON block and routes it to the real executor, and `native_loop.py` strips the same shape for any verb not present in `_fired` -- with unit coverage in `test_mios_antifab.py`, and re-dispatch the turn rather than passing the text through.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/{chat,native_loop,secondary_loop,toolexec}.py`, `.../routing/refine.py`, `usr/bin/mios` (route), `usr/lib/mios/agent-pipe/server.py` (dispatch), `usr/lib/mios/agent-pipe/test_mios_antifab.py`
+**Done When:** `@ launch fake game` either performs a real launch or states it could not, never a fabricated success with a fake pid/handle (needs live `@`-session verify); no tool-result block reaches the user without a matching executed `tool_call` row (needs live `@`-session verify); the identical-fake-pid fabrication cannot recur -- guard plus test, already landed.
+**Why:** The agent currently tells the operator it did something it did not do, with plausible fabricated evidence; anti-fabrication is the operator's core value, so every other capability is worthless while this holds.
+**Dep:** none
+**Status:** done-by-code (fix reproduction-tested; live @-verify pending) | **Domain:** Anti-Fabrication/Orchestration
+
+---
+
+## T-114: FAB-02 -- Stop fabricated web/news content and invented entities on misclassification  (WS-GUARD | P0 | M)
+**Goal:** E-24 Autonomy guardrails -- makes every citation and entity name traceable to a real fetch, so grounding failures surface as honest notes instead of confident fiction.
+**What+How:** In a live session the gibberish input `??!!!?` was refine-misclassified as a "weekly news roundup" and the pipeline fabricated five articles attributed to real outlets (NYT/Reuters/BBC/FT/TechCrunch) with invented events, claiming `web_search` had run when it had not; it also invented a nonexistent app ("FakeGame 6"). Add a hard anti-fabrication gate: never emit web/news content or source attributions that a real `web_search`/fetch call did not return, and never invent entity names. Fix the refine classifier in `refine.py` so low-signal or gibberish input is classified as chat/clarify rather than promoted into a fabricated task plan. Attribution must be drawn only from fetched results in the web-research enrich path and `mios_grounding.py`. The shipped guard is structural, not keyword-based: `native_loop.py` rewrites the answer to an honest note when a web/news turn cites an off-list URL, or when it produces a markdown report table having fetched zero sources. Model-driven throughout -- no keyword gate.
+**Where:** `.../routing/refine.py` (classifier), `.../routing/chat.py` (web-research enrich), `usr/lib/mios/agent-pipe/mios_grounding.py`, `.../routing/native_loop.py`, `.../federation` web tools
+**Done When:** Gibberish input yields a clarify/chat turn, never a fabricated news roundup (needs live `@`-session verify; classifier reclassification is out of scope for the shipped guard); no source citation appears unless a real fetch produced it -- landed as the structural off-list-URL / zero-sources-with-report-table guard, SSOT-wired, with live confirmation still pending.
+**Why:** The pipeline currently attributes invented events to real news organizations, which is both a trust-destroying failure and a reputational and legal hazard the moment such output is shared.
+**Dep:** none
+**Status:** done-by-code (fix reproduction-tested; live @-verify pending) | **Domain:** Anti-Fabrication/Grounding
+
+---
+
+## T-115: CQ1 -- Deploy T-109 and de-duplicate the refine pass on the strict CLI surface  (WS-DEBT-PIPE | P1 | S)
+**Goal:** E-02 Technical-debt retirement -- finishes the channel-routing fix on the surface that has no reasoning channel, so the strict CLI gets one clean folded trace.
+**What+How:** Extends T-109. On the live CLI the `Refined Text/Intent/Reply` scaffold still streams verbatim, because the surface-aware `_sse_reasoning` fix is authored but undeployed and the CLI sends no `x-mios-reasoning-ok` header, so it falls through to the legacy debug-inline path; separately `"🧠 Refining intent..."` fires two to three times per turn. Deploy the T-109 change, de-duplicate the refine pass so it runs once per turn, and confirm the strict-CLI folded-trace path (FV-F) shows the trace exactly once with no raw scaffold. Fold the work into the T-109/T-110 branch rather than shipping a parallel fix.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/{chat,sse,refine}.py`
+**Done When:** A CLI turn shows no `Refined Text/Intent/Reply` scaffold in the answer, the folded trace appears once, and `🧠 Refining intent...` fires exactly once per turn.
+**Why:** T-109's fix is invisible to the operator's primary surface until it is deployed and the strict-client path is wired, and the duplicated refine pass costs two to three extra model calls on every single turn.
+**Dep:** T-109 (extends it)
+**Status:** done | **Domain:** Observability
+
+---
+
+## T-116: OSCTL-01 -- Browser open-URL reuses the running instance and opens a tab  (WS-CODEMODE | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- makes an OS-control verb honor the operator's stated intent instead of taking the one coarse action it knows.
+**What+How:** In a live `hermes` session, "open a firefox TAB to youtube" launched the Firefox Nightly shortcut twice (two new windows) and opened several stray Epiphany tabs, even though Firefox was already running and a tab was explicitly requested -- because the launch path uses `mios-windows launch <shortcut>`, which always spawns a new window. Make browser open-URL tab-aware: detect an already-running browser instance and open a new tab in it (CDP `Target.createTarget`, `--new-tab`, or activate-existing), cold-launching only when the browser is not running, honoring an explicit "tab" request, and never fanning out extra Epiphany tabs.
+**Where:** `usr/lib/mios/agent-pipe/mios_oscontrol.py`, `.../routing/oscontrol.py`, `usr/libexec/mios/mios-windows`, the browser/CDP skills
+**Done When:** "open a firefox tab to `<url>`" with Firefox already open produces exactly one new tab in the existing window and no new window (live-verified by the operator).
+**Why:** Every browser request currently multiplies the operator's open windows and opens unrelated browsers, so routine OS-control asks leave the desktop worse than before.
+**Dep:** none
+**Status:** done | **Domain:** OS-Control
+
+---
+
+## T-117: OSCTL-02 -- Container exec: SSOT name resolution, non-interactive, podman-first  (WS-CODEMODE | P1 | M)
+**Goal:** E-24 Autonomy guardrails -- keeps an agent-issued container exec bounded and correctly targeted so it cannot hang the turn.
+**What+How:** In a live `hermes` session, "ssh into code-server container" tried `docker` first (the runtime is podman), used the retired name `code-server` (now `mios-agents`), wrongly exec'd into `mios-open-webui`, and hung for 172s and 21s on `podman exec -it ... bash` because the agent context has no TTY; the memory tool also errored mid-session. Four fixes: (1) resolve container names through SSOT `[containers.*]` with a retired-name alias so `code-server` maps to `mios-agents`; (2) never issue interactive `-it` exec from the agent -- always `podman exec <container> <cmd>` with an explicit command and no bare shell, so it cannot block on a TTY; (3) prefer podman as the SSOT runtime and skip docker probing entirely; (4) investigate the mid-session memory-tool error.
+**Where:** `usr/lib/mios/agent-pipe/mios_oscontrol.py`, `usr/libexec/mios/*`, the Hermes tool skills, container-name SSOT in `usr/share/mios/mios.toml` `[containers.*]`
+**Done When:** "exec into the code-server container" targets `mios-agents`, runs non-interactively, returns in under five seconds, and never passes `-it`.
+**Why:** An agent exec today can hang for minutes against a TTY that will never appear, and lands in the wrong container when it does return -- a stalled turn the operator has to kill.
+**Dep:** none
+**Status:** done | **Domain:** OS-Control
+
+---
+
+## T-118: HEALTH-01 -- Override the baked llama-swap healthcheck with an SSOT HealthCmd  (WS-SYSTEMD | P1 | S)
+**Goal:** E-18 Generate the systemd units from SSOT -- makes the container health contract a rendered property of `[containers.*]` rather than whatever the upstream image happened to bake in.
+**What+How:** Both llama-swap:cuda lanes report Unhealthy on the podman dashboard, but live probing corrects the original "oversized KV" premise: the lanes are up -- `curl :${MIOS_PORT_CPU_NODE}/health`, `:${MIOS_PORT_LLM_LIGHT}/health` and `/v1/models` all return 200. The upstream `ghcr.io/mostlygeek/llama-swap:cuda` image bakes `HEALTHCHECK curl -f http://localhost:8080/`, while MiOS runs each lane on its SSOT `${MIOS_PORT_*}` port, so the baked probe can never connect and the gate is permanently red. Add a `HealthCmd` to `[containers.mios-cpu-node.Container]` and `[containers.mios-llm-light.Container]` that probes the real runtime port from `${MIOS_PORT_*}` (cpu-node against llama-server `/health`; llm-light against llama-swap `/v1/models`, which needs no model load), and land the already-in-SSOT cpu-node context right-size from 131072 to 32768. NO-HARDCODE: the port comes from the runtime variable, never a literal. Regenerate the Quadlets from SSOT.
+**Where:** `usr/share/mios/mios.toml` (`[containers.mios-cpu-node.Container]`, `[containers.mios-llm-light.Container]`), regenerated `usr/share/containers/systemd/mios-{cpu-node,llm-light}.container`
+**Done When:** Both lanes carry an SSOT `HealthCmd` probing their runtime `${MIOS_PORT_*}` port (commit c3eff07); cpu-node's `--ctx-size 32768` is regenerated into the Quadlet and `generate-pod-quadlets.py --check` reports 26/26 matching SSOT; both units show `Up (healthy)` -- live-verified in `podman-MiOS-DEV` after deploying the regenerated Quadlets, `systemctl daemon-reload` and a restart of the two units.
+**Why:** Two healthy inference lanes report Unhealthy forever, which trains the operator to ignore the health dashboard and hides a genuine outage when one occurs.
+**Dep:** none
+**Status:** done-by-code | **Domain:** Inference/Reliability
+
+---
+
+## T-119: TOOLARG-01 -- Native typed launch arguments for every tool, skill and recipe  (WS-CODEMODE | P1 | L)
+**Goal:** E-24 Autonomy guardrails -- gives every verb a strict typed schema so the model selects arguments the runtime can validate, rather than guessing from a name-only verb.
+**What+How:** Operator mandate generalizing T-116: every verb, skill and recipe must expose native typed launch/invocation arguments following OpenAI function-calling patterns (strict JSON-schema typed params plus enums), grounded in upstream research on native invocation per app type across Windows, Linux, WSL, container and browser environments. Research and design first into a `research/` document: the native typed-arg standard plus a per-type, per-environment launch-arg map -- browser tab/window via CDP `Target.createTarget`, `--new-tab` or remote control; Windows App Paths, protocol handlers, `.lnk` and AUMID; Linux `.desktop` Exec field codes, `gio` and `xdg-open`; games via `steam://`. Then enrich `_VERB_CATALOG` and the skill/recipe schemas with typed native args and project them through the existing OpenAI-tool/MCP schema surface with `strict` set, in `verbcatalog.py`'s `_verb_to_openai_tool`. SSOT-sourced, NO-HARDCODE, degrade-open when an environment or argument is unsupported. The exemplar is browser open-URL taking `{url, mode: tab|window, reuse_instance}`. Pairs with T-111: that task is the calling mechanism, this is the schema richness.
+**Where:** `usr/share/mios/mios.toml` (`[verbs.*]` arg schemas), `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py` (`_verb_to_openai_tool`), `.../mios_oscontrol.py`, `usr/libexec/mios/mios-windows`, the skills and recipes catalogs
+**Done When:** A research/design doc defines the native typed-arg standard and the per-type/per-environment launch-arg map; browser open-URL opens a tab in the running browser (T-116) as the first shipped instance; verbs, skills and recipes expose typed native args rather than name-only entries through the OpenAI/MCP tool projection; every argument is model-selectable and validated, degrading open when unsupported.
+**Why:** Coarse name-only verbs force the model to encode intent in prose the executor cannot honor -- which is exactly how "open a tab" became "launch the app twice".
+**Dep:** Pairs with T-111 (constrained tool-calling = mechanism); lands T-116 as its first instance.
+**Status:** done | **Domain:** Tool-calling/OS-Control
+
+---
+
+## T-120: NOHC-01 -- Reconcile the `[ports]` SSOT 8xxx renumber across code and bootstrap  (WS-PORTFLOAT | P1 | M)
+**Goal:** E-13 Ports are allocated from SSOT -- restores one authoritative port table so both repos and every consumer derive the same numbers.
+**What+How:** `C:\MiOS` `[ports]` was renumbered into the 8xxx range (llm_light=8450, searxng=8899, open_webui=8033, pgvector=8432, cockpit=8090, forge_http=8300, sglang=8442, vllm=8441) and that is what the live system uses -- `install.env` carries `MIOS_PORT_LLM_LIGHT=8450` and `MIOS_PORT_CPU_NODE=8458`, and the lanes listen there -- but code, docs and `C:\mios-bootstrap\mios.toml` still carry the old 11450/8888/3030/5432/9090/3000/11441/11440 values. Pick the 8xxx table as authoritative, then: sync `C:\mios-bootstrap\mios.toml` `[ports]` to match `C:\MiOS`; resolve every code literal from `${MIOS_PORT_*}` (T-121); and document the container-internal versus host-published distinction wherever the 11xxx values are legitimately internal. Add a drift-check to `automation/98-drift-checks.sh` that FAILs when the two repos' `[ports]` tables diverge.
+**Where:** `usr/share/mios/mios.toml` `[ports]` (~7615-7646), `C:\mios-bootstrap\mios.toml` `[ports]`, `automation/98-drift-checks.sh`
+**Done When:** One `[ports]` table is authoritative and byte-identical across both repos with a drift-check enforcing it; internal-versus-published semantics are documented where 11xxx lane ports are genuinely internal; `mios-doctor` and the health probes hit the live port and report real state.
+**Why:** Consumers still holding old numbers curl dead ports -- `mios-doctor:62` probes `localhost:11450` where nothing listens -- producing false-negative health for services that are actually running.
+**Dep:** none
+**Status:** done | **Domain:** SSOT/Ports
+
+---
+
+## T-121: NOHC-02 -- De-hardcode the 22 port literals in libexec and agent-pipe  (WS-ZEROHC | P1 | M)
+**Goal:** E-12 ZERO-HARDCODES -- eliminates the port constants in live code that both violate Law 7 and disagree with the current SSOT.
+**What+How:** Replace each of the 22 audited literals with `${MIOS_PORT_*}` in shell or `os.environ.get("MIOS_PORT_*", <SSOT-default>)` in Python. P1 bare-literal sites: `mios-launch:173-179` (cockpit/owui/hermes/prefilter/searxng/forge alias dispatch), `mios-coderun-broker:65` (`:8640/v1/dispatch`), `mios-doctor:62,64,98,171` (`:11450`/`:3030` probes), `Get-MiOS.ps1:4150-4163` (`_ServiceCell -Port` literals), `Heal-MiOSLocalhostForwarding.ps1:33` (hardcoded port array), `build-mios.ps1:4721` (literal port map -- copy the sibling map at 5567-5575 that already resolves from `[ports]`), and `mios_pipe/routing/portal.py:773,775,864` (served JS `3030`/`8888`). P2 wrong-default fallbacks: `mios-compact:64`, `mios-cron-director:47`, `mios-daemon:87`, `mios-delegation-prefilter:66`, `mios-ingest:54`, `mios-ai-tag:298`, `mios-knowledge-search:48,61`, `gateway-agent/session.py:20`, `mios_pipe/memory/pg.py:79`, `gateway-agent/server.py:278`, `mios_endpoints.py:103`, `install-host-tools.ps1:501`. P3 served prose: `grounding.py:432-436` (the system prompt bakes `:8640`/`:11450`/`:11441`/`:8642`), `mios-apps:587-591`, `mios-env-probe:189-191`.
+**Where:** the ~22 files listed above
+**Done When:** No bare port literal remains in code logic -- each site reads SSOT with the correct default; `grounding.py`'s system-prompt text renders its ports from SSOT rather than baked literals; the T-125 grep gate passes.
+**Why:** These literals are not just a style violation -- most already disagree with the renumbered SSOT, so the affected probes, dispatchers and prompts point at dead ports and mislead both operators and the model.
+**Dep:** T-120 (authoritative `[ports]` table), T-125 (grep gate)
+**Status:** done | **Domain:** NO-HARDCODE/Ports
+
+---
+
+## T-122: NOHC-03 -- Register the 6 unowned first-party service ports in `[ports]`  (WS-PORTFLOAT | P1 | S)
+**Goal:** E-13 Ports are allocated from SSOT -- gives every first-party service a key to float to, closing the "no SSOT key exists" excuse for a literal.
+**What+How:** Six named MiOS services carry their port only as a code literal, with no `[ports]` key, no `userenv.sh` bridge row and no configurator field. Add keys plus bridge rows plus configurator fields for `prefilter=8641` (`mios-delegation-prefilter:48`, `MIOS_PREFILTER_LISTEN_PORT`), `arbiter=8650` (`mios-policy-arbiter:19`), `oscontrol=11437` (`mios-pc-control:80`), `model_router=11442` (`mios-model-router:38`), `daemon_agent=8644` (`mios-daemon:3082`, `mios-os-control:341`) and `mcp=8765` (`mios-mcp-server:735`, `kernel/config.py:134-135`), then repoint each consumer at its `${MIOS_PORT_*}` variable.
+**Where:** `usr/share/mios/mios.toml` `[ports]`, `tools/lib/userenv.sh`, the six consumer scripts, `usr/share/mios/configurator/mios.html`
+**Done When:** All six ports exist in `[ports]` with defaults and `userenv.sh` bridge rows, their consumers read them, and the configurator exposes them as editable fields.
+**Why:** An operator cannot move these six services off their default ports at all today, and the hardcode lint has no key to point violations at, so the literals are permanently exempt.
+**Dep:** T-120 (authoritative `[ports]` table)
+**Status:** done | **Domain:** SSOT/Ports
+
+---
+
+## T-123: NOHC-04 -- Purge baked operator identity and wire endpoint env vars to SSOT  (WS-ZEROHC | P1 | S)
+**Goal:** E-12 ZERO-HARDCODES -- removes a specific operator's identity from shipped code and makes every endpoint default derive from its own SSOT section.
+**What+How:** Three parts. (1) `MIOS_PUBLIC_HOST` currently defaults to one operator's Tailscale MagicDNS name `"mios.taildd86d0.ts.net"`, baked at `mios_pipe/routing/portal.py:97` -- a portability break and a privacy leak. Remove the literal, default to empty/`localhost`, and source it from a new `[portal].public_host` SSOT key, degrading open. (2) Wire endpoint env vars to their existing SSOT keys instead of restating ports: `MIOS_HERMES_ENDPOINT` (`kernel/config.py:178` -> `[hermes].endpoint`), `MIOS_HERMES_WORKER_ENDPOINT` (`:185` -> `[agents.hermes].endpoint`), the heavy/vllm backends (`kernel/config.py:233-236`, `lanes_resolver.py:122-123`), `MIOS_A2A_DISCOVER_PORT` (`a2a_client.py:238` -> new `[a2a].discover_port`) and `MIOS_PUBLIC_DOMAIN` (`a2a.py:478` -> new `[a2a].public_domain`). (3) Fix the orphaned `micro_*` SSOT: `micro_model` and `micro_endpoint` exist in `mios.toml` (~6184/6186) but have no `userenv.sh` bridge row, so `kernel/config.py:262-263` never sees them -- add the rows.
+**Where:** `mios_pipe/routing/portal.py`, `mios_pipe/kernel/config.py`, `mios_pipe/routing/lanes_resolver.py`, `mios_pipe/federation/a2a*.py`, `usr/share/mios/mios.toml` (`[portal]`, `[a2a]`), `tools/lib/userenv.sh`
+**Done When:** No operator-specific hostname or tailnet id remains as a code default anywhere in the tree; every endpoint env var resolves from its SSOT section, and the `micro_*` defaults actually reach the pipe.
+**Why:** Every shipped image currently advertises one operator's private tailnet name as its public host, and configured `micro_*` values are silently ignored because the bridge row is missing.
+**Dep:** none
+**Status:** done | **Domain:** NO-HARDCODE/Privacy
+
+---
+
+## T-124: NOHC-05 -- De-hardcode the four English keyword-gates in agent-pipe  (WS-ZEROHC | P1 | M)
+**Goal:** E-12 ZERO-HARDCODES -- removes the last English word-lists that gate routing decisions, so behavior is model-driven or SSOT-driven rather than ASCII-keyword-driven.
+**What+How:** The router and classifier are already model-driven; four decision-gating matchers remain. (1) `chat.py:1301-1304` gates `_time_sensitive` on an inline temporal word list -- delete it and key off the model-emitted `refined.news or refined.needs_recency`; this is the surviving twin of a bug already fixed at `web_research.py:661-668`, so lift that fix verbatim. (2) `routing.py:233` hardcodes the English connective alternation `(in|and|then|with|on|to)` inside `_deterministic_action_route` -- move it to `mios.toml [routing].compound_connectives` and load it via `_load_routing_phrases`, where all the other vocabulary is already SSOT-injected. (3) `federation/a2a_client.py:190-192` classifies peer modality by model-id substrings (`embed|bert|bge`, `diffuse|flux|dall|sd`) -- derive modality from the SSOT model/engine registry instead, degrading open to text. (4) `mios_gateway_queue.py:114-116` infers a tool parameter's JSON-schema `type` from English substrings in the parameter name -- read the types from the SSOT verb-catalog typed schema (pairs with T-119). Noted but low priority: `cua.py:187-188` (English GOAL_REACHED sentinel and negation, tighten only when hardening the protocol parse) and `mios-finetune:164` (layer-name convention list, marginal).
+**Where:** `mios_pipe/routing/chat.py`, `mios_pipe/routing/routing.py`, `mios_pipe/federation/a2a_client.py`, `mios_gateway_queue.py`, `usr/share/mios/mios.toml` `[routing]`
+**Done When:** `chat.py` time-sensitivity is driven by the model flag with no word list, at parity with `web_research.py`; the compound-connective list lives in SSOT and the a2a modality and gateway param types read from SSOT; non-English and paraphrased inputs route identically to their English equivalents with no ASCII-keyword regression.
+**Why:** A non-English or paraphrased request silently takes a different route today -- no recency lookup, no compound-action split, a mis-typed tool argument -- and the failure is invisible because nothing errors.
+**Dep:** T-119 (typed verb-catalog schema for the gateway param types)
+**Status:** done | **Domain:** NO-HARDCODE/Routing
+
+## T-125: NOHC-06 -- Make the hardcode linter see port/IP literals in `.py`/`.sh`/`.ps1`, not just dates and Quadlets  (WS-ZEROHC | P2 | M)
+**Goal:** E-12 ZERO-HARDCODES: float every remaining literal out of code -- closes the enforcement blind spot that let port literals accumulate in code logic unnoticed.
+**What+How:** Add a `check_code_ports_ips` gate to `automation/98-drift-checks.sh` and extend `usr/libexec/mios/mios-hardcode-lint` (which today only checks date-literals plus header/BOM) so it scans code logic for bare port literals (`:\d{4,5}`, `localhost:\d+`, `127.0.0.1:\d+`) and routable IPv4 literals. Legitimate exceptions (loopback binds, `0.0.0.0`, documented `172.16/12`, upstream image refs, test fixtures, RFC1918 comments) come from an allowlist declared in `usr/share/mios/mios.toml` -- seeded from the 2026-07-04 ports-audit "NOT violations" set -- never from an inline array in the linter. Wire the new gate into `just drift-gate` alongside the existing `check_container_ports`.
+**Where:** `usr/libexec/mios/mios-hardcode-lint`, `automation/98-drift-checks.sh`, `usr/share/mios/mios.toml` (allowlist SSOT)
+**Done When:** injecting a fresh `:8640` literal into any `.py` or `.sh` turns `just drift-gate` RED naming `check_code_ports_ips`; the cleaned post-T-121 tree passes; removing a row from the mios.toml allowlist changes what the linter flags (proving the list is SSOT-driven).
+**Why:** `check_container_ports` only reads `.container` Quadlets, so every port/IP literal in Python, bash and PowerShell is unenforced -- exactly how the 22 T-121 violation sites accumulated, and how the next 22 will.
+**Dep:** T-121 (the port-literal cleanup the gate is expected to pass against)
+**Status:** done | **Domain:** CI/Enforcement
+
+## T-126: NOHC-07 -- Float the podman subnet literals, prune dead userenv bridge rows, close configurator key drift  (WS-ZEROHC | P3 | S)
+**Goal:** E-12 ZERO-HARDCODES: float every remaining literal out of code -- removes the last known network literals and the stale/missing key rows around them.
+**What+How:** Three mechanical cleanups. (1) `automation/lib/globals.sh:214-216` hardcodes the podman subnet/gateway (`10.89.0.0/24`, `10.89.0.1`) as env-fallback defaults with no SSOT key -- add `[network]` keys in `usr/share/mios/mios.toml` and read them instead. (2) Delete the `tools/lib/userenv.sh` bridge rows for toml keys that no longer exist (`ports.ollama`, `ports.ollama_cpu`, `ports.hermes_workspace`, `services.ollama_cpu.*`, `image.sidecars.ollama*`/`hermes_workspace*`). (3) Add the configurator controls missing from `usr/share/mios/configurator/mios.html`: `[ports]` `stack_id`/`hermes_worker`/`hermes_dashboard`/`crawl4ai`/`firecrawl`/`adguard_dns`, `[network.quadlet]` `core_subnet`/`core_gateway`, and `[a2a]` `protocol_version`/`route_on_card_skills`/`mdns_service_type`/`mdns_refresh_sec`.
+**Where:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[network]`), `tools/lib/userenv.sh`, `usr/share/mios/configurator/mios.html`
+**Done When:** subnet/gateway defaults resolve from `[network]` (changing the toml changes the rendered bridge); `grep ollama tools/lib/userenv.sh` returns no bridge rows; the configurator-parity check reports zero missing keys against `[ports]`, `[network.quadlet]` and `[a2a]`.
+**Why:** a subnet with no SSOT key cannot be retuned by an operator, dead bridge rows emit env vars for capabilities that were deleted, and every key absent from mios.html is a value the one config surface silently cannot reach.
+**Dep:** none
+**Status:** done | **Domain:** SSOT/Config
+
+## T-127: WIN-01 -- Give `Get-MiOS.ps1` direct-download git and podman fallbacks before its fatal winget-only gates  (WS-INSTALL | P1 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- makes the canonical `irm | iex` entry actually survive a stock Win11 with no winget.
+**What+How:** On a fresh minimal Win11 the one-liner dies: `Get-MiOS.ps1:6497` `Require-Cmd "git"` hard-`exit 1`s, and git is only installed by `Install-MiOSTerminalExtras` (`3246-3258`) via winget, which returns early when winget is absent (`3158-3161`); the working PortableGit direct-download lives only in `build-mios.ps1:8458-8480`, which runs AFTER the clone that needs git, so it can never rescue the entry path. Podman has the same shape at `Get-MiOS.ps1:5141-5146`. Add PortableGit and podman-setup.exe direct-download fallbacks INTO `Get-MiOS.ps1` ahead of those gates, mirroring `Install-MiosPrereqDirect` and the `build-mios.ps1` fallbacks, with URLs/package ids resolved from SSOT `[packages.windows]` / `[bootstrap.prereqs]` rather than inline (NO-HARDCODE), and add `Git.Git` to the SSOT Windows package list instead of only a code-side fallback array.
+**Where:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\mios.toml` (`[packages.windows]`, `[bootstrap.prereqs]`)
+**Done When:** on a winget-less minimal Win11 VM, `irm ... | iex` self-installs git and podman, completes the clone and bring-up with zero manual steps, and no download URL appears as a literal in the script.
+**Why:** the documented front door is a dead end on the most common target -- a clean Windows 11 install -- so the entry path only works on machines that were already partly provisioned.
+**Dep:** none
+**Status:** done | **Domain:** Install/Windows
+
+## T-128: WIN-02 -- Run the virtualization probe in Pass-2, before the disk shrink and reboot  (WS-INSTALL | P2 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- fail fast instead of mutating the operator's disk on a machine that can never run MiOS.
+**What+How:** The BIOS-virt probe (`VirtualizationFirmwareEnabled` / `HypervisorPresent`) currently lives only at `build-mios.ps1:8583`, i.e. after `Get-MiOS.ps1` has already shrunk the disk, enabled Windows features and cloned the repo. Move/duplicate that probe into `Get-MiOS.ps1` Pass-2 immediately before `Initialize-DataDisk`, reusing the existing "enable VT-x/AMD-V in BIOS" remediation text. Virt-enabled hosts must take an identical path (no behavior change).
+**Where:** `C:\mios-bootstrap\Get-MiOS.ps1`
+**Done When:** a VM with virtualization disabled exits with the BIOS remediation message while its partition table and Windows feature set are unchanged; a virt-enabled run is byte-identical to before.
+**Why:** today a virt-off machine pays a full partition-shrink plus reboot cycle before being told it was never eligible -- a destructive, slow, and entirely avoidable failure.
+**Dep:** none
+**Status:** done | **Domain:** Install/Windows
+
+## T-129: WIN-03 -- Default to Podman CLI (Desktop opt-in) and add a logon-triggered `MiOS-Autostart` task  (WS-INSTALL | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- one minimal, headless-capable prereq set plus the service-equivalent that brings the quadlet stack up on its own.
+**What+How:** (1) Make `RedHat.Podman` (CLI) the primary/required install and gate Podman Desktop behind `[bootstrap.prereqs].install_podman_desktop`, default `false`; repoint the winget-absent hint at the podman setup.exe. (2) Register a `MiOS-Autostart` Scheduled Task (AtLogon, RunLevel Highest, hidden) running a staged `mios-autostart.ps1` that rebuilds PATH and runs `podman machine start <distro>` so systemd inside the distro starts every MiOS quadlet before the interactive desktop appears; fail-soft, gated by `[bootstrap.autostart].enable`, with an `HKCU\Run` fallback. Wire teardown into BOTH reap paths -- `Invoke-MiOSFullReap` and the uninstall here-string in `build-mios.ps1`. Record the caveat that an AtLogon task assumes a per-user podman machine (multi-user/SYSTEM hosts are out of scope here).
+**Where:** `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\mios.toml` (`[bootstrap.prereqs]`, `[bootstrap.autostart]`)
+**Done When:** a fresh install pulls podman CLI only unless the toml flag is set; after logon the full quadlet stack is running with no UAC prompt and no manual `podman machine start`; a reap run leaves no `MiOS-Autostart` task registered.
+**Why:** installing Podman Desktop by default drags a GUI onto headless/minimal targets, and without an autostart hook every reboot leaves MiOS's services down until a human opens a terminal.
+**Dep:** none
+**Status:** done | **Domain:** Install/Windows
+
+## T-130: WIN-04 -- Residual minimal-Win11 hardening: GPU driver check, long paths, TLS 1.2, offline/proxy docs, one canonical entry  (WS-INSTALL | P3 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- removes the silent-degradation and split-entry-point traps left after WIN-01..03.
+**What+How:** (1) Add a Windows host GPU-driver check/hint for NVIDIA/AMD/Intel: `build-mios.ps1:3932-3947` wires `/dev/dxg` plus CDI but never verifies a WSL-capable host driver, so the AI plane degrades to CPU silently -- detect and surface it. (2) Enable `LongPathsEnabled` defensively. (3) Set `ServicePointManager` TLS 1.2 explicitly for down-level/.NET-old hosts. (4) Document offline/air-gap and proxy behavior (host `irm`/git/winget all follow the system proxy). (5) Reconcile the two rival "canonical" entries: `bootstrap.ps1`'s docstring claims canonical status but its irm path jumps straight to `build-mios.ps1` (which has the no-winget git/podman/wsl auto-install) and skips `Get-MiOS.ps1`'s `M:\` staging, elevation and Windows Terminal setup -- pick one owner and make the other a thin delegate.
+**Where:** `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\bootstrap.ps1`
+**Done When:** a driverless GPU host prints an explicit driver warning instead of quietly running CPU-only; long-path and TLS settings are asserted in the log; `bootstrap.ps1` visibly delegates to the single chosen entry; offline/proxy behavior is written down in the bootstrap docs.
+**Why:** two entry points that provision differently mean support answers depend on which URL the operator pasted, and a missing GPU driver currently shows up as "MiOS is slow" rather than as an error.
+**Dep:** T-127 (shares the prereq-fallback surface)
+**Status:** done | **Domain:** Install/Windows
+
+## T-131: WIN-05 -- Zero-touch offline Win11 provisioning from an SSOT-generated `autounattend.xml`  (WS-INSTALL | P2 | L)
+**Goal:** E-21 One deploy front door: flatten every install path -- pushes provisioning down to the Windows Setup layer so a blank offline machine reaches MiOS with no human at the keyboard.
+**What+How:** `autounattend.xml` on the install media (or a mounted `unattend.iso` for VMs/Hyper-V) is the supported, fully offline way to preseed Setup in WinPE, before OOBE. Build an SSOT-driven path: (1) add `[accounts]` (or extend `[identity]`) listing local offline accounts -- username / display name / group `Administrators`|`Users` / first-logon action; (2) a `New-MiOSAutounattend.ps1` that renders the answer file from that list -- **[OPERATOR DECISION]** vendor the MIT `cschneegans/unattend-generator` .NET lib driven from pwsh 7.4 (`Import-Module UnattendGenerator.dll` -> `[UnattendGenerator]::Serialize(...)`; cleaner SSOT, adds a .NET build dep) OR ship a static template personalized by a FirstLogon script from SSOT (no .NET dep); (3) FirstLogon fires `irm Get-MiOS.ps1 | iex`; (4) carve `M:\`, enable long paths (32767) and strip bloatware at the Setup layer; (5) wrap as `unattend.iso` or drop `autounattend.xml` at the USB root. Accounts/partitions/features all read from SSOT (NO-HARDCODE). Answer files store credentials plaintext/Base64, so treat them as first-boot temporary credentials rotated at first logon or derived from an SSOT secret at generation time.
+**Where:** `C:\mios-bootstrap\` (new `New-MiOSAutounattend.ps1` plus vendored MIT lib or static template and FirstLogon script), `C:\mios-bootstrap\mios.toml` (`[accounts]`/`[identity]`, `[bootstrap.autounattend]`)
+**Done When:** a minimal OFFLINE Win11 machine booted from MiOS media reaches a full multi-user MiOS with zero manual steps including OOBE -- all SSOT accounts created, long paths on, `M:\` carved, bloat stripped, Get-MiOS run at first logon; first-boot passwords are rotated so no plaintext SSOT secret survives; editing accounts in mios.toml changes the emitted answer file and the change is drift-checked.
+**Why:** without a Setup-layer answer file every install still requires a human through OOBE and the Microsoft-account prompt, which makes fleet provisioning and air-gapped installs impossible.
+**Dep:** none -- this reduces but does not remove T-127; the plain `irm|iex`-on-an-existing-box path still needs those prereq fallbacks
+**Status:** done | **Domain:** Install/Windows
+
+## T-132: WISO-01 -- One shared install-time provisioning core so the ISO and `irm|iex` paths cannot drift  (WS-WISO | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- a single dot-sourced library behind both Windows provisioning routes.
+**What+How:** The ISO autounattend path and the existing-Windows provisioner each carried their own copy of branding, folder-layout and preference logic. Collapse both into `MiOS-Provision.lib.ps1`: an SSOT reader plus `Get-MiOSHostname` / `Get-MiOSAccounts`, the command emitters `New-MiOSBrandingCommands` / `New-MiOSLinuxLayoutCommands` / `New-MiOSGlobalPrefCommands`, and the aggregate `New-MiOSProvisionCommands`, all returning plain reg/mkdir command strings so either caller can bake or execute them. Dot-source it from `ConvertTo-MiOSPreset`, `New-MiOSAutounattend` and `Invoke-MiOSProvision`.
+**Where:** `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`
+**Done When:** all three consumers dot-source the library and parse clean; regenerating `MiOS-Xbox.xml` produces well-formed XML; no branding/layout/pref logic remains duplicated in the individual scripts.
+**Why:** duplicated provisioning logic guarantees the fresh-ISO machine and the converted-Windows machine end up in different states, and every branding change has to be made twice.
+**Dep:** none
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Install
+
+## T-133: WISO-02 -- Sanitize operator NTLite presets into `MiOS-Xbox.xml` (restore the podman substrate, strip personal identity)  (WS-WISO | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- turns a hand-made NTLite preset into a reproducible, SSOT-identified MiOS edition input.
+**What+How:** `ConvertTo-MiOSPreset.ps1` reads the operator's Xbox NTLite preset and rewrites it: Posture B re-preserves WSL2, VMP and Hyper-V (the preset strips exactly the components podman runs on), machine-specific identity -- personal account name, machine name, driver-export paths -- is replaced with SSOT hostname, credentialed accounts and AutoLogon, and `FirstLogonCommands` becomes the shared provisioning command set from `MiOS-Provision.lib.ps1` plus a nested `irm Get-MiOS.ps1 | iex`. MiOS naming, GUID and ISO label are applied; the debloat entry set and driver list are carried through intact.
+**Where:** `C:\mios-bootstrap\src\autounattend\ConvertTo-MiOSPreset.ps1`, `MiOS-Xbox.xml`
+**Done When:** the emitted `MiOS-Xbox.xml` is well-formed, contains zero legacy operator-identity references, preserves 280/282 debloat entries and all drivers, and reports WSL2/VMP/Hyper-V retained under Posture B.
+**Why:** shipping the raw preset would produce an ISO that boots with someone's personal account name and no virtualization stack -- i.e. an image that cannot run MiOS at all.
+**Dep:** T-132 (`MiOS-Provision.lib.ps1`)
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Install
+
+## T-134: WISO-03 -- Generate the answer file and carve C: to 96 GB, with the layout applied pre-OOBE  (WS-WISO | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- the ISO's disk and folder shape come from SSOT, not from a hand-edited XML.
+**What+How:** `New-MiOSAutounattend.ps1` renders the Schneegans-based answer file and sizes the disk: Windows C: takes `[autounattend].c_partition_gb` (96 GB) and `M:` extends over the remainder as MIOS-DEV, with `-FullDiskWindows` reverting to a whole-disk C:. The MiOS folder layout is stripped and rebuilt in the specialize pass -- i.e. in the Schneegans DefaultUser context, before OOBE -- along with TPM/SecureBoot/RAM bypass keys, an oscdimg injection step and the winutil tools drop.
+**Where:** `C:\mios-bootstrap\src\autounattend\New-MiOSAutounattend.ps1`
+**Done When:** the generated answer file is well-formed and shows a 98304 MB C: with `M:` set to Extend; `-FullDiskWindows` produces a single whole-disk C:; the folder layout is present before first logon rather than created by a first-logon script.
+**Why:** if the layout waits for first logon the user's first paint is stock Windows, and a hand-sized partition means every ISO build has a different disk geometry.
+**Dep:** T-132 (`MiOS-Provision.lib.ps1`), T-147 (`[autounattend]` SSOT keys)
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Install
+
+## T-135: WISO-04 -- Bring existing Windows installs to the same state the ISO bakes  (WS-WISO | P2 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- parity between the fresh-ISO route and the convert-in-place route.
+**What+How:** `Invoke-MiOSProvision.ps1` creates the SSOT-defined accounts and LIVE-applies the identical branding, Linux-style folder layout and global preferences the ISO bakes offline, enables long paths, and then chains the nested bootstrap. It must consume `MiOS-Provision.lib.ps1` rather than keeping its own copy of the command emitters.
+**Where:** `C:\mios-bootstrap\src\autounattend\Invoke-MiOSProvision.ps1`
+**Done When:** a machine provisioned in place and a machine installed from MiOS-Win11.iso present the same accounts, branding, layout and prefs; the script contains no branding/layout logic of its own.
+**Why:** most operators will never reinstall Windows, so without this path they get a second-class MiOS that diverges from every documented screenshot and support answer.
+**Dep:** T-132 (`MiOS-Provision.lib.ps1`)
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Install
+
+## T-136: WISO-05 -- Export OEM drivers to an SSOT destination for slipstream  (WS-WISO | P3 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- keeps hardware-specific drivers available to the ISO build instead of stranded on one machine.
+**What+How:** `Export-MiOSDrivers.ps1` runs `Export-WindowsDriver -Online` into an SSOT-configured destination (default `M:\MiOS\drivers`, explicitly not a hardcoded Desktop path), self-elevates when needed, and produces a tree consumable by both the NTLite Drivers stage and DISM `Add-WindowsDriver`.
+**Where:** `C:\mios-bootstrap\src\autounattend\Export-MiOSDrivers.ps1`
+**Done When:** running the script unelevated re-launches elevated and writes drivers to the SSOT path; changing the destination key moves the output; the exported tree slipstreams cleanly via `Add-WindowsDriver`.
+**Why:** without a repeatable export the ISO ships without the operator's storage/NIC drivers, and the previous ad-hoc export wrote to a per-user Desktop path no build step could find.
+**Dep:** none
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Install
+
+## T-137: WISO-06 -- `mios-uup-fetch`: pinned, checksummed source ISO with no GUI  (WS-WISO | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- a reproducible, scriptable source for the Windows edition pipeline.
+**What+How:** Wrap `rgl/uup-dump-get-windows-iso` (or `uup-dump/converter` plus aria2 and a `ConvertConfig.ini` generated from SSOT) as a MiOS cmdlet whose parameters -- build, channel, edition, language -- come from `[autounattend.iso]`. Pin to 25H2 x64 (26H1 is ARM64-only; see T-148). Emit a checksummed source ISO into `M:\MiOS\iso\src\`.
+**Where:** `C:\mios-bootstrap\src\autounattend\` (`mios-uup-fetch`), `usr/share/mios/mios.toml` (`[autounattend.iso]`)
+**Done When:** one non-interactive command produces a 25H2 x64 source ISO with a recorded checksum, and changing edition/apps/updates in SSOT changes what is fetched -- with no GUI step anywhere in the run.
+**Why:** a manual UUP-dump web session makes the ISO pipeline unrunnable in CI and unverifiable afterwards, since nothing records which source build the image came from.
+**Dep:** none
+**Status:** done | **Domain:** Windows/Install
+
+## T-138: WISO-07 -- DISM-native debloat plus oscdimg assembly, wired into CI  (WS-WISO | P2 | L)
+**Goal:** E-21 One deploy front door: flatten every install path -- a free, reproducible ISO build that needs no paid tooling and no operator workstation.
+**What+How:** **[OPERATOR DECISION] DISM-native vs NTLite-licensed CLI; strict answer = DISM-native.** Drive appx/capability/feature removal and the LabConfig bypass keys from the same SSOT remove-list that feeds the NTLite path (keep NTLite CLI as an optional accelerator only, since it is paid). Then assemble a dual BIOS/UEFI bootable image with oscdimg into `MiOS-Win11.iso` / `MiOS-XBOX.iso`. Run the whole fetch -> customize -> assemble -> VM smoke-boot chain on GitHub Actions `windows-2025` (install oscdimg; budget ~14 GB of runner disk). The verified research behind the sequence -- WSL2 is fully offline-bakeable via the GitHub WSL MSI plus a distro rootfs `.tar` and `podman machine init --image <local>`; tiny11 standard maker as the reference DISM sequence; branding via the offline `Users\Default\NTUSER.DAT` hive with a RunOnce accent backstop; accounts, the scheduled task, real `M:\` and `podman machine init` as first-logon-only -- is recorded in the concepts doc; the open validation gap is air-gapped `podman --image` and the 24H2/25H2 Setup UI.
+**Where:** `usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md`, `C:\mios-bootstrap\src\autounattend\`, the GitHub Actions ISO workflow
+**Done When:** CI produces a bootable MiOS ISO from a UUP source using only free tooling, then smoke-boots it in a VM and asserts the SSOT accounts exist, WSL/VMP are present (Posture B) and Get-MiOS was reached.
+**Why:** an ISO that can only be built on one licensed desktop is not reproducible, cannot be gated, and silently rots -- exactly the class of failure the bake plane exists to prevent.
+**Dep:** T-137 (source ISO), T-133/T-134 (customization inputs)
+**Status:** done | **Domain:** Windows/Install
+
+## T-139: WISO-08 -- Stage the branding assets into the image so branding renders at first paint  (WS-WBRAND | P2 | S)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- the Windows branding surface is complete offline, not patched in after logon.
+**What+How:** During image customization, place `mios-wallpaper.jpg`, `mios-logo.bmp`, the Bibata `.cur`/`.ani` cursors and the Geist fonts at exactly the paths the branding commands reference -- `C:\Windows\Web\MiOS\` and `%SystemRoot%\Cursors\Bibata-Modern-Classic\` -- so the registry values written into the Default hive resolve to real files from the very first boot.
+**Where:** `C:\mios-bootstrap\src\autounattend\` (image customization stage), `C:\Windows\Web\MiOS\`, `%SystemRoot%\Cursors\Bibata-Modern-Classic\`
+**Done When:** the wallpaper, logo, lockscreen, cursor and font assets are present inside the built image and MiOS branding renders at OOBE/first paint rather than after the first-logon script runs.
+**Why:** branding keys that point at missing files leave the first boot showing stock Windows defaults and a broken cursor scheme -- the worst possible first impression of a "custom edition".
+**Dep:** T-143 (the branding commands that reference these paths)
+**Status:** done (2026-07-09) | **Domain:** Windows/Install
+
+## T-140: XBOX-01 -- Ship the Xbox Full Screen Experience enabled out of the box (with the correct 2026 ViVeTool IDs)  (WS-XBOX | P2 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- the gaming edition boots into the experience it is named after.
+**What+How:** Enable Xbox Mode with `vivetool /enable /id:58989070,59765208` (the 2026 FSE IDs; requires 24H2 26100.7019+ with the Xbox app installed and signed in, since FSE is the home launcher) plus the auto-launch configuration, and replace the reference `unattend-01.ps1` Copilot/taskbar IDs -- which the operator reference had wrong -- with these. Win+F11 must reach it.
+**Where:** `C:\mios-bootstrap\src\autounattend\` (the `unattend-01.ps1`-derived provisioning stage)
+**Done When:** a freshly imaged MiOS-XBOX boots into, or is one Win+F11 away from, the Xbox full-screen console experience with the Xbox app as home; no stale reference feature IDs remain in the tree.
+**Why:** the copied reference IDs enable unrelated Copilot/taskbar flags, so the gaming edition silently ships as ordinary Windows while appearing configured.
+**Dep:** T-142 (posture) 
+**Status:** done (2026-07-09) | **Domain:** Windows/Gaming
+
+## T-141: XBOX-02 -- Gaming loadout and Xbox service tuning, sanitized to MiOS branding  (WS-XBOX | P3 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- the gaming edition arrives tuned and stocked rather than needing a manual pass.
+**What+How:** Adopt the reference `unattend-02.ps1`/`unattend-03.ps1` behavior, sanitized: Xbox services to Manual, Teredo/IPv6 settings, Game Mode, Delivery Optimization and the FSE registry values; install the winget gaming apps (Steam, Vesktop, Zen) at first logon. All OEM branding resolves to MiOS from SSOT -- never a personal name carried over from the reference scripts.
+**Where:** `C:\mios-bootstrap\src\autounattend\` (the `unattend-02/03.ps1`-derived stages)
+**Done When:** a first logon on MiOS-XBOX shows the tuned services/registry state and the gaming apps installed, and a grep of the emitted answer file and scripts finds no legacy operator branding strings.
+**Why:** untuned Xbox services and missing launchers make the gaming edition feel like stock Windows with a wallpaper, and inherited personal branding would ship someone's name to every user.
+**Dep:** T-140
+**Status:** done (2026-07-09) | **Domain:** Windows/Gaming
+
+## T-142: XBOX-03 -- Decide and encode the MiOS-XBOX posture: pure gaming (A) vs keep-the-brain (B)  (WS-XBOX | P2 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- one recorded decision that the generators read, instead of a per-build judgement call.
+**What+How:** Choose the gaming-edition posture -- A = WSL purged, no local brain (MiOS reached remotely), B = WSL2 retained so the local MiOS agent stack runs alongside gaming. The upstream reference is A; MiOS's default recommendation is B. Encode the choice as a column in the editions SSOT and have the sanitizer/generator emit the matching virtualization state; `ConvertTo-MiOSPreset.ps1`'s `-KeepVirtualizationDisabled` switch is what selects A.
+**Where:** `usr/share/mios/mios.toml` (`[editions]`), `C:\mios-bootstrap\src\autounattend\ConvertTo-MiOSPreset.ps1`
+**Done When:** the posture is a value in the editions SSOT, and flipping it changes whether WSL2/VMP/Hyper-V survive in the emitted preset -- with no code edit required.
+**Why:** left undecided, each ISO build guesses, and a build that guesses A ships a gaming box with no local AI plane while still advertising one.
+**Dep:** T-146 (`[editions]` matrix supplies the posture column)
+**Status:** done (2026-07-09) | **Domain:** Windows/Gaming
+
+## T-143: WBRAND-01 -- Project the whole Windows branding/theme surface from SSOT  (WS-WBRAND | P2 | M)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- Windows theme state becomes a projection of `[colors]`/`[branding]`, not a manual settings pass.
+**What+How:** `New-MiOSBrandingCommands` in `MiOS-Provision.lib.ps1` emits the full branding command set from SSOT values: the accent (`#1A407F` converted to AABBGGRR), dark theme and transparency, wallpaper and lockscreen via PersonalizationCSP, OEM info, Dynamic Lighting RGB tracking the accent, the Geist UI font as a `Segoe UI` substitute, and the Bibata cursor scheme -- applied to the Default user hive, HKLM, and the first HKCU so both the baked-image and live-apply callers get identical results.
+**Where:** `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1` (`New-MiOSBrandingCommands`)
+**Done When:** changing the accent in mios.toml changes the emitted AABBGGRR registry value with no code edit, and a provisioned machine shows MiOS accent, dark theme, wallpaper, lockscreen, OEM info, RGB, font and cursor from that single source.
+**Why:** hand-set theme values drift per machine and per install route, and an accent hardcoded in PowerShell is a Law 7 violation that no operator can retheme.
+**Dep:** T-132 (`MiOS-Provision.lib.ps1`)
+**Status:** DONE (2026-07-04) | **Domain:** Windows/Branding
+
+## T-144: WBRAND-02 -- Linux desktop palette parity via matugen from the same SSOT accent  (WS-WBRAND | P2 | L)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- Windows and Linux render one palette from one key.
+**What+How:** Seed a MiOS matugen config and template set whose source color is SSOT `[colors].accent` and whose source image is SSOT `[branding].wallpaper`, and regenerate the GTK, Qt and base16 outputs whenever the wallpaper changes. Cover Flatpaks via `org.gtk.Gtk3theme` plus `flatpak override`, install Geist and Bibata system-wide on Linux, and derive the OpenRGB profile from the same accent.
+**Where:** mios.git deployed image -- matugen config/templates, `usr/share/mios/mios.toml` (`[colors].accent`, `[branding].wallpaper`)
+**Done When:** changing `[colors].accent` or `[branding].wallpaper` once reflows the Windows and Linux desktops -- including Flatpak apps -- to the same palette, verifiable by the theme drift-check rather than by eye.
+**Why:** today the Linux half of the desktop is themed independently of the Windows half, so one MiOS looks like two products and the accent lives in more than one place.
+**Dep:** T-143 (the Windows half of the same palette)
+**Status:** pending | **Domain:** Linux/Branding
+
+## T-145: WBRAND-03 -- Re-assert branding after Windows update drift  (WS-WBRAND | P3 | S)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- projection stays true over time, not just at install.
+**What+How:** Windows cumulative and feature updates re-enable or revert Dynamic Lighting and can reset the accent. Make `mios update` re-apply `Software\Microsoft\Lighting` and the rest of the branding registry state from SSOT on every run, reusing the same `New-MiOSBrandingCommands` output the installer uses -- so there is one branding definition and one re-assertion path.
+**Where:** the `mios update` Windows path, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`
+**Done When:** after a CU that resets Dynamic Lighting and the accent, the next `mios update` restores the MiOS RGB, accent and theme with no manual steps.
+**Why:** without re-assertion every Windows update quietly un-brands the fleet, and the operator's only remedy is to reinstall or re-run the provisioner by hand.
+**Dep:** T-143
+**Status:** done | **Domain:** Windows/Branding
+
+## T-146: WEDITION-01 -- An `[editions]` SSOT matrix so one pipeline emits every Windows edition  (WS-WEDITION | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- editions are rows of data, not forks of code.
+**What+How:** Add an `[editions]` matrix to `mios.toml` with one row per edition carrying name, channel, arch, posture, debloat profile and accent, then wire the sanitizer and the answer-file generator to select their inputs by edition id. MiOS (full, Posture B) and MiOS-XBOX (gaming) both come out of the one pipeline.
+**Where:** `usr/share/mios/mios.toml` (`[editions]`), `C:\mios-bootstrap\src\autounattend\ConvertTo-MiOSPreset.ps1`, `New-MiOSAutounattend.ps1`
+**Done When:** `mios-build-iso <edition>` reads that edition's row and emits the correct ISO, and adding a new edition requires only a new SSOT row -- no per-edition branch anywhere in the generators.
+**Why:** per-edition code forks double every future change to the ISO pipeline and let the editions drift apart silently.
+**Dep:** none
+**Status:** done (2026-07-09) | **Domain:** Windows/Install
+
+## T-147: WEDITION-02 -- Register every ISO/branding key in mios.toml and expose it in the configurator  (WS-WEDITION | P1 | M)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- the ISO surface becomes operator-tunable through the one config door.
+**What+How:** Add and expose: `[autounattend]` (computer_name, `c_partition_gb=96`, bootstrap_url, iso_out/label, `[[autounattend.accounts]]`); `[autounattend.layout]` (strip_defaults, strip_folders, linux_tree, lowercase_userfolders, strip_thispc); `[branding]` (oem_manufacturer/model/support_url/logo, wallpaper, lockscreen, wallpaper_style, ui_font, font_substitute, cursor/cursor_dir/cursor_scheme). Every one of these gets a control in `usr/share/mios/configurator/mios.html` and a drift-check asserting toml/configurator parity.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/mios/configurator/mios.html`, the configurator-parity drift-check in `automation/98-drift-checks.sh`
+**Done When:** every key the ISO/branding generators read exists in mios.toml with a MiOS default and a matching mios.html control, and changing a value in the configurator changes the emitted ISO/answer file; the parity check fails if a new generator key is added without a control.
+**Why:** until these keys exist the generators degrade-open to built-in MiOS defaults -- so the operator's configured intent is silently ignored and the ISO cannot be customized through the one config surface.
+**Dep:** T-134, T-133 (the generators that read these keys)
+**Status:** done (2026-07-09) | **Domain:** Windows/SSOT
+
+## T-148: WEDITION-03 -- ARM64 / 26H1 handheld edition `MiOS-XBOX-ARM`  (WS-WEDITION | P3 | L)
+**Goal:** E-21 One deploy front door: flatten every install path -- a second arch flows through the same edition pipeline.
+**What+How:** Add an ARM64 UUP source track plus ARM64 drivers and packages for a native-handheld Xbox FSE edition on Snapdragon X2, driven by an `[editions]` row (26H1 is an ARM64-only Snapdragon platform update, ~Apr 2026 -- not x64). The x64 gaming build stays pinned to 25H2. Xbox full-screen is the native home experience on handhelds, so no separate FSE handling is needed.
+**Where:** `usr/share/mios/mios.toml` (`[editions]`, `[autounattend.iso]`), `C:\mios-bootstrap\src\autounattend\` (UUP fetch + driver stages)
+**Done When:** an ARM64 `MiOS-XBOX-ARM` ISO builds from an ARM64 26H1 UUP source with ARM64 drivers, and the x64 pipeline output is unchanged by the addition.
+**Why:** pointing the x64 pipeline at 26H1 would produce an unbootable image; without a distinct arch track the handheld target is unreachable.
+**Dep:** T-146 (`[editions]` matrix), T-137 (UUP fetch)
+**Status:** done (2026-07-09) | **Domain:** Windows/Install
+
+## T-149: WEDITION-04 -- Fold the hand-edits back into the generator that regenerates them  (WS-WEDITION | P2 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- the bootstrap artifacts are generated, so the fixes must live in the generator.
+**What+How:** `Get-MiOS.ps1`, `build-mios.ps1` and `C:\mios-bootstrap\mios.toml` are regenerated roughly every 12 minutes, wiping direct edits. Locate the upstream generator that assembles them and fold in the changes made downstream: the podman-CLI-only default with Desktop opt-in and the multi-user `MiOS-Autostart` logon task (T-129), and the `[autounattend]` / `[autounattend.layout]` / `[branding]` SSOT sections (T-147).
+**Where:** the upstream generator for `C:\mios-bootstrap\Get-MiOS.ps1`, `C:\mios-bootstrap\build-mios.ps1`, `C:\mios-bootstrap\mios.toml`
+**Done When:** a full regeneration cycle completes and the podman-CLI default, the `MiOS-Autostart` task registration and the new SSOT sections are all still present in the regenerated files.
+**Why:** any fix landed only in the generated artifacts disappears within ~12 minutes, so the same bugs keep reappearing and every downstream task built on them silently regresses.
+**Dep:** T-129, T-147
+**Status:** done (2026-07-09) | **Domain:** Windows/Install
+
+## T-150 -- ACCT-01: make the pgvector `account` table the live SSOT for every login identity  (WS-ACCT | P2 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- PostgreSQL becomes a lossless projection of the SSOT, so accounts are declared once in mios.toml and served from the DB rather than re-provisioned per host.
+**What+How:** Extend the `account` table in `usr/share/mios/postgres/schema-init.sql` with the full identity shape -- `kind` (`user|admin|service`), `display`, `password_hash`, `uid`/`gid`, `groups` plus sudo/admin flags, `os_targets` (`linux|windows|both`), `enabled`, `meta`. Seed rows from mios.toml `[[accounts]]`/`[identity]` at install time (mios-bootstrap on Linux, `MiOS-Provision.lib.ps1` on Windows); the shipped seeder actually lives in `usr/libexec/mios/mios-ai-firstboot` (the "seed accounts into pgvector" block) computing SHA-512 via `openssl passwd -6` and doing `INSERT … ON CONFLICT DO UPDATE` for the `[identity]` account plus every `[[autounattend.accounts]]` row, now carrying `uid`/`gid`. Enforce the separating law: the LOGIN account is `account.name`, the DISPLAY name is `[user].name` -- purge every consumer that reads `MIOS_USER` as a login identity. Vendor default account is `user`/`user`. Remaining work is the `MIOS_USER` purge and moving the seed earlier if firstboot lands after first login.
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml` (`[[accounts]]`), `usr/libexec/mios/mios-ai-firstboot`, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`
+**Done When:** A fresh install leaves the pgvector `account` rows populated from SSOT with the default `user`/`user` row present, and a repo-wide grep finds no consumer resolving the login user from `MIOS_USER`/`[user].name`.
+**Why:** Today the login identity and the operator's display name are the same string in some consumers, so renaming the human in mios.toml can break login, and accounts are one-shot provisioned instead of live-editable.
+**Dep:** extends WISO-01/T-132 and WEDITION-02/T-147 (one-shot seeding -> live SSOT)
+**Status:** completed | **Domain:** Data/Accounts
+
+## T-151 -- ACCT-02: serve Linux accounts live from the DB (NSS/PAM, or the recommended regenerating daemon)  (WS-ACCT | P2 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- a DB edit is the authoritative act; the OS reflects it without re-provisioning.
+**What+How:** Wire `libnss-pgsql2` (NSS `passwd`/`shadow`/`group` from pgvector) and `pam_pgsql` (PAM auth against the DB) via `automation/17-accounts-db.sh`, with `nsswitch.conf` ordered `files pgsql` so root/service accounts and a DB outage degrade open. Flag-gate on `[accounts].db_backed`; package names come from mios.toml `[packages.*]`. Two shipped defects are fixed: every NSS/PAM connection string omitted the port (libpq defaulted to :5432 while Postgres listens on :8432, stalling `getent`/login on `connect_timeout`), and the seeder omitted `uid`/`gid` so `getpwnam` returned a NULL uid. Still open and unverifiable off a Fedora host: `libnss-pgsql2`/`pam_pgsql` in `[packages.security]` are Debian names -- Fedora ships `libnss-pgsql` (beta, F36-era) and may not package `pam_pgsql` at all, so the `dnf install` can fail and the module can be absent. Recommended landing: bake PG `account` -> `sysusers.d`+shadow at image build with a files-regenerating runtime sync daemon, and retire the abandoned NSS modules from the boot-critical auth path.
+**Where:** `automation/17-accounts-db.sh`, `usr/libexec/mios/mios-ai-firstboot`, `usr/share/mios/mios.toml`, `/etc/nsswitch.conf` drop-in, the PAM stack
+**Done When:** `getent passwd <db-user>` resolves an account that exists only in pgvector, login authenticates, a DB edit reflects live through the sync daemon, and with Postgres stopped local root plus service accounts still log in via the files fallback.
+**Why:** Without this the DB is a write-only mirror: operators edit accounts in the SSOT and the running Linux host never changes, and the port-less connection string makes every login pay a `connect_timeout` stall.
+**Dep:** T-150 (seeded `account` rows with uid/gid)
+**Status:** completed (implemented files-regenerating runtime daemon as recommended) | **Domain:** Linux/Accounts
+
+## T-152 -- ACCT-03: Windows DB->SAM live account-sync service for MiOS-XBOX  (WS-ACCT | P2 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- the same account SSOT governs both platforms, so Windows is not a second, hand-managed identity store.
+**What+How:** Windows has no NSS, so build `MiOS-AccountSync` -- a service using PowerShell `LocalAccounts`/SAM provisioning (optionally a custom Credential Provider) that watches the pgvector `account` SSOT and applies create/modify/disable/password to local SAM accounts live, plus auto-create-at-first-login from the DB. It ships in MiOS-XBOX so the gaming edition's user/admin accounts are editable from the same surfaces as Linux. Known gap in the shipped `MiOS-AccountSync.ps1`: it creates/enables/disables accounts and toggles Administrators membership from the DB, but provisions each new user with a RANDOM 24-char password and never applies `password_hash` -- Windows cannot accept a stored hash and `New-LocalUser` demands plaintext at create, so credential sync is a silent no-op while existence sync works. Close it with a first-boot temporary secret (pgcrypto-sealed) plus forced rotation, not a durable DB-applied password.
+**Where:** `C:\mios-bootstrap\src\autounattend\` (new `MiOS-AccountSync` service + provisioning lib), `usr/share/mios/mios.toml` (`[accounts]`)
+**Done When:** Editing an account row in the DB creates/updates the matching Windows local account with no re-provision, and MiOS-XBOX first logon lands on the DB-defined accounts with no Microsoft account in the flow.
+**Why:** Right now a Windows MiOS box drifts from the account SSOT the moment anything changes, and operators believe passwords are DB-controlled when they silently are not.
+**Dep:** T-150 (account SSOT rows); pairs with T-151 for cross-platform parity
+**Status:** completed | **Domain:** Windows/Accounts
+
+## T-153 -- ACCT-04: account CRUD in the config surface + cut every consumer to the account SSOT  (WS-ACCT | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the operator edits accounts in the one config door and both operating systems reflect it.
+**What+How:** Add account CRUD (add/edit/disable user and admin, set password, groups/sudo, per-OS target) to `usr/share/mios/configurator/mios.html` and the MiOS App, writing the pgvector `account` SSOT that T-151/T-152 project to each OS. Then repoint every reader -- both dashboards (`usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`), the cockpit PAM path and forge -- to read the account SSOT instead of `MIOS_USER`/`[user].name`.
+**Where:** `usr/share/mios/configurator/mios.html`, `usr/libexec/mios/mios-dashboard.sh`, `powershell/profile.ps1`, `usr/share/mios/mios.toml`
+**Done When:** An account edit made in mios.html is observable live on both a Linux and a Windows MiOS host, and both dashboards render the DB account name (default `user`) rather than the operator display name.
+**Why:** Without the UI and the consumer cutover the DB account plane has no editing surface and the display-name leak keeps reappearing in every new consumer.
+**Dep:** T-150, T-151, T-152
+**Status:** completed | **Domain:** UI/Accounts
+
+## T-154 -- MAO-01: typed agent handoffs, parallel guardrails and a trace span per hop  (WS-MAO | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- multi-agent dispatch becomes bounded and observable instead of ad-hoc string routing that fails silently.
+**What+How:** In `usr/lib/mios/agent-pipe/server.py`, model handoffs as typed transfer functions returning `{target_agent, Result(context-update)}`; run input and output guardrails in parallel on a cheap model so they can validate and short-circuit; emit a trace span per hop (router / refine / synthesis / polish / swarm / council) into the native stream feeding `feedback_everything_streams_natively_all_surfaces`. Add a server-side `context_variables` dict for light shared state that is hidden from the tool schema (heavy or volatile state stays on-demand per the env-grounding law). Everything gates on `[agents.orchestration]` and degrades open -- a missing guardrail model means pass-through, not failure.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`)
+**Done When:** Handoffs are typed transfers with a hop failure caught and traced rather than swallowed; guardrails demonstrably run in parallel and can short-circuit; every hop emits a span visible on OWUI and the CLI; and `context_variables` carries shared state without appearing in any tool schema.
+**Why:** Today a bad hop disappears into string routing with no span, so an orchestration regression is invisible until output quality drops, and there is no cheap pre-filter in front of expensive lanes.
+**Dep:** none
+**Status:** pending | **Domain:** Agents/Orchestration
+
+## T-155 -- MAO-02: model-gated structured deliberation with a persisted Decision Packet  (WS-MAO | P2 | L)
+**Goal:** E-24 Autonomy guardrails -- the expensive reasoning path is entered only when a model judges the task consequential, so cost cannot run away on routine work.
+**What+How:** Upgrade the council hop to an optional structured-deliberation mode: archetype roles (Framer/Explorer/Challenger/Integrator) expressed as differentiated system prompts (bias only, never hardcoded capability), a typed interaction grammar (propose/challenge/evidence/reframe/synthesize/concede/...) so a challenge is structurally distinct from a proposal, tension tracking that keeps disagreements as first-class objects, and a bounded convergence loop ending in a Decision Packet (action + residual objections + minority report + reopen conditions) persisted to a `decision_packet` table in `usr/share/mios/postgres/schema-init.sql`. Because it costs roughly 62x the tokens and actively harms routine tasks, the trigger is a model-driven consequentiality classifier (Law 7 forbids a keyword gate), gated `[agents.orchestration].deliberation`, default off; routine tasks stay on the cheap council path. Treat the DCI source (`arXiv 2603.11781`) as an unverifiable concept -- adopt the pattern, do not cite it as authority.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/agents/`, `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml`
+**Done When:** A model classifier (not a keyword list) selects deliberation vs the cheap path with default off and routine tasks never paying the 62x cost, and a deliberation run writes a Decision Packet whose minority report survives instead of being averaged away.
+**Why:** The current council returns a yes/no verdict with no record of dissent or reopen conditions, so consequential decisions cannot be audited or revisited -- and any unconditional upgrade would multiply token spend on trivial turns.
+**Dep:** T-154 (typed hops/spans give deliberation something to trace)
+**Status:** pending | **Domain:** Agents/Council
+
+## T-156 -- MAO-03: pgvector document-mutation coordination lane over LISTEN/NOTIFY  (WS-MAO | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- Postgres becomes the coordination substrate as well as the memory store, with every exchange reconstructable from rows.
+**What+How:** Add a decoupled async coordination mode where agents coordinate by mutating shared rows/documents in pgvector, and a `LISTEN/NOTIFY` (or logical-decode) event bus wakes decoupled worker/daemon agents on mutation -- no direct message-passing and no polling. Every trigger and decision is a row, giving a permanent audit trail; agents know only the shared schema, so coupling is absolute zero. Reuse the MiOS-Daemon supervisor pattern for subscribers. Flag-gate it and degrade open to the existing direct-call dispatch path. Source (OpenClaw, `arXiv 2603.11721`) is an unverifiable concept built on infrastructure MiOS already has.
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/server.py` or a new `usr/libexec/mios/mios-coord-bus`, `usr/share/mios/mios.toml`
+**Done When:** An agent row-mutation wakes a decoupled subscriber via NOTIFY with no polling loop involved and the whole exchange replays from DB rows alone; with the bus down or disabled, dispatch falls back to direct calls.
+**Why:** Coordination today is in-process and ephemeral, so a multi-agent exchange leaves no audit trail and any daemon-side consumer must poll.
+**Dep:** none (builds on shipped pgvector)
+**Status:** pending | **Domain:** Agents/Coordination
+
+## T-157 -- MAO-04: manifest-guided progressive-disclosure retrieval for large document trees  (WS-MAO | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- recall quality on longitudinal corpora stops being capped by flat cosine similarity.
+**What+How:** Add an additional retrieval strategy (not a replacement for pgvector recall) that walks a tree of nodes, each carrying a natural-language `manifest` describing its children, and uses LLM-select to reason over those descriptions and prune subtrees down to a depth bound. Manifest maintenance is O(depth) per mutation via a local update on write. Expose it as a retrieval-strategy hook in `server.py`, selectable per query-class from `[agents.orchestration]`, with vector recall remaining the default. Store node/manifest rows in `schema-init.sql`.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (retrieval strategy hook), `usr/share/mios/postgres/schema-init.sql`, `usr/share/mios/mios.toml`
+**Done When:** A longitudinal-tree query retrieves via manifest LLM-select traversal with subtrees pruned, measurably beating flat vector recall on that query class, and a document mutation updates only local manifests with no sibling re-embed.
+**Why:** Cosine-only recall over a deep document tree returns locally-similar fragments and misses structurally-relevant branches, and today there is no alternative strategy to select.
+**Dep:** none
+**Status:** pending | **Domain:** Agents/Memory
+
+## T-158 -- MAO-05: identity-aware delegation -- extend agent-passport/A2A with attested routing metadata  (WS-MAO | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- delegation picks lanes on measured quality and cost, so the agent plane cannot be gamed into routing work to the worst or most expensive delegate.
+**What+How:** Extend the shipped MiOS agent identity (A2A card plus `agent-passport.json` with Ed25519 and `max_permission`) with `reasoning_profile`, `context_window`, `cost_hint` and capability fields for metadata-aware routing (cheap-fast model for simple subtasks, heavy lane for hard reasoning). Defeat the Provenance Paradox -- routing on self-reported score systematically selects the worst delegates -- by attesting quality from measured outcomes rather than claims. Add governed sessions holding persistent context so history is not re-sent every call, and trust domains carrying capability scopes and data-handling rules. This extends existing identity; do NOT adopt the LDP wire protocol (`arXiv 2603.18043`, unverifiable) blind.
+**Where:** agent-passport + A2A card generators under `usr/share/mios/agents/` and `usr/lib/mios/agent-pipe/`, `usr/lib/mios/agent-pipe/server.py` (router), `usr/share/mios/mios.toml`
+**Done When:** Delegation demonstrably routes on attested, measured quality so a self-inflating delegate is not preferred, and a subtask's model tier is chosen from the delegate's `reasoning_profile`/`cost_hint` while sessions stop re-transmitting full history per call.
+**Why:** The router has no cost or capability signal, so every subtask can land on the heavy lane, and any peer that claims a high score wins the work regardless of results.
+**Dep:** none (extends shipped agent-passport/A2A)
+**Status:** pending | **Domain:** Agents/A2A
+
+## T-159 -- MAO-06: negotiated progressive delegation payloads (token-efficiency modes)  (WS-MAO | P3 | M)
+**Goal:** E-24 Autonomy guardrails -- delegation traffic costs the fewest tokens the peers can jointly support, without losing the auditable path.
+**What+How:** Negotiate the richest mutually-supported payload mode along a chain -- text (auditable fallback) -> semantic-frame (typed JSON, ~37% token reduction claimed) -> embedding hints -> semantic graph -- with automatic fall-back down the chain when a peer does not support a mode. Text mode is always retained for auditability. Gate it and measure the real token delta before defaulting to anything above text. Feeds `feedback_native_typed_launch_args_all_tools`. Source (LDP) is an unverifiable concept.
+**Where:** `usr/lib/mios/agent-pipe/server.py` / the A2A transport, `usr/share/mios/mios.toml`
+**Done When:** Two MiOS agents negotiate semantic-frame mode, fall back to text against a peer that lacks it, log the measured token reduction, and show no quality regression versus text on a delegation benchmark.
+**Why:** Every delegation currently ships full text payloads, so federated work pays maximum tokens even between two peers that could exchange typed frames.
+**Dep:** T-158 (capability fields on the passport/A2A card carry the supported modes)
+**Status:** pending | **Domain:** Agents/A2A
+
+## T-160 -- MAO-07: O(N) introspective leave-one-out contribution scoring feeding reputation  (WS-MAO | P3 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the `reputation` table gets real measured input, so fan-out weighting is data-driven rather than uniform.
+**What+How:** Score each council/swarm agent's marginal contribution without re-running the debate: after a session, prompt the remaining agents to re-decide while ignoring agent *j*'s inputs; the outcome delta approximates leave-one-out at O(N) instead of O(T*N^2). Write scores into the pgvector `reputation` table (`schema-init.sql`), down-weighting consistently negative or adversarial agents and surfacing high-value ones in later fan-outs. Gate it and degrade open -- no scoring model means equal weights. IntrospecLOO is an unverifiable concept feeding the existing reputation workstream.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql` (`reputation`), `usr/share/mios/mios.toml`
+**Done When:** After a council session every agent carries an O(N) LOO contribution score in which a positively-necessary agent outscores a redundant one, those scores weight the next fan-out, and with no scoring model available weights fall back to equal.
+**Why:** Every council member is weighted identically today, so an agent that consistently degrades the answer keeps getting the same share of the fan-out and the same GPU time.
+**Dep:** none (feeds existing reputation workstream)
+**Status:** pending | **Domain:** Agents/Reputation
+
+## T-161 -- MAO-08: fan-out topology and debate protocol selected from SSOT, never hardcoded  (WS-MAO | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the orchestration shape is an operator-tunable, model-selected decision instead of one fixed path baked into server.py.
+**What+How:** Make the fan-out topology (pipeline / hierarchical / swarm / mesh) and the debate protocol (within-round / cross-round / rank-adaptive cross-round) selectable per task-class from `[agents.orchestration]` combined with the orchestrator's own judgement -- Law 7 forbids a keyword gate, so the selection is model-driven. Document the trade-off in the SSOT comments and the reference doc: within-round maximizes peer-reference and interaction but converges slowly, while rank-adaptive cross-round converges fastest. No single hardcoded choice remains.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[agents.orchestration]`)
+**Done When:** Topology and debate protocol are chosen per task-class from SSOT plus orchestrator judgement rather than a fixed code path, switching protocol visibly changes convergence/interaction behaviour as documented, and the default degrades open to today's fan-out.
+**Why:** One hardcoded fan-out shape is applied to every task class, so tasks that would converge in one rank-adaptive round pay full within-round debate cost and vice versa.
+**Dep:** T-154 (typed hops give the topology something to route over)
+**Status:** pending | **Domain:** Agents/Orchestration
+
+## T-162 -- WBRAND-04: self-authored SSOT-driven living-wallpaper mesh-gradient shader  (WS-WBRAND | P3 | M)
+**Goal:** E-22 Dotfiles projection -- another visual surface derives its colors from `[colors]` in mios.toml rather than carrying its own palette.
+**What+How:** Author a small (~40-line) WGSL/GLSL mesh-gradient fragment shader at `usr/share/mios/branding/living-wallpaper.wgsl` whose colors read `[colors].accent`/`[colors].bg` -- the same values behind the static wallpaper, the DWM accent and matugen. Use no third-party code, or Apache-2.0 BabylonJS if a full engine is ever wanted. LAW: never vendor `firecmsco/neat` (MIT + Commons Clause) or any non-OSI dependency into a shipped OS, and verify every LICENSE at vendor time. Ship the degrade-open ladder: animated shader -> static SSOT gradient (today's baked JPG) -> solid accent, gated `[branding].living_wallpaper`, off by default.
+**Where:** `usr/share/mios/branding/living-wallpaper.wgsl` (new), `usr/share/mios/mios.toml` (`[branding]`)
+**Done When:** The shader renders a mesh gradient composed solely from SSOT colors with no hardcoded palette and stays disabled by default, auto-degrading to the static gradient on a no-Vulkan or old-iGPU host, with no Commons-Clause or non-OSI dependency vendored.
+**Why:** A wallpaper with its own palette is a second color source that silently diverges from `[colors]`, and vendoring a Commons-Clause dependency would make the shipped image non-redistributable.
+**Dep:** none
+**Status:** done (2026-07-09) | **Domain:** Branding
+
+## T-163 -- WBRAND-05: render the living wallpaper natively on Linux (GNOME/Wayland, optional Quickshell)  (WS-WBRAND | P3 | M)
+**Goal:** E-22 Dotfiles projection -- the Linux desktop surface consumes the same SSOT-derived shader without a browser dependency.
+**What+How:** Render the T-162 shader natively via Qt6 RHI over Vulkan/OpenGL on the Mesa iGPU (MiOS already ships `[packages.gpu-mesa]`), not WebGPU-in-browser. Because GNOME/Wayland exposes no shader-wallpaper API, implement a minimal Wayland-background helper or an `mpvpaper` video loop in `usr/libexec/mios/mios-living-wallpaper`; an optional Hyprland/Quickshell desktop profile may use a native `ShaderEffect` (references: MIT `magetsu002/qs-wallpaper-picker`, `bjarneo/quickshell`). The universal fallback is a pre-rendered loop. Gated and off by default.
+**Where:** `usr/libexec/mios/mios-living-wallpaper` (new), `usr/share/mios/mios.toml`
+**Done When:** The SSOT mesh gradient animates on a MiOS GNOME/Wayland desktop driven by the iGPU, falls back to static or video where unsupported, and the Linux path pulls in no browser or WebGPU flag.
+**Why:** Without a native path the only way to animate the desktop on Linux would be a browser window at background z-order -- a permanent Chromium process on the desktop plane.
+**Dep:** T-162
+**Status:** done (2026-07-09) | **Domain:** Linux/Branding
+
+## T-164 -- WBRAND-06: Windows animated background + `[branding].living_wallpaper*` SSOT keys  (WS-WBRAND | P3 | M)
+**Goal:** E-22 Dotfiles projection -- the Windows half of the branding surface is projected from the same SSOT keys as Linux, both platforms, one registry.
+**What+How:** Add a MiOS-XBOX/MiOS-Win animated desktop background driven by the T-162 shader/palette -- a borderless WebView2/D3D canvas at background z-order, or the more compatible pre-rendered loop. WebGPU-in-browser (WebView2/D3D12) is acceptable ONLY on Windows. Add `[branding].living_wallpaper` and `living_wallpaper_mode` (`shader|video|static`) to mios.toml and expose them in `mios.html`, then wire the Windows branding path (`MiOS-Provision.lib.ps1` / `Set-MiOSIdentityOffline`) to read them alongside the current static gradient.
+**Where:** `usr/share/mios/mios.toml` (`[branding]`), `usr/share/mios/configurator/mios.html`, `C:\mios-bootstrap\src\autounattend\MiOS-Provision.lib.ps1`
+**Done When:** `living_wallpaper_mode=static` reproduces today's baked gradient with no regression while `shader`/`video` add the animated layer from SSOT colors, and the mode is settable in the configurator and read through the layered SSOT resolver.
+**Why:** Windows branding is currently a hardcoded static gradient with no SSOT key, so the two platforms' desktop appearance can only be kept in sync by hand.
+**Dep:** T-162
+**Status:** done (2026-07-09) | **Domain:** Windows/Branding
+
+## T-165 -- NAME-01: collapse ~1,290 authored names onto one generated names/keys registry  (WS-NAME | P2 | L)
+**Goal:** E-10 One canonical name: the unified names/keys registry -- no env var renames a native key and no capability carries a second name (Law 9).
+**What+How:** Collapse every authored name in MiOS -- TOML keys, `MIOS_*` env vars, verbs, `globals.sh`/`.ps1` constants, configurator `data-key`s and emitters, about 1,290 today -- onto ONE registry that is the naming SSOT (`usr/share/mios/names.toml`, or `mios.toml [names]`). Delete the translation layer outright: the 418-entry key->env table in `tools/lib/userenv.sh` / `usr/lib/mios/userenv.sh` and the `globals` mirror give way to generic sourcing, so every surface takes the same canonical identifier directly from the generated registry. Fold similar capabilities into one parametric entry, keeping exactly one minimal combined name per capability. Zero functional loss -- rename and collapse only, behind a compat-shim phase. Add the drift-gate to `automation/98-drift-checks.sh`. Full workflow, convention and phased migration are in `usr/share/doc/mios/reference/naming-unification.md`. Effort is XL.
+**Where:** `usr/share/mios/names.toml` (new) or `mios.toml [names]`, `tools/lib/userenv.sh`, `usr/lib/mios/userenv.sh`, `automation/lib/globals.sh`/`.ps1`, `usr/lib/mios/mios_toml.py`, `automation/98-drift-checks.sh`, `usr/share/doc/mios/reference/naming-unification.md`
+**Done When:** One registry is the naming SSOT with every surface generated from or sourcing it and no authored per-name mapping left anywhere; similar capabilities are folded to one parametric entry with legacy names and the userenv table deleted at zero functional regression; and a drift-gate regenerates and diffs the registry, failing on any new translation or duplicate, with all `test_mios_*` and `just drift-gate` green.
+**Why:** A hand-maintained 418-entry translation table means every new fact must be named twice, and the emitted-vs-consumed mismatch class (`MIOS_AI_VLLM_*` vs `MIOS_VLLM_*`) keeps producing keys that are referenced but never emitted.
+**Dep:** none
+**Status:** planned | **Domain:** SSOT/Cross-cutting
+
+## T-166 -- DEPLOY-01: reorder install/first-boot into a producer->consumer DAG so "missing dependency" is impossible  (WS-DEPLOY | P1 | L)
+**Goal:** E-21 One deploy front door -- a clean install reaches a fully working system instead of a half-provisioned one whose failures depend on timing.
+**What+How:** (1) Model the producer->consumer DAG across `automation/NN-*.sh` and the `*-firstboot` units, encoding edges as systemd `After=`/`Requires=`/`ConditionPathExists=`. (2) Replace fixed timeouts with readiness gates that poll the real health/socket/row/file signal plus `Restart=on-failure`. (3) Make every producer atomic, retried, idempotent and completeness-self-checking -- the `38-hermes-agent.sh` venv fix (install `-r requirements.txt` in one retried transaction) is the reference pattern to apply to the webtools/sandbox image builds, the GGUF/vLLM fetch and the forge bootstrap. (4) Topologically reorder the overlay/automation sequence. (5) Add a drift-gate to `automation/98-drift-checks.sh` that fails the build on any consumer-before-producer edge (a missing `After=`/`Condition*=`). Full plan in `usr/share/doc/mios/reference/install-ordering.md`.
+**Where:** `automation/38-hermes-agent.sh` (done), `usr/libexec/mios/mios-ai-firstboot`, `usr/libexec/mios/mios-webtools-firstboot.sh`, `usr/libexec/mios/forge-firstboot.sh`, the `*-firstboot`/`38-*` units and their `.service` `After=`/`Condition*=`, `automation/build.sh`, `automation/98-drift-checks.sh`, `usr/share/doc/mios/reference/install-ordering.md`
+**Done When:** Every consumer step gates on its producer's real readiness with no fixed-timeout aborts and every producer is atomic, retried, idempotent and completeness-checked; a clean `podman-MiOS-DEV` reinstall brings up AI plane, forge and webtools with zero "missing dependency" failures; and the new drift-gate fails the build on any consumer-before-producer edge with `just drift-gate` and `test_mios_*` green.
+**Why:** A clean reinstall today produces prerequisite-not-ready and artifact-not-built states that vary run to run, so install success depends on machine speed rather than on declared ordering.
+**Dep:** none (surfaced by the clean-reinstall debug)
+**Status:** planned | **Domain:** Install/Deploy/SSOT
+
+## T-167 -- SHELL-01: persistent PTY substrate so shell state survives across agent turns  (WS-CODEMODE | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- tool execution gains a bounded, reapable long-lived session instead of a fresh isolated process per call.
+**What+How:** (1) Add `usr/lib/mios/agent-pipe/mios_pty.py` as a pure module beside `mios_aci`: session-id keying, tmux-argv construction, and a marker-sentinel plus per-command nonce protocol capturing completion, exit code and cwd, hardened against output spoofing; ship `test_mios_pty.py`. (2) Add `usr/libexec/mios/mios-shell-session`, a tmux-backed bash with one session per chat, confined in the existing bwrap jail at `--level baseline` reusing UID 828 with no new container. (3) Bound output through the existing `mios_aci` normalizer (head+tail+marker elision). (4) Add `mios-shell-session-gc.{service,timer}` as an idle reaper plus tmpfiles for `/var/lib/mios/shell-sessions`. (5) Register `[verbs.shell_session]` (model_name `run_in_shell`) and a `[shell_session]` config block in mios.toml, which auto-projects to MCP/OpenAI/A2A with no new dispatch code. Repo grep confirms no `mios_pty`/`mios-shell-session`/`run_in_shell` exists today.
+**Where:** `usr/lib/mios/agent-pipe/mios_pty.py` (new) + test, `usr/libexec/mios/mios-shell-session` (new), `usr/lib/systemd/system/mios-shell-session-gc.{service,timer}` (new), `usr/lib/tmpfiles.d/`, `usr/share/mios/mios.toml`
+**Done When:** `exec --session t1 'cd /tmp && export FOO=bar'` followed by `exec --session t1 'echo $PWD $FOO'` returns `/tmp bar`; a 5MB log comes back ACI-elided rather than raw-truncated; idle sessions are reaped by the GC timer and `run_in_shell` appears on `/v1/tools`; `test_mios_pty.py` passes on nonce/marker parsing and exit-code capture.
+**Why:** Every shell or code call discards `cwd`, `env` and history, so an agent must re-establish its working state on every single turn and cannot run any multi-step workflow that depends on shell state.
+**Dep:** none hard; independent of the other Part-17 items
+**Status:** planned | **Domain:** Tool-execution/Sandbox | **Who:** agent-pipe backend engineer (Python + bwrap/tmux)
+
+## T-168 -- KENF-01: Tetragon eBPF/LSM kernel enforcement plane behind the intent arbiter  (WS-SEC | P2 | L) [VM]
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- side-effects are verified in-kernel, not merely reasoned about in userspace.
+**What+How:** (1) Add `usr/share/containers/systemd/mios-enforcer.container` running Cilium Tetragon standalone (file-based TracingPolicies, no K8s) as user `mios-enforcer` -- a DOCUMENTED Law-6 privileged exception (CAP_BPF/CAP_SYS_ADMIN) added to the `automation/99-postcheck.sh` allowlist beside mios-ceph/k3s with a header rationale. (2) Add `mios-enforcer-render` compiling `mios.toml [security.policy]` into Tetragon TracingPolicy YAML plus a firstboot oneshot, with seed `policies.d/*.yaml.tmpl` (exfil-block on tcp_connect, exec-guard on execve/LSM) cgroup-scoped to the AI and codemode units only. (3) Add `mios-enforcer-shipper` writing `enforcer_kill`/`enforcer_deny` rows into the `event`/`tool_call` tables. (4) Add `[security.enforcer]` and `[security.policy]` SSOT sections, configurator cards and the `mios-enforcer` sysuser. (5) Gate the unit `ConditionVirtualization` OFF on WSL2 (no BPF/LSM surface); enforcement is bare-metal only and ships in observe mode first.
+**Where:** `usr/share/containers/systemd/mios-enforcer.container` (new), `usr/libexec/mios/mios-enforcer-render` and `-shipper` (new), `automation/99-postcheck.sh` (allowlist), `usr/lib/sysusers.d/`, `usr/share/mios/mios.toml`
+**Done When:** In observe mode a tainted process's disallowed `execve` or outbound connect produces a Tetragon Post event and a shipper row; flipping to enforce SIGKILLs the offending process; the unit is Condition-skipped and inert on the WSL2 dev VM; `bootc container lint` and the Law-6 postcheck pass with the documented exception; and editing `[security.policy]` re-renders the TracingPolicy YAML with no hardcoded policy.
+**Why:** The shipped `mios-policy-arbiter` can only reason about intent -- a compromised AI process can still `execve` and connect outbound with nothing in the kernel to observe or stop it.
+**Dep:** after the arbiter (already shipped); shares the dangerous-verb/taint set with T-033 (SEC-02)
+**Status:** planned | **Domain:** Security/Kernel | **Who:** security engineer (eBPF/Tetragon + bootc quadlets)
+
+## T-169 -- ISOL-01: per-action isolation tier ladder that promotes instead of refusing  (WS-CODEMODE | P2 | L)
+**Goal:** E-24 Autonomy guardrails -- a tainted high-risk action runs in a stronger sandbox rather than being blocked, so safety does not cost capability.
+**What+How:** (1) Add an `[isolation]` table to mios.toml carrying the ladder definition, taint->tier map, `taint_min_tier`, `default_code_tier` and `health_gate`, reusing the existing high-privilege verb set rather than re-listing it. (2) Add `usr/lib/mios/agent-pipe/mios_isolation.py` as pure tier-selection/promotion logic plus tests. (3) In dispatch, replace the binary REFUSE-on-taint branch with `resolve_effective_tier()` that runs the action in the promoted tier and emits a `firewall_promote {from_tier,to_tier}` event, degrading CLOSED to `firewall_block` when the floor tier is unavailable. (4) Register `runsc` (gVisor, tier 3) and `krun` (libkrun via crun, tier 4) as OCI runtimes with USER-scope Quadlet templates reusing the hardened sandbox verbatim, `krun` gated `ConditionPathExists=/dev/kvm`. (5) Add a `mios-coderun-tier` launcher and a gated `automation/NN-isolation-tiers.sh` build hook. Distinct from T-032 (hermetic microVM per tool): this is the tier-selection engine.
+**Where:** `usr/lib/mios/agent-pipe/mios_isolation.py` (new) + test, `usr/lib/mios/agent-pipe/server.py` (dispatch taint branch), `usr/share/containers/containers.conf.d/*-isolation-runtimes.conf` (new), `usr/libexec/mios/mios-coderun-tier` (new), `usr/share/mios/mios.toml`
+**Done When:** Tainting a session with an external `open_url` and then dispatching a high-privilege verb records a `firewall_promote` event with the verb having run in the promoted tier; `[isolation].enable=false` leaves behavior byte-identical to today; the tier-4 microVM Quadlet is inert on WSL2 with no `/dev/kvm`; and `test_mios_isolation.py` passes on tier selection and degrade-closed.
+**Why:** Tiers 1-2 exist but gVisor and microVM do not, and the taint plane only refuses -- so any tainted session simply loses access to its high-value verbs instead of running them more safely.
+**Dep:** shares the sandbox substrate with T-032/T-045; the promote decision reads the same dangerous-verb set as T-033/T-168
+**Status:** planned | **Domain:** Security/Sandbox | **Who:** security engineer (OCI runtimes + agent-pipe dispatch)
+
+## T-170 -- GVLM-01: activate the staged grounding VLM and add the `cu_act`/`cu_verify` verbs  (WS-RUNTIME-WIRE | P1 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a perception->action->verify chain that already ships stops being inert.
+**What+How:** (1) Bake/reference the vision GGUF already named in `usr/share/mios/llamacpp/mios-llm-light.yaml` (Holo1.5-7B Q4_K_M plus mmproj-Q8_0, mapped from `qwen3-vl:4b`) into the bound `mios-llm-light` seed and set `[ai].vision_grounding_model="qwen3-vl:4b"` with a `vision_grounding_enable` gate; the operator performs the actual weight fetch (the classifier blocks assistant HF fetch) and mradermacher filenames are verified at bake time. (2) Add `usr/libexec/mios/mios-cu-verify`, a visual Definition-of-Done tool -- the screen analogue of `mios-verify-launch` -- that returns `{ok:false}` honestly when the lane is down and never fabricates. (3) Add a `cu_act` subcommand to `mios-computer-use` (ground -> click -> verify) and register `[verbs.cu_verify]` and `[verbs.cu_act]` for three-projection. (4) Set `[computer_use].verify_after_act`, keeping AT-SPI grounding as the deterministic fast path with the VLM used only on canvas/Electron misses.
+**Where:** `usr/share/mios/mios.toml` (`[ai]`/`[computer_use]` keys + verbs), `usr/share/mios/llamacpp/mios-llm-light.yaml` (already staged), `usr/libexec/mios/mios-cu-verify` (new), `usr/libexec/mios/mios-computer-use`
+**Done When:** `curl <light-lane>/v1/chat/completions model=qwen3-vl:4b` with a base64 screenshot returns coordinate JSON; `mios-pc-vision <png> "the OK button"` returns `{x,y,confidence>0.5}`; `mios-cu-verify "<criterion>"` returns `{ok:false}` when the lane is down; `cu_act`/`cu_verify` appear on `/v1/tools` and the whole path is inert with `vision_grounding_enable=false`.
+**Why:** `mios-pc-vision`, `cu_ground` and `mios-verify-launch` all ship but `[ai].vision_grounding_model` is empty, so the grounding lane never activates and the image carries a computer-use capability that cannot be invoked.
+**Dep:** independent; rides existing `cu_*` and verify tooling -- the operator bake step gates final live verification
+**Status:** done-by-code | **Domain:** Computer-Use/Perception | **Who:** computer-use engineer (llama.cpp vision + verbs)
+
+## T-171 -- CONS-01: weighted multi-judge consensus over 2-3 lanes  (WS-DURA | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- judging quality becomes a scored, reliability-weighted quorum rather than one lane's yes/no.
+**What+How:** (1) Add `usr/lib/mios/agent-pipe/mios_consensus.py` as a pure module implementing weighted_vote plus Reciprocal-Rank-Fusion over 2-3 judge lanes, with weights optionally sourced from the `reliability_run` output of T-049 and degrade-open to a single judge on the fast CPU path; ship `test_mios_consensus.py`. (2) Wire it into the judge/synthesis path in `server.py` behind a `[consensus]` gate. (3) Add the `[consensus]` SSOT section plus a configurator card.
+**Where:** `usr/lib/mios/agent-pipe/mios_consensus.py` (new) + test, `usr/lib/mios/agent-pipe/server.py` (judge/synthesis), `usr/share/mios/mios.toml`
+**Done When:** A multi-judge Definition-of-Done is reached by quorum with conflicting judges resolved by weighted vote, `[consensus].enable=false` keeps the fast CPU path single-judge, and `test_mios_consensus.py` passes the weighted_vote and RRF math.
+**Why:** The DCI critic returns a single yes/no verdict, so one unreliable judge lane can gate or pass the whole pipeline with no second opinion and no reliability weighting.
+**Dep:** builds on T-049 (reliability scorer) for weights; degrade-open so it functions without it
+**Status:** planned | **Domain:** Orchestration/Judging | **Who:** orchestration engineer (agent-pipe judge path)
+
+## T-172 -- CONS-02: Jensen-Shannon drift monitor as the Goodhart early-warning alarm  (WS-DURA | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- self-improvement and consensus cannot quietly optimize into reward-hacking without an alarm.
+**What+How:** (1) Add `usr/lib/mios/agent-pipe/mios_drift.py` computing pure JSD over intent/score/verdict histograms against a frozen baseline, plus `test_mios_drift.py`. (2) Add a `drift_snapshot` table in `usr/share/mios/postgres/schema-init.sql` storing the baseline and periodic samples. (3) Add `GET /v1/drift` to `server.py` and emit a `drift_alert` event when JSD exceeds the threshold. (4) Add a `[drift]` SSOT section carrying threshold, window and `enable=false`.
+**Where:** `usr/lib/mios/agent-pipe/mios_drift.py` (new) + test, `usr/share/mios/postgres/schema-init.sql`, `usr/lib/mios/agent-pipe/server.py` (`/v1/drift`), `usr/share/mios/mios.toml`
+**Done When:** Crossing the JSD threshold emits a `drift_alert` event, `GET /v1/drift` returns the current divergence against baseline, and `drift_snapshot` records a baseline row on first run.
+**Why:** There is no distribution-drift alarm at all, so as T-062/T-064 self-improvement and T-171 consensus come online a Goodhart shift in verdict distribution would be invisible until behavior visibly degrades.
+**Dep:** pairs with T-171/T-049; can land independently as an observe-only alarm
+**Status:** planned | **Domain:** Observability/Safety | **Who:** orchestration engineer (metrics + pgvector)
+
+## T-173 -- GUARD-01: daemon runaway controls -- host-pressure gate, classification dedup, cron cap  (WS-GUARD | P0 | M)
+**Goal:** E-24 Autonomy guardrails -- the agent plane cannot starve its own host; this is the direct fix for the live GPU-runaway incident.
+**What+How:** (1) Add `_host_pressure_gate()` to `usr/libexec/mios/mios-daemon`, caching loadavg and `nvidia-smi` at roughly 5s TTL and guarding the classify, refusal, cron and suggestions loops so a tick is skipped under pressure. (2) Add per-`(source,kind,summary-hash)` dedup plus cooldown so repeated identical high-severity classifications are suppressed. (3) Add a cron concurrency cap tracking Popen so cron actions cannot stack. (4) Feed a quiescence/auto-halt signal into cadence backoff. (5) Add a `[daemon]` SSOT section plus configurator cards for thresholds, TTL and cap, with no hardcoded literals.
+**Where:** `usr/libexec/mios/mios-daemon`, `usr/share/mios/mios.toml` (`[daemon]`), the configurator
+**Done When:** Repeated identical high-severity classifications are suppressed by dedup+cooldown, loops skip a tick when the pressure gate fires, concurrent cron actions cannot stack under the cap, and `test_mios_daemon.py` covers both the gate and the dedup.
+**Why:** Five subsystems guard the shared 4090 with independent local heuristics that do not compose, so the daemon->swarm runaway had no cumulative tripwire and no host-pressure circuit breaker -- it already happened once on live hardware.
+**Dep:** first-wave safety; composes with T-174 (budget) and the existing admission controller into one pressure signal
+**Status:** planned | **Domain:** Autonomy/Safety | **Who:** agent-pipe/daemon engineer
+
+## T-174 -- GUARD-02: aggregate token/turn budget with foreground preemption of background work  (WS-GUARD | P0 | M)
+**Goal:** E-24 Autonomy guardrails -- background autonomy is budgeted and preemptible, so a self-driving loop cannot monopolize the GPU.
+**What+How:** (1) Add a cumulative token/turn ceiling in `usr/lib/mios/agent-pipe/server.py`, debited both per-conversation and per-autonomous-source, hard-halting on exhaustion with a graceful stop. (2) Give `mios_autonomous` its own low budget and the lowest dispatch priority so a foreground turn preempts background work for the next GPU slot. (3) Add a `max_dispatch_depth` recursion bound that refuses deeper dispatch. (4) Route every threshold through `[budget]`/`[dispatch]` in mios.toml plus the configurator.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml` (`[budget]`/`[dispatch]`)
+**Done When:** A background loop self-limits and hard-halts at its budget, a foreground turn demonstrably preempts background work for the next GPU slot, and recursion beyond `max_dispatch_depth` is refused.
+**Why:** No cumulative token or turn ceiling exists and autonomous work is not first-class isolated at the queue, so a background loop can consume unbounded GPU while an interactive turn waits behind it.
+**Dep:** pairs with T-173; both must compose into the single host-pressure signal the admission controller and swarm-width logic read
+**Status:** planned | **Domain:** Autonomy/Scheduling | **Who:** agent-pipe scheduler engineer
+
+## T-175 -- DURA-01 nightly `pg_dump` backup timer + loopback-only pgvector bind  (WS-DURA | P1 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- the pgvector datastore that holds the whole agent brain survives a disk loss and is not reachable off-host by default.
+**What+How:** Add `mios-pgvector-backup.service` + `mios-pgvector-backup.timer` running a nightly `pg_dump` into `/var/lib/mios/backups`, declaring that directory through `usr/lib/tmpfiles.d/` rather than `mkdir` (the NO-MKDIR-IN-VAR postcheck forbids it). Change the pgvector quadlet to bind `127.0.0.1` by default and refuse any off-loopback bind until a non-default password is set. Add a `[pgvector]` SSOT section carrying bind address, credential policy and backup retention, and expose it in the configurator so none of the three is a literal in the unit.
+**Where:** `usr/lib/systemd/system/mios-pgvector-backup.{service,timer}` (new) | `usr/lib/tmpfiles.d/` | pgvector quadlet | `usr/share/mios/mios.toml` (`[pgvector]`)
+**Done When:** the timer fires and leaves a restorable dump under `/var/lib/mios/backups`; `ss -ltnp` shows pgvector on `127.0.0.1` only with stock config and an off-loopback bind is refused without a non-default password; `bootc container lint` and the NO-MKDIR-IN-VAR postcheck stay green.
+**Why:** knowledge, memory, passports and audit all live in pgvector with no backup at all, and it historically bound `0.0.0.0` on default credentials -- so one disk failure erases the brain and one flat network exposes it, while the immutable OS half is fully rollback-protected (inverse asymmetry).
+**Dep:** Independent; complements T-060 (DATA-02 storage versioning) and any schema-rollback work.
+**Status:** planned | **Domain:** Data/Durability | **Who:** platform/ops engineer (systemd timers + quadlets)
+
+---
+
+## T-176 -- DURA-02 SSOT-driven secret/PII redaction before persist, scratchpad and A2A echo  (WS-DURA | P1 | M)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- redaction on every persist and every federate, so an autonomous loop cannot leak credentials it happened to read.
+**What+How:** Add one redaction filter in `server.py` and call it on all three egress paths: the pgvector write, the scratchpad broadcast, and the A2A echo -- reusing/extending the existing persistence sanitization that already strips vendor names and paths, so there is a single scrubber rather than three. Carry the secret patterns (API keys, tokens) and common PII patterns in `mios.toml [security]` instead of hardcoded English deny-list literals (Law 7), with the filter default-on for persist and its degrade-open behaviour documented.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (persist / scratchpad / A2A echo paths) | `usr/share/mios/mios.toml` (`[security]`)
+**Done When:** a turn containing a synthetic key and a synthetic PII string reaches pgvector, the scratchpad and an A2A echo scrubbed; the pattern set is read from SSOT (grep finds no inline deny-list); `test_*` cases cover redact-on-persist and redact-on-federate and fail if the filter is bypassed.
+**Why:** secrets and PII are written verbatim into pgvector, broadcast on the scratchpad and echoed over A2A today -- once federation leaves loopback, every leaked token is permanently in a peer's memory store.
+**Dep:** Should precede any non-loopback A2A federation; composes with the passport gate (T-001/T-014).
+**Status:** planned | **Domain:** Security/Privacy | **Who:** agent-pipe backend engineer
+
+---
+
+## T-177 -- LSFS-01 semantic-filesystem verbs + durable cross-turn task-state protocol  (WS-LSFS | P3 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- the FS and pgvector become one recallable memory surface the agent can address by meaning, not path.
+**What+How:** Add `[verbs.lsfs_*]` cmd-template verbs (`mount`/`create`/`write`/`search`/`rollback`/`share`) in mios.toml backed by the filesystem plus pgvector and nomic-embed -- pure cmd-template so they auto-project through the existing verb surface and add no runtime dependency. Add a `tasks` table to `schema-init.sql` (or an equivalent `tasks/backlog|in-progress|done.md` directory protocol) that the agent reads and writes to carry execution state across turns, and wire the read into prompt assembly as a tool-sourced block only -- never a `pre_llm_call` auto-prepend, which would violate the no-injection rule. Add an `[lsfs]` SSOT section plus configurator entry.
+**Where:** `usr/share/mios/mios.toml` (`[verbs.lsfs_*]`, `[lsfs]`) | `usr/share/mios/postgres/schema-init.sql` (`tasks`) | `usr/lib/mios/agent-pipe/server.py` (task-state read into assembly)
+**Done When:** `lsfs_write` followed by `lsfs_search` round-trips a semantic query over the stored content; `lsfs_rollback` restores a prior version of an entry; task state survives an agent-pipe restart and is observable only through a tool call, with no auto-injected block in the assembled prompt.
+**Why:** docs-index, pgvector and scratch exist but there is no semantic-FS verb surface over them and no durable backlog/in-progress/done state, so a long-running agent re-derives its own plan every turn and loses it on restart.
+**Dep:** Independent, last (P3); reuses the existing memory/knowledge substrate.
+**Status:** planned | **Domain:** Memory/Filesystem | **Who:** agent-pipe engineer (verbs + pgvector)
+
+---
+
+## T-178 -- HEAVY-01 auto-provision the heavy-lane weights so the STATED vLLM+SGLang lanes actually come up  (WS-DEPLOY | P1 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the heavy inference lanes MiOS already declares in SSOT deploy themselves on a detected dGPU with no manual step.
+**What+How:** Do not re-decide any lane default -- the fix is to DEPLOY what `[lanes.*]`, `[ai.vllm]`, `[ai.sglang]`, `[ai.host_thresholds]` and `lane_priority` already state. (1) Fix `mios-ai-firstboot`'s weights fetch to be atomic, retried and checksum-verified (the WS-DEPLOY producer pattern) so `mios-llm-heavy.container`'s `ConditionPathExists=/usr/share/mios/vllm/model/config.json` is satisfied on a fresh install, choosing the model by the stated tier resolution for the detected 24 GB card. (2) Extend the tier resolver in `build-mios.ps1`, the install pipeline and `mios-hermes-firstboot` only where they fail to apply the stated default, keeping the mios.html knobs. (3) Confirm `MIOS_AGENT_PIPE_BACKEND` / `[nodes.local-*]` / the hermes route match the stated lanes. (4) Honour the stated `gpu_util` / `mem_fraction=0.45` so heavy, light and the Windows host co-tenant without OOM.
+**Where:** `usr/libexec/mios/mios-ai-firstboot` | `usr/share/mios/mios.toml` (`[lanes.*]`, `[ai.vllm]`, `[ai.sglang]`, `[ai.host_thresholds]`, `lane_priority`) | `usr/share/containers/systemd/mios-llm-heavy.container` | `build-mios.ps1` | `usr/libexec/mios/mios-hermes-firstboot`
+**Done When:** a fresh install on a detected dGPU brings the heavy lane up per the stated SSOT defaults with the model auto-fetched (no manual step, Condition gate satisfied); a plain-English query is answered on the GPU with agents/nodes/hermes routed by `lane_priority` and light-lane + Windows co-tenancy staying OOM-free; both the vLLM and SGLang lanes come up -- neither silently dropped.
+**Why:** the SSOT advertises heavy lanes that never start, because the weights are missing and the Condition gate holds the unit down forever -- so the documented dGPU capability is dead on every fresh install and every query falls back to the light lane.
+**Dep:** After the agent venv fix (31a52fb1, done), since the weights fetch runs through it; aligns with WS-DEPLOY's readiness-gated producer pattern.
+**Status:** in-progress | **Domain:** AI-plane/Inference/Deploy | **Who:** inference/deploy agent
+
+---
+
+## T-200 -- FBM-01 `mios-models-firstboot.service`: resumable, checksummed first-boot GGUF provisioner  (WS-FBM | P2 | M)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- large model weights arrive on first boot, once, without blocking boot or bloating the image.
+**What+How:** Add a first-boot oneshot unit plus its `usr/libexec/mios/mios-models-firstboot` fetcher that reads the model set from SSOT (the `[ai.firstboot_models]` table from T-201) and downloads GGUFs into `/var/lib/mios/llamacpp/models` with resume, sha256 verify and a progress file, then writes a sentinel so it never re-runs. Order it `After=network-online.target` with `ConditionPathExists=!<sentinel>`, register it in `usr/lib/systemd/system-preset/`, and make it degrade-open -- a failed pull must never fail the boot. Reuse the existing llama-swap model directory and `mios-llm-light` lane layout rather than inventing a second one.
+**Where:** `usr/lib/systemd/system/mios-models-firstboot.service` (new) | `usr/libexec/mios/mios-models-firstboot` (new) | `usr/lib/systemd/system-preset/`
+**Done When:** a fresh boot with an empty model dir pulls the SSOT set, verifies each sha, writes the sentinel, and is inert on the next boot; a network-down first boot still reaches a login with the lane serving whatever is present; killing the fetch mid-pull and rebooting resumes rather than restarting the download.
+**Why:** without it the heavy/light lanes can only ever serve models baked into the image, so every non-baked model is a manual `wget` per host and a half-downloaded file leaves the lane permanently broken.
+**Dep:** Must land before the lanes can serve non-baked models; depends on T-201 for its input table.
+**Status:** planned | **Domain:** Provisioning/AI-lanes | **Who:** systemd/build agent
+
+---
+
+## T-201 -- FBM-02 `[ai.firstboot_models]` SSOT table + `mios models {list,sync,add,rm}`  (WS-FBM | P2 | M)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- which models a host provisions is an operator-editable SSOT fact, not a constant in a fetch script.
+**What+How:** Add an `[ai.firstboot_models]` table to mios.toml with one entry per model (name, GGUF/HF source URL, sha256, target lane) and flow it through the existing projections -- `usr/libexec/mios/userenv.sh`, `install.env` and the configurator HTML -- so the same set is visible in every surface. Add a `mios models` subcommand in `usr/bin/mios` with `list`, `sync`, `add` and `rm` verbs that read the table and drive the T-200 fetcher on demand, with `add`/`rm` writing the runtime user-layer overlay rather than editing the vendor file.
+**Where:** `usr/share/mios/mios.toml` (`[ai.firstboot_models]`) | `usr/bin/mios` | `usr/libexec/mios/userenv.sh` | configurator HTML
+**Done When:** `mios models list` prints exactly the SSOT set; `mios models sync` pulls the missing entries and verifies each checksum; `mios models add`/`rm` change the overlay and a following `sync` reflects it; the drift-check confirming the table round-trips through `userenv.sh` and `install.env` passes.
+**Why:** the model list would otherwise be hardcoded in the first-boot fetcher, so changing which model a fleet runs means editing and rebuilding a script instead of editing one config surface.
+**Dep:** Feeds T-200; do first or together.
+**Status:** planned | **Domain:** SSOT/CLI | **Who:** config/CLI agent
+
+---
+
+## T-202 -- FBM-03 `mios-bound-images-firstboot`: pull the heavy-lane container images at boot, not at bake  (WS-FBM | P3 | M)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- the published image stays inside a standard runner's budget while heavy lanes still start on demand.
+**What+How:** Add a first-boot oneshot service plus a libexec puller that fetches the heavy-lane (SGLang/vLLM) container images at boot, keyed off the same sentinel pattern T-200 establishes, driven by a bound-images list in mios.toml. Optionally split-bake -- keep the small base images baked so the a-la-carte cascade still resolves offline, and pull only the large layers.
+**Where:** `usr/lib/systemd/system/mios-bound-images-firstboot.service` (new) + libexec puller (new) | `usr/share/mios/mios.toml` (bound-images list)
+**Done When:** a first boot pulls the heavy-lane images exactly once and the heavy lanes start against them when enabled; the built image no longer contains the large heavy-lane layers and the measured image size drops.
+**Why:** the vLLM+SGLang whales are the reason the bake has to be tiered to fit a standard runner at all -- while they are baked in, every publish is capacity-gated.
+**Dep:** After the T-200 sentinel/first-boot pattern is established.
+**Status:** planned | **Domain:** Provisioning/Containers | **Who:** systemd/build agent
+
+---
+
+## T-203 -- FBM-04 Portal model-provisioning tile + `mios models cache <dir>` air-gapped pre-seed  (WS-FBM | P3 | S)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- provisioning state is visible at the same door the operator configures from, and works with no egress.
+**What+How:** Add a "model provisioning" tile to the Quickshell/Portal surface that reads the T-200 sentinel and progress file and renders progress / complete / failed. Add a `mios models cache <dir>` verb to `usr/bin/mios` that copies models from a USB or local mirror into the model dir and marks them satisfied, so an air-gapped install can be pre-seeded before first boot and T-200 skips the download entirely.
+**Where:** `usr/share/mios/quickshell/` (tile) | `usr/bin/mios` (`models cache`)
+**Done When:** the tile tracks live provisioning state through a real pull (progress, then complete, then failed on an induced error); after `mios models cache <dir>` a first boot finds the models present, writes the sentinel and performs no network fetch.
+**Why:** provisioning is otherwise a silent multi-gigabyte background download with no operator-visible state, and an air-gapped install has no way to supply the weights at all.
+**Dep:** After T-200 and T-201.
+**Status:** planned | **Domain:** UI/Provisioning | **Who:** portal/UI agent
+
+---
+
+## T-204 -- OFFL-01 vendor `terra.repo` instead of curling it at build  (WS-OFFL | P3 | S)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- a build input is a tracked in-tree file, not a network round-trip (Law 12 BAKE-NOT-FETCH).
+**What+How:** `automation/05-enable-external-repos.sh` fetches `terra.repo` over the network. Vendor the file as `usr/share/mios/repos/terra.repo` and change the step to copy the in-tree copy, keeping the network fetch only behind an explicit `--online` flag.
+**Where:** `automation/05-enable-external-repos.sh` | `usr/share/mios/repos/terra.repo` (new)
+**Done When:** a build with egress blocked passes the repo-enable step with no outbound request.
+**Why:** an upstream URL change or a five-minute outage breaks the build for every operator, and the repo definition that gates package resolution is untracked and unreviewable.
+**Dep:** Independent; part of the offline-build sweep.
+**Status:** done | **Domain:** Build/Offline | **Who:** build agent
+
+---
+
+## T-205 -- OFFL-02 vendor desktop assets: Geist + Nerd fonts, Bibata cursor, flathub mirror  (WS-OFFL | P3 | M)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- the desktop layer bakes from in-tree bytes rather than four live remotes.
+**What+How:** `automation/09-fonts.sh` and `automation/10-gnome.sh` fetch Geist and Nerd-Fonts, the Bibata cursor, and add the flathub remote at build time. Vendor `usr/share/mios/vendored/fonts/{geist,nerd}.tar.xz` and `usr/share/mios/vendored/cursors/bibata-*.tar.xz` and install from those, and stand up a local flathub mirror or bake the needed flatpaks as OCI archives -- `automation/40-flatpak-bake.sh` already does OCI bake for flatpaks, so extend that path rather than adding a second one.
+**Where:** `automation/09-fonts.sh` | `automation/10-gnome.sh` | `usr/share/mios/vendored/fonts/` (new) | `usr/share/mios/vendored/cursors/` (new)
+**Done When:** an offline build installs the fonts and cursor from the in-tree tarballs and the flatpak install resolves from the local mirror / OCI archives, with no remote added.
+**Why:** four separate desktop remotes each turn a font-CDN hiccup into a failed OS build, and the exact font/cursor bytes shipped to users are not pinned in the tree.
+**Dep:** Independent.
+**Status:** done | **Domain:** Build/Offline | **Who:** build agent
+
+---
+
+## T-206 -- OFFL-03 vendor the k3s binary + k3s-selinux policy  (WS-OFFL | P3 | S)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- the cluster layer installs from tracked artifacts instead of a fetch and a git clone.
+**What+How:** `automation/13-ceph-k3s.sh` downloads the k3s binary and `automation/19-k3s-selinux.sh` clones k3s-selinux. Vendor `usr/share/mios/vendored/k3s/k3s-<tag>` plus a k3s-selinux source tarball and change both steps to install from in-tree.
+**Where:** `automation/13-ceph-k3s.sh` | `automation/19-k3s-selinux.sh` | `usr/share/mios/vendored/k3s/` (new)
+**Done When:** an offline build installs k3s and its SELinux policy with no clone and no download.
+**Why:** cloning a default branch at build means the SELinux policy shipped in the image is whatever upstream had that minute -- unreviewed, unpinned and unbuildable offline.
+**Dep:** Independent.
+**Status:** done | **Domain:** Build/Offline | **Who:** build agent
+
+---
+
+## T-207 -- OFFL-04 vendor the hermes-agent source snapshot + a `--no-index` wheelhouse  (WS-OFFL | P3 | M)
+**Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- retires a network-at-build baker from the "clone the default branch and WARN forever" class.
+**What+How:** `automation/38-hermes-agent.sh` fetches the hermes-agent git tree and its pip dependencies during the build. Vendor a source snapshot in-tree plus a wheelhouse under `usr/share/mios/vendored/wheels/`, and switch the venv step to `pip install --no-index --find-links <wheelhouse>` so dependency resolution is fully local and reproducible.
+**Where:** `automation/38-hermes-agent.sh` | `usr/share/mios/vendored/wheels/` (new) | vendored hermes source (new)
+**Done When:** the hermes venv builds with PyPI unreachable and no git remote configured.
+**Why:** the agent runtime is assembled from an unpinned branch plus whatever PyPI serves at build time, so two builds of the same commit can ship different agent code -- the exact drift class the debt register exists to close.
+**Dep:** Independent.
+**Status:** done | **Domain:** Build/Offline | **Who:** build agent
+
+---
+
+## T-208 -- OFFL-05 vendor the baseline GGUF blobs + pre-pull the llama-swap proxy image  (WS-OFFL | P2 | M)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- an offline build still yields a bootable image that can answer a prompt.
+**What+How:** `automation/38-llamacpp-prep.sh` fetches GGUF blobs and the llama-swap proxy image at build. Bundle only the small/default GGUFs under `usr/share/mios/vendored/models/` and pre-pull the proxy image into the build cache; coordinate with WS-FBM so the large models stay on the T-200 first-boot path and only the baseline lands in the bake.
+**Where:** `automation/38-llamacpp-prep.sh` | `usr/share/mios/vendored/models/` (new)
+**Done When:** an offline build produces a bootable image containing the baseline model and the proxy image, with zero build-time model fetch.
+**Why:** without a baseline model in the bake, an air-gapped install boots into an AI OS whose front door has nothing to serve; with all models in the bake, the image is too large to publish.
+**Dep:** Coordinate with T-200/T-201, which own the large-model path.
+**Status:** done | **Domain:** Build/Offline/AI-lanes | **Who:** build agent
+
+---
+
+## T-209 -- OFFL-06 local rpm mirror image so `dnf` never leaves the host at build  (WS-OFFL | P3 | L)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- the last and largest build-time egress path is closed.
+**What+How:** Package installs still reach Fedora mirrors during the build. Ship a local rpm mirror image (or a vendored repo snapshot) and point the `automation/` dnf-config step at it, with a new reproducible mirror-snapshot build target so the mirror contents themselves are regenerable rather than a hand-curated blob. This is the largest remaining offline gap -- scope the snapshot step before implementing.
+**Where:** `automation/` dnf-config step | new mirror-build target
+**Done When:** a build with all egress blocked completes the package-install phase entirely from the local mirror.
+**Why:** every other offline fix is moot while `dnf` needs the internet -- the Scenario-2 USB build cannot run in an air-gapped facility at all.
+**Dep:** Last and heaviest item of the WS-OFFL sweep.
+**Status:** done | **Domain:** Build/Offline | **Who:** build agent
+
+---
+
+## T-210 -- IGPU-00 Wave-0 go/no-go probes: iGPU-in-WSL, 4 GB heavy lane, WSL rebaseline  (WS-IGPU | P2 [VM] | S)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- multi-vendor GPU compute is committed to only after the hardware says it works.
+**What+How:** Run three gating probes on real hardware and record each result: (1) an iGPU-in-WSL matmul via AMD ROCDXG or Intel Level-Zero; (2) the heavy lane inside ~4 GB using `--gpu-memory-utilization 0.2` plus KV-cache CPU offload; (3) a WSL rebaseline confirming `wsl --version` >= 2.7.5 and kernel >= 6.18. Write the findings up as the explicit go/no-go for T-211 and T-212 rather than leaving them in a chat log.
+**Where:** operator-loop probes | findings captured in `usr/share/doc/mios/concepts/`
+**Done When:** all three probe results and a written go/no-go decision exist in `usr/share/doc/mios/concepts/`.
+**Why:** T-211 and T-212 are both L-effort lane rewrites that are wasted work if the iGPU passthrough or the 4 GB heavy lane simply does not function on this hardware.
+**Dep:** Blocks T-211 and T-212.
+**Status:** planned | **Domain:** Verification/Compute | **Who:** operator/VM
+
+---
+
+## T-211 -- IGPU-01 move the iGPU inference lane in-VM and delete `mios-igpu-server.ps1`  (WS-IGPU | P2 [VM] | L)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- every inference lane runs inside the image, and a PowerShell-as-program service disappears with it (Law 14).
+**What+How:** Stand up a ROCm/Level-Zero iGPU lane inside the VM with its own launch script and quadlet, register it as an `[agents.*]`/lane entry in mios.toml so it routes like every other lane, then retire the native-Windows `mios-igpu-server.ps1` on :11436 together with the Tailscale hop that reached it.
+**Where:** new lane launch script + quadlet | `usr/share/mios/mios.toml` (`[agents.*]`) | remove/deprecate the `mios-igpu-server.ps1` path
+**Done When:** the iGPU lane serves inference from inside the VM and both the native Windows iGPU server and its Tailscale hop are gone from the tree and from the running host.
+**Why:** one lane living outside the image breaks the single-artifact model -- it cannot be rolled back with `bootc rollback`, it needs a host-side network hop to be reachable, and it is a PowerShell program the language policy no longer permits.
+**Dep:** Gated on T-210 probe #1 passing.
+**Status:** planned | **Domain:** Compute/AI-lanes | **Who:** lanes agent
+
+---
+
+## T-212 -- IGPU-02 llama.cpp RPC fabric across lanes behind one logical endpoint + coopmat2 verify  (WS-IGPU | P2 | L)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- pooled cross-lane VRAM lets the fleet run a model no single device can hold.
+**What+How:** Run a llama.cpp `rpc-server` per lane (phone, iGPU, dGPU, cluster), mapped onto `[agents.*.nodes.*]` / `[nodes.*]` in SSOT, and point agent-pipe's endpoint routing at one logical RPC endpoint so an oversized model shards transparently across them. Verify coopmat2 support on the Vulkan lane as part of the bring-up.
+**Where:** `usr/share/mios/mios.toml` (`[nodes.*]`) | lane launch scripts | agent-pipe endpoint routing
+**Done When:** a model larger than any single lane's VRAM answers a request through the one logical endpoint; coopmat2 is confirmed working on the Vulkan lane.
+**Why:** today each lane is capped by its own device, so the largest model the fleet can run is the largest one card can hold, and idle VRAM on the other lanes is unreachable.
+**Dep:** After T-210 and T-211.
+**Status:** planned | **Domain:** Compute/AI-lanes | **Who:** lanes agent
+
+---
+
+## T-213 -- RDSK-01 Selkies WebRTC + NVENC remote-desktop lane with VNC fallback  (WS-RDSK | P3 | L)
+**Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a GPU host uses its hardware encoder for remote desktop instead of software rendering.
+**What+How:** Add a Selkies (WebRTC + NVENC) or Neko remote-desktop lane as an `automation/` bake step plus a `.container` quadlet gated by an enable flag in mios.toml, so it is a-la-carte like every other sidecar. Keep the existing KasmVNC/llvmpipe path as the fallback for non-GPU hosts rather than replacing it.
+**Where:** new `automation/` bake step | new `.container` quadlet | `usr/share/mios/mios.toml` (enable gate)
+**Done When:** a GPU host streams the desktop over NVENC/WebRTC and a non-GPU host falls back to the VNC path with no manual switch.
+**Why:** remote desktop currently runs through llvmpipe software rendering, so the GPU sits idle while the interactive session is unusable at high resolution.
+**Dep:** Independent; GPU-host gated.
+**Status:** planned | **Domain:** RemoteDesktop/GPU | **Who:** desktop agent
+
+---
+
+## T-214 -- WSL-01 rootfs-export -> `wsl --import` pipeline + a MiOS-owned updater for WSL  (WS-WSL | P2 | L)
+**Goal:** E-20 The bootc-native install legs -- the same OCI artifact installs onto a third target, and stays upgradable there.
+**What+How:** Add an `automation/` step that exports the built OCI image as a WSL-importable rootfs plus a `Justfile` wsl2 target that drives it, extending the existing scaffolding (`usr/lib/wsl-distribution.conf`, `config/artifacts/wsl2.toml`) rather than starting new config. Because `bootc upgrade` is inoperable inside WSL (Finding D), also ship a MiOS-owned update mechanism that refreshes an installed WSL distro from a newer image without bootc.
+**Where:** new `automation/` rootfs-export step | `Justfile` (wsl2 target) | `usr/lib/wsl-distribution.conf` | `config/artifacts/wsl2.toml`
+**Done When:** `wsl --import` of the exported rootfs yields a working MiOS distro, and the MiOS updater moves an already-installed WSL distro to a newer image with bootc absent.
+**Why:** WSL is the dual-personality path onto every Windows box, but today the image cannot be imported there and any WSL install that did exist would be frozen forever with no upgrade route.
+**Dep:** Independent; pairs with T-215 and T-216.
+**Status:** in-progress | **Domain:** Packaging/WSL | **Who:** build agent
+
+---
+
+## T-215 -- WSL-02 air-gapped atomic upgrade: `skopeo copy` -> oci -> `bootc switch` + soft-reboot  (WS-WSL | P2 | L)
+**Goal:** E-20 The bootc-native install legs -- an offline host upgrades from an OCI tarball on USB with zero egress.
+**What+How:** Implement the offline upgrade route end to end: `skopeo copy … oci:/usb`, then `bootc switch --transport oci`, then `bootc upgrade --apply`. Split the kernel-versus-userspace delta so non-kernel updates apply via soft-reboot instead of a full reboot. `automation/43-uupd-installer.sh` already covers part of the updater -- extend it rather than adding a parallel path, and document the route.
+**Where:** `automation/43-uupd-installer.sh` | new offline-upgrade path/doc
+**Done When:** an air-gapped host upgrades from an OCI-on-USB image and a userspace-only update lands via soft-reboot without a full restart.
+**Why:** an immutable OS whose only upgrade path needs a registry is not sovereign -- air-gapped fleets have no way to receive a security fix, and every userspace change costs a full reboot.
+**Dep:** Independent.
+**Status:** planned | **Domain:** Lifecycle/Offline | **Who:** build agent
+
+---
+
+## T-216 -- WSL-03 `.wslconfig` hygiene template + cosign self-verify on pull + `UserNS=auto`  (WS-WSL | P3 | M)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- the WSL update path verifies what it pulls, and rootful quadlets stop running with full namespace privilege.
+**What+How:** Ship the not-yet-confirmed WSL tuning: a `.wslconfig` template with `sparseVhd` and `autoMemoryReclaim`, plus a `/mnt/shared_memory` tmpfs pre-mount hook. Add cosign self-verify-on-pull to the WSL updater -- `automation/42-cosign-policy.sh` and `automation/90-generate-sbom.sh` already sign, so this is consuming an existing signature, not creating a new chain -- and set `UserNS=auto` on the rootful `.container` templates.
+**Where:** `config/artifacts/wsl2.toml` | `usr/lib/wsl-distribution.conf` | rootful `.container` templates | WSL updater
+**Done When:** the `.wslconfig` template ships with `sparseVhd` and `autoMemoryReclaim`; the WSL updater refuses an unsigned or mis-signed image on pull; rootful quadlets carry `UserNS=auto`.
+**Why:** MiOS signs its images and then the WSL updater ignores the signature, so the one install path that runs on an untrusted Windows host is also the one that will install anything handed to it -- while its VHD grows without bound.
+**Dep:** After T-214.
+**Status:** in-progress | **Domain:** WSL/Supply-chain | **Who:** build agent
+
+---
+
+## T-217 -- STD26-01 adopt the MCP `2026-07-28` wire: Streamable-HTTP, structured tool output, elicitation  (WS-STD26 | P2 | L)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- elicitation gives the tool surface a real human-in-the-loop primitive, and structured output makes tool results checkable.
+**What+How:** Upgrade `mios_mcp.py` and the served `mcp.json` to the `2026-07-28` wire: stateless Streamable-HTTP transport, `Mcp-Method`/`Mcp-Name` headers, JSON-Schema-typed structured tool OUTPUT, elicitation as the HITL primitive, sampling, MCP Apps, and a local MCP Registry with `.well-known` Server Cards emitted from a new emitter. Keep the current stdio/consume surface working as a fallback so existing peers do not break.
+**Where:** `usr/lib/mios/agent-pipe/mios_mcp.py` | `usr/share/mios/ai/v1/mcp.json` | `.well-known` server-card emitter
+**Done When:** a `2026-07-28` MCP client connects over Streamable-HTTP, reads structured tool output and the Server Cards, and successfully elicits a response; the legacy stdio client still connects.
+**Why:** on the old wire every tool result is unstructured text the model must re-parse, there is no protocol-level way to ask the operator before a risky action, and new-wire clients cannot talk to MiOS at all.
+**Dep:** Independent; coordinate with T-221 (elicitation-based HITL) and WS-FED.
+**Status:** planned | **Domain:** Standards/MCP | **Who:** federation agent
+
+---
+
+## T-218 -- STD26-02 A2A v1.0.0 AgentCard with JWS-over-JCS signature + standard task states  (WS-STD26 | P2 | L)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- a federated peer's identity is cryptographically verifiable before it is trusted.
+**What+How:** Move the published AgentCard from 0.3.0 to v1.0.0 per `a2a.proto`, add `AgentCardSignature` as a JWS over the JCS-canonical card signed with the Ed25519 passport key (building on `mios_a2a_principal.py`, which already carries signed principals, and FED-G4), map swarm/DAG node status onto the standard A2A task states instead of MiOS-private names, and emit `TaskStatusUpdateEvent` push webhooks. Card assembly lives in `server.py`'s `_build_agent_card`; the signing policy belongs in `mios.toml [a2a.security]`.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py` | `usr/lib/mios/agent-pipe/server.py` (`_build_agent_card`) | `usr/share/mios/mios.toml` (`[a2a.security]`)
+**Done When:** the published card validates as A2A v1.0 with a verifiable `AgentCardSignature`, and DAG/swarm progress is observable by a stock A2A client as standard task states with push updates.
+**Why:** an unsigned 0.3.0 card means any host on the network can claim to be a MiOS peer, and MiOS-private status names make swarm progress invisible to every off-the-shelf A2A client.
+**Dep:** Extends FED-G4/T-012; pairs with T-219.
+**Status:** in-progress | **Domain:** Standards/A2A | **Who:** federation agent
+
+---
+
+## T-219 -- STD26-03 OASF Agent Directory + DID identity replacing the hand-maintained peer overlays  (WS-STD26 | P2 | L)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- peers are discovered and identity-resolved from a synced directory instead of a file an operator edits by hand.
+**What+How:** Add a directory service (`mios_agentreg.py`) that publishes and consumes OASF-described records and resolves DID-based agent identities, then repoint agent-pipe's routing at it and retire the hand-maintained `ai/v1/mcp.json` and `a2a-peers.json` overlays as the source of peers. This is the highest-leverage federation move: it replaces two hand-edited registries with one syncable, identity-bearing one.
+**Where:** `usr/lib/mios/agent-pipe/mios_agentreg.py` (new) | `usr/share/mios/ai/v1/mcp.json` | `a2a-peers.json`
+**Done When:** peers register via OASF records carrying DID identity, the directory syncs between hosts, and agent-pipe routes from the directory rather than reading the static overlay files.
+**Why:** every peer today is a hand-edited JSON line with no identity attached, so federation does not scale past a handful of hosts and there is nothing to authenticate a peer against.
+**Dep:** Pairs with T-218; supersedes the FED-G3 overlay reload for the directory case.
+**Status:** planned | **Domain:** Standards/Federation | **Who:** federation agent
+
+---
+
+## T-220 -- STD26-04 durable event history over swarm/DAG runs + a Memory-Block abstraction  (WS-STD26 | P3 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- recall and writes go through a typed memory abstraction, and a crashed run resumes instead of restarting.
+**What+How:** Add a Temporal-style local event history over the `server.py` DAG executor so a crashed run replays from its recorded events, and introduce an explicit Memory-Block abstraction in `mios_memory.py` over raw pgvector rows so callers stop touching row shapes directly. Formalize `_admit` against the Agent Control Protocol (static risk + stateful trace + ledger). The sleep-time consolidation half is already covered by MEM-05/T-056 -- this task is only the durability plus Memory-Block delta.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (DAG executor) | `usr/lib/mios/agent-pipe/mios_memory.py`
+**Done When:** a DAG run killed mid-execution resumes from the event history on restart, and recall/write paths go through Memory-Block with no raw-row access left in the callers.
+**Why:** a crash loses a whole multi-step run today, and every caller reaching into raw pgvector rows means the schema can never change without breaking the agent plane.
+**Dep:** After the Kernel Stage-2 rewire (A6/T-025) stabilizes the DAG path.
+**Status:** planned | **Domain:** Durability/Memory | **Who:** orchestration agent
+
+## T-221 -- STD26-05: Re-express the bespoke HITL gate on MCP elicitation + A2A task states  (WS-GUARD | P3 | M)
+**Goal:** E-24 Autonomy guardrails: the agent plane cannot starve its own host -- a human approval gate any standards client can drive, so autonomy always has an interoperable stop button.
+**What+How:** Keep the bespoke approval queue as the internal backend, but expose it over open standards: implement MCP elicitation (SEP-2322) request/response on the MCP surface and emit A2A `INPUT_REQUIRED`/`AUTH_REQUIRED` task states out of `mios_hitlflow.py` / `mios_arbiter.py`, so an external client can both trigger and satisfy a pending approval over the wire rather than through MiOS-private calls. No second queue -- the standards surfaces are adapters onto `mios_hitl.py`.
+**Where:** `usr/lib/mios/agent-pipe/mios_hitl.py`, `usr/lib/mios/agent-pipe/mios_hitlflow.py`, `usr/lib/mios/agent-pipe/mios_arbiter.py`; the MCP and A2A surfaces.
+**Done When:** A third-party standards client raises AND clears a HITL prompt end-to-end via elicitation / `INPUT_REQUIRED`, and the approval is visible in the existing bespoke queue (one queue, two faces).
+**Why:** HITL is reachable only through MiOS-private calls today, so any external MCP/A2A client meets an approval it cannot see or answer and the task stalls forever.
+**Dep:** T-217 (elicitation) + T-218 (task states).
+**Status:** planned | **Domain:** Standards/HITL | **Who:** federation agent
+
+## T-222 -- OAI-01: One multi-kind capability catalog -- recipes and skills as tagged `[routing]` rows  (WS-CODEMODE | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- every callable capability is one uniformly-scored, composition-ruled catalog behind the single /v1 front door, not three parallel registries.
+**What+How:** `mios.toml [routing]` is `kind=tool`-only today (see the comment at ~line 3097). Extend the schema with `kind` + `domain` columns and fold recipes in as function-tools and skills in as description-only rows; teach the 2-stage classifier/catalog to score ACROSS kinds; enforce composition rules in the registry loader (recipes may compose tools, recipes may NOT compose skills).
+**Where:** `usr/share/mios/mios.toml [routing]`; `mios_capreg.py`, `mios_manifest.py`, `mios_verbcatalog.py`, `mios_classify.py`.
+**Done When:** Recipes and skills appear as catalog rows carrying `kind`/`domain`, the router demonstrably routes a turn to each kind, and a recipe→skill composition is rejected by the loader rather than silently accepted.
+**Why:** Recipes and skills are invisible to the router, so the classifier can only ever pick a tool -- shipped capability sits unreachable and callers hand-wire around it.
+**Dep:** Extends the shipped 2-stage router; overlaps ORCH code-mode (T-061).
+**Status:** in-progress | **Domain:** Routing/Catalog | **Who:** agent-pipe agent
+
+## T-223 -- OAI-02: Tier-1 `usage` detail fields, strict function schemas, cache-friendly prompt ordering  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- the /v1 contract reports the exact token facts that budgets, quotas and cost gates are computed from.
+**What+How:** In the `server.py` usage assembler and streaming path, emit `usage.completion_tokens_details.reasoning_tokens` and `usage.prompt_tokens_details.cached_tokens` (both absent today); mark the tool surface strict (`strict:true`, `additionalProperties:false`) in the tool-schema builder; reorder assembled prompts static-content-first so upstream prompt caches can hit. While in the path, spot-verify the streaming `[DONE]` sentinel / tool-delta contract and `developer`-role acceptance.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (usage assembler + streaming path); `mios_worker_tools.py` / the tool-surface builder.
+**Done When:** A live `/v1/chat/completions` response carries the reasoning + cached token detail objects, the advertised function schemas are strict, and a streaming run confirms the `[DONE]` and role contracts.
+**Why:** Without the detail fields, per-session budgets and quota accounting cannot separate reasoning from output tokens or cached from fresh prompt tokens, so cost gates guess; non-strict schemas let models emit unvalidated tool args.
+**Dep:** none -- independent; caps off the shipped Tier-0/1 conformance work.
+**Status:** done-by-code | **Domain:** OpenAI-conformance | **Who:** agent-pipe agent
+
+## T-224 -- OAI-03: Persistent PTY/tmux shell broker + PowerShell object-pipeline flattening  (WS-CODEMODE | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- agent shell work runs in one bounded, stateful substrate owned by the broker instead of unbounded inline execs in agent-pipe.
+**What+How:** The ACI output-normalizer `mios_aci.py` shipped but the persistent-shell substrate did not. Add a PTY/tmux-wrapped shell broker under `usr/libexec/mios/` so `cwd`/env survive across turns, and place it with the coderun sandbox/broker -- NOT inline in agent-pipe. On the Windows side, flatten .NET object pipelines to plain text in the os-control executor before returning.
+**Where:** new persistent-shell broker under `usr/libexec/mios/`; `usr/share/mios/windows/mios-oscontrol-server.ps1` (pipeline flattening).
+**Done When:** Two sequential shell turns share `cwd` and exported env through the same PTY session, and a PowerShell command that would return objects arrives at the model as flat text.
+**Why:** Every shell turn starts from scratch today, so an agent's `cd`/`export`/venv activation evaporates between steps and it burns tokens re-establishing state; PowerShell object output arrives as unusable serialized noise.
+**Dep:** Pairs with the coderun broker (F3/T-072).
+**Status:** planned | **Domain:** OS-control/ACI | **Who:** os-control agent
+
+## T-225 -- OAI-04: Run-template REPLAY -- intent-keyed zero-token DAG reuse  (WS-DURA | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- repeat work costs zero planning tokens, so a looping agent cannot burn budget re-planning the same intent.
+**What+How:** The capture half shipped (`[run_template].enable=true`, `GET /v1/run-templates`). Build the reuse half: a matcher in `server.py` that keys an incoming turn to a stored DAG plan by intent-class and executes it directly, skipping the planning LLM call; gate on a confidence threshold read from `mios.toml [run_template]` and fall back to full planning below it.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (run-template matcher); `usr/share/mios/mios.toml [run_template]`.
+**Done When:** A repeated intent executes its stored DAG with zero planning-model calls (verifiable in the request log), and a deliberately fuzzy variant falls back to planning rather than replaying the wrong plan.
+**Why:** Captured templates are write-only today -- every identical request pays full planning latency and tokens, and the same intent can plan differently run to run.
+**Dep:** Extends the shipped capture path.
+**Status:** in-progress | **Domain:** Orchestration/Determinism | **Who:** agent-pipe agent
+
+## T-226 -- KACT-01: Wire the `mios_batch` coalescing chokepoint at dispatch (default OFF)  (WS-GUARD | P3 | S)
+**Goal:** E-24 Autonomy guardrails -- in-flight dedup/coalescing exists at the dispatch chokepoint so a retry storm cannot fan out N identical inferences.
+**What+How:** `mios_batch.py` (imported at `server.py:158`) already holds the window/hold-flush logic, but nothing calls it. Add the server-side hold/flush chokepoint keyed on `(endpoint, model)` in the dispatch path, behind a `mios.toml` flag defaulting OFF -- native vLLM/SGLang already continuous-batch, so this is a safety valve, not a throughput feature.
+**Where:** `usr/lib/mios/agent-pipe/server.py` (dispatch chokepoint); `usr/lib/mios/agent-pipe/mios_batch.py`; `usr/share/mios/mios.toml`.
+**Done When:** With the flag on, concurrent same-`(endpoint,model)` requests demonstrably coalesce through one hold/flush window; with the flag at its default, dispatch is byte-identical to today (a proven no-op).
+**Why:** Dead imported code that looks wired but is not: the module reads as an active guardrail during review while nothing bounds duplicate fan-out.
+**Dep:** none -- independent.
+**Status:** in-progress (built-gated) | **Domain:** Scheduling | **Who:** agent-pipe agent
+
+## T-227 -- KACT-02: SmartRouting -- real remote adapters, quality gate, per-day budget  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- escalation off the local lane is bounded by an enforced daily budget, never an open-ended spend.
+**What+How:** `mios_smartroute.py` (`server.py:159`) already models local-first → paid-remote escalation on a quality-gate failure, but it is disabled by default and the remote-lane adapters are stubs (see the comment at `server.py:2924`). Implement the remote adapters, orchestrate the quality gate so a failing local answer triggers exactly one escalation, and key spend through `mios_quota.py` so the per-day budget is authoritative. Keep default-off.
+**Where:** `usr/lib/mios/agent-pipe/mios_smartroute.py`, `mios_quota.py`, `server.py`.
+**Done When:** A forced quality-gate failure escalates to a remote lane and returns; with the daily budget exhausted the same failure falls back to local instead of spending; with the feature at its default the path is inert.
+**Why:** The escalation policy exists on paper only -- a quality failure silently returns the bad local answer, and there is no budget ceiling if someone flips it on as-is.
+**Dep:** Pairs with T-228 (quota keying); needs remote API keys.
+**Status:** in-progress (built-gated) | **Domain:** Routing/Cost | **Who:** agent-pipe agent
+
+## T-228 -- KACT-03: Key quota on the verified principal and persist it  (WS-GUARD | P3 | S)
+**Goal:** E-24 Autonomy guardrails -- token/turn budgets are per-identity and survive restart, so a hard stop is actually hard.
+**What+How:** `mios_quota.py` counts globally and in memory. Re-key its counters on the verified principal from the inbound-auth/principal path, and persist them to a quota table in the pgvector store so a restart does not zero the ledger. Add the table to `postgres/schema-init.sql` alongside the existing account/config tables.
+**Where:** `usr/lib/mios/agent-pipe/mios_quota.py`, `server.py`; `usr/share/mios/postgres/schema-init.sql` (quota table).
+**Done When:** Two different verified principals accrue separate quota, and a restart of agent-pipe leaves both balances intact rather than reset to zero.
+**Why:** One noisy caller consumes everyone's budget today, and any restart -- including a `bootc` upgrade -- hands an exhausted account a fresh allowance.
+**Dep:** After FED-G1/T-001 principal extraction; pairs with T-227.
+**Status:** in-progress (built-gated) | **Domain:** Cost/Identity | **Who:** agent-pipe agent
+
+## T-229 -- KACT-04: Gossip/DHT discovery transport for federated peers  (WS-GUARD | P3 | M)
+**Goal:** E-24 Autonomy guardrails -- A2A federation reaches WAN peers with no central registry, so reputation (and the redaction boundary) travels with membership.
+**What+How:** `mios_gossip.py` exists with no transport underneath it. Wire a gossip/DHT transport that propagates membership plus the `mios_reputation.py` scores between peers, registered from `server.py` at startup. This is the WAN/mesh path and is explicitly distinct from FED-G5's LAN-local mDNS discovery -- do not collapse the two.
+**Where:** `usr/lib/mios/agent-pipe/mios_gossip.py`, `mios_reputation.py`; `server.py`.
+**Done When:** Two nodes with no shared registry discover each other and exchange reputation entries purely over gossip.
+**Why:** Federation beyond the LAN needs a hand-maintained peer list today -- a single point of staleness and the one thing a sovereign, registry-free mesh must not have.
+**Dep:** After WS-FED inbound auth; complements FED-G5/T-013.
+**Status:** in-progress (built-gated) | **Domain:** Federation/Discovery | **Who:** federation agent
+
+## T-230 -- KACT-05: Actually EXEC the per-verb risk-tier bwrap/seccomp wrapper  (WS-GUARD | P2 | M)
+**Goal:** E-24 Autonomy guardrails -- a risky verb runs inside the sandbox the policy says it runs in, not merely next to a computed argv.
+**What+How:** `mios_sandbox.py` classifies each verb into a risk tier and assembles the bwrap command line via `build_bwrap_argv()`, but the wrapper is never `exec`'d and no seccomp filter is applied -- the decision is computed and discarded. Make the dispatch path execute the built argv for tiered verbs and attach the seccomp profile, so the tier is enforcement rather than metadata.
+**Where:** `usr/lib/mios/agent-pipe/mios_sandbox.py`; the verb-dispatch path in `usr/lib/mios/agent-pipe/server.py`.
+**Done When:** A verb at a confined tier is observably running under bwrap (its process tree shows the wrapper and it cannot reach a path outside the bind set), and a syscall outside the seccomp profile is denied instead of succeeding.
+**Why:** Security-critical false assurance: the code, the docs and any reviewer read "verbs are sandboxed by risk tier" while every verb in fact runs unconfined at agent-pipe's own privilege.
+**Dep:** none.
+**Status:** in-progress (security-critical) | **Domain:** Security/Sandbox | **Who:** security agent
+
+## T-232 -- UISHELL-01: Native QML Services + Swarm views replacing the web-Portal fallback  (WS-DESKTOP | P3 | M)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- the shipped desktop shell renders MiOS state natively instead of punting to a browser.
+**What+How:** Phase-2 already exposes the `PortalData` properties; replace the "open web Portal" fallback in `Sidebar.qml` with native QML list views bound directly to those properties, adding a Services view and a Swarm view. Settle the Terminals question in the same pass: launch the real terminal emulator, or embed xterm.js -- pick one and implement it.
+**Where:** `usr/share/mios/quickshell/` (new Services and Swarm views, `Sidebar.qml`).
+**Done When:** Services and Swarm render live from `PortalData` inside the shell with no browser launch, and the Terminals path does whatever the recorded decision says.
+**Why:** The shell advertises panels that just spawn a web page, so the "native desktop" is a browser shortcut and shell state and Portal state can disagree.
+**Dep:** After Phase-2 (shipped).
+**Status:** planned | **Domain:** UI/QML | **Who:** portal/UI agent
+
+## T-233 -- UISHELL-02: Login popup so `PortalData.login()` needs no QML edit  (WS-DESKTOP | P3 | S)
+**Goal:** E-22 Dotfiles projection -- the operator configures the shell through the shell, never by editing shipped source.
+**What+How:** Add a small QML popup component (text field + submit button) that calls `PortalData.login()` with the entered credentials -- the piece deliberately deferred in Phase 2.
+**Where:** `usr/share/mios/quickshell/` (new login popup component).
+**Done When:** An operator authenticates from the popup and the shell shows authenticated Portal data, with no file under `usr/share/mios/quickshell/` modified.
+**Why:** Logging in currently means hand-editing a QML file in a read-only `/usr` image -- effectively impossible for a normal operator.
+**Dep:** none -- independent.
+**Status:** planned | **Domain:** UI/QML | **Who:** portal/UI agent
+
+## T-234 -- UISHELL-03: One SSOT key for the `mios-webshell` AI-sidebar endpoint  (WS-DEDUP-CROSSSURFACE | P3 | S)
+**Goal:** E-09 One value, one name: the full de-duplication campaign -- the AI endpoint is declared once and read by every surface, per Law 7/Law 9.
+**What+How:** The Surfer patch hardcodes the AI sidebar at `:3030` (OWUI) while the Windows Zen path points at agent-pipe -- two answers to one question. Choose the canonical endpoint, express it as a single SSOT key, and make `56-bake-surfer.sh` resolve the baked default from that key instead of a literal. Land it before the next Surfer rebuild so the baked artifact is correct rather than needing a re-bake.
+**Where:** `automation/56-bake-surfer.sh`; the SSOT AI-endpoint key in `usr/share/mios/mios.toml`.
+**Done When:** Both the Surfer and Zen paths resolve the sidebar endpoint from the same SSOT key, no `:3030` literal remains in the bake script, and a rebuilt Surfer opens the correct endpoint.
+**Why:** Two browsers in the same image talk to two different AI backends, and the divergence is frozen into a baked artifact until someone notices.
+**Dep:** Before the next Surfer rebuild.
+**Status:** planned | **Domain:** UI/Config | **Who:** portal/UI agent
+
+## T-235 -- UISHELL-04: Decide Cockpit's native-vs-web posture and record it  (WS-DESKTOP | P3 | S)
+**Goal:** E-22 Dotfiles projection -- the desktop-shell scope is a recorded decision, not an open Phase-4 question blocking downstream work.
+**What+How:** Resolve the three-way Phase-4 trade-off for Cockpit -- keep the web-hosted tile, reimplement its views in QML, or render it through a Wayland-native web renderer -- and write the decision plus rationale into the design doc / ROADMAP note. Only schedule implementation work after the decision exists; if native wins, the work lands under `usr/share/mios/quickshell/`.
+**Where:** the design doc / ROADMAP note; `usr/share/mios/quickshell/` if native is chosen.
+**Done When:** A written Cockpit posture decision with rationale exists and is cross-referenced from the roadmap; follow-up tasks can cite it.
+**Why:** An unmade decision keeps the Cockpit tile in limbo -- nobody can size the native-shell work, and each contributor assumes a different end state.
+**Dep:** After T-232 (which informs native-shell scope).
+**Status:** planned (decision) | **Domain:** UI/Architecture | **Who:** architect
+
+## T-236 -- NAME2-01: Reconcile the agent-plane user SSOT -- inert 820/822 vs live `mios-ai`/850  (WS-NAME | P2 | M)
+**Goal:** E-10 One canonical name: the unified names/keys registry -- SSOT states the identity the system actually runs as, so a projection can be trusted.
+**What+How:** `mios.toml` declares `[services.hermes]` uid 820 (~line 7846) and `[services.agent_pipe]` uid 822 (~line 7868) while the live agent plane runs as `mios-ai`/850 -- an SSOT lie. Pick one resolution (repoint the SSOT to 850, or retire the inert users) and carry it through every consumer in one atomic change: the agent-pipe/hermes units, the firstboot `chown`, `tmpfiles.d` entries and the sudoers rules.
+**Where:** `usr/share/mios/mios.toml`; the agent-pipe and hermes unit files; the firstboot chown step; `tmpfiles.d`; sudoers.
+**Done When:** SSOT and every consumer name the same live agent-plane uid, and a tree-wide search returns no remaining 820/822 references.
+**Why:** Anything generated from SSOT chowns and grants to a uid nothing runs as -- so the projection is wrong by construction and future identity work builds on a false baseline.
+**Dep:** Under NAME-01/T-165's umbrella; do this before any further user-name churn.
+**Status:** planned | **Domain:** SSOT/Identity | **Who:** naming agent
+
+## T-237 -- NAME2-02: Rename agent-id `mios-daemon-agent` → `daemon-agent`  (WS-NAME | P3 | M)
+**Goal:** E-10 One canonical name -- agent ids follow the one naming convention with no redundant `mios-` prefix.
+**What+How:** Migrate the ~105 references across ~36 files (agent registries, `mios.toml [agents.*]`, env maps) from `mios-daemon-agent` to `daemon-agent` in a single atomic change so registries and env never disagree mid-flight. External contracts stay frozen -- rename the id, not the wire surface.
+**Where:** the agent registries, `usr/share/mios/mios.toml [agents.*]`, the env maps, and the ~36 files carrying `mios-daemon-agent`.
+**Done When:** No `mios-daemon-agent` string remains in the tree, the drift-check is green, and a live fan-out still resolves and dispatches to the agent under its new id.
+**Why:** The prefixed id is a standing exception to the agent-id convention that every new agent copies, and a half-done rename would break dispatch at runtime.
+**Dep:** After T-236 -- low-risk once the user SSOT is clean.
+**Status:** planned | **Domain:** Naming | **Who:** naming agent
+
+## T-238 -- NAME2-03: Mutable-module-state casing pass + `ContainerName=` audit  (WS-NAME | P3 | M)
+**Goal:** E-10 One canonical name -- one spelling rule holds across Python module state and unit identifiers alike.
+**What+How:** Finish the residual pass the naming refactor deferred: rename module-level mutable state (semaphores, caches, registries) in `server.py` and the `mios_*.py` modules to `_lower_snake`, and audit `ContainerName=` on every renamed `.container` unit so the container name matches its unit name. `server.py` Phase-1b renames already landed -- this is the remainder.
+**Where:** `usr/lib/mios/agent-pipe/server.py` and the `mios_*.py` module state; the renamed `.container` units.
+**Done When:** Every module-level mutable global is `_lower_snake`, each `ContainerName=` equals its unit name, and the drift-check is green.
+**Why:** Mixed casing on shared mutable state hides which globals are process-wide, and a `ContainerName=` that disagrees with its unit makes `podman ps` output unmappable to `systemctl` state during an incident.
+**Dep:** After T-236 and T-237.
+**Status:** planned (partial) | **Domain:** Naming/Hygiene | **Who:** naming agent
+
+## T-239 -- UKI-01: Ship the verity-rooted UKI build and the fapolicyd enforce promotion  (WS-SEC2 | P3 | L) [VM]
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- boot integrity is measured and executables are trust-gated, closing the chain at the bottom.
+**What+How:** Promote the scaffolded path to shippable: `ukify` measures the composefs fs-verity digest into `mios-verity.efi` with matching `kargs.d`, and fapolicyd moves PERMISSIVE→enforce. Fix the four named defects first -- the inverted agent-codegen carve-out rule, the false `permissive` karg claim, the rootflags merge collision, and the carve-out review. Keep the whole promotion behind an explicit operator gate: a mis-signed UKI bricks boot.
+**Where:** `automation/lib/ws7-uki-fapolicyd-build.sh`; `usr/share/mios/mios.toml [security.fapolicyd_observe]`, `[uki]`, `[packages.uki]`.
+**Done When:** All four defects are fixed and a VM boots a verity-rooted signed UKI with fapolicyd in enforce while agent codegen still executes -- with observe-mode remaining the shipped default.
+**Why:** The UKI/fapolicyd scaffolding reads as delivered while four known defects make enforce unsafe to enable, so the strongest boot- and exec-integrity controls in the image stay permanently off.
+**Dep:** Extends WS-H/H7 (fapolicyd allow-list baking); VM-gated.
+**Status:** in-progress (intentionally-deferred) | **Domain:** Security/Boot | **Who:** security/build agent
+
+## T-240 -- A3F-01: Flip the CENTRAL path to pg-primary and close the un-mirrored writes  (WS-DB | P2 | M) [VM]
+**Goal:** E-23 DB-driven configuration and vector recall -- PostgreSQL is the one agent datastore, with no write path still landing in the legacy store.
+**What+How:** Finish the deferred CENTRAL (server.py + OWUI pipe) cutover. Fix each un-mirrored write site: `execute_skill last_used_at`, `_skill_invocation_close`, the `hitl_approve` audit UPDATE, and the four OWUI-pipe writes in `mios_agent_pipe.py` (~L1394/1620/1910/2310). Make the `_skill_attribute_tool_call` RELATE-edge schema decision -- a `tool_call_emissions` table or an `emitted_by_invocation` column -- and apply it in `schema-init.sql`. Then flip `[pgvector].db_backend` from dual to postgres (the `_PG_PRIMARY` gate) under VM verification.
+**Where:** `usr/lib/mios/agent-pipe/server.py`; `usr/share/mios/owui/pipes/mios_agent_pipe.py`; `usr/share/mios/postgres/schema-init.sql`; `usr/share/mios/mios.toml [pgvector]`.
+**Done When:** With `db_backend=postgres`, a live recall + skill round-trip passes and no write site bypasses pg; the RELATE-edge schema decision is applied in the schema.
+**Why:** Dual-write with un-mirrored sites means the two stores are already silently divergent -- flipping today would drop skill usage timestamps and HITL audit rows on the floor.
+**Dep:** CLI/daemon cutover already DONE; gated on an operator VM session.
+**Status:** in-progress | **Domain:** Data/Migration | **Who:** data agent
+
+## T-241 -- OSCTL2-01: Thread an explicit target hwnd through the `pc_type` path  (WS-CODEMODE | P2 | M) [VM]
+**Goal:** E-24 Autonomy guardrails -- OS-control actions land in the window the agent named, so a keystroke cannot leak into whatever stole focus.
+**What+How:** Plumb a window handle end-to-end: `Resolve-EditElement(FromHandle)` → `/input/type`, route compound focus through the WINDOWS executor, and pass the hwnd down to `pc_type` so typing targets the resolved window rather than UIA's idea of focus. The UIA `SetValue` write-branch (`Invoke-UIASetValue` / `Invoke-TypeText`) already shipped; `Invoke-TypeText($text)` currently accepts no target hwnd. First check whether CU-01/T-038 already covers this and close as a duplicate if so.
+**Where:** `usr/share/mios/windows/mios-oscontrol-server.ps1`; the `pc_type` dispatch in `usr/lib/mios/agent-pipe/server.py`.
+**Done When:** A type into a named/handle-resolved BACKGROUND window lands in that window rather than the focused one, and read-back verification of the typed text passes.
+**Why:** Typing follows ambient focus today, so anything that steals focus mid-action receives the agent's keystrokes -- a correctness and a disclosure hazard on a shared desktop.
+**Dep:** Extends CU-01/T-038; gated on an operator live test.
+**Status:** done | **Domain:** OS-control/Windows | **Who:** os-control agent
+
+## T-242 -- VECTOR-00: V0 foundation -- unified DB, embed provenance, DB→TOML materialize, drift-gate 29  (WS-VECTOR | P1 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- a datastore that is a LOSSLESS projection of SSOT, provable by regeneration, before any authority moves to it.
+**What+How:** Land the unified pgvector DB in `/var` with `emb`/`emb_model`/`emb_version` provenance columns. Add the INVERSE step the tree lacks -- a DB→TOML materializer peering `seed-db-config.py`, which today only seeds TOML→DB. Make the verb round-trip lossless so `section`, `examples`, `model_name`, `hidden`, `aliases`, `conflict_group`, `parallel_limit` and `max_result_chars` all survive TOML↔DB. Add drift-gate check 29 (`drift_projection`) that regenerates TOML from the DB and diffs -- the theme check-25 pattern, now spanning the build boundary. No behavior change in this step.
+**Where:** `usr/share/mios/postgres/schema-init.sql`; `usr/libexec/mios/seed-db-config.py` plus a new DB→TOML materialize peer; `automation/98-drift-checks.sh` (check 29).
+**Done When:** Check 29 regenerates TOML from the DB and diffs clean, the verb round-trip loses no field, and `just drift-gate` plus `test_mios_*` pass.
+**Why:** Without a proven-lossless inverse and a gate on it, every later phase moves authority into a store that cannot demonstrate it still holds everything SSOT held.
+**Dep:** First in the V-series -- depends on nothing beyond a running `mios-pgvector`.
+**Status:** completed (implemented lossless DB-to-TOML materialize tool and drift checks) | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent
+
+## T-243 -- VECTOR-01: V1 config read-path -- the DB becomes the runtime read, TOML fails open  (WS-VECTOR | P1 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- runtime config resolves from the layered DB while TOML stays the safety net, killing the write-only `system_config` drift.
+**What+How:** Add a config resolver PEER of `mios_toml.py` that reads `config_kv`, `verb`, `domain_verb`, `recipe` and `routing_phrase` from the DB at runtime, overlay-first through `config_layer` (vendor < host < user < machine), with the existing TOML path as the fail-open fallback. Repoint `verbcatalog.py` and the other config consumers at it and retire the write-only `system_config` dead-drift. Flip authority per-surface only once the read-path, the lossless round-trip and the drift-gate are all green.
+**Where:** `usr/lib/mios/mios_toml.py` plus the new DB resolver; `usr/lib/mios/agent-pipe/mios_pipe/routing/verbcatalog.py`; `usr/libexec/mios/seed-db-config.py`.
+**Done When:** Config reads at runtime come from the DB with TOML fail-open proven by stopping pgvector, no consumer still reads `system_config`, and `just drift-gate` plus `test_mios_*` pass.
+**Why:** `system_config` is written and never read -- config edits made through the DB path silently do nothing, so the DB looks authoritative while TOML quietly still rules.
+**Dep:** After T-242 (lossless round-trip + materialize). Honors WS-NAME aliases and load-bearing legacy verbs -- fold-refactor, never blind-drop.
+**Status:** completed (integrated DB config resolver peer into mios_toml) | **Domain:** AI-plane/SSOT/DB | **Who:** agent-pipe backend engineer
+
+## T-244 -- VECTOR-02: V2 AI-plane vectors -- embed skill/verb/tool_call/event/session/directory  (WS-VECTOR | P2 | M)
+**Goal:** E-23 DB-driven configuration and vector recall -- recall is a native indexed DB query rather than in-process caches the agent rebuilds each start.
+**What+How:** Add `emb vector(768)` plus an HNSW `vector_cosine_ops` index to the `skill`, `verb`, `tool_call`, `event`, `session` and `directory_entry` tables over a text projection of each row, stamping `emb_model`/`emb_version` and filling them off the hot path via the `embed_backfill.py` worker pattern. Then retire the in-process verb-embeddings and apps-embeddings BM25/cosine caches in favour of native `<=>` queries.
+**Where:** `usr/share/mios/postgres/schema-init.sql`; the embed-backfill worker and the in-process embedding caches under `usr/lib/mios/agent-pipe/`.
+**Done When:** Each listed table carries a populated `emb` with provenance stamped, an HNSW recall query returns the expected rows, the in-process caches are gone, and `just drift-gate` plus `test_mios_*` pass.
+**Why:** Recall quality depends on caches rebuilt per process, so results differ between workers and after every restart, and the DB columns that should serve them sit empty.
+**Dep:** Not stated in source; sits after T-242/T-243 in the V-series (needs the V0 schema and the V1 read-path).
+**Status:** completed | **Domain:** AI-plane/Vectorization | **Who:** agent-pipe backend engineer
+
+## T-246 -- VECTOR-04: V4 accounts -- DB-owned ids, layered prefs, bidirectional write-back  (WS-ACCT | P2 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- the account plane is DB-owned end to end, with no second credential store drifting beside it.
+**What+How:** Complete the account plane on the shipped WS-ACCT `account` table: add `home_dir`/`shell`, a `uid_alloc` SEQUENCE with `allocate_uid()`/`allocate_gid()` so ids are DB-owned rather than hand-assigned, and a layer-scoped `account_preference` table (with `emb`) so per-user dotfiles RENDER from the DB and static `etc/skel` can retire. Add bidirectional write-back: Linux pam/getent (NSS from `account` already works) and a Windows SAM watcher extending `MiOS-AccountSync.ps1`. Reconcile the `/etc/shadow` parallel store through pam write-back so the two credential planes cannot diverge.
+**Where:** `usr/share/mios/postgres/schema-init.sql`; `automation/17-accounts-db.sh`; `usr/libexec/mios/mios-ai-firstboot` (account seeder); `C:\mios-bootstrap\src\autounattend\MiOS-AccountSync.ps1`; `etc/skel`.
+**Done When:** A new account gets its uid from the DB sequence, its dotfiles render from `account_preference` with no `etc/skel` copy, a change made on the OS side flows back into the DB on both platforms, and `just drift-gate` plus `test_mios_*` pass.
+**Why:** Ids are hand-assigned and `/etc/shadow` lives outside the DB, so the "DB-driven accounts" model is one-directional -- any OS-side account change silently desynchronizes the SSOT.
+**Dep:** After T-242/T-243 (V0/V1). Builds on the shipped WS-ACCT account table and NSS `getpwnam`.
+**Status:** completed (implemented DB sequences, allocation helpers, preferences table, and bidirectional sync daemon) | **Domain:** Accounts/Identity/DB | **Who:** identity/accounts agent
+
+## T-247 -- VECTOR-05: V5 invert authority -- DB is SSOT, mios.toml becomes a generated export  (WS-VECTOR | P3 | L)
+**Goal:** E-23 DB-driven configuration and vector recall -- the terminal WS-VECTOR state: one queryable, event-sourced SSOT with TOML as its build-time export.
+**What+How:** Flip authority so the DB is the source of truth and `mios.toml` is a generated EXPORT materialized for the next image build. Make the configurator (`mios.html`) CRUD the DB directly, emitting `config_event` rows, and turn install/build/config/account mutations into an append-only event-sourced log with time-travel and rollback aligned to bootc atomic upgrades. Flip one surface at a time, and only after that surface's V1–V4 read-path and drift-gate are green.
+**Where:** `usr/share/mios/configurator/mios.html`; `usr/share/mios/postgres/schema-init.sql` (`config_event` + event sourcing); `automation/98-drift-checks.sh`; the DB→TOML materialize tool.
+**Done When:** A configurator edit writes the DB and emits a `config_event`, the regenerated `mios.toml` export diffs clean against the DB in the drift-gate, a time-travel rollback restores prior config, and `just drift-gate` plus `test_mios_*` pass.
+**Why:** Until authority inverts, every DB capability is a mirror of a hand-edited file -- config has no history, no rollback, and two places a value can be changed.
+**Dep:** LAST -- after V0–V4 (T-242, T-243, T-244, T-246) are green per-surface.
+**Status:** planned | **Domain:** SSOT/DB/Configurator | **Who:** platform architect
+
+## T-248 -- BAKE-01: Two-gate bake plan — a `core` allow-list baked unconditionally, à-la-carte members gated by enable  (WS-BAKEGATE | P1 | L)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- every published image carries the inference whales no matter how the operator's enable flags are set, while the bake still fits a standard runner.
+**What+How:** Phase 0 already sharded the monolithic bound-images `RUN` (which exited 125 on disk-constrained runners) heavy-first into `usr/libexec/mios/mios-bake-group` plus `mios.toml [build].bake_groups` (L8470-8475) and five per-group `RUN`s in `Containerfile` (L181-190, `--mount=type=cache`, never `--squash`). Remaining structural work: add a `[build.bake]` SSOT section holding `core` (a fixed, SSOT-independent membership list), `groups` and `group_members.*`; add `tools/generate-bake-plan.py`, invoked by a new `automation/16-bake-plan.sh` ordered after `15-render-quadlets.sh`, that reads through `usr/lib/mios/mios_toml.py` and writes `/usr/lib/mios/bake/plan.d/NN-<group>.list` — emitting CORE members UNCONDITIONALLY (this generator holds the ONE branch where "core overrides SSOT" lives) and à-la-carte members only when their enable cascade resolves true. Add `.image` Quadlets for the two whales (`mios-llm-heavy.image`, `mios-llm-heavy-alt.image`) symlinked by `automation/08-system-files-overlay.sh` (~L178), a regenerate-and-diff drift-check in `98-drift-checks.sh`, and delete the Containerfile's inline Quadlet `sed`-scraping (Law 7/8).
+**Where:** `usr/share/mios/mios.toml` (`[build.bake]`), `tools/generate-bake-plan.py` (new), `automation/16-bake-plan.sh` (new), `automation/08-system-files-overlay.sh`, `automation/98-drift-checks.sh`, `usr/share/containers/systemd/mios-llm-heavy.image` + `mios-llm-heavy-alt.image` (new), `usr/libexec/mios/mios-bake-group`, `Containerfile`
+**Done When:** `just drift-gate` regenerates `plan.d/*.list` and diffs clean; the new check FAILS if a whale leaves `core`, if a core member is not fully qualified, or if referenced ⊄ emitted; `grep sed Containerfile` finds no Quadlet scraping.
+**Why:** Today the bake membership is decided by inline shell in the Containerfile and by enable flags, so a single flipped flag silently publishes an image with no inference engine, and the unsharded RUN reproducibly exit-125s the runner — both failures only surface after a ~1h bake.
+**Dep:** Phase 0 done, structural next; interlocks T-250 (groups collapse toward sys/cuda) and T-251 (digest-free SSOT).
+**Status:** completed | **Domain:** Build/Bake | **Who:** build agent
+
+## T-249 -- BLADE-01: Universal-core plus a blade-type activation gate — one image, role chosen by flag  (WS-BLADE | P1 | L)
+**Goal:** E-16 The bake plane: what is present in the image, and can a stock runner hold it -- presence (bake) and role (activation) become orthogonal, so one universal image serves every blade type with zero image variants.
+**What+How:** Add a `[blade]` SSOT section: `type` archetype (hybrid/compute/endpoint/controller/headless), `[blade.archetypes]` capability expansions, `[blade.requires]` service→capability "nodeSelector" map. Demote `usr/libexec/mios/role-apply` from an imperative actor to a marker-writing resolver that materializes `/etc/mios/blade.d/<cap>` and `/run/mios/blade.env` (autodetect retained). Generate one `usr/share/mios/dropins/blade-<cap>.conf` carrying `ConditionPathExists=/etc/mios/blade.d/<cap>` per capability from `[blade.requires]` (Law-8 generator plus drift-check) and wire it through `automation/41-mios-dropin-fanout.sh`. Deploy-time selection comes from karg `mios.blade=<type>` (generated `usr/lib/bootc/kargs.d/05-mios-blade.toml`), Ignition, Afterburn or autodetect; a `mios blade set|add-capability|status` verb touches markers and daemon-reloads with no reboot. Fold `[profile].role/features` into `[blade]`, add `mios-{compute,endpoint,controller}.target`, add a greenboot check, and keep `[blades.*]`/`[nodes.*]` as the orthogonal fleet-dispatch Axis B.
+**Where:** `usr/share/mios/mios.toml` (`[blade]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf`, `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml`, `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, `mios blade` verb
+**Done When:** From one universal image, `mios-llm-heavy.service` is condition-skipped on a `controller` blade (zero VRAM) and starts on a `gpu-serving` blade; `mios blade add-capability gpu-serving` lights it hot with no reboot; the drop-in generator regenerates byte-identically under the drift-gate.
+**Why:** Without an activation axis, role differences force either per-role image variants (breaking the one-image contract) or services that start on hardware that cannot run them, e.g. the heavy LLM unit crash-looping on a GPU-less controller.
+**Dep:** Complements T-248 (bake vs activation orthogonality) and T-250 (activation `Condition*` unchanged by consolidation).
+**Status:** done | **Domain:** Build/Activation | **Who:** build/systemd agent
+
+## T-250 -- MIOSSYS-01: Collapse the ~18-image sidecar fleet onto the `mios-sys` + `mios-cuda` shared-base lineage  (WS-MIOSSYS | P1 | XL)
+**Goal:** E-17 Shared-base consolidation: shrink the sidecar fleet to two lineages -- the bound-image store shrinks enough that a standard GitHub runner can bake and publish as a true equal to Forgejo.
+**What+How:** Replace the ~18-image, ~60GB, zero-shared-blob sidecar fleet with two images of one base lineage, both `FROM ${BASE_IMAGE}` (ucore-hci:stable-nvidia): `localhost/mios-sys` (CUDA-free, ~6-8GB, shared python/node/chromium layers) and `localhost/mios-cuda` (shared CUDA/torch/flashinfer layer plus `vllm-venv`/`sglang-venv` and `llama-server`, ~15-18GB). Runtime stays Model A — one IMAGE, many CONTAINERS: shared `Image=`, per-service `Exec=`, and every unit's `User=`/`Group=`/`Condition*` untouched. Add `automation/57-mios-sys-build.sh` plus generated `usr/share/mios/{sys,cuda}/Containerfile`; add `[image.sys]`/`[image.cuda]` blocks; thread `MIOS_SYS_IMAGE`/`MIOS_CUDA_IMAGE` through `tools/lib/userenv.sh` and BOTH allowlists in `automation/15-render-quadlets.sh` (envsubst L73 and the bash fallback ~L87-127) plus `97-ssot-lint.sh`. Each member's Quadlet delta is a pure SSOT edit (repoint `Image=`, add `Exec=`); retarget `[build].bake_groups` to sys/cuda/extra. Migrate in Waves 0-3 (Wave 1 Go-binary tier, Wave 2 interpreted plus k3s/runner binaries, Wave 3 mios-cuda and the DB tier behind a smoke test). Ceph stays a separate image.
+**Where:** `usr/share/mios/mios.toml` (`[image.sys]`/`[image.cuda]`/`[build].bake_groups`), `automation/57-mios-sys-build.sh` (new), `usr/share/mios/{sys,cuda}/Containerfile` (generated), `automation/15-render-quadlets.sh`, `automation/14-generate-quadlets.sh`, `automation/97-ssot-lint.sh`, `usr/libexec/mios/mios-bake-group`, `Containerfile`, the ~18 `usr/share/containers/systemd/*.container` members
+**Done When:** The bound-image store drops to ~25GB with the largest single commit capped at the ~12GB CUDA/torch group; `generate-pod-quadlets.py --check` validates every regenerated `Image=`/`Exec=`; every `User=` and root exception is byte-identical (Law 6 untouched); a WSL blade still refuses to start pxe-hub even though its binary is now baked.
+**Why:** Eighteen unrelated base images share no layers, so the store is ~60GB — over what a stock ubuntu-24.04 runner can hold, which is exactly why `PUBLISH` stays `false` and GitHub is not yet an equal publisher.
+**Dep:** Locked ops decisions — newest packages tagged at build; ALL core consolidates; k3s binary consolidated (HA-compatible, privileged activation unchanged) with Pacemaker/corosync HA in CORE; rebuild on CVE/release; mios-cuda bake scope deferred to Wave 3. Enables T-252 GitHub equality; complements T-248 Phase 0 (sharding kept as safety margin).
+**Status:** done | **Domain:** Build/Consolidation | **Who:** build agent
+
+## T-251 -- SBOM-01: Extend build-time provenance past images to model and package hashes  (WS-SBOM | P2 | M)
+**Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- every digest and checksum is resolved at build and recorded in the SBOM instead of being hand-pinned in SSOT.
+**What+How:** All 12 hand-pinned `@sha256` digests were stripped from `mios.toml` (0 remaining) and 27 Quadlets regenerated digest-free, with `mios-bake-group` recording each resolved digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv` (L173-178). Extend the same pattern to non-image artifacts: compute and record SHA-256 for downloaded GGUF models in `automation/38-llamacpp-prep.sh`, Safetensors weights in `automation/38-vllm-prep.sh`, and downloaded binaries/assets in `38-oh-my-posh.sh`, `42-cosign-policy.sh`, `13-ceph-k3s.sh`, `10-gnome.sh` and `09-fonts.sh`, writing to `/usr/share/mios/artifacts/sbom/models.tsv` and `binaries.tsv`, with the digest/checksum drift-checks validating the build-resolved values rather than literals.
+**Where:** `automation/38-llamacpp-prep.sh`, `automation/38-vllm-prep.sh`, `automation/38-oh-my-posh.sh`, `automation/42-cosign-policy.sh`, `automation/13-ceph-k3s.sh`, `automation/10-gnome.sh`, `automation/09-fonts.sh`, `automation/98-drift-checks.sh`
+**Done When:** No hand-maintained `@sha256` or checksum literal remains in `mios.toml` or in scripts for any runtime-pinned artifact; every resolved hash appears in the SBOM TSVs; the digest/checksum drift-checks pass against build-resolved values.
+**Why:** Hand-pinned digests rot silently and reappear as the recurring "broad `git add` strips the pins, pod-quadlets gate turns red" failure, while unhashed model and binary downloads leave the largest artifacts in the image with no provenance at all.
+**Dep:** Image side DONE; interlocks T-250 (digest-locks floating `:latest` sources at Wave 0) and T-252 (newest packages, tagged at build).
+**Status:** done | **Domain:** SBOM/Provenance | **Who:** build agent
+
+## T-252 -- RELTOP-01: Credential-driven registry selection — GHCR when creds exist, otherwise local/Forgejo  (WS-RELTOP | P2 | S)
+**Goal:** E-17 Shared-base consolidation: shrink the sidecar fleet to two lineages -- GitHub and Forgejo become bit-for-bit equal publishers over one build path with no hardcoded registry.
+**What+How:** Declare GitHub Actions and the Forgejo runner EQUAL bit-for-bit publishers with a LOCAL-first build. Keep `mios-ci.yml`'s `PUBLISH: 'false'` (L38) as an explicit CAPACITY gate — a stock ubuntu-24.04 runner cannot hold the ~60GB store — controlling the `MIOS_BAKE_BOUND_IMAGES` build-arg (L243) and the rechunk/push/cosign steps (L270+). Wire the registry selection itself ("default to GitHub/GHCR push+pull when credentials are present, else local/Forgejo") into the build driver and `install.env` credential detection through `tools/lib/userenv.sh`, so both CI runners and the local build resolve the target through the one selection path.
+**Where:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `tools/lib/userenv.sh` / `install.env`
+**Done When:** A build with GHCR credentials pushes and pulls GHCR; the same build with no credentials targets local/Forgejo; both CI runners and the local build share one selection code path; no registry hostname is hardcoded outside it.
+**Why:** Without credential-driven selection each publisher needs its own hand-edited registry constant, which is how the two workflows drift into publishing different things from the same tree.
+**Dep:** CI gate DONE; flipping `PUBLISH:'true'` is unblocked by T-250.
+**Status:** done | **Domain:** Release/CI | **Who:** CI/build agent
+
+## T-253 -- DEPRED-01: Collapse Hermes into agent-pipe at `:8640` and retire the redundant sidecars  (WS-DEPRED | P2 | L)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- one OpenAI front door on `ports.agent_pipe`, with every extra AI-plane hop and duplicate datastore removed.
+**What+How:** Finish the ~70%-done collapse of MiOS-Hermes (`:8642`) into agent-pipe (`:8640`): (1) repoint `MIOS_AI_ENDPOINT` from `:8642` to `:8640` in `automation/lib/globals.sh:133` and in `mios.toml [ai]`/`[hermes]`, adding `8640` to `[security.nohc_allowlist]`; (2) retire the `:8641` prefilter hop by removing `mios-delegation-prefilter.service`; (3) absorb `gateway_sessions` by porting `usr/lib/mios/gateway-agent/session.py` into agent-pipe with opt-in replay; (4) decide browser/CDP (MCP `browser_*` verbs preferred, keeping `mios-hermes-browser` :9222 as a pure executor); (5) retire or alias `mios-gateway-agent.service`. In parallel, fold the Guacamole DB into pgvector and delete `mios-guacamole-postgres.container`, delete `mios-crowdsec-dashboard.container` and its pin, replace the cockpit-link socat with `systemd-socket-proxyd`, and replace open-webui (`:8033`) with a Quickshell SSE `/v1` client (gate OWUI to `edge-endpoint` first, then remove).
+**Where:** `automation/lib/globals.sh`, `usr/share/mios/mios.toml` (`[ai]`/`[hermes]`/`[security.nohc_allowlist]`), `mios-delegation-prefilter.service`, `usr/lib/mios/gateway-agent/session.py`, agent-pipe `server.py`, `mios-hermes-browser.service`, `mios-gateway-agent.service`, `mios-guacamole-postgres.container`, `mios-crowdsec-dashboard.container`, the `mios-cockpit-link` unit
+**Done When:** Every front end resolves `MIOS_AI_ENDPOINT` to `:8640`; `:8641`/`:8642` are retired or thin aliases; Guacamole runs on a pgvector DB/role; `mios-crowdsec-dashboard` and `mios-guacamole-postgres` no longer exist; a native SSE client streams `/v1/chat/completions`.
+**Why:** Three ports for one AI contract means every consumer has to know which hop to call, a second Postgres duplicates the pgvector store in the bake, and the extra sidecars are pure image weight against the runner capacity limit.
+**Dep:** Browser/CDP and the `hermes` CLI/Discord decisions are OPEN QUESTIONS; pairs with T-249 (OWUI gated to edge-endpoint) and T-250 (fewer images to consolidate).
+**Status:** done-by-code | **Domain:** AI-plane/Deps | **Who:** agent-pipe backend engineer
+
+## T-254 -- MDRIVE-01: Boot the universal image as a Hyper-V Gen 2 `.vhdx` off `M:` with a sovereign Ceph OSD  (WS-MDRIVE | P1 [VM] | L)
+**Goal:** E-20 The bootc-native install legs -- a real bootc-managed MiOS boots from a bootc-cut disk image with a populated `/var`, proving the to-disk leg on operator hardware.
+**What+How:** Deploy the universal image as a Hyper-V Generation 2 VM booting a `.vhdx` under `M:\MiOS-images\`, cut by `bootc install`/bootc-image-builder via `just vhdx` (`Justfile:217`), which already factory-populates `/var` and `/var/home` — the fix for the raw `wsl --import` deadlock. Add a `vhdx-m` Justfile recipe and `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` that loads the tar, cuts the vhdx if absent, creates the VM with `New-VM -Generation 2` off `M:`, sets `Set-VMFirmware -SecureBootTemplate MicrosoftUEFICertificateAuthority`, attaches the Ceph OSD vhdx, adds `netsh portproxy :8640`, and configures DDA/GPU-P. For sovereign storage, add a second dynamic `.vhdx` on `M:` as the single-node Ceph OSD backing `/var/home` (`var-home.mount`, `Type=ceph`), and relax `ConditionVirtualization=no` on `ceph-bootstrap.service`/`mios-ceph-bootstrap.service` to a config-flag gate (`[storage.cephfs].enable` / `/run/mios/ceph-enabled`); the 20GiB ext4 `/var/home` partition carved by `config/artifacts/vhdx.toml` stays as the `nofail` + `ConditionPathExists` fallback. dGPU via DDA is recommended (the iGPU keeps the Windows desktop); WSL2 `--import-in-place` remains an explicitly disposable preview because a bootc image bakes nothing into `/var` (Law 2) — only the installer populates it.
+**Where:** `Justfile` (new `vhdx-m`), `config/artifacts/vhdx.toml`, `usr/lib/systemd/system/ceph-bootstrap.service` + `mios-ceph-bootstrap.service`, `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/mios/mios.toml` (`[storage.cephfs].enable`), `usr/lib/systemd/system-preset/95-mios-wsl.preset` (optional), `C:\mios-bootstrap\deploy-mios-hyperv-m.ps1` (new)
+**Done When:** A MiOS Gen 2 VM boots from `M:\MiOS-images\mios-0.3.0.vhdx` with a populated `/var/home`, `bootc status` reports healthy, and `curl http://localhost:8640/v1/models` answers from Windows; with the OSD vhdx and `[storage.cephfs].enable=true`, `findmnt /var/home` reports `type ceph` and survives a root-vhdx rebuild; `bootc upgrade` and `bootc rollback` both work in-guest.
+**Why:** Today the only Windows-side path is `wsl --import`, which deadlocks on an unpopulated `/var` and yields a system that is not bootc-managed — so there is no local way to prove an upgrade/rollback cycle before shipping.
+**Dep:** Re-establish a Linux podman once (BIB and `bootc install` require it); GPU policy, Ceph-now-vs-later, OSD sizing and `ConditionVirtualization` scope are operator decisions. VM/operator-gated.
+**Status:** planned | **Domain:** Deploy/Windows | **Who:** deploy agent
+
+## T-255 -- DOCS: Planning-docs refactor — ADR system, generated index, lean thematic roadmap, Diátaxis  (WS-DOCS | P1 | L)
+**Goal:** E-06 Test and documentation harness: negative self-tests, coverage, doc integrity -- an arriving agent can start any workstream cold from ONE self-contained file.
+**What+How:** Consolidate planning docs into AI-agent-native form matching upstream patterns (MADR ADRs, KEP-style WS metadata, Diátaxis, Keep-a-Changelog + SemVer, an OpenAI-Model-Spec-style rules doc, `llms.txt`/`AGENTS.md`). Ship the ADR system under `usr/share/doc/mios/adr/` (README plus ADR-0001..0007, one backing every Part-21 workstream, governance recorded in ADR-0007); make `tools/roadmap-index.py` the generator for the roadmap index and the MiOS Spec, gated by a regenerate-and-diff check in `automation/98-drift-checks.sh` that also fails on a bad ADR, law or `ssot_key` reference; reduce `ROADMAP.md` to a theme-grouped active-only file (~≤600 lines) with Parts 1-20 archived losslessly under `usr/share/doc/mios/roadmap/history/`; retag any workstream marked `done` that is actually gated-off or never fired; and route agents through Diátaxis quadrants plus `llms.txt`/`AGENTS.md`.
+**Where:** `usr/share/doc/mios/adr/*`, `tools/roadmap-index.py`, `automation/98-drift-checks.sh`, `ROADMAP.md`, `TASKS.md`, `usr/share/doc/mios/roadmap/history/*`, `CHANGELOG.md`, `llms.txt`, `AGENTS.md`
+**Done When:** `just drift-gate` regenerates the roadmap index and the MiOS Spec byte-identically and fails on a bad ADR/law/`ssot_key` ref; the ToC lists all Parts; `ROADMAP.md` is active-only with Parts 1-20 archived and no workstream lost; no workstream is tagged `done` while gated off; the Diátaxis quadrants plus `llms.txt` route an agent to any workstream in ≤3 hops.
+**Why:** A multi-thousand-line unstructured roadmap forces every new agent to re-derive context, and decisions with no ADR get silently re-litigated or reversed by the next session.
+**Dep:** DOCS-01 done → DOCS-02 (schema + generator) → DOCS-03 (lean roadmap + archive) → DOCS-04 (retag) + DOCS-05 (Diátaxis) + DOCS-06 (MiOS Spec).
+**Status:** done | **Domain:** Docs/Meta | **Who:** docs/tooling agent
+
+## T-256 -- CAT-01: Flatten MiOS-Cat to a single owner — `mios-bootstrap` owns `cat/`  (WS-CAT | P1 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- the installer lives in exactly one repo at one shallow path, so there is one thing to fix when the deploy plane breaks.
+**What+How:** Make `mios-bootstrap` the single canonical owner of MiOS-Cat at `C:\mios-bootstrap\cat\`. `git mv` the 3-5-level-deep `C:\mios-bootstrap\src\autounattend\medicat_installer\` nest up to `cat\`: launchers to `cat\`, FileChecker/hasher/bin/7z to `cat\lib\`, resources to `cat\resources\`, the Windows-ISO subsystem (`New-MiOSISO`, `mios-uup-fetch`, `New-MiOSAutounattend`, `Build-MiOSXboxISO`, `MiOS-Provision.lib`) to `cat\iso\`, translations to `cat\i18n\`. Then DELETE the byte-identical `C:\MiOS\src\autounattend\medicat_installer\` copy (`diff -q` confirms it is empty of differences) after verifying no live consumer — the flatten-campaign guardrail. This satisfies Law 1 (`C:\MiOS/usr/` IS `/usr`; a host installer must not live under it) and the two-repo no-double-track rule. This task captures the planned move; do not run destructive git operations as part of the decision capture.
+**Where:** `C:\mios-bootstrap\cat\**` (new home), `C:\mios-bootstrap\src\autounattend\medicat_installer\**` (move source), `C:\MiOS\src\autounattend\medicat_installer\**` (delete)
+**Done When:** One MiOS-Cat home exists at `cat\`; `C:\MiOS` contains no installer tree; a cross-repo `diff` finds no `medicat_installer` duplicate; the deepest path drops from `src\autounattend\medicat_installer\resources\ventoy\` to `cat\resources\ventoy\`.
+**Why:** Two byte-identical installer copies in two repos mean every fix must be applied twice or the deployed stick silently runs the stale one, and the copy under `C:\MiOS/usr`-adjacent source violates Law 1.
+**Dep:** First WS-CAT task; unblocks T-257/T-258/T-259. Verify-no-consumer gate before any delete.
+**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+
+## T-257 -- CAT-02: One verb vocabulary across the tri-launcher, with all logic in `cat\lib\`  (WS-CAT | P1 | L)
+**Goal:** E-21 One deploy front door: flatten every install path -- `cat <verb>` means exactly the same thing in PowerShell, sh and cmd, with zero duplicated business logic.
+**What+How:** Give `cat\MiOS-Cat.{ps1,sh,bat}` one shared verb set — **stage · install · build · update · provision · manual** — implemented as a thin `switch`/`case`/`goto` dispatch, with every piece of business logic moved into a shared `cat\lib\` (a PowerShell module plus a bash lib). Port the advanced logic currently living only in the `.bat` (MiOS-Repo staging, WinPE DISM injection, git-pull self-update) into the canonical `.ps1` so the launchers reach parity (Law 9), then reduce the `.bat` to a WinPE/legacy-cmd shim that calls the `.ps1` whenever PowerShell is available. Demote every existing entry point (`Get-MiOS.ps1` `irm|iex`, the bootstrap curl, the UUP/autounattend ISO pipeline, `mios-kickstart.cfg`, the `just` build) to a verb back-end rather than a peer launcher, and make the interactive menu the no-verb default (`cat` opens the menu, `cat install` runs headless).
+**Where:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh,bat}`, `C:\mios-bootstrap\cat\lib\MiOS-Cat.psm1` + `cat.sh` (new), the per-verb back-end shims into `cat\iso\` / `just` / bootstrap
+**Done When:** `cat install` is headless-identical across `.ps1`, `.sh` and `.bat`; no business logic is duplicated between launchers; the no-verb invocation opens the menu; the `.bat` is a reduced WinPE shim.
+**Why:** The three launchers currently implement different feature sets, so which one the operator happens to run decides whether staging, DISM injection and self-update happen at all.
+**Dep:** After T-256 (single home). Pairs with T-259 (web one-liners fold into `cat install`).
+**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+
+## T-258 -- CAT-03: Add the `[cat]` SSOT block and fix the dangling `drivepath`/`medicatver`/`cache_path` reads  (WS-CAT | P1 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- the installer reads its values from the real SSOT instead of silently falling back to hardcoded defaults.
+**What+How:** MiOS-Cat today opens `..\..\..\..\mios.toml` (the 63 KB root seed copy) and looks for `drivepath`, `medicatver` and `cache_path` — keys that exist in NO `mios.toml` — so it quietly uses hardcoded defaults, violating Law 7 NO-HARDCODE and Law 8 SSOT-PROJECTION. Add a `[cat]` block to the real SSOT at `usr/share/mios/mios.toml` carrying `drivepath`, `medicatver`, `cache_path`, `repo_partition.label = "MiOS-Repo"`, `data_partition.label = "MiOS-Data"`, `data_partition.min_disk_gb = 512` and `models` (a reference to `[ai].bake_models`). Repoint MiOS-Cat to resolve the 597 KB SSOT through the shared `mios_toml` resolver rather than the seed, and add a check in `automation/98-drift-checks.sh` asserting the `[cat]` and `[colors]` reads actually resolve.
+**Where:** `usr/share/mios/mios.toml` (new `[cat]` block), `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` + `cat\lib\` (SSOT resolve), `automation/98-drift-checks.sh` (new check)
+**Done When:** No MiOS-Cat value that has an SSOT home is hardcoded; the `[cat]` and `[colors]` reads resolve against `usr/share/mios/mios.toml`; the drift-check fails when a `[cat]` key is missing.
+**Why:** Every operator edit to those keys is a no-op today — the installer reads a file that does not define them and stages to a baked-in default drive and version, with no error to signal it.
+**Dep:** After T-256. Interlocks with T-266 (seed-copy provenance) — confirm the 63 KB→597 KB relationship before repointing.
+**Status:** planned | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT/installer agent
+
+## T-259 -- CAT-04: Fold the web one-liners (`irm|iex` ⇄ `curl`) into `cat install`  (WS-CAT | P1 | M)
+**Goal:** E-21 One deploy front door: flatten every install path -- one native web-pulled entry that hands into the single guided installer from either shell.
+**What+How:** Collapse the bodies of `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1` and `bootstrap.sh` into thin `cat install` shims while keeping the published one-liner URLs stable. Wire the bidirectional handoff so `irm …/cat | iex` (Windows) and `curl -fsSL …/cat.sh | sh` (Linux/WSL) are the SAME front door reached from two shells: the `.ps1` shells out to the curl path for a Linux/WSL target (`wsl -e sh -c 'curl … | sh'`), and the `.sh` invokes `pwsh`/`powershell.exe` for a Windows-side action (Hyper-V VM create, WinPE). Both resolve the same `[cat]` SSOT and the same verb set, satisfying Law 9 ONE-CANONICAL-NAME on the entry surface.
+**Where:** `C:\mios-bootstrap\{Get-MiOS,bootstrap,install}.ps1`, `C:\mios-bootstrap\bootstrap.sh`, `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}`
+**Done When:** `irm …/cat | iex` and `curl …/cat.sh | sh` reach an identical verb set; `cat install` means the same thing regardless of shell; the legacy scripts are thin shims rather than peer implementations.
+**Why:** Four independent bootstrap bodies drift apart and `Get-MiOS`'s `irm|iex` path currently orphans MiOS-Cat entirely, so the shell the operator happens to use changes what actually gets installed.
+**Dep:** After T-257 (verb dispatch exists). Published `irm`/`curl` URLs stay unchanged.
+**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+
+## T-260 -- CATREPO-01: Always-present small `MiOS-Repo` shadow-config partition plus the kickstart path fix  (WS-CATREPO | P1 | L)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- the USB shadow-config partition becomes the offline embodiment of the shareable open→configure→deploy link.
+**What+How:** Populate a SMALL, always-present `MiOS-Repo` partition (P3, target ≤~16 GB) with the shadow-config brain: `mios.toml` (SSOT), `mios.html` (configurator), the MiOS Portal assets, a self-contained MiOS-Cat copy, and a small repos-clone of config/source (NOT the binary payload). Each payload class degrades open — online `git clone`, offline `robocopy`/`cp -r` from `MiOS-Repo/repos/`. Fix the kickstart path mismatch: the `.bat` stages repos to `%repodrive%:\mios-bootstrap` while `mios-kickstart.cfg` looks under `/mnt/usb/ventoy/repo/mios-bootstrap`; align both to one canonical `MiOS-Repo/repos/` and update the kickstart `%post`. Ventoy-bootable ISOs/WIMs stay on the Ventoy data partition, not P3. The 78 GB OCI tar, `just all` artifacts, model weights and package mirrors explicitly do NOT go here — they belong to MiOS-Data (T-261).
+**Where:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage`), `usr/share/mios/mios.toml` (`[cat].repo_partition`), `…\resources\ventoy\mios-kickstart.cfg` (`%post` repo path), the `MiOS-Repo/` layout
+**Done When:** A small stick carries the shadow-config brain (mios.toml + mios.html + Portal + MiOS-Cat + a small repos-clone) and fits any USB; a fully offline bare-metal kickstart install succeeds sourcing from `MiOS-Repo/repos/`; the kickstart repo path matches what the stager writes.
+**Why:** The stager and the kickstart disagree on where repos live, so the offline `%post` finds nothing and the install falls back to network — the exact failure that makes the bare-metal leg unusable without egress.
+**Dep:** After T-256/T-258 (single home plus `[cat]` SSOT). Sibling of T-261 (bulk store).
+**Status:** planned | **Domain:** Deploy/Cat/Repo | **Who:** deploy/installer agent
+
+## T-261 -- CATREPO-02: Separate `MiOS-Data` bulk store on large disks — OCI tar plus `just all` artifacts  (WS-CATREPO | P1 | L)
+**Goal:** E-20 The bootc-native install legs -- a blank machine installs fully offline from a local OCI tarball on USB media.
+**What+How:** On disks ≥128 GB only (gated by a `Get-Disk` size check), have `cat stage` create a SEPARATE `MiOS-Data` store carrying the bulk payload: the ~78 GB `podman save` of `localhost/mios:latest` for offline `podman load`, and the `just all` disk artifacts (`raw`/`iso`/`qcow2`/`vhdx`/`wsl2`, including the ADR-0005 `mios-<ver>.vhdx`). Degrade open: online `podman pull ghcr.io/mios-dev/mios`, offline `podman load MiOS-Data/images/*.tar`. Keep MiOS-Data physically distinct from the always-present small MiOS-Repo (T-260) so a small stick still deploys network-degraded while a 128 GB+ stick is fully offline.
+**Where:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage` — `Get-Disk` gate plus `podman save`/copy), `usr/share/mios/mios.toml` (`[cat].data_partition`: `label`, `min_disk_gb = 128`), `MiOS-Data/images/`, the `just all` artifact paths (`M:\MiOS-images\`)
+**Done When:** On a 512 GB+ disk, MiOS-Data is created separately from MiOS-Repo and an offline `podman load` plus `bootc switch` from USB succeeds; on a smaller disk MiOS-Data is skipped and only the small MiOS-Repo is written.
+**Why:** With no local image store, a bare-metal install must pull ~78 GB over the network — so the "offline sovereignty" claim fails at exactly the sites that need it, and stuffing the tar onto the small partition makes the stick unwritable to ordinary USB media.
+**Dep:** After T-260 (repo layout) and WS-BAKEGATE (defines which artifacts exist). Precedes T-262/T-263 (models and mirrors also live on MiOS-Data).
+**Status:** planned | **Domain:** Deploy/Cat/Repo | **Who:** deploy/installer agent
+
+## T-262 -- CATREPO-03: Model embedding on MiOS-Data plus `cat provision` (Law 12 offline)  (WS-CATREPO | P1 | L)
+**Goal:** E-20 The bootc-native install legs -- the heavy inference lane comes up on a freshly installed host with zero network.
+**What+How:** Read the models from SSOT, never invent them (Law 8): `[ai].bake_models` GGUF CSV (L5744) plus fleet tags (L6116), `[ai.vllm].bake_model` (L6724, `Qwen3-30B-A3B-Instruct-2507-AWQ`, ~16 GB) and `[ai.sglang].bake_model` (L6742). On the 512 GB+/MiOS-Data path, `cat stage` fetches each from Hugging Face into `MiOS-Data/models/` and verifies by checksum using the WS-SBOM resolved-not-hardcoded pattern from `automation/38-llamacpp-prep.sh`, turning the store into an offline HF mirror. `cat provision` then copies them into the deployed host offline: GGUFs into the llama.cpp model dir and the AWQ weights into `/usr/share/mios/vllm/model`, whose `config.json` is the `mios-llm-heavy` activation gate. This realizes Law 12 BAKE-NOT-FETCH as offline provisioning — the OCI image bakes engines only, MiOS-Data is the weight store. Model-redistribution licensing is an OPEN QUESTION (ADR-0008): if redistribution is disallowed, store a fetch-manifest plus checksums instead of the weights.
+**Where:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat stage`/`cat provision`), `usr/share/mios/mios.toml` (`[ai].bake_models` L5744/L6116, `[ai.vllm].bake_model` L6724, `[ai.sglang].bake_model` L6742, `[cat].models`), `MiOS-Data/models/`, `/usr/share/mios/vllm/model` (provision target), `automation/38-llamacpp-prep.sh` (checksum pattern)
+**Done When:** A deployed host's heavy lane starts with ZERO network because `/usr/share/mios/vllm/model/config.json` is present; the GGUFs and AWQ weights are provisioned offline from MiOS-Data; every model's checksum is verified against a build-resolved value rather than a hardcoded one.
+**Why:** Without a weight store the engines ship but the models do not, so an air-gapped install boots an AI OS whose heavy lane is permanently condition-skipped.
+**Dep:** After T-261 (MiOS-Data store exists). The model-redistribution decision gates whether weights or a manifest are stored.
+**Status:** planned | **Domain:** Deploy/Cat/Models | **Who:** deploy/AI-plane agent
+
+## T-263 -- CATREPO-04: Offline dnf/flatpak/pip mirrors on MiOS-Data plus `cat update` self-refresh  (WS-CATREPO | P2 | M)
+**Goal:** E-20 The bootc-native install legs -- package resolution during an offline build or first boot comes from USB, with no external egress.
+**What+How:** Build the offline package mirrors into `MiOS-Data/` on the 512 GB+ path: **dnf** via `reposync` plus `createrepo_c`, referenced by a kickstart `repo --baseurl=file://…`; **flatpak** via `flatpak create-usb` or an OCI bundle; **pip** via a `pip download` set or `bandersnatch` for the agent venvs. Each degrades open — live mirror when online, `file://` mirror when offline. Extend `cat update` to re-pull every payload class when online (repos, OCI image, models, mirrors) and re-stamp `MiOS-Data/manifest.json` with payload version and checksums so a deployed host can tell whether its store is current.
+**Where:** `C:\mios-bootstrap\cat\MiOS-Cat.{ps1,sh}` (`cat update` / mirror build), `MiOS-Data/{dnf,flatpak,pip}/`, `MiOS-Data/manifest.json`, `…\resources\ventoy\mios-kickstart.cfg` (`repo --baseurl=file://`), `usr/share/mios/mios.toml` (`[desktop].flatpaks` source list)
+**Done When:** An offline build or first boot resolves all dnf, flatpak and pip packages from USB; `cat update` refreshes the store and re-stamps `manifest.json` when online.
+**Why:** Even with the image and models local, first boot still reaches out for flatpaks and pip wheels, so an air-gapped install lands half-configured with no signal about how stale its store is.
+**Dep:** After T-261 (MiOS-Data store). Lowest-urgency Tier-B item.
+**Status:** planned | **Domain:** Deploy/Cat/Mirrors | **Who:** deploy/build agent
+
+## T-264 -- CATFLAT-01: Dead-weight purge — leave nothing behind in the bootstrap root  (WS-CATFLAT | P2 | S)
+**Goal:** E-21 One deploy front door: flatten every install path -- `cat/` tracks source only, so the installer repo is small enough to clone onto a stick.
+**What+How:** After verifying no live consumer (the flatten-campaign guardrail), purge tracked cruft from the bootstrap root: `Get-MiOS.ps1.bom-bak`, `commit.patch` / `commit_a8faad4.patch` / `commit_else.patch` / `commit_skip.patch`, `temp.txt`, `temp2.txt` and `scratch.ps1` (~606 KB), and fold `R-DH-BOOTSTRAP-AUDIT.md` in if it is already absorbed. Drop the committed bundled binaries — the ~23 GB MediCat 7z, the Ventoy release zips and `bin\*.exe` — because they are downloaded artifacts, not source, while keeping the fetch-on-demand logic the `.bat` already implements (it curls Ventoy and 7z). Fold the MediCat i18n set down to MiOS strings only.
+**Where:** `C:\mios-bootstrap\*.{patch,txt,ps1,bom-bak}` (cruft), `C:\mios-bootstrap\cat\` (bundled binaries, i18n), the `.bat` fetch-on-demand logic (keep)
+**Done When:** `cat/` tracks source only; ~6 MB+ of tracked cruft no longer exists; the committed Ventoy/7z/MediCat binaries are gone while fetch-on-demand still succeeds end to end.
+**Why:** Committed multi-GB binaries and stray patch/scratch files make the installer repo slow to clone and leave four abandoned patch files that a future agent will read as live state.
+**Dep:** After T-256 (single-owner flatten). Verify-no-consumer before each delete.
+**Status:** planned | **Domain:** Deploy/Cat/Flatten | **Who:** cleanup agent
+
+## T-265 -- CATFLAT-02: Generated ADR root breadcrumb plus spec cross-reference  (WS-CATFLAT | P2 | S)
+**Goal:** E-06 Test and documentation harness: negative self-tests, coverage, doc integrity -- an agent landing in either repo root reaches the decision record in two hops.
+**What+How:** Keep the ADRs baked at `usr/share/doc/mios/adr/` per Law 1 — a running MiOS carries its own *why* — and do NOT move them to `/etc` or a repo root. Instead satisfy "ADRs near the system root" with a breadcrumb generated from SSOT (Law 8, drift-checked, never hand-maintained): `C:\MiOS\ADR.md` as a pointer/index rendered by the `roadmap-index.py`-class generator, and `C:\mios-bootstrap\cat\ADR-0008.md` as a generated copy/symlink of the MiOS-Cat record so the installer repo is self-documenting. Link both from `llms.txt` and `AGENTS.md`.
+**Where:** `C:\MiOS\ADR.md` (generated), `C:\mios-bootstrap\cat\ADR-0008.md` (generated copy/symlink), `usr/share/doc/mios/adr/` (unchanged, baked), `llms.txt`, `AGENTS.md`, the breadcrumb generator
+**Done When:** An agent reaches the ADR index from either repo root in ≤2 hops; the breadcrumb regenerates byte-identically with the drift-gate green; the baked ADRs under `/usr` are unmoved.
+**Why:** ADR-0008 governs the whole MiOS-Cat campaign but lives four directories deep in the other repo, so installer work gets done without ever reading the decision it must honor.
+**Dep:** After T-256. Complements T-255 (the roadmap-index generator class).
+**Status:** planned | **Domain:** Deploy/Cat/Docs | **Who:** docs/tooling agent
+
+## T-266 -- CATFLAT-03: `mios.toml` seed-copy consolidation — flag the duplicates, then fix them  (WS-CATFLAT | P3 | M)
+**Goal:** E-09 One value, one name: the full de-duplication campaign -- exactly one authoritative `mios.toml`, with any remaining copy explicitly generated and gated.
+**What+How:** Settle the seed-copy question: the SSOT is `C:\MiOS\usr\share\mios\mios.toml` (597 KB), while `C:\MiOS\mios.toml` (63 KB) and `C:\mios-bootstrap\mios.toml` (68 KB) are seed/derived copies. Determine which is canonical versus generated, document the seed→SSOT relationship, and — if the seeds are generated — wire their regeneration plus a drift-check that fails on seed↔SSOT divergence. MiOS-Cat must read ONLY the 597 KB SSOT, which pairs directly with T-258; this duplication is the root cause of the T-258 dangling-read bug, so confirm the relationship before or alongside repointing.
+**Where:** `C:\MiOS\usr\share\mios\mios.toml` (SSOT), `C:\MiOS\mios.toml` + `C:\mios-bootstrap\mios.toml` (seeds), the seed generator if one exists, `automation/98-drift-checks.sh`
+**Done When:** One documented SSOT exists with explicitly-generated seeds (or a documented decision to keep them as-is); MiOS-Cat reads only the 597 KB SSOT; a drift-check guards seed↔SSOT drift.
+**Why:** Three `mios.toml` files at three sizes and conflicting versions mean a consumer that resolves the 7x-smaller copy silently reads stale values — the observed cause of MiOS-Cat's hardcoded-default fallback.
+**Dep:** Pairs with T-258 (SSOT repoint). Lowest priority — T-258 can land with a documented assumption and this closes it.
+**Status:** done-by-code | **Domain:** Deploy/Cat/SSOT | **Who:** SSOT agent
+
+## T-267 -- CONFIG-01: Fold `mios.html` into the MiOS Portal at `:8640/` — one web and API front door  (WS-CONFIG | P1 | L)
+**Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- a shareable link, a USB disk and a usable computer are the whole deployment kit.
+**What+How:** Fold the standalone configurator `usr/share/mios/configurator/mios.html` INTO the MiOS Portal as a configurator *view*, so `mios.toml`, `mios.html` and the Portal are ONE config surface served at `:8640/` by agent-pipe: `GET /` serves the Portal with the configurator folded in and `/v1/*` serves the OpenAI API from the SAME front door (the ADR-0006 convergence). Wire the configurator view's read/write of `mios.toml` through `usr/lib/mios/agent-pipe/mios_portal.py`, addressing values by key and never by literal (Law 7) and projecting through the shared resolver (Law 8). "The Portal needs config too" resolves as: it is configured through the surface it is. The Portal at `:8640/` (or its `[portal].public_host` hosted equivalent) is the shareable link that bootstraps open → configure → deploy, and the USB MiOS-Repo shadow-config (T-260 / ADR-0008) is its offline embodiment.
+**Where:** `usr/lib/mios/agent-pipe/mios_portal.py` (configurator view plus `mios.toml` read/write), `usr/lib/mios/agent-pipe/server.py` (`GET /` plus `/v1/*` one door), `usr/share/mios/portal/` (absorbs the configurator UI), `usr/share/mios/configurator/mios.html` (folded in / standalone retired), `usr/share/mios/mios.toml [portal]` (L220), `tools/mios-portal-app/` (Android client points at the same `:8640/`)
+**Done When:** The configurator is a view inside the Portal at `:8640/`; `GET /` and `/v1/*` share the one door; every deployment type's config reads and writes `mios.toml` through that surface; the shareable link and the USB present the same surface online and offline.
+**Why:** A standalone HTML configurator that edits a file nobody else reads is a second config path around the SSOT — the operator configures one thing and the running system honors another.
+**Dep:** No hard dependency (the Portal and `:8640` `/v1` already exist). Converges with T-253 (the single `:8640` front-door collapse); governed by ADR-0007.
+**Status:** done-by-code | **Domain:** Config/Portal | **Who:** agent-pipe / Portal backend engineer
+
+## T-268 -- DEBT-01: Collapse the version/SSOT triplication to one projected token (TD-2)  (WS-DEBT | P1 | M)
+**Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the version literal is single-sourced so no build can resolve a stale copy.
+**What+How:** Kill the measured triplication: there are 3× `mios.toml` — canonical `usr/share/mios/mios.toml` (10,869 lines) plus two diverged roots, `C:\MiOS\mios.toml` (claiming **0.2.4**) and `C:\mios-bootstrap\mios.toml` — while `VERSION` and SSOT `mios_version` both say **0.3.0**, compounded by **37× hardcoded `v0.2.4`** and 29× `v0.2.0` in `automation/*.sh` headers. Collapse to one projected token: strip the literal `vX.Y.Z` from every script header and project it from `[meta].mios_version` at render time (Law 7); make the two root `mios.toml` files generated projections of the SSOT (or delete them), documenting the seed→SSOT relationship alongside T-266; and add two drift-checks — "no literal version in headers" and "root `mios.toml` ⊆ SSOT". Near-zero risk, highest reach, and it directly closes the Law 9 / ADR-0009 violation. Do NOT touch `cat\MiOS-Cat.bat`/`.ps1` — a concurrent agent owns those.
+**Where:** `C:\MiOS\VERSION`, `C:\MiOS\mios.toml`, `C:\mios-bootstrap\mios.toml`, `C:\MiOS\usr\share\mios\mios.toml` (`[meta].mios_version`), all `automation/*.sh` headers, `automation/98-drift-checks.sh` (two new checks)
+**Done When:** One authoritative version token exists; no literal `v0.2.4` or `v0.2.0` remains in any `automation/*.sh` header; the two root `mios.toml` files are generated-or-deleted and drift-gated as `root ⊆ SSOT`; a build can no longer resolve a stale copy.
+**Why:** A build that resolves the 7×-smaller root copy ships a manifest stamped 0.2.4 from a 0.3.0 tree, and 66 hardcoded version headers guarantee the next release bump is a partial one.
+**Dep:** Phase −1, near-zero risk; unblocks WS-LANG (T-272) and the rest of WS-DEBT. Interlocks with T-266 (seed-copy provenance).
+**Status:** done-by-code | **Domain:** Build/SSOT/Version | **Who:** SSOT/build agent
+
+## T-269 -- DEBT-02: shellcheck CI gate plus elimination of the 9 `eval`-on-agent-args verbs (TD-1)  (WS-DEBT | P1 | M)
+**Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the agent-facing OS-control plane carries no shell-injection surface and the repo's shell conventions are machine-enforced.
+**What+How:** Enforce the conventions the repo documents but never gates. (1) Add a `shellcheck -S warning` CI job over `automation/` and `usr/libexec/mios/` bash — today `shellcheck` appears only as `# shellcheck source=` comments with no lint job anywhere — plus a `just shellcheck` recipe. (2) Enforce `set -euo pipefail` on the **23 runtime verbs** that currently have no `set -e`. (3) Audit and eliminate the **9 verbs that `eval` on agent-derived arguments**, replacing each `eval` with an explicit arg-array dispatch or a `case` allowlist. This is TD-1, the top-ranked debt, spanning build, runtime and the agent-facing surface.
+**Where:** `.github/workflows/mios-ci.yml` (new shellcheck job), `Justfile` (a `just shellcheck` recipe), the 23 unguarded and 9 `eval`-using verbs under `usr/libexec/mios/mios-*`
+**Done When:** CI fails on a shellcheck warning; the 23 verbs carry `set -euo pipefail`; **zero** verbs `eval` on agent-derived args; every former `eval` site is an explicit allowlisted dispatch.
+**Why:** An autonomous agent can already pass a crafted argument into nine verbs that `eval` it as shell on the OS-control plane, and 23 verbs continue past an error because they never set `-e`.
+**Dep:** Phase −1, no new toolchain required. Interlocks with T-272 (the Rust verb-dispatcher port removes the `eval` surface structurally).
+**Status:** done-by-code | **Domain:** Build/Security | **Who:** build/security agent
+
+## T-270 -- DOTFILES-01: `[dotfiles.registry.*]` plus `mios-dotfiles-render`, an `apply` verb and both-sides gating  (WS-DOTFILES | P1 | L)
+**Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- mios.toml becomes the cross-platform system dotfiles, projected and drift-gated on Linux and Windows alike.
+**What+How:** Generalize the already-landed palette+btop projection (where `usr/libexec/mios/mios-theme-render` gained a settings-surface concept, `[btop]`'s ~60 keys project the whole `etc/btop/btop.conf` on both platforms, and drift-check 25 `check_theme_projection` auto-extended and is green). (1) Promote the hardcoded Python `SURFACES` dict into an SSOT-authored `[dotfiles.registry.<surface>]` map with per-platform `target.<os>`, a `kind` axis (template / json-merge / registry / command / skip), `format`, `sources`, `platforms` and `condition`, transcribing the existing color and btop surfaces first as a pure refactor with check 25 staying green. (2) Fork `mios-theme-render` into `mios-dotfiles-render`: registry loaded via `mios_toml.load_merged()`, arbitrary `@MIOS:<section>.<key>@` tokens, format-aware merge that splices the MiOS block without clobbering foreign keys (Windows Terminal, VS Code `settings.json`), per-platform target resolution, and new `apply`/`diff` verbs that write to live HOME (`~/.config`, `%USERPROFILE%`, `%LOCALAPPDATA%`). (3) Add the `[shell]`, `[editor]`, `[git]`(→`[identity]`, Law 9) and `[ssh]` (`secret_ref` only — raw keys never in SSOT) domains. (4) Generalize check 25 into `check_dotfiles_projection` over the full registry, add the Windows runtime half `Test-MiOSProjection`, collapse the scattered `Install-MiOS*` bodies into thin registry-driven `Sync-MiOSDotfiles` calls, and add a `mios dotfiles apply/diff/drift` verb (`[verbs.dotfiles_*]`).
+**Where:** `usr/share/mios/mios.toml` (`[dotfiles.registry.*]`, `[shell]`/`[editor]`/`[git]`/`[ssh]`; existing `[colors]`/`[theme]`/`[appearance]`/`[terminal]`/`[identity]`/`[btop]` remain as content), `usr/libexec/mios/mios-theme-render` (forks to `mios-dotfiles-render`, kept as a back-compat alias), `usr/libexec/mios/mios-sync-theme`, `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh`, `automation/98-drift-checks.sh` (check 25 → `check_dotfiles_projection`), `C:\mios-bootstrap\Get-MiOS.ps1` (`Sync-MiOSDotfiles`/`Test-MiOSProjection`), `usr/bin/mios`
+**Done When:** The color and btop surfaces are registry-driven with check 25 green; editing `[theme].opacity` projects to the Linux CSS, the Windows Terminal `json-merge` block and the WSL bridge with foreign keys intact and both gates passing; `mios dotfiles apply` writes live HOME; no `Install-MiOS*` value that has an SSOT home is hand-typed.
+**Why:** The surface list is a hardcoded Python dict today, so adding a dotfile means editing the engine rather than the SSOT, the Windows half has no gate at all, and nothing reaches live HOME — the operator's actual config stays untouched by the projection.
+**Dep:** No hard dependency (palette and btop already landed). Interlocks with T-267 (the Portal edits the registry map) and ADR-0005/0008 (the overlay carries across deployments). OPEN QUESTIONS: per-platform secrets store; a deployment-type enum for `condition` (ADR-0010).
+**Status:** done-by-code | **Domain:** Dotfiles/SSOT | **Who:** SSOT/theme agent
+
+## T-271 -- TEMPLATE-01: Compiled file-pattern system, `mios new`, a conformance check and candidate Law 14  (WS-TEMPLATE | P1 | L)
+**Goal:** E-04 One template per file type + the `mios new` scaffolder -- an agent learns MiOS formatting from a handful of templates, and non-conformant new files fail the build.
+**What+How:** Author ~15 templates under `usr/share/mios/templates/` (`bash`, `python-tool`, `python-module`, `rust`, `typescript`, `powershell`, `toml-config`, `yaml`, `json-schema`, `markdown-doc`, `adr`, `roadmap`, `systemd-unit`, `quadlet` [generated], `automation-step`), each combining the shared AI-hint header block produced by the existing `usr/libexec/mios/mios-ai-tag` engine (so the header stays single-sourced) with a small per-type body skeleton whose STRUCTURE is also validated — closing the gap where only the header is checked. Declare each type in SSOT as `[templates.<type>]` with `match`/`comment`/`required_header`/`required_markers`/`generated`/`scaffold`. Land the scaffolder first as Python `usr/libexec/mios/mios-new` (`mios new <type> <name>`, reusing `mios-ai-tag`, filling canonical fields — next ADR number, next `automation/NN` ordinal, canonical ports and endpoints — from SSOT and registering the canonical name through `tools/generate-names-registry.py`), then absorb it into `miosd scaffold`. Add a golden round-trip compiler `tools/compile-templates.py` and a `check_template_conformance` drift-check implemented as a Python worker mirroring `check_hint_coverage → mios-ai-hint-coverage`, degrade-open, ratcheting soft→hard, with `check_hint_coverage` becoming its header subset. Types marked `generated=true` refuse to scaffold an editable file and instead scaffold the generator plus its `mios.toml` section (Law 8 authoritative). Candidate **Law 14 ONE-TEMPLATE-PER-TYPE** lands per ADR-0007 as this ADR plus a `[laws]` registry row (id 14) plus `check_template_conformance` as its `enforced_by` — but the `[laws]` edit and its enforcement are OPERATOR-GATED; do not edit the `[laws]` table without confirmation.
+**Where:** `usr/share/mios/templates/*.tmpl` (new, ~15), `usr/share/mios/mios.toml` (`[templates]` schema; candidate `[laws]` id-14 row — OPERATOR-GATED), `usr/libexec/mios/mios-new` (new), `usr/libexec/mios/mios-ai-tag` (reused), `tools/compile-templates.py` (new), `automation/98-drift-checks.sh` (`check_template_conformance`), `usr/bin/mios` + `Justfile` (`mios new` / `just new`)
+**Done When:** `mios new <type> <name>` produces a file that passes `check_template_conformance` and the golden compiler; a template that cannot produce a conformant file fails the build; the header check is provably the header subset of conformance; Law 14 is proposed with enforcement wired and the `[laws]` row awaiting operator sign-off.
+**Why:** Only the AI-hint header is checked today, so every new file's body structure is improvised and each agent re-invents MiOS conventions by grepping neighbors — the drift that template conformance exists to stop.
+**Dep:** No hard dependency (Python-first, offline-deterministic); folds into WS-LANG's `miosd` (T-272) once the Rust workspace exists. OPEN QUESTIONS: Law-14 operator confirmation; the next free drift-check number.
+**Status:** done-by-code | **Domain:** Build/Templates | **Who:** tooling/docs agent
+
+## T-272 -- LANG-01: Stand up the Rust workspace and port the first fragile bash tool  (WS-LANG | P1 | L)
+**Goal:** E-01 Compiled native tier: Rust-port the build orchestrator and the libexec tool fleet -- the strangler-fig migration begins with proven byte-parity before any shell is deleted.
+**What+How:** Create the cargo workspace whose crates live behind one `miosd` static musl binary with subcommands `build|drift|verb|resolve|render|cat|scaffold|fmt`, built once in an early **cached Containerfile stage** and `COPY`'d to `/usr/libexec/mios/miosd`, invoked by thin `RUN`s so the immutable-image contract holds (Law 8 strengthened — `miosd render`/`drift`/`fmt` are the same regenerate-and-diff gate). Port the FIRST fragile bash tool: either the drift-runner (`automation/98-drift-checks.sh`, 44 `check_*` in ~3.1k lines of bash — highest resilience win, lowest coupling, several checks already Python-in-bash) or the verb dispatcher (which structurally removes the 9-verb `eval` surface) — running old and new side by side and diffing to identical before deleting the bash. Collapse the Law-13 resolver twin (`usr/lib/mios/mios_toml.py` ⇄ `tools/lib/userenv.sh`) into one crate exposing a `--shell` KEY=VAL emitter and a pyo3 face, ending the parity drift and retiring `check_userenv_parity`. OPEN QUESTION — workspace location: `C:\MiOS\src\` is already occupied by the in-tree C# `mios-launch.cs` and `autounattend/`, so the workspace goes elsewhere (candidates `C:\MiOS\tools\native\` or `src\mios-rs\`); do NOT clobber `src/`. Go is rejected as a second native tier (documented escape hatch only), the 66 `automation/NN-*.sh` OS-touching steps stay shell-thin, and the AI plane stays Python.
+**Where:** the new cargo workspace (location OPEN — `C:\MiOS\tools\native\` or `src\mios-rs\`), `Containerfile` (early cached Rust stage plus `COPY`), `automation/build.sh` (reduced to a ~20-line shim), `automation/98-drift-checks.sh` (checks ported one at a time), `usr/lib/mios/mios_toml.py` + `tools/lib/userenv.sh` (collapse into the crate), `C:\MiOS\src\mios-launch.cs` (later folds into `miosd cat`)
+**Done When:** `miosd` bakes in a cached stage and is invoked by unchanged thin `RUN`s; the first ported tool runs byte-identical to the bash it replaces under a clean side-by-side diff, after which the bash is deleted; the resolver twin is one crate with pyo3 and `--shell` faces and `check_userenv_parity` is retired.
+**Why:** The mechanical conscience of the tree is ~3.1k lines of untested bash, and the resolver exists as two hand-synced implementations whose divergence is only caught by a parity check that itself has to be maintained.
+**Dep:** After T-268 (one version token) and T-269 (shellcheck gate) — Phase −1 unblocks the port. OPEN QUESTIONS: workspace location; the Go escape hatch; pyo3 versus subprocess for the AI-plane resolver binding.
+**Status:** done-by-code | **Domain:** Build/Lang | **Who:** native-tooling agent
+
+## T-273 -- Extract the `mios_dispatch.py` verb→bash chokepoint into `mios_pipe/` and finish the server.py decomposition (TD-5)  (WS-DEBT-PIPE | P2 | M)
+**Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the agent-pipe god-modules stop being unreviewable monoliths so the /v1 front door (NS-2) rests on decomposed, typed, testable Python.
+**What+How:** The `mios_pipe/` refactor (103 files, 100% AI-hint-tagged) stopped short of the 4 largest flat modules. Extract `mios_dispatch.py` FIRST — it is the security-critical verb→bash chokepoint every verb passes through — into `mios_pipe/`, then continue extracting the remaining flat modules so `server.py` (currently **8,961 lines**: VRAM scheduler + `_db_*` helpers + auth middleware + agent streaming all intermixed) shrinks toward a thin composition root. Relocation ≠ decomposition: also split the 3 already-relocated 88–107 KB monoliths (`routing/chat.py`, `native_loop.py`, `federation/a2a.py`) where feasible. Replace the **9 bare `except:`** (out of 558 `except Exception`) with typed handlers. Add a new drift-check in `automation/98-drift-checks.sh` enforcing "no Python file > 800 lines". Python stays (Law 6, ML ecosystem) — the debt is the monolith, not the language.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_dispatch.py`, `usr/lib/mios/agent-pipe/mios_pipe/**` (incl. `routing/chat.py`, `native_loop.py`, `federation/a2a.py`), `automation/98-drift-checks.sh`
+**Done When:** `mios_dispatch.py` is extracted and imported live with `check_unwired_modules` green; `server.py` is under the 800-line composition-root target; `grep -n 'except:$'` over `usr/lib/mios/agent-pipe/` returns nothing; and the new >800-line Python drift-check passes in `just drift-gate`.
+**Why:** Today every verb invocation funnels through an un-decomposed, un-unit-testable dispatch module, and a 9k-line `server.py` mixing auth middleware with VRAM scheduling means any change risks a use-before-def NameError that only surfaces in the publish bake — the exact class that has already broken it.
+**Dep:** none — independent Python-only refactor track; `check_unwired_modules` confirms each extraction is live.
+**Status:** done-by-code | **Domain:** AI-Plane/Refactor | **Who:** AI-plane agent
 
