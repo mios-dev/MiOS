@@ -2230,10 +2230,16 @@ test_docs_ratchet() {
 # An incident followed and the operator asked for this guard to remain in place.
 true
 EOF
+    # The census counts GIT-TRACKED files only, so an untracked probe is
+    # invisible to it and the test would pass vacuously. Stage it with -N
+    # (intent-to-add) so `git ls-files` reports it without committing content.
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
     if _neg_gate check_docs_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
         rm -f "$probe"
         die "check_docs_ratchet passed despite an unharvested narrative block"
     fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
     rm -f "$probe"
     _neg_gate check_docs_ratchet || die "check_docs_ratchet failed after restoration"
     log "check_docs_ratchet negative test passed"

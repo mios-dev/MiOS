@@ -35,7 +35,44 @@ from dataclasses import dataclass, field
 from importlib.machinery import SourceFileLoader
 from typing import Iterable
 
-__all__ = ["Block", "Verdict", "Policy", "RefIndex", "lex", "classify", "load_ai_tag"]
+__all__ = ["Block", "Verdict", "Policy", "RefIndex", "lex", "classify", "load_ai_tag",
+           "SCAN_EXT", "iter_source_files"]
+
+# Extensions the corpus covers. One definition, so the gate and the CLI cannot
+# disagree about what was counted.
+SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
+            ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
+_SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv"}
+
+
+def iter_source_files(root: str):
+    """The files the census covers: GIT-TRACKED only, sorted.
+
+    Walking the filesystem instead made the count depend on whatever untracked
+    or ignored files a particular machine happened to have -- vendored trees,
+    scratch dirs, staging dumps. The number then differed between a contributor
+    box and CI, which silently loosened the ratchet ceiling in CI to the point
+    that its negative test could not breach it. Tracked files are the same set
+    everywhere.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                             capture_output=True, check=True)
+        rels = [p for p in out.stdout.decode("utf-8", "replace").split("\0") if p]
+    except Exception:
+        rels = []
+        for dp, dn, fns in os.walk(root):
+            dn[:] = [d for d in dn if d not in _SKIP_DIRS]
+            for fn in fns:
+                rels.append(os.path.relpath(os.path.join(dp, fn), root)
+                            .replace(os.sep, "/"))
+    for rel in sorted(rels):
+        if not rel.endswith(SCAN_EXT):
+            continue
+        full = os.path.join(root, rel.replace("/", os.sep))
+        if os.path.isfile(full):
+            yield rel, full
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))

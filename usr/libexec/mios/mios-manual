@@ -46,9 +46,8 @@ COLUMNS = ["path", "start_line", "end_line", "lines", "words", "sha12", "class",
            "reason", "as", "stale", "landed_doc", "landed_anchor", "landed_words",
            "pruned"]
 
-SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
-            ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
-SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv"}
+# Which files the census covers is defined once, in mios_comments.
+SCAN_EXT = mc.SCAN_EXT
 
 
 def _policy(root: str) -> mc.Policy:
@@ -59,20 +58,14 @@ def _policy(root: str) -> mc.Policy:
 
 
 def _iter_blocks(root: str, policy: mc.Policy, refindex=None):
-    for dp, dn, fns in os.walk(root):
-        dn[:] = [d for d in dn if d not in SKIP_DIRS]
-        for fn in sorted(fns):
-            if not fn.endswith(SCAN_EXT):
-                continue
-            full = os.path.join(dp, fn)
-            rel = os.path.relpath(full, root).replace(os.sep, "/")
-            try:
-                blocks = mc.lex(full)
-            except Exception:
-                continue
-            for b in blocks:
-                b = mc.Block(**{**b.__dict__, "path": rel})
-                yield b, mc.classify(b, policy, refindex)
+    for rel, full in mc.iter_source_files(root):
+        try:
+            blocks = mc.lex(full)
+        except Exception:
+            continue
+        for b in blocks:
+            b = mc.Block(**{**b.__dict__, "path": rel})
+            yield b, mc.classify(b, policy, refindex)
 
 
 def _read_ledger(path: str) -> dict[str, dict]:

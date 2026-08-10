@@ -6933,28 +6933,22 @@ if ceil_narr is None or ceil_hint is None:
                 " -- the ratchet has no floor and would pass vacuously")
     print("\n".join(viol)); sys.exit(1)
 
-EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
-       ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
-SKIP = {".git", "target", "node_modules", "__pycache__", ".venv"}
+# Same file set as mios-manual: GIT-TRACKED only. Walking the filesystem made
+# the count depend on a machine's untracked files, so the ceiling was loose in
+# CI and this gate's own negative test could not breach it.
 narr = hints = 0
-for dp, dn, fns in os.walk(root):
-    dn[:] = [d for d in dn if d not in SKIP]
-    for fn in fns:
-        if not fn.endswith(EXT):
-            continue
-        full = os.path.join(dp, fn)
-        rel = os.path.relpath(full, root).replace(os.sep, "/")
-        try:
-            blocks = mc.lex(full)
-        except Exception:
-            continue
-        for b in blocks:
-            b = mc.Block(**{**b.__dict__, "path": rel})
-            v = mc.classify(b, pol, None)
-            if v.cls == "MIGRATE":
-                narr += 1
-            elif v.cls == "MIGRATE_HEADER":
-                hints += 1
+for rel, full in mc.iter_source_files(root):
+    try:
+        blocks = mc.lex(full)
+    except Exception:
+        continue
+    for b in blocks:
+        b = mc.Block(**{**b.__dict__, "path": rel})
+        v = mc.classify(b, pol, None)
+        if v.cls == "MIGRATE":
+            narr += 1
+        elif v.cls == "MIGRATE_HEADER":
+            hints += 1
 
 if narr > ceil_narr:
     viol.append("unmigrated narrative comment blocks %d > ceiling %d --"
