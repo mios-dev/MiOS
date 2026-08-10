@@ -298,17 +298,55 @@ def is_text(path):
         return False
 
 
+def _tracked(root):
+    """Repo-relative paths git knows about, or None when this is not a work tree."""
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                             capture_output=True, check=True)
+    except Exception:
+        return None
+    return [p for p in out.stdout.decode("utf-8", "replace").split("\0") if p]
+
+
 def walk(roots):
+    """Taggable files: GIT-TRACKED where the root is a work tree.
+
+    The filesystem walk this replaces yielded 67,181 candidates against 2,269
+    tracked files -- it descended into .cargo, .rustup/tmp and even
+    .git/lost-found. Two reasons:
+
+      * SKIP_DIR is written with '/' separators, but os.walk hands back '\\' on
+        Windows, so the entire skip list silently matched nothing there.
+      * Even with it working, untracked build output and vendored trees are not
+        part of the repo and must not enter the corpus.
+
+    Tracked enumeration fixes both and is deterministic between a contributor's
+    box and CI -- the same divergence that made the docs ratchet unfalsifiable.
+    Verified to lose nothing: 0 taggable files are tracked-but-unwalked.
+    """
     for root in roots:
-        for dp, dns, fns in os.walk(root):
-            if SKIP_DIR.search(dp):
-                dns[:] = []
+        rels = _tracked(root)
+        if rels is None:
+            for dp, dns, fns in os.walk(root):
+                # Normalise separators or SKIP_DIR cannot match on Windows.
+                if SKIP_DIR.search(dp.replace(os.sep, "/")):
+                    dns[:] = []
+                    continue
+                dns[:] = [d for d in dns
+                          if not SKIP_DIR.search(
+                              os.path.join(dp, d).replace(os.sep, "/"))]
+                for fn in sorted(fns):
+                    p = os.path.join(dp, fn)
+                    if indexable(p) and is_text(p):
+                        yield p
+            continue
+        for rel in sorted(rels):
+            if SKIP_DIR.search(rel):
                 continue
-            dns[:] = [d for d in dns if not SKIP_DIR.search(os.path.join(dp, d))]
-            for fn in sorted(fns):
-                p = os.path.join(dp, fn)
-                if indexable(p) and is_text(p):
-                    yield p
+            p = os.path.join(root, rel.replace("/", os.sep))
+            if os.path.isfile(p) and indexable(p) and is_text(p):
+                yield p
 
 
 def main() -> int:

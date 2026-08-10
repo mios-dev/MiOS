@@ -1669,7 +1669,7 @@ ip_resolve = 4
 # would leak into the model's prompt) and single-value data files (a comment
 # would corrupt the value). Env override: MIOS_AITAG_MAX_UNTAGGED; CLI:
 # --max-untagged. Current intentional remainder = soul prompts + data/plan docs.
-max_untagged = 122
+max_untagged = 120
 max_unconforming = 0
 
 # Hint length cap. Was hardcoded 260 in mios-ai-tag, where it also silently
