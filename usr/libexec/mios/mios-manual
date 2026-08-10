@@ -222,6 +222,128 @@ def cmd_coverage(args) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# render -- DERIVED content, spliced into marker pairs
+# ---------------------------------------------------------------------------
+MARK_OPEN = "<!-- MIOS-GEN:{id} -->"
+MARK_CLOSE = "<!-- /MIOS-GEN:{id} -->"
+_MARK_RE = None
+
+
+def _marker_re():
+    global _MARK_RE
+    if _MARK_RE is None:
+        import re
+        _MARK_RE = re.compile(
+            r"(?P<open><!--\s*MIOS-GEN:(?P<id>[^\s>]+)\s*-->)"
+            r"(?P<body>.*?)"
+            r"(?P<close><!--\s*/MIOS-GEN:(?P=id)\s*-->)",
+            re.S)
+    return _MARK_RE
+
+
+def _derive_ports(ssot: dict, arg: str) -> str:
+    cats = (ssot.get("ports", {}) or {}).get("categories", {}) or {}
+    ports = ssot.get("ports", {}) or {}
+    names = [arg] if arg and arg in cats else sorted(cats)
+    out = ["| Category | Service | Port |", "|---|---|---|"]
+    for cname in names:
+        cat = cats[cname] or {}
+        for m in cat.get("members", []) or []:
+            out.append(f"| {cname} | {m} | {ports.get(m, '?')} |")
+        for pin, val in (cat.get("pinned", {}) or {}).items():
+            out.append(f"| {cname} | {pin} (pinned) | {val} |")
+    out.append("")
+    out.append("<!-- derived from usr/share/mios/mios.toml [ports.categories] -->")
+    return "\n".join(out)
+
+
+def _derive_laws(ssot: dict, arg: str) -> str:
+    laws = (ssot.get("laws", {}) or {}).get("laws", []) or []
+    out = ["| # | Law | Applies to | Enforced by |", "|---|---|---|---|"]
+    for l in laws:
+        out.append(f"| {l.get('id')} | {l.get('slug')} | {l.get('applies_to')} "
+                   f"| `{l.get('enforced_by')}` |")
+    out.append("")
+    out.append("<!-- derived from usr/share/mios/mios.toml [laws].laws -->")
+    return "\n".join(out)
+
+
+DERIVERS = {"ports": _derive_ports, "laws": _derive_laws}
+
+
+def _derive(gen_id: str, ssot: dict) -> str | None:
+    kind, _, arg = gen_id.partition(":")
+    fn = DERIVERS.get(kind)
+    return None if fn is None else fn(ssot, arg)
+
+
+def cmd_render(args) -> int:
+    """Splice derived content into marker pairs. Writes NOWHERE else.
+
+    The whole safety story of the doc model is that regeneration cannot destroy
+    hand-written prose. That holds only because this function's sole write is
+    replacing the interior of a matched MIOS-GEN pair -- there is deliberately no
+    code path that emits a whole file, so an authored paragraph outside a marker
+    is untouchable even if a deriver misbehaves.
+    """
+    root = args.root
+    if tomllib is None:
+        print("tomllib unavailable", file=sys.stderr)
+        return 1
+    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+        ssot = tomllib.load(fh)
+
+    targets = []
+    for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
+        dn[:] = [d for d in dn if d not in {".git"}]
+        for fn in fns:
+            if fn.endswith(".md"):
+                targets.append(os.path.join(dp, fn))
+
+    rx = _marker_re()
+    changed, spliced, unknown = [], 0, set()
+    for path in sorted(targets):
+        try:
+            with open(path, encoding="utf-8", newline="") as fh:
+                src = fh.read()
+        except OSError:
+            continue
+        if "MIOS-GEN:" not in src:
+            continue
+
+        def repl(m):
+            nonlocal spliced
+            gid = m.group("id")
+            body = _derive(gid, ssot)
+            if body is None:
+                unknown.add(gid)
+                return m.group(0)
+            spliced += 1
+            return f"{m.group('open')}\n{body}\n{m.group('close')}"
+
+        new = rx.sub(repl, src)
+        if new != src:
+            changed.append(os.path.relpath(path, root).replace(os.sep, "/"))
+            if not args.check:
+                with open(path, "w", encoding="utf-8", newline="\n") as fh:
+                    fh.write(new)
+
+    if unknown:
+        print("unknown MIOS-GEN ids (no deriver): " + ", ".join(sorted(unknown)),
+              file=sys.stderr)
+        return 1
+    if args.check:
+        if changed:
+            print("derived sections are stale -- run `mios-manual render`:\n  "
+                  + "\n  ".join(changed), file=sys.stderr)
+            return 1
+        print(f"derived sections up to date ({spliced} markers)")
+        return 0
+    print(f"rendered {spliced} marker(s); {len(changed)} file(s) updated")
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="mios-manual", description=__doc__.splitlines()[0])
     ap.add_argument("--root", default=os.environ.get("MIOS_ROOT") or _ROOT_DEFAULT)
@@ -240,6 +362,11 @@ def main(argv=None) -> int:
     p = sub.add_parser("coverage", help="the two ratchet numbers")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_coverage)
+
+    p = sub.add_parser("render", help="splice derived sections into MIOS-GEN markers")
+    p.add_argument("--check", action="store_true",
+                   help="fail if any derived section is stale; write nothing")
+    p.set_defaults(fn=cmd_render)
 
     args = ap.parse_args(argv)
     if args.cmd == "ledger" and not (args.write or args.check):

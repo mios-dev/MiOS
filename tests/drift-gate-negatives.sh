@@ -2262,6 +2262,23 @@ test_docs_ratchet_monotone() {
     log "check_docs_ratchet_monotone negative test passed"
 }
 
+test_manual_generated() {
+    log "Testing check_manual_generated"
+    local doc="${ROOT}/usr/share/doc/mios/reference/ports-and-laws.md"
+    local backup; backup="$(mktemp)"
+    cp "$doc" "$backup"
+    # Corrupt a DERIVED table cell: the gate must notice the doc no longer
+    # matches mios.toml.
+    sed -i 's/| admin | ssh | [0-9]* |/| admin | ssh | 9999 |/' "$doc"
+    if _neg_gate check_manual_generated; then
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "check_manual_generated passed despite a stale derived section"
+    fi
+    cp "$backup" "$doc"; rm -f "$backup"
+    _neg_gate check_manual_generated || die "check_manual_generated failed after restoration"
+    log "check_manual_generated negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2312,6 +2329,7 @@ main() {
     test_wsl_distro_resolution
     test_docs_ratchet
     test_docs_ratchet_monotone
+    test_manual_generated
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

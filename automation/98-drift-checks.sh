@@ -6132,6 +6132,7 @@ main() {
     check_unit_dependency_closure
     check_docs_ratchet
     check_docs_ratchet_monotone
+    check_manual_generated
 
 
     check_chrony_ptp_dropin
@@ -7018,6 +7019,19 @@ PY
         return
     fi
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
+}
+
+# Derived doc sections must match SSOT: see docs/agy/doc-generative-documentation.md
+check_manual_generated() {
+    echo "[98-drift-checks]   check_manual_generated"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
 }
 
 main "$@"
