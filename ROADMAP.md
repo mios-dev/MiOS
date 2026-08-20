@@ -571,18 +571,18 @@ acceptance: |
 - **Accept:** `just drift-gate` green with the new pin everywhere; PG major unchanged.
 - **Deps:** none.
 
-### UPSTREAM-02 — derive `mios-resolve-latest` refs from SSOT  **[P1]**  (→ T-289)
-- **What:** Replace the script's hand-mirrored ref array (four entries had drifted) with refs read from `mios.toml [image.sidecars]`.
+### UPSTREAM-02 — derive `mios-resolve-latest` refs from SSOT  **[P1] ✅ DONE**  (→ T-289)
+- **What:** Replaced the script's hand-mirrored ref array (four entries had drifted) with refs read from `mios.toml [image.sidecars]` through the `mios_toml` resolver, and fixed the provenance defects found alongside it: a fabricated fallback digest (the SHA-256 of empty input) recorded when resolution failed, a literal `$` in the SBOM date column, and a hardcoded `latest` tag on every row.
 - **Why:** A drifted mirror feeds wrong images into the SBOM record — the exact failure the SSOT exists to prevent.
-- **Files:** `usr/libexec/mios/mios-resolve-latest`, `usr/share/mios/mios.toml`.
-- **Accept:** deleting a ref from the SSOT changes the resolver's set with no script edit; a parity drift-check covers the surface.
-- **Deps:** none (literals corrected in the same pass that filed this).
+- **Files:** `usr/libexec/mios/mios-resolve-latest`, `automation/98-drift-checks.sh` (`check_resolver_ssot_refs`), `tests/drift-gate-negatives.sh`, `usr/share/mios/reference/drift-gate-index.tsv`.
+- **Accept:** the resolver set is derived (21 registry refs, was a 9-entry mirror); `check_resolver_ssot_refs` fails on any re-introduced ref literal and is covered by a negative test.
+- **Deps:** none.
 
-### UPSTREAM-03 — Renovate manager for the exact-pinned sidecar entries  **[P2]**  (→ T-290)
-- **What:** Add a `customManagers` regex covering `[image.sidecars]` exact pins (pgvector, k3s) so the "Bump via Renovate" comment becomes true.
-- **Why:** Today Renovate only manages the Containerfile base-image ARG; exact pins rot until an operator notices.
-- **Files:** `renovate.json`, `usr/share/mios/mios.toml`.
-- **Accept:** a stale exact pin produces a Renovate PR; float `:latest`/`:main` refs stay unmanaged.
+### UPSTREAM-03 — Renovate manager for the exact-pinned sidecar entries  **[P2] ✅ DONE**  (→ T-290)
+- **What:** `customManagers` regex covering `[image.sidecars]` exact pins (pgvector, k3s) so the "Bump via Renovate" comment becomes true, with `pinDigests: false` so Renovate cannot write the hand-pinned `@sha256` that ADR-0003 forbids.
+- **Why:** Renovate only managed the Containerfile base-image ARG; exact pins rot until an operator notices.
+- **Files:** `renovate.json`.
+- **Accept:** the manager matches exactly the two exact pins across the 13.6k-line SSOT and leaves every float (`:latest`/`:main`/major-only/`localhost/`) unmanaged; mios.toml bumps require review.
 - **Deps:** none.
 
 ### UPSTREAM-04 — runtime kernel-lockdown boot probe  **[P2] ✅ DONE**  (→ T-291)
