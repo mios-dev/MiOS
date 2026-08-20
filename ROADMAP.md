@@ -7,7 +7,7 @@
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
-- **Active**: 0
+- **Active**: 1
 - **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -41,7 +41,7 @@
 (no workstreams)
 
 **Security & Identity**
-(no workstreams)
+- `WS-UPSTREAM` — Upstream watch — primary-source-verified CVE/version tracking for the AI-lane images (active)
 
 **Desktop & UX**
 - `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform ✅
@@ -544,7 +544,67 @@ acceptance: |
 
 # Security & Identity
 
-*(no active workstreams)*
+## WS-UPSTREAM — Upstream watch: verified CVE/version tracking for the AI-lane images
+<!--
+id: WS-UPSTREAM
+title: Upstream watch — primary-source-verified CVE/version tracking for the AI-lane images
+theme: Security & Identity
+status: active
+priority: P1
+laws: [3, 7, 8, 12]
+ssot_keys: ["image.sidecars"]
+adr: [3, 12]
+deps: [WS-SBOM]
+acceptance: |
+  Every AI-lane image ref is either float-latest with an SBOM digest record or an
+  exact pin with an automated bump path; every CVE claim about the stack carries a
+  primary-source badge in a dated reference report; and the stale doc surfaces that
+  corrupted external research are re-rendered from SSOT.
+-->
+
+*Born from the 2026-08 verification pass (`usr/share/doc/mios/reference/upstream-gaps-2026-08.md`): a batch of externally-generated deep-research reports fabricated versions, registries and CVE fix-lines, and the repo's own drifted docs fed the fabrication. This workstream makes upstream tracking verifiable — primary sources, badges, SSOT-grounded framing (`usr/share/mios/prompts/upstream-research.xml.md`) — and closes the pin/probe gaps the pass surfaced. Companion upstream docs: `usr/share/doc/mios/upstream/inference-engines.md`, `usr/share/doc/mios/upstream/pgvector.md`.*
+
+### UPSTREAM-01 — pgvector pin to verified latest stable  **[P1] ✅ DONE**  (→ T-288)
+- **What:** Bump the one exact-pinned AI image `0.8.3-pg17` → `0.8.6-pg17` through the SSOT and regenerate every projection.
+- **Why:** Latest-stable hygiene on the agent datastore; the CVE-2026-3172 fix line (0.8.2) was already covered.
+- **Files:** `usr/share/mios/mios.toml`, `usr/lib/mios/bake/plan.d/04-extra.list`, generated projections via `tools/sync-generated.sh`.
+- **Accept:** `just drift-gate` green with the new pin everywhere; PG major unchanged.
+- **Deps:** none.
+
+### UPSTREAM-02 — derive `mios-resolve-latest` refs from SSOT  **[P1]**  (→ T-289)
+- **What:** Replace the script's hand-mirrored ref array (four entries had drifted) with refs read from `mios.toml [image.sidecars]`.
+- **Why:** A drifted mirror feeds wrong images into the SBOM record — the exact failure the SSOT exists to prevent.
+- **Files:** `usr/libexec/mios/mios-resolve-latest`, `usr/share/mios/mios.toml`.
+- **Accept:** deleting a ref from the SSOT changes the resolver's set with no script edit; a parity drift-check covers the surface.
+- **Deps:** none (literals corrected in the same pass that filed this).
+
+### UPSTREAM-03 — Renovate manager for the exact-pinned sidecar entries  **[P2]**  (→ T-290)
+- **What:** Add a `customManagers` regex covering `[image.sidecars]` exact pins (pgvector, k3s) so the "Bump via Renovate" comment becomes true.
+- **Why:** Today Renovate only manages the Containerfile base-image ARG; exact pins rot until an operator notices.
+- **Files:** `renovate.json`, `usr/share/mios/mios.toml`.
+- **Accept:** a stale exact pin produces a Renovate PR; float `:latest`/`:main` refs stay unmanaged.
+- **Deps:** none.
+
+### UPSTREAM-04 — runtime kernel-lockdown boot probe  **[P2] ✅ DONE**  (→ T-291)
+- **What:** Warn-tier greenboot check asserting the booted kernel reports `[integrity]`, degrade-open on kernels without the lockdown LSM.
+- **Why:** `lockdown=integrity` was projection-checked at build but never verified on the running host.
+- **Files:** `usr/lib/greenboot/check/wanted.d/31-kernel-lockdown.sh`, `.gitignore` whitelist.
+- **Accept:** probe passes on a lockdown-enabled boot, warns on mismatch, silent on WSL2.
+- **Deps:** none.
+
+### UPSTREAM-05 — PG-major migration path for mios-pgvector  **[P2]**  (→ T-292)
+- **What:** A tested pg17→pg18 migration (dump/restore or `pg_upgrade`) so the `-pgNN` tag suffix can advance without data loss.
+- **Why:** PG 18 is current upstream; the pin is held at `-pg17` solely because the data dir major must match the image.
+- **Files:** `usr/share/containers/systemd/mios-pgvector.container`, `usr/share/mios/mios.toml` (`[pgvector]`), migration tooling under `usr/libexec/mios/`.
+- **Accept:** a populated pg17 datastore comes up on a `-pg18` image with row counts and HNSW recall intact, with a rollback path.
+- **Deps:** T-175 (DURA-01 backups land first).
+
+### UPSTREAM-06 — re-render the stale doc port/lane tables from SSOT  **[P2]**  (→ T-293)
+- **What:** Regenerate the port/lane tables in README.md, CLAUDE.md, `api.md`, GEMINI.md and SECURITY.md from `[ports]` + the Quadlet lane mapping.
+- **Why:** Three mutually inconsistent port schemes circulate; external research inherits the stale ones and "corrects" real values back to wrong ones.
+- **Files:** `README.md`, `CLAUDE.md`, `GEMINI.md`, `SECURITY.md`, `usr/share/doc/mios/reference/api.md`, a renderer under `tools/`.
+- **Accept:** one port scheme (the SSOT's) across every doc, guarded by a projection drift-check.
+- **Deps:** none.
 
 # Desktop & UX
 
