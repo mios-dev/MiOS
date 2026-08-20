@@ -323,9 +323,13 @@ jobs:
           # across both large disks (/mnt store + / temp), each holding ~1x.
           SOURCE_DATE_EPOCH=$(git -C "$GITHUB_WORKSPACE" log -1 --format=%ct 2>/dev/null || date +%s)
           export SOURCE_DATE_EPOCH
+          # SOURCE_DATE_EPOCH (env) is the reproducible-builds standard and podman
+          # honours it for layer timestamps on its own. Passing --timestamp as well
+          # is the SAME setting twice, and podman refuses the pair outright:
+          # "timestamp and source-date-epoch would be ambiguous if allowed together"
+          # (exit 125, before the Containerfile is even read). Keep the env form.
           sudo TMPDIR=/mnt/tmp SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" podman build \
               "${BUILD_ARGS[@]}" \
-              --timestamp "$SOURCE_DATE_EPOCH" \
               --build-arg SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" \
               --device /dev/fuse \
               --cap-add all \
