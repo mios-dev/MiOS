@@ -26,6 +26,12 @@
       "matchFileNames": ["image-versions.yml"],
       "automerge": false,
       "assignees": ["MiOS-DEV"]
+    },
+    {
+      "description": "Protect the mios.toml SSOT  an exact-pin bump there reprojects into every generated surface, so it gets a human",
+      "matchFileNames": ["usr/share/mios/mios.toml"],
+      "automerge": false,
+      "assignees": ["MiOS-DEV"]
     }
   ],
   "customManagers": [
@@ -38,6 +44,16 @@
       ],
       "datasourceTemplate": "docker",
       "pinDigests": true
+    },
+    {
+      "customType": "regex",
+      "description": "Bump the EXACT-pinned [image.sidecars] entries in the mios.toml SSOT (pgvector, k3s). Float refs (:latest/:main/major-only) are deliberately unmanaged: ADR-0012 resolves those at build and records the digest in the SBOM. pinDigests is off on purpose  a hand-written @sha256 in the SSOT is exactly what ADR-0003 and check_no_hardcode_version forbid.",
+      "fileMatch": ["(^|/)usr/share/mios/mios\\.toml$"],
+      "matchStrings": [
+        "=\\s*\"(?<depName>[a-z0-9][^:\"\\s]*\\.[^:\"\\s]*/[^:\"\\s]+):(?<currentValue>v?\\d+\\.\\d+\\.\\d+[^\"\\s]*)\""
+      ],
+      "datasourceTemplate": "docker",
+      "pinDigests": false
     }
   ]
 }
