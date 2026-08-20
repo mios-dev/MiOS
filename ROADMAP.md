@@ -592,12 +592,12 @@ acceptance: |
 - **Accept:** probe passes on a lockdown-enabled boot, warns on mismatch, silent on WSL2.
 - **Deps:** none.
 
-### UPSTREAM-05 — PG-major migration path for mios-pgvector  **[P2]**  (→ T-292)
-- **What:** A tested pg17→pg18 migration (dump/restore or `pg_upgrade`) so the `-pgNN` tag suffix can advance without data loss.
-- **Why:** PG 18 is current upstream; the pin is held at `-pg17` solely because the data dir major must match the image.
-- **Files:** `usr/share/containers/systemd/mios-pgvector.container`, `usr/share/mios/mios.toml` (`[pgvector]`), migration tooling under `usr/libexec/mios/`.
-- **Accept:** a populated pg17 datastore comes up on a `-pg18` image with row counts and HNSW recall intact, with a rollback path.
-- **Deps:** T-175 (DURA-01 backups land first).
+### UPSTREAM-05 — PG-major migration for mios-pgvector  **[P2] ✅ DONE**  (→ T-292)
+- **What:** `mios-pgvector-major-upgrade.service` (ordered `Before=mios-pgvector.service`) makes the `pgNN` major movable, and the ref moved to `pg18`. On a `PG_VERSION`/image-major mismatch it dumps the old cluster **with an image of the OLD major** into `[pgvector].restore_sql` — bind-mounted at `docker-entrypoint-initdb.d/20-mios-restore.sql`, so the new cluster replays it after `10-mios-schema.sql` (`pg_dump --clean --if-exists` makes that ordering idempotent) — then stashes the old data dir as `<data_dir>.pg<old>.<timestamp>`.
+- **Why:** PG 18 is current upstream, and the upstream images ship one major's binaries each, so in-place `pg_upgrade` is unavailable; without this guard, advancing the suffix strands the entire agent datastore.
+- **Files:** `usr/libexec/mios/mios-pgvector-major-upgrade`, `usr/lib/systemd/system/mios-pgvector-major-upgrade.service`, `usr/lib/tmpfiles.d/mios-pgvector.conf`, `usr/share/mios/mios.toml` (`[pgvector].restore_sql`, the Quadlet `Volume`), `usr/share/containers/systemd/mios-pgvector.container`.
+- **Accept:** non-destructive on every failure path — absent old-major image, failed dump, empty dump and downgrade all leave the data dir untouched and exit 0, so pgvector stops on Postgres's own major-mismatch error rather than initialising an empty cluster; the old cluster is stashed, never deleted.
+- **Deps:** none (the daily `mios-pgvector-backup` timer already ships as a second safety net).
 
 ### UPSTREAM-06 — re-render the stale doc port/lane tables from SSOT  **[P2]**  (→ T-293)
 - **What:** Regenerate the port/lane tables in README.md, CLAUDE.md, `api.md`, GEMINI.md and SECURITY.md from `[ports]` + the Quadlet lane mapping.

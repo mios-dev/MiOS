@@ -1,0 +1,43 @@
+# AI-hint: Ordered-before oneshot that lets the pgvector image float across PostgreSQL majors -- it dumps an older cluster with the older image into the initdb restore slot and stashes the old data dir so the new major can initialise, and degrades open (never destructive) when it cannot.
+# AI-related: mios-pgvector.service, mios-pgvector-major-upgrade, /usr/lib/tmpfiles.d/mios-pgvector.conf, mios-pgvector-backup.service
+# /usr/lib/systemd/system/mios-pgvector-major-upgrade.service
+# The pgvector ref floats on the `pgNN` family tag (ADR-0012), so the pgvector
+# VERSION advances on every rebuild with no hand-pinning. The PostgreSQL MAJOR
+# cannot float the same way: a pg18 image refuses to start on a PG17 PGDATA, and
+# the upstream images ship only one major's binaries, so pg_upgrade in place is
+# not available. This unit is what makes the major movable at all -- without it,
+# bumping the `-pgNN` suffix strands the entire agent datastore.
+#
+# DEGRADE-OPEN AND NON-DESTRUCTIVE: every failure path exits 0 having touched
+# nothing. If the dump cannot be taken, the old data dir stays exactly where it
+# is and the pgvector container fails to start with Postgres's own clear
+# major-mismatch error -- a visible, recoverable stop, never silent data loss.
+# The old cluster is STASHED beside the data dir, never deleted; the operator
+# removes it once satisfied.
+
+[Unit]
+Description='MiOS' pgvector PostgreSQL-major migration guard
+Documentation=file:///usr/lib/systemd/system/mios-pgvector-major-upgrade.service
+# Must settle the data dir BEFORE the container touches it.
+Before=mios-pgvector.service
+WantedBy=mios-pgvector.service
+# Same virtualization guard as the pgvector container itself.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# SSOT env: MIOS_PGVECTOR_IMAGE / MIOS_PG_DATA_DIR / MIOS_PG_RESTORE_SQL /
+# MIOS_PG_USER / MIOS_PG_DB all flow from mios.toml [pgvector] + [image.sidecars]
+# -> userenv.sh. '-' tolerates absence (the script defaults every knob inline).
+EnvironmentFile=-/etc/mios/userenv.sh
+# Root: it must `podman run` an image of the OLD major and move a 0750 data dir
+# owned by the pgvector sysuser. Sanctioned under Law 6 the same way the other
+# podman-driving units are; it runs once at boot and starts nothing long-lived.
+ExecStart=/usr/libexec/mios/mios-pgvector-major-upgrade
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
