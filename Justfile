@@ -92,6 +92,8 @@ drift-gate:
     bash ./tests/test-bake-group.sh
     @echo "[drift-gate] tests/test-firstboot-prestage.sh"
     bash ./tests/test-firstboot-prestage.sh
+    @echo "[drift-gate] tests/test-pgvector-major-upgrade.sh"
+    bash ./tests/test-pgvector-major-upgrade.sh
     @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
     @echo "[drift-gate] tests/test-theme-merge.py"

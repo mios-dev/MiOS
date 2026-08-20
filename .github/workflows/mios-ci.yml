@@ -82,6 +82,13 @@ jobs:
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 
+      - name: pgvector PG-major migration safety (test-pgvector-major-upgrade.sh)
+        # Hermetic: stubs podman and works on a throwaway fixture, so it belongs
+        # in the DB-less drift-gate. It asserts the migration guard never
+        # destroys a cluster on any failure path -- worth enforcing here rather
+        # than only under `just drift-gate`.
+        run: bash ./tests/test-pgvector-major-upgrade.sh
+
       - name: SSOT-render conformance lint (97-ssot-lint.sh)
         run: bash ./automation/97-ssot-lint.sh
 
