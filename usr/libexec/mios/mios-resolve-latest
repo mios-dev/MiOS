@@ -45,14 +45,16 @@ resolve_ref() {
 main() {
     log "Starting container image resolution for floating refs"
     
+    # Mirror of mios.toml [image.sidecars] refs that resolve through here; a
+    # ref drifting from that table feeds a wrong image into the SBOM record.
     local refs=(
         "docker.io/vllm/vllm-openai:latest"
         "docker.io/lmsysorg/sglang:latest"
         "ghcr.io/mostlygeek/llama-swap:cuda"
-        "ghcr.io/open-webui/open-webui:latest"
-        "docker.io/pgvector/pgvector:pg16"
-        "docker.io/valkey/valkey:8.0"
-        "quay.io/ceph/ceph:v18"
+        "ghcr.io/open-webui/open-webui:main"
+        "docker.io/pgvector/pgvector:0.8.6-pg17"
+        "docker.io/valkey/valkey:latest"
+        "quay.io/ceph/ceph:v19"
         "codeberg.org/forgejo/forgejo:12"
         "code.forgejo.org/forgejo/runner:7"
     )
