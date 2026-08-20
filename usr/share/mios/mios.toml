@@ -9698,7 +9698,7 @@ bib_alpine         = "docker.io/library/alpine:latest"
 # release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
 # hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
 # or operator; pair version+image (the tag below carries both).
-pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
+pgvector           = "docker.io/pgvector/pgvector:0.8.6-pg17"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
@@ -10377,7 +10377,7 @@ core = [
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lmsysorg/sglang:latest",
-  "docker.io/pgvector/pgvector:0.8.3-pg17",
+  "docker.io/pgvector/pgvector:0.8.6-pg17",
   "docker.io/rancher/k3s:v1.36.2-k3s1",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
@@ -12444,7 +12444,7 @@ Environment = [
 ]
 Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
 Group = "${MIOS_PGVECTOR_GID:-826}"
-Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.6-pg17}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
