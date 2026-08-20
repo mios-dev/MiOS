@@ -9632,7 +9632,7 @@ placeholders             = ["FEDORA_VERSION", "MIOS_VERSION"]
 # ----------------------------------------------------------------------------
 [versions]
 fedora                   = "44"
-k3s                      = "v1.36.2-k3s1"
+k3s                      = "v1.36.3-k3s1"
 k8s_repo                 = "v1.36"
 forgejo                  = "12"
 ceph                     = "v19"
@@ -9653,7 +9653,7 @@ cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
 # stage downstream (operator-confirmed every other sidecar
 # entry in this section was already fully qualified; k3s was the only
 # regression and broke ALL deployment artifacts). Keep the registry prefix.
-k3s                = "docker.io/rancher/k3s:v1.36.2-k3s1"
+k3s                = "docker.io/rancher/k3s:v1.36.3-k3s1"
 ceph               = "quay.io/ceph/ceph:v19"
 forge              = "codeberg.org/forgejo/forgejo:12"
 searxng            = "docker.io/searxng/searxng:latest"
@@ -9694,11 +9694,16 @@ guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
-# on upstream postgres (FOSS: PostgreSQL License). Pinned to an EXACT pgvector
-# release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
-# hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
-# or operator; pair version+image (the tag below carries both).
-pgvector           = "docker.io/pgvector/pgvector:0.8.6-pg17"
+# on upstream postgres (FOSS: PostgreSQL License). FLOATS on the `pgNN` family
+# tag (ADR-0012): the newest pgvector for that PG major, resolved at build and
+# digest-recorded in the SBOM -- no hand-pinned version to rot. Newest always
+# satisfies hnsw.iterative_scan (pgvector 0.8.0+), which the Quadlet Exec= sets
+# unconditionally.
+# The `-pg17` suffix is NOT a version pin: it is a COMPATIBILITY CONSTRAINT.
+# /var/lib/mios/pgvector holds a PG17 cluster and a pg18 image refuses to start
+# on it without pg_upgrade, so the PG major advances only through that migration
+# (T-292), never as a side effect of floating.
+pgvector           = "docker.io/pgvector/pgvector:pg17"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
@@ -10377,8 +10382,8 @@ core = [
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lmsysorg/sglang:latest",
-  "docker.io/pgvector/pgvector:0.8.6-pg17",
-  "docker.io/rancher/k3s:v1.36.2-k3s1",
+  "docker.io/pgvector/pgvector:pg17",
+  "docker.io/rancher/k3s:v1.36.3-k3s1",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
   "docker.io/vllm/vllm-openai:latest",
@@ -12135,7 +12140,7 @@ ContainerName = "mios-k3s"
 Environment = "K3S_TOKEN=mios-cluster-secret"
 Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
-Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.36.2-k3s1}"
+Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.36.3-k3s1}"
 Pod = "mios-system.pod"
 PodmanArgs = "--privileged"
 User = "root"
@@ -12444,7 +12449,7 @@ Environment = [
 ]
 Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
 Group = "${MIOS_PGVECTOR_GID:-826}"
-Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.6-pg17}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg17}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"

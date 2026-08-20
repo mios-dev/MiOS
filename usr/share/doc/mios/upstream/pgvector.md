@@ -29,24 +29,19 @@ than any other AI sidecar.
   `<pgvector-version>-pg<PG-major>` (e.g. `0.8.6-pg17`, `0.8.6-pg18`) plus
   floating `pgNN` family tags.
 
-## Versioning — the one exact-pinned AI image
+## Versioning — floats on the `pgNN` family tag
 
 | Surface | Value | Why |
 |---|---|---|
-| `mios.toml [image.sidecars].pgvector` | `docker.io/pgvector/pgvector:0.8.6-pg17` | Exact pin (NOT the floating `pg17` tag): reproducible builds, and `hnsw.iterative_scan` (pgvector ≥ 0.8.0) guaranteed present — the Quadlet `Exec=` sets it unconditionally. |
-| PG major in the tag (`-pg17`) | pinned to the data dir's major | `/var/lib/mios/pgvector` holds a PG**17** cluster. A `-pg18` image refuses to start on it without `pg_upgrade`/dump-restore — bumping the pgvector version and bumping the PG major are **separate operations**. |
-| Projections of the pin | Quadlet `Image=`, `automation/lib/globals.{sh,ps1}` (`MIOS_PGVECTOR_IMAGE`), `[build.bake].core`, `usr/lib/mios/bake/plan.d/04-extra.list`, env-baseline | Never hand-edit the projections: change `[image.sidecars]` and run `tools/sync-generated.sh` (Law 8). |
+| `mios.toml [image.sidecars].pgvector` | `docker.io/pgvector/pgvector:pg17` | **Floats** (ADR-0012): always the newest pgvector built for that PG major, resolved to a digest at build and recorded in the SBOM. No hand-pinned version to rot. Newest always satisfies `hnsw.iterative_scan` (pgvector ≥ 0.8.0), which the Quadlet `Exec=` sets unconditionally. |
+| The `-pg17` suffix | a **compatibility constraint**, not a version pin | `/var/lib/mios/pgvector` holds a PG**17** cluster and a `pg18` image refuses to start on it without `pg_upgrade`/dump-restore. The PG major therefore advances only through that migration (WS-UPSTREAM T-292), never as a side effect of floating. |
+| Projections | Quadlet `Image=`, `automation/lib/globals.{sh,ps1}` (`MIOS_PGVECTOR_IMAGE`), `[build.bake].core`, `usr/lib/mios/bake/plan.d/04-extra.list`, env-baseline | Never hand-edit the projections: change `[image.sidecars]` and run `tools/sync-generated.sh` (Law 8). |
 
-Bump procedure (pgvector minor, same PG major — e.g. 0.8.3→0.8.6):
+There is no version-bump procedure, and that is the point: the float re-resolves
+on every build. To pick up a new pgvector release, rebuild. What *does* need a
+deliberate procedure is the PG major, below.
 
-```bash
-# 1. Edit mios.toml [image.sidecars].pgvector (+ [build.bake].core + the
-#    [containers.mios-pgvector.Container] fallback) and plan.d/04-extra.list.
-# 2. Regenerate every projection, then gate:
-bash tools/sync-generated.sh && just drift-gate
-```
-
-On the next start of the new image, update the extension inside the database
+On the first start of a newer image, update the extension inside the database
 (extension name is `vector`, not "pgvector"; the version column is
 `pg_extension.extversion`):
 
@@ -65,8 +60,10 @@ version bump.
 ## CVE posture
 
 CVE-2026-3172 (CVSS 8.1 — buffer overflow in *parallel* HNSW build, affects
-0.6.0–0.8.1, fixed 0.8.2) never reached a shipped MiOS image: the pin was
-already 0.8.3 when the CVE published, and is now 0.8.6. Interim mitigation for
+0.6.0–0.8.1, fixed 0.8.2) never reached a shipped MiOS image: the ref was
+already at 0.8.3 when the CVE published, and the `pg17` float now resolves to
+0.8.6 or newer on every build. CVE response for this image is therefore
+"rebuild so the float re-resolves", not a pin. Interim mitigation for
 any future index-build CVE of the same shape:
 `SET max_parallel_maintenance_workers = 0;` disables the parallel build path
 without touching data. Verification record:

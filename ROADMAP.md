@@ -564,11 +564,11 @@ acceptance: |
 
 *Born from the 2026-08 verification pass (`usr/share/doc/mios/reference/upstream-gaps-2026-08.md`): a batch of externally-generated deep-research reports fabricated versions, registries and CVE fix-lines, and the repo's own drifted docs fed the fabrication. This workstream makes upstream tracking verifiable — primary sources, badges, SSOT-grounded framing (`usr/share/mios/prompts/upstream-research.xml.md`) — and closes the pin/probe gaps the pass surfaced. Companion upstream docs: `usr/share/doc/mios/upstream/inference-engines.md`, `usr/share/doc/mios/upstream/pgvector.md`.*
 
-### UPSTREAM-01 — pgvector pin to verified latest stable  **[P1] ✅ DONE**  (→ T-288)
-- **What:** Bump the one exact-pinned AI image `0.8.3-pg17` → `0.8.6-pg17` through the SSOT and regenerate every projection.
-- **Why:** Latest-stable hygiene on the agent datastore; the CVE-2026-3172 fix line (0.8.2) was already covered.
-- **Files:** `usr/share/mios/mios.toml`, `usr/lib/mios/bake/plan.d/04-extra.list`, generated projections via `tools/sync-generated.sh`.
-- **Accept:** `just drift-gate` green with the new pin everywhere; PG major unchanged.
+### UPSTREAM-01 — float the last hand-pinned image refs  **[P1] ✅ DONE**  (→ T-288)
+- **What:** Float pgvector `0.8.3-pg17` → `pg17` (the family tag) so it resolves to newest on every build, and bump the one ref that cannot float, k3s, to `v1.36.3-k3s1`.
+- **Why:** ADR-0012 float-latest: a hand-pinned version rots and CVE response becomes a manual bump instead of a rebuild. k3s publishes no usable channel tag *and* `06-enable-external-repos.sh` parses the Kubernetes repo minor out of its version-shaped tag, so it stays version-shaped and is bot-bumped (UPSTREAM-03) rather than hand-maintained.
+- **Files:** `usr/share/mios/mios.toml`, `usr/lib/mios/bake/plan.d/04-extra.list`, `usr/share/containers/systemd/mios-{pgvector,k3s}.container`, generated projections via `tools/sync-generated.sh`.
+- **Accept:** no hand-pinned pgvector version anywhere (the `check_version_ssot` literal exemption for it is withdrawn); the `-pg17` suffix documented as a data-dir compatibility constraint, not a pin.
 - **Deps:** none.
 
 ### UPSTREAM-02 — derive `mios-resolve-latest` refs from SSOT  **[P1] ✅ DONE**  (→ T-289)
@@ -579,10 +579,10 @@ acceptance: |
 - **Deps:** none.
 
 ### UPSTREAM-03 — Renovate manager for the exact-pinned sidecar entries  **[P2] ✅ DONE**  (→ T-290)
-- **What:** `customManagers` regex covering `[image.sidecars]` exact pins (pgvector, k3s) so the "Bump via Renovate" comment becomes true, with `pinDigests: false` so Renovate cannot write the hand-pinned `@sha256` that ADR-0003 forbids.
-- **Why:** Renovate only managed the Containerfile base-image ARG; exact pins rot until an operator notices.
+- **What:** `customManagers` regex keeping the `[image.sidecars]` refs that CANNOT float current (k3s), with `pinDigests: false` so Renovate cannot write the hand-pinned `@sha256` that ADR-0003 forbids.
+- **Why:** Renovate only managed the Containerfile base-image ARG. Everything with a moving tag upstream now floats (UPSTREAM-01); k3s has no usable channel tag and its version-shaped tag feeds the Kubernetes-repo-minor derivation, so a bot has to bump it or it rots — it was already a patch behind.
 - **Files:** `renovate.json`.
-- **Accept:** the manager matches exactly the two exact pins across the 13.6k-line SSOT and leaves every float (`:latest`/`:main`/major-only/`localhost/`) unmanaged; mios.toml bumps require review.
+- **Accept:** the manager matches only version-shaped refs in the SSOT and leaves every float (`:latest`/`:main`/`pgNN`/major-only/`localhost/`) unmanaged; mios.toml bumps require review.
 - **Deps:** none.
 
 ### UPSTREAM-04 — runtime kernel-lockdown boot probe  **[P2] ✅ DONE**  (→ T-291)

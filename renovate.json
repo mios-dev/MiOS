@@ -47,7 +47,7 @@
     },
     {
       "customType": "regex",
-      "description": "Bump the EXACT-pinned [image.sidecars] entries in the mios.toml SSOT (pgvector, k3s). Float refs (:latest/:main/major-only) are deliberately unmanaged: ADR-0012 resolves those at build and records the digest in the SBOM. pinDigests is off on purpose  a hand-written @sha256 in the SSOT is exactly what ADR-0003 and check_no_hardcode_version forbid.",
+      "description": "Keep the [image.sidecars] refs that CANNOT float current. Everything upstream publishes a moving tag for floats instead (ADR-0012) and is deliberately unmanaged here; k3s publishes no usable channel tag, and its version-shaped tag is also what automation/06-enable-external-repos.sh parses the Kubernetes repo minor from, so it must stay version-shaped and gets bumped by the bot rather than by hand. pinDigests is off on purpose  a hand-written @sha256 in the SSOT is exactly what ADR-0003 and check_no_hardcode_version forbid.",
       "fileMatch": ["(^|/)usr/share/mios/mios\\.toml$"],
       "matchStrings": [
         "=\\s*\"(?<depName>[a-z0-9][^:\"\\s]*\\.[^:\"\\s]*/[^:\"\\s]+):(?<currentValue>v?\\d+\\.\\d+\\.\\d+[^\"\\s]*)\""

@@ -3303,7 +3303,7 @@ for path in tracked:
             ver = m.group(0)
             ver_clean = ver[1:] if ver.startswith('v') else ver
             if ver_clean != canonical_ver:
-                if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.8.6", "0.2.4", "0.6.0", "0.9.6", "0.0.76", "0.1.0"):
+                if ver_clean in ("0.0.0", "0.0.1", "0.8.3", "0.2.4", "0.6.0", "0.9.6", "0.0.76", "0.1.0"):
                     continue
                 if "INTEL_SG_FALLBACK_TAG" in line:
                     continue
