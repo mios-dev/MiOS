@@ -884,6 +884,7 @@ MIOS_DOCS_STAY_MAX_WORDS=25
 MIOS_DRIFT_CHECK_ROOT=
 MIOS_DRIFT_CHECK_SOFT=
 MIOS_DRIFT_DENYLIST=mios_batch,mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools
+MIOS_DRIFT_REL=
 MIOS_DRIFT_REQUIRE_TOOLS=
 MIOS_DRIFT_ROOT=
 MIOS_DRIVE=

@@ -213,6 +213,24 @@ EOF
     log "Check_curl_retry negative test passed"
 }
 
+test_resolver_ssot_refs() {
+    log "Testing check_resolver_ssot_refs"
+    local target="${ROOT}/usr/libexec/mios/mios-resolve-latest"
+    local backup="${target}.negtest.bak"
+    cp "$target" "$backup"
+    printf '    local drifted_ref="docker.io/pgvector/pgvector:pg16"\n' >> "$target"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1; then
+        mv "$backup" "$target"
+        die "check_resolver_ssot_refs passed despite a hardcoded registry image ref"
+    fi
+
+    mv "$backup" "$target"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1 \
+        || die "check_resolver_ssot_refs failed after restoration"
+    log "check_resolver_ssot_refs negative test passed"
+}
+
 test_nested_podman_caps() {
     log "Testing check_nested_podman_caps"
     local doc_file="${ROOT}/usr/share/doc/mios/reference/nested-podman-caps.md"
@@ -2307,6 +2325,7 @@ main() {
     test_root_toml_subset
     test_toml_projection
     test_curl_retry
+    test_resolver_ssot_refs
     test_nested_podman_caps
     test_bake_budget
     test_module_test_coverage

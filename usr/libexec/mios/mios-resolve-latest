@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# AI-hint: Always-latest container image resolver. Resolves :latest image refs to exact tag and SHA256 digest for SBOM feed.
-# AI-related: /usr/share/mios/mios.toml, /usr/lib/mios/bake/plan.d/, MiOS-SBOM.csv
-# AI-functions: resolve_image_digest, update_sbom_manifest
+# AI-hint: Always-latest container image resolver. Reads the sidecar image refs from the mios.toml [image.sidecars] SSOT (never a hand-mirrored list), resolves each to its registry digest, and appends the resolution to the SBOM as build provenance (ADR-0003). Refuses to record a digest it did not actually resolve.
+# AI-related: /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py, /usr/lib/mios/bake/plan.d/, MiOS-SBOM.csv
+# AI-functions: ssot_refs, resolve_ref, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 SBOM_CSV="${ROOT_DIR}/MiOS-SBOM.csv"
-TOML_PATH="${ROOT_DIR}/usr/share/mios/mios.toml"
+MIOS_LIB_DIR="${ROOT_DIR}/usr/lib/mios"
 
 log() {
     echo "[mios-resolve-latest] $*"
@@ -17,53 +17,90 @@ warn() {
     echo "[mios-resolve-latest] WARN: $*" >&2
 }
 
+die() {
+    echo "[mios-resolve-latest] ERROR: $*" >&2
+    exit 1
+}
+
+# The ref set IS the SSOT's [image.sidecars] table, read through the sanctioned
+# layered resolver -- not a mirror of it. A mirror silently drifts, and every
+# drifted ref feeds an image MiOS does not ship into the provenance record.
+# localhost/ refs are skipped: they are built in-image, so no registry can
+# resolve them (the same constraint mios.toml documents for firstboot_tokens).
+ssot_refs() {
+    MIOS_LIB_DIR="${MIOS_LIB_DIR}" MIOS_TOML_ROOT="${ROOT_DIR}" python3 - <<'PY'
+import os
+import sys
+
+sys.path.insert(0, os.environ["MIOS_LIB_DIR"])
+import mios_toml  # noqa: E402 -- path must be set before the import
+
+sidecars = (mios_toml.load_merged().get("image") or {}).get("sidecars") or {}
+seen = set()
+for key in sorted(sidecars):
+    ref = str(sidecars[key] or "").strip()
+    if not ref or ref.startswith("localhost/") or ref in seen:
+        continue
+    seen.add(ref)
+    print(ref)
+PY
+}
+
+# Resolve ONE ref to its registry digest. Returns non-zero without recording
+# anything when the digest cannot be resolved: an unresolved ref must leave no
+# SBOM row at all, because a fabricated digest is worse than a missing one.
 resolve_ref() {
     local ref="$1"
-    local resolved_tag="latest"
-    local digest="sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855" # standard fallback digest
-    
+    local ref_tag="${ref##*:}"
+    local digest=""
+
     if command -v skopeo >/dev/null 2>&1; then
-        local raw_digest
-        raw_digest=$(skopeo inspect --format "{{.Digest}}" "docker://${ref}" 2>/dev/null || true)
-        if [[ -n "${raw_digest}" ]]; then
-            digest="${raw_digest}"
-        fi
-    elif command -v podman >/dev/null 2>&1; then
-        local raw_digest
-        raw_digest=$(podman inspect --format "{{.Digest}}" "${ref}" 2>/dev/null || true)
-        if [[ -n "${raw_digest}" ]]; then
-            digest="${raw_digest}"
-        fi
+        digest="$(skopeo inspect --format "{{.Digest}}" "docker://${ref}" 2>/dev/null || true)"
+    fi
+    if [[ -z "${digest}" ]] && command -v podman >/dev/null 2>&1; then
+        digest="$(podman image inspect --format "{{.Digest}}" "${ref}" 2>/dev/null || true)"
+    fi
+    if [[ -z "${digest}" ]]; then
+        warn "could not resolve a digest for ${ref} (no skopeo/podman result) -- not recorded"
+        return 1
     fi
 
-    log "Resolved ${ref} -> tag:${resolved_tag} digest:${digest:0:19}"
-    if [[ -f "${SBOM_CSV}" ]] && ! grep -q "^${ref}," "${SBOM_CSV}"; then
-        echo "${ref},${resolved_tag},${digest},container_image,$" >> "${SBOM_CSV}"
+    log "Resolved ${ref} -> tag:${ref_tag} digest:${digest:0:19}"
+    if [[ ! -f "${SBOM_CSV}" ]]; then
+        return 0
     fi
+    # Append-if-absent: an existing row is left alone, so a re-run never
+    # duplicates or silently rewrites recorded provenance.
+    if grep -q "^${ref}," "${SBOM_CSV}"; then
+        log "SBOM already records ${ref} -- left unchanged"
+        return 0
+    fi
+    printf '%s,%s,%s,container_image,%s\n' \
+        "${ref}" "${ref_tag}" "${digest}" "$(date -u +%Y-%m-%d)" >>"${SBOM_CSV}"
 }
 
 main() {
-    log "Starting container image resolution for floating refs"
-    
-    # Mirror of mios.toml [image.sidecars] refs that resolve through here; a
-    # ref drifting from that table feeds a wrong image into the SBOM record.
-    local refs=(
-        "docker.io/vllm/vllm-openai:latest"
-        "docker.io/lmsysorg/sglang:latest"
-        "ghcr.io/mostlygeek/llama-swap:cuda"
-        "ghcr.io/open-webui/open-webui:main"
-        "docker.io/pgvector/pgvector:0.8.6-pg17"
-        "docker.io/valkey/valkey:latest"
-        "quay.io/ceph/ceph:v19"
-        "codeberg.org/forgejo/forgejo:12"
-        "code.forgejo.org/forgejo/runner:7"
-    )
+    command -v python3 >/dev/null 2>&1 || die "python3 is required to read the SSOT"
 
+    log "Starting container image resolution for floating refs"
+
+    local ref_blob=""
+    ref_blob="$(ssot_refs)" || die "cannot read [image.sidecars] from the SSOT"
+    [[ -n "${ref_blob}" ]] || die "[image.sidecars] resolved to an empty ref set"
+
+    local refs=()
+    mapfile -t refs <<<"${ref_blob}"
+
+    local failed=0 r
     for r in "${refs[@]}"; do
-        resolve_ref "$r"
+        [[ -n "$r" ]] || continue
+        resolve_ref "$r" || failed=$((failed + 1))
     done
 
-    log "Container image resolution complete"
+    if [[ "${failed}" -gt 0 ]]; then
+        die "${failed} of ${#refs[@]} refs did not resolve -- the SBOM record is incomplete"
+    fi
+    log "Container image resolution complete (${#refs[@]} refs)"
 }
 
 main "$@"

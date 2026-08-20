@@ -3806,6 +3806,46 @@ for u in unretried:
     fi
 }
 
+# The SBOM's provenance is only as good as the ref list that feeds it. When
+# mios-resolve-latest mirrored [image.sidecars] by hand the mirror drifted --
+# four refs named images MiOS does not ship -- so the resolver must DERIVE its
+# set from the SSOT and carry no registry ref literal of its own.
+# --- mios-resolve-latest derives its image refs from [image.sidecars] ---
+check_resolver_ssot_refs() {
+    local rel="usr/libexec/mios/mios-resolve-latest"
+    if [[ ! -f "$ROOT/$rel" ]]; then
+        echo "[98-drift-checks]   resolver ref derivation: $rel absent"
+        return 0
+    fi
+    _require_python3 || return 0
+    local res
+    res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 - <<'PY' 2>/dev/null || true
+import os
+import re
+
+path = os.path.join(os.environ["MIOS_DRIFT_ROOT"], os.environ["MIOS_DRIFT_REL"])
+# A registry ref literal: quoted dotted-host/path:tag (docker.io/..., ghcr.io/...).
+ref = re.compile(r"""['"][a-z0-9][a-z0-9.\-]*\.[a-z]{2,}/[^\s'"]+:[^\s'"]+['"]""")
+with open(path, encoding="utf-8", errors="ignore") as fh:
+    for i, line in enumerate(fh, 1):
+        s = line.strip()
+        if s.startswith("#"):
+            continue
+        m = ref.search(s)
+        if m:
+            print(f"{i}: {m.group(0)}")
+PY
+)"
+    if [[ -z "$res" ]]; then
+        echo "[98-drift-checks]   mios-resolve-latest derives its refs from the SSOT"
+    else
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && echo "  [resolver-ssot-drift] hardcoded image ref at $rel:$line" >&2
+        done <<<"$res"
+        _violation "mios-resolve-latest carries a hardcoded registry image ref; derive the set from mios.toml [image.sidecars] through mios_toml instead (a hand-mirrored list drifts and feeds wrong provenance into the SBOM)"
+    fi
+}
+
 check_nested_podman_caps() {
     local bad=()
     local gha_file="$ROOT/.github/workflows/mios-ci.yml"
@@ -6079,6 +6119,7 @@ main() {
     check_shellcheck
     check_target_languages
     check_curl_retry
+    check_resolver_ssot_refs
     check_nested_podman_caps
     check_bake_budget
     check_clevis_luks
