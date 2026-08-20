@@ -2263,6 +2263,8 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-theme-render", check = "check_dotfiles_projection", output = "etc/ (and various target registries)" },
   { generator = "usr/libexec/mios/mios-sync-toml", check = "check_toml_projection", output = "usr/share/mios/mios.toml.bak (and metadata)" },
   { generator = "automation/98-drift-checks.sh", check = "check_drift_projection", output = "stdout (drift assertions)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_manual_ledger", output = "usr/share/mios/reference/manual-corpus.tsv" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_manual_generated", output = "usr/share/doc/mios/ (MIOS-GEN marker interiors)" },
 ]
 
 # ----------------------------------------------------------------------------

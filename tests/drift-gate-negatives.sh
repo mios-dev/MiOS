@@ -2297,6 +2297,24 @@ test_manual_generated() {
     log "check_manual_generated negative test passed"
 }
 
+test_manual_ledger() {
+    log "Testing check_manual_ledger"
+    local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
+    local backup; backup="$(mktemp)"
+    cp "$tsv" "$backup"
+    # Mutate the first data row's word count (column 5): the ledger must no
+    # longer regenerate verbatim from the tracked tree.
+    awk -F'\t' 'BEGIN{OFS="\t"} NR==2{$5=$5+1} {print}' "$tsv" > "${tsv}.neg" \
+        && mv "${tsv}.neg" "$tsv"
+    if _neg_gate check_manual_ledger; then
+        cp "$backup" "$tsv"; rm -f "$backup"
+        die "check_manual_ledger passed despite a hand-edited corpus ledger"
+    fi
+    cp "$backup" "$tsv"; rm -f "$backup"
+    _neg_gate check_manual_ledger || die "check_manual_ledger failed after restoration"
+    log "check_manual_ledger negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2349,6 +2367,7 @@ main() {
     test_docs_ratchet
     test_docs_ratchet_monotone
     test_manual_generated
+    test_manual_ledger
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

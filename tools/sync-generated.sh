@@ -12,8 +12,10 @@
 #                          sources /etc/profile.d/mios-env.sh and leaks the
 #                          host's MIOS_* exports into the snapshot, which then
 #                          can never match a CI regeneration.
-#   6. AI manifests        LAST -- they embed the CONTENT of automation/ and
-#                          tools/, so every step above invalidates them.
+#   6. AI manifests        they embed the CONTENT of automation/ and tools/,
+#                          so every step above invalidates them.
+#   7. manual ledger       LAST -- a census of comment blocks across every
+#                          tracked source file, so everything above moves it.
 set -euo pipefail
 
 ROOT="${MIOS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
@@ -103,8 +105,19 @@ main() {
         step "     (mios-env-snapshot absent -- skipped)"
     fi
 
-    step "6/6 AI manifests (last: they embed automation/ + tools/ content)"
+    step "6/7 AI manifests (they embed automation/ + tools/ content)"
     "$PY" tools/generate-ai-manifest.py >/dev/null
+
+    # LAST, and it has to be: the ledger is a census of the comment blocks in
+    # every tracked source file, so ANY step above -- or any hand edit in the
+    # same commit -- invalidates it. Regenerating it earlier just bakes in a
+    # stale row count that check_manual_ledger then rejects.
+    step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
+    if [ -r usr/libexec/mios/mios-manual ]; then
+        MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
+    else
+        step "     (mios-manual absent -- skipped)"
+    fi
 
     step "done -- 'git status' should now show only intended changes"
 }

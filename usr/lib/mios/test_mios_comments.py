@@ -152,11 +152,21 @@ def test_lexer():
     check("hash-normalised", a.sha12, b.sha12)
 
 
+def test_landing_ratio(p: mc.Policy) -> None:
+    """Guards mios-manual landed(), which raised AttributeError without it."""
+    check("landing-ratio-present", hasattr(p, "landing_min_word_ratio"), True)
+    check("landing-ratio-from-ssot", p.landing_min_word_ratio, 0.90)
+    check("landing-ratio-is-float", isinstance(p.landing_min_word_ratio, float), True)
+    # A default-constructed Policy must carry the contract shape too.
+    check("landing-ratio-default", mc.Policy().landing_min_word_ratio, 0.90)
+
+
 def main() -> int:
     p = policy()
     test_classifier(p)
     test_stale(p)
     test_lexer()
+    test_landing_ratio(p)
     print(f"[test_mios_comments] {PASSED} passed, {len(FAILED)} failed")
     for f in FAILED:
         print(f"  FAIL {f}")

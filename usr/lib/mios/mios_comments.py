@@ -133,6 +133,11 @@ class Policy:
     migrate_min_lines: int = 6
     migrate_min_words: int = 60
     hint_max_chars: int = 400
+    # Share of a block's words a doc passage must retain before mios-manual's
+    # landed() will call the knowledge landed -- the predicate that authorises
+    # deleting the source comment. Without it landed() raised AttributeError,
+    # so nothing could ever be pruned.
+    landing_min_word_ratio: float = 0.90
     blocklist_globs: tuple[str, ...] = ()
     llm_payload_globs: tuple[str, ...] = ()
     ref_allowlist: tuple[str, ...] = ()
@@ -171,6 +176,8 @@ class Policy:
             migrate_min_lines=int(d.get("migrate_min_lines", cls.migrate_min_lines)),
             migrate_min_words=int(d.get("migrate_min_words", cls.migrate_min_words)),
             hint_max_chars=int(ai.get("hint_max_chars", cls.hint_max_chars)),
+            landing_min_word_ratio=float(
+                d.get("landing_min_word_ratio", cls.landing_min_word_ratio)),
             blocklist_globs=T(d.get("blocklist_globs")),
             llm_payload_globs=T(d.get("llm_payload_globs")),
             ref_allowlist=T(d.get("ref_allowlist")),
