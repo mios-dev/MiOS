@@ -3806,6 +3806,46 @@ for u in unretried:
     fi
 }
 
+# The SBOM's provenance is only as good as the ref list that feeds it. When
+# mios-resolve-latest mirrored [image.sidecars] by hand the mirror drifted --
+# four refs named images MiOS does not ship -- so the resolver must DERIVE its
+# set from the SSOT and carry no registry ref literal of its own.
+# --- mios-resolve-latest derives its image refs from [image.sidecars] ---
+check_resolver_ssot_refs() {
+    local rel="usr/libexec/mios/mios-resolve-latest"
+    if [[ ! -f "$ROOT/$rel" ]]; then
+        echo "[98-drift-checks]   resolver ref derivation: $rel absent"
+        return 0
+    fi
+    _require_python3 || return 0
+    local res
+    res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 - <<'PY' 2>/dev/null || true
+import os
+import re
+
+path = os.path.join(os.environ["MIOS_DRIFT_ROOT"], os.environ["MIOS_DRIFT_REL"])
+# A registry ref literal: quoted dotted-host/path:tag (docker.io/..., ghcr.io/...).
+ref = re.compile(r"""['"][a-z0-9][a-z0-9.\-]*\.[a-z]{2,}/[^\s'"]+:[^\s'"]+['"]""")
+with open(path, encoding="utf-8", errors="ignore") as fh:
+    for i, line in enumerate(fh, 1):
+        s = line.strip()
+        if s.startswith("#"):
+            continue
+        m = ref.search(s)
+        if m:
+            print(f"{i}: {m.group(0)}")
+PY
+)"
+    if [[ -z "$res" ]]; then
+        echo "[98-drift-checks]   mios-resolve-latest derives its refs from the SSOT"
+    else
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && echo "  [resolver-ssot-drift] hardcoded image ref at $rel:$line" >&2
+        done <<<"$res"
+        _violation "mios-resolve-latest carries a hardcoded registry image ref; derive the set from mios.toml [image.sidecars] through mios_toml instead (a hand-mirrored list drifts and feeds wrong provenance into the SBOM)"
+    fi
+}
+
 check_nested_podman_caps() {
     local bad=()
     local gha_file="$ROOT/.github/workflows/mios-ci.yml"
@@ -6079,6 +6119,7 @@ main() {
     check_shellcheck
     check_target_languages
     check_curl_retry
+    check_resolver_ssot_refs
     check_nested_podman_caps
     check_bake_budget
     check_clevis_luks
@@ -6133,6 +6174,8 @@ main() {
     check_docs_ratchet
     check_docs_ratchet_monotone
     check_manual_generated
+    check_manual_ledger
+    check_comment_landing
 
 
     check_chrony_ptp_dropin
@@ -7009,6 +7052,26 @@ for k in KEYS:
         viol.append("[docs].%s RAISED %s -> %s. The ratchet only goes down:"
                     " harvest the comments instead of widening the ceiling."
                     % (k, prev[k], now[k]))
+
+# Durable low-water mark. The HEAD comparison above bails out silently when
+# there is no HEAD or the previous TOML will not parse, and it cannot see past
+# a rewritten history; the recorded floor survives both.
+floor_path = os.path.join(root, "usr/share/mios/reference/doc-ratchet-floor.tsv")
+if os.path.isfile(floor_path):
+    with open(floor_path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) != 2 or not parts[1].strip().isdigit():
+                continue
+            k, floor = parts[0].strip(), int(parts[1])
+            if k in now and now[k] > floor:
+                viol.append("[docs].%s is %s but has been as low as %s. Raising a"
+                            " ceiling back is still raising it; harvest instead,"
+                            " or lower the floor with `mios-manual coverage"
+                            " --write-floor` only when the ceiling truly fell."
+                            % (k, now[k], floor))
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
@@ -7026,6 +7089,32 @@ check_manual_generated() {
     echo "[98-drift-checks]   check_manual_generated"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+# --- every pruned comment still lands in a doc ---
+check_comment_landing() {
+    echo "[98-drift-checks]   check_comment_landing"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+# --- the corpus ledger regenerates verbatim from the tracked tree ---
+check_manual_ledger() {
+    echo "[98-drift-checks]   check_manual_ledger"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "$line"
         done <<<"$out"

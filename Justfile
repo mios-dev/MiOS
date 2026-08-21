@@ -92,6 +92,14 @@ drift-gate:
     bash ./tests/test-bake-group.sh
     @echo "[drift-gate] tests/test-firstboot-prestage.sh"
     bash ./tests/test-firstboot-prestage.sh
+    @echo "[drift-gate] tests/test-pgvector-major-upgrade.sh"
+    bash ./tests/test-pgvector-major-upgrade.sh
+    @echo "[drift-gate] usr/lib/mios/test_mios_comments.py"
+    python3 ./usr/lib/mios/test_mios_comments.py
+    @echo "[drift-gate] tests/test-mios-manual-harvest.sh"
+    bash ./tests/test-mios-manual-harvest.sh
+    @echo "[drift-gate] tests/doc-production-evidence.sh"
+    bash ./tests/doc-production-evidence.sh
     @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
     @echo "[drift-gate] tests/test-theme-merge.py"
@@ -158,9 +166,13 @@ artifact:
     ./automation/ai-bootstrap.sh
     @echo "[OK] Artifacts, UKB, and Wiki refreshed"
 
+# `manual` is gone on purpose: tools/generate-manual.py OWNED the whole file, so
+# running it dropped manual.md's H1, its table of contents and now the MIOS-GEN
+# markers too. The manual is authored prose plus derived marker interiors --
+# `mios-manual render` (below, and in drift-gate) is the only writer.
 manual:
-    python3 ./tools/generate-manual.py
-    @echo "[OK] User Manual and sub-pages compiled successfully"
+    @echo "[manual] retired -- run: python3 ./usr/libexec/mios/mios-manual render"
+    @exit 1
 
 
 cloud-build:

@@ -133,6 +133,11 @@ class Policy:
     migrate_min_lines: int = 6
     migrate_min_words: int = 60
     hint_max_chars: int = 400
+    # Share of a block's words a doc passage must retain before mios-manual's
+    # landed() will call the knowledge landed -- the predicate that authorises
+    # deleting the source comment. Without it landed() raised AttributeError,
+    # so nothing could ever be pruned.
+    landing_min_word_ratio: float = 0.90
     blocklist_globs: tuple[str, ...] = ()
     llm_payload_globs: tuple[str, ...] = ()
     ref_allowlist: tuple[str, ...] = ()
@@ -171,6 +176,8 @@ class Policy:
             migrate_min_lines=int(d.get("migrate_min_lines", cls.migrate_min_lines)),
             migrate_min_words=int(d.get("migrate_min_words", cls.migrate_min_words)),
             hint_max_chars=int(ai.get("hint_max_chars", cls.hint_max_chars)),
+            landing_min_word_ratio=float(
+                d.get("landing_min_word_ratio", cls.landing_min_word_ratio)),
             blocklist_globs=T(d.get("blocklist_globs")),
             llm_payload_globs=T(d.get("llm_payload_globs")),
             ref_allowlist=T(d.get("ref_allowlist")),
@@ -312,6 +319,14 @@ def _mk(path, start, end, kind, style, body_lines, attach, anchor, in_header) ->
     )
 
 
+# Files whose Python lex degraded to the regex lexer (or lost docstring blocks)
+# in this process. Whether that happens depends on the INTERPRETER, not the
+# file: PEP 701 sources parse on 3.12+ and not before, so the same tree would
+# otherwise yield a different census per machine. mios-manual's ledger refuses
+# to emit an artifact while this is non-empty.
+DEGRADED: list[str] = []
+
+
 def _lex_python(path: str, src: str) -> list[Block]:
     """Python uses tokenize + ast, never regex.
 
@@ -324,6 +339,7 @@ def _lex_python(path: str, src: str) -> list[Block]:
     try:
         toks = list(tokenize.generate_tokens(io.StringIO(src).readline))
     except (tokenize.TokenError, IndentationError, SyntaxError):
+        DEGRADED.append(path)   # interpreter-dependent: see DEGRADED
         return _lex_generic(path, src, "#")
 
     run: list[str] = []
@@ -351,6 +367,7 @@ def _lex_python(path: str, src: str) -> list[Block]:
     try:
         tree = ast.parse(src)
     except SyntaxError:
+        DEGRADED.append(path)   # drops docstring blocks: see DEGRADED
         return out
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,

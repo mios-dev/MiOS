@@ -213,6 +213,24 @@ EOF
     log "Check_curl_retry negative test passed"
 }
 
+test_resolver_ssot_refs() {
+    log "Testing check_resolver_ssot_refs"
+    local target="${ROOT}/usr/libexec/mios/mios-resolve-latest"
+    local backup="${target}.negtest.bak"
+    cp "$target" "$backup"
+    printf '    local drifted_ref="docker.io/pgvector/pgvector:pg16"\n' >> "$target"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1; then
+        mv "$backup" "$target"
+        die "check_resolver_ssot_refs passed despite a hardcoded registry image ref"
+    fi
+
+    mv "$backup" "$target"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1 \
+        || die "check_resolver_ssot_refs failed after restoration"
+    log "check_resolver_ssot_refs negative test passed"
+}
+
 test_nested_podman_caps() {
     log "Testing check_nested_podman_caps"
     local doc_file="${ROOT}/usr/share/doc/mios/reference/nested-podman-caps.md"
@@ -2256,10 +2274,25 @@ test_docs_ratchet_monotone() {
         cp "$backup" "$toml"; rm -f "$backup"
         die "check_docs_ratchet_monotone passed despite a RAISED ceiling"
     fi
+    cp "$backup" "$toml"
+    _neg_gate check_docs_ratchet_monotone \
+        || { rm -f "$backup"; die "check_docs_ratchet_monotone failed after restoration"; }
+
+    # The durable floor: a ceiling matching HEAD but above the lowest value ever
+    # recorded is still a raise, and the HEAD comparison alone cannot see it.
+    local floor="${ROOT}/usr/share/mios/reference/doc-ratchet-floor.tsv"
+    local fbackup; fbackup="$(mktemp)"
+    cp "$floor" "$fbackup"
+    sed -i 's/^max_unmigrated_narrative\t.*/max_unmigrated_narrative\t1/' "$floor"
+    if _neg_gate check_docs_ratchet_monotone; then
+        cp "$fbackup" "$floor"; cp "$backup" "$toml"; rm -f "$backup" "$fbackup"
+        die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
+    fi
+    cp "$fbackup" "$floor"; rm -f "$fbackup"
     cp "$backup" "$toml"; rm -f "$backup"
     _neg_gate check_docs_ratchet_monotone \
-        || die "check_docs_ratchet_monotone failed after restoration"
-    log "check_docs_ratchet_monotone negative test passed"
+        || die "check_docs_ratchet_monotone failed after floor restoration"
+    log "check_docs_ratchet_monotone negative test passed (HEAD + durable floor)"
 }
 
 test_manual_generated() {
@@ -2274,9 +2307,57 @@ test_manual_generated() {
         cp "$backup" "$doc"; rm -f "$backup"
         die "check_manual_generated passed despite a stale derived section"
     fi
+    cp "$backup" "$doc"
+    _neg_gate check_manual_generated || { rm -f "$backup"; die "check_manual_generated failed after restoration"; }
+
+    # Second phase, and the load-bearing one: authored prose OUTSIDE a marker
+    # must NOT move the gate. Without this a generator that owns whole files
+    # would satisfy the gate -- the exact failure the marker protocol prevents.
+    printf '\nAuthored paragraph the generator must never touch.\n' >> "$doc"
+    if ! _neg_gate check_manual_generated; then
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "check_manual_generated went red on prose OUTSIDE a marker"
+    fi
+    grep -q "Authored paragraph the generator must never touch" "$doc" || {
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "render destroyed authored prose outside a marker"; }
     cp "$backup" "$doc"; rm -f "$backup"
-    _neg_gate check_manual_generated || die "check_manual_generated failed after restoration"
-    log "check_manual_generated negative test passed"
+    log "check_manual_generated negative test passed (both directions)"
+}
+
+test_manual_ledger() {
+    log "Testing check_manual_ledger"
+    local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
+    local backup; backup="$(mktemp)"
+    cp "$tsv" "$backup"
+    # Mutate the first data row's word count (column 5): the ledger must no
+    # longer regenerate verbatim from the tracked tree.
+    awk -F'\t' 'BEGIN{OFS="\t"} NR==2{$5=$5+1} {print}' "$tsv" > "${tsv}.neg" \
+        && mv "${tsv}.neg" "$tsv"
+    if _neg_gate check_manual_ledger; then
+        cp "$backup" "$tsv"; rm -f "$backup"
+        die "check_manual_ledger passed despite a hand-edited corpus ledger"
+    fi
+    cp "$backup" "$tsv"; rm -f "$backup"
+    _neg_gate check_manual_ledger || die "check_manual_ledger failed after restoration"
+    log "check_manual_ledger negative test passed"
+}
+
+test_comment_landing() {
+    log "Testing check_comment_landing"
+    local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
+    local backup; backup="$(mktemp)"
+    cp "$tsv" "$backup"
+    # Claim a block was pruned into a doc that does not carry its anchor: the
+    # gate must refuse to accept a deletion whose proof does not resolve.
+    printf 'tests/fixture-never-existed.sh\t1\t2\t2\t40\tfeedfacecafe\tMIGRATE\tmidsize-narrative\t\t0\tusr/share/doc/mios/manual.md\tmios-src:feedfacecafe\t40\t1\n' >> "$tsv"
+    if _neg_gate check_comment_landing; then
+        cp "$backup" "$tsv"; rm -f "$backup"
+        die "check_comment_landing passed despite a pruned block with no landing proof"
+    fi
+    cp "$backup" "$tsv"; rm -f "$backup"
+    _neg_gate check_comment_landing || die "check_comment_landing failed after restoration"
+    log "check_comment_landing negative test passed"
 }
 
 main() {
@@ -2307,6 +2388,7 @@ main() {
     test_root_toml_subset
     test_toml_projection
     test_curl_retry
+    test_resolver_ssot_refs
     test_nested_podman_caps
     test_bake_budget
     test_module_test_coverage
@@ -2330,6 +2412,8 @@ main() {
     test_docs_ratchet
     test_docs_ratchet_monotone
     test_manual_generated
+    test_manual_ledger
+    test_comment_landing
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

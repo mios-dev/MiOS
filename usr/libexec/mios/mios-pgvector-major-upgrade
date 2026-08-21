@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+# AI-hint: Boot-time guard that lets the pgvector image float across PostgreSQL MAJORS without stranding the agent datastore -- detects a PG_VERSION/image-tag major mismatch, logical-dumps the old cluster with the OLD image into the initdb restore slot, stashes (never deletes) the old data dir so the new major initdb's clean, and refuses to touch anything if the dump did not succeed.
+# AI-related: /usr/share/mios/mios.toml, mios-pgvector.container, mios-pgvector-major-upgrade.service, /usr/lib/tmpfiles.d/mios-pgvector.conf, mios-pgvector-backup.service
+# AI-functions: current_major, target_major, dump_old_cluster, main
+set -euo pipefail
+
+log()  { echo "[mios-pgvector-major-upgrade] $*"; }
+warn() { echo "[mios-pgvector-major-upgrade] WARN: $*" >&2; }
+
+DATA_DIR="${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}"
+PGDATA_SUB="${DATA_DIR}/pgdata"
+RESTORE_SQL="${MIOS_PG_RESTORE_SQL:-/var/lib/mios/pgvector-restore.sql}"
+IMAGE="${MIOS_PGVECTOR_IMAGE:-}"
+PG_USER="${MIOS_PG_USER:-mios}"
+PG_DB="${MIOS_PG_DB:-mios}"
+PG_UID="${MIOS_PGVECTOR_UID:-826}"
+PG_GID="${MIOS_PGVECTOR_GID:-826}"
+
+# The cluster's own record of the major it was initialised at.
+current_major() {
+    [[ -r "${PGDATA_SUB}/PG_VERSION" ]] || return 1
+    tr -dc '0-9' < "${PGDATA_SUB}/PG_VERSION"
+}
+
+# The major the SSOT image ref asks for: the pgNN family tag, or the -pgNN
+# suffix of an exact tag. Anything else is unparseable and we stay put.
+target_major() {
+    local tag="${IMAGE##*:}"
+    [[ "$tag" == "$IMAGE" ]] && return 1
+    if [[ "$tag" =~ ^pg([0-9]+)$ ]] || [[ "$tag" =~ -pg([0-9]+)$ ]]; then
+        echo "${BASH_REMATCH[1]}"
+        return 0
+    fi
+    return 1
+}
+
+# Dump the OLD cluster using an image of the OLD major -- the new image cannot
+# read an older PGDATA, and pg_upgrade would need both majors' binaries in one
+# image, which the upstream pgvector images do not ship.
+dump_old_cluster() {
+    local old_major="$1" out="$2"
+    local old_image="${IMAGE%:*}:pg${old_major}"
+
+    if ! podman image exists "$old_image" 2>/dev/null; then
+        warn "no local image ${old_image} to read the PG${old_major} cluster with; not touching the data dir"
+        return 1
+    fi
+
+    local tmp="${out}.partial"
+    rm -f "$tmp" 2>/dev/null || true
+    # Offline dump: bind the stopped cluster into a throwaway container of the
+    # OLD major, start a private postgres on a socket, dump, stop.
+    if ! podman run --rm \
+        --user "${PG_UID}:${PG_GID}" \
+        -v "${DATA_DIR}:/var/lib/postgresql/data:Z" \
+        -e PGDATA=/var/lib/postgresql/data/pgdata \
+        --entrypoint /bin/bash \
+        "$old_image" -c '
+            set -e
+            pg_ctl -D "$PGDATA" -o "-c listen_addresses=" -w start >/dev/null
+            trap "pg_ctl -D \"$PGDATA\" -m fast -w stop >/dev/null 2>&1 || true" EXIT
+            pg_dump --clean --if-exists --no-owner --no-privileges \
+                    -U "'"$PG_USER"'" "'"$PG_DB"'"
+        ' > "$tmp" 2>/dev/null; then
+        warn "dump of the PG${old_major} cluster failed; not touching the data dir"
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    if [[ ! -s "$tmp" ]]; then
+        warn "dump of the PG${old_major} cluster was empty; not touching the data dir"
+        rm -f "$tmp" 2>/dev/null || true
+        return 1
+    fi
+
+    mv -f "$tmp" "$out"
+    chown "${PG_UID}:${PG_GID}" "$out" 2>/dev/null || true
+    chmod 0640 "$out" 2>/dev/null || true
+    return 0
+}
+
+main() {
+    if [[ -z "$IMAGE" ]]; then
+        log "no MIOS_PGVECTOR_IMAGE in the environment -- nothing to compare"
+        exit 0
+    fi
+
+    local target
+    if ! target="$(target_major)"; then
+        log "image ref '${IMAGE}' carries no pgNN major -- leaving the cluster alone"
+        exit 0
+    fi
+
+    local current
+    if ! current="$(current_major)"; then
+        log "no existing cluster at ${PGDATA_SUB} -- a fresh PG${target} cluster will initialise"
+        : > "$RESTORE_SQL" 2>/dev/null || true
+        exit 0
+    fi
+
+    if [[ "$current" == "$target" ]]; then
+        # Majors agree: clear any restore slot left over from an earlier upgrade
+        # so a stale dump can never be replayed into a future fresh cluster.
+        if [[ -s "$RESTORE_SQL" ]]; then
+            log "PG${current} matches the image -- clearing the spent restore slot"
+            : > "$RESTORE_SQL" 2>/dev/null || true
+        fi
+        exit 0
+    fi
+
+    if [[ "$target" -lt "$current" ]]; then
+        warn "image asks for PG${target} but the cluster is PG${current}; a downgrade is not supported -- leaving the data dir untouched (pgvector will refuse to start, data is intact)"
+        exit 0
+    fi
+
+    log "PG${current} cluster with a PG${target} image -- migrating via logical dump"
+    if ! command -v podman >/dev/null 2>&1; then
+        warn "podman not on PATH; cannot dump -- leaving the data dir untouched"
+        exit 0
+    fi
+
+    if ! dump_old_cluster "$current" "$RESTORE_SQL"; then
+        # Deliberately NOT fatal and deliberately NOT destructive: pgvector will
+        # fail to start against the wrong major with its own clear error, and the
+        # PG"$current" data dir is still exactly where it was.
+        exit 0
+    fi
+
+    local stash
+    stash="${DATA_DIR}.pg${current}.$(date -u +%Y%m%dT%H%M%SZ)"
+    if ! mv "$PGDATA_SUB" "$stash"; then
+        warn "could not stash ${PGDATA_SUB}; leaving everything as-is"
+        exit 0
+    fi
+
+    log "dumped PG${current} -> ${RESTORE_SQL}; old cluster kept at ${stash}"
+    log "the PG${target} container will initialise and replay that dump; remove the stash yourself once you are satisfied"
+}
+
+main "$@"

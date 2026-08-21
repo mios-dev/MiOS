@@ -2263,6 +2263,10 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-theme-render", check = "check_dotfiles_projection", output = "etc/ (and various target registries)" },
   { generator = "usr/libexec/mios/mios-sync-toml", check = "check_toml_projection", output = "usr/share/mios/mios.toml.bak (and metadata)" },
   { generator = "automation/98-drift-checks.sh", check = "check_drift_projection", output = "stdout (drift assertions)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_manual_ledger", output = "usr/share/mios/reference/manual-corpus.tsv" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_manual_generated", output = "usr/share/doc/mios/ (MIOS-GEN marker interiors)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_comment_landing", output = "usr/share/doc/mios/ (harvested passages + mios-src anchors)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
 ]
 
 # ----------------------------------------------------------------------------
@@ -7210,6 +7214,11 @@ user        = "mios"
 pass        = "mios"
 db          = "mios"
 data_dir    = "/var/lib/mios/pgvector"
+# Initdb restore slot for the PG-major migration: mios-pgvector-major-upgrade
+# writes the old cluster's logical dump here and the container mounts it into
+# docker-entrypoint-initdb.d, so a fresh cluster of the new major replays it.
+# Empty file = no-op on every ordinary boot.
+restore_sql = "/var/lib/mios/pgvector-restore.sql"
 schema_init = "/usr/share/mios/postgres/schema-init.sql"
 embed_model = "nomic-embed-text"   # 768-dim, OWUI-compat (vector(768))
 enable      = true
@@ -9632,7 +9641,7 @@ placeholders             = ["FEDORA_VERSION", "MIOS_VERSION"]
 # ----------------------------------------------------------------------------
 [versions]
 fedora                   = "44"
-k3s                      = "v1.36.2-k3s1"
+k3s                      = "v1.36.3-k3s1"
 k8s_repo                 = "v1.36"
 forgejo                  = "12"
 ceph                     = "v19"
@@ -9653,7 +9662,7 @@ cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
 # stage downstream (operator-confirmed every other sidecar
 # entry in this section was already fully qualified; k3s was the only
 # regression and broke ALL deployment artifacts). Keep the registry prefix.
-k3s                = "docker.io/rancher/k3s:v1.36.2-k3s1"
+k3s                = "docker.io/rancher/k3s:v1.36.3-k3s1"
 ceph               = "quay.io/ceph/ceph:v19"
 forge              = "codeberg.org/forgejo/forgejo:12"
 searxng            = "docker.io/searxng/searxng:latest"
@@ -9694,11 +9703,19 @@ guacd              = "docker.io/guacamole/guacd:latest"
 pxe_hub            = "quay.io/poseidon/matchbox:latest"
 bib_alpine         = "docker.io/library/alpine:latest"
 # WS-9 unified agent-plane DB. pgvector/pgvector bundles the `vector` extension
-# on upstream postgres (FOSS: PostgreSQL License). Pinned to an EXACT pgvector
-# release + PG major (NOT the floating `pgX` tag) for reproducible builds and so
-# hnsw.iterative_scan (pgvector 0.8.0+) is guaranteed present. Bump via Renovate
-# or operator; pair version+image (the tag below carries both).
-pgvector           = "docker.io/pgvector/pgvector:0.8.3-pg17"
+# on upstream postgres (FOSS: PostgreSQL License). FLOATS on the `pgNN` family
+# tag (ADR-0012): the newest pgvector for that PG major, resolved at build and
+# digest-recorded in the SBOM -- no hand-pinned version to rot. Newest always
+# satisfies hnsw.iterative_scan (pgvector 0.8.0+), which the Quadlet Exec= sets
+# unconditionally.
+# The `pgNN` suffix names the PostgreSQL MAJOR, which cannot float freely: a
+# newer-major image refuses to start on an older PGDATA. mios-pgvector-major-
+# upgrade.service is what makes the major movable -- on a mismatch it dumps the
+# old cluster with the OLD image into [pgvector].restore_sql and stashes the old
+# data dir so the new major initdb's and replays the dump. Degrade-open: if it
+# cannot dump, it touches nothing and the container stops on Postgres's own
+# major-mismatch error rather than losing data.
+pgvector           = "docker.io/pgvector/pgvector:pg18"
 # mios-llm-light lane image. The upstream llama-swap proxy (FOSS, MIT) bundles
 # llama-server + on-demand model swap. Tag carries the CUDA build; verify version.
 llm_light          = "ghcr.io/mostlygeek/llama-swap:cuda"
@@ -10377,8 +10394,8 @@ core = [
   "docker.io/guacamole/guacd:latest",
   "docker.io/jaegertracing/all-in-one:latest",
   "docker.io/lmsysorg/sglang:latest",
-  "docker.io/pgvector/pgvector:0.8.3-pg17",
-  "docker.io/rancher/k3s:v1.36.2-k3s1",
+  "docker.io/pgvector/pgvector:pg18",
+  "docker.io/rancher/k3s:v1.36.3-k3s1",
   "docker.io/searxng/searxng:latest",
   "docker.io/valkey/valkey:latest",
   "docker.io/vllm/vllm-openai:latest",
@@ -12135,7 +12152,7 @@ ContainerName = "mios-k3s"
 Environment = "K3S_TOKEN=mios-cluster-secret"
 Exec = "k3s server --disable=traefik --kubelet-arg=cgroup-driver=cgroupfs"
 Group = "root"
-Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.36.2-k3s1}"
+Image = "${MIOS_K3S_IMAGE:-docker.io/rancher/k3s:v1.36.3-k3s1}"
 Pod = "mios-system.pod"
 PodmanArgs = "--privileged"
 User = "root"
@@ -12444,7 +12461,7 @@ Environment = [
 ]
 Exec = "postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=${MIOS_PG_BIND_ADDR:-127.0.0.1} -c hnsw.iterative_scan=${MIOS_PG_HNSW_ITERATIVE_SCAN:-strict_order} -c hnsw.max_scan_tuples=${MIOS_PG_HNSW_MAX_SCAN_TUPLES:-20000} -c hnsw.scan_mem_multiplier=${MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER:-1}"
 Group = "${MIOS_PGVECTOR_GID:-826}"
-Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:0.8.3-pg17}"
+Image = "${MIOS_PGVECTOR_IMAGE:-docker.io/pgvector/pgvector:pg18}"
 Label = [
   "org.opencontainers.image.title=mios-pgvector",
   "org.opencontainers.image.documentation=https://github.com/pgvector/pgvector"
@@ -12453,7 +12470,8 @@ Pod = "mios-ai.pod"
 User = "${MIOS_PGVECTOR_UID:-826}"
 Volume = [
   "${MIOS_PG_DATA_DIR:-/var/lib/mios/pgvector}:/var/lib/postgresql/data:Z",
-  "/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro"
+  "/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro",
+  "${MIOS_PG_RESTORE_SQL:-/var/lib/mios/pgvector-restore.sql}:/docker-entrypoint-initdb.d/20-mios-restore.sql:ro"
 ]
 EnvironmentFile = "/etc/mios/install.env"
 
@@ -13604,7 +13622,7 @@ landing_min_word_ratio = 0.90   # a doc passage must retain this much of the blo
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md
-max_unmigrated_narrative = 1739   # MIGRATE blocks still in source
+max_unmigrated_narrative = 1724   # MIGRATE blocks still in source
 max_overlong_hints       = 1    # AI-hint headers over [ai_tag].hint_max_chars
 
 # Generated artifacts are never a migration SOURCE: globals.{sh,ps1} embed whole
@@ -13634,6 +13652,58 @@ ref_allowlist = [
   "@@MIOS_",
 ]
 link_base = "repo"
+
+[docs.distill]
+# The Day-N+1 pass: comments are scraped, sanitized and distilled into the
+# manual. AI-hints are NOT scraped -- they stay in source and are projected
+# forward by the index deriver instead.
+enable   = true
+dest_dir = "usr/share/doc/mios/manual"
+# Areas never distilled: their comments are the operator-facing documentation
+# where they sit, or they are generated artifacts.
+skip_globs = [
+  "usr/share/mios/mios.toml",
+  "tools/native/mios-unit-gen/tests/golden/*",
+  "usr/share/doc/*",
+]
+
+[docs.sanitize]
+# Applied to every scraped comment before it reaches a doc. Order matters:
+# rewrites first, then redaction.
+# Dev-box paths -> the FHS canonical the doc reader actually has.
+# MOST SPECIFIC FIRST: these are applied in order, so a general drive rewrite
+# placed above the file:// form would corrupt it into file:////usr/share/...
+path_rewrites = [
+  ["file:///C:/MiOS/", ""],
+  ["file:///C:/", ""],
+  ["C:\\MiOS\\", "/usr/share/mios/"],
+  ["C:/MiOS/", "/usr/share/mios/"],
+  ["C:\\MiOS", "/usr/share/mios"],
+  ["C:/MiOS", "/usr/share/mios"],
+  ["/mnt/c/MiOS", "/usr/share/mios"],
+]
+# Secret-shaped values never reach a doc, whatever a comment happened to hold.
+# The keyword may sit inside a longer identifier (HA_PASSWORD=, MY_API_KEY:),
+# so no leading \\b -- that anchor is why FOO_PASSWORD=... escaped redaction.
+# The value must look like one: 4+ non-space chars, and not the ">" of a "=>"
+# arrow, so prose like "NO DISCORD_BOT_TOKEN => ..." is left alone.
+redact_patterns = [
+  "(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\\s*[:=]+\\s*(?![>\\s])[^\\s\"']{4,}",
+  "\\bsha256:[0-9a-f]{64}\\b",
+  "(?i)\\bBearer\\s+[A-Za-z0-9._-]{16,}",
+]
+redact_with = "[redacted]"
+
+[docs.boilerplate]
+# Canonical framing paragraphs, spliced into docs through MIOS-GEN markers.
+# The what-mios-is block had been hand-copied into dozens of files, where the
+# copies then drifted; one string here is the cure.
+what-mios-is = """
+MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+"""
 
 [docs.signals]
 # Anchored regexes in TOML LITERAL strings (single quotes): in a basic string a

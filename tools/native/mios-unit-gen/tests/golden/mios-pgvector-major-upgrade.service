@@ -1,0 +1,30 @@
+# AI-hint: Ordered-before oneshot that lets the pgvector image float across PostgreSQL majors -- it dumps an older cluster with the older image into the initdb restore slot and stashes the old data dir so the new major can initialise, and degrades open (never destructive) when it cannot.
+# AI-related: mios-pgvector.service, mios-pgvector-major-upgrade, /usr/lib/tmpfiles.d/mios-pgvector.conf, mios-pgvector-backup.service
+# /usr/lib/systemd/system/mios-pgvector-major-upgrade.service
+# Rationale and the full procedure: usr/share/doc/mios/upstream/pgvector.md
+# section "Moving the PostgreSQL major". Non-destructive on every failure path.
+
+[Unit]
+Description='MiOS' pgvector PostgreSQL-major migration guard
+Documentation=file:///usr/lib/systemd/system/mios-pgvector-major-upgrade.service
+# Must settle the data dir BEFORE the container touches it.
+Before=mios-pgvector.service
+# Same virtualization guard as the pgvector container itself.
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# SSOT env: MIOS_PGVECTOR_IMAGE / MIOS_PG_DATA_DIR / MIOS_PG_RESTORE_SQL /
+# MIOS_PG_USER / MIOS_PG_DB all flow from mios.toml [pgvector] + [image.sidecars]
+# -> userenv.sh. '-' tolerates absence (the script defaults every knob inline).
+EnvironmentFile=-/etc/mios/userenv.sh
+# Root because it must podman-run the old-major image and move a 0750 data dir.
+ExecStart=/usr/libexec/mios/mios-pgvector-major-upgrade
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+# Pulled in by pgvector itself, so it cannot be skipped when the DB starts.
+WantedBy=mios-pgvector.service multi-user.target

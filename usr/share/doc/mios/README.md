@@ -1,0 +1,254 @@
+<!-- AI-hint: Entry point for the shipped MiOS documentation -- what lives in each area, generated from the AI-hint header of every doc so the index cannot fall behind the tree. -->
+
+# MiOS documentation
+
+<!-- MIOS-GEN:boilerplate:what-mios-is -->
+MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+
+<!-- derived from usr/share/mios/mios.toml [docs.boilerplate].what-mios-is -->
+<!-- /MIOS-GEN:boilerplate:what-mios-is -->
+
+This is the documentation baked into the image, readable on a booted host under
+`/usr/share/doc/mios`. Every entry below is generated from that document's own
+`AI-hint:` header, so this page cannot describe a file that no longer says what
+it claims — see `reference/documentation-pipeline.md` for how that works.
+
+## Start here
+
+| If you want to | Read |
+|---|---|
+| understand what MiOS is and how it is put together | `concepts/architecture.md` |
+| build, change or debug the image | `guides/engineering.md` |
+| look up a port, a law, a build phase or a tool | `reference/` (below) |
+| know why something was decided the way it was | `adr/` |
+| read the prose distilled out of the source itself | `manual/` |
+
+## reference
+
+Lookup surfaces. Most of these are derived from `usr/share/mios/mios.toml`, so
+they are correct by construction rather than by maintenance.
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/reference/GLOBAL-UNIFICATION-PLAN.md` | The staged, lossless-diff-gated plan to collapse the duplicated/proliferated MIOS_* SSOT keys (measured 2523 keys, 79 version/image pairs, dead+alias dupes, one value copy-pasted across ~35 places)... |
+| `usr/share/doc/mios/reference/PACKAGES.md` | Human-readable reference documentation for the MiOS RPM package ecosystem -- the irreducible host substrate beneath the bootc/OCI image. Agents should use mios.toml as the source of truth for package... |
+| `usr/share/doc/mios/reference/api.md` | Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light... |
+| `usr/share/doc/mios/reference/audit-INDEX.md` | Cross-cutting synthesis + index for the 8-area MiOS roadmap-advance audit sweep (deploy plane, runtime-wire, security, tech-debt, liquid-glass shell, MiOS-Mini, SSOT value-dup, publish/bake... |
+| `usr/share/doc/mios/reference/audit-deploy-plane.md` | Audit of the MiOS DEPLOY plane (the least-done area, ~15-25%): traces the OFFLINE immutable-bootc install chain (Justfile oci-archive/BIB -> mios-stage-oci-archive -> tools/install.sh ->... |
+| `usr/share/doc/mios/reference/audit-liquid-glass-shell.md` | Design for the MiOS liquid-glass desktop shell (Apple liquid-glass north star) projected FROM SSOT: adds a flat mios.toml [effects] section (blur/rounding/opacity/shadow/animation-curves) and... |
+| `usr/share/doc/mios/reference/audit-mios-mini.md` | Concrete host definition for the MiOS-Mini split-plane: bootc hypervisor-router image contents, SSOT-driven vfio-pci bind, hand-authored `table inet mios-router` nft ruleset, headscale mesh join,... |
+| `usr/share/doc/mios/reference/audit-numbering-unification.md` | Honest census + corrected unification design for MiOS's many build/system numbering schemes. Splits the SPARSE banded STAGE IDENTITY (automation/NN-name.sh prefix == [NN-name] log label, the... |
+| `usr/share/doc/mios/reference/audit-publish-pipeline.md` | Robustness audit of the MiOS publish/bake pipeline (GitHub + Forgejo -> ghcr.io/mios-dev/mios:latest); catalogs every at-risk bare `podman build` (nested-caps exit-125 class) and every `x=$(cmd on... |
+| `usr/share/doc/mios/reference/audit-runtime-wire.md` | Per-feature audit of MiOS's shipped-but-inert runtime features (greenboot, clevis/LUKS, chrony, ROCm/venus, ceph, mdevctl, freeipa/lldap, nut, guacamole/guacd, virt-v2v) classifying each as... |
+| `usr/share/doc/mios/reference/audit-security.md` | Prioritized MiOS security-audit remediation plan (P0..P2) with file:line evidence and drop-in artifacts: PAT rotation + secret-store, cosign sign->VERIFY gate (CI + runtime policy.json from SSOT),... |
+| `usr/share/doc/mios/reference/audit-tech-debt.md` | Measured refresh of the MiOS tech-debt map (ADR-0011 territory) -- server.py split-seam manifest, kill-eval status, shellcheck warning-ratchet upgrade, compiled-template + Law-14 language-policy... |
+| `usr/share/doc/mios/reference/audit-value-dup-report.md` | Measured MIOS_* value-duplication audit feeding the AGY de-dup campaign (AGY-856..930); groups the 2416 resolver-emitted env vars by VALUE, classifies every >=2-key group {true-alias |... |
+| `usr/share/doc/mios/reference/build-network-policy.md` | Technical reference on MiOS build-time network fetch policy, retry requirements, and degrade-open classification rules. |
+| `usr/share/doc/mios/reference/build-pipeline.md` | The numbered build pipeline and the Law-6 root Quadlet exceptions, both derived from mios.toml so they cannot go stale. |
+| `usr/share/doc/mios/reference/build-scripts.md` | Reference snapshot bundling the source and execution order of the scripts that build the MiOS OCI image, so an agent can locate and read specific build logic without crawling the repo. Curated... |
+| `usr/share/doc/mios/reference/credits.md` | Attribution registry documenting all upstream projects, dependencies, and components used in MiOS to provide legal and source-of-truth tracking for the system's foundational substrate. |
+| `usr/share/doc/mios/reference/documentation-pipeline.md` | How MiOS documentation is produced -- AI-hints stay in source and are projected forward, comments are scraped, sanitized and distilled into the manual on a daily pass. |
+| `usr/share/doc/mios/reference/engineering-reference.md` | Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository... |
+| `usr/share/doc/mios/reference/everything-db-driven.md` | WS-VECTOR research + workflow -- make EVERYTHING in MiOS DB-driven + vectorized: mios.toml is the cold image-baked authoring seed, Postgres/pgvector (mios-pgvector, db=mios, /var) is the LIVE runtime... |
+| `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10:... |
+| `usr/share/doc/mios/reference/hwcaps.md` | Documentation for x86-64 microarchitecture optimization levels (v1-v4) used to determine which glibc-hwcaps packages to include in the build via the [hwcaps] table in mios.toml; explains the... |
+| `usr/share/doc/mios/reference/install-ordering.md` | The WS-DEPLOY workstream -- refactor + reorder the MiOS install/first-boot pipeline into a logical dependency DAG so a "missing dependency / not-ready / not-yet-built" state is structurally... |
+| `usr/share/doc/mios/reference/licenses.md` | Documents the legal licensing for MiOS components, including third-party drivers (NVIDIA), middleware (systemd, Mesa), and firmware, providing a reference for compliance and license attribution. |
+| `usr/share/doc/mios/reference/lossless-diff-refactor.md` | Document describing the refactor methodology and invariant enforcement for the Global Unification Plan (GUP) and environment configuration in MiOS. |
+| `usr/share/doc/mios/reference/maturity-and-release-runbook.md` | Standard operating procedure for MiOS R14 maturity review — verifying the sibling unit suites, producing the OCI image + disk artifacts via the Justfile, and the operator-gated signing (cosign/Secure... |
+| `usr/share/doc/mios/reference/naming-unification.md` | The WS-NAME workflow -- a TRUE GLOBAL minification of MiOS naming: collapse the entire TOML-key/env-var/verb/const surface onto ONE deterministic, capability-matched unified names+keys registry... |
+| `usr/share/doc/mios/reference/nested-podman-caps.md` | Technical reference on nested podman-in-podman container capabilities and security flags. |
+| `usr/share/doc/mios/reference/orchestration.md` | Technical reference for the MiOS agentic routing and orchestration decision seams. |
+| `usr/share/doc/mios/reference/ports-and-laws.md` | Reference page for the port allocation table and the numbered Architectural Laws. The tables between MIOS-GEN markers are DERIVED from mios.toml by `mios-manual render`; the prose around them is... |
+| `usr/share/doc/mios/reference/shim-links.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
+| `usr/share/doc/mios/reference/sources.md` | Consolidates authoritative documentation links and technical specifications for OpenAI APIs, vector stores, and MiOS-specific knowledge base construction to ensure agent compliance with upstream... |
+| `usr/share/doc/mios/reference/tool-index.md` | Index of every shipped MiOS tool, generated from the AI-hint header each one already carries. |
+| `usr/share/doc/mios/reference/tree.md` | Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline. MiOS... |
+| `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
+| `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
+
+<!-- derived from the AI-hint headers of 36 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
+
+## concepts
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/concepts/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/concepts/OFFLINE-FIRST.md` | Defines MiOS's offline-first capability matrix — maps each lifecycle phase (overlay, pull, build, deploy, run, host, re-build, use-AI) to its network requirement, proving the whole bootc/OCI... |
+| `usr/share/doc/mios/concepts/a2a-passport-conformance-2026-06-20.md` | Research + conformance record for MiOS's A2A protocol surface and Open Agent Passport — the 2026 native standards for inter-agent interop and verifiable agent identity — and how MiOS exposes both... |
+| `usr/share/doc/mios/concepts/agent-pipe-openai-standards-master-plan.md` | Architectural roadmap for the agent-pipe system within MiOS — establishes the 2-stage classify→execute routing, OpenAI API conformance, and the unified tools/skills/recipes capability catalog as the... |
+| `usr/share/doc/mios/concepts/aios-engineering-blueprint.md` | The MiOS AIOS engineering blueprint -- maps the 5-phase Agentic-OS reference taxonomy (architecture / memory / orchestration / security / benchmarking) onto MiOS's ACTUAL code (every component tagged... |
+| `usr/share/doc/mios/concepts/aios-implementation-plan.md` | Roadmap for the Agentic-OS (AIOS) transition, mapping a research survey onto MiOS's existing `agent-pipe` orchestrator and pgvector agent plane, and defining the offline-first, FOSS-compliant path... |
+| `usr/share/doc/mios/concepts/architecture.md` | Defines the MiOS system architecture end-to-end -- the bootc/OCI image structure and lifecycle, CDI-based GPU acceleration, zero-trust security posture, the FHS-compliant filesystem layout, and the... |
+| `usr/share/doc/mios/concepts/coderun-sandbox.md` | Defines the isolated Podman/Landlock container that lets MiOS agents dry-run / test generated code before it touches the immutable host. Explains the defense-in-depth boundary (Quadlet user unit +... |
+| `usr/share/doc/mios/concepts/computer-use-federation.md` | Conceptual documentation of the Computer-Use Federation, defining the unified MCP/A2A architecture for Linux/Wayland desktop control via the `cu_*` verb catalog, `mios-computer-use` executor, and... |
+| `usr/share/doc/mios/concepts/container-os-runtime.md` | System concepts documentation for the MiOS Container-OS Runtime Architecture. |
+| `usr/share/doc/mios/concepts/deploy-model.md` | Defines the MiOS deployment model and execution modes -- the mutable Fedora server leg with FHS overlay via build-mios.sh, the MiOS-Sudo identity configuration, the immutable bootc-install mode, and... |
+| `usr/share/doc/mios/concepts/dism-native-windows-iso-2026-07-04.md` | Verified, source-cited research on building a DISM-native custom Windows 11 ISO that carries MiOS (the Windows-side layer + a WSL2 podman machine). Two synthesized 5-angle research passes: (A)... |
+| `usr/share/doc/mios/concepts/firstboot-large-models-plan.md` | Plan to provision large AI models at FULL FIRST BOOT instead of baking them into the build-time OCI image, keeping the image lean and avoiding the bound-images bake layer-commit ceiling (build exit... |
+| `usr/share/doc/mios/concepts/foss-upstream-map.md` | System concepts documentation for the MiOS FOSS Upstream-Scout Report. |
+| `usr/share/doc/mios/concepts/image-resolution.md` | System concepts documentation for the MiOS Image Registry and Name Resolution Architecture. |
+| `usr/share/doc/mios/concepts/llamacpp-engine-conversion.md` | Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama... |
+| `usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md` | Ground-truth design spec for MiOS's user-facing surfaces (Portal, |
+| `usr/share/doc/mios/concepts/mios-mini-architecture.md` | System concepts documentation for the MiOS-Mini Split-Plane Hypervisor-Router Architecture. |
+| `usr/share/doc/mios/concepts/multi-agent-buildout-plan.md` | Defines the parallel execution strategy for multi-agent development of MiOS itself, specifying which AIOS workstreams are agent-parallelizable versus operator-gated and outlining the... |
+| `usr/share/doc/mios/concepts/naming-refactor-plan.md` | Specifies the 2026 naming-refactor roadmap for MiOS, defining canonical conventions for code constants, system service identifiers, model/agent tags, and SSOT keys to ensure cross-component... |
+| `usr/share/doc/mios/concepts/oscontrol-envgrounding-gaps-2026-06-20.md` | Upstream-gap research (2026-06-20, multi-agent) + ordered fix plan for reliable AIOS Windows OS-control (UIA-targeted type/verify) and native per-turn env grounding. Records the root cause of the... |
+| `usr/share/doc/mios/concepts/pod-architecture-2026-06-22.md` | Concept documentation explaining the MiOS 3-pod architecture, port-minimization strategy, host services constraint, and SSOT-driven generation lifecycle. |
+| `usr/share/doc/mios/concepts/postgres-pgvector-unification.md` | Concept brief on why and how MiOS unified its agent-plane datastore onto PostgreSQL + pgvector (the FOSS "back to SQL" agent-memory stack), defining the standard schema, the shared mios-pg-query... |
+| `usr/share/doc/mios/concepts/roadmap-snapshot-decomposition-2026-06-22.md` | Research-backed decomposition of a historical MiOS roadmap snapshot into a minified executive summary and detailed current-architecture documentation. Reconciles the snapshot against current MiOS... |
+| `usr/share/doc/mios/concepts/uia-ai-integration-2026-06-22.md` | Concept documentation detailing the research and architecture for integrating native Windows UI Automation (UIA) into the MiOS AI agent ecosystem. |
+| `usr/share/doc/mios/concepts/unified-ai-pipeline-2026-06-16.md` | Reference for the UNIFIED MiOS AI pipeline — how every front-end is a thin client to the agent-pipe orchestrator (:8640), the route-by-source anti-fabrication grounding strategy, OpenAI-standard... |
+| `usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md` | Roadmap and research synthesis for MiOS infrastructure updates — hardware-verified overrides for WSL2 iGPU compute, gated heavy-lane (SGLang/vLLM) memory management, GUI/remote-display GPU recovery,... |
+| `usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md` | WS-0-PREFLIGHT read-first correction pass for the MiOS master plan — re-derives every "verified" baseline number against a pinned HEAD (8658df1) and strikes claims stale against the current tree... |
+| `usr/share/doc/mios/concepts/ws-a3-central-path-cutover-worklist.md` | WS-A3 follow-up worklist -- the precise, code-grounded the legacy datastore->pg cutover checklist for the CENTRAL chat path (agent-pipe server.py + the OWUI pipe), which is intentionally NOT edited... |
+| `usr/share/doc/mios/concepts/ws-a3-surreal-to-pg-cutover.md` | WS-A3 completion record -- the legacy datastore->Postgres+pgvector cutover for the agent CLIs: the mios-pg-query extended-protocol (--exec-json) parameter-binding keystone, parameterized knowledge... |
+| `usr/share/doc/mios/concepts/ws-decompose-stage2-plan-2026-06-20.md` | Stage-2 execution plan for the WS-A11/WS-3 server.py decomposition -- maps each chat_completions intent branch to its Kernel manager + Dispatcher handler, the behaviour-parity test plan, and the... |
+| `usr/share/doc/mios/concepts/ws-grounding-2026-06-20.md` | Code-grounding verdicts for the MiOS master plan — per-workstream DONE/PARTIAL/MISSING assessment against the live tree at HEAD 8658df1, with exact file:line anchors. The headline split: Track-A... |
+| `usr/share/doc/mios/concepts/ws-remaining-implementation-plan-2026-06-20.md` | Decision-ready implementation plan for the 6 remaining MiOS WS-* architectural subsystems (GOAP planner, zero-trust federation, server.py strangler-fig, RLS, pods→k3s, self-improve loop) — for each:... |
+| `usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md` | Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, self-improve loop) -- what each does, its... |
+| `usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md` | Documentation of the WS-7 security architecture defining the transition from permissive fapolicyd observation to enforced execution whitelisting and verity-rooted UKI builds via mios.toml... |
+
+<!-- derived from the AI-hint headers of 34 file(s) matching usr/share/doc/mios/concepts/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/concepts/*.md -->
+
+## guides
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/guides/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/guides/agent-windows-ssh.md` | Guide for the agent's Windows-host control bridge `/usr/libexec/mios/mios-windows`, which reaches the Windows host the WSL2 VM lives inside via TWO backends — WSL interop (default, no setup) and... |
+| `usr/share/doc/mios/guides/cephfs-xdg-storage.md` | Guides engineering reference documentation for the CephFS + XDG Unified Storage Fabric, documenting cache isolation rules, OCI bootstrap quickstarts, and multi-tenant extension paths. |
+| `usr/share/doc/mios/guides/deploy.md` | Documentation for deploying a built MiOS image -- the OCI artifact plus its RAW/ISO/QCOW2/VHDX/WSL2 disk forms -- onto bootc-managed or FHS Fedora hosts, and the Day-2 bootc lifecycle... |
+| `usr/share/doc/mios/guides/edge-node-join.md` | Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe :8640, MIOS_PORT_AGENT_PIPE), using the three-layer mios.toml overlay and the... |
+| `usr/share/doc/mios/guides/engineering.md` | Defines the MiOS engineering standards — the 5-phase deployment pipeline, the `automation/` build sub-phase execution order, the `mios.toml` package-management schema, and the build-time conventions... |
+| `usr/share/doc/mios/guides/install.md` | Documentation for ingesting the 'MiOS' knowledge base into any OpenAI-API-compatible runtime; procedures for local inference (mios-llm-light :11450), pgvector RAG ingestion, and evals — grounded in... |
+| `usr/share/doc/mios/guides/security.md` | Documentation of MiOS security hardening posture, mapping kernel boot parameters, sysctl values, SELinux modules/booleans, firewalld ports, and supply-chain controls to the exact files that enforce... |
+| `usr/share/doc/mios/guides/self-build.md` | Documentation for the MiOS self-build lifecycle, detailing the build chain, CI/CD workflows, and local build modes (Bootstrap, CI/CD, Windows, Linux/Justfile, in-place self-build, Ignition appliance)... |
+
+<!-- derived from the AI-hint headers of 8 file(s) matching usr/share/doc/mios/guides/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/guides/*.md -->
+
+## upstream
+
+What each upstream project is, and exactly how MiOS consumes it.
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/upstream/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/upstream/bib.md` | Documentation for the bootc-image-builder (BIB) tool, detailing how MiOS uses it to transform the localhost/mios:latest OCI image into deployable disk artifacts (raw, anaconda-iso, qcow2, vhd→vhdx,... |
+| `usr/share/doc/mios/upstream/bootc.md` | Documentation for the bootc tool, which MiOS uses as the primary mechanism for host-state mutations, image-based deployments, and system upgrades via OCI images. |
+| `usr/share/doc/mios/upstream/cdi.md` | Documentation for the Container Device Interface (CDI) specification, detailing how MiOS abstracts NVIDIA, AMD ROCm/KFD, and Intel iGPU passthrough into a unified, vendor-agnostic layer that... |
+| `usr/share/doc/mios/upstream/composefs.md` | Documentation for the composefs subsystem, detailing the integration of overlayfs, EROFS, and fs-verity to provide a verified, deduplicated, read-only root filesystem that anchors MiOS's image-mode... |
+| `usr/share/doc/mios/upstream/cosign.md` | Documentation for Sigstore/Cosign keyless signing and verification — the specific CLI commands and OIDC identity that validate MiOS OCI container images and their attestations before bootc deploys... |
+| `usr/share/doc/mios/upstream/crowdsec-fapolicyd-usbguard.md` | Documentation of the Layer 3 runtime security triplet (CrowdSec IPS, fapolicyd application whitelisting, USBGuard device whitelisting) — their configuration paths, operational modes, and roles in... |
+| `usr/share/doc/mios/upstream/deploy-targets.md` | Documentation of MiOS deployment-target methods (bootc host, Hyper-V Gen2, QEMU/KVM, WSL2, Anaconda ISO, RAW disk), detailing the Justfile build recipes and per-artifact config requirements that turn... |
+| `usr/share/doc/mios/upstream/dnf5.md` | Documentation for the dnf5 package manager as used at MiOS BUILD time, detailing critical build flags (`install_weak_deps`), BuildKit cache-mount patterns, kernel-package install restrictions, and... |
+| `usr/share/doc/mios/upstream/fedora-bootc.md` | Documentation of the Fedora bootc upstream lineage, detailing how MiOS integrates Anaconda kickstarts, RHEL image-mode FIPS patterns, and why MiOS builds FROM ucore-hci (not fedora-bootc directly)... |
+| `usr/share/doc/mios/upstream/ghcr.md` | Documentation for the GitHub Container Registry (GHCR) integration — the distribution endpoint for the single MiOS OCI image and the AI/quadlet images bound into it. Covers image paths, CI/user/bootc... |
+| `usr/share/doc/mios/upstream/greenboot.md` | Documentation for greenboot, the automated post-boot health-check and auto-rollback system that protects MiOS's bootc image lifecycle — if required checks (composefs root integrity, mios-role,... |
+| `usr/share/doc/mios/upstream/inference-engines.md` | Upstream reference for the three inference engines behind the MiOS lanes — llama.cpp via the llama-swap proxy (mios-llm-light, primary), vLLM (mios-llm-heavy, gated) and SGLang (mios-llm-heavy-alt,... |
+| `usr/share/doc/mios/upstream/k3s-cockpit.md` | Documentation for the K3s + Cockpit (+ Ceph, libvirt/QEMU) cluster/admin surface of MiOS; explains how the same immutable bootc image that ships the desktop and the local agent stack can also grow... |
+| `usr/share/doc/mios/upstream/looking-glass-kvmfr.md` | Documentation for the KVMFR kernel module and Looking Glass B7 client baked into the MiOS image — the shared-memory framebuffer relay that lets the host display a VFIO-passed-through guest GPU's... |
+| `usr/share/doc/mios/upstream/nvidia.md` | Documentation of the NVIDIA GPU stack on MiOS, detailing the ucore-hci `:stable-nvidia` driver lineage, akmod build + MOK signing under kernel lockdown, NVIDIA-safe kargs, and CDI-based container GPU... |
+| `usr/share/doc/mios/upstream/ostree.md` | Documentation of the ostree content-addressed filesystem used as the bootc storage backend to manage immutable system images, deployments, and the transition path to composefs. |
+| `usr/share/doc/mios/upstream/pgvector.md` | Upstream reference for pgvector, the PostgreSQL vector extension behind the mios-pgvector unified agent datastore — what it is, how the ref floats on the pgNN family tag, how that flows through the... |
+| `usr/share/doc/mios/upstream/podman.md` | Documentation for Podman, Buildah, Skopeo, and Quadlet integration in MiOS — defines the bootc image build invariants, multi-arch manifest rules, and the systemd-podman bridge that orchestrates every... |
+| `usr/share/doc/mios/upstream/rechunk.md` | Documentation for the rechunk tool used during the MiOS build pipeline (Phase-3 / `just rechunk`) to optimize bootc upgrade deltas by consolidating OCI layers into a deterministic 67-layer structure,... |
+| `usr/share/doc/mios/upstream/related-distros.md` | Provides a comparative analysis of MiOS against sibling Universal Blue images and other atomic/immutable distributions to define MiOS's specific positioning as a single immutable bootc/OCI Fedora... |
+| `usr/share/doc/mios/upstream/secureblue.md` | Maps MiOS's defense-in-depth security posture onto the SecureBlue audit framework it draws from — which kernel kargs, sysctl values, and hardening policies MiOS adopts, which it deliberately diverges... |
+| `usr/share/doc/mios/upstream/selinux.md` | Documentation of MiOS's SELinux posture — enforcing mode, the per-rule custom .te policy modules generated by automation/37-selinux.sh and the k3s policy from automation/19-k3s-selinux.sh, the... |
+| `usr/share/doc/mios/upstream/ucore-hci.md` | Documents the ucore-hci upstream base image lineage and specifications — the FCOS/uCore/HCI/NVIDIA foundation MiOS builds FROM. Explains what the base image provides (immutable ostree+composefs,... |
+
+<!-- derived from the AI-hint headers of 23 file(s) matching usr/share/doc/mios/upstream/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/upstream/*.md -->
+
+## adr
+
+Architecture decisions. One decision per record, append-only: a superseding
+decision is always a new record, never a rewrite of the old one.
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/adr/0001-two-gate-bake-activation.md` | Two orthogonal gates — BAKE (is it in the image?) vs ACTIVATION (does it start on THIS blade?) — give one universal image many roles with no image variants; read before touching the bound-image bake... |
+| `usr/share/doc/mios/adr/0002-mios-sys-shared-base-consolidation.md` | Collapse the ~18-image sidecar fleet onto TWO shared-base images (mios-sys CUDA-free + mios-cuda) to cut the bound-image store ~60GB→~25GB; read before migrating any sidecar's Image=/Exec= or... |
+| `usr/share/doc/mios/adr/0003-sbom-not-hardcode.md` | SSOT image/artifact refs carry TAG intent only; every sha256 digest / hash / checksum / resolved version is SBOM data resolved+recorded at BUILD, never hand-pinned — read before adding or "fixing"... |
+| `usr/share/doc/mios/adr/0004-github-forgejo-equal-publisher.md` | GitHub Actions and the self-hosted Forgejo runner are EQUAL bit-for-bit build/publish environments; the CI PUBLISH env is a capacity gate (a standard runner can't hold the ~60GB bake), NOT a demotion... |
+| `usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md` | Deploy the universal MiOS image as a Hyper-V Gen 2 VM booting a .vhdx on M: cut by bootc install/BIB, because the installer factory-populates /var + /var/home that a raw podman-export skips — read... |
+| `usr/share/doc/mios/adr/0006-openai-api-only-ai-contract.md` | The OpenAI public /v1 API surface is the ONE addressable AI contract across all of MiOS, exposed through a single front door (MIOS_AI_ENDPOINT, agent-pipe :8640); read before adding any AI endpoint,... |
+| `usr/share/doc/mios/adr/0007-governance-model-laws-adrs-spec.md` | The governance model — laws are enforced invariants (fitness functions), ADRs are decisions, and a generated MiOS Spec renders both; read before "converting" laws to anything. |
+| `usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md` | MiOS-Cat is the ONE unified front door (stage/install/build/update/provision/manual) that deploys the whole system on every platform off a SMALL always-present MiOS-Repo shadow-config USB partition... |
+| `usr/share/doc/mios/adr/0009-unified-config-surface.md` | mios.toml (the SSOT), mios.html (the configurator), and the MiOS Portal are ONE config surface served at :8640/ by agent-pipe — the same single front door that serves the OpenAI /v1 API (ADR-0006).... |
+| `usr/share/doc/mios/adr/0010-ssot-as-system-dotfiles.md` | mios.toml IS the cross-platform system dotfiles-as-code. One SSOT + a [dotfiles.registry.<surface>] map + the generalized mios-theme-render/mios-dotfiles-render engine project EVERY declared dotfile... |
+| `usr/share/doc/mios/adr/0011-unified-languages-and-file-patterns.md` | Unify the codebase to language-per-domain (Rust/Go for resilient native tooling — build driver, drift-runner, the verb dispatcher that removes the eval surface; Bun/TS for the Portal/configurator;... |
+| `usr/share/doc/mios/adr/0012-float-latest-no-hand-pinned-versions.md` | Float-latest / no-hand-pinned-version principle: SSOT carries version intent (:latest/newest); build resolves and records exact provenance in SBOM. |
+| `usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md` | Single front door for AGY tree deployment: installation/mios-install resolves targets to underlying entrypoints without modifying existing scripts. |
+| `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md` | Architecture decision defining the three bootc install legs (to-existing-root, to-disk, to-filesystem) and offline OCI tar transport. |
+| `usr/share/doc/mios/adr/0015-unified-key-library-architecture.md` | Unified key library architecture defining single-source rule, derive rules, centralized COMPAT-ALIAS table, and enforcement gates. |
+| `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
+
+<!-- derived from the AI-hint headers of 16 file(s) matching usr/share/doc/mios/adr/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
+
+## manual
+
+Per-area prose, distilled from the source comments by the daily pass. Each
+passage carries an anchor back to the comment it came from.
+
+<!-- MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->
+| File | What it is |
+|---|---|
+| `usr/share/doc/mios/manual/access.md` | Manual pages distilled from the source comments of access, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/agent-pipe.md` | Manual pages distilled from the source comments of agent-pipe, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/automation.md` | Manual pages distilled from the source comments of automation, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/btop.md` | Manual pages distilled from the source comments of btop, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/cockpit.socket.d.md` | Manual pages distilled from the source comments of cockpit.socket.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/conf.d.md` | Manual pages distilled from the source comments of conf.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/containers.md` | Manual pages distilled from the source comments of containers, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/context.md` | Manual pages distilled from the source comments of context, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/crawl4ai.md` | Manual pages distilled from the source comments of crawl4ai, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/drift.md` | Manual pages distilled from the source comments of drift, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/embeddings.md` | Manual pages distilled from the source comments of embeddings, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/evals.md` | Manual pages distilled from the source comments of evals, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/federation.md` | Manual pages distilled from the source comments of federation, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/hermes.md` | Manual pages distilled from the source comments of hermes, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/identity.md` | Manual pages distilled from the source comments of identity, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/installation.md` | Manual pages distilled from the source comments of installation, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/kargs.d.md` | Manual pages distilled from the source comments of kargs.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/kernel.md` | Manual pages distilled from the source comments of kernel, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/lib.md` | Manual pages distilled from the source comments of lib, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/lifecycle.md` | Manual pages distilled from the source comments of lifecycle, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/llamacpp.md` | Manual pages distilled from the source comments of llamacpp, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/memory.md` | Manual pages distilled from the source comments of memory, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/mios.md` | Manual pages distilled from the source comments of mios, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/mios_pipe.md` | Manual pages distilled from the source comments of mios_pipe, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/observability.md` | Manual pages distilled from the source comments of observability, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/opencode-gateway.md` | Manual pages distilled from the source comments of opencode-gateway, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/owui.md` | Manual pages distilled from the source comments of owui, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/powershell.md` | Manual pages distilled from the source comments of powershell, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/profile.d.md` | Manual pages distilled from the source comments of profile.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/root.md` | Manual pages distilled from the source comments of root, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/routing.md` | Manual pages distilled from the source comments of routing, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/scheduler.md` | Manual pages distilled from the source comments of scheduler, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/searxng.md` | Manual pages distilled from the source comments of searxng, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/src.md` | Manual pages distilled from the source comments of src, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/support.md` | Manual pages distilled from the source comments of support, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/system.md` | Manual pages distilled from the source comments of system, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/sysusers.d.md` | Manual pages distilled from the source comments of sysusers.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/tests.md` | Manual pages distilled from the source comments of tests, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/tmpfiles.d.md` | Manual pages distilled from the source comments of tmpfiles.d, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/tools.md` | Manual pages distilled from the source comments of tools, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/user.md` | Manual pages distilled from the source comments of user, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/users.md` | Manual pages distilled from the source comments of users, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/windows.md` | Manual pages distilled from the source comments of windows, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
+| `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
+
+<!-- derived from the AI-hint headers of 45 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

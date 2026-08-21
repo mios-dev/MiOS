@@ -9,12 +9,12 @@ codeberg.org/forgejo/forgejo:12	local	extra
 code.forgejo.org/forgejo/runner:7	local	extra
 docker.io/guacamole/guacamole:latest	local	extra
 docker.io/guacamole/guacd:latest	local	extra
-docker.io/rancher/k3s:v1.36.2-k3s1	local	extra
+docker.io/rancher/k3s:v1.36.3-k3s1	local	extra
 docker.io/lmsysorg/sglang:latest	local	sys
 docker.io/vllm/vllm-openai:latest	local	extra
 ghcr.io/open-webui/open-webui:main	local	heavy
 docker.io/jaegertracing/all-in-one:latest	local	extra
-docker.io/pgvector/pgvector:0.8.3-pg17	local	extra
+docker.io/pgvector/pgvector:pg18	local	extra
 quay.io/poseidon/matchbox:latest	local	extra
 docker.io/searxng/searxng:latest	local	extra
 docker.io/valkey/valkey:latest	local	extra

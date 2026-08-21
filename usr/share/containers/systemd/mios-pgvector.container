@@ -17,13 +17,14 @@ Environment=PGDATA=/var/lib/postgresql/data/pgdata
 EnvironmentFile=/etc/mios/install.env
 Exec=postgres -c port=${MIOS_PORT_PGVECTOR:-8600} -c listen_addresses=127.0.0.1 -c hnsw.iterative_scan=strict_order -c hnsw.max_scan_tuples=20000 -c hnsw.scan_mem_multiplier=1
 Group=826
-Image=docker.io/pgvector/pgvector:0.8.3-pg17
+Image=docker.io/pgvector/pgvector:pg18
 Label=org.opencontainers.image.title=mios-pgvector
 Label=org.opencontainers.image.documentation=https://github.com/pgvector/pgvector
 Pod=mios-ai.pod
 User=826
 Volume=/var/lib/mios/pgvector:/var/lib/postgresql/data:Z
 Volume=/usr/share/mios/postgres/schema-init.sql:/docker-entrypoint-initdb.d/10-mios-schema.sql:ro
+Volume=/var/lib/mios/pgvector-restore.sql:/docker-entrypoint-initdb.d/20-mios-restore.sql:ro
 
 [Install]
 WantedBy=multi-user.target default.target

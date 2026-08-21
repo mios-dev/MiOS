@@ -277,7 +277,7 @@ export MIOS_VERSION
 : "${MIOS_BUILDER_DISTRO:=MiOS-DEV}"
 : "${MIOS_BUILD_AI_RAM_FLOOR_GB:=12}"
 : "${MIOS_BUILD_ARTIFACTS_OUTPUT_DIR:=build}"
-: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:7,codeberg.org/forgejo/forgejo:12,docker.io/adguard/adguardhome:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:0.8.3-pg17,docker.io/rancher/k3s:v1.36.2-k3s1,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:v19,quay.io/poseidon/matchbox:latest}"
+: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:7,codeberg.org/forgejo/forgejo:12,docker.io/adguard/adguardhome:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:pg18,docker.io/rancher/k3s:v1.36.3-k3s1,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:v19,quay.io/poseidon/matchbox:latest}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_TOKENS:=vllm,sglang,crawl4ai,firecrawl}"
 : "${MIOS_BUILD_BAKE_GROUPS:=sys,cuda,heavy,extra}"
 : "${MIOS_BUILD_BAKE_GROUP_MEMBERS_CUDA:=cuda}"
@@ -677,14 +677,25 @@ export MIOS_VERSION
 : "${MIOS_DISPATCH_VRAM_RECLAIM_IDLE:=false}"
 : "${MIOS_DISPATCH_WORKER_MCP_TOOLS:=true}"
 : "${MIOS_DOCS_BLOCKLIST_GLOBS:=automation/lib/globals.sh,automation/lib/globals.ps1,tools/native/mios-unit-gen/tests/golden/**,**/*.generated.*,usr/share/mios/names.generated.txt}"
+[ -n "${MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS+x}" ] || MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS='MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+'
+: "${MIOS_DOCS_DISTILL_DEST_DIR:=usr/share/doc/mios/manual}"
+: "${MIOS_DOCS_DISTILL_ENABLE:=true}"
+: "${MIOS_DOCS_DISTILL_SKIP_GLOBS:=usr/share/mios/mios.toml,tools/native/mios-unit-gen/tests/golden/*,usr/share/doc/*}"
 : "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
 : "${MIOS_DOCS_MAX_OVERLONG_HINTS:=1}"
-: "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1739}"
+: "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1724}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
 : "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"
 : "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_}"
+[ -n "${MIOS_DOCS_SANITIZE_PATH_REWRITES+x}" ] || MIOS_DOCS_SANITIZE_PATH_REWRITES='['"'"'file:///C:/MiOS/'"'"', '"'"''"'"'],['"'"'file:///C:/'"'"', '"'"''"'"'],['"'"'C:\\MiOS\\'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:/MiOS/'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:\\MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'C:/MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'/mnt/c/MiOS'"'"', '"'"'/usr/share/mios'"'"']'
+[ -n "${MIOS_DOCS_SANITIZE_REDACT_PATTERNS+x}" ] || MIOS_DOCS_SANITIZE_REDACT_PATTERNS='(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\s*[:=]+\s*(?![>\s])[^\s"'"'"']{4,},\bsha256:[0-9a-f]{64}\b,(?i)\bBearer\s+[A-Za-z0-9._-]{16,}'
+: "${MIOS_DOCS_SANITIZE_REDACT_WITH:=[redacted]}"
 [ -n "${MIOS_DOCS_SIGNALS_CODE+x}" ] || MIOS_DOCS_SIGNALS_CODE='^\s*(if|for|while|def|class|function|export|set|return|elif|else|fi|done|esac|end)\b|[;{]\s*$|^\s*[\w.]+\s*=[^=]'
 [ -n "${MIOS_DOCS_SIGNALS_FACT+x}" ] || MIOS_DOCS_SIGNALS_FACT='\b(broken|deprecated|removed|disabled|not supported|only on|requires|since|as of|WS-[A-Z]+|AGY-[0-9]+|ADR-[0-9]+|Law [0-9]+)\b'
 [ -n "${MIOS_DOCS_SIGNALS_NARRATIVE+x}" ] || MIOS_DOCS_SIGNALS_NARRATIVE='\b(operator|used to|no longer|previously|regression|root cause|incident|reverted|scrapped|rejected|instead of|alternative|rationale|invariant|degrade|ADR-[0-9]+|Law [0-9]+|AGY-[0-9]+|WS-[A-Z]+|[0-9]{4}-[0-9]{2}-[0-9]{2})\b'
@@ -969,8 +980,8 @@ export MIOS_VERSION
 : "${MIOS_INSTALL_ENV:=/etc/mios/install.env}"
 : "${MIOS_INTEGER_PARAM_KEYWORDS:=limit,count,timeout,port,every,concurrency,maxsize}"
 : "${MIOS_K3S_API_PORT:=8450}"
-: "${MIOS_K3S_IMAGE:=docker.io/rancher/k3s:v1.36.2-k3s1}"
-: "${MIOS_K3S_VERSION:=docker.io/rancher/k3s:v1.36.2-k3s1}"
+: "${MIOS_K3S_IMAGE:=docker.io/rancher/k3s:v1.36.3-k3s1}"
+: "${MIOS_K3S_VERSION:=docker.io/rancher/k3s:v1.36.3-k3s1}"
 : "${MIOS_KARGS_IOMMU:=on}"
 : "${MIOS_KEYBOARD:=us}"
 : "${MIOS_KNOWLEDGE_EVICT_BATCH:=500}"
@@ -1010,7 +1021,7 @@ export MIOS_VERSION
 [ -n "${MIOS_LAWS_LAWS+x}" ] || MIOS_LAWS_LAWS='{'"'"'id'"'"': 1, '"'"'slug'"'"': '"'"'USR-OVER-ETC'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_usr_over_etc'"'"'},{'"'"'id'"'"': 2, '"'"'slug'"'"': '"'"'NO-MKDIR-IN-VAR'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_no_mkdir_in_var'"'"'},{'"'"'id'"'"': 3, '"'"'slug'"'"': '"'"'BOUND-IMAGES'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item14'"'"'},{'"'"'id'"'"': 4, '"'"'slug'"'"': '"'"'BOOTC-CONTAINER-LINT'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_lint_is_final'"'"'},{'"'"'id'"'"': 5, '"'"'slug'"'"': '"'"'UNIFIED-AI-REDIRECTS'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item12'"'"'},{'"'"'id'"'"': 6, '"'"'slug'"'"': '"'"'UNPRIVILEGED-QUADLETS'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_quadlet_privilege'"'"'},{'"'"'id'"'"': 7, '"'"'slug'"'"': '"'"'NO-HARDCODE'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_no_hardcode'"'"'},{'"'"'id'"'"': 8, '"'"'slug'"'"': '"'"'SSOT-PROJECTION'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_projection_registry'"'"'},{'"'"'id'"'"': 9, '"'"'slug'"'"': '"'"'ONE-CANONICAL-NAME'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_var_closure'"'"'},{'"'"'id'"'"': 10, '"'"'slug'"'"': '"'"'BARE-SAFE-ENV'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item16'"'"'},{'"'"'id'"'"': 11, '"'"'slug'"'"': '"'"'SECRETS-NEVER-IN-ENV'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item17'"'"'},{'"'"'id'"'"': 12, '"'"'slug'"'"': '"'"'BAKE-NOT-FETCH'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open'"'"'},{'"'"'id'"'"': 13, '"'"'slug'"'"': '"'"'NATIVE-DROPINS'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_resolver_twin_parity'"'"'},{'"'"'id'"'"': 14, '"'"'slug'"'"': '"'"'TARGET-LANGUAGES'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_target_languages'"'"'},{'"'"'id'"'"': 15, '"'"'slug'"'"': '"'"'DOUBLE-REPO-TRIPLE-CHECK'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'process:CLAUDE.md/AGENTS.md (both repos); parity via 98-drift-checks.sh checks 22+27'"'"'},{'"'"'id'"'"': 16, '"'"'slug'"'"': '"'"'ONE-TEMPLATE-PER-TYPE'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_template_conformance'"'"'}'
 : "${MIOS_LAWS_PROJECTION_REGISTRY_ALLOWLIST_HOSTS:=localhost,127.0.0.1,::1,host.containers.internal,mios-llm-light,mios-open-webui,mios-hermes,mios-pgvector,mios-forge,mios-searxng,mios-crawl4ai,mios-code-server}"
 : "${MIOS_LAWS_PROJECTION_REGISTRY_PROVENANCE_TAINT:=false}"
-[ -n "${MIOS_LAWS_PROJECTION_REGISTRY_SURFACES+x}" ] || MIOS_LAWS_PROJECTION_REGISTRY_SURFACES='{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-theme-render'"'"', '"'"'check'"'"': '"'"'check_dotfiles_projection'"'"', '"'"'output'"'"': '"'"'etc/ (and various target registries)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-sync-toml'"'"', '"'"'check'"'"': '"'"'check_toml_projection'"'"', '"'"'output'"'"': '"'"'usr/share/mios/mios.toml.bak (and metadata)'"'"'},{'"'"'generator'"'"': '"'"'automation/98-drift-checks.sh'"'"', '"'"'check'"'"': '"'"'check_drift_projection'"'"', '"'"'output'"'"': '"'"'stdout (drift assertions)'"'"'}'
+[ -n "${MIOS_LAWS_PROJECTION_REGISTRY_SURFACES+x}" ] || MIOS_LAWS_PROJECTION_REGISTRY_SURFACES='{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-theme-render'"'"', '"'"'check'"'"': '"'"'check_dotfiles_projection'"'"', '"'"'output'"'"': '"'"'etc/ (and various target registries)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-sync-toml'"'"', '"'"'check'"'"': '"'"'check_toml_projection'"'"', '"'"'output'"'"': '"'"'usr/share/mios/mios.toml.bak (and metadata)'"'"'},{'"'"'generator'"'"': '"'"'automation/98-drift-checks.sh'"'"', '"'"'check'"'"': '"'"'check_drift_projection'"'"', '"'"'output'"'"': '"'"'stdout (drift assertions)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_manual_ledger'"'"', '"'"'output'"'"': '"'"'usr/share/mios/reference/manual-corpus.tsv'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_manual_generated'"'"', '"'"'output'"'"': '"'"'usr/share/doc/mios/ (MIOS-GEN marker interiors)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_comment_landing'"'"', '"'"'output'"'"': '"'"'usr/share/doc/mios/ (harvested passages + mios-src anchors)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_docs_ratchet_monotone'"'"', '"'"'output'"'"': '"'"'usr/share/mios/reference/doc-ratchet-floor.tsv'"'"'}'
 : "${MIOS_LAWS_TARGET_LANGUAGES_GRANDFATHERED_CS:=usr/share/mios/windows/MiOS-Launcher.cs,usr/share/mios/windows/MiosServiceTool.cs}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
 : "${MIOS_LLAMACPP_BAKE_MODELS:=granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf}"
@@ -1364,22 +1375,24 @@ to" / "let me know".
 : "${MIOS_PGVECTOR_ENABLE:=true}"
 : "${MIOS_PGVECTOR_GID:=826}"
 : "${MIOS_PGVECTOR_HOST:=127.0.0.1}"
-: "${MIOS_PGVECTOR_IMAGE:=docker.io/pgvector/pgvector:0.8.3-pg17}"
+: "${MIOS_PGVECTOR_IMAGE:=docker.io/pgvector/pgvector:pg18}"
 : "${MIOS_PGVECTOR_PASS:=mios}"
 : "${MIOS_PGVECTOR_PORT:=8600}"
+: "${MIOS_PGVECTOR_RESTORE_SQL:=/var/lib/mios/pgvector-restore.sql}"
 : "${MIOS_PGVECTOR_RLS_MODE:=off}"
 : "${MIOS_PGVECTOR_SCHEMA_INIT:=/usr/share/mios/postgres/schema-init.sql}"
 : "${MIOS_PGVECTOR_UID:=826}"
 : "${MIOS_PORT_PGVECTOR:=8600}"
 [ -n "${MIOS_PGVECTOR_URL+x}" ] || MIOS_PGVECTOR_URL='postgresql://mios:mios@localhost:'"${MIOS_PORT_PGVECTOR}"'/mios'
 : "${MIOS_PGVECTOR_USER:=mios-pgvector}"
-: "${MIOS_PGVECTOR_VERSION:=docker.io/pgvector/pgvector:0.8.3-pg17}"
+: "${MIOS_PGVECTOR_VERSION:=docker.io/pgvector/pgvector:pg18}"
 : "${MIOS_PG_DATA_DIR:=/var/lib/mios/pgvector}"
 : "${MIOS_PG_DB:=mios}"
 : "${MIOS_PG_EMBED_MODEL:=nomic-embed-text}"
 : "${MIOS_PG_ENABLE:=true}"
 : "${MIOS_PG_HOST:=127.0.0.1}"
 : "${MIOS_PG_PASS:=mios}"
+: "${MIOS_PG_RESTORE_SQL:=/var/lib/mios/pgvector-restore.sql}"
 : "${MIOS_PG_RLS_MODE:=off}"
 : "${MIOS_PG_SCHEMA_INIT:=/usr/share/mios/postgres/schema-init.sql}"
 : "${MIOS_PG_USER:=mios}"
@@ -4618,7 +4631,7 @@ to" / "let me know".
 : "${MIOS_VERSIONS_CEPH:=v19}"
 : "${MIOS_VERSIONS_FEDORA:=44}"
 : "${MIOS_VERSIONS_FORGEJO:=12}"
-: "${MIOS_VERSIONS_K3S:=v1.36.2-k3s1}"
+: "${MIOS_VERSIONS_K3S:=v1.36.3-k3s1}"
 : "${MIOS_VERSIONS_K8S_REPO:=v1.36}"
 : "${MIOS_VLLM_BAKE_MODEL:=stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ}"
 : "${MIOS_VLLM_ENABLE:=false}"

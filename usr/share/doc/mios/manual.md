@@ -13,7 +13,7 @@ This unified document consolidates the entire 50-chapter documentation suite, de
 * **Chapter 01: Introduction and Core Concepts**
   * [What is MiOS](#01_what_is_mios): Defines the dual nature of MiOS as an immutable, bootc Fedora workstation and a local agentic OS.
   * [Repo IS Root Paradigm](#01_repo_is_root_paradigm): Explains how the Git repository tree directly mirrors the deployed OS filesystem at the system root.
-  * [The Seven Architectural Laws](#01_the_seven_architectural_laws): Details the non-negotiable mandates: USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, etc.
+  * [The Architectural Laws](#01_the_seven_architectural_laws): Details the non-negotiable mandates: USR-OVER-ETC, NO-MKDIR-IN-VAR, BOUND-IMAGES, etc.
 * **Chapter 02: Installation and Deployment**
   * [Day-0 Bootstrap](#02_day_0_bootstrap): Covers provisioning the MiOS-DEV seed environment via Windows PowerShell or the Linux just runner.
   * [First Boot Initialization](#02_first_boot_initialization): Outlines the provisioning sequence for the build plane, CDI, libvirt, and AI plane on first boot.
@@ -256,11 +256,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -275,7 +275,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 The `mios.git` repository root *is* the running host's system root (`/`). There is no temporary build directory, no intermediate staging workspace, and no Ansible configuration playbooks.
 
 - **Structure**: The files in the repository (e.g. `usr/`, `etc/`, `srv/`, `var/`) are mapped directly to their FHS positions on the booted system.
-- **Overlay Application**: During the container image build, the script [08-system-files-overlay.sh](file:///C:/MiOS/automation/08-system-files-overlay.sh) applies the overlay files directly to the rootfs.
+- **Overlay Application**: During the container image build, the script [08-system-files-overlay.sh](automation/08-system-files-overlay.sh) applies the overlay files directly to the rootfs.
 - **Developer Workflow**: To change a configuration or utility in the OS, you edit it at its natural path inside the repository and trigger a rebuild. When the OCI image is updated, `bootc` handles the transactional merge on the target machine.
 
 #### Citation & Attribution References
@@ -289,31 +289,73 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
 ---
 
-### <a name="01_the_seven_architectural_laws"></a>01.The Seven Architectural Laws: The Seven Architectural Laws
+### <a name="01_the_seven_architectural_laws"></a>01.The Architectural Laws: The Architectural Laws
 
 > Path Reference: `/usr/share/doc/mios/manual.md#01_the_seven_architectural_laws`
 
 #### Overview
 
-Governance of MiOS is defined by seven strict, non-negotiable mandates enforced at build-time by [97-ssot-lint.sh](file:///C:/MiOS/automation/97-ssot-lint.sh), [98-drift-checks.sh](file:///C:/MiOS/automation/98-drift-checks.sh), and [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh):
+Governance of MiOS is defined by strict, non-negotiable mandates enforced at
+build-time by `automation/97-ssot-lint.sh`, `automation/98-drift-checks.sh` and
+`automation/99-postcheck.sh`. The registry below is derived from
+`usr/share/mios/mios.toml [laws]`, so it cannot fall behind the law set the way
+a hand-written list does — this section previously described seven laws when
+there were sixteen.
 
-1. **USR-OVER-ETC**: Static system configs must reside in `/usr/lib/<component>.d/`. The `/etc/` directory is reserved solely for administrative overrides.
-2. **NO-MKDIR-IN-VAR**: Build-time scripts must never call `mkdir` inside `/var/`. All `/var/` paths must be declared declaratively via `usr/lib/tmpfiles.d/*.conf`.
-3. **BOUND-IMAGES**: Every Podman Quadlet container image must be symlinked under `/usr/lib/bootc/bound-images.d/` and baked into `/usr/lib/containers/storage` at build-time.
-4. **BOOTC-CONTAINER-LINT**: The last instruction of the `Containerfile` must be `RUN bootc container lint`. A failing lint fails the build.
-5. **UNIFIED-AI-REDIRECTS**: All local services, tools, and agents must communicate with `MIOS_AI_ENDPOINT`. No vendor-hardcoded URLs are allowed.
-6. **UNPRIVILEGED-QUADLETS**: All Quadlet units must declare `User=`, `Group=`, and `Delegate=yes` configuration bounds. The only exceptions are `mios-ceph` and `mios-k3s` (which require root block device access).
-7. **NO-HARDCODE**: Nothing operator-tunable, including model names, ports, or scoring parameters, may be hardcoded. Values must resolve via the `mios.toml` configuration cascade.
+<!-- MIOS-GEN:laws -->
+| # | Law | Applies to | Enforced by |
+|---|---|---|---|
+| 1 | USR-OVER-ETC | both | `98-drift-checks.sh:check_usr_over_etc` |
+| 2 | NO-MKDIR-IN-VAR | both | `98-drift-checks.sh:check_no_mkdir_in_var` |
+| 3 | BOUND-IMAGES | bootc | `99-postcheck.sh:item14` |
+| 4 | BOOTC-CONTAINER-LINT | bootc | `98-drift-checks.sh:check_lint_is_final` |
+| 5 | UNIFIED-AI-REDIRECTS | both | `99-postcheck.sh:item12` |
+| 6 | UNPRIVILEGED-QUADLETS | bootc | `98-drift-checks.sh:check_quadlet_privilege` |
+| 7 | NO-HARDCODE | both | `98-drift-checks.sh:check_no_hardcode` |
+| 8 | SSOT-PROJECTION | both | `98-drift-checks.sh:check_projection_registry` |
+| 9 | ONE-CANONICAL-NAME | both | `98-drift-checks.sh:check_var_closure` |
+| 10 | BARE-SAFE-ENV | both | `99-postcheck.sh:item16` |
+| 11 | SECRETS-NEVER-IN-ENV | bootc | `99-postcheck.sh:item17` |
+| 12 | BAKE-NOT-FETCH | both | `98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open` |
+| 13 | NATIVE-DROPINS | both | `98-drift-checks.sh:check_resolver_twin_parity` |
+| 14 | TARGET-LANGUAGES | both | `98-drift-checks.sh:check_target_languages` |
+| 15 | DOUBLE-REPO-TRIPLE-CHECK | both | `process:CLAUDE.md/AGENTS.md (both repos); parity via 98-drift-checks.sh checks 22+27` |
+| 16 | ONE-TEMPLATE-PER-TYPE | both | `98-drift-checks.sh:check_template_conformance` |
+
+<!-- derived from usr/share/mios/mios.toml [laws].laws -->
+<!-- /MIOS-GEN:laws -->
+
+Law 6 (UNPRIVILEGED-QUADLETS) permits root only for the units registered in
+`[security.privileged_quadlets]`, each with a justification:
+
+<!-- MIOS-GEN:root-exceptions -->
+| Quadlet | Runs as root because |
+|---|---|
+| `mios-ceph.container` | see `[security.privileged_quadlets]` |
+| `mios-k3s.container` | see `[security.privileged_quadlets]` |
+| `mios-forge.container` | see `[security.privileged_quadlets]` |
+| `mios-forgejo-runner.container` | see `[security.privileged_quadlets]` |
+| `mios-pxe-hub.container` | see `[security.privileged_quadlets]` |
+| `mios-webtools-crawl4ai.container` | see `[security.privileged_quadlets]` |
+| `mios-webtools-firecrawl-api.container` | see `[security.privileged_quadlets]` |
+| `mios-webtools-firecrawl-worker.container` | see `[security.privileged_quadlets]` |
+| `mios-webtools-redis.container` | see `[security.privileged_quadlets]` |
+| `mios-llm-heavy.container` | see `[security.privileged_quadlets]` |
+| `mios-llm-heavy-alt.container` | see `[security.privileged_quadlets]` |
+| `mios-coderun-sandbox@.container` | see `[security.privileged_quadlets]` |
+
+<!-- derived from usr/share/mios/mios.toml [security.privileged_quadlets].root -->
+<!-- /MIOS-GEN:root-exceptions -->
 
 #### Citation & Attribution References
 
@@ -325,11 +367,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -373,11 +415,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -393,7 +435,7 @@ Once the OCI image is generated and written, the system boots into the First Boo
 
 The first-boot sequence processes:
 1. **Container Device Interface (CDI)**: Probes physical graphics adapters and renders CDI schemas under `/var/run/cdi/`.
-2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [31-user.sh](file:///C:/MiOS/automation/31-user.sh).
+2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [31-user.sh](automation/31-user.sh).
 3. **Libvirt & Virtualization**: The virtual networking layers, VM templates, and CPU affinity shims are initialized.
 4. **AI Services Plane**: The PostgreSQL database and the llama-swap proxy are initialized.
 
@@ -406,11 +448,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -439,11 +481,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -473,11 +515,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -495,7 +537,7 @@ This chapter covers the documentation for **System Configuration and Governance*
 
 System configuration on MiOS is managed centrally via one configuration format: `mios.toml`.
 
-This file controls user parameters, package selections, Flatpaks, AI stack configurations, and hardware allocations. A graphical configurator tool is shipped at [mios.html](file:///C:/MiOS/usr/share/mios/configurator/mios.html). Running `sudo mios-sync-env` refreshes `/etc/mios/install.env` to align systemd environment variables.
+This file controls user parameters, package selections, Flatpaks, AI stack configurations, and hardware allocations. A graphical configurator tool is shipped at [mios.html](usr/share/mios/configurator/mios.html). Running `sudo mios-sync-env` refreshes `/etc/mios/install.env` to align systemd environment variables.
 
 #### Citation & Attribution References
 
@@ -507,11 +549,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -540,11 +582,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -560,7 +602,7 @@ To ensure that the root remains clean and deterministic, packages are declared s
 
 - **System Packages**: Declared in `/usr/share/mios/mios.toml` under `[packages.<section>].pkgs` and installed using DNF5.
 - **Flatpaks**: Desktop GUI apps are declared in the same file under `[flatpaks]` and baked into the image Flatpak store.
-- **Package Rationale**: Human-readable descriptions are documented in [PACKAGES.md](file:///C:/MiOS/usr/share/doc/mios/reference/PACKAGES.md).
+- **Package Rationale**: Human-readable descriptions are documented in [PACKAGES.md](usr/share/doc/mios/reference/PACKAGES.md).
 
 #### Citation & Attribution References
 
@@ -573,11 +615,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -607,11 +649,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -636,11 +678,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -668,11 +710,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -698,11 +740,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -728,11 +770,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -764,11 +806,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -796,11 +838,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -828,11 +870,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -863,11 +905,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -893,11 +935,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -913,7 +955,7 @@ To secure the OCI software supply chain, all MiOS OCI images must be cryptograph
 
 - **Verification Tools**: Integrated via **Sigstore** and **cosign**.
 - **Keyless Signature**: In CI/CD pipelines, images are signed using OIDC tokens, verifying that the build originated from the official pipeline.
-- **Verification Rule**: The host's container policy config ([42-cosign-policy.sh](file:///C:/MiOS/automation/42-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images.
+- **Verification Rule**: The host's container policy config ([42-cosign-policy.sh](automation/42-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images.
 
 #### Citation & Attribution References
 
@@ -923,11 +965,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -954,11 +996,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -986,11 +1028,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1010,7 +1052,7 @@ MiOS workstation hosts can expand dynamically into single-node high-availability
 
 - **Runtime daemon**: Managed via `mios-k3s.service` Quadlet.
 - **Network Isolation**: Traefik acts as the ingress controller, managing routing protocols on standard cluster ports.
-- **SELinux Policies**: Custom SELinux policies are applied by [19-k3s-selinux.sh](file:///C:/MiOS/automation/19-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds.
+- **SELinux Policies**: Custom SELinux policies are applied by [19-k3s-selinux.sh](automation/19-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds.
 
 #### Citation & Attribution References
 
@@ -1021,11 +1063,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1053,11 +1095,11 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1079,18 +1121,18 @@ Unified Kernel Images (UKIs) combine the Linux kernel, initramfs, and kernel com
 
 ## Implementation Details
 - **Build tool**: Compiled via `systemd-ukify` during the OCI build.
-- **Baking script**: Executed by [23-uki-render.sh](file:///C:/MiOS/automation/23-uki-render.sh).
+- **Baking script**: Executed by [23-uki-render.sh](automation/23-uki-render.sh).
 - **Output**: The output `.efi` image is placed directly in the EFI system partition under `/boot/EFI/Linux/`.
 - **Validation**: Verified by `validate-kargs.py` to ensure core arguments are baked into the UKI.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1107,17 +1149,17 @@ Secure Boot ensures that only cryptographically signed binaries can be executed 
 ## Validation Chain
 1. **UEFI Keys**: The motherboard firmware holds the PK (Platform Key), KEK (Key Exchange Key), and db (Signature Database).
 2. **Custom Keys**: MiOS signs custom kernel modules (like ZFS and KVMFR) using a Machine Owner Key (MOK).
-3. **MOK Enrollment**: Handled via [enroll-mok.sh](file:///C:/MiOS/automation/enroll-mok.sh) and [generate-mok-key.sh](file:///C:/MiOS/automation/generate-mok-key.sh).
+3. **MOK Enrollment**: Handled via [enroll-mok.sh](automation/enroll-mok.sh) and [generate-mok-key.sh](automation/generate-mok-key.sh).
 4. **Enforcement**: Secure Boot enforces that all drivers compiled at build time are verified against the MOK database before launching the kernel.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1139,11 +1181,11 @@ Kernel arguments customize hardware and hypervisor settings during system launch
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1163,17 +1205,17 @@ MiOS uses unprivileged systemd user services to run AI components safely within 
 
 ## Architecture
 - **User Unit Path**: `/usr/lib/systemd/user/` or `~/.config/systemd/user/`.
-- **System-User Map**: Enforced via systemd sysusers templates in [31-user.sh](file:///C:/MiOS/automation/31-user.sh).
+- **System-User Map**: Enforced via systemd sysusers templates in [31-user.sh](automation/31-user.sh).
 - **Execution Limits**: Systemd user instances map execution boundaries using user namespaces, isolating processes from direct host root access.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1195,11 +1237,11 @@ Podman Quadlets simplify systemd container management by translating `.container
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1221,11 +1263,11 @@ Services are dynamically activated, stopped, or scaled based on host states and 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1254,11 +1296,11 @@ The llama-swap proxy manages model requests on port **11450**, serving as the si
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1273,18 +1315,18 @@ The llama-swap proxy manages model requests on port **11450**, serving as the si
 Embedded inference on MiOS uses optimized GGUF format weights to enable local execution on GPU or CPU.
 
 ## Setup Details
-- **Context Size**: Standardized context boundaries are mapped dynamically in [38-llamacpp-prep.sh](file:///C:/MiOS/automation/38-llamacpp-prep.sh).
+- **Context Size**: Standardized context boundaries are mapped dynamically in [38-llamacpp-prep.sh](automation/38-llamacpp-prep.sh).
 - **Embeddings**: An embedding-configured llama-server runs in parallel to handle vector queries.
 - **Safety**: Uses static model limits and resource controls to prevent container memory limit crashes.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1296,7 +1338,7 @@ Embedded inference on MiOS uses optimized GGUF format weights to enable local ex
 
 #### Overview
 
-Models are mapped in [mios-llm-light.yaml](file:///C:/MiOS/usr/share/mios/llamacpp/mios-llm-light.yaml), defining served model aliases and parameters.
+Models are mapped in [mios-llm-light.yaml](usr/share/mios/llamacpp/mios-llm-light.yaml), defining served model aliases and parameters.
 
 ## Configuration
 - **Model Keys**: Mapping `granite4.1:8b` (default chat), `nomic-embed-text` (embeddings), and `mios-opencode` (coding model).
@@ -1305,11 +1347,11 @@ Models are mapped in [mios-llm-light.yaml](file:///C:/MiOS/usr/share/mios/llamac
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1335,11 +1377,11 @@ The heavy reasoning lane utilizes SGLang (port **11441**) to serve large languag
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1361,11 +1403,11 @@ The alternate heavy lane uses vLLM (port **11440**) to run swarm worker instance
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1387,11 +1429,11 @@ VRAM scheduling isolates graphics memory resources between virtual machines (Loo
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1417,11 +1459,11 @@ MiOS integrates PostgreSQL inside rootless Podman to serve as the unified agent 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1446,11 +1488,11 @@ Memory and knowledge tables are queried using semantic vector searches.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1472,11 +1514,11 @@ To maintain search performance, memory indexes are optimized via background prun
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1502,11 +1544,11 @@ Developers can extend agent capabilities by writing custom Model Context Protoco
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1528,11 +1570,11 @@ The system uses dynamic tool discovery to collect active MCP tools at session st
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1554,11 +1596,11 @@ To prevent malicious tool execution, MCP server processes are sandboxed.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1592,11 +1634,11 @@ The Agent-to-Agent (A2A) protocol defines how agents delegate tasks to peer node
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1619,11 +1661,11 @@ Coding tasks are fanned out to the `mios-opencode` coding specialist on port **8
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1645,11 +1687,11 @@ A2A communications are secured through capability-based access controls.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1675,11 +1717,11 @@ Desktop automation uses UI-TARS models to translate visual displays into action 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1701,11 +1743,11 @@ Inputs are emulated on Wayland through secure input modules.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1727,11 +1769,11 @@ AT-SPI screen trees allow agents to navigate UI hierarchies programmatically.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1759,11 +1801,11 @@ The system root `/usr` is mounted as a read-only composefs image to prevent run-
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1785,11 +1827,11 @@ fs-verity protects binaries from offline tampering.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1811,11 +1853,11 @@ System updates are applied transactionally on booted hosts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1841,11 +1883,11 @@ CrowdSec monitors local logs to detect threat activities.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1867,11 +1909,11 @@ fapolicyd blocks execution of untrusted scripts and binaries.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1893,11 +1935,11 @@ USBGuard safeguards against hardware security exploits.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1917,17 +1959,17 @@ Sigstore policies ensure only trusted images can be executed.
 
 ## Enforcements
 - **Signature Check**: Validates signatures on container pulls.
-- **Policy Config**: Configured in [42-cosign-policy.sh](file:///C:/MiOS/automation/42-cosign-policy.sh).
+- **Policy Config**: Configured in [42-cosign-policy.sh](automation/42-cosign-policy.sh).
 - **Rules**: Rejects unsigned images or those with invalid certs.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1949,11 +1991,11 @@ Keyless signing uses OIDC trust systems to sign OCI container images.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1975,11 +2017,11 @@ Attestations verify the build origin and contents of OCI images.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -1999,17 +2041,17 @@ Isolating host graphics cards allows direct passthrough to virtual guests.
 
 ## Methods
 - **Driver Bind**: Target GPUs are bound to the `vfio-pci` driver during early boot.
-- **Script**: Configured via [rtx4090-vfio-configurator.sh](file:///C:/MiOS/tools/rtx4090-vfio-configurator.sh).
+- **Script**: Configured via [rtx4090-vfio-configurator.sh](tools/rtx4090-vfio-configurator.sh).
 - **Verification**: Run `vfio-verify.sh` to check GPU binding status.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2031,11 +2073,11 @@ PCI routing maps isolated hardware into VM XML configurations.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2057,11 +2099,11 @@ Guest systems require clean driver configurations to utilize passed hardware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2081,17 +2123,17 @@ NVIDIA CDI specs enable CUDA applications inside rootless containers.
 
 ## Setup
 - **CDI Specs**: Generated automatically under `/var/run/cdi/`.
-- **Refresh**: Refreshed via [45-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/45-nvidia-cdi-refresh.sh).
+- **Refresh**: Refreshed via [45-nvidia-cdi-refresh.sh](automation/45-nvidia-cdi-refresh.sh).
 - **Quadlets**: Containers request graphics resources via `CDIDevices=` entries.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2107,17 +2149,17 @@ AMD CDI profiles map compute hardware to container environments.
 
 ## Operations
 - **Mappings**: Maps `/dev/kfd` and AMD compute files.
-- **Settings**: Configured in [41-gpu-cdi-toolkits.sh](file:///C:/MiOS/automation/41-gpu-cdi-toolkits.sh).
+- **Settings**: Configured in [41-gpu-cdi-toolkits.sh](automation/41-gpu-cdi-toolkits.sh).
 - **Verification**: Validates GPU compute access inside containers.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2139,11 +2181,11 @@ Intel CDI maps integrated and discrete Intel graphics processors.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2162,18 +2204,18 @@ This chapter covers the documentation for **Looking Glass B7 and KVMFR** under M
 Looking Glass requires the KVM Framebuffer (KVMFR) driver to share screen memory.
 
 ## Build
-- **Compilation**: Compiled from source during [52-bake-kvmfr.sh](file:///C:/MiOS/automation/52-bake-kvmfr.sh).
+- **Compilation**: Compiled from source during [52-bake-kvmfr.sh](automation/52-bake-kvmfr.sh).
 - **Signing**: Signed automatically with the host's MOK.
 - **Verification**: Loaded on boot to expose the virtual memory channel.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2195,11 +2237,11 @@ Looking Glass uses host shared memory to pass frames.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2214,18 +2256,18 @@ Looking Glass uses host shared memory to pass frames.
 The host client renders guest framebuffers on the Wayland display.
 
 ## Execution
-- **Client**: Shipped inside [53-bake-lookingglass-client.sh](file:///C:/MiOS/automation/53-bake-lookingglass-client.sh).
+- **Client**: Shipped inside [53-bake-lookingglass-client.sh](automation/53-bake-lookingglass-client.sh).
 - **Command**: Launches the Wayland-native client to display virtual displays.
 - **Tuning**: Configured for mouse and audio integration.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2246,16 +2288,16 @@ CPU pinning partitions processing cores between virtual machines and the host.
 ## Policies
 - **P-cores**: Assigned to virtual guest tasks.
 - **E-cores**: Bound to host tasks and background AI lanes.
-- **Automation**: Executed dynamically by [vm-cpu-pin-manager.sh](file:///C:/MiOS/tools/vm-cpu-pin-manager.sh).
+- **Automation**: Executed dynamically by [vm-cpu-pin-manager.sh](tools/vm-cpu-pin-manager.sh).
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2277,11 +2319,11 @@ NUMA alignment optimizes memory access times by keeping tasks close to memory no
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2303,11 +2345,11 @@ Tuning settings reduce virtualization scheduling latencies.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2335,11 +2377,11 @@ Integrating single-node K3s allows container orchestration without affecting GNO
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2361,11 +2403,11 @@ Ingress configs manage external routing into local cluster services.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2380,18 +2422,18 @@ Ingress configs manage external routing into local cluster services.
 Custom SELinux rules protect the host from cluster workloads.
 
 ## Policies
-- **Rules**: Applied by [19-k3s-selinux.sh](file:///C:/MiOS/automation/19-k3s-selinux.sh).
+- **Rules**: Applied by [19-k3s-selinux.sh](automation/19-k3s-selinux.sh).
 - **Bounds**: Blocks cluster tasks from modifying read-only system files.
 - **Validation**: Enforces SELinux policies at runtime.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2417,11 +2459,11 @@ Ceph storage daemons are orchestrated inside unprivileged containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2443,11 +2485,11 @@ Ceph requires block access permissions, making it one of the few root exemptions
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2469,11 +2511,11 @@ Desktop directories are synced to CephFS mounts for automatic backups.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2499,11 +2541,11 @@ Sovereign search services are provided locally by containerized SearXNG.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2525,11 +2567,11 @@ Agents execute search queries using SearXNG API endpoints.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2551,11 +2593,11 @@ Parsed search results are transformed into Markdown for inference ingestion.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2576,16 +2618,16 @@ Ingested documents are parsed and vectorized to build the knowledge base.
 ## Flow
 - **Parser**: Converts PDFs, text, and code files.
 - **Embedding**: Generates vectors using the light embedding lane.
-- **Utility**: Run [generate-unified-knowledge.py](file:///C:/MiOS/tools/generate-unified-knowledge.py).
+- **Utility**: Run [generate-unified-knowledge.py](tools/generate-unified-knowledge.py).
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2607,11 +2649,11 @@ The ingest pipeline maps content to Postgres database tables.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2633,11 +2675,11 @@ Maintaining vector indexes keeps similarity query times fast.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2666,11 +2708,11 @@ Use `mios-env --explain` to trace key resolution layers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2685,18 +2727,18 @@ Use `mios-env --explain` to trace key resolution layers.
 The system shell uses Oh My Posh themes to show system status.
 
 ## Themes
-- **Prompt**: Configured in [38-oh-my-posh.sh](file:///C:/MiOS/automation/38-oh-my-posh.sh).
+- **Prompt**: Configured in [38-oh-my-posh.sh](automation/38-oh-my-posh.sh).
 - **Icons**: Displays git status, active model, and CPU usage.
 - **Themes File**: Stored inside `/usr/share/mios/shell/`.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2712,17 +2754,17 @@ Standard locale and time formats are staging targets during deployment.
 
 ## Settings
 - **Locale**: Sets UTF-8 encoding.
-- **Timezone**: Set in [30-locale-theme.sh](file:///C:/MiOS/automation/30-locale-theme.sh).
+- **Timezone**: Set in [30-locale-theme.sh](automation/30-locale-theme.sh).
 - **Customizations**: Customized in `mios.toml`.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2742,17 +2784,17 @@ Firewall rules isolate host services and control outbound networks.
 
 ## Rules
 - **Tool**: Configured via firewalld policies.
-- **Gating**: Outbound requests are limited by [generate-egress-firewall.py](file:///C:/MiOS/tools/generate-egress-firewall.py).
+- **Gating**: Outbound requests are limited by [generate-egress-firewall.py](tools/generate-egress-firewall.py).
 - **Logs**: Blocked network events are logged in system journals.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2767,18 +2809,18 @@ Firewall rules isolate host services and control outbound networks.
 Ports are allocated dynamically during build and boot phases.
 
 ## Allocation
-- **Script**: Handled by [16-render-ports.sh](file:///C:/MiOS/automation/16-render-ports.sh).
+- **Script**: Handled by [16-render-ports.sh](automation/16-render-ports.sh).
 - **Mappings**: Maps host interfaces to container ports.
 - **Validation**: Enforces unique allocations to prevent startup collisions.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2800,11 +2842,11 @@ VPN integrations secure communication across network devices.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2823,18 +2865,18 @@ This chapter covers the documentation for **Web Management and Configurator UI**
 The configuration dashboard allows graphical form editing of system parameters.
 
 ## Details
-- **Dashboard**: Shipped in [mios.html](file:///C:/MiOS/usr/share/mios/configurator/mios.html).
+- **Dashboard**: Shipped in [mios.html](usr/share/mios/configurator/mios.html).
 - **Precedence**: Writes updates back to user and host files.
 - **Sync**: Triggers `mios-sync-env` to apply updates.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2856,11 +2898,11 @@ The web panel monitors resource usages and active containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2882,11 +2924,11 @@ Config settings are synchronized back to target system files on save.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2907,18 +2949,18 @@ This chapter covers the documentation for **System Auditing and Drift Verificati
 The postcheck suite validates system state compliance before image builds finish.
 
 ## Checks
-- **Script**: Configured in [99-postcheck.sh](file:///C:/MiOS/automation/99-postcheck.sh).
+- **Script**: Configured in [99-postcheck.sh](automation/99-postcheck.sh).
 - **Tests**: Validates container layers, CDI specs, and FHS structures.
 - **Gating**: Failing checks block OCI image output.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2933,18 +2975,18 @@ The postcheck suite validates system state compliance before image builds finish
 Build rules prohibit hardcoded keys, URLs, and settings.
 
 ## Rules
-- **Linter**: Executed by [mios-hardcode-lint](file:///C:/MiOS/usr/libexec/mios/mios-hardcode-lint) inside automation scripts.
+- **Linter**: Executed by [mios-hardcode-lint](usr/libexec/mios/mios-hardcode-lint) inside automation scripts.
 - **Violations**: Hardcoded ports, IPs, or vendor links trigger build failures.
 - **Bypasses**: Requires variables to resolve via config cascades.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2966,11 +3008,11 @@ Verifies that active system configurations meet zero-trust security profiles.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -2990,17 +3032,17 @@ Flatpaks are defined in system configs and pre-downloaded to reduce setup times.
 
 ## Setup
 - **Declarations**: Listed in `mios.toml` under `[flatpaks]`.
-- **Bake Script**: Configured in [40-flatpak-bake.sh](file:///C:/MiOS/automation/40-flatpak-bake.sh).
+- **Bake Script**: Configured in [40-flatpak-bake.sh](automation/40-flatpak-bake.sh).
 - **Details**: Pre-downloads application runtimes into the image storage.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3022,11 +3064,11 @@ Flatpak permissions are confined using Flatseal profiles.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3041,18 +3083,18 @@ Flatpak permissions are confined using Flatseal profiles.
 Syncs application icons and shortcuts to the GNOME desktop launcher menu.
 
 ## Flow
-- **Script**: Managed via [refresh-flatpak-shortcuts.ps1](file:///C:/MiOS/tools/refresh-flatpak-shortcuts.ps1).
+- **Script**: Managed via [refresh-flatpak-shortcuts.ps1](tools/refresh-flatpak-shortcuts.ps1).
 - **Sync**: Maps application desktop files to target directory folders.
 - **Updates**: Refreshed dynamically on configuration changes.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3078,11 +3120,11 @@ Adding swarm worker instances scales execution capacities dynamically.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3104,11 +3146,11 @@ The system splits complex queries and routes them to parallel workers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3130,11 +3172,11 @@ Balances parallel model tasks based on health status metrics.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3160,11 +3202,11 @@ Confines untrusted coding tasks within rootless containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3186,11 +3228,11 @@ Custom SELinux profiles prevent sandbox escape actions.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3212,11 +3254,11 @@ Validates code actions and sanitizes script outputs securely.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3235,18 +3277,18 @@ This chapter covers the documentation for **Identity Management and FreeIPA** un
 Resolves host client authentication with central FreeIPA domains.
 
 ## Details
-- **Script**: Staged via [22-freeipa-client.sh](file:///C:/MiOS/automation/22-freeipa-client.sh).
+- **Script**: Staged via [22-freeipa-client.sh](automation/22-freeipa-client.sh).
 - **Client**: Integrates SSSD services inside Fedora core layers.
 - **Policies**: Handles identity resolving and domain settings.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3268,11 +3310,11 @@ Sysusers definitions pre-stage user and system accounts prior to install.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3294,11 +3336,11 @@ Automates joining host systems to corporate domains.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3324,11 +3366,11 @@ Exporters collect system metrics from physical hardware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3350,11 +3392,11 @@ Logs query times, token counts, and routing states.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3376,11 +3418,11 @@ Configures dashboards to monitor system and AI workloads.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3399,18 +3441,18 @@ This chapter covers the documentation for **Greenboot Health Check and Recovery*
 Greenboot verifies service status after system upgrades.
 
 ## Flow
-- **Script**: Checked in [46-greenboot.sh](file:///C:/MiOS/automation/46-greenboot.sh).
+- **Script**: Checked in [46-greenboot.sh](automation/46-greenboot.sh).
 - **Actions**: Checks core components (systemd, drivers, AI gateways).
 - **Timing**: Enforces timeout limits for checks.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3432,11 +3474,11 @@ Rollback triggers swap root partition indexes back to working slots on boot fail
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3458,11 +3500,11 @@ Automated scripts attempt self-repair tasks on service start failures.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3481,18 +3523,18 @@ This chapter covers the documentation for **GPU Capability Detection and Passthr
 Refreshes CDI specs automatically when graphics adapters change.
 
 ## Setup
-- **Checks**: Scans physical devices on boot using [34-gpu-detect.sh](file:///C:/MiOS/automation/34-gpu-detect.sh).
-- **Utility**: Invokes [45-nvidia-cdi-refresh.sh](file:///C:/MiOS/automation/45-nvidia-cdi-refresh.sh).
+- **Checks**: Scans physical devices on boot using [34-gpu-detect.sh](automation/34-gpu-detect.sh).
+- **Utility**: Invokes [45-nvidia-cdi-refresh.sh](automation/45-nvidia-cdi-refresh.sh).
 - **Execution**: Updates container CDI files in `/var/run/cdi/`.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3507,18 +3549,18 @@ Refreshes CDI specs automatically when graphics adapters change.
 Gating mechanisms control GPU resource allocations between containers and hypervisors.
 
 ## Gating
-- **Shim**: Implemented via [35-gpu-pv-shim.sh](file:///C:/MiOS/automation/35-gpu-pv-shim.sh).
+- **Shim**: Implemented via [35-gpu-pv-shim.sh](automation/35-gpu-pv-shim.sh).
 - **Locking**: Locks device files to prevent parallel utilization conflicts.
 - **Policies**: Shunts GPU compute priorities to virtual guests.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3540,11 +3582,11 @@ Loads host display drivers based on profile settings.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3563,18 +3605,18 @@ This chapter covers the documentation for **Remote Desktop and GNOME GRD** under
 Enables GUI remote management when running headless.
 
 ## Details
-- **Script**: Configured via [26-gnome-remote-desktop.sh](file:///C:/MiOS/automation/26-gnome-remote-desktop.sh).
+- **Script**: Configured via [26-gnome-remote-desktop.sh](automation/26-gnome-remote-desktop.sh).
 - **Engine**: Integrates with GNOME Remote Desktop.
 - **Bridges**: Exposes Wayland displays on ports.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3596,11 +3638,11 @@ Secures remote display sessions using TLS certificates.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3615,18 +3657,18 @@ Secures remote display sessions using TLS certificates.
 Allows toggling display signals for virtual desktop environments.
 
 ## Actions
-- **Toggle tool**: Executed via [mios-toggle-headless](file:///C:/MiOS/automation/mios-toggle-headless).
+- **Toggle tool**: Executed via [mios-toggle-headless](automation/mios-toggle-headless).
 - **Resolution**: Sets virtual display limits.
 - **Tuning**: Optimizes screen frame buffers to save VRAM.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3652,11 +3694,11 @@ Tuning virtiofs settings allows high-speed file sharing with guests.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3678,11 +3720,11 @@ Overlay folders expose host configurations to guest runtimes.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3704,11 +3746,11 @@ Maps user IDs across host and guest environments.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3727,18 +3769,18 @@ This chapter covers the documentation for **System Log Aggregation** under MiOS.
 Copies system journals to bootstrap drives for offline diagnostics.
 
 ## Flow
-- **Script**: Executed by [log-to-bootstrap.sh](file:///C:/MiOS/tools/log-to-bootstrap.sh).
+- **Script**: Executed by [log-to-bootstrap.sh](tools/log-to-bootstrap.sh).
 - **Logs**: Copies core files, boot output, and services records.
 - **Targets**: Mapped directly onto host storage sectors.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3753,18 +3795,18 @@ Copies system journals to bootstrap drives for offline diagnostics.
 Configures background daemons to aggregate container logs.
 
 ## Setup
-- **Unit**: Configured in [50-enable-log-copy-service.sh](file:///C:/MiOS/automation/50-enable-log-copy-service.sh).
+- **Unit**: Configured in [50-enable-log-copy-service.sh](automation/50-enable-log-copy-service.sh).
 - **Service**: Runs system log synchronization helpers.
 - **Storage**: Mapped inside `/var/log/mios/`.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3786,11 +3828,11 @@ Assembles diagnostic packages to simplify system troubleshooting.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3810,17 +3852,17 @@ Generates secure signature keys for custom kernel drivers.
 
 ## Details
 - **Keys**: Cryptographic keys are generated inside automation layers.
-- **Script**: Managed via [generate-mok-key.sh](file:///C:/MiOS/automation/generate-mok-key.sh).
+- **Script**: Managed via [generate-mok-key.sh](automation/generate-mok-key.sh).
 - **Storage**: Keys are isolated in root-only directories.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3835,7 +3877,7 @@ Generates secure signature keys for custom kernel drivers.
 Enrolls Machine Owner Keys (MOK) inside host firmware.
 
 ## Flow
-1. **Trigger**: Run [enroll-mok.sh](file:///C:/MiOS/automation/enroll-mok.sh).
+1. **Trigger**: Run [enroll-mok.sh](automation/enroll-mok.sh).
 2. **Registration**: Imports certificates to system structures.
 3. **Enrollment**: Prompts enrollment on subsequent reboot.
 4. **Validation**: Verified by Secure Boot on driver loading.
@@ -3843,11 +3885,11 @@ Enrolls Machine Owner Keys (MOK) inside host firmware.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3869,11 +3911,11 @@ Signs compiled driver binaries automatically during kernel upgrades.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3899,11 +3941,11 @@ Upgrading host kernels relies on stable LTS packages.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3918,18 +3960,18 @@ Upgrading host kernels relies on stable LTS packages.
 Guards compilation tasks to prevent boot failures from driver updates.
 
 ## Details
-- **Guards**: Enabled via [36-akmod-guards.sh](file:///C:/MiOS/automation/36-akmod-guards.sh).
+- **Guards**: Enabled via [36-akmod-guards.sh](automation/36-akmod-guards.sh).
 - **Validation**: Enforces driver binary compilation checks.
 - **Actions**: Restores previous functional configurations on failure.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3951,11 +3993,11 @@ Compiling images relies on bootc-image-builder (BIB) containers.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -3981,11 +4023,11 @@ Sets up private registry containers for local image hosting.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4007,11 +4049,11 @@ Caching static container layers reduces OCI build times.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4033,11 +4075,11 @@ Upgrades local hosts using updated image references.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4063,11 +4105,11 @@ Manages file priority rules across system overlays.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4089,11 +4131,11 @@ Exemptions allow manual packages installation for debugging.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4115,11 +4157,11 @@ Solves dependency conflicts during system builds.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4138,18 +4180,18 @@ This chapter covers the documentation for **Diagnostic Tools and Profilers** und
 Profiles system capabilities using profiling scripts.
 
 ## Operations
-- **Profiler**: Executed via [system-profiler.sh](file:///C:/MiOS/tools/system-profiler.sh).
-- **Run tool**: Runs [run-all-profilers.sh](file:///C:/MiOS/tools/run-all-profilers.sh).
+- **Profiler**: Executed via [system-profiler.sh](tools/system-profiler.sh).
+- **Run tool**: Runs [run-all-profilers.sh](tools/run-all-profilers.sh).
 - **Output**: Logs system properties for review.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4164,18 +4206,18 @@ Profiles system capabilities using profiling scripts.
 Validates outbound networking rules.
 
 ## Setup
-- **Verify tool**: Run [generate-egress-firewall.py](file:///C:/MiOS/tools/generate-egress-firewall.py).
+- **Verify tool**: Run [generate-egress-firewall.py](tools/generate-egress-firewall.py).
 - **Checks**: Audits active rules inside firewall filters.
 - **Safety**: Confines network execution blocks.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4190,18 +4232,18 @@ Validates outbound networking rules.
 Compares configuration states against templates.
 
 ## Utilities
-- **Script**: Run [profile-compare.sh](file:///C:/MiOS/tools/profile-compare.sh).
+- **Script**: Run [profile-compare.sh](tools/profile-compare.sh).
 - **Checks**: Scans active configs against reference parameters.
 - **Gating**: Detects drift parameters.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4221,17 +4263,17 @@ Sets up user accounts and home layouts.
 
 ## Configurations
 - **Creation**: Executed via sysusers configs.
-- **Script**: Handled by [31-user.sh](file:///C:/MiOS/automation/31-user.sh).
+- **Script**: Handled by [31-user.sh](automation/31-user.sh).
 - **Rights**: Adds user accounts to virtual and container groups.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4253,11 +4295,11 @@ Deploys template configuration files to user home folders.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4279,11 +4321,11 @@ Isolates configuration environments across different user accounts.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4302,18 +4344,18 @@ This chapter covers the documentation for **Virtual Machine Templates** under Mi
 Provides VM templates meeting Windows 11 Secure Boot specifications.
 
 ## Template
-- **File**: Shipped in [win11-secureboot-template.xml](file:///C:/MiOS/tools/win11-secureboot-template.xml).
+- **File**: Shipped in [win11-secureboot-template.xml](tools/win11-secureboot-template.xml).
 - **Features**: Includes vTPM, SecureBoot, and UEFI firmware settings.
 - **Isolation**: Optimizes settings for VFIO passthrough.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4335,11 +4377,11 @@ Deploy virtual machines using pre-configured cloud-init settings.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4361,11 +4403,11 @@ Manages virtual guests using command tools.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4391,11 +4433,11 @@ Deploys Open WebUI as the primary browser chat interface.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4417,11 +4459,11 @@ Customizes panels and options in the web interface.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4443,11 +4485,11 @@ Secures web access using credentials tokens.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4473,11 +4515,11 @@ Configures local update repositories to support air-gapped runtimes.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4499,11 +4541,11 @@ Caches model weights locally to prevent telemetry leaks.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4525,11 +4567,11 @@ Ensures local tools remain functional when offline.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4548,18 +4590,18 @@ This chapter covers the documentation for **Upstream Tracking and Maintenance** 
 Monitors updates and changes inside upstream base OCI images.
 
 ## Details
-- **Monitor**: Run [mios-upstream-monitor.sh](file:///C:/MiOS/tools/mios-upstream-monitor.sh).
+- **Monitor**: Run [mios-upstream-monitor.sh](tools/mios-upstream-monitor.sh).
 - **Checks**: Compares package indexes against target reference lists.
 - **Gating**: Detects drift parameters.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4581,11 +4623,11 @@ Automates repetitive build and test targets using Justfile.
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 
@@ -4600,18 +4642,18 @@ Automates repetitive build and test targets using Justfile.
 Runbook steps guide moving image builds to release configurations.
 
 ## Flow
-- **Runbook**: Mapped in [maturity-and-release-runbook.md](file:///C:/MiOS/usr/share/doc/mios/reference/maturity-and-release-runbook.md).
+- **Runbook**: Mapped in [maturity-and-release-runbook.md](usr/share/doc/mios/reference/maturity-and-release-runbook.md).
 - **Checkpoints**: Verifies tests, SBOM compliance, and signatures.
 - **Tagging**: Publishes checked builds under stable tags.
 
 #### System References
 
 - Relevant configurations: `mios.toml`
-- Runtime services: `http://localhost:8642/v1`
+- Runtime services: ``MIOS_AI_ENDPOINT``
 
 #### Guidelines & Best Practices
 
-1. Adhere to the Seven Architectural Laws of MiOS at all times.
+1. Adhere to the Architectural Laws of MiOS at all times.
 2. All configurations should be resolved using the three-layer override structure.
 3. System state updates must be atomic and verified before reboot.
 

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# AI-hint: Day-N+1 runner -- distils source comments into the manual and re-renders every derived section, refusing to touch a read-only tree so a booted immutable host no-ops instead of failing.
+# AI-related: mios-doc-distill.service, mios-doc-distill.timer, mios-manual
+# AI-functions: main
+set -euo pipefail
+
+ROOT="${MIOS_ROOT:-/usr}"
+CLI="${MIOS_MANUAL:-/usr/libexec/mios/mios-manual}"
+
+log() { echo "[mios-doc-distill] $*"; }
+
+main() {
+    [[ -r "$CLI" ]] || { log "mios-manual not found at $CLI -- nothing to do"; exit 0; }
+    if [[ ! -d "$ROOT" ]]; then
+        log "MIOS_ROOT=$ROOT does not exist -- nothing to do"
+        exit 0
+    fi
+    # /usr is read-only on a booted bootc host, which is the normal case here:
+    # there is no new source to scrape on an immutable image, so no-op rather
+    # than fail a timer every night.
+    if ! [[ -w "$ROOT" ]]; then
+        log "MIOS_ROOT=$ROOT is read-only (immutable host) -- nothing to distil"
+        exit 0
+    fi
+    command -v python3 >/dev/null 2>&1 || { log "python3 absent -- skipping"; exit 0; }
+    # Must actually be a MiOS tree, or mios-manual raises on a missing SSOT and
+    # fills the journal with a traceback every night.
+    if [[ ! -r "${ROOT}/usr/share/mios/mios.toml" && ! -r "${ROOT}/mios.toml" ]]; then
+        log "no mios.toml under $ROOT -- not a MiOS tree, nothing to distil"
+        exit 0
+    fi
+
+    log "distilling comments from $ROOT"
+    MIOS_ROOT="$ROOT" python3 "$CLI" --root "$ROOT" ledger --write || {
+        log "ledger refused (see its message) -- not distilling"; exit 0; }
+    MIOS_ROOT="$ROOT" python3 "$CLI" --root "$ROOT" distill || {
+        log "distill failed -- leaving the tree as it was"; exit 0; }
+    MIOS_ROOT="$ROOT" python3 "$CLI" --root "$ROOT" render || {
+        log "render failed"; exit 0; }
+    MIOS_ROOT="$ROOT" python3 "$CLI" --root "$ROOT" ledger --write >/dev/null || true
+    log "distillation complete"
+}
+
+main "$@"

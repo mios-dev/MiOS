@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Read-only over source: it never edits or deletes a comment.
+# AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Only `prune` edits source, and only where the landing predicate proves the knowledge is already in a doc.
 # AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/agy/doc-generative-documentation.md
-# AI-functions: cmd_ledger, cmd_audit, cmd_coverage, landed, main
+# AI-functions: cmd_ledger, cmd_audit, cmd_coverage, cmd_harvest, cmd_prune, cmd_landing, cmd_render, landed, main
 """mios-manual -- corpus ledger and census for the MiOS documentation system.
 
 Spec: docs/agy/doc-generative-documentation.md sections 3.4 and 5.
@@ -10,6 +10,13 @@ Subcommands:
   ledger   rebuild usr/share/mios/reference/manual-corpus.tsv from the tree
   audit    census as JSON (counts by class and reason)
   coverage the two ratchet numbers, for the gate and for humans
+  harvest  move a comment's prose into a doc and record where it landed
+  prune    delete a comment that provably landed (the only destructive path)
+  landing  verify every pruned comment still lands in a doc
+  render   splice derived content into MIOS-GEN marker interiors
+
+`--root` selects the repo, and either layout resolves, so the same tools serve
+mios.git and mios-bootstrap.git without being copied across (Law 15).
 
 The ledger is the safety mechanism for the whole programme. Deletion of a
 comment is only ever permitted once a ledger row proves its knowledge reached a
@@ -50,10 +57,25 @@ COLUMNS = ["path", "start_line", "end_line", "lines", "words", "sha12", "class",
 SCAN_EXT = mc.SCAN_EXT
 
 
+def _ssot_path(root: str) -> str:
+    """The SSOT for a repo root, in either repo's layout.
+
+    mios.git keeps it at usr/share/mios/mios.toml (it IS the deployed /usr);
+    mios-bootstrap.git keeps its overlay at the root. Resolving both here is
+    what lets one set of doc tools serve both repos, instead of the tools being
+    copied across -- which Law 15 forbids.
+    """
+    for rel in ("usr/share/mios/mios.toml", "mios.toml"):
+        cand = os.path.join(root, rel.replace("/", os.sep))
+        if os.path.isfile(cand):
+            return cand
+    return os.path.join(root, "usr", "share", "mios", "mios.toml")
+
+
 def _policy(root: str) -> mc.Policy:
     if tomllib is None:
         return mc.Policy()
-    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+    with open(_ssot_path(root), "rb") as fh:
         return mc.Policy.from_toml(tomllib.load(fh))
 
 
@@ -85,9 +107,30 @@ def _read_ledger(path: str) -> dict[str, dict]:
     return out
 
 
+def _refuse_if_degraded() -> int:
+    """The census must be the same artifact everywhere, or it is not a projection.
+
+    A file the Python lexer could not tokenize or parse falls back to the regex
+    lexer, which the module itself documents as miscounting -- and whether that
+    happens depends on the INTERPRETER, not the file, so the same tree yields
+    different ledgers on different machines. Refusing is the honest outcome.
+    """
+    if not mc.DEGRADED:
+        return 0
+    print("cannot build a reproducible census: these files did not parse on "
+          f"python{sys.version_info.major}.{sys.version_info.minor}, so their "
+          "comments were counted by the fallback lexer:", file=sys.stderr)
+    for rel in sorted(set(mc.DEGRADED)):
+        print(f"  {rel}", file=sys.stderr)
+    print("  (the repo's sources need a newer Python; upgrade rather than "
+          "committing the degraded ledger)", file=sys.stderr)
+    return 1
+
+
 def cmd_ledger(args) -> int:
     root = args.root
     policy = _policy(root)
+    mc.DEGRADED.clear()
     dest = os.path.join(root, LEDGER_REL.replace("/", os.sep))
     prior = _read_ledger(dest)
 
@@ -118,6 +161,9 @@ def cmd_ledger(args) -> int:
     body = ["# " + "\t".join(COLUMNS)]
     body += ["\t".join(r[c] for c in COLUMNS) for r in rows]
     text = "\n".join(body) + "\n"
+
+    if _refuse_if_degraded():
+        return 1
 
     if args.check:
         current = ""
@@ -169,6 +215,328 @@ def landed(row: dict, root: str, policy: mc.Policy) -> bool:
     return got >= policy.landing_min_word_ratio * want
 
 
+def _write_ledger(root: str, rows: list[dict]) -> None:
+    dest = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = sorted(rows, key=lambda r: (r["path"], int(r["start_line"] or 0)))
+    body = ["# " + "\t".join(COLUMNS)]
+    body += ["\t".join(r[c] for c in COLUMNS) for r in rows]
+    with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(body) + "\n")
+
+
+def _slug(text: str, limit: int = 60) -> str:
+    """A short human title for a harvested passage.
+
+    Source comments often open with banner decoration (`--- section ---`) or a
+    bullet; carrying that into a Markdown heading reads as noise, so strip the
+    ornament and title the passage by its first real words.
+    """
+    import re as _re
+    first = " ".join(text.split())
+    first = _re.sub(r"^[\s\-=*#/_.:|>+]+", "", first)
+    first = _re.sub(r"[\s\-=*_]+$", "", first)
+    # A leading "key:" label is a better title on its own than a truncated line.
+    label = _re.match(r"^([A-Za-z][\w ./-]{2,40}?):\s", first)
+    if label:
+        return label.group(1).strip()
+    if len(first) > limit:
+        first = first[:limit].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
+    return first or "harvested note"
+
+
+def _passage(block, rel_src: str) -> str:
+    """The doc form of a source comment.
+
+    Carries the mios-src anchor that landed() looks for, so the doc itself is
+    the proof -- not a promise recorded elsewhere.
+    """
+    return (f"### {_slug(block.text)}\n\n"
+            f"{block.text.strip()}\n\n"
+            f"<!-- mios-src:{block.sha12} "
+            f"from {rel_src}:{block.start_line}-{block.end_line} -->\n")
+
+
+def sanitize(text: str, ssot: dict) -> str:
+    """Clean a scraped comment before it reaches a doc.
+
+    A comment is written for whoever is editing that file; a manual is read by
+    an operator on a booted host. Dev-box paths mean nothing to them, and a
+    secret that leaked into a comment must not be republished into a doc that
+    ships in the image.
+    """
+    import re as _re
+    cfg = (ssot.get("docs", {}) or {}).get("sanitize", {}) or {}
+    for pair in cfg.get("path_rewrites", []) or []:
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            text = text.replace(str(pair[0]), str(pair[1]))
+    mask = str(cfg.get("redact_with", "[redacted]"))
+    for pat in cfg.get("redact_patterns", []) or []:
+        try:
+            text = _re.sub(str(pat), mask, text)
+        except _re.error:
+            continue
+    return text
+
+
+def _distill_dest(rel: str, dest_dir: str) -> str:
+    """Which manual page a file's prose belongs on.
+
+    Grouped by the directory the file lives in, so the manual mirrors the tree
+    an operator is already navigating rather than inventing a second taxonomy.
+    """
+    parent = os.path.dirname(rel)
+    name = os.path.basename(parent) if parent else "root"
+    name = "".join(c if (c.isalnum() or c in "-_.") else "-" for c in name) or "root"
+    return f"{dest_dir.rstrip('/')}/{name}.md"
+
+
+def cmd_distill(args) -> int:
+    """The Day-N+1 pass: scrape comments, sanitize, distil into the manual.
+
+    Deliberately NON-destructive. It never edits source and never touches an
+    AI-hint: hints stay where they are and reach the docs through the index
+    deriver, while narrative comments are copied forward. Removing a scraped
+    comment stays a separate, opt-in `prune`.
+    """
+    import fnmatch
+    root = args.root
+    policy = _policy(root)
+    with open(_ssot_path(root), "rb") as fh:
+        ssot = tomllib.load(fh)
+    cfg = (ssot.get("docs", {}) or {}).get("distill", {}) or {}
+    if not cfg.get("enable", True):
+        print("distill disabled ([docs.distill].enable = false)")
+        return 0
+    dest_dir = str(cfg.get("dest_dir") or "usr/share/doc/mios/manual")
+    skips = [str(g) for g in (cfg.get("skip_globs") or [])]
+
+    mc.DEGRADED.clear()
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+    if not rows:
+        print(f"{LEDGER_REL} is empty -- run `mios-manual ledger --write` first",
+              file=sys.stderr)
+        return 1
+
+    by_dest: dict[str, list] = {}
+    for b, v in _iter_blocks(root, policy):
+        if v.cls != "MIGRATE":
+            continue
+        if any(fnmatch.fnmatch(b.path, g) for g in skips):
+            continue
+        row = rows.get(b.sha12)
+        if row is None or landed(row, root, policy):
+            continue          # already distilled, by content hash
+        by_dest.setdefault(_distill_dest(b.path, dest_dir), []).append(b)
+
+    if _refuse_if_degraded():
+        return 1
+
+    if not by_dest:
+        print("nothing to distil: every scraped comment already landed")
+        return 0
+
+    written = 0
+    for dest_rel, blocks in sorted(by_dest.items()):
+        dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
+        existing = ""
+        if os.path.isfile(dest_abs):
+            with open(dest_abs, encoding="utf-8") as fh:
+                existing = fh.read()
+        chunks = []
+        for b in blocks:
+            if f"mios-src:{b.sha12}" in existing:
+                continue
+            clean = sanitize(b.text, ssot)
+            chunks.append(f"### {_slug(clean)}\n\n{clean.strip()}\n\n"
+                          f"<!-- mios-src:{b.sha12} "
+                          f"from {b.path}:{b.start_line}-{b.end_line} -->\n")
+        if not chunks:
+            continue
+        if args.dry_run:
+            print(f"would distil {len(chunks)} block(s) -> {dest_rel}")
+            written += len(chunks)
+            continue
+        os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+        with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+            if not existing:
+                area = os.path.splitext(os.path.basename(dest_rel))[0]
+                fh.write(f"<!-- AI-hint: Manual pages distilled from the source "
+                         f"comments of {area}, sanitized, each passage anchored to "
+                         f"the comment it came from. -->\n\n# {area}\n\n")
+            fh.write("\n".join(chunks))
+        for b in blocks:
+            row = rows.get(b.sha12)
+            if row is None or f"mios-src:{b.sha12}" in existing:
+                continue
+            row["landed_doc"] = dest_rel
+            row["landed_anchor"] = f"mios-src:{b.sha12}"
+            row["landed_words"] = str(b.words)
+        written += len(chunks)
+        print(f"distilled {len(chunks)} block(s) -> {dest_rel}")
+
+    if not args.dry_run and written:
+        _write_ledger(root, list(rows.values()))
+    print(f"distilled {written} block(s) into {len(by_dest)} manual page(s)")
+    return 0
+
+
+def cmd_harvest(args) -> int:
+    """Move a source comment's PROSE into a doc, and record where it landed.
+
+    Harvest never edits source. It writes the passage, stamps the anchor and
+    fills the ledger's landing columns; `prune` is the only thing that removes
+    the original, and only once landed() proves this step happened.
+    """
+    root = args.root
+    policy = _policy(root)
+    src_rel = args.path.replace(os.sep, "/")
+    dest_rel = args.to.replace(os.sep, "/")
+    dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
+
+    wanted = [b for b, v in _iter_blocks(root, policy)
+              if b.path == src_rel and v.cls == "MIGRATE"
+              and (not args.block or b.sha12.startswith(args.block))]
+    if not wanted:
+        print(f"no MIGRATE block in {src_rel}"
+              + (f" matching {args.block}" if args.block else ""), file=sys.stderr)
+        return 1
+
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+    if not rows:
+        print(f"{LEDGER_REL} is empty -- run `mios-manual ledger --write` first",
+              file=sys.stderr)
+        return 1
+
+    existing = ""
+    if os.path.isfile(dest_abs):
+        with open(dest_abs, encoding="utf-8") as fh:
+            existing = fh.read()
+
+    added, skipped = [], []
+    chunks = []
+    for b in wanted:
+        if f"mios-src:{b.sha12}" in existing:
+            skipped.append(b.sha12)
+            continue
+        chunks.append(_passage(b, src_rel))
+        added.append(b)
+
+    if args.dry_run:
+        for b in added:
+            print(f"would harvest {b.sha12} ({b.words} words) "
+                  f"{src_rel}:{b.start_line}-{b.end_line} -> {dest_rel}")
+        for sha in skipped:
+            print(f"already landed: {sha}")
+        return 0
+
+    if chunks:
+        os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+        header = ""
+        if not existing:
+            header = (f"<!-- AI-hint: Prose harvested out of source comments by "
+                      f"`mios-manual harvest`; each passage carries the mios-src anchor "
+                      f"that proves which comment it came from. -->\n\n"
+                      f"# Harvested notes\n\n")
+        with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+            if header:
+                fh.write(header)
+            elif not existing.endswith("\n\n"):
+                fh.write("\n")
+            fh.write("\n".join(chunks))
+
+    for b in added:
+        row = rows.get(b.sha12)
+        if row is None:
+            continue
+        row["landed_doc"] = dest_rel
+        row["landed_anchor"] = f"mios-src:{b.sha12}"
+        row["landed_words"] = str(b.words)
+    _write_ledger(root, list(rows.values()))
+
+    for b in added:
+        print(f"harvested {b.sha12} ({b.words} words) -> {dest_rel}")
+    for sha in skipped:
+        print(f"already landed: {sha}")
+    return 0
+
+
+def cmd_prune(args) -> int:
+    """Delete a source comment, but ONLY where landed() proves it is in a doc.
+
+    This is the only destructive path in the programme, so the predicate is
+    checked per block immediately before the lines are removed.
+    """
+    root = args.root
+    policy = _policy(root)
+    src_rel = args.path.replace(os.sep, "/")
+    src_abs = os.path.join(root, src_rel.replace("/", os.sep))
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+
+    targets = []
+    for b, v in _iter_blocks(root, policy):
+        if b.path != src_rel or v.cls != "MIGRATE":
+            continue
+        if args.block and not b.sha12.startswith(args.block):
+            continue
+        row = rows.get(b.sha12)
+        if row is None:
+            print(f"refusing {b.sha12}: no ledger row", file=sys.stderr)
+            continue
+        if not landed(row, root, policy):
+            print(f"refusing {b.sha12}: not landed in a doc "
+                  f"(harvest it first)", file=sys.stderr)
+            continue
+        targets.append((b, row))
+
+    if not targets:
+        print("nothing prunable (harvest first, then prune)", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        for b, _ in targets:
+            print(f"would prune {src_rel}:{b.start_line}-{b.end_line} ({b.sha12})")
+        return 0
+
+    with open(src_abs, encoding="utf-8", newline="") as fh:
+        lines = fh.readlines()
+    # Highest line first, so earlier offsets stay valid as lines are removed.
+    for b, row in sorted(targets, key=lambda t: t[0].start_line, reverse=True):
+        del lines[b.start_line - 1:b.end_line]
+        row["pruned"] = "1"
+    with open(src_abs, "w", encoding="utf-8", newline="") as fh:
+        fh.writelines(lines)
+
+    _write_ledger(root, list(rows.values()))
+    for b, _ in targets:
+        print(f"pruned {src_rel}:{b.start_line}-{b.end_line} ({b.sha12})")
+    return 0
+
+
+def cmd_landing(args) -> int:
+    """Every pruned comment must still be provably present in a doc.
+
+    A tombstone whose doc passage was later deleted would mean a comment was
+    removed and its knowledge then silently lost -- exactly what the ledger
+    exists to make impossible. This is the gate for that.
+    """
+    root = args.root
+    policy = _policy(root)
+    rows = _read_ledger(os.path.join(root, LEDGER_REL.replace("/", os.sep)))
+    broken = [r for r in rows.values()
+              if r.get("pruned") == "1" and not landed(r, root, policy)]
+    for r in broken:
+        print(f"pruned block {r['sha12']} ({r['path']}) no longer lands in "
+              f"{r.get('landed_doc') or '<unset>'}", file=sys.stderr)
+    if broken:
+        return 1
+    pruned_n = sum(1 for r in rows.values() if r.get("pruned") == "1")
+    print(f"landing proofs intact ({pruned_n} pruned block(s) still documented)")
+    return 0
+
+
 def cmd_audit(args) -> int:
     root = args.root
     policy = _policy(root)
@@ -203,6 +571,26 @@ def cmd_audit(args) -> int:
     return 0
 
 
+FLOOR_REL = "usr/share/mios/reference/doc-ratchet-floor.tsv"
+_RATCHET_KEYS = ("max_unmigrated_narrative", "max_overlong_hints")
+
+
+def read_floor(root: str) -> dict[str, int]:
+    """The lowest ceiling ever recorded, per ratchet key."""
+    out: dict[str, int] = {}
+    path = os.path.join(root, FLOOR_REL.replace("/", os.sep))
+    if not os.path.isfile(path):
+        return out
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 2 and parts[1].strip().isdigit():
+                out[parts[0].strip()] = int(parts[1])
+    return out
+
+
 def cmd_coverage(args) -> int:
     """The two ratchet numbers, so the gate and a human read the same figures."""
     root = args.root
@@ -214,6 +602,28 @@ def cmd_coverage(args) -> int:
         elif v.cls == "MIGRATE_HEADER":
             hints += 1
     out = {"unmigrated_narrative": narrative, "overlong_hints": hints}
+
+    if getattr(args, "write_floor", False):
+        # min(recorded, current ceiling): the mark only ever falls, so a ceiling
+        # that was lowered once can never be quietly raised back to a prior
+        # value even if history is rewritten or the HEAD comparison is skipped.
+        with open(_ssot_path(root), "rb") as fh:
+            docs = (tomllib.load(fh).get("docs", {}) or {})
+        prior = read_floor(root)
+        rows = []
+        for k in _RATCHET_KEYS:
+            if k not in docs:
+                continue
+            rows.append((k, min(int(docs[k]), prior.get(k, int(docs[k])))))
+        dest = os.path.join(root, FLOOR_REL.replace("/", os.sep))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# ratchet_key\tlowest_ceiling_ever_recorded\n")
+            for k, v in rows:
+                fh.write(f"{k}\t{v}\n")
+        print(f"wrote {FLOOR_REL}: " + ", ".join(f"{k}={v}" for k, v in rows))
+        return 0
+
     if args.json:
         print(json.dumps(out))
     else:
@@ -242,10 +652,54 @@ def _marker_re():
     return _MARK_RE
 
 
+class DeriverError(ValueError):
+    """A deriver was asked for something the SSOT does not define.
+
+    Unknown deriver KINDS already failed the run; unknown ARGS silently fell
+    back to rendering everything, so `ports:ai` quietly emitted the full table
+    instead of saying the category does not exist.
+    """
+
+
+# The root the derivers read from. Their signature is (ssot, arg), so the
+# render pass parks it here rather than threading it through every one.
+_DERIVE_ROOT = [_ROOT_DEFAULT]
+
+
+def _tracked(root: str, pattern: str = "") -> list[str]:
+    """Repo-relative paths of tracked files, sorted.
+
+    Tracked rather than walked, for the same reason the census is: an untracked
+    scratch file must not change what the gate checks.
+    """
+    import subprocess
+    args = ["git", "ls-files", "-z"] + ([pattern] if pattern else [])
+    try:
+        out = subprocess.run(args, cwd=root, stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, check=True).stdout.decode("utf-8")
+        return sorted(r for r in out.split("\0") if r)
+    except Exception:
+        return []
+
+
+def _tracked_markdown(root: str) -> list[str]:
+    """Absolute paths of every git-tracked .md file, sorted."""
+    rels = _tracked(root, "*.md")
+    if not rels:
+        rels = []
+        for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
+            dn[:] = [d for d in dn if d != ".git"]
+            rels += [os.path.relpath(os.path.join(dp, f), root).replace(os.sep, "/")
+                     for f in fns if f.endswith(".md")]
+    return sorted(os.path.join(root, r.replace("/", os.sep)) for r in rels)
+
+
 def _derive_ports(ssot: dict, arg: str) -> str:
     cats = (ssot.get("ports", {}) or {}).get("categories", {}) or {}
     ports = ssot.get("ports", {}) or {}
-    names = [arg] if arg and arg in cats else sorted(cats)
+    if arg and arg not in cats:
+        raise DeriverError(f"ports: no such category '{arg}' in [ports.categories]")
+    names = [arg] if arg else sorted(cats)
     out = ["| Category | Service | Port |", "|---|---|---|"]
     for cname in names:
         cat = cats[cname] or {}
@@ -269,7 +723,148 @@ def _derive_laws(ssot: dict, arg: str) -> str:
     return "\n".join(out)
 
 
-DERIVERS = {"ports": _derive_ports, "laws": _derive_laws}
+def _derive_root_exceptions(ssot: dict, arg: str) -> str:
+    """Law 6's sanctioned root Quadlets, so the exception list is never retyped."""
+    sec = (ssot.get("security", {}) or {}).get("privileged_quadlets", {}) or {}
+    rows = sec.get("root", []) or []
+    out = ["| Quadlet | Runs as root because |", "|---|---|"]
+    for entry in rows:
+        if isinstance(entry, dict):
+            out.append(f"| `{entry.get('unit', '?')}` | {entry.get('why', '')} |")
+        else:
+            out.append(f"| `{entry}` | see `[security.privileged_quadlets]` |")
+    out.append("")
+    out.append("<!-- derived from usr/share/mios/mios.toml "
+               "[security.privileged_quadlets].root -->")
+    return "\n".join(out)
+
+
+def _derive_pipeline(ssot: dict, arg: str) -> str:
+    """The numbered build phases -- the doc that goes stale fastest by hand."""
+    phases = ((ssot.get("build", {}) or {}).get("phases", {}) or {}).get("list", []) or []
+    out = ["| # | Phase | Script | Fatal | Applies |", "|---|---|---|---|---|"]
+    for p in phases:
+        out.append(f"| {p.get('ordinal', '?')} | {p.get('name', '')} "
+                   f"| `{p.get('script', '')}` "
+                   f"| {'yes' if p.get('fatal') else 'no'} "
+                   f"| {p.get('apply_class', '')} |")
+    out.append("")
+    out.append(f"<!-- derived from usr/share/mios/mios.toml [build.phases].list "
+               f"({len(phases)} phases) -->")
+    return "\n".join(out)
+
+
+def _derive_verbs(ssot: dict, arg: str) -> str:
+    """The `mios <verb>` surface, straight from [verbs.*]."""
+    verbs = ssot.get("verbs", {}) or {}
+    if arg and arg not in verbs:
+        raise DeriverError(f"verbs: no such verb '{arg}' in [verbs]")
+    names = [arg] if arg else sorted(verbs)
+    out = ["| Verb | Surface | Description |", "|---|---|---|"]
+    for name in names:
+        v = verbs.get(name) or {}
+        if not isinstance(v, dict):
+            continue
+        out.append(f"| `mios {name}` | {v.get('surface', '')} "
+                   f"| {v.get('description', '')} |")
+    out.append("")
+    out.append(f"<!-- derived from usr/share/mios/mios.toml [verbs] "
+               f"({len(names)} verb(s)) -->")
+    return "\n".join(out)
+
+
+def _derive_boilerplate(ssot: dict, arg: str) -> str:
+    """The framing paragraph every MiOS doc opens with.
+
+    It was hand-copied into dozens of files, so the copies drifted. One SSOT
+    string, spliced wherever it is wanted.
+    """
+    bp = (ssot.get("docs", {}) or {}).get("boilerplate", {}) or {}
+    key = arg or "what-mios-is"
+    text = bp.get(key)
+    if not text:
+        raise DeriverError(
+            f"boilerplate: no '{key}' in [docs.boilerplate] "
+            f"(have: {', '.join(sorted(bp)) or 'none'})")
+    return text.strip() + "\n\n<!-- derived from usr/share/mios/mios.toml " \
+                          f"[docs.boilerplate].{key} -->"
+
+
+def _hint_index(root: str, pattern: str) -> list[tuple[str, str]]:
+    """(path, AI-hint) for every tracked file matching a glob.
+
+    The hint header is already the one-line description of what a file is for,
+    written next to the file and kept honest by check_hint_coverage. Reading it
+    back out is how a documentation index stops being a hand-kept list.
+    """
+    import fnmatch
+    tagmod = mc.load_ai_tag(root)
+    if tagmod is None:
+        raise DeriverError("index: cannot load mios-ai-tag to read AI-hints")
+    out = []
+    for rel in _tracked(root):
+        if not fnmatch.fnmatch(rel, pattern):
+            continue
+        full = os.path.join(root, rel.replace("/", os.sep))
+        try:
+            with open(full, encoding="utf-8", errors="replace") as fh:
+                head = fh.read(4000)
+        except OSError:
+            continue
+        hint = tagmod.existing_hint(head)
+        if hint:
+            out.append((rel, hint))
+    return sorted(out)
+
+
+def _derive_index(ssot: dict, arg: str) -> str:
+    if not arg:
+        raise DeriverError("index: needs a glob, e.g. index:usr/libexec/mios/mios-*")
+    rows = _hint_index(_DERIVE_ROOT[0], arg)
+    if not rows:
+        raise DeriverError(f"index: no tracked file with an AI-hint matches '{arg}'")
+    out = ["| File | What it is |", "|---|---|"]
+    for rel, hint in rows:
+        one = " ".join(hint.split())
+        if len(one) > 200:
+            one = one[:200].rsplit(" ", 1)[0] + "..."
+        out.append(f"| `{rel}` | {one} |")
+    out.append("")
+    out.append(f"<!-- derived from the AI-hint headers of {len(rows)} file(s) "
+               f"matching {arg} -->")
+    return "\n".join(out)
+
+
+def _derive_related(ssot: dict, arg: str) -> str:
+    """The AI-related line of one file, as links."""
+    if not arg:
+        raise DeriverError("related: needs a path, e.g. related:usr/libexec/mios/mios-manual")
+    full = os.path.join(_DERIVE_ROOT[0], arg.replace("/", os.sep))
+    if not os.path.isfile(full):
+        raise DeriverError(f"related: no such file '{arg}'")
+    import re as _re
+    with open(full, encoding="utf-8", errors="replace") as fh:
+        head = fh.read(4000)
+    m = _re.search(r"AI-related:\s*(.+?)\s*(?:-->)?\s*$", head, _re.I | _re.M)
+    if not m:
+        raise DeriverError(f"related: '{arg}' carries no AI-related header")
+    items = [i.strip() for i in m.group(1).split(",") if i.strip()]
+    out = [f"- `{i}`" for i in items]
+    out.append("")
+    out.append(f"<!-- derived from the AI-related header of {arg} -->")
+    return "\n".join(out)
+
+
+DERIVERS = {
+    "ports": _derive_ports,
+    "laws": _derive_laws,
+    "root-exceptions": _derive_root_exceptions,
+    "pipeline": _derive_pipeline,
+    "verbs": _derive_verbs,
+    "boilerplate": _derive_boilerplate,
+    "index": _derive_index,
+    "related": _derive_related,
+}
 
 
 def _derive(gen_id: str, ssot: dict) -> str | None:
@@ -291,18 +886,20 @@ def cmd_render(args) -> int:
     if tomllib is None:
         print("tomllib unavailable", file=sys.stderr)
         return 1
-    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+    with open(_ssot_path(root), "rb") as fh:
         ssot = tomllib.load(fh)
+    _DERIVE_ROOT[0] = root
 
-    targets = []
-    for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
-        dn[:] = [d for d in dn if d not in {".git"}]
-        for fn in fns:
-            if fn.endswith(".md"):
-                targets.append(os.path.join(dp, fn))
+    # Scope: every TRACKED Markdown file, not just usr/share/doc/mios -- a
+    # marker in README.md or docs/ was previously never rendered or checked, so
+    # a stale derived table could ship from there. Note this cannot reuse
+    # mios_comments.iter_source_files: that filters by SCAN_EXT, which
+    # deliberately excludes .md, and using it here silently emptied the scope.
+    # Only files that actually contain a marker are opened for writing.
+    targets = _tracked_markdown(root)
 
     rx = _marker_re()
-    changed, spliced, unknown = [], 0, set()
+    changed, spliced, unknown, bad_args = [], 0, set(), []
     for path in sorted(targets):
         try:
             with open(path, encoding="utf-8", newline="") as fh:
@@ -311,11 +908,16 @@ def cmd_render(args) -> int:
             continue
         if "MIOS-GEN:" not in src:
             continue
+        rel_for_msg = os.path.relpath(path, root).replace(os.sep, "/")
 
         def repl(m):
             nonlocal spliced
             gid = m.group("id")
-            body = _derive(gid, ssot)
+            try:
+                body = _derive(gid, ssot)
+            except DeriverError as exc:
+                bad_args.append(f"{rel_for_msg}: {exc}")
+                return m.group(0)
             if body is None:
                 unknown.add(gid)
                 return m.group(0)
@@ -329,6 +931,12 @@ def cmd_render(args) -> int:
                 with open(path, "w", encoding="utf-8", newline="\n") as fh:
                     fh.write(new)
 
+    if bad_args:
+        print("MIOS-GEN markers asking for values the SSOT does not define:",
+              file=sys.stderr)
+        for msg in bad_args:
+            print(f"  {msg}", file=sys.stderr)
+        return 1
     if unknown:
         print("unknown MIOS-GEN ids (no deriver): " + ", ".join(sorted(unknown)),
               file=sys.stderr)
@@ -361,7 +969,30 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("coverage", help="the two ratchet numbers")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--write-floor", action="store_true",
+                   help="record the lowest ceiling ever seen")
     p.set_defaults(fn=cmd_coverage)
+
+    p = sub.add_parser("harvest", help="move a source comment's prose into a doc")
+    p.add_argument("--path", required=True, help="source file, repo-relative")
+    p.add_argument("--to", required=True, help="destination doc, repo-relative")
+    p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_harvest)
+
+    p = sub.add_parser("distill", help="Day-N+1: scrape, sanitize and distil comments into the manual")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_distill)
+
+    p = sub.add_parser("prune", help="delete a comment that provably landed in a doc")
+    p.add_argument("--path", required=True, help="source file, repo-relative")
+    p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_prune)
+
+    p = sub.add_parser("landing", help="verify every pruned block still lands in a doc")
+    p.add_argument("--check", action="store_true")
+    p.set_defaults(fn=cmd_landing)
 
     p = sub.add_parser("render", help="splice derived sections into MIOS-GEN markers")
     p.add_argument("--check", action="store_true",

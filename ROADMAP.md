@@ -7,7 +7,7 @@
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
-- **Active**: 0
+- **Active**: 2
 - **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -41,13 +41,14 @@
 (no workstreams)
 
 **Security & Identity**
-(no workstreams)
+- `WS-UPSTREAM` — Upstream watch — primary-source-verified CVE/version tracking for the AI-lane images (active)
 
 **Desktop & UX**
 - `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform ✅
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
+- `WS-DOCGEN` — Generative documentation — AI-hints and comments harvested into the manual, wiki and machine-facing surfaces (active)
 
 **Testing & Conformance**
 - `WS-TESTDOC` — Testing, drift-gate negative coverage, and documentation integrity ✅
@@ -544,7 +545,67 @@ acceptance: |
 
 # Security & Identity
 
-*(no active workstreams)*
+## WS-UPSTREAM — Upstream watch: verified CVE/version tracking for the AI-lane images
+<!--
+id: WS-UPSTREAM
+title: Upstream watch — primary-source-verified CVE/version tracking for the AI-lane images
+theme: Security & Identity
+status: active
+priority: P1
+laws: [3, 7, 8, 12]
+ssot_keys: ["image.sidecars"]
+adr: [3, 12]
+deps: [WS-SBOM]
+acceptance: |
+  Every AI-lane image ref is either float-latest with an SBOM digest record or an
+  exact pin with an automated bump path; every CVE claim about the stack carries a
+  primary-source badge in a dated reference report; and the stale doc surfaces that
+  corrupted external research are re-rendered from SSOT.
+-->
+
+*Born from the 2026-08 verification pass (`usr/share/doc/mios/reference/upstream-gaps-2026-08.md`): a batch of externally-generated deep-research reports fabricated versions, registries and CVE fix-lines, and the repo's own drifted docs fed the fabrication. This workstream makes upstream tracking verifiable — primary sources, badges, SSOT-grounded framing (`usr/share/mios/prompts/upstream-research.xml.md`) — and closes the pin/probe gaps the pass surfaced. Companion upstream docs: `usr/share/doc/mios/upstream/inference-engines.md`, `usr/share/doc/mios/upstream/pgvector.md`.*
+
+### UPSTREAM-01 — float the last hand-pinned image refs  **[P1] ✅ DONE**  (→ T-288)
+- **What:** Float pgvector `0.8.3-pg17` → `pg17` (the family tag) so it resolves to newest on every build, and bump the one ref that cannot float, k3s, to `v1.36.3-k3s1`.
+- **Why:** ADR-0012 float-latest: a hand-pinned version rots and CVE response becomes a manual bump instead of a rebuild. k3s publishes no usable channel tag *and* `06-enable-external-repos.sh` parses the Kubernetes repo minor out of its version-shaped tag, so it stays version-shaped and is bot-bumped (UPSTREAM-03) rather than hand-maintained.
+- **Files:** `usr/share/mios/mios.toml`, `usr/lib/mios/bake/plan.d/04-extra.list`, `usr/share/containers/systemd/mios-{pgvector,k3s}.container`, generated projections via `tools/sync-generated.sh`.
+- **Accept:** no hand-pinned pgvector version anywhere (the `check_version_ssot` literal exemption for it is withdrawn); the `-pg17` suffix documented as a data-dir compatibility constraint, not a pin.
+- **Deps:** none.
+
+### UPSTREAM-02 — derive `mios-resolve-latest` refs from SSOT  **[P1] ✅ DONE**  (→ T-289)
+- **What:** Replaced the script's hand-mirrored ref array (four entries had drifted) with refs read from `mios.toml [image.sidecars]` through the `mios_toml` resolver, and fixed the provenance defects found alongside it: a fabricated fallback digest (the SHA-256 of empty input) recorded when resolution failed, a literal `$` in the SBOM date column, and a hardcoded `latest` tag on every row.
+- **Why:** A drifted mirror feeds wrong images into the SBOM record — the exact failure the SSOT exists to prevent.
+- **Files:** `usr/libexec/mios/mios-resolve-latest`, `automation/98-drift-checks.sh` (`check_resolver_ssot_refs`), `tests/drift-gate-negatives.sh`, `usr/share/mios/reference/drift-gate-index.tsv`.
+- **Accept:** the resolver set is derived (21 registry refs, was a 9-entry mirror); `check_resolver_ssot_refs` fails on any re-introduced ref literal and is covered by a negative test.
+- **Deps:** none.
+
+### UPSTREAM-03 — Renovate manager for the exact-pinned sidecar entries  **[P2] ✅ DONE**  (→ T-290)
+- **What:** `customManagers` regex keeping the `[image.sidecars]` refs that CANNOT float current (k3s), with `pinDigests: false` so Renovate cannot write the hand-pinned `@sha256` that ADR-0003 forbids.
+- **Why:** Renovate only managed the Containerfile base-image ARG. Everything with a moving tag upstream now floats (UPSTREAM-01); k3s has no usable channel tag and its version-shaped tag feeds the Kubernetes-repo-minor derivation, so a bot has to bump it or it rots — it was already a patch behind.
+- **Files:** `renovate.json`.
+- **Accept:** the manager matches only version-shaped refs in the SSOT and leaves every float (`:latest`/`:main`/`pgNN`/major-only/`localhost/`) unmanaged; mios.toml bumps require review.
+- **Deps:** none.
+
+### UPSTREAM-04 — runtime kernel-lockdown boot probe  **[P2] ✅ DONE**  (→ T-291)
+- **What:** Warn-tier greenboot check asserting the booted kernel reports `[integrity]`, degrade-open on kernels without the lockdown LSM.
+- **Why:** `lockdown=integrity` was projection-checked at build but never verified on the running host.
+- **Files:** `usr/lib/greenboot/check/wanted.d/31-kernel-lockdown.sh`, `.gitignore` whitelist.
+- **Accept:** probe passes on a lockdown-enabled boot, warns on mismatch, silent on WSL2.
+- **Deps:** none.
+
+### UPSTREAM-05 — PG-major migration for mios-pgvector  **[P2] ✅ DONE**  (→ T-292)
+- **What:** `mios-pgvector-major-upgrade.service` (ordered `Before=mios-pgvector.service`) makes the `pgNN` major movable, and the ref moved to `pg18`. On a `PG_VERSION`/image-major mismatch it dumps the old cluster **with an image of the OLD major** into `[pgvector].restore_sql` — bind-mounted at `docker-entrypoint-initdb.d/20-mios-restore.sql`, so the new cluster replays it after `10-mios-schema.sql` (`pg_dump --clean --if-exists` makes that ordering idempotent) — then stashes the old data dir as `<data_dir>.pg<old>.<timestamp>`.
+- **Why:** PG 18 is current upstream, and the upstream images ship one major's binaries each, so in-place `pg_upgrade` is unavailable; without this guard, advancing the suffix strands the entire agent datastore.
+- **Files:** `usr/libexec/mios/mios-pgvector-major-upgrade`, `usr/lib/systemd/system/mios-pgvector-major-upgrade.service`, `usr/lib/tmpfiles.d/mios-pgvector.conf`, `usr/share/mios/mios.toml` (`[pgvector].restore_sql`, the Quadlet `Volume`), `usr/share/containers/systemd/mios-pgvector.container`.
+- **Accept:** non-destructive on every failure path — absent old-major image, failed dump, empty dump and downgrade all leave the data dir untouched and exit 0, so pgvector stops on Postgres's own major-mismatch error rather than initialising an empty cluster; the old cluster is stashed, never deleted.
+- **Deps:** none (the daily `mios-pgvector-backup` timer already ships as a second safety net).
+
+### UPSTREAM-06 — re-render the stale doc port/lane tables from SSOT  **[P2]**  (→ T-293)
+- **What:** Regenerate the port/lane tables in README.md, CLAUDE.md, `api.md`, GEMINI.md and SECURITY.md from `[ports]` + the Quadlet lane mapping.
+- **Why:** Three mutually inconsistent port schemes circulate; external research inherits the stale ones and "corrects" real values back to wrong ones.
+- **Files:** `README.md`, `CLAUDE.md`, `GEMINI.md`, `SECURITY.md`, `usr/share/doc/mios/reference/api.md`, a renderer under `tools/`.
+- **Accept:** one port scheme (the SSOT's) across every doc, guarded by a projection drift-check.
+- **Deps:** none.
 
 # Desktop & UX
 
@@ -600,6 +661,75 @@ acceptance: |
 - **Why:** The topology directive says registry preference is credential-driven, but `mios-ci.yml`/`build-mios.yml` currently hardcode GHCR; the selection belongs in one shared place, not duplicated per workflow.
 - **Files:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, the build driver (`automation/build.sh` / `install.env` credential detection).
 
+
+## WS-DOCGEN — Generative documentation: one pipeline from AI-hints and comments to every doc surface
+<!--
+id: WS-DOCGEN
+title: Generative documentation — AI-hints and comments harvested into the manual, wiki and machine-facing surfaces
+theme: Testing & Conformance
+status: active
+priority: P1
+laws: [7, 8, 14]
+ssot_keys: ["docs"]
+adr: [11]
+deps: [WS-DOCS]
+acceptance: |
+  Every doc surface is either authored prose or a marker interior derived from
+  the SSOT; a comment's knowledge is provably landed in a doc before the comment
+  can be pruned; and the narrative ratchet can actually fall, because a harvest
+  path exists to move prose out of source and into the manual.
+-->
+
+*The header engine, lexer/classifier, marker splicer and ratchet already exist and work — the programme is not a rewrite. Mapped end to end in a 2026-08 cross-repo research pass over `mios.git` and `mios-bootstrap.git`; the two missing links are `harvest` (nothing can move a comment into a doc) and the derived surfaces the derivers were specified for. Programme document: `docs/agy/doc-generative-documentation.md`; tasks AGY-1580..1594 in `AGY-TASKS.md`.*
+
+### DOCGEN-01 — Gate the corpus ledger and repair the landing predicate  **[P1] ✅ DONE**  (→ T-294)
+- **What:** `Policy.landing_min_word_ratio` wired from `[docs]` so `mios-manual landed()` stops raising; `check_manual_ledger` + negative test; ledger regenerated and made the last step of `tools/sync-generated.sh`; both manual surfaces registered in the Law-8 projection registry; `test_mios_comments.py` wired into the gate.
+- **Why:** `landed()` is the predicate authorising every future deletion and it was dead code, so the ratchet could only ever rise; the ledger was stale with nothing watching it.
+- **Files:** `usr/lib/mios/mios_comments.py`, `usr/lib/mios/test_mios_comments.py`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`, `tools/sync-generated.sh`, `usr/share/mios/mios.toml`, `Justfile`.
+- **Accept:** `mios-manual ledger --check` green; landing ratio correct at the 0.90 boundary; 157 gate-index rows; ratchet held at its ceiling.
+- **Deps:** none.
+
+### DOCGEN-02 — Durable ratchet floor  **[P2] ✅ DONE**  (→ T-295)
+- **What:** A recorded low-water mark (`coverage --write-floor`) so a lowered ceiling cannot be silently raised back; `check_docs_ratchet_monotone` currently compares only against HEAD and exits 0 when the previous TOML will not parse.
+- **Why:** A ratchet that can be wound back is not a ratchet.
+- **Files:** `usr/libexec/mios/mios-manual`, `usr/share/mios/reference/doc-ratchet-floor.tsv`, `automation/98-drift-checks.sh`.
+- **Accept:** lowering then raising a ceiling in one commit fails the gate.
+- **Deps:** `DOCGEN-01`.
+
+### DOCGEN-03 — `mios-manual harvest` — the missing link  **[P1] ✅ DONE**  (→ T-296)
+- **What:** The subcommand that moves a MIGRATE comment block into an authored doc passage, stamps the `mios-src:<sha12>` anchor, and fills the ledger's `landed_*` columns.
+- **Why:** Without it nothing can ever populate the landing columns, so `landed()` can only return False and the narrative count can never fall — the ratchet is at its ceiling with no legal way down.
+- **Files:** `usr/libexec/mios/mios-manual`, `usr/share/doc/mios/manual/`, `usr/share/mios/reference/manual-corpus.tsv`.
+- **Accept:** a harvested block flips `landed()` false→true and the narrative count drops by one.
+- **Deps:** `DOCGEN-01`.
+
+### DOCGEN-04 — `check_comment_landing` + `mios-manual prune`  **[P1] ✅ DONE**  (→ T-297)
+- **What:** Delete a source comment only once its knowledge is provably landed, gated so a stub can never authorise removing a design note.
+- **Why:** Completes the loop harvest opens; the strictness of `landed()` is the whole safety story.
+- **Files:** `usr/libexec/mios/mios-manual`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`.
+- **Accept:** `prune` refuses when the predicate is false; round-trip covered by a test.
+- **Deps:** `DOCGEN-03`.
+
+### DOCGEN-05 — Widen render scope and add the remaining deriver families  **[P2] ✅ DONE**  (→ T-298)
+- **What:** Only `ports` and `laws` of nine specified deriver families exist. Add the rest (pipeline, verbs, units, index, related, api, root-exceptions, the boilerplate block duplicated 69 times), widen `render` beyond `usr/share/doc/mios/`, make an unknown deriver ARG fail loudly as unknown KINDs already do, and close the negative-test hole so the gate also proves prose OUTSIDE a marker stays green.
+- **Why:** Without that second assertion the gate could be satisfied by a generator that owns whole files — the precise failure the marker protocol exists to prevent.
+- **Files:** `usr/libexec/mios/mios-manual`, `tests/drift-gate-negatives.sh`, `usr/share/doc/mios/reference/`.
+- **Accept:** each family renders from the SSOT and is drift-gated; a bad deriver arg fails the run.
+- **Deps:** `DOCGEN-01`.
+
+### DOCGEN-06 — Reproducible manual and machine-facing surfaces  **[P2] ✅ DONE**  (→ T-299)
+- **What:** `manual.md` is not reproducible and is ungated — regenerating it destroys its H1 and table of contents, and it carries stale automation numbers and retired ports. Rebuild it as authored chapters plus marker interiors, and give `llms.txt`/`llms-full.txt` and `usr/share/doc/mios/README.md` the same treatment. Retire the `just manual` generator that silently rewrites a shipped artifact.
+- **Why:** A shipped manual that contradicts the SSOT is how external research inherits wrong facts.
+- **Files:** `usr/share/doc/mios/manual.md`, `usr/share/doc/mios/manual/`, `llms.txt`, `llms-full.txt`, `Justfile`, `tools/generate-manual.py`.
+- **Accept:** regenerating changes nothing; no `file:///C:/` paths survive; ports match `[ports]`.
+- **Deps:** `DOCGEN-05`.
+
+### DOCGEN-07 — Cross-repo participation for mios-bootstrap  **[P2] ✅ DONE**  (→ T-300)
+- **What:** `mios-bootstrap.git` carries AI-hints on 69 of 98 taggable files but ships no docgen tooling. Let the CLIs run against it by root rather than copying them across (Law 15 forbids double-tracking the surface).
+- **Why:** The operator-facing half of MiOS is currently undocumentable by the same pipeline.
+- **Files:** `usr/libexec/mios/mios-manual`, `usr/libexec/mios/mios-ai-tag`, `tools/log-to-bootstrap.sh`.
+- **Accept:** one command documents either repo; no tool is duplicated into the sibling.
+- **Deps:** `DOCGEN-05`.
 
 # Testing & Conformance
 
