@@ -251,6 +251,7 @@ is generated, its generator is here.
 | `tools/ascii-sweep.py` | A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent rendering across shell scripts, config files, and... |
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emitting the version-literals audit TSV that drives the WS-FLOAT... |
+| `tools/check-manual-links.py` | Link-integrity gate for the shipped MiOS manual: asserts every ToC link in usr/share/doc/mios/manual.md resolves to an existing chapter file and, where a fragment is given, to a real anchor inside... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
@@ -279,13 +280,14 @@ is generated, its generator is here.
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and artifact availability. |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shape the audit TSV is built from. |
+| `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean ToC and non-zero on a dangling chapter link, a missing anchor... |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X} templates stay live in both languages, and that... |
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 36 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 38 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

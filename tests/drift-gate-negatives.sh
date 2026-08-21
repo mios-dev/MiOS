@@ -2356,6 +2356,33 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_manual_links() {
+    log "Testing check_manual_links"
+    local doc="${ROOT}/usr/share/doc/mios/manual.md"
+    local backup; backup="$(mktemp)"
+    cp "$doc" "$backup"
+    # Point a ToC entry at a chapter that does not exist.
+    sed -i '0,/(manual\/ch01-/s//(manual\/ch01-does-not-exist.md#x)(manual\/ch01-/' "$doc"
+    if _neg_gate check_manual_links; then
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "check_manual_links passed despite a dangling ToC link"
+    fi
+    cp "$backup" "$doc"
+    _neg_gate check_manual_links || { rm -f "$backup"; die "check_manual_links failed after restoration"; }
+
+    # Second phase: a chapter file that the ToC never mentions must also fail.
+    local orphan="${ROOT}/usr/share/doc/mios/manual/ch99-orphan-negative-test.md"
+    printf '<!-- AI-hint: negative-test orphan chapter. -->\n\n# Chapter 99\n' > "$orphan"
+    if _neg_gate check_manual_links; then
+        rm -f "$orphan" "$backup"
+        die "check_manual_links passed despite an unreachable chapter file"
+    fi
+    rm -f "$orphan"
+    _neg_gate check_manual_links || { rm -f "$backup"; die "check_manual_links failed after orphan removal"; }
+    rm -f "$backup"
+    log "check_manual_links negative test passed (both phases)"
+}
+
 test_doc_port_scheme() {
     log "Testing check_doc_port_scheme"
     local doc="${ROOT}/README.md"
@@ -2443,6 +2470,7 @@ main() {
     test_manual_generated
     test_manual_ledger
     test_comment_landing
+    test_manual_links
     test_doc_port_scheme
     test_unit_dependency_closure
     test_unit_dependency_closure

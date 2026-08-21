@@ -6176,6 +6176,7 @@ main() {
     check_manual_generated
     check_manual_ledger
     check_comment_landing
+    check_manual_links
     check_doc_port_scheme
 
 
@@ -7118,6 +7119,18 @@ check_manual_ledger() {
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_manual_links() {
+    echo "[98-drift-checks]   check_manual_links"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_manual_links: $line"
         done <<<"$out"
         return
     fi
