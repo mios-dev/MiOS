@@ -108,10 +108,9 @@ main() {
     step "6/7 AI manifests (they embed automation/ + tools/ content)"
     "$PY" tools/generate-ai-manifest.py >/dev/null
 
-    # LAST, and it has to be: the ledger is a census of the comment blocks in
-    # every tracked source file, so ANY step above -- or any hand edit in the
-    # same commit -- invalidates it. Regenerating it earlier just bakes in a
-    # stale row count that check_manual_ledger then rejects.
+    # LAST: it censuses every TRACKED source file, so anything above moves it.
+    # `git add` a new file BEFORE syncing, or its blocks land only once
+    # committed -- green locally, red in CI.
     step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
     if [ -r usr/libexec/mios/mios-manual ]; then
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
