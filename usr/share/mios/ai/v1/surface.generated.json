@@ -134,6 +134,12 @@
     "CLIENT_TOOLS_PASSTHROUGH",
     "CODE_MODE_ENABLE",
     "CODE_MODE_HEAVY_ONLY",
+    "CONSENSUS_ENABLED",
+    "CONSENSUS_LANES",
+    "CONSENSUS_MIN_LANES",
+    "CONSENSUS_THRESHOLD",
+    "CONSENSUS_TIMEOUT_S",
+    "CONSENSUS_WEIGHT_FLOOR",
     "COST_ACCOUNTING_ENABLE",
     "COST_BUDGET_USD",
     "COUNCIL_DEFAULT",
@@ -1385,6 +1391,6 @@
   ],
   "counts": {
     "routes": 89,
-    "provided": 1291
+    "provided": 1297
   }
 }

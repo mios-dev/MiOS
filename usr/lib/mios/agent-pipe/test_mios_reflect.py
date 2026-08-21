@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_reflect (strangler-fig extraction). Pure stdlib, no server.py/DB/network/pytest. Pins the self-assessment invariants of the extracted cluster: _inline_satisfaction_check early-returns None on a missing session / non-dict refine (the cheap gate), folds a chat-with-no-tools turn to user_query_satisfied(chat_no_tools_expected), an all-success tool_call set to user_query_satisfied(all_succeeded), and a failed tool_call to user_query_unsatisfied(failed_tools) -- every DB read/write stubbed via configure(); reflect_on_step_failure early-returns None when REFINE is disabled (the gate), returns the model's corrected step dict on a canned 200, and returns None on an empty-tool "unfixable" verdict -- httpx monkeypatched + _recent_reflections + the session-event emitter stubbed. Guards the moved bodies + their configure() DI seam so a later move can't silently change verdict/correction behaviour.
 # AI-related: ./mios_reflect.py
-# AI-functions: check, _mk_db_read, _wire_inline, t_inline_gate, t_inline_chat, t_inline_success, t_inline_failed, _wire_reflect, t_reflect_gate, t_reflect_corrected, t_reflect_unfixable, t_recent_verdicts, t_recent_tool_history, _mk_judge_client, _wire_judge, t_judge_empty, t_judge_yes_no, t_judge_degrade, main
+# AI-functions: check, _mk_db_read, _wire_inline, t_inline_gate, t_inline_chat, t_inline_success, t_inline_failed, _wire_reflect, t_reflect_gate, t_reflect_corrected, t_reflect_unfixable, t_recent_verdicts, t_recent_tool_history, _mk_judge_client, _wire_judge, t_judge_empty, t_judge_yes_no, t_judge_degrade, _mk_panel_client, _wire_panel, t_panel_off_is_single_lane, t_panel_majority, t_panel_weight_beats_headcount, t_panel_abstain_not_a_no, t_panel_no_quorum_falls_back, main
 """Unit tests for mios_reflect (strangler-fig extraction)."""
 
 import asyncio
@@ -219,6 +219,101 @@ def t_judge_degrade():
           asyncio.run(r._judge_answer_satisfied("q", "x")) is True)
 
 
+def _mk_panel_client(by_host):
+    """Judge-panel stub: `by_host` maps a host:port fragment to (content, status),
+    so each lane in the panel can answer differently."""
+    class _C:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def post(self, url, **k):
+            for frag, (content, status) in by_host.items():
+                if frag in url:
+                    if status == "boom":
+                        raise RuntimeError("lane transport failure")
+                    return _JResp(content, status)
+            return _JResp("yes", 200)
+
+    return _C
+
+
+_LANES = [{"name": "a", "endpoint": "http://127.0.0.1:1"},
+          {"name": "b", "endpoint": "http://127.0.0.1:2"},
+          {"name": "c", "endpoint": "http://127.0.0.1:3"}]
+
+
+def _wire_panel(by_host, *, enable=True, lanes=None, weights=None, min_lanes=2):
+    lanes = [dict(x) for x in (lanes if lanes is not None else _LANES)]
+    if weights:
+        for lane in lanes:
+            if lane["name"] in weights:
+                lane["weight"] = weights[lane["name"]]
+    r.configure(refine_model="m", refine_endpoint="http://127.0.0.1:0",
+                refine_timeout_s=5, consensus_enabled=enable,
+                consensus_lanes=lanes, consensus_threshold=0.5,
+                consensus_min_lanes=min_lanes, consensus_timeout_s=5,
+                consensus_weight_floor=0.1)
+    r.httpx = types.SimpleNamespace(AsyncClient=_mk_panel_client(by_host),
+                                    HTTPError=Exception)
+
+
+def t_panel_off_is_single_lane():
+    # Gate closed: the panel must not be consulted at all, so the lone
+    # single-lane endpoint (:0) decides even though the panel lanes say yes.
+    _wire_panel({":0": ("no", 200), ":1": ("yes", 200), ":2": ("yes", 200)},
+                enable=False)
+    check("panel: disabled -> single-lane verdict wins",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is False)
+
+
+def t_panel_majority():
+    _wire_panel({":0": ("yes", 200), ":1": ("no", 200),
+                 ":2": ("no", 200), ":3": ("no", 200)})
+    check("panel: majority no -> not satisfied",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is False)
+    _wire_panel({":0": ("no", 200), ":1": ("yes", 200),
+                 ":2": ("yes", 200), ":3": ("yes", 200)})
+    check("panel: majority yes overrides the single lane",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is True)
+
+
+def t_panel_weight_beats_headcount():
+    # Two light lanes say no, one heavy lane says yes: weight decides.
+    _wire_panel({":0": ("no", 200), ":1": ("yes", 200),
+                 ":2": ("no", 200), ":3": ("no", 200)},
+                weights={"a": 3.0, "b": 0.5, "c": 0.5})
+    check("panel: a heavy lane outvotes two light ones",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is True)
+
+
+def t_panel_abstain_not_a_no():
+    # One lane dead, one says yes: the dead lane must not read as a rejection.
+    _wire_panel({":0": ("no", 200), ":1": ("yes", 200),
+                 ":2": ("yes", 200), ":3": ("x", "boom")})
+    check("panel: a dead lane abstains rather than voting no",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is True)
+
+
+def t_panel_no_quorum_falls_back():
+    # Every panel lane is down -> no quorum -> the single-lane answer stands.
+    _wire_panel({":0": ("no", 200), ":1": ("x", "boom"),
+                 ":2": ("x", "boom"), ":3": ("x", "boom")})
+    check("panel: whole panel down -> single-lane verdict",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is False)
+
+    # Under-configured panel (one lane) never engages.
+    _wire_panel({":0": ("no", 200), ":1": ("yes", 200)},
+                lanes=[{"name": "a", "endpoint": "http://127.0.0.1:1"}])
+    check("panel: fewer lanes than min_lanes -> single-lane verdict",
+          asyncio.run(r._judge_answer_satisfied("q", "a")) is False)
+
+
 def main():
     t_inline_gate()
     t_inline_chat()
@@ -232,6 +327,11 @@ def main():
     t_judge_empty()
     t_judge_yes_no()
     t_judge_degrade()
+    t_panel_off_is_single_lane()
+    t_panel_majority()
+    t_panel_weight_beats_headcount()
+    t_panel_abstain_not_a_no()
+    t_panel_no_quorum_falls_back()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

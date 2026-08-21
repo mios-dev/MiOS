@@ -204,6 +204,12 @@ from mios_config import (   # noqa: E402
     REFINE_BYPASS_CHARS,
     REFINE_KEEP_ALIVE,
     JUDGE_EXAMPLES,
+    CONSENSUS_ENABLED,
+    CONSENSUS_LANES,
+    CONSENSUS_THRESHOLD,
+    CONSENSUS_MIN_LANES,
+    CONSENSUS_TIMEOUT_S,
+    CONSENSUS_WEIGHT_FLOOR,
     POLISH_ENABLED,
     POLISH_MODEL,
     POLISH_ENDPOINT,
@@ -4292,6 +4298,12 @@ sys.modules["mios_reflect"].configure(   # noqa: E402
     refine_timeout_s=REFINE_TIMEOUT_S,
     reflect_system=_REFLECT_SYSTEM,
     judge_examples=JUDGE_EXAMPLES,
+    consensus_enabled=CONSENSUS_ENABLED,
+    consensus_lanes=CONSENSUS_LANES,
+    consensus_threshold=CONSENSUS_THRESHOLD,
+    consensus_min_lanes=CONSENSUS_MIN_LANES,
+    consensus_timeout_s=CONSENSUS_TIMEOUT_S,
+    consensus_weight_floor=CONSENSUS_WEIGHT_FLOOR,
 )
 
 

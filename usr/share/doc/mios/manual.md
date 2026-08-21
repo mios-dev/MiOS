@@ -230,6 +230,14 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
 * **[Chapter 51: Distilled System Knowledge & Code Invariants](manual/ch51-distilled-system-knowledge-code-invariants.md)**
   * [Distilled System Knowledge](manual/ch51-distilled-system-knowledge-code-invariants.md#51_distilled_system_knowledge): Consolidates distilled invariants and recovered technical comments.
 
+* **[Chapter 52: Multi-Judge Consensus](manual/ch52-multi-judge-consensus.md)**
+  * [The Weighted Vote Fold](manual/ch52-multi-judge-consensus.md#52_the_weighted_vote_fold): Covers folding per-lane verdicts by weight, and why an abstention is not a rejection.
+  * [The Quorum Floor](manual/ch52-multi-judge-consensus.md#52_the_quorum_floor): Details the live-vote minimum below which the panel declines to decide.
+  * [Reliability Weighting](manual/ch52-multi-judge-consensus.md#52_reliability_weighting): Explains the three weight tiers and the floor that keeps every lane voting.
+  * [Reciprocal-Rank-Fusion](manual/ch52-multi-judge-consensus.md#52_reciprocal_rank_fusion): Covers merging ranked candidate lists across lanes deterministically.
+  * [Degrading Open](manual/ch52-multi-judge-consensus.md#52_degrading_open): Details the three ways the panel steps aside for the single-lane judge.
+  * [Consensus Configuration](manual/ch52-multi-judge-consensus.md#52_consensus_configuration): Explains the [consensus] SSOT keys, env overrides and lane declarations.
+
 ---
 
 ## The chapter files
@@ -292,6 +300,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch49-offline-first-governance.md` | Chapter 49: Offline-First Governance. Covers staging local mirror caches inside container build overlay. Details models weights verification loaded under /srv/ai. Explains fallback behaviors... |
 | `usr/share/doc/mios/manual/ch50-upstream-tracking-and-maintenance.md` | Chapter 50: Upstream Tracking and Maintenance. Covers checking changes between host and remote overlays. Details Justfile build automation and check goals. Explains checklist targets required to tag... |
 | `usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md` | Chapter 51: Distilled System Knowledge & Code Invariants. Losslessly distilled architectural knowledge, operational invariants and technical comments recovered from historical commits and component... |
+| `usr/share/doc/mios/manual/ch52-multi-judge-consensus.md` | Chapter 52: Multi-Judge Consensus. Explains why one judge lane's yes/no is not enough to gate a pipeline, and how the weighted quorum replaces it. Covers the vote fold, abstention versus rejection,... |
 
-<!-- derived from the AI-hint headers of 51 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 52 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

@@ -283,6 +283,23 @@ COUNCIL_AGGREGATOR_BYPASS_THRESHOLD = _cfg_num(
     _COUNCIL_TOML, "MIOS_COUNCIL_AGGREGATOR_BYPASS_THRESHOLD",
     "aggregator_bypass_threshold", 0.95, cast=float)
 
+_CONSENSUS_TOML = _toml_section("consensus") or {}
+CONSENSUS_ENABLED = _cfg_bool(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_ENABLE", "enable", False)
+CONSENSUS_THRESHOLD = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_THRESHOLD", "threshold", 0.5, cast=float)
+CONSENSUS_MIN_LANES = int(_cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_MIN_LANES", "min_lanes", 2, cast=float))
+CONSENSUS_TIMEOUT_S = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_TIMEOUT_S", "timeout_s", 20.0, cast=float)
+CONSENSUS_WEIGHT_FLOOR = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_WEIGHT_FLOOR", "weight_floor", 0.1, cast=float)
+CONSENSUS_RRF_K = int(_cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_RRF_K", "rrf_k", 60, cast=float))
+# Each lane is {name, endpoint, model, weight}; endpoint/model empty means
+# "the refine lane", so a panel can be declared without repeating its address.
+CONSENSUS_LANES = [d for d in (_CONSENSUS_TOML.get("lanes") or []) if isinstance(d, dict)]
+
 _MEMORY_TOML = _toml_section("memory") or {}
 KV_SLOT_PERSIST = (
     os.environ.get("MIOS_KV_SLOT_PERSIST", "").strip().lower() in {"1", "true", "yes"}

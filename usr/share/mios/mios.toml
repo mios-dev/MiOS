@@ -3560,6 +3560,20 @@ tenant_max_concurrency = 0
 judge_examples = "a punt, refusal, 'I cannot', or 'where to look'"
 
 # ----------------------------------------------------------------------------
+# [consensus] -- CONS-01 weighted multi-judge Definition-of-Done.
+# Fold, abstention rule, quorum floor and weighting: manual ch52.
+[consensus]
+enable       = false   # off by default: the panel costs one model call per lane per verdict
+threshold    = 0.5     # weight-share of "yes" needed to call the answer satisfied
+min_lanes    = 2       # live (non-abstaining) votes required before the fold is trusted
+timeout_s    = 20.0    # per-lane judge call budget
+weight_floor = 0.1     # lowest weight a lane can be reduced to; never zero it out
+rrf_k        = 60      # Reciprocal-Rank-Fusion damping when lanes return RANKED lists
+# One entry per judge lane. Leave `endpoint`/`model` empty to reuse the refine
+# lane's. Declare 2-3; more lanes cost proportionally more per verdict.
+lanes = []
+
+# ----------------------------------------------------------------------------
 [drift]
 # Sibling-module allowlist/denylist: agent-pipe modules that are permitted to have
 # transitional unwired (imported-but-dead) status in check_unwired_modules.
@@ -13764,6 +13778,7 @@ port_clean = [
   "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
   "usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md",
   "usr/share/mios/docs/install-robustness-2026-06-21.md",
+    "automation/67-bake-surfer.sh"
 ]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.

@@ -1,8 +1,9 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural three-pane browser UI patches, and run native mach compilations.
-# AI-related: /usr/bin/mios-webshell, /usr/lib/mios/webshell/, usr/share/mios/mios.toml [colors]
+# AI-related: /usr/bin/mios-webshell, /usr/lib/mios/webshell/, usr/share/mios/mios.toml [colors], usr/share/mios/mios.toml [browser_ai], usr/share/mios/mios.toml [ports]
 set -euo pipefail
+# shellcheck disable=SC1090
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/common.sh" 2>/dev/null || true
@@ -97,14 +98,19 @@ with open(p, "w", encoding="utf-8") as f:
     : "${MIOS_COLOR_BG:=#282262}"
     : "${MIOS_COLOR_ACCENT:=#1A407F}"
     : "${MIOS_COLOR_SUBTLE:=#B7C9D7}"
+    # A wrong port baked into browser chrome stays invisible until someone
+    # opens the sidebar, so an unresolved SSOT value fails the bake.
+    for _v in MIOS_PORT_AGENT_PIPE MIOS_PORT_HERMES MIOS_BROWSER_AI_PROVIDER_URL; do
+        [ -n "${!_v:-}" ] || { mios_err "${_v} unresolved -- cannot bake browser chrome"; exit 1; }
+    done
     cat << EOF > /tmp/browser_xhtml_patch.xml
 <!-- Add sidebar panels for navigation cockpit and AI interaction to browser.xhtml -->
 <hbox flex="1" id="mios-three-pane-container">
   <vbox id="mios-custom-sidebar" width="220" style="background-color: ${MIOS_COLOR_BG}; border-right: 1px solid ${MIOS_COLOR_SUBTLE};">
     <vbox id="mios-panel-cockpit" flex="1">
       <!-- Nav cockpit & System controls -->
-      <button label="Local Dashboard" oncommand="loadURI('http://localhost:8033/')" />
-      <button label="Container Status" oncommand="loadURI('http://localhost:8642/v1/cluster/health')" />
+      <button label="Local Dashboard" oncommand="loadURI('http://localhost:${MIOS_PORT_AGENT_PIPE}/')" />
+      <button label="Container Status" oncommand="loadURI('http://localhost:${MIOS_PORT_HERMES}/v1/cluster/health')" />
     </vbox>
     <hbox id="mios-action-area" style="padding: 10px; border-top: 1px solid ${MIOS_COLOR_SUBTLE};">
       <button id="mios-terminal-trigger" label="Launch Terminal" oncommand="launchTerminalAsync()" style="flex: 1;" />
@@ -115,7 +121,7 @@ with open(p, "w", encoding="utf-8") as f:
   <splitter id="mios-ai-splitter" resizebefore="grow" resizeafter="shrink" class="chromeclass-extrachrome" />
   <vbox id="mios-ai-sidebar" width="300" style="background-color: ${MIOS_COLOR_ACCENT};">
     <!-- Local AI agent panel -->
-    <browser id="mios-ai-frame" src="http://localhost:3030" flex="1" />
+    <browser id="mios-ai-frame" src="${MIOS_BROWSER_AI_PROVIDER_URL}" flex="1" />
   </vbox>
 </hbox>
 EOF
