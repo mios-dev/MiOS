@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Python py_compile + undefined-name gate for usr/lib/mios, usr/share/mios, tools, and usr/libexec/mios.
+# AI-hint: Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; rendered templates excluded). Directory-by-directory enumeration is what let the canonical OWUI pipe sit outside the gate while it did not import at all.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -12,36 +12,48 @@ fi
 
 files=()
 
-# usr/share/mios ships runtime Python payloads too -- the OWUI pipe, the
-# configurator's helpers. Leaving them out is how `Any` went unimported in the
-# canonical OWUI entry point, which made the module unloadable.
-if [ -d "${ROOT}/usr/share/mios" ]; then
-    while IFS= read -r f; do
-        [ -f "$f" ] && files+=("$f")
-    done < <(find "${ROOT}/usr/share/mios" -name "*.py")
-fi
+# Ask GIT for the file set: a new Python payload is covered the moment it is
+# tracked. Why not directory-by-directory: manual ch54.
+if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    while IFS= read -r rel; do
+        [ -f "${ROOT}/${rel}" ] && files+=("${ROOT}/${rel}")
+    done < <(git -C "$ROOT" ls-files '*.py')
 
-if [ -d "${ROOT}/usr/lib/mios" ]; then
-    while IFS= read -r f; do
-        [ -f "$f" ] && files+=("$f")
-    done < <(find "${ROOT}/usr/lib/mios" -name "*.py")
-fi
-
-for f in "${ROOT}"/tools/*.py; do
-    [ -f "$f" ] && files+=("$f")
-done
-
-if [ -d "${ROOT}/usr/libexec/mios" ]; then
-    for f in "${ROOT}"/usr/libexec/mios/*; do
-        if [ -f "$f" ] && [[ "$f" != *.py ]]; then
-            if file "$f" 2>/dev/null | grep -qE "text|script"; then
-                head_line="$(head -n 1 "$f" 2>/dev/null || true)"
-                if [[ "$head_line" == *"python"* ]]; then
-                    files+=("$f")
-                fi
-            fi
+    # Extensionless entry points. Excludes templates ({{placeholders}}),
+    # non-shebang "python" matches, and zipapps -- see manual ch54.
+    while IFS= read -r rel; do
+        case "$rel" in
+            *.py|usr/share/mios/templates/*|tests/templates/*) continue ;;
+        esac
+        f="${ROOT}/${rel}"
+        [ -f "$f" ] || continue
+        # tr -d strips NULs so a binary file does not warn on substitution.
+        head_line="$(head -c 200 "$f" 2>/dev/null | tr -d '\0' | head -n 1 || true)"
+        case "$head_line" in
+            '#!'*python*) ;;
+            *) continue ;;
+        esac
+        if head -c 4096 "$f" 2>/dev/null | tail -c +2 | grep -qa 'PK\x03\x04' 2>/dev/null \
+           || python3 -c 'import sys,zipfile; sys.exit(0 if zipfile.is_zipfile(sys.argv[1]) else 1)' "$f" 2>/dev/null; then
+            continue   # zipapp
         fi
+        files+=("$f")
+    done < <(git -C "$ROOT" ls-files)
+else
+    # No git (a bare unpacked tree): fall back to walking the payload dirs.
+    for d in usr/lib/mios usr/share/mios usr/libexec/mios tools automation tests; do
+        [ -d "${ROOT}/${d}" ] || continue
+        while IFS= read -r f; do
+            [ -f "$f" ] && files+=("$f")
+        done < <(find "${ROOT}/${d}" -name "*.py")
     done
+fi
+
+# Coverage probe: tests/test-lint-python-coverage.sh re-derives the set with the
+# gate's OWN logic, so the two can never disagree about what is covered.
+if [ "${MIOS_LINT_PYTHON_LIST:-0}" = "1" ]; then
+    printf '%s\n' "${files[@]}"
+    exit 0
 fi
 
 if [ "${#files[@]}" -eq 0 ]; then

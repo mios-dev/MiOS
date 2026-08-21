@@ -155,8 +155,38 @@ Both endpoints now resolve from the SSOT (`MIOS_AI_ENDPOINT` per Law 5, and
 
 **Why nothing caught it:** `lint-python.sh` scanned `usr/lib/mios`, `tools` and
 `usr/libexec/mios`. It never scanned `usr/share/mios`, which is where the
-runtime Python payloads that ship *into other programs* live. It does now — 550
-files became 564 — and `tests/test-owui-pipe-endpoints.py` asserts the module
-imports, that both defaults track the port SSOT, and that neither names anything
-in `[docs].retired_ports`.
+runtime Python payloads that ship *into other programs* live.
+`tests/test-owui-pipe-endpoints.py` now asserts the module imports, that both
+defaults track the port SSOT, and that neither names anything in
+`[docs].retired_ports`.
+
+#### <a name="54_asking_git_for_the_file_set"></a>54.Asking Git for the File Set: Asking Git for the File Set
+
+Adding `usr/share/mios` to the list of scanned directories would have fixed this
+instance and left the shape intact — the next payload directory would be the
+next blind spot. The gate now asks **git** for its file set instead:
+`git ls-files '*.py'`, plus every tracked file whose *first two bytes* are `#!`
+on a line naming python. A new Python payload is covered the moment it is
+tracked, wherever it lives. Coverage went from 550 files to 614.
+
+Three exclusions are deliberate, and each has a reason worth stating so nobody
+"fixes" a red build by narrowing coverage again:
+
+* **Templates and golden snapshots** carry `{{placeholders}}` and are not valid
+  Python until rendered.
+* **The shebang must be real** — `#!` at byte 0. Matching "python" anywhere in
+  the first line also catches a Dockerfile `FROM` line and ordinary prose, which
+  is exactly what the first attempt did.
+* **Zipapps are skipped.** `usr/libexec/mios/mios-dashboard` is a shebang
+  followed by a ZIP payload — executable Python, but not Python *source*, so
+  `py_compile` cannot read it. The previous implementation excluded it by
+  accident, via a `file(1)` text check it happened to fail.
+
+`tests/test-lint-python-coverage.sh` re-derives the set using the gate's own
+logic (`MIOS_LINT_PYTHON_LIST=1`) and asserts one representative from each
+payload area is present and each deliberate exclusion is absent. Negative-tested
+by re-dropping `usr/share/mios`, which reds it.
+
+Its shell twin, `tests/test-lint-shell-coverage.sh`, already existed — and was
+wired into no runner at all, so it had never executed. Both are wired in now.
 

@@ -1340,6 +1340,7 @@ MIOS_LAWS_TARGET_LANGUAGES_GRANDFATHERED_CS=usr/share/mios/windows/MiOS-Launcher
 MIOS_LETTA_ENDPOINT=
 MIOS_LETTA_MEMORY_BACKEND=
 MIOS_LIBEXEC_DIR=/usr/libexec/mios
+MIOS_LINT_PYTHON_LIST=
 MIOS_LINUX_USER=
 MIOS_LLAMACPP=
 MIOS_LLAMACPP_BAKE_MODELS=granite-4.1-8b.gguf=unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf,lfm2-700m.gguf=LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf,embeddinggemma-300m-qat-q8_0.gguf=ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf

@@ -106,6 +106,10 @@ drift-gate:
     bash ./tests/doc-production-evidence.sh
     @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
+    @echo "[drift-gate] tests/test-lint-python-coverage.sh"
+    bash ./tests/test-lint-python-coverage.sh
+    @echo "[drift-gate] tests/test-lint-shell-coverage.sh"
+    bash ./tests/test-lint-shell-coverage.sh
     @echo "[drift-gate] tests/test-theme-merge.py"
     @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         "$py_exec" ./tests/test-theme-merge.py

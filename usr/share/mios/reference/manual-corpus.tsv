@@ -6,15 +6,16 @@
 .forgejo/workflows/build-mios.yml	49	51	3	27	a113c471fd31	STAY	midsize-why		0				0
 .forgejo/workflows/build-mios.yml	56	57	2	15	a3c478469cd8	STAY	local-scoped		0				0
 .forgejo/workflows/build-mios.yml	93	93	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	108	109	2	23	574a3e5e9dca	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	112	112	1	11	e25dd631f9a4	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	124	124	1	8	a88aee412b8c	STAY	inline-scoped		0				0
-.forgejo/workflows/build-mios.yml	127	127	1	3	c8f82965cee6	STAY	inline-scoped		0				0
-.forgejo/workflows/build-mios.yml	132	139	8	79	9b1abfdb404e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9b1abfdb404e	79	0
-.forgejo/workflows/build-mios.yml	148	149	2	15	99d2d210b8b8	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	152	152	1	3	ee573bae3b99	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	169	172	4	34	147551906b1c	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:147551906b1c	34	0
-.forgejo/workflows/build-mios.yml	188	192	5	36	c8be1fb9930b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:c8be1fb9930b	36	0
+.forgejo/workflows/build-mios.yml	108	110	3	31	d255aa36368b	STAY	midsize-why		0				0
+.forgejo/workflows/build-mios.yml	115	116	2	23	574a3e5e9dca	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	119	119	1	11	e25dd631f9a4	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	131	131	1	8	a88aee412b8c	STAY	inline-scoped		0				0
+.forgejo/workflows/build-mios.yml	134	134	1	3	c8f82965cee6	STAY	inline-scoped		0				0
+.forgejo/workflows/build-mios.yml	139	146	8	79	9b1abfdb404e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9b1abfdb404e	79	0
+.forgejo/workflows/build-mios.yml	155	156	2	15	99d2d210b8b8	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	159	159	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	176	179	4	34	147551906b1c	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:147551906b1c	34	0
+.forgejo/workflows/build-mios.yml	195	199	5	36	c8be1fb9930b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:c8be1fb9930b	36	0
 .forgejo/workflows/url-probe.yml	1	1	1	9	3ef29e95a62a	STAY	ai-header		0				0
 .github/workflows/mios-ci.yml	1	2	2	37	1143953e3ced	STAY	ai-header		0				0
 .github/workflows/mios-ci.yml	5	13	9	67	dc685a024553	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:dc685a024553	67	0
@@ -23,37 +24,38 @@
 .github/workflows/mios-ci.yml	52	55	4	41	e0dc75f24424	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	68	69	2	15	a3c478469cd8	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	96	99	4	38	421f9de27b15	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	106	107	2	23	574a3e5e9dca	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	110	110	1	11	e25dd631f9a4	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	130	138	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
-.github/workflows/mios-ci.yml	142	149	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
-.github/workflows/mios-ci.yml	165	165	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	189	195	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
-.github/workflows/mios-ci.yml	205	208	4	45	bb115ad60339	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	216	218	3	31	4344358da414	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	220	220	1	4	98c5001eabea	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	226	226	1	8	a3d803844fcc	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	229	229	1	3	c8f82965cee6	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	241	248	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	250	256	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	262	273	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
-.github/workflows/mios-ci.yml	285	292	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
-.github/workflows/mios-ci.yml	302	305	4	29	874362a069a1	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	308	308	1	3	ee573bae3b99	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	315	356	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
-.github/workflows/mios-ci.yml	359	363	5	52	468de1b725d5	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	380	384	5	38	c390f3916297	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	399	399	1	12	8fc42e8edc15	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	403	418	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
-.github/workflows/mios-ci.yml	421	421	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	442	442	1	15	350923ec108b	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	473	473	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	515	519	5	51	bfdeb57544a6	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	526	532	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
-.github/workflows/mios-ci.yml	558	565	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	567	573	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	579	580	2	21	052c46f6412a	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	600	605	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
+.github/workflows/mios-ci.yml	106	108	3	31	d255aa36368b	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	113	114	2	23	574a3e5e9dca	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	117	117	1	11	e25dd631f9a4	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	137	145	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
+.github/workflows/mios-ci.yml	149	156	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
+.github/workflows/mios-ci.yml	172	172	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	196	202	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
+.github/workflows/mios-ci.yml	212	215	4	45	bb115ad60339	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	223	225	3	31	4344358da414	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	227	227	1	4	98c5001eabea	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	233	233	1	8	a3d803844fcc	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	236	236	1	3	c8f82965cee6	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	248	255	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	257	263	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	269	280	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
+.github/workflows/mios-ci.yml	292	299	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
+.github/workflows/mios-ci.yml	309	312	4	29	874362a069a1	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	315	315	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	322	363	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
+.github/workflows/mios-ci.yml	366	370	5	52	468de1b725d5	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	387	391	5	38	c390f3916297	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	406	406	1	12	8fc42e8edc15	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	410	425	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
+.github/workflows/mios-ci.yml	428	428	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	449	449	1	15	350923ec108b	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	480	480	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	522	526	5	51	bfdeb57544a6	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	533	539	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
+.github/workflows/mios-ci.yml	565	572	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	574	580	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	586	587	2	21	052c46f6412a	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	607	612	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
 .github/workflows/url-probe.yml	1	1	1	10	8661e4a2789d	STAY	ai-header		0				0
 Get-MiOS.ps1	1	3	3	52	6cb747722e65	STAY	ai-header		0				0
 Get-MiOS.ps1	4	4	1	0	e3b0c44298fc	STAY	inline-scoped		0				0
@@ -1978,14 +1980,20 @@ automation/lint-ps-analyzer.sh	29	29	1	1	d32e6f952b0e	DROP	banner		0				0
 automation/lint-ps-analyzer.sh	32	32	1	6	9742fa10645a	STAY	local-scoped		0				0
 automation/lint-ps-analyzer.sh	55	55	1	1	82cf68bf6b4f	DROP	banner		0				0
 automation/lint-ps-analyzer.sh	57	57	1	1	d32e6f952b0e	DROP	banner		0				0
-automation/lint-python.sh	1	2	2	13	d05cc7da6dcc	STAY	ai-header		0				0
-automation/lint-python.sh	15	17	3	32	14f1d5fdb35e	STAY	midsize-why		0				0
-automation/lint-python.sh	47	47	1	4	db541c34ee41	STAY	inline-scoped		0				0
-automation/lint-python.sh	52	52	1	5	951d3f2df708	STAY	inline-scoped		0				0
-automation/lint-python.sh	67	70	4	48	a4fe52ec0702	STAY	midsize-why		0				0
-automation/lint-python.sh	79	79	1	4	6adf4a4087ff	STAY	inline-scoped		0				0
-automation/lint-python.sh	86	86	1	3	9e64da71b7d2	STAY	inline-scoped		0				0
-automation/lint-python.sh	102	102	1	5	2cf48d6f4099	STAY	inline-scoped		0				0
+automation/lint-python.sh	1	2	2	45	e1f1e6bbbcc4	STAY	ai-header		0				0
+automation/lint-python.sh	15	16	2	22	6e9dfb8f6f3a	STAY	local-scoped		0				0
+automation/lint-python.sh	22	23	2	14	8bfb69f36033	STAY	local-scoped		0				0
+automation/lint-python.sh	30	30	1	13	b0bcb6460d78	STAY	local-scoped		0				0
+automation/lint-python.sh	33	33	1	1	0bb23e611c4d	DROP	commented-out-code		0				0
+automation/lint-python.sh	38	38	1	1	98c4efa37268	STAY	inline-scoped		0				0
+automation/lint-python.sh	43	43	1	13	f09e49f57a0b	STAY	local-scoped		0				0
+automation/lint-python.sh	52	53	2	22	3f20a3f493e8	STAY	local-scoped		0				0
+automation/lint-python.sh	59	59	1	4	db541c34ee41	STAY	inline-scoped		0				0
+automation/lint-python.sh	64	64	1	5	951d3f2df708	STAY	inline-scoped		0				0
+automation/lint-python.sh	79	82	4	48	a4fe52ec0702	STAY	midsize-why		0				0
+automation/lint-python.sh	91	91	1	4	6adf4a4087ff	STAY	inline-scoped		0				0
+automation/lint-python.sh	98	98	1	3	9e64da71b7d2	STAY	inline-scoped		0				0
+automation/lint-python.sh	114	114	1	5	2cf48d6f4099	STAY	inline-scoped		0				0
 automation/lint-shell.sh	1	3	3	21	2411c7784c4d	STAY	ai-header		0				0
 automation/lint-shell.sh	28	28	1	12	568e7f4258b5	STAY	local-scoped		0				0
 automation/lint-shell.sh	55	55	1	3	1e54c7f1c993	STAY	inline-scoped		0				0
@@ -3494,6 +3502,23 @@ tests/test-firstboot-prestage.sh	45	45	1	4	27567b03673f	STAY	inline-scoped		0			
 tests/test-launch-args.py	1	2	2	30	1bedc1bd110b	STAY	ai-header		0				0
 tests/test-launch-args.py	12	12	1	2	74a64c79f57a	STAY	inline-scoped		0				0
 tests/test-launch-args.py	13	13	1	4	cc713c17fe59	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	1	3	3	92	d57249cc05c6	STAY	ai-header		0				0
+tests/test-lint-python-coverage.sh	13	14	2	23	8747df914087	STAY	local-scoped		0				0
+tests/test-lint-python-coverage.sh	17	17	1	4	a40738662a1f	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	30	30	1	14	631020f84c9b	STAY	local-scoped		0				0
+tests/test-lint-python-coverage.sh	32	32	1	4	a0d4bcb70cb5	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	33	33	1	3	f62374362b5f	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	34	34	1	2	405ccb6614ca	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	35	35	1	2	e5a23d9ef31f	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	36	36	1	4	f38944f9940e	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	37	37	1	3	0e547651327f	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	42	42	1	4	08e841ed7980	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	46	46	1	4	99a709874b77	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	53	54	2	21	fda231c5a942	STAY	local-scoped		0				0
+tests/test-lint-python-coverage.sh	56	56	1	4	cbd712e27bde	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	57	57	1	1	e5150f850b69	DROP	banner		0				0
+tests/test-lint-python-coverage.sh	66	66	1	4	fa538dbe9588	STAY	inline-scoped		0				0
+tests/test-lint-python-coverage.sh	72	72	1	6	77a1feac3931	STAY	inline-scoped		0				0
 tests/test-lint-shell-coverage.sh	1	3	3	14	b98162bb847d	STAY	ai-header		0				0
 tests/test-lint-shell-coverage.sh	32	32	1	4	28308e3a757f	STAY	inline-scoped		0				0
 tests/test-mios-manual-harvest.sh	1	3	3	56	04494901519d	STAY	ai-header		0				0

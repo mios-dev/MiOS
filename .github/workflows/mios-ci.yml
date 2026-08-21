@@ -102,6 +102,13 @@ jobs:
       - name: Documentation harvest round-trip (test-mios-manual-harvest.sh)
         run: bash ./tests/test-mios-manual-harvest.sh
 
+      - name: Lint coverage (python + shell file sets)
+        # Assert the linters still SEE every payload area. Enumerating dirs one
+        # at a time is what left usr/share/mios unscanned; the shell twin had
+        # never been wired into any runner at all.
+        run: |
+          bash ./tests/test-lint-python-coverage.sh
+          bash ./tests/test-lint-shell-coverage.sh
       - name: OWUI pipe endpoint resolution (tests/test-owui-pipe-endpoints.py)
         # The canonical OWUI entry point must import and resolve its backend from
         # the SSOT; it did neither. Skips itself if pydantic/aiohttp are absent.
