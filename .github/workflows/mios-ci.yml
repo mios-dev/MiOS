@@ -421,10 +421,14 @@ jobs:
               _RECHUNKED=1
               echo "rechunk: bootc-base-imagectl fallback OK"
           fi
+          # Strict on PRs, degrade-open on main: a lossless layering win must never block a publish.
           if [[ -n "${_RECHUNKED}" ]]; then
               sudo podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "::error::all rechunkers failed -- pre-merge rechunk validation is strict"
+              exit 1
           else
-              echo "WARN: all rechunkers failed; pushing un-rechunked image" >&2
+              echo "WARN: all rechunkers failed; publishing un-rechunked image" >&2
           fi
           sudo podman tag "${IMAGE_TAG}" "localhost/mios:latest"
 
