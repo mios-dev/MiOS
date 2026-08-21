@@ -6175,6 +6175,7 @@ main() {
     check_docs_ratchet_monotone
     check_manual_generated
     check_manual_ledger
+    check_comment_landing
 
 
     check_chrony_ptp_dropin
@@ -7068,6 +7069,19 @@ check_manual_generated() {
     echo "[98-drift-checks]   check_manual_generated"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+# --- every pruned comment still lands in a doc ---
+check_comment_landing() {
+    echo "[98-drift-checks]   check_comment_landing"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "$line"
         done <<<"$out"

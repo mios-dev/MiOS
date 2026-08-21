@@ -89,6 +89,9 @@ jobs:
         # than only under `just drift-gate`.
         run: bash ./tests/test-pgvector-major-upgrade.sh
 
+      - name: Documentation harvest round-trip (test-mios-manual-harvest.sh)
+        run: bash ./tests/test-mios-manual-harvest.sh
+
       - name: SSOT-render conformance lint (97-ssot-lint.sh)
         run: bash ./automation/97-ssot-lint.sh
 

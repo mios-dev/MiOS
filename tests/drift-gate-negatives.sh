@@ -2315,6 +2315,23 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_comment_landing() {
+    log "Testing check_comment_landing"
+    local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
+    local backup; backup="$(mktemp)"
+    cp "$tsv" "$backup"
+    # Claim a block was pruned into a doc that does not carry its anchor: the
+    # gate must refuse to accept a deletion whose proof does not resolve.
+    printf 'tests/fixture-never-existed.sh\t1\t2\t2\t40\tfeedfacecafe\tMIGRATE\tmidsize-narrative\t\t0\tusr/share/doc/mios/manual.md\tmios-src:feedfacecafe\t40\t1\n' >> "$tsv"
+    if _neg_gate check_comment_landing; then
+        cp "$backup" "$tsv"; rm -f "$backup"
+        die "check_comment_landing passed despite a pruned block with no landing proof"
+    fi
+    cp "$backup" "$tsv"; rm -f "$backup"
+    _neg_gate check_comment_landing || die "check_comment_landing failed after restoration"
+    log "check_comment_landing negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -2368,6 +2385,7 @@ main() {
     test_docs_ratchet_monotone
     test_manual_generated
     test_manual_ledger
+    test_comment_landing
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

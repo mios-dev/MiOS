@@ -2265,6 +2265,7 @@ surfaces = [
   { generator = "automation/98-drift-checks.sh", check = "check_drift_projection", output = "stdout (drift assertions)" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_manual_ledger", output = "usr/share/mios/reference/manual-corpus.tsv" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_manual_generated", output = "usr/share/doc/mios/ (MIOS-GEN marker interiors)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_comment_landing", output = "usr/share/doc/mios/ (harvested passages + mios-src anchors)" },
 ]
 
 # ----------------------------------------------------------------------------

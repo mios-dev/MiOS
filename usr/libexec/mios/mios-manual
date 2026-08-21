@@ -169,6 +169,191 @@ def landed(row: dict, root: str, policy: mc.Policy) -> bool:
     return got >= policy.landing_min_word_ratio * want
 
 
+def _write_ledger(root: str, rows: list[dict]) -> None:
+    dest = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = sorted(rows, key=lambda r: (r["path"], int(r["start_line"] or 0)))
+    body = ["# " + "\t".join(COLUMNS)]
+    body += ["\t".join(r[c] for c in COLUMNS) for r in rows]
+    with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write("\n".join(body) + "\n")
+
+
+def _slug(text: str, limit: int = 60) -> str:
+    """A short human title for a harvested passage."""
+    first = " ".join(text.split())
+    if len(first) > limit:
+        first = first[:limit].rsplit(" ", 1)[0] + "..."
+    return first or "harvested note"
+
+
+def _passage(block, rel_src: str) -> str:
+    """The doc form of a source comment.
+
+    Carries the mios-src anchor that landed() looks for, so the doc itself is
+    the proof -- not a promise recorded elsewhere.
+    """
+    return (f"### {_slug(block.text)}\n\n"
+            f"{block.text.strip()}\n\n"
+            f"<!-- mios-src:{block.sha12} "
+            f"from {rel_src}:{block.start_line}-{block.end_line} -->\n")
+
+
+def cmd_harvest(args) -> int:
+    """Move a source comment's PROSE into a doc, and record where it landed.
+
+    Harvest never edits source. It writes the passage, stamps the anchor and
+    fills the ledger's landing columns; `prune` is the only thing that removes
+    the original, and only once landed() proves this step happened.
+    """
+    root = args.root
+    policy = _policy(root)
+    src_rel = args.path.replace(os.sep, "/")
+    dest_rel = args.to.replace(os.sep, "/")
+    dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
+
+    wanted = [b for b, v in _iter_blocks(root, policy)
+              if b.path == src_rel and v.cls == "MIGRATE"
+              and (not args.block or b.sha12.startswith(args.block))]
+    if not wanted:
+        print(f"no MIGRATE block in {src_rel}"
+              + (f" matching {args.block}" if args.block else ""), file=sys.stderr)
+        return 1
+
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+    if not rows:
+        print(f"{LEDGER_REL} is empty -- run `mios-manual ledger --write` first",
+              file=sys.stderr)
+        return 1
+
+    existing = ""
+    if os.path.isfile(dest_abs):
+        with open(dest_abs, encoding="utf-8") as fh:
+            existing = fh.read()
+
+    added, skipped = [], []
+    chunks = []
+    for b in wanted:
+        if f"mios-src:{b.sha12}" in existing:
+            skipped.append(b.sha12)
+            continue
+        chunks.append(_passage(b, src_rel))
+        added.append(b)
+
+    if args.dry_run:
+        for b in added:
+            print(f"would harvest {b.sha12} ({b.words} words) "
+                  f"{src_rel}:{b.start_line}-{b.end_line} -> {dest_rel}")
+        for sha in skipped:
+            print(f"already landed: {sha}")
+        return 0
+
+    if chunks:
+        os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+        header = ""
+        if not existing:
+            header = (f"<!-- AI-hint: Prose harvested out of source comments by "
+                      f"`mios-manual harvest`; each passage carries the mios-src anchor "
+                      f"that proves which comment it came from. -->\n\n"
+                      f"# Harvested notes\n\n")
+        with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+            if header:
+                fh.write(header)
+            elif not existing.endswith("\n\n"):
+                fh.write("\n")
+            fh.write("\n".join(chunks))
+
+    for b in added:
+        row = rows.get(b.sha12)
+        if row is None:
+            continue
+        row["landed_doc"] = dest_rel
+        row["landed_anchor"] = f"mios-src:{b.sha12}"
+        row["landed_words"] = str(b.words)
+    _write_ledger(root, list(rows.values()))
+
+    for b in added:
+        print(f"harvested {b.sha12} ({b.words} words) -> {dest_rel}")
+    for sha in skipped:
+        print(f"already landed: {sha}")
+    return 0
+
+
+def cmd_prune(args) -> int:
+    """Delete a source comment, but ONLY where landed() proves it is in a doc.
+
+    This is the only destructive path in the programme, so the predicate is
+    checked per block immediately before the lines are removed.
+    """
+    root = args.root
+    policy = _policy(root)
+    src_rel = args.path.replace(os.sep, "/")
+    src_abs = os.path.join(root, src_rel.replace("/", os.sep))
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+
+    targets = []
+    for b, v in _iter_blocks(root, policy):
+        if b.path != src_rel or v.cls != "MIGRATE":
+            continue
+        if args.block and not b.sha12.startswith(args.block):
+            continue
+        row = rows.get(b.sha12)
+        if row is None:
+            print(f"refusing {b.sha12}: no ledger row", file=sys.stderr)
+            continue
+        if not landed(row, root, policy):
+            print(f"refusing {b.sha12}: not landed in a doc "
+                  f"(harvest it first)", file=sys.stderr)
+            continue
+        targets.append((b, row))
+
+    if not targets:
+        print("nothing prunable (harvest first, then prune)", file=sys.stderr)
+        return 1
+
+    if args.dry_run:
+        for b, _ in targets:
+            print(f"would prune {src_rel}:{b.start_line}-{b.end_line} ({b.sha12})")
+        return 0
+
+    with open(src_abs, encoding="utf-8", newline="") as fh:
+        lines = fh.readlines()
+    # Highest line first, so earlier offsets stay valid as lines are removed.
+    for b, row in sorted(targets, key=lambda t: t[0].start_line, reverse=True):
+        del lines[b.start_line - 1:b.end_line]
+        row["pruned"] = "1"
+    with open(src_abs, "w", encoding="utf-8", newline="") as fh:
+        fh.writelines(lines)
+
+    _write_ledger(root, list(rows.values()))
+    for b, _ in targets:
+        print(f"pruned {src_rel}:{b.start_line}-{b.end_line} ({b.sha12})")
+    return 0
+
+
+def cmd_landing(args) -> int:
+    """Every pruned comment must still be provably present in a doc.
+
+    A tombstone whose doc passage was later deleted would mean a comment was
+    removed and its knowledge then silently lost -- exactly what the ledger
+    exists to make impossible. This is the gate for that.
+    """
+    root = args.root
+    policy = _policy(root)
+    rows = _read_ledger(os.path.join(root, LEDGER_REL.replace("/", os.sep)))
+    broken = [r for r in rows.values()
+              if r.get("pruned") == "1" and not landed(r, root, policy)]
+    for r in broken:
+        print(f"pruned block {r['sha12']} ({r['path']}) no longer lands in "
+              f"{r.get('landed_doc') or '<unset>'}", file=sys.stderr)
+    if broken:
+        return 1
+    pruned_n = sum(1 for r in rows.values() if r.get("pruned") == "1")
+    print(f"landing proofs intact ({pruned_n} pruned block(s) still documented)")
+    return 0
+
+
 def cmd_audit(args) -> int:
     root = args.root
     policy = _policy(root)
@@ -362,6 +547,23 @@ def main(argv=None) -> int:
     p = sub.add_parser("coverage", help="the two ratchet numbers")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_coverage)
+
+    p = sub.add_parser("harvest", help="move a source comment's prose into a doc")
+    p.add_argument("--path", required=True, help="source file, repo-relative")
+    p.add_argument("--to", required=True, help="destination doc, repo-relative")
+    p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_harvest)
+
+    p = sub.add_parser("prune", help="delete a comment that provably landed in a doc")
+    p.add_argument("--path", required=True, help="source file, repo-relative")
+    p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_prune)
+
+    p = sub.add_parser("landing", help="verify every pruned block still lands in a doc")
+    p.add_argument("--check", action="store_true")
+    p.set_defaults(fn=cmd_landing)
 
     p = sub.add_parser("render", help="splice derived sections into MIOS-GEN markers")
     p.add_argument("--check", action="store_true",
