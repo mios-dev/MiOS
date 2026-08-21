@@ -256,6 +256,131 @@ def _passage(block, rel_src: str) -> str:
             f"from {rel_src}:{block.start_line}-{block.end_line} -->\n")
 
 
+def sanitize(text: str, ssot: dict) -> str:
+    """Clean a scraped comment before it reaches a doc.
+
+    A comment is written for whoever is editing that file; a manual is read by
+    an operator on a booted host. Dev-box paths mean nothing to them, and a
+    secret that leaked into a comment must not be republished into a doc that
+    ships in the image.
+    """
+    import re as _re
+    cfg = (ssot.get("docs", {}) or {}).get("sanitize", {}) or {}
+    for pair in cfg.get("path_rewrites", []) or []:
+        if isinstance(pair, (list, tuple)) and len(pair) == 2:
+            text = text.replace(str(pair[0]), str(pair[1]))
+    mask = str(cfg.get("redact_with", "[redacted]"))
+    for pat in cfg.get("redact_patterns", []) or []:
+        try:
+            text = _re.sub(str(pat), mask, text)
+        except _re.error:
+            continue
+    return text
+
+
+def _distill_dest(rel: str, dest_dir: str) -> str:
+    """Which manual page a file's prose belongs on.
+
+    Grouped by the directory the file lives in, so the manual mirrors the tree
+    an operator is already navigating rather than inventing a second taxonomy.
+    """
+    parent = os.path.dirname(rel)
+    name = os.path.basename(parent) if parent else "root"
+    name = "".join(c if (c.isalnum() or c in "-_.") else "-" for c in name) or "root"
+    return f"{dest_dir.rstrip('/')}/{name}.md"
+
+
+def cmd_distill(args) -> int:
+    """The Day-N+1 pass: scrape comments, sanitize, distil into the manual.
+
+    Deliberately NON-destructive. It never edits source and never touches an
+    AI-hint: hints stay where they are and reach the docs through the index
+    deriver, while narrative comments are copied forward. Removing a scraped
+    comment stays a separate, opt-in `prune`.
+    """
+    import fnmatch
+    root = args.root
+    policy = _policy(root)
+    with open(_ssot_path(root), "rb") as fh:
+        ssot = tomllib.load(fh)
+    cfg = (ssot.get("docs", {}) or {}).get("distill", {}) or {}
+    if not cfg.get("enable", True):
+        print("distill disabled ([docs.distill].enable = false)")
+        return 0
+    dest_dir = str(cfg.get("dest_dir") or "usr/share/doc/mios/manual")
+    skips = [str(g) for g in (cfg.get("skip_globs") or [])]
+
+    mc.DEGRADED.clear()
+    ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+    rows = _read_ledger(ledger_path)
+    if not rows:
+        print(f"{LEDGER_REL} is empty -- run `mios-manual ledger --write` first",
+              file=sys.stderr)
+        return 1
+
+    by_dest: dict[str, list] = {}
+    for b, v in _iter_blocks(root, policy):
+        if v.cls != "MIGRATE":
+            continue
+        if any(fnmatch.fnmatch(b.path, g) for g in skips):
+            continue
+        row = rows.get(b.sha12)
+        if row is None or landed(row, root, policy):
+            continue          # already distilled, by content hash
+        by_dest.setdefault(_distill_dest(b.path, dest_dir), []).append(b)
+
+    if _refuse_if_degraded():
+        return 1
+
+    if not by_dest:
+        print("nothing to distil: every scraped comment already landed")
+        return 0
+
+    written = 0
+    for dest_rel, blocks in sorted(by_dest.items()):
+        dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
+        existing = ""
+        if os.path.isfile(dest_abs):
+            with open(dest_abs, encoding="utf-8") as fh:
+                existing = fh.read()
+        chunks = []
+        for b in blocks:
+            if f"mios-src:{b.sha12}" in existing:
+                continue
+            clean = sanitize(b.text, ssot)
+            chunks.append(f"### {_slug(clean)}\n\n{clean.strip()}\n\n"
+                          f"<!-- mios-src:{b.sha12} "
+                          f"from {b.path}:{b.start_line}-{b.end_line} -->\n")
+        if not chunks:
+            continue
+        if args.dry_run:
+            print(f"would distil {len(chunks)} block(s) -> {dest_rel}")
+            written += len(chunks)
+            continue
+        os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+        with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+            if not existing:
+                area = os.path.splitext(os.path.basename(dest_rel))[0]
+                fh.write(f"<!-- AI-hint: Manual pages distilled from the source "
+                         f"comments of {area}, sanitized, each passage anchored to "
+                         f"the comment it came from. -->\n\n# {area}\n\n")
+            fh.write("\n".join(chunks))
+        for b in blocks:
+            row = rows.get(b.sha12)
+            if row is None or f"mios-src:{b.sha12}" in existing:
+                continue
+            row["landed_doc"] = dest_rel
+            row["landed_anchor"] = f"mios-src:{b.sha12}"
+            row["landed_words"] = str(b.words)
+        written += len(chunks)
+        print(f"distilled {len(chunks)} block(s) -> {dest_rel}")
+
+    if not args.dry_run and written:
+        _write_ledger(root, list(rows.values()))
+    print(f"distilled {written} block(s) into {len(by_dest)} manual page(s)")
+    return 0
+
+
 def cmd_harvest(args) -> int:
     """Move a source comment's PROSE into a doc, and record where it landed.
 
@@ -854,6 +979,10 @@ def main(argv=None) -> int:
     p.add_argument("--block", help="only this sha12 (prefix ok)")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(fn=cmd_harvest)
+
+    p = sub.add_parser("distill", help="Day-N+1: scrape, sanitize and distil comments into the manual")
+    p.add_argument("--dry-run", action="store_true")
+    p.set_defaults(fn=cmd_distill)
 
     p = sub.add_parser("prune", help="delete a comment that provably landed in a doc")
     p.add_argument("--path", required=True, help="source file, repo-relative")

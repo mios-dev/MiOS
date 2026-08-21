@@ -13653,6 +13653,47 @@ ref_allowlist = [
 ]
 link_base = "repo"
 
+[docs.distill]
+# The Day-N+1 pass: comments are scraped, sanitized and distilled into the
+# manual. AI-hints are NOT scraped -- they stay in source and are projected
+# forward by the index deriver instead.
+enable   = true
+dest_dir = "usr/share/doc/mios/manual"
+# Areas never distilled: their comments are the operator-facing documentation
+# where they sit, or they are generated artifacts.
+skip_globs = [
+  "usr/share/mios/mios.toml",
+  "tools/native/mios-unit-gen/tests/golden/*",
+  "usr/share/doc/*",
+]
+
+[docs.sanitize]
+# Applied to every scraped comment before it reaches a doc. Order matters:
+# rewrites first, then redaction.
+# Dev-box paths -> the FHS canonical the doc reader actually has.
+# MOST SPECIFIC FIRST: these are applied in order, so a general drive rewrite
+# placed above the file:// form would corrupt it into file:////usr/share/...
+path_rewrites = [
+  ["file:///C:/MiOS/", ""],
+  ["file:///C:/", ""],
+  ["C:\\MiOS\\", "/usr/share/mios/"],
+  ["C:/MiOS/", "/usr/share/mios/"],
+  ["C:\\MiOS", "/usr/share/mios"],
+  ["C:/MiOS", "/usr/share/mios"],
+  ["/mnt/c/MiOS", "/usr/share/mios"],
+]
+# Secret-shaped values never reach a doc, whatever a comment happened to hold.
+# The keyword may sit inside a longer identifier (HA_PASSWORD=, MY_API_KEY:),
+# so no leading \\b -- that anchor is why FOO_PASSWORD=... escaped redaction.
+# The value must look like one: 4+ non-space chars, and not the ">" of a "=>"
+# arrow, so prose like "NO DISCORD_BOT_TOKEN => ..." is left alone.
+redact_patterns = [
+  "(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\\s*[:=]+\\s*(?![>\\s])[^\\s\"']{4,}",
+  "\\bsha256:[0-9a-f]{64}\\b",
+  "(?i)\\bBearer\\s+[A-Za-z0-9._-]{16,}",
+]
+redact_with = "[redacted]"
+
 [docs.boilerplate]
 # Canonical framing paragraphs, spliced into docs through MIOS-GEN markers.
 # The what-mios-is block had been hand-copied into dozens of files, where the

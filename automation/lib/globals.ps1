@@ -707,6 +707,9 @@ Fedora workstation -- the whole OS is a single container image, so `bootc
 upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
 is *also* a local, self-hosted, agentic AI operating system.
 ' }
+$script:MIOS_DOCS_DISTILL_DEST_DIR = if ($env:MIOS_DOCS_DISTILL_DEST_DIR) { $env:MIOS_DOCS_DISTILL_DEST_DIR } else { 'usr/share/doc/mios/manual' }
+$script:MIOS_DOCS_DISTILL_ENABLE = if ($env:MIOS_DOCS_DISTILL_ENABLE) { $env:MIOS_DOCS_DISTILL_ENABLE } else { 'true' }
+$script:MIOS_DOCS_DISTILL_SKIP_GLOBS = if ($env:MIOS_DOCS_DISTILL_SKIP_GLOBS) { $env:MIOS_DOCS_DISTILL_SKIP_GLOBS } else { 'usr/share/mios/mios.toml,tools/native/mios-unit-gen/tests/golden/*,usr/share/doc/*' }
 $script:MIOS_DOCS_LANDING_MIN_WORD_RATIO = if ($env:MIOS_DOCS_LANDING_MIN_WORD_RATIO) { $env:MIOS_DOCS_LANDING_MIN_WORD_RATIO } else { '0.9' }
 $script:MIOS_DOCS_LINK_BASE = if ($env:MIOS_DOCS_LINK_BASE) { $env:MIOS_DOCS_LINK_BASE } else { 'repo' }
 $script:MIOS_DOCS_LLM_PAYLOAD_GLOBS = if ($env:MIOS_DOCS_LLM_PAYLOAD_GLOBS) { $env:MIOS_DOCS_LLM_PAYLOAD_GLOBS } else { 'usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**' }
@@ -715,6 +718,9 @@ $script:MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE = if ($env:MIOS_DOCS_MAX_UNMIGRATED_N
 $script:MIOS_DOCS_MIGRATE_MIN_LINES = if ($env:MIOS_DOCS_MIGRATE_MIN_LINES) { $env:MIOS_DOCS_MIGRATE_MIN_LINES } else { 6 }
 $script:MIOS_DOCS_MIGRATE_MIN_WORDS = if ($env:MIOS_DOCS_MIGRATE_MIN_WORDS) { $env:MIOS_DOCS_MIGRATE_MIN_WORDS } else { 60 }
 $script:MIOS_DOCS_REF_ALLOWLIST = if ($env:MIOS_DOCS_REF_ALLOWLIST) { $env:MIOS_DOCS_REF_ALLOWLIST } else { '/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_' }
+$script:MIOS_DOCS_SANITIZE_PATH_REWRITES = if ($env:MIOS_DOCS_SANITIZE_PATH_REWRITES) { $env:MIOS_DOCS_SANITIZE_PATH_REWRITES } else { '[''file:///C:/MiOS/'', ''''],[''file:///C:/'', ''''],[''C:\\MiOS\\'', ''/usr/share/mios/''],[''C:/MiOS/'', ''/usr/share/mios/''],[''C:\\MiOS'', ''/usr/share/mios''],[''C:/MiOS'', ''/usr/share/mios''],[''/mnt/c/MiOS'', ''/usr/share/mios'']' }
+$script:MIOS_DOCS_SANITIZE_REDACT_PATTERNS = if ($env:MIOS_DOCS_SANITIZE_REDACT_PATTERNS) { $env:MIOS_DOCS_SANITIZE_REDACT_PATTERNS } else { '(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\s*[:=]+\s*(?![>\s])[^\s"'']{4,},\bsha256:[0-9a-f]{64}\b,(?i)\bBearer\s+[A-Za-z0-9._-]{16,}' }
+$script:MIOS_DOCS_SANITIZE_REDACT_WITH = if ($env:MIOS_DOCS_SANITIZE_REDACT_WITH) { $env:MIOS_DOCS_SANITIZE_REDACT_WITH } else { '[redacted]' }
 $script:MIOS_DOCS_SIGNALS_CODE = if ($env:MIOS_DOCS_SIGNALS_CODE) { $env:MIOS_DOCS_SIGNALS_CODE } else { '^\s*(if|for|while|def|class|function|export|set|return|elif|else|fi|done|esac|end)\b|[;{]\s*$|^\s*[\w.]+\s*=[^=]' }
 $script:MIOS_DOCS_SIGNALS_FACT = if ($env:MIOS_DOCS_SIGNALS_FACT) { $env:MIOS_DOCS_SIGNALS_FACT } else { '\b(broken|deprecated|removed|disabled|not supported|only on|requires|since|as of|WS-[A-Z]+|AGY-[0-9]+|ADR-[0-9]+|Law [0-9]+)\b' }
 $script:MIOS_DOCS_SIGNALS_NARRATIVE = if ($env:MIOS_DOCS_SIGNALS_NARRATIVE) { $env:MIOS_DOCS_SIGNALS_NARRATIVE } else { '\b(operator|used to|no longer|previously|regression|root cause|incident|reverted|scrapped|rejected|instead of|alternative|rationale|invariant|degrade|ADR-[0-9]+|Law [0-9]+|AGY-[0-9]+|WS-[A-Z]+|[0-9]{4}-[0-9]{2}-[0-9]{2})\b' }

@@ -1,0 +1,24 @@
+# AI-hint: Day-N+1 documentation pass -- scrapes the source comments, sanitizes them and distils them into the manual, then re-renders every derived section; AI-hints are left in place and reach the docs through the index deriver instead.
+# AI-related: mios-doc-distill.timer, mios-manual, usr/share/doc/mios/manual, usr/share/mios/reference/manual-corpus.tsv
+# /usr/lib/systemd/system/mios-doc-distill.service
+# Procedure and rationale: usr/share/doc/mios/reference/documentation-pipeline.md
+
+[Unit]
+Description='MiOS' daily comment-to-manual distillation
+Documentation=file:///usr/share/doc/mios/reference/documentation-pipeline.md
+ConditionVirtualization=|!container
+ConditionVirtualization=|wsl
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/mios/userenv.sh
+# The tree to distil. On a booted host /usr is read-only, so this no-ops with a
+# clear message; point it at a source checkout (MIOS-DEV, a dev box) to have it
+# actually run.
+Environment=MIOS_ROOT=/usr
+ExecStart=/usr/libexec/mios/mios-doc-distill
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
