@@ -2,7 +2,7 @@
      AI-related: /etc/profile.d/mios-xdg-cephfs.sh, /etc/mios/ai/v1/caller-keys.json, /etc/mios/ai/v1/a2a-peers.json, /usr/share/mios/ai/v1/mcp.json, /etc/mios/ai/v1/mcp.json, /usr/libexec/mios/mios-mcp-server, /etc/mios/hermes/config.local.yaml, /etc/mios/gateway/, /usr/libexec/mios/mios-cephfs-provision, /etc/mios/llamacpp/mios-llm-light.yaml -->
 # MiOS -- Master Tasks (SINGULAR monolith)
 
-> The one canonical task list. **253 tasks** (106 done, 147 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
+> The one canonical task list. **255 tasks** (189 closed, 66 open/in-progress). Absorbs the former `*-PLAN-*.md` + `concepts/*` backlogs. Each task carries **Who / What / Where / When / How** + Done-When.
 
 | ID | Pri | Status | Domain | Title |
 |---|---|---|---|---|
@@ -177,8 +177,8 @@
 | T-168 | P2 | planned | Security/Kernel | KENF-01 -- Tetragon eBPF/LSM kernel enforcement plane  [P2] [VM] |
 | T-169 | P2 | planned | Security/Sandbox | ISOL-01 -- Per-action isolation tier ladder (promote-not-refuse) |
 | T-170 | P1 | done-by-code | Computer-Use/Perception | GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1] |
-| T-171 | P2 | planned | Orchestration/Judging | CONS-01 -- Weighted multi-judge consensus pipeline  [P2] |
-| T-172 | P2 | planned | Observability/Safety | CONS-02 -- JSD drift monitor  [P2] |
+| T-171 | P2 | done | Orchestration/Judging | CONS-01 -- Weighted multi-judge consensus pipeline  [P2] |
+| T-172 | P2 | done | Observability/Safety | CONS-02 -- JSD drift monitor  [P2] |
 | T-173 | P0 | done | Autonomy/Safety | GUARD-01 -- Daemon runaway controls, FULLY implemented. `escalation_cooldown_s`/`escalation_max_attempts` were declared-and-dead (zero consumers); `_escalation_allowed()` now suppresses repeat escalation of the same concern inside the cooldown, parks it permanently at the attempt cap, keeps concerns independent, bounds its table and degrades open at cooldown<=0 -- applied at the refusal AND launch-verifier escalation sites. The host-pressure governor covered only 5 of 11 loops; the 6 that bypassed it (launch-verifier, fs-watcher, task-collector, index, satisfaction, rolling-report) now consult it, with fs-watcher still DRAINING inotify under pressure so the fd cannot overflow. `check_daemon_governor` (gate 160) makes it non-regressable: every autonomous loop must consult the gate, every [daemon] knob must have a real consumer (a mention in a comment or a test file does not count), and agent-pipe budget fallbacks must match the SSOT. 9-case + 7-case sibling tests, negative test. |
 | T-174 | P0 | done | Autonomy/Scheduling | GUARD-02 -- Aggregate token/turn budget + background preemption. Verified ENFORCED end to end: `chat.py` admits autonomous work against `autonomous_max_inflight` with a pruned in-flight set and debits a rolling `window_s` bucket; `agent_call.py` trims history when `conversation_token_ceil`/`autonomous_token_ceil` are exceeded and caps dispatch depth. FIXED: chat.py's fallback defaults had drifted MORE PERMISSIVE than the SSOT (autonomous_token_ceil 1,000,000 vs 400,000; autonomous_max_inflight 2 vs 1), so a failed TOML read silently ran 2.5x the token ceiling and double the concurrency. Now equal, and `check_daemon_governor` fails any future drift. |
 | T-175 | P1 | in-progress | Data/Durability | DURA-01 -- pgvector durability + exposure hardening. EXPOSURE AUDITED: the cluster binds `listen_addresses=127.0.0.1` on the `pgvector` port inside `mios-ai.pod` as uid 826 (not network-exposed), but its credential is `Environment=POSTGRES_PASSWORD=mios` in a WORLD-READABLE Quadlet -- and Law 11's enforcer never saw it, because it scans only `*.env`/`*secrets*` files for three hardcoded secret NAMES. A sweep found 7 such literals across units, including `WEBUI_SECRET_KEY=mios-stable-secret-change-me`. LANDED: `check_credential_literals` (gate 162) + `[security.credential_literals].grandfathered`, a SHRINK-ONLY registry -- the 7 are recorded, a NEW one fails the gate, and removing one without updating the list also fails. It distinguishes credentials from token COUNTS, boolean flags and `${VAR}` indirection (8-case sibling test + negative test). REMAINING for done: rotate the 7 into `/etc/mios/secrets.env` (0600) via `EnvironmentFile=`, which needs firstboot generation plus unit ordering AND a migration guard -- POSTGRES_PASSWORD only applies at initdb, so rotating it on an existing cluster locks the agent plane out of its own datastore. Needs a host to validate; not shippable blind. Durability (WAL/backup cadence) also still open. |
@@ -187,7 +187,7 @@
 | T-178 | P1 | in-progress | AI-plane/Inference/Deploy | HEAVY-01 -- provision the heavy dGPU model so the stated lanes d |
 | T-200 | P2 | planned | Provisioning/AI-lanes | FBM-01 -- First-boot large-model provisioner (`mios-models-first |
 | T-201 | P2 | planned | SSOT/CLI | FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync |
-| T-202 | P3 | planned | Provisioning/Containers | FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i |
+| T-202 | P3 | done-by-code | Provisioning/Containers | FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i |
 | T-203 | P3 | planned | UI/Provisioning | FBM-04 -- Portal model-provisioning status tile + air-gapped pre |
 | T-204 | P3 | done | Build/Offline | OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3] |
 | T-205 | P3 | done | Build/Offline | OFFL-02 -- Vendor desktop assets (Geist + Nerd fonts, Bibata cur |
@@ -219,7 +219,7 @@
 | T-231 | P2 | planned/unverified | Lifecycle/Health | KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI q |
 | T-232 | P3 | planned | UI/QML | UISHELL-01 -- Native QML Services/Swarm views (replace web-Porta |
 | T-233 | P3 | planned | UI/QML | UISHELL-02 -- Login-prompt QML popup (`PortalData.login()`)  [P3 |
-| T-234 | P3 | planned | UI/Config | UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3 |
+| T-234 | P3 | done | UI/Config | UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3 |
 | T-235 | P3 | ? | UI/Architecture | UISHELL-04 -- Cockpit native-vs-web decision  [P3] |
 | T-236 | P2 | planned | SSOT/Identity | NAME2-01 -- Agent-plane user SSOT reconciliation (820/822 → 850) |
 | T-237 | P3 | planned | Naming | NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent` |
@@ -227,7 +227,7 @@
 | T-239 | P3 | ? | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
 | T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored w |
 | T-241 | P2 | done | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
-| T-242 | P1 | planned | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
+| T-242 | P1 | done-by-code | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
 | T-243 | P1 | planned | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
 | T-244 | P2 | planned | AI-plane/Vectorization | VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve |
 | T-245 | P2 | planned | Build/Install/Xbox/DB | VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables |
@@ -253,11 +253,11 @@
 | T-265 | P2 | planned | Deploy/Cat/Docs | CATFLAT-02 -- ADR root breadcrumb (ADR.md + cat\ADR-0008.md) + spec cross-ref |
 | T-266 | P3 | done-by-code | Deploy/Cat/SSOT | CATFLAT-03 -- mios.toml seed-copy consolidation (63/68 KB seeds vs 597 KB SSOT) |
 | T-287 | P2 | done-by-code | Bootstrap/RAG | LOGBOOT-01 -- harden+complete `tools/log-to-bootstrap.sh`: purged-ollama `:11434` RAG snippet -> MiOS `/v1` lane (`:8642`, OpenAI-compatible); `--retry` on the example; `jq --rawfile` graph injection; SSOT endpoint. Producer follow-on = AGY-103 |
-| T-267 | P1 | planned | Config/Portal | CONFIG-01 -- Fold mios.html into the MiOS Portal at :8640/ (one web + API door) |
+| T-267 | P1 | done-by-code | Config/Portal | CONFIG-01 -- Fold mios.html into the MiOS Portal at :8640/ (one web + API door) |
 | T-268 | P1 | done-by-code | Build/SSOT/Version | DEBT-01 -- Collapse version/SSOT to one value (TD-2: 3x mios.toml + 0.2.4 root + 37x headers) |
 | T-269 | P1 | done-by-code | Build/Security | DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1) |
 | T-270 | P1 | done-by-code | Dotfiles/SSOT | DOTFILES-01 -- [dotfiles.registry.*] + mios-dotfiles-render + apply verb + both-sides gate (ADR-0010) |
-| T-271 | P1 | planned | Build/Templates | TEMPLATE-01 -- Compiled file-pattern system + mios new + conformance check + Law-14 (ADR-0011) |
+| T-271 | P1 | done-by-code | Build/Templates | TEMPLATE-01 -- Compiled file-pattern system + mios new + conformance check + Law-14 (ADR-0011) |
 | T-272 | P1 | planned | Build/Lang | LANG-01 -- Stand up Rust workspace + port first fragile bash tool (drift-runner/verb dispatcher) |
 | T-273 | P2 | planned | AI-Plane/Refactor | DEBT-03 -- Split mios_dispatch.py + finish server.py decomposition (TD-5) |
 | T-274 | P1 | done | Deploy/MiOS-Cat | CATREPO-FIX -- MiOS-Cat stages `repos/` onto the DATA partition instead of the REPO partition (WS-CATREPO, rel T-260). Repos (config/source clone) belong on the small always-present MiOS-Repo (E:); MiOS-Data is caches/models/user-DBs/deps ONLY. Fix the staging path in `cat/MiOS-Cat.bat` + `.ps1` so repos land on MiOS-Repo. **Done-when:** a fresh `cat stage` places `repos/` on MiOS-Repo, nothing repo-class on MiOS-Data, kickstart path aligned. |
@@ -1970,7 +1970,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** A multi-judge Definition-of-Done is reached by quorum with conflicting judges resolved by weighted vote, `[consensus].enable=false` keeps the fast CPU path single-judge, and `test_mios_consensus.py` passes the weighted_vote and RRF math.
 **Why:** The DCI critic returns a single yes/no verdict, so one unreliable judge lane can gate or pass the whole pipeline with no second opinion and no reliability weighting.
 **Dep:** builds on T-049 (reliability scorer) for weights; degrade-open so it functions without it
-**Status:** planned | **Domain:** Orchestration/Judging | **Who:** orchestration engineer (agent-pipe judge path)
+**Status:** done -- landed: `mios_pipe/routing/consensus.py` (weighted_vote + RRF + resolve_weights, 37 assertions in `test_mios_consensus.py`), wired into `_judge_answer_satisfied` via `_judge_panel_verdict` behind `[consensus].enable` (default false), 7 wiring cases in `test_mios_reflect.py`, `[consensus]` SSOT + configurator card, rationale in manual ch52. Abstention is not a rejection; sub-quorum falls back to the single lane. | **Domain:** Orchestration/Judging | **Who:** orchestration engineer (agent-pipe judge path)
 
 ## T-172 -- CONS-02: Jensen-Shannon drift monitor as the Goodhart early-warning alarm  (WS-DURA | P2 | M)
 **Goal:** E-24 Autonomy guardrails -- self-improvement and consensus cannot quietly optimize into reward-hacking without an alarm.
@@ -1979,7 +1979,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Crossing the JSD threshold emits a `drift_alert` event, `GET /v1/drift` returns the current divergence against baseline, and `drift_snapshot` records a baseline row on first run.
 **Why:** There is no distribution-drift alarm at all, so as T-062/T-064 self-improvement and T-171 consensus come online a Goodhart shift in verdict distribution would be invisible until behavior visibly degrades.
 **Dep:** pairs with T-171/T-049; can land independently as an observe-only alarm
-**Status:** planned | **Domain:** Observability/Safety | **Who:** orchestration engineer (metrics + pgvector)
+**Status:** done -- landed: `mios_pipe/observability/drift_monitor.py` (bounded log2 JSD + per-axis `compare` + thin-window guard, 33 assertions in `test_mios_drift_monitor.py`), `drift_snapshot` table, `GET /v1/drift` emitting `drift_alert`, `[drift_monitor]` SSOT + configurator card, manual ch53. NOTE: the SSOT table is `[drift_monitor]`, NOT `[drift]` -- `[drift]` already registers agent-pipe module-wiring exceptions. Axes are `verdict` + `intent`, extracted from recorded satisfaction events, so no separate sampler is needed. | **Domain:** Observability/Safety | **Who:** orchestration engineer (metrics + pgvector)
 
 ## T-173 -- GUARD-01: daemon runaway controls -- host-pressure gate, classification dedup, cron cap  (WS-GUARD | P0 | M)
 **Goal:** E-24 Autonomy guardrails -- the agent plane cannot starve its own host; this is the direct fix for the live GPU-runaway incident.
@@ -2072,7 +2072,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** a first boot pulls the heavy-lane images exactly once and the heavy lanes start against them when enabled; the built image no longer contains the large heavy-lane layers and the measured image size drops.
 **Why:** the vLLM+SGLang whales are the reason the bake has to be tiered to fit a standard runner at all -- while they are baked in, every publish is capacity-gated.
 **Dep:** After the T-200 sentinel/first-boot pattern is established.
-**Status:** planned | **Domain:** Provisioning/Containers | **Who:** systemd/build agent
+**Status:** done-by-code (audited) -- `[build.bake].firstboot_tokens` (mios.toml:10484) projects through `tools/generate-bake-plan.py` into `usr/lib/mios/bake/plan.d/firstboot.list` (4 refs), and BOTH de-bake branches honour it: the shell path in `automation/01-system-files-overlay.sh:113-131` and the Rust `miosd overlay-bind-images` path (`src/mios-rs/miosd/src/main.rs:724-800`, which re-parses firstboot_tokens). Cleanup left: the dormant `mios-bound-images-firstboot` unit is a second mechanism on an undeclared key -- retire it or point it at firstboot.list. | **Domain:** Provisioning/Containers | **Who:** systemd/build agent
 
 ---
 
@@ -2387,7 +2387,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Both the Surfer and Zen paths resolve the sidebar endpoint from the same SSOT key, no `:3030` literal remains in the bake script, and a rebuilt Surfer opens the correct endpoint.
 **Why:** Two browsers in the same image talk to two different AI backends, and the divergence is frozen into a baked artifact until someone notices.
 **Dep:** Before the next Surfer rebuild.
-**Status:** planned | **Domain:** UI/Config | **Who:** portal/UI agent
+**Status:** done -- `automation/67-bake-surfer.sh` no longer bakes ANY endpoint literal: the AI sidebar resolves `MIOS_BROWSER_AI_PROVIDER_URL` ([browser_ai].provider_url, the key the Zen path also reads) and the two cockpit buttons resolve MIOS_PORT_AGENT_PIPE / MIOS_PORT_HERMES. Two of the three former literals were RETIRED ports (3030, 8642). An unresolved value hard-fails the bake rather than freezing a guess, and the file is registered in `[docs].port_clean` so a retired number cannot return. Clause 3 (a rebuilt Surfer opens the endpoint) needs a bake to observe. | **Domain:** UI/Config | **Who:** portal/UI agent
 
 ## T-235 -- UISHELL-04: Decide Cockpit's native-vs-web posture and record it  (WS-DESKTOP | P3 | S)
 **Goal:** E-22 Dotfiles projection -- the desktop-shell scope is a recorded decision, not an open Phase-4 question blocking downstream work.
@@ -2459,7 +2459,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Check 29 regenerates TOML from the DB and diffs clean, the verb round-trip loses no field, and `just drift-gate` plus `test_mios_*` pass.
 **Why:** Without a proven-lossless inverse and a gate on it, every later phase moves authority into a store that cannot demonstrate it still holds everything SSOT held.
 **Dep:** First in the V-series -- depends on nothing beyond a running `mios-pgvector`.
-**Status:** completed (implemented lossless DB-to-TOML materialize tool and drift checks) | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent
+**Status:** done-by-code (audited, gate executed) -- unified DB at `/var/lib/mios/pgvector` declared via tmpfiles; schema-init.sql is applied BOTH at initdb and by ExecStartPost psql; emb/emb_model/emb_version provenance on knowledge, agent_memory and config_kv with matching HNSW indexes; `usr/libexec/mios/materialize-config-toml.py` is a real DB->TOML inverse; `check_drift_projection` is registered and green. Nit: the `aliases` entry in supported_verb_fields is vacuous (both sides read `hidden_aliases`). | **Domain:** AI-plane/SSOT/DB | **Who:** DB/build agent
 
 ## T-243 -- VECTOR-01: V1 config read-path -- the DB becomes the runtime read, TOML fails open  (WS-VECTOR | P1 | L)
 **Goal:** E-23 DB-driven configuration and vector recall -- runtime config resolves from the layered DB while TOML stays the safety net, killing the write-only `system_config` drift.
@@ -2675,7 +2675,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** The configurator is a view inside the Portal at `:8640/`; `GET /` and `/v1/*` share the one door; every deployment type's config reads and writes `mios.toml` through that surface; the shareable link and the USB present the same surface online and offline.
 **Why:** A standalone HTML configurator that edits a file nobody else reads is a second config path around the SSOT — the operator configures one thing and the running system honors another.
 **Dep:** No hard dependency (the Portal and `:8640` `/v1` already exist). Converges with T-253 (the single `:8640` front-door collapse); governed by ADR-0007.
-**Status:** done-by-code | **Domain:** Config/Portal | **Who:** agent-pipe / Portal backend engineer
+**Status:** done-by-code (audited) -- one FastAPI app serves both doors: `portal_router` is mounted at `server.py:4207`, with `/`, `/configure` and `/portal/configurator` (which reads MIOS_CONFIGURATOR_HTML at request time and injects the [colors] theme). GET/POST `/portal/config` validate-then-write the user layer and background-reseed the DB. Port prose needs repointing: the door is the `agent_pipe` key (8700); 8640 is in `[docs].retired_ports`. The standalone .desktop entry is retained by design. | **Domain:** Config/Portal | **Who:** agent-pipe / Portal backend engineer
 
 ## T-268 -- DEBT-01: Collapse the version/SSOT triplication to one projected token (TD-2)  (WS-DEBT | P1 | M)
 **Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the version literal is single-sourced so no build can resolve a stale copy.
@@ -2711,7 +2711,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** `mios new <type> <name>` produces a file that passes `check_template_conformance` and the golden compiler; a template that cannot produce a conformant file fails the build; the header check is provably the header subset of conformance; Law 14 is proposed with enforcement wired and the `[laws]` row awaiting operator sign-off.
 **Why:** Only the AI-hint header is checked today, so every new file's body structure is improvised and each agent re-invents MiOS conventions by grepping neighbors — the drift that template conformance exists to stop.
 **Dep:** No hard dependency (Python-first, offline-deterministic); folds into WS-LANG's `miosd` (T-272) once the Rust workspace exists. OPEN QUESTIONS: Law-14 operator confirmation; the next free drift-check number.
-**Status:** done-by-code | **Domain:** Build/Templates | **Who:** tooling/docs agent
+**Status:** done-by-code (audited, gate executed: `checked=1639 unconforming=0 ceiling=0`) -- 26 `[templates.<type>]` SSOT sections, 26 template bodies, `mios new` wired as a verb at `usr/bin/mios:337`, and three registered gates (check_template_conformance / check_templates_compilation / check_template_self_conformance). Bookkeeping: the law landed as id 16 ONE-TEMPLATE-PER-TYPE, not 14; `conformance-grandfathered.list` is a 429-line ratchet still to drain. | **Domain:** Build/Templates | **Who:** tooling/docs agent
 
 ## T-272 -- LANG-01: Stand up the Rust workspace and port the first fragile bash tool  (WS-LANG | P1 | L)
 **Goal:** E-01 Compiled native tier: Rust-port the build orchestrator and the libexec tool fleet -- the strangler-fig migration begins with proven byte-parity before any shell is deleted.

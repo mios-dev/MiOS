@@ -1,6 +1,6 @@
 # AI-hint: BACKGROUND async daemon-loop bodies extracted VERBATIM from server.py
 # AI-related: ./server.py, ./mios_config.py, ./mios_gossip.py, ./mios_pg.py, ./mios_reputation.py, ./mios_selfimprove.py, ./mios_kvgc.py, ./mios_kvfork.py, ./test_mios_daemons.py
-# AI-functions: _membership_watch_loop, _gossip_loop, _reputation_restore, _reputation_flush, _selfimprove_report, _selfimprove_loop, _kv_gc_sweep_once, _kv_gc_loop, daemons_router, selfimprove_report_ep, configure
+# AI-functions: _membership_watch_loop, _gossip_loop, _reputation_restore, _reputation_flush, _selfimprove_report, _selfimprove_loop, _kv_gc_sweep_once, _kv_gc_loop, _consolidate_memory_sweep_once, _consolidate_group, _consolidate_memory_loop, daemons_router, selfimprove_report_ep, configure
 """BACKGROUND async daemon loops (strangler-fig refactor).
 
 Extracted VERBATIM from ``server.py``. These are the long-lived ``create_task()``
@@ -51,6 +51,10 @@ _MEMBERSHIP_WATCH_PATHS = None
 MEMBERSHIP_WATCH_INTERVAL_S = 30
 _PG_PRIMARY = False
 
+MEMORY_CONSOLIDATE_ENABLED = True
+MEMORY_CONSOLIDATE_INTERVAL_S = 3600
+MEMORY_CONSOLIDATE_MAX_GROUPS = 200
+
 KV_SLOTS_DIR = ""
 KV_GC_TTL_S = 0.0
 KV_GC_MAX_BYTES = 0
@@ -63,7 +67,8 @@ _INJECTED = frozenset((
     "_reload_membership", "_SELFIMPROVE_SEEN",
     "_MEMBERSHIP_WATCH_PATHS", "MEMBERSHIP_WATCH_INTERVAL_S", "_PG_PRIMARY",
     "KV_SLOTS_DIR", "KV_GC_TTL_S", "KV_GC_MAX_BYTES", "KV_GC_INTERVAL_S",
-    "_KV_RESIDENT",
+    "_KV_RESIDENT", "MEMORY_CONSOLIDATE_ENABLED",
+    "MEMORY_CONSOLIDATE_INTERVAL_S", "MEMORY_CONSOLIDATE_MAX_GROUPS",
 ))
 
 
@@ -430,6 +435,97 @@ async def _kv_gc_loop() -> None:
         try:
             await asyncio.sleep(max(60, int(KV_GC_INTERVAL_S)))
             _kv_gc_sweep_once()
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001
+            await asyncio.sleep(60)
+
+
+async def _consolidate_memory_sweep_once() -> dict:
+    """One consolidation pass over `knowledge`: collapse same-question rows into
+    the newest, folding counters in. Postgres-only. Details in ch54."""
+    stats = {"groups": 0, "merged": 0, "skipped": 0}
+    if not (_PG_PRIMARY and _mios_pg):
+        stats["skipped"] = 1
+        return stats
+    limit = max(1, int(MEMORY_CONSOLIDATE_MAX_GROUPS))
+    # One statement per group keeps each merge atomic; a single mega-CTE would
+    # roll the whole sweep back on one bad row.
+    sql_groups = (
+        "SELECT lower(btrim(q)) AS nq, count(*) AS n "
+        "FROM knowledge WHERE pinned IS NOT TRUE "
+        "GROUP BY lower(btrim(q)) HAVING count(*) > 1 "
+        "ORDER BY count(*) DESC LIMIT %(lim)s"
+    )
+    try:
+        groups = await _mios_pg.execute(sql_groups, {"lim": limit}, fetch=True)
+    except Exception:  # noqa: BLE001 -- consolidation is best-effort
+        log.debug("consolidate: could not list duplicate groups")
+        stats["skipped"] = 1
+        return stats
+    for row in (groups or []):
+        nq = (row or {}).get("nq")
+        if not nq:
+            continue
+        stats["groups"] += 1
+        try:
+            merged = await _consolidate_group(str(nq))
+            stats["merged"] += merged
+        except Exception:  # noqa: BLE001
+            stats["skipped"] += 1
+    if stats["merged"]:
+        log.info("consolidate: merged %d duplicate knowledge row(s) across %d group(s)",
+                 stats["merged"], stats["groups"])
+    return stats
+
+
+async def _consolidate_group(nq: str) -> int:
+    """Merge one normalized-question group into its newest row. Returns the
+    number of rows removed (0 when the group turned out to be unmergeable)."""
+    rows = await _mios_pg.execute(
+        "SELECT id, access_count, recall_hits, last_access, pinned "
+        "FROM knowledge WHERE lower(btrim(q)) = %(nq)s "
+        "ORDER BY ts DESC, id DESC", {"nq": nq}, fetch=True)
+    rows = [r for r in (rows or []) if isinstance(r, dict)]
+    if len(rows) < 2:
+        return 0
+    if any(r.get("pinned") for r in rows):
+        # A pinned row in the group means an operator asked for that exact
+        # entry to survive; merging could delete it, so leave the group whole.
+        return 0
+    keep = rows[0]
+    losers = []
+    for r in rows[1:]:
+        try:
+            losers.append(int(r["id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if not losers:
+        return 0
+    access = sum(int(r.get("access_count") or 0) for r in rows)
+    recall = sum(int(r.get("recall_hits") or 0) for r in rows)
+    await _mios_pg.execute(
+        "UPDATE knowledge SET access_count = %(a)s, recall_hits = %(r)s, "
+        "last_access = GREATEST(coalesce(last_access, ts), "
+        "  (SELECT max(coalesce(last_access, ts)) FROM knowledge "
+        "   WHERE lower(btrim(q)) = %(nq)s)) "
+        "WHERE id = %(id)s",
+        {"a": access, "r": recall, "nq": nq, "id": int(keep["id"])}, fetch=False)
+    await _mios_pg.execute(
+        "DELETE FROM knowledge WHERE id = ANY(%(ids)s)",
+        {"ids": losers}, fetch=False)
+    return len(losers)
+
+
+async def _consolidate_memory_loop() -> None:
+    """Periodic knowledge-memory consolidation. Sleeps first (no boot sweep),
+    then every MEMORY_CONSOLIDATE_INTERVAL_S. Survives errors."""
+    while True:
+        try:
+            await asyncio.sleep(max(60, int(MEMORY_CONSOLIDATE_INTERVAL_S)))
+            if not MEMORY_CONSOLIDATE_ENABLED:
+                continue
+            await _consolidate_memory_sweep_once()
         except asyncio.CancelledError:
             raise
         except Exception:  # noqa: BLE001

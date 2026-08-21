@@ -586,6 +586,23 @@ INSERT INTO config_layer (rank, name) VALUES
     (3, 'machine')
 ON CONFLICT (rank) DO UPDATE SET name = EXCLUDED.name;
 
+-- CONS-02 Goodhart alarm. One row per drift sample: `axis` names the
+-- distribution ("verdict", "intent", "score"), `dist` is the normalized
+-- histogram, and `kind` marks the frozen reference ('baseline') apart from the
+-- periodic observations ('sample'). Divergence is not stored -- it is derived
+-- from a (baseline, sample) pair, so re-thresholding never needs a backfill.
+CREATE TABLE IF NOT EXISTS drift_snapshot (
+    id bigserial PRIMARY KEY,
+    ts timestamptz DEFAULT now(),
+    kind text NOT NULL DEFAULT 'sample',
+    axis text NOT NULL,
+    dist jsonb NOT NULL,
+    samples integer NOT NULL DEFAULT 0,
+    source text
+);
+CREATE INDEX IF NOT EXISTS drift_snapshot_axis_ts_idx
+    ON drift_snapshot (axis, kind, ts DESC);
+
 CREATE TABLE IF NOT EXISTS config_event (
     id          bigserial PRIMARY KEY,
     ts          timestamptz DEFAULT now(),

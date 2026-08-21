@@ -283,6 +283,17 @@ COUNCIL_AGGREGATOR_BYPASS_THRESHOLD = _cfg_num(
     _COUNCIL_TOML, "MIOS_COUNCIL_AGGREGATOR_BYPASS_THRESHOLD",
     "aggregator_bypass_threshold", 0.95, cast=float)
 
+_DRIFT_MONITOR_TOML = _toml_section("drift_monitor") or {}
+DRIFT_MONITOR_ENABLED = _cfg_bool(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_ENABLE", "enable", False)
+DRIFT_MONITOR_THRESHOLD = _cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_THRESHOLD", "threshold", 0.2, cast=float)
+DRIFT_MONITOR_WINDOW = int(_cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_WINDOW", "window", 200, cast=float))
+DRIFT_MONITOR_MIN_SAMPLES = int(_cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_MIN_SAMPLES", "min_samples", 30, cast=float))
+DRIFT_MONITOR_AXES = [str(a) for a in (_DRIFT_MONITOR_TOML.get("axes") or [])]
+
 _CONSENSUS_TOML = _toml_section("consensus") or {}
 CONSENSUS_ENABLED = _cfg_bool(
     _CONSENSUS_TOML, "MIOS_CONSENSUS_ENABLE", "enable", False)
@@ -300,7 +311,24 @@ CONSENSUS_RRF_K = int(_cfg_num(
 # "the refine lane", so a panel can be declared without repeating its address.
 CONSENSUS_LANES = [d for d in (_CONSENSUS_TOML.get("lanes") or []) if isinstance(d, dict)]
 
+_PGVECTOR_TOML = _toml_section("pgvector") or {}
+# Postgres is the agent plane's SOLE datastore since the WS-A3 cutover, so
+# "enabled and backed by postgres" IS "primary". These were referenced from
+# server.py without ever being defined -- see manual ch54.
+_PG_ENABLED = _cfg_bool(_PGVECTOR_TOML, "MIOS_PG_ENABLE", "enable", True)
+_PG_PRIMARY = _PG_ENABLED and str(
+    os.environ.get("MIOS_PG_BACKEND")
+    or _PGVECTOR_TOML.get("db_backend", "postgres")).strip().lower() == "postgres"
+
 _MEMORY_TOML = _toml_section("memory") or {}
+MEMORY_CONSOLIDATE_ENABLED = _cfg_bool(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE", "consolidate", True)
+MEMORY_CONSOLIDATE_INTERVAL_S = int(_cfg_num(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE_INTERVAL_S",
+    "consolidate_interval_s", 3600, cast=float))
+MEMORY_CONSOLIDATE_MAX_GROUPS = int(_cfg_num(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE_MAX_GROUPS",
+    "consolidate_max_groups", 200, cast=float))
 KV_SLOT_PERSIST = (
     os.environ.get("MIOS_KV_SLOT_PERSIST", "").strip().lower() in {"1", "true", "yes"}
     or str(_MEMORY_TOML.get("kv_slot_persist", "true")).strip().lower() in {"1", "true", "yes", "on"}

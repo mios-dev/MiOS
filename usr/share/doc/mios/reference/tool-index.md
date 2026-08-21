@@ -420,6 +420,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/observability/__init__.py` | observability manager package |
 | `usr/lib/mios/agent-pipe/mios_pipe/observability/audit.py` | SEC-03 tamper-evident SHA-256 hash chain over the agent-plane `event` stream. Holds the PURE, dependency-free chain primitives (canonical_core over a row's immutable content fields, link_hash =... |
 | `usr/lib/mios/agent-pipe/mios_pipe/observability/cost.py` | WS-RES-GOV cost/energy accounting core (the PURE half, CLASSic "Cost" axis). MiOS's only budget signal was a token-count rolling tripwire -- there was ZERO $-cost or energy/kWh accounting, yet on a... |
+| `usr/lib/mios/agent-pipe/mios_pipe/observability/drift_monitor.py` | Pure Jensen-Shannon divergence monitor over agent-plane verdict/intent/score histograms (CONS-02). histogram() folds raw label samples into a normalized distribution; jensen_shannon() returns the... |
 | `usr/lib/mios/agent-pipe/mios_pipe/observability/session_events.py` | Session-event emitter + tool-text sanitizer extracted from server.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/observability/trace.py` | WS-A8 per-request trace/span observability primitive for the agent-pipe. Provides Span + Tracer (a pure-stdlib, bounded in-memory span emitter): a chat_completions request mints a trace_id, each... |
 | `usr/lib/mios/agent-pipe/mios_pipe/redact.py` | Redaction utilities for secrets and PII. |
@@ -578,6 +579,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_dci.py` | Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. Pins the DCI epistemic-act vocabulary + structured-output contract the... |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch.py` | Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint). Verifies _build_dispatch_cmd shapes a representative verb's argv (both a hardcoded branch and an SSOT cmd-template... |
 | `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + its integration with mios_router + mios_kernel. Pure stdlib + asyncio, no... |
+| `usr/lib/mios/agent-pipe/test_mios_drift_monitor.py` | Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no live model: the module is pure. Proves the Done-When math... |
 | `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. Verifies fact_ledger & progress_ledger table insertion triggers,... |
 | `usr/lib/mios/agent-pipe/test_mios_egress.py` | Standalone unit test for tools/generate-egress-firewall (#54 egress firewall): build_ruleset emits a uid-scoped nftables ruleset with the always-allowed nets, per-mode final action (off=no-op,... |
 | `usr/lib/mios/agent-pipe/test_mios_embed_backfill.py` | Standalone assert-script unit test for mios_embed_backfill (WS-A2 embedding-version hygiene). Pure stdlib, no server.py / DB / pytest -- runs as `python3 test_mios_embed_backfill.py` (exit 0 = pass)... |
@@ -687,7 +689,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. Collapses the ~13 independently re-rolled `try: import tomllib except: import tomli` +... |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests for the Python tokenize/ast path and the inline-comment case. |
 
-<!-- derived from the AI-hint headers of 385 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 387 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

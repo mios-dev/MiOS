@@ -23,7 +23,7 @@ behaviour is byte-identical until a different provider is configured.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 
 class MemoryProvider(ABC):

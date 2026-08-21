@@ -3061,6 +3061,17 @@
         <input type="text" id="f-sched-uw" data-key="sched.score_urgency_weight" data-type="float" placeholder="0.6">
       </fieldset>
       <fieldset>
+        <legend>[drift_monitor] — Jensen-Shannon Goodhart alarm (observe-only)</legend>
+        <label for="f-drm-enable">enable (off = no divergence is computed and no alert can fire)</label>
+        <input type="text" id="f-drm-enable" data-key="drift_monitor.enable" data-type="bool" placeholder="false">
+        <label for="f-drm-thr">threshold (JSD 0..1 at or above which drift_alert fires)</label>
+        <input type="text" id="f-drm-thr" data-key="drift_monitor.threshold" data-type="float" placeholder="0.2">
+        <label for="f-drm-win">window (most recent verdicts per axis forming the live window)</label>
+        <input type="text" id="f-drm-win" data-key="drift_monitor.window" data-type="int" placeholder="200">
+        <label for="f-drm-min">min_samples (observations required before an axis may alert)</label>
+        <input type="text" id="f-drm-min" data-key="drift_monitor.min_samples" data-type="int" placeholder="30">
+      </fieldset>
+      <fieldset>
         <legend>[consensus] — weighted multi-judge Definition-of-Done</legend>
         <label for="f-cons-enable">enable (off = the judge stays single-lane on the fast CPU path)</label>
         <input type="text" id="f-cons-enable" data-key="consensus.enable" data-type="bool" placeholder="false">

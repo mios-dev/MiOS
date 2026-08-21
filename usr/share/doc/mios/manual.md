@@ -238,6 +238,20 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Degrading Open](manual/ch52-multi-judge-consensus.md#52_degrading_open): Details the three ways the panel steps aside for the single-lane judge.
   * [Consensus Configuration](manual/ch52-multi-judge-consensus.md#52_consensus_configuration): Explains the [consensus] SSOT keys, env overrides and lane declarations.
 
+* **[Chapter 53: Drift Monitoring](manual/ch53-drift-monitoring.md)**
+  * [The Divergence Measure](manual/ch53-drift-monitoring.md#53_the_divergence_measure): Covers the bounded, symmetric Jensen-Shannon score and why it beats KL here.
+  * [The Frozen Baseline](manual/ch53-drift-monitoring.md#53_the_frozen_baseline): Details self-seeding the reference so the alarm starts quiet.
+  * [The Thin-Window Guard](manual/ch53-drift-monitoring.md#53_the_thin_window_guard): Explains why a handful of samples can never raise an alert.
+  * [Axes and Extraction](manual/ch53-drift-monitoring.md#53_axes_and_extraction): Covers the verdict and intent label extractors over recorded events.
+  * [The Alert and the Surface](manual/ch53-drift-monitoring.md#53_the_alert_and_the_surface): Details GET /v1/drift and the drift_alert session event.
+  * [Drift Configuration](manual/ch53-drift-monitoring.md#53_drift_configuration): Explains the [drift_monitor] SSOT keys and its split from [drift].
+
+* **[Chapter 54: Agent-Pipe Importability](manual/ch54-agent-pipe-importability.md)**
+  * [The Three Undefined Names](manual/ch54-agent-pipe-importability.md#54_the_three_undefined_names): Covers the module-scope names that made server.py unimportable.
+  * [Why the Gates Missed It](manual/ch54-agent-pipe-importability.md#54_why_the_gates_missed_it): Details the parse-only lint and the over-broad skip, and how both were closed.
+  * [The Four Further Defects](manual/ch54-agent-pipe-importability.md#54_the_four_further_defects): Explains the undefined names found once a real checker ran.
+  * [Memory Consolidation](manual/ch54-agent-pipe-importability.md#54_memory_consolidation): Covers the knowledge-table consolidation sweep and its counter-folding rule.
+
 ---
 
 ## The chapter files
@@ -301,6 +315,8 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch50-upstream-tracking-and-maintenance.md` | Chapter 50: Upstream Tracking and Maintenance. Covers checking changes between host and remote overlays. Details Justfile build automation and check goals. Explains checklist targets required to tag... |
 | `usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md` | Chapter 51: Distilled System Knowledge & Code Invariants. Losslessly distilled architectural knowledge, operational invariants and technical comments recovered from historical commits and component... |
 | `usr/share/doc/mios/manual/ch52-multi-judge-consensus.md` | Chapter 52: Multi-Judge Consensus. Explains why one judge lane's yes/no is not enough to gate a pipeline, and how the weighted quorum replaces it. Covers the vote fold, abstention versus rejection,... |
+| `usr/share/doc/mios/manual/ch53-drift-monitoring.md` | Chapter 53: Drift Monitoring. Explains the Jensen-Shannon Goodhart alarm that watches the agent plane's own verdict and intent distributions for a silent shift. Covers the bounded 0..1 divergence... |
+| `usr/share/doc/mios/manual/ch54-agent-pipe-importability.md` | Chapter 54: Agent-Pipe Importability. Records the defect class that let agent-pipe's server module reference names nothing defines, the three undefined module-scope names that made it unimportable,... |
 
-<!-- derived from the AI-hint headers of 52 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 54 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

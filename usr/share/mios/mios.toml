@@ -1612,15 +1612,42 @@ tables = [
 ]
 # Structured system/config tables: redaction would CORRUPT the value, not
 # protect it, and they hold no free-form prose.
+# drift_snapshot holds normalized LABEL HISTOGRAMS (verdict kind, refine intent)
+# and counts -- aggregate shape, never agent or user content. Exempt.
 exempt = [
-  "account", "account_preference", "agent_keypair", "alias",
-  "app_install", "appx_removal", "build_phase", "build_recipe",
-  "capability_removal", "component_removal", "config_kv", "config_layer",
-  "debloat_policy", "debloat_profile", "domain_verb", "feature_removal",
-  "feature_set", "mios_identity", "mios_security", "package_set",
-  "person", "person_app_install", "person_device", "person_pref",
-  "preset", "resolves_to", "run_template", "skill",
-  "sys_env", "system_config", "verb", "xbox_feature",
+    "account",
+    "account_preference",
+    "agent_keypair",
+    "alias",
+    "app_install",
+    "appx_removal",
+    "build_phase",
+    "build_recipe",
+    "capability_removal",
+    "component_removal",
+    "config_kv",
+    "config_layer",
+    "debloat_policy",
+    "debloat_profile",
+    "domain_verb",
+    "drift_snapshot",
+    "feature_removal",
+    "feature_set",
+    "mios_identity",
+    "mios_security",
+    "package_set",
+    "person",
+    "person_app_install",
+    "person_device",
+    "person_pref",
+    "preset",
+    "resolves_to",
+    "run_template",
+    "skill",
+    "sys_env",
+    "system_config",
+    "verb",
+    "xbox_feature"
 ]
 
 [security.cosign]
@@ -3560,6 +3587,17 @@ tenant_max_concurrency = 0
 judge_examples = "a punt, refusal, 'I cannot', or 'where to look'"
 
 # ----------------------------------------------------------------------------
+# [drift_monitor] -- CONS-02 Jensen-Shannon Goodhart alarm. Observe-only.
+# Separate from [drift] above, which registers agent-pipe module wiring
+# exceptions and has nothing to do with distribution drift. See manual ch53.
+[drift_monitor]
+enable      = false   # off by default: observe-only alarm, no behaviour change
+threshold   = 0.2     # JSD (0..1, log base 2) at or above which drift_alert fires
+window      = 200     # most recent samples per axis that form the live window
+min_samples = 30      # live observations required before an axis may alert at all
+axes        = ["verdict", "intent"]   # label extractors live in server.py _DRIFT_AXIS_LABELS
+
+# ----------------------------------------------------------------------------
 # [consensus] -- CONS-01 weighted multi-judge Definition-of-Done.
 # Fold, abstention rule, quorum floor and weighting: manual ch52.
 [consensus]
@@ -4176,6 +4214,12 @@ verbs  = ""        # CSV override of gated verbs; blank = _HIGH_PRIVILEGE_VERBS
 # At 70% of n_ctx, the system warns the agent about context usage.
 # At 100% of n_ctx, the oldest turns are evicted, summarized, and archived.
 [memory]
+# CONS/MEM: periodic knowledge-table consolidation. Rows answering the SAME
+# normalized question collapse into the newest, with the losers' access and
+# recall counters folded in so K-LRU tiering never sees a merge as a reset.
+consolidate            = true    # run the sweep at all
+consolidate_interval_s = 3600    # seconds between sweeps (first sweep is one interval after boot)
+consolidate_max_groups = 200     # duplicate groups merged per sweep; bounds one pass's DB work
 n_ctx = 8000
 compaction_interval = 20
 tool_result_ttl_turns = 5

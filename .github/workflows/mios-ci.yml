@@ -65,6 +65,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 || true
+          # pyflakes backs lint-python.sh's undefined-name pass; without it that
+          # pass fails closed under MIOS_DRIFT_REQUIRE_TOOLS=1.
+          python3 -m pip install --quiet --disable-pip-version-check pyflakes \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyflakes \
+            || true
 
       - name: Shell linting (lint-shell.sh)
         run: bash ./automation/lint-shell.sh

@@ -204,12 +204,22 @@ from mios_config import (   # noqa: E402
     REFINE_BYPASS_CHARS,
     REFINE_KEEP_ALIVE,
     JUDGE_EXAMPLES,
+    _PG_ENABLED,
+    _PG_PRIMARY,
     CONSENSUS_ENABLED,
     CONSENSUS_LANES,
     CONSENSUS_THRESHOLD,
     CONSENSUS_MIN_LANES,
     CONSENSUS_TIMEOUT_S,
     CONSENSUS_WEIGHT_FLOOR,
+    DRIFT_MONITOR_ENABLED,
+    DRIFT_MONITOR_THRESHOLD,
+    DRIFT_MONITOR_WINDOW,
+    DRIFT_MONITOR_MIN_SAMPLES,
+    DRIFT_MONITOR_AXES,
+    MEMORY_CONSOLIDATE_ENABLED,
+    MEMORY_CONSOLIDATE_INTERVAL_S,
+    MEMORY_CONSOLIDATE_MAX_GROUPS,
     POLISH_ENABLED,
     POLISH_MODEL,
     POLISH_ENDPOINT,
@@ -3156,6 +3166,15 @@ from mios_a2a import (   # noqa: E402
     a2a_agent_card_alias,
     agntcy_manifest_v1,
 )
+# _match_user_cfg / _user_rbac_filter are injected into a2a + http_caps below
+# and were referenced here without ever being imported -- a module-scope
+# NameError that made server.py unimportable.
+from mios_policy import (   # noqa: E402
+    _match_user_cfg,
+    _user_rbac_filter,
+    _PERMISSION_TIERS,
+)
+
 sys.modules["mios_a2a"].configure(
     app=app,
     agent_registry=_AGENT_REGISTRY,
@@ -3178,6 +3197,132 @@ sys.modules["mios_a2a"].configure(
     passport_agent_name=PASSPORT_AGENT_NAME,
 )
 app.include_router(a2a_router)
+
+
+_DRIFT_AXIS_LABELS = {
+    # Each axis names how to pull ONE label out of a satisfaction-verdict row.
+    "verdict": lambda row: str(row.get("kind") or ""),
+    "intent": lambda row: str((row.get("payload") or {}).get("refine_intent") or ""),
+}
+
+
+def _drift_payload(row) -> dict:
+    """Normalize a verdict row's payload, which arrives as a dict from pg and
+    as a JSON string from the legacy seam."""
+    p = (row or {}).get("payload")
+    if isinstance(p, str):
+        try:
+            p = json.loads(p)
+        except Exception:  # noqa: BLE001
+            return {}
+    return p if isinstance(p, dict) else {}
+
+
+def _drift_live_window(rows: list, axis: str):
+    """Fold verdict rows into one axis's (distribution, observations).
+    Empty labels and unknown axes yield nothing to compare; see ch53."""
+    from mios_pipe.observability import drift_monitor as _drift
+    pick = _DRIFT_AXIS_LABELS.get(axis)
+    if pick is None:
+        return {}, 0
+    labels = []
+    for row in rows:
+        row = {**row, "payload": _drift_payload(row)}
+        try:
+            label = pick(row)
+        except Exception:  # noqa: BLE001
+            continue
+        if label:
+            labels.append(label)
+    return _drift.histogram(labels), len(labels)
+
+
+async def _drift_baseline(axis: str) -> dict:
+    """The frozen reference distribution for one axis, or {} when none exists
+    yet. Degrades to {} on any DB slip -- an observe-only alarm never 500s."""
+    sql = ("SELECT dist FROM drift_snapshot WHERE axis = '" + str(axis) + "' "
+           "AND kind = 'baseline' ORDER BY ts DESC LIMIT 1;")
+    try:
+        r = await _db_read(sql, pg_sql=(
+            "SELECT dist FROM drift_snapshot WHERE axis = %(axis)s "
+            "AND kind = 'baseline' ORDER BY ts DESC LIMIT 1"),
+            pg_params={"axis": str(axis)})
+    except Exception:  # noqa: BLE001
+        return {}
+    rows = ((r or [{}])[-1] or {}).get("result") or []
+    if not isinstance(rows, list) or not rows:
+        return {}
+    d = (rows[0] or {}).get("dist")
+    if isinstance(d, str):
+        try:
+            d = json.loads(d)
+        except Exception:  # noqa: BLE001
+            return {}
+    return d if isinstance(d, dict) else {}
+
+
+def _drift_snapshot(axis: str, dist: dict, samples: int, kind: str) -> None:
+    """Record one drift_snapshot row through the unified write seam.
+    Best-effort: a failed write re-seeds on the next poll, never 500s."""
+    try:
+        _db_write("drift_snapshot", {
+            "kind": kind,
+            "axis": str(axis),
+            "dist": dist,
+            "samples": int(samples),
+            "source": "mios-agent-pipe-drift",
+        }, now_fields=("ts",))
+    except Exception:  # noqa: BLE001
+        log.debug("drift: could not record %s snapshot for %s", kind, axis)
+
+
+@app.get("/v1/drift")
+async def v1_drift() -> JSONResponse:
+    """CONS-02 Goodhart alarm: JSD of each live verdict/intent window against
+    its frozen baseline. Observe-only; see manual ch53."""
+    from mios_pipe.observability import drift_monitor as _drift
+    if not DRIFT_MONITOR_ENABLED:
+        return JSONResponse({"enabled": False, "axes": {}, "alerting": False})
+    try:
+        rows = await _recent_satisfaction_verdicts(int(DRIFT_MONITOR_WINDOW))
+    except Exception:  # noqa: BLE001
+        rows = []
+    axes = DRIFT_MONITOR_AXES or list(_DRIFT_AXIS_LABELS)
+    baseline: dict = {}
+    live: dict = {}
+    counts: dict = {}
+    seeded: list = []
+    for axis in axes:
+        live_dist, n = _drift_live_window(rows, axis)
+        live[axis] = live_dist
+        counts[axis] = n
+        base = await _drift_baseline(axis)
+        if not base and live_dist:
+            # A window compared against itself scores 0.0, so seeding the
+            # baseline here starts the alarm quiet rather than self-firing.
+            _drift_snapshot(axis, live_dist, n, "baseline")
+            seeded.append(axis)
+            base = live_dist
+        elif live_dist:
+            _drift_snapshot(axis, live_dist, n, "sample")
+        baseline[axis] = base
+    report = _drift.compare(
+        baseline, live,
+        threshold=float(DRIFT_MONITOR_THRESHOLD),
+        min_samples=int(DRIFT_MONITOR_MIN_SAMPLES),
+        live_counts=counts)
+    if _drift.is_alerting(report):
+        _emit_session_event({
+            "kind": "drift_alert",
+            "summary": (f"verdict-distribution drift on '{report['max_axis']}': "
+                        f"JSD {report['max_divergence']:.3f} >= "
+                        f"{report['threshold']:.3f}"),
+            "payload": report,
+            "source": "mios-agent-pipe-drift",
+        }, None)
+    return JSONResponse({"enabled": True, "seeded": seeded,
+                         "window": int(DRIFT_MONITOR_WINDOW),
+                         "samples": counts, **report})
 
 
 @app.get("/v1/agents")
@@ -3614,6 +3759,9 @@ sys.modules["mios_daemons"].configure(
     KV_GC_MAX_BYTES=KV_GC_MAX_BYTES,
     KV_GC_INTERVAL_S=KV_GC_INTERVAL_S,
     _KV_RESIDENT=_KV_RESIDENT,
+    MEMORY_CONSOLIDATE_ENABLED=MEMORY_CONSOLIDATE_ENABLED,
+    MEMORY_CONSOLIDATE_INTERVAL_S=MEMORY_CONSOLIDATE_INTERVAL_S,
+    MEMORY_CONSOLIDATE_MAX_GROUPS=MEMORY_CONSOLIDATE_MAX_GROUPS,
 )
 from mios_daemons import _selfimprove_loop, _selfimprove_report   # noqa: E402
 from mios_daemons import (daemons_router, selfimprove_report_ep,   # noqa: E402,F401

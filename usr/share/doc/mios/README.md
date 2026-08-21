@@ -260,6 +260,8 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/ch50-upstream-tracking-and-maintenance.md` | Chapter 50: Upstream Tracking and Maintenance. Covers checking changes between host and remote overlays. Details Justfile build automation and check goals. Explains checklist targets required to tag... |
 | `usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md` | Chapter 51: Distilled System Knowledge & Code Invariants. Losslessly distilled architectural knowledge, operational invariants and technical comments recovered from historical commits and component... |
 | `usr/share/doc/mios/manual/ch52-multi-judge-consensus.md` | Chapter 52: Multi-Judge Consensus. Explains why one judge lane's yes/no is not enough to gate a pipeline, and how the weighted quorum replaces it. Covers the vote fold, abstention versus rejection,... |
+| `usr/share/doc/mios/manual/ch53-drift-monitoring.md` | Chapter 53: Drift Monitoring. Explains the Jensen-Shannon Goodhart alarm that watches the agent plane's own verdict and intent distributions for a silent shift. Covers the bounded 0..1 divergence... |
+| `usr/share/doc/mios/manual/ch54-agent-pipe-importability.md` | Chapter 54: Agent-Pipe Importability. Records the defect class that let agent-pipe's server module reference names nothing defines, the three undefined module-scope names that made it unimportable,... |
 | `usr/share/doc/mios/manual/cockpit.socket.d.md` | Manual pages distilled from the source comments of cockpit.socket.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/conf.d.md` | Manual pages distilled from the source comments of conf.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/containers.md` | Manual pages distilled from the source comments of containers, sanitized, each passage anchored to the comment it came from. |
@@ -302,5 +304,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 97 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 99 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->
