@@ -1,5 +1,5 @@
 <!-- AI-hint: Defines the MiOS system architecture end-to-end -- the bootc/OCI image structure and lifecycle, CDI-based GPU acceleration, zero-trust security posture, the FHS-compliant filesystem layout, and the local agentic-AI surface (inference lanes -> agent gateway -> pgvector memory -> MCP/A2A).
-     AI-related: mios-gpu, mios-llm-light, mios-llm-heavy, mios-pgvector, hermes-agent.service, mios-agent-pipe.service, localhost:8642, localhost:8640, localhost:11450 -->
+     AI-related: mios-gpu, mios-llm-light, mios-llm-heavy, mios-pgvector, hermes-agent.service, mios-agent-pipe.service, ports.hermes, ports.agent_pipe, ports.llm_light -->
 # 'MiOS' Architecture
 
 ## What MiOS is

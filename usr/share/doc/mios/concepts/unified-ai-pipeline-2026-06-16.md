@@ -1,4 +1,4 @@
-<!-- AI-hint: Reference for the UNIFIED MiOS AI pipeline — how every front-end is a thin client to the agent-pipe orchestrator (:8640), the route-by-source anti-fabrication grounding strategy, OpenAI-standard tool-loop/tool-schema conformance, and the typing/OS-control execution path. Records what was built + verified live on 2026-06-16.
+<!-- AI-hint: Reference for the UNIFIED MiOS AI pipeline — how every front-end is a thin client to the agent-pipe orchestrator (port key `agent_pipe`), the route-by-source anti-fabrication grounding strategy, OpenAI-standard tool-loop/tool-schema conformance, and the typing/OS-control execution path. Records what was built + verified live on 2026-06-16.
      AI-related: /usr/lib/mios/agent-pipe/server.py, /usr/bin/mios, /usr/sbin/@, /usr/sbin/hermes, /var/home/mios/.hermes/config.yaml, /usr/share/mios/windows/mios-oscontrol-server.ps1, /usr/libexec/mios/mios-pc-control, /usr/share/mios/mios.toml
      AI-functions: (reference doc — no functions) -->
 > _FHS: /usr/share/mios/doc/concepts/unified-ai-pipeline-2026-06-16.md_

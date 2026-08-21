@@ -1,5 +1,5 @@
-<!-- AI-hint: Documentation for ingesting the 'MiOS' knowledge base into any OpenAI-API-compatible runtime; procedures for local inference (mios-llm-light :11450), pgvector RAG ingestion, and evals — grounded in the unified MIOS_AI_ENDPOINT abstraction.
-     AI-related: /usr/share/mios/api/chat.local.example.json, mios-ai, mios-env, mios-kb, mios-knowledge, mios-llm-light, mios-pgvector, mios-agent-pipe, localhost:8640, localhost:8642, localhost:11450, localhost:5432 -->
+<!-- AI-hint: Documentation for ingesting the 'MiOS' knowledge base into any OpenAI-API-compatible runtime; procedures for local inference (mios-llm-light, port key `llm_light`), pgvector RAG ingestion, and evals — grounded in the unified MIOS_AI_ENDPOINT abstraction.
+     AI-related: /usr/share/mios/api/chat.local.example.json, mios-ai, mios-env, mios-kb, mios-knowledge, mios-llm-light, mios-pgvector, mios-agent-pipe, ports.agent_pipe, ports.hermes, ports.llm_light, localhost:5432 -->
 # usr/share/doc/mios/guides/install.md — Ingest the 'MiOS' KB into any OpenAI-API-compatible runtime
 
 ## Purpose and place in the system

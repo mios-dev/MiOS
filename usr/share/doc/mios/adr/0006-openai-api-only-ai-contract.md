@@ -1,4 +1,4 @@
-<!-- AI-hint: The OpenAI public /v1 API surface is the ONE addressable AI contract across all of MiOS, exposed through a single front door (MIOS_AI_ENDPOINT, agent-pipe :8640); read before adding any AI endpoint, agent, lane, tool, or federated peer — none may speak a non-OpenAI shape. -->
+<!-- AI-hint: The OpenAI public /v1 API surface is the ONE addressable AI contract across all of MiOS, exposed through a single front door (MIOS_AI_ENDPOINT, agent-pipe, port key `agent_pipe`); read before adding any AI endpoint, agent, lane, tool, or federated peer — none may speak a non-OpenAI shape. -->
 <!-- AI-related: MIOS_AI_ENDPOINT, automation/lib/globals.sh:133, usr/share/mios/mios.toml [ai].endpoint + [hermes].endpoint + [ports] + [security.nohc_allowlist], usr/lib/mios/agent-pipe/server.py, usr/share/mios/ai/INDEX.md, usr/share/doc/mios/reference/api.md -->
 ---
 adr: 0006

@@ -1,4 +1,4 @@
-<!-- AI-hint: Chapter 10: Local Inference Lanes and llama.cpp. Covers how llama-swap handles hot swapping and KV paging on port 11450. Maps GPU context management, prompt template bindings, and model formats. Documents model map configuration file and resource optimization strategies. -->
+<!-- AI-hint: Chapter 10: Local Inference Lanes and llama.cpp. Covers how llama-swap handles hot swapping and KV paging on the `llm_light` port. Maps GPU context management, prompt template bindings, and model formats. Documents model map configuration file and resource optimization strategies. -->
 
 # Chapter 10: Local Inference Lanes and llama.cpp
 
@@ -12,7 +12,7 @@ This chapter covers the documentation for **Local Inference Lanes and llama.cpp*
 
 #### Overview
 
-The llama-swap proxy manages model requests on port **11450**, serving as the single entry point for light inference tasks.
+The llama-swap proxy manages model requests on the `llm_light` port, serving as the single entry point for light inference tasks.
 
 ## Routing Logic
 1. **Model Swap**: Swaps the underlying `llama-server` process on-demand to match the requested model name.

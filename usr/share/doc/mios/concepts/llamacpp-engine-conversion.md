@@ -1,4 +1,4 @@
-<!-- AI-hint: Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama is retired, mios-llm-light (:11450) is the primary lane and also serves embeddings.
+<!-- AI-hint: Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama is retired, mios-llm-light (port key `llm_light`) is the primary lane and also serves embeddings.
      AI-related: /usr/share/mios/llamacpp/models/.ready, /usr/share/mios/llamacpp/models/, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-llm-heavy, mios-llm-heavy-alt, mios-llm-worker, mios-agent-pipe, mios-llm-light.container -->
 # Inference-engine conversion to llama.cpp for KV-cache (WS-10)
 

@@ -121,12 +121,12 @@ OutputFormat maps to a bootc-image-builder `--type`: `vhdx` → `vhd` (renamed t
 `.vhdx` afterward), `raw` → `raw`, `qcow2` → `qcow2`, `wsl2` → `wsl2`.
 
 > The image you produce here is the deliverable. What it *contains* — the inference
-> lanes (`mios-llm-light` on `:11450` as the primary llama.cpp engine behind the
+> lanes (`mios-llm-light` on the `llm_light` port as the primary llama.cpp engine behind the
 > upstream llama-swap proxy,
 > serving everyday models, the `mios-opencode` coder model, and embeddings via
-> `nomic-embed-text`; the gated heavy lanes `mios-llm-heavy` SGLang `:11441` and
-> `mios-llm-heavy-alt` vLLM), the agent stack (`mios-agent-pipe` `:8640`,
-> MiOS-Hermes `:8642`, OWUI `:3030`), and the PostgreSQL+pgvector datastore
+> `nomic-embed-text`; the gated heavy lanes `mios-llm-heavy` vLLM (port key `vllm`) and
+> `mios-llm-heavy-alt` SGLang), the agent stack (`mios-agent-pipe` on the `agent_pipe` port,
+> MiOS-Hermes on the `hermes` port, OWUI on the `open_webui` port), and the PostgreSQL+pgvector datastore
 > (`mios-pgvector` `:5432`) — is all baked in as bound images. You don't configure
 > any of that here; you build the image and the running host stands it up.
 

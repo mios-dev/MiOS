@@ -1,5 +1,5 @@
-<!-- AI-hint: Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe :8640, MIOS_PORT_AGENT_PIPE), using the three-layer mios.toml overlay and the [agents.<name>] remote-http template. Covers the optional federated pgvector path ([pgvector].listen_loopback=false) and the least-privilege posture for untrusted edge peers. Fulfils roadmap T-070 (WS-D2); depends on the D1 remote/edge agent template ([agents._defaults]).
-     AI-related: ../../mios/mios.toml ([agents], [pgvector], [security]), ../reference/api.md (:8640 /v1 + /a2a surface), ./edge-node-join.md -->
+<!-- AI-hint: Operator guide for joining a Raspberry Pi / edge node to a MiOS council over the single outbound-dial port (agent-pipe, port key `agent_pipe`, MIOS_PORT_AGENT_PIPE), using the three-layer mios.toml overlay and the [agents.<name>] remote-http template. Covers the optional federated pgvector path ([pgvector].listen_loopback=false) and the least-privilege posture for untrusted edge peers. Fulfils roadmap T-070 (WS-D2); depends on the D1 remote/edge agent template ([agents._defaults]).
+     AI-related: ../../mios/mios.toml ([agents], [pgvector], [security]), ../reference/api.md (the `agent_pipe`-port /v1 + /a2a surface), ./edge-node-join.md -->
 
 # Joining a Pi / Edge Node to a MiOS Council
 

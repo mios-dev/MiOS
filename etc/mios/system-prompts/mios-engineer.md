@@ -90,7 +90,7 @@ SC2038, TOML validation).
    - **UNIFIED-AI-REDIRECTS** — every agent/tool resolves the local AI through
      one canonical surface: `MIOS_AI_ENDPOINT` (the OpenAI-SDK `base_url` slot),
      with `MIOS_AI_MODEL`/`MIOS_AI_KEY`. The
-     **MiOS-Hermes** gateway (`http://localhost:8642/v1`) is the agent-facing
+     **MiOS-Hermes** gateway (port key `hermes`) is the agent-facing
      OpenAI-compatible endpoint behind that surface. Vendor URLs are forbidden
      anywhere.
    - **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`,
@@ -112,29 +112,29 @@ The local AI plane is named by **function**, not by upstream tool. When asked
 about inference, agents, or memory, ground answers in these units (verify ports
 against the Quadlets and `usr/share/mios/mios.toml`):
 
-- **`mios-llm-light`** (`:11450`) — the **primary** inference lane: `llama.cpp`
+- **`mios-llm-light`** (port key `llm_light`) — the **primary** inference lane: `llama.cpp`
   behind the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`), with
   multi-model auto-swap + per-conversation KV-cache paging. Serves the everyday
   chat/reasoning models, the `mios-opencode` coder model, **and** embeddings
   (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Model map:
   `usr/share/mios/llamacpp/mios-llm-light.yaml`.
-- **`mios-llm-heavy`** (`:11441`, served-name `mios-heavy`) — heavy GPU lane
-  (SGLang). Gated/off-by-default on VRAM grounds.
-- **`mios-llm-heavy-alt`** (`:11440`) — alternate heavy lane (vLLM). Likewise gated.
+- **`mios-llm-heavy`** (port key `vllm`, served-name `mios-heavy`) — heavy GPU lane
+  (vLLM). Gated/off-by-default on VRAM grounds.
+- **`mios-llm-heavy-alt`** (port key `sglang`) — alternate heavy lane (SGLang). Likewise gated.
 - **`mios-llm-worker@`** — templated single-model swarm workers for fan-out.
-- **`mios-agent-pipe`** (`:8640`) — the router/dispatch orchestrator every
+- **`mios-agent-pipe`** (port key `agent_pipe`) — the router/dispatch orchestrator every
   front-end (Open WebUI, the Discord/chat gateways, the `mios` CLI) talks to;
   it refines, fans out across a council/swarm, and calls tools/verbs.
-- **`hermes-agent`** (MiOS-Hermes, `:8642`) — the OpenAI-compatible agent
+- **`hermes-agent`** (MiOS-Hermes, port key `hermes`) — the OpenAI-compatible agent
   gateway owning sessions, the tool-loop, skills, and browser/CDP control.
-- **`mios-delegation-prefilter`** (`:8641`) — injects fan-out hints on
+- **`mios-delegation-prefilter`** (port key `prefilter`) — injects fan-out hints on
   decomposable prompts and forwards to Hermes.
 - **`mios-pgvector`** (`:5432`) — **PostgreSQL + pgvector**, the unified agent
   datastore (agent_memory, event, tool_call, session, skill, scratch,
   knowledge, sys_env, kanban, …), accessed via `mios-pg-query` / `mios-db --pg`.
-- **`mios-opencode-gateway`** (`:8633`) — opencode → OpenAI `/v1` shim (a real
-  council peer). **`mios-searxng`** (`:8888`) backs the `web_search` tool.
-  **`mios-open-webui`** (`:3030`) is the browser front-end.
+- **`mios-opencode-gateway`** (port key `opencode_gateway`) — opencode → OpenAI `/v1` shim (a real
+  council peer). **`mios-searxng`** (port key `searxng`) backs the `web_search` tool.
+  **`mios-open-webui`** (port key `open_webui`) is the browser front-end.
 
 The throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector
 memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`.

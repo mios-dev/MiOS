@@ -91,10 +91,10 @@ hand-offs, cached lookups for downstream agents.
 ## Service map (what listens where)
 
 ```
-hermes-agent.service             :8642  you (OpenAI gateway)
-mios-delegation-prefilter        :8641  prompt refinement + name rewrite + force-delegate
-mios-open-webui.service          :3030  OWUI browser UI
-mios-searxng.service             :8888  privacy search (web tool backend)
+hermes-agent.service             port key hermes      you (OpenAI gateway)
+mios-delegation-prefilter        port key prefilter   prompt refinement + name rewrite + force-delegate
+mios-open-webui.service          port key open_webui  OWUI browser UI
+mios-searxng.service             port key searxng     privacy search (web tool backend)
 mios-forge.service               :3000  Forgejo
 mios-agents.service              :8800  VSCode-in-browser (replaces code-server)
 mios-mcp.service                 -      Agent Context Service

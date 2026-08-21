@@ -26,9 +26,9 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
 
 ### Part II: The Agentic AI Stack
 * **[Chapter 04: The Agentic AI Stack](manual/ch04-the-agentic-ai-stack.md)**
-  * [Unified AI Endpoint](manual/ch04-the-agentic-ai-stack.md#04_unified_ai_endpoint): Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port 8642).
-  * [Agent Pipe Orchestrator](manual/ch04-the-agentic-ai-stack.md#04_agent_pipe_orchestrator): Details the primary front door on port 8640 used to route requests and fan out tasks.
-  * [MiOS Hermes Gateway](manual/ch04-the-agentic-ai-stack.md#04_mios_hermes_gateway): Outlines the operation of the tool-loop gateway and session manager running on port 8642.
+  * [Unified AI Endpoint](manual/ch04-the-agentic-ai-stack.md#04_unified_ai_endpoint): Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port key `hermes`).
+  * [Agent Pipe Orchestrator](manual/ch04-the-agentic-ai-stack.md#04_agent_pipe_orchestrator): Details the primary front door on the `agent_pipe` port used to route requests and fan out tasks.
+  * [MiOS Hermes Gateway](manual/ch04-the-agentic-ai-stack.md#04_mios_hermes_gateway): Outlines the operation of the tool-loop gateway and session manager running on the `hermes` port.
   * [Inference Lanes](manual/ch04-the-agentic-ai-stack.md#04_inference_lanes): Maps the local token generation engines, llama.cpp proxy, and VRAM-gated heavy lanes.
   * [Unified Agent Memory](manual/ch04-the-agentic-ai-stack.md#04_unified_agent_memory): Covers episodic and long-term knowledge storage using PostgreSQL and pgvector.
 * **[Chapter 05: Federation and Computer Use](manual/ch05-federation-and-computer-use.md)**
@@ -57,7 +57,7 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
 
 ### Part IV: Detailed Inference & Execution Layers
 * **[Chapter 10: Local Inference Lanes and llama.cpp](manual/ch10-local-inference-lanes-and-llama-cpp.md)**
-  * [Llama-Swap Proxy Architecture](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_llama_swap_proxy_architecture): Covers how llama-swap handles hot swapping and KV paging on port 11450.
+  * [Llama-Swap Proxy Architecture](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_llama_swap_proxy_architecture): Covers how llama-swap handles hot swapping and KV paging on the `llm_light` port.
   * [Embedded Inference Setup](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_embedded_inference_setup): Maps GPU context management, prompt template bindings, and model formats.
   * [Model Map and Hot Swapping](manual/ch10-local-inference-lanes-and-llama-cpp.md#10_model_map_and_hot_swapping): Documents model map configuration file and resource optimization strategies.
 * **[Chapter 11: Heavy GPU Lanes and SGLang/vLLM](manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md)**
@@ -244,13 +244,13 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch01-introduction-and-core-concepts.md` | Chapter 01: Introduction and Core Concepts. Defines the dual nature of MiOS as an immutable, bootc Fedora workstation and a local agentic OS. Explains how the Git repository tree directly mirrors the... |
 | `usr/share/doc/mios/manual/ch02-installation-and-deployment.md` | Chapter 02: Installation and Deployment. Covers provisioning the MiOS-DEV seed environment via Windows PowerShell or the Linux just runner. Outlines the provisioning sequence for the build plane,... |
 | `usr/share/doc/mios/manual/ch03-system-configuration-and-governance.md` | Chapter 03: System Configuration and Governance. Explains the management of packages, AI lanes, and quadlets centrally via mios.toml. Maps configuration resolution precedence across vendor, host, and... |
-| `usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md` | Chapter 04: The Agentic AI Stack. Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port 8642). Details the primary front door on port 8640 used to route... |
+| `usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md` | Chapter 04: The Agentic AI Stack. Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port key hermes). Details the primary front door on the agent_pipe port... |
 | `usr/share/doc/mios/manual/ch05-federation-and-computer-use.md` | Chapter 05: Federation and Computer Use. Details the standardized MCP interface utilized by agents to discover external tools. Documents the A2A JSON-RPC specifications for peer delegation. Explains... |
 | `usr/share/doc/mios/manual/ch06-security-and-hardware-virtualization.md` | Chapter 06: Security and Hardware Virtualization. Explains composefs sealing of the read-only /usr directory and fs-verity. Details defense-in-depth mechanisms via CrowdSec, fapolicyd, and USBGuard.... |
 | `usr/share/doc/mios/manual/ch07-cluster-and-storage-fabric.md` | Chapter 07: Cluster and Storage Fabric. Outlines the mechanisms for expanding the workstation into a Kubernetes cluster. Explains CephFS containerized storage deployments and privileged exemptions. |
 | `usr/share/doc/mios/manual/ch08-bootloader-and-unified-kernel-images-uki.md` | Chapter 08: Bootloader and Unified Kernel Images (UKI). Covers compilation and structure of Unified Kernel Images via systemd-ukify. Details kernel module signing, trust models, and cryptographic... |
 | `usr/share/doc/mios/manual/ch09-systemd-and-quadlet-orchestration.md` | Chapter 09: Systemd and Quadlet Orchestration. Defines user-space daemon layers and systemd-generator permissions configuration. Explains how podman quadlets render systemd unit files on startup.... |
-| `usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md` | Chapter 10: Local Inference Lanes and llama.cpp. Covers how llama-swap handles hot swapping and KV paging on port 11450. Maps GPU context management, prompt template bindings, and model formats.... |
+| `usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md` | Chapter 10: Local Inference Lanes and llama.cpp. Covers how llama-swap handles hot swapping and KV paging on the `llm_light` port. Maps GPU context management, prompt template bindings, and model... |
 | `usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md` | Chapter 11: Heavy GPU Lanes and SGLang/vLLM. Defines how SGLang is conditionally run depending on VRAM and workloads. Explains multi-model scaling and distributed worker configurations. Covers... |
 | `usr/share/doc/mios/manual/ch12-unified-memory-and-pgvector-schema.md` | Chapter 12: Unified Memory and pgvector Schema. Details pgvector database container setup, connection pools, and permissions. Explains cosine-similarity searches utilizing vector retrieval. Covers... |
 | `usr/share/doc/mios/manual/ch13-model-context-protocol-integration.md` | Chapter 13: Model Context Protocol Integration. Describes how to write custom Python or Go MCP servers. Covers how the AI gateway queries the system tool registry. Details how tools run in sandboxed... |

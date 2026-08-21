@@ -1,4 +1,4 @@
-<!-- AI-hint: Chapter 04: The Agentic AI Stack. Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port 8642). Details the primary front door on port 8640 used to route requests and fan out tasks. Outlines the operation of the tool-loop gateway and session manager running on port 8642. -->
+<!-- AI-hint: Chapter 04: The Agentic AI Stack. Describes the routing of all AI interactions through the MIOS_AI_ENDPOINT (Hermes gateway, port key hermes). Details the primary front door on the agent_pipe port used to route requests and fan out tasks. Outlines the operation of the tool-loop gateway and session manager running on the hermes port. -->
 
 # Chapter 04: The Agentic AI Stack
 
@@ -12,7 +12,7 @@ This chapter covers the documentation for **The Agentic AI Stack** under MiOS.
 
 #### Overview
 
-To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback named by `MIOS_AI_ENDPOINT` (the Hermes gateway on `:8642`). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility.
+To avoid hardcoded vendor SDK dependencies, all intelligence pipelines on MiOS are routed through a single local endpoint on loopback named by `MIOS_AI_ENDPOINT` (the Hermes gateway on the `hermes` port). This endpoint abstractly translates chat-completions and embeddings requests to the active inference backend, ensuring client compatibility.
 
 #### Citation & Attribution References
 
@@ -40,7 +40,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 
 #### Overview
 
-The Agent Pipe Orchestrator (port **8640**) acts as the cognitive router for all user-facing interfaces.
+The Agent Pipe Orchestrator (port key **`agent_pipe`**) acts as the cognitive router for all user-facing interfaces.
 
 When a prompt is submitted, the orchestrator performs intention refinement, decomposes the query into a task graph, coordinates sub-agents, executes tool loops, and streams aggregated answers back to client views.
 
@@ -69,7 +69,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 
 #### Overview
 
-MiOS Hermes (port **8642**) is the core session and tool-loop execution manager.
+MiOS Hermes (port key **`hermes`**) is the core session and tool-loop execution manager.
 
 - **Session Ownership**: Tracks state and history for active contexts.
 - **Tool-Loop Execution**: Validates and executes tool calls sent by LLMs.
@@ -103,8 +103,8 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 
 MiOS splits LLM inference across separate functional lanes to match the host hardware resources:
 
-1. **Light Lane (`mios-llm-light`)**: Running llama.cpp with a llama-swap proxy on port `11450` for everyday chat, code assistance, and embeddings.
-2. **Heavy Lane (`mios-llm-heavy` / `mios-llm-heavy-alt`)**: Running SGLang (port `11441`) or vLLM (port `11440`) for large reasoning models, gated off by default.
+1. **Light Lane (`mios-llm-light`)**: Running llama.cpp with a llama-swap proxy on the `llm_light` port for everyday chat, code assistance, and embeddings.
+2. **Heavy Lane (`mios-llm-heavy` / `mios-llm-heavy-alt`)**: Running vLLM (port key `vllm`) or SGLang (port key `sglang`) for large reasoning models, gated off by default.
 
 #### Citation & Attribution References
 
