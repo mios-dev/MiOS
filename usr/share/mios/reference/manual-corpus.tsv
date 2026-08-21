@@ -8429,15 +8429,15 @@ usr/libexec/mios/test_mios_daemon_refusal.py	1	4	4	126	34f82d41ff09	STAY	ai-head
 usr/libexec/mios/test_mios_daemon_refusal.py	5	5	1	8	e72bf806604d	STAY	local-scoped		0				0
 usr/libexec/mios/test_mios_daemon_refusal.py	17	17	1	11	11afbf308c4c	STAY	inline-scoped		0				0
 usr/libexec/mios/test_mios_daemon_refusal.py	81	81	1	4	ed8773b25660	STAY	inline-scoped		0				0
-usr/libexec/mios/test_mios_docgen.py	1	3	3	48	4a4cd113269c	STAY	ai-header		0				0
-usr/libexec/mios/test_mios_docgen.py	4	17	13	92	891a56504503	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/mios.md	mios-src:891a56504503	92	0
-usr/libexec/mios/test_mios_docgen.py	36	36	1	3	80a4902b7678	STAY	inline-scoped		0				0
-usr/libexec/mios/test_mios_docgen.py	80	80	1	11	d8c73a72f436	STAY	local-scoped		0				0
-usr/libexec/mios/test_mios_docgen.py	138	138	1	9	4aba5c86f7dd	STAY	inline-scoped		0				0
 usr/libexec/mios/test_mios_find_ranker.py	1	3	3	13	e57e1879a5f9	STAY	ai-header		0				0
 usr/libexec/mios/test_mios_find_ranker.py	4	13	9	69	9a3a61c4416a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/mios.md	mios-src:9a3a61c4416a	69	0
 usr/libexec/mios/test_mios_find_ranker.py	30	30	1	10	59f76bcaff11	STAY	local-scoped		0				0
 usr/libexec/mios/test_mios_find_ranker.py	55	59	5	23	181b47106292	STAY	midsize-why		0				0
+usr/libexec/mios/test_mios_office_convert.py	1	3	3	48	4a4cd113269c	STAY	ai-header		0				0
+usr/libexec/mios/test_mios_office_convert.py	4	17	13	92	714187361e14	MIGRATE	narrative-history		0				0
+usr/libexec/mios/test_mios_office_convert.py	36	36	1	3	80a4902b7678	STAY	inline-scoped		0				0
+usr/libexec/mios/test_mios_office_convert.py	80	80	1	11	d8c73a72f436	STAY	local-scoped		0				0
+usr/libexec/mios/test_mios_office_convert.py	138	138	1	9	4aba5c86f7dd	STAY	inline-scoped		0				0
 usr/libexec/mios/test_mios_pgwire.py	1	4	4	67	ec9cd888b625	STAY	ai-header		0				0
 usr/libexec/mios/test_mios_pgwire.py	5	5	1	9	c345b2099d3c	STAY	local-scoped		0				0
 usr/libexec/mios/test_mios_pgwire.py	18	18	1	6	c67b365bdb42	STAY	inline-scoped		0				0

@@ -8,7 +8,7 @@ LX=/usr/libexec/mios
 echo "[live] libexec tools -> $LX"
 for f in mios-launcher-daemon mios-db mios-docgen mios-coderun-codemode \
          mios-stresstest mios-owui-install-computer-use mios-hermes-firstboot \
-         mios-codemode-api.py test_mios_docgen.py; do
+         mios-codemode-api.py test_mios_office_convert.py; do
     s="$SRC/usr/libexec/mios/$f"
     [ -f "$s" ] || { echo "  MISSING $s"; continue; }
     tr -d '\r' < "$s" | sudo tee "$LX/$f" >/dev/null

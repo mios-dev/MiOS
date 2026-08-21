@@ -13,7 +13,7 @@ operator's live check; here we prove the pure decision layer.
 Mirrors the test_mios_sched.py / test_mios_evict.py pattern: explicit asserts,
 PASS/FAIL summary, non-zero exit on any failure.
 
-Run:  python test_mios_docgen.py
+Run:  python test_mios_office_convert.py
 """
 from __future__ import annotations
 

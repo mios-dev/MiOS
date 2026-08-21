@@ -78,10 +78,10 @@ drift-gate:
         done; \
         if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script failed" >&2; exit 1; fi; \
         echo "[drift-gate] all agent-pipe unit tests passed"
-    @echo "[drift-gate] test_mios_docgen.py"
+    @echo "[drift-gate] test_mios_office_convert.py"
     @cd ./usr/libexec/mios && \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
-        if "$py_exec" test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
+        if "$py_exec" test_mios_office_convert.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_office_convert.py"; else echo "  [FAIL] test_mios_office_convert.py" >&2; exit 1; fi
     @echo "[drift-gate] 98-drift-checks.sh"
     bash ./automation/98-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh"

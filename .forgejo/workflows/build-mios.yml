@@ -84,15 +84,15 @@ jobs:
             echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
           fi
 
-      - name: Office-format converter unit test (test_mios_docgen.py)
+      - name: Office-format converter unit test (test_mios_office_convert.py)
         # mios-docgen converts office file formats (Pandoc/LibreOffice); the manuals gates run below.
         run: |
           cd ./usr/libexec/mios
-          if python3 test_mios_docgen.py >/dev/null 2>&1; then
-            echo "  [ OK ] test_mios_docgen.py (office-format converter, not the manuals)"
+          if python3 test_mios_office_convert.py >/dev/null 2>&1; then
+            echo "  [ OK ] test_mios_office_convert.py (office-format converter, not the manuals)"
           else
-            python3 test_mios_docgen.py || true
-            echo "test_mios_docgen.py failed" >&2; exit 1
+            python3 test_mios_office_convert.py || true
+            echo "test_mios_office_convert.py failed" >&2; exit 1
           fi
 
       - name: Manuals & docs production evidence (doc-production-evidence.sh)
