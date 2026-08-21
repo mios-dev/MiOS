@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: Python py_compile + static analysis gate for usr/lib/mios, tools, and usr/libexec/mios.
+# AI-hint: Python py_compile + undefined-name gate for usr/lib/mios, usr/share/mios, tools, and usr/libexec/mios.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,6 +11,15 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 files=()
+
+# usr/share/mios ships runtime Python payloads too -- the OWUI pipe, the
+# configurator's helpers. Leaving them out is how `Any` went unimported in the
+# canonical OWUI entry point, which made the module unloadable.
+if [ -d "${ROOT}/usr/share/mios" ]; then
+    while IFS= read -r f; do
+        [ -f "$f" ] && files+=("$f")
+    done < <(find "${ROOT}/usr/share/mios" -name "*.py")
+fi
 
 if [ -d "${ROOT}/usr/lib/mios" ]; then
     while IFS= read -r f; do

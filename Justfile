@@ -109,6 +109,9 @@ drift-gate:
     @echo "[drift-gate] tests/test-theme-merge.py"
     @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         "$py_exec" ./tests/test-theme-merge.py
+    @echo "[drift-gate] tests/test-owui-pipe-endpoints.py"
+    @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
+        "$py_exec" ./tests/test-owui-pipe-endpoints.py
 
 
 

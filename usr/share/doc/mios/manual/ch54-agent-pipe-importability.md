@@ -125,3 +125,38 @@ against a shrink-only register in `[refactor]`:
 Nine directions are covered by `tools/test_check-module-length.py`, including
 the nested-file case the old body structurally could not see.
 
+#### <a name="54_the_owui_entry_point"></a>54.The OWUI Entry Point: The OWUI Entry Point
+
+The same investigation, run over `usr/share/mios/owui/pipes/mios_agent_pipe.py`
+— the file whose own docstring calls it "the canonical user-facing entry point
+in OWUI" — found four defects in one file:
+
+1. **It did not import.** `Any` is used in a `Pipe`-body annotation and was
+   never imported, and the file has no `from __future__ import annotations`, so
+   the annotation is evaluated at class-definition time. The module raised
+   `NameError` on load.
+2. **`BACKEND_URL` named a retired port** — `host.containers.internal:8640`,
+   where `[ports].agent_pipe` is 8700. The address was retired too: the file's
+   own docstring records that `host.containers.internal` "never resolved" once
+   OWUI became a host process, while the default kept pointing at it.
+3. **`REFINE_ENDPOINT` named `:8450`**, which under the current scheme is
+   `[ports].k3s_api`. A refine call would have gone to the Kubernetes API
+   server. (Latent — the refine valve ships off.)
+4. **Five write sites addressed a decommissioned datastore.** These were
+   described as "un-mirrored writes"; they were writes to nothing. `_DB_URL`
+   defaulted to the retired endpoint at `:8000`, and agent-pipe — which this
+   pipe proxies through — has owned `session`, `tool_call` and `event` since the
+   extraction the file's docstring describes as complete.
+
+Both endpoints now resolve from the SSOT (`MIOS_AI_ENDPOINT` per Law 5, and
+`MIOS_REFINE_ENDPOINT` or `[ports].llm_light`), the dead writes are off unless
+`MIOS_DB_URL` is set explicitly, and the file is registered in
+`[docs].port_clean` so a retired number cannot return to it.
+
+**Why nothing caught it:** `lint-python.sh` scanned `usr/lib/mios`, `tools` and
+`usr/libexec/mios`. It never scanned `usr/share/mios`, which is where the
+runtime Python payloads that ship *into other programs* live. It does now — 550
+files became 564 — and `tests/test-owui-pipe-endpoints.py` asserts the module
+imports, that both defaults track the port SSOT, and that neither names anything
+in `[docs].retired_ports`.
+

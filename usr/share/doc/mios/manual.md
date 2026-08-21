@@ -252,6 +252,7 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [The Four Further Defects](manual/ch54-agent-pipe-importability.md#54_the_four_further_defects): Explains the undefined names found once a real checker ran.
   * [Memory Consolidation](manual/ch54-agent-pipe-importability.md#54_memory_consolidation): Covers the knowledge-table consolidation sweep and its counter-folding rule.
   * [The Module-Size Ratchet](manual/ch54-agent-pipe-importability.md#54_the_module_size_ratchet): Details the recursive size gate and its shrink-only [refactor] register.
+  * [The OWUI Entry Point](manual/ch54-agent-pipe-importability.md#54_the_owui_entry_point): Covers four defects in the canonical OWUI pipe and the lint blind spot behind them.
 
 ---
 

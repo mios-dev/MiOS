@@ -13842,7 +13842,8 @@ port_clean = [
   "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
   "usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md",
   "usr/share/mios/docs/install-robustness-2026-06-21.md",
-    "automation/67-bake-surfer.sh"
+    "automation/67-bake-surfer.sh",
+    "usr/share/mios/owui/pipes/mios_agent_pipe.py"
 ]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.

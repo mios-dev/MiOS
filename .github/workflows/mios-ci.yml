@@ -102,6 +102,10 @@ jobs:
       - name: Documentation harvest round-trip (test-mios-manual-harvest.sh)
         run: bash ./tests/test-mios-manual-harvest.sh
 
+      - name: OWUI pipe endpoint resolution (tests/test-owui-pipe-endpoints.py)
+        # The canonical OWUI entry point must import and resolve its backend from
+        # the SSOT; it did neither. Skips itself if pydantic/aiohttp are absent.
+        run: python3 ./tests/test-owui-pipe-endpoints.py
       - name: Manuals & docs production evidence (doc-production-evidence.sh)
         # Prints what the documentation programme produced, then re-runs its read-only gates.
         run: bash ./tests/doc-production-evidence.sh
