@@ -170,8 +170,9 @@ This is the boundary that keeps the immutable-OS promise honest:
 
 - The **image build** (`../Containerfile` + `../automation/`) produces the OS as
   a single OCI image. That image already carries the AI plane — the inference
-  lanes (`mios-llm-light` on `:11450` as the primary llama.cpp lane plus the
-  gated heavy GPU lanes), the agent-pipe/MiOS-Hermes orchestration, the
+  lanes (`mios-llm-light` on the `llm_light` port as the primary llama.cpp
+  lane plus the gated heavy GPU lanes), the agent-pipe/MiOS-Hermes
+  orchestration, the
   `mios-pgvector` datastore — baked in per **Architectural Law 3 (BOUND-IMAGES)**.
 - These **toolkit scripts** run on a host that's *already booted*. They are
   **not copied into the image by default** — they configure or assess the host

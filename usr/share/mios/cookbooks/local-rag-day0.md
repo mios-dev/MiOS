@@ -1,4 +1,4 @@
-<!-- AI-hint: Instructional cookbook for standing up a Day-0 local RAG pipeline ON MiOS against the unified OpenAI-compatible endpoint -- embeddings via nomic-embed-text on the mios-llm-light lane (:11450), vectors stored in PostgreSQL+pgvector, chat via the same MIOS_AI_ENDPOINT every agent uses. Shows how retrieval/eval reproduce exactly what a MiOS agent sees (Law 5), and how the same recipe ports to any OpenAI-compatible runtime.
+<!-- AI-hint: Instructional cookbook for standing up a Day-0 local RAG pipeline ON MiOS against the unified OpenAI-compatible endpoint -- embeddings via nomic-embed-text on the mios-llm-light lane (port key llm_light), vectors stored in PostgreSQL+pgvector, chat via the same MIOS_AI_ENDPOINT every agent uses. Shows how retrieval/eval reproduce exactly what a MiOS agent sees (Law 5), and how the same recipe ports to any OpenAI-compatible runtime.
      AI-related: /usr/share/mios/cookbooks/local-rag-day0.md, /usr/share/mios/mios.toml, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/containers/systemd/mios-llm-light.container, /usr/share/containers/systemd/mios-pgvector.container, mios-llm-light, mios-pgvector, mios-pg-query, mios-db, mios-env, mios-knowledge, mios-eval-report, MIOS_AI_ENDPOINT -->
 # Cookbook: Day-0 Local RAG on MiOS (unified endpoint + pgvector)
 
@@ -21,7 +21,7 @@ with no vendor-hardcoded URLs.
 This cookbook stands up your **own** retrieval-augmented-generation pipeline
 on top of that surface, using the components MiOS already runs:
 
-- **Embeddings + chat** come from the **`mios-llm-light`** lane (`:11450`,
+- **Embeddings + chat** come from the **`mios-llm-light`** lane (port key `llm_light`,
   the primary inference engine), surfaced through the unified endpoint. It
   serves the everyday chat/reasoning models *and* embeddings
   (`nomic-embed-text`, OpenAI-compatible `/v1/embeddings`).
@@ -82,7 +82,7 @@ and tool targets (Law 5). The model + embed-model defaults come from
 `mios.toml [ai]` (`model`, `embed_model`):
 
 ```bash
-export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}
+export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:?set on-host by /etc/profile.d/mios-env.sh}
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}                               # empty key OK for local
 export MIOS_AI_MODEL=${MIOS_AI_MODEL:-granite4.1:8b}                 # canonical mios.toml [ai].model
 export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}  # canonical [ai].embed_model
@@ -225,10 +225,10 @@ upstream tool:
 
 | Runtime | `MIOS_AI_ENDPOINT` | `MIOS_AI_MODEL` |
 | --- | --- | --- |
-| MiOS unified endpoint (canonical) | `http://localhost:8642/v1` | `granite4.1:8b` (mios.toml `[ai].model`) |
-| `mios-llm-light` lane direct (llama.cpp via the upstream llama-swap proxy) | `http://localhost:11450/v1` | per `mios-llm-light.yaml` model map |
-| `mios-llm-heavy` lane (SGLang, gated) | `http://localhost:11441/v1` | `mios-heavy` (served-name) |
-| `mios-llm-heavy-alt` lane (vLLM, gated) | `http://localhost:11440/v1` | `mios-heavy` |
+| MiOS unified endpoint (canonical) | `http://localhost:<[ports].hermes>/v1` | `granite4.1:8b` (mios.toml `[ai].model`) |
+| `mios-llm-light` lane direct (llama.cpp via the upstream llama-swap proxy) | `http://localhost:<[ports].llm_light>/v1` | per `mios-llm-light.yaml` model map |
+| `mios-llm-heavy` lane (vLLM, gated) | `http://localhost:<[ports].vllm>/v1` | `mios-heavy` (served-name) |
+| `mios-llm-heavy-alt` lane (SGLang, gated) | `http://localhost:<[ports].sglang>/v1` | `mios-heavy` |
 | vLLM (generic) | `http://localhost:8000/v1` | (per served model id) |
 | SGLang (generic) | `http://localhost:30000/v1` | (per served model id) |
 | LM Studio | `http://localhost:1234/v1` | (per LM Studio loaded model) |

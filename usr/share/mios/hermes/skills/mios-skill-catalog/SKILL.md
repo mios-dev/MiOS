@@ -13,7 +13,7 @@ metadata:
     requires_tools:
       - tool_search
 ---
-<!-- AI-hint: Defines the MiOS skill catalog as a repository of codified, multi-agent procedure DAGs; agents use tool_search to discover, list, and execute promoted skill chains over the :8640 port.
+<!-- AI-hint: Defines the MiOS skill catalog as a repository of codified, multi-agent procedure DAGs; agents use tool_search to discover, list, and execute promoted skill chains over the `agent_pipe` port.
      AI-related: /usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md._, mios-skill-catalog, mios-skills-miner, mios-skills, mios-skills-miner.timer -->
 
 # MiOS skill catalog
@@ -35,7 +35,7 @@ versa.
 | `tool_search(query="<intent>")` | Discovery. Returns the promoted-skill projection of the catalog -- names + descriptions -- so the agent can choose the right procedure at run time. The promoted-skill catalog is the source of truth. |
 | Call the discovered tool | First-class tool call. Every promoted skill is surfaced as a callable tool; once `tool_search` returns its name, dispatch it with the parameters the catalog exposes. |
 
-Both route through agent-pipe :8640 `/skills/*`, so the Semantic
+Both route through agent-pipe (port key `agent_pipe`) `/skills/*`, so the Semantic
 Firewall + taint chain + audit rows apply identically to direct verb
 dispatch.
 

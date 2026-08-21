@@ -93,23 +93,23 @@ clean operator intent. Inference is local on every hop.
 
 ```
 operator types in OWUI                  (model dropdown: "MiOS-Agent")
-  → mios-agent-pipe :8640               (orchestrator: refine + router +
+  → mios-agent-pipe [agent_pipe]        (orchestrator: refine + router +
                                          council/swarm fan-out + critic/polish)
-  → mios-delegation-prefilter :8641     (force-delegates fan-outable prompts,
+  → mios-delegation-prefilter [prefilter] (force-delegates fan-outable prompts,
                                          injects tool_choice=delegate_task)
-  → MiOS-Hermes :8642                   (hermes-agent gateway, this is you)
-  → mios-llm-light :11450               (local inference, llama.cpp via the
+  → MiOS-Hermes [hermes]                (hermes-agent gateway, this is you)
+  → mios-llm-light [llm_light]          (local inference, llama.cpp via the
                                          upstream llama-swap proxy; OpenAI/Ollama-compat API)
 ```
 
 Everything resolves the model endpoint from `MIOS_AI_ENDPOINT` (Architectural
 Law 5 — UNIFIED-AI-REDIRECTS); nothing hard-codes a vendor URL. The actual
-generation runs on the **`mios-llm-light`** lane (:11450) — llama.cpp behind the
+generation runs on the **`mios-llm-light`** lane (port key `llm_light`) — llama.cpp behind the
 upstream `mios-llm-light` proxy image, auto-swapping models behind one OpenAI `/v1`
 endpoint and paging each conversation's KV-cache to disk. The same lane serves
 embeddings (`nomic-embed-text`, `/v1/embeddings`) and the `mios-opencode` coder
-model. Heavy work can route to the gated GPU lanes `mios-llm-heavy` (SGLang,
-:11441, served-name `mios-heavy`) and `mios-llm-heavy-alt` (vLLM); both stay
+model. Heavy work can route to the gated GPU lanes `mios-llm-heavy` (vLLM,
+port key `vllm`, served-name `mios-heavy`) and `mios-llm-heavy-alt` (SGLang); both stay
 inert until enabled and reachable.
 
 * **MiOS-Sys-Agent** (the refine pass inside `mios-agent-pipe`) rewrites the
@@ -119,7 +119,7 @@ inert until enabled and reachable.
 * **MiOS-Delegate** (cheap children via `delegate_task`) — fan-out for
   independent terminal/file/web reads.
 * **MiOS-OpenCoder** (`opencode` served as an OpenAI `/v1` council peer by
-  `mios-opencode-gateway.service` on `:8633`) — coder-tuned specialist for
+  `mios-opencode-gateway.service` on the `opencode_gateway` port) — coder-tuned specialist for
   file-system / multi-file / PC-control workflows, dispatched by the agent-pipe
   orchestrator (no longer spawned over ACP).
 * **Background micro-LLM** (a small model served on the light lane, driven by
@@ -280,5 +280,5 @@ The chain is whatever model names the `mios-llm-light` lane currently serves
 `gemma4:12b`, and the legacy/role model names the pipeline still emits are
 aliased onto it by the upstream llama-swap proxy, so a fallback resolves to the one served GGUF on
 the dGPU rather than 400-ing on an unknown model. When a heavier model is needed
-and the GPU lane is enabled, dispatch routes to `mios-llm-heavy` (:11441,
+and the GPU lane is enabled, dispatch routes to `mios-llm-heavy` (port key `vllm`,
 served-name `mios-heavy`).

@@ -79,7 +79,7 @@ client certs** against the peer CAs, e.g.:
 # nginx sketch in front of the /a2a endpoint
 ssl_client_certificate /etc/mios/mtls/peer-cas.crt;   # concatenated peer CA certs
 ssl_verify_client on;
-proxy_pass http://127.0.0.1:8640;
+proxy_pass http://127.0.0.1:${MIOS_PORT_AGENT_PIPE};  # [ports].agent_pipe
 ```
 
 `[security.mtls].enable` is the advisory flag for that deployment. With no certs

@@ -13628,6 +13628,16 @@ port_clean = [
   "README.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", "MiOS.md", "SECURITY.md",
   ".github/ai-instructions.md", "llms.txt", "llms-full.txt",
   "usr/share/doc/mios/reference/api.md",
+  # Runtime AI payloads and operator surfaces (T-304, batch 1).
+  "system-prompt.md", "tools/README.md",
+  "etc/mios/ai/system-prompt.md", "etc/mios/system-prompts/mios-reviewer.md",
+  "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/audit-prompt.md",
+  "usr/share/mios/security/README.md",
+  "usr/share/mios/docs/agents/AI-ARCHITECTURE.md",
+  "usr/share/mios/docs/ai-pipeline-map.md",
+  "usr/share/mios/cookbooks/ingest-kb.md",
+  "usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md",
+  "usr/share/mios/hermes/skills/parallel-fanout/SKILL.md",
 ]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.

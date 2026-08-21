@@ -692,7 +692,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1724}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
 : "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"
-: "${MIOS_DOCS_PORT_CLEAN:=README.md,CLAUDE.md,GEMINI.md,AGENTS.md,MiOS.md,SECURITY.md,.github/ai-instructions.md,llms.txt,llms-full.txt,usr/share/doc/mios/reference/api.md}"
+: "${MIOS_DOCS_PORT_CLEAN:=README.md,CLAUDE.md,GEMINI.md,AGENTS.md,MiOS.md,SECURITY.md,.github/ai-instructions.md,llms.txt,llms-full.txt,usr/share/doc/mios/reference/api.md,system-prompt.md,tools/README.md,etc/mios/ai/system-prompt.md,etc/mios/system-prompts/mios-reviewer.md,usr/share/mios/ai/INDEX.md,usr/share/mios/ai/audit-prompt.md,usr/share/mios/security/README.md,usr/share/mios/docs/agents/AI-ARCHITECTURE.md,usr/share/mios/docs/ai-pipeline-map.md,usr/share/mios/cookbooks/ingest-kb.md,usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md,usr/share/mios/hermes/skills/parallel-fanout/SKILL.md}"
 : "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_}"
 : "${MIOS_DOCS_RENDER_EXTRA:=llms.txt,llms-full.txt}"
 : "${MIOS_DOCS_RETIRED_PORTS:=11434,11450,11441,3030,8432,8441,8442,8633,8640,8641,8642,8888,8899}"

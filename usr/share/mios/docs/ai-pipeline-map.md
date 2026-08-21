@@ -62,7 +62,7 @@ the visible answer is always polish's output.
                 │  OpenAI /v1/chat/completions (SSE stream)
                 ▼
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  mios-agent-pipe  (FastAPI, server.py, :8640)  ── THE ORCHESTRATOR/ROUTER  │
+│  mios-agent-pipe  (FastAPI, server.py, port key agent_pipe)  ── THE ORCHESTRATOR/ROUTER  │
 │                                                                            │
 │   REFINE ─► route ─► { chat | dispatch | agent | swarm/DAG } ─► POLISH     │
 │      │                         │                                  │        │
@@ -71,7 +71,7 @@ the visible answer is always polish's output.
 └──┬─────────────┬───────────────┬──────────────────────────┬───────────────┘
    │             │               │                          │
    ▼             ▼               ▼                          ▼
- micro lane   Hermes :8642   sub-agent registry        PostgreSQL+pgvector
+ micro lane   Hermes (port key hermes)   sub-agent registry        PostgreSQL+pgvector
  (mios-llm-   OpenAI gateway  [agents.*] in mios.toml   (mios-pgvector :5432:
   light)      standard         opencode, daemon-agent,   session, tool_call,
  classify/    tool-loop        client nodes…)            knowledge, scratch,
@@ -88,7 +88,7 @@ the visible answer is always polish's output.
 
 **Lanes & models (SSOT: `mios.toml` + `llamacpp/mios-llm-light.yaml`, overridable by
 env).** All chat/reasoning/embedding generation resolves through the primary
-inference lane **`mios-llm-light`** (`:11450`) — llama.cpp behind the upstream
+inference lane **`mios-llm-light`** (port key `llm_light`) — llama.cpp behind the upstream
 `mios-llm-light` proxy image, which auto-swaps a `llama-server` per requested model
 and supports KV-cache paging (per-slot save/restore). The same lane serves
 embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
@@ -96,15 +96,15 @@ embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
 
 | Role | Model (default) | Lane / served by | Notes |
 |---|---|---|---|
-| Refine (routing) | refine model (e.g. `granite4.1:8b`) | `mios-llm-light` :11450 | `think:false`; `keep_alive`/TTL to kill the cold-start gap |
-| Polish (answer) | polish model | `mios-llm-light` :11450 | persona applied; the real output step |
-| Classify / micro | `micro_model` (`lfm2:700m`) | `mios-llm-light` :11450 | cheap intent + task-gen |
-| Hermes orchestrator | served via the gateway | `:8642` MiOS-Hermes → `mios-llm-light` backend | OpenAI gateway, full tool-loop |
-| Swarm decomposer | refine model | `mios-llm-light` :11450 | `_plan_swarm`; `/api/chat think:false` |
-| Vision | opt-in VLM (e.g. `qwen3-vl:4b`) | `mios-llm-light` :11450 (vision GGUF) | image turns bypass refine; slot ships **empty** (operator opt-in) |
-| Heavy GPU lane | `mios-heavy` | `mios-llm-heavy` (SGLang) :11441 | gated/off-by-default (VRAM) |
-| Heavy GPU lane (alt) | — | `mios-llm-heavy-alt` (vLLM) :11440 | gated/off-by-default (VRAM) |
-| Embeddings | `nomic-embed-text` | `mios-llm-light` :11450 | knowledge recall + RAG |
+| Refine (routing) | refine model (e.g. `granite4.1:8b`) | `mios-llm-light` (port key `llm_light`) | `think:false`; `keep_alive`/TTL to kill the cold-start gap |
+| Polish (answer) | polish model | `mios-llm-light` (port key `llm_light`) | persona applied; the real output step |
+| Classify / micro | `micro_model` (`lfm2:700m`) | `mios-llm-light` (port key `llm_light`) | cheap intent + task-gen |
+| Hermes orchestrator | served via the gateway | MiOS-Hermes (port key `hermes`) → `mios-llm-light` backend | OpenAI gateway, full tool-loop |
+| Swarm decomposer | refine model | `mios-llm-light` (port key `llm_light`) | `_plan_swarm`; `/api/chat think:false` |
+| Vision | opt-in VLM (e.g. `qwen3-vl:4b`) | `mios-llm-light` (port key `llm_light`, vision GGUF) | image turns bypass refine; slot ships **empty** (operator opt-in) |
+| Heavy GPU lane | `mios-heavy` | `mios-llm-heavy` (vLLM, port key `vllm`) | gated/off-by-default (VRAM) |
+| Heavy GPU lane (alt) | — | `mios-llm-heavy-alt` (SGLang, port key `sglang`) | gated/off-by-default (VRAM) |
+| Embeddings | `nomic-embed-text` | `mios-llm-light` (port key `llm_light`) | knowledge recall + RAG |
 
 > Note on model names: the agent registry, Hermes, and the planner still emit
 > several legacy/role tags (`qwen3.5:4b`, `mios-hermes`, `mios-planner`, …).
@@ -181,7 +181,7 @@ broker → result wrapped in an OpenAI-shaped `tool_call` + `tool_result`
 The workhorse. `intent=agent` →
 
 ```
-   refine plan ─► Hermes orchestrator (:8642, standard OpenAI tool-loop)
+   refine plan ─► Hermes orchestrator (port key hermes, standard OpenAI tool-loop)
                      │   while (model emits tool_calls):
                      │       run verb via broker → feed tool_result back
                      │   until: final assistant message (no more tool_calls)
@@ -255,7 +255,7 @@ embeddings produced by `nomic-embed-text` on `mios-llm-light`.
 | **RAG enrich** | Pulls from OWUI knowledge collections (embeddings via `nomic-embed-text`) into the prompt. | `_rag_enrich` |
 | **Per-chat scratchpad** | Rolling cross-agent blackboard keyed by OpenAI `metadata.chat_id`, contextvar-threaded so concurrent council/DAG tasks inherit it; rendered into every node's prompt. | `_scratchpad_note` / `_scratchpad_render` |
 | **A2A / ACP context** | The same blackboard exposed in open `Message{role,parts[],contextId}` shape at `GET /a2a/contexts/{id}`. | `_a2a_messages_for` / `_a2a_context` |
-| **Web fan-out** | One `web_search` query expands into K concurrent sub-queries → RRF merge (in `mios-web-search`, backed by SearXNG `:8888`), bounded by a semaphore. | verb → helper |
+| **Web fan-out** | One `web_search` query expands into K concurrent sub-queries → RRF merge (in `mios-web-search`, backed by SearXNG, port key `searxng`), bounded by a semaphore. | verb → helper |
 | **Temporal grounding** | `today`/`tomorrow` injected into refine/polish/dispatch (fixes "tomorrow = today"). | refine/polish |
 | **Anti-fabrication (P5)** | Structural check flags narrated-but-not-executed WRITE actions (`write_action_unmet`) to polish, so the model can't fake "I posted it." | `refine_intent` post-pass |
 | **Satisfaction / auto-halt** | `mios-daemon-agent` runs a Definition-of-Done checker across tool_call/window/file/URL signals; emits `user_query_satisfied`; agents halt on that instead of looping. | `mios-daemon-agent` |
@@ -313,7 +313,7 @@ when up and auto-drop when gone (`health_gate` → short timeout) — the same
                 system_logs], target_agent=hermes. (not chat, not multi_task)
 3. decompose? → substantive agent ask ≥ N words → _plan_swarm. Self-gates: this is
                 ONE goal with dependent steps, not 2 independent goals → falls through.
-4. agent path → Hermes tool-loop (:8642 → mios-llm-light backend):
+4. agent path → Hermes tool-loop (port key hermes → mios-llm-light backend):
                   tool_call fs_search(path=/var, type=f, …)      → broker → results 🛰️✅
                   tool_call directory_lookup(...) / system_logs  → broker → results
                 council secondaries stream reasoning live into the think-block.
