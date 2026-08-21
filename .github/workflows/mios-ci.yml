@@ -20,6 +20,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Supersede stale PR bakes; never cancel main -- that run publishes and signs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   MIOS_DRIFT_REQUIRE_TOOLS: "1"
   # GitHub Actions and the self-hosted Forgejo runner are EQUAL, bit-for-bit
