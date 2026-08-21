@@ -84,15 +84,20 @@ jobs:
             echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
           fi
 
-      - name: Doc-generator unit test (test_mios_docgen.py)
+      - name: Office-format converter unit test (test_mios_docgen.py)
+        # mios-docgen converts office file formats (Pandoc/LibreOffice); the manuals gates run below.
         run: |
           cd ./usr/libexec/mios
           if python3 test_mios_docgen.py >/dev/null 2>&1; then
-            echo "  [ OK ] test_mios_docgen.py"
+            echo "  [ OK ] test_mios_docgen.py (office-format converter, not the manuals)"
           else
             python3 test_mios_docgen.py || true
             echo "test_mios_docgen.py failed" >&2; exit 1
           fi
+
+      - name: Manuals & docs production evidence (doc-production-evidence.sh)
+        # Prints what the documentation programme produced, then re-runs its read-only gates.
+        run: bash ./tests/doc-production-evidence.sh
 
       - name: AI-plane source drift checks (98-drift-checks.sh)
         run: bash ./automation/98-drift-checks.sh

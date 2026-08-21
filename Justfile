@@ -98,6 +98,8 @@ drift-gate:
     python3 ./usr/lib/mios/test_mios_comments.py
     @echo "[drift-gate] tests/test-mios-manual-harvest.sh"
     bash ./tests/test-mios-manual-harvest.sh
+    @echo "[drift-gate] tests/doc-production-evidence.sh"
+    bash ./tests/doc-production-evidence.sh
     @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
     @echo "[drift-gate] tests/test-theme-merge.py"
