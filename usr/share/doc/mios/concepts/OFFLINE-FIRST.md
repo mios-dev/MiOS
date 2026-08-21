@@ -49,9 +49,9 @@ self-replicating + agentic halves operating on-box.
 | **build** (`bib`/`podman build` the OCI image) | n/a | ⚠️ partial | Bound-images law (3) symlinks Quadlet image refs into `/usr/lib/bootc/bound-images.d/` and bakes them into `/usr/lib/containers/storage` so the FINAL image carries them, but the BUILD step still pulls from the registry to populate. A pre-pulled local registry mirror closes this. |
 | **deploy** (`bootc switch`/`bootc upgrade` to the new image) | ✅ offline | ✅ offline | bootc reads from the local image store; no network if the image is local |
 | **run** (boot + start services) | ✅ offline | ✅ offline | All systemd units + Quadlets reference images from the local store via `bound-images.d/` (Law 3) |
-| **host** (serve OWUI, Hermes, the inference lanes, SearXNG, Cockpit, k3s) | ✅ offline | ✅ offline | Every port binds localhost-or-LAN: OWUI `:3030`, agent-pipe `:8640`, Hermes `:8642`, prefilter `:8641`, `mios-llm-light` `:11450`, `mios-llm-heavy` `:11441`, opencode-gateway `:8633`, pgvector `:5432`, SearXNG `:8888`, Cockpit `:9090`, k3s `:6443`. No vendor cloud calls. |
+| **host** (serve OWUI, Hermes, the inference lanes, SearXNG, Cockpit, k3s) | ✅ offline | ✅ offline | Every port binds localhost-or-LAN: OWUI (port key `open_webui`), agent-pipe (`agent_pipe`), Hermes (`hermes`), prefilter (`prefilter`), `mios-llm-light` (`llm_light`), `mios-llm-heavy` (`vllm`), opencode-gateway (`opencode_gateway`), pgvector `:5432`, SearXNG (`searxng`), Cockpit `:9090`, k3s `:6443`. No vendor cloud calls. |
 | **re-build** (re-overlay + re-build after a code edit) | ✅ offline (if only `automation/*-render-*.sh` re-run) | ⚠️ partial | Same gap as "pull" — if the edit touches a script that re-fetches an external dep, the re-build needs that dep cached. This is the self-replicating half: the running OS can re-derive its own next image on-box. |
-| **use AI** (chat, refine, council/swarm, tool calls, memory) | ✅ offline | ✅ offline | Models baked via `automation/38-llamacpp-prep.sh`; **`mios-llm-light` (`:11450`)** is the primary inference lane — `llama.cpp` behind the upstream `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + KV-cache paging — and also serves **embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Heavy GPU lanes `mios-llm-heavy` (SGLang `:11441`) / `mios-llm-heavy-alt` (vLLM `:11440`) are gated/off-by-default. Hermes config seeds its endpoint from `MIOS_AI_ENDPOINT` (Law 5) with `web.search_backend: searxng` (local `:8888`). Agent memory/knowledge/RAG live in **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Skills + `system.md`/SOUL on disk. Internet-using tools (Discord, Firecrawl) are OPTIONAL valves. |
+| **use AI** (chat, refine, council/swarm, tool calls, memory) | ✅ offline | ✅ offline | Models baked via `automation/38-llamacpp-prep.sh`; **`mios-llm-light` (port key `llm_light`)** is the primary inference lane — `llama.cpp` behind the upstream `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`), multi-model auto-swap + KV-cache paging — and also serves **embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Heavy GPU lanes `mios-llm-heavy` (vLLM, port key `vllm`) / `mios-llm-heavy-alt` (SGLang, port key `sglang`) are gated/off-by-default. Hermes config seeds its endpoint from `MIOS_AI_ENDPOINT` (Law 5) with `web.search_backend: searxng` (local, port key `searxng`). Agent memory/knowledge/RAG live in **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Skills + `system.md`/SOUL on disk. Internet-using tools (Discord, Firecrawl) are OPTIONAL valves. |
 
 ## Remaining build-time gaps (Scenario 2)
 
@@ -92,9 +92,10 @@ cloud API keys configured; Quadlet images symlinked into
 
 > **Migration note (2026-06-13):** this audit predates the inference/datastore
 > migration. The offline conclusions still hold; only the components changed.
-> Inference + embeddings now run on **`mios-llm-light` (`:11450`, llama.cpp via
-> the upstream llama-swap proxy)** with gated heavy lanes (`mios-llm-heavy` SGLang `:11441`,
-> `mios-llm-heavy-alt` vLLM `:11440`) — Ollama is **removed** (it survives only as
+> Inference + embeddings now run on **`mios-llm-light` (port key `llm_light`,
+> llama.cpp via the upstream llama-swap proxy)** with gated heavy lanes
+> (`mios-llm-heavy` vLLM, port key `vllm`; `mios-llm-heavy-alt` SGLang, port key
+> `sglang`) — Ollama is **removed** (it survives only as
 > an upstream API-compat reference, since the lanes speak the OpenAI/Ollama-
 > compatible API). The agent datastore is **PostgreSQL + pgvector**
 > (`mios-pgvector`, `:5432`) — the legacy datastore and Qdrant are **removed**. Re-run

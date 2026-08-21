@@ -42,23 +42,23 @@ firewall opening, not enabled here.
 /usr/lib/systemd/system/hermes-worker.service
 
 The MiOS Hermes WORKER (P1, operator 2026-06-19). A SECOND `hermes gateway
-run` instance, fully ISOLATED from the live :8642 Discord gateway:
+run` instance, fully ISOLATED from the live Discord gateway on the `hermes` port:
   * SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker => its own gateway.pid /
     gateway.lock / gateway_state.json / state.db / kanban.db / config.yaml.
-    No shared-DB WAL contention with the :8642 instance.
+    No shared-DB WAL contention with the `hermes`-port instance.
   * API_SERVER_PORT=8643 (the LOAD-BEARING bind var -- `PORT` is inert; Hermes
-    reads API_SERVER_PORT and otherwise binds DEFAULT_PORT=8642).
+    reads API_SERVER_PORT and otherwise binds its built-in DEFAULT_PORT).
   * NO discord.env / NO DISCORD_BOT_TOKEN => the Discord adapter never calls
     _acquire_platform_lock('discord-bot-token', ...), so the host-global
-    gateway-locks/discord-bot-token-*.lock held by the :8642 gateway is never
-    contended (no SIGTERM flap). Discord stays the EXCLUSIVE job of :8642.
+    gateway-locks/discord-bot-token-*.lock held by the `hermes`-port gateway is never
+    contended (no SIGTERM flap). Discord stays the EXCLUSIVE job of that gateway.
   * NO --replace: the worker's HERMES_HOME-scoped pidfile is its own; the
-    :8642 gateway's eviction scan is profile/HERMES_HOME-scoped (only --all
+    `hermes`-port gateway's eviction scan is profile/HERMES_HOME-scoped (only --all
     crosses profiles, which is not used) so neither instance touches the other.
 
 This worker is the WORKER-DISPATCH target of [agents.hermes].endpoint in
-mios.toml (repointed :11441 -> :8643 in P1). It does its OWN heavy-lane
-inference (:11441 mios-heavy) so it never relays to :8640 -- no recursion.
+mios.toml (repointed from the heavy lane to :8643 in P1). It does its OWN heavy-lane
+inference (mios-heavy, port key `vllm`) so it never relays to the `agent_pipe` port -- no recursion.
 
 <!-- mios-src:0fa4044ac17b from usr/lib/systemd/system/hermes-worker.service:4-23 -->
 
@@ -126,7 +126,7 @@ MIOS_AGENT_PIPE_BACKEND + MIOS_DB_URL etc. as os.environ overrides.
 ### WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP"): the...
 
 WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP"): the agent-pipe
-reasons DIRECTLY on mios-llm-light (:11450) instead of via a Hermes hop. All
+reasons DIRECTLY on mios-llm-light (port key `llm_light`) instead of via a Hermes hop. All
 inference is on the dGPU via llama.cpp.
 2026-06-15 (Claude): model fleet swapped gemma4:12b -> granite4.1:8b (the served
 brain on mios-llm-light; see mios-llm-light.yaml + mios.toml:4061). gemma4:12b is
@@ -136,23 +136,23 @@ BASE default MIOS_STACK_MODEL (which _MICRO/DCI/SWARM/refine/polish/planner inhe
 via server.py) + the explicit BACKEND/SWARM/MICRO names. ONE resident model = no
 llama-swap thrash. Override per-deployment in /etc/mios/agent-pipe.env.
 WS-0B: the agent-pipe reasons DIRECTLY on the light lane (NOT fronting Hermes
-:8642). Opt in by FLAG -- server.py composes the URL from _LIGHT_BASE, so the
+on the `hermes` port). Opt in by FLAG -- server.py composes the URL from _LIGHT_BASE, so the
 port lives in ONE place ([ports].llm_light), not a literal here. MICRO/ROUTER/
 LLM_CPU/PLANNER/REFINE/POLISH endpoints ALSO derive from _LIGHT_BASE now and
 are no longer pinned in this unit.
 
 <!-- mios-src:fcd7ab5afd0f from usr/lib/systemd/system/mios-agent-pipe.service:50-64 -->
 
-### llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no...
+### llama.cpp/mios-llm-light (port key `llm_light`) is OpenAI /v1 ONLY (no...
 
-llama.cpp/mios-llm-light (:11450) is OpenAI /v1 ONLY (no legacy /api/chat, /api/ps)
+llama.cpp/mios-llm-light (port key `llm_light`) is OpenAI /v1 ONLY (no legacy /api/chat, /api/ps)
 and 400s on tool_choice=required. Register it so the pipe treats it as llamacpp:
 skip forced tool_choice (no 400) + use the /slots KV-paging path. No bare port
 literal in routing code -- these are the env-SSOT hint lists.
 llama.cpp b9519 (the dGPU mios-llm-light) ACCEPTS tool_choice=required (verified) --
-only the older iGPU b9305 (:11436) rejects it. So :11450 must NOT be in the
+only the older iGPU b9305 (:11436) rejects it. So `llm_light` must NOT be in the
 no-tool-choice list, or the pipe drops/auto's tool_choice and gemma4 NARRATES
-the call instead of executing it. Keep :11450 in KV_PAGING (it does /slots).
+the call instead of executing it. Keep `llm_light` in KV_PAGING (it does /slots).
 
 <!-- mios-src:14a9c500f03c from usr/lib/systemd/system/mios-agent-pipe.service:71-78 -->
 
@@ -161,8 +161,8 @@ the call instead of executing it. Keep :11450 in KV_PAGING (it does /slots).
 WS-0B: ROUTER + the CPU-offload light-lane (MIOS_LLM_CPU_ENDPOINT) both now
 default to _LIGHT_BASE in server.py (mios-llm-light) -- no per-endpoint pin here.
 Override either via /etc/mios/agent-pipe.env only if a deployment splits lanes.
-Phase A.1 -- planner runs on the dGPU/CUDA lane :11434. Falls back to
-whatever lane is reachable if :11434 is down.
+Phase A.1 -- planner runs on the dGPU/CUDA lane (the retired Ollama lane). Falls back to
+whatever lane is reachable if that lane is down.
 Model: mios-agent -- the canonical "MiOS AI" model (Modelfile FROM
 qwen3.5:4b as of 2026-05-22 consolidation; was gemma4:e4b). ONE light
 brain now serves plan + refine + polish with the full MiOS agent SYSTEM
@@ -186,7 +186,7 @@ Phase C.3 -- this service signs agent-plane writes (pgvector + A2A) as agent-pip
 refine (input prompt-enhancement -> the structured plan every downstream node
 consumes; THE quality lever) + polish (final-answer shaping WITH the MiOS
 persona) both run on the ONE resident served brain via the agent-pipe lane
-resolver (mios-llm-light; the retired qwen3.5:4b/qwen3:1.7b dGPU :11434 pins are
+resolver (mios-llm-light; the retired qwen3.5:4b/qwen3:1.7b dGPU Ollama-lane pins are
 GONE). WS-0B: their endpoint AND model now derive from server.py (_LIGHT_BASE +
 MIOS_AI_MODEL, the one owned keys) -- NEITHER is pinned in this unit anymore. The
 CONCURRENT swarm secondaries still fan out to OTHER lanes at the same dispatch
@@ -322,9 +322,9 @@ absent (ConditionPathExists) or inactive.
 
 ### Ports
 
-Ports: 3000=Forge, 3030=OWUI, 8080=code-server, 8642=Hermes-Agent,
-       8888=SearXNG, 9090=Cockpit, 9119=Hermes-Dashboard,
-       11450=LLM-Light, 5432=pgvector, 19090=Cockpit-link, 3053=AdGuard UI, 53=AdGuard DNS.
+Ports: forge_http=Forge, open_webui=OWUI, code_server=code-server, hermes=Hermes-Agent,
+       searxng=SearXNG, cockpit=Cockpit, hermes_dashboard=Hermes-Dashboard,
+       llm_light=LLM-Light, pgvector=pgvector, cockpit_link=Cockpit-link, adguard_ui=AdGuard UI, 53=AdGuard DNS.
 (crawl4ai :11235 removed 2026-05-24: the crawl engine is now a LOOPBACK-only
  venv service -- mios-crawl4ai.service binds 127.0.0.1, never LAN-exposed.)
 AdGuard DNS needs BOTH 53/tcp and 53/udp (UDP is the normal query path).
@@ -582,9 +582,9 @@ pick_key() resolves. No key baked -> unit is a clean no-op.
 
 <!-- mios-src:0d0304c7f565 from usr/lib/systemd/system/mios-mok-enroll.service:9-12 -->
 
-### Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI...
+### Makes [agents.opencode] endpoint :${MIOS_PORT_OPENCODE_GATEWAY}/v1 a REAL OpenAI...
 
-Makes [agents.opencode] endpoint :8633/v1 a REAL OpenAI endpoint so
+Makes [agents.opencode] endpoint :${MIOS_PORT_OPENCODE_GATEWAY}/v1 a REAL OpenAI endpoint so
 agent-pipe's multi-agent fan-out (opencode secondary) + the primary path
 (refine target_agent=opencode) can reach it. opencode has no native /v1
 (its `serve` is opencode's own OpenAPI on :4096); this shim wraps
@@ -705,7 +705,7 @@ and the daemon's directory_entry cache. Read-only probe; the only write is the
 pgvector cache row. operator 2026-05-23: "probe systems/environment live +
 store/update a mios-sys-env database".
 systemd does NOT expand bash ${VAR:-default} in Environment= -- it passes the
-LITERAL string "8432", which mios-pg-query then int()s ->
+LITERAL, unexpanded ${VAR:-default} string, which mios-pg-query then int()s ->
 ValueError -> "pgvector upsert failed" on every run. Source install.env instead
 so MIOS_PORT_PGVECTOR holds the real port; mios-pg-query reads it directly
 (its own fallback is MIOS_PG_PORT or MIOS_PORT_PGVECTOR or 5432).

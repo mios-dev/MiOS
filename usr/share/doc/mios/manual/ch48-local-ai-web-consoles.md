@@ -15,7 +15,7 @@ This chapter covers the documentation for **Local AI Web Consoles** under MiOS.
 Deploys Open WebUI as the primary browser chat interface.
 
 ## Details
-- **Port**: Serves requests on port 3030.
+- **Port**: Serves requests on the `open_webui` port.
 - **Service**: Managed via `mios-owui` Quadlet.
 - **Connection**: Connects internally to `/v1/chat/completions` on the local endpoint.
 

@@ -18,7 +18,7 @@ graph TD
 
 The container is managed natively via systemd Quadlets. The systemd unit file is located at `usr/share/containers/systemd/mios-agent-pipe.container` and automatically configures:
 - Image binding: `localhost/mios-agent-pipe:hummingbird`
-- Network exposure on port `8640`
+- Network exposure on the `agent_pipe` port
 - Explicit environment overrides mapping `MIOS_AI_ENDPOINT`
 
 ## Security Posture

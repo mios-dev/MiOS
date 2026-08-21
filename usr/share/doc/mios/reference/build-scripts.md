@@ -24,7 +24,7 @@ That image is then consumed by the **bootc lifecycle** — `bootc switch`/`upgra
 deploys it and `bootc rollback` reverts it — which is why keeping the pipeline
 deterministic and correctly ordered is load-bearing for the whole system. The
 build pipeline also *bakes in* the agentic plane: the inference lanes
-(`mios-llm-light` on `:11450`, the gated heavy lanes `mios-llm-heavy`/`-alt`), the
+(`mios-llm-light` on the `llm_light` port, the gated heavy lanes `mios-llm-heavy`/`-alt`), the
 `agent-pipe`/MiOS-Hermes orchestration, the PostgreSQL+pgvector memory, and the
 MCP/A2A tool/agent surfaces all ship inside this same image as bound Quadlets.
 
@@ -71,7 +71,7 @@ NON_FATAL_SCRIPTS="
 === BLOCK 3: inside embedded install.ps1 Get-Hardware — annotated stale $aiModel line ===
     $baseImage = if ($hasNvidia) { "ghcr.io/ublue-os/ucore-hci:stable-nvidia" } else { "ghcr.io/ublue-os/ucore-hci:stable" }
     # NOTE (post-snapshot): the current install.ps1 no longer picks an Ollama model
-    # tag here. Inference is the mios-llm-light lane (:11450); its model roster is
+    # tag here. Inference is the mios-llm-light lane (port key llm_light); its model roster is
     # declared in usr/share/mios/llamacpp/mios-llm-light.yaml, not selected by RAM at
     # install time. This line is retained from the historical installer.
     $aiModel   = if ($ramGB -ge 32) { "qwen2.5-coder:14b" } elseif ($ramGB -ge 12) { "granite4.1:8b" } else { "phi4-mini:3.8b-q4_K_M" }
@@ -85,11 +85,11 @@ NON_FATAL_SCRIPTS="
 > this `37-ollama-prep` model-bake step are all gone. Local inference and
 > embeddings now run on the **`mios-llm-light`** lane (llama.cpp behind the
 > upstream `mios-llm-light` proxy image, `ghcr.io/mostlygeek/llama-swap`) on
-> **`:11450`**, which serves the everyday models, the `mios-opencode` coder model,
+> the **`llm_light`** port, which serves the everyday models, the `mios-opencode` coder model,
 > and embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Its model
 > roster is configured declaratively in `usr/share/mios/llamacpp/mios-llm-light.yaml`
 > and prepared by `automation/38-llamacpp-prep.sh`; the gated heavy lanes are
-> `mios-llm-heavy` (SGLang, `:11441`) and `mios-llm-heavy-alt` (vLLM). The engines
+> `mios-llm-heavy` (vLLM, port key `vllm`) and `mios-llm-heavy-alt` (SGLang). The engines
 > speak the OpenAI/Ollama-compatible API, so "Ollama" survives only as that
 > *upstream API-compat reference* — not as a live MiOS backend. The section is
 > retained as a marker so older references to it resolve.
@@ -109,11 +109,11 @@ in execution order so the dependency ordering is still legible:
 - `09-fonts.sh`
 - `15-render-quadlets.sh` — renders Quadlet placeholders from `mios.toml`/`install.env`
 - `34-sshd-port.sh`
-- `38-hermes-agent.sh` — stages the MiOS-Hermes OpenAI-compat agent gateway (`:8642`)
-- `38-llamacpp-prep.sh` — prepares the `mios-llm-light` llama.cpp lane (`:11450`)
+- `38-hermes-agent.sh` — stages the MiOS-Hermes OpenAI-compat agent gateway (port key `hermes`)
+- `38-llamacpp-prep.sh` — prepares the `mios-llm-light` llama.cpp lane (port key `llm_light`)
 - `38-oh-my-posh.sh`
-- `38-vllm-prep.sh` — prepares the gated `mios-llm-heavy-alt` (vLLM) lane
-- `39-opencode.sh` — stages the `mios-opencode` coder model + opencode gateway (`:8633`)
+- `38-vllm-prep.sh` — prepares the gated `mios-llm-heavy` (vLLM) lane
+- `39-opencode.sh` — stages the `mios-opencode` coder model + opencode gateway (port key `opencode_gateway`)
 - `40-flatpak-bake.sh`
 - `41-gpu-cdi-toolkits.sh`
 - `41-mios-dropin-fanout.sh`

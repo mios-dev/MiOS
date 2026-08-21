@@ -68,8 +68,8 @@ The services these Quadlets deliver span the whole system:
 
 | Plane | Representative Quadlet units |
 | --- | --- |
-| Inference lanes | `mios-llm-light` (:11450, primary — llama.cpp behind the upstream llama-swap proxy image; everyday models + embeddings), `mios-llm-heavy` (:11441, SGLang), `mios-llm-heavy-alt` (vLLM), `mios-llm-worker@` (swarm workers) |
-| Agent / front-end | `mios-open-webui` (:3030), `mios-searxng` (:8888) |
+| Inference lanes | `mios-llm-light` (port key `llm_light`, primary — llama.cpp behind the upstream llama-swap proxy image; everyday models + embeddings), `mios-llm-heavy` (port key `vllm`, vLLM), `mios-llm-heavy-alt` (port key `sglang`, SGLang), `mios-llm-worker@` (swarm workers) |
+| Agent / front-end | `mios-open-webui` (port key `open_webui`), `mios-searxng` (port key `searxng`) |
 | Memory / storage | `mios-pgvector` (:5432, PostgreSQL + pgvector — the unified agent datastore), `mios-ceph` |
 | Cluster / CI | `mios-k3s`, `mios-forge`, `mios-forgejo-runner` |
 | Security / web tools | `mios-adguard`, `mios-crowdsec-dashboard`, `mios-webtools-*` |
@@ -148,4 +148,4 @@ pipeline produces.
   inference-lane Quadlets serve.
 - `usr/share/containers/systemd/mios-llm-light.container` — the primary
   inference Quadlet (was the Ollama unit; now llama.cpp via the
-  upstream llama-swap proxy image on :11450).
+  upstream llama-swap proxy image on the `llm_light` port).

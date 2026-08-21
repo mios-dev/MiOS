@@ -20,12 +20,13 @@ GNOME/Wayland and GPU virtualization also ships a full local agent stack behind 
 OpenAI-compatible endpoint (`MIOS_AI_ENDPOINT`, Architectural Law 5).
 
 In that agent stack the flow is: a front-end (OWUI, the Discord gateway, the `mios`
-CLI) hands a request to the **agent-pipe** orchestrator (`:8640`), which refines it,
+CLI) hands a request to the **agent-pipe** orchestrator (port key `agent_pipe`), which refines it,
 fans it out across a council/swarm, and dispatches tool/verb calls; **MiOS-Hermes**
-(`:8642`) is the OpenAI-compatible gateway and tool-loop agent; the **inference
-lanes** — primary **mios-llm-light** (`:11450`, llama.cpp behind the upstream
-llama-swap proxy image), with gated heavy lanes **mios-llm-heavy** (SGLang, `:11441`) and
-**mios-llm-heavy-alt** (vLLM, `:11440`) — do generation **and** embeddings; MCP
+(port key `hermes`) is the OpenAI-compatible gateway and tool-loop agent; the **inference
+lanes** — primary **mios-llm-light** (port key `llm_light`, llama.cpp behind the
+upstream llama-swap proxy image), with gated heavy lanes **mios-llm-heavy** (vLLM,
+port key `vllm`) and **mios-llm-heavy-alt** (SGLang, port key `sglang`) — do
+generation **and** embeddings; MCP
 exposes the tool surface and A2A federates peer agents.
 
 This document is about the **memory and state** of that stack. Every durable thing
@@ -58,7 +59,7 @@ pgvector" for agent state + memory + retrieval:
   container.
 - **The embeddings flow is unchanged and unified (Law 5)**: nomic-embed-text via
   the OpenAI-compatible `/v1/embeddings` endpoint served by **mios-llm-light**
-  (`:11450`), 768-dim, stored in `vector(768)`. The same engine that does chat does
+  (port key `llm_light`), 768-dim, stored in `vector(768)`. The same engine that does chat does
   embeddings — there is no separate embedding backend to keep alive.
 
 This is also why pgvector replaced **two** legacy components at once: the legacy datastore (the

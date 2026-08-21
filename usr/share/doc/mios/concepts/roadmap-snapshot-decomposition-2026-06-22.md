@@ -184,14 +184,14 @@ Current functional layers:
 
 | Layer | MiOS component |
 |---|---|
-| Front door | `mios-agent-pipe` (`:8640`) as orchestrator front door |
-| Agent/tool-loop gateway | MiOS-Hermes (`:8642`) as dispatched leaf/gateway |
-| Prefilter | MiOS-Prefilter (`:8641`) for fan-outable prompts |
-| Primary inference | `mios-llm-light` (`:11450`) for everyday chat, coding, and embeddings |
-| Heavy inference | `mios-llm-heavy` (`:11441`) and `mios-llm-heavy-alt` (`:11440`), gated/off by default |
+| Front door | `mios-agent-pipe` (port key `agent_pipe`) as orchestrator front door |
+| Agent/tool-loop gateway | MiOS-Hermes (port key `hermes`) as dispatched leaf/gateway |
+| Prefilter | MiOS-Prefilter (port key `prefilter`) for fan-outable prompts |
+| Primary inference | `mios-llm-light` (port key `llm_light`) for everyday chat, coding, and embeddings |
+| Heavy inference | `mios-llm-heavy` (vLLM, port key `vllm`) and `mios-llm-heavy-alt` (SGLang, port key `sglang`), gated/off by default |
 | OpenAI client surface | `/v1/models`, `/v1/chat/completions`, `/v1/embeddings`, tool calls |
-| Browser UI | `mios-open-webui` (`:3030`) |
-| Search | `mios-searxng` (`:8888`) |
+| Browser UI | `mios-open-webui` (port key `open_webui`) |
+| Search | `mios-searxng` (port key `searxng`) |
 | Memory | `mios-pgvector` (`:5432`) |
 
 The OS-to-AI metaphor in the snapshot maps cleanly when kept concrete:

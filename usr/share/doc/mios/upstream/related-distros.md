@@ -23,11 +23,11 @@ MiOS is one product built two ways at once:
    one-node-cluster path — the HCI workstation-server hybrid posture.
 2. **A local, self-replicating, agentic AI operating system.** The same image
    ships a full local agent stack behind one OpenAI-compatible endpoint: the
-   **agent-pipe** orchestrator (`:8640`) fronting the **MiOS-Hermes** gateway
-   (`:8642`), **PostgreSQL + pgvector** (`:5432`) as the unified agent memory,
+   **agent-pipe** orchestrator (port key `agent_pipe`) fronting the **MiOS-Hermes** gateway
+   (port key `hermes`), **PostgreSQL + pgvector** (`:5432`) as the unified agent memory,
    and three local **inference lanes** — `mios-llm-light` (the primary llama.cpp
-   lane on `:11450`, which also serves embeddings) plus the gated heavy lanes
-   `mios-llm-heavy` (SGLang, `:11441`) and `mios-llm-heavy-alt` (vLLM). MCP
+   lane, port key `llm_light`, which also serves embeddings) plus the gated heavy lanes
+   `mios-llm-heavy` (vLLM, port key `vllm`) and `mios-llm-heavy-alt` (SGLang, port key `sglang`). MCP
    exposes the tool surface; A2A federates peer agents.
 
 No mainstream atomic distro ships both halves in one image. That gap is the whole

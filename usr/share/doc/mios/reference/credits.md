@@ -112,7 +112,7 @@ listed as **Day-0 portability targets**: 'MiOS' agents resolve through
 | Engine | Role | Upstream |
 |---|---|---|
 | llama-swap | Default served runtime; model-swapping proxy fronting llama.cpp, OpenAI-compatible at `/v1` | <https://github.com/mostlygeek/llama-swap> |
-| Ollama | **Not a supported lane.** Credited as an OpenAI-`/v1` compatibility reference only -- the local `:11434` lane is RETIRED and `check_dead_lane` in `automation/98-drift-checks.sh` fails the build if it reappears in active config | <https://github.com/ollama/ollama> |
+| Ollama | **Not a supported lane.** Credited as an OpenAI-`/v1` compatibility reference only -- the local Ollama lane is RETIRED and `check_dead_lane` in `automation/98-drift-checks.sh` fails the build if it reappears in active config | <https://github.com/ollama/ollama> |
 | vLLM | High-throughput server (`vllm serve <model>`) | <https://github.com/vllm-project/vllm> |
 | llama.cpp server | CPU/GPU GGUF reference server | <https://github.com/ggerganov/llama.cpp> |
 | LM Studio | Desktop OpenAI-compatible server | <https://lmstudio.ai/> |
@@ -317,7 +317,7 @@ subset. Every URL below is the source-of-truth for the named surface.
 | FHS 3.0 root layout | repo root mirrors `/` |
 | `agents.md` agent identity convention | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `.clinerules`, `.cursorrules` |
 | `llms.txt` / `llms-full.txt` | repo root |
-| OpenAI `/v1` API surface | `MIOS_AI_ENDPOINT=http://localhost:8642/v1` |
+| OpenAI `/v1` API surface | `$MIOS_AI_ENDPOINT` |
 | MCP server registry | `usr/share/mios/ai/v1/mcp.json` |
 
 ## 20. Internal repo files referenced as canonical sources

@@ -124,7 +124,7 @@ podman run --rm --device intel.com/gpu=card0 <image> intel_gpu_top
 
 The same vendor-prefixed device IDs are what the inference-lane Quadlets request.
 `mios-llm-light` — the **primary** local inference engine (llama.cpp behind the
-upstream llama-swap proxy image on `:11450`, which also serves embeddings via
+upstream llama-swap proxy image on the `llm_light` port, which also serves embeddings via
 `nomic-embed-text`) — declares it directly in
 `usr/share/containers/systemd/mios-llm-light.container`:
 
@@ -134,10 +134,10 @@ AddDevice=nvidia.com/gpu=all
 ```
 
 That one CDI reference is what lets `llama-server` offload to CUDA inside the
-container; the heavy GPU lanes (`mios-llm-heavy`, SGLang on `:11441`;
-`mios-llm-heavy-alt`, vLLM) consume the same CDI surface when enabled. From
+container; the heavy GPU lanes (`mios-llm-heavy`, vLLM on the `vllm` port;
+`mios-llm-heavy-alt`, SGLang) consume the same CDI surface when enabled. From
 there the generation/embeddings produced over the GPU flow up the AI plane —
-agent-pipe (`:8640`) orchestration, MiOS-Hermes (`:8642`) tool-loop, and
+agent-pipe (port key `agent_pipe`) orchestration, MiOS-Hermes (port key `hermes`) tool-loop, and
 pgvector (`:5432`) memory — so CDI is the bottom rung of the whole agentic stack.
 
 ## Cross-refs

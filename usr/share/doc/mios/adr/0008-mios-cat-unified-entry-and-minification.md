@@ -110,8 +110,8 @@ large enough to hold it.
    `deploy-mios-hyperv-m.ps1` verbatim; `cat install --target wsl` calls
    `just wsl2` + the `95-mios-wsl.preset` preview path. MiOS-Cat only *fronts*
    these — WS-MDRIVE stays the mechanism (`WS-CAT deps: [WS-MDRIVE]`). Every
-   deployed target exposes the single `:8640/` front door (Portal + configurator +
-   OpenAI `/v1`, ADR-0006 / ADR-0009).
+   deployed target exposes the single front door on the `agent_pipe` port
+   (Portal + configurator + OpenAI `/v1`, ADR-0006 / ADR-0009).
 
 6. **A `[cat]` SSOT block replaces the dangling reads; ADRs stay baked with a
    generated breadcrumb.** Add `[cat]` to `usr/share/mios/mios.toml`
@@ -151,7 +151,7 @@ large enough to hold it.
   WS-SBOM / `38-llamacpp-prep.sh` resolved-not-hardcoded pattern).
 - **ADR-0005 / ADR-0006 / ADR-0009 are fronted, not forked.** MiOS-Cat adds a
   unifying front door over the existing run-off-M: mechanism and the single
-  `:8640/` surface; it does not re-implement or contradict them.
+  `agent_pipe` surface; it does not re-implement or contradict them.
 
 ## Alternatives considered
 
@@ -220,7 +220,7 @@ Negative / costs & open questions (gate the flip to `accepted`):
   weights to `/usr/share/mios/vllm/model` (+ the GGUF dir) offline (Law 12).
 - **Delegation:** `cat install --target hyperv|wsl` calls the ADR-0005 `just
   vhdx-m` / `deploy-mios-hyperv-m.ps1` / `just wsl2` + `95-mios-wsl.preset`
-  verbatim; the `:8640/` surface is ADR-0006 / ADR-0009.
+  verbatim; the `agent_pipe` surface is ADR-0006 / ADR-0009.
 - **Breadcrumb:** generate `C:\MiOS\ADR.md` + `cat\ADR-0008.md` from SSOT (Law 8);
   link from `llms.txt` / `AGENTS.md`.
 
@@ -228,11 +228,12 @@ Negative / costs & open questions (gate the flip to `accepted`):
 
 - ADR-0005 (Sovereign run-off-M: Hyper-V VHDX deployment) — the deployment
   mechanism MiOS-Cat fronts: `0005-sovereign-run-off-m-drive.md`.
-- ADR-0006 (OpenAI-API-only AI contract) — the single `:8640` `/v1` front door
-  every deployed target exposes: `0006-openai-api-only-ai-contract.md`.
+- ADR-0006 (OpenAI-API-only AI contract) — the single `/v1` front door on the
+  `agent_pipe` port that every deployed target exposes:
+  `0006-openai-api-only-ai-contract.md`.
 - ADR-0009 (Unified config surface) — the shareable-link Portal + configurator +
-  `/v1` surface at `:8640/` that the MiOS-Repo USB is the offline embodiment of:
-  `0009-unified-config-surface.md`.
+  `/v1` surface on the `agent_pipe` port that the MiOS-Repo USB is the offline
+  embodiment of: `0009-unified-config-surface.md`.
 - ADR-0001 / ADR-0002 (bake groups / MiOS-Sys) — why weights stay a-la-carte and
   the image bakes engines only.
 - SSOT: `usr/share/mios/mios.toml` — `[ai].bake_models` (L5744/L6116),

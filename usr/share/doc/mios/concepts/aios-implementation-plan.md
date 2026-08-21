@@ -36,15 +36,15 @@ Where this piece sits in the end-to-end system:
 build pipeline ──► OCI image ──► bootc lifecycle (upgrade / rollback)
                                          │  (Architectural Laws 1–4)
                                          ▼
-   front-ends (OWUI :3030 · Discord gateway · `mios` CLI)
+   front-ends (OWUI, port key `open_webui` · Discord gateway · `mios` CLI)
         │
         ▼
-   mios-agent-pipe  :8640  ── refine → council/swarm fan-out → critic/polish
+   mios-agent-pipe  (port key `agent_pipe`)  ── refine → council/swarm fan-out → critic/polish
         │   (THIS PLAN'S SUBJECT: the AIOS kernel services live here)
-        ├── MiOS-Hermes :8642  (OpenAI-compat tool-loop gateway)
-        ├── inference lanes:  mios-llm-light :11450 (primary; also embeddings)
-        │                     mios-llm-heavy :11441 (SGLang, gated)
-        │                     mios-llm-heavy-alt :11440 (vLLM, gated)
+        ├── MiOS-Hermes (port key `hermes`; OpenAI-compat tool-loop gateway)
+        ├── inference lanes:  mios-llm-light (port key `llm_light`; primary, also embeddings)
+        │                     mios-llm-heavy (port key `vllm`; vLLM, gated)
+        │                     mios-llm-heavy-alt (port key `sglang`; SGLang, gated)
         ├── memory:  mios-pgvector :5432  (PostgreSQL + pgvector — unified agent plane)
         └── federation:  MCP (tool surface)  ·  A2A (peer agents)   (Laws 5–6)
 ```
@@ -90,7 +90,7 @@ to them.** "Qwen 3.6 35B" / "qwen3.6" did not exist when this survey landed
 `system_audit.sh` greps for `qwen3.6` and would always fail. **LAKE** (ML-in-
 kernel scheduling) and **ProbeLogits** (logit-vector kernel security) are
 research-grade and the primary llama.cpp lane does not expose logit tensors —
-treat as Phase-4 spikes, not deliverables (a vLLM heavy lane, `mios-llm-heavy-alt`,
+treat as Phase-4 spikes, not deliverables (a vLLM heavy lane, `mios-llm-heavy`,
 would be the prerequisite for logit access). The magic numbers (2.1x speedup,
 98.7% token cut, 92% compaction, 65ms, 32MB KV cap) are paper/illustrative
 targets, not contracts. The survey also describes MiOS aspirationally as already
@@ -108,7 +108,7 @@ targets, not contracts. The survey also describes MiOS aspirationally as already
 |---|---|---|
 | AIOS 6-manager kernel | PARTIAL->PRESENT (all six exist as fns) | finish scheduler + memory paging |
 | Agent Scheduler (FIFO/RR/priority/SJF) | PARTIAL — `_admit` = priority *backoff*, not reorder | **WS-1: real priority queue** |
-| Context Mgr / KV checkpoint·restore·fork | PARTIAL — `_kv_paging` real on the `mios-llm-light` llama.cpp lane; `kv_fork` now staged | scale-up (vLLM+LMCache via `mios-llm-heavy-alt`), finish `kv_fork` |
+| Context Mgr / KV checkpoint·restore·fork | PARTIAL — `_kv_paging` real on the `mios-llm-light` llama.cpp lane; `kv_fork` now staged | scale-up (vLLM+LMCache via `mios-llm-heavy`), finish `kv_fork` |
 | Memory Mgr (MemGPT/Letta tiers) | PARTIAL — warm/hot + outcome-rank, no eviction | **WS-3: eviction/TTL + self-edit tools** |
 | Storage (vector recall) | PRESENT — embed-at-write + cosine over PostgreSQL + pgvector | minor: compaction/TTL |
 | Tool Mgr + MCP serve/consume | PRESENT — both wired into loop | **WS-2: Code Mode**, `.mcpb` security |
@@ -175,8 +175,8 @@ git + GCM).
   (bootc atomic) before enforcing; operator-gated boot changes. See
   `usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md`,
   `usr/share/doc/mios/upstream/composefs.md`, `bootc.md`.
-- **WS-8 — Research spikes (no commitment).** The `mios-llm-heavy` (SGLang) /
-  `mios-llm-heavy-alt` (vLLM) heavy lanes + LMCache (RadixAttention prefix-
+- **WS-8 — Research spikes (no commitment).** The `mios-llm-heavy` (vLLM) /
+  `mios-llm-heavy-alt` (SGLang) heavy lanes + LMCache (RadixAttention prefix-
   sharing == the swarm's shared-prefix workload), `kv_fork` for swarm forking,
   ProbeLogits (needs vLLM logit access), LAKE (revisit after WS-1 gives a queue
   to learn over), MicroVM upgrade from bwrap, remote-kernel topology
@@ -346,8 +346,8 @@ Captured so the next build session starts grounded. All citations are
 - WRITE: `_store_knowledge` (7256) -> `_store_knowledge_task` (7278). Row fields:
   `q`, `answer`, `sources`, `access_count` (seed 0), `recall_hits` (seed 0),
   `tier` (seed `'warm'`), `satisfied` (outcome signal, omitted if None), `emb`
-  (`nomic-embed-text` via `_embed_one`, served by `mios-llm-light` :11450
-  `/v1/embeddings`, best-effort), `ts`, `session_id`, `passport` (ed25519).
+  (`nomic-embed-text` via `_embed_one`, served by `mios-llm-light` on the
+  `llm_light` port's `/v1/embeddings`, best-effort), `ts`, `session_id`, `passport` (ed25519).
   Now persisted to the PostgreSQL `knowledge` table (`vector(768)` `emb`,
   HNSW cosine index, `tsvector` hybrid-search column) via the pgvector client;
   fire-and-forget. Creds env-sourced.
@@ -550,8 +550,9 @@ reckless on a live box — these need their substrate first.)
   this off-by-default is deliberate, not incomplete.
 
 ### WS-8 — Research spikes  ·  prerequisite: VRAM free / research time
-- The heavy lanes (`mios-llm-heavy` SGLang :11441 / `mios-llm-heavy-alt` vLLM
-  :11440) + LMCache (RadixAttention = the swarm's shared-prefix workload): the
+- The heavy lanes (`mios-llm-heavy` vLLM, port key `vllm` /
+  `mios-llm-heavy-alt` SGLang, port key `sglang`) + LMCache (RadixAttention =
+  the swarm's shared-prefix workload): the
   units exist and are health-gated, **VRAM-blocked** by the Windows-held GPU (see
   `gpu_igpu_compute_topology`). Turning a heavy lane "on" without free VRAM just
   fails — activate when VRAM frees.

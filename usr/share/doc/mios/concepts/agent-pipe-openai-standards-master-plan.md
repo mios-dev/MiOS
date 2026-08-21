@@ -11,7 +11,7 @@ additive + fail-safe to current behaviour); **mios.toml is the SSOT**.
 > **Status note (2026-06-13).** This is a planning/roadmap document, kept as the design
 > record for the agent-pipe routing + standards work. Names were reconciled during the
 > later migration: the local inference lane is **mios-llm-light** (llama.cpp behind the
-> `mios-llm-light` proxy image, `:11450`) serving chat models + embeddings; the agent
+> `mios-llm-light` proxy image, port key `llm_light`) serving chat models + embeddings; the agent
 > datastore is **PostgreSQL + pgvector** (`mios-pgvector`). The OpenAI/Ollama-compatible
 > API surface and the upstream `mios-llm-light` image are still the engine; only the MiOS
 > unit identity changed. The design and sequencing below are unchanged.
@@ -27,13 +27,14 @@ agent stack lives behind one OpenAI-compatible endpoint (`MIOS_AI_ENDPOINT`,
 Architectural Law 5).
 
 This document covers the **brain of that stack**: the `agent-pipe` orchestrator
-(`:8640`) and how it should select and dispatch capabilities. A user request flows
-from a front-end (OWUI `:3030`, the Discord gateway, the `mios` CLI) into agent-pipe,
-which **refines** it, **routes** it, **fans it out** across a council/swarm, dispatches
-tool/verb calls, and **polishes** the answer. **MiOS-Hermes** (`:8642`) is the
-OpenAI-compatible gateway and tool-loop agent; **mios-llm-light** (`:11450`) does the
-generation and embeddings (heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt` are gated
-on VRAM); **pgvector** (`:5432`) is the unified agent memory and knowledge substrate;
+(port key `agent_pipe`) and how it should select and dispatch capabilities. A user
+request flows from a front-end (OWUI, port key `open_webui`; the Discord gateway;
+the `mios` CLI) into agent-pipe, which **refines** it, **routes** it, **fans it
+out** across a council/swarm, dispatches tool/verb calls, and **polishes** the
+answer. **MiOS-Hermes** (port key `hermes`) is the OpenAI-compatible gateway and
+tool-loop agent; **mios-llm-light** (port key `llm_light`) does the generation and
+embeddings (heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt` are gated on VRAM);
+**pgvector** (`:5432`) is the unified agent memory and knowledge substrate;
 **MCP** exposes the tool surface and **A2A** federates peer agents.
 
 The two failure modes this plan removes are the operator's core pain:
@@ -47,7 +48,7 @@ substrate.
 
 ## 0. What is already true (verified this session)
 - Entire pipeline runs on **gemma4:12b** (one resident model on the 4090; VRAM 1.8→10.3 GB,
-  72% util; chat + reasoning_content split verified), served by mios-llm-light (`:11450`).
+  72% util; chat + reasoning_content split verified), served by mios-llm-light (port key `llm_light`).
   `refine→swarm/DAG→synthesis→polish`.
 - `/v1/chat/completions` (stream + function-tools), `/v1/models`, `/v1/embeddings` served;
   MCP endpoint served; per-chat blackboard + knowledge DB (**PostgreSQL + pgvector**) as

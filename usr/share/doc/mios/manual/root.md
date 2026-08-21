@@ -2656,8 +2656,8 @@ calls `wsl --unregister` + `wsl --shutdown` before anything else.
 If .wslconfig isn't on disk by then, the utility VM that those reap
 calls implicitly boot lands in legacy NAT mode and STAYS there until
 the next time someone explicitly stops it. Symptom the operator hit
-every container port (cockpit 8090, forge_http 8300,
-open_webui 8033, hermes 8642, searxng 8899, llm-light 8450) timed out from
+every container port (port keys `cockpit`, `forge_http`,
+`open_webui`, `hermes`, `searxng`, `llm_light`) timed out from
 Windows even though `ss -tlnp` inside MiOS-DEV showed the binds, and
 the host showed `vEthernet (WSL (Hyper-V firewall))` (NAT-only
 adapter) instead of the IP-mirrored topology.
@@ -4748,7 +4748,7 @@ Install the operator-facing terminal flatpak so MiOS-DEV mirrors a
 deployed MiOS host's UX: open Ptyxis on the Windows desktop via WSLg
 -> default tab spawns into the host shell via flatpak-spawn --host
 -> the operator types `mios "..."` and hits the local AI plane on
-:8640 directly. Idempotent (--or-update). Also pulls the few other
+the `agent_pipe` port directly. Idempotent (--or-update). Also pulls the few other
 substrate-class flatpaks (Nautilus, Bazaar, Flatseal) so the
 emulated MiOS environment carries its file manager and app store.
 Run the same canonical automation scripts the build pipeline uses,
@@ -4943,7 +4943,7 @@ Operator-flagged.
 ### ── Dev-VM host networking drop-ins...
 
 ── Dev-VM host networking drop-ins ──────────────────────────────────
-Operator-flagged localhost:3000 / :8888 from Windows
+Operator-flagged localhost:3000 / the `searxng` port from Windows
 (and from inside the dev VM) timed out even though the containers
 were `Up` per `podman ps` and bound 0.0.0.0:NNNN per `ss -tlnp`.
 Root cause: netavark was installed at /usr/libexec/podman/netavark
@@ -4978,11 +4978,11 @@ while shaking out the operator's first install.
       "permission denied". The Quadlet already mounts /var/lib/ollama
       (writable for UID 815), so point HOME at it.
   webui:  [redacted] (env.py:611 requires non-empty
-      when WEBUI_AUTH=true), PORT=3030, OPENAI_API_BASE_URL=
-      http://localhost:8642/v1 (mios-hermes:8642 doesn't resolve in
+      when WEBUI_AUTH=true), PORT=${MIOS_PORT_OPEN_WEBUI}, OPENAI_API_BASE_URL=
+      http://localhost:${MIOS_PORT_HERMES}/v1 (mios-hermes:${MIOS_PORT_HERMES} doesn't resolve in
       host netns; use localhost instead).
-  hermes: PORT=8642 (otherwise picks an upstream default).
-  searxng: BIND_ADDRESS=0.0.0.0:8888 (granian default is :8080 which
+  hermes: PORT=${MIOS_PORT_HERMES} (otherwise picks an upstream default).
+  searxng: BIND_ADDRESS=0.0.0.0:${MIOS_PORT_SEARXNG} (granian default is :8080 which
       collides with mios-ai).
 Hermes-Agent on the dev VM uses host networking, so the
 container-name DNS that the vendor /etc/mios/hermes/config.yaml
@@ -5010,9 +5010,9 @@ Architecture /14 (operator-directed):
     ([quadlets.enable]=false) -- dropped from this list.
   * mios-hermes-workspace: REMOVED entirely -- dropped.
   * mios-open-webui: the chat UI. Its container listens on 8080
-    internally (parent Quadlet remapped host:3030->container:8080 via
+    internally (parent Quadlet remapped host:${MIOS_PORT_OPEN_WEBUI}->container:8080 via
     PublishPort). Under host-net PublishPort is a no-op, so it MUST
-    get PORT=3030 or it binds 8080 and collides with mios-code-server
+    get PORT=${MIOS_PORT_OPEN_WEBUI} or it binds 8080 and collides with mios-code-server
 ("[Errno 98] address already in use" -- operator-confirmed).
   * Bind addresses: 0.0.0.0 everywhere (NOT 127.0.0.1). The old
     "127.0.0.1 forces AF_INET for localhostForwarding" theory is

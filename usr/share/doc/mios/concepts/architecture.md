@@ -144,8 +144,8 @@ there are no vendor-hardcoded URLs anywhere (Architectural Law 5).
 ### The single endpoint contract
 
 `MIOS_AI_ENDPOINT` is the one OpenAI-v1-compatible endpoint every agent, CLI, and
-editor client targets. The live operator-facing gateway is **MiOS-Hermes** at
-`http://localhost:8642/v1`. The endpoint implements the OpenAI v1 REST protocol
+editor client targets. The live operator-facing gateway is **MiOS-Hermes**
+(port key `hermes`). The endpoint implements the OpenAI v1 REST protocol
 -- core surfaces: `GET /v1/models`, `POST /v1/chat/completions` (streaming SSE
 supported), `POST /v1/embeddings`. Auth: `Authorization: Bearer $MIOS_AI_KEY`
 (an empty key is accepted by the local stack). Tool calling (`tools` array,
@@ -159,11 +159,11 @@ Inference is served by **function-named** engines (the unit/service identity is
 the MiOS function, not the upstream tool name). All speak the OpenAI-compatible
 API; the underlying engines are FOSS.
 
-| Lane (unit) | Endpoint | Engine | Role / models |
+| Lane (unit) | Port key | Engine | Role / models |
 |---|---|---|---|
-| **`mios-llm-light`** | `:11450` | llama.cpp via the upstream llama-swap proxy image (`ghcr.io/mostlygeek/llama-swap`) | **Primary** everyday lane. Auto-swaps a `llama-server` per requested model behind one `/v1` endpoint, with per-conversation KV-paging to disk (`--slot-save-path`). Serves the chat/reasoning models, the `mios-opencode` coder model, AND embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml`. dGPU (CDI). |
-| **`mios-llm-heavy`** | `:11441` | SGLang | Heavy GPU lane, served-name `mios-heavy`. HiCache CPU KV-offload, OpenAI `/v1`. **Gated / off by default** (VRAM). |
-| **`mios-llm-heavy-alt`** | `:11440` | vLLM | Alternate heavy lane (PagedAttention + prefix cache). Mutually exclusive with `mios-llm-heavy` on a shared GPU. **Gated / off by default** (VRAM). |
+| **`mios-llm-light`** | `llm_light` | llama.cpp via the upstream llama-swap proxy image (`ghcr.io/mostlygeek/llama-swap`) | **Primary** everyday lane. Auto-swaps a `llama-server` per requested model behind one `/v1` endpoint, with per-conversation KV-paging to disk (`--slot-save-path`). Serves the chat/reasoning models, the `mios-opencode` coder model, AND embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml`. dGPU (CDI). |
+| **`mios-llm-heavy`** | `vllm` | vLLM | Heavy GPU lane, served-name `mios-heavy`. PagedAttention + prefix caching, OpenAI `/v1`. **Gated / off by default** (VRAM). |
+| **`mios-llm-heavy-alt`** | `sglang` | SGLang | Alternate heavy lane (HiCache CPU KV-offload). Mutually exclusive with `mios-llm-heavy` on a shared GPU. **Gated / off by default** (VRAM). |
 | **`mios-llm-worker@`** | (per-instance) | llama.cpp | Single-model swarm workers for fan-out. |
 
 `mios-llm-light` is the linchpin: it restores on-demand multi-model auto-swap for
@@ -177,17 +177,17 @@ health-gated `[nodes.*]` entries only when enabled.
 The lanes are raw backends; the **agent plane** is what turns a user prompt into
 grounded, tool-using work:
 
-| Service (unit) | Port | Role |
+| Service (unit) | Port key | Role |
 |---|---|---|
-| **MiOS-Agent-Pipe** (`mios-agent-pipe.service`) | `:8640` | The orchestrator. Classifies each request, refines it, decomposes substantive asks into concurrent sub-tasks across lanes/agents, runs the tool-loop, then synthesizes + polishes. Fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram). |
-| **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts, then forwards to Hermes. |
-| **MiOS-Hermes** (`hermes-agent.service`) | `:8642` | OpenAI-compat agent gateway -- sessions, native tool-calling, browser/CDP + skills. The canonical `MIOS_AI_ENDPOINT` front door. |
-| **MiOS-OpenCode** gateway | :8633 | opencode -> OpenAI /v1 shim; built-but-gated / partial / introspection-only council peer the orchestrator dispatches code/doc work to (see aios-engineering-blueprint.md). Loopback only. |
-| **MiOS-OWUI** (Open WebUI) | `:3030` | Browser front-end; its `OPENAI_API_BASE_URL` points at the agent plane. |
-| **MiOS-Search** (SearXNG) | `:8888` | Privacy-respecting metasearch backing the `web_search` tool. |
+| **MiOS-Agent-Pipe** (`mios-agent-pipe.service`) | `agent_pipe` | The orchestrator. Classifies each request, refines it, decomposes substantive asks into concurrent sub-tasks across lanes/agents, runs the tool-loop, then synthesizes + polishes. Fronts Hermes for every gateway (OWUI, Discord, future Slack/Telegram). |
+| **MiOS-Prefilter** | `prefilter` | Injects `tool_choice=delegate_task` on fan-outable prompts, then forwards to Hermes. |
+| **MiOS-Hermes** (`hermes-agent.service`) | `hermes` | OpenAI-compat agent gateway -- sessions, native tool-calling, browser/CDP + skills. The canonical `MIOS_AI_ENDPOINT` front door. |
+| **MiOS-OpenCode** gateway | `opencode_gateway` | opencode -> OpenAI /v1 shim; built-but-gated / partial / introspection-only council peer the orchestrator dispatches code/doc work to (see aios-engineering-blueprint.md). Loopback only. |
+| **MiOS-OWUI** (Open WebUI) | `open_webui` | Browser front-end; its `OPENAI_API_BASE_URL` points at the agent plane. |
+| **MiOS-Search** (SearXNG) | `searxng` | Privacy-respecting metasearch backing the `web_search` tool. |
 
-The end-to-end chat path: a gateway (OWUI/Discord) hits the agent-pipe (`:8640`),
-which refines + routes the request, dispatches to Hermes (`:8642`) and council
+The end-to-end chat path: a gateway (OWUI/Discord) hits the agent-pipe (port key `agent_pipe`),
+which refines + routes the request, dispatches to Hermes (port key `hermes`) and council
 peers (each backed by an inference lane), runs the tool-loop, persists the
 gained knowledge, and returns a synthesized answer.
 
@@ -218,7 +218,7 @@ rather than relying on bespoke point-to-point plumbing.
 > **Naming note (migration history).** Earlier revisions described inference as
 > Ollama (`:11434`) + Ollama-CPU, with the legacy datastore for state and Qdrant for
 > vectors. Those are **fully retired**: inference + embeddings run on
-> `mios-llm-light` (`:11450`), state + vectors run on PostgreSQL+pgvector. The
+> `mios-llm-light` (port key `llm_light`), state + vectors run on PostgreSQL+pgvector. The
 > upstream `mios-llm-light` image and the Ollama-/OpenAI-compatible *API* remain
 > legitimate external references -- only the MiOS unit identities changed.
 > Likewise the old `cloudws-*` project name is retired; every shipped artifact is
@@ -244,7 +244,7 @@ above coherent across upgrades.
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented exceptions (rationale in their unit headers):
    `mios-ceph`, `mios-k3s`, `mios-forgejo-runner`, `mios-llm-heavy` (the upstream
-   SGLang image must run as root).
+   vLLM image must run as root).
 
 ## References
 

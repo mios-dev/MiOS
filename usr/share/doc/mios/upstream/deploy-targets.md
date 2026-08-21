@@ -17,7 +17,7 @@
 > (see `upstream/bib.md`); the targets below boot one of those; and from then on
 > `bootc upgrade` / `bootc rollback` carry the host forward like `git pull` /
 > Ctrl-Z. The same artifact that brings up GNOME/Wayland also brings up the
-> local inference lanes (`mios-llm-light` on `:11450` and the gated heavy GPU
+> local inference lanes (`mios-llm-light` on the `llm_light` port and the gated heavy GPU
 > lanes), the agent-pipe/Hermes orchestration, and the PostgreSQL+pgvector
 > memory — there is no separate "AI install" step.
 >

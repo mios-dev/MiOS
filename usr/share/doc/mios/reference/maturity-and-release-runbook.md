@@ -121,19 +121,19 @@ this runbook's tests exercise. For reference, the agent stack the `pg`/`kvfork`/
 suites validate runs behind one OpenAI-compatible endpoint (`MIOS_AI_ENDPOINT`,
 Architectural Law 5):
 
-- **agent-pipe** (`:8640`) — orchestrator: router + refine + council/swarm fan-out +
+- **agent-pipe** (port key `agent_pipe`) — orchestrator: router + refine + council/swarm fan-out +
   critic/polish; fronts MiOS-Hermes for every gateway.
-- **MiOS-Hermes** (`:8642`) — OpenAI-compat agent gateway + tool loop; **MiOS-Prefilter**
-  (`:8641`) injects delegation on fan-outable prompts.
-- **MiOS-LLM-Light** (`:11450`) — primary local inference (llama.cpp behind the
+- **MiOS-Hermes** (port key `hermes`) — OpenAI-compat agent gateway + tool loop; **MiOS-Prefilter**
+  (port key `prefilter`) injects delegation on fan-outable prompts.
+- **MiOS-LLM-Light** (port key `llm_light`) — primary local inference (llama.cpp behind the
   `mios-llm-light` proxy image), multi-model auto-swap + KV-cache paging; also serves
   embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) and the
-  `mios-opencode` coder model. **MiOS-LLM-Heavy** (SGLang, `:11441`) and
-  **MiOS-LLM-Heavy-Alt** (vLLM) are gated/off-by-default (VRAM).
+  `mios-opencode` coder model. **MiOS-LLM-Heavy** (vLLM, port key `vllm`) and
+  **MiOS-LLM-Heavy-Alt** (SGLang) are gated/off-by-default (VRAM).
 - **MiOS-PGVector** (`:5432`) — PostgreSQL + pgvector, the unified agent datastore
   (agent_memory, event, tool_call, session, skill, scratch, knowledge, sys_env,
   kanban, …); accessed via `mios-pg-query` / `mios-db --pg`. **MiOS-Search** (SearXNG,
-  `:8888`) backs `web_search`; **MiOS-OWUI** (`:3030`) is the browser front-end.
+  port key `searxng`) backs `web_search`; **MiOS-OWUI** (port key `open_webui`) is the browser front-end.
 - MCP exposes the tool surface and A2A federates peer agents.
 
 The six **Architectural Laws** the image must satisfy — **1 USR-OVER-ETC ·

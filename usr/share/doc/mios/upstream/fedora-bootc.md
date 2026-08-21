@@ -82,7 +82,7 @@ defense-in-depth (`usr/share/doc/mios/concepts/architecture.md`) — presuppose
 those are already present. In particular, MiOS being **both** an immutable
 workstation **and** a hardware-accelerated local AI OS depends on the GPU and
 virtualization stack the `ucore-hci` variant ships: the same CDI/NVIDIA wiring
-that lets the inference lanes (`mios-llm-light` on `:11450`, the gated heavy
+that lets the inference lanes (`mios-llm-light` on the `llm_light` port, the gated heavy
 GPU lanes) claim the GPU is what lets VFIO pass a discrete GPU to a VM. Starting
 from bare `fedora-bootc` would mean re-building all of that downstream. Details:
 `usr/share/doc/mios/upstream/ucore-hci.md`.

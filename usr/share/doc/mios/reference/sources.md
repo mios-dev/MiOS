@@ -302,12 +302,12 @@ the deployed image via the `ctx` scratch stage and the
 
 - Project: https://github.com/ggerganov/llama.cpp -- swap proxy: https://github.com/mostlygeek/llama-swap
 - API surfaces (OpenAI-compatible): `/v1/models`, `/v1/chat/completions` (SSE + tools), `/v1/embeddings`, `/v1/completions`
-- 'MiOS' canonical endpoint: `MIOS_AI_ENDPOINT` (the `mios-llm-light` lane on `:8450`, fronted by the Hermes gateway on `:8642`)
+- 'MiOS' canonical endpoint: `MIOS_AI_ENDPOINT` (the `mios-llm-light` lane, port key `llm_light`, fronted by the Hermes gateway, port key `hermes`)
 - Backends: GGUF models auto-swapped by llama-swap; heavy GPU lanes add vLLM / SGLang
 
 ### 3.16 Other local OpenAI-compatible runtimes (for Day-0 portability)
 
-- Ollama: https://github.com/ollama/ollama (default http://localhost:11434, OpenAI-compatible at `/v1`)
+- Ollama: https://github.com/ollama/ollama (OpenAI-compatible at `/v1`; the retired Ollama lane -- an API-compat reference only, not a MiOS lane)
 - vLLM: https://github.com/vllm-project/vllm (`vllm serve <model>` exposes `http://localhost:8000/v1`)
 - LM Studio: https://lmstudio.ai/ (OpenAI-compatible at `http://localhost:1234/v1`)
 - llama.cpp server: https://github.com/ggerganov/llama.cpp (`./llama-server`)
@@ -622,8 +622,8 @@ with `README.md` §"Day-0 local-model compatibility".
 | --- | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | OpenAI cloud | `https://api.openai.com/v1` | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] | [ok] |
 | Azure OpenAI | (your resource) | [ok] | [ok] | [ok] | [ok] | [ok] | [!] region | [ok] | [ok] | [ok] |
-| **'MiOS' llm-light** (canonical, LAW 5) | `http://localhost:8642/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
-| Ollama | `http://localhost:11434/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  | external |
+| **'MiOS' llm-light** (canonical, LAW 5) | `$MIOS_AI_ENDPOINT` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
+| Ollama (retired as a MiOS lane) | upstream Ollama default `/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  | external |
 | vLLM | `http://localhost:8000/v1` | [ok] | [ok] | [ok] | [ok] via xgrammar |  | partial |  |  | external |
 | LM Studio | `http://localhost:1234/v1` | [ok] | [ok] | [ok] | [!] ignored |  |  |  |  |  |
 | llama.cpp server | `http://localhost:8080/v1` | [ok] | [ok] | [ok] via grammars | [!] ignored |  |  |  |  | external |

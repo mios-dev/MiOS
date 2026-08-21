@@ -1009,10 +1009,10 @@ agents that *talk to* the local inference lanes. The inference engines and the
 agent orchestration themselves are **not** RPMs -- they ship as Quadlet
 containers (the **Container** delivery channel): the primary lane is
 `mios-llm-light` (the `llama.cpp` multi-model server fronted by the upstream
-`mios-llm-light` proxy image) on **:11450**, which also serves embeddings
+`mios-llm-light` proxy image) on the **`llm_light`** port, which also serves embeddings
 (`nomic-embed-text`, OpenAI-compatible `/v1/embeddings`) and the `mios-opencode`
-coder model; the gated heavy lanes are `mios-llm-heavy` (SGLang, :11441) and
-`mios-llm-heavy-alt` (vLLM). The unified agent datastore is **PostgreSQL +
+coder model; the gated heavy lanes are `mios-llm-heavy` (vLLM, port key `vllm`) and
+`mios-llm-heavy-alt` (SGLang, port key `sglang`). The unified agent datastore is **PostgreSQL +
 pgvector** (`mios-pgvector`, :5432). Every agent and tool resolves the one
 endpoint from `MIOS_AI_ENDPOINT` (Architectural Law 5) rather than hard-coding a
 port or vendor URL.
@@ -1045,7 +1045,7 @@ nano
 > and embeddings on an **Ollama** container (the `mios-ollama` / `mios-ollama-cpu`
 > units, model-bake `37-ollama-prep`, Modelfiles, and the legacy `aichat` /
 > `aichat-ng` musl-binary CLIs fetched by `37-aichat.sh`). That stack has been
-> fully removed: inference + embeddings now run on `mios-llm-light` (:11450), and
+> fully removed: inference + embeddings now run on `mios-llm-light` (port key `llm_light`), and
 > the agent datastore moved from the legacy datastore/Qdrant to PostgreSQL+pgvector. Ollama
 > survives only as an **upstream API-compat reference** -- the lanes speak the
 > OpenAI/Ollama-compatible API so any such client connects unchanged -- not as a

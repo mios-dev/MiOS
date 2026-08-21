@@ -37,7 +37,7 @@ unified + least-privileged.
 | Immutable OS (bootc/ostree/composefs) | `Containerfile` single-stage bootc + bound-images bake; `kargs.d/*.toml`; `automation/40-composefs-verity.sh` ([security].composefs_mode) | wired-live |
 | Multi-vendor GPU passthrough (CDI/VFIO) | `automation/41-gpu-cdi-toolkits.sh` (amd-ctk + intel-cdi), `35-gpu-passthrough.sh` (VFIO), kargs `iommu=pt`; `mios-cdi-detect` | wired-live |
 | Three-projection capability surface (verbs/MCP/A2A) | `mios.toml [verbs.*]` SSOT → MCP (`ai/v1/mcp.json`, opt-in) + A2A (`[agents.*]`); `mios_manifest.py` projection | wired-live; **unify recipes/skills DAG pending — WS-2/#11** |
-| Unified endpoint orchestrator | `mios-agent-pipe.service :8640` (Law-5 `MIOS_AI_ENDPOINT`); refine→route→council→dispatch→verify→polish | wired-live |
+| Unified endpoint orchestrator | `mios-agent-pipe.service` (port key `agent_pipe`, Law-5 `MIOS_AI_ENDPOINT`); refine→route→council→dispatch→verify→polish | wired-live |
 
 **Verdict:** MiOS realizes the Rutgers *AIOS: LLM Agent Operating System* kernel
 taxonomy (Agent Scheduler / Context / Memory / Tool / Storage / Access managers)
@@ -166,7 +166,7 @@ asserts).
 | pods→.pod quadlets / k3s bridge | WS-7/#28 | `.pod` quadlet gen; k3s regen-diff needs live pods (VM) |
 | Gossip/DHT federated discovery | WS-A18/#30 | discovery transport over `mios_reputation` |
 | Self-improve loop closure | WS-11/#32 | background daemon (interval) + replay-gated *act* half |
-| Capability-benchmark harness | (new) | scoring core DONE (`mios_bench` + `mios-bench`: `pass@k`/`pass^k`/CLASSic, 35 asserts); remaining = live trial run + task suites (τ-bench/OSWorld) against :8640 (VM) |
+| Capability-benchmark harness | (new) | scoring core DONE (`mios_bench` + `mios-bench`: `pass@k`/`pass^k`/CLASSic, 35 asserts); remaining = live trial run + task suites (τ-bench/OSWorld) against the `agent_pipe` port (VM) |
 | VLM perception→act→verify | WS-8/#12 | ground a VLM lane + unify computer-use; VM helper |
 | Port-literal SSOT collapse | WS-0B/#5 | `.service` env can't `${}`-expand — VM-build-loop |
 

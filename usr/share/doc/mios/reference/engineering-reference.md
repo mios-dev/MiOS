@@ -551,10 +551,10 @@ the historical `/etc/containers/systemd/` path.
 
 ### AI inference lanes (named by *function*, not by upstream tool)
 
-| Unit | Container | Port | Role |
+| Unit | Container | Port key | Role |
 |---|---|---|---|
-| `mios-llm-light.container` | `mios-llm-light` | `:11450` | **Primary** lane: `llama.cpp` multi-model server fronted by the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap:cuda`). Auto-swaps the everyday chat/reasoning models, KV-pages each conversation to disk, **and** serves embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode` coder model. User/Group `827`/`827`. Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
-| `mios-llm-heavy.container` | `mios-llm-heavy` | `:11441` | Heavy GPU reasoning lane (vLLM, served-name `mios-heavy`). VRAM-gated, off by default; User/Group `815`/`815` |
+| `mios-llm-light.container` | `mios-llm-light` | `llm_light` | **Primary** lane: `llama.cpp` multi-model server fronted by the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap:cuda`). Auto-swaps the everyday chat/reasoning models, KV-pages each conversation to disk, **and** serves embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode` coder model. User/Group `827`/`827`. Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
+| `mios-llm-heavy.container` | `mios-llm-heavy` | `vllm` | Heavy GPU reasoning lane (vLLM, served-name `mios-heavy`). VRAM-gated, off by default; User/Group `815`/`815` |
 | `mios-llm-worker@.container` | `mios-llm-worker@` | -- | Single-model swarm workers (templated, for the dGPU swarm topology) |
 
 > These lanes speak the OpenAI/Ollama-compatible API -- any OpenAI-API client
@@ -579,8 +579,8 @@ the historical `/etc/containers/systemd/` path.
 | `mios-pxe-hub.container` | `mios-pxe-hub` | `mios-pxe-hub` | `!wsl, !container` |
 | `mios-guacamole.container` | `mios-guacamole` | `mios-guacamole` | After `mios-guacamole-postgres.service` |
 | `mios-guacd.container`, `mios-guacamole-postgres.container`, `mios-crowdsec-dashboard.container` | -- | per-service | Renamed from the legacy `guacd`/`guacamole-postgres`/`crowdsec-dashboard` |
-| `mios-searxng.container` | `mios-searxng` | per-service | SearXNG metasearch (`:8888`), backs `web_search` |
-| `mios-open-webui.container` | `mios-open-webui` | per-service | Open WebUI front-end (`:3030`) |
+| `mios-searxng.container` | `mios-searxng` | per-service | SearXNG metasearch (port key `searxng`), backs `web_search` |
+| `mios-open-webui.container` | `mios-open-webui` | per-service | Open WebUI front-end (port key `open_webui`) |
 
 ---
 
@@ -591,16 +591,16 @@ host-native where it needs the host's GPU/PATH (the orchestrator + gateway),
 and containerized where isolation is cheap (the lanes + datastore). Grouped:
 
 ### AI / agent plane (host-native units + the Quadlet lanes above)
-- `mios-agent-pipe.service` (`:8640`) -- the standalone orchestrator: router +
+- `mios-agent-pipe.service` (port key `agent_pipe`) -- the standalone orchestrator: router +
   refine + council/swarm fan-out + critic/polish. The front door every gateway
   (OWUI, Discord, the `mios` CLI) talks to; it fans out and dispatches tools,
   then fronts Hermes. Code at `usr/lib/mios/agent-pipe/server.py`.
-- `mios-gateway-agent.service` (`:8642`) -- the OpenAI-compatible agent gateway:
+- `mios-gateway-agent.service` (port key `hermes`) -- the OpenAI-compatible agent gateway:
   sessions, the tool-loop, skills, browser/CDP control. The default sub-agent.
-- `mios-delegation-prefilter.service` (`:8641`) -- injects
+- `mios-delegation-prefilter.service` (port key `prefilter`) -- injects
   `tool_choice=delegate_task` on fan-outable prompts and forwards to Hermes
   (currently disabled by default in `mios.toml`).
-- `mios-opencode-gateway.service` (`:8633`) -- opencode -> OpenAI `/v1` gateway
+- `mios-opencode-gateway.service` (port key `opencode_gateway`) -- opencode -> OpenAI `/v1` gateway
   shim that makes opencode a real council peer (loopback only).
 - All resolve their endpoint from `MIOS_AI_ENDPOINT` (LAW 5) -- never a
   hard-coded port or vendor URL.
@@ -700,21 +700,21 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
 > Hermes (tool-loop gateway) -> inference lanes (generation + embeddings) ->
 > pgvector (memory) -> MCP (tools) / A2A (peer agents).**
 
-- **Canonical front door:** `mios-agent-pipe.service` on `:8640/v1`
+- **Canonical front door:** `mios-agent-pipe.service` on the `agent_pipe` port `/v1`
   (OpenAI-compatible). It refines the prompt, decomposes/fans out across a
   council/swarm, dispatches tool/verb calls, and polishes the reply. Every
   agent and tool resolves the endpoint from `MIOS_AI_ENDPOINT` (LAW 5).
-- **Agent gateway:** `mios-gateway-agent.service` at `:8642/v1` -- the default
+- **Agent gateway:** `mios-gateway-agent.service` at the `hermes` port `/v1` -- the default
   sub-agent; owns sessions, the tool-loop, skills, and browser/CDP control.
 - **Sub-agent registry:** `[agents.*]` in `/usr/share/mios/mios.toml` (SSOT);
   manifest mirror at `/usr/share/mios/ai/v1/agents.json`.
 - **Inference backends (named by function):**
-  - `mios-llm-light.service` -- **primary**, `:11450` (llama.cpp via the
+  - `mios-llm-light.service` -- **primary**, port key `llm_light` (llama.cpp via the
     `mios-llm-light` proxy image). Serves everyday chat/reasoning models, KV-pages
     per conversation, **and** embeddings (`nomic-embed-text`,
     `/v1/embeddings`) + the `mios-opencode` coder model. Model map:
     `usr/share/mios/llamacpp/mios-llm-light.yaml`.
-  - `mios-llm-heavy.service` -- vLLM heavy lane, `:11441` (served-name
+  - `mios-llm-heavy.service` -- vLLM heavy lane, port key `vllm` (served-name
     `mios-heavy`), VRAM-gated/off by default.
   - `mios-llm-worker@.service` -- single-model swarm workers.
 - **Memory:** PostgreSQL + pgvector (`mios-pgvector`, `:5432`) -- the unified
@@ -725,8 +725,8 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
   the embeddings for `knowledge`/RAG vector recall. Accessed via `mios-pg-query`
   / `mios-db --pg`.
 - **Tools & federation:** agents call tools over **MCP** and reach peer agents
-  over **A2A**; `web_search` is backed by local **SearXNG** (`:8888`); the
-  coder peer is served through the **opencode-gateway** (`:8633`).
+  over **A2A**; `web_search` is backed by local **SearXNG** (port key `searxng`); the
+  coder peer is served through the **opencode-gateway** (port key `opencode_gateway`).
 - **Vendor system prompt:** `/usr/share/mios/ai/system.md`.
 - **Hermes seed persona:** `/usr/share/mios/ai/hermes-soul.md` (slim, per-turn)
   + `/usr/share/mios/ai/hermes-soul-full.md` (on-demand examples + recipes).
@@ -736,7 +736,7 @@ under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
   via `/etc/mios/ai/v1/mcp.json` overlay).
 - **Model metadata:** `/usr/share/mios/ai/v1/models.json`.
 - **CLI:** `/usr/bin/mios` (reads `MIOS_AI_ENDPOINT`, falls back to the
-  agent-pipe front door at `http://localhost:8640/v1`).
+  agent-pipe front door on the `agent_pipe` port).
 - **KB delivery:** `/usr/share/mios/kb/manifest.json` (FHS-compliant location
   after the `proc/mios/` migration).
 - **OpenAI tool schemas:** `/usr/lib/mios/tools/responses-api/*.json` +
@@ -825,7 +825,7 @@ so the agent stack stays portable and sandboxed. Enforced by build-time lint and
    `--squash-all` (strips OCI metadata bootc needs).
 5. **UNIFIED-AI-REDIRECTS** -- every agent and tool targets `MIOS_AI_ENDPOINT`.
    No vendor-hardcoded URLs. The endpoint resolves to the local agent front door
-   (the `mios-agent-pipe` orchestrator; Hermes at `:8642/v1` is the default
+   (the `mios-agent-pipe` orchestrator; Hermes at the `hermes` port `/v1` is the default
    sub-agent behind it).
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`,
    `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, and the
@@ -981,7 +981,7 @@ Canonical vars (see `usr/share/mios/env.defaults`):
 | `MIOS_AI_ENDPOINT` | local OpenAI-compatible front door | Single endpoint every agent/tool targets (LAW 5; resolves to `mios-agent-pipe`) |
 | `MIOS_AI_MODEL` | per `[ai].model` | Default chat model |
 | `MIOS_AI_KEY` | `""` | API key (empty for local) |
-| `MIOS_PORT_LLM_LIGHT` | `11450` | `mios-llm-light` primary inference lane |
+| `MIOS_PORT_LLM_LIGHT` | per `[ports].llm_light` | `mios-llm-light` primary inference lane |
 | `MIOS_PORT_PGVECTOR` | `5432` | PostgreSQL + pgvector agent datastore |
 | `MIOS_INSTALL_ENV` | `/etc/mios/install.env` | Host install env file |
 | `MIOS_WSLBOOT_DONE` | `/var/lib/mios/.wsl-firstboot-done` | Sentinel |
@@ -1065,10 +1065,10 @@ journalctl -u mios-llm-light.service
 cat /var/lib/mios/role.active
 mios "ask the local AI a question"
 
-# AI surface (front door is the agent-pipe on :8640; lanes below it)
-curl -s http://localhost:8640/v1/models | jq
-curl -s http://localhost:11450/v1/models | jq          # mios-llm-light lane
-curl -s http://localhost:11450/v1/embeddings \
+# AI surface (front door is the agent-pipe on the agent_pipe port; lanes below it)
+curl -s http://localhost:${MIOS_PORT_AGENT_PIPE}/v1/models | jq
+curl -s http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/models | jq   # mios-llm-light lane
+curl -s http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/embeddings \
   -d '{"model":"nomic-embed-text","input":"hello"}' -H 'Content-Type: application/json' | jq
 
 # Agent datastore (PostgreSQL + pgvector)
@@ -1105,8 +1105,8 @@ The early Ollama / the legacy datastore / Qdrant stack is **fully removed**. Cur
 
 | Was | Now |
 |---|---|
-| `ollama.service` (`:11434`) / `mios-ollama-cpu.service` (`:11435`) | `mios-llm-light.service` (`:11450`) -- llama.cpp via `mios-llm-light`; also serves embeddings + the coder model |
-| `mios-sglang` / `mios-vllm` Quadlets | `mios-llm-heavy` (`:11441`, vLLM, gated) |
+| the retired Ollama lanes (`ollama.service` / `mios-ollama-cpu.service`) | `mios-llm-light.service` (port key `llm_light`) -- llama.cpp via `mios-llm-light`; also serves embeddings + the coder model |
+| `mios-sglang` / `mios-vllm` Quadlets | `mios-llm-heavy` (vLLM, port key `vllm`, gated) |
 | `mios-llama-worker@` | `mios-llm-worker@` |
 | the legacy datastore agent store (BSL 1.1) | PostgreSQL + pgvector (`mios-pgvector`, `:5432`; `mios-pg-query` / `mios-db --pg`) |
 | Qdrant vector store | pgvector (the same Postgres engine) |

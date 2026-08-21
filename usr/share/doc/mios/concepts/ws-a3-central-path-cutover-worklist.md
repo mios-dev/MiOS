@@ -61,7 +61,7 @@ which already logs them — confirm topology first to avoid double-logging):
 | 1910-1930 | `_critic_via_cpu` | critic `event` | pg `event` insert |
 | 2310-2341 | `pipe` | `session` create + id (blocking `await`) | pg `INSERT INTO session(platform, owui_chat_id, model, started_at) VALUES('owui', %(c)s, %(m)s, now()) RETURNING id` |
 
-NB: confirm whether the agent-pipe (:8640) already records `event`/`tool_call`/
+NB: confirm whether the agent-pipe (port key `agent_pipe`) already records `event`/`tool_call`/
 `session` for OWUI turns — if so, these owui-pipe writes are duplicate observability
 and can simply be dropped (mirror-only stub) rather than re-homed to pg.
 

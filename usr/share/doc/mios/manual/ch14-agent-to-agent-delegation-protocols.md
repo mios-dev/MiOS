@@ -46,7 +46,7 @@ The Agent-to-Agent (A2A) protocol defines how agents delegate tasks to peer node
 
 #### Overview
 
-Coding tasks are fanned out to the `mios-opencode` coding specialist on port **8633**.
+Coding tasks are fanned out to the `mios-opencode` coding specialist on the `opencode_gateway` port.
 
 ## Execution Flow
 1. **Identify Task**: The orchestrator detects code modifications.

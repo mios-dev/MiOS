@@ -126,7 +126,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 36-tools.sh                     mios CLI installer
 │   │   ├─ 37-flatpak-env.sh               capture flatpak env for first-boot install
 │   │   ├─ 37-selinux.sh                   build-time SELinux policy fixes
-│   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (:8642)
+│   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (port key `hermes`)
 │   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp GGUF bake behind the upstream llama-swap proxy (replaces the retired Ollama model-bake)
 │   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy (vLLM) heavy-lane prep (gated)
 │   │   ├─ 38-oh-my-posh.sh                oh-my-posh install + theme
@@ -213,7 +213,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 ├─ usr/
 │   ├─ bin/                          host CLI tools (mios* prefix)
 │   │   ├─ mios                          OpenAI-API CLI → MIOS_AI_ENDPOINT (Python; openai-python SDK)
-│   │   ├─ hermes                        MiOS-Hermes direct REPL/CLI (:8642 gateway)
+│   │   ├─ hermes                        MiOS-Hermes direct REPL/CLI (gateway, port key `hermes`)
 │   │   ├─ @                             shell shortcut → routes a prompt into the agent chain
 │   │   ├─ mios-backup                   backup helper
 │   │   ├─ mios-build                    invoke local OCI build
@@ -223,11 +223,11 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ mios-rebuild                  full rebuild verb
 │   │   └─ mios-update                   bootc upgrade verb
 │   │   (the retired Ollama wrapper `mios-ollama` was removed with the Ollama
-│   │    backend; inference + embeddings now run on mios-llm-light :11450)
+│   │    backend; inference + embeddings now run on mios-llm-light, port key `llm_light`)
 │   │
 │   ├─ lib/mios/                     read-only data + the agent-pipe service code
 │   │   ├─ paths.sh                      runtime FHS path constants (mirror of build-time)
-│   │   ├─ agent-pipe/                   MiOS-Agent-Pipe FastAPI orchestrator (:8640)
+│   │   ├─ agent-pipe/                   MiOS-Agent-Pipe FastAPI orchestrator (port key `agent_pipe`)
 │   │   │   ├─ server.py                     router + refine + council/swarm fan-out + critic/polish
 │   │   │   ├─ mios_pg.py                    PostgreSQL + pgvector client (replaces the retired legacy datastore writes)
 │   │   │   ├─ mios_owui.py                  Open WebUI scaffold strip / think-block shaping
@@ -278,10 +278,10 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   │   └─ mios.txt                  ASCII banner art
 │   │   ├─ configurator/
 │   │   │   └─ mios.html                 WYSIWYG mios.toml editor (progressive-disclosure sections)
-│   │   ├─ searxng/                      SearXNG settings (backs the web_search tool, :8888)
-│   │   ├─ openwebui/ open-webui/ owui/  Open WebUI install assets + MiOS pipe (front-end, :3030)
+│   │   ├─ searxng/                      SearXNG settings (backs the web_search tool, port key `searxng`)
+│   │   ├─ openwebui/ open-webui/ owui/  Open WebUI install assets + MiOS pipe (front-end, port key `open_webui`)
 │   │   ├─ hermes/ hermes-agent/         MiOS-Hermes gateway assets (sessions, tool-loop, skills, browser/CDP)
-│   │   ├─ opencode/                     opencode coder-peer assets (served via mios-opencode-gateway :8633)
+│   │   ├─ opencode/                     opencode coder-peer assets (served via mios-opencode-gateway, port key `opencode_gateway`)
 │   │   ├─ skills/ prompts/ cookbooks/   agent skills, role prompts, and how-to recipes
 │   │   ├─ webtools/ crawl4ai/           fetch/crawl tool assets (mios-webtools pod)
 │   │   ├─ finetune/                     hardware-agnostic LoRA/SFT subsystem assets
@@ -399,13 +399,13 @@ named by *function*, not by upstream tool:
 
 | Concern | Where it lives | Service / port |
 |---|---|---|
-| **Primary inference + embeddings** | `usr/share/mios/llamacpp/mios-llm-light.yaml`, `mios-llm-light.container` | `mios-llm-light` `:11450` -- `llama.cpp` behind the upstream `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
-| **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` | `mios-llm-heavy` `:11441` (vLLM, served-name `mios-heavy`). Gated off-by-default (VRAM) |
+| **Primary inference + embeddings** | `usr/share/mios/llamacpp/mios-llm-light.yaml`, `mios-llm-light.container` | `mios-llm-light` (port key `llm_light`) -- `llama.cpp` behind the upstream `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, and embeddings (`nomic-embed-text`, `/v1/embeddings`) |
+| **Heavy GPU lane** | `mios-llm-heavy.container`, `automation/38-vllm-prep.sh` | `mios-llm-heavy` (vLLM, port key `vllm`, served-name `mios-heavy`). Gated off-by-default (VRAM) |
 | **Swarm workers** | `mios-llm-worker@.container` | `mios-llm-worker@` -- single-model templated workers for fan-out |
-| **Orchestration** | `usr/lib/mios/agent-pipe/`, `mios-gateway-agent.service`, `mios-delegation-prefilter.service` | agent-pipe `:8640` (router/refine/council/swarm) → MiOS-Hermes `:8642` (tool-loop, sessions, browser/CDP); prefilter `:8641` (fan-out hints) |
-| **Coder peer** | `mios-opencode-gateway.service` | `:8633` opencode → `/v1` council member |
+| **Orchestration** | `usr/lib/mios/agent-pipe/`, `mios-gateway-agent.service`, `mios-delegation-prefilter.service` | agent-pipe (port key `agent_pipe`; router/refine/council/swarm) → MiOS-Hermes (port key `hermes`; tool-loop, sessions, browser/CDP); prefilter (port key `prefilter`; fan-out hints) |
+| **Coder peer** | `mios-opencode-gateway.service` | port key `opencode_gateway` -- opencode → `/v1` council member |
 | **Memory** | `usr/share/mios/postgres/schema-init.sql`, `mios-pgvector.container` | `mios-pgvector` `:5432` -- PostgreSQL + pgvector; the unified agent datastore (accessed via `mios-pg-query` / `mios-db --pg`) |
-| **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG `:8888` |
+| **Tools & federation** | `mios-mcp.service`, `usr/share/mios/ai/v1/mcp.json`, `mios-searxng.container` | MCP (tool surface) + A2A (peer agents); `web_search` backed by SearXNG (port key `searxng`) |
 
 `mios-llm-light` (the upstream proxy image `ghcr.io/mostlygeek/llama-swap`) and the
 OpenAI/Ollama-compatible API are legitimate **upstream references** -- the
@@ -424,7 +424,7 @@ reference and in historical migration notes; pgvector is the sole vector store).
 | Package selection | `mios.toml [packages].sections` + `[packages.<section>].pkgs` | `automation/lib/packages.sh` | `automation/*.sh` that call `install_packages_strict <section>` |
 | Quadlet enablement | `mios.toml [quadlets.enable].*` | `mios-role.service` at first boot | systemd unit symlinks under multi-user.target.wants |
 | AI endpoint | `mios.toml [ai].endpoint` | userenv.sh → `MIOS_AI_ENDPOINT` | `mios` CLI, agent-pipe, Hermes, opencode-gateway, MCP servers (Law 5) |
-| Inference lane map | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-llm-light.service` (upstream llama-swap proxy) | every agent that requests a model from `:11450` |
+| Inference lane map | `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-llm-light.service` (upstream llama-swap proxy) | every agent that requests a model from the `llm_light` lane |
 | Agent datastore schema | `usr/share/mios/postgres/schema-init.sql` | `mios-ai-firstboot` (applies it) | agent-pipe (`mios_pg.py`), Hermes, `mios-pg-query` / `mios-db --pg` on `:5432` |
 | Image refs | `mios.toml [image].*` | userenv.sh → `MIOS_IMAGE_REF`, `MIOS_BASE_IMAGE`, `MIOS_BIB_IMAGE` | Containerfile, `bootc switch`, `build-mios.*` |
 | Identity | `mios.toml [identity].*` | userenv.sh → `MIOS_USER`, `MIOS_HOSTNAME`, `MIOS_USER_GROUPS` | `automation/31-user.sh`, `wsl-firstboot`, sysusers.d resolution |

@@ -122,7 +122,7 @@ usr/libexec/mios/mios-hermes-firstboot:250  API_SERVER_HOST=0.0.0.0             
 usr/libexec/mios/mios-hermes-firstboot:253  API_SERVER_CORS_ORIGINS=*             # wildcard CORS
 ```
 
-The same key is duplicated into `OPENAI_API_KEY`, `HERMES_API_TOKEN`, `CLAUDE_DASHBOARD_TOKEN` in one file, and the forgejo runner token rides `EnvironmentFile=/etc/mios/forge/runner-token` (`mios-forgejo-runner.container:19`). Compounding it, the agent-pipe front door does **not require** that key by default — `[security].api_require_auth = false` (`mios.toml:929`) — so `:8640` accepts unauthenticated requests, and Hermes binds `0.0.0.0` with `CORS=*` behind `Network=host`. Recommended: seal these with **`systemd-creds` (TPM2-bound)** or `LoadCredentialEncrypted=`, set `API_SERVER_HOST=127.0.0.1`, scope CORS to the Portal origin, and turn on `api_require_auth=true` for any non-loopback bind.
+The same key is duplicated into `OPENAI_API_KEY`, `HERMES_API_TOKEN`, `CLAUDE_DASHBOARD_TOKEN` in one file, and the forgejo runner token rides `EnvironmentFile=/etc/mios/forge/runner-token` (`mios-forgejo-runner.container:19`). Compounding it, the agent-pipe front door does **not require** that key by default — `[security].api_require_auth = false` (`mios.toml:929`) — so the `agent_pipe` port accepts unauthenticated requests, and Hermes binds `0.0.0.0` with `CORS=*` behind `Network=host`. Recommended: seal these with **`systemd-creds` (TPM2-bound)** or `LoadCredentialEncrypted=`, set `API_SERVER_HOST=127.0.0.1`, scope CORS to the Portal origin, and turn on `api_require_auth=true` for any non-loopback bind.
 
 ---
 

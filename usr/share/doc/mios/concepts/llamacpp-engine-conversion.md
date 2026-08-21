@@ -4,7 +4,7 @@
 
 > Status: LANDED. The conversion this doc planned has shipped — MiOS now runs
 > all everyday inference on **llama.cpp behind the upstream llama-swap proxy** as
-> `mios-llm-light` (:11450), and **Ollama is fully retired** (containers,
+> `mios-llm-light` (port key `llm_light`), and **Ollama is fully retired** (containers,
 > firstboot, model-bake, Modelfiles, CLI shim — all removed). The body below is
 > preserved as the design record and rationale; the per-lane table and the
 > build/cutover notes are updated to current state. Companion:
@@ -24,10 +24,10 @@ upgrade` like a `git pull` and `bootc rollback` like a Ctrl-Z) that is *also* a
 **local, self-replicating, agentic AI operating system** — a full agent stack
 behind one OpenAI-compatible endpoint, baked into that same image.
 
-End to end: a request enters from a front-end (OWUI :3030, the Discord gateway,
-the `mios` CLI) into the **agent-pipe** orchestrator (:8640), which refines it,
+End to end: a request enters from a front-end (OWUI, port key `open_webui`, the Discord gateway,
+the `mios` CLI) into the **agent-pipe** orchestrator (port key `agent_pipe`), which refines it,
 fans it out across a council/swarm, and dispatches tool/verb calls; **MiOS-Hermes**
-(:8642) is the OpenAI-compatible gateway and tool-loop agent; **PostgreSQL +
+(port key `hermes`) is the OpenAI-compatible gateway and tool-loop agent; **PostgreSQL +
 pgvector** (`mios-pgvector`, :5432) is the unified agent memory (tiered memory,
 knowledge, sessions, skills, RAG embeddings); **MCP** exposes the tool surface
 and **A2A** federates peer agents. None of that does any token generation itself
@@ -86,10 +86,10 @@ service identity* is named: the lane ships as **`mios-llm-light`**.
 
 | Lane | Engine / unit | Role |
 |---|---|---|
-| **Light / primary** (:11450) | `mios-llm-light` — mios-llm-light → `llama-server` per model (CUDA via CDI) | Everyday chat/reasoning (router/refine/polish/planner/judge/council), the `mios-opencode` coder model, **and embeddings**. KV-pageable (`--parallel 1 --slot-save-path`). This is the SSOT inference backend. |
+| **Light / primary** (port key `llm_light`) | `mios-llm-light` — mios-llm-light → `llama-server` per model (CUDA via CDI) | Everyday chat/reasoning (router/refine/polish/planner/judge/council), the `mios-opencode` coder model, **and embeddings**. KV-pageable (`--parallel 1 --slot-save-path`). This is the SSOT inference backend. |
 | **Embeddings** | same `mios-llm-light` lane, `nomic-embed-text` GGUF via `llama-server --embedding` | OpenAI `/v1/embeddings` (768-dim) — feeds pgvector RAG, knowledge, memory. (Replaced the Ollama embed lane.) |
-| **Heavy / throughput** (:11441) | `mios-llm-heavy` — SGLang, served-name `mios-heavy` | Gated/off-by-default (VRAM). Continuous batching for concurrent swarm fan-out + HiCache CPU KV-offload. The throughput tier. |
-| **Heavy-alt** (:11440) | `mios-llm-heavy-alt` — vLLM, served-name `mios-heavy` | Gated/off-by-default. PagedAttention + Automatic Prefix Caching (APC). Mutually exclusive with `mios-llm-heavy` on a shared GPU (both serve `mios-heavy`). |
+| **Heavy / throughput** (port key `vllm`) | `mios-llm-heavy` — vLLM, served-name `mios-heavy` | Gated/off-by-default (VRAM). PagedAttention + Automatic Prefix Caching (APC) for concurrent swarm fan-out. The throughput tier. |
+| **Heavy-alt** (port key `sglang`) | `mios-llm-heavy-alt` — SGLang, served-name `mios-heavy` | Gated/off-by-default. Continuous batching + HiCache CPU KV-offload. Mutually exclusive with `mios-llm-heavy` on a shared GPU (both serve `mios-heavy`). |
 | **Swarm workers** | `mios-llm-worker@` (templated) | Single-model swarm workers for the dGPU swarm topology. |
 
 The heavy lanes are **not either/or with llama.cpp** — they are a different tier.
@@ -130,8 +130,8 @@ touch-points (now migrated):
 - **Hardcoded Ollama-port detections** → routed through `_endpoint_is_ollama`
   (SSOT), since those ports became llama.cpp.
 - **`hermes_backend_url` / lane `endpoint`s** (mios.toml) → repointed off the
-  retired Ollama ports (`:11434`/`:11435`, removed at G5) to `:11450` (light) /
-  `:11441` (heavy).
+  retired Ollama ports (`:11434`/`:11435`, removed at G5) to the `llm_light`
+  (light) / `vllm` (heavy) ports.
 - **Model provisioning**: `ollama create` (Modelfile) + the model-bake step were
   replaced by **baked `.gguf` files** + the mios-llm-light model map. The Modelfile
   `SYSTEM` prompt was portable (the runtime contract overrides it); `num_ctx` /
@@ -148,8 +148,8 @@ touch-points (now migrated):
   start can't crash-loop. (A WSL2 dGPU fix prepends `/usr/lib/wsl/lib` +
   `/usr/local/cuda/lib64` to `LD_LIBRARY_PATH` so `llama-server` finds the WSL
   `libcuda` and offloads to the 4090 instead of running on CPU.)
-- **`mios-llm-heavy.container`** (SGLang, :11441) and
-  **`mios-llm-heavy-alt.container`** (vLLM, :11440) — the gated heavy tiers,
+- **`mios-llm-heavy.container`** (vLLM, port key `vllm`) and
+  **`mios-llm-heavy-alt.container`** (SGLang, port key `sglang`) — the gated heavy tiers,
   weights baked opt-in, off by default behind a weights `ConditionPathExists`.
 - **`mios.toml`**:
   - `[llamacpp]` — `enable=false` (additive + gated until GGUFs are baked and
@@ -157,7 +157,7 @@ touch-points (now migrated):
     `models_dir=/usr/share/mios/llamacpp/models`,
     `config=/usr/share/mios/llamacpp/mios-llm-light.yaml`, `bake_models` (the GGUF
     bake CSV; `38-llamacpp-prep.sh`).
-  - `[ports].llm_light = 11450`; `[image.sidecars]` →
+  - `[ports].llm_light`; `[image.sidecars]` →
     `ghcr.io/mostlygeek/llama-swap:cuda` (`llm_light_version="cuda"`).
   - `[services.llamacpp]` → uid/gid 827.
   - Lane nodes (`[nodes.*]`) and agent endpoints point at the resolved endpoints;
@@ -187,7 +187,7 @@ touch-points (now migrated):
 
 1. **Embeddings first** (lowest risk): `llama-server --embedding` (`nomic-embed-text`
    GGUF); `_embed_one` + OWUI RAG flipped to `/v1/embeddings`; 768-dim parity.
-2. **mios-llm-light on the light lane** (:11450): the everyday models; verified the
+2. **mios-llm-light on the light lane** (port key `llm_light`): the everyday models; verified the
    `/v1` path + tool-calls + KV-paging.
 3. **Generalize `_kv_paging`** to all llama.cpp endpoints; add `kv_fork`.
 4. **Migrate the ~13 call sites** to `/v1`; replace the `/api/ps` subsystem with
@@ -197,7 +197,7 @@ touch-points (now migrated):
 6. **Retire Ollama** once parity (chat + tools + embeddings + KV) held — done at
    G5: all Ollama containers, firstboot, model-bake, Modelfiles, and the CLI shim
    are removed.
-7. The heavy lanes (`mios-llm-heavy` SGLang, `mios-llm-heavy-alt` vLLM) stay the
+7. The heavy lanes (`mios-llm-heavy` vLLM, `mios-llm-heavy-alt` SGLang) stay the
    gated throughput tier, VRAM-admission-governed.
 
 Net: KV checkpoint/restore/fork fleet-wide (the AIOS Context Manager realized),
@@ -231,7 +231,7 @@ New / edited at the time:
   gemma arch) became the wired reasoning model; legacy/role model names are
   aliased onto it so the pipeline resolves to one served GGUF until SSOT
   reconciliation.)
-- SSOT: `[ports].llm_light=11450`, `[image.sidecars].llm_light`
+- SSOT: `[ports].llm_light`, `[image.sidecars].llm_light`
   (`ghcr.io/mostlygeek/llama-swap:cuda`), `[services.llamacpp]` (uid 827),
   `[llamacpp]` (enable=false, slot_dir/models_dir/config).
 - Identity/wiring: sysusers (`mios-llamacpp` 827 + `mios-ai`), tmpfiles (slot
@@ -243,7 +243,7 @@ Cutover steps (since completed):
 2. **Verify the template live** — mios-llm-light image tag, the `cmd`/`proxy`/`ttl`
    schema, the `llama-server` binary path inside the image (`/app/llama-server`),
    `--config`/`--listen` flags, and `--n-gpu-layers` sizing for the shared 4090.
-3. **Wire the lane** — `[nodes.*]` at `http://localhost:11450/v1`,
+3. **Wire the lane** — `[nodes.*]` at `http://localhost:${MIOS_PORT_LLM_LIGHT}/v1`,
    `api="llamacpp"` → auto-joins the swarm + KV-pages, zero pipe changes.
 4. **Cutover** — point `_embed_one` at the mios-llm-light embed endpoint; migrate the
    chat lanes off Ollama; retire Ollama. (Done — Ollama is fully removed.)

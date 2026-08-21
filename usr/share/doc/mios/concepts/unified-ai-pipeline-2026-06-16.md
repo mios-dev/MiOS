@@ -12,21 +12,21 @@
 # Unified MiOS AI pipeline
 
 ## One orchestrator, many thin clients
-Every front-end is a THIN client to the **agent-pipe orchestrator at `:8640`**
+Every front-end is a THIN client to the **agent-pipe orchestrator** (port key `agent_pipe`)
 (served model `MiOS-Agent`); the orchestrator owns refine → route → dispatch /
 native-loop / council → server-side broker execution → polish. No front-end runs
 its own weak tool-loop.
 
-| Front-end | Path to :8640 |
+| Front-end | Path to the `agent_pipe` port |
 |---|---|
-| `mios <prompt>` / `@<prompt>` | `/usr/sbin/@` → `exec /usr/bin/mios` (ENDPOINT `:8640`, model `MiOS-Agent`, `use_tools=False`) |
-| OWUI | `mios-agent-pipe` pipe → `:8640` |
-| Desktop Hermes app | `config.yaml` provider → `:8640`, `toolsets:[]` |
-| Terminal `hermes` REPL | `/var/home/mios/.hermes/config.yaml` `model.provider: custom:mios-orchestrator` (`:8640/v1`, `MiOS-Agent`) |
+| `mios <prompt>` / `@<prompt>` | `/usr/sbin/@` → `exec /usr/bin/mios` (ENDPOINT `$MIOS_AI_ENDPOINT`, model `MiOS-Agent`, `use_tools=False`) |
+| OWUI | `mios-agent-pipe` pipe → the `agent_pipe` port |
+| Desktop Hermes app | `config.yaml` provider → the `agent_pipe` port, `toolsets:[]` |
+| Terminal `hermes` REPL | `/var/home/mios/.hermes/config.yaml` `model.provider: custom:mios-orchestrator` (`$MIOS_AI_ENDPOINT`, `MiOS-Agent`) |
 
-`MiOS-Hermes` (`:8642`) is a LEAF the orchestrator may call, never a public
+`MiOS-Hermes` (port key `hermes`) is a LEAF the orchestrator may call, never a public
 entrypoint. The REPL config is SEPARATE from the gateway config
-(`HERMES_HOME=/var/lib/mios/hermes`) so routing the REPL to `:8640` does NOT loop
+(`HERMES_HOME=/var/lib/mios/hermes`) so routing the REPL to the `agent_pipe` port does NOT loop
 the gateway.
 
 ## Route-by-source grounding (anti-fabrication)

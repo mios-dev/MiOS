@@ -26,11 +26,11 @@ The discrete NVIDIA GPU is a shared resource between MiOS's two faces:
   and Looking Glass B7 + KVMFR puts that guest's framebuffer back on the host at
   near-native latency.
 - **Agentic AI OS** — the local inference lanes offload generation to the same GPU
-  through CDI: `mios-llm-light` (`:11450`, the primary llama.cpp lane behind the
+  through CDI: `mios-llm-light` (port key `llm_light`, the primary llama.cpp lane behind the
   upstream llama-swap proxy image — everyday models, the `mios-opencode` coder model, and
-  embeddings), and the gated heavy lanes `mios-llm-heavy` (SGLang, `:11441`) and
-  `mios-llm-heavy-alt` (vLLM, `:11440`). These feed the agent stack — agent-pipe
-  (`:8640`) → MiOS-Hermes (`:8642`) → pgvector memory — behind one
+  embeddings), and the gated heavy lanes `mios-llm-heavy` (vLLM, port key `vllm`) and
+  `mios-llm-heavy-alt` (SGLang, port key `sglang`). These feed the agent stack — agent-pipe
+  (port key `agent_pipe`) → MiOS-Hermes (port key `hermes`) → pgvector memory — behind one
   OpenAI-compatible endpoint (`MIOS_AI_ENDPOINT`, Architectural Law 5).
 
 The same CDI plumbing serves both paths, and `automation/34-gpu-detect.sh` arbitrates

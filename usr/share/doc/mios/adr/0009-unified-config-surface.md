@@ -2,7 +2,7 @@
 <!-- AI-related: usr/share/mios/mios.toml [portal], usr/share/mios/configurator/mios.html, usr/share/mios/portal/, usr/lib/mios/agent-pipe/mios_portal.py, usr/lib/mios/agent-pipe/server.py, tools/mios-portal-app/, usr/share/doc/mios/adr/0006-openai-api-only-ai-contract.md, usr/share/doc/mios/adr/0007-governance-model-laws-adrs-spec.md -->
 ---
 adr: 0009
-title: Unified config surface — mios.toml ⇄ Portal + configurator + OpenAI /v1, all at :8640/
+title: Unified config surface — mios.toml ⇄ Portal + configurator + OpenAI /v1, all on the agent_pipe port
 status: accepted
 date: 2026-07-16
 deciders: [operator, ai-pair]
@@ -14,15 +14,15 @@ supersedes: []
 superseded_by: []
 ---
 
-# ADR-0009: Unified config surface — `mios.toml` ⇄ Portal + configurator + OpenAI `/v1`, all at `:8640/`
+# ADR-0009: Unified config surface — `mios.toml` ⇄ Portal + configurator + OpenAI `/v1`, all on the `agent_pipe` port
 
 ## Status
 Accepted — 2026-07-16 (Laws 5, 7, 8). The decision is in force; the folding of
 `mios.html` into the Portal is PLANNED (WS-CONFIG / CONFIG-01) — see Consequences
 for the honest DONE-vs-PLANNED split. This ADR converges with ADR-0006 (the single
-`:8640` OpenAI front door) and ADR-0007 (governance): the same `:8640` is now the
-single **web** front door (Portal + configurator) *and* the single **API** front
-door (`/v1`).
+OpenAI front door on the `agent_pipe` port) and ADR-0007 (governance): the same
+port is now the single **web** front door (Portal + configurator) *and* the single
+**API** front door (`/v1`).
 
 ## Context
 
@@ -36,22 +36,24 @@ surfaces:
   `usr/share/mios/configurator/mios.html`, a web UI over `mios.toml`.
 - **the MiOS Portal** — the operator's home page (`[portal]` in `mios.toml`
   L220–232; assets `usr/share/mios/portal/`; backend
-  `usr/lib/mios/agent-pipe/mios_portal.py`; served at `GET /` on `:8640`; with a
-  native Android client at `tools/mios-portal-app/`). It presents service tiles,
-  a terminal (xterm.js), login, and the entry to everything MiOS runs.
+  `usr/lib/mios/agent-pipe/mios_portal.py`; served at `GET /` on the `agent_pipe`
+  port; with a native Android client at `tools/mios-portal-app/`). It presents
+  service tiles, a terminal (xterm.js), login, and the entry to everything MiOS
+  runs.
 
 The tension the operator named: the Portal "needs config too." Treating the
 configurator and the Portal as separate surfaces means two web UIs, two things to
 serve, two things to secure, and an ambiguous answer to "where do I configure
 MiOS?" Meanwhile ADR-0006 already collapsed the *API* plane to a single OpenAI
-`/v1` front door at agent-pipe `:8640`. The Portal is already served by that same
-agent-pipe at `GET /`. So the web surface and the API surface already live at the
-same port — they had simply not been *named* as one unified config surface.
+`/v1` front door at agent-pipe (port key `agent_pipe`). The Portal is already
+served by that same agent-pipe at `GET /`. So the web surface and the API surface
+already live at the same port — they had simply not been *named* as one unified
+config surface.
 
 ## Decision
 
-**`mios.toml`, `mios.html`, and the MiOS Portal are ONE config surface, served at
-`:8640/` by agent-pipe.** Concretely:
+**`mios.toml`, `mios.html`, and the MiOS Portal are ONE config surface, served on
+the `agent_pipe` port by agent-pipe.** Concretely:
 
 1. **Fold the configurator into the Portal.** `mios.html`
    (`usr/share/mios/configurator/`) becomes a **view within the MiOS Portal**, not
@@ -60,32 +62,32 @@ same port — they had simply not been *named* as one unified config surface.
    of itself. The Portal backend (`mios_portal.py`) and the agent-pipe server
    (`server.py`) own the read/write of `mios.toml`.
 
-2. **One port, one front door — web AND API.** The SAME `:8640` that ADR-0006 made
-   the single OpenAI `/v1` **API** front door is now the single **web** front door:
-   `GET /` serves the Portal (with the configurator folded in) and `/v1/*` serves
-   the OpenAI API. `ports.agent_pipe` (`:8640`) is the one addressable surface.
-   This is the ADR-0006 convergence: the OpenAI `/v1` contract and the config UI
-   share the exact same door.
+2. **One port, one front door — web AND API.** The SAME `agent_pipe` port that
+   ADR-0006 made the single OpenAI `/v1` **API** front door is now the single
+   **web** front door: `GET /` serves the Portal (with the configurator folded in)
+   and `/v1/*` serves the OpenAI API. `ports.agent_pipe` is the one addressable
+   surface. This is the ADR-0006 convergence: the OpenAI `/v1` contract and the
+   config UI share the exact same door.
 
 3. **Everything reads/writes `mios.toml`.** The configurator view, the Portal's
    own settings, and every deployment type's config all flow through the same
    `mios.toml` SSOT (Law 8), referenced by key never by hardcoded literal (Law 7).
    There is no second config store and no config path that bypasses the SSOT.
 
-4. **The Portal is the shareable-LINK front door.** The shareable web link
-   (`:8640/`, or its hosted/MagicDNS equivalent via `[portal].public_host`) **is**
-   the MiOS Portal, and it bootstraps the whole pipeline: **open → configure →
-   deploy**. The USB `MiOS-Repo` shadow-config partition (ADR-0008) is the
-   **offline embodiment** of this same surface. The acceptance bar for the whole
-   effort is therefore exactly: **a shareable link + a USB disk + a usable
-   computer** → everything else self-contained.
+4. **The Portal is the shareable-LINK front door.** The shareable web link (the
+   `agent_pipe` port, or its hosted/MagicDNS equivalent via
+   `[portal].public_host`) **is** the MiOS Portal, and it bootstraps the whole
+   pipeline: **open → configure → deploy**. The USB `MiOS-Repo` shadow-config
+   partition (ADR-0008) is the **offline embodiment** of this same surface. The
+   acceptance bar for the whole effort is therefore exactly: **a shareable link +
+   a USB disk + a usable computer** → everything else self-contained.
 
 ## Rationale
 
 - **Law 5 (UNIFIED-AI-REDIRECTS) already gave us one API door; this extends the
-  same discipline to the web/config door.** One `:8640` for `/v1` *and* `/` is the
-  natural closure — the Portal was already served there, the configurator just
-  hadn't been folded in.
+  same discipline to the web/config door.** One `agent_pipe` port for `/v1` *and*
+  `/` is the natural closure — the Portal was already served there, the
+  configurator just hadn't been folded in.
 - **Law 8 (SSOT-PROJECTION) makes "one config surface" honest.** If the
   configurator, the Portal settings, and every deployment config all project from
   `mios.toml`, then a single UI over `mios.toml` genuinely *is* the whole config
@@ -122,10 +124,10 @@ Positive:
   Spec).
 
 DONE vs PLANNED (honest):
-- **DONE:** the Portal is served by agent-pipe at `GET /` on `:8640`
-  (`mios_portal.py` + `server.py`); the OpenAI `/v1` API is served at the same
-  `:8640` (ADR-0006); `[portal]` config (login, `public_host`, session TTL) is in
-  the SSOT; a native Android Portal client exists (`tools/mios-portal-app/`).
+- **DONE:** the Portal is served by agent-pipe at `GET /` on the `agent_pipe`
+  port (`mios_portal.py` + `server.py`); the OpenAI `/v1` API is served on that
+  same port (ADR-0006); `[portal]` config (login, `public_host`, session TTL) is
+  in the SSOT; a native Android Portal client exists (`tools/mios-portal-app/`).
 - **PLANNED (WS-CONFIG / CONFIG-01):** fold `mios.html`
   (`usr/share/mios/configurator/`) into the Portal as a configurator view so the
   standalone page is retired; wire read/write of `mios.toml` from that view through
@@ -135,8 +137,8 @@ DONE vs PLANNED (honest):
 
 ## Implementation
 
-- `usr/lib/mios/agent-pipe/server.py` — the single `:8640` front door: `GET /`
-  (Portal) + `/v1/*` (OpenAI API, ADR-0006).
+- `usr/lib/mios/agent-pipe/server.py` — the single `agent_pipe` front door:
+  `GET /` (Portal) + `/v1/*` (OpenAI API, ADR-0006).
 - `usr/lib/mios/agent-pipe/mios_portal.py` — Portal backend; gains the configurator
   view and the `mios.toml` read/write path.
 - `usr/share/mios/portal/` — Portal assets; absorbs the configurator UI.
@@ -144,21 +146,22 @@ DONE vs PLANNED (honest):
   standalone page under WS-CONFIG).
 - `usr/share/mios/mios.toml [portal]` (L220–232) — the surface's config
   (`public_host`, `require_login`, `user`/`password` inheritance, `session_ttl`);
-  `ports.agent_pipe` = `8640`.
-- `tools/mios-portal-app/` — the Android client points at the same `:8640/`.
+  `ports.agent_pipe` is the port key.
+- `tools/mios-portal-app/` — the Android client points at the same `agent_pipe`
+  port.
 - Governed by ADR-0006 (front door) and ADR-0007 (the config UI writes `mios.toml`;
   laws are the fitness functions the surface must not violate).
 
 ## References
 
-- ADR-0006 (OpenAI-API-only AI contract) — the `:8640` `/v1` front door this ADR
-  extends to the web/config surface: `0006-openai-api-only-ai-contract.md`.
+- ADR-0006 (OpenAI-API-only AI contract) — the `agent_pipe` `/v1` front door this
+  ADR extends to the web/config surface: `0006-openai-api-only-ai-contract.md`.
 - ADR-0007 (Governance model) — laws as fitness functions; the config UI writes the
   SSOT that the MiOS Spec renders: `0007-governance-model-laws-adrs-spec.md`.
 - ADR-0008 (MiOS-Cat unified entry point) — the USB `MiOS-Repo` shadow-config
   partition is the offline embodiment of this shareable-link surface:
   `0008-mios-cat-unified-entry-and-minification.md`.
-- SSOT: `usr/share/mios/mios.toml [portal]` (L220), `ports.agent_pipe` (`:8640`).
+- SSOT: `usr/share/mios/mios.toml [portal]` (L220), `ports.agent_pipe`.
 - Surface: `usr/lib/mios/agent-pipe/{server.py,mios_portal.py}`,
   `usr/share/mios/portal/`, `usr/share/mios/configurator/mios.html`,
   `tools/mios-portal-app/`.

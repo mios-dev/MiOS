@@ -48,7 +48,7 @@ Complex tasks are fanned out to specialized sub-agents using the Agent-to-Agent 
 
 - **Communication**: Uses a JSON-RPC payload schema over standard loopback ports.
 - **Discovery**: Agents query the registry at `/v1/agents` to discover capabilities.
-- **Delegation**: The orchestrator delegates code tasks to the `mios-opencode` coding agent (port 8633), which modifies files and returns validation results.
+- **Delegation**: The orchestrator delegates code tasks to the `mios-opencode` coding agent (port key `opencode_gateway`), which modifies files and returns validation results.
 
 #### Citation & Attribution References
 

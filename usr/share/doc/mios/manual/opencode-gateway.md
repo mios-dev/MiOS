@@ -9,8 +9,8 @@ MiOS opencode → OpenAI /v1 gateway shim.
 opencode (the SST/charm CLI coding agent) speaks its own CLI protocol, not the
 OpenAI /v1 chat-completions contract that the MiOS agent-pipe council expects.
 This shim wraps `opencode run` behind a minimal OpenAI-compatible HTTP server so
-opencode can be dispatched as a first-class /v1 council peer (like Hermes at
-:8642), without teaching agent-pipe a bespoke protocol.
+opencode can be dispatched as a first-class /v1 council peer (like Hermes on
+the `hermes` port), without teaching agent-pipe a bespoke protocol.
 
 Endpoints:
   GET  /v1/models            → advertise the single opencode model id
@@ -18,7 +18,7 @@ Endpoints:
                                (or an SSE delta stream when stream=true)
 
 Config (all via env, SSOT-rendered by the unit / userenv.sh):
-  MIOS_PORT_OPENCODE_GATEWAY   listen port (default 8633)
+  MIOS_PORT_OPENCODE_GATEWAY   listen port (SSOT key [ports].opencode_gateway)
   MIOS_OPENCODE_BIN            path to the opencode binary
   MIOS_OPENCODE_MODEL          model id to advertise/forward (ONE canonical id;
                                must match [agents.opencode].model + the key in

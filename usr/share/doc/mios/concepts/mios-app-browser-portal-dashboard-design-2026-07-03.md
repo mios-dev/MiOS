@@ -358,10 +358,11 @@ resolve by fiat here.
 - The Hermes Dashboard's React SPA (when built) should import
   `mios-app-shell.css` — that's a change in the *upstream* `hermes-agent`
   `web/` source tree, out of scope for this repo.
-- `mios-webshell`'s AI sidebar currently points at `http://localhost:3030`
-  (OWUI) inside the patch; confirm this is still the intended target versus
-  `agent-pipe:8640/v1` before the next Surfer rebuild — the two browser
-  paths in §8 currently disagree on which port is "the" AI endpoint.
+- `mios-webshell`'s AI sidebar currently points at the Open WebUI surface
+  (port key `open_webui`) inside the patch; confirm this is still the intended
+  target versus the agent-pipe `/v1` front door (port key `agent_pipe`) before
+  the next Surfer rebuild — the two browser paths in §8 currently disagree on
+  which port is "the" AI endpoint.
 
 ## 14. Architectural Law compliance checklist
 

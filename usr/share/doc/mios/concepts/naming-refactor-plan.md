@@ -58,16 +58,17 @@ coherent; the work is mostly *convergence* + one real defect.
   generated snapshot pending regeneration.
 - **Phase 2 file/unit renames — DONE (superseded by the inference-engine refactor).**
   The Quadlet stems are now canonical on disk:
-  `usr/share/containers/systemd/` ships `mios-llm-light.container` (`:11450`, the
-  former `ollama`/`mios-mios-llm-light` lane), `mios-llm-heavy.container` (`:11441`,
-  SGLang, was `mios-sglang`), `mios-llm-heavy-alt.container` (vLLM, was `mios-vllm`),
+  `usr/share/containers/systemd/` ships `mios-llm-light.container` (port key
+  `llm_light`, the former `ollama`/`mios-mios-llm-light` lane),
+  `mios-llm-heavy.container` (port key `vllm`, vLLM, was `mios-sglang`),
+  `mios-llm-heavy-alt.container` (SGLang, was `mios-vllm`),
   `mios-llm-worker@.container` (was `mios-llama-worker@`), plus `mios-guacd`,
   `mios-guacamole-postgres`, and `mios-crowdsec-dashboard` (the CloudWS/inline-named
   units now carry `mios-` stems). The inference lanes were renamed by **function**,
   not upstream-tool name — see "Inference-engine rename" below.
 - **Legacy backends REMOVED (postdates the original T26 plan).** Ollama, the legacy datastore,
   and Qdrant are gone from the live system (containers, firstboot, model-bake,
-  Modelfiles, CLI shims). Inference + embeddings run on `mios-llm-light` (:11450);
+  Modelfiles, CLI shims). Inference + embeddings run on `mios-llm-light` (port key `llm_light`);
   the unified agent datastore is **PostgreSQL + pgvector** (`mios-pgvector`, :5432).
   Remaining legacy-datastore/`[services.ollama_cpu]`/qdrant traces in `mios.toml` are
   stale snapshot residue pending an SSOT sweep — treat them as migration history,
@@ -81,11 +82,11 @@ coherent; the work is mostly *convergence* + one real defect.
 The inference lanes are now named by **what they do for MiOS**, decoupling the
 unit/service identity from the swappable upstream engine inside it:
 
-| Canonical MiOS identity | Port | Role | Was |
+| Canonical MiOS identity | Port key | Role | Was |
 |---|---|---|---|
-| `mios-llm-light` | `:11450` | **PRIMARY** local LLM lane — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-mios-llm-light` |
-| `mios-llm-heavy` | `:11441` | Heavy GPU lane (SGLang), served-name `mios-heavy`. Gated/off-by-default (VRAM) | `mios-sglang` |
-| `mios-llm-heavy-alt` | `:11440` | Alternate heavy lane (vLLM, PagedAttention+APC), gated/off-by-default | `mios-vllm` |
+| `mios-llm-light` | `llm_light` | **PRIMARY** local LLM lane — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging; serves everyday models, the `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). Config: `usr/share/mios/llamacpp/mios-llm-light.yaml` | `mios-mios-llm-light` |
+| `mios-llm-heavy` | `vllm` | Heavy GPU lane (vLLM), served-name `mios-heavy`. Gated/off-by-default (VRAM) | `mios-sglang` |
+| `mios-llm-heavy-alt` | `sglang` | Alternate heavy lane (SGLang, HiCache CPU KV-offload), gated/off-by-default | `mios-vllm` |
 | `mios-llm-worker@` | — | Single-model swarm workers (templated; dGPU swarm topology) | `mios-llama-worker@` |
 
 `mios-llm-light` (the upstream tool/image `ghcr.io/mostlygeek/llama-swap:cuda`) and the

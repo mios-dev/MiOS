@@ -5,10 +5,10 @@
 ### Examples for other local OpenAI-API-compatible runtimes...
 
 Examples for other local OpenAI-API-compatible runtimes:
-  LLM-Light:          base_url = "http://localhost:11450/v1"
+  LLM-Light:          base_url = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
   vLLM:               base_url = "http://localhost:8000/v1"
   LM Studio:          base_url = "http://localhost:1234/v1"
-  mios-gateway-agent: base_url = "http://localhost:8642/v1"
+  mios-gateway-agent: base_url = "http://localhost:${MIOS_PORT_HERMES}/v1"
   LiteLLM proxy:      base_url = "http://localhost:4000/v1"
 
 <!-- mios-src:7036a2325287 from etc/mios/kb.conf.toml:11-16 -->

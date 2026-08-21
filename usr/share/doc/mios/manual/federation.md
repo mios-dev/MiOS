@@ -182,16 +182,16 @@ client factory, and the worker-tool-surface cache invalidator -- is injected via
 
 <!-- mios-src:a5096accbfb4 from usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py:4-25 -->
 
-### True if a peer URL is THIS orchestrator (loopback :8640)....
+### True if a peer URL is THIS orchestrator (loopback on the `agent_pipe` port)....
 
-True if a peer URL is THIS orchestrator (loopback :8640). Delegating or
+True if a peer URL is THIS orchestrator (loopback on the `agent_pipe` port). Delegating or
     fanning out to it re-enters the pipe and recurses UNBOUNDED -- the per-request
     recursion bound is process-local and does NOT cross the a2a HTTP hop (operator
  dGPU runaway: ~35 native-loop turns/sec pegged the GPU). The
     A2A_SELF_ID guard missed it because mios-a2a-discover registers the self as
     "mios-local" while A2A_SELF_ID defaults to "local-mios" -- an id mismatch. So
-    exclude by URL (id-agnostic). Only LOOPBACK :8640 is self; a remote node on
-    :8640 (real host/tailnet IP) is a legitimate peer and is NOT excluded.
+    exclude by URL (id-agnostic). Only LOOPBACK on the `agent_pipe` port is self; a remote node on
+    that same port (real host/tailnet IP) is a legitimate peer and is NOT excluded.
 
 <!-- mios-src:f235ade235ad from usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py:98-105 -->
 
@@ -211,7 +211,7 @@ Candidate base-URLs to probe for an A2A agent-card: every ONLINE tailnet
 Layered peer registry read: vendor < /etc < user. Later overlays
     REPLACE earlier entries with the same id (matches MCP client semantics)
     so an operator can disable a vendor peer by re-declaring it disabled.
-    The LOCAL self-peer (loopback :8640) is EXCLUDED -- it is a self-loop vector
+    The LOCAL self-peer (loopback on the `agent_pipe` port) is EXCLUDED -- it is a self-loop vector
     (see _a2a_self_peer_url); delegation to oneself is a no-op on a single node.
 
 <!-- mios-src:ecedcd420174 from usr/lib/mios/agent-pipe/mios_pipe/federation/a2a_client.py:261-265 -->

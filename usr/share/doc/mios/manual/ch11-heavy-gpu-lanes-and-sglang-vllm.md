@@ -12,7 +12,7 @@ This chapter covers the documentation for **Heavy GPU Lanes and SGLang/vLLM** un
 
 #### Overview
 
-The heavy reasoning lane utilizes SGLang (port **11441**) to serve large language models when hardware allows.
+The alternate heavy lane utilizes SGLang (port key **`sglang`**) to serve large language models when hardware allows.
 
 ## Policies
 - **VRAM Gating**: Checked at startup using `ConditionPathExists=/usr/share/mios/sglang/model/config.json`.
@@ -38,7 +38,7 @@ The heavy reasoning lane utilizes SGLang (port **11441**) to serve large languag
 
 #### Overview
 
-The alternate heavy lane uses vLLM (port **11440**) to run swarm worker instances.
+The heavy lane uses vLLM (port key **`vllm`**) to run swarm worker instances.
 
 ## Operations
 - **PagedAttention**: Uses vLLM's memory manager to scale batch concurrency.

@@ -9,9 +9,9 @@ workstation (the whole OS is a single container image you `bootc upgrade` like a
 `git pull` and `bootc rollback` like a Ctrl-Z) that is *also* a local,
 self-replicating, agentic AI operating system. The agentic half runs entirely
 on-box: a request flows from a front-end (OWUI, the Discord gateway, the `mios`
-CLI) into the **agent-pipe** orchestrator (`:8640`), which refines and fans it
+CLI) into the **agent-pipe** orchestrator (port key `agent_pipe`), which refines and fans it
 out across a council/swarm and dispatches tool/verb calls; **MiOS-Hermes**
-(`:8642`) is the OpenAI-compatible gateway and tool-loop agent; **pgvector**
+(port key `hermes`) is the OpenAI-compatible gateway and tool-loop agent; **pgvector**
 (`:5432`) is the unified agent memory (tiered memory, knowledge, sessions,
 skills, RAG embeddings); and the **inference lanes** do the actual generation
 and embeddings behind one OpenAI-compatible surface.
@@ -32,12 +32,12 @@ at any compatible runtime, and the recipes are identical.
 
 This is the endpoint MiOS itself uses. Two unit identities matter:
 
-- **MiOS-Hermes** (`hermes-agent.service`, `:8642/v1`) — the OpenAI-compatible
+- **MiOS-Hermes** (`hermes-agent.service`, `/v1` on the `hermes` port) — the OpenAI-compatible
   *agent gateway* (sessions, tool-calling, skills, the browser/CDP tool loop).
   This is what `MIOS_AI_ENDPOINT` resolves to for agent-shaped traffic; the
   shipped example payload (`usr/share/mios/api/chat.local.example.json`) targets
   it directly.
-- **MiOS-LLM-Light** (`mios-llm-light.service`, `:11450`) — the **primary local
+- **MiOS-LLM-Light** (`mios-llm-light.service`, port key `llm_light`) — the **primary local
   inference lane**: `llama.cpp` behind the upstream `mios-llm-light` proxy image
   (`ghcr.io/mostlygeek/llama-swap`), with multi-model auto-swap and KV-cache
   paging. It serves the everyday models, the `mios-opencode` coder model, **and
@@ -53,10 +53,10 @@ both reachable through `MIOS_AI_ENDPOINT`.
 # 0. Set the unified env vars (or rely on /etc/profile.d/mios-env.sh).
 #    MIOS_AI_ENDPOINT is the single OpenAI-compat endpoint every MiOS agent/tool
 #    targets (Architectural Law 5). The canonical default is the unified surface:
-export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}
+export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:${MIOS_PORT_HERMES}/v1}
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}                          # empty key accepted locally
 export MIOS_AI_MODEL=${MIOS_AI_MODEL:-mios-hermes}           # canonical mios.toml [ai] model
-export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}  # served by mios-llm-light :11450
+export MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL:-nomic-embed-text}  # served by mios-llm-light on the llm_light port
 
 # 1. Verify the endpoint
 curl -fsS "$MIOS_AI_ENDPOINT/models" -H "Authorization: Bearer $MIOS_AI_KEY" | jq '.data[].id'
@@ -89,8 +89,8 @@ implements `string_check`, `text_similarity`, and `score_model` graders against
 any `/v1/chat/completions` endpoint.
 
 > If you want to talk to a specific lane directly rather than the unified
-> surface: chat/agent traffic is Hermes at `http://localhost:8642/v1`, raw
-> inference and embeddings are `mios-llm-light` at `http://localhost:11450`.
+> surface: chat/agent traffic is Hermes on the `hermes` port, raw
+> inference and embeddings are `mios-llm-light` on the `llm_light` port.
 > Prefer `MIOS_AI_ENDPOINT` so the recipe stays portable.
 
 ---
@@ -104,7 +104,7 @@ model name) and re-run recipe A steps 3–5 unchanged:
 
 ```bash
 # vLLM (from `vllm serve <model>` on default port) — same engine MiOS uses for
-# its gated alternate heavy lane (mios-llm-heavy-alt)
+# its gated heavy lane (mios-llm-heavy)
 export MIOS_AI_ENDPOINT=http://localhost:8000/v1
 export MIOS_AI_MODEL=meta-llama/Llama-3.1-70B-Instruct
 

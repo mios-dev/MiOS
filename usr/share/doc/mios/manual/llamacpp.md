@@ -95,7 +95,7 @@ SWAP-induced 429); this fixes the CONCURRENCY-induced one.
 INERT until BOTH GGUFs exist under /models -- the operator downloads them (the
 security classifier blocks the fetch for the assistant). Once present, mios-llm-light
 serves qwen3-vl:4b with vision on demand and cu_ground's vision fallback
-activates (endpoint already points here, :11450;).
+activates (endpoint already points here, the `llm_light` port;).
 fleet modernization: qwen3-vl:4b -> H Company Holo1.5-7B (UI-grounding
 SFT, ScreenSpot-Pro ~57.9). GGUF mradermacher/Holo1.5-7B-GGUF Q4_K_M 4.68GB +
 mmproj-Q8_0 1.0GB. Base arch 'qwen2vl' (fine-tune of Qwen2.5-VL) is MATURE on

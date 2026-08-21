@@ -81,7 +81,7 @@ build-or-operator-gated — see notes).
 | 19 | memory | `memory_update` reported `updated:1 / ok:true` even when the key matched zero rows. Added an existence check → `matched:false / no_such_key` on a miss. | ✅ FIXED+VERIFIED |
 | 20 | web | Firecrawl async-job poll used the crawl-status endpoint (latent). Switched to `/v1/scrape/{job_id}` + data-present completion. | 🟢 FIXED+DEPLOYED |
 | 21 | search | `plocate`/`locate` absent → fs_search always paid the ~11 s find-walk. Added `plocate` to `[packages.utils]`. | 📝 FIXED (repo; lands on rebuild) |
-| 22 | openai_conformance | Primary `tool_choice='required'` reached llama.cpp `:11450` un-downgraded (200-accepts-but-ignores) → silently non-forcing on the primary path. Gated the primary through `_endpoint_supports_tool_choice` like the council/secondary path. | 🟢 FIXED+DEPLOYED |
+| 22 | openai_conformance | Primary `tool_choice='required'` reached the llama.cpp `llm_light` lane un-downgraded (200-accepts-but-ignores) → silently non-forcing on the primary path. Gated the primary through `_endpoint_supports_tool_choice` like the council/secondary path. | 🟢 FIXED+DEPLOYED |
 | 23 | install_repro | Generated `mios build` driver staging lacks the curl-fallback the menu path has (hardcoded `/mnt/m`, WARN-only on miss). | ⚠️ FLAGGED — LOW; fragile PS here-string, not worth an untestable edit. |
 | 24 | recipes_misc | `mios-cron-director` daemon inactive+disabled despite preset `enabled` → scheduled jobs don't fire. | ⚠️ FLAGGED — wiring. |
 | 25 | oscontrol | `move_window`/`position_window` named regions (left/right/corners) have no LOCAL actuator on WSL once the executor is absent (only center/numeric/focus/close fall back). | ⚠️ FLAGGED — secondary; needs region→rect geometry in the local fallback. |
@@ -101,7 +101,7 @@ build-or-operator-gated — see notes).
   `MIOS_OWUI_ADMIN_PASSWORD` → `mios.toml [identity].default_password` →
   `MIOS_DEFAULT_PASSWORD` → `"mios"` (the same chain Forge/Portal/Cockpit/RDP use)
   and **reconciles on every boot** (forge's model), never a random password.
-- **Proven**: signin `admin@mios.local` / `mios` → valid admin token (host `:3030`).
+- **Proven**: signin `admin@mios.local` / `mios` → valid admin token (on the host `open_webui` port).
 - **Latent note**: the OWUI quadlet `PublishPort=…:8080` vs uvicorn `--port 3030`
   is inconsistent (currently harmless — `podman port` empty, reached via the bridge);
   flagged for careful cleanup.
@@ -118,15 +118,15 @@ build-or-operator-gated — see notes).
 
 ## What was VERIFIED PASS live (highlights)
 
-AI plane up end-to-end (`:8640` agent-pipe 200, `:11450` GPU lane 200, `:8765`
-MCP 200, `:8642` hermes auth-gated); RTX 4090 live; webtools pod running
+AI plane up end-to-end (agent-pipe on the `agent_pipe` port 200, the `llm_light` GPU lane 200, `:8765`
+MCP 200, hermes on the `hermes` port auth-gated); RTX 4090 live; webtools pod running
 (crawl4ai `:11235`, firecrawl `:3002`, redis, worker); `system_status`,
 `os_control_health`, memory round-trip, and the full read-only system/search/
 package surface all returned real data.
 
 ## Operational verification — MiOS AI fully operational (2026-06-22)
 
-Live chat through the canonical `:8640` front door (full refine→council→polish
+Live chat through the canonical `agent_pipe` front door (full refine→council→polish
 pipeline on the RTX 4090):
 
 | Test | Result | Evidence |
@@ -143,7 +143,7 @@ not the user message) was already implemented; Part 1 (`mios-open-webui.containe
 `ENABLE_API_KEY`→`ENABLE_API_KEYS` for OWUI 0.9.6 + `ENABLE_FORWARD_USER_INFO_HEADERS`)
 deployed + committed. Test D confirms the chain end-to-end.
 
-**System health (2026-06-22):** **0 failed units**; `:8640`/`:8642`/`:11450`/`:8765`/`:3030`
+**System health (2026-06-22):** **0 failed units**; the `agent_pipe`/`hermes`/`llm_light`/`:8765`/`open_webui` ports
 all healthy; `mios-sys-env-refresh.timer` + `mios-cron-director.service` now
 **enabled + active** (preset fix); OWUI login works with the SSOT password;
 `mios-llm-heavy-alt.service` generates (gated-off). The deploy-time lesson: repo

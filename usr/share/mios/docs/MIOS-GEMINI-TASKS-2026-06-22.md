@@ -52,7 +52,7 @@ Add `Pod=<pod>.pod` to each member `.container`; run `python3 tools/generate-pod
 - **Accept:** `generate-pod-quadlets.py --check` → no drift; `podman pod ls` shows the pods (the un-gated ones) Running with their members; every health check green. **Hard constraints:** two containers in one pod may NOT bind the same port; `mios-ai-data` (pgvector :5432) must NOT co-pod with `mios-guacamole-postgres` (also :5432). The AI **brains** (hermes-agent, agent-pipe, mcp, prefilter, opencode-gateway, hermes-browser, ttyd) are **host services — leave them host-native**, pods reach them via `host.containers.internal`.
 
 ### 1d — Port minimization
-De-publish `mios-searxng` `:8888` to loopback (it's consumed only by host hermes); drop `mios-llm-heavy-alt`'s stray `PublishPort=...:11440`. Target: ~24 raw host binds → ~8 deliberate front doors.
+De-publish `mios-searxng` (port key `searxng`) to loopback (it's consumed only by host hermes); drop `mios-llm-heavy-alt`'s stray `PublishPort=...:11440`. Target: ~24 raw host binds → ~8 deliberate front doors.
 
 ## G-TASK 2 — WS-0B port collapse (build-time render) — the still-open one (DONE)
 *Claim-vs-reality: prior "WS-0B port collapse DONE" is **FALSE** — 6 quadlets hardcode `PublishPort` literals; `install.env` has zero `MIOS_PORT_*`; systemd can't `${}`-expand TOML.*

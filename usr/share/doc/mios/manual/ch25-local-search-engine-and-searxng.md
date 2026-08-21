@@ -15,7 +15,7 @@ This chapter covers the documentation for **Local Search Engine and SearXNG** un
 Sovereign search services are provided locally by containerized SearXNG.
 
 ## Setup
-- **Endpoint**: Runs on port 8888.
+- **Endpoint**: Runs on the `searxng` port.
 - **Security**: Disables logging and upstream search tracking.
 - **Performance**: Returns results offline or via private search.
 
@@ -41,7 +41,7 @@ Sovereign search services are provided locally by containerized SearXNG.
 Agents execute search queries using SearXNG API endpoints.
 
 ## Pipeline
-- **API**: Queries local endpoints on port 8888.
+- **API**: Queries local endpoints on the `searxng` port.
 - **Authentication**: secured via loopback trust.
 - **Integration**: Backs the agent's web search tools.
 

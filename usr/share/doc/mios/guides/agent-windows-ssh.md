@@ -6,10 +6,11 @@
 
 MiOS is one image built two ways at once: an immutable, bootc/OCI-shaped Fedora
 workstation *and* a local, self-replicating agentic AI OS. The agent stack —
-the agent-pipe orchestrator (`:8640`), the MiOS-Hermes gateway (`:8642`), the
-local inference lanes (`mios-llm-light` on `:11450` plus the gated heavy lanes),
-and PostgreSQL+pgvector memory (`:5432`) — is built to **operate the machine it
-runs on**: launch apps, query state, fix problems.
+the agent-pipe orchestrator (port key `agent_pipe`), the MiOS-Hermes gateway
+(port key `hermes`), the local inference lanes (`mios-llm-light` on the
+`llm_light` port plus the gated heavy lanes), and PostgreSQL+pgvector memory
+(`:5432`) — is built to **operate the machine it runs on**: launch apps, query
+state, fix problems.
 
 When that image is deployed as a **WSL2 distro** (`MiOS-DEV`), the agent lives
 *inside* the Linux VM, but some of the things it needs to act on are
