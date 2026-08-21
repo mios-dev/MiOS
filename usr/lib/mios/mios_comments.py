@@ -319,6 +319,14 @@ def _mk(path, start, end, kind, style, body_lines, attach, anchor, in_header) ->
     )
 
 
+# Files whose Python lex degraded to the regex lexer (or lost docstring blocks)
+# in this process. Whether that happens depends on the INTERPRETER, not the
+# file: PEP 701 sources parse on 3.12+ and not before, so the same tree would
+# otherwise yield a different census per machine. mios-manual's ledger refuses
+# to emit an artifact while this is non-empty.
+DEGRADED: list[str] = []
+
+
 def _lex_python(path: str, src: str) -> list[Block]:
     """Python uses tokenize + ast, never regex.
 
@@ -331,6 +339,7 @@ def _lex_python(path: str, src: str) -> list[Block]:
     try:
         toks = list(tokenize.generate_tokens(io.StringIO(src).readline))
     except (tokenize.TokenError, IndentationError, SyntaxError):
+        DEGRADED.append(path)   # interpreter-dependent: see DEGRADED
         return _lex_generic(path, src, "#")
 
     run: list[str] = []
@@ -358,6 +367,7 @@ def _lex_python(path: str, src: str) -> list[Block]:
     try:
         tree = ast.parse(src)
     except SyntaxError:
+        DEGRADED.append(path)   # drops docstring blocks: see DEGRADED
         return out
     for node in ast.walk(tree):
         if not isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,

@@ -107,9 +107,30 @@ def _read_ledger(path: str) -> dict[str, dict]:
     return out
 
 
+def _refuse_if_degraded() -> int:
+    """The census must be the same artifact everywhere, or it is not a projection.
+
+    A file the Python lexer could not tokenize or parse falls back to the regex
+    lexer, which the module itself documents as miscounting -- and whether that
+    happens depends on the INTERPRETER, not the file, so the same tree yields
+    different ledgers on different machines. Refusing is the honest outcome.
+    """
+    if not mc.DEGRADED:
+        return 0
+    print("cannot build a reproducible census: these files did not parse on "
+          f"python{sys.version_info.major}.{sys.version_info.minor}, so their "
+          "comments were counted by the fallback lexer:", file=sys.stderr)
+    for rel in sorted(set(mc.DEGRADED)):
+        print(f"  {rel}", file=sys.stderr)
+    print("  (the repo's sources need a newer Python; upgrade rather than "
+          "committing the degraded ledger)", file=sys.stderr)
+    return 1
+
+
 def cmd_ledger(args) -> int:
     root = args.root
     policy = _policy(root)
+    mc.DEGRADED.clear()
     dest = os.path.join(root, LEDGER_REL.replace("/", os.sep))
     prior = _read_ledger(dest)
 
@@ -140,6 +161,9 @@ def cmd_ledger(args) -> int:
     body = ["# " + "\t".join(COLUMNS)]
     body += ["\t".join(r[c] for c in COLUMNS) for r in rows]
     text = "\n".join(body) + "\n"
+
+    if _refuse_if_degraded():
+        return 1
 
     if args.check:
         current = ""
