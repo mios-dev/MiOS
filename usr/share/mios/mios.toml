@@ -1612,8 +1612,8 @@ tables = [
 ]
 # Structured system/config tables: redaction would CORRUPT the value, not
 # protect it, and they hold no free-form prose.
-# drift_snapshot holds normalized LABEL HISTOGRAMS (verdict kind, refine intent)
-# and counts -- aggregate shape, never agent or user content. Exempt.
+# drift_snapshot holds normalized LABEL HISTOGRAMS and counts; skill_tool_call
+# holds two ids and a step index. Both are structure, never content. Exempt.
 exempt = [
     "account",
     "account_preference",
@@ -1644,6 +1644,7 @@ exempt = [
     "resolves_to",
     "run_template",
     "skill",
+    "skill_tool_call",
     "sys_env",
     "system_config",
     "verb",
