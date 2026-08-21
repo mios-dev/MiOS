@@ -1733,10 +1733,12 @@ test_account_column_parity() {
 
 test_module_length() {
     log "Testing check_module_length"
-    local dir="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe"
+    # Two directories deep on purpose: the former -maxdepth 1 body could not
+    # see a nested module, which is where every real one lives.
+    local dir="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing"
     mkdir -p "$dir"
     local dummy_file="${dir}/test_dummy_length.py"
-    
+
     seq 1 801 > "$dummy_file"
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1; then

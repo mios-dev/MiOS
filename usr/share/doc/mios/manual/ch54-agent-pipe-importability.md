@@ -98,3 +98,30 @@ that is the reason the undefined-name pass has to exist upstream of it.
 It is Postgres-only; on the legacy seam it reports a no-op rather than a partial
 merge. Tunables live in `[memory]`: `consolidate`, `consolidate_interval_s`,
 `consolidate_max_groups`.
+
+#### <a name="54_the_module_size_ratchet"></a>54.The Module-Size Ratchet: The Module-Size Ratchet
+
+The same vacuous-gate pattern appeared a third time. `check_module_length`
+enforced an 800-line ceiling on the extracted modules — and scanned them with
+`find -maxdepth 1`. It saw nine files. There are 112. Every module the
+extraction actually produced lives one directory deeper, and eleven of them are
+between 820 and 1,786 lines. The gate had been reporting "all modules are
+&lt;= 800 lines" against a set that excluded all of them.
+
+The check now walks the package recursively, in `tools/check-module-length.py`,
+against a shrink-only register in `[refactor]`:
+
+* `max_lines` (800) applies to any file **not** in the register — a new module
+  over the limit fails, and the failure message says to split it rather than to
+  grandfather it.
+* `oversize` records each pre-existing file's current length. A listed file that
+  **grows** past its recorded number fails.
+* A listed file that **shrinks** also fails, with a message asking for the entry
+  to be lowered. That is what makes it a ratchet rather than a permanent
+  exemption: a win has to be written down before the gate goes green again.
+* An entry naming a file that no longer exists fails, so the register cannot rot
+  into a list of ghosts.
+
+Nine directions are covered by `tools/test_check-module-length.py`, including
+the nested-file case the old body structurally could not see.
+

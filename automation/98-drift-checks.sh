@@ -5630,24 +5630,17 @@ PY
 
 
 check_module_length() {
-    local dir="$ROOT/usr/lib/mios/agent-pipe/mios_pipe"
-    if [[ ! -d "$dir" ]]; then
-        return 0
+    echo "[98-drift-checks]   check_module_length"
+    # Walks the package RECURSIVELY against the [refactor] shrink-only register.
+    # The former body used find -maxdepth 1 and saw 9 of 112 modules.
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_module_length: $line"
+        done <<<"$out"
+        return
     fi
-    local hits="" f lines
-    while IFS= read -r f; do
-        [[ -f "$f" ]] || continue
-        lines=$(wc -l < "$f")
-        if [[ "$lines" -gt 800 ]]; then
-            hits+="    ${f#$ROOT/} ($lines lines)\n"
-        fi
-    done < <(find "$dir" -maxdepth 1 -type f -name '*.py' 2>/dev/null)
-    if [[ -n "$hits" ]]; then
-        printf '%b' "$hits" >&2
-        _violation "mios_pipe module exceeds 800-line limit. The monolith extraction demands small, cohesive sibling modules."
-    else
-        echo "[98-drift-checks]   mios_pipe sibling modules are all <= 800 lines"
-    fi
+    echo "[98-drift-checks]   $out"
 }
 
 check_vendored_assets_non_stub() {

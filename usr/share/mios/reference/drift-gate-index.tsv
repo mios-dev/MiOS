@@ -147,7 +147,7 @@
 146	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
 147	check_db_seed_coverage	DB seed coverage gate verified clean
 148	check_account_column_parity	account column parity gate verified clean
-149	check_module_length	mios_pipe sibling modules are all <= 800 lines
+149	check_module_length	check_module_length
 150	check_vendored_assets_non_stub	vendored assets dir absent
 151	check_resolved_env_lossless	resolved environment is lossless
 152	check_no_duplicate_value_key	check_no_duplicate_value_key passed
