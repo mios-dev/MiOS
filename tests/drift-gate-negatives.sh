@@ -2356,6 +2356,23 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_redact_coverage() {
+    log "Testing check_redact_coverage"
+    local sql="${ROOT}/usr/share/mios/postgres/schema-init.sql"
+    local backup; backup="$(mktemp)"
+    cp "$sql" "$backup"
+    # A new table that is in neither [security.redact] list.
+    printf '\nCREATE TABLE IF NOT EXISTS negative_test_sink (id int);\n' >> "$sql"
+    if _neg_gate check_redact_coverage; then
+        cp "$backup" "$sql"; rm -f "$backup"
+        die "check_redact_coverage passed despite an unclassified table"
+    fi
+    cp "$backup" "$sql"
+    _neg_gate check_redact_coverage || { rm -f "$backup"; die "check_redact_coverage failed after restoration"; }
+    rm -f "$backup"
+    log "check_redact_coverage negative test passed"
+}
+
 test_daemon_governor() {
     log "Testing check_daemon_governor"
     local d="${ROOT}/usr/libexec/mios/mios-daemon"
@@ -2487,6 +2504,7 @@ main() {
     test_manual_generated
     test_manual_ledger
     test_comment_landing
+    test_redact_coverage
     test_daemon_governor
     test_manual_links
     test_doc_port_scheme

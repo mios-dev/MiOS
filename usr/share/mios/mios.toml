@@ -1582,6 +1582,33 @@ enable_units = [
 composefs_mode = "verity"
 mask_systemd_remount_fs = true
 
+# [security.redact] -- DURA-02 redaction on PERSIST; every schema table sits in
+# exactly one list below (gate: check_redact_coverage).
+[security.redact]
+enable      = true
+# A redaction error refuses the write; never fall through to an unredacted one.
+fail_closed = true
+# Agent-plane free text -- where a secret or PII actually lands.
+tables = [
+  "agent_memory", "config_event", "directory_entry", "event",
+  "fact_ledger", "gateway_sessions", "kanban", "knowledge",
+  "log_digest", "mios_rag", "peer_reputation", "pending_action",
+  "progress_ledger", "scratch", "session", "skill_invocation",
+  "tasks", "tool_call",
+]
+# Structured system/config tables: redaction would CORRUPT the value, not
+# protect it, and they hold no free-form prose.
+exempt = [
+  "account", "account_preference", "agent_keypair", "alias",
+  "app_install", "appx_removal", "build_phase", "build_recipe",
+  "capability_removal", "component_removal", "config_kv", "config_layer",
+  "debloat_policy", "debloat_profile", "domain_verb", "feature_removal",
+  "feature_set", "mios_identity", "mios_security", "package_set",
+  "person", "person_app_install", "person_device", "person_pref",
+  "preset", "resolves_to", "run_template", "skill",
+  "sys_env", "system_config", "verb", "xbox_feature",
+]
+
 [security.cosign]
 policy_mode = "matchRepository"
 
