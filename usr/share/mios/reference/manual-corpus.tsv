@@ -2030,7 +2030,7 @@ automation/support/mios-vendor-openui.sh	1	3	3	29	50c4c4b13d0c	STAY	ai-header		0
 automation/support/probe-owui-knowledge-api2.sh	1	3	3	40	323b78c0ef24	STAY	ai-header		0				0
 automation/support/reattach-knowledge.sh	1	3	3	35	0a7e2280316b	STAY	ai-header		0				0
 automation/support/reindex-knowledge.sh	1	3	3	34	1004d965c7de	STAY	ai-header		0				0
-automation/support/service-health.sh	1	3	3	40	e1107f58612f	STAY	ai-header		0				0
+automation/support/service-health.sh	1	3	3	47	7a5e4dc6270a	STAY	ai-header		0				0
 automation/support/service-state-compact.sh	1	3	3	40	724378ef261b	STAY	ai-header		0				0
 automation/support/smoke-mcp-server.sh	1	3	3	35	5820bb8a4fd3	STAY	ai-header		0				0
 automation/support/verify-starter-chips.sh	1	3	3	34	81d42134d423	STAY	ai-header		0				0
