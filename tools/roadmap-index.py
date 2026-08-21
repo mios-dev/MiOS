@@ -189,10 +189,21 @@ def main(argv):
                 
         idx += 1
 
+    # The law set is the SSOT's, not a literal: this was pinned at 13 and went
+    # stale when the registry grew, so no workstream could cite Laws 14-16.
+    valid_law_ids = set()
+    try:
+        with open(os.path.join(ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            for law in (tomllib.load(fh).get("laws", {}) or {}).get("laws", []) or []:
+                if isinstance(law.get("id"), int):
+                    valid_law_ids.add(law["id"])
+    except (OSError, tomllib.TOMLDecodeError):
+        valid_law_ids = set()
+
     validation_errors = []
     for ws in workstreams:
         for law in ws["laws"]:
-            if not isinstance(law, int) or law < 1 or law > 13:
+            if not isinstance(law, int) or (valid_law_ids and law not in valid_law_ids):
                 validation_errors.append(f"Workstream {ws['id']} cites invalid Law: {law}")
                 
         for adr in ws["adr"]:
