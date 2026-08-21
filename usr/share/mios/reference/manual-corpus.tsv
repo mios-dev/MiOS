@@ -741,7 +741,7 @@ automation/97-ssot-lint.sh	144	144	1	2	09aa26bd6ba4	STAY	inline-scoped		0				0
 automation/97-ssot-lint.sh	151	152	2	19	f524db8e696e	STAY	local-scoped		0				0
 automation/97-ssot-lint.sh	156	156	1	8	1ee5e169274a	STAY	local-scoped		0				0
 automation/97-ssot-lint.sh	180	180	1	3	d21581f66297	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	1	6	6	80	7d7e0398c197	STAY	ai-header		0				0
+automation/98-drift-checks.sh	1	6	6	80	afe8cb3c5178	STAY	ai-header		0				0
 automation/98-drift-checks.sh	146	146	1	2	032136219875	DROP	banner		0				0
 automation/98-drift-checks.sh	169	169	1	2	032136219875	DROP	banner		0				0
 automation/98-drift-checks.sh	329	329	1	2	7f0034115c65	DROP	banner		0				0
@@ -2013,7 +2013,7 @@ automation/support/deploy-agent-pipe.sh	1	3	3	41	4261f116cf36	STAY	ai-header		0	
 automation/support/deploy-firstboot-fixes.sh	1	3	3	34	5d5f073823c7	STAY	ai-header		0				0
 automation/support/deploy-tooling-live.sh	1	3	3	45	43c741136d3d	STAY	ai-header		0				0
 automation/support/detach-knowledge-from-model.sh	1	3	3	32	e6c6ffba7626	STAY	ai-header		0				0
-automation/support/force-revectorize.sh	1	3	3	29	e47bd95f1223	STAY	ai-header		0				0
+automation/support/force-revectorize.sh	1	3	3	32	12971b9b3441	STAY	ai-header		0				0
 automation/support/gtk-cleanup.sh	1	2	2	28	2f100bc9fe15	STAY	ai-header		0				0
 automation/support/heal-all-services.sh	1	3	3	38	e129a2b2a65f	STAY	ai-header		0				0
 automation/support/hermes-background-review-tools-patch.py	1	3	3	28	a3a36eb427b0	STAY	ai-header		0				0
@@ -2027,12 +2027,12 @@ automation/support/hermes-discord-reactions-patch.py	4	41	37	200	72d662d789d6	MI
 automation/support/hermes-discord-reactions-patch.py	105	113	9	56	e413ead8f7a4	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/support.md	mios-src:e413ead8f7a4	56	0
 automation/support/hermes-discord-reactions-patch.py	133	133	1	3	703259698189	STAY	inline-scoped		0				0
 automation/support/mios-vendor-openui.sh	1	3	3	29	50c4c4b13d0c	STAY	ai-header		0				0
-automation/support/probe-owui-knowledge-api2.sh	1	3	3	37	5e84156ad5b4	STAY	ai-header		0				0
+automation/support/probe-owui-knowledge-api2.sh	1	3	3	40	323b78c0ef24	STAY	ai-header		0				0
 automation/support/reattach-knowledge.sh	1	3	3	35	0a7e2280316b	STAY	ai-header		0				0
-automation/support/reindex-knowledge.sh	1	3	3	31	2d42ec48cba3	STAY	ai-header		0				0
+automation/support/reindex-knowledge.sh	1	3	3	34	1004d965c7de	STAY	ai-header		0				0
 automation/support/service-health.sh	1	3	3	40	e1107f58612f	STAY	ai-header		0				0
 automation/support/service-state-compact.sh	1	3	3	40	724378ef261b	STAY	ai-header		0				0
-automation/support/smoke-mcp-server.sh	1	3	3	32	117289104340	STAY	ai-header		0				0
+automation/support/smoke-mcp-server.sh	1	3	3	35	5820bb8a4fd3	STAY	ai-header		0				0
 automation/support/verify-starter-chips.sh	1	3	3	34	81d42134d423	STAY	ai-header		0				0
 automation/support/verify-ttyd-userdropin.sh	1	3	3	29	09379c93eca8	STAY	ai-header		0				0
 automation/support/wait-hermes-settle.sh	1	3	3	29	af277b078720	STAY	ai-header		0				0
@@ -3015,7 +3015,7 @@ etc/profile.d/mios-colors.sh	93	93	1	5	a2ee5eaaf598	STAY	local-scoped		0				0
 etc/profile.d/mios-cursor.sh	1	2	2	29	1a45f91d574d	STAY	ai-header		0				0
 etc/profile.d/mios-env.sh	1	4	4	52	9a205840e43b	STAY	ai-header		0				0
 etc/profile.d/mios-keyring-init.sh	1	2	2	26	8871f4155aee	STAY	ai-header		0				0
-etc/profile.d/mios-opencode.sh	1	3	3	40	4d1c4b75ca2d	STAY	ai-header		0				0
+etc/profile.d/mios-opencode.sh	1	3	3	42	4d782bc4bf0a	STAY	ai-header		0				0
 etc/profile.d/mios-podman-ps.sh	1	3	3	34	f6cb37317a43	STAY	ai-header		0				0
 etc/profile.d/mios-podman-ps.sh	9	9	1	4	1788349a9ac3	STAY	inline-scoped		0				0
 etc/profile.d/mios-prompt.sh	1	2	2	27	9d36eab78ae2	STAY	ai-header		0				0
@@ -3670,7 +3670,7 @@ tools/lib/quote-mios.py	1	3	3	36	efe888250290	STAY	ai-header		0				0
 tools/lib/quote-mios.py	26	26	1	5	3199a326228d	STAY	local-scoped		0				0
 tools/lib/userenv.sh	1	5	5	56	f3034a024790	STAY	ai-header		0				0
 tools/lib/userenv.sh	218	218	1	6	e8febde2fd74	STAY	inline-scoped		0				0
-tools/log-to-bootstrap.sh	1	3	3	41	e2463c7c1db0	STAY	ai-header		0				0
+tools/log-to-bootstrap.sh	1	3	3	43	b18d2a1f18bd	STAY	ai-header		0				0
 tools/mios-overlay.sh	1	4	4	37	7505e03a85f7	STAY	ai-header		0				0
 tools/mios-sysext-pack.sh	1	3	3	26	7b05607d03cd	STAY	ai-header		0				0
 tools/mios-sysext-pack.sh	12	12	1	4	f54205d690b4	STAY	inline-scoped		0				0
@@ -3792,8 +3792,8 @@ tools/native/mios-unit-gen/tests/golden/hermes-dashboard.service	27	35	9	77	aa87
 tools/native/mios-unit-gen/tests/golden/hermes-dashboard.service	38	45	8	71	81881cba1533	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:81881cba1533	71	0
 tools/native/mios-unit-gen/tests/golden/hermes-dashboard.service	57	59	3	25	ac48f500d816	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:ac48f500d816	25	0
 tools/native/mios-unit-gen/tests/golden/hermes-dashboard.service	66	66	1	1	1de2de31f415	DROP	generated-artifact		0				0
-tools/native/mios-unit-gen/tests/golden/hermes-worker-firstboot.service	1	2	2	40	3e1358f9a518	DROP	generated-artifact		0				0
-tools/native/mios-unit-gen/tests/golden/hermes-worker.service	1	2	2	58	be6f5e93dd79	DROP	generated-artifact		0				0
+tools/native/mios-unit-gen/tests/golden/hermes-worker-firstboot.service	1	2	2	40	16bf9e6ae257	DROP	generated-artifact		0				0
+tools/native/mios-unit-gen/tests/golden/hermes-worker.service	1	2	2	60	2c67541945fd	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/hermes-worker.service	4	23	20	156	0fa4044ac17b	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:0fa4044ac17b	156	0
 tools/native/mios-unit-gen/tests/golden/hermes-worker.service	26	28	3	24	5d9fa5862844	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/hermes-worker.service	31	31	1	9	e15d7ae05b3c	DROP	generated-artifact		0				0
@@ -3910,7 +3910,7 @@ tools/native/mios-unit-gen/tests/golden/mios-embed-backfill.timer	1	3	3	24	6aae3
 tools/native/mios-unit-gen/tests/golden/mios-endpoint.target	1	2	2	15	241112ca8b33	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-finetune-serve.service	1	9	9	113	943428dc6a55	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-finetune-serve.service	24	24	1	11	0765b6335aee	DROP	generated-artifact		0				0
-tools/native/mios-unit-gen/tests/golden/mios-firewall-ports.service	1	2	2	45	3055dda69076	DROP	generated-artifact		0				0
+tools/native/mios-unit-gen/tests/golden/mios-firewall-ports.service	1	2	2	48	f911394c66d5	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-firewall-ports.service	4	17	14	108	326262c3952a	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:326262c3952a	108	0
 tools/native/mios-unit-gen/tests/golden/mios-firewall-ports.service	27	32	6	58	5661a9f13594	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:5661a9f13594	58	0
 tools/native/mios-unit-gen/tests/golden/mios-firewall-ports.service	63	64	2	12	7cead36f5afe	DROP	generated-artifact		0				0
@@ -4011,7 +4011,7 @@ tools/native/mios-unit-gen/tests/golden/mios-mok-enroll.service	9	12	4	43	0d0304
 tools/native/mios-unit-gen/tests/golden/mios-mok-enroll.service	20	20	1	12	21bf7d646f7d	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-mok-enroll.service	24	28	5	53	1b093947cb74	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-oci-delta-apply.service	1	2	2	4	794194deab19	DROP	generated-artifact		0				0
-tools/native/mios-unit-gen/tests/golden/mios-opencode-gateway.service	1	2	2	41	ab06ff306a69	DROP	generated-artifact		0				0
+tools/native/mios-unit-gen/tests/golden/mios-opencode-gateway.service	1	2	2	42	8919873eee83	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-opencode-gateway.service	6	7	2	20	f4e745b7642b	DROP	generated-artifact		0				0
 tools/native/mios-unit-gen/tests/golden/mios-opencode-gateway.service	10	34	25	208	4e02b33863bc	DROP	generated-artifact		0	usr/share/doc/mios/manual/system.md	mios-src:4e02b33863bc	208	0
 tools/native/mios-unit-gen/tests/golden/mios-opencode-gateway.service	39	41	3	23	3b6588a54427	DROP	generated-artifact		0				0
@@ -6129,7 +6129,7 @@ usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py	59	59	1	13	f04a19c5af9b	STA
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py	69	69	1	11	9dbee6a702f1	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py	75	75	1	6	39e6d392a3cc	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/batch.py	79	79	1	9	3d2bb4266068	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py	1	3	3	102	c901c9521cd8	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py	1	3	3	66	9fb08b56a137	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py	4	23	19	175	42187aaa7ab6	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/scheduler.md	mios-src:42187aaa7ab6	175	0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py	32	33	2	21	d26d49f0c62c	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/bench.py	42	43	2	32	9b4431c9475a	STAY	midsize-why		0				0
@@ -6258,7 +6258,7 @@ usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py	57	63	7	55	0708625fadb4	MIGRA
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py	72	74	3	31	b929364bd831	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py	82	85	4	34	5c4043288eba	STAY	midsize-why		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py	91	97	7	74	46ddfd3a5992	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/scheduler.md	mios-src:46ddfd3a5992	74	0
-usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py	1	4	4	45	16763f0ee7f0	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py	1	4	4	47	3df9c555acf9	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py	5	27	22	152	8f5d4ac44379	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/scheduler.md	mios-src:8f5d4ac44379	152	0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py	38	38	1	7	d5bbf7553afc	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py	42	42	1	10	0fbd397a04ed	STAY	local-scoped		0				0
@@ -6413,7 +6413,7 @@ usr/lib/mios/agent-pipe/mios_verity.py	1	1	1	5	79222283772a	STAY	ai-header		0			
 usr/lib/mios/agent-pipe/mios_vision.py	1	1	1	5	6b460674f7e2	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_web_research.py	1	1	1	5	cd5eb068336e	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_worker_tools.py	1	1	1	5	56297d1dbe0b	STAY	ai-header		0				0
-usr/lib/mios/agent-pipe/server.py	1	3	3	52	33ab5cb1065a	STAY	ai-header		0				0
+usr/lib/mios/agent-pipe/server.py	1	3	3	53	fa4e652fdb2c	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/server.py	4	49	45	202	8e220b2bb79a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/agent-pipe.md	mios-src:8e220b2bb79a	202	0
 usr/lib/mios/agent-pipe/server.py	114	114	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/server.py	115	115	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
@@ -7667,8 +7667,8 @@ usr/lib/systemd/system/hermes-dashboard.service	27	35	9	77	aa875fbee5e9	MIGRATE	
 usr/lib/systemd/system/hermes-dashboard.service	38	45	8	71	81881cba1533	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/system.md	mios-src:81881cba1533	71	0
 usr/lib/systemd/system/hermes-dashboard.service	57	59	3	25	ac48f500d816	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/system.md	mios-src:ac48f500d816	25	0
 usr/lib/systemd/system/hermes-dashboard.service	66	66	1	1	1de2de31f415	DROP	banner		0				0
-usr/lib/systemd/system/hermes-worker-firstboot.service	1	2	2	40	3e1358f9a518	STAY	ai-header		0				0
-usr/lib/systemd/system/hermes-worker.service	1	2	2	58	be6f5e93dd79	STAY	ai-header		0				0
+usr/lib/systemd/system/hermes-worker-firstboot.service	1	2	2	40	16bf9e6ae257	STAY	ai-header		0				0
+usr/lib/systemd/system/hermes-worker.service	1	2	2	60	2c67541945fd	STAY	ai-header		0				0
 usr/lib/systemd/system/hermes-worker.service	4	23	20	156	0fa4044ac17b	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:0fa4044ac17b	156	0
 usr/lib/systemd/system/hermes-worker.service	26	28	3	24	5d9fa5862844	STAY	midsize-why		0				0
 usr/lib/systemd/system/hermes-worker.service	31	31	1	9	e15d7ae05b3c	STAY	local-scoped		0				0
@@ -7785,7 +7785,7 @@ usr/lib/systemd/system/mios-embed-backfill.timer	1	3	3	24	6aae38b10ac3	STAY	ai-h
 usr/lib/systemd/system/mios-endpoint.target	1	2	2	15	241112ca8b33	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-finetune-serve.service	1	9	9	113	943428dc6a55	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-finetune-serve.service	24	24	1	11	0765b6335aee	STAY	local-scoped		0				0
-usr/lib/systemd/system/mios-firewall-ports.service	1	2	2	45	3055dda69076	STAY	ai-header		0				0
+usr/lib/systemd/system/mios-firewall-ports.service	1	2	2	48	f911394c66d5	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-firewall-ports.service	4	17	14	108	326262c3952a	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:326262c3952a	108	0
 usr/lib/systemd/system/mios-firewall-ports.service	27	32	6	58	5661a9f13594	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:5661a9f13594	58	0
 usr/lib/systemd/system/mios-firewall-ports.service	63	64	2	12	7cead36f5afe	STAY	local-scoped		0				0
@@ -7886,7 +7886,7 @@ usr/lib/systemd/system/mios-mok-enroll.service	9	12	4	43	0d0304c7f565	MIGRATE	mi
 usr/lib/systemd/system/mios-mok-enroll.service	20	20	1	12	21bf7d646f7d	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-mok-enroll.service	24	28	5	53	1b093947cb74	STAY	midsize-why		0				0
 usr/lib/systemd/system/mios-oci-delta-apply.service	1	2	2	4	794194deab19	STAY	ai-header		0				0
-usr/lib/systemd/system/mios-opencode-gateway.service	1	2	2	41	ab06ff306a69	STAY	ai-header		0				0
+usr/lib/systemd/system/mios-opencode-gateway.service	1	2	2	42	8919873eee83	STAY	ai-header		0				0
 usr/lib/systemd/system/mios-opencode-gateway.service	6	7	2	20	f4e745b7642b	STAY	local-scoped		0				0
 usr/lib/systemd/system/mios-opencode-gateway.service	10	34	25	208	4e02b33863bc	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/system.md	mios-src:4e02b33863bc	208	0
 usr/lib/systemd/system/mios-opencode-gateway.service	39	41	3	23	3b6588a54427	STAY	midsize-why		0				0
@@ -8403,15 +8403,16 @@ usr/libexec/mios/system-profile.sh	392	392	1	0	20f431cc1914	DROP	banner		0				0
 usr/libexec/mios/system-summary.sh	1	3	3	42	fdaa71ef44ae	STAY	ai-header		0				0
 usr/libexec/mios/system-summary.sh	72	72	1	0	20f431cc1914	DROP	banner		0				0
 usr/libexec/mios/system-summary.sh	99	99	1	1	b1e512e43497	DROP	banner		0				0
-usr/libexec/mios/system-sync-env.sh	1	4	4	18	b31a7bd606b8	STAY	ai-header		0				0
+usr/libexec/mios/system-sync-env.sh	1	4	4	21	7a4374910dd1	STAY	ai-header		0				0
 usr/libexec/mios/system-sync-env.sh	14	14	1	3	8175bde1321e	STAY	inline-scoped		0				0
-usr/libexec/mios/system-sync-env.sh	30	30	1	0	711d94ecbe59	DROP	banner		0				0
-usr/libexec/mios/system-sync-env.sh	51	51	1	1	d0276addb417	DROP	banner		0				0
-usr/libexec/mios/system-sync-env.sh	116	116	1	12	4cc4be9e7fb6	STAY	local-scoped		0				0
-usr/libexec/mios/system-sync-env.sh	136	136	1	6	488d82ebb0a1	STAY	local-scoped		0				0
-usr/libexec/mios/system-sync-env.sh	141	141	1	3	20fbe2598a8b	STAY	inline-scoped		0				0
-usr/libexec/mios/system-sync-env.sh	148	148	1	0	8a331fdde703	DROP	banner		0				0
-usr/libexec/mios/system-sync-env.sh	153	153	1	2	388074d6d2fa	STAY	inline-scoped		0				0
+usr/libexec/mios/system-sync-env.sh	28	28	1	12	f5dfacf3ef74	STAY	local-scoped		0				0
+usr/libexec/mios/system-sync-env.sh	31	31	1	0	711d94ecbe59	DROP	banner		0				0
+usr/libexec/mios/system-sync-env.sh	52	52	1	1	d0276addb417	DROP	banner		0				0
+usr/libexec/mios/system-sync-env.sh	117	117	1	12	4cc4be9e7fb6	STAY	local-scoped		0				0
+usr/libexec/mios/system-sync-env.sh	137	137	1	6	488d82ebb0a1	STAY	local-scoped		0				0
+usr/libexec/mios/system-sync-env.sh	142	142	1	3	20fbe2598a8b	STAY	inline-scoped		0				0
+usr/libexec/mios/system-sync-env.sh	149	149	1	0	8a331fdde703	DROP	banner		0				0
+usr/libexec/mios/system-sync-env.sh	154	154	1	2	388074d6d2fa	STAY	inline-scoped		0				0
 usr/libexec/mios/test_mios_cli_sqlsafety.py	1	4	4	83	26250a13cae4	STAY	ai-header		0				0
 usr/libexec/mios/test_mios_cli_sqlsafety.py	5	5	1	9	a926edb97a89	STAY	local-scoped		0				0
 usr/libexec/mios/test_mios_cli_sqlsafety.py	16	16	1	4	bfda97d12159	STAY	inline-scoped		0				0
@@ -10246,9 +10247,9 @@ usr/share/mios/owui/pipes/mios_antimeta_filter.py	171	173	3	21	f6ccc03a912e	READ
 usr/share/mios/owui/pipes/mios_sidecar_filter.py	1	3	3	52	bd093eb542dd	STAY	ai-header		0				0
 usr/share/mios/owui/pipes/mios_sidecar_filter.py	4	37	33	186	ecc5caa41cdc	READONLY	llm-payload		0				0
 usr/share/mios/owui/pipes/mios_sidecar_filter.py	160	160	1	4	50d52619b3f0	STAY	inline-scoped		0				0
-usr/share/mios/owui/pipes/mios_swarm_council_filter.py	1	2	2	39	47e1d6ec28ee	STAY	ai-header		0				0
+usr/share/mios/owui/pipes/mios_swarm_council_filter.py	1	2	2	40	4ad6ae4f63b5	STAY	ai-header		0				0
 usr/share/mios/owui/pipes/mios_swarm_council_filter.py	3	18	15	93	3168a5f3153f	READONLY	llm-payload		0				0
-usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py	1	2	2	34	bd0edde609a4	STAY	ai-header		0				0
+usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py	1	2	2	36	ae0f3f46fae7	STAY	ai-header		0				0
 usr/share/mios/owui/pipes/mios_swarm_delegate_filter.py	3	19	16	105	6ccb9a5e1c00	READONLY	llm-payload		0				0
 usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py	1	2	2	38	1a0b6d666809	STAY	ai-header		0				0
 usr/share/mios/owui/pipes/mios_swarm_forcetool_filter.py	3	18	15	98	b3087cef29b2	READONLY	llm-payload		0				0
@@ -10556,13 +10557,13 @@ usr/share/mios/windows/mios-wsl-session-task.ps1	1	24	24	201	f7d5edcad312	STAY	a
 usr/share/mios/windows/mios-wsl-session-task.ps1	43	43	1	8	d2b7347de6c3	STAY	local-scoped		0				0
 usr/share/mios/windows/quadlets/mios-llm-light.container	1	2	2	37	7d3d7457b897	STAY	ai-header		0				0
 usr/share/mios/windows/quadlets/mios-llm-light.container	16	16	1	6	9aca23049e91	STAY	local-scoped		0				0
-var/lib/mios/embeddings/ingest_local.py	1	4	4	41	9742159cd49b	STAY	ai-header		0				0
+var/lib/mios/embeddings/ingest_local.py	1	4	4	44	33a2d0d66191	STAY	ai-header		0				0
 var/lib/mios/embeddings/ingest_local.py	5	36	31	105	598ccb5e9927	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/embeddings.md	mios-src:598ccb5e9927	105	0
 var/lib/mios/embeddings/ingest_local.py	54	54	1	10	b59dae48fdba	STAY	local-scoped		0				0
 var/lib/mios/embeddings/ingest_local.py	68	68	1	9	8c2d2dc302b0	STAY	local-scoped		0				0
 var/lib/mios/embeddings/ingest_local.py	73	73	1	11	6a8a3a77d178	STAY	local-scoped		0				0
 var/lib/mios/embeddings/ingest_local.py	139	139	1	2	dce9d049fd43	STAY	inline-scoped		0				0
-var/lib/mios/evals/mios-knowledge.local-runner.py	1	4	4	40	817b40972548	STAY	ai-header		0				0
+var/lib/mios/evals/mios-knowledge.local-runner.py	1	4	4	40	e98290edfb78	STAY	ai-header		0				0
 var/lib/mios/evals/mios-knowledge.local-runner.py	5	36	31	112	ca342d0ce1e0	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/evals.md	mios-src:ca342d0ce1e0	112	0
 var/lib/mios/evals/mios-knowledge.local-runner.py	49	49	1	6	c63f2b9d6281	STAY	local-scoped		0				0
 var/lib/mios/evals/mios-knowledge.local-runner.py	63	63	1	3	0db9aeecba57	STAY	local-scoped		0				0

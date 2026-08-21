@@ -1,4 +1,4 @@
-# AI-hint: Systemd unit for the SECOND (non-thin) Hermes WORKER gateway on :8643 -- a real agent that runs its OWN native browser/CDP/terminal/skills tool loop with its OWN inference on the heavy lane (:11441 mios-heavy). Coexists with the thin :8642 Discord gateway (hermes-agent.service) via a SEPARATE HERMES_HOME and no Discord token.
+# AI-hint: Systemd unit for the SECOND (non-thin) Hermes WORKER gateway on :8643 -- a real agent that runs its OWN native browser/CDP/terminal/skills tool loop with its OWN inference on the heavy lane (port key `vllm`, mios-heavy). Coexists with the thin `hermes` Discord gateway (hermes-agent.service) via a SEPARATE HERMES_HOME and no Discord token.
 # AI-related: /usr/lib/mios/agents/.venv/bin/hermes, /var/lib/mios/hermes-worker, /var/lib/mios/hermes-worker/config.yaml, /etc/mios/hermes/api.env, hermes-agent.service, mios-hermes-browser-worker.service, mios-llm-heavy.service, mios-llm-light.service
 [Unit]
 # /usr/lib/systemd/system/hermes-worker.service

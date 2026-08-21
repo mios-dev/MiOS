@@ -1,4 +1,4 @@
-# AI-hint: Systemd unit that hosts the opencode-gateway on port 8633, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via mios-llm-light.
+# AI-hint: Systemd unit that hosts the opencode-gateway on the `opencode_gateway` port, providing a standard OpenAI-compatible /v1 API shim for the opencode CLI to enable multi-agent fan-out and local inference via mios-llm-light.
 # AI-related: /usr/lib/mios/agents/opencode-gateway/server.py, /usr/lib/mios/agents/opencode/bin/opencode, /etc/mios/opencode/opencode.json, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents/.venv/bin/python3, mios-ai, mios-agent-pipe, mios-opencode-gateway, mios-opencode, mios-llm-light.service
 [Unit]
 Description='MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI)

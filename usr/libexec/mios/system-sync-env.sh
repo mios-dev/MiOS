@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: layered mios.toml dotfile.
-# AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/configurator/mios.html, /etc/mios/install.env.XXXXXX, mios-sync-env, mios-tools, localhost:8642
+# AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/configurator/mios.html, /etc/mios/install.env.XXXXXX, mios-sync-env, mios-tools, mios-hermes (port key `hermes`)
 # AI-functions: generate_env
 set -euo pipefail
 
@@ -25,6 +25,7 @@ if [[ ! -r "$RESOLVER" ]]; then
     echo "Mios-sync-env: resolver $RESOLVER not found" >&2
     exit 1
 fi
+# shellcheck disable=SC1090  # resolver path is a variable by design (vendor/host/user cascade)
 . "$RESOLVER"
 
 _ENV_UNSAFE='[[:space:]"'"'"'$`#]'

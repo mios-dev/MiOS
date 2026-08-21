@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: First-boot seeder for the non-thin Hermes WORKER (:8643). Ensures /var/lib/mios/hermes-worker/config.yaml exists from the vendor worker template /usr/share/mios/hermes/config-worker.yaml, owned by the mios-ai service user. Copy-if-absent + heal-on-vendor-update; NEVER touches the primary :8642 /var/lib/mios/hermes/config.yaml (which mios-hermes-firstboot owns and re-thins every boot).
+# AI-hint: First-boot seeder for the non-thin Hermes WORKER (:8643). Ensures /var/lib/mios/hermes-worker/config.yaml exists from the vendor template /usr/share/mios/hermes/config-worker.yaml, owned by mios-ai. Copy-if-absent + heal-on-vendor-update; NEVER touches the primary `hermes` config /var/lib/mios/hermes/config.yaml (mios-hermes-firstboot owns/re-thins it every boot).
 # AI-related: /usr/share/mios/hermes/config-worker.yaml, /var/lib/mios/hermes-worker/config.yaml, hermes-worker.service, mios-hermes-firstboot, mios-ai
 # AI-functions: _log
 set -euo pipefail

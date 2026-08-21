@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Codebase tagger -- writes a rich, structured AI header (AI-hint purpose
-# AI-related: mios-codebase-index, mios-bootstrap, localhost:11450
+# AI-related: mios-codebase-index, mios-bootstrap, mios-llm-light (port key `llm_light`)
 """'MiOS' AI-tagger -- a rich, agent-useful AI header on every file.
 
 Goal (operator 2026-06-13): every file in both MiOS repos carries a header that

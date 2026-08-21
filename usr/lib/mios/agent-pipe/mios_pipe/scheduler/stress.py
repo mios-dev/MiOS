@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Stress test harness for the agent-pipe that validates the /v1/chat/completions path under load-aware concurrency, ensuring stability of the llama.cpp/pgvector stack by monitoring latency and error rates.
-# AI-related: mios-stresstest, mios-agent, localhost:8640
+# AI-related: mios-stresstest, mios-agent, localhost `agent_pipe` port
 # AI-functions: percentile, aggregate, should_throttle, ramp_concurrency, build_scenarios, verdict, by_kind, _poll_load, _one, run, main
 """mios_stress -- end-to-end direct-chat stress harness for the MiOS agent-pipe.
 

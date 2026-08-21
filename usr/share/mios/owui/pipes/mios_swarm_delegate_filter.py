@@ -1,4 +1,4 @@
-# AI-hint: Injects force_delegate=true into the body.mios_flags to trigger the Agent Pipe (:8640) to execute a concurrent per-agent DAG or council fallback instead of a single-agent response.
+# AI-hint: Injects force_delegate=true into the body.mios_flags to trigger the Agent Pipe (port key `agent_pipe`) to execute a concurrent per-agent DAG or council fallback instead of a single-agent response.
 # AI-functions: __init__, inlet, class Filter, class Valves
 """
 title: MiOS Swarm · Delegate
