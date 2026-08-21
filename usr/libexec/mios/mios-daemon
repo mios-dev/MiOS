@@ -151,6 +151,10 @@ CLASSIFY_LIMIT_PER_MIN = int(_cfg_num(
     "MIOS_DAEMON_CLASSIFY_LIMIT_PER_MIN", "classify_limit_per_min", 10.0))
 REFUSAL_LIMIT_PER_MIN = int(_cfg_num(
     "MIOS_DAEMON_REFUSAL_LIMIT_PER_MIN", "refusal_limit_per_min", 20.0))
+ESCALATION_COOLDOWN_S = _cfg_num(
+    "MIOS_DAEMON_ESCALATION_COOLDOWN_S", "escalation_cooldown_s", 1800.0)
+ESCALATION_MAX_ATTEMPTS = int(_cfg_num(
+    "MIOS_DAEMON_ESCALATION_MAX_ATTEMPTS", "escalation_max_attempts", 3.0))
 
 
 # MIOS_DAEMON_WATCH_UNITS=a.service,b.service to narrow it again.
@@ -672,6 +676,46 @@ def _dedup_suppressed(fp: str) -> bool:
         return False
 
 
+_escalation_seen: dict = {}     # concern -> {"last": ts, "attempts": n, "parked": bool}
+_escalation_lock = threading.Lock()
+_ESCALATION_MAX_ENTRIES = 512
+
+
+def _escalation_allowed(concern: str) -> bool:
+    """Gate a repeat escalation of the SAME concern.
+
+    Returns False while the concern is inside ESCALATION_COOLDOWN_S of its last
+    escalation, and permanently once it has been escalated
+    ESCALATION_MAX_ATTEMPTS times (the concern is parked and only logged after
+    that). Degrade-open: a non-positive cooldown disables the gate entirely.
+    """
+    if ESCALATION_COOLDOWN_S <= 0:
+        return True
+    now = time.time()
+    with _escalation_lock:
+        rec = _escalation_seen.get(concern)
+        if rec is None:
+            _escalation_seen[concern] = {"last": now, "attempts": 1,
+                                         "parked": False}
+            if len(_escalation_seen) > _ESCALATION_MAX_ENTRIES:
+                for k in sorted(_escalation_seen,
+                                key=lambda x: _escalation_seen[x]["last"])[:128]:
+                    _escalation_seen.pop(k, None)
+            return True
+        if rec["parked"]:
+            return False
+        if (now - rec["last"]) < ESCALATION_COOLDOWN_S:
+            return False
+        if ESCALATION_MAX_ATTEMPTS > 0 and rec["attempts"] >= ESCALATION_MAX_ATTEMPTS:
+            rec["parked"] = True
+            log.warning("escalation: concern %r parked after %d attempts",
+                        concern, rec["attempts"])
+            return False
+        rec["last"] = now
+        rec["attempts"] += 1
+        return True
+
+
 def _persist_log_digest(result: dict) -> None:
     sev = str(result.get("severity", "low")).lower()
     if sev in ("med", "medium", "high"):
@@ -860,6 +904,10 @@ def refusal_loop() -> None:
             log.info("refusal? verdict=%s msg=%r",
                      "YES" if verdict else "NO", msg[:120])
             if verdict:
+                if not _escalation_allowed(
+                        f"refusal|{unit}|{_shingle(msg)}"):
+                    log.info("refusal: escalation suppressed (cooldown/parked)")
+                    continue
                 _update_state("refusal", {
                     "phrase": msg[:200],
                     "model": MODEL,

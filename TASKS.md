@@ -179,7 +179,7 @@
 | T-170 | P1 | done-by-code | Computer-Use/Perception | GVLM-01 -- Activate grounding VLM + cu_act/cu_verify verbs  [P1] |
 | T-171 | P2 | planned | Orchestration/Judging | CONS-01 -- Weighted multi-judge consensus pipeline  [P2] |
 | T-172 | P2 | planned | Observability/Safety | CONS-02 -- JSD drift monitor  [P2] |
-| T-173 | P0 | planned | Autonomy/Safety | GUARD-01 -- Daemon runaway controls (host-pressure gate + dedup  |
+| T-173 | P0 | in-progress | Autonomy/Safety | GUARD-01 -- Daemon runaway controls (host-pressure gate + dedup). ESCALATION HALF LANDED: `escalation_cooldown_s` and `escalation_max_attempts` were documented in `[daemon]` ("so a stuck state can't spam", "no infinite retry loop") but had ZERO consumers -- declared-and-dead, the same class as the old `landed()` bug. `_escalation_allowed()` now gates repeat escalation of the same concern: suppressed inside the cooldown, permanently parked at the attempt cap, degrade-open when the cooldown is <=0, bounded entry table. Applied at the refusal escalation site (a persistently refusing agent previously re-recorded the concern every 5s cycle). 9-case sibling unit test. Remaining for done: apply the gate to the launch-verifier and cron escalation sites, and a negative test that a spamming concern is provably suppressed end to end. |
 | T-174 | P0 | planned | Autonomy/Scheduling | GUARD-02 -- Aggregate token/turn budget + background preemption  |
 | T-175 | P1 | planned | Data/Durability | DURA-01 -- pgvector durability + exposure hardening  [P1] |
 | T-176 | P1 | planned | Security/Privacy | DURA-02 -- Secret/PII redaction on persist + federate  [P1] |
