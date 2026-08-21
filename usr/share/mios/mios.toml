@@ -13621,7 +13621,7 @@ landing_min_word_ratio = 0.90   # a doc passage must retain this much of the blo
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md
-max_unmigrated_narrative = 1739   # MIGRATE blocks still in source
+max_unmigrated_narrative = 1724   # MIGRATE blocks still in source
 max_overlong_hints       = 1    # AI-hint headers over [ai_tag].hint_max_chars
 
 # Generated artifacts are never a migration SOURCE: globals.{sh,ps1} embed whole

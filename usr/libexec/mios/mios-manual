@@ -179,10 +179,22 @@ def _write_ledger(root: str, rows: list[dict]) -> None:
 
 
 def _slug(text: str, limit: int = 60) -> str:
-    """A short human title for a harvested passage."""
+    """A short human title for a harvested passage.
+
+    Source comments often open with banner decoration (`--- section ---`) or a
+    bullet; carrying that into a Markdown heading reads as noise, so strip the
+    ornament and title the passage by its first real words.
+    """
+    import re as _re
     first = " ".join(text.split())
+    first = _re.sub(r"^[\s\-=*#/_.:|>+]+", "", first)
+    first = _re.sub(r"[\s\-=*_]+$", "", first)
+    # A leading "key:" label is a better title on its own than a truncated line.
+    label = _re.match(r"^([A-Za-z][\w ./-]{2,40}?):\s", first)
+    if label:
+        return label.group(1).strip()
     if len(first) > limit:
-        first = first[:limit].rsplit(" ", 1)[0] + "..."
+        first = first[:limit].rsplit(" ", 1)[0].rstrip(" ,;:") + "..."
     return first or "harvested note"
 
 
