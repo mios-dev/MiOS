@@ -2292,9 +2292,22 @@ test_manual_generated() {
         cp "$backup" "$doc"; rm -f "$backup"
         die "check_manual_generated passed despite a stale derived section"
     fi
+    cp "$backup" "$doc"
+    _neg_gate check_manual_generated || { rm -f "$backup"; die "check_manual_generated failed after restoration"; }
+
+    # Second phase, and the load-bearing one: authored prose OUTSIDE a marker
+    # must NOT move the gate. Without this a generator that owns whole files
+    # would satisfy the gate -- the exact failure the marker protocol prevents.
+    printf '\nAuthored paragraph the generator must never touch.\n' >> "$doc"
+    if ! _neg_gate check_manual_generated; then
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "check_manual_generated went red on prose OUTSIDE a marker"
+    fi
+    grep -q "Authored paragraph the generator must never touch" "$doc" || {
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "render destroyed authored prose outside a marker"; }
     cp "$backup" "$doc"; rm -f "$backup"
-    _neg_gate check_manual_generated || die "check_manual_generated failed after restoration"
-    log "check_manual_generated negative test passed"
+    log "check_manual_generated negative test passed (both directions)"
 }
 
 test_manual_ledger() {
