@@ -621,9 +621,9 @@ def _budget_num(env: str, key: str, default, cast=int):
 BUDGET_CONV_TOKEN_CEIL = _budget_num(
     "MIOS_BUDGET_CONV_TOKEN_CEIL", "conversation_token_ceil", 2_000_000)
 BUDGET_AUTO_TOKEN_CEIL = _budget_num(
-    "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 1_000_000)
+    "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 400_000)
 BUDGET_AUTO_MAX_INFLIGHT = _budget_num(
-    "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 2)
+    "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 1)
 BUDGET_WINDOW_S = _budget_num("MIOS_BUDGET_WINDOW_S", "window_s", 3600, float)
 BUDGET_ENABLE = str(os.environ.get(
     "MIOS_BUDGET_ENABLE",

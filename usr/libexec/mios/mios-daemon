@@ -1224,6 +1224,9 @@ def launch_verifier_loop() -> None:
     time.sleep(60)
     seen: set[tuple] = set()
     while not _stop_event.is_set():
+        if _pressure_should_skip("launch_verifier"):
+            time.sleep(30)
+            continue
         try:
             claims = _scan_chat_for_launch_claims(LAUNCH_VERIFY_LOOKBACK_MIN)
             failures: list[dict] = []
@@ -1239,6 +1242,11 @@ def launch_verifier_loop() -> None:
                 seen.add(key)
                 verdict = _verify_one_launch(cl["app"])
                 ok = bool(verdict.get("presented_to_operator"))
+                if not ok and not _escalation_allowed(
+                        f"launch_failure|{cl['app']}"):
+                    log.info("launch_verifier: escalation suppressed for %r",
+                             cl["app"])
+                    continue
                 if not ok:
                     failures.append({
                         "ts": datetime.datetime.now().isoformat(timespec="seconds"),
@@ -1753,7 +1761,12 @@ def fs_watcher_loop() -> None:
             r, _, _ = _select.select([fd], [], [], 1.0)
             if not r:
                 continue
+            # Drain the inotify queue even under pressure (an unread fd overflows
+            # and loses events); the gate suppresses the ACTING on them below.
+            under_pressure = _pressure_should_skip("fs_watcher")
             for wd, mask, _cookie, name in _inotify_read(fd):
+                if under_pressure:
+                    continue
                 dir_path = wd_to_dir.get(wd)
                 if not dir_path:
                     continue
@@ -1803,6 +1816,9 @@ def task_collector_loop() -> None:
     time.sleep(75)
     NUDGES_MD.parent.mkdir(parents=True, exist_ok=True)
     while not _stop_event.is_set():
+        if _pressure_should_skip("task_collector"):
+            time.sleep(30)
+            continue
         try:
             agg = {
                 "kanban": _collect_kanban_state(),
@@ -2519,6 +2535,9 @@ def index_loop() -> None:
     restarting the daemon."""
     time.sleep(60)  # boot delay; let the DB settle
     while not _stop_event.is_set():
+        if _pressure_should_skip("index"):
+            time.sleep(30)
+            continue
         try:
             cfg = _read_daemon_index_config()
             if not cfg.get("enable", True):
@@ -2575,6 +2594,9 @@ def satisfaction_loop() -> None:
     swallow + the next tick retries; no infinite-error loops."""
     time.sleep(45)  # boot delay; let agent-pipe + the DB settle
     while not _stop_event.is_set():
+        if _pressure_should_skip("satisfaction"):
+            time.sleep(30)
+            continue
         try:
             unverified = _scan_unverified_refines(SATISFACTION_LOOKBACK_MIN)
             sat = unsat = skipped = 0
@@ -2616,6 +2638,8 @@ def rolling_report_loop() -> None:
     while not _stop_event.is_set():
         if _stop_event.wait(interval):
             break
+        if _pressure_should_skip("rolling_report"):
+            continue
         try:
             rows = _ok_result(_db_read(
                 "SELECT ts, summary, severity FROM log_digest "

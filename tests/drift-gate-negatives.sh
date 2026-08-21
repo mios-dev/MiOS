@@ -2356,6 +2356,23 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_daemon_governor() {
+    log "Testing check_daemon_governor"
+    local d="${ROOT}/usr/libexec/mios/mios-daemon"
+    local backup; backup="$(mktemp)"
+    cp "$d" "$backup"
+    # An autonomous loop that never consults the host-pressure gate.
+    printf '\n\ndef negative_test_loop() -> None:\n    while not _stop_event.is_set():\n        time.sleep(1)\n' >> "$d"
+    if _neg_gate check_daemon_governor; then
+        cp "$backup" "$d"; rm -f "$backup"
+        die "check_daemon_governor passed despite an ungated autonomous loop"
+    fi
+    cp "$backup" "$d"
+    _neg_gate check_daemon_governor || { rm -f "$backup"; die "check_daemon_governor failed after restoration"; }
+    rm -f "$backup"
+    log "check_daemon_governor negative test passed"
+}
+
 test_manual_links() {
     log "Testing check_manual_links"
     local doc="${ROOT}/usr/share/doc/mios/manual.md"
@@ -2470,6 +2487,7 @@ main() {
     test_manual_generated
     test_manual_ledger
     test_comment_landing
+    test_daemon_governor
     test_manual_links
     test_doc_port_scheme
     test_unit_dependency_closure
