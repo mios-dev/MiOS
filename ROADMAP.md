@@ -717,7 +717,7 @@ acceptance: |
 - **Accept:** each family renders from the SSOT and is drift-gated; a bad deriver arg fails the run.
 - **Deps:** `DOCGEN-01`.
 
-### DOCGEN-06 — Reproducible manual and machine-facing surfaces  **[P2]**  (→ T-299)
+### DOCGEN-06 — Reproducible manual and machine-facing surfaces  **[P2] ✅ DONE**  (→ T-299)
 - **What:** `manual.md` is not reproducible and is ungated — regenerating it destroys its H1 and table of contents, and it carries stale automation numbers and retired ports. Rebuild it as authored chapters plus marker interiors, and give `llms.txt`/`llms-full.txt` and `usr/share/doc/mios/README.md` the same treatment. Retire the `just manual` generator that silently rewrites a shipped artifact.
 - **Why:** A shipped manual that contradicts the SSOT is how external research inherits wrong facts.
 - **Files:** `usr/share/doc/mios/manual.md`, `usr/share/doc/mios/manual/`, `llms.txt`, `llms-full.txt`, `Justfile`, `tools/generate-manual.py`.
