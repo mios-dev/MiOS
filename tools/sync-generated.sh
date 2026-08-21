@@ -114,6 +114,7 @@ main() {
     step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
     if [ -r usr/libexec/mios/mios-manual ]; then
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
+        MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" coverage --write-floor >/dev/null
     else
         step "     (mios-manual absent -- skipped)"
     fi

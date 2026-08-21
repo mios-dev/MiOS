@@ -7052,6 +7052,26 @@ for k in KEYS:
         viol.append("[docs].%s RAISED %s -> %s. The ratchet only goes down:"
                     " harvest the comments instead of widening the ceiling."
                     % (k, prev[k], now[k]))
+
+# Durable low-water mark. The HEAD comparison above bails out silently when
+# there is no HEAD or the previous TOML will not parse, and it cannot see past
+# a rewritten history; the recorded floor survives both.
+floor_path = os.path.join(root, "usr/share/mios/reference/doc-ratchet-floor.tsv")
+if os.path.isfile(floor_path):
+    with open(floor_path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) != 2 or not parts[1].strip().isdigit():
+                continue
+            k, floor = parts[0].strip(), int(parts[1])
+            if k in now and now[k] > floor:
+                viol.append("[docs].%s is %s but has been as low as %s. Raising a"
+                            " ceiling back is still raising it; harvest instead,"
+                            " or lower the floor with `mios-manual coverage"
+                            " --write-floor` only when the ceiling truly fell."
+                            % (k, now[k], floor))
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY

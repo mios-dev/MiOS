@@ -446,6 +446,26 @@ def cmd_audit(args) -> int:
     return 0
 
 
+FLOOR_REL = "usr/share/mios/reference/doc-ratchet-floor.tsv"
+_RATCHET_KEYS = ("max_unmigrated_narrative", "max_overlong_hints")
+
+
+def read_floor(root: str) -> dict[str, int]:
+    """The lowest ceiling ever recorded, per ratchet key."""
+    out: dict[str, int] = {}
+    path = os.path.join(root, FLOOR_REL.replace("/", os.sep))
+    if not os.path.isfile(path):
+        return out
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) == 2 and parts[1].strip().isdigit():
+                out[parts[0].strip()] = int(parts[1])
+    return out
+
+
 def cmd_coverage(args) -> int:
     """The two ratchet numbers, so the gate and a human read the same figures."""
     root = args.root
@@ -457,6 +477,28 @@ def cmd_coverage(args) -> int:
         elif v.cls == "MIGRATE_HEADER":
             hints += 1
     out = {"unmigrated_narrative": narrative, "overlong_hints": hints}
+
+    if getattr(args, "write_floor", False):
+        # min(recorded, current ceiling): the mark only ever falls, so a ceiling
+        # that was lowered once can never be quietly raised back to a prior
+        # value even if history is rewritten or the HEAD comparison is skipped.
+        with open(_ssot_path(root), "rb") as fh:
+            docs = (tomllib.load(fh).get("docs", {}) or {})
+        prior = read_floor(root)
+        rows = []
+        for k in _RATCHET_KEYS:
+            if k not in docs:
+                continue
+            rows.append((k, min(int(docs[k]), prior.get(k, int(docs[k])))))
+        dest = os.path.join(root, FLOOR_REL.replace("/", os.sep))
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        with open(dest, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# ratchet_key\tlowest_ceiling_ever_recorded\n")
+            for k, v in rows:
+                fh.write(f"{k}\t{v}\n")
+        print(f"wrote {FLOOR_REL}: " + ", ".join(f"{k}={v}" for k, v in rows))
+        return 0
+
     if args.json:
         print(json.dumps(out))
     else:
@@ -802,6 +844,8 @@ def main(argv=None) -> int:
 
     p = sub.add_parser("coverage", help="the two ratchet numbers")
     p.add_argument("--json", action="store_true")
+    p.add_argument("--write-floor", action="store_true",
+                   help="record the lowest ceiling ever seen")
     p.set_defaults(fn=cmd_coverage)
 
     p = sub.add_parser("harvest", help="move a source comment's prose into a doc")

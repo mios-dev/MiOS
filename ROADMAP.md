@@ -689,7 +689,7 @@ acceptance: |
 - **Accept:** `mios-manual ledger --check` green; landing ratio correct at the 0.90 boundary; 157 gate-index rows; ratchet held at its ceiling.
 - **Deps:** none.
 
-### DOCGEN-02 — Durable ratchet floor  **[P2]**  (→ T-295)
+### DOCGEN-02 — Durable ratchet floor  **[P2] ✅ DONE**  (→ T-295)
 - **What:** A recorded low-water mark (`coverage --write-floor`) so a lowered ceiling cannot be silently raised back; `check_docs_ratchet_monotone` currently compares only against HEAD and exits 0 when the previous TOML will not parse.
 - **Why:** A ratchet that can be wound back is not a ratchet.
 - **Files:** `usr/libexec/mios/mios-manual`, `usr/share/mios/reference/doc-ratchet-floor.tsv`, `automation/98-drift-checks.sh`.

@@ -2274,10 +2274,25 @@ test_docs_ratchet_monotone() {
         cp "$backup" "$toml"; rm -f "$backup"
         die "check_docs_ratchet_monotone passed despite a RAISED ceiling"
     fi
+    cp "$backup" "$toml"
+    _neg_gate check_docs_ratchet_monotone \
+        || { rm -f "$backup"; die "check_docs_ratchet_monotone failed after restoration"; }
+
+    # The durable floor: a ceiling matching HEAD but above the lowest value ever
+    # recorded is still a raise, and the HEAD comparison alone cannot see it.
+    local floor="${ROOT}/usr/share/mios/reference/doc-ratchet-floor.tsv"
+    local fbackup; fbackup="$(mktemp)"
+    cp "$floor" "$fbackup"
+    sed -i 's/^max_unmigrated_narrative\t.*/max_unmigrated_narrative\t1/' "$floor"
+    if _neg_gate check_docs_ratchet_monotone; then
+        cp "$fbackup" "$floor"; cp "$backup" "$toml"; rm -f "$backup" "$fbackup"
+        die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
+    fi
+    cp "$fbackup" "$floor"; rm -f "$fbackup"
     cp "$backup" "$toml"; rm -f "$backup"
     _neg_gate check_docs_ratchet_monotone \
-        || die "check_docs_ratchet_monotone failed after restoration"
-    log "check_docs_ratchet_monotone negative test passed"
+        || die "check_docs_ratchet_monotone failed after floor restoration"
+    log "check_docs_ratchet_monotone negative test passed (HEAD + durable floor)"
 }
 
 test_manual_generated() {

@@ -2266,6 +2266,7 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-manual", check = "check_manual_ledger", output = "usr/share/mios/reference/manual-corpus.tsv" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_manual_generated", output = "usr/share/doc/mios/ (MIOS-GEN marker interiors)" },
   { generator = "usr/libexec/mios/mios-manual", check = "check_comment_landing", output = "usr/share/doc/mios/ (harvested passages + mios-src anchors)" },
+  { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
 ]
 
 # ----------------------------------------------------------------------------
