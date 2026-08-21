@@ -702,6 +702,11 @@ $script:MIOS_DISPATCH_VRAM_COLOAD_RESERVE_MB = if ($env:MIOS_DISPATCH_VRAM_COLOA
 $script:MIOS_DISPATCH_VRAM_RECLAIM_IDLE = if ($env:MIOS_DISPATCH_VRAM_RECLAIM_IDLE) { $env:MIOS_DISPATCH_VRAM_RECLAIM_IDLE } else { 'false' }
 $script:MIOS_DISPATCH_WORKER_MCP_TOOLS = if ($env:MIOS_DISPATCH_WORKER_MCP_TOOLS) { $env:MIOS_DISPATCH_WORKER_MCP_TOOLS } else { 'true' }
 $script:MIOS_DOCS_BLOCKLIST_GLOBS = if ($env:MIOS_DOCS_BLOCKLIST_GLOBS) { $env:MIOS_DOCS_BLOCKLIST_GLOBS } else { 'automation/lib/globals.sh,automation/lib/globals.ps1,tools/native/mios-unit-gen/tests/golden/**,**/*.generated.*,usr/share/mios/names.generated.txt' }
+$script:MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS = if ($env:MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS) { $env:MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS } else { 'MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+' }
 $script:MIOS_DOCS_LANDING_MIN_WORD_RATIO = if ($env:MIOS_DOCS_LANDING_MIN_WORD_RATIO) { $env:MIOS_DOCS_LANDING_MIN_WORD_RATIO } else { '0.9' }
 $script:MIOS_DOCS_LINK_BASE = if ($env:MIOS_DOCS_LINK_BASE) { $env:MIOS_DOCS_LINK_BASE } else { 'repo' }
 $script:MIOS_DOCS_LLM_PAYLOAD_GLOBS = if ($env:MIOS_DOCS_LLM_PAYLOAD_GLOBS) { $env:MIOS_DOCS_LLM_PAYLOAD_GLOBS } else { 'usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**' }

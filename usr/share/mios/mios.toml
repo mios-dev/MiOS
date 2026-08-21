@@ -13652,6 +13652,17 @@ ref_allowlist = [
 ]
 link_base = "repo"
 
+[docs.boilerplate]
+# Canonical framing paragraphs, spliced into docs through MIOS-GEN markers.
+# The what-mios-is block had been hand-copied into dozens of files, where the
+# copies then drifted; one string here is the cure.
+what-mios-is = """
+MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+"""
+
 [docs.signals]
 # Anchored regexes in TOML LITERAL strings (single quotes): in a basic string a
 # backslash-b is an invalid escape. Kept in SSOT so a rule change is an operator

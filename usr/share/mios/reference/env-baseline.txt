@@ -867,6 +867,7 @@ MIOS_DISPATCH_WORKER_MCP_TOOLS=true
 MIOS_DOCGEN=
 MIOS_DOCGEN_ENABLE=
 MIOS_DOCS_BLOCKLIST_GLOBS=automation/lib/globals.sh,automation/lib/globals.ps1,tools/native/mios-unit-gen/tests/golden/**,**/*.generated.*,usr/share/mios/names.generated.txt
+MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS=MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
 MIOS_DOCS_LANDING_MIN_WORD_RATIO=0.9
 MIOS_DOCS_LINK_BASE=repo
 MIOS_DOCS_LLM_PAYLOAD_GLOBS=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**

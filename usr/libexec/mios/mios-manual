@@ -439,10 +439,42 @@ def _marker_re():
     return _MARK_RE
 
 
+class DeriverError(ValueError):
+    """A deriver was asked for something the SSOT does not define.
+
+    Unknown deriver KINDS already failed the run; unknown ARGS silently fell
+    back to rendering everything, so `ports:ai` quietly emitted the full table
+    instead of saying the category does not exist.
+    """
+
+
+def _tracked_markdown(root: str) -> list[str]:
+    """Absolute paths of every git-tracked .md file, sorted.
+
+    Tracked rather than walked, for the same reason the census is: an untracked
+    scratch file must not change what the gate checks.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z", "*.md"], cwd=root,
+                             stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             check=True).stdout.decode("utf-8")
+        rels = [r for r in out.split("\0") if r]
+    except Exception:
+        rels = []
+        for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
+            dn[:] = [d for d in dn if d != ".git"]
+            rels += [os.path.relpath(os.path.join(dp, f), root).replace(os.sep, "/")
+                     for f in fns if f.endswith(".md")]
+    return sorted(os.path.join(root, r.replace("/", os.sep)) for r in rels)
+
+
 def _derive_ports(ssot: dict, arg: str) -> str:
     cats = (ssot.get("ports", {}) or {}).get("categories", {}) or {}
     ports = ssot.get("ports", {}) or {}
-    names = [arg] if arg and arg in cats else sorted(cats)
+    if arg and arg not in cats:
+        raise DeriverError(f"ports: no such category '{arg}' in [ports.categories]")
+    names = [arg] if arg else sorted(cats)
     out = ["| Category | Service | Port |", "|---|---|---|"]
     for cname in names:
         cat = cats[cname] or {}
@@ -466,7 +498,81 @@ def _derive_laws(ssot: dict, arg: str) -> str:
     return "\n".join(out)
 
 
-DERIVERS = {"ports": _derive_ports, "laws": _derive_laws}
+def _derive_root_exceptions(ssot: dict, arg: str) -> str:
+    """Law 6's sanctioned root Quadlets, so the exception list is never retyped."""
+    sec = (ssot.get("security", {}) or {}).get("privileged_quadlets", {}) or {}
+    rows = sec.get("root", []) or []
+    out = ["| Quadlet | Runs as root because |", "|---|---|"]
+    for entry in rows:
+        if isinstance(entry, dict):
+            out.append(f"| `{entry.get('unit', '?')}` | {entry.get('why', '')} |")
+        else:
+            out.append(f"| `{entry}` | see `[security.privileged_quadlets]` |")
+    out.append("")
+    out.append("<!-- derived from usr/share/mios/mios.toml "
+               "[security.privileged_quadlets].root -->")
+    return "\n".join(out)
+
+
+def _derive_pipeline(ssot: dict, arg: str) -> str:
+    """The numbered build phases -- the doc that goes stale fastest by hand."""
+    phases = ((ssot.get("build", {}) or {}).get("phases", {}) or {}).get("list", []) or []
+    out = ["| # | Phase | Script | Fatal | Applies |", "|---|---|---|---|---|"]
+    for p in phases:
+        out.append(f"| {p.get('ordinal', '?')} | {p.get('name', '')} "
+                   f"| `{p.get('script', '')}` "
+                   f"| {'yes' if p.get('fatal') else 'no'} "
+                   f"| {p.get('apply_class', '')} |")
+    out.append("")
+    out.append(f"<!-- derived from usr/share/mios/mios.toml [build.phases].list "
+               f"({len(phases)} phases) -->")
+    return "\n".join(out)
+
+
+def _derive_verbs(ssot: dict, arg: str) -> str:
+    """The `mios <verb>` surface, straight from [verbs.*]."""
+    verbs = ssot.get("verbs", {}) or {}
+    if arg and arg not in verbs:
+        raise DeriverError(f"verbs: no such verb '{arg}' in [verbs]")
+    names = [arg] if arg else sorted(verbs)
+    out = ["| Verb | Surface | Description |", "|---|---|---|"]
+    for name in names:
+        v = verbs.get(name) or {}
+        if not isinstance(v, dict):
+            continue
+        out.append(f"| `mios {name}` | {v.get('surface', '')} "
+                   f"| {v.get('description', '')} |")
+    out.append("")
+    out.append(f"<!-- derived from usr/share/mios/mios.toml [verbs] "
+               f"({len(names)} verb(s)) -->")
+    return "\n".join(out)
+
+
+def _derive_boilerplate(ssot: dict, arg: str) -> str:
+    """The framing paragraph every MiOS doc opens with.
+
+    It was hand-copied into dozens of files, so the copies drifted. One SSOT
+    string, spliced wherever it is wanted.
+    """
+    bp = (ssot.get("docs", {}) or {}).get("boilerplate", {}) or {}
+    key = arg or "what-mios-is"
+    text = bp.get(key)
+    if not text:
+        raise DeriverError(
+            f"boilerplate: no '{key}' in [docs.boilerplate] "
+            f"(have: {', '.join(sorted(bp)) or 'none'})")
+    return text.strip() + "\n\n<!-- derived from usr/share/mios/mios.toml " \
+                          f"[docs.boilerplate].{key} -->"
+
+
+DERIVERS = {
+    "ports": _derive_ports,
+    "laws": _derive_laws,
+    "root-exceptions": _derive_root_exceptions,
+    "pipeline": _derive_pipeline,
+    "verbs": _derive_verbs,
+    "boilerplate": _derive_boilerplate,
+}
 
 
 def _derive(gen_id: str, ssot: dict) -> str | None:
@@ -491,15 +597,16 @@ def cmd_render(args) -> int:
     with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
         ssot = tomllib.load(fh)
 
-    targets = []
-    for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
-        dn[:] = [d for d in dn if d not in {".git"}]
-        for fn in fns:
-            if fn.endswith(".md"):
-                targets.append(os.path.join(dp, fn))
+    # Scope: every TRACKED Markdown file, not just usr/share/doc/mios -- a
+    # marker in README.md or docs/ was previously never rendered or checked, so
+    # a stale derived table could ship from there. Note this cannot reuse
+    # mios_comments.iter_source_files: that filters by SCAN_EXT, which
+    # deliberately excludes .md, and using it here silently emptied the scope.
+    # Only files that actually contain a marker are opened for writing.
+    targets = _tracked_markdown(root)
 
     rx = _marker_re()
-    changed, spliced, unknown = [], 0, set()
+    changed, spliced, unknown, bad_args = [], 0, set(), []
     for path in sorted(targets):
         try:
             with open(path, encoding="utf-8", newline="") as fh:
@@ -508,11 +615,16 @@ def cmd_render(args) -> int:
             continue
         if "MIOS-GEN:" not in src:
             continue
+        rel_for_msg = os.path.relpath(path, root).replace(os.sep, "/")
 
         def repl(m):
             nonlocal spliced
             gid = m.group("id")
-            body = _derive(gid, ssot)
+            try:
+                body = _derive(gid, ssot)
+            except DeriverError as exc:
+                bad_args.append(f"{rel_for_msg}: {exc}")
+                return m.group(0)
             if body is None:
                 unknown.add(gid)
                 return m.group(0)
@@ -526,6 +638,12 @@ def cmd_render(args) -> int:
                 with open(path, "w", encoding="utf-8", newline="\n") as fh:
                     fh.write(new)
 
+    if bad_args:
+        print("MIOS-GEN markers asking for values the SSOT does not define:",
+              file=sys.stderr)
+        for msg in bad_args:
+            print(f"  {msg}", file=sys.stderr)
+        return 1
     if unknown:
         print("unknown MIOS-GEN ids (no deriver): " + ", ".join(sorted(unknown)),
               file=sys.stderr)

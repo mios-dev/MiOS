@@ -677,6 +677,11 @@ export MIOS_VERSION
 : "${MIOS_DISPATCH_VRAM_RECLAIM_IDLE:=false}"
 : "${MIOS_DISPATCH_WORKER_MCP_TOOLS:=true}"
 : "${MIOS_DOCS_BLOCKLIST_GLOBS:=automation/lib/globals.sh,automation/lib/globals.ps1,tools/native/mios-unit-gen/tests/golden/**,**/*.generated.*,usr/share/mios/names.generated.txt}"
+[ -n "${MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS+x}" ] || MIOS_DOCS_BOILERPLATE_WHAT_MIOS_IS='MiOS is one thing built two ways at once: an immutable, `bootc`/OCI-shaped
+Fedora workstation -- the whole OS is a single container image, so `bootc
+upgrade` behaves like a `git pull` and `bootc rollback` like a Ctrl-Z -- that
+is *also* a local, self-hosted, agentic AI operating system.
+'
 : "${MIOS_DOCS_LANDING_MIN_WORD_RATIO:=0.9}"
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
