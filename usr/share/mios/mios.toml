@@ -1582,6 +1582,20 @@ enable_units = [
 composefs_mode = "verity"
 mask_systemd_remount_fs = true
 
+# [security.credential_literals] -- Law-11 extension: default credentials still
+# baked into world-readable units. SHRINK-ONLY; T-175 rotates them to
+# /etc/mios/secrets.env (gate: check_credential_literals).
+[security.credential_literals]
+grandfathered = [
+  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD",
+  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD",
+  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD",
+  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN",
+  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY",
+  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY",
+  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD",
+]
+
 # [security.redact] -- DURA-02 redaction on PERSIST; every schema table sits in
 # exactly one list below (gate: check_redact_coverage).
 [security.redact]

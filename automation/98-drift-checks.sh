@@ -6176,6 +6176,7 @@ main() {
     check_manual_generated
     check_manual_ledger
     check_comment_landing
+    check_credential_literals
     check_redact_coverage
     check_daemon_governor
     check_manual_links
@@ -7121,6 +7122,18 @@ check_manual_ledger() {
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_credential_literals() {
+    echo "[98-drift-checks]   check_credential_literals"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_credential_literals: $line"
         done <<<"$out"
         return
     fi

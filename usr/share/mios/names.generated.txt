@@ -394,6 +394,7 @@ security.privileged_units.unconfined  MIOS_SECURITY_PRIVILEGED_UNITS_UNCONFINED
 security.enable_units  MIOS_SECURITY_ENABLE_UNITS
 security.composefs_mode  MIOS_SECURITY_COMPOSEFS_MODE
 security.mask_systemd_remount_fs  MIOS_SECURITY_MASK_SYSTEMD_REMOUNT_FS
+security.credential_literals.grandfathered  MIOS_SECURITY_CREDENTIAL_LITERALS_GRANDFATHERED
 security.redact.enable  MIOS_SECURITY_REDACT_ENABLE
 security.redact.fail_closed  MIOS_SECURITY_REDACT_FAIL_CLOSED
 security.redact.tables  MIOS_SECURITY_REDACT_TABLES

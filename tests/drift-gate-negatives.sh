@@ -2356,6 +2356,22 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_credential_literals() {
+    log "Testing check_credential_literals"
+    local unit="${ROOT}/usr/share/containers/systemd/mios-searxng.container"
+    local backup; backup="$(mktemp)"
+    cp "$unit" "$backup"
+    printf 'Environment=NEGATIVE_TEST_SECRET_KEY=hunter2\n' >> "$unit"
+    if _neg_gate check_credential_literals; then
+        cp "$backup" "$unit"; rm -f "$backup"
+        die "check_credential_literals passed despite a new baked-in credential"
+    fi
+    cp "$backup" "$unit"
+    _neg_gate check_credential_literals || { rm -f "$backup"; die "check_credential_literals failed after restoration"; }
+    rm -f "$backup"
+    log "check_credential_literals negative test passed"
+}
+
 test_redact_coverage() {
     log "Testing check_redact_coverage"
     local sql="${ROOT}/usr/share/mios/postgres/schema-init.sql"
@@ -2504,6 +2520,7 @@ main() {
     test_manual_generated
     test_manual_ledger
     test_comment_landing
+    test_credential_literals
     test_redact_coverage
     test_daemon_governor
     test_manual_links
