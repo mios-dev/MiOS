@@ -696,21 +696,21 @@ acceptance: |
 - **Accept:** lowering then raising a ceiling in one commit fails the gate.
 - **Deps:** `DOCGEN-01`.
 
-### DOCGEN-03 — `mios-manual harvest` — the missing link  **[P1]**  (→ T-296)
+### DOCGEN-03 — `mios-manual harvest` — the missing link  **[P1] ✅ DONE**  (→ T-296)
 - **What:** The subcommand that moves a MIGRATE comment block into an authored doc passage, stamps the `mios-src:<sha12>` anchor, and fills the ledger's `landed_*` columns.
 - **Why:** Without it nothing can ever populate the landing columns, so `landed()` can only return False and the narrative count can never fall — the ratchet is at its ceiling with no legal way down.
 - **Files:** `usr/libexec/mios/mios-manual`, `usr/share/doc/mios/manual/`, `usr/share/mios/reference/manual-corpus.tsv`.
 - **Accept:** a harvested block flips `landed()` false→true and the narrative count drops by one.
 - **Deps:** `DOCGEN-01`.
 
-### DOCGEN-04 — `check_comment_landing` + `mios-manual prune`  **[P1]**  (→ T-297)
+### DOCGEN-04 — `check_comment_landing` + `mios-manual prune`  **[P1] ✅ DONE**  (→ T-297)
 - **What:** Delete a source comment only once its knowledge is provably landed, gated so a stub can never authorise removing a design note.
 - **Why:** Completes the loop harvest opens; the strictness of `landed()` is the whole safety story.
 - **Files:** `usr/libexec/mios/mios-manual`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`.
 - **Accept:** `prune` refuses when the predicate is false; round-trip covered by a test.
 - **Deps:** `DOCGEN-03`.
 
-### DOCGEN-05 — Widen render scope and add the remaining deriver families  **[P2]**  (→ T-298)
+### DOCGEN-05 — Widen render scope and add the remaining deriver families  **[P2] ✅ DONE**  (→ T-298)
 - **What:** Only `ports` and `laws` of nine specified deriver families exist. Add the rest (pipeline, verbs, units, index, related, api, root-exceptions, the boilerplate block duplicated 69 times), widen `render` beyond `usr/share/doc/mios/`, make an unknown deriver ARG fail loudly as unknown KINDs already do, and close the negative-test hole so the gate also proves prose OUTSIDE a marker stays green.
 - **Why:** Without that second assertion the gate could be satisfied by a generator that owns whole files — the precise failure the marker protocol exists to prevent.
 - **Files:** `usr/libexec/mios/mios-manual`, `tests/drift-gate-negatives.sh`, `usr/share/doc/mios/reference/`.
@@ -724,7 +724,7 @@ acceptance: |
 - **Accept:** regenerating changes nothing; no `file:///C:/` paths survive; ports match `[ports]`.
 - **Deps:** `DOCGEN-05`.
 
-### DOCGEN-07 — Cross-repo participation for mios-bootstrap  **[P2]**  (→ T-300)
+### DOCGEN-07 — Cross-repo participation for mios-bootstrap  **[P2] ✅ DONE**  (→ T-300)
 - **What:** `mios-bootstrap.git` carries AI-hints on 69 of 98 taggable files but ships no docgen tooling. Let the CLIs run against it by root rather than copying them across (Law 15 forbids double-tracking the surface).
 - **Why:** The operator-facing half of MiOS is currently undocumentable by the same pipeline.
 - **Files:** `usr/libexec/mios/mios-manual`, `usr/libexec/mios/mios-ai-tag`, `tools/log-to-bootstrap.sh`.
