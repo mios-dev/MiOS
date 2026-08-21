@@ -717,8 +717,10 @@ $script:MIOS_DOCS_MAX_OVERLONG_HINTS = if ($env:MIOS_DOCS_MAX_OVERLONG_HINTS) { 
 $script:MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE = if ($env:MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE) { $env:MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE } else { 1724 }
 $script:MIOS_DOCS_MIGRATE_MIN_LINES = if ($env:MIOS_DOCS_MIGRATE_MIN_LINES) { $env:MIOS_DOCS_MIGRATE_MIN_LINES } else { 6 }
 $script:MIOS_DOCS_MIGRATE_MIN_WORDS = if ($env:MIOS_DOCS_MIGRATE_MIN_WORDS) { $env:MIOS_DOCS_MIGRATE_MIN_WORDS } else { 60 }
+$script:MIOS_DOCS_PORT_CLEAN = if ($env:MIOS_DOCS_PORT_CLEAN) { $env:MIOS_DOCS_PORT_CLEAN } else { 'README.md,CLAUDE.md,GEMINI.md,AGENTS.md,MiOS.md,SECURITY.md,.github/ai-instructions.md,llms.txt,llms-full.txt,usr/share/doc/mios/reference/api.md' }
 $script:MIOS_DOCS_REF_ALLOWLIST = if ($env:MIOS_DOCS_REF_ALLOWLIST) { $env:MIOS_DOCS_REF_ALLOWLIST } else { '/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_' }
 $script:MIOS_DOCS_RENDER_EXTRA = if ($env:MIOS_DOCS_RENDER_EXTRA) { $env:MIOS_DOCS_RENDER_EXTRA } else { 'llms-full.txt' }
+$script:MIOS_DOCS_RETIRED_PORTS = if ($env:MIOS_DOCS_RETIRED_PORTS) { $env:MIOS_DOCS_RETIRED_PORTS } else { '11434,11450,11441,3030,8432,8441,8442,8633,8640,8641,8642,8888,8899' }
 $script:MIOS_DOCS_SANITIZE_PATH_REWRITES = if ($env:MIOS_DOCS_SANITIZE_PATH_REWRITES) { $env:MIOS_DOCS_SANITIZE_PATH_REWRITES } else { '[''file:///C:/MiOS/'', ''''],[''file:///C:/'', ''''],[''C:\\MiOS\\'', ''/usr/share/mios/''],[''C:/MiOS/'', ''/usr/share/mios/''],[''C:\\MiOS'', ''/usr/share/mios''],[''C:/MiOS'', ''/usr/share/mios''],[''/mnt/c/MiOS'', ''/usr/share/mios'']' }
 $script:MIOS_DOCS_SANITIZE_REDACT_PATTERNS = if ($env:MIOS_DOCS_SANITIZE_REDACT_PATTERNS) { $env:MIOS_DOCS_SANITIZE_REDACT_PATTERNS } else { '(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\s*[:=]+\s*(?![>\s])[^\s"'']{4,},\bsha256:[0-9a-f]{64}\b,(?i)\bBearer\s+[A-Za-z0-9._-]{16,}' }
 $script:MIOS_DOCS_SANITIZE_REDACT_WITH = if ($env:MIOS_DOCS_SANITIZE_REDACT_WITH) { $env:MIOS_DOCS_SANITIZE_REDACT_WITH } else { '[redacted]' }

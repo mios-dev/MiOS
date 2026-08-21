@@ -1,4 +1,4 @@
-<!-- AI-hint: Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp/mios-llm-light :11450, mios-llm-heavy vLLM :11441) fronted by the agent-pipe (:8640) and MiOS-Hermes gateway (:8642). Primary reference for any agent or OpenAI-API client talking to MiOS.
+<!-- AI-hint: Defines the OpenAI-compatible API surface that the unified MiOS AI endpoint (MIOS_AI_ENDPOINT, Architectural Law 5) targets, and maps it onto the MiOS inference lanes (mios-llm-light llama.cpp primary, mios-llm-heavy vLLM gated; [ports] keys llm_light/vllm) fronted by the agent-pipe orchestrator and MiOS-Hermes gateway ([ports] keys agent_pipe/hermes). Primary reference for any agent or OpenAI-API client talking to MiOS.
      AI-related: /usr/lib/mios/logs/openai-api-verification.txt, /usr/share/mios/ai/system.md, /usr/share/mios/ai/INDEX.md, /usr/share/mios/llamacpp/mios-llm-light.yaml, /usr/share/mios/postgres/schema-init.sql, /usr/lib/mios/agent-pipe/server.py, mios-llm-light, mios-llm-heavy, mios-pgvector, mios-bootstrap, mios-dev, mios-build-local, mios-ceph, mios-k3s -->
 # usr/share/doc/mios/reference/api.md
 
@@ -56,18 +56,62 @@ protocol is implemented by MiOS's function-named inference lanes and agent
 gateway -- each speaks `/v1` natively, so a client never needs to know which one
 answered:
 
-| Lane / service | Port | Role |
+| Lane / service | `[ports]` key | Role |
 |---|---|---|
-| **mios-llm-light** (`mios-llm-light.container`) | `:11450` | **Primary** local engine -- llama.cpp behind the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml`. |
-| **mios-llm-heavy** (`mios-llm-heavy.container`) | `:11441` | Heavy GPU reasoning lane -- vLLM (PagedAttention + APC). Serves `mios-heavy` with continuous batching and automatic prefix caching. **gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
+| **mios-llm-light** (`mios-llm-light.container`) | `llm_light` | **Primary** local engine -- llama.cpp behind the `mios-llm-light` proxy image (`ghcr.io/mostlygeek/llama-swap`). On-demand multi-model auto-swap behind one OpenAI `/v1` endpoint, per-conversation KV-cache paging to disk (`--slot-save-path`), **and embeddings** (`nomic-embed-text` via `POST /v1/embeddings`). Also serves the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml`. |
+| **mios-llm-heavy** (`mios-llm-heavy.container`) | `vllm` | Heavy GPU reasoning lane -- vLLM (PagedAttention + APC). Serves `mios-heavy` with continuous batching and automatic prefix caching. **gated / off by default** (VRAM); enable only on a dGPU with headroom after baking weights. |
 | **mios-llm-worker@** (`mios-llm-worker@.container`) | -- | Single-model swarm workers for parallel fan-out. |
-| **MiOS-Hermes gateway** (`mios-gateway-agent.service`) | `:8642` | OpenAI-compatible *agent* gateway -- sessions, tool-calling, skills. Forwards raw inference to the light lane (`http://localhost:11450/v1`). |
-| **MiOS agent-pipe** (`mios-agent-pipe.service`) | `:8640` | The orchestrator that fronts every gateway (OWUI, Discord, future Slack/Telegram): refine -> multi-agent dispatch -> tool-loop -> pgvector recall -> polish. |
-| **MiOS-Prefilter** | `:8641` | Injects `tool_choice=delegate_task` on fan-outable prompts and forwards to Hermes. |
-| **MiOS-OWUI** (`mios-open-webui.container`) | `:3030` | Open WebUI browser front-end; its `OPENAI_API_BASE_URL` points at the agent surface, so the front-end serves the *agent*, not raw inference. |
-| **MiOS-Search** (`mios-searxng.container`) | `:8888` | SearXNG metasearch that backs the `web_search` tool. |
-| **mios-opencode-gateway** | `:8633` | opencode -> OpenAI `/v1` shim, making opencode a first-class council peer (loopback only). |
-| **mios-pgvector** (`mios-pgvector.container`) | `:5432` | PostgreSQL + `pgvector` -- the unified agent-plane datastore (memory, events, tool calls, sessions, skills, scratch, knowledge, embeddings). |
+| **MiOS-Hermes gateway** (`mios-gateway-agent.service`) | `hermes` | OpenAI-compatible *agent* gateway -- sessions, tool-calling, skills. Forwards raw inference to the light lane (`llm_light`). |
+| **MiOS agent-pipe** (`mios-agent-pipe.service`) | `agent_pipe` | The orchestrator that fronts every gateway (OWUI, Discord, future Slack/Telegram): refine -> multi-agent dispatch -> tool-loop -> pgvector recall -> polish. |
+| **MiOS-Prefilter** | `prefilter` | Injects `tool_choice=delegate_task` on fan-outable prompts and forwards to Hermes. |
+| **MiOS-OWUI** (`mios-open-webui.container`) | `open_webui` | Open WebUI browser front-end; its `OPENAI_API_BASE_URL` points at the agent surface, so the front-end serves the *agent*, not raw inference. |
+| **MiOS-Search** (`mios-searxng.container`) | `searxng` | SearXNG metasearch that backs the `web_search` tool. |
+| **mios-opencode-gateway** | `opencode_gateway` | opencode -> OpenAI `/v1` shim, making opencode a first-class council peer (loopback only). |
+| **mios-pgvector** (`mios-pgvector.container`) | `pgvector` (in-container 5432) | PostgreSQL + `pgvector` -- the unified agent-plane datastore (memory, events, tool calls, sessions, skills, scratch, knowledge, embeddings). |
+
+The resolved numbers behind those keys come from the `[ports]` SSOT:
+
+<!-- MIOS-GEN:ports:inference -->
+| Category | Service | Port |
+|---|---|---|
+| inference | llm_light | 8500 |
+| inference | cpu_node | 8510 |
+| inference | vllm | 8520 |
+| inference | sglang | 8530 |
+
+<!-- derived from usr/share/mios/mios.toml [ports.categories] -->
+<!-- /MIOS-GEN:ports:inference -->
+<!-- MIOS-GEN:ports:agent -->
+| Category | Service | Port |
+|---|---|---|
+| agent | agent_pipe | 8700 |
+| agent | prefilter | 8710 |
+| agent | hermes | 8720 |
+| agent | hermes_worker | 8730 |
+| agent | daemon_agent | 8740 |
+| agent | model_router | 8750 |
+| agent | arbiter | 8760 |
+| agent | mcp | 8770 |
+| agent | opencode_gateway | 8780 |
+
+<!-- derived from usr/share/mios/mios.toml [ports.categories] -->
+<!-- /MIOS-GEN:ports:agent -->
+<!-- MIOS-GEN:ports:data -->
+| Category | Service | Port |
+|---|---|---|
+| data | pgvector | 8600 |
+
+<!-- derived from usr/share/mios/mios.toml [ports.categories] -->
+<!-- /MIOS-GEN:ports:data -->
+<!-- MIOS-GEN:ports:webtools -->
+| Category | Service | Port |
+|---|---|---|
+| webtools | searxng | 8800 |
+| webtools | crawl4ai | 8810 |
+| webtools | firecrawl | 8820 |
+
+<!-- derived from usr/share/mios/mios.toml [ports.categories] -->
+<!-- /MIOS-GEN:ports:webtools -->
 
 > **Migration note (current).** Earlier builds described an Ollama inference
 > container and a the legacy datastore/Qdrant agent store. Those are **retired**: inference
@@ -82,14 +126,14 @@ answered:
 
 ### Base URL
 ```
-http://localhost:8642/v1   # in-image (unified MIOS_AI_ENDPOINT contract)
-http://<host>:8642/v1      # cross-host
+$MIOS_AI_ENDPOINT                    # in-image (unified contract; resolves to the hermes port)
+http://<host>:<[ports].hermes>/v1    # cross-host
 ```
 All clients (CLI tools, the `mios` agent, IDE plugins, the desktop UI) MUST
 resolve through `MIOS_AI_ENDPOINT` -- vendor-hardcoded URLs are a Law-5 violation
 and fail audit (`automation/99-postcheck.sh`). The endpoint is the contract; the
-served port behind it (the agent gateway on `:8642`, the light lane on `:11450`,
-or a reverse-proxy fronting `:8080`) is an implementation detail clients never
+served port behind it (the agent gateway on `hermes`, the light lane on `llm_light`,
+or a reverse-proxy in front) is an implementation detail clients never
 encode.
 
 ### Authentication
@@ -378,7 +422,7 @@ Cancel a `background:true` Response in progress.
 
 ### `POST /v1/embeddings`
 Generate dense vectors. In MiOS this is served by the **primary lane**
-(`mios-llm-light`, `:11450`) running `nomic-embed-text` with
+(`mios-llm-light`, port key `llm_light`) running `nomic-embed-text` with
 `llama-server --embedding` -- the same `/v1/embeddings` surface the OpenAI SDKs
 expect. It feeds the agent-plane's vector memory (pgvector recall, knowledge
 ingestion).
@@ -916,7 +960,7 @@ The full pipeline spans five phases owned by two repos:
 2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. **Never write to `/var/` at build time.** bootc forbids it; lint will fail.
 3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh`.
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`. No `--squash-all` (strips OCI metadata bootc needs).
-5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT`. Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`:8642`) and the agent-pipe (`:8640`) -- see [Where the surface is served](#where-the-surface-is-served).
+5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT`. Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`hermes`) and the agent-pipe (`agent_pipe`) -- see [Where the surface is served](#where-the-surface-is-served).
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (file headers explain why; heavy-lane images that must run as image-default root, e.g. SGLang's NVIDIA base, are similarly documented in their unit headers).
 
 ## A.5 Package management

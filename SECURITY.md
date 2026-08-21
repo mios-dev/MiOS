@@ -20,7 +20,7 @@ first-class, defense-in-depth layer rather than an afterthought:
   fapolicyd, USBGuard).
 - The **agentic** half means the machine runs code on the operator's behalf and
   reasons about itself, so the agent plane — the `agent-pipe`/MiOS-Hermes
-  orchestrator, the `mios-llm-light` inference lane (`:11450`, also embeddings)
+  orchestrator, the `mios-llm-light` inference lane (port key `llm_light`, also embeddings)
   and gated heavy GPU lanes, and the PostgreSQL+pgvector memory — must be
   **unprivileged, network-fenced, and sandboxed by default** (Architectural Law
   6, UNPRIVILEGED-QUADLETS).

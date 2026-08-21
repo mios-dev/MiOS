@@ -203,7 +203,7 @@ reachable through the single OpenAI-compatible endpoint named by
 `MIOS_AI_ENDPOINT`.
 
 - **Inference lanes** -- named by *function*, not by upstream tool:
-  - `mios-llm-light` (`:11450`) is the **primary** lane: a `llama.cpp`
+  - `mios-llm-light` (port key `llm_light`) is the **primary** lane: a `llama.cpp`
     multi-model server fronted by the upstream
     [mios-llm-light](https://github.com/mostlygeek/llama-swap) proxy image
     (`ghcr.io/mostlygeek/llama-swap:cuda`). It auto-swaps the everyday chat /
@@ -211,28 +211,28 @@ reachable through the single OpenAI-compatible endpoint named by
     **and** serves embeddings (`nomic-embed-text`, OpenAI-compatible
     `/v1/embeddings`) plus the `mios-opencode` coder model. Its model map is
     [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
-  - `mios-llm-heavy` (`:11441`, served-name `mios-heavy`) is the heavy GPU lane
-    (SGLang), gated off by default on VRAM grounds.
-  - `mios-llm-heavy-alt` is the alternate heavy lane (vLLM), likewise gated.
+  - `mios-llm-heavy` (port key `vllm`, served-name `mios-heavy`) is the heavy GPU lane
+    (vLLM), gated off by default on VRAM grounds.
+  - `mios-llm-heavy-alt` (port key `sglang`) is the alternate heavy lane (SGLang), likewise gated.
   - `mios-llm-worker@` are single-model swarm workers for fan-out.
   These speak the OpenAI/Ollama-compatible API, so any OpenAI-API client talks
   to them unchanged -- but the *inference engine* is `llama.cpp`/SGLang/vLLM, not
   a hosted service.
-- **Orchestration** -- the **agent-pipe** (`:8640`) is the router/dispatch
+- **Orchestration** -- the **agent-pipe** (port key `agent_pipe`) is the router/dispatch
   gateway every front-end (Open WebUI, the Discord/chat gateways) talks to; it
   decomposes requests, fans out to agents, and calls tools. Behind it,
-  **MiOS-Hermes** (`:8642`) is the OpenAI-compatible agent gateway that owns
+  **MiOS-Hermes** (port key `hermes`) is the OpenAI-compatible agent gateway that owns
   sessions, the tool-loop, skills, and browser control; a **prefilter**
-  (`:8641`) injects fan-out hints on decomposable prompts.
+  (port key `prefilter`) injects fan-out hints on decomposable prompts.
 - **Memory** -- the unified agent datastore is **PostgreSQL + pgvector** (the
-  `mios-pgvector` container on `:5432`), holding agent memory, events, tool
+  `mios-pgvector` container, port key `pgvector`), holding agent memory, events, tool
   calls, sessions, skills, scratch, and a `knowledge` table of finished Q+A with
   vector recall. `nomic-embed-text` (served by `mios-llm-light`) provides the
   embeddings for that recall.
 - **Tools & federation** -- agents call tools over **MCP** and reach other
   agents over **A2A**, and `web_search` is backed by a local **SearXNG**
-  (`:8888`). The coder peer is served through the **opencode-gateway**
-  (`:8633`) as a real `/v1` council member.
+  (port key `searxng`). The coder peer is served through the **opencode-gateway**
+  (port key `opencode_gateway`) as a real `/v1` council member.
 
 The throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector
 memory → MCP/A2A**, all behind `MIOS_AI_ENDPOINT`. Full request/response
@@ -353,7 +353,7 @@ bare-metal install path works but expects you to know what `bootc switch`
 does before you run it.
 
 On the AI side, the migration off the early Ollama/legacy-datastore/Qdrant stack is
-complete: inference + embeddings now run on the `mios-llm-light` lane (`:11450`)
+complete: inference + embeddings now run on the `mios-llm-light` lane (port key `llm_light`)
 with gated heavy GPU lanes, and the unified agent datastore is
 PostgreSQL+pgvector. Ollama survives only as an upstream *API-compat reference*
 (the lanes speak the OpenAI/Ollama-compatible API) and in historical migration

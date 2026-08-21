@@ -2356,6 +2356,22 @@ test_manual_ledger() {
     log "check_manual_ledger negative test passed"
 }
 
+test_doc_port_scheme() {
+    log "Testing check_doc_port_scheme"
+    local doc="${ROOT}/README.md"
+    local backup; backup="$(mktemp)"
+    cp "$doc" "$backup"
+    printf '\nA retired lane on `:11450` sneaks back in.\n' >> "$doc"
+    if _neg_gate check_doc_port_scheme; then
+        cp "$backup" "$doc"; rm -f "$backup"
+        die "check_doc_port_scheme passed despite a retired port literal"
+    fi
+    cp "$backup" "$doc"
+    _neg_gate check_doc_port_scheme || { rm -f "$backup"; die "check_doc_port_scheme failed after restoration"; }
+    rm -f "$backup"
+    log "check_doc_port_scheme negative test passed"
+}
+
 test_comment_landing() {
     log "Testing check_comment_landing"
     local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
@@ -2427,6 +2443,7 @@ main() {
     test_manual_generated
     test_manual_ledger
     test_comment_landing
+    test_doc_port_scheme
     test_unit_dependency_closure
     test_unit_dependency_closure
     test_test_hermeticity

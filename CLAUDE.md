@@ -73,7 +73,7 @@ itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
 2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via `usr/lib/tmpfiles.d/*.conf`, never `mkdir`'d in a numbered image-build step.
 3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` (generated at bake by `08-system-files-overlay.sh`) so it ships *with* the host.
 4. **BOOTC-CONTAINER-LINT** — the **final** instruction of every `Containerfile` is `RUN bootc container lint`; fail the lint, fail the build.
-5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor cloud URLs, no vendor-specific agent/product names, no retired local lanes (`:11434`) in code, docs, or commits.
+5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor cloud URLs, no vendor-specific agent/product names, no retired local-lane ports in code, docs, or commits (registry: `[docs].retired_ports`).
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Root (`User=root`/`0`) is allowed **only** for units in `mios.toml [security.privileged_quadlets].root`, each with a justification.
 7. **NO-HARDCODE** — nothing operator-tunable (ports, model names, scoring params, IPs) is a literal; values resolve through the `mios.toml` cascade. No dates/timestamps baked into comments/docstrings.
 8. **SSOT-PROJECTION** — any file *derived* from `mios.toml` is emitted by a generator and guarded by a regenerate-and-diff drift-check; a hand-edited derived surface is a build failure.
@@ -91,16 +91,16 @@ Quadlets are generated, not hand-edited into final form — see `automation/14-g
 
 The "self-hosted agent OS" half ships *inside* the image and is reachable through one OpenAI-compatible front door named by **`MIOS_AI_ENDPOINT`**. Lanes are named by *function*, not upstream tool:
 
-| Component | Port | Role |
+| Component | `[ports]` key | Role |
 |---|---|---|
-| `mios-llm-light` | `:8450` | **Primary** lane — `llama.cpp` behind the `llama-swap` proxy; auto-swaps chat/reasoning models, serves embeddings (`nomic-embed-text`) + the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
-| `mios-llm-heavy` / `-alt` | `:8441` / `:8442` | Heavy GPU lanes (vLLM `:8441` / SGLang `:8442`) — **gated off by default** on VRAM grounds |
-| agent-pipe | `:8640` | Router/dispatch gateway every front-end talks to; decomposes + fans out to agents, calls tools |
-| MiOS-Hermes | `:8642` | OpenAI-compatible agent gateway — owns sessions, the tool-loop, skills, browser control |
-| prefilter | `:8641` | Injects fan-out hints on decomposable prompts |
-| `mios-pgvector` | `:8432` | Unified agent datastore (PostgreSQL + pgvector): memory, events, tool calls, sessions, skills, and a `knowledge` table with vector recall |
-| SearXNG | `:8899` | Local search backing `web_search` |
-| opencode-gateway | `:8633` | Serves the coder peer as a `/v1` council member |
+| `mios-llm-light` | `llm_light` | **Primary** lane — `llama.cpp` behind the `llama-swap` proxy; auto-swaps chat/reasoning models, serves embeddings (`nomic-embed-text`) + the `mios-opencode` coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml` |
+| `mios-llm-heavy` / `-alt` | `vllm` / `sglang` | Heavy GPU lanes (vLLM / SGLang) — **gated off by default** on VRAM grounds |
+| agent-pipe | `agent_pipe` | Router/dispatch gateway every front-end talks to; decomposes + fans out to agents, calls tools |
+| MiOS-Hermes | `hermes` | OpenAI-compatible agent gateway — owns sessions, the tool-loop, skills, browser control |
+| prefilter | `prefilter` | Injects fan-out hints on decomposable prompts |
+| `mios-pgvector` | `pgvector` | Unified agent datastore (PostgreSQL + pgvector): memory, events, tool calls, sessions, skills, and a `knowledge` table with vector recall |
+| SearXNG | `searxng` | Local search backing `web_search` |
+| opencode-gateway | `opencode_gateway` | Serves the coder peer as a `/v1` council member |
 
 Throughline: **inference lanes → agent-pipe/Hermes orchestration → pgvector memory → MCP/A2A tools**. The full contract is `usr/share/doc/mios/reference/api.md`; the agent-facing architectural contract is `usr/share/mios/ai/INDEX.md`.
 

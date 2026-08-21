@@ -111,10 +111,10 @@ an error. Hardcoded values that could live in `mios.toml` are bugs.
 
 The deployed AI plane is the "agentic AI OS" half of MiOS. A request flows
 from a front-end (Open WebUI, the chat/Discord gateways, the `mios` CLI)
-into the **agent-pipe** orchestrator (`:8640`) — router + refine +
+into the **agent-pipe** orchestrator (port key `agent_pipe`) — router + refine +
 council/swarm fan-out + critic/polish — which fronts **MiOS-Hermes**
 (port key `hermes`), the OpenAI-compatible agent gateway that owns sessions, the
-tool-loop, skills, and browser control; a **prefilter** (`:8641`) injects
+tool-loop, skills, and browser control; a **prefilter** (port key `prefilter`) injects
 fan-out hints on decomposable prompts. Tools are called over **MCP** and
 peer agents reached over **A2A**.
 
@@ -136,8 +136,8 @@ Agent memory is **PostgreSQL + pgvector** (the `mios-pgvector` container on
 `:5432`): agent memory, events, tool calls, sessions, skills, scratch, and a
 `knowledge` table of finished Q+A with vector recall (embeddings from
 `nomic-embed-text` on `mios-llm-light`). `web_search` is backed by a local
-**SearXNG** (`:8888`); the coder peer is served through the
-**opencode-gateway** (`:8633`).
+**SearXNG** (port key `searxng`); the coder peer is served through the
+**opencode-gateway** (port key `opencode_gateway`).
 
 Every agent and tool resolves the single endpoint via `MIOS_AI_ENDPOINT`
 (Architectural Law 5) — any OpenAI-API-compatible editor/CLI talks to the

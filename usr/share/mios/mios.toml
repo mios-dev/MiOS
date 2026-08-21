@@ -13621,6 +13621,15 @@ migrate_min_words      = 60
 landing_min_word_ratio = 0.90   # a doc passage must retain this much of the block
 render_extra           = ["llms-full.txt"]   # non-.md files mios-manual render also splices
 
+# Retired AI-plane port numbers: every one has a [ports] successor key.
+retired_ports = [11434, 11450, 11441, 3030, 8432, 8441, 8442, 8633, 8640, 8641, 8642, 8888, 8899]
+# Living contract docs that must reference [ports] KEYS, never the numbers above.
+port_clean = [
+  "README.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", "MiOS.md", "SECURITY.md",
+  ".github/ai-instructions.md", "llms.txt", "llms-full.txt",
+  "usr/share/doc/mios/reference/api.md",
+]
+
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md
 max_unmigrated_narrative = 1724   # MIGRATE blocks still in source

@@ -6176,6 +6176,7 @@ main() {
     check_manual_generated
     check_manual_ledger
     check_comment_landing
+    check_doc_port_scheme
 
 
     check_chrony_ptp_dropin
@@ -7121,6 +7122,37 @@ check_manual_ledger() {
         return
     fi
     echo "[98-drift-checks]   $out"
+}
+
+check_doc_port_scheme() {
+    echo "[98-drift-checks]   check_doc_port_scheme"
+    # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
+    local lists pat f hits
+    lists="$(cd "$ROOT" && python3 - <<'PYEOF'
+import tomllib
+docs = tomllib.load(open("usr/share/mios/mios.toml", "rb")).get("docs", {})
+print("|".join(str(p) for p in docs.get("retired_ports", [])))
+print("\n".join(docs.get("port_clean", [])))
+PYEOF
+)"
+    pat="${lists%%$'\n'*}"
+    if [[ -z "$pat" ]]; then
+        _violation "check_doc_port_scheme: [docs].retired_ports is empty or unreadable"
+        return
+    fi
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        if [[ ! -f "$ROOT/$f" ]]; then
+            _violation "[docs].port_clean names a missing file: $f"
+            continue
+        fi
+        hits="$(grep -nE "(^|[^0-9])(${pat})([^0-9]|$)" "$ROOT/$f" || true)"
+        if [[ -n "$hits" ]]; then
+            while IFS= read -r line; do
+                _violation "retired port literal in ${f}: ${line}"
+            done <<<"$hits"
+        fi
+    done <<<"${lists#*$'\n'}"
 }
 
 main "$@"

@@ -72,13 +72,13 @@ a cloud:
 
 - **Inference** — the everyday lane is **`mios-llm-light`**, the primary local
   LLM engine (llama.cpp behind the upstream `ghcr.io/mostlygeek/llama-swap` proxy
-  image) on **`:11450`**. It auto-swaps GGUF chat/reasoning models behind one
+  image) on the `llm_light` port. It auto-swaps GGUF chat/reasoning models behind one
   endpoint, KV-pages each conversation, serves embeddings (`nomic-embed-text` via
   OpenAI-compatible `/v1/embeddings`), and hosts the `mios-opencode` coder model —
   config in
   [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml).
-  Heavy work, when enabled, falls to the GPU lanes **`mios-llm-heavy`** (SGLang,
-  `:11441`) and **`mios-llm-heavy-alt`** (vLLM), both gated/off-by-default on
+  Heavy work, when enabled, falls to the GPU lanes **`mios-llm-heavy`** (vLLM,
+  port key `vllm`) and **`mios-llm-heavy-alt`** (SGLang, port key `sglang`), both gated/off-by-default on
   VRAM. These speak the OpenAI/Ollama-compatible API, so any OpenAI-API client
   talks to them unchanged — but the *engine* is `llama.cpp`/SGLang/vLLM, not a
   hosted service.
