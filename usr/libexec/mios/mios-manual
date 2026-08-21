@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-# AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Read-only over source: it never edits or deletes a comment.
+# AI-hint: The generative documentation CLI. Builds the comment corpus ledger that makes "this comment's knowledge landed in a doc" a machine-checkable fact, and reports the census that drives the documentation ratchet. Only `prune` edits source, and only where the landing predicate proves the knowledge is already in a doc.
 # AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, docs/agy/doc-generative-documentation.md
-# AI-functions: cmd_ledger, cmd_audit, cmd_coverage, landed, main
+# AI-functions: cmd_ledger, cmd_audit, cmd_coverage, cmd_harvest, cmd_prune, cmd_landing, cmd_render, landed, main
 """mios-manual -- corpus ledger and census for the MiOS documentation system.
 
 Spec: docs/agy/doc-generative-documentation.md sections 3.4 and 5.
@@ -10,6 +10,13 @@ Subcommands:
   ledger   rebuild usr/share/mios/reference/manual-corpus.tsv from the tree
   audit    census as JSON (counts by class and reason)
   coverage the two ratchet numbers, for the gate and for humans
+  harvest  move a comment's prose into a doc and record where it landed
+  prune    delete a comment that provably landed (the only destructive path)
+  landing  verify every pruned comment still lands in a doc
+  render   splice derived content into MIOS-GEN marker interiors
+
+`--root` selects the repo, and either layout resolves, so the same tools serve
+mios.git and mios-bootstrap.git without being copied across (Law 15).
 
 The ledger is the safety mechanism for the whole programme. Deletion of a
 comment is only ever permitted once a ledger row proves its knowledge reached a
@@ -50,10 +57,25 @@ COLUMNS = ["path", "start_line", "end_line", "lines", "words", "sha12", "class",
 SCAN_EXT = mc.SCAN_EXT
 
 
+def _ssot_path(root: str) -> str:
+    """The SSOT for a repo root, in either repo's layout.
+
+    mios.git keeps it at usr/share/mios/mios.toml (it IS the deployed /usr);
+    mios-bootstrap.git keeps its overlay at the root. Resolving both here is
+    what lets one set of doc tools serve both repos, instead of the tools being
+    copied across -- which Law 15 forbids.
+    """
+    for rel in ("usr/share/mios/mios.toml", "mios.toml"):
+        cand = os.path.join(root, rel.replace("/", os.sep))
+        if os.path.isfile(cand):
+            return cand
+    return os.path.join(root, "usr", "share", "mios", "mios.toml")
+
+
 def _policy(root: str) -> mc.Policy:
     if tomllib is None:
         return mc.Policy()
-    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+    with open(_ssot_path(root), "rb") as fh:
         return mc.Policy.from_toml(tomllib.load(fh))
 
 
@@ -594,7 +616,7 @@ def cmd_render(args) -> int:
     if tomllib is None:
         print("tomllib unavailable", file=sys.stderr)
         return 1
-    with open(os.path.join(root, "usr", "share", "mios", "mios.toml"), "rb") as fh:
+    with open(_ssot_path(root), "rb") as fh:
         ssot = tomllib.load(fh)
 
     # Scope: every TRACKED Markdown file, not just usr/share/doc/mios -- a

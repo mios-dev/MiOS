@@ -3466,6 +3466,7 @@ tests/test-lint-shell-coverage.sh	32	32	1	4	28308e3a757f	STAY	inline-scoped		0		
 tests/test-mios-manual-harvest.sh	1	3	3	56	04494901519d	STAY	ai-header		0				0
 tests/test-mios-manual-harvest.sh	22	22	1	14	ff3ef40e38af	STAY	local-scoped		0				0
 tests/test-mios-manual-harvest.sh	82	83	2	23	88bb3901306e	STAY	local-scoped		0				0
+tests/test-mios-manual-harvest.sh	121	121	1	12	e105823c9c01	STAY	inline-scoped		0				0
 tests/test-pgvector-major-upgrade.sh	1	3	3	48	694608b6a74f	STAY	ai-header		0				0
 tests/test-pgvector-major-upgrade.sh	22	22	1	11	c280244b5d00	STAY	local-scoped		0				0
 tests/test-pgvector-major-upgrade.sh	31	31	1	8	d2610c2cf313	STAY	local-scoped		0				0

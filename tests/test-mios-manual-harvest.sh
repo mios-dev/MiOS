@@ -114,4 +114,14 @@ if run landing --check >/dev/null 2>&1; then
     die "case 10: landing check passed after the doc passage was destroyed"
 fi
 
+log "Case 11: the CLI serves the sibling repo's layout (SSOT at the root)"
+alt="$(mktemp -d)"
+mkdir -p "$alt/src"
+cp "$ROOT/usr/share/mios/mios.toml" "$alt/mios.toml"
+printf '#!/usr/bin/env bash\n# AI-hint: fixture.\n# AI-related: none\necho hi\n' > "$alt/src/x.sh"
+( cd "$alt" && git init -q . && git add -A && git -c user.email=t@t -c user.name=t commit -qm f )
+MIOS_ROOT="$alt" python3 "$CLI" --root "$alt" coverage --json >/dev/null 2>&1 \
+    || { rm -rf "$alt"; die "case 11: CLI failed against a root-level mios.toml (bootstrap layout)"; }
+rm -rf "$alt"
+
 log "all cases passed"
