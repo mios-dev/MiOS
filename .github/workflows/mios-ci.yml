@@ -377,8 +377,9 @@ jobs:
                   exit 1
               }
 
-      - name: Rechunk for smaller Day-2 deltas (publish only)
-        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
+      - name: Rechunk for smaller Day-2 deltas (validates on PRs too)
+        # PRs exercise the rechunkers (warn-only, image discarded); main additionally publishes the result.
+        if: env.PUBLISH == 'true'
         run: |
           set -uo pipefail
           # Improved rechunking for smaller Day-2 deltas. PREFER rpm-ostree's
