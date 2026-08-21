@@ -164,9 +164,13 @@ artifact:
     ./automation/ai-bootstrap.sh
     @echo "[OK] Artifacts, UKB, and Wiki refreshed"
 
+# `manual` is gone on purpose: tools/generate-manual.py OWNED the whole file, so
+# running it dropped manual.md's H1, its table of contents and now the MIOS-GEN
+# markers too. The manual is authored prose plus derived marker interiors --
+# `mios-manual render` (below, and in drift-gate) is the only writer.
 manual:
-    python3 ./tools/generate-manual.py
-    @echo "[OK] User Manual and sub-pages compiled successfully"
+    @echo "[manual] retired -- run: python3 ./usr/libexec/mios/mios-manual render"
+    @exit 1
 
 
 cloud-build:
