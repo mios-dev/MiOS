@@ -682,8 +682,8 @@ def _tracked(root: str, pattern: str = "") -> list[str]:
         return []
 
 
-def _tracked_markdown(root: str) -> list[str]:
-    """Absolute paths of every git-tracked .md file, sorted."""
+def _tracked_markdown(root: str, extra: tuple = ()) -> list[str]:
+    """Absolute paths of every git-tracked .md file, plus [docs].render_extra."""
     rels = _tracked(root, "*.md")
     if not rels:
         rels = []
@@ -691,6 +691,11 @@ def _tracked_markdown(root: str) -> list[str]:
             dn[:] = [d for d in dn if d != ".git"]
             rels += [os.path.relpath(os.path.join(dp, f), root).replace(os.sep, "/")
                      for f in fns if f.endswith(".md")]
+    for e in extra:
+        if e in rels:
+            continue
+        if _tracked(root, e) or os.path.isfile(os.path.join(root, e.replace("/", os.sep))):
+            rels.append(e)
     return sorted(os.path.join(root, r.replace("/", os.sep)) for r in rels)
 
 
@@ -896,7 +901,8 @@ def cmd_render(args) -> int:
     # mios_comments.iter_source_files: that filters by SCAN_EXT, which
     # deliberately excludes .md, and using it here silently emptied the scope.
     # Only files that actually contain a marker are opened for writing.
-    targets = _tracked_markdown(root)
+    targets = _tracked_markdown(
+        root, tuple((ssot.get("docs", {}) or {}).get("render_extra", ())))
 
     rx = _marker_re()
     changed, spliced, unknown, bad_args = [], 0, set(), []

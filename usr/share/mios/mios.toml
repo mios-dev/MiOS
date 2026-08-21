@@ -13619,6 +13619,7 @@ stay_max_words         = 25
 migrate_min_lines      = 6      # ratchet: 6 -> 4 -> 3 as the mid-size band clears
 migrate_min_words      = 60
 landing_min_word_ratio = 0.90   # a doc passage must retain this much of the block
+render_extra           = ["llms-full.txt"]   # non-.md files mios-manual render also splices
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md

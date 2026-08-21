@@ -2322,7 +2322,20 @@ test_manual_generated() {
         cp "$backup" "$doc"; rm -f "$backup"
         die "render destroyed authored prose outside a marker"; }
     cp "$backup" "$doc"; rm -f "$backup"
-    log "check_manual_generated negative test passed (both directions)"
+
+    # Third phase: a missing manual chapter must turn the gate red -- the
+    # chapter index in manual.md is how absence becomes visible.
+    local ch
+    ch="$(ls "${ROOT}"/usr/share/doc/mios/manual/ch[0-9]*.md | head -1)"
+    [ -f "$ch" ] || die "no manual chapter files found to hide"
+    mv "$ch" "${ch}.neg-hidden"
+    if _neg_gate check_manual_generated; then
+        mv "${ch}.neg-hidden" "$ch"
+        die "check_manual_generated passed despite a missing chapter file"
+    fi
+    mv "${ch}.neg-hidden" "$ch"
+    _neg_gate check_manual_generated || die "check_manual_generated failed after restoring the chapter"
+    log "check_manual_generated negative test passed (all three phases)"
 }
 
 test_manual_ledger() {
