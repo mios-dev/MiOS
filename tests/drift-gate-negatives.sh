@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,49 @@ test_account_column_parity() {
 }
 
 
+test_blade_coverage() {
+    log "Testing check_blade_coverage"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    cp "$toml" "$backup"
+
+    # (1) A container classified NEITHER way must FAIL -- that is the state the
+    # whole activation axis was in before this gate existed.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+assert s.count("ungated = [")==1,"ungated anchor moved"
+m=re.search(r"ungated = \[.*?\]", s, re.S)
+keep=[x for x in re.findall(r"\"([^\"]+)\"", m.group(0)) if x != "mios-webtools-redis"]
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "ungated = [" + ", ".join(chr(34)+k+chr(34) for k in keep) + "]" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_blade_coverage passed with a container classified neither way"
+    fi
+    cp "$backup" "$toml"
+
+    # (2) A capability no archetype grants must FAIL: nothing could activate it,
+    # so the unit would be dead on every blade type.
+    python3 -c 'import io,sys
+p=sys.argv[1]
+old="mios-llm-heavy     = [\"gpu-serving\"]"
+s=io.open(p,encoding="utf-8").read()
+assert s.count(old)==1,"requires anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s.replace(old, "mios-llm-heavy     = [\"mios-negtest-uncapability\"]"))' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_blade_coverage passed with a capability no archetype grants"
+    fi
+
+    mv "$backup" "$toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 \
+        || die "check_blade_coverage failed after restoration"
+
+    log "Test_blade_coverage negative test passed"
+}
+
 test_ports_bound() {
     log "Testing check_ports_bound"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2862,6 +2905,7 @@ main() {
     test_greenboot
     test_service_urls
     test_ports_bound
+    test_blade_coverage
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

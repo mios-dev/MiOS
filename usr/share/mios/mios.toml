@@ -13079,6 +13079,17 @@ metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 [blade]
 type = "hybrid"
 
+# Services a seat still starts because no capability gates them yet.
+# SHRINK-ONLY (gate: check_blade_coverage); taxonomy: TASKS.md T-319.
+ungated = [
+  "mios-adguard", "mios-ceph", "mios-cockpit-link", "mios-code-server",
+  "mios-cpu-node", "mios-forge", "mios-forgejo-runner", "mios-guacamole",
+  "mios-guacd", "mios-k3s", "mios-llm-light", "mios-open-webui", "mios-otelcol",
+  "mios-pgvector", "mios-pxe-hub", "mios-searxng", "mios-webtools-crawl4ai",
+  "mios-webtools-firecrawl-api", "mios-webtools-firecrawl-worker",
+  "mios-webtools-redis",
+]
+
 # An archetype expands to the capabilities its blade activates. An archetype
 # with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]
@@ -13090,7 +13101,9 @@ headless   = []
 desktop    = []
 
 [blade.requires]
-mios-llm-heavy = ["gpu-serving"]
+mios-llm-heavy     = ["gpu-serving"]
+mios-llm-heavy-alt = ["gpu-serving"]
+"mios-llm-worker@" = ["gpu-serving"]
 
 # ----------------------------------------------------------------------------
 # Proposed sections for roadmap index validation compatibility (WS-CAT / WS-DOTFILES)

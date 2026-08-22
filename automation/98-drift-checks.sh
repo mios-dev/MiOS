@@ -2091,10 +2091,15 @@ def check_roundtrip(root):
         mat_data = tomllib.loads(materialized_toml_str)
     except Exception as parse_err:
         print("Materialized TOML parsing failed!")
-        print("Lines 30-70:")
         lines = materialized_toml_str.splitlines()
-        for i, l in enumerate(lines[29:70]):
-            print(f"{i+30:2d}: {l}")
+        import re as _re
+        _m = _re.search(r"at line (\d+)", str(parse_err))
+        _n = int(_m.group(1)) if _m else getattr(parse_err, "lineno", None)
+        _lo = max(0, (_n - 4)) if _n else 29
+        _hi = (_n + 3) if _n else 70
+        print("Lines %d-%d:" % (_lo + 1, _hi))
+        for i, l in enumerate(lines[_lo:_hi]):
+            print(f"{_lo+i+1:4d}: {l}")
         raise parse_err
 
     scopes = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
@@ -4478,6 +4483,7 @@ required_checks = [
     "check_container_names",
     "check_service_urls",
     "check_ports_bound",
+    "check_blade_coverage",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6247,6 +6253,7 @@ main() {
     check_container_names
     check_service_urls
     check_ports_bound
+    check_blade_coverage
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7291,6 +7298,20 @@ check_ports_bound() {
     echo "[98-drift-checks]   check_ports_bound"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ports-bound.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_blade_coverage() {
+    echo "[98-drift-checks]   check_blade_coverage"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 _violation "$line"

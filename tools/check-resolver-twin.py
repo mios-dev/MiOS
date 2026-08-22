@@ -104,6 +104,9 @@ def main():
     WALK_MOSTLY_DEAD = mios_toml.WALK_MOSTLY_DEAD
     WALK_EMIT_KEEP = mios_toml.WALK_EMIT_KEEP
 
+    import re as _re
+    _re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
+
     exports_map = {}
     for path, val in all_pairs:
         val_processed = process_val(path, val)
@@ -113,7 +116,10 @@ def main():
             _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
         else:
             _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
+        # Same sanitization as tools/render-globals.py: a key like `mios-llm-worker@`
+        # is otherwise neither a legal sh nor PowerShell identifier (Law 13 twins).
         canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
+        canonical = _re_unsafe.sub("_", canonical)
         sec_name = path.split(".", 1)[0]
         if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
             pass
