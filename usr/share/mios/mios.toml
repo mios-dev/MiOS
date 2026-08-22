@@ -9735,6 +9735,11 @@ otelcol_otlp       = 8575    # OpenTelemetry OTLP gRPC receiver on mios-otelcol 
 otelcol_ui         = 8580    # Jaeger all-in-one query UI on mios-otelcol (upstream default 16686).
 pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream default 8081; its HTTP side rides forge_http's band).
 
+# Files pairing a MIOS_PORT_* name with a literal that disagrees with this table.
+# SHRINK-ONLY (gate: check_port_fallbacks), and currently EMPTY -- a new entry
+# needs a reason here, not just a line.
+stale_fallbacks = []
+
 # Allocated ports nothing references yet. SHRINK-ONLY (gate: check_ports_bound).
 # Per-key reasons: TASKS.md T-318. chrome_cdp_worker's only binder is an
 # `Environment=` literal in a shipped .service -- systemd does not expand ${} in

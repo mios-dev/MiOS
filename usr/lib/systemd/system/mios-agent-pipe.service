@@ -46,7 +46,7 @@ EnvironmentFile=-/etc/mios/agent-pipe.env
 # -> server.py composes EVERY light-lane endpoint from it via _LIGHT_BASE. ONE
 # owned port key; no per-endpoint :11450 literal in this unit anymore.
 EnvironmentFile=-/etc/mios/install.env
-Environment=MIOS_PORT_AGENT_PIPE=8640
+Environment=MIOS_PORT_AGENT_PIPE=8700
 # WS-10 (operator 2026-06-05 "EVERYTHING IS LLAMA.CPP"): the agent-pipe
 # reasons DIRECTLY on mios-llm-light (:11450) instead of via a Hermes hop. All
 # inference is on the dGPU via llama.cpp.

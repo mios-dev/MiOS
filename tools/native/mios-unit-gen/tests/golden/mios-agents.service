@@ -14,7 +14,7 @@ Type=simple
 # empty (code-server then dies "Invalid URL"). Set the defaults here; install.env
 # (the mios.toml -> env SSOT bridge) overrides them when present. ExecStart uses
 # plain ${VAR}.
-Environment=MIOS_PORT_CODE_SERVER=8800
+Environment=MIOS_PORT_CODE_SERVER=8900
 Environment=MIOS_DEFAULT_PASSWORD=mios
 EnvironmentFile=-/etc/mios/install.env
 TimeoutStartSec=1200s

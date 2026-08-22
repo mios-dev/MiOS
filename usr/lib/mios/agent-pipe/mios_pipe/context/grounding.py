@@ -396,7 +396,7 @@ def _arch_grounding() -> str:
     runtime). Kept short to bound per-turn token cost."""
     import os as _os
     _p_pipe    = _os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
-    _p_light   = _os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")
+    _p_light   = _os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")
     _p_heavy   = _os.environ.get("MIOS_PORT_LLM_HEAVY", "8530")
     _p_hermes  = _os.environ.get("MIOS_PORT_HERMES", "8720")
     return (

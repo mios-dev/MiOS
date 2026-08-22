@@ -26,7 +26,7 @@ def record_divergence(key: str | set[str] | list[str]) -> None:
 def get_pg_config() -> dict:
     e = os.environ
     try:
-        port = int(e.get("MIOS_PORT_PGVECTOR") or 8432)
+        port = int(e.get("MIOS_PORT_PGVECTOR") or 8600)
     except (TypeError, ValueError):
         port = 8432
     return {

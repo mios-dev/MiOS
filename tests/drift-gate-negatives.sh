@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,60 @@ test_account_column_parity() {
 }
 
 
+test_port_fallbacks() {
+    log "Testing check_port_fallbacks"
+    local probe="${ROOT}/usr/libexec/mios/mios-negtest-port-probe"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local tbak="${toml}.pfbak"
+    cp "$toml" "$tbak"
+    _pf_cleanup() { rm -f "$probe"; cp "$tbak" "$toml"; }
+
+    # (1) A stale literal beside a MIOS_PORT_* name must FAIL. Four shipped
+    # units pinned exactly this shape, three of them retired ports.
+    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")\n' > "$probe"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
+        _pf_cleanup; rm -f "$tbak"
+        die "check_port_fallbacks passed with a stale literal beside MIOS_PORT_AGENT_PIPE"
+    fi
+
+    # (2) The DOUBLE fallback -- the second literal is the one that runs.
+    printf '#!/usr/bin/env python3\nimport os\nP = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700") or 8640)\n' > "$probe"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
+        _pf_cleanup; rm -f "$tbak"
+        die "check_port_fallbacks passed with a stale SECOND literal in a double fallback"
+    fi
+
+    # (3) The MIOS_<KEY>_PORT alias spelling, in a file that never says
+    # MIOS_PORT_ at all -- the early-out that used to skip it.
+    printf '#!/usr/bin/env python3\nimport os\nP = os.environ.get("MIOS_ARBITER_PORT", "8650")\n' > "$probe"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
+        _pf_cleanup; rm -f "$tbak"
+        die "check_port_fallbacks passed with a stale literal beside the alias spelling"
+    fi
+    rm -f "$probe"
+
+    # (4) The register only SHRINKS: an entry that no longer reproduces must be
+    # removed, not left to rot into decoration.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^stale_fallbacks = \[\]$", s, re.M)
+assert m, "stale_fallbacks register not found"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "stale_fallbacks = [\"usr/libexec/mios/no-such-file:AGENT_PIPE\"]" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1; then
+        _pf_cleanup; rm -f "$tbak"
+        die "check_port_fallbacks passed with a register entry that no longer reproduces"
+    fi
+
+    _pf_cleanup
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_port_fallbacks >/dev/null 2>&1 \
+        || { rm -f "$tbak"; die "check_port_fallbacks failed after restoration"; }
+    rm -f "$tbak"
+
+    log "Test_port_fallbacks negative test passed"
+}
+
 test_role_ssot() {
     log "Testing check_role_ssot"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3021,6 +3075,7 @@ main() {
     test_blade_coverage
     test_blade_karg
     test_role_ssot
+    test_port_fallbacks
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

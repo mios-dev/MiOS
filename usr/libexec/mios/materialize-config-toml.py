@@ -11,7 +11,7 @@ def get_pg_config():
     e = os.environ
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
+        "port": int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600),
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),

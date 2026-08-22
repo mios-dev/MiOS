@@ -75,7 +75,7 @@ logging.basicConfig(level=logging.INFO, format="[mios-daemon] %(message)s")
 log = logging.getLogger("mios-daemon")
 
 MODEL = os.environ.get("MIOS_DAEMON_MODEL", "qwen3:1.7b")
-ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1")
+ENDPOINT = os.environ.get("MIOS_DAEMON_ENDPOINT", f"http://127.0.0.1:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8500')}/v1")
 STATE_DIR = Path(os.environ.get("MIOS_DAEMON_STATE_DIR", "/var/lib/mios/daemon"))
 STATE_FILE = STATE_DIR / "state.json"
 CLASSIFY_BATCH_S = float(os.environ.get("MIOS_DAEMON_CLASSIFY_S", "30"))
@@ -2678,7 +2678,7 @@ def rolling_report_loop() -> None:
             _stop_event.wait(5)
 
 
-AGENT_PORT = int(os.environ.get("MIOS_PORT_DAEMON_AGENT", os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644")))
+AGENT_PORT = int(os.environ.get("MIOS_PORT_DAEMON_AGENT", os.environ.get("MIOS_DAEMON_AGENT_PORT", "8740")))
 AGENT_WEB_LIMIT = int(os.environ.get("MIOS_DAEMON_AGENT_WEB_LIMIT", "4"))
 AGENT_MAX_TOKENS = int(os.environ.get("MIOS_DAEMON_AGENT_MAX_TOKENS", "400"))
 AGENT_THREADS = int(os.environ.get("MIOS_DAEMON_AGENT_THREADS", "16"))

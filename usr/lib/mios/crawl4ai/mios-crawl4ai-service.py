@@ -59,7 +59,7 @@ CAMOUFOX_ON = os.environ.get("MIOS_CRAWL_CAMOUFOX", "true").strip().lower() in (
     "1", "true", "yes", "on")
 MIN_CHARS = int(os.environ.get("MIOS_CRAWL_MIN_CHARS", "200"))
 BIND = os.environ.get("MIOS_CRAWL_BIND", "127.0.0.1").strip()
-PORT = int(os.environ.get("MIOS_PORT_CRAWL4AI", "11235"))
+PORT = int(os.environ.get("MIOS_PORT_CRAWL4AI", "8810"))
 
 _BROWSER_CFG = BrowserConfig(
     browser_mode="custom",   # explicit CDP attach (NOT "dedicated" launch)

@@ -101,7 +101,7 @@ def pg_config(env: Optional[dict] = None) -> dict:
     e = env if env is not None else os.environ
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
+        "port": int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600),
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),
@@ -243,7 +243,7 @@ async def rerank_candidates(query: str, candidates: list, table: str) -> list:
             return r.get("fact") or r.get("answer") or ""
 
     docs = [get_candidate_text(r) for r in candidates]
-    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450"
+    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500"
     url = os.environ.get("MIOS_RERANK_URL") or f"http://localhost:{light_port}/v1/rerank"
     model = os.environ.get("MIOS_RERANK_MODEL") or "bge-reranker-v2-m3"
 

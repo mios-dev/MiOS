@@ -39,6 +39,7 @@ ports.chrome_cdp_worker  MIOS_PORTS_CHROME_CDP_WORKER
 ports.otelcol_otlp  MIOS_PORTS_OTELCOL_OTLP
 ports.otelcol_ui  MIOS_PORTS_OTELCOL_UI
 ports.pxe_hub_api  MIOS_PORTS_PXE_HUB_API
+ports.stale_fallbacks  MIOS_PORTS_STALE_FALLBACKS
 ports.unbound  MIOS_PORTS_UNBOUND
 ports.categories.edge.base  MIOS_PORTS_CATEGORIES_EDGE_BASE
 ports.categories.edge.stride  MIOS_PORTS_CATEGORIES_EDGE_STRIDE

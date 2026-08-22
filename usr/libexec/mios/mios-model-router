@@ -57,10 +57,10 @@ def _gateway():
 _GW = _gateway()
 
 _DEFAULT_DEPLOYMENTS = [
-    {"name": "cpu",   "base": f"http://localhost:{os.environ.get('MIOS_PORT_CPU_NODE', '8458')}/v1", "model": "mios-cpu"},
-    {"name": "light", "base": f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}/v1", "model": "qwen3:1.7b"},
+    {"name": "cpu",   "base": f"http://localhost:{os.environ.get('MIOS_PORT_CPU_NODE', '8510')}/v1", "model": "mios-cpu"},
+    {"name": "light", "base": f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8500')}/v1", "model": "qwen3:1.7b"},
     {"name": "igpu",  "base": f"http://{_GW}:{os.environ.get('MIOS_PORT_IGPU', '11436')}/v1",    "model": "mios-igpu"},
-    {"name": "heavy", "base": f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8442')}/v1", "model": "mios-heavy"},
+    {"name": "heavy", "base": f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8530')}/v1", "model": "mios-heavy"},
 ]
 try:
     DEPLOYMENTS = json.loads(os.environ.get("MIOS_ROUTER_DEPLOYMENTS", "")) or _DEFAULT_DEPLOYMENTS

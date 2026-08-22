@@ -45,7 +45,7 @@ import os
 import sys
 import urllib.request
 
-_PORT = os.environ.get("MIOS_PORT_CRAWL4AI", "11235").strip() or "11235"
+_PORT = os.environ.get("MIOS_PORT_CRAWL4AI", "8810").strip() or "8810"
 SERVICE_URL = os.environ.get(
     "MIOS_CRAWL_SERVICE_URL", f"http://127.0.0.1:{_PORT}").rstrip("/")
 

@@ -104,7 +104,7 @@ def _dispatch_num(env: str, key: str, default, cast=int):
 PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
 MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORT_MCP", "mcp", None)
-_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450")
+_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500")
 BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
            or (_LIGHT_BASE + "/v1"
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
