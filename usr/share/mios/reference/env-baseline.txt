@@ -960,6 +960,7 @@ MIOS_ETC_ENVD_DIR=${MIOS_ETC_DIR}/env.d
 MIOS_ETC_FORGE_DIR=${MIOS_ETC_DIR}/forge
 MIOS_EVERYTHING_CLI=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe
 MIOS_EVERYTHING_CLI_VERSION=1.1.0.37
+MIOS_FAKE_PAYLOAD=
 MIOS_FAKE_TEST_VARIABLE_DRIP=
 MIOS_FAPOLICYD_OBSERVE_ENABLE=false
 MIOS_FHS_TOTAL_ROOT_MERGE=

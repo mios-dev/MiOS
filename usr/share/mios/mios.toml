@@ -7640,11 +7640,29 @@ kernel_dispatch = true
 db_authoritative = false
 rag_hybrid = false
 rag_rerank = false
-# FBM (first-boot models, T-200): add [[ai.firstboot_models]] { name, source, sha256? } entries to
-# provision GGUF weights at first boot via mios-models-firstboot (curl, resumable, degrade-open);
-# add [[ai.firstboot_bound_images]] { image } for mios-bound-images-firstboot. None are declared by
-# default -- the provisioners resolve an empty list and no-op, so the machinery ships dormant until
-# an operator adds entries here.
+# FBM (first-boot models, T-200/T-201). Entry schema, one array-of-tables row
+# per model:
+#
+#     [[ai.firstboot_models]]
+#     name   = "qwen3-8b-q4.gguf"   # filename under /var/lib/mios/llamacpp/models
+#     source = "https://..."        # direct GGUF/HF URL; curl -C - resumable
+#     sha256 = "<hex>"              # OPTIONAL, but see below
+#     lane   = "llm_light"          # optional [ports] lane hint, reported by `mios models list`
+#
+# sha256 is ENFORCED when present: the fetcher streams the downloaded part file
+# through sha256, and on mismatch DELETES it and skips the model rather than
+# installing an unverified weight under a name the lanes would load (it used to
+# print "Verifying sha256" and rename without hashing anything). Omitting the
+# key provisions the model unverified, and `mios models add` says so.
+#
+# Edit this vendor list for a fleet default; `mios models add|rm` writes the
+# USER overlay (~/.config/mios/mios.toml) instead, per the vendor<host<user
+# cascade. `mios models list` prints the RESOLVED set joined against disk, so a
+# declared-but-missing model is visible.
+#
+# Also: [[ai.firstboot_bound_images]] { image } for mios-bound-images-firstboot.
+# None are declared by default -- the provisioners resolve an empty list and
+# no-op, so the machinery ships dormant until an operator adds entries.
 # Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8700 (served model
 # "MiOS-Agent"), the UNIFIED entrypoint ("UNIFY THE MiOS AI
 # PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/

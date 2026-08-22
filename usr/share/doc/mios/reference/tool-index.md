@@ -154,8 +154,8 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-mini-mesh-gen` | Generates Headscale/Tailscale mesh configuration from mios.toml [mini.mesh] SSOT. |
 | `usr/libexec/mios/mios-mini-vfio-gen` | Generates vfio-pci binding kargs/modprobe configuration from mios.toml [mini] SSOT. |
 | `usr/libexec/mios/mios-model-router` | Acts as the primary OpenAI-compatible entry point and load balancer for MiOS, routing requests to specific hardware lanes (dGPU, iGPU, CPU) based on performance profiles and managing the 17K-token... |
-| `usr/libexec/mios/mios-models` | FBM CLI -- 'mios models {list,sync}' lists local GGUF models and (re)runs the first-boot |
-| `usr/libexec/mios/mios-models-firstboot` | FBM first-boot large-model provisioner. Reads [ai].firstboot_models from mios.toml and |
+| `usr/libexec/mios/mios-models` | FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it... |
+| `usr/libexec/mios/mios-models-firstboot` | FBM first-boot large-model provisioner. Reads [ai].firstboot_models from the layered mios.toml, downloads each GGUF with resume, VERIFIES its sha256 (streamed, chunked) and discards the part file on... |
 | `usr/libexec/mios/mios-new` | Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings. |
 | `usr/libexec/mios/mios-oci-delta-apply` | stub |
 | `usr/libexec/mios/mios-oci-delta-service.sh` | GAP-5 (T-050) edge distribution wrapper |

@@ -186,7 +186,7 @@
 | T-177 | P3 | planned | Memory/Filesystem | LSFS-01 -- Semantic-FS verbs + task-state protocol  [P3] |
 | T-178 | P1 | in-progress | AI-plane/Inference/Deploy | HEAVY-01 -- provision the heavy dGPU model so the stated lanes d |
 | T-200 | P2 | planned | Provisioning/AI-lanes | FBM-01 -- First-boot large-model provisioner (`mios-models-first |
-| T-201 | P2 | planned | SSOT/CLI | FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync |
+| T-201 | P2 | done | SSOT/CLI | FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync |
 | T-202 | P3 | done-by-code | Provisioning/Containers | FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i |
 | T-203 | P3 | planned | UI/Provisioning | FBM-04 -- Portal model-provisioning status tile + air-gapped pre |
 | T-204 | P3 | done | Build/Offline | OFFL-01 -- Vendor external repo definitions (terra.repo)  [P3] |
@@ -2061,7 +2061,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** `mios models list` prints exactly the SSOT set; `mios models sync` pulls the missing entries and verifies each checksum; `mios models add`/`rm` change the overlay and a following `sync` reflects it; the drift-check confirming the table round-trips through `userenv.sh` and `install.env` passes.
 **Why:** the model list would otherwise be hardcoded in the first-boot fetcher, so changing which model a fleet runs means editing and rebuilding a script instead of editing one config surface.
 **Dep:** Feeds T-200; do first or together.
-**Status:** planned | **Domain:** SSOT/CLI | **Who:** config/CLI agent
+**Status:** done -- the machinery is real; the vendor list stays empty ON PURPOSE (declaring model URLs + digests I cannot verify offline would be fabrication, and the SSOT documents the dormancy). SECURITY: the fetcher printed `Verifying sha256 for {name}...` and then renamed the part file WITHOUT HASHING ANYTHING -- a corrupted or substituted GGUF installed and reported as verified. It now streams the part file through sha256 chunked, and on mismatch DELETES it and skips the model so a resume cannot poison the next run. `mios models list` reads the LAYERED [ai].firstboot_models through mios_toml.load_merged (it globbed the filesystem and never opened the TOML -- its tomllib import was dead), joins it against disk, and shows declared-but-missing and undeclared-on-disk separately. `add`/`rm` were a print statement and a file-delete; they now edit the USER overlay per the cascade and never the vendor file, refuse a duplicate name, and warn when no digest is given. Entry schema documented in the SSOT. 21 assertions in `usr/libexec/mios/test_mios_models.py`, including an end-to-end fetch through a curl stub proving a matching payload installs and a substituted one is rejected with nothing left on disk. | **Domain:** SSOT/CLI | **Who:** config/CLI agent
 
 ---
 

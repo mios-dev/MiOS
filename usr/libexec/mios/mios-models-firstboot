@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-# AI-hint: FBM first-boot large-model provisioner. Reads [ai].firstboot_models from mios.toml and
+# AI-hint: FBM first-boot large-model provisioner. Reads [ai].firstboot_models from the layered mios.toml, downloads each GGUF with resume, VERIFIES its sha256 (streamed, chunked) and discards the part file on mismatch rather than installing an unverified weight, then writes a sentinel so it never re-runs. Degrades open: every failure path exits 0 so a pull can never block boot.
 # AI-related: mios-models, mios-models-firstboot.service, /usr/share/mios/mios.toml
 import sys
+import hashlib
 import os
 import subprocess
 import pathlib
@@ -26,6 +27,19 @@ if os.name == 'nt':
 if SENTINEL.exists():
     print(f"Sentinel {SENTINEL} exists. FBM provisioner already completed.")
     sys.exit(0)
+
+def _sha256_file(path, chunk=1024 * 1024):
+    """Stream a file through sha256. Returns the hex digest, or None if the
+    file cannot be read. Chunked so a multi-GB GGUF never lands in memory."""
+    h = hashlib.sha256()
+    try:
+        with open(path, "rb") as fh:
+            for block in iter(lambda: fh.read(chunk), b""):
+                h.update(block)
+    except OSError:
+        return None
+    return h.hexdigest()
+
 
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 PROGRESS.parent.mkdir(parents=True, exist_ok=True)
@@ -68,13 +82,28 @@ else:
         cmd = ["curl", "-fL", "-C", "-", "--retry", "3", "--max-time", "1800", "-o", str(part_dest), source]
         
         res = subprocess.run(cmd)
-        if res.returncode == 0:
-            if sha256:
-                print(f"Verifying sha256 for {name}...")
-            part_dest.rename(dest)
-            print(f"Successfully provisioned {name}")
-        else:
+        if res.returncode != 0:
             print(f"WARN: Failed to download {name} (curl exit {res.returncode})")
+            continue
+        if sha256:
+            print(f"Verifying sha256 for {name}...")
+            actual = _sha256_file(part_dest)
+            if actual is None:
+                print(f"WARN: could not read {part_dest} to verify; discarding")
+                part_dest.unlink(missing_ok=True)
+                continue
+            if actual.lower() != str(sha256).strip().lower():
+                # An unverified weight file must never be installed under a
+                # name the lanes will load. Drop the part file so the next run
+                # re-downloads instead of resuming a poisoned partial.
+                print(f"ERROR: sha256 MISMATCH for {name}")
+                print(f"       expected {str(sha256).strip().lower()}")
+                print(f"       actual   {actual.lower()}")
+                part_dest.unlink(missing_ok=True)
+                continue
+            print(f"  sha256 OK ({actual[:16]}...)")
+        part_dest.rename(dest)
+        print(f"Successfully provisioned {name}")
             
 SENTINEL.touch()
 PROGRESS.write_text("Complete\n")
