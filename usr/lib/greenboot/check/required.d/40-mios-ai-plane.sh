@@ -45,11 +45,8 @@ _http_up() {
     esac
 }
 
-# A unit this blade does not activate must not be probed. `systemctl is-enabled`
-# reports INSTALLATION, not whether the unit will start: Condition* is evaluated
-# at start time, so a capability-skipped unit still reads as enabled (a Quadlet
-# unit reads "generated", which also exits 0). Ask the SAME question the unit's
-# own ConditionPathExists asks -- is the capability marker present.
+# is-enabled reports INSTALLATION, not whether a unit will start. Ask the same
+# question the unit's own ConditionPathExists asks. See ADR-0016 D4.
 _blade_activates() {
     local unit="$1" caps cap
     caps="$(printf '%s' "${MIOS_BLADE_CAPS:-}" | tr ',' ' ')"
@@ -102,11 +99,25 @@ check_service() {
     done
 }
 
+# Driven by [greenboot].critical_services; [greenboot.probe] holds the exceptions.
+_var() { eval "printf '%s' \"\${$1:-}\""; }
+
 rc=0
-check_service mios-agent-pipe.service "${MIOS_PORT_AGENT_PIPE:-}" http /v1/models || rc=1
-check_service mios-llm-light.service  "${MIOS_PORT_LLM_LIGHT:-}"  tcp || rc=1
-check_service mios-pgvector.service   "${MIOS_PORT_PGVECTOR:-}"   tcp || rc=1
-check_service hermes-worker.service   "${MIOS_PORT_HERMES:-}"     tcp || rc=1
+_svcs="$(printf '%s' "${MIOS_GREENBOOT_CRITICAL_SERVICES:-}" | tr ',' ' ')"
+if [[ -z "$_svcs" ]]; then
+    log "[greenboot].critical_services unresolved -- nothing to probe"
+fi
+for _svc in $_svcs; do
+    _U="$(printf '%s' "$_svc" | tr '[:lower:]-' '[:upper:]_')"
+    _unit="$(_var "MIOS_GREENBOOT_PROBE_${_U}_UNIT")"
+    _kind="$(_var "MIOS_GREENBOOT_PROBE_${_U}_KIND")"
+    _path="$(_var "MIOS_GREENBOOT_PROBE_${_U}_PATH")"
+    _port="$(_var "MIOS_GREENBOOT_PROBE_${_U}_PORT")"
+    [[ -n "$_unit" ]] || _unit="mios-${_svc}.service"
+    [[ -n "$_kind" ]] || _kind="tcp"
+    [[ -n "$_port" ]] || _port="$(_var "MIOS_PORT_${_U}")"
+    check_service "$_unit" "$_port" "$_kind" "$_path" || rc=1
+done
 
 if [[ "$rc" -eq 0 ]]; then
     log "AI plane healthy"

@@ -56,4 +56,47 @@ MIOS_BLADE_CAPS="" _blade_activates mios-pgvector.service \
     || die "with no blade.d at all the check must degrade OPEN and probe"
 ok "degrades open when the blade resolver has not run"
 
-log "PASS: ${PASS}/4 assertions"
+# --- the SSOT-driven probe list resolves to the right unit/port/kind ---------
+# Extract the driver loop and run it with check_service stubbed, so the derived
+# unit/port/kind are observable without probing anything.
+sed -n '/^_var() {/,$p' "$SCRIPT" > "${FIXTURE}/drv.sh"
+CALLS="$(
+  set +u
+  # shellcheck disable=SC2317
+  check_service() { printf '%s|%s|%s|%s\n' "$1" "$2" "$3" "$4"; }
+  log() { :; }
+  # Exported: the real script reads these from the process environment.
+  export MIOS_GREENBOOT_CRITICAL_SERVICES="agent-pipe,llm-light,pgvector,hermes"
+  export MIOS_GREENBOOT_PROBE_AGENT_PIPE_KIND="http"
+  export MIOS_GREENBOOT_PROBE_AGENT_PIPE_PATH="/v1/models"
+  export MIOS_GREENBOOT_PROBE_HERMES_UNIT="hermes-worker.service"
+  export MIOS_PORT_AGENT_PIPE=8700 MIOS_PORT_LLM_LIGHT=8500
+  export MIOS_PORT_PGVECTOR=8600 MIOS_PORT_HERMES=8720
+  # shellcheck disable=SC1091
+  . "${FIXTURE}/drv.sh"
+)"
+EXPECT='mios-agent-pipe.service|8700|http|/v1/models
+mios-llm-light.service|8500|tcp|
+mios-pgvector.service|8600|tcp|
+hermes-worker.service|8720|tcp|'
+[[ "$CALLS" == "$EXPECT" ]] || die "SSOT-driven probe list differs:
+got:
+$CALLS
+want:
+$EXPECT"
+ok "SSOT drives the same four probes the hardcoded list did"
+
+# An empty critical set must probe NOTHING rather than fall back to a hidden list.
+EMPTY="$(
+  set +u
+  # shellcheck disable=SC2317
+  check_service() { printf 'UNEXPECTED\n'; }
+  log() { :; }
+  export MIOS_GREENBOOT_CRITICAL_SERVICES=""
+  # shellcheck disable=SC1091
+  . "${FIXTURE}/drv.sh"
+)"
+[[ -z "$EMPTY" ]] || die "an empty critical set must probe nothing, got: $EMPTY"
+ok "empty critical set probes nothing"
+
+log "PASS: ${PASS}/6 assertions"

@@ -10767,10 +10767,15 @@ pin     = "tpm2"
 pcrs    = "7"
 
 [greenboot]
-critical_services = ["agent-pipe", "llm-light", "pgvector"]
+critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes"]
 # May a seat fail its boot when its blade is unreachable? Default no: Law 12
 # says degrade open. true makes boot success network-dependent -- opt in only.
 blade_reachability_critical = false
+
+# Probe overrides; unit/port default to mios-<n>.service and MIOS_PORT_<N>.
+[greenboot.probe]
+agent_pipe = { kind = "http", path = "/v1/models" }
+hermes     = { unit = "hermes-worker.service" }
 
 [agent_pipe.quality]
 min_length  = 5

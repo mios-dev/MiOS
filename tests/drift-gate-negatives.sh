@@ -1905,10 +1905,10 @@ test_greenboot() {
 import io, sys
 p, bogus = sys.argv[1], sys.argv[2]
 s = io.open(p, encoding="utf-8").read()
-old = 'critical_services = ["agent-pipe", "llm-light", "pgvector"]'
+old = 'critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes"]'
 assert s.count(old) == 1, "critical_services anchor moved"
 io.open(p, "w", encoding="utf-8", newline="\n").write(
-    s.replace(old, 'critical_services = ["agent-pipe", "llm-light", "pgvector", "%s"]' % bogus))
+    s.replace(old, 'critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes", "%s"]' % bogus))
 PY
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1; then
         mv "$backup" "$toml"
@@ -1921,7 +1921,7 @@ PY
 import io, sys
 p = sys.argv[1]
 s = io.open(p, encoding="utf-8").read()
-old = 'critical_services = ["agent-pipe", "llm-light", "pgvector"]'
+old = 'critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes"]'
 assert s.count(old) == 1, "critical_services anchor moved"
 io.open(p, "w", encoding="utf-8", newline="\n").write(s.replace(old, 'critical_services = []'))
 PY

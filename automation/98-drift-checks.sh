@@ -3959,15 +3959,15 @@ root = os.environ["MIOS_DRIFT_ROOT"]
 gb_dir = os.environ["MIOS_DRIFT_GB_DIR"]
 with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
     data = _toml.load(fh)
-critical = [str(x).strip() for x in
-            ((data.get("greenboot") or {}).get("critical_services") or []) if str(x).strip()]
+gb = data.get("greenboot") or {}
+critical = [str(x).strip() for x in (gb.get("critical_services") or []) if str(x).strip()]
+probe = gb.get("probe") or {}
 if not critical:
     print("(54) [greenboot].critical_services is empty or absent -- greenboot coverage "
           "would pass vacuously over an empty set")
 
-# A service counts as covered when a required.d script names its UNIT in executable
-# code; a mention inside a comment must not satisfy the gate.
-probed = set()
+# Executable bodies of the required.d scripts (a mention in a comment is not cover).
+bodies, probed, ssot_driven = {}, set(), False
 for name in sorted(os.listdir(gb_dir)):
     fp = os.path.join(gb_dir, name)
     if not os.path.isfile(fp):
@@ -3976,11 +3976,34 @@ for name in sorted(os.listdir(gb_dir)):
         body = open(fp, encoding="utf-8", errors="replace").read()
     except OSError:
         continue
-    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    code = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))
+    bodies[name] = code
+    if "MIOS_GREENBOOT_CRITICAL_SERVICES" in code:
+        ssot_driven = True
     for m in re.finditer(r"\b(?:mios-)?([a-z0-9][a-z0-9_-]*)\.service\b", code):
         probed.add(m.group(1))
 
+def unit_for(svc):
+    """What the probe derives: the [greenboot.probe] override, else the convention."""
+    spec = probe.get(svc.replace("-", "_")) or probe.get(svc) or {}
+    unit = str(spec.get("unit") or "").strip()
+    return unit or ("mios-%s.service" % svc)
+
+def unit_exists(unit):
+    stem = unit[:-len(".service")] if unit.endswith(".service") else unit
+    if stem in (data.get("containers") or {}):
+        return True
+    return os.path.isfile(os.path.join(root, "usr/lib/systemd/system", unit))
+
 for svc in critical:
+    if ssot_driven:
+        # The probe list is DERIVED, so cover means: the unit it derives exists.
+        unit = unit_for(svc)
+        if not unit_exists(unit):
+            print("(54) [greenboot].critical_services names '%s', but the probe would "
+                  "derive %s, which is not a shipped unit or a declared container"
+                  % (svc, unit))
+        continue
     key = svc[5:] if svc.startswith("mios-") else svc
     if key not in probed:
         print("(54) greenboot missing health-check script for critical service: %s "
