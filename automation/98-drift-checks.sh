@@ -7608,7 +7608,7 @@ PYEOF
 check_resolver_differential_parity() {
     echo "[98-drift-checks]   check_resolver_differential_parity"
     local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
 import os, sys, subprocess
 try:
     import tomllib
@@ -7673,7 +7673,7 @@ if mismatches:
 print("    mios-resolver --emit=json matches Python SSOT render 100%")
 sys.exit(0)
 PYEOF
-    2>&1)"; then
+)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_resolver_differential_parity: $line"
         done <<<"$out"
