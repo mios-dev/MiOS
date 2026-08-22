@@ -1768,15 +1768,15 @@ test_blade_coverage() {
     cp "$toml" "$backup"
 
     # (1) A container classified NEITHER way must FAIL -- that is the state the
-    # whole activation axis was in before this gate existed.
+    # whole activation axis was in before this gate existed. Sabotage the LIVE
+    # mechanism: drop a container's [blade.requires] line while the ungated
+    # register is empty, so it is gated by nothing and registered nowhere.
     python3 -c 'import io,re,sys
 p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-assert s.count("ungated = [")==1,"ungated anchor moved"
-m=re.search(r"ungated = \[.*?\]", s, re.S)
-keep=[x for x in re.findall(r"\"([^\"]+)\"", m.group(0)) if x != "mios-webtools-redis"]
-io.open(p,"w",encoding="utf-8",newline="\n").write(
-    s[:m.start()] + "ungated = [" + ", ".join(chr(34)+k+chr(34) for k in keep) + "]" + s[m.end():])' "$toml"
+pat=re.compile(r"^mios-searxng\s*=\s*\[[^\]]*\]\n", re.M)
+assert len(pat.findall(s))==1,"blade.requires anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(pat.sub("", s, count=1))' "$toml"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
         mv "$backup" "$toml"
         die "check_blade_coverage passed with a container classified neither way"
@@ -1787,11 +1787,12 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
     # so the unit would be dead on every blade type.
     python3 -c 'import io,sys
 p=sys.argv[1]
-old="mios-llm-heavy     = [\"gpu-serving\"]"
+import re
 s=io.open(p,encoding="utf-8").read()
-assert s.count(old)==1,"requires anchor moved"
+pat=re.compile(r"^mios-llm-heavy\s*=\s*\[[^\]]*\]", re.M)
+assert len(pat.findall(s))==1,"requires anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
-    s.replace(old, "mios-llm-heavy     = [\"mios-negtest-uncapability\"]"))' "$toml"
+    pat.sub("mios-llm-heavy     = [\"mios-negtest-uncapability\"]", s, count=1))' "$toml"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
         mv "$backup" "$toml"
         die "check_blade_coverage passed with a capability no archetype grants"

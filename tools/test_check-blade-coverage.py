@@ -93,10 +93,16 @@ class TestShippedTree(unittest.TestCase):
         # An endpoint (a seat) must expand to NO capabilities, or it is not a seat.
         self.assertEqual(self.real["blade"]["archetypes"]["endpoint"], [])
 
-    def test_the_register_is_not_empty_yet(self):
-        # Guards the test: when the register empties these assertions stop
-        # proving anything and this line is the reminder to revisit them.
-        self.assertGreater(len(mod.register(self.real)), 0)
+    def test_the_register_is_drained_and_stays_drained(self):
+        # This assertion started as "not empty yet" -- a guard that fired the
+        # moment T-319 drained the register. Revisited as designed: empty is now
+        # the goal state, so the claim is the stronger one.
+        self.assertEqual(mod.register(self.real), [])
+
+    def test_every_container_is_capability_gated(self):
+        req = mod.requires(self.real)
+        for c in sorted(mod.containers(self.real)):
+            self.assertTrue(req.get(c), "%s is gated by nothing" % c)
 
 
 if __name__ == "__main__":

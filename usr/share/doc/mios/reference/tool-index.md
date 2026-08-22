@@ -272,6 +272,7 @@ is generated, its generator is here.
 | `tools/generate-adr-index.py` | Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265). The ADRs themselves stay baked under /usr per Law 1 -- a running MiOS carries its own why... |
 | `tools/generate-ai-manifest.py` | Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowledge blocks, and file metadata. |
 | `tools/generate-blade-dropins.py` | Generate systemd capability drop-in files from the mios.toml [blade.requires] SSOT. |
+| `tools/generate-blade-karg.py` | Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 producer instead of depending on each installer to type it by... |
 | `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml from mios.toml [meta].mios_version SSOT. |
 | `tools/generate-cockpit-conf.py` | Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT |
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
@@ -308,12 +309,13 @@ is generated, its generator is here.
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. Builds throwaway TASKS.md files and asserts every direction the real drift produced: agreeing surfaces pass, a table cell that disagrees with... |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). Builds throwaway ADR trees and asserts: front-matter scalars and [a, b] lists parse, a file without an `adr:` key is skipped, ordering... |
+| `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. Assert the projection refuses an empty [blade].type and a type naming no archetype -- both would emit a karg selecting nothing -- and that the shipped... |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X} templates stay live in both languages, and that... |
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 62 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 64 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

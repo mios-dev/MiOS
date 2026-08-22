@@ -265,13 +265,31 @@ What this ADR decides is the three unfinished pieces, and that they land on `[bl
 * **`05-mios-blade.toml` gets generated** so the karg the resolver already parses has a producer
   under Law 8, rather than depending on each installer to type it.
 
-**A seat is `[blade.archetypes].endpoint`** — no new name for a thing the tree already had. The
-archetype table is now declared in full (`hybrid`, `compute`, `controller`, `endpoint`, `headless`,
-`desktop`); an archetype with **no capabilities is a seat**, because a blade activates a unit only
-when its `ConditionPathExists=/etc/mios/blade.d/<cap>` marker is present. Declaring the table is
-behaviour-preserving — `role-apply` already resolved an undeclared archetype to `[]` — so this
-states what the tree did rather than changing it. A seat therefore costs one archetype plus the
-`[urls]` overlay from Decision 1. No new Containerfile, no new axis.
+**A seat is `[blade.archetypes].endpoint`** — no new name for a thing the tree already had. An
+archetype with **no capabilities is a seat**, because a blade activates a unit only when its
+`ConditionPathExists=/etc/mios/blade.d/<cap>` marker is present.
+
+**The taxonomy is the requirement's own words: a seat offloads *all* services.** So every declared
+container requires the `service-plane` capability, which every archetype grants **except**
+`endpoint`. The GPU lanes additionally require `gpu-serving` — repeated `ConditionPathExists` is an
+AND, so a lane needs both markers.
+
+| Archetype | Capabilities | Containers it activates (of 23) |
+|---|---|---|
+| `hybrid` (default) | `gpu-serving`, `controller`, `service-plane` | 23 |
+| `compute` | `gpu-serving`, `service-plane` | 23 |
+| `controller` | `controller`, `service-plane` | 20 |
+| `headless` | `service-plane` | 20 |
+| `desktop` | `service-plane` | 20 |
+| **`endpoint`** — the seat | *(none)* | **0** |
+
+Only the seat's behaviour changes: every other archetype activates exactly what it did before,
+because the three GPU lanes were already skipped wherever `gpu-serving` was absent.
+`tests/test-seat-activates-nothing.py` is the executable definition and runs in CI; returning one
+container to ungated turns it red.
+
+A seat therefore costs one archetype plus the overlay from Decision 1. No new Containerfile, no new
+axis, and — measured — **no service.**
 
 Lineage stays a **bake-time** fork, because it is one — a different `FROM`.
 

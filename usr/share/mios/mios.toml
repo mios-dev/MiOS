@@ -13080,30 +13080,45 @@ metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 type = "hybrid"
 
 # Services a seat still starts because no capability gates them yet.
-# SHRINK-ONLY (gate: check_blade_coverage); taxonomy: TASKS.md T-319.
-ungated = [
-  "mios-adguard", "mios-ceph", "mios-cockpit-link", "mios-code-server",
-  "mios-cpu-node", "mios-forge", "mios-forgejo-runner", "mios-guacamole",
-  "mios-guacd", "mios-k3s", "mios-llm-light", "mios-open-webui", "mios-otelcol",
-  "mios-pgvector", "mios-pxe-hub", "mios-searxng", "mios-webtools-crawl4ai",
-  "mios-webtools-firecrawl-api", "mios-webtools-firecrawl-worker",
-  "mios-webtools-redis",
-]
+# SHRINK-ONLY (gate: check_blade_coverage). Drained by T-319; keep it at [].
+ungated = []
 
 # An archetype expands to the capabilities its blade activates. An archetype
 # with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]
-hybrid     = ["gpu-serving", "controller"]
-compute    = ["gpu-serving"]
-controller = ["controller"]
+hybrid     = ["gpu-serving", "controller", "service-plane"]
+compute    = ["gpu-serving", "service-plane"]
+controller = ["controller", "service-plane"]
+headless   = ["service-plane"]
+desktop    = ["service-plane"]
 endpoint   = []
-headless   = []
-desktop    = []
 
 [blade.requires]
-mios-llm-heavy     = ["gpu-serving"]
-mios-llm-heavy-alt = ["gpu-serving"]
-"mios-llm-worker@" = ["gpu-serving"]
+# GPU lanes: gpu-serving AND service-plane (repeated ConditionPathExists is AND).
+mios-llm-heavy     = ["gpu-serving", "service-plane"]
+mios-llm-heavy-alt = ["gpu-serving", "service-plane"]
+"mios-llm-worker@" = ["gpu-serving", "service-plane"]
+# The rest of the service plane: offloaded wholesale on a seat.
+mios-adguard                   = ["service-plane"]
+mios-ceph                      = ["service-plane"]
+mios-cockpit-link              = ["service-plane"]
+mios-code-server               = ["service-plane"]
+mios-cpu-node                  = ["service-plane"]
+mios-forge                     = ["service-plane"]
+mios-forgejo-runner            = ["service-plane"]
+mios-guacamole                 = ["service-plane"]
+mios-guacd                     = ["service-plane"]
+mios-k3s                       = ["service-plane"]
+mios-llm-light                 = ["service-plane"]
+mios-open-webui                = ["service-plane"]
+mios-otelcol                   = ["service-plane"]
+mios-pgvector                  = ["service-plane"]
+mios-pxe-hub                   = ["service-plane"]
+mios-searxng                   = ["service-plane"]
+mios-webtools-crawl4ai         = ["service-plane"]
+mios-webtools-firecrawl-api    = ["service-plane"]
+mios-webtools-firecrawl-worker = ["service-plane"]
+mios-webtools-redis            = ["service-plane"]
 
 # ----------------------------------------------------------------------------
 # Proposed sections for roadmap index validation compatibility (WS-CAT / WS-DOTFILES)
