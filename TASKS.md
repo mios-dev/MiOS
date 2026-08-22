@@ -310,6 +310,7 @@
 | T-322 | P1 | done | Docs/SSOT | MINI-01 -- The seat-vs-blade comparison is generated from the SSOT, so it cannot go stale |
 | T-323 | P1 | done | Topology/SSOT | MINI-02 -- A seat could not tell an unreachable blade from a broken model |
 | T-324 | P1 | planned | Naming/Addressing | ADDR-05 -- Retired ports live on in shipped units and Quadlets; the sweep only scans docs |
+| T-325 | P0 | planned | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
 
 ---
 
@@ -2990,3 +2991,26 @@ That last row is why this is its own task and not a drive-by. `8432` is in `[doc
 **Where:** `automation/98-drift-checks.sh` (`check_doc_port_scheme`), `usr/share/mios/mios.toml` (`[docs].port_clean`, `[docs].retired_ports`), the 9 units listed above.
 **Done When:** the retired-port sweep covers `usr/lib/systemd/system/**` and `usr/share/containers/systemd/**`; the six non-comment sites are resolved or justified; the host-vs-container-internal ambiguity on `8432` is settled in the SSOT rather than in a unit comment; comment-only occurrences are either rewritten to port KEYS or registered as shrink-only debt.
 **Why:** T-316 and T-320 both found retired ports in EXECUTABLE positions, and both were found by hand. The gate that exists to catch them cannot see the tree where they live. | **Domain:** Naming/Addressing | **Who:** build agent
+
+## T-325 -- SEC-01: the seat's tenancy boundary cannot be switched on  (WS-GUARD | P0 | M)
+**Goal:** E-04 A security control that cannot be turned on is not a control -- the SSOT key a consumer reads must be the key the SSOT declares.
+**What+How:** MEASURED while grilling the MiOS-Mini/hosted difference. `[security.nohc_allowlist]` opens at `mios.toml:2474` and **is never closed**, so 17 keys that follow it are parsed as members of the allowlist rather than of `[security]`:
+
+`rule_of_two_mode`, `quarantine_mode`, `api_require_auth`, `api_caller_keys_path`, `principal_bind_mode`, `firewall_high_privilege_verbs`, `taint_verbs`, `text_view_taint_prefixes`, `internal_tld_suffixes`, `arbiter_deny`, `arbiter_allow`, `arbiter_block_tier`, `arbiter_port`, `principal_mode`, `token_ttl_s`, `composefs_mode`, `mask_systemd_remount_fs`.
+
+Two of those consumers read the OTHER table:
+
+| consumer | reads | resolves to |
+|---|---|---|
+| `usr/lib/mios/agent-pipe/server.py:772` | `_toml_section("security").get("api_require_auth", "false")` | the literal default -- the key is one level down |
+| `usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py:551` | `_toml_section("security").get("principal_bind_mode", "off")` | the literal default, same reason |
+
+So `api_require_auth = true` in the SSOT does nothing, and `principal_bind_mode` can never leave `off`. The env escape hatches (`MIOS_API_REQUIRE_AUTH`, and grounding's equivalent) are not emitted by `tools/render-globals.py` either, so an operator's only route is a hand-written systemd drop-in.
+
+The misfiling is provably accidental: `composefs_mode` and `mask_systemd_remount_fs` exist in BOTH `[security]` and `[security.nohc_allowlist]` -- someone appended below the allowlist header and re-declared the twins rather than noticing the header was still open.
+
+**Why this is P0 for the blade topology, not just tidiness.** On a fully hosted single machine every one of these services is loopback and single-tenant, so an ungated front door costs little. A MiOS-Mini seat inverts that: `MIOS_AI_ENDPOINT` points off-box by design, many seats share one blade, and `owner_user` -- the row-scope on the shared pgvector memory -- is derived from the request body's `user` field plus forwarded headers, both settable by any direct caller. `principal_bind_mode = enforce` is the control that binds that owner to an authenticated key. It is the seat topology's ONLY tenancy boundary, and it is unreachable.
+**Where:** `usr/share/mios/mios.toml` (`[security.nohc_allowlist]` at 2474 and everything below it), `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py`, `tools/render-globals.py`, `automation/98-drift-checks.sh`.
+**Done When:** the 17 keys sit in the table their consumers read; the duplicate `composefs_mode`/`mask_systemd_remount_fs` declarations are resolved to one each; a gate asserts that every `_toml_section("<t>").get("<k>")` in shipped Python resolves to a key that actually exists at `<t>.<k>` in the SSOT -- that gate is the real deliverable, since this class is invisible by construction; and `MIOS_SECURITY_*` emission covers the moved keys so the env override is wired rather than folklore.
+**Note:** moving the keys does NOT turn anything on -- `api_require_auth` stays `false` and `principal_bind_mode` stays `off`. It makes them switchable. Flipping either is an operator decision about front-door posture, and the SSOT already says so.
+**Why:** the tree's recurring defect class, one level deeper than usual: not a gate reporting success over the wrong set, but a CONSUMER reading the wrong set, so the SSOT and the code disagree in silence and every test that stubs the value passes. | **Domain:** Security/Federation | **Who:** architect

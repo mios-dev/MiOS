@@ -18,13 +18,8 @@ UNIT_DIR = "usr/lib/systemd/system"
 
 
 def declared_units(data: dict) -> set:
-    """Unit filenames [units.*] projects.
-
-    Table-valued keys only. [units] does double duty: `[units."x.service".Unit]`
-    is the projection, while a bare `agent_pipe = "mios-agent-pipe.service"` in
-    the same table is a name alias for the globals resolver. Counting both made
-    the projection look 16 units wider than it is (T-317).
-    """
+    """Unit filenames [units.*] projects. Table-valued keys only -- the
+    string-valued half is name aliases, not units. See TASKS.md T-317."""
     return {k for k, v in (data.get("units") or {}).items() if isinstance(v, dict)}
 
 

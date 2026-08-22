@@ -269,6 +269,7 @@ is generated, its generator is here.
 | `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree -- something that SELECTs, INSERTs or otherwise names it in code... |
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that templates its ${MIOS_PORT_*}, or membership of the shrink-only... |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` line in the task's own section -- and the two silently diverged in... |
+| `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. The authoritative rendering comparison lives in the Rust test tools/native/mios-unit-gen/tests/projection.rs, which CI always runs; this gate... |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
 | `tools/gen-pipe-boundary-manifest.py` | Generates a machine-readable module-boundary manifest for the agent-pipe DI contract. |
@@ -314,6 +315,7 @@ is generated, its generator is here.
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. Builds throwaway git repos holding a synthetic schema-init.sql plus a mios.toml register, and asserts every direction: a table with a real code... |
 | `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. Cover the four ways a port's addressing can be wrong -- unclassified, double-classified, a register entry naming a port that does not exist, and a... |
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. Builds throwaway TASKS.md files and asserts every direction the real drift produced: agreeing surfaces pass, a table cell that disagrees with... |
+| `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. One case per way the [units] projection register can stop measuring: an entry naming a unit the SSOT does not project, one naming a file the tree does... |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). Builds throwaway ADR trees and asserts: front-matter scalars and [a, b] lists parse, a file without an `adr:` key is skipped, ordering... |
 | `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. Assert the projection refuses an empty [blade].type and a type naming no archetype -- both would emit a karg selecting nothing -- and that the shipped... |
@@ -323,7 +325,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 72 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 74 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
