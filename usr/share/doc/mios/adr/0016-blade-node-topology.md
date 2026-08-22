@@ -239,11 +239,23 @@ The word was carrying five meanings, which is why this had to be resolved rather
 | `MiOS-Mon.py --mini` compact dashboard | unrelated, untouched |
 | `zz-mios-motd.sh` terminal "mini" view | unrelated, untouched |
 
-**MiOS-Mini is a product name for a role, not an image.** A MiOS-Mini is a machine running
+> **CORRECTED (see Decision 9).** The paragraph below concluded that MiOS-Mini names the *seat*.
+> That is wrong, and the operator has since said so plainly: **MiOS-Mini is the BOX** — a hardware
+> appliance that owns NICs, radios, TPM and boot storage, and is built to be a Wi-Fi access point,
+> a mesh/VPN router and a hyper-converged HA host for VMs and containers. The archetype names the
+> **mode** that box boots into, seat mode being one of them. The `[mini]` → `[metal]` SSOT rename
+> this decision performed is kept — `[metal]` correctly names the split-plane *hypervisor role* —
+> but the naming conclusion is superseded.
+>
+> The evidence was in the tree the whole time: `usr/share/doc/mios/concepts/mios-metal-architecture.md:33`
+> still draws the box as `MiOS-MINI`, running `hostapd · headscale · tailscaled · libvirt/KVM` and
+> owning `NICs·radios·TPM·boot/root NVMe`. The rename updated the keys and filenames and left the
+> diagram, so the original meaning survived intact next to the new claim contradicting it.
+
+~~**MiOS-Mini is a product name for a role, not an image.** A MiOS-Mini is a machine running
 `[blade].type = "endpoint"` — the seat archetype from Decision 4 — with an `/etc/mios` `[urls]`
-overlay pointing at its blades. It is the *same OCI image* as every other MiOS; nothing about it
-is smaller at bake time (Law 3 BOUND-IMAGES still ships every Quadlet image with the host). What
-makes it mini is what it *activates*, not what it *contains*.
+overlay pointing at its blades.~~ It is the *same OCI image* as every other MiOS; nothing about it
+is smaller at bake time (Law 3 BOUND-IMAGES still ships every Quadlet image with the host).
 
 That is why the archetype key stays `endpoint` rather than becoming `mini`: `endpoint` is the
 technical role name the role system already uses, and a second SSOT spelling for one concept is
@@ -533,12 +545,39 @@ blade `bootc upgrade` independently, and a seat two releases ahead of its blade 
 mysteriously. `[blade].min_peer_version`, reported by the reachability probe and **non-fatal**, is
 the smallest thing that makes that legible.
 
-### 9. "MiOS-Mini" is a role name and must never become a tag
+### 9. MiOS-Mini is the box; the archetype is the mode it boots into
 
-The seat is byte-identical to the full image. "Mini" reads like a smaller build, and it is not one;
-the generated comparison says so in its first line, and that is deliberate. If Mini ever became a
-tag it would reverse Decision 7, so the two are recorded together: **the name describes a
-`[blade].type`, never an artifact.**
+An earlier revision of this ADR concluded the opposite — that "MiOS-Mini" named the seat and must
+never be an artifact — and that claim shipped in the generated comparison. It was wrong. The
+operator's definition is a **hardware appliance**: *"a hardware host, wifi Access Point(s),
+VPN/Mesh network, hyper-converged; highly available VMs, containers."*
+
+Both halves are real and they are different registers:
+
+| Register | Names | Examples |
+|---|---|---|
+| **Product / hardware** | the physical box | **MiOS-Mini** |
+| **SSOT archetype** | the mode that box boots into | `hybrid`, `endpoint`, `controller`, `ha-node` |
+
+One MiOS-Mini can boot as a **full host** — owning the radios, routing the network, running the
+VMs and containers — or as a **seat** that offloads everything and keeps only what the person
+touches. Same box, same OCI image, different `[blade].type`. That is why the archetype key stays
+`endpoint` rather than becoming `mini`: they answer different questions, and only the SSOT key has
+to be unique (Law 9).
+
+**What a MiOS-Mini is built to be, as distinct from what it does today.** The full-host mode is a
+*target*, not a shipped capability. `usr/share/doc/mios/concepts/mios-metal-architecture.md` is a
+complete design for it — `hostapd` for the radios, `headscale`+`tailscaled` for the mesh, hand-authored
+`nftables` for the router core, `libvirt`/KVM with `vfio-pci` for the guests — and almost none of it
+is in the shipped tree: `hostapd` appears in no unit, no Quadlet and no SSOT key, and both
+`[metal].enabled` and `[metal.mesh].enabled` are `false`. The gap is tracked as a workstream rather
+than implied by this ADR.
+
+**Fleet size is 2–3 boxes, up to 6.** That is the operator's number, and it settles a question
+Decision 2 left open: `[blades]` being empty is a *gap*, not a design choice. A single-node
+assumption is wrong for a topology whose normal shape is two or three peers and whose maximum is
+six. Two nodes cannot hold quorum on their own, so the HA design must state its witness or
+tie-break rule rather than inherit one.
 
 ## Consequences
 

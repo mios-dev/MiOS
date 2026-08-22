@@ -60,21 +60,25 @@ class TestDerivation(unittest.TestCase):
 
 
 class TestRendering(unittest.TestCase):
-    def test_the_document_states_they_are_one_image(self):
-        # Assert the CLAIM, not one phrasing of it -- this test used to pin an
-        # exact sentence and went red when the sentence was improved.
+    def test_the_document_states_both_modes_are_one_image(self):
+        # Assert the CLAIM, not one phrasing of it.
         text = mod.render(synthetic())
         self.assertIn("same OCI image", text)
-        for denial in ("no MiOS-Mini Containerfile", "no MiOS-Mini tag",
-                       "no conditional bake"):
+        for denial in ("no separate Containerfile", "tag or conditional bake"):
             self.assertIn(denial, text)
 
-    def test_the_document_states_mini_is_never_an_artifact(self):
-        # ADR-0016 D9. "Mini" reads like a smaller build and is not one, so the
-        # comparison has to say so before anything else.
+    def test_mini_is_the_box_and_the_archetype_is_the_mode(self):
+        # ADR-0016 D9, corrected -- an earlier revision shipped the opposite
+        # claim. See TASKS.md T-331.
         text = mod.render(synthetic())
-        self.assertIn("never an artifact", text)
+        self.assertIn("MiOS-Mini is the BOX", text)
         self.assertIn("D9", text)
+        self.assertNotIn("never an artifact", text)
+
+    def test_it_compares_modes_not_products(self):
+        text = mod.render(synthetic())
+        self.assertIn("Seat mode", text)
+        self.assertIn("Full host mode", text)
 
     def test_the_rendered_counts_are_the_derived_ones(self):
         d = synthetic(extra_gated=2)
