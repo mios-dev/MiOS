@@ -151,20 +151,46 @@ retired service cannot renumber its neighbours. Every other port is byte-identic
 
 ## Decision
 
-### 1. Service addressing becomes total through `[urls]`, and offload is an overlay
+### 1. A service's canonical address is the key its consumers already read, and offload is an overlay
 
-Every addressable service gets exactly one canonical address key in `[urls]`. Consumers resolve
-`MIOS_URL_*`; no consumer composes `localhost:${MIOS_PORT_*}` itself. A drift gate enforces both
-halves, with a shrink-only register draining the existing debt the way `[refactor].oversize` and
-`[schema].unconsumed` already do.
+**The overlay half is proven.** `tests/test-offload-overlay.py` writes an `/etc/mios` overlay,
+resolves the SSOT in a child process exactly as a booted host does, and asserts that the named
+services move to the remote blade, that the unnamed ones stay local, that an empty override never
+wins (Law 1), and that **no file under `usr/` changes**. Sabotaging the host tier turns it red.
+So `Network=host` plus the three-layer resolver really does make offload an addressing change.
 
-Offloading a service is then an `/etc/mios/mios.toml` overlay that rewrites its URL. No quadlet
-change, no code change, no rebuild — `Network=host` already put every port on a real address, and
-the three-layer resolver (vendor < host < user) already exists to override it.
+**The prescription in this decision's first draft was wrong, and the measurement is why.** It said
+every service gets a key in `[urls]` and consumers resolve `MIOS_URL_*`. Measured:
 
-This is Law 9 (one canonical name) applied to **addresses** rather than to values, and it is
-required under *every* answer to the naming question, which is why it is decided first and
-separately.
+| Variable | Tracked files that read it |
+|---|---|
+| `MIOS_AI_ENDPOINT` (from `[ai].endpoint`) | **72** |
+| `MIOS_AGENT_PIPE_BACKEND` | 7 |
+| `MIOS_DB_URL` | 4 |
+| `MIOS_LLM_CPU_ENDPOINT` | 3 |
+| `MIOS_CRAWL_SERVICE_URL` | 3 |
+| `MIOS_HERMES_ENDPOINT` | 1 |
+| **every `MIOS_URLS_*`** (all 12 `[urls]` keys) | **0** |
+
+Every `MIOS_URLS_*` variable is emitted and read by no shipped code, while a parallel set of
+endpoint keys carries the real traffic. (`MIOS_URLS_FORGE` has exactly one hit, and it is sample
+data in `tools/test_render_globals.py` — a fixture, not a consumer.) Migrating ~125 consumer files onto `MIOS_URL_*` would have stood up a
+**second** canonical naming scheme beside the one that already works — the exact Law-9 violation
+this ADR argues against everywhere else, committed in Law 9's name.
+
+So the decision is inverted: **a service's canonical address is whichever single key its consumers
+already resolve.** Offloading the AI plane today means overriding `[ai].endpoint`, and that works.
+What `[urls]` is for is the *browser-openable* surface — portal tiles, `openInBrowser` labels, docs
+— which is a different job from an inter-service endpoint, and it should either be scoped to that
+job explicitly or retired.
+
+What still holds, unchanged, is the enforcement: exactly one canonical name per service, and no
+consumer hand-composing `localhost:${MIOS_PORT_*}` for itself. `check_service_urls` classifies
+every port as addressed-or-registered so a new service cannot land without an answer, and
+`check_ports_bound` catches the adjacent failure — a port allocated but bound by nothing.
+
+This is Law 9 (one canonical name) applied to **addresses**, and it is required under *every*
+answer to the naming question, which is why it is decided first and separately.
 
 ### 2. A blade is a machine; a node is a lane on a blade
 

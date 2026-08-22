@@ -113,6 +113,10 @@ jobs:
       - name: Documentation harvest round-trip (test-mios-manual-harvest.sh)
         run: bash ./tests/test-mios-manual-harvest.sh
 
+      - name: Offload is an /etc overlay (tests/test-offload-overlay.py)
+        # ADR-0016's central claim, made executable.
+        run: python3 ./tests/test-offload-overlay.py
+
       - name: Lint coverage (python + shell file sets)
         # Assert the linters still SEE every payload area. Enumerating dirs one
         # at a time is what left usr/share/mios unscanned; the shell twin had

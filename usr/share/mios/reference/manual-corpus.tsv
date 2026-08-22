@@ -26,39 +26,40 @@
 .github/workflows/mios-ci.yml	93	94	2	23	332cf534b456	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	98	100	3	31	94d8aa918b7e	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	107	110	4	38	421f9de27b15	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	117	119	3	31	d255aa36368b	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	124	125	2	23	574a3e5e9dca	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	128	128	1	11	e25dd631f9a4	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	132	134	3	25	1840a7d08cf1	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	161	169	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
-.github/workflows/mios-ci.yml	173	180	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
-.github/workflows/mios-ci.yml	196	196	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	220	226	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
-.github/workflows/mios-ci.yml	236	239	4	45	bb115ad60339	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	247	249	3	31	4344358da414	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	251	251	1	4	98c5001eabea	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	257	257	1	8	a3d803844fcc	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	260	260	1	3	c8f82965cee6	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	272	279	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	281	287	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	293	304	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
-.github/workflows/mios-ci.yml	316	323	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
-.github/workflows/mios-ci.yml	333	336	4	29	874362a069a1	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	339	339	1	3	ee573bae3b99	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	346	387	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
-.github/workflows/mios-ci.yml	390	394	5	52	468de1b725d5	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	411	415	5	38	c390f3916297	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	430	430	1	12	8fc42e8edc15	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	434	449	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
-.github/workflows/mios-ci.yml	452	452	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	473	473	1	15	350923ec108b	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	504	504	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	546	550	5	51	bfdeb57544a6	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	557	563	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
-.github/workflows/mios-ci.yml	589	596	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	598	604	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	610	611	2	21	052c46f6412a	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	631	636	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
+.github/workflows/mios-ci.yml	117	117	1	6	cf4ea5f3cff5	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	121	123	3	31	d255aa36368b	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	128	129	2	23	574a3e5e9dca	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	132	132	1	11	e25dd631f9a4	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	136	138	3	25	1840a7d08cf1	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	165	173	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
+.github/workflows/mios-ci.yml	177	184	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
+.github/workflows/mios-ci.yml	200	200	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	224	230	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
+.github/workflows/mios-ci.yml	240	243	4	45	bb115ad60339	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	251	253	3	31	4344358da414	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	255	255	1	4	98c5001eabea	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	261	261	1	8	a3d803844fcc	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	264	264	1	3	c8f82965cee6	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	276	283	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	285	291	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	297	308	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
+.github/workflows/mios-ci.yml	320	327	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
+.github/workflows/mios-ci.yml	337	340	4	29	874362a069a1	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	343	343	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	350	391	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
+.github/workflows/mios-ci.yml	394	398	5	52	468de1b725d5	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	415	419	5	38	c390f3916297	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	434	434	1	12	8fc42e8edc15	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	438	453	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
+.github/workflows/mios-ci.yml	456	456	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	477	477	1	15	350923ec108b	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	508	508	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	550	554	5	51	bfdeb57544a6	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	561	567	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
+.github/workflows/mios-ci.yml	593	600	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	602	608	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	614	615	2	21	052c46f6412a	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	635	640	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
 .github/workflows/url-probe.yml	1	1	1	10	8661e4a2789d	STAY	ai-header		0				0
 Get-MiOS.ps1	1	3	3	52	6cb747722e65	STAY	ai-header		0				0
 Get-MiOS.ps1	4	4	1	0	e3b0c44298fc	STAY	inline-scoped		0				0
@@ -3691,6 +3692,15 @@ tools/check-module-length.py	23	23	1	6	e550931cb9c7	STAY	local-scoped		0				0
 tools/check-module-length.py	36	36	1	12	3abab5a9b48c	STAY	local-scoped		0				0
 tools/check-module-length.py	50	50	1	9	c199f3aad405	STAY	local-scoped		0				0
 tools/check-ovmf-enrollment.sh	1	2	2	22	f3474d45d683	STAY	ai-header		0				0
+tools/check-ports-bound.py	1	4	4	82	e864071672de	STAY	ai-header		0				0
+tools/check-ports-bound.py	5	5	1	14	cd8fde305f2a	STAY	local-scoped		0				0
+tools/check-ports-bound.py	14	14	1	5	0afcda800e58	STAY	inline-scoped		0				0
+tools/check-ports-bound.py	15	15	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/check-ports-bound.py	19	20	2	20	21d7d08f2c67	STAY	local-scoped		0				0
+tools/check-ports-bound.py	40	40	1	10	12c101435a7e	STAY	local-scoped		0				0
+tools/check-ports-bound.py	46	46	1	7	a0b11d80c733	STAY	local-scoped		0				0
+tools/check-ports-bound.py	58	58	1	15	43c653a8f3ea	STAY	local-scoped		0				0
+tools/check-ports-bound.py	77	77	1	11	43d11b57e5b8	STAY	local-scoped		0				0
 tools/check-redact-coverage.py	1	3	3	49	5fdb177d3ec4	STAY	ai-header		0				0
 tools/check-redact-coverage.py	4	4	1	13	60070670de5d	STAY	local-scoped		0				0
 tools/check-redact-coverage.py	14	14	1	11	5746d9a5d672	STAY	local-scoped		0				0
@@ -4445,6 +4455,13 @@ tools/test_check-module-length.py	32	32	1	9	a4dc93bf40f5	STAY	local-scoped		0			
 tools/test_check-module-length.py	71	71	1	12	5db030f44a36	STAY	local-scoped		0				0
 tools/test_check-module-length.py	90	92	3	30	82b5e7fe9a2e	STAY	midsize-why		0				0
 tools/test_check-module-length.py	102	102	1	12	ff1655abddcd	STAY	local-scoped		0				0
+tools/test_check-ports-bound.py	1	3	3	68	7ccb687e6f38	STAY	ai-header		0				0
+tools/test_check-ports-bound.py	4	4	1	6	ceb96e8b766b	STAY	local-scoped		0				0
+tools/test_check-ports-bound.py	17	17	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
+tools/test_check-ports-bound.py	18	18	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/test_check-ports-bound.py	49	49	1	10	f86ab29af41b	STAY	local-scoped		0				0
+tools/test_check-ports-bound.py	70	70	1	11	3c3f96c32889	STAY	local-scoped		0				0
+tools/test_check-ports-bound.py	95	95	1	13	89876c749dca	STAY	local-scoped		0				0
 tools/test_check-redact-coverage.py	1	3	3	64	a0236a774608	STAY	ai-header		0				0
 tools/test_check-redact-coverage.py	4	4	1	10	48dc9edf7fbe	STAY	local-scoped		0				0
 tools/test_check-schema-consumers.py	1	4	4	101	dad6d6af1953	STAY	ai-header		0				0
