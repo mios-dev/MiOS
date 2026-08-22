@@ -37,13 +37,13 @@ enabled = false
 pin = "tpm2"
 pcrs = "7"
 
-[mini]
+[metal]
 enabled = false
 guest_cpu_percent = 80
 guest_ram_percent = 80
 dgpumode = "vfio-pci"
 
-[mini.mesh]
+[metal.mesh]
 enabled = false
 headscale_domain = "mesh.mios.internal"
 vnet_cidr = "10.42.0.0/16"

@@ -150,9 +150,9 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-mcp-server` | Provides a Model Context Protocol (MCP) stdio server that exposes the MiOS [verbs.*] catalog as tools and resources for local agents (Hermes, OpenCode) to execute system actions via the agent-pipe. |
 | `usr/libexec/mios/mios-md` | A CLI shim that launches a local browser-based markdown editor and live previewer, converting local files or inline strings into a URL-encoded state for the standalone viewer at... |
 | `usr/libexec/mios/mios-mdev-define-gen` | Generates mdevctl persistent configuration JSON drop-ins for SR-IOV VFs and vendor mediated devices from mios.toml [mdev] SSOT. |
+| `usr/libexec/mios/mios-metal-mesh-gen` | Generates Headscale/Tailscale mesh configuration from mios.toml [metal.mesh] SSOT. |
+| `usr/libexec/mios/mios-metal-vfio-gen` | Generates vfio-pci binding kargs/modprobe configuration from mios.toml [metal] SSOT. |
 | `usr/libexec/mios/mios-micro-llm` | Thin client for the resident qwen3:1.7b model on the mios-llm-light /v1 lane, providing low-latency (<500ms) classification for mios-log-watcher, mios-cron-director, and other system agents. |
-| `usr/libexec/mios/mios-mini-mesh-gen` | Generates Headscale/Tailscale mesh configuration from mios.toml [mini.mesh] SSOT. |
-| `usr/libexec/mios/mios-mini-vfio-gen` | Generates vfio-pci binding kargs/modprobe configuration from mios.toml [mini] SSOT. |
 | `usr/libexec/mios/mios-model-router` | Acts as the primary OpenAI-compatible entry point and load balancer for MiOS, routing requests to specific hardware lanes (dGPU, iGPU, CPU) based on performance profiles and managing the 17K-token... |
 | `usr/libexec/mios/mios-models` | FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it... |
 | `usr/libexec/mios/mios-models-firstboot` | FBM first-boot large-model provisioner. Reads [ai].firstboot_models from the layered mios.toml, downloads each GGUF with resume, VERIFIES its sha256 (streamed, chunked) and discards the part file on... |
@@ -262,6 +262,7 @@ is generated, its generator is here.
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact].tables or .exempt, that the agent-plane content tables are... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree -- something that SELECTs, INSERTs or otherwise names it in code... |
+| `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that templates its ${MIOS_PORT_*}, or membership of the shrink-only... |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` line in the task's own section -- and the two silently diverged in... |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
@@ -299,6 +300,7 @@ is generated, its generator is here.
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). Builds throwaway repo roots with a synthetic mios.toml [refactor] block and fake module files,... |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully classified schema and fails an unclassified table, a table... |
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. Builds throwaway git repos holding a synthetic schema-init.sql plus a mios.toml register, and asserts every direction: a table with a real code... |
+| `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. Cover the four ways a port's addressing can be wrong -- unclassified, double-classified, a register entry naming a port that does not exist, and a... |
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. Builds throwaway TASKS.md files and asserts every direction the real drift produced: agreeing surfaces pass, a table cell that disagrees with... |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). Builds throwaway ADR trees and asserts: front-matter scalars and [a, b] lists parse, a file without an `adr:` key is skipped, ordering... |
@@ -307,7 +309,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 56 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 58 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

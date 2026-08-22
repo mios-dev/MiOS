@@ -3114,7 +3114,7 @@ check_impossible_eol_regressions() {
     local f
     while read -r f; do
         [[ -f "$f" ]] || continue
-        [[ "$(basename "$f")" == "mios-mini-architecture.md" ]] && continue
+        [[ "$(basename "$f")" == "mios-metal-architecture.md" ]] && continue
         
         if grep -F "mdevctl vGPU" "$f" &>/dev/null; then
             if ! grep -E "mdevctl vGPU.*(impossible|unsupported|out of scope|reject)" "$f" &>/dev/null; then
@@ -4007,21 +4007,21 @@ check_clevis_luks() {
     fi
 }
 
-check_mini_vfio() {
-    echo "[98-drift-checks]   MiOS-Mini vfio-pci SSOT projection check"
-    local gen="$ROOT/usr/libexec/mios/mios-mini-vfio-gen"
+check_metal_vfio() {
+    echo "[98-drift-checks]   MiOS-Metal vfio-pci SSOT projection check"
+    local gen="$ROOT/usr/libexec/mios/mios-metal-vfio-gen"
     if [[ ! -x "$gen" && -f "$gen" ]]; then
         chmod +x "$gen" 2>/dev/null || true
     fi
     if [[ -f "$gen" ]]; then
         local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
-        if [[ "$out" == *"MIOS_MINI_ENABLED="* ]]; then
+        if [[ "$out" == *"MIOS_METAL_ENABLED="* ]]; then
             return 0
         else
-            _violation "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
+            _violation "(68) MiOS-Metal vfio generator failed to project SSOT configuration"
         fi
     else
-        _violation "(68) MiOS-Mini vfio generator script missing"
+        _violation "(68) MiOS-Metal vfio generator script missing"
     fi
 }
 
@@ -6164,7 +6164,7 @@ main() {
     check_nested_podman_caps
     check_bake_budget
     check_clevis_luks
-    check_mini_vfio
+    check_metal_vfio
     check_router_parity
     check_council_gate_ssot
     check_containerfile_pinned_clones

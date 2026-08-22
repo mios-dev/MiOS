@@ -1,5 +1,5 @@
 <!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-mini-architecture.md, usr/share/mios/mios.toml [blade], [urls], [ports], [blades], [nodes], [profile], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [urls], [ports], [blades], [nodes], [profile], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -18,11 +18,15 @@ superseded_by: []
 
 ## Status
 
-**Accepted.** The operator settled the four open questions: a seat is an **archetype**, not an
-image; the two Hermes port keys **collapse into one**; blade-reachability as a boot-critical
-condition is **configurable, defaulting to off**; and `Containerfile.minimal` is **deleted**.
-Decisions 1 and 2 were already mechanical consequences of what the tree is. Decision 3 (naming)
-is settled by subtraction — with the lineage claimant gone, only two claimants to *mini* remain.
+**Accepted — all four decisions settled.** A seat is an **archetype**, not an image; the two
+Hermes port keys **collapse into one**; blade-reachability as a boot-critical condition is
+**configurable, defaulting to off**; and `Containerfile.minimal` is **deleted**. Decisions 1 and 2
+were already mechanical consequences of what the tree is.
+
+**Decision 3 is settled too, and it was settled by the requirement itself**: *"MiOS-Mini is the
+full image just meant to offload all services to hosted (local, localhost or remote) MiOS OCI
+image(s)."* That sentence assigns the name. **MiOS-Mini is the seat.** The hypervisor-router is
+renamed **MiOS-Metal** and its SSOT surface moves `[mini]` → `[metal]`.
 
 ## Context
 
@@ -30,7 +34,7 @@ Three separate things in this repository currently answer to a variant of the na
 
 | Claimant | What it actually is | Evidence |
 |---|---|---|
-| `[mini]` + `mios-mini-architecture.md` | A **tiny headless hypervisor-router**: binds every dGPU to `vfio-pci`, owns the NICs/radios/TPM, and boots the *full* MiOS as a super-privileged guest VM | `bind_dgpu_vfio = true`, `dgpumode = "vfio-pci"`, `[mini.gpu].assignments`, `[mini.mesh]` headscale; 224-line architecture doc with decisions D1–D5 and risks R1–R10 |
+| `[metal]` (was `[mini]`) + `mios-metal-architecture.md` | A **tiny headless hypervisor-router**: binds every dGPU to `vfio-pci`, owns the NICs/radios/TPM, and boots the *full* MiOS as a super-privileged guest VM | `bind_dgpu_vfio = true`, `dgpumode = "vfio-pci"`, `[metal.gpu].assignments`, `[metal.mesh]` headscale; 224-line architecture doc with decisions D1–D5 and risks R1–R10 |
 | `Containerfile.minimal` (**deleted**) | A **base-lineage variant** on bare `fedora-bootc`. It could not build: 8 of the 9 phase scripts it named no longer existed | header called it *"MiOS-Lite"*, `STUB / EXPERIMENTAL`; removed with its three dead `[image].minimal_*` keys |
 | The operator's stated intent | A **full-featured seat** that runs the whole UX but offloads every service to a hosted MiOS OCI image, local / localhost / remote | stated requirement |
 
@@ -182,16 +186,37 @@ BLADE-01's own acceptance criterion already requires (*"`[blades.*]`/`[nodes.*]`
 (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A)"*). The two keys differing by one
 letter is a Law 9 hazard in waiting; if either is renamed, rename it for the axis it names.
 
-### 3. Naming — OPEN, operator's call
+### 3. Naming — MiOS-Mini is the seat; the hypervisor-router becomes MiOS-Metal
 
-Two coherent resolutions exist and the rest of this ADR holds under either:
+The requirement assigns the name: *MiOS-Mini is the image that offloads its services*. So **mini
+names the seat**, and the hypervisor-router — which does the opposite, owning the metal and
+hosting a full MiOS as a guest — is renamed **MiOS-Metal**.
 
-* **(a) Keep `mini` where it is.** The hypervisor-router stays MiOS-Mini; the seat gets its own
-  name. Costs nothing already written; costs the operator the word they wanted.
-* **(b) Move `mini` to the seat.** The hypervisor-router is renamed (MiOS-Router / MiOS-Metal),
-  and `mios-mini-architecture.md`, `[mini]`, `[mini.gpu]`, `[mini.mesh]`, `mios-mini-vfio-gen`,
-  `mios-mini-mesh-gen` and drift-check #68 move with it. Costs a rename across the most finished
-  design artifact in the tree; costs nothing architectural.
+The word was carrying five meanings, which is why this had to be resolved rather than left open:
+
+| Claimant | Now |
+|---|---|
+| `[mini]` VFIO hypervisor-router | renamed `[metal]` / MiOS-Metal |
+| `Containerfile.minimal` "MiOS-Lite" | deleted (Decision 4's lineage note) |
+| The operator's offloading seat | **MiOS-Mini** |
+| `MiOS-Mon.py --mini` compact dashboard | unrelated, untouched |
+| `zz-mios-motd.sh` terminal "mini" view | unrelated, untouched |
+
+**MiOS-Mini is a product name for a role, not an image.** A MiOS-Mini is a machine running
+`[blade].type = "endpoint"` — the seat archetype from Decision 4 — with an `/etc/mios` `[urls]`
+overlay pointing at its blades. It is the *same OCI image* as every other MiOS; nothing about it
+is smaller at bake time (Law 3 BOUND-IMAGES still ships every Quadlet image with the host). What
+makes it mini is what it *activates*, not what it *contains*.
+
+That is why the archetype key stays `endpoint` rather than becoming `mini`: `endpoint` is the
+technical role name the role system already uses, and a second SSOT spelling for one concept is
+the Law-9 violation this ADR keeps arguing against. Product name and SSOT key are different
+registers, and only the SSOT key has to be unique.
+
+The rename moved `[mini]`/`[mini.gpu]`/`[mini.mesh]` → `[metal]`, the three `[editions.*].mini.gpu`
+overlays, the eleven `MIOS_MINI_*` resolver keys, `mios-mini-{vfio,mesh}-gen`, drift-check #68
+(`check_mini_vfio` → `check_metal_vfio`) with its negative test, the names registry on both twins,
+and `mios-mini-architecture.md` → `mios-metal-architecture.md`.
 
 The lineage axis now has **one** member — the single root `Containerfile` — so nothing on that
 axis competes for the name. `check_lint_is_final` globs `Containerfile*` rather than naming files,

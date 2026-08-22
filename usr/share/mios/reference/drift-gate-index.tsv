@@ -74,7 +74,7 @@
 73	check_nested_podman_caps	nested-podman capability flags & reference doc verified
 74	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit
 75	check_clevis_luks	clevis LUKS SSOT projection check
-76	check_mini_vfio	MiOS-Mini vfio-pci SSOT projection check
+76	check_metal_vfio	MiOS-Metal vfio-pci SSOT projection check
 77	check_router_parity	Router Stage-2 parity gate satisfied
 78	check_council_gate_ssot	council-gate SSOT parameters defined in mios.toml and consumed by code
 79	check_containerfile_pinned_clones	all git clone invocations in Containerfiles carry explicit

@@ -27,7 +27,7 @@ const TARGET_SECTIONS: &[&str] = &[
     "agents",
     "a2a",
     "power",
-    "mini",
+    "metal",
 ];
 
 fn alias_for(path: &str) -> Option<String> {

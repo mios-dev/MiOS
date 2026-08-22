@@ -1942,7 +1942,7 @@ port   = "auto"
 desc   = "MiOS Uninterruptible Power Supply"
 
 # MiOS-Mini GPU arbitration and guest assignment (WS-F5)
-[mini.gpu]
+[metal.gpu]
 # Rule: Each GPU (PCI/IOMMU address) must be assigned to exactly one owner/guest.
 # Forbid assigning the same PCI address to multiple active guests to prevent hardware conflicts.
 assignments = { mios-guest = ["0000:01:00.0"] }
@@ -10731,14 +10731,14 @@ idle_timeout = 0
 # Every Quadlet declares Network=mios.network so they share a flat
 # rootful bridge with the LAN-reachable PublishPort= surface above.
 # ----------------------------------------------------------------------------
-[mini]
+[metal]
 enabled = false
 guest_cpu_percent = 85
 guest_ram_percent = 85
 bind_dgpu_vfio   = true
 dgpumode         = "vfio-pci"
 
-[mini.mesh]
+[metal.mesh]
 enabled = false
 headscale_domain = "mesh.mios.local"
 vnet_cidr = "100.64.0.0/10"
@@ -13043,8 +13043,8 @@ autounattend.debloat_profile  = "minimal"
 autounattend.xbox.enable     = "false"
 colors.accent                = "#1A407F"
 branding.living_wallpaper    = "false"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox]
 autounattend.uup_channel     = "dev"
@@ -13054,8 +13054,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#282262"
 branding.living_wallpaper    = "true"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox-arm]
 autounattend.uup_channel     = "dev"
@@ -13065,8 +13065,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#4B105C"
 branding.living_wallpaper    = "true"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 # ----------------------------------------------------------------------------
 # [blade] -- node activation capabilities and targets (WS-BLADE)
