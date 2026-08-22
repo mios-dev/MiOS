@@ -276,6 +276,11 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [The Drift](manual/ch58-roadmap-status-parity.md#58_the_drift): Covers the 49 rows where TASKS.md disagreed with itself about what was left.
   * [Neither Surface Wins](manual/ch58-roadmap-status-parity.md#58_neither_surface_wins): Explains why each disagreement was settled against the tree, not the prose.
   * [The Gate](manual/ch58-roadmap-status-parity.md#58_the_gate): Details check_tasks_status_parity and why it refuses to pass over an empty set.
+* **[Chapter 59: Request Coalescing](manual/ch59-request-coalescing.md)**
+  * [What It Is Not For](manual/ch59-request-coalescing.md#59_what_it_is_not_for): Explains why the local lanes are bypassed rather than batched a second time.
+  * [One Chokepoint](manual/ch59-request-coalescing.md#59_one_chokepoint): Covers the httpx request hook on the single shared AsyncClient.
+  * [Sealing](manual/ch59-request-coalescing.md#59_sealing): Details why a flushed group must close before its event is set.
+  * [Off Means Absent](manual/ch59-request-coalescing.md#59_off_means_absent): Explains why the default-off hook is never registered at all.
 
 ---
 
@@ -346,6 +351,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch56-persistent-shell-sessions.md` | Chapter 56: Persistent Shell Sessions. Explains the SHELL-01 substrate that lets cwd, environment and history survive across agent turns. Covers the BEGIN/END nonce framing and the two spoofing... |
 | `usr/share/doc/mios/manual/ch57-powershell-object-flattening.md` | Chapter 57: PowerShell Object Flattening. Records why an object-returning cmdlet reached the model as a BLANK LINE rather than as noise, how a console-less runspace collapses every formatter column... |
 | `usr/share/doc/mios/manual/ch58-roadmap-status-parity.md` | Chapter 58: Roadmap Status Parity. Records the drift that let TASKS.md answer "what is left?" two different ways -- a summary-table cell and the task's own Status line -- and the 49 rows where they... |
+| `usr/share/doc/mios/manual/ch59-request-coalescing.md` | Chapter 59: Request Coalescing. Explains why MiOS deliberately does NOT client-side batch its own inference lanes -- vLLM, SGLang and llama.cpp already run continuous batching, so a second layer only... |
 
-<!-- derived from the AI-hint headers of 58 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 59 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

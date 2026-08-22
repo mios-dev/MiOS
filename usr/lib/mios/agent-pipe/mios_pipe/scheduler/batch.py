@@ -1,6 +1,6 @@
-# AI-hint: WS-A6 batch-coalescing core, designed per 2026 best practice (researched): vLLM/SGLang/llama.cpp already do SERVER-SIDE continuous batching (a rolling scheduler coalesces incoming prompts into GPU batches optimally), so client-side request-batching on those lanes would DOUBLE-BATCH and add latency for no gain. Therefore this coalescer BYPASSES native-continuous-batching lanes (all of MiOS's local lanes) and only applies a small batch_interval WINDOW to NON-native endpoints (e.g. a rate-limited remote API). Pure stdlib: batch_key derivation, is_native_batch bypass test (host:port hint list), and a CoalesceWindow flush decision (interval-elapsed OR max-size). server.py owns the async hold-and-flush + the chokepoint wiring (flag-gated); this module owns the decision.
+# AI-hint: WS-A6 batch-coalescing core, designed per 2026 best practice (researched): vLLM/SGLang/llama.cpp already do SERVER-SIDE continuous batching (a rolling scheduler coalesces incoming prompts into GPU batches optimally), so client-side request-batching on those lanes would DOUBLE-BATCH and add latency for no gain. Therefore this coalescer BYPASSES native-continuous-batching lanes (all of MiOS's local lanes) and only applies a small batch_interval WINDOW to NON-native endpoints (e.g. a rate-limited remote API). Pure stdlib: batch_key derivation, is_native_batch bypass test (host:port hint list), and a CoalesceWindow flush decision (interval-elapsed OR max-size). Coalescer drives the async hold-and-flush over those windows so the behaviour is testable without a server; server.py only wires it, flag-gated, as an httpx request hook on the ONE shared AsyncClient.
 # AI-related: ./mios_lanes.py, ./mios_sched.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_batch.py
-# AI-functions: batch_key, is_native_batch, class CoalesceWindow
+# AI-functions: batch_key, is_native_batch, class CoalesceWindow, class Coalescer
 """mios_batch -- batch-interval coalescing for the MiOS agent-pipe (WS-A6, the
 AIOS scheduler call-coalescing layer).
 
@@ -20,8 +20,9 @@ serving, BentoML "Static, dynamic and continuous batching" (LLM Inference Handbo
 
 from __future__ import annotations
 
+import asyncio
 import re
-from typing import Iterable
+from typing import Any, Callable, Iterable, Optional
 
 
 def batch_key(endpoint: str, model: str) -> str:
@@ -81,3 +82,81 @@ class CoalesceWindow:
         self._pending = 0
         self._start = -1.0
         return n
+
+
+class _Group:
+    """One in-flight group: window, member event, release timer."""
+
+    __slots__ = ("window", "event", "timer", "sealed", "size", "reason")
+
+    def __init__(self, window: "CoalesceWindow") -> None:
+        self.window = window
+        self.event = asyncio.Event()
+        self.timer: Any = None
+        self.sealed = False
+        self.size = 0
+        self.reason = ""
+
+
+class Coalescer:
+    """Async hold-and-flush, one window per batch key.
+
+    Sealing, the native bypass and the default-off contract: manual ch59."""
+
+    __slots__ = ("enabled", "interval_s", "max_size", "native_hints", "_groups", "_clock")
+
+    def __init__(self, *, enabled: bool = False, interval_s: float = 0.05,
+                 max_size: int = 8, native_hints: Iterable[str] = (),
+                 clock: Optional[Callable[[], float]] = None) -> None:
+        self.enabled = bool(enabled)
+        self.interval_s = max(0.0, float(interval_s))
+        self.max_size = max(1, int(max_size))
+        self.native_hints = [str(h).strip() for h in (native_hints or []) if str(h).strip()]
+        self._groups: dict = {}
+        self._clock = clock or (lambda: asyncio.get_running_loop().time())
+
+    def _release(self, key: str, group: "_Group", reason: str) -> None:
+        if group.sealed:
+            return
+        group.sealed = True
+        group.reason = reason
+        group.size = group.window.flush()
+        if group.timer is not None:
+            group.timer.cancel()
+            group.timer = None
+        if self._groups.get(key) is group:
+            del self._groups[key]
+        group.event.set()
+
+    async def hold(self, endpoint: str, model: str) -> dict:
+        """Block until this key's window flushes.
+
+        Returns {held, reason, group_size, leader}; held=False = never delayed."""
+        if not self.enabled:
+            return {"held": False, "reason": "disabled", "group_size": 1, "leader": True}
+        if is_native_batch(endpoint, self.native_hints):
+            return {"held": False, "reason": "native", "group_size": 1, "leader": True}
+
+        key = batch_key(endpoint, model)
+        group = self._groups.get(key)
+        if group is None or group.sealed:
+            group = _Group(CoalesceWindow(self.interval_s, self.max_size))
+            self._groups[key] = group
+
+        group.window.add(self._clock())
+        seat = group.window.pending
+        if group.window.should_flush(self._clock()):
+            self._release(key, group, "full")
+        elif seat == 1:
+            group.timer = asyncio.get_running_loop().call_later(
+                self.interval_s, self._release, key, group, "interval")
+
+        if not group.sealed:
+            await group.event.wait()
+        return {"held": True, "reason": group.reason,
+                "group_size": group.size, "leader": seat == 1}
+
+    @property
+    def open_groups(self) -> int:
+        """Windows still holding callers; a leak check."""
+        return len(self._groups)

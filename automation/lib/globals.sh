@@ -711,7 +711,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 [ -n "${MIOS_DOCS_SIGNALS_WHY+x}" ] || MIOS_DOCS_SIGNALS_WHY='\b(because|so that|otherwise|avoid|prevents?|must not|never|do not|fail-open|fail-closed|deliberately|intentionally|noqa|workaround|upstream bug|race|deadlock)\b'
 : "${MIOS_DOCS_STAY_MAX_LINES:=2}"
 : "${MIOS_DOCS_STAY_MAX_WORDS:=25}"
-: "${MIOS_DRIFT_DENYLIST:=mios_batch,mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
+: "${MIOS_DRIFT_DENYLIST:=mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
 : "${MIOS_DRIFT_MONITOR_AXES:=verdict,intent}"
 : "${MIOS_DRIFT_MONITOR_ENABLE:=false}"
 : "${MIOS_DRIFT_MONITOR_MIN_SAMPLES:=30}"
@@ -1637,7 +1637,7 @@ to" / "let me know".
 : "${MIOS_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_REDIS_PORT:=8565}"
 : "${MIOS_REFACTOR_MAX_LINES:=800}"
-[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{'"'"'path'"'"': '"'"'mios_pipe/federation/a2a.py'"'"', '"'"'lines'"'"': 1545},{'"'"'path'"'"': '"'"'mios_pipe/federation/http_caps.py'"'"', '"'"'lines'"'"': 820},{'"'"'path'"'"': '"'"'mios_pipe/memory/knowledge.py'"'"', '"'"'lines'"'"': 961},{'"'"'path'"'"': '"'"'mios_pipe/routing/agent_call.py'"'"', '"'"'lines'"'"': 1153},{'"'"'path'"'"': '"'"'mios_pipe/routing/chat.py'"'"', '"'"'lines'"'"': 1786},{'"'"'path'"'"': '"'"'mios_pipe/routing/dag_exec.py'"'"', '"'"'lines'"'"': 1327},{'"'"'path'"'"': '"'"'mios_pipe/routing/native_loop.py'"'"', '"'"'lines'"'"': 1190},{'"'"'path'"'"': '"'"'mios_pipe/routing/portal.py'"'"', '"'"'lines'"'"': 1675},{'"'"'path'"'"': '"'"'mios_pipe/routing/refine.py'"'"', '"'"'lines'"'"': 1120},{'"'"'path'"'"': '"'"'mios_pipe/routing/swarm.py'"'"', '"'"'lines'"'"': 1062},{'"'"'path'"'"': '"'"'mios_pipe/routing/web_research.py'"'"', '"'"'lines'"'"': 987},{'"'"'path'"'"': '"'"'mios_dispatch.py'"'"', '"'"'lines'"'"': 943},{'"'"'path'"'"': '"'"'server.py'"'"', '"'"'lines'"'"': 4979}'
+[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{'"'"'path'"'"': '"'"'mios_pipe/federation/a2a.py'"'"', '"'"'lines'"'"': 1545},{'"'"'path'"'"': '"'"'mios_pipe/federation/http_caps.py'"'"', '"'"'lines'"'"': 820},{'"'"'path'"'"': '"'"'mios_pipe/memory/knowledge.py'"'"', '"'"'lines'"'"': 961},{'"'"'path'"'"': '"'"'mios_pipe/routing/agent_call.py'"'"', '"'"'lines'"'"': 1153},{'"'"'path'"'"': '"'"'mios_pipe/routing/chat.py'"'"', '"'"'lines'"'"': 1786},{'"'"'path'"'"': '"'"'mios_pipe/routing/dag_exec.py'"'"', '"'"'lines'"'"': 1327},{'"'"'path'"'"': '"'"'mios_pipe/routing/native_loop.py'"'"', '"'"'lines'"'"': 1190},{'"'"'path'"'"': '"'"'mios_pipe/routing/portal.py'"'"', '"'"'lines'"'"': 1675},{'"'"'path'"'"': '"'"'mios_pipe/routing/refine.py'"'"', '"'"'lines'"'"': 1120},{'"'"'path'"'"': '"'"'mios_pipe/routing/swarm.py'"'"', '"'"'lines'"'"': 1062},{'"'"'path'"'"': '"'"'mios_pipe/routing/web_research.py'"'"', '"'"'lines'"'"': 987},{'"'"'path'"'"': '"'"'mios_dispatch.py'"'"', '"'"'lines'"'"': 943},{'"'"'path'"'"': '"'"'server.py'"'"', '"'"'lines'"'"': 4975}'
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
 : "${MIOS_REFINE_CHAT_CHARS:=40}"
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"

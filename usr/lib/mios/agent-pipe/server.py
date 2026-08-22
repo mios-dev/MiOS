@@ -151,7 +151,6 @@ import mios_blades   # noqa: E402  -- V4/V5 blade (machine) topology + per-blade
 import mios_cost   # noqa: E402  -- WS-RES-GOV cost/energy accounting (CLASSic Cost axis)
 import mios_promptver   # noqa: E402  -- WS-LIFECYCLE-VER versioned hop-prompt registry
 _PROMPT_REGISTRY = mios_promptver.PromptRegistry()
-import mios_batch   # noqa: E402  -- WS-A6 batch coalescing (bypass native-batch lanes)
 import mios_smartroute   # noqa: E402  -- WS-A16 cost/quality SmartRouting (local-first escalation)
 import mios_codemode as _codemode   # noqa: E402  -- WS-2 Code Mode pure helpers
 import mios_pg as _mios_pg   # noqa: E402  -- WS-9 Postgres+pgvector client
@@ -1148,16 +1147,11 @@ async def lora_list():
 
 
 
-_client: httpx.AsyncClient | None = None
-
-
-async def _get_client() -> httpx.AsyncClient:
-    global _client
-    if _client is None:
-        _client = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=10.0, read=None, write=None, pool=None),
-        )
-    return _client
+from mios_pipe.kernel.httpclient import (   # noqa: E402  -- WS-A6/T-226 chokepoint
+    _batch_request_hook,
+    _get_client,
+    configure as _configure_httpclient,
+)
 
 
 
@@ -1382,6 +1376,8 @@ BATCH_MAX_SIZE = _dispatch_num("MIOS_BATCH_MAX_SIZE", "batch_max_size", 8)
 BATCH_NATIVE_HINTS = [h.strip() for h in str(
     os.environ.get("MIOS_BATCH_NATIVE_HINTS")
     or _DISPATCH_TOML.get("batch_native_hints", "")).split(",") if h.strip()]
+_configure_httpclient(batch_enable=BATCH_ENABLE, batch_interval_s=BATCH_INTERVAL_S,
+                      batch_max_size=BATCH_MAX_SIZE, batch_native_hints=BATCH_NATIVE_HINTS)
 SMARTROUTE_ENABLE = str(os.environ.get("MIOS_SMARTROUTE_ENABLE", "")).strip().lower() \
     in ("1", "true", "yes", "on")
 SMARTROUTE_BUDGET = float(os.environ.get("MIOS_SMARTROUTE_BUDGET", "0") or 0)

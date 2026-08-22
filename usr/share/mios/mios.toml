@@ -3670,7 +3670,7 @@ oversize = [
     # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
     # own remainder and mios_dispatch.py is T-273's named target.
     { path = "mios_dispatch.py",                   lines =  943 },
-    { path = "server.py",                          lines = 4979 },
+    { path = "server.py",                          lines = 4975 },
 ]
 
 # ----------------------------------------------------------------------------
@@ -3719,7 +3719,6 @@ lanes = []
 # Sibling-module allowlist/denylist: agent-pipe modules that are permitted to have
 # transitional unwired (imported-but-dead) status in check_unwired_modules.
 denylist = [
-    "mios_batch",
     "mios_ctxpack",
     "mios_embed_backfill",
     "mios_provider_translate",
@@ -4149,6 +4148,8 @@ slo_shed_enable   = false       # off => admission never sheds (capacity-only, a
 # NON-native endpoints (a rate-limited remote core, added via WS-A16). With only
 # local lanes -- all native -- this is INERT. batch_native_hints = host:port
 # substrings that self-batch (the local lane ports). Env: MIOS_BATCH_*.
+# T-226: an httpx request hook on the one shared AsyncClient, registered
+# only when true. Manual ch59.
 batch_enable        = false
 batch_interval_s    = 0.05      # window for a NON-native endpoint (seconds)
 batch_max_size      = 8         # flush a window at this many pending calls
