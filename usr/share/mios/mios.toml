@@ -75,6 +75,54 @@ open_ports = [
 
 
 # ----------------------------------------------------------------------------
+# [unit_projection] -- Shrink-only debt register for the [units] projection.
+# ----------------------------------------------------------------------------
+[unit_projection]
+doc = "[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree's 120 units are in that state, which is the larger debt behind T-317."
+max_drift = 39
+drift = [
+  "hermes-worker-firstboot.service",
+  "hermes-worker.service",
+  "mios-account-sync.service",
+  "mios-additionalimagestores-perms.path",
+  "mios-adguard-firstboot.service",
+  "mios-agent-pipe.service",
+  "mios-agents.service",
+  "mios-ai-firstboot.service",
+  "mios-ai-firstboot.timer",
+  "mios-aios-refresh.timer",
+  "mios-ceph-bootstrap.service",
+  "mios-daemon.service",
+  "mios-embed-backfill.service",
+  "mios-finetune-serve.service",
+  "mios-firewall-ports.service",
+  "mios-forge-firstboot.service",
+  "mios-forgejo-runner-firstboot.service",
+  "mios-gpu-amd.service",
+  "mios-gpu-intel.service",
+  "mios-gpu-nvidia.service",
+  "mios-gpu-status.service",
+  "mios-hermes-browser-worker.service",
+  "mios-hermes-browser.service",
+  "mios-hermes-firstboot.service",
+  "mios-libexec-perms.path",
+  "mios-mcp.service",
+  "mios-models-firstboot.service",
+  "mios-opencode-gateway.service",
+  "mios-pgvector-backup.service",
+  "mios-pgvector-backup.timer",
+  "mios-podman-gc.service",
+  "mios-policy-arbiter.service",
+  "mios-shell-session-gc.service",
+  "mios-suggestion-refresh.timer",
+  "mios-swarm-pack-firstboot.service",
+  "mios-sys-env-refresh.timer",
+  "mios-userdb-render.service",
+  "mios-webtools-firstboot.service",
+  "mios-wsl-flatpak-export-sync.path",
+]
+
+# ----------------------------------------------------------------------------
 # [units] -- Systemd unit definitions SSOT (WS-SYSTEMD schema).
 # ----------------------------------------------------------------------------
 [units."mios-podman-gc.service".Unit]
@@ -92,8 +140,7 @@ Description = "Weekly Podman Cleanup"
 
 [units."mios-podman-gc.timer".Timer]
 OnCalendar = "weekly"
-Persistent = true
-
+Persistent = "true"
 [units."mios-podman-gc.timer".Install]
 WantedBy = "timers.target"
 
@@ -107,7 +154,7 @@ ConditionPathExists = "!/var/lib/mios/.ai-firstboot-done"
 comment = "# First retry shortly after boot, then every 10min while the service sits\n# inactive and the sentinel is still absent. Persistent catches up a missed\n# window across a shutdown. The timer OWNS retry now (the .service no longer\n# carries Restart=on-failure / StartLimitBurst)."
 OnBootSec = "2min"
 OnUnitInactiveSec = "10min"
-Persistent = true
+Persistent = "true"
 Unit = "mios-ai-firstboot.service"
 
 [units."mios-ai-firstboot.timer".Install]
@@ -121,8 +168,7 @@ Description = "Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discove
 comment = "# 2 min after boot (agent-pipe up by then), then every 15 min so the role\n# SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet."
 OnBootSec = "2min"
 OnUnitActiveSec = "15min"
-Persistent = true
-
+Persistent = "true"
 [units."mios-aios-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -136,8 +182,7 @@ OnBootSec = "2min"
 OnUnitActiveSec = "5min"
 AccuracySec = "30s"
 Unit = "mios-dashboard-issue.service"
-Persistent = false
-
+Persistent = "false"
 [units."mios-dashboard-issue.timer".Install]
 WantedBy = "timers.target"
 
@@ -151,8 +196,7 @@ OnBootSec = "5min"
 OnUnitActiveSec = "15min"
 AccuracySec = "1min"
 Unit = "mios-embed-backfill.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-embed-backfill.timer".Install]
 WantedBy = "timers.target"
 
@@ -164,7 +208,7 @@ Documentation = "file:///usr/lib/systemd/system/mios-pgvector-backup.service"
 [units."mios-pgvector-backup.timer".Timer]
 comment = "# Daily, shortly after midnight local time. Persistent=true catches up a missed\n# run (machine asleep/off at the scheduled time) on the next boot. Randomized\n# delay spreads the dump off the exact minute so it doesn't collide with other\n# midnight jobs."
 OnCalendar = "*-*-* 00:30:00"
-Persistent = true
+Persistent = "true"
 RandomizedDelaySec = "15m"
 AccuracySec = "5m"
 
@@ -193,8 +237,7 @@ OnBootSec = "10min"
 OnUnitActiveSec = "60min"
 AccuracySec = "2min"
 Unit = "mios-skills-miner.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-skills-miner.timer".Install]
 WantedBy = "timers.target"
 
@@ -209,8 +252,7 @@ OnBootSec = "2min"
 OnUnitActiveSec = "10min"
 AccuracySec = "1min"
 Unit = "mios-suggestion-refresh.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-suggestion-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -223,8 +265,7 @@ comment = "# Mirrors the daemon's directory_entry refresh cadence (~15 min): ins
 OnBootSec = "45s"
 OnUnitActiveSec = "900s"
 AccuracySec = "10s"
-Persistent = true
-
+Persistent = "true"
 [units."mios-sys-env-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -254,8 +295,7 @@ Description = "'MiOS' Compute Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
 Conflicts = "mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-compute.target".Install]
 WantedBy = "multi-user.target"
 
@@ -265,8 +305,7 @@ Description = "'MiOS' Controller Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-controller.target".Install]
 WantedBy = "multi-user.target"
 
@@ -276,8 +315,7 @@ Description = "'MiOS' Desktop Role"
 Requires = "multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-desktop.target".Install]
 WantedBy = "multi-user.target"
 
@@ -287,8 +325,7 @@ Description = "'MiOS' Endpoint Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-endpoint.target".Install]
 WantedBy = "multi-user.target"
 
@@ -298,8 +335,7 @@ Description = "'MiOS' HA Cluster Node Role"
 Requires = "multi-user.target corosync.service pacemaker.service"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-ha-node.target".Install]
 WantedBy = "multi-user.target"
 
@@ -309,8 +345,7 @@ Description = "'MiOS' Headless Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-headless.target".Install]
 WantedBy = "multi-user.target"
 
@@ -320,7 +355,7 @@ Description = "'MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)"
 Requires = "graphical.target"
 After = "graphical.target"
 Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target"
-AllowIsolate = true
+AllowIsolate = "yes"
 Wants = "k3s-agent.service"
 
 [units."mios-hybrid.target".Install]
@@ -332,8 +367,7 @@ Description = "'MiOS' K3s Master Role"
 Requires = "multi-user.target k3s.service"
 After = "multi-user.target"
 Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target"
-AllowIsolate = true
-
+AllowIsolate = "yes"
 [units."mios-k3s-master.target".Install]
 WantedBy = "multi-user.target"
 
@@ -342,7 +376,7 @@ comment = "# AI-hint: Defines the systemd target for the MiOS K3s worker node ro
 Description = "'MiOS' K3s worker role (agent)"
 Requires = "multi-user.target"
 After = "multi-user.target"
-AllowIsolate = true
+AllowIsolate = "yes"
 Wants = "k3s-agent.service"
 
 [units."mios-k3s-worker.target".Install]
@@ -401,9 +435,8 @@ ExecStart = '''/bin/bash -c '\
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\''''
-ProtectKernelTunables = true
-ProtectControlGroups = true
-
+ProtectKernelTunables = "yes"
+ProtectControlGroups = "yes"
 [units."mios-firewall-ports.service".Install]
 WantedBy = "multi-user.target"
 

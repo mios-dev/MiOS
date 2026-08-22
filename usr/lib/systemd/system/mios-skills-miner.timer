@@ -13,7 +13,6 @@
 # [skills].enable). The .service ConditionPathExists guard means a
 # stripped-down deployment with the libexec script absent skips
 # silently.
-
 [Unit]
 Description='MiOS' Phase C.2 skill-miner cadence (sequential pattern mining)
 Documentation=file:///usr/libexec/mios/mios-skills

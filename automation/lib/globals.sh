@@ -2531,7 +2531,7 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT='# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
 # AI-related: mios-compute, mios-headless.target'
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -2539,7 +2539,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT='# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
 # AI-related: mios-controller, mios-headless.target'
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -2615,7 +2615,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-dashboard-render-issue.sh}"
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
 # AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service'
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -2655,7 +2655,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT='# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
 # AI-related: mios-endpoint, mios-headless.target'
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -2718,8 +2718,8 @@ to" / "let me know".
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\'"'"''
-: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
-: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=yes}"
+: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=yes}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER:=firewalld.service network-online.target}"
@@ -2960,7 +2960,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
 # AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target'
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -2968,7 +2968,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_REQUIRES:=multi-user.target corosync.service pacemaker.service}"
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT='# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
 # AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target'
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target}"
@@ -3069,7 +3069,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
-: "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
 # AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target'
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target}"
@@ -3078,7 +3078,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_WANTS:=k3s-agent.service}"
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
 # AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target'
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target}"
@@ -3086,7 +3086,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES:=multi-user.target k3s.service}"
 : "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
 # AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target'
 [ -n "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s worker role (agent)'
@@ -3792,7 +3792,7 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT='# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
 # AI-related: mios-compute, mios-headless.target'
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -3800,7 +3800,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT='# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
 # AI-related: mios-controller, mios-headless.target'
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -3876,7 +3876,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-dashboard-render-issue.sh}"
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
 # AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service'
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -3916,7 +3916,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT='# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
 # AI-related: mios-endpoint, mios-headless.target'
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -3979,8 +3979,8 @@ to" / "let me know".
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\'"'"''
-: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
-: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=yes}"
+: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=yes}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER:=firewalld.service network-online.target}"
@@ -4221,7 +4221,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
 # AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target'
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
@@ -4229,7 +4229,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_REQUIRES:=multi-user.target corosync.service pacemaker.service}"
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT='# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
 # AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target'
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target}"
@@ -4330,7 +4330,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
-: "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
 # AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target'
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target}"
@@ -4339,7 +4339,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_WANTS:=k3s-agent.service}"
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
 # AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target'
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target}"
@@ -4347,7 +4347,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES:=multi-user.target k3s.service}"
 : "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
 # AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target'
 [ -n "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s worker role (agent)'
@@ -4675,6 +4675,9 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land'
 : "${MIOS_UNIT_OPEN_WEBUI:=mios-open-webui.service}"
 : "${MIOS_UNIT_PGVECTOR:=mios-pgvector.service}"
+[ -n "${MIOS_UNIT_PROJECTION_DOC+x}" ] || MIOS_UNIT_PROJECTION_DOC='[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree'"'"'s 120 units are in that state, which is the larger debt behind T-317.'
+: "${MIOS_UNIT_PROJECTION_DRIFT:=hermes-worker-firstboot.service,hermes-worker.service,mios-account-sync.service,mios-additionalimagestores-perms.path,mios-adguard-firstboot.service,mios-agent-pipe.service,mios-agents.service,mios-ai-firstboot.service,mios-ai-firstboot.timer,mios-aios-refresh.timer,mios-ceph-bootstrap.service,mios-daemon.service,mios-embed-backfill.service,mios-finetune-serve.service,mios-firewall-ports.service,mios-forge-firstboot.service,mios-forgejo-runner-firstboot.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-hermes-browser-worker.service,mios-hermes-browser.service,mios-hermes-firstboot.service,mios-libexec-perms.path,mios-mcp.service,mios-models-firstboot.service,mios-opencode-gateway.service,mios-pgvector-backup.service,mios-pgvector-backup.timer,mios-podman-gc.service,mios-policy-arbiter.service,mios-shell-session-gc.service,mios-suggestion-refresh.timer,mios-swarm-pack-firstboot.service,mios-sys-env-refresh.timer,mios-userdb-render.service,mios-webtools-firstboot.service,mios-wsl-flatpak-export-sync.path}"
+: "${MIOS_UNIT_PROJECTION_MAX_DRIFT:=39}"
 : "${MIOS_UNIT_SEARXNG:=mios-searxng.service}"
 [ -n "${MIOS_UNIT_USER_SESSION+x}" ] || MIOS_UNIT_USER_SESSION='user@'"${MIOS_UID}"'.service'
 : "${MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY:=remote-fs.target}"

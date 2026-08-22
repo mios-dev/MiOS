@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_unit_projection, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,66 @@ test_account_column_parity() {
 }
 
 
+test_unit_projection() {
+    log "Testing check_unit_projection"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak="${toml}.upbak"
+    cp "$toml" "$bak"
+
+    _up_run() {
+        env MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" \
+            MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+            bash "${ROOT}/automation/98-drift-checks.sh" check_unit_projection \
+            >/dev/null 2>&1
+    }
+    _up_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _up_run _up_fail; die "$1"; }
+
+    # (1) Raising the ceiling to absorb new drift must FAIL. The ratchet only
+    # comes down; a register that may grow measures nothing.
+    sed -i 's/^max_drift = [0-9]*$/max_drift = 999/' "$toml"
+    _up_run && _up_fail "check_unit_projection passed with a raised ceiling"
+    cp "$bak" "$toml"
+
+    # (2) Dropping a still-drifting unit must FAIL. Anchor the edit INSIDE
+    # [unit_projection] -- an unanchored regex hit another table's array.
+    python3 - "$toml" <<'PYX'
+import io, re, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+start = s.index("[unit_projection]")
+end = s.index("\n]\n", start) + len("\n]\n")
+block = s[start:end]
+block = re.sub(r'(max_drift = )(\d+)',
+               lambda m: m.group(1) + str(int(m.group(2)) - 1), block, count=1)
+block, n = re.subn(r'\n  "[^"]+",(?=\n\])', '', block, count=1)
+assert n == 1, "no register entry was removed -- the mutation would prove nothing"
+io.open(p, "w", encoding="utf-8", newline="\n").write(s[:start] + block + s[end:])
+PYX
+    _up_run && _up_fail "check_unit_projection passed with a drifting unit dropped from the register"
+    cp "$bak" "$toml"
+
+    # (3) An entry naming a unit [units.*] does not project must FAIL.
+    sed -i '0,/^drift = \[$/s//drift = [\n  "mios-not-a-real-unit.service",/' "$toml"
+    _up_run && _up_fail "check_unit_projection passed on a register entry naming no projected unit"
+    cp "$bak" "$toml"
+
+    # (4) Deleting the table must FAIL rather than read as "no debt".
+    python3 - "$toml" <<'PYX'
+import io, re, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+s = re.sub(r'\[unit_projection\]\n.*?\n\]\n', '', s, count=1, flags=re.S)
+io.open(p, "w", encoding="utf-8", newline="\n").write(s)
+PYX
+    _up_run && _up_fail "check_unit_projection passed with [unit_projection] absent"
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _up_run || { unset -f _up_run _up_fail; die "check_unit_projection failed after restoration"; }
+    unset -f _up_run _up_fail
+
+    log "Test_unit_projection negative test passed"
+}
+
 test_mini_vs_hosted() {
     log "Testing check_mini_vs_hosted"
     local doc="${ROOT}/usr/share/doc/mios/reference/mini-vs-hosted.md"
@@ -3214,6 +3274,7 @@ main() {
     test_port_fallbacks
     test_node_pool
     test_mini_vs_hosted
+    test_unit_projection
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

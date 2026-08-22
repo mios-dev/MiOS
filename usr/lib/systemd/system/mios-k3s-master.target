@@ -6,5 +6,6 @@ Requires=multi-user.target k3s.service
 After=multi-user.target
 Conflicts=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target
 AllowIsolate=yes
+
 [Install]
 WantedBy=multi-user.target

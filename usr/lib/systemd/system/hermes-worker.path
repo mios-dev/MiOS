@@ -9,7 +9,6 @@
 # closes that gap: PathExists is satisfied the moment the venv binary EXISTS
 # (on creation AND if already present at activation), starting the worker. The
 # worker's own Condition still guards against a half-built venv; start is idempotent.
-
 [Unit]
 Description='MiOS' watch for the Hermes venv -> (re)start hermes-worker
 Documentation=file:///usr/lib/systemd/system/hermes-worker.service
