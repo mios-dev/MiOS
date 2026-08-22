@@ -319,6 +319,7 @@
 | T-331 | P0 | partial | Topology/SSOT | MINI-03 -- MiOS-Mini is the BOX; the tree said it was the seat, and shipped that |
 | T-332 | P1 | planned | Docs/SSOT | MINI-04 -- One architecture, two documents, two names, both shipped (207 of 224 lines identical) |
 | T-333 | P0 | planned | Topology/SSOT | MINI-05 -- Every capability a MiOS-Mini is defined by is single-node or absent |
+| T-334 | P1 | done | Topology/SSOT | MINI-06 -- The fleet had no declared size, so nothing could see a one-node-only config |
 
 ---
 
@@ -3204,3 +3205,26 @@ They are one document with a find-and-replace applied. One says *"**MiOS-Mini** 
 
 Children to split: MINI-05a AP/radio plane · 05b mesh control plane · 05c router core · 05d hypervisor plane · 05e Ceph beyond one MON · 05f k3s server/agent election · 05g Pacemaker quorum + fencing for 2-6.
 **Why:** T-331 established that MiOS-Mini is the box and that most of what it is defined by is a target. This is the measurement of exactly how far the target is, so the roadmap stops describing a machine the image cannot be. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-334 -- MINI-06: the fleet had no declared size, so nothing could see a one-node-only config  (WS-MINI | P1 | M)
+**Goal:** E-07 A configuration that only works standalone is a defect waiting for the operator to add a peer -- and it is invisible until the SSOT says how many peers there are.
+**What+How:** T-331 established the fleet is 2-6 boxes. Nothing in the tree knew that, so no gate could distinguish "correct for one node" from "broken above one". `[blades]` was an empty table.
+
+`[blades]` now declares `min_nodes = 1`, `typical_nodes = 3`, `max_nodes = 6`. Standalone stays a valid deployment; the fleet stops being implicit.
+
+`check_fleet_safety` (gate 178) detects each hazard **from the tree**, never from a hand-list, and requires it in the shrink-only `[blades.hazards].accepted` register with a `max_accepted` ratchet:
+
+| Hazard | What reproduces it |
+|---|---|
+| `k3s-multi-server` | Four archetypes grant what `mios-k3s` requires (`hybrid`, `controller`, `k3s-master`, `ha-node`) and `mios-k3s.container` runs `k3s server` with **no `K3S_URL`**. Three default `hybrid` Minis are three independent control planes sharing one token -- not a cluster. |
+| `pacemaker-unfenced` | `mios-ha-bootstrap.service:21` sets `stonith-enabled=false`. Correct for the one-node cluster it creates; how split-brain corrupts data once a peer exists. |
+
+Both are **accepted, not fixed**. Fixing them is the fleet design (T-333); this task is about making sure neither can be reached accidentally by adding a second machine without someone noticing.
+
+**Detection is conjunctive, not keyword-matching**, so an entry retires itself when the cause goes: k3s needs BOTH two grantors AND a join-less `k3s server`, so adding a `K3S_URL` or narrowing the grantors clears it; fencing is read from code and never from comments. Both directions are tested.
+
+`max_nodes = 1` disarms the hazards rather than being a loophole -- standalone is a real deployment, the hazards genuinely do not bite there, and raising `max_nodes` re-arms them. That case is pinned by a test.
+**Where:** `tools/check-fleet-safety.py` + `tools/test_check-fleet-safety.py`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`, `usr/share/mios/mios.toml` (`[blades]`, `[blades.hazards]`).
+**Done When:** met. 21 sibling tests; a 3-case negative test verified to fail for the RIGHT reason each time -- dropping a live hazard names the surviving one at its real file:line, raising the ceiling names the count, undeclaring `max_nodes` says the fleet has no declared size.
+**Status:** done
+**Why:** the two hazards are the ones from T-333 that stop being *missing* and start being *dangerous* at node 2. Everything else in that audit is absent and fails loudly; these two look fine and fail quietly. | **Domain:** Topology/SSOT | **Who:** architect
