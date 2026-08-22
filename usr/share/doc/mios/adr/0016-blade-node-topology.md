@@ -458,6 +458,87 @@ Lineage stays a **bake-time** fork, because it is one — a different `FROM`.
 The two must not be conflated again: a role must never require its own Containerfile, and a lineage
 must never imply a role.
 
+### 5. A seat's front door is off-box by design, so the seat is where auth stops being optional
+
+Decision 1 makes offload an overlay: the seat repoints `[ai].endpoint` and the canonical key its
+consumers already read. The `[ai]` header said the opposite — *"endpoint MUST stay on localhost;
+vendor cloud URLs are forbidden by audit (postcheck #12 enforces this in the active config)"* — and
+**there is no postcheck #12**; nothing in the tree enforced it. A rule guarded by a citation to a
+check that does not exist is the `[profile].role` failure again, and here it directly contradicted
+the topology.
+
+The rule, restated so it is both true and enforceable:
+
+* The **vendor** default stays local. `usr/share/mios/mios.toml` never ships an off-box endpoint,
+  and never a vendor cloud URL — that half of Law 5 is real and is now checkable.
+* An **operator overlay** may point the endpoint anywhere. That is the whole mechanism; local,
+  localhost and remote are three values of it.
+* An off-box endpoint means the request leaves the machine, so **`[security].api_require_auth` is
+  the seat's precondition, not a preference.**
+
+That last clause was unstatable until T-325: `api_require_auth` and `principal_bind_mode` had been
+orphaned under an unclosed `[security.nohc_allowlist]` header, and both consumers read
+`[security].<key>`, so both always took their compiled default. **The controls that bound a seat
+could not be switched on.** They are reachable now; the defaults are unchanged (`false` and `off`),
+because turning them on is an operator decision about front-door posture.
+
+The tenancy question is what makes this a seat-specific decision rather than general hygiene. A
+fully hosted MiOS is one machine, loopback, one human — an ungated front door costs little. A seat
+inverts every term: the endpoint is off-box, N seats share one blade, and `owner_user`, the
+row-scope on the shared pgvector memory, is derived from the request body's `user` field plus
+forwarded headers, both settable by any direct caller. `principal_bind_mode = enforce` is what binds
+that owner to an authenticated key. **It is the seat topology's only tenancy boundary.**
+
+### 6. A seat has no local inference floor, and that is the definition rather than a gap
+
+Every lane — heavy, alt, light, and the CPU node — is capability-gated off on `endpoint`, including
+the one the resolver calls the always-on floor. When the blade is unreachable, a seat has a front
+door that reaches nothing.
+
+That is kept, because "offload *all* services" is the requirement and a floor would contradict it.
+What is added is an **opt-in**, so the choice is the operator's rather than the archetype's: a
+`seat-floor` capability, granted by no archetype, that ungates exactly one micro lane. `lfm2-700m`
+is already baked and CPU-only, so the cost when it is off is zero and the cost when it is on is one
+small model. A seat that wants degraded-but-alive grants it in `/etc/mios/role.conf`; a seat that
+wants the pure definition does nothing.
+
+The failure must also be *legible*, which is the half that was missing: a seat whose blade is gone
+should say "blade unreachable", not surface a model error. The detection exists; wiring it to the
+dashboard is what remains.
+
+### 7. One image, always. The seat pays blade-sized disk and that is the correct trade
+
+A seat carries every baked payload it will never load, including the vLLM AWQ snapshot (~16 GB by
+the SSOT's own figure) and the GGUF set. Splitting the image would end that, and is refused: one
+rebuildable image is the whole `bootc` premise, a second tag doubles the CVE surface for what is a
+*runtime* difference, and Law 12 exists precisely so first boot never depends on egress.
+
+Two corrections follow rather than a split. The cost must be **visible** — the baked-weight byte
+count belongs in the generated comparison, so "a seat carries N GB it never loads" is a number an
+operator can weigh. And `[ai.vllm].bake_model` is baked by default while `[ai.vllm].enable = false`,
+which is not Law 12 discipline but an unreviewed default; the payload, not the image, is what should
+become opt-in there.
+
+### 8. A seat is stateless by definition, and skew between seat and blade must be visible
+
+Memory, sessions, skills and events live on the blade. A seat keeps nothing, which is the honest
+reading of "offload all services" and is hereby the contract rather than an accident.
+
+Two consequences the tree does not yet express. `[greenboot].blade_reachability_critical = false` is
+right — a seat must not roll itself back over someone else's outage — but it means a seat's greenboot
+can only ever fail on `mios-agent-pipe`, so blade reachability belongs in the boot record as a
+**recorded, non-critical** check. And nothing anywhere expresses a compatibility floor: seat and
+blade `bootc upgrade` independently, and a seat two releases ahead of its blade fails
+mysteriously. `[blade].min_peer_version`, reported by the reachability probe and **non-fatal**, is
+the smallest thing that makes that legible.
+
+### 9. "MiOS-Mini" is a role name and must never become a tag
+
+The seat is byte-identical to the full image. "Mini" reads like a smaller build, and it is not one;
+the generated comparison says so in its first line, and that is deliberate. If Mini ever became a
+tag it would reverse Decision 7, so the two are recorded together: **the name describes a
+`[blade].type`, never an artifact.**
+
 ## Consequences
 
 **Enabling**

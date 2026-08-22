@@ -2219,8 +2219,12 @@ arbitration = "static"   # GPU arbitration model: "static" (pre-bind at boot), "
 
 # ----------------------------------------------------------------------------
 # [ai] -- Local AI surface (Architectural Law 5: UNIFIED-AI-REDIRECTS).
-# endpoint MUST stay on localhost; vendor cloud URLs are forbidden by audit
-# (postcheck #12 enforces this in the active config).
+# The VENDOR default stays local and never names a vendor cloud URL. An
+# operator OVERLAY may point endpoint anywhere -- that is how a seat offloads
+# (ADR-0016 D1), and local/localhost/remote are three values of one mechanism.
+# An off-box endpoint leaves the machine, so [security].api_require_auth is a
+# seat's precondition, not a preference (ADR-0016 D5). The old note here cited
+# "postcheck #12" as the enforcer; no such check has ever existed.
 # Maps to MIOS_AI_ENDPOINT, MIOS_AI_MODEL, MIOS_AI_EMBED_MODEL, MIOS_AI_KEY,
 # MIOS_SYSTEM_PROMPT_FILE, MIOS_MCP_REGISTRY.
 #

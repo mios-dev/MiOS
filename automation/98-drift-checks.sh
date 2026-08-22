@@ -2795,6 +2795,37 @@ check_vendor_urls() {
     else
         echo "[98-drift-checks]   no vendor cloud URL in active config"
     fi
+
+    # ADR-0016 D5: the VENDOR endpoint stays local; only an /etc overlay
+    # may point it off-box.
+    local ep_out
+    ep_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'ENDPY'
+import os, re, sys
+try:
+    import tomllib as _t
+except ImportError:
+    try:
+        import tomli as _t  # type: ignore
+    except ImportError:
+        sys.exit(0)
+root = os.environ["MIOS_DRIFT_ROOT"]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    data = _t.load(fh)
+ep = str((data.get("ai") or {}).get("endpoint") or "")
+if not ep:
+    print("[ai].endpoint is empty -- every client resolves MIOS_AI_ENDPOINT from it")
+    sys.exit(0)
+host = re.sub(r"^[a-z]+://", "", ep).split("/")[0].split(":")[0]
+if host not in ("localhost", "127.0.0.1", "::1", "[::1]"):
+    print("[ai].endpoint is %s: the VENDOR default must stay local (ADR-0016 D5). "
+          "Point it off-box in /etc/mios, never in the shipped SSOT" % ep)
+ENDPY
+)"
+    if [[ -n "$ep_out" ]]; then
+        _violation "$ep_out"
+    else
+        echo "[98-drift-checks]   vendor [ai].endpoint is local"
+    fi
 }
 
 check_resolver_twin_parity() {
