@@ -141,13 +141,6 @@ def main() -> int:
                 if line.strip():
                     viol.append(line.strip())
     elif os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS", "0") == "1":
-        # Hygiene alone cannot see a unit that still DRIFTS after being dropped
-        # from the register -- the remaining entries are still sorted, unique,
-        # real and under the ceiling. Only the rendering comparison catches it,
-        # and that lives in the binary. Skipping it quietly leaves a gate that
-        # passes on exactly the edit it exists to stop, so where the environment
-        # says tools are mandatory, an absent binary is a violation rather than
-        # a footnote (same rule as check_no_silent_tool_skips).
         viol.append("no built mios-unit-gen, so the rendering half did not run "
                     "and a drifting unit dropped from the register would pass "
                     "(MIOS_DRIFT_REQUIRE_TOOLS=1). Build it: "

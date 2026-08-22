@@ -8,13 +8,13 @@
 -- idioms already used in schema-init.sql). No live engine was reachable in-session (podman machine
 -- down), so every construct was chosen to match features the existing schema-init.sql already relies on.
 
--- AI-hint: MiOS database-managed accounts SSOT (WS-ACCT / ACCT-03). The normalized,
+-- AI-hint: MiOS database-managed accounts SSOT (WS-ACCT / ACCT-03). The normalized
 --   Postgres-standards accounts schema that IS the accounts source-of-truth (itself
 --   projected from mios.toml [accounts]) and is projected OUT to systemd userdb JSON
 --   (Linux, nss-systemd) and Windows New-LocalUser (autounattend/SetupComplete +
 --   first-boot reconcile). Parameterized callers ONLY (mios-pg-query --exec-json);
 --   this file is DDL. Idempotent + migration-safe -- runs at every schema-init.
--- AI-related: usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py,
+-- AI-related: usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py
 --   usr/lib/mios/mios_accounts.py, usr/libexec/mios/mios-accounts-projector,
 --   usr/libexec/mios/mios-account-sync, usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py,
 --   mios.toml [accounts] / [[autounattend.accounts]] / [identity]

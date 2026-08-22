@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Applies the code-server / war-room workspace (an ext4 replica of the MiOS
-# AI-related: /usr/share/mios/agents/mios-frontier-sync, /usr/libexec/mios/verify-root.sh,
+# AI-related: /usr/share/mios/agents/mios-frontier-sync, /usr/libexec/mios/verify-root.sh
 # AI-functions: log, die, resolve_src, mutability_gate, build_fileset, do_sync
 set -uo pipefail
 

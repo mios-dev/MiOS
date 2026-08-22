@@ -102,7 +102,7 @@ Every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` and baked
 into `/usr/lib/containers/storage` at build time, so `bootc upgrade` pulls/caches
 each sidecar image alongside the OS image — the services arrive atomically with
 the OS, never as a separate online fetch. Binder loop:
-`automation/08-system-files-overlay.sh:74-86`.
+`automation/01-system-files-overlay.sh:74-86`.
 
 ### Service gating (defaults policy)
 

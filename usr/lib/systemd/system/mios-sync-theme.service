@@ -5,7 +5,7 @@
 # hermes-dashboard.service, and Quickshell's Theme.qml try to read it, and is
 # safe to `systemctl start mios-sync-theme.service` by hand after editing
 # mios.toml [colors] instead of hand-editing CSS/QML hex codes.
-# AI-related: usr/libexec/mios/mios-sync-theme, usr/lib/tmpfiles.d/mios-theme.conf,
+# AI-related: usr/libexec/mios/mios-sync-theme, usr/lib/tmpfiles.d/mios-theme.conf
 # usr/share/mios/quickshell/Theme.qml, usr/share/mios/branding/mios-theme.css
 
 [Unit]

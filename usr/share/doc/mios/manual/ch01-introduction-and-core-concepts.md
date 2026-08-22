@@ -46,7 +46,7 @@ This section links back to the authoritative [Attribution Registry (credits.md)]
 The `mios.git` repository root *is* the running host's system root (`/`). There is no temporary build directory, no intermediate staging workspace, and no Ansible configuration playbooks.
 
 - **Structure**: The files in the repository (e.g. `usr/`, `etc/`, `srv/`, `var/`) are mapped directly to their FHS positions on the booted system.
-- **Overlay Application**: During the container image build, the script [08-system-files-overlay.sh](automation/08-system-files-overlay.sh) applies the overlay files directly to the rootfs.
+- **Overlay Application**: During the container image build, the script [01-system-files-overlay.sh](automation/01-system-files-overlay.sh) applies the overlay files directly to the rootfs.
 - **Developer Workflow**: To change a configuration or utility in the OS, you edit it at its natural path inside the repository and trigger a rebuild. When the OCI image is updated, `bootc` handles the transactional merge on the target machine.
 
 #### Citation & Attribution References

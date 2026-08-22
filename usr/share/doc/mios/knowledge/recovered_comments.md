@@ -12892,7 +12892,7 @@
 - Write a temporary results file
 - Run mios-bench score in a subprocess. Invoke via sys.executable (python3)
 - rather than executing mios-bench directly: git tracks it 0644 and the +x
-- bit is only added to the IMAGE copy by 08-system-files-overlay.sh, not to
+- bit is only added to the IMAGE copy by 01-system-files-overlay.sh, not to
 - the /tmp/build working copy MIOS_BENCH points at during the OCI build, so a
 - direct exec raised PermissionError in build.sh's test gate. python3 needs
 - no exec bit and matches how postcheck #15 invokes it.
@@ -41445,7 +41445,7 @@
 - `# Write a temporary results file`
 - `# Run mios-bench score in a subprocess. Invoke via sys.executable (python3)`
 - `# rather than executing mios-bench directly: git tracks it 0644 and the +x`
-- `# bit is only added to the IMAGE copy by 08-system-files-overlay.sh, not to`
+- `# bit is only added to the IMAGE copy by 01-system-files-overlay.sh, not to`
 - `# the /tmp/build working copy MIOS_BENCH points at during the OCI build, so a`
 - `# direct exec raised PermissionError in build.sh's test gate. python3 needs`
 - `# no exec bit and matches how postcheck #15 invokes it.`
@@ -59995,7 +59995,7 @@
 - `# Update Build / Install Stats (mios-install / mios-build pipeline)`
 - `# Hard-clean the mount roots BEFORE the converter runs. Best-effort / degrade-open: a mount`
 - `# held open by another process may need a reboot -- warn loudly rather than under-service.`
-- `# automation/15-render-quadlets.sh walks the four Quadlet search`
+- `# automation/34-render-quadlets.sh walks the four Quadlet search`
 - `# Deploy the resolver + generate the bridge HERE so 15-render-quadlets below AND`
 - `#main-container, #flash-container, #ai-container {{`
 - `#flash-stats-pane, #ai-stats-pane {{`

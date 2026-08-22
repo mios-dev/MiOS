@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates,
+# AI-hint: The GLOBAL runtime theme + dotfiles projector -- renders EVERY committed theme surface (the btop theme, oh-my-posh, quickshell, fastfetch, the app-shell CSS, the terminal OSC fallbacks) from the mios.toml [colors]/[theme] SSOT via token-substitution templates
 # AI-related: /etc/mios/mios.toml, mios-sync-theme, mios-bak, mios-theme-render, surface.target, s.target, apply.target
 """Global runtime theme + dotfiles projection: render/check/capture/apply theme+dotfile surfaces from the mios.toml SSOT."""
 

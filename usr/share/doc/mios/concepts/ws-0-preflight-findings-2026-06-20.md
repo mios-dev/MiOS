@@ -31,7 +31,7 @@ implementation. Against `HEAD` the following PREFLIGHT/WS-0A claims are false:
 1. **"`automation/97-ssot-lint.sh` DOES NOT EXIST — author from scratch."**
    FALSE. It exists (194 lines): two-sided `${MIOS_*}` wiring lint asserting each
    Quadlet placeholder is wired in BOTH `tools/lib/userenv.sh` AND
-   `automation/15-render-quadlets.sh`; read-only; `MIOS_SSOT_LINT_SOFT=1`
+   `automation/34-render-quadlets.sh`; read-only; `MIOS_SSOT_LINT_SOFT=1`
    advisory mode. A sibling test exists: `automation/tests/test-97-ssot-lint.sh`.
 
 2. **"`97-ssot-lint`/pytest absent from `build.sh`."** FALSE. `build.sh` already

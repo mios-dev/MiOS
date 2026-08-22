@@ -98,14 +98,14 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 01-repos.sh                     Fedora 44 / RPMFusion repo enable
 │   │   ├─ 02-kernel.sh                    kernel devel/headers (akmod / DKMS)
 │   │   ├─ 05-enable-external-repos.sh     CrowdSec / ublue-os / mios-COPR repos
-│   │   ├─ 08-system-files-overlay.sh      tar usr/ + etc/ overlay onto base; perm-normalize
+│   │   ├─ 01-system-files-overlay.sh      tar usr/ + etc/ overlay onto base; perm-normalize
 │   │   ├─ 09-fonts.sh                     Geist Mono / Nerd Font / Bibata cursor
 │   │   ├─ 10-gnome.sh                     GNOME 50 desktop install (Wayland-only)
 │   │   ├─ 11-hardware.sh                  GPU drivers (Mesa / NVIDIA akmod / ROCm / Intel)
 │   │   ├─ 12-virt.sh                      KVM/QEMU/libvirt + Podman Quadlet stack
-│   │   ├─ 13-ceph-k3s.sh                  Ceph + K3s SELinux module build
+│   │   ├─ 36-ceph-k3s.sh                  Ceph + K3s SELinux module build
 │   │   ├─ 18-apply-boot-fixes.sh          known-issue patches (composefs/dracut)
-│   │   ├─ 19-k3s-selinux.sh               build the k3s SELinux policy module
+│   │   ├─ 37-k3s-selinux.sh               build the k3s SELinux policy module
 │   │   ├─ 20-fapolicyd-trust.sh           fapolicyd trust DB seed
 │   │   ├─ 20-services.sh                  systemd preset + service-gate setup
 │   │   ├─ 21-moby-engine.sh               Docker-compatible engine (moby)
@@ -125,8 +125,8 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 36-akmod-guards.sh              akmod build-failure guards
 │   │   ├─ 36-tools.sh                     mios CLI installer
 │   │   ├─ 37-flatpak-env.sh               capture flatpak env for first-boot install
-│   │   ├─ 37-selinux.sh                   build-time SELinux policy fixes
-│   │   ├─ 38-hermes-agent.sh              MiOS-Hermes agent gateway install (port key `hermes`)
+│   │   ├─ 38-selinux.sh                   build-time SELinux policy fixes
+│   │   ├─ 72-hermes-agent.sh              MiOS-Hermes agent gateway install (port key `hermes`)
 │   │   ├─ 38-llamacpp-prep.sh             mios-llm-light prep: llama.cpp GGUF bake behind the upstream llama-swap proxy (replaces the retired Ollama model-bake)
 │   │   ├─ 38-vllm-prep.sh                 mios-llm-heavy (vLLM) heavy-lane prep (gated)
 │   │   ├─ 38-oh-my-posh.sh                oh-my-posh install + theme
@@ -135,7 +135,7 @@ deployed `/` IS a git working tree of `mios.git` (`mios_root_git`).
 │   │   ├─ 40-composefs-verity.sh          composefs verity setup
 │   │   ├─ 40-flatpak-bake.sh              bake [desktop].flatpaks list into image
 │   │   ├─ 41-gpu-cdi-toolkits.sh          AMD/Intel CDI generators (out-of-Fedora binaries)
-│   │   ├─ 41-mios-dropin-fanout.sh        per-unit systemd drop-in fan-out
+│   │   ├─ 48-mios-dropin-fanout.sh        per-unit systemd drop-in fan-out
 │   │   ├─ 42-cosign-policy.sh             sigstore signed-image policy
 │   │   ├─ 43-uupd-installer.sh            uupd unified updater install
 │   │   ├─ 44-podman-machine-compat.sh     podman-machine compat (groups, cloud-init exits)
@@ -513,14 +513,14 @@ artifacts have been renamed or removed in the live tree).
 |  +- 01-repos.sh
 |  +- 02-kernel.sh
 |  +- 05-enable-external-repos.sh
-|  +- 08-system-files-overlay.sh
+|  +- 01-system-files-overlay.sh
 |  +- 09-fonts.sh
 |  +- 10-gnome.sh
 |  +- 11-hardware.sh
 |  +- 12-virt.sh
-|  +- 13-ceph-k3s.sh
+|  +- 36-ceph-k3s.sh
 |  +- 18-apply-boot-fixes.sh
-|  +- 19-k3s-selinux.sh
+|  +- 37-k3s-selinux.sh
 |  +- 20-fapolicyd-trust.sh
 |  +- 20-services.sh
 |  +- 21-moby-engine.sh
@@ -540,8 +540,8 @@ artifacts have been renamed or removed in the live tree).
 |  +- 36-akmod-guards.sh
 |  +- 36-tools.sh
 |  +- 37-flatpak-env.sh
-|  +- 37-selinux.sh
-|  +- 38-hermes-agent.sh
+|  +- 38-selinux.sh
+|  +- 72-hermes-agent.sh
 |  +- 38-llamacpp-prep.sh
 |  +- 38-oh-my-posh.sh
 |  +- 38-vllm-prep.sh
@@ -550,7 +550,7 @@ artifacts have been renamed or removed in the live tree).
 |  +- 40-composefs-verity.sh
 |  +- 40-flatpak-bake.sh
 |  +- 41-gpu-cdi-toolkits.sh
-|  +- 41-mios-dropin-fanout.sh
+|  +- 48-mios-dropin-fanout.sh
 |  +- 42-cosign-policy.sh
 |  +- 43-uupd-installer.sh
 |  +- 44-podman-machine-compat.sh

@@ -22,7 +22,7 @@ There are **three** separately-coded "apply MiOS to `/`" mechanisms doing the sa
 
 | Mechanism | File | How it puts the tree at `/` | Runs `automation/*` stages? |
 |---|---|---|---|
-| **CI/CD bake** | `Containerfile` → `automation/build.sh` | `08-system-files-overlay.sh` **tar-pipes** `usr/`+`etc/`+skel onto `/` from read-only `/ctx`; `.git` shipped only into throwaway `/tmp/build` for the drift gate | **all 69** |
+| **CI/CD bake** | `Containerfile` → `automation/build.sh` | `01-system-files-overlay.sh` **tar-pipes** `usr/`+`etc/`+skel onto `/` from read-only `/ctx`; `.git` shipped only into throwaway `/tmp/build` for the drift gate | **all 69** |
 | **Bare-metal (FHS)** | `mios-bootstrap/build-mios.sh:1062-1090` | **`git init /` + fetch + `reset --hard FETCH_HEAD`** (+ `checkout -B main` + upstream config → `git -C / pull` self-updates) | a few (`15-render-quadlets`, sysusers/tmpfiles) |
 | **Dev-VM (WSL/podman)** | `build-mios.ps1:3688-3723` (`Invoke-MiosQuadletOverlay`) | **same `git init /` + reset** inside the VM | some canonical (`09-fonts`,`15-render-quadlets`,`38-oh-my-posh`,`install-ai-clis`) **+ re-implements the rest in bash-in-PowerShell** |
 | dumb overlay | `MiOS/tools/mios-overlay.sh` | `tar`-copies `usr/etc/var/home`, no stages | none (Justfile init/deploy/live-init call this) |

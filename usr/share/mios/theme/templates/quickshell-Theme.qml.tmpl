@@ -7,7 +7,7 @@
 // mios.toml vendor defaults, they are not a second palette. Run
 // `mios-sync-theme` (or `systemctl start mios-sync-theme.service`) after
 // editing mios.toml [colors] to refresh the bridge this file reads.
-// AI-related: /etc/mios/theme/theme.json, usr/libexec/mios/mios-sync-theme,
+// AI-related: /etc/mios/theme/theme.json, usr/libexec/mios/mios-sync-theme
 // usr/share/mios/quickshell/Config.qml, usr/share/mios/quickshell/PanelWindow.qml
 //
 // API note: uses Quickshell.Io's FileView (path / text() / textChanged()),

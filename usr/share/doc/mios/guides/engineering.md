@@ -48,7 +48,7 @@ the Architectural Laws.
 
 `Containerfile` triggers `automation/build.sh`, which iterates every
 `automation/[0-9][0-9]-*.sh` in numeric order. Two scripts are skipped by the
-orchestrator: `08-system-files-overlay.sh` (runs pre-pipeline directly from the
+orchestrator: `01-system-files-overlay.sh` (runs pre-pipeline directly from the
 `Containerfile`'s main `RUN`) and the CI-skipped model-bake sub-phase in the
 `37-*` range. Sub-phase numbering encodes dependency order and must be preserved
 when adding new scripts. See `CLAUDE.md` for the sub-phase ranges.
@@ -120,8 +120,8 @@ No `[kargs]` section header. No `delete` sub-key. bootc rejects anything else
 
 Custom policies are split into per-rule `.te` modules in
 `usr/share/selinux/packages/mios/` (compiled and shipped, not loaded at build
-time -- see `automation/19-k3s-selinux.sh:46-51`). New booleans and fcontexts are
-declared via `semanage` calls in `automation/37-selinux.sh`.
+time -- see `automation/37-k3s-selinux.sh:46-51`). New booleans and fcontexts are
+declared via `semanage` calls in `automation/38-selinux.sh`.
 
 ## Service gating
 

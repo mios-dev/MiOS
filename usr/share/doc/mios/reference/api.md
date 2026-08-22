@@ -908,7 +908,7 @@ understands the system the API lives inside.
 
 ## A.1 What this repo is
 
-'MiOS' is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image -- and at the same time a local, self-replicating agentic AI OS. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/08-system-files-overlay.sh` overlays them into the image.
+'MiOS' is an immutable, `bootc`-managed Fedora-derived workstation OS distributed as an OCI image -- and at the same time a local, self-replicating agentic AI OS. The repo root **is** the deployed system root: `usr/`, `etc/`, `srv/`, `var/`, `proc/`, `opt/` at the top level mirror their FHS-3.0 destinations. There is no `system_files/` indirection; `automation/01-system-files-overlay.sh` overlays them into the image.
 
 The published image is `ghcr.io/mios-dev/mios:latest` and is built `FROM ghcr.io/ublue-os/ucore-hci:stable-nvidia` (set via `MIOS_BASE_IMAGE`). The build pipeline produces the image; `bootc` manages its lifecycle (`bootc upgrade` to roll forward, `bootc rollback` to undo); and the AI stack documented above is one of the curated layers baked into that image.
 
@@ -940,7 +940,7 @@ The `Containerfile` already runs `bootc container lint` as its final RUN -- `jus
 `Containerfile` triggers `automation/build.sh`, which iterates every `automation/[0-9][0-9]-*.sh` in lexicographic numeric order. **Sub-phase numbering encodes dependency order and must be preserved when adding new scripts.** Per-script failures are captured in `FAIL_LOG`/`WARN_LOG` (set +e wrapper around each invocation) -- the orchestrator does not abort. Critical packages are post-validated via `rpm -q`.
 
 Notable skips under the in-Containerfile build:
-- `08-system-files-overlay.sh` -- runs pre-pipeline directly from `Containerfile`.
+- `01-system-files-overlay.sh` -- runs pre-pipeline directly from `Containerfile`.
 - Model-bake steps (the inference-lane weight bakes, e.g. SGLang/vLLM prep) are **opt-in** and CI-skipped, so a default CI build never bloats the image with multi-GB weights. (The former `37-ollama-prep.sh` ollama bake is retired along with Ollama itself.)
 
 The full pipeline spans five phases owned by two repos:
@@ -957,7 +957,7 @@ The full pipeline spans five phases owned by two repos:
 
 1. **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Documented exceptions are upstream-contract surfaces (`/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/`).
 2. **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. **Never write to `/var/` at build time.** bootc forbids it; lint will fail.
-3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/08-system-files-overlay.sh`.
+3. **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. Binder loop: `automation/01-system-files-overlay.sh`.
 4. **BOOTC-CONTAINER-LINT** -- must be the final `RUN` of `Containerfile`. No `--squash-all` (strips OCI metadata bootc needs).
 5. **UNIFIED-AI-REDIRECTS** -- all agents and tools target `MIOS_AI_ENDPOINT`. Vendor-hardcoded URLs are forbidden. The endpoint is served by the MiOS inference lanes (`mios-llm-light` primary; `mios-llm-heavy` gated) fronted by the MiOS-Hermes gateway (`hermes`) and the agent-pipe (`agent_pipe`) -- see [Where the surface is served](#where-the-surface-is-served).
 6. **UNPRIVILEGED-QUADLETS** -- every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Documented root exceptions: `mios-ceph`, `mios-k3s`, `mios-forgejo-runner` (file headers explain why; heavy-lane images that must run as image-default root, e.g. SGLang's NVIDIA base, are similarly documented in their unit headers).

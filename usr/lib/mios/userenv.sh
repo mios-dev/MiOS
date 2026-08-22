@@ -20,7 +20,11 @@ if [[ -z "$MIOS_ROOT" ]]; then
 fi
 
 _mios_load_unified() {
-    if command -v mios-resolver >/dev/null 2>&1; then
+    local _use_rust=1
+    if [[ "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:-true}" == "false" || "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:-true}" == "0" ]]; then
+        _use_rust=0
+    fi
+    if [[ "$_use_rust" -eq 1 ]] && command -v mios-resolver >/dev/null 2>&1; then
         local _native_exports=""
         if _native_exports=$(mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
             eval "$_native_exports" && return 0

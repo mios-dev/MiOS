@@ -51,15 +51,15 @@ Purge list for a pipeline-wide lint rule: **successfully, complete/Done (bare), 
 | 10-gnome.sh:42 | `echo "[10-gnome] Disabling localsearch/tracker indexing (keep package, hide autostart)..."` | `echo "[10-gnome] localsearch/tracker indexing disabled via static autostart override files in the usr/share/xdg/autostart/ overlay (package retained)"` | No command between echo (42) and next section (44); comment (40) says disabling is done by overlay files. |
 | 10-gnome.sh:48 | `echo "[10-gnome] Setting Qt Adwaita environment variables (managed via overlay)..."` | `echo "[10-gnome] Qt Adwaita theming provided by usr/lib/environment.d/60-mios-qt-adwaita.conf overlay"` | No env var is set here; comment (47) names the overlay file. |
 | 11-hardware.sh:94 | `echo "[11-hardware] GPU stack complete. Mesa + AMD ROCm + Intel + NVIDIA (ucore / akmod rebuild)."` | `echo "[11-hardware] GPU stack complete: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT (0 = image ships without NVIDIA acceleration)."` | Lines 73-79 handle NVIDIA_PRESENT=0 where no NVIDIA kmod ships; line asserts NVIDIA unconditionally. |
-| 13-ceph-k3s.sh:124 | `echo "[13-ceph-k3s] Ceph + K3s stack installed."` | `echo "[13-ceph-k3s] Ceph client + cephadm installed; K3s binary install per tag ${K3S_TAG:-none} (see status above)."` | K3s install skipped at line 52 (version unset), 102 (checksum), 106 (download fail). |
+| 36-ceph-k3s.sh:124 | `echo "[13-ceph-k3s] Ceph + K3s stack installed."` | `echo "[13-ceph-k3s] Ceph client + cephadm installed; K3s binary install per tag ${K3S_TAG:-none} (see status above)."` | K3s install skipped at line 52 (version unset), 102 (checksum), 106 (download fail). |
 | 18-apply-boot-fixes.sh:54 | `echo "==> Service gating drop-ins active via overlay"` | `echo "==> OCI/WSL2 service gating: no action here; ConditionVirtualization drop-ins ship in the system_files overlay"` | Section 6 (51-54) is comments + this echo only; nothing activates. |
-| 19-k3s-selinux.sh:5 | `echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."` | `echo "==> Compiling K3s SELinux policy (k3s.pp) for Fedora 44 and staging it in /usr/share/selinux/packages/mios/..."` | Lines 59-63 comment "instead of installing... we ship the compiled policy"; only `install -m 0644 k3s.pp` (63); line 68 says "staged". |
+| 37-k3s-selinux.sh:5 | `echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."` | `echo "==> Compiling K3s SELinux policy (k3s.pp) for Fedora 44 and staging it in /usr/share/selinux/packages/mios/..."` | Lines 59-63 comment "instead of installing... we ship the compiled policy"; only `install -m 0644 k3s.pp` (63); line 68 says "staged". |
 | 20-services.sh:39 | `echo "[20-services] WSL2/Container skip drop-ins active via overlay"` | `echo "[20-services] WSL2/OCI service-skip drop-ins delivered via system_files overlay (not by this step)"` | No install/activate command; comment (38) says they ship via overlay. |
 | 26-gnome-remote-desktop.sh:6 | `echo "[26-grd] Configuring GNOME Remote Desktop (GNOME 50)"` | `echo "[26-grd] Masking xrdp.service and xrdp-sesman.service; GNOME Remote Desktop enablement via 90-mios.preset"` | Only command is `systemctl mask xrdp.service xrdp-sesman.service` (9); GRD enable via preset/overlay (11-13). |
 | 30-locale-theme.sh:92 | `echo "[30-locale-theme] Dark theme configured for all toolkits."` | `echo "[30-locale-theme] Applied system Flatpak dark/cursor overrides, compiled 90-mios.gschema.override, ran dconf update."` | Step only sets Flatpak overrides (49-66), compiles gschema (76), dconf update (82); GTK/Qt/Electron via overlays. |
 | 34-gpu-detect.sh:10 | `echo "[34-gpu-detect] Configuring GPU auto-detect service..."` | `echo "[34-gpu-detect] gpu-detect unit + /usr/libexec/mios/gpu-detect supplied by system_files overlay; this step performs no configuration."` | Body is only echoes (12-13 say unit/script come from overlay + preset). |
 | 34-gpu-detect.sh:15 | `echo "[34-gpu-detect] GPU detection service enabled."` | `echo "[34-gpu-detect] gpu-detect.service enablement delivered via usr/lib/systemd/system-preset/90-mios.preset (not enabled by this script)."` | Script never enables the unit; comment (13) attributes enablement to preset. |
-| 37-selinux.sh:167 | `echo "[37-selinux] mios_${name}: SKIPPED (type missing in current policy)"` | `echo "[37-selinux] mios_${name}: SKIPPED (checkmodule or semodule_package failed -- e.g. a required SELinux type is absent from the current policy)"` | else branch fires on any non-zero from checkmodule (161) OR semodule_package (162); cause not verified. |
+| 38-selinux.sh:167 | `echo "[37-selinux] mios_${name}: SKIPPED (type missing in current policy)"` | `echo "[37-selinux] mios_${name}: SKIPPED (checkmodule or semodule_package failed -- e.g. a required SELinux type is absent from the current policy)"` | else branch fires on any non-zero from checkmodule (161) OR semodule_package (162); cause not verified. |
 | 38-drift-checks.sh:1800 | `echo "[38-drift-checks]   (30) names registry matches generate-names-registry.py and userenv.sh maps cleanly"` | `echo "[38-drift-checks]   (30) usr/share/mios/names.generated.txt + referenced_names.txt match a fresh tools/generate-names-registry.py run"` | Body (1737-1798) only diffs the two generated files; never reads userenv.sh. |
 | 38-drift-checks.sh:1802 | `_violation "naming registry drift / userenv translation table violation (flatten check 30)"` | `_violation "usr/share/mios/names.generated.txt or referenced_names.txt is STALE vs tools/generate-names-registry.py -- regenerate with python3 tools/generate-names-registry.py (flatten check 30)"` | Check inspects no userenv table; only failure is stale generated files. |
 | 40-flatpak-bake.sh:156 | `log "[40-flatpak-bake] bake complete: ${INSTALLED} installed, ${FAILED} deferred to first boot"` | `log "[40-flatpak-bake] bake complete: ${INSTALLED} refs attempted, ${FAILED} reported non-zero"` | Lines 146-149 `flatpak install ... \| grep ... \|\| true` always succeeds; FAILED else branch unreachable, INSTALLED counts failures too. |
@@ -118,7 +118,7 @@ The five `successfully` banners and two `BAKED IN` banners are the highest-value
 |---|---|---|---|
 | 94 | inaccurate | `echo "[11-hardware] GPU stack complete. Mesa + AMD ROCm + Intel + NVIDIA (ucore / akmod rebuild)."` | `echo "[11-hardware] GPU stack complete: Mesa + AMD ROCm + Intel installed; NVIDIA kmod present=$NVIDIA_PRESENT (0 = image ships without NVIDIA acceleration)."` |
 
-### automation/13-ceph-k3s.sh
+### automation/36-ceph-k3s.sh
 | line | verdict | current | proposed |
 |---|---|---|---|
 | 124 | inaccurate | `echo "[13-ceph-k3s] Ceph + K3s stack installed."` | `echo "[13-ceph-k3s] Ceph client + cephadm installed; K3s binary install per tag ${K3S_TAG:-none} (see status above)."` |
@@ -139,7 +139,7 @@ The five `successfully` banners and two `BAKED IN` banners are the highest-value
 | 12 | vague | `echo "==> Applying 'MiOS' system service fixes..."` | `echo "==> Restoring +x on /usr/libexec/mios and /usr/bin/mios-* binaries, setting /etc/usbguard/*.conf to 0600, and running systemd-sysusers for systemd-resolve..."` |
 | 54 | inaccurate | `echo "==> Service gating drop-ins active via overlay"` | `echo "==> OCI/WSL2 service gating: no action here; ConditionVirtualization drop-ins ship in the system_files overlay"` |
 
-### automation/19-k3s-selinux.sh
+### automation/37-k3s-selinux.sh
 | line | verdict | current | proposed |
 |---|---|---|---|
 | 5 | inaccurate | `echo "==> Compiling and Installing K3s SELinux Policy for Fedora 44..."` | `echo "==> Compiling K3s SELinux policy (k3s.pp) for Fedora 44 and staging it in /usr/share/selinux/packages/mios/..."` |
@@ -200,7 +200,7 @@ The five `successfully` banners and two `BAKED IN` banners are the highest-value
 | 10 | vague | `log "Enabling unified system initialization..."` | `log "Symlinking mios-role.service, mios-podman-gc.timer, mios-webtools-firstboot.service into multi-user.target.wants"` |
 | 29 | vague | `log "Initialization system services enabled."` | `log "mios-role/podman-gc/webtools-firstboot units enabled via multi-user.target.wants symlinks"` |
 
-### automation/37-selinux.sh
+### automation/38-selinux.sh
 | line | verdict | current | proposed |
 |---|---|---|---|
 | 167 | inaccurate | `echo "[37-selinux] mios_${name}: SKIPPED (type missing in current policy)"` | `echo "[37-selinux] mios_${name}: SKIPPED (checkmodule or semodule_package failed -- e.g. a required SELinux type is absent from the current policy)"` |

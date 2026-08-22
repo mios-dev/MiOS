@@ -1,5 +1,5 @@
 <!-- AI-hint: Collapse the ~18-image sidecar fleet onto TWO shared-base images (mios-sys CUDA-free + mios-cuda) to cut the bound-image store ~60GB→~25GB; read before migrating any sidecar's Image=/Exec= or building the shared bases. -->
-<!-- AI-related: usr/share/mios/mios.toml [image.sys] + [image.cuda] + [image.sidecars] + [build].bake_groups, automation/57-mios-sys-build.sh, usr/share/mios/sys/Containerfile, usr/share/mios/cuda/Containerfile, tools/generate-pod-quadlets.py, automation/15-render-quadlets.sh, MIOS_SYS_IMAGE, MIOS_CUDA_IMAGE -->
+<!-- AI-related: usr/share/mios/mios.toml [image.sys] + [image.cuda] + [image.sidecars] + [build].bake_groups, automation/57-mios-sys-build.sh, usr/share/mios/sys/Containerfile, usr/share/mios/cuda/Containerfile, tools/generate-pod-quadlets.py, automation/34-render-quadlets.sh, MIOS_SYS_IMAGE, MIOS_CUDA_IMAGE -->
 ---
 adr: 0002
 title: MiOS-Sys shared-base sidecar consolidation
@@ -106,7 +106,7 @@ a single runtime blast radius.
   the largest single commit at the ~12 GB CUDA/torch group (~36 GB at 3×) — a
   comfortable fit. So it *fixes* the disk pressure and you keep the free 2×
   margin. This is what flips ADR-0004's `PUBLISH` capacity gate to `true`.
-- **Law 3 simplified, not just satisfied.** `automation/08-system-files-overlay.sh`
+- **Law 3 simplified, not just satisfied.** `automation/01-system-files-overlay.sh`
   still symlinks every `.container` into `bound-images.d/`, but all now resolve to
   **one or two image IDs**; bootc dedups by image ID, so the store holds
   `mios-sys` (+`mios-cuda`) instead of 18 upstreams.
@@ -198,12 +198,12 @@ Wave 0 — wiring (one-time, no service moves):
   `[image.cuda.layers]` cuda = [torch, flashinfer, xformers, triton]); add
   `sys`/`cuda` refs to `[image.sidecars]` (~L7806).
 - Add `MIOS_SYS_IMAGE` + `MIOS_CUDA_IMAGE` to the `userenv.sh` slot map **and to
-  BOTH allowlists** in `automation/15-render-quadlets.sh` — the `envsubst`
+  BOTH allowlists** in `automation/34-render-quadlets.sh` — the `envsubst`
   arg-string (line 73) and the bash-fallback loop (~L87–127);
   `automation/97-ssot-lint.sh` fails the build if either end is missing (Law 7/8).
 - `automation/57-mios-sys-build.sh` (new) — builds both images **into**
   `/usr/lib/containers/storage`, `--network=host --layers --mount=type=cache`,
-  verify-or-fail-loud (mirrors `52–56-bake-*.sh` + the `38-hermes-agent.sh` venv /
+  verify-or-fail-loud (mirrors `52–56-bake-*.sh` + the `72-hermes-agent.sh` venv /
   `38-llamacpp-prep.sh` checksum molds). Generated Containerfiles at
   `usr/share/mios/sys/Containerfile` and `usr/share/mios/cuda/Containerfile`.
 - `C:\MiOS\Containerfile` (~180–190) — replace the five `mios-bake-group` RUNs

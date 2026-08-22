@@ -85,7 +85,7 @@ These two files were broken-as-shipped — every operator pulling the image fres
 | 5 | MEDIUM | Security Posture | `lockdown=` set twice with conflicting values (`integrity` vs `confidentiality`); kargs.d is additive, not override-capable | `usr/lib/bootc/kargs.d/01-mios-hardening.toml:10`, `usr/lib/bootc/kargs.d/30-security.toml:8` | YES (`confidentiality` removed; `integrity` is sole declared value) |
 | 6 | LOW | Footgun #15 | `Description=` uses bare `MiOS-OS` instead of `'MiOS'` quoted form in 3 units | `usr/lib/systemd/system/mios-gpu-pv-detect.service:2`, `mios-sriov-init.service:2`, `mios-verify.service:3` | YES (3 Description= renamed) |
 | 7 | LOW | Footgun #12 | Comment references misspelled `install_weakdeps` while implementation uses correct `install_weak_deps` | `automation/10-gnome.sh:5` (vs `automation/01-repos.sh:13`) | YES (comment corrected) |
-| 8 | LOW | Idempotency | `cp` without `-p` flag will overwrite previous run state on retry | `automation/19-k3s-selinux.sh:53` | YES (`cp -p`) |
+| 8 | LOW | Idempotency | `cp` without `-p` flag will overwrite previous run state on retry | `automation/37-k3s-selinux.sh:53` | YES (`cp -p`) |
 | 9 | INFO | Bash Hygiene | 27 numbered scripts place `set -euo pipefail` after a leading documentation block (line 11-25); strict reading of "at the top" not met, but functionally present | `automation/02-kernel.sh:19`, `10-gnome.sh:20`, plus 25 others | NO (accept current form; `usr/share/doc/mios/guides/engineering.md` convention can be softened to "before any executable statement") |
 | 10 | INFO | Drift Risk | Repo carries upstream dracut files in `usr/lib/dracut/`; if the dracut RPM updates upstream these copies will silently shadow it | `usr/lib/dracut/dracut-init.sh`, `usr/lib/dracut/dracut-functions.sh` | YES, post-507a7fa (292 vestigial snapshots dropped 2026-05-05; only the 5 `dracut.conf.d/*-mios-*.conf` files MiOS authors remain. `.gitignore` tightened to whitelist only those.) |
 
@@ -168,7 +168,7 @@ These two files were broken-as-shipped — every operator pulling the image fres
 
 - **Severity:** LOW
 - **Dimension:** Idempotency
-- **Evidence (pre-fix):** `automation/19-k3s-selinux.sh:53`: `cp "$POLICY_DIR"/k3s.* .`
+- **Evidence (pre-fix):** `automation/37-k3s-selinux.sh:53`: `cp "$POLICY_DIR"/k3s.* .`
 - **Remediation in `507a7fa`:** `cp -p "$POLICY_DIR"/k3s.* .` (preserve mtime; idempotent on re-run).
 
 ### Finding 9: set -euo pipefail past line 10 in 27 scripts

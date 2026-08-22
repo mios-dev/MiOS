@@ -77,7 +77,7 @@ The architecture is best understood as one pipeline, build to boot:
    -- no `system_files/` indirection. What you browse is what gets baked.
 2. **Build.** A single-stage `Containerfile` runs every `automation/[NN]-*.sh`
    script in numeric order (packages, SELinux, CDI specs, UKI, Quadlet render,
-   model bakes). The overlay step `automation/08-system-files-overlay.sh` applies
+   model bakes). The overlay step `automation/01-system-files-overlay.sh` applies
    the source tree onto the image; the final `RUN bootc container lint` enforces
    Architectural Law 4. The result is one content-addressed OCI image.
 3. **Distribute.** That image is published (`ghcr.io/mios-dev/mios:latest`) and
@@ -100,7 +100,7 @@ behind the "upgrade like a git pull, roll back like a Ctrl-Z" property.
 
 | Path | FHS character | bootc disposition | Source-of-truth in repo |
 |---|---|---|---|
-| `/usr` | Read-only, shareable | Immutable composefs mount; change = new OCI image | `usr/` overlaid by `automation/08-system-files-overlay.sh` |
+| `/usr` | Read-only, shareable | Immutable composefs mount; change = new OCI image | `usr/` overlaid by `automation/01-system-files-overlay.sh` |
 | `/etc` | Host-specific config | 3-way merge overlay; admin edits survive upgrades | `etc/` |
 | `/var` | Mutable, persistent | Fully writable; never replaced on upgrade | `usr/lib/tmpfiles.d/mios*.conf` (LAW 2) |
 | `/srv` | Data served by the system | Persistent; AI model weights, Ceph data | `usr/lib/tmpfiles.d/mios.conf` |
@@ -108,7 +108,7 @@ behind the "upgrade like a git pull, roll back like a Ctrl-Z" property.
 | `/home` | User home directories | Persistent via `/var/home/<user>` + symlink | `usr/lib/sysusers.d/` |
 
 Build-time writes to `/var/` are forbidden (LAW 2). The overlay step at
-`automation/08-system-files-overlay.sh:49-67` writes home dotfiles to
+`automation/01-system-files-overlay.sh:49-67` writes home dotfiles to
 `/etc/skel/` and lets `systemd-sysusers` populate `/var/home/<user>/` at first
 boot. Persistent agent state -- the PostgreSQL+pgvector data dir, the llama.cpp
 KV slot store, AI memory and scratch -- all lives under `/var` and `/srv` so it

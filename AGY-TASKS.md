@@ -9880,7 +9880,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** hand-pinned digests in SSOT go stale invisibly and are the root of the recurring Quadlet-digest-drift class, while blind floating would break byte-reproducible offline install.
 **Dep:** AGY-1563
 
-## AGY-1566 -- Gate AI-hint manifest freshness so `manifest.json` stops carrying stale version snapshots  (WS-FLOAT | P2 | S)
+## AGY-1566 -- Gate AI-hint manifest freshness so `manifest.json` stops carrying stale version snapshots  (WS-FLOAT | P2 | S)  **DONE**
+
 **Goal:** E-07 The drift-gate as the enforcement plane -- every generated projection is regenerated-or-red, never quietly stale.
 **What+How:** `automation/manifest.json` still embeds the OLD `stable:/v1.32` and its old comments inside the `full_content` snapshot AFTER the script itself was fixed, because `tools/generate-ai-manifest.py` runs only best-effort from `automation/ai-bootstrap.sh` and is not gated. Add a `--check` mode to the generator (regenerate to a temp dir, diff against the committed file, exit non-zero on drift), make output deterministic (sorted keys, normalized newlines) so it does not thrash, wire it into the docgen CI leg, and add a `check_ai_manifests_fresh` drift-check that fails closed under `MIOS_DRIFT_REQUIRE_TOOLS=1`. Regenerate every `manifest.json` and `root-manifest.json` once to clear the current staleness.
 **Where:** `tools/generate-ai-manifest.py`, `automation/98-drift-checks.sh`, the docgen CI job, all `*/manifest.json` and `root-manifest.json`
@@ -9896,7 +9897,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** the renderer currently decides policy that belongs to the operator, so every new floating variable is a code change plus a review round-trip.
 **Dep:** AGY-1563
 
-## AGY-1568 -- Render `usr/share/applications/mios-svc-*.desktop` from SSOT ports instead of hand-editing them  (WS-PORTFLOAT | P1 | M)
+## AGY-1568 -- Render `usr/share/applications/mios-svc-*.desktop` from SSOT ports instead of hand-editing them  (WS-PORTFLOAT | P1 | M)  **DONE**
+
 **Goal:** E-13 Ports are allocated from SSOT, not hand-assigned -- closes the last user-visible surface where a port literal is maintained by hand.
 **What+How:** The `mios-svc-*.desktop` launchers and `mios-configurator.desktop` carry `Exec=`/`URL=` lines with literal `localhost:<port>`; four of them (cockpit 9090, forge 3000, code-server 8080, llm-light 11450) were silently wrong for months because only `mios-svc-guacamole.desktop` had any coverage, via `check_guacamole_consistency`. Add `tools/render-desktop.py` rendering every launcher from a new `[desktop.launchers.<name>]` SSOT table (`title`, `icon`, `port_key`, `path`, `categories`), map each existing file onto that table, and give it a `--check` mode. Register the renderer in `tools/sync-generated.sh` between the globals and quadlet steps, add `check_desktop_launchers` to fail when a rendered launcher differs from the committed one, and retire `check_guacamole_consistency` into it once coverage is complete.
 **Where:** `tools/render-desktop.py (new), usr/share/mios/mios.toml, usr/share/applications/*.desktop, tools/sync-generated.sh, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/reference/drift-gate-index.tsv`
@@ -9904,7 +9906,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** a wrong launcher port is what the operator clicks first, and four of them shipped broken with nothing able to detect it.
 **Dep:** none
 
-## AGY-1569 -- Vendor `aiohttp` and the full hermes-agent dependency closure into the offline wheels dir, and fail the phase when it is incomplete  (WS-PORTFLOAT | P1 | M)
+## AGY-1569 -- Vendor `aiohttp` and the full hermes-agent dependency closure into the offline wheels dir, and fail the phase when it is incomplete  (WS-PORTFLOAT | P1 | M)  **DONE**
+
 **Goal:** E-16 The bake plane: what is present in the image -- the baked image must actually contain a working agent plane, not a venv that merely appears installed.
 **What+How:** `automation/72-hermes-agent.sh` fails its offline install with `ERROR: Could not find a version that satisfies the requirement aiohttp (from versions: none)` and degrades to `WARN Agent-venv offline install incomplete`, so the published image ships a hermes-agent venv with no HTTP client. `usr/share/mios/vendored/wheels/` lacks the full closure. Resolve hermes-agent's `pyproject.toml` against `usr/share/mios/agents/constraints.txt` using `pip download --only-binary=:all:` for the image's Python (3.13), commit the resulting wheels, and change the phase to FAIL rather than WARN when the closure is incomplete so the regression cannot recur silently.
 **Where:** `automation/72-hermes-agent.sh, usr/share/mios/vendored/wheels/, usr/share/mios/agents/constraints.txt, automation/98-drift-checks.sh`
@@ -9920,7 +9923,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** it was the only warning left in an otherwise clean 67-script bake, and a bare `exit=1` is indistinguishable from a real build failure for anyone reading the log.
 **Dep:** none
 
-## AGY-1571 -- Fold drift-checks 28 and 52 into `check_globals_generated` and delete their literal parsers  (WS-PORTFLOAT | P2 | S)
+## AGY-1571 -- Fold drift-checks 28 and 52 into `check_globals_generated` and delete their literal parsers  (WS-PORTFLOAT | P2 | S)  **DONE**
+
 **Goal:** E-07 The drift-gate as the enforcement plane -- one byte-level check per generated artifact, with no hidden coupling constraining the generator.
 **What+How:** `check_globals_ports` (28) and `check_globals_image_parity` (52) scrape literals out of `automation/lib/globals.{sh,ps1}` with bespoke regexes (`else { <digits> }`, `MIOS_IMAGE_NAME:=`). Those files are now generated in full and byte-gated by check 130, so 28/52 are redundant AND actively constrain the renderer's output shape -- it must keep emitting `:=` and bare integers, and keep a `$defaultImageName` line nothing reads, purely to satisfy them. Replace their bodies with a delegation to `check_globals_generated` (or retire them with coverage preserved by 130), delete the literal parsers, drop the shape workarounds from `tools/render-globals.py`, and regenerate the gate index.
 **Where:** `automation/98-drift-checks.sh, tools/render-globals.py, usr/share/mios/reference/drift-gate-index.tsv, tests/drift-gate-negatives.sh`
@@ -9936,7 +9940,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** the entire WS-RESOLVER crate is inert today -- it compiles and passes its own tests while nothing in the shipped product ever calls it -- and AGY-1577 cannot start until it does.
 **Dep:** none
 
-## AGY-1573 -- Wire or delete the inert `[migration]` and `[versions]` SSOT tables  (WS-PORTFLOAT | P2 | M)
+## AGY-1573 -- Wire or delete the inert `[migration]` and `[versions]` SSOT tables  (WS-PORTFLOAT | P2 | M)  **DONE**
+
 **Goal:** E-08 Global Unification Plan: collapse the MIOS_* namespace to one-value-derived -- every SSOT key has exactly one live consumer, and version facts are declared once.
 **What+How:** `[migration].use_rust_resolver_*` has ZERO consumers (grep-verified), and `[versions]` duplicates data already flowing from `[image.sidecars]` (`MIOS_K3S_VERSION` is emitted from the sidecar tag today) -- both read as live config to anyone opening mios.toml or the configurator. Pick one: (a) make `userenv.sh` / `mios_toml.py` actually honour `[migration]` when choosing the native vs Python resolver, and make `[versions]` the single source that `[image.sidecars]` tags derive FROM; or (b) delete both tables and record the reasoning in the ADR. Then add a drift-check that fails on any re-introduced inert top-level table.
 **Where:** `usr/share/mios/mios.toml, usr/lib/mios/mios_toml.py, usr/lib/mios/userenv.sh, tools/lib/userenv.sh, automation/98-drift-checks.sh`
@@ -9952,7 +9957,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** a soft warning printing 180 lines every run is not a gate -- real key-library regressions are already hiding inside that noise.
 **Dep:** none
 
-## AGY-1575 -- Enforce `tools/sync-generated.sh` in CI instead of trusting contributors to run the renderers in order  (WS-PORTFLOAT | P2 | S)
+## AGY-1575 -- Enforce `tools/sync-generated.sh` in CI instead of trusting contributors to run the renderers in order  (WS-PORTFLOAT | P2 | S)  **DONE**
+
 **Goal:** E-07 The drift-gate as the enforcement plane -- the regeneration ordering constraint becomes executable rather than documented.
 **What+How:** Several generated artefacts (AI manifests, `globals.{sh,ps1}`, pod Quadlets, the names registry, `env-baseline.txt`) go stale on any edit under `automation/` or `tools/`, and the only defence is remembering to run the renderers in the right dependency order. Add a CI step that runs `bash tools/sync-generated.sh` on a clean checkout and fails when `git status --porcelain` is non-empty, printing the exact list of files that moved. Add it to both publisher workflows so GitHub and Forgejo stay equal.
 **Where:** `.github/workflows/mios-ci.yml, .forgejo/workflows/, tools/sync-generated.sh`
@@ -9999,7 +10005,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 Programme: `docs/agy/doc-generative-documentation.md`. Epic ids D-# below are that
 document's own sub-taxonomy for the documentation programme.
 
-## AGY-1580 -- Fix mios-ai-tag's multi-line hint orphaning and repair the 22 damaged headers  (WS-DOCGEN | P0 | M)
+## AGY-1580 -- Fix mios-ai-tag's multi-line hint orphaning and repair the 22 damaged headers  (WS-DOCGEN | P0 | M)  **DONE**
+
 **Goal:** D-1 The comment corpus is lossless -- a re-tag can never truncate or split a header, so every downstream doc generator reads whole prose.
 **What+How:** `AI_LINE_RE` matches only lines containing an `AI-*:` marker, so a wrapped continuation survives `retag()`'s strip and the fresh block is inserted MID-SENTENCE between the hint and its orphan; `existing_hint()` then regexes a single line and drops the remainder -- a lossy round-trip. Replace the line filter with a REGION strip (first `AI_LINE_RE` match, then consume forward while the line matches `^<marker>\s{2,}\S` or `AI_LINE_RE`), and make `existing_hint()` join continuation lines with a single space before `_clean()`. Then repair the 22 already-damaged files, detectable as `AI-related:` lines ending in a dangling comma: `usr/libexec/mios/mios-sync-theme`, `mios-sync-toml`, `mios-sync-to-root`, `usr/lib/systemd/system/mios-sync-theme.service`, `installation/mios-install.sh`, `installation/README.md`, and mios-ai-tag's OWN header (line 2 is truncated at "...(AI-hint purpose"). Add `--selftest` round-tripping fixtures for shebang / BOM / CRLF / md front-matter / wrapped hint.
 **Where:** `usr/libexec/mios/mios-ai-tag, tests/fixtures/ai-tag/`
@@ -10007,7 +10014,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** generating a manual from a corpus with silent truncation bakes the truncation into the product, and every later step reads this corpus.
 **Dep:** none
 
-## AGY-1581 -- Close mios-ai-tag's SKIP_DIR and EXT gaps (65k vendored files in, 98 orphaned tags out)  (WS-DOCGEN | P0 | S)
+## AGY-1581 -- Close mios-ai-tag's SKIP_DIR and EXT gaps (65k vendored files in, 98 orphaned tags out)  (WS-DOCGEN | P0 | S)  **DONE**
+
 **Goal:** D-2 The taggable corpus is exactly the authored corpus -- no vendored tree can enter it and no authored file can be locked out of its own tagger.
 **What+How:** `SKIP_DIR` excludes `.venv`/`node_modules`/`target`/`site-packages` but NOT `.rustup`, so `mios-ai-tag --root /mnt/c/MiOS` would walk 65,133 vendored Rust-toolchain files (61,792 `.html` + 3,108 `.js`), find no existing hint, and issue ~65k teacher calls before writing `AI-hint` comments into the Rust standard-library docs. Add `\.rustup`, `\.tmp\.driveupload` (Drive's hardlink dedup cache), `tr_clone`, `tr_remote`, `shellcheck-v[0-9.]+`. Conversely 98 files already carry hand-written headers whose extensions are absent from `EXT` and can therefore never be refreshed: `.rs` 52, `.snap` 19, `.psm1` 15, `.qml` 7, `.nft` 2, `.ks`/`.template`/`.defaults` 1 each. Add all eight to `EXT` and map `.rs` to the `slash` comment style.
 **Where:** `usr/libexec/mios/mios-ai-tag`
@@ -10015,7 +10023,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** one accidental root-scoped run currently rewrites 65k vendored files and burns 65k inference calls; meanwhile the whole Rust native tier is invisible to its own tagger.
 **Dep:** none
 
-## AGY-1582 -- Resolve mios-ai-tag's hint cap, teacher endpoint and teacher model from SSOT  (WS-DOCGEN | P0 | S)
+## AGY-1582 -- Resolve mios-ai-tag's hint cap, teacher endpoint and teacher model from SSOT  (WS-DOCGEN | P0 | S)  **DONE**
+
 **Goal:** E-7 Law 7 NO-HARDCODE holds in the tagger itself -- the tool that documents the codebase must not be the one carrying phantom constants.
 **What+How:** `_clean()` hardcodes a 260-char cap, `--teacher-endpoint` defaults to `localhost:${MIOS_PORT_LLM_LIGHT:-8450}` while mios.toml uses 8500 and the tool's own header says 11450, and `--teacher-model` defaults to `gemma4:12b`, a string that appears nowhere in SSOT. Resolve all three through the shared `mios_toml` resolver exactly as the sibling `mios-ai-hint-coverage` already does: `[ai_tag].hint_max_chars`, `[ai_tag].teacher_port_key` -> `[ports]`, `[ai_tag].teacher_model` (validated against `[ai].available_models`). Ship `hint_max_chars = 3000` so the 363 hand-written over-cap hints (max 2,837 chars) survive the next run; AGY-1588 ratchets it back to 260 once they are harvested.
 **Where:** `usr/libexec/mios/mios-ai-tag, usr/share/mios/mios.toml`
@@ -10055,7 +10064,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** a reader cannot get a straight answer to "what port is X on", "how many laws are there" or "what does build step N do"; every doc that answers directly is wrong, and one agent-facing contract file states a law that does not exist.
 **Dep:** AGY-1585
 
-## AGY-1587 -- Add `check_doc_refs_resolve` and clear the ~70 verified stale references  (WS-DOCGEN | P1 | M)
+## AGY-1587 -- Add `check_doc_refs_resolve` and clear the ~70 verified stale references  (WS-DOCGEN | P1 | M)  **DONE**
+
 **Goal:** D-6 A path, unit or `mios-*` name printed in a header or a generated doc is guaranteed to exist.
 **What+How:** Drift check 153: `mios-manual audit --stale --json` over every `AI-hint:`/`AI-related:`/`AI-doc:` line and every generated doc; dangling count must be `<= [docs].max_stale_refs`. Dangling = absent from the whole-tree `RefIndex` (a token is not stale if it appears on any CODE line anywhere), absent from disk, and unmatched by `[docs].ref_allowlist` (runtime-created `/etc/ceph/ceph.conf`, `/etc/cdi/nvidia.yaml`, `/var/**`, `@@MIOS_*@@` template tokens). Then fix the ~70 verified stale refs, starting with the nine renumbered `automation/` stage refs -- three of which now resolve to a DIFFERENT script and are therefore actively misleading: `38-hermes-agent.sh` -> `72-` (38- is now selinux), `37-selinux.sh` -> `38-` (37- is now k3s-selinux), `19-k3s-selinux.sh` -> `37-`, plus `15-render-quadlets.sh` -> `34-`, `45-coderun-sandbox-build.sh` -> `54-bake-coderun-sandbox.sh`, `41-mios-dropin-fanout.sh` -> `48-`, `13-ceph-k3s.sh` -> `36-`, `08-system-files-overlay.sh` -> `01-`, `globals.generated.ps1` -> `globals.ps1`. Do NOT "fix" the 29 `ollama` and 12 `:8080` mentions -- they are history, upstream defaults being overridden, or container-internal ports behind a host remap; allowlist them.
 **Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/mios.toml, usr/share/doc/mios/adr/*, upstream/selinux.md, Containerfile, tools/render-ports.py`
@@ -10131,7 +10141,8 @@ ADR-0016. The capability model in `[blade.archetypes]`/`[blade.requires]` alread
 decides WHERE a service may land; these finish what happens when it cannot, or
 when the machine holding it dies.
 
-## AGY-1595 -- Project [blade.requires] to k3s nodeSelectors and Pacemaker location rules  (WS-BLADE | P1 | M)
+## AGY-1595 -- Project [blade.requires] to k3s nodeSelectors and Pacemaker location rules  (WS-BLADE | P1 | M)  **DONE**
+
 **Goal:** E-18 One SSOT declaration drives every consumer -- a placement constraint stops being hand-maintained in two scheduler dialects.
 **What+How:** `[blade.requires]` maps a service to the capabilities it needs and `[blade.archetypes]` maps an archetype to the capabilities it grants; today only systemd `ConditionPathExists` gating consumes them. Extend `tools/generate-blade-dropins.py` to ALSO emit k3s `nodeSelector`/`tolerations` for container workloads and `pcs constraint location` rules for VM resources, both derived from the same two tables. Neither scheduler gets a hand-written constraint.
 **Where:** `tools/generate-blade-dropins.py, usr/share/mios/mios.toml, automation/98-drift-checks.sh`
@@ -10139,7 +10150,8 @@ when the machine holding it dies.
 **Why:** two schedulers with hand-maintained constraints drift silently, and the drift only surfaces as a workload that mysteriously will not schedule.
 **Dep:** none
 
-## AGY-1596 -- Give every GPU-gated service a CPU fallback lane so placement never refuses  (WS-BLADE | P1 | M)
+## AGY-1596 -- Give every GPU-gated service a CPU fallback lane so placement never refuses  (WS-BLADE | P1 | M)  **DONE**
+
 **What+How:** ADR-0017 D2: a service requiring `gpu-serving` that lands on a GPU-less blade must start its CPU lane rather than fail to schedule. Add a `cpu_fallback` alongside the requirement for `mios-llm-heavy`, `mios-llm-heavy-alt` and `mios-llm-worker@`, pointing at the already-shipped `mios-llm-light`. The fallback must present the SAME `/v1` contract on the SAME SSOT-allocated port so no caller can tell which kind of blade answered.
 **Where:** `usr/share/mios/mios.toml [blade.requires], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py`
 **Done When:** a GPU-gated unit started on a GPU-less blade serves `/v1/models` from the CPU lane; the caller's endpoint is unchanged; a drift-check asserts every `gpu-serving` requirement declares a fallback.
@@ -10153,7 +10165,8 @@ when the machine holding it dies.
 **Why:** most failures are a crashed process on a healthy machine where a restart is the whole fix; migrating first turns two seconds into a cold start and possibly a volume move.
 **Dep:** AGY-1595
 
-## AGY-1598 -- Add origin-node id and logical timestamp to the pgvector schema  (WS-BLADE | P0 | M)
+## AGY-1598 -- Add origin-node id and logical timestamp to the pgvector schema  (WS-BLADE | P0 | M)  **DONE**
+
 **What+How:** ADR-0017 D5 states the merge rules are not implementable without provenance on every row. Add an origin-node id and a logical timestamp to `knowledge`, `agent_memory`, `event`, `session`, `scratch` and `config_kv` in `usr/share/mios/postgres/schema-init.sql`, backfilled to the local node for existing rows. This is a PREREQUISITE, not an optimisation: `[blade.reconcile].enabled` ships `false` and must not be flipped until this lands.
 **Where:** `usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py, usr/share/mios/mios.toml [blade.reconcile]`
 **Done When:** every row in the six tables carries origin + logical timestamp; existing rows are backfilled; a drift-check fails if `[blade.reconcile].enabled = true` while any of the six lacks the columns.
@@ -10167,9 +10180,18 @@ when the machine holding it dies.
 **Why:** the availability choice in ADR-0017 is only affordable if each data class has a fixed rule decided in advance; a vague rule is how this design fails.
 **Dep:** AGY-1598
 
-## AGY-1600 -- Make "blade unreachable" legible instead of surfacing as a model error  (WS-BLADE | P1 | S)
+## AGY-1600 -- Make "blade unreachable" legible instead of surfacing as a model error  (WS-BLADE | P1 | S)  **DONE**
+
 **What+How:** ADR-0016 §6 notes the detection exists but is unwired: a seat whose blade is gone should say "blade unreachable", not return an inference error. Wire the `[blade.discovery]` health chain result into the dashboard and the `/v1` error path so the failure names its own cause, and record blade reachability in the boot record as a non-critical check per ADR-0016 §8.
 **Where:** `usr/lib/mios/agent-pipe/, usr/share/mios/hermes/, usr/share/mios/mios.toml [blade.discovery] [greenboot]`
 **Done When:** with the blade unreachable, the dashboard states "blade unreachable" and `/v1` returns a named error rather than a model failure; greenboot records the check without failing the boot.
 **Why:** the seat's whole contract is that its front door is off-box, so the one failure it must explain clearly is the one where the box behind the door is gone.
+**Dep:** none
+
+## AGY-1601 -- Ratchet the 150 stale AI-related references down to zero  (WS-DOCGEN | P2 | M)
+**Goal:** D-4 Documentation references resolve -- an `AI-related` line that names a file which no longer exists sends the next reader (human or agent) to a dead path.
+**What+How:** `check_doc_refs_resolve` reports 150 dangling references after the false-positive fix (it now understands that `usr/share/mios/mios.toml [laws]` is a file plus a TOML section, not a path). Work the list down: for each, either correct the path, drop the reference if the target was deliberately removed, or add it to `[docs].ref_allowlist` when it is genuinely runtime-created. Lower `[docs].max_stale_refs` with each batch.
+**Where:** `usr/share/mios/mios.toml [docs].max_stale_refs, automation/*.sh, tools/*.py, usr/libexec/mios/*`
+**Done When:** `max_stale_refs` reaches 0 and `check_doc_refs_resolve` passes with it; no reference is silenced by widening the allowlist without a stated reason.
+**Why:** the count was 0 only because the check could never fail -- its violations went to stderr while the wrapper captured stdout, so it reported success on every run. The real backlog was invisible.
 **Dep:** none

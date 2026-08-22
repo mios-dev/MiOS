@@ -5,7 +5,7 @@
 // launcher rail), and Notifications.qml (top-right toast toaster).
 // All surfaces read their palette from Theme.qml (SSOT: mios.toml [colors],
 // bridged via /etc/mios/theme/theme.json).
-// AI-related: usr/share/mios/quickshell/PanelWindow.qml, usr/share/mios/quickshell/Sidebar.qml,
+// AI-related: usr/share/mios/quickshell/PanelWindow.qml, usr/share/mios/quickshell/Sidebar.qml
 // usr/share/mios/quickshell/Notifications.qml, usr/share/mios/quickshell/Theme.qml,
 // usr/share/mios/hyprland/hyprland.conf
 

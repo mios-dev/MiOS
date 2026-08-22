@@ -1,5 +1,5 @@
 <!-- AI-hint: Defines MiOS Architectural Law USR-OVER-ETC's foundation — the git working tree's top-level directory IS the literal OS filesystem root, eliminating staging/overlay directories so any file at repo path X maps directly to /X in the built bootc/OCI image; explains the .git-at-root overlay, the tar-pipeline build copy, and how this rule makes the build pipeline -> image -> bootc lifecycle reproducible and auditable.
-     AI-related: /usr/share/mios/docs/root-origin/REPO-IS-ROOT.md, /usr/share/mios/docs/root-origin/DUAL-WHITELIST.md, Containerfile, automation/08-system-files-overlay.sh, automation/build.sh, mios-bootstrap -->
+     AI-related: /usr/share/mios/docs/root-origin/REPO-IS-ROOT.md, /usr/share/mios/docs/root-origin/DUAL-WHITELIST.md, Containerfile, automation/01-system-files-overlay.sh, automation/build.sh, mios-bootstrap -->
 <!-- FHS: /usr/share/mios/docs/root-origin/REPO-IS-ROOT.md -->
 
 # Root-Origin: The Repo IS the OS Root
@@ -63,7 +63,7 @@ build context read-only with
 `--mount=type=bind,source=.,target=/ctx,ro`. Phase scripts copy from
 `/ctx/<path>` into the image rootfs using **tar pipelines** (see
 [`DUAL-WHITELIST.md`](DUAL-WHITELIST.md) and the ucore-hci `/usr/local`
-symlink rule). `automation/08-system-files-overlay.sh` applies this
+symlink rule). `automation/01-system-files-overlay.sh` applies this
 root overlay before the numbered `automation/build.sh` pipeline runs.
 
 This is Phase-2 of the build: the working tree (Phase-1's Total Root

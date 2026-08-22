@@ -1,7 +1,7 @@
-// AI-hint: MiOS desktop notification toasts (Quickshell layer-shell surface,
+// AI-hint: MiOS desktop notification toasts (Quickshell layer-shell surface
 // top-right anchored). Hyprland-native: receives dunst/mako-forwarded events
 // or direct QML signal calls. Colors from Theme.qml (SSOT, mios.toml [colors]).
-// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml,
+// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml
 // usr/share/mios/hyprland/hyprland.conf
 
 import QtQuick

@@ -2,7 +2,7 @@
 // surface). Interactive workspace pips, animated agent-status pill, Cockpit
 // quick-tile with hover glow, and MiOS branding footer.
 // Colors/typography come from Theme.qml (SSOT, mios.toml [colors]).
-// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml,
+// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml
 // usr/share/mios/hyprland/hyprland.conf
 
 import QtQuick

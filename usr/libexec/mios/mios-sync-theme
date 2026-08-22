@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: Regenerates the /etc/mios/theme/ bridge (theme.json + mios-theme.css)
-# AI-related: usr/share/mios/mios.toml, usr/share/mios/quickshell/Theme.qml,
+# AI-related: usr/share/mios/mios.toml, usr/share/mios/quickshell/Theme.qml
 set -euo pipefail
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"

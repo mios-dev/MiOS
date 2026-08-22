@@ -1,5 +1,5 @@
 <!-- AI-hint: Documentation for the K3s + Cockpit (+ Ceph, libvirt/QEMU) cluster/admin surface of MiOS; explains how the same immutable bootc image that ships the desktop and the local agent stack can also grow in-place into a one-node Kubernetes+Ceph cluster, the K3s native-service vs Podman-Quadlet paths, the Cockpit web console on :9090 (and the mios-cockpit-link discovery shim on :19090), and the LAW 6 (UNPRIVILEGED-QUADLETS) exceptions for the root-privileged mios-k3s/mios-ceph containers.
-     AI-related: mios-k3s, mios-ceph, mios-k3s.container, mios-ceph.container, mios-cockpit-link, mios-cockpit-link.container, k3s.service, mios-k3s-init.service, cockpit.socket, 13-ceph-k3s.sh, 19-k3s-selinux.sh -->
+     AI-related: mios-k3s, mios-ceph, mios-k3s.container, mios-ceph.container, mios-cockpit-link, mios-cockpit-link.container, k3s.service, mios-k3s-init.service, cockpit.socket, 36-ceph-k3s.sh, 37-k3s-selinux.sh -->
 # K3s + Cockpit on MiOS
 
 > **What this is.** The cluster-and-administration face of MiOS. MiOS is one
@@ -34,10 +34,10 @@
   `k3s` in `mios.toml [versions]`); the native-service path bakes the matching
   binary into `/usr/bin/k3s`.
 - API server: `https://<host>:6443` after boot (`k3s_api = 6443`)
-- Install step: `automation/13-ceph-k3s.sh` (installs Ceph client tools, the
+- Install step: `automation/36-ceph-k3s.sh` (installs Ceph client tools, the
   K3s prerequisites, and the K3s binary + install script — vendored-offline if
   `/usr/share/mios/vendored/k3s` exists, else fetched + SHA256-verified).
-- SELinux integration: `automation/19-k3s-selinux.sh` compiles the custom
+- SELinux integration: `automation/37-k3s-selinux.sh` compiles the custom
   `k3s-selinux` policy from source.
 
 ### Two K3s shapes ship; both gate off cleanly
@@ -155,7 +155,7 @@ firewall-cmd --list-services | grep -q cockpit
 - cephadm: <https://docs.ceph.com/en/latest/cephadm/>
 - Version pin: `quay.io/ceph/ceph:v19` (Squid; `ceph_version = "v19"`).
 - Dashboard: `https://<host>:8443` after bootstrap (`ceph_dashboard = 8443`).
-- Install step: `automation/13-ceph-k3s.sh` bakes only the **client tools +
+- Install step: `automation/36-ceph-k3s.sh` bakes only the **client tools +
   cephadm** (`ceph-common`, `cephadm`, `ceph-fuse`, `ceph-selinux`); cephadm
   runs all server daemons as Podman containers.
 - Bootstrap: `/usr/libexec/mios/ceph-bootstrap.sh` (driven by
@@ -198,8 +198,8 @@ disk via a separate bootstrap step. Profile control: `mios.toml [quadlets.enable
 The image you `bootc switch`/`upgrade` carries the desktop, the local AI plane
 (inference lanes → agent-pipe/Hermes orchestration → PostgreSQL+pgvector memory
 → MCP/A2A, all behind `MIOS_AI_ENDPOINT`), **and** this cluster/admin surface.
-The build pipeline (`automation/13-ceph-k3s.sh`, `19-k3s-selinux.sh`,
-`15-render-quadlets.sh`) assembles all of it into one OCI image; the bootc
+The build pipeline (`automation/36-ceph-k3s.sh`, `37-k3s-selinux.sh`,
+`34-render-quadlets.sh`) assembles all of it into one OCI image; the bootc
 lifecycle carries it forward and rolls it back atomically. The cluster pieces
 sit dormant behind their `Condition*` gates until an admin opts in — so a laptop
 desktop and a one-node cluster node are the *same image* in two states, not two

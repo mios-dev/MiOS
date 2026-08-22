@@ -79,7 +79,7 @@ The build pipeline is deterministic and repo-native:
 
 1. `Containerfile` copies the build context into `/ctx` and mutable working
    copies into `/tmp/build`.
-2. `automation/08-system-files-overlay.sh` applies the rootfs overlay.
+2. `automation/01-system-files-overlay.sh` applies the rootfs overlay.
 3. `automation/build.sh` runs numbered `automation/NN-*.sh` sub-phases in order.
 4. `bootc container lint` validates the image.
 5. `just` recipes use bootc-image-builder or local export flows to materialize

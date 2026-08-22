@@ -1,8 +1,8 @@
-// AI-hint: MiOS desktop notification toast surface (Quickshell layer-shell,
+// AI-hint: MiOS desktop notification toast surface (Quickshell layer-shell
 // top-right anchored, above other layers). GnomeOS/KDE-style: slides in from
 // right, auto-dismisses after 5s, supports info/success/warning/error kinds.
 // Colors from Theme.qml (SSOT, mios.toml [colors]).
-// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml,
+// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Config.qml
 // usr/share/mios/quickshell/NotifModel.qml
 
 import QtQuick

@@ -16,7 +16,7 @@
 // 'Authorization: Bearer <token>' on every subsequent request. On a 401
 // (session expired) `authed` flips back to false so the UI can re-prompt.
 //
-// AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py,
+// AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py
 // usr/share/mios/quickshell/Sidebar.qml, usr/share/mios/quickshell/Theme.qml
 //
 // Uses QML's built-in XMLHttpRequest (core Qt Quick JS environment, not a

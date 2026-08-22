@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AI-hint: mios-vfio-check -- read-only VFIO state report. Shows IOMMU support,
+# AI-hint: mios-vfio-check -- read-only VFIO state report. Shows IOMMU support
 # AI-related: mios-vfio-check, mios-vfio-toggle
 set -euo pipefail
 
