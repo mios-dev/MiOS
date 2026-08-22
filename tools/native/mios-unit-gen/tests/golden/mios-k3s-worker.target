@@ -8,4 +8,4 @@ AllowIsolate=yes
 Wants=k3s-agent.service
 
 [Install]
-Alias=default.target.mios-k3s-worker
+WantedBy=multi-user.target

@@ -112,27 +112,20 @@ TOML
 
 [ai]
 
-[profile]
+[blade]
 TOML
+    # [profile] is retired; the archetype has one canonical name, [blade].type.
+    # Gate: check_role_ssot.
     if [[ -n "$legacy_role" ]]; then
-        echo "Role = \"$legacy_role\""
+        echo "type = \"$legacy_role\""
     else
-        echo "# role     = \"desktop\""
+        echo "# type = \"desktop\"   # hybrid|compute|controller|headless|desktop|endpoint"
     fi
+    # Legacy `features` were never blade capabilities -- the shipped values were
+    # ai/virtualization/k3s, none of which any archetype grants. Capabilities are
+    # a closed set; add one with `mios blade add-capability <cap>`.
     if [[ -n "$legacy_features" ]]; then
-        echo -n "features = ["
-        IFS=',' read -ra _ff <<<"$legacy_features"
-        local first=1
-        for f in "${_ff[@]}"; do
-            f=$(echo "$f" | sed -E 's/^\s+|\s+$//g')
-            [[ -z "$f" ]] && continue
-            [[ $first -eq 0 ]] && echo -n ", "
-            echo -n "\"$f\""
-            first=0
-        done
-        echo "]"
-    else
-        echo "# features = []"
+        echo "# legacy features (not blade capabilities): $legacy_features"
     fi
     echo
     echo "[env]"

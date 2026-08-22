@@ -1,50 +1,92 @@
 #!/usr/bin/env bash
-# AI-hint: Command-line interface to manage MiOS blade roles and activation capabilities (WS-BLADE).
-# AI-related: usr/bin/mios, usr/libexec/mios/role-apply, /etc/mios/role.conf, /etc/mios/blade.d/
+# AI-hint: The `mios blade` verb -- the day-2 face of the blade archetype (WS-BLADE). Writes the HOST tier (/etc/mios/role.conf) and re-runs role-apply, which detects the change and activates the new role target. Every argument is validated against the SSOT before it is written: an unknown archetype or an ungrantable capability is refused with the legal set, because both used to be accepted verbatim and produced a blade that silently started nothing.
+# AI-related: usr/lib/mios/blade.sh, usr/libexec/mios/role-apply, /etc/mios/role.conf, /etc/mios/blade.d/, usr/share/mios/mios.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md
+# AI-functions: log, die, show_help, _load_ssot, _require_archetype, _require_capability, _set_conf_key
 set -euo pipefail
 
 ROLE_CONF="${MIOS_ETC_DIR:-/etc/mios}/role.conf"
 BLADE_D="${MIOS_ETC_DIR:-/etc/mios}/blade.d"
 
 log() { printf '[mios-blade] %s\n' "$*"; }
+die() { printf '[mios-blade] ERROR: %s\n' "$*" >&2; exit 1; }
 
-show_help() {
-    echo "Usage: mios blade <command> [args]"
-    echo ""
-    echo "Commands:"
-    echo "  set <type>          Set the active blade type archetype"
-    echo "  add-capability <cap> Add a capability to this node"
-    echo "  status              Show active blade type, capabilities, and systemd target"
-    echo "  help                Show this help"
+_BLADE_LIB="$(dirname "$0")/../../lib/mios/blade.sh"
+if [[ -r "/usr/lib/mios/blade.sh" ]]; then
+    # shellcheck source=/dev/null
+    source /usr/lib/mios/blade.sh
+elif [[ -r "$_BLADE_LIB" ]]; then
+    # shellcheck source=/dev/null
+    source "$_BLADE_LIB"
+fi
+
+SSOT_TYPE=""; SSOT_ARCHETYPES=""; SSOT_CAPS_LEGAL=""; SSOT_ALIASES=""
+_load_ssot() {
+    declare -F _ssot_query >/dev/null || return 0
+    # TD-1: eval-safe, input=shlex.quote()d output of _ssot_query reading the vendor mios.toml, not agent-controlled
+    eval "$(_ssot_query)"
 }
 
-if [[ $# -lt 1 ]]; then
-    show_help
-    exit 1
-fi
+# An unvalidated archetype resolves to zero capabilities, so the blade comes up
+# with its target active and its whole service plane condition-skipped -- the
+# failure looks like "nothing works" with one WARN in the journal.
+_require_archetype() {
+    local want="$1" canon
+    [[ -n "${SSOT_ARCHETYPES:-}" ]] || return 0
+    canon="$(_canon_role "$want")"
+    if [[ " $SSOT_ARCHETYPES " != *" $canon "* ]]; then
+        die "'$want' is not a blade archetype. Legal: ${SSOT_ARCHETYPES// /, }$(
+            [[ -n "${SSOT_ALIASES:-}" ]] && printf ' (aliases: %s)' "${SSOT_ALIASES// /, }")"
+    fi
+}
+
+# Capabilities are a CLOSED set -- the union of [blade.archetypes]. A marker no
+# ConditionPathExists ever asks for is dead weight; a typo used to create one.
+_require_capability() {
+    local cap="$1"
+    [[ -n "${SSOT_CAPS_LEGAL:-}" ]] || return 0
+    _is_legal_cap "$cap" \
+        || die "'$cap' is not a blade capability. Legal: ${SSOT_CAPS_LEGAL// /, }"
+}
+
+_set_conf_key() {
+    local key="$1" val="$2"
+    mkdir -p "$(dirname "$ROLE_CONF")"
+    if [[ -f "$ROLE_CONF" ]] && grep -q "^${key}=" "$ROLE_CONF"; then
+        sed -i "s|^${key}=.*|${key}=\"${val}\"|" "$ROLE_CONF"
+    else
+        printf '%s="%s"\n' "$key" "$val" >> "$ROLE_CONF"
+    fi
+}
+
+show_help() {
+    cat <<'HELP'
+Usage: mios blade <command> [args]
+
+Commands:
+  set <archetype>       Set the active blade archetype (host tier: /etc/mios/role.conf)
+  add-capability <cap>  Grant one capability on top of the archetype
+  list                  Show the archetypes this image declares and what each grants
+  status                Show active archetype, capabilities, and systemd target
+  help                  Show this help
+
+Precedence (highest first): an explicit mios.blade= karg, /etc/mios/role.conf,
+then the vendor [blade].type baked into usr/lib/bootc/kargs.d/05-mios-blade.toml.
+HELP
+}
+
+[[ $# -ge 1 ]] || { show_help; exit 1; }
 
 cmd="$1"
 shift
 
 case "$cmd" in
     set)
-        if [[ $# -lt 1 ]]; then
-            echo "Error: missing blade type" >&2
-            exit 1
-        fi
-        type="$1"
-        mkdir -p "$(dirname "$ROLE_CONF")"
-        if [[ -f "$ROLE_CONF" ]]; then
-            if grep -q "^ROLE=" "$ROLE_CONF"; then
-                sed -i "s/^ROLE=.*/ROLE=\"$type\"/" "$ROLE_CONF"
-            else
-                echo "ROLE=\"$type\"" >> "$ROLE_CONF"
-            fi
-        else
-            echo "ROLE=\"$type\"" > "$ROLE_CONF"
-        fi
-        log "Set blade type archetype to '$type' in $ROLE_CONF"
-        if [[ -f "/usr/libexec/mios/role-apply" ]]; then
+        [[ $# -ge 1 ]] || die "missing blade archetype (try: mios blade list)"
+        _load_ssot
+        _require_archetype "$1"
+        _set_conf_key ROLE "$1"
+        log "Set blade archetype to '$1' in $ROLE_CONF"
+        if [[ -x "/usr/libexec/mios/role-apply" ]]; then
             /usr/libexec/mios/role-apply
         else
             "$(dirname "$0")/role-apply"
@@ -52,68 +94,70 @@ case "$cmd" in
         systemctl daemon-reload 2>/dev/null || true
         ;;
     add-capability)
-        if [[ $# -lt 1 ]]; then
-            echo "Error: missing capability name" >&2
-            exit 1
-        fi
+        [[ $# -ge 1 ]] || die "missing capability name (try: mios blade list)"
+        _load_ssot
+        _require_capability "$1"
         cap="$1"
         mkdir -p "$BLADE_D"
         touch "$BLADE_D/$cap"
         log "Added capability marker '$cap' to $BLADE_D"
-        
-        mkdir -p "$(dirname "$ROLE_CONF")"
-        if [[ -f "$ROLE_CONF" ]]; then
-            if grep -q "^FEATURES=" "$ROLE_CONF"; then
-                feats=$(grep "^FEATURES=" "$ROLE_CONF" | cut -d'"' -f2)
-                if [[ ! ",$feats," =~ ",$cap," ]]; then
-                    if [[ -n "$feats" ]]; then
-                        feats="$feats,$cap"
-                    else
-                        feats="$cap"
-                    fi
-                    sed -i "s/^FEATURES=.*/FEATURES=\"$feats\"/" "$ROLE_CONF"
-                fi
-            else
-                echo "FEATURES=\"$cap\"" >> "$ROLE_CONF"
-            fi
-        else
-            echo "FEATURES=\"$cap\"" > "$ROLE_CONF"
+        # Also record it in the host tier: role-apply wipes blade.d on every run,
+        # so a marker that is not declared here does not survive a reboot.
+        feats="$(_conf_get "$ROLE_CONF" FEATURES)"
+        if [[ ",${feats}," != *",${cap},"* ]]; then
+            _set_conf_key FEATURES "${feats:+${feats},}${cap}"
         fi
         systemctl daemon-reload 2>/dev/null || true
         ;;
+    list)
+        _load_ssot
+        [[ -n "${SSOT_ARCHETYPES:-}" ]] || die "cannot read [blade.archetypes] from the SSOT"
+        printf 'Archetypes (vendor default: %s)\n' "${SSOT_TYPE:-unset}"
+        for a in $SSOT_ARCHETYPES; do
+            caps="$(_caps_for "$a")"
+            printf '  %-12s %s\n' "$a" "${caps:-<none> -- this is a SEAT: it starts no service}"
+        done
+        if [[ -n "${SSOT_ALIASES:-}" ]]; then
+            printf 'Aliases\n'
+            for pair in $SSOT_ALIASES; do
+                printf '  %-12s -> %s\n' "${pair%%=*}" "${pair#*=}"
+            done
+        fi
+        printf 'Capabilities\n  %s\n' "${SSOT_CAPS_LEGAL:-<none>}"
+        ;;
     status)
         if [[ -f /run/mios/blade.env ]]; then
+            # shellcheck source=/dev/null
             source /run/mios/blade.env
-            echo "Blade Type: $MIOS_BLADE_TYPE"
+            echo "Blade Type:   ${MIOS_BLADE_TYPE:-unknown}"
             echo "Capabilities: ${MIOS_BLADE_CAPS//,/ }"
         elif [[ -f /var/lib/mios/role.active ]]; then
+            # shellcheck source=/dev/null
             source /var/lib/mios/role.active
-            echo "Blade Type: $ROLE"
-            echo "Capabilities: $FEATURES"
+            echo "Blade Type:   ${ROLE:-unknown}"
+            echo "Capabilities: ${FEATURES:-}"
         else
             echo "Blade state not active or initialized"
         fi
-        
+
         echo "Active Capability Markers:"
-        if [[ -d "$BLADE_D" ]]; then
+        if [[ -d "$BLADE_D" ]] && compgen -G "$BLADE_D/*" >/dev/null; then
             for f in "$BLADE_D"/*; do
-                if [[ -f "$f" ]]; then
-                    echo "  - $(basename "$f")"
-                fi
+                [[ -f "$f" ]] && echo "  - $(basename "$f")"
             done
         else
-            echo ""
+            echo "  (none -- this blade activates nothing capability-gated)"
         fi
-        
+
         if command -v systemctl >/dev/null 2>&1; then
-            echo "Systemd Default Target: $"
+            echo "Systemd Default Target: $(systemctl get-default 2>/dev/null || echo unknown)"
         fi
         ;;
     help|--help|-h)
         show_help
         ;;
     *)
-        echo "Error: unknown command '$cmd'" >&2
+        printf '[mios-blade] ERROR: unknown command %s\n' "'$cmd'" >&2
         show_help
         exit 1
         ;;

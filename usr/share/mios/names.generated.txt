@@ -344,8 +344,6 @@ bootstrap.prereqs.repos.mios_branch  MIOS_BOOTSTRAP_PREREQS_REPOS_MIOS_BRANCH
 bootstrap.prereqs.repos.bootstrap_url  MIOS_BOOTSTRAP_PREREQS_REPOS_BOOTSTRAP_URL
 bootstrap.prereqs.repos.bootstrap_branch  MIOS_BOOTSTRAP_PREREQS_REPOS_BOOTSTRAP_BRANCH
 bootstrap.prereqs.repos.clone_root  MIOS_BOOTSTRAP_PREREQS_REPOS_CLONE_ROOT
-profile.role  MIOS_PROFILE_ROLE
-profile.features  MIOS_PROFILE_FEATURES
 colors.bg  MIOS_COLORS_BG
 colors.fg  MIOS_COLORS_FG
 colors.accent  MIOS_COLORS_ACCENT

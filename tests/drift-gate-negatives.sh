@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,66 @@ test_account_column_parity() {
 }
 
 
+test_role_ssot() {
+    log "Testing check_role_ssot"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local unit="${ROOT}/usr/lib/systemd/system/mios-hybrid.target"
+    local lib="${ROOT}/usr/lib/mios/blade.sh"
+    local tbak="${toml}.rolebak" ubak="${unit}.rolebak" lbak="${lib}.rolebak"
+    cp "$toml" "$tbak"; cp "$unit" "$ubak"; cp "$lib" "$lbak"
+    _role_restore() { cp "$tbak" "$toml"; cp "$ubak" "$unit"; cp "$lbak" "$lib"; }
+
+    # (1) A [blade].type that names no archetype must FAIL. This is the exact
+    # value the retired [profile].role shipped with.
+    sed -i '0,/^type = "hybrid"$/s//type = "developer"/' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with [blade].type naming no archetype"
+    fi
+    cp "$tbak" "$toml"
+
+    # (2) A resurrected [profile] must FAIL -- one canonical name (Law 9).
+    printf '\n[profile]\nrole = "developer"\n' >> "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with [profile].role resurrected"
+    fi
+    cp "$tbak" "$toml"
+
+    # (3) An incomplete conflict graph must FAIL. The DEFAULT role target
+    # shipped conflicting with NOTHING, so switching away never stopped it.
+    sed -i '/^Conflicts=/d' "$unit"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with a role target conflicting with nothing"
+    fi
+    cp "$ubak" "$unit"
+
+    # (4) An Alias= systemd cannot install must FAIL -- two role targets shipped
+    # Alias=default.target.mios-<role>, whose suffix no unit name can match.
+    sed -i '$a Alias=default.target.mios-hybrid' "$unit"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with an Alias= whose suffix is not the unit's"
+    fi
+    cp "$ubak" "$unit"
+
+    # (5) An archetype name spelled as a literal in the blade code must FAIL:
+    # the archetype table is [blade.archetypes], not a case statement.
+    sed -i '$a case "$ROLE" in endpoint) TARGET=x ;; esac' "$lib"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with an archetype hardcoded in blade.sh"
+    fi
+
+    _role_restore
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1 \
+        || { rm -f "$tbak" "$ubak" "$lbak"; die "check_role_ssot failed after restoration"; }
+    rm -f "$tbak" "$ubak" "$lbak"
+
+    log "Test_role_ssot negative test passed"
+}
+
 test_blade_karg() {
     log "Testing check_blade_karg"
     local karg="${ROOT}/usr/lib/bootc/kargs.d/05-mios-blade.toml"
@@ -2938,6 +2998,7 @@ main() {
     test_ports_bound
     test_blade_coverage
     test_blade_karg
+    test_role_ssot
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

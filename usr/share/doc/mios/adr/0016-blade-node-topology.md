@@ -255,15 +255,89 @@ Role is a **runtime** activation, not a bake-time fork, and this is not a propos
 → capability markers → `ConditionPathExists` drop-ins is the WS-BLADE *"one image, role by flag"*
 position and it ships. A seat is therefore **not a new image** — it is an archetype.
 
-What this ADR decides is the three unfinished pieces, and that they land on `[blade]`, not beside it:
+What this ADR decides is the three unfinished pieces, and that they land on `[blade]`, not beside
+it. All three have now landed; what each turned out to be is recorded below, because two of them
+were not what they looked like.
 
-* **`[profile]` retires into `[blade]`.** `[profile].role`/`features` becomes a thin alias for
-  `[blade].type`/capabilities for one release, then goes. Until it does, `[profile].role` is a
-  decorative key that no resolver reads — the worst kind, because it looks authoritative.
-* **`role-apply` becomes marker-writing only.** Ordering, isolation and start-up belong to the
-  targets and the `Condition*` drop-ins; a resolver that also acts is a second, racing scheduler.
-* **`05-mios-blade.toml` gets generated** so the karg the resolver already parses has a producer
-  under Law 8, rather than depending on each installer to type it.
+* **`[profile]` is gone, not aliased.** The plan was "alias onto `[blade]` for one release, then
+  retire". Measurement made the alias pointless: `[profile].role = "developer"` was not a legal
+  archetype, `role-apply` read `[blade].type` and never `[profile]`, `MIOS_PROFILE_ROLE` and
+  `MIOS_PROFILE_FEATURES` were emitted by both `globals` twins and consumed by no shipped code —
+  the resolver already classed the whole section `WALK_MOSTLY_DEAD` and resurrected exactly those
+  two names through an explicit `WALK_EMIT_KEEP` exception — and the section's **only writer**,
+  `user-setup.sh`, emitted `Role` with a capital `R`, which no reader spells that way. A key that
+  is dead on both ends has nothing to alias. `[profile].features` had the same problem in a
+  sharper form: its shipped values were `ai`, `virtualization`, `k3s`, and **none of them is a
+  capability any archetype grants**. Retired outright; `check_role_ssot` fails a re-added
+  `[profile].role` that is not a legal `[blade].type`, and fails either keep-list that names the
+  retired vars again.
+
+* **`05-mios-blade.toml` gets generated — and generating it broke three things.** The producer
+  landed as specified (`tools/generate-blade-karg.py`, gate `check_blade_karg`). But the karg it
+  emits is on **every** cmdline, and `role-apply` guarded its remaining tiers with
+  `if [[ -z "$ROLE" ]]`. With the vendor karg always present, `ROLE` was never empty, so in one
+  commit and with no error anywhere:
+  `/etc/mios/role.conf` stopped being read (**`mios blade set` silently did nothing**), its
+  `FEATURES=` stopped being read (**`mios blade add-capability` was erased on the next boot**,
+  because `role-apply` clears `/etc/mios/blade.d` on every run), and the WSL / Blackwell / no-DRM
+  hardware fallbacks became unreachable. This is the cost of a projection landing without the
+  reader being re-read: the generator was correct in isolation and wrong in composition.
+
+  The fix is a precedence **ladder** rather than a presence test, and it restores the same tier
+  order the config overlay already uses — vendor(`/usr`) < host(`/etc`) < explicit:
+
+  1. `mios.blade=` / `mios.role=` on the cmdline **that differs from `[blade].type`** — an
+     operator changed it, so it wins;
+  2. `ROLE=` in `/etc/mios/role.conf` — the host tier (Law 1);
+  3. `[blade].type`, equivalently the generated karg — the vendor tier;
+  4. the hardware sniff, which demotes **tier 3 only** to `[blade].fallback`: it corrects a role
+     the vendor guessed and never overrules one a person chose.
+
+  There is no fifth tier and **no archetype name anywhere in the blade code**. When the SSOT will
+  not parse, `[blade].type` is empty, so any `mios.blade=` token differs from it and tier 1 claims
+  it: the generated karg *is* the Law-12 floor. With neither, the resolver returns nothing rather
+  than inventing an archetype. `tests/test-role-apply-precedence.sh` drives the real functions
+  against fixtures; restoring the old presence test turns it red.
+
+  Two smaller repairs fell out of the same reading. `role.conf` is now **parsed, not sourced** —
+  `.` on a file under `/etc` runs it as root and clobbers whatever names it sets, which is how
+  `FEATURES` used to vanish. And `mios.features=` used to `touch` any string into the capability
+  namespace, so a typo created a marker nothing asks for and `mios.features=gpu-serving` was an
+  undeclared escalation path; capability names are now the closed union of `[blade.archetypes]`,
+  and `mios blade` refuses an unknown one with the legal set.
+
+* **`role-apply` is demoted, but NOT to "starts nothing" — and that is a correction to this ADR.**
+  The subtraction looked free and is not. Four of the six role targets are thin, and that sample
+  produced the wrong generalisation: `mios-hybrid.target`, the **default**, carries
+  `Requires=graphical.target` and `Wants=k3s-agent.service`, and `mios-desktop.target` requires
+  `gdm.service` plus the libvirt stack. `automation/88-finalize.sh` bakes
+  `set-default multi-user.target`, so on the **first** boot after install the role target is not
+  reached by anything except `role-apply`'s `systemctl start`. Delete it and a fresh desktop
+  install boots to a text console.
+
+  Baking a role target instead was considered and rejected: it would put `Requires=graphical.target`
+  on the boot-critical path of headless hardware, which fails worse and less visibly than a
+  first-boot console. So `role-apply` keeps exactly one imperative act, and it is now
+  **conditional**: `set-default` (declarative, decides the next boot, starts nothing) always; a
+  `systemctl start` only when the resolved target differs from the one recorded in
+  `/var/lib/mios/role.active`. Steady-state boots take neither branch — the markers alone decide
+  what runs — so the "two racing schedulers" this bullet was written about are gone, without
+  trading them for a broken first boot.
+
+* **The role targets did not form a switchable set.** Day-2 switching depends on `Conflicts=`,
+  since the new target is started rather than isolated. The graph shipped incomplete and the
+  **default archetype conflicted with nothing at all**, so `mios blade set headless` on a hybrid
+  blade started headless and left hybrid running. `[blade.archetypes]` and the shipped targets are
+  now a complete pairwise graph, gated. Separately, `mios-hybrid.target` and `mios-k3s-worker.target`
+  each declared `Alias=default.target.mios-<role>` — an alias must carry its unit's own suffix, so
+  systemd can never install it, and because that alias *was* their entire `[Install]` section the
+  default role target had no `WantedBy=` while all seven peers did.
+
+* **Two roles selected a target while granting no capabilities.** `role-apply` matched `k3s*` and
+  `ha*` as case globs, so `mios.blade=k3s` set `mios-k3s-master.target` and then resolved to `[]`
+  capabilities — the target came up and the entire service plane stayed condition-skipped. Both
+  are now declared archetypes, and the two legacy spellings are **data** in `[blade.role_aliases]`
+  rather than globs, so `k3sx` no longer selects anything.
 
 **A seat is `[blade.archetypes].endpoint`** — no new name for a thing the tree already had. An
 archetype with **no capabilities is a seat**, because a blade activates a unit only when its
@@ -281,6 +355,8 @@ AND, so a lane needs both markers.
 | `controller` | `controller`, `service-plane` | 20 |
 | `headless` | `service-plane` | 20 |
 | `desktop` | `service-plane` | 20 |
+| `k3s-master` | `controller`, `service-plane` | 20 |
+| `ha-node` | `controller`, `service-plane` | 20 |
 | **`endpoint`** — the seat | *(none)* | **0** |
 
 Only the seat's behaviour changes: every other archetype activates exactly what it did before,

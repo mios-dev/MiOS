@@ -253,7 +253,7 @@ comment = "# AI-hint: Defines the compute systemd target for MiOS, representing 
 Description = "'MiOS' Compute Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
+Conflicts = "mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-compute.target".Install]
@@ -264,7 +264,7 @@ comment = "# AI-hint: Defines the controller systemd target for MiOS, representi
 Description = "'MiOS' Controller Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
+Conflicts = "mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-controller.target".Install]
@@ -275,7 +275,7 @@ comment = "# AI-hint: Defines the mios-desktop.target systemd unit to initialize
 Description = "'MiOS' Desktop Role"
 Requires = "multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service"
 After = "multi-user.target"
-Conflicts = "mios-headless.target mios-k3s-master.target mios-ha-node.target"
+Conflicts = "mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-desktop.target".Install]
@@ -286,7 +286,7 @@ comment = "# AI-hint: Defines the endpoint systemd target for MiOS, representing
 Description = "'MiOS' Endpoint Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-endpoint.target".Install]
@@ -297,7 +297,7 @@ comment = "# AI-hint: Defines the mios-ha-node.target unit to identify and confi
 Description = "'MiOS' HA Cluster Node Role"
 Requires = "multi-user.target corosync.service pacemaker.service"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target mios-k3s-master.target"
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-ha-node.target".Install]
@@ -308,7 +308,7 @@ comment = "# AI-hint: Defines the headless systemd target for MiOS, enforcing a 
 Description = "'MiOS' Headless Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-k3s-master.target mios-ha-node.target"
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target"
 AllowIsolate = true
 
 [units."mios-headless.target".Install]
@@ -319,18 +319,19 @@ comment = "# AI-hint: Defines the mios-hybrid.target unit to orchestrate the con
 Description = "'MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)"
 Requires = "graphical.target"
 After = "graphical.target"
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target"
 AllowIsolate = true
 Wants = "k3s-agent.service"
 
 [units."mios-hybrid.target".Install]
-Alias = "default.target.mios-hybrid"
+WantedBy = "multi-user.target"
 
 [units."mios-k3s-master.target".Unit]
 comment = "# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.\n# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target"
 Description = "'MiOS' K3s Master Role"
 Requires = "multi-user.target k3s.service"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target mios-ha-node.target"
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target"
 AllowIsolate = true
 
 [units."mios-k3s-master.target".Install]
@@ -345,7 +346,7 @@ AllowIsolate = true
 Wants = "k3s-agent.service"
 
 [units."mios-k3s-worker.target".Install]
-Alias = "default.target.mios-k3s-worker"
+WantedBy = "multi-user.target"
 
 [units."mios-cockpit-link.socket".Unit]
 comment = "# AI-hint: Socket file for mios-cockpit-link proxy. Maps port 8091 on host/WSL to the cockpit service.\n# AI-related: usr/lib/systemd/system/mios-cockpit-link.service"
@@ -11615,14 +11616,6 @@ http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
 # ----------------------------------------------------------------------------
-# [profile] -- developer-vs-server-vs-kiosk flavor and feature toggles.
-# Maps to MIOS_PROFILE_ROLE, MIOS_PROFILE_FEATURES (comma-joined).
-# ----------------------------------------------------------------------------
-[profile]
-role     = "developer"
-features = ["ai", "virtualization", "k3s"]
-
-# ----------------------------------------------------------------------------
 # [quadlets.enable] -- per-Quadlet first-boot enablement flags.
 # Defaults are all true; the system never disables a service via static
 # config. Incompatible deployments are gated via systemd Condition*
@@ -13084,6 +13077,12 @@ metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 [blade]
 type = "hybrid"
 
+# Where the hardware sniff demotes to, and where role-apply falls back when the
+# resolved archetype ships no target. Must itself be an archetype, and must be
+# an archetype that survives on any hardware -- it is chosen precisely when the
+# machine cannot do what the resolved role implies. Gate: check_role_ssot.
+fallback = "headless"
+
 # Services a seat still starts because no capability gates them yet.
 # SHRINK-ONLY (gate: check_blade_coverage). Drained by T-319; keep it at [].
 ungated = []
@@ -13112,6 +13111,20 @@ controller = ["controller", "service-plane"]
 headless   = ["service-plane"]
 desktop    = ["service-plane"]
 endpoint   = []
+# Cluster roles. They already shipped mios-k3s-master.target / mios-ha-node.target
+# and role-apply already selected them from a `k3s*`/`ha*` glob -- but they were
+# absent HERE, so such a blade resolved to zero capabilities and started nothing
+# while its target came up.
+k3s-master = ["controller", "service-plane"]
+ha-node    = ["controller", "service-plane"]
+
+# Legacy role spellings, mapped onto an archetype. This table replaces the
+# `k3s*)` / `ha*)` globs in role-apply: a glob accepted `k3sx` too, selecting a
+# target for a role that grants nothing. Every value must be an archetype key
+# (gate: check_role_ssot).
+[blade.role_aliases]
+k3s = "k3s-master"
+ha  = "ha-node"
 
 [blade.requires]
 # GPU lanes: gpu-serving AND service-plane (repeated ConditionPathExists is AND).

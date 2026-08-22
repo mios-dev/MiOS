@@ -4508,6 +4508,7 @@ required_checks = [
     "check_ports_bound",
     "check_blade_coverage",
     "check_blade_karg",
+    "check_role_ssot",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6279,6 +6280,7 @@ main() {
     check_ports_bound
     check_blade_coverage
     check_blade_karg
+    check_role_ssot
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7337,6 +7339,20 @@ check_blade_coverage() {
     echo "[98-drift-checks]   check_blade_coverage"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_role_ssot() {
+    echo "[98-drift-checks]   check_role_ssot"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-role-ssot.py 2>&1)"; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 _violation "$line"

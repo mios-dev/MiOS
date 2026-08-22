@@ -4,8 +4,9 @@
 Description='MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)
 Requires=graphical.target
 After=graphical.target
+Conflicts=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target
 AllowIsolate=yes
 Wants=k3s-agent.service
 
 [Install]
-Alias=default.target.mios-hybrid
+WantedBy=multi-user.target
