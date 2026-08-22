@@ -17,7 +17,7 @@ Collapse all SSOT resolver surfaces into a single compiled Rust crate: `tools/na
 - **Rollback Safety**: `[migration]` SSOT toggles (`use_rust_resolver_*`) allowing instant fallback to legacy shims without build reverts.
 - **Fitness Functions**:
   - `check_resolver_shell_equivalence`: Byte-identical bash snapshot checks.
-  - `check_resolver_ps_equivalence`: Regeneration equivalence for `globals.generated.ps1`.
+  - `check_resolver_ps_equivalence`: Regeneration equivalence for `globals.ps1`.
   - Differential proptest gate: Automated equivalence verification (`crate == python == bash`).
   - `deny.toml`: Supply-chain security and license policy enforcement via `cargo-deny`.
 

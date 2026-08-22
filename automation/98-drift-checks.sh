@@ -1596,64 +1596,7 @@ PY
 }
 
 check_globals_ports() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.exit(0)
-toml = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(toml):
-    sys.exit(0)
-with open(toml, "rb") as fh:
-    ports = (_toml.load(fh).get("ports", {}) or {})
-
-bad = []
-ps1 = os.path.join(root, "automation/lib/globals.ps1")
-if os.path.isfile(ps1):
-    with open(ps1, encoding="utf-8") as fh:
-        for line in fh:
-            m = re.search(r"MIOS_PORT_([A-Z0-9_]+)\b", line)
-            v = re.search(r"else\s*\{\s*(\d+)\s*\}", line)
-            if not (m and v):
-                continue
-            name, got = m.group(1), int(v.group(1))
-            key = name.lower()
-            if key not in ports:
-                bad.append(f"globals.ps1 MIOS_PORT_{name}={got} has NO [ports].{key} key (retired lane?)")
-            elif int(ports[key]) != got:
-                bad.append(f"globals.ps1 MIOS_PORT_{name}={got} != [ports].{key}={ports[key]}")
-sh = os.path.join(root, "automation/lib/globals.sh")
-if os.path.isfile(sh):
-    with open(sh, encoding="utf-8") as fh:
-        for line in fh:
-            m = re.search(r"\$\{MIOS_PORT_([A-Z0-9_]+):=(\d+)\}", line)
-            if not m:
-                continue
-            name, got = m.group(1), int(m.group(2))
-            key = name.lower()
-            if key not in ports:
-                bad.append(f"globals.sh MIOS_PORT_{name}={got} has NO [ports].{key} key (retired lane?)")
-            elif int(ports[key]) != got:
-                bad.append(f"globals.sh MIOS_PORT_{name}={got} != [ports].{key}={ports[key]}")
-
-for b in bad:
-    sys.stderr.write(f"    {b}\n")
-sys.exit(1 if bad else 0)
-PY
-    then
-        echo "[98-drift-checks]   every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT"
-    else
-        _violation "a MIOS_PORT_* fallback default in automation/lib/globals.ps1 or globals.sh drifted from mios.toml [ports] SSOT (Windows-side effective default; align the else{N}/:=N literal to [ports].<name>) (flatten check 28)"
-    fi
+    check_globals_generated
 }
 
 check_globals_image_parity() {
@@ -5385,49 +5328,15 @@ check_pipe_extraction_parity() {
 }
 
 check_guacamole_consistency() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
+    echo "[98-drift-checks]   check_guacamole_consistency"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_guacamole_consistency: $line"
+        done <<<"$out"
+        return
     fi
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-desktop_path = os.path.join(root, "usr/share/applications/mios-svc-guacamole.desktop")
-
-if not os.path.isfile(toml_path) or not os.path.isfile(desktop_path):
-    sys.exit(0)
-
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-ports = data.get("ports", {})
-guac_port = str(ports.get("guacamole_web", 8080))
-
-with open(desktop_path, "r", encoding="utf-8") as f:
-    content = f.read()
-
-urls = re.findall(r"http://localhost:(\d+)/guacamole/", content)
-if not urls:
-    sys.stderr.write("    mios-svc-guacamole.desktop does not contain expected http://localhost:<port>/guacamole/ URL\n")
-    sys.exit(1)
-
-for p in urls:
-    if p != guac_port:
-        sys.stderr.write(f"    mios-svc-guacamole.desktop port {p} != [ports].guacamole_web {guac_port}\n")
-        sys.exit(1)
-
-sys.exit(0)
-PY
-    then
-        echo "[98-drift-checks]   guacamole desktop entry & SSOT consistency verified"
-    else
-        _violation "Guacamole desktop entry port does not match [ports].guacamole_web SSOT"
-    fi
+    echo "[98-drift-checks]   $out"
 }
 
 check_law_enforcers() {
@@ -6300,7 +6209,10 @@ main() {
     check_pipe_boundaries
     check_vllm_name_canonical
     check_pipe_extraction_parity
+    check_desktop_launchers
     check_guacamole_consistency
+    check_no_inert_ssot_tables
+    check_doc_refs_resolve
     check_v2v_import_ssot
     check_law_enforcers
     check_usr_over_etc
@@ -6316,6 +6228,7 @@ main() {
     check_ports_bound
     check_blade_coverage
     check_blade_karg
+    check_blade_reconcile_schema
     check_role_ssot
     check_port_fallbacks
     check_node_pool
@@ -7500,6 +7413,162 @@ check_firstboot_provisioners() {
     echo "[98-drift-checks]   $out"
 }
 
+check_desktop_launchers() {
+    echo "[98-drift-checks]   check_desktop_launchers"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_desktop_launchers: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_no_inert_ssot_tables() {
+    echo "[98-drift-checks]   check_no_inert_ssot_tables"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as fh:
+    data = tomllib.load(fh)
+
+inert = []
+for section in data.keys():
+    pattern = re.compile(r'(\b' + re.escape(section) + r'\b|\[' + re.escape(section) + r'\]|MIOS_' + re.escape(section.upper()) + r')')
+    found = False
+    for rpath, _, files in os.walk(root):
+        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored']):
+            continue
+        for fn in files:
+            if fn == 'mios.toml' or not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
+                continue
+            fpath = os.path.join(rpath, fn)
+            try:
+                with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
+                    if pattern.search(sfh.read()):
+                        found = True
+                        break
+            except Exception:
+                pass
+        if found:
+            break
+    if not found:
+        inert.append(section)
+
+if inert:
+    sys.stdout.write(f"    Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PYEOF
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_no_inert_ssot_tables: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_doc_refs_resolve() {
+    echo "[98-drift-checks]   check_doc_refs_resolve"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, sys, re
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+
+with open(toml_path, "rb") as fh:
+    data = tomllib.load(fh)
+
+docs_cfg = data.get("docs") or {}
+max_stale = int(docs_cfg.get("max_stale_refs", 0))
+allowlist = set(docs_cfg.get("ref_allowlist") or [])
+
+stale = []
+ref_re = re.compile(r'^\s*#\s*AI-(?:related|doc):\s*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->', re.MULTILINE)
+
+for rpath, _, files in os.walk(root):
+    if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output']):
+        continue
+    for fn in files:
+        if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
+            continue
+        if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md'):
+            continue
+        fpath = os.path.join(rpath, fn)
+        dirpath = os.path.dirname(fpath)
+        try:
+            with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
+                text = sfh.read()
+            for m in ref_re.finditer(text):
+                raw_line = m.group(1) or m.group(2) or ''
+                tokens = [t.strip().rstrip(',') for t in raw_line.split(',') if t.strip()]
+                for t in tokens:
+                    t_clean = t.rstrip(',').strip()
+                    t_clean = re.sub(r':\d+.*$', '', t_clean).strip()
+                    t_clean = re.sub(r'\s*\([^)]*\)', '', t_clean).strip()
+                    # "file.toml [section]" is a file + section, not a path.
+                    t_clean = re.sub(r'\s*\[[^\]]*\]\s*$', '', t_clean).strip()
+                    if not t_clean or any(al in t_clean for al in allowlist):
+                        continue
+                    if t_clean.startswith('[') or t_clean.startswith('@@') or t_clean.startswith('<'):
+                        continue
+                    if not ('/' in t_clean or t_clean.endswith(('.sh', '.py', '.toml', '.ps1', '.json', '.yaml', '.yml', '.md'))):
+                        continue
+                    if t_clean.startswith('/etc/') or t_clean.startswith('/var/') or t_clean.startswith('/tmp/') or t_clean.startswith('/proc/') or t_clean.startswith('/sys/') or t_clean.startswith('/run/'):
+                        continue
+                    if t_clean.startswith('http://') or t_clean.startswith('https://') or t_clean.startswith('localhost'):
+                        continue
+
+                    rel = t_clean.lstrip('/')
+                    cands = [
+                        os.path.normpath(os.path.join(dirpath, rel)),
+                        os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
+                        os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(dirpath)), rel)),
+                        os.path.normpath(os.path.join(root, 'usr/lib/mios/agent-pipe', rel)),
+                        os.path.normpath(os.path.join(root, rel)),
+                    ]
+                    if not any(os.path.exists(c) for c in cands):
+                        stale.append(f'{fn}: {t_clean}')
+        except Exception:
+            pass
+
+if len(stale) > max_stale:
+    sys.stdout.write(f"    check_doc_refs_resolve: {len(stale)} stale reference(s) found (max allowed {max_stale}):\n")
+    for s in stale[:10]:
+        sys.stdout.write(f"      {s}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PYEOF
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_doc_refs_resolve: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
 check_doc_port_scheme() {
     echo "[98-drift-checks]   check_doc_port_scheme"
     # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
@@ -7529,6 +7598,75 @@ PYEOF
             done <<<"$hits"
         fi
     done <<<"${lists#*$'\n'}"
+}
+
+
+
+
+# ADR-0017 D5 prerequisite: divergence needs per-row provenance to be mergeable.
+check_blade_reconcile_schema() {
+    echo "[98-drift-checks]   check_blade_reconcile_schema"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, re, sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+sql_path = os.path.join(root, "usr/share/mios/postgres/schema-init.sql")
+if not os.path.isfile(toml_path):
+    sys.exit(0)
+with open(toml_path, "rb") as fh:
+    data = tomllib.load(fh)
+
+rec = ((data.get("blade") or {}).get("reconcile") or {})
+if "enabled" not in rec:
+    print("[blade.reconcile] has no `enabled` key -- an implied default is "
+          "indistinguishable from a forgotten one, and this table decides "
+          "whether partitioned writes are permitted")
+    sys.exit(1)
+
+RULE_KEYS = sorted(k for k in rec if k != "enabled")
+
+if not rec.get("enabled"):
+    print("[blade-reconcile] divergence disabled; %d merge rule(s) declared, "
+          "schema prerequisite not yet required" % len(RULE_KEYS))
+    sys.exit(0)
+
+viol = []
+sql = ""
+if os.path.isfile(sql_path):
+    with open(sql_path, encoding="utf-8", errors="replace") as fh:
+        sql = fh.read()
+for table in RULE_KEYS:
+    m = re.search(r"CREATE TABLE IF NOT EXISTS\s+" + re.escape(table) + r"\s*\((.*?)\n\);",
+                  sql, re.S)
+    if not m:
+        viol.append("enabled = true but schema-init.sql declares no table '%s'" % table)
+        continue
+    body = m.group(1)
+    if not re.search(r"\borigin_node\b", body):
+        viol.append("table '%s' has no origin_node column, so a merged row cannot be "
+                    "attributed to the partition that wrote it" % table)
+    if not re.search(r"\blogical_ts\b", body):
+        viol.append("table '%s' has no logical_ts column, so append-ordered and "
+                    "last-writer-wins have nothing to order by" % table)
+if viol:
+    viol.append("Land AGY-1598 (origin_node + logical_ts) or set "
+                "[blade.reconcile].enabled = false until it does.")
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PYEOF
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_blade_reconcile_schema: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
 }
 
 main "$@"

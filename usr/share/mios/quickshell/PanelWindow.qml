@@ -2,7 +2,7 @@
 // Glassmorphic frosted bar with MiOS shield wordmark, live agent-status pill,
 // and animated clock. Colors/typography come from Theme.qml
 // (SSOT-driven from mios.toml [colors]/[theme.font] via /etc/mios/theme/theme.json).
-// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Sidebar.qml,
+// AI-related: usr/share/mios/quickshell/Theme.qml, usr/share/mios/quickshell/Sidebar.qml
 // usr/share/mios/quickshell/Config.qml
 
 import QtQuick

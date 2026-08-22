@@ -43,13 +43,13 @@ when this snapshot was generated. Use `Ctrl-F` against a path to find a script.
 
 === BLOCK 2: inside embedded automation/build.sh — script classification (now matches current build.sh) ===
 # ── Script classification ────────────────────────────────────────────────────
-CONTAINERFILE_SCRIPTS="08-system-files-overlay.sh 99-postcheck.sh"
+CONTAINERFILE_SCRIPTS="01-system-files-overlay.sh 99-postcheck.sh"
 
 NON_FATAL_SCRIPTS="
   05-enable-external-repos.sh
   10-gnome.sh
-  13-ceph-k3s.sh
-  19-k3s-selinux.sh
+  36-ceph-k3s.sh
+  37-k3s-selinux.sh
   21-moby-engine.sh
   23-uki-render.sh
   36-akmod-guards.sh
@@ -107,16 +107,16 @@ above — read them directly from `automation/` (the live SSOT). They are listed
 in execution order so the dependency ordering is still legible:
 
 - `09-fonts.sh`
-- `15-render-quadlets.sh` — renders Quadlet placeholders from `mios.toml`/`install.env`
+- `34-render-quadlets.sh` — renders Quadlet placeholders from `mios.toml`/`install.env`
 - `34-sshd-port.sh`
-- `38-hermes-agent.sh` — stages the MiOS-Hermes OpenAI-compat agent gateway (port key `hermes`)
+- `72-hermes-agent.sh` — stages the MiOS-Hermes OpenAI-compat agent gateway (port key `hermes`)
 - `38-llamacpp-prep.sh` — prepares the `mios-llm-light` llama.cpp lane (port key `llm_light`)
 - `38-oh-my-posh.sh`
 - `38-vllm-prep.sh` — prepares the gated `mios-llm-heavy` (vLLM) lane
 - `39-opencode.sh` — stages the `mios-opencode` coder model + opencode gateway (port key `opencode_gateway`)
 - `40-flatpak-bake.sh`
 - `41-gpu-cdi-toolkits.sh`
-- `41-mios-dropin-fanout.sh`
+- `48-mios-dropin-fanout.sh`
 - `91-strip-build-toolchain.sh` — strips build-only toolchain from the final image
 
 Conversely, `automation/37-ollama-prep.sh` and `automation/37-aichat.sh` were

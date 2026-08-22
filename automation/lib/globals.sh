@@ -181,6 +181,7 @@ export MIOS_VERSION
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
 : "${MIOS_AI_TAG_MAX_UNTAGGED:=120}"
 : "${MIOS_AI_TAG_TEACHER_MODEL:=granite4.1:3b}"
+: "${MIOS_AI_TAG_TEACHER_PORT_KEY:=llm_light}"
 : "${MIOS_ANSI_0_BLACK:=#282262}"
 : "${MIOS_ANSI_10_BRIGHT_GREEN:=#5FAA8E}"
 : "${MIOS_ANSI_11_BRIGHT_YELLOW:=#FF8540}"
@@ -236,7 +237,27 @@ export MIOS_VERSION
 : "${MIOS_BLADE_ARCHETYPES_HEADLESS:=service-plane}"
 : "${MIOS_BLADE_ARCHETYPES_HYBRID:=gpu-serving,controller,service-plane}"
 : "${MIOS_BLADE_ARCHETYPES_K3S_MASTER:=controller,service-plane}"
+: "${MIOS_BLADE_COLLAPSE_DWELL_S:=30}"
+: "${MIOS_BLADE_COLLAPSE_FAIL_CHECKS:=3}"
+: "${MIOS_BLADE_COLLAPSE_RECOVER_DWELL_S:=120}"
+: "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_HEAVY:=mios-llm-light}"
+: "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_HEAVY_ALT:=mios-llm-light}"
+: "${MIOS_BLADE_CPU_FALLBACKS_MIOS_LLM_WORKER_:=mios-llm-light}"
+: "${MIOS_BLADE_DISCOVERY_HEALTH_PATH:=/v1/models}"
+: "${MIOS_BLADE_DISCOVERY_HEALTH_TIMEOUT_S:=3}"
+: "${MIOS_BLADE_DISCOVERY_ORDER:=localhost,mdns,tailnet,remote}"
 : "${MIOS_BLADE_FALLBACK:=headless}"
+: "${MIOS_BLADE_PLACEMENT_CONTAINERS:=k3s}"
+: "${MIOS_BLADE_PLACEMENT_FAILOVER_ORDER:=local,localhost,cluster}"
+: "${MIOS_BLADE_PLACEMENT_VMS:=pacemaker}"
+: "${MIOS_BLADE_RECONCILE_AGENT_MEMORY:=append-ordered}"
+: "${MIOS_BLADE_RECONCILE_CONFIG_KV:=conflict-is-error}"
+: "${MIOS_BLADE_RECONCILE_EMBEDDINGS:=union-by-hash}"
+: "${MIOS_BLADE_RECONCILE_ENABLED:=false}"
+: "${MIOS_BLADE_RECONCILE_EVENT:=append-ordered}"
+: "${MIOS_BLADE_RECONCILE_KNOWLEDGE:=union-by-hash}"
+: "${MIOS_BLADE_RECONCILE_SCRATCH:=last-writer-wins}"
+: "${MIOS_BLADE_RECONCILE_SESSION:=last-writer-wins}"
 : "${MIOS_BLADE_REQUIRES_HERMES_WORKER:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_K3S:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_ACCOUNT_SYNC:=service-plane}"
@@ -601,6 +622,86 @@ export MIOS_VERSION
 [ -n "${MIOS_DESKTOP_APP_TYPES+x}" ] || MIOS_DESKTOP_APP_TYPES='{'"'"'type'"'"': '"'"'browser'"'"', '"'"'os_pref'"'"': '"'"'linux-first'"'"', '"'"'default'"'"': '"'"'epiphany'"'"', '"'"'windows_default'"'"': '"'"'zen'"'"', '"'"'description'"'"': "Web browser -- Linux flatpak by default; Zen (the Windows default browser) on Windows / '"'"'my browser'"'"' intent."},{'"'"'type'"'"': '"'"'files'"'"', '"'"'os_pref'"'"': '"'"'linux-first'"'"', '"'"'default'"'"': '"'"'nautilus'"'"', '"'"'description'"'"': '"'"'File manager.'"'"'},{'"'"'type'"'"': '"'"'editor'"'"', '"'"'os_pref'"'"': '"'"'linux-first'"'"', '"'"'default'"'"': '"'"'gedit'"'"', '"'"'description'"'"': '"'"'Text editor.'"'"'},{'"'"'type'"'"': '"'"'terminal'"'"', '"'"'os_pref'"'"': '"'"'linux-first'"'"', '"'"'default'"'"': '"'"'ptyxis'"'"', '"'"'description'"'"': '"'"'Terminal emulator.'"'"'},{'"'"'type'"'"': '"'"'media'"'"', '"'"'os_pref'"'"': '"'"'linux-first'"'"', '"'"'default'"'"': '"'"'showtime'"'"', '"'"'description'"'"': '"'"'Media / video player.'"'"'},{'"'"'type'"'"': '"'"'games'"'"', '"'"'os_pref'"'"': '"'"'windows'"'"', '"'"'windows_default'"'"': '"'"'steam'"'"', '"'"'description'"'"': '"'"'Games + game launchers -- the Windows side (Steam/Epic/GOG/Xbox).'"'"'},{'"'"'type'"'"': '"'"'settings'"'"', '"'"'os_pref'"'"': '"'"'both'"'"', '"'"'default'"'"': '"'"'gnome-control-center'"'"', '"'"'description'"'"': '"'"'System settings -- both OSes have one; agent picks by which system the ask targets.'"'"'},{'"'"'type'"'"': '"'"'system'"'"', '"'"'os_pref'"'"': '"'"'both'"'"', '"'"'description'"'"': '"'"'System / OS apps -- assume either side; agent discerns from context.'"'"'},{'"'"'type'"'"': '"'"'games'"'"', '"'"'os_priority'"'"': '"'"'windows'"'"'},{'"'"'type'"'"': '"'"'settings'"'"', '"'"'os_priority'"'"': '"'"'both'"'"'},{'"'"'type'"'"': '"'"'system'"'"', '"'"'os_priority'"'"': '"'"'both'"'"'},{'"'"'type'"'"': '"'"'browser'"'"', '"'"'os_priority'"'"': '"'"'linux-first'"'"', '"'"'linux_default'"'"': '"'"'org.gnome.Epiphany'"'"', '"'"'windows_default'"'"': '"'"'zen'"'"'},{'"'"'type'"'"': '"'"'fallback'"'"', '"'"'os_priority'"'"': '"'"'linux-first'"'"'}'
 : "${MIOS_DESKTOP_COLOR_SCHEME:=prefer-dark}"
 : "${MIOS_DESKTOP_FLATPAKS:=org.gtk.Gtk3theme.adw-gtk3-dark,org.gtk.Gtk3theme.adw-gtk3,app.devsuite.Ptyxis,gnome-nightly:org.gnome.Nautilus.Devel,fedora:org.gnome.Epiphany,com.github.tchx84.Flatseal,com.mattjakeman.ExtensionManager,com.google.ChromeDev}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_HINT:=Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:8700/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop).}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_AI_RELATED:=/etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:8700/configure}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_CATEGORIES:=System;Settings;PackageManager;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_COMMENT:=One unified surface for every MiOS setting — identity, AI, packages, flatpaks, desktop (writes the mios.toml SSOT)}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_EXEC_CMD:=/usr/libexec/mios/mios-configurator-launch}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_GENERIC_NAME:=System Settings}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_ICON:=preferences-system}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_KEYWORDS:=mios;configurator;system;settings;packages;flatpak;ai;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_STARTUP_WM_CLASS:=org.gnome.Epiphany}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_TITLE:=MiOS Settings}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_TRAILING_COMMENTS+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_CONFIGURATOR_TRAILING_COMMENTS='# WSLg auto-publishes this entry to the Windows Start Menu under,# "<Distro> Apps" when MiOS-DEV is the source distro, so the same,# .desktop file gives Linux GNOME Dock + Activities visibility on a,# deployed MiOS host AND a Windows Start Menu entry on the Win-side,# dev VM. One file, two surfaces.'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_AI_HINT:=Desktop entry for the Ceph storage dashboard that provides a GUI interface for managing the Ceph cluster via a web browser at port 8443.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_CATEGORIES:=System;Network;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_COMMENT='Open the Ceph storage dashboard at https://localhost:{port}/'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_GENERIC_NAME:=Storage Cluster Dashboard}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_ICON:=drive-multidisk-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_KEYWORDS:=mios;ceph;storage;cluster;dashboard;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_NO_DISPLAY:=false}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_PORT_KEY:=ceph_dashboard}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_SCHEME:=https}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CEPH_TITLE:=MiOS Ceph Dashboard}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_AI_HINT:=Desktop entry for the MiOS Cockpit web console, providing a shortcut to the system administration interface at port 9090 for remote management and monitoring.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_CATEGORIES:=System;Network;Settings;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_COMMENT='Open the Cockpit host web console at https://localhost:{port}/'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_GENERIC_NAME:=System Console}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_ICON:=utilities-system-monitor-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_KEYWORDS:=mios;cockpit;admin;console;system;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_PORT_KEY:=cockpit}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_SCHEME:=https}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_COCKPIT_TITLE:=MiOS Cockpit}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_AI_HINT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_AI_HINT='Desktop entry for the code-server web IDE, providing a launcher for agents to identify and open the MiOS development environment at the local port 8080 via the system'"'"'s default browser.'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_CATEGORIES:=Development;IDE;TextEditor;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_COMMENT='Open code-server at http://localhost:{port}/ in the default browser'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_GENERIC_NAME:=VS Code in a Browser}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_ICON:=visual-studio-code}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_KEYWORDS:=mios;code-server;vscode;editor;ide;git;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_PORT_KEY:=code_server}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_CODE_SERVER_TITLE:=MiOS Code (code-server)}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_AI_HINT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_AI_HINT='Desktop entry for the MiOS Forge (Forgejo) service, providing a launcher to open the local Git repository management web interface at http://localhost:{port}/ via the system'"'"'s default browser.'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_CATEGORIES:=Development;RevisionControl;Network;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_COMMENT='Open the local Forgejo git forge at http://localhost:{port}/'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_GENERIC_NAME:=Self-Hosted Git Forge (Forgejo)}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_ICON:=text-x-generic-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_KEYWORDS:=mios;forge;forgejo;git;gitea;repo;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_PORT_KEY:=forge_http}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_FORGE_TITLE:=MiOS Forge}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_AI_HINT:=Desktop entry for the Guacamole remote desktop gateway, providing a launcher to open the local web interface at port 8080 for RDP/VNC access.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_CATEGORIES:=Network;RemoteAccess;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_COMMENT='Open Apache Guacamole at http://localhost:{port}/guacamole/'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_GENERIC_NAME:=Browser Remote Desktop}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_ICON:=preferences-desktop-remote-desktop-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_KEYWORDS:=mios;guacamole;rdp;vnc;remote;desktop;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_PATH:=/guacamole/}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_PORT_KEY:=guacamole_web}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_GUACAMOLE_TITLE:=MiOS Guacamole}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_AI_HINT:=Desktop entry for the Hermes Agent gateway, providing a shortcut to the local /v1 API surface at port 8642 for interacting with the primary MiOS AI agent.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_CATEGORIES:=Development;Network;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_COMMENT:=Open the Hermes-Agent /v1 surface (the LIVE MiOS agent at root)}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_GENERIC_NAME:=AI Agent Gateway}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_ICON:=applications-science-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_KEYWORDS:=mios;hermes;agent;api;openai;v1;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_PATH:=/v1}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_PORT_KEY:=hermes}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_HERMES_TITLE:=MiOS Hermes Agent}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_AI_HINT:=Desktop entry for the LLM Light service providing the local LLM and embedding backend, used by agents to identify and launch the local inference server at port 11450.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_CATEGORIES:=Development;Network;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_COMMENT:=Open the LLM Light API surface (local model server)}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_GENERIC_NAME:=Local LLM + Embedding Backend (llama-swap)}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_ICON:=applications-engineering-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_KEYWORDS:=mios;llm-light;llama-swap;llm;embedding;ai;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_PORT_KEY:=llm_light}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_LLM_LIGHT_TITLE:=MiOS LLM Light}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_AI_HINT:=Desktop entry for the SearXNG metasearch proxy; used by agents to identify and launch the local search interface at port 8899 via a web browser.}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_CATEGORIES:=Network;WebBrowser;}"
+[ -n "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_COMMENT+x}" ] || MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_COMMENT='Open the local SearXNG metasearch proxy at http://localhost:{port}/'
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_GENERIC_NAME:=Privacy Metasearch}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_ICON:=system-search-symbolic}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_KEYWORDS:=mios;searxng;search;metasearch;privacy;}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_PORT_KEY:=searxng}"
+: "${MIOS_DESKTOP_LAUNCHERS_MIOS_SVC_SEARXNG_TITLE:=MiOS Search (SearXNG)}"
 : "${MIOS_DESKTOP_SESSION:=gnome}"
 : "${MIOS_DESKTOP_START_MENU_COCKPIT_LABEL:=Cockpit}"
 : "${MIOS_DESKTOP_START_MENU_COCKPIT_PORT_KEY:=cockpit}"
@@ -749,11 +850,12 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
 : "${MIOS_DOCS_MAX_OVERLONG_HINTS:=1}"
+: "${MIOS_DOCS_MAX_STALE_REFS:=150}"
 : "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1724}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
 : "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"
 : "${MIOS_DOCS_PORT_CLEAN:=README.md,CLAUDE.md,GEMINI.md,AGENTS.md,MiOS.md,SECURITY.md,.github/ai-instructions.md,llms.txt,llms-full.txt,usr/share/doc/mios/reference/api.md,system-prompt.md,tools/README.md,etc/mios/ai/system-prompt.md,etc/mios/system-prompts/mios-reviewer.md,usr/share/mios/ai/INDEX.md,usr/share/mios/ai/audit-prompt.md,usr/share/mios/security/README.md,usr/share/mios/docs/agents/AI-ARCHITECTURE.md,usr/share/mios/docs/ai-pipeline-map.md,usr/share/mios/cookbooks/ingest-kb.md,usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md,usr/share/mios/hermes/skills/parallel-fanout/SKILL.md,installation/UNIFY.md,tools/windows/README-WINDOWS.md,etc/mios/system-prompts/mios-engineer.md,etc/mios/system-prompts/mios-troubleshoot.md,usr/share/mios/ai/system.md,usr/share/mios/ai/hermes-soul-full.md,usr/share/mios/cookbooks/finetune-flow.md,usr/share/mios/cookbooks/local-rag-day0.md,usr/share/mios/docs/day-0/FIRST-BOOT.md,usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md,usr/share/mios/docs/terminal/INVOCATIONS.md,usr/share/mios/hermes/skills/mios-environment/SKILL.md,usr/share/mios/hermes/skills/opencode-delegation/SKILL.md,usr/share/mios/open-webui/system-prompts/mios-agent.md,usr/share/doc/mios/manual.md,usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md,usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md,usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md,usr/share/doc/mios/adr/0006-openai-api-only-ai-contract.md,usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md,usr/share/doc/mios/adr/0009-unified-config-surface.md,usr/share/doc/mios/adr/README.md,usr/share/doc/mios/concepts/OFFLINE-FIRST.md,usr/share/doc/mios/concepts/a2a-passport-conformance-2026-06-20.md,usr/share/doc/mios/concepts/agent-pipe-openai-standards-master-plan.md,usr/share/doc/mios/concepts/aios-engineering-blueprint.md,usr/share/doc/mios/concepts/aios-implementation-plan.md,usr/share/doc/mios/concepts/coderun-sandbox.md,usr/share/doc/mios/concepts/container-os-runtime.md,usr/share/doc/mios/concepts/foss-upstream-map.md,usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md,usr/share/doc/mios/concepts/multi-agent-buildout-plan.md,usr/share/doc/mios/concepts/naming-refactor-plan.md,usr/share/doc/mios/concepts/postgres-pgvector-unification.md,usr/share/doc/mios/concepts/roadmap-snapshot-decomposition-2026-06-22.md,usr/share/doc/mios/concepts/unified-ai-pipeline-2026-06-16.md,usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md,usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md,usr/share/doc/mios/concepts/ws-a3-central-path-cutover-worklist.md,usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md,usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md,usr/share/doc/mios/finetune.md,usr/share/doc/mios/guides/agent-windows-ssh.md,usr/share/doc/mios/guides/deploy.md,usr/share/doc/mios/guides/edge-node-join.md,usr/share/doc/mios/guides/engineering.md,usr/share/doc/mios/guides/hummingbird-distroless.md,usr/share/doc/mios/guides/inference-consolidation.md,usr/share/doc/mios/guides/security.md,usr/share/doc/mios/manual/ch05-federation-and-computer-use.md,usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md,usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md,usr/share/doc/mios/manual/ch25-local-search-engine-and-searxng.md,usr/share/doc/mios/manual/ch48-local-ai-web-consoles.md,usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md,usr/share/doc/mios/manual/federation.md,usr/share/doc/mios/manual/hermes.md,usr/share/doc/mios/manual/llamacpp.md,usr/share/doc/mios/manual/mios.md,usr/share/doc/mios/manual/opencode-gateway.md,usr/share/doc/mios/manual/root.md,usr/share/doc/mios/manual/routing.md,usr/share/doc/mios/manual/scheduler.md,usr/share/doc/mios/manual/system.md,usr/share/doc/mios/manual/tools.md,usr/share/doc/mios/reference/PACKAGES.md,usr/share/doc/mios/reference/audit-security.md,usr/share/doc/mios/reference/build-scripts.md,usr/share/doc/mios/reference/credits.md,usr/share/doc/mios/reference/engineering-reference.md,usr/share/doc/mios/reference/hwcaps.md,usr/share/doc/mios/reference/maturity-and-release-runbook.md,usr/share/doc/mios/reference/sources.md,usr/share/doc/mios/reference/tree.md,usr/share/doc/mios/upstream/cdi.md,usr/share/doc/mios/upstream/deploy-targets.md,usr/share/doc/mios/upstream/fedora-bootc.md,usr/share/doc/mios/upstream/ghcr.md,usr/share/doc/mios/upstream/nvidia.md,usr/share/doc/mios/upstream/podman.md,usr/share/doc/mios/upstream/related-distros.md,usr/share/doc/mios/upstream/selinux.md,usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md,usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md,usr/share/mios/docs/install-robustness-2026-06-21.md,automation/67-bake-surfer.sh,usr/share/mios/owui/pipes/mios_agent_pipe.py}"
-: "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_}"
+: "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_,ollama,8080}"
 : "${MIOS_DOCS_RENDER_EXTRA:=llms.txt,llms-full.txt}"
 : "${MIOS_DOCS_RETIRED_PORTS:=11434,11450,11441,3030,8432,8441,8442,8633,8640,8641,8642,8888,8899}"
 [ -n "${MIOS_DOCS_SANITIZE_PATH_REWRITES+x}" ] || MIOS_DOCS_SANITIZE_PATH_REWRITES='['"'"'file:///C:/MiOS/'"'"', '"'"''"'"'],['"'"'file:///C:/'"'"', '"'"''"'"'],['"'"'C:\\MiOS\\'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:/MiOS/'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:\\MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'C:/MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'/mnt/c/MiOS'"'"', '"'"'/usr/share/mios'"'"']'
@@ -2438,9 +2540,9 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
 [ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
-# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
+# AI-related: 72-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
 # Completes the build-time AI setup on deployments that didn'"'"'t bake it (the
-# overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh'"'"'s header
+# overlay-provisioned dev VM, WSL imports, etc.). 72-hermes-agent.sh'"'"'s header
 # explicitly anticipates this: "a firstboot retry can complete it later".
 # Needs network (pip + model pull); GGUF blobs come from Hugging Face.'
 [ -n "${MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNITS_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# The script writes the sentinel ONLY when both the venv and the GGUFs are
@@ -3699,9 +3801,9 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_AFTER:=network-online.target}"
 [ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT='# AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
-# AI-related: 38-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
+# AI-related: 72-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target
 # Completes the build-time AI setup on deployments that didn'"'"'t bake it (the
-# overlay-provisioned dev VM, WSL imports, etc.). 38-hermes-agent.sh'"'"'s header
+# overlay-provisioned dev VM, WSL imports, etc.). 72-hermes-agent.sh'"'"'s header
 # explicitly anticipates this: "a firstboot retry can complete it later".
 # Needs network (pip + model pull); GGUF blobs come from Hugging Face.'
 [ -n "${MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2+x}" ] || MIOS_UNIT_MIOS_AI_FIRSTBOOT_SERVICE_UNIT_COMMENT2='# The script writes the sentinel ONLY when both the venv and the GGUFs are

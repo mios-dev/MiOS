@@ -41,7 +41,7 @@ A four-way parallel read-only audit (2026-06-04) found the baseline is already
 coherent; the work is mostly *convergence* + one real defect.
 
 ## Progress (2026-06-13)
-- **Phase 1a — DONE.** The primary envsubst allow-list in `15-render-quadlets.sh`
+- **Phase 1a — DONE.** The primary envsubst allow-list in `34-render-quadlets.sh`
   now carries `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLM_LIGHT_IMAGE`/`MIOS_PORT_LLM_LIGHT`/
   `MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` (placeholders expand on envsubst hosts).
 - **Phase 1b — DONE.** `_JUDGE_EP`→`_JUDGE_ENDPOINT`, the `_RE_*`→`*_RE` unification,
@@ -141,7 +141,7 @@ canonical — the model to copy). Persona strings Title-case `MiOS <Role>`.
 ## Phased execution
 
 ### Phase 1 — SAFE (no external break; validated; do first) — DONE
-**1a. Real defect (not cosmetic):** add the missing `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLM_LIGHT_IMAGE`/`MIOS_PORT_LLM_LIGHT`/`MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` vars to the **primary envsubst allow-list** in `automation/15-render-quadlets.sh` (they were only in the bash-fallback list → placeholders didn't expand on envsubst hosts). Add `image.sidecars.vllm`→`MIOS_VLLM_IMAGE` slot (or drop the dangling render-list entry); the obsolete Ollama `{USER,UID,GID}` slot is retired with the Ollama removal.
+**1a. Real defect (not cosmetic):** add the missing `MIOS_PGVECTOR_*`/`MIOS_PG_*`/`MIOS_LLM_LIGHT_IMAGE`/`MIOS_PORT_LLM_LIGHT`/`MIOS_LLAMACPP_*`/`MIOS_VLLM_IMAGE` vars to the **primary envsubst allow-list** in `automation/34-render-quadlets.sh` (they were only in the bash-fallback list → placeholders didn't expand on envsubst hosts). Add `image.sidecars.vllm`→`MIOS_VLLM_IMAGE` slot (or drop the dangling render-list entry); the obsolete Ollama `{USER,UID,GID}` slot is retired with the Ollama removal.
 **1b. Code quick-wins (internal-only):** `_JUDGE_EP`→`_JUDGE_ENDPOINT`; unify the 7 `_RE_*` regexes → `*_RE`; `kv_fork`→`_kv_fork`; `DCI_ACTS/_ACT_SCHEMA/_ACT_NAMES`→`_DCI_*` (keep emitted JSON unchanged); `_PG_DOWN_UNTIL`→`_pg_down_until`.
 **1c. System config fixes:** dead `[quadlets.enable]` keys (`cloudws-guacamole`/`cloudws-pxe-hub`→`mios-*`) — DONE; fix wrong inline comments (`mios-agent-pipe.conf` 822→850); hardcoded `User=815/818` → `${MIOS_*_UID:-...}` — DONE; audit explicit `ContainerName=` on the renamed `mios-guacd`/`mios-guacamole-postgres`/`mios-crowdsec-dashboard` units. The qdrant references are dropped with its removal.
 **1d. Catalog/Modelfile:** drop/mark the stale `[[ai.catalog]]` rows not in the current served fleet; the role models now resolve through the `mios-llm-light.yaml` alias map onto the served reasoning GGUF; unify the two agent-brain persona strings.

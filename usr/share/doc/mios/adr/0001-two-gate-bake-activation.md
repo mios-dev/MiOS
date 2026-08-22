@@ -1,5 +1,5 @@
 <!-- AI-hint: Two orthogonal gates — BAKE (is it in the image?) vs ACTIVATION (does it start on THIS blade?) — give one universal image many roles with no image variants; read before touching the bound-image bake or blade role gating. -->
-<!-- AI-related: usr/share/mios/mios.toml [build.bake] + [blade], Containerfile bake RUNs, usr/libexec/mios/mios-bake-group, usr/libexec/mios/role-apply, automation/41-mios-dropin-fanout.sh, usr/share/mios/dropins/, /etc/mios/blade.d/ -->
+<!-- AI-related: usr/share/mios/mios.toml [build.bake] + [blade], Containerfile bake RUNs, usr/libexec/mios/mios-bake-group, usr/libexec/mios/role-apply, automation/48-mios-dropin-fanout.sh, usr/share/mios/dropins/, /etc/mios/blade.d/ -->
 ---
 adr: 0001
 title: Two-gate bake / activation model
@@ -60,7 +60,7 @@ Both positions are right, on *different axes*, and the conflation was hiding it.
 MiOS already ships ~80% of the native machinery to do this correctly: static
 kargs via `usr/lib/bootc/kargs.d/*.toml`, mutually-exclusive role `.target`
 units, and a `ConditionVirtualization=` drop-in fan-out
-(`automation/41-mios-dropin-fanout.sh` applying `usr/share/mios/dropins/*.conf`
+(`automation/48-mios-dropin-fanout.sh` applying `usr/share/mios/dropins/*.conf`
 across ~60 units). The gap was a clean conceptual split and an SSOT to hang it on.
 
 ## Decision
@@ -194,7 +194,7 @@ Status — **DONE vs PLANNED:**
   `usr/libexec/mios/mios-bake-group`, `mios.toml:8453–8475`.)
 - **PLANNED (WS-BAKEGATE):** the `[build.bake]` `core`/à-la-carte projection
   (`tools/generate-bake-plan.py` + `automation/16-bake-plan.sh` after
-  `15-render-quadlets.sh`), the `.image` Quadlets for the whales
+  `34-render-quadlets.sh`), the `.image` Quadlets for the whales
   (`mios-llm-heavy.image` / `mios-llm-heavy-alt.image`), symlinking `*.image` into
   `bound-images.d`, and the regenerate-and-diff drift-check asserting both whales
   ∈ `core` and every core member fully-qualified.
@@ -229,12 +229,12 @@ groups evolve toward two *built* images `mios-sys`/`mios-cuda`) and ADR-0003
   to `/usr/lib/mios/bake/plan.d/NN-<group>.list` via the shared resolver
   `usr/lib/mios/mios_toml.py`.
 - `usr/share/containers/systemd/mios-llm-heavy.image`, `mios-llm-heavy-alt.image`;
-  extend `automation/08-system-files-overlay.sh` (~L178) to symlink `*.image`.
+  extend `automation/01-system-files-overlay.sh` (~L178) to symlink `*.image`.
 - `usr/libexec/mios/role-apply` — resolve `type`→capabilities, write
   `/etc/mios/blade.d/*` + `/run/mios/blade.env`; drop the imperative
   `systemctl start` side-cars.
 - `usr/share/mios/dropins/blade-<cap>.conf` + gate entries generated into
-  `automation/41-mios-dropin-fanout.sh` from `[blade.requires]` (Law-8 generator +
+  `automation/48-mios-dropin-fanout.sh` from `[blade.requires]` (Law-8 generator +
   drift-check).
 - New drift-check in `automation/98-drift-checks.sh` (regenerate-and-diff the plan;
   assert whales ∈ core, full qualification, `referenced ⊆ emitted`).

@@ -67,7 +67,7 @@ Ingress configs manage external routing into local cluster services.
 Custom SELinux rules protect the host from cluster workloads.
 
 ## Policies
-- **Rules**: Applied by [19-k3s-selinux.sh](automation/19-k3s-selinux.sh).
+- **Rules**: Applied by [37-k3s-selinux.sh](automation/37-k3s-selinux.sh).
 - **Bounds**: Blocks cluster tasks from modifying read-only system files.
 - **Validation**: Enforces SELinux policies at runtime.
 

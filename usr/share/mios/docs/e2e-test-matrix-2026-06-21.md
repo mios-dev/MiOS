@@ -148,6 +148,6 @@ all healthy; `mios-sys-env-refresh.timer` + `mios-cron-director.service` now
 **enabled + active** (preset fix); OWUI login works with the SSOT password;
 `mios-llm-heavy-alt.service` generates (gated-off). The deploy-time lesson: repo
 Quadlets carry `${VAR:-default}` render placeholders — they MUST be rendered
-(15-render-quadlets.sh, or `sed`) before deploying to a live VM, else podman
+(34-render-quadlets.sh, or `sed`) before deploying to a live VM, else podman
 fails to parse them (observed: an OWUI restart broke on the raw `PublishPort`
 placeholder; recovered by rendering).

@@ -61,6 +61,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce generated SSOT synchronization (sync-generated.sh)
+        run: |
+          bash ./tools/sync-generated.sh
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "ERROR: The following generated artifacts are out of sync with SSOT:" >&2
+            git status --porcelain >&2
+            exit 1
+          fi
+
       - name: Install shellcheck, powershell and .NET SDK
         run: |
           sudo apt-get update -qq
@@ -99,6 +108,11 @@ jobs:
         # here: a console-less runspace renders every object as a blank line,
         # and only executing pwsh proves the wrapper fixes it.
         run: bash ./tests/test-powershell-flatten.sh
+
+      # Must precede the negatives: this binary IS check_unit_projection's
+      # rendering half. Rationale: commit 8abb1e0f.
+      - name: Build mios-unit-gen (the unit-projection gate's rendering half)
+        run: cd ./tools/native && cargo build -p mios-unit-gen
 
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh

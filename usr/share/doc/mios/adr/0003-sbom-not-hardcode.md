@@ -1,5 +1,5 @@
 <!-- AI-hint: SSOT image/artifact refs carry TAG intent only; every sha256 digest / hash / checksum / resolved version is SBOM data resolved+recorded at BUILD, never hand-pinned — read before adding or "fixing" any @sha256 in mios.toml or a Quadlet. -->
-<!-- AI-related: usr/share/mios/mios.toml [image.sidecars], usr/libexec/mios/mios-bake-group, /usr/share/mios/artifacts/sbom/bound-images.tsv, automation/90-generate-sbom.sh, automation/15-render-quadlets.sh, automation/98-drift-checks.sh -->
+<!-- AI-related: usr/share/mios/mios.toml [image.sidecars], usr/libexec/mios/mios-bake-group, /usr/share/mios/artifacts/sbom/bound-images.tsv, automation/90-generate-sbom.sh, automation/34-render-quadlets.sh, automation/98-drift-checks.sh -->
 ---
 adr: 0003
 title: "SBOM-not-hardcode: digests are build-resolved provenance"
@@ -70,7 +70,7 @@ Concretely, the reconciled model keeps runtime pinning **without** SSOT hardcode
   resolved manifest digest to `/usr/share/mios/artifacts/sbom/bound-images.tsv`;
   `automation/90-generate-sbom.sh` generates the full SBOM via Syft). Where a
   reproducible *runtime* pin is wanted, the build pins the resolved digest **into
-  the rendered Quadlets** (`automation/15-render-quadlets.sh` / a resolve step) —
+  the rendered Quadlets** (`automation/34-render-quadlets.sh` / a resolve step) —
   the digest is a build output, not a hand-edited input.
 - The rendered-Quadlet digest-drift check then validates the **build-resolved**
   digests, not SSOT-hand-pinned ones.
@@ -149,7 +149,7 @@ Current tree (DONE):
   rule verbatim: "Digests are SBOM data (build-time-recorded), NEVER hardcoded in
   the SSOT."
 - `C:\MiOS\automation\90-generate-sbom.sh` — Syft-generated SBOM for the full image.
-- `C:\MiOS\automation\15-render-quadlets.sh` — renders Quadlet `Image=` from SSOT;
+- `C:\MiOS\automation\34-render-quadlets.sh` — renders Quadlet `Image=` from SSOT;
   the resolve/pin-into-rendered-Quadlet step is where a reproducible runtime digest
   is applied as a build output.
 - `C:\MiOS\automation\98-drift-checks.sh` — the rendered-Quadlet digest-drift check

@@ -70,7 +70,7 @@ identifier used in paths, env vars, package names, and code.
 │   │   ├── masking.sh             # log secret-mask filter
 │   │   └── paths.sh               # build-time MIOS_*_DIR constants
 │   ├── 01-repos.sh ... 99-postcheck.sh   # Phase scripts (numeric-ordered)
-│   ├── 15-render-quadlets.sh      # Renders ${MIOS_*} placeholders in Quadlet units
+│   ├── 34-render-quadlets.sh      # Renders ${MIOS_*} placeholders in Quadlet units
 │   ├── ai-bootstrap.sh            # AI manifest / Wiki / KB regeneration
 │   ├── bcvk-wrapper.sh            # bootc-image-builder convenience wrapper
 │   ├── bootstrap.sh               # Local-dev bootstrap helper
@@ -201,7 +201,7 @@ that pulls the ref -- the foundation of both the immutable-OS promise and the
 
 ### External OCI images (Quadlet sidecars)
 Every `Image=` ref is a pinned upstream reference resolved at build time by
-`automation/15-render-quadlets.sh` from `mios.toml [image.sidecars]`.
+`automation/34-render-quadlets.sh` from `mios.toml [image.sidecars]`.
 
 | Image (upstream) | Quadlet (MiOS unit) |
 |---|---|
@@ -242,7 +242,7 @@ Every Quadlet `Image=` ref is symlinked into
 image alongside the host on every `bootc upgrade`. This is *why the AI
 containers ship inside the image* -- the inference lanes and the agent
 datastore are version-locked to the OS, not pip-installed daemons. Binder loop
-in `automation/08-system-files-overlay.sh`.
+in `automation/01-system-files-overlay.sh`.
 
 ---
 
@@ -274,7 +274,7 @@ RUN --mount=type=bind,from=ctx,...
     cp -a /ctx/* /tmp/build/;
     # CRLF -> LF normalization over all text files (Windows build hosts);
     install_packages_strict base;            # Containerfile pre-pipeline
-    bash /tmp/build/automation/08-system-files-overlay.sh;  # overlay
+    bash /tmp/build/automation/01-system-files-overlay.sh;  # overlay
     /tmp/build/automation/build.sh;          # phase-script orchestrator
     dnf clean all;
     rm -rf /tmp/build;
@@ -298,14 +298,14 @@ of aborting. Critical packages are post-validated via `rpm -q` against the
 | 01 | 01-repos.sh | RPMFusion + Terra + dnf-plugins-core + dnf5-plugins repo setup |
 | 02 | 02-kernel.sh | kernel-modules-extra/devel/headers/tools (no kernel upgrade) |
 | 05 | 05-enable-external-repos.sh | Terra + nvidia-container-toolkit + Microsoft repos |
-| 08 | 08-system-files-overlay.sh | usr/+etc/ overlay; bound-images binder loop |
+| 08 | 01-system-files-overlay.sh | usr/+etc/ overlay; bound-images binder loop |
 | 10 | 10-gnome.sh | GNOME 50 + Bibata cursor + Phosh |
 | 11 | 11-hardware.sh | mesa + AMD ROCm + Intel + NVIDIA akmod |
 | 12 | 12-virt.sh | KVM/QEMU + libvirt + Looking Glass build deps |
-| 13 | 13-ceph-k3s.sh | Ceph client + k3s binary download |
-| 15 | 15-render-quadlets.sh | Render ${MIOS_*} placeholders in Quadlet units |
+| 13 | 36-ceph-k3s.sh | Ceph client + k3s binary download |
+| 15 | 34-render-quadlets.sh | Render ${MIOS_*} placeholders in Quadlet units |
 | 18 | 18-apply-boot-fixes.sh | USBGuard perms + 203/EXEC chmod fix + 217/USER systemd-resolved fix |
-| 19 | 19-k3s-selinux.sh | k3s-selinux policy compile (shipped, not loaded) |
+| 19 | 37-k3s-selinux.sh | k3s-selinux policy compile (shipped, not loaded) |
 | 20 | 20-fapolicyd-trust.sh | fapolicyd trust DB (initial seed) |
 | 20 | 20-services.sh | Service preset/drop-in cleanup |
 | 21 | 21-moby-engine.sh | moby-engine + buildx parity |
@@ -325,7 +325,7 @@ of aborting. Critical packages are post-validated via `rpm -q` against the
 | 36 | 36-tools.sh | Operator utility install (htop, jq, etc.) |
 | 37 | 37-aichat.sh | aichat / aichat-ng binary download |
 | 37 | 37-flatpak-env.sh | /usr/lib/mios/env.d/flatpaks.env capture |
-| 37 | 37-selinux.sh | semanage booleans + fcontext rules |
+| 37 | 38-selinux.sh | semanage booleans + fcontext rules |
 | 38 | 38-vm-gating.sh | Hyper-V vsock + GNOME-RD setup |
 | 38 | 38-sglang-prep.sh | Opt-in offline bake of the SGLang heavy-lane weights (gated) |
 | 38 | 38-vllm-prep.sh | Opt-in offline bake of the vLLM heavy-lane weights (gated) |
@@ -346,7 +346,7 @@ of aborting. Critical packages are post-validated via `rpm -q` against the
 | 99 | 99-cleanup.sh | Cache + tmp cleanup |
 | 99 | 99-postcheck.sh | Build-time invariant validation (see §15) |
 
-Skipped under in-Containerfile build: `08-system-files-overlay.sh` runs
+Skipped under in-Containerfile build: `01-system-files-overlay.sh` runs
 pre-pipeline directly from the Containerfile. The heavy-lane weight bakes
 (`38-sglang-prep.sh`, `38-vllm-prep.sh`) are **opt-in and empty by default** --
 they only fetch multi-GB weights when `[ai.sglang].bake_model` /
@@ -429,8 +429,8 @@ by dnf5.
 |---|---|---|
 | **Looking Glass B7 client** | `automation/53-bake-lookingglass-client.sh` | git clone + cmake/make/install |
 | **KVMFR kernel module** | `automation/52-bake-kvmfr.sh` | upstream gnif/LookingGlass tree |
-| **k3s binary** | `automation/13-ceph-k3s.sh` | github.com/k3s-io/k3s releases |
-| **k3s-selinux policy** | `automation/19-k3s-selinux.sh` | k3s-io/k3s-selinux |
+| **k3s binary** | `automation/36-ceph-k3s.sh` | github.com/k3s-io/k3s releases |
+| **k3s-selinux policy** | `automation/37-k3s-selinux.sh` | k3s-io/k3s-selinux |
 | **Custom SELinux modules** | `usr/share/selinux/packages/mios/*.te` | Compiled per-rule, shipped, NOT loaded at build (loaded post-build via systemd) |
 | **cosign v2** | `automation/42-cosign-policy.sh` | github.com/sigstore/cosign releases |
 | **aichat / aichat-ng** | `automation/37-aichat.sh` | github.com/sigoden/aichat + blob42/aichat-ng |
@@ -501,7 +501,7 @@ the AI-plane data dirs (`mios-pgvector.conf` for the PostgreSQL PGDATA parent,
 `mios-wsl2-hacks.conf`.
 
 LAW 2 enforcement: build-time writes to `/var/` are forbidden. The overlay step
-in `automation/08-system-files-overlay.sh` writes home dotfiles to `/etc/skel/`
+in `automation/01-system-files-overlay.sh` writes home dotfiles to `/etc/skel/`
 and lets `systemd-sysusers` populate `/var/home/<user>/` at first boot.
 
 ### sysusers.d (`usr/lib/sysusers.d/*.conf`)
@@ -672,7 +672,7 @@ plane runs unprivileged (LAW 6) inside this stack.
 2. **sysctl** (`usr/lib/sysctl.d/99-mios-hardening.conf`) -- TCP/IP hardening,
    ASLR, ptrace_scope, dmesg_restrict.
 3. **SELinux modules** (`usr/share/selinux/packages/mios/*.te`) -- per-rule
-   custom modules; booleans + fcontexts via semanage in `37-selinux.sh`.
+   custom modules; booleans + fcontexts via semanage in `38-selinux.sh`.
 4. **fapolicyd** (`etc/fapolicyd/fapolicyd.rules`, `usr/lib/fapolicyd/`) --
    zero-trust deny-by-default; trust DB seeded in `20-fapolicyd-trust.sh`.
 5. **CrowdSec** (`mios-crowdsec-dashboard` Quadlet + host bouncer) -- sovereign
@@ -897,7 +897,7 @@ so the agent stack stays portable and sandboxed. Enforced by build-time lint and
     where /init can't be unmounted because the WSL relay process holds it.
     Cosmetic; not a 'MiOS' bug.
 21. **Quadlet does NOT expand `${VAR:-default}`** -- the heavy-lane units carry
-    `${MIOS_*}` placeholders that `automation/15-render-quadlets.sh` must render
+    `${MIOS_*}` placeholders that `automation/34-render-quadlets.sh` must render
     before the unit starts; an unrendered placeholder in `PublishPort`/`Exec`
     yields "invalid port format" / a literal-arg crash.
 22. **CDI mount injects the WSL CUDA driver but not on the linker path** -- on
@@ -1087,7 +1087,7 @@ ls /var/lib/mios/             # memory, scratch, embeddings/, llamacpp/, pgvecto
 
 | Path | FHS character | bootc disposition | Source-of-truth in repo |
 |---|---|---|---|
-| `/usr` | Read-only, shareable | Immutable composefs mount; change = new OCI image | `usr/` overlaid by `automation/08-system-files-overlay.sh` |
+| `/usr` | Read-only, shareable | Immutable composefs mount; change = new OCI image | `usr/` overlaid by `automation/01-system-files-overlay.sh` |
 | `/etc` | Host-specific config | 3-way merge overlay; admin edits survive upgrades | `etc/` |
 | `/var` | Mutable, persistent | Fully writable; never replaced on upgrade | `usr/lib/tmpfiles.d/mios*.conf` (LAW 2) |
 | `/srv` | Data served by the system | Persistent | `usr/lib/tmpfiles.d/mios.conf` |

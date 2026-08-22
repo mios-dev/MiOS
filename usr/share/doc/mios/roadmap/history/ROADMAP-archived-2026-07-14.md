@@ -1653,13 +1653,13 @@ port = 8643
 
 # Part 9: XDG + CephFS Unified User Storage Fabric (2026-06-25)
 
-<!-- AI-hint: Additive. Architectural specification and phased implementation plan for unifying XDG Base Directory Specification, standard USER folders (xdg-user-dirs), and CephFS as the distributed POSIX storage fabric beneath MiOS. Aligns with the existing k3s+Ceph one-node-cluster path already present in the image (automation/13-ceph-k3s.sh, mios-ceph.container). Tasks: T-084..T-093 in TASKS.md. Does NOT replace pgvector (agent datastore stays separate per roadmap-snapshot-decomposition-2026-06-22.md §6). -->
+<!-- AI-hint: Additive. Architectural specification and phased implementation plan for unifying XDG Base Directory Specification, standard USER folders (xdg-user-dirs), and CephFS as the distributed POSIX storage fabric beneath MiOS. Aligns with the existing k3s+Ceph one-node-cluster path already present in the image (automation/36-ceph-k3s.sh, mios-ceph.container). Tasks: T-084..T-093 in TASKS.md. Does NOT replace pgvector (agent datastore stays separate per roadmap-snapshot-decomposition-2026-06-22.md §6). -->
 
 *Source: MiOS storage fabric research (2026-06-25). Integrates XDG Base Directory Specification (freedesktop.org), standard user-dirs provisioning, and CephFS as the distributed POSIX layer beneath the MiOS home/user-state namespace. Bridges the existing `mios-ceph` / `mios-k3s` cluster path with a structured user-space storage contract.*
 
 ## Background and Scope
 
-MiOS already ships the k3s + Ceph one-node-cluster path (`automation/13-ceph-k3s.sh`, `mios-ceph.container`, `cephadm`). The existing roadmap explicitly designates Ceph as the storage fabric for block, object, and file workflows while keeping PostgreSQL + pgvector as the agent-plane datastore (see `roadmap-snapshot-decomposition-2026-06-22.md §6`). What the existing roadmap does **not** yet specify is:
+MiOS already ships the k3s + Ceph one-node-cluster path (`automation/36-ceph-k3s.sh`, `mios-ceph.container`, `cephadm`). The existing roadmap explicitly designates Ceph as the storage fabric for block, object, and file workflows while keeping PostgreSQL + pgvector as the agent-plane datastore (see `roadmap-snapshot-decomposition-2026-06-22.md §6`). What the existing roadmap does **not** yet specify is:
 
 1. How the **CephFS file layer** maps to the standard Linux user-space directory conventions (XDG Base Directory Specification + `xdg-user-dirs`).
 2. How that mapping is enforced, provisioned, and secured at session time.

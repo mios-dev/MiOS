@@ -168,7 +168,7 @@ tool to refresh the KB.
 
 The repo root **is** the system root. These directories ship 1:1 into
 the deployed image via the `ctx` scratch stage and the
-`automation/08-system-files-overlay.sh` overlay step:
+`automation/01-system-files-overlay.sh` overlay step:
 
 - `usr/` -- read-only system content (binaries, libraries, vendor configs, kargs.d, systemd units, AI surface, SELinux modules)
 - `etc/` -- host-overridable configs (Quadlets, repo files, AI overrides)
@@ -500,7 +500,7 @@ The repo root **is** the system root (no `system_files/` directory).
 | --- | --- | --- |
 | 1 | **USR-OVER-ETC** -- static config in `/usr/lib/<component>.d/`; `/etc/` is admin-override only. Exceptions: `/etc/yum.repos.d/`, `/etc/nvidia-container-toolkit/`. | `automation/`, `usr/lib/`, `etc/` |
 | 2 | **NO-MKDIR-IN-VAR** -- every `/var/` path declared via `usr/lib/tmpfiles.d/*.conf`. | `usr/lib/tmpfiles.d/mios*.conf` |
-| 3 | **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. | `automation/08-system-files-overlay.sh:74-86` |
+| 3 | **BOUND-IMAGES** -- every Quadlet image symlinked into `/usr/lib/bootc/bound-images.d/`. | `automation/01-system-files-overlay.sh:74-86` |
 | 4 | **BOOTC-CONTAINER-LINT** -- final RUN of `Containerfile`. | `Containerfile` last `RUN` |
 | 5 | **UNIFIED-AI-REDIRECTS** -- `MIOS_AI_KEY/MODEL/ENDPOINT`. No vendor URLs. | `usr/bin/mios`, `etc/mios/ai/` |
 | 6 | **UNPRIVILEGED-QUADLETS** -- `User=`, `Group=`, `Delegate=yes` on every Quadlet. Documented exceptions: `mios-ceph`, `mios-k3s` as `User=root` (Ceph/K3s require uid 0). | `etc/containers/systemd/`, `usr/share/containers/systemd/` |
@@ -557,7 +557,7 @@ The repo root **is** the system root (no `system_files/` directory).
   `/tmp/build` copy, sources `automation/lib/packages.sh`, runs
   `dnf clean metadata`, `install_packages_strict base`, optionally
   writes `/usr/share/mios/flatpak-list` from `MIOS_FLATPAKS`,
-  runs `automation/08-system-files-overlay.sh` pre-pipeline, then
+  runs `automation/01-system-files-overlay.sh` pre-pipeline, then
   `CTX=/tmp/build /tmp/build/automation/build.sh` to iterate
   `automation/[0-9][0-9]-*.sh`.
 - Final two `RUN` instructions: `ostree container commit`, then

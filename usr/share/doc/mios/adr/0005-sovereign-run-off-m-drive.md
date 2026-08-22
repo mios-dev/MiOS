@@ -65,7 +65,7 @@ host* and a *single file that runs off M: in place*.
   bootloader **with the image's kargs**, and runs the first-boot `/var` factory-
   population so `/var/home`, `/var/lib/containers`, `/var/roothome` exist and the
   host units find their substrate. MiOS has already boot-verified this path
-  (`automation/08-system-files-overlay.sh:187` records a `bootc install to-disk`
+  (`automation/01-system-files-overlay.sh:187` records a `bootc install to-disk`
   boot-verify of the Day-0 image; the same script symlinks `/home → /var/home`).
 - **The artifact:** `just vhdx` runs BIB `--type vhd --rootfs ext4` then
   `qemu-img convert -f vpc -O vhdx` (BIB emits VPC `.vhd`; Hyper-V Gen 2 needs
@@ -212,7 +212,7 @@ harden: DDA/GPU-P, then sovereign Ceph-on-M:, then confirm `bootc upgrade`/`roll
 ## References
 
 - bootc `install to-disk` / `to-filesystem`: <https://bootc.dev/bootc/install.html>
-  (boot-verified in-tree at `automation/08-system-files-overlay.sh:187`).
+  (boot-verified in-tree at `automation/01-system-files-overlay.sh:187`).
 - bootc-image-builder (`--type vhd|raw|qcow2`): <https://github.com/osbuild/bootc-image-builder>
 - Hyper-V Gen 2 Secure Boot templates (Microsoft UEFI CA):
   <https://learn.microsoft.com/windows-server/virtualization/hyper-v/learn-more/generation-2-virtual-machine-security-settings-for-hyper-v>

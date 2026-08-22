@@ -1,5 +1,5 @@
 <!-- AI-hint: The WS-DEPLOY workstream -- refactor + reorder the MiOS install/first-boot pipeline into a logical dependency DAG so a "missing dependency / not-ready / not-yet-built" state is structurally impossible: readiness-gated ordering + atomic, retried, idempotent, completeness-checked build steps. Grounded in concrete first-install failures. Sibling of WS-NAME in the streamlining/hardening campaign. -->
-<!-- AI-related: automation/38-hermes-agent.sh, usr/libexec/mios/mios-ai-firstboot, usr/libexec/mios/mios-webtools-firstboot.sh, usr/libexec/mios/forge-firstboot.sh, automation/build.sh, Containerfile, build-mios.ps1 -->
+<!-- AI-related: automation/72-hermes-agent.sh, usr/libexec/mios/mios-ai-firstboot, usr/libexec/mios/mios-webtools-firstboot.sh, usr/libexec/mios/forge-firstboot.sh, automation/build.sh, Containerfile, build-mios.ps1 -->
 
 # WS-DEPLOY — Install/first-boot pipeline reorder + dependency-completeness
 
@@ -23,7 +23,7 @@ not a logic bug:
 
 | Symptom | Root cause (ordering/completeness) |
 |---|---|
-| `mios-agent-pipe` crash-loop: `No module named 'smolagents'` | `38-hermes-agent.sh` venv build ran once, failed on a transient network blip under install-time dnf/image-pull contention, `rm -rf`'d the venv, gave up. Deps installed piecemeal (smolagents a fragile *separate* step) instead of atomically from `requirements.txt`. **(fixed 31a52fb1 — the template for the pattern.)** |
+| `mios-agent-pipe` crash-loop: `No module named 'smolagents'` | `72-hermes-agent.sh` venv build ran once, failed on a transient network blip under install-time dnf/image-pull contention, `rm -rf`'d the venv, gave up. Deps installed piecemeal (smolagents a fragile *separate* step) instead of atomically from `requirements.txt`. **(fixed 31a52fb1 — the template for the pattern.)** |
 | DB seeding skipped: `psycopg not installed`; `KeyError: 'uid'` in the seeder | Cascade of the missing venv — the seeder fell back to a system python without `psycopg`. |
 | `mios-forge-firstboot` FAILED: *"Forgejo did not become ready within 300s"* | first-boot bootstrap gated on a *fixed timeout* instead of true readiness; the forge container was still starting under load. Recovered on a plain re-run. |
 | `mios-webtools-crawl4ai` can't pull `localhost/mios-crawl4ai-slim:latest` | the local image (built by `mios-webtools-firstboot.sh` from `crawl4ai/Containerfile`) was never built — its build failed under contention, and the consumer started anyway. |
@@ -36,7 +36,7 @@ Common shape: **a consumer starts before its producer has finished**, and
 
 1. **Model the DAG explicitly.** Enumerate producers→consumers across
    `automation/NN-*.sh` (build-time) and the `*-firstboot` units (runtime):
-   base packages → agent venv (`38-hermes-agent.sh`) → agent-pipe/hermes/gateway;
+   base packages → agent venv (`72-hermes-agent.sh`) → agent-pipe/hermes/gateway;
    pgvector-ready → DB seeding; forge-ready → forge-firstboot; local-image-built →
    webtools/crawl4ai/firecrawl; llama GGUFs → llm-light. Encode edges as systemd
    `After=`/`Requires=`/`BindsTo=` + `ConditionPathExists=` on the produced artifact.
@@ -46,7 +46,7 @@ Common shape: **a consumer starts before its producer has finished**, and
    never hard-fails a consumer.
 3. **Atomic + retried + idempotent producers.** Every build/install step installs
    its COMPLETE output set in one transaction, retried with backoff, and is safe to
-   re-run. The `38-hermes-agent.sh` fix (install `-r requirements.txt` + all deps in
+   re-run. The `72-hermes-agent.sh` fix (install `-r requirements.txt` + all deps in
    one retried transaction) is the reference pattern — apply it to the webtools
    image build, the sandbox image build, GGUF/vLLM fetches, and forge bootstrap.
 4. **Per-phase completeness self-check.** Each phase verifies its artifacts exist

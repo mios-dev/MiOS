@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Thin Linux bash dispatcher for the mios-install unified provisioning
-# AI-related: mios-common.sh, build-mios.sh, cat/MiOS-Cat.sh, cat/MiOS-Cat.bat,
-# AI-functions: usage, resolve_flash_or_live, resolve_live, resolve_flash,
+# AI-related: mios-common.sh, build-mios.sh, cat/MiOS-Cat.sh, cat/MiOS-Cat.bat
+# AI-functions: usage, resolve_flash_or_live, resolve_live, resolve_flash
 
 set -euo pipefail
 

@@ -52,6 +52,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/build-scripts.md` | Reference snapshot bundling the source and execution order of the scripts that build the MiOS OCI image, so an agent can locate and read specific build logic without crawling the repo. Curated... |
 | `usr/share/doc/mios/reference/credits.md` | Attribution registry documenting all upstream projects, dependencies, and components used in MiOS to provide legal and source-of-truth tracking for the system's foundational substrate. |
 | `usr/share/doc/mios/reference/documentation-pipeline.md` | How MiOS documentation is produced -- AI-hints stay in source and are projected forward, comments are scraped, sanitized and distilled into the manual on a daily pass. |
+| `usr/share/doc/mios/reference/drift-gates.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/reference/engineering-reference.md` | Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository... |
 | `usr/share/doc/mios/reference/everything-db-driven.md` | WS-VECTOR research + workflow -- make EVERYTHING in MiOS DB-driven + vectorized: mios.toml is the cold image-baked authoring seed, Postgres/pgvector (mios-pgvector, db=mios, /var) is the LIVE runtime... |
 | `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10:... |
@@ -72,7 +73,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
 | `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
 
-<!-- derived from the AI-hint headers of 37 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- derived from the AI-hint headers of 38 file(s) matching usr/share/doc/mios/reference/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
 
 ## concepts
@@ -95,7 +96,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/foss-upstream-map.md` | System concepts documentation for the MiOS FOSS Upstream-Scout Report. |
 | `usr/share/doc/mios/concepts/image-resolution.md` | System concepts documentation for the MiOS Image Registry and Name Resolution Architecture. |
 | `usr/share/doc/mios/concepts/llamacpp-engine-conversion.md` | Records MiOS's completed inference-engine conversion to llama.cpp (via the upstream llama-swap proxy image) to unlock fleet-wide KV-cache checkpoint/restore/fork for the AIOS Context Manager; Ollama... |
-| `usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md` | Ground-truth design spec for MiOS's user-facing surfaces (Portal, |
+| `usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md` | Ground-truth design spec for MiOS's user-facing surfaces (Portal |
 | `usr/share/doc/mios/concepts/mios-metal-architecture.md` | System concepts documentation for the MiOS-Metal Split-Plane Hypervisor-Router Architecture. |
 | `usr/share/doc/mios/concepts/multi-agent-buildout-plan.md` | Defines the parallel execution strategy for multi-agent development of MiOS itself, specifying which AIOS workstreams are agent-parallelizable versus operator-gated and outlining the... |
 | `usr/share/doc/mios/concepts/naming-refactor-plan.md` | Specifies the 2026 naming-refactor roadmap for MiOS, defining canonical conventions for code constants, system service identifiers, model/agent tags, and SSOT keys to ensure cross-component... |
@@ -163,7 +164,7 @@ What each upstream project is, and exactly how MiOS consumes it.
 | `usr/share/doc/mios/upstream/rechunk.md` | Documentation for the rechunk tool used during the MiOS build pipeline (Phase-3 / `just rechunk`) to optimize bootc upgrade deltas by consolidating OCI layers into a deterministic 67-layer structure,... |
 | `usr/share/doc/mios/upstream/related-distros.md` | Provides a comparative analysis of MiOS against sibling Universal Blue images and other atomic/immutable distributions to define MiOS's specific positioning as a single immutable bootc/OCI Fedora... |
 | `usr/share/doc/mios/upstream/secureblue.md` | Maps MiOS's defense-in-depth security posture onto the SecureBlue audit framework it draws from — which kernel kargs, sysctl values, and hardening policies MiOS adopts, which it deliberately diverges... |
-| `usr/share/doc/mios/upstream/selinux.md` | Documentation of MiOS's SELinux posture — enforcing mode, the per-rule custom .te policy modules generated by automation/37-selinux.sh and the k3s policy from automation/19-k3s-selinux.sh, the... |
+| `usr/share/doc/mios/upstream/selinux.md` | Documentation of MiOS's SELinux posture — enforcing mode, the per-rule custom .te policy modules generated by automation/38-selinux.sh and the k3s policy from automation/37-k3s-selinux.sh, the... |
 | `usr/share/doc/mios/upstream/ucore-hci.md` | Documents the ucore-hci upstream base image lineage and specifications — the FCOS/uCore/HCI/NVIDIA foundation MiOS builds FROM. Explains what the base image provides (immutable ostree+composefs,... |
 
 <!-- derived from the AI-hint headers of 23 file(s) matching usr/share/doc/mios/upstream/*.md -->
@@ -193,9 +194,10 @@ decision is always a new record, never a rewrite of the old one.
 | `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md` | Architecture decision defining the three bootc install legs (to-existing-root, to-disk, to-filesystem) and offline OCI tar transport. |
 | `usr/share/doc/mios/adr/0015-unified-key-library-architecture.md` | Unified key library architecture defining single-source rule, derive rules, centralized COMPAT-ALIAS table, and enforcement gates. |
 | `usr/share/doc/mios/adr/0016-blade-node-topology.md` | The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things.... |
+| `usr/share/doc/mios/adr/0017-blade-workload-mobility.md` | How a workload MOVES across the blade mesh: who schedules containers vs VMs, what a GPU service does on a GPU-less blade, the order a failover tries (local first, then cluster allocation), the... |
 | `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
 
-<!-- derived from the AI-hint headers of 17 file(s) matching usr/share/doc/mios/adr/*.md -->
+<!-- derived from the AI-hint headers of 18 file(s) matching usr/share/doc/mios/adr/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/adr/*.md -->
 
 ## manual

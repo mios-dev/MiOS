@@ -9,7 +9,7 @@
    THAT file first; the --mios-shell-* fallbacks below only cover the case
    where mios-sync-theme hasn't run yet (degrade-open, mirrors mios.toml
    [colors] vendor defaults verbatim).
-   AI-related: usr/libexec/mios/mios-sync-theme, /etc/mios/theme/mios-theme.css,
+   AI-related: usr/libexec/mios/mios-sync-theme, /etc/mios/theme/mios-theme.css
    usr/share/mios/configurator/mios.html, usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py,
    usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md
    Integration:

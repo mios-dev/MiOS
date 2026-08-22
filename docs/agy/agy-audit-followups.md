@@ -48,7 +48,7 @@
 
 23. Restore substrate condition-gating (virt-gate/bare-metal-only/mios-virt-gate/mios-wsl2): re-add the fanout GATES loop or migrate them to an SSOT table + committed static .d files, and add a drift-check that fails on orphaned committed dropins with no generator source.
 
-24. Fix 41-mios-dropin-fanout.sh to write into the absolute image /usr/lib/systemd/system (or run pre-overlay), and add a post-build assertion that fanned drop-ins actually exist in the final image.
+24. Fix 48-mios-dropin-fanout.sh to write into the absolute image /usr/lib/systemd/system (or run pre-overlay), and add a post-build assertion that fanned drop-ins actually exist in the final image.
 
 25. Harden the from-source mios-sys/mios-cuda build: pin all git clones to tags/digests and downloads to fixed versions, add retry/backoff, or revert to pulling pre-built bound-images; benchmark build time and image size regression.
 

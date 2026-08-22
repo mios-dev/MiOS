@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Projects the canonical-owned, drift-prone sections of mios.toml into the two
-# AI-related: usr/share/mios/mios.toml, mios.toml, ../mios-bootstrap/mios.toml,
+# AI-related: usr/share/mios/mios.toml, mios.toml, ../mios-bootstrap/mios.toml
 
 import os
 import re

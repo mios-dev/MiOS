@@ -52,7 +52,7 @@ unified/unprivileged-AI guarantees.
    `usr/lib/tmpfiles.d/*.conf`.
 7. **LAW 3 (BOUND-IMAGES)** — new Quadlet images symlinked into
    `/usr/lib/bootc/bound-images.d/` (binder loop in
-   `automation/08-system-files-overlay.sh:74-86`).
+   `automation/01-system-files-overlay.sh:74-86`).
 8. **LAW 5 (UNIFIED-AI-REDIRECTS)** — no vendor LLM URLs anywhere; all
    AI redirects resolve from `MIOS_AI_ENDPOINT` (the single OpenAI-compatible
    front door; `[ai].endpoint` SSOT = the MiOS-Hermes

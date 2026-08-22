@@ -29,7 +29,7 @@
 28	check_dotfiles_projection	every committed theme + settings surface projects from mios.toml [colors]/[btop]/[gitconfig]/[identity]/[dotfiles] SSOT
 29	check_verb_backends	every [verbs.*].cmd mios-* backend resolves on disk
 30	check_userenv_parity	userenv.sh parity
-31	check_globals_ports	every MIOS_PORT_* fallback in globals.{ps1,sh} equals mios.toml [ports] SSOT
+31	check_globals_ports	globals ports
 32	check_globals_image_parity	default image references in globals.{sh,ps1} equal mios.toml [image] SSOT
 33	check_dag_integrity	DAG-integrity: consumers start after their producers' readiness artifacts exist
 34	check_names_registry	names registry
@@ -140,39 +140,43 @@
 139	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
 140	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
 141	check_pipe_extraction_parity	python3 absent
-142	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
-143	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-144	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
-145	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
-146	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-147	check_db_seed_coverage	DB seed coverage gate verified clean
-148	check_account_column_parity	account column parity gate verified clean
-149	check_module_length	check_module_length
-150	check_firstboot_provisioners	check_firstboot_provisioners
-151	check_schema_consumers	check_schema_consumers
-152	check_tasks_status_parity	check_tasks_status_parity
-153	check_container_names	check_container_names
-154	check_service_urls	check_service_urls
-155	check_ports_bound	check_ports_bound
-156	check_blade_coverage	check_blade_coverage
-157	check_blade_karg	check_blade_karg
-158	check_role_ssot	check_role_ssot
-159	check_port_fallbacks	check_port_fallbacks
-160	check_node_pool	check_node_pool
-161	check_mini_vs_hosted	check_mini_vs_hosted
-162	check_unit_projection	check_unit_projection
-163	check_ssot_consumer_keys	check_ssot_consumer_keys
-164	check_adr_index	check_adr_index
-165	check_vendored_assets_non_stub	vendored assets dir absent
-166	check_resolved_env_lossless	resolved environment is lossless
-167	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-168	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-169	check_value_aliases	value-alias consistency verified
-170	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-171	check_bash_phase_ratchet	bash phase script count ratchet check
-172	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-173	check_negatives_are_effective	negative-test effectiveness check
-174	check_skip_list_covered	checking workflow skip-list coverage and parity
-175	check_ai_manifests_fresh	checking AI manifest freshness
-176	check_ports_category_schema	checking port category schema (allocation + collisions)
-177	check_globals_generated	checking generated globals resolvers match SSOT
+142	check_desktop_launchers	check_desktop_launchers
+143	check_guacamole_consistency	check_guacamole_consistency
+144	check_no_inert_ssot_tables	check_no_inert_ssot_tables
+145	check_doc_refs_resolve	check_doc_refs_resolve
+146	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
+147	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
+148	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
+149	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
+150	check_db_seed_coverage	DB seed coverage gate verified clean
+151	check_account_column_parity	account column parity gate verified clean
+152	check_module_length	check_module_length
+153	check_firstboot_provisioners	check_firstboot_provisioners
+154	check_schema_consumers	check_schema_consumers
+155	check_tasks_status_parity	check_tasks_status_parity
+156	check_container_names	check_container_names
+157	check_service_urls	check_service_urls
+158	check_ports_bound	check_ports_bound
+159	check_blade_coverage	check_blade_coverage
+160	check_blade_karg	check_blade_karg
+161	check_blade_reconcile_schema	check_blade_reconcile_schema
+162	check_role_ssot	check_role_ssot
+163	check_port_fallbacks	check_port_fallbacks
+164	check_node_pool	check_node_pool
+165	check_mini_vs_hosted	check_mini_vs_hosted
+166	check_unit_projection	check_unit_projection
+167	check_ssot_consumer_keys	check_ssot_consumer_keys
+168	check_adr_index	check_adr_index
+169	check_vendored_assets_non_stub	vendored assets dir absent
+170	check_resolved_env_lossless	resolved environment is lossless
+171	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+172	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+173	check_value_aliases	value-alias consistency verified
+174	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+175	check_bash_phase_ratchet	bash phase script count ratchet check
+176	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+177	check_negatives_are_effective	negative-test effectiveness check
+178	check_skip_list_covered	checking workflow skip-list coverage and parity
+179	check_ai_manifests_fresh	checking AI manifest freshness
+180	check_ports_category_schema	checking port category schema (allocation + collisions)
+181	check_globals_generated	checking generated globals resolvers match SSOT

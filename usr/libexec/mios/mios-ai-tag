@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Codebase tagger -- writes a rich, structured AI header (AI-hint purpose
+# AI-hint: Codebase tagger -- writes a rich, structured AI header on every file.
 # AI-related: mios-codebase-index, mios-bootstrap, mios-llm-light (port key `llm_light`)
 """'MiOS' AI-tagger -- a rich, agent-useful AI header on every file.
 
@@ -18,6 +18,7 @@ Usage:
               --manifest /var/lib/mios/finetune/ai-tag-rich.manifest
   mios-ai-tag --root DIR --no-llm     # never call the teacher (reuse/extract only)
   mios-ai-tag --root DIR --dry-run --limit 5
+  mios-ai-tag --selftest              # execute self-test suite
 """
 from __future__ import annotations
 import argparse
@@ -35,7 +36,7 @@ EXT = {
     ".pod", ".build", ".image", ".kargs", ".bu", ".tmpl", ".in", ".preset",
     ".desktop", ".pp", ".spec", ".star", ".txt", ".gitignore", ".gitattributes",
     ".editorconfig", ".dockerignore", ".cron", ".sudoers", ".pam", ".mod", ".bat",
-    ".cmd",
+    ".cmd", ".rs", ".snap", ".psm1", ".qml", ".nft", ".ks", ".template", ".defaults",
 }
 BASENAMES = {
     "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
@@ -45,7 +46,8 @@ BASENAMES = {
 SKIP_DIR = re.compile(
     r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|web_dist|"
     r"dist|assets|\.cache|\.mypy_cache|\.pytest_cache|\.ruff_cache|target|"
-    r"base-qwen[^/]*|\.idea|\.vscode-test|finetune/venv|\.gemini)(/|$)")
+    r"base-qwen[^/]*|\.idea|\.vscode-test|finetune/venv|\.gemini|\.rustup|"
+    r"\.tmp\.driveupload|tr_clone|tr_remote|shellcheck-v[0-9.]+)(/|$)")
 SKIP_SUFFIX = re.compile(
     r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|svg|woff2?|"
     r"ttf|otf|so|o|a|zip|gz|xz|zst|tar|whl|pyc|wasm|pdf|mp4|mp3|lock)$", re.I)
@@ -62,7 +64,7 @@ def comment_style(path: str) -> str:
         return "md"
     if ext == ".css":
         return "slashstar"
-    if ext == ".js":
+    if ext in (".js", ".rs", ".qml"):
         return "slash"
     if ext == ".sql":
         return "dashdash"
@@ -122,15 +124,11 @@ def hint_cap() -> int:
 
 
 def teacher_defaults() -> tuple[str, str]:
-    """(endpoint, model) from SSOT.
-
-    The old defaults were both wrong, not merely hardcoded: port 8450 while
-    [ports].llm_light is 8500, and model "gemma4:12b" which is not in
-    [ai].available_models at all -- so the teacher lane could never have worked.
-    """
+    """(endpoint, model) from SSOT."""
     d = _ssot()
-    port = (d.get("ports", {}) or {}).get("llm_light", 8500)
     ai_tag = d.get("ai_tag", {}) or {}
+    port_key = ai_tag.get("teacher_port_key", "llm_light")
+    port = (d.get("ports", {}) or {}).get(port_key, 8500)
     models = (d.get("ai", {}) or {}).get("available_models", []) or []
     model = ai_tag.get("teacher_model") or (models[0] if models else "granite4.1:3b")
     return f"http://localhost:{port}", str(model)
@@ -143,10 +141,24 @@ def _clean(s: str, n: int | None = None) -> str:
 
 
 def existing_hint(head: str) -> str:
-    for ln in head.splitlines()[:40]:
+    lines = head.splitlines()[:40]
+    for i, ln in enumerate(lines):
         m = AI_HINT_TXT_RE.search(ln)
         if m:
-            return _clean(m.group(1))
+            parts = [m.group(1).strip().rstrip("-->").strip()]
+            j = i + 1
+            while j < len(lines):
+                next_ln = lines[j]
+                if AI_LINE_RE.search(next_ln):
+                    break
+                if re.match(r"^[#/<!;\-*\s]*\s{2,}\S", next_ln):
+                    cont_txt = re.sub(r"^[#/<!;\-*\s]*\s{2,}", "", next_ln).strip().rstrip("-->").strip()
+                    if cont_txt:
+                        parts.append(cont_txt)
+                    j += 1
+                else:
+                    break
+            return _clean(" ".join(parts))
     return ""
 
 
@@ -251,19 +263,39 @@ def retag(raw: bytes, style: str, block: list[str]) -> bytes:
         raw = raw[3:]
     nl = "\r\n" if b"\r\n" in raw[:65536] else "\n"
     text = raw.decode("utf-8", errors="replace").replace("\r\n", "\n")
-    lines = [ln for ln in text.split("\n") if not AI_LINE_RE.match(ln)]
-    idx = 0
-    if lines and lines[0].lstrip().startswith("#!"):
-        idx = 1
-    elif style == "md" and lines and lines[0].strip() == "---":
-        for i in range(1, min(len(lines), 80)):
-            if lines[i].strip() == "---":
-                idx = i + 1
+    all_lines = text.split("\n")
+
+    start_idx = None
+    end_idx = None
+    for i, ln in enumerate(all_lines):
+        if AI_LINE_RE.search(ln):
+            if start_idx is None:
+                start_idx = i
+            end_idx = i + 1
+        elif start_idx is not None:
+            if re.match(r"^[#/<!;\-*\s]*\s{2,}\S", ln) or ln.strip() in ("-->", "*/"):
+                end_idx = i + 1
+            else:
                 break
+
+    if start_idx is not None:
+        lines = all_lines[:start_idx] + all_lines[end_idx:]
+        insert_idx = start_idx
+    else:
+        lines = all_lines
+        insert_idx = 0
+        if lines and lines[0].lstrip().startswith("#!"):
+            insert_idx = 1
+        elif style == "md" and lines and lines[0].strip() == "---":
+            for i in range(1, min(len(lines), 80)):
+                if lines[i].strip() == "---":
+                    insert_idx = i + 1
+                    break
+
     block_lines = []
     for b in block:
         block_lines += b.split("\n")
-    lines = lines[:idx] + block_lines + lines[idx:]
+    lines = lines[:insert_idx] + block_lines + lines[insert_idx:]
     out = "\n".join(lines)
     body = (out.replace("\n", "\r\n") if nl == "\r\n" else out).encode("utf-8")
     return bom + body
@@ -310,26 +342,10 @@ def _tracked(root):
 
 
 def walk(roots):
-    """Taggable files: GIT-TRACKED where the root is a work tree.
-
-    The filesystem walk this replaces yielded 67,181 candidates against 2,269
-    tracked files -- it descended into .cargo, .rustup/tmp and even
-    .git/lost-found. Two reasons:
-
-      * SKIP_DIR is written with '/' separators, but os.walk hands back '\\' on
-        Windows, so the entire skip list silently matched nothing there.
-      * Even with it working, untracked build output and vendored trees are not
-        part of the repo and must not enter the corpus.
-
-    Tracked enumeration fixes both and is deterministic between a contributor's
-    box and CI -- the same divergence that made the docs ratchet unfalsifiable.
-    Verified to lose nothing: 0 taggable files are tracked-but-unwalked.
-    """
     for root in roots:
         rels = _tracked(root)
         if rels is None:
             for dp, dns, fns in os.walk(root):
-                # Normalise separators or SKIP_DIR cannot match on Windows.
                 if SKIP_DIR.search(dp.replace(os.sep, "/")):
                     dns[:] = []
                     continue
@@ -349,21 +365,60 @@ def walk(roots):
                 yield p
 
 
+def run_selftest() -> int:
+    # 1. Shebang
+    sh = b"#!/bin/bash\necho test\n"
+    res1 = retag(sh, "hash", ["# AI-hint: bash test"])
+    assert res1.startswith(b"#!/bin/bash\n# AI-hint: bash test\necho test\n"), f"Shebang failed: {res1!r}"
+
+    # 2. BOM
+    bom = _BOM + b"# code\n"
+    res2 = retag(bom, "hash", ["# AI-hint: bom test"])
+    assert res2.startswith(_BOM + b"# AI-hint: bom test\n# code\n"), f"BOM failed: {res2!r}"
+
+    # 3. CRLF
+    crlf = b"#!/bin/bash\r\necho test\r\n"
+    res3 = retag(crlf, "hash", ["# AI-hint: crlf test"])
+    assert b"\r\n" in res3 and not (b"\n" in res3.replace(b"\r\n", b"")), f"CRLF failed: {res3!r}"
+
+    # 4. Front matter
+    fm = b"---\ntitle: doc\n---\n# Content\n"
+    res4 = retag(fm, "md", ["<!-- AI-hint: md test -->"])
+    lines = res4.decode("utf-8").splitlines()
+    assert lines[0] == "---" and lines[2] == "---" and lines[3] == "<!-- AI-hint: md test -->", f"Front matter failed: {res4!r}"
+
+    # 5. Wrapped hint & region strip
+    sample = "# AI-hint: first part\n#          second part\n# AI-related: foo\ncode()\n"
+    h = existing_hint(sample)
+    assert h == "first part second part", f"Hint collection failed: '{h}'"
+    res5 = retag(sample.encode("utf-8"), "hash", ["# AI-hint: updated", "# AI-related: bar"])
+    assert b"second part" not in res5, f"Region strip failed to remove continuation: {res5!r}"
+    assert b"# AI-hint: updated\n# AI-related: bar\ncode()\n" in res5, f"Retag output unexpected: {res5!r}"
+
+    print("mios-ai-tag: --selftest passed (5/5 tests green)", file=sys.stderr)
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(prog="mios-ai-tag")
-    ap.add_argument("--root", action="append", required=True)
+    ap.add_argument("--root", action="append", required=False)
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--limit", type=int, default=None)
     ap.add_argument("--manifest", default=None)
-    ap.add_argument("--hints-json", default=None,
-                    help="JSON {abs_path: hint}; override the hint for listed files "
-                         "(an agent-refined/verified hint) -- structure still regex-derived")
+    ap.add_argument("--hints-json", default=None)
+    ap.add_argument("--selftest", action="store_true", help="Run internal self-tests")
     _ep, _model = teacher_defaults()
     ap.add_argument("--teacher-endpoint",
                     default=os.environ.get("MIOS_AI_TEACHER_ENDPOINT") or _ep)
     ap.add_argument("--teacher-model", default=_model)
     a = ap.parse_args()
+
+    if a.selftest:
+        return run_selftest()
+
+    if not a.root:
+        ap.error("the following arguments are required: --root (unless --selftest is passed)")
 
     hints_map = {}
     if a.hints_json and os.path.exists(a.hints_json):
@@ -391,7 +446,7 @@ def main() -> int:
             continue
         content = raw.decode("utf-8", errors="replace")
         head = content[:8192]
-        if p in hints_map:                 # agent-verified override wins
+        if p in hints_map:
             hint = hints_map[p]
             stats["overridden"] = stats.get("overridden", 0) + 1
         elif (hint := existing_hint(head)):

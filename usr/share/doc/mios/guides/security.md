@@ -130,12 +130,12 @@ Source: kernel admin-guide / sysctl,
 ## SELinux
 
 Mode: enforcing. MiOS does not ship one monolithic policy; instead
-`automation/37-selinux.sh` runs `restorecon` over `/boot /etc /usr /var`, imports
+`automation/38-selinux.sh` runs `restorecon` over `/boot /etc /usr /var`, imports
 booleans + fcontexts via `semanage`, and compiles a set of **per-rule** custom
 modules (one `.te` per known denial) that are staged as `.pp` packages into
 `usr/share/selinux/packages/mios/`. Each module targets a specific Fedora
 Rawhide / systemd denial and is skipped gracefully if its type is absent from the
-running policy. New rules are added in `automation/37-selinux.sh` (Architectural
+running policy. New rules are added in `automation/38-selinux.sh` (Architectural
 Law 1 — per-rule, not monolithic; see also the engineering guide).
 
 Representative compiled modules (staged as `mios_<name>.pp`):

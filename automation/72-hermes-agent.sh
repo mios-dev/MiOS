@@ -66,12 +66,6 @@ elif [ -f "/usr/share/mios/vendored/hermes_agent.whl" ]; then
     mios_log "Found offline vendored hermes_agent.whl"
     LOCAL_SOURCE="/usr/share/mios/vendored/hermes_agent.whl"
 elif [ -f "/usr/share/mios/vendored/wheels/hermes_agent.tar.gz" ]; then
-    # The 42 MB asset we actually ship. It is a SOURCE SNAPSHOT (pyproject.toml
-    # + setup.py under a hermes-agent-main/ root), not a wheelhouse -- it holds
-    # zero .whl files. Nothing consumed it: none of the probes above name it,
-    # and pip's --find-links ignores it because an sdist filename must carry a
-    # version (hermes_agent-<ver>.tar.gz) for the finder to parse a candidate.
-    # So every "offline" build silently fell through to the git clone below.
     mios_log "Found offline vendored hermes_agent.tar.gz, extracting"
     rm -rf /tmp/hermes-agent-src
     mkdir -p /tmp/hermes-agent-src
@@ -140,9 +134,9 @@ for _venv_attempt in 1 2 3; do
     sleep $((_venv_attempt*8))
 done
 if [ -z "${_venv_pip_ok}" ]; then
-    mios_warn "Agent-venv pip install failed after 3 attempts"
+    mios_err "Agent-venv pip install failed after 3 attempts"
     rm -rf "${VENV_DIR}"
-    exit 0
+    exit 1
 fi
 
 if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
@@ -151,8 +145,8 @@ if [[ -x "${VENV_DIR}/bin/hermes" ]]; then
     mios_ok "Installed ${VENV_DIR}/bin/hermes -> ${BIN_DIR}/hermes"
     record_version "hermes-agent" "${HERMES_REF}" "$(${VENV_DIR}/bin/hermes --version 2>&1 | head -1)" 2>/dev/null || true
 else
-    mios_warn "Pip succeeded but no 'hermes' entry-point in venv"
-    exit 0
+    mios_err "Pip succeeded but no 'hermes' entry-point in venv"
+    exit 1
 fi
 
 shopt -s nullglob

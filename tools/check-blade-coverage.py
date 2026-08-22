@@ -255,10 +255,13 @@ def classify(data: dict, root: str = ".") -> list:
         viol.append("unit '%s' is classified more than once -- gated, seat-side "
                     "and ungated are mutually exclusive" % svc)
 
+    fallbacks = (data.get("blade") or {}).get("cpu_fallbacks") or {}
     for svc, caps in sorted(req.items()):
         if not caps:
             viol.append("[blade.requires].%s lists no capability -- an empty list "
                         "gates nothing, so say so in [blade].seat_side instead" % svc)
+        if "gpu-serving" in caps and (svc not in fallbacks or not fallbacks[svc]):
+            viol.append("unit '%s' requires 'gpu-serving' but declares no fallback in [blade.cpu_fallbacks] (AGY-1596)" % svc)
         for cap in caps:
             if cap not in granted:
                 viol.append("capability '%s' (required by %s) is granted by NO "

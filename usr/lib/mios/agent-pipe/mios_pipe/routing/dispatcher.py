@@ -77,6 +77,8 @@ async def dispatch_via_http(payload: dict, endpoint: str, headers: dict = None) 
                 return MockResponse(r.json(), status_code=r.status_code, text=r.text)
             except Exception:
                 return MockResponse({"error": {"message": r.text, "type": "backend_non_json"}}, status_code=r.status_code, text=r.text)
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.NetworkError) as e:
+            return MockResponse({"error": {"message": f"blade unreachable: {e}", "type": "blade_unreachable_error", "code": "blade_unreachable"}}, status_code=502)
         except Exception as e:
             return MockResponse({"error": {"message": str(e), "type": "backend_error"}}, status_code=502)
 

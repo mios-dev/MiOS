@@ -1415,7 +1415,7 @@ test_bake_plan() {
 
 test_bake_ref_defaults() {
     log "Testing check_bake_ref_defaults"
-    local test_sh="${ROOT}/automation/15-render-quadlets.sh"
+    local test_sh="${ROOT}/automation/34-render-quadlets.sh"
     if [ -f "$test_sh" ]; then
         local orig_val
         orig_val="$(cat "$test_sh")"
@@ -3183,6 +3183,76 @@ test_comment_landing() {
     log "check_comment_landing negative test passed"
 }
 
+test_blade_reconcile_schema() {
+    log "Testing check_blade_reconcile_schema"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    # Enabling divergence before origin_node/logical_ts exist is exactly the edit
+    # that loses data silently on rejoin (ADR-0017 D5).
+    sed -i 's/^enabled      = false.*$/enabled      = true/' "$toml"
+    if _neg_gate check_blade_reconcile_schema; then
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"
+    fi
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_blade_reconcile_schema \
+        || die "check_blade_reconcile_schema failed after restoration"
+    log "check_blade_reconcile_schema negative test passed"
+}
+
+test_desktop_launchers() {
+    log "Testing check_desktop_launchers"
+    local f="${ROOT}/usr/share/applications/mios-svc-cockpit.desktop"
+    [ -f "$f" ] || { log "no rendered launcher to mutate; skipping"; return 0; }
+    local bak; bak="$(mktemp)"; cp "$f" "$bak"
+    # Mutate a RENDERED field. Adding a stray .desktop proves nothing: the
+    # renderer compares only what SSOT declares.
+    sed -i 's/^Name=.*/Name=DRIFTED/' "$f"
+    if _neg_gate check_desktop_launchers; then
+        cp "$bak" "$f"; rm -f "$bak"
+        die "check_desktop_launchers passed despite a drifted rendered launcher"
+    fi
+    cp "$bak" "$f"; rm -f "$bak"
+    _neg_gate check_desktop_launchers || die "check_desktop_launchers failed after restoration"
+    log "check_desktop_launchers negative test passed"
+}
+
+test_doc_refs_resolve() {
+    log "Testing check_doc_refs_resolve"
+    local probe="${ROOT}/automation/mios-negtest-docref.sh"
+    # An AI-related line naming a file that does not exist is a stale reference.
+    printf '#!/usr/bin/env bash\n# AI-hint: negtest probe.\n# AI-related: automation/this-file-does-not-exist-anywhere.sh\ntrue\n' > "$probe"
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    if _neg_gate check_doc_refs_resolve; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+        die "check_doc_refs_resolve passed despite a dangling AI-related reference"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+    _neg_gate check_doc_refs_resolve || die "check_doc_refs_resolve failed after restoration"
+    log "check_doc_refs_resolve negative test passed"
+}
+
+test_no_inert_ssot_tables() {
+    log "Testing check_no_inert_ssot_tables"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+    # A table nothing reads is dead SSOT: it looks configurable and is not.
+    # Assembled at runtime: spelling the table name literally in this .sh file
+    # would make THIS file a consumer of it, and the check would rightly pass.
+    local tbl="mios_negtest"; tbl="${tbl}_inert_tbl"
+    printf '
+[%s]
+unused_key = "nothing reads this"
+' "$tbl" >> "$toml"
+    if _neg_gate check_no_inert_ssot_tables; then
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
+    fi
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_no_inert_ssot_tables || die "check_no_inert_ssot_tables failed after restoration"
+    log "check_no_inert_ssot_tables negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3233,6 +3303,10 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_docs_ratchet
+    test_no_inert_ssot_tables
+    test_doc_refs_resolve
+    test_desktop_launchers
+    test_blade_reconcile_schema
     test_docs_ratchet_monotone
     test_manual_generated
     test_manual_ledger

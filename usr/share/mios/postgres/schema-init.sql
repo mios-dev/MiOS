@@ -62,6 +62,11 @@ ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS valid_from timestamptz DEFAULT
 ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS valid_to   timestamptz;
 CREATE INDEX IF NOT EXISTS knowledge_valid_to ON knowledge (valid_to);
 
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE knowledge    ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS knowledge_origin ON knowledge (origin_node);
+
 
 -- ── agent_memory: tool-driven self-editing facts (mios-remember) ─────────────
 CREATE TABLE IF NOT EXISTS agent_memory (
@@ -93,6 +98,11 @@ CREATE INDEX IF NOT EXISTS agent_memory_valid_to ON agent_memory (valid_to);
 
 -- MEM-05: Importance score for recall ranking
 ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS importance numeric DEFAULT 1.0;
+
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE agent_memory ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS agent_memory_origin ON agent_memory (origin_node);
 
 -- ── event: append-only observability stream ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS event (
@@ -148,6 +158,11 @@ CREATE INDEX IF NOT EXISTS event_chain_seq ON event (chain_seq);
 ALTER TABLE event ADD COLUMN IF NOT EXISTS act_type text;
 CREATE INDEX IF NOT EXISTS event_act_type ON event (act_type) WHERE act_type IS NOT NULL;
 
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE event ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE event ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS event_origin ON event (origin_node);
+
 -- ── tool_call: every dispatched verb + result + taint ────────────────────────
 CREATE TABLE IF NOT EXISTS tool_call (
     id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -182,6 +197,11 @@ CREATE TABLE IF NOT EXISTS session (
     ts            timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS session_chat ON session (owui_chat_id);
+
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE session ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE session ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS session_origin ON session (origin_node);
 
 -- ── skills (mined/promoted) + per-run audit ──────────────────────────────────
 CREATE TABLE IF NOT EXISTS skill (
@@ -319,6 +339,11 @@ ALTER TABLE scratch ADD COLUMN IF NOT EXISTS body   text;
 -- WS-5: owner_user for per-owner RLS (additive + nullable; NULL = shared/legacy).
 ALTER TABLE scratch ADD COLUMN IF NOT EXISTS owner_user text;
 CREATE INDEX IF NOT EXISTS scratch_owner ON scratch (owner_user);
+
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE scratch ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS scratch_origin ON scratch (origin_node);
 
 -- ── kanban: task queue (authoritative here; retires Hermes' kanban.db + the
 --    legacy shadow) ────────────────────────────────────────────────────────────
@@ -672,6 +697,11 @@ CREATE TABLE IF NOT EXISTS config_kv (
 );
 CREATE INDEX IF NOT EXISTS config_kv_emb_hnsw
     ON config_kv USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
+ALTER TABLE config_kv ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';
+ALTER TABLE config_kv ADD COLUMN IF NOT EXISTS logical_clock bigint NOT NULL DEFAULT 0;
+CREATE INDEX IF NOT EXISTS config_kv_origin ON config_kv (origin_node);
 
 CREATE TABLE IF NOT EXISTS system_config (
     key           text PRIMARY KEY,

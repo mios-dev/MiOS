@@ -16,7 +16,7 @@ MiOS workstation hosts can expand dynamically into single-node high-availability
 
 - **Runtime daemon**: Managed via `mios-k3s.service` Quadlet.
 - **Network Isolation**: Traefik acts as the ingress controller, managing routing protocols on standard cluster ports.
-- **SELinux Policies**: Custom SELinux policies are applied by [19-k3s-selinux.sh](automation/19-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds.
+- **SELinux Policies**: Custom SELinux policies are applied by [37-k3s-selinux.sh](automation/37-k3s-selinux.sh) to ensure containerized cluster tasks do not violate host read-only security bounds.
 
 #### Citation & Attribution References
 

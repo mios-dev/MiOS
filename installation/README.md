@@ -3,7 +3,7 @@
      deployment TYPE (live / xbox / fedora / bootc / oci / seed / flash /
      build / update) by calling the EXISTING mios-bootstrap entrypoints with
      the right args -- it never moves, renames, or reimplements them.
-     AI-related: installation/mios-install.ps1, installation/mios-install.sh,
+     AI-related: installation/mios-install.ps1, installation/mios-install.sh
      installation/mios-install.bat, installation/mios-common.ps1,
      installation/mios-common.sh, installation/UNIFY.md, cat/MiOS-Cat.bat, cat/MiOS-Cat.ps1,
      cat/MiOS-Cat.sh, build-mios.ps1, build-mios.sh, Get-MiOS.ps1,

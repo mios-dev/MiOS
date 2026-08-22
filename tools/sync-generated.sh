@@ -102,6 +102,9 @@ main() {
     step "2/6 globals -- automation/lib/globals.{sh,ps1}"
     "$PY" tools/render-globals.py
 
+    step "2b/6 desktop -- usr/share/applications/*.desktop"
+    "$PY" tools/render-desktop.py
+
     step "3/6 quadlets"
     "$PY" tools/generate-pod-quadlets.py >/dev/null
 

@@ -161,6 +161,11 @@ def main() -> int:
             for line in out.splitlines():
                 if line.strip():
                     viol.append(line.strip())
+    elif os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS", "0") == "1":
+        viol.append("no built mios-unit-gen, so the rendering half did not run "
+                    "and a drifting unit dropped from the register would pass "
+                    "(MIOS_DRIFT_REQUIRE_TOOLS=1). Build it: "
+                    "cd tools/native && cargo build -p mios-unit-gen")
     if viol:
         for v in viol:
             print("check_unit_projection: %s" % v, file=sys.stderr)

@@ -123,7 +123,7 @@ SSOT creds, no hardcodes).
   `db_backend`). Identity/wiring: `sysusers.d/50-mios-services.conf` (mios-pgvector
   826 + mios-ai), `tmpfiles.d/mios-pgvector.conf` (PGDATA dir per Law 2),
   `tools/lib/userenv.sh` (the `MIOS_PG_*`/`MIOS_PGVECTOR_*` maps), and
-  `automation/15-render-quadlets.sh` (placeholder render per the Quadlet contract).
+  `automation/34-render-quadlets.sh` (placeholder render per the Quadlet contract).
 - Engine selector: `[pgvector].db_backend` (env `MIOS_DB_BACKEND`). Now set to
   **`postgres`** — Postgres is primary and native `<=>` HNSW recall is live. The
   `surreal` and `dual` values remain only as historical/rollback documentation; the

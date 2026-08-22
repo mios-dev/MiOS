@@ -44,8 +44,8 @@ self-replicating + agentic halves operating on-box.
 
 | Phase | Scenario 1 (image) | Scenario 2 (build) | Notes |
 |---|---|---|---|
-| **overlay** (apply repo files to `/`) | n/a | ✅ offline | Plain `install`/`cp` from the USB (`automation/08-system-files-overlay.sh`); the repo root IS the system root, no network needed |
-| **pull** (acquire deps + sources) | n/a (image already has) | ⚠️ partial | dnf packages come from the OCI base layer (works if the base layer is cached); `automation/05-enable-external-repos.sh` + `09-fonts.sh` + `10-gnome.sh` + `13-ceph-k3s.sh` + `19-k3s-selinux.sh` + `38-hermes-agent.sh` + `38-llamacpp-prep.sh` / `38-vllm-prep.sh` hit github.com / pypi.org / flathub.org / model registries. **Gap.** |
+| **overlay** (apply repo files to `/`) | n/a | ✅ offline | Plain `install`/`cp` from the USB (`automation/01-system-files-overlay.sh`); the repo root IS the system root, no network needed |
+| **pull** (acquire deps + sources) | n/a (image already has) | ⚠️ partial | dnf packages come from the OCI base layer (works if the base layer is cached); `automation/05-enable-external-repos.sh` + `09-fonts.sh` + `10-gnome.sh` + `36-ceph-k3s.sh` + `37-k3s-selinux.sh` + `72-hermes-agent.sh` + `38-llamacpp-prep.sh` / `38-vllm-prep.sh` hit github.com / pypi.org / flathub.org / model registries. **Gap.** |
 | **build** (`bib`/`podman build` the OCI image) | n/a | ⚠️ partial | Bound-images law (3) symlinks Quadlet image refs into `/usr/lib/bootc/bound-images.d/` and bakes them into `/usr/lib/containers/storage` so the FINAL image carries them, but the BUILD step still pulls from the registry to populate. A pre-pulled local registry mirror closes this. |
 | **deploy** (`bootc switch`/`bootc upgrade` to the new image) | ✅ offline | ✅ offline | bootc reads from the local image store; no network if the image is local |
 | **run** (boot + start services) | ✅ offline | ✅ offline | All systemd units + Quadlets reference images from the local store via `bound-images.d/` (Law 3) |
@@ -63,9 +63,9 @@ scenario-2 build. Tracking the work needed to vendor:
 | `automation/05-enable-external-repos.sh` | `terra.repo` from github.com | Bundle `usr/share/mios/repos/terra.repo` |
 | `automation/09-fonts.sh` | Geist + Nerd-Fonts archives from github.com | `usr/share/mios/vendored/fonts/{geist,nerd}.tar.xz` (LFS or bundled) |
 | `automation/10-gnome.sh` | Bibata cursor + flathub remote URL | Bundle `usr/share/mios/vendored/bibata-*.tar.xz`; ship a local flathub mirror image |
-| `automation/13-ceph-k3s.sh` | k3s binary + checksums from github.com | Bundle `usr/share/mios/vendored/k3s/k3s-<tag>` |
-| `automation/19-k3s-selinux.sh` | k3s-selinux git clone | Bundle as a tarball in `usr/share/mios/vendored/k3s-selinux-<tag>.tar.xz` |
-| `automation/38-hermes-agent.sh` | hermes-agent git + pip deps (aiohttp, websockets, discord.py) | Vendor wheels in `usr/share/mios/vendored/wheels/`; use `pip install --no-index --find-links=...` |
+| `automation/36-ceph-k3s.sh` | k3s binary + checksums from github.com | Bundle `usr/share/mios/vendored/k3s/k3s-<tag>` |
+| `automation/37-k3s-selinux.sh` | k3s-selinux git clone | Bundle as a tarball in `usr/share/mios/vendored/k3s-selinux-<tag>.tar.xz` |
+| `automation/72-hermes-agent.sh` | hermes-agent git + pip deps (aiohttp, websockets, discord.py) | Vendor wheels in `usr/share/mios/vendored/wheels/`; use `pip install --no-index --find-links=...` |
 | `automation/38-llamacpp-prep.sh` | GGUF model blobs + the upstream llama-swap proxy image | Bundle GGUFs under `usr/share/mios/vendored/models/` (or a pre-populated `/models` layer); pre-pull the upstream mios-llm-light image into the local store |
 | (any) | dnf packages from Fedora mirrors | Already mostly cached by the bootc base layer; for full offline, ship a local rpm mirror image |
 
@@ -108,3 +108,13 @@ cloud API keys configured; Quadlet images symlinked into
 
 Offline assets (k3s binary, selinux tarballs, fonts, bibata cursor, Python wheels) are vendored under `usr/share/mios/vendored/`. Per operator directive (2026-07-31), assets are committed directly to plain Git (avoiding Git-LFS external service dependencies) to ensure 100% self-contained air-gapped repositories. Run `just vendored-size` to audit total size of vendored assets against repository budgets.
 
+### The 42 MB asset we actually ship. It is a SOURCE SNAPSHOT...
+
+The 42 MB asset we actually ship. It is a SOURCE SNAPSHOT (pyproject.toml
++ setup.py under a hermes-agent-main/ root), not a wheelhouse -- it holds
+zero .whl files. Nothing consumed it: none of the probes above name it,
+and pip's --find-links ignores it because an sdist filename must carry a
+version (hermes_agent-<ver>.tar.gz) for the finder to parse a candidate.
+So every "offline" build silently fell through to the git clone below.
+
+<!-- mios-src:540cc82d5b8d from automation/72-hermes-agent.sh:69-74 -->

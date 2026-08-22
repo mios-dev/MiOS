@@ -213,7 +213,7 @@ syft
 
 ## K3s SELinux build dependencies
 
-Installed by automation/19-k3s-selinux.sh to build the k3s SELinux module.
+Installed by automation/37-k3s-selinux.sh to build the k3s SELinux module.
 
 ```packages-k3s-selinux-build
 selinux-policy-devel
@@ -576,7 +576,7 @@ cosign
 ## Build Toolchain (image-build time ONLY)
 
 These compilers and devel headers are required by image-build phases
-(`19-k3s-selinux.sh` builds the k3s SELinux policy module,
+(`37-k3s-selinux.sh` builds the k3s SELinux policy module,
 `53-bake-lookingglass-client.sh` compiles Looking Glass B7 from source)
 but **do not belong on the runtime image** -- a deployed host carrying
 gcc/cmake/golang is unnecessary attack surface for any process that

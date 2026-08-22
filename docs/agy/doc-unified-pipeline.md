@@ -19,7 +19,7 @@ implementations** ("twins") that silently drift:
 | `build.sh` `STEP N` | in-loop counter | a THIRD count, unrelated to `NN` |
 | drift-check number | `tools/generate-gate-index.py` | a FOURTH namespace |
 
-Exemplar bug (2026-07-25): the stage renumber moved `15-render-quadlets.sh → 34`, the sweep updated
+Exemplar bug (2026-07-25): the stage renumber moved `34-render-quadlets.sh → 34`, the sweep updated
 bash `97-ssot-lint.sh`, but the **Rust twin** `tools/native/mios-ssot-lint` (a hand-port of the bash)
 still opened `15-…` → `FATAL not-found` → diverged from bash → `check_ssot_lint_equivalence` (79)
 red-baked the pipeline at 1m18s. Two hand-maintained ports of one logic drifted on a rename.

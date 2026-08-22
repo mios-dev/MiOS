@@ -63,7 +63,7 @@ operator-gated.
 
 WS-2/4/7/8 all touch the SAME shared files (`mios.toml`,
 `sysusers.d/50-mios-services.conf`, `tools/lib/userenv.sh`,
-`automation/15-render-quadlets.sh`, `usr/lib/mios/agent-pipe/server.py`). N
+`automation/34-render-quadlets.sh`, `usr/lib/mios/agent-pipe/server.py`). N
 agents editing those at once = corruption (we already saw a stray-edit corrupt
 `server.py`'s tail this session). Because these files are SSOT for the booted
 image, a corruption here is a broken OS, not just a broken patch.
@@ -121,7 +121,7 @@ const DELTA = { type: 'object', additionalProperties: false, properties: {
   summary: { type: 'string' }, risks: { type: 'string' },
 }, required: ['workstream', 'new_files', 'shared_edits', 'summary'] }
 
-const RULES = `MiOS conventions: SSOT in mios.toml (no literals in code); quadlets follow Law 1/3/6 (User=/Delegate=yes, bound-images); new constants flow mios.toml -> userenv.sh -> MIOS_* -> 15-render allow-list. Sibling-module + unit-test pattern (mios_sched/mios_evict/mios_hitl/mios_aci/mios_pg). Ship DEFAULT-OFF/GATED + degrade-open. CREATE ONLY NEW FILES; for any edit to a SHARED file (mios.toml, sysusers.d/50-mios-services.conf, tools/lib/userenv.sh, automation/15-render-quadlets.sh, usr/lib/mios/agent-pipe/server.py) RETURN it in shared_edits (do NOT edit those files). Validate your new files (py_compile / bash -n). Repo root C:\\MiOS.`
+const RULES = `MiOS conventions: SSOT in mios.toml (no literals in code); quadlets follow Law 1/3/6 (User=/Delegate=yes, bound-images); new constants flow mios.toml -> userenv.sh -> MIOS_* -> 15-render allow-list. Sibling-module + unit-test pattern (mios_sched/mios_evict/mios_hitl/mios_aci/mios_pg). Ship DEFAULT-OFF/GATED + degrade-open. CREATE ONLY NEW FILES; for any edit to a SHARED file (mios.toml, sysusers.d/50-mios-services.conf, tools/lib/userenv.sh, automation/34-render-quadlets.sh, usr/lib/mios/agent-pipe/server.py) RETURN it in shared_edits (do NOT edit those files). Validate your new files (py_compile / bash -n). Repo root C:\\MiOS.`
 
 const WS = [
   { label: 'WS-2 Code Mode', prompt: `Scaffold WS-2 Code Mode (concepts/aios-implementation-plan.md Appendix B). Add a coderun verb (mios.toml [verbs.coderun] -> mios-coderun CLI that runs code in the rootless coderun-sandbox) + an _exec_tool_calls branch (returned as a server.py shared_edit) + expose the verb/MCP surface as a local API inside the sandbox. New files: usr/libexec/mios/mios-coderun + any helper + a unit test. uid if needed: 828. ${RULES}` },

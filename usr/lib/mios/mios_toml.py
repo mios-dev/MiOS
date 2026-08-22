@@ -32,10 +32,20 @@ def _default_vendor(root=""):
 
 
 _ROOT = os.environ.get("MIOS_TOML_ROOT", "")
-VENDOR = os.environ.get("MIOS_VENDOR_TOML") or os.environ.get("MIOS_TOML") or _default_vendor(_ROOT)
-HOST = os.environ.get("MIOS_HOST_TOML", "/etc/mios/mios.toml")
-USER = os.environ.get("MIOS_USER_TOML") or os.path.join(
-    os.environ.get("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "mios/mios.toml")
+def get_migration(key: str = "", default: bool = True) -> bool | dict:
+    """Return whether a migration toggle in [migration] is enabled (AGY-1573)."""
+    data = load_merged()
+    mig = data.get("migration") or {}
+    if not key:
+        return mig
+    return bool(mig.get(key, default))
+
+
+def get_version(key: str, default: str = "") -> str:
+    """Return a SSOT component version from [versions] (AGY-1573)."""
+    data = load_merged()
+    vers = data.get("versions") or {}
+    return str(vers.get(key, default))
 
 
 def _frags(dirpath):

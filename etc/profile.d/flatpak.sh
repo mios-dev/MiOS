@@ -1,3 +1,4 @@
+# AI-hint: Upstream Flatpak profile snippet that appends flatpak exports to XDG_DATA_DIRS so installed apps appear in the desktop menus; shipped verbatim, MiOS adds only this header.
 if command -v flatpak > /dev/null; then
 
     new_dirs=$(

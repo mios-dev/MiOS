@@ -200,7 +200,7 @@ subset. Every URL below is the source-of-truth for the named surface.
 |---|---|---|
 | Ceph (cephadm) | Distributed storage; admin via `cephadm shell` (containerized) | <https://ceph.io/> -- <https://docs.ceph.com/en/latest/cephadm/> |
 | K3s | Lightweight Kubernetes distribution | <https://k3s.io/> -- <https://github.com/k3s-io/k3s> |
-| `k3s-selinux` | SELinux policy compiled in-image (`automation/19-k3s-selinux.sh`) | <https://github.com/k3s-io/k3s-selinux> |
+| `k3s-selinux` | SELinux policy compiled in-image (`automation/37-k3s-selinux.sh`) | <https://github.com/k3s-io/k3s-selinux> |
 | Helm | K8s package manager | <https://helm.sh/> |
 | `kubectl` | K8s CLI (symlinked from k3s binary) | <https://kubernetes.io/docs/reference/kubectl/> |
 | Pacemaker / Corosync | HA cluster resource manager | <https://clusterlabs.org/pacemaker/> |
@@ -306,7 +306,7 @@ subset. Every URL below is the source-of-truth for the named surface.
 |---|---|
 | **USR-OVER-ETC** -- vendor config in `/usr/lib/...d/`, `/etc/` is admin-only | `usr/lib/**`, `etc/sysusers.d/cephadm.conf` (override example) |
 | **NO-MKDIR-IN-VAR** -- no `/var/` writes at build time | `usr/lib/tmpfiles.d/mios*.conf` (declarations) |
-| **BOUND-IMAGES** -- Quadlet images symlinked into `/usr/lib/bootc/bound-images.d/` | `automation/08-system-files-overlay.sh:74-86` |
+| **BOUND-IMAGES** -- Quadlet images symlinked into `/usr/lib/bootc/bound-images.d/` | `automation/01-system-files-overlay.sh:74-86` |
 | **BOOTC-CONTAINER-LINT** -- last `RUN` of Containerfile | `Containerfile` final step |
 | **UNIFIED-AI-REDIRECTS** -- single `MIOS_AI_ENDPOINT`; no vendor URLs | `usr/bin/mios`, `etc/mios/ai/`, `etc/containers/systemd/mios-ai.container` |
 | **UNPRIVILEGED-QUADLETS** -- `User=`, `Group=`, `Delegate=yes` on every Quadlet | `etc/containers/systemd/mios-*.container` |
