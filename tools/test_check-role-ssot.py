@@ -4,6 +4,8 @@
 """Tests for the blade role-SSOT gate."""
 
 import os
+import shutil
+import tempfile
 import unittest
 from importlib.machinery import SourceFileLoader
 
@@ -268,6 +270,31 @@ class TestRealTree(unittest.TestCase):
                 if line.startswith("Conflicts="):
                     have |= set(line.split("=", 1)[1].split())
             self.assertEqual(have, set(targets) - {unit}, unit)
+
+
+class TestKeyAccessIsNotAnArchetype(unittest.TestCase):
+    """`endpoint` is both an archetype and an ordinary TOML key. A token after
+    `.` is a key access; a bare one, or one after `-`, is a hardcoded role."""
+
+    def _scan(self, body):
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        path = os.path.join(root, "usr/lib/mios/blade.sh")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(body)
+        data = {"blade": {"archetypes": {"endpoint": [], "hybrid": ["service-plane"]}}}
+        return mod.check_no_hardcoded_roles(data, root)
+
+    def test_a_toml_key_access_is_not_flagged(self):
+        self.assertEqual(self._scan('printf "no [ai].endpoint resolved"\n'), [])
+
+    def test_a_bare_role_literal_is_still_flagged(self):
+        self.assertTrue(self._scan('case "$r" in endpoint) : ;; esac\n'))
+
+    def test_a_hyphenated_unit_literal_is_still_flagged(self):
+        # `-` is NOT excluded: mios-endpoint.target restates the archetype.
+        self.assertTrue(self._scan('systemctl start mios-endpoint.target\n'))
 
 
 if __name__ == "__main__":

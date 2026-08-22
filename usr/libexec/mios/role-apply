@@ -130,10 +130,33 @@ if [[ -d "$BLADE_D" ]]; then
     ALL_CAPS=$(ls -A "$BLADE_D" | tr '\n' ',' | sed 's/,$//')
 fi
 
+# ADR-0016 D5: an off-box front door makes the auth controls a precondition.
+# Degrade OPEN (Law 12) -- a policy default must never brick a boot -- but say so
+# here, in blade.env and in role.active, so a seat is never silently exposed.
+POSTURE="unknown"; POSTURE_EP=""; POSTURE_WHY=""
+if declare -F _auth_posture >/dev/null; then
+    _p="$(_auth_posture || true)"
+    POSTURE="${_p%%$'\t'*}"
+    _rest="${_p#*$'\t'}"
+    POSTURE_EP="${_rest%%$'\t'*}"
+    POSTURE_WHY="${_rest#*$'\t'}"
+fi
+case "$POSTURE" in
+    exposed)
+        warn "front door ${POSTURE_EP} is OFF-BOX and ungated: ${POSTURE_WHY}"
+        warn "see ADR-0016 D5 -- this blade serves other machines without binding a caller"
+        ;;
+    armed)  log "Auth posture: off-box front door, gated (${POSTURE_WHY})" ;;
+    local)  log "Auth posture: ${POSTURE_WHY}" ;;
+    *)      log "Auth posture: undetermined (${POSTURE_WHY:-no detail})" ;;
+esac
+
 mkdir -p /run/mios
 cat > /run/mios/blade.env <<EOF
 MIOS_BLADE_TYPE="$ROLE"
 MIOS_BLADE_CAPS="$ALL_CAPS"
+MIOS_BLADE_AUTH_POSTURE="$POSTURE"
+MIOS_BLADE_AI_ENDPOINT="$POSTURE_EP"
 EOF
 
 # Boot target. `set-default` decides the NEXT boot and starts nothing; the one
@@ -175,6 +198,7 @@ cat > "$STATE_DIR/role.active" <<EOF
 ROLE=$ROLE
 ROLE_SOURCE=$ROLE_SOURCE
 FEATURES=$ALL_CAPS
+AUTH_POSTURE=$POSTURE
 VIRT=$VIRT
 BLACKWELL=$IS_BLACKWELL
 TARGET=$TARGET

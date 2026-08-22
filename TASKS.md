@@ -312,7 +312,7 @@
 | T-324 | P1 | planned | Naming/Addressing | ADDR-05 -- Retired ports live on in shipped units and Quadlets; the sweep only scans docs |
 | T-325 | P0 | done | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
 | T-326 | P1 | done | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
-| T-327 | P0 | planned | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
+| T-327 | P0 | partial | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
 
 ---
 
@@ -3045,16 +3045,27 @@ Root cause, and it is not a loop-count problem: **steps 6 and 7 census `git ls-f
 **Dep:** none. | **Domain:** Build/SSOT | **Who:** build agent
 
 ## T-327 -- SEC-02: make the seat's auth posture enforced by construction  (WS-GUARD | P0 | M)
-**Goal:** E-04 A seat that points off-box must not be able to run without a tenancy boundary -- the posture is a property of the ROLE, not of an operator remembering a flag.
-**What+How:** T-325 made `[security].api_require_auth` and `[security].principal_bind_mode` reachable; it deliberately changed neither default. Flipping them in the vendor SSOT is the WRONG next step and is refused here: a fully hosted MiOS is one machine on loopback with one human, where `api_require_auth = true` would demand a key from every client and `principal_bind_mode = enforce` would demand `/etc/mios/ai/v1/caller-keys.json` before the agent plane could answer its own front door. The SSOT already says as much -- *"Turn ON only with a loopback or firewall-scoped (172.16/12) bind ... operator-greenlight"*.
+**Goal:** E-04 A seat that points off-box must not run without a tenancy boundary -- the posture is a property of the ROLE, not of an operator remembering a flag.
+**What+How:** T-325 made `[security].api_require_auth` and `[security].principal_bind_mode` reachable; it deliberately changed neither default. Flipping them in the vendor SSOT is the WRONG move and is refused here: a fully hosted MiOS is one machine on loopback with one human, where `api_require_auth = true` would demand a key from every client and `principal_bind_mode = enforce` would demand `/etc/mios/ai/v1/caller-keys.json` before the agent plane could answer its own front door. The SSOT already says so -- *"Turn ON only with a loopback or firewall-scoped (172.16/12) bind ... operator-greenlight"*.
 
-The roadmap-serving answer is to make the posture follow the ROLE, per ADR-0016 D5:
+The posture follows the ROLE instead, per ADR-0016 D5. `_auth_posture()` in `usr/lib/mios/blade.sh` resolves the merged `[ai].endpoint` and returns one of four verdicts:
 
-* **Vendor default stays off.** Loopback, single-tenant, no key. Enforced today by `check_vendor_urls`, which asserts the vendor `[ai].endpoint` is local.
-* **A seat asserts its own posture at runtime.** When the resolved `MIOS_AI_ENDPOINT` is NOT loopback, `api_require_auth` must be on and `principal_bind_mode` must not be `off`. This cannot be a build-time gate: the off-box value arrives in the `/etc/mios` overlay, which the image never sees.
-* **Degrade open, but LOUDLY** (Law 12). A seat with an off-box endpoint and auth off must still boot -- it must not brick a machine over a policy default -- but it must say so in the boot record, in `mios blade status`, and on the dashboard beside the blade-reachability state T-323 already computes. A silent seat is the failure mode being fixed; a refusing seat is a new one.
-* **Firstboot provisions the key** so the posture is reachable without hand-editing: generate a caller key into `/etc/mios/secrets.env` (0600, Law 11) when a seat is resolved, so `enforce` is one flag away rather than a project.
+| verdict | when | what it means |
+|---|---|---|
+| `local` | the front door is loopback | single-tenant; the auth question does not arise, whatever the flags say |
+| `armed` | off-box AND both controls on | a seat with a tenancy boundary |
+| `exposed` | off-box and NOT gated | serves other machines without binding a caller -- **named, never blocked** |
+| `unknown` | no endpoint resolved | say so rather than assume either way |
 
-**Where:** `usr/libexec/mios/role-apply` or `usr/lib/mios/blade.sh` (the posture assertion belongs beside the role resolution), `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh` (recorded, non-critical -- ADR-0016 D8), `usr/share/mios/mios.toml` (`[security]`), `tests/test-seat-auth-posture.sh`.
-**Done When:** a seat with an off-box endpoint and `api_require_auth = false` boots, works, and SAYS so in three places; a seat with auth on and a provisioned key is silent; a hosted blade on loopback is unaffected in every case; the assertion is unit-tested against a fixture overlay rather than a live host.
+`role-apply` logs the verdict, and records it in `/run/mios/blade.env` (`MIOS_BLADE_AUTH_POSTURE`, `MIOS_BLADE_AI_ENDPOINT`) and in `role.active` (`AUTH_POSTURE=`). **Degrade open, Law 12**: an exposed seat still resolves its role and boots. `_auth_posture` cannot fail, so no caller can turn a policy default into a failed boot by treating its exit code as a gate -- the test pins that.
+**Where:** `usr/lib/mios/blade.sh` (`_ssot_security`, `_auth_posture`), `usr/libexec/mios/role-apply`, `tests/test-seat-auth-posture.sh`, `.github/workflows/mios-ci.yml`.
+**Done When:** three of five clauses met.
+* a seat with an off-box endpoint and auth off boots and SAYS so -- **done for the boot record** (journal line, `blade.env`, `role.active`); `mios blade status` and the dashboard remain.
+* a seat with both controls on is silent -- **done** (`armed` logs one ordinary line).
+* a hosted blade on loopback is unaffected -- **done**, and pinned: a loopback front door with BOTH controls off is explicitly not a finding.
+* unit-tested against a fixture overlay rather than a live host -- **done**, 8 assertions over real `/etc` overlays through the real resolver; no host, no live endpoint.
+* firstboot provisions a caller key into `/etc/mios/secrets.env` (0600, Law 11) so `enforce` is one flag away -- **not done**, and it is what keeps this partial.
+**Status:** partial
+
+The remaining work is the provisioning half, and it is the harder half: a key generated at firstboot has to reach every client that dials the front door (OWUI, the `mios`/`@` CLI, the dashboard, a peer seat) or turning the flag on trades a silent exposure for a silent outage. That is why the flags are still off and why this entry does not claim otherwise.
 **Why:** the operator answer to "should auth be on?" is "on a seat, yes; on a hosted box, it is noise". Encoding that in the role is the difference between a security control that exists and one that is documented. | **Domain:** Security/Federation | **Who:** architect
