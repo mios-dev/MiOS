@@ -545,39 +545,56 @@ blade `bootc upgrade` independently, and a seat two releases ahead of its blade 
 mysteriously. `[blade].min_peer_version`, reported by the reachability probe and **non-fatal**, is
 the smallest thing that makes that legible.
 
-### 9. MiOS-Mini is the box; the archetype is the mode it boots into
+### 9. MiOS-Mini is the full image on a box, and "offload" means SHED, not thin
 
-An earlier revision of this ADR concluded the opposite — that "MiOS-Mini" named the seat and must
-never be an artifact — and that claim shipped in the generated comparison. It was wrong. The
-operator's definition is a **hardware appliance**: *"a hardware host, wifi Access Point(s),
-VPN/Mesh network, hyper-converged; highly available VMs, containers."*
+Two earlier revisions of this decision were wrong in opposite directions, and both shipped. The
+first said MiOS-Mini names the thin seat. The second corrected that to "Mini is the box, the
+archetype is the mode" — right about the box, still wrong about what Mini *does*. The operator's
+definition, stated directly:
 
-Both halves are real and they are different registers:
+> *"Mini does run the AI plane. Mini is the full image. It just scales everything to the hosted
+> containers, booted images to run the services. Mini is the fallback that moves the services
+> across the mesh to other blades and nodes. It boots the entire image. It's all hosted as its own
+> cluster."*
 
-| Register | Names | Examples |
-|---|---|---|
-| **Product / hardware** | the physical box | **MiOS-Mini** |
-| **SSOT archetype** | the mode that box boots into | `hybrid`, `endpoint`, `controller`, `ha-node` |
+**MiOS-Mini is a complete, self-sufficient node.** It boots the entire image, runs the AI plane
+itself, and is its own cluster. It is not a client of anything.
 
-One MiOS-Mini can boot as a **full host** — owning the radios, routing the network, running the
-VMs and containers — or as a **seat** that offloads everything and keeps only what the person
-touches. Same box, same OCI image, different `[blade].type`. That is why the archetype key stays
-`endpoint` rather than becoming `mini`: they answer different questions, and only the SSOT key has
-to be unique (Law 9).
+**"Offload all services to hosted MiOS OCI image(s)" describes a capability, not a deficit.** A Mini
+can push any service out to peer images across the mesh — to scale, to rebalance, or to fail over.
+That is exactly ADR-0017's workload mobility (*"everything can migrate anywhere and is always
+load-balancing services, containers and VMs among blades across the entire cluster/mesh"*), read
+from the Mini's side. The original requirement sentence was never describing a thin client; it was
+describing a node that can empty itself onto its peers.
 
-**What a MiOS-Mini is built to be, as distinct from what it does today.** The full-host mode is a
-*target*, not a shipped capability. `usr/share/doc/mios/concepts/mios-metal-architecture.md` is a
-complete design for it — `hostapd` for the radios, `headscale`+`tailscaled` for the mesh, hand-authored
-`nftables` for the router core, `libvirt`/KVM with `vfio-pci` for the guests — and almost none of it
-is in the shipped tree: `hostapd` appears in no unit, no Quadlet and no SSOT key, and both
-`[metal].enabled` and `[metal.mesh].enabled` are `false`. The gap is tracked as a workstream rather
-than implied by this ADR.
+That distinction is the whole design, and getting it backwards produced a session's worth of work
+reasoned from a thin seat that does not exist as a product.
 
-**Fleet size is 2–3 boxes, up to 6.** That is the operator's number, and it settles a question
-Decision 2 left open: `[blades]` being empty is a *gap*, not a design choice. A single-node
-assumption is wrong for a topology whose normal shape is two or three peers and whose maximum is
-six. Two nodes cannot hold quorum on their own, so the HA design must state its witness or
-tie-break rule rather than inherit one.
+#### What a Mini is, concretely
+
+| Facet | The operator's answer |
+|---|---|
+| **Network role** | serves clients **and** is the uplink — *"an access point and a router all at once"* |
+| **Mesh** | **Tailscale is the current implementation; Headscale is the target.** `[metal.mesh].headscale_domain` is therefore a target key, not a live one |
+| **Hyper-converged** | every service can be a mesh member, a Kubernetes workload, a CephFS participant, and/or under Cockpit's high availability — *all of these at once*, not a choice between them |
+| **AI plane** | **runs on the Mini.** Not confined to a guest |
+| **Cluster** | *"It's all hosted as its own cluster"* — a single Mini is a complete cluster, and peers join it |
+
+The `endpoint` archetype remains real and remains useful — a node granting no capabilities, running
+6 units. But it is a **posture a node can take**, not what MiOS-Mini is. Nothing should call it
+"MiOS-Mini" again.
+
+#### What this invalidates
+
+* **The AP is both halves.** Serving clients *and* being the uplink means at least two radios, or a
+  wired WAN plus one radio. A single-radio design cannot do both, so the hardware floor is a
+  constraint on the product, not an implementation detail.
+* **`[metal.mesh]` names the target, not the present.** Tailscale being the live implementation and
+  headscale the goal means the SSOT currently declares only the destination. The live path is
+  unrepresented, which is why the audit found "no mesh transport" — it was looking for the target.
+* **Hyper-convergence is a union, not a menu.** A service is expected to be simultaneously
+  addressable on the mesh, schedulable by Kubernetes, storable on CephFS and HA-managed. Any one of
+  those being single-node caps all of them.
 
 ## Consequences
 

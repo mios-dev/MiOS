@@ -126,21 +126,22 @@ def render(data: dict) -> str:
     a("<!-- AI-related: usr/share/mios/mios.toml, usr/share/doc/mios/adr/"
       "0016-blade-node-topology.md, tools/generate-mini-vs-hosted.py -->")
     a("")
-    a("# Seat mode vs full host mode — what actually differs")
+    a("# Archetype modes — what a node running each one actually starts")
     a("")
-    a("**MiOS-Mini is the BOX; the archetype is the MODE it boots into** "
-      "(ADR-0016 D9). A MiOS-Mini is a hardware appliance — it owns NICs, "
-      "radios, TPM and boot storage, and is built to be a Wi-Fi access point, a "
-      "mesh/VPN router and a hyper-converged HA host for VMs and containers. "
-      "The same box can instead boot as a thin *seat* that offloads everything. "
-      "This page compares those two modes, not two products.")
+    a("**This page is NOT about MiOS-Mini** (ADR-0016 D9). A MiOS-Mini boots the "
+      "entire image, runs the AI plane, is an access point and a router at "
+      "once, and is its own cluster. \"Offload\" describes what it *can do* — "
+      "shed any service across the mesh to peer blades to scale or fail over — "
+      "not something it lacks. Two earlier revisions of this document said "
+      "otherwise and were wrong.")
     a("")
-    a("There is no separate Containerfile, tag or conditional bake for either "
-      "mode — both are the same OCI image, byte for byte. Seat mode is "
-      "`[blade].type = \"%s\"`, an archetype that grants no capabilities, plus "
-      "an `/etc/mios` overlay. Every difference below is a *runtime* difference." % SEAT)
+    a("What this page compares is two **archetypes**: `%s`, which grants no "
+      "capabilities, against the widest one. Seat mode is a posture any node "
+      "can take, not a product. Both are the same OCI image, byte for byte — "
+      "no separate Containerfile, tag or conditional bake — so every difference "
+      "below is a *runtime* difference." % SEAT)
     a("")
-    a("| Surface | Seat mode (`%s`) | Full host mode (`%s`) |" % (SEAT, full[0]))
+    a("| Surface | `%s` (grants nothing) | `%s` (widest) |" % (SEAT, full[0]))
     a("|---|---|---|")
     a("| Image | identical OCI image and tag | identical |")
     a("| Bake | every payload baked, including model weights | identical |")

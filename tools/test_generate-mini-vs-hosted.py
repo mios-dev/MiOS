@@ -67,18 +67,21 @@ class TestRendering(unittest.TestCase):
         for denial in ("no separate Containerfile", "tag or conditional bake"):
             self.assertIn(denial, text)
 
-    def test_mini_is_the_box_and_the_archetype_is_the_mode(self):
-        # ADR-0016 D9, corrected -- an earlier revision shipped the opposite
-        # claim. See TASKS.md T-331.
+    def test_it_disclaims_being_about_mini(self):
+        # ADR-0016 D9. TWO earlier revisions of this document defined MiOS-Mini
+        # and both were wrong -- first as the seat, then as a box whose other
+        # mode is a seat. Mini boots the entire image and runs the AI plane;
+        # "offload" is what it can SHED, not what it lacks. See T-331/T-335.
         text = mod.render(synthetic())
-        self.assertIn("MiOS-Mini is the BOX", text)
+        self.assertIn("NOT about MiOS-Mini", text)
         self.assertIn("D9", text)
-        self.assertNotIn("never an artifact", text)
+        for wrong in ("never an artifact", "MiOS-Mini is the BOX"):
+            self.assertNotIn(wrong, text)
 
-    def test_it_compares_modes_not_products(self):
+    def test_it_compares_archetypes_not_products(self):
         text = mod.render(synthetic())
-        self.assertIn("Seat mode", text)
-        self.assertIn("Full host mode", text)
+        self.assertIn("grants nothing", text)
+        self.assertIn("posture any node can take", text)
 
     def test_the_rendered_counts_are_the_derived_ones(self):
         d = synthetic(extra_gated=2)

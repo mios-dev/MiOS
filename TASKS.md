@@ -320,6 +320,7 @@
 | T-332 | P1 | planned | Docs/SSOT | MINI-04 -- One architecture, two documents, two names, both shipped (207 of 224 lines identical) |
 | T-333 | P0 | planned | Topology/SSOT | MINI-05 -- Every capability a MiOS-Mini is defined by is single-node or absent |
 | T-334 | P1 | done | Topology/SSOT | MINI-06 -- The fleet had no declared size, so nothing could see a one-node-only config |
+| T-335 | P0 | partial | Topology/SSOT | MINI-07 -- "Offload" means SHED, not thin; and the live mesh (Tailscale) is not installed |
 
 ---
 
@@ -3228,3 +3229,36 @@ Both are **accepted, not fixed**. Fixing them is the fleet design (T-333); this 
 **Done When:** met. 21 sibling tests; a 3-case negative test verified to fail for the RIGHT reason each time -- dropping a live hazard names the surviving one at its real file:line, raising the ceiling names the count, undeclaring `max_nodes` says the fleet has no declared size.
 **Status:** done
 **Why:** the two hazards are the ones from T-333 that stop being *missing* and start being *dangerous* at node 2. Everything else in that audit is absent and fails loudly; these two look fine and fail quietly. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-335 -- MINI-07: "offload" means SHED, and the live mesh is not installed  (WS-MINI | P0 | L)
+**Goal:** E-07 The requirement sentence must be read the way the operator meant it, and the implementation that is CURRENT must actually ship.
+**What+How:** The operator settled five open questions, and the answers invert the word the whole design was reasoned from.
+
+> *"Mini does run the AI plane. Mini is the full image. It just scales everything to the hosted containers, booted images to run the services. Mini is the fallback that moves the services across the mesh to other blades and nodes. It boots the entire image. It's all hosted as its own cluster."*
+
+**"Offload all services to hosted MiOS OCI image(s)" describes a CAPABILITY, not a deficit.** A Mini boots the entire image, runs the AI plane, and is its own cluster; it can *shed* any service across the mesh to peer blades to scale or fail over. That is ADR-0017 workload mobility read from the Mini's side. It was never a thin client.
+
+Two prior revisions of ADR-0016 D9 got this wrong in opposite directions and both shipped -- first "Mini is the seat", then "Mini is the box whose other mode is a seat". D9 is rewritten a third time, now from the operator's words rather than from a reading of one ambiguous sentence.
+
+| Question | Answer |
+|---|---|
+| AP or uplink? | **both** -- *"an access point and a router all at once"* |
+| Mesh | **Tailscale is current; Headscale is the target** |
+| Hyper-converged | every service can be a mesh member **and** a Kubernetes workload **and** a CephFS participant **and** under Cockpit HA -- a union, not a menu |
+| AI plane | **runs on the Mini** |
+| Cluster | *"all hosted as its own cluster"* -- one Mini is a complete cluster, peers join it |
+
+**The finding this produced, and it is the sharpest one yet: the CURRENT mesh implementation is not installed.** `automation/06-enable-external-repos.sh:121-124` drops `tailscale.repo` and the build installs nothing -- `tailscale` appears in no `[packages.<section>].pkgs`, no unit, and no Quadlet. A booted Mini has the repo configured and no `tailscale` binary.
+
+That is a **Law 12 (BAKE-NOT-FETCH) violation with a circular dependency**: the mesh would have to be fetched at first boot over the network the mesh exists to provide. It is also why the capability audit reported "no mesh transport" -- it searched for `headscale` and `wireguard`, which are the *target*, and the live path is a repo file with nothing behind it.
+
+**What else the answers invalidate:**
+* **AP + uplink needs two radios** (or a wired WAN plus one). `hostapd` and a station-mode uplink cannot share a radio. That is a hardware floor on the product, not an implementation detail, and nothing in the SSOT expresses a radio count.
+* **`[metal.mesh]` declares only the destination.** `headscale_domain` and `vnet_cidr` describe the target; the live Tailscale path is unrepresented in the SSOT, so nothing can gate or configure it.
+* **Hyper-convergence is a union, so the weakest member caps all of them.** A service is expected to be simultaneously mesh-addressable, Kubernetes-schedulable, CephFS-backed and HA-managed. Ceph is MON-only single-node (T-333), k3s is server-on-every-node (T-334), Pacemaker is one-node unfenced (T-334) -- so the union is currently capped at one node by three independent limits.
+* **The AI plane on the Mini contradicts the split-plane document**, which puts `ROCm/CUDA · k3s · ceph · desktop` in a super-privileged GUEST and leaves the host owning only metal. Consistent only if "Mini" means the whole box, host plane plus guest -- which is what T-331 concluded. Worth stating in that doc rather than leaving the reader to reconcile it.
+
+**Where:** `usr/share/doc/mios/adr/0016-blade-node-topology.md` (D9, third revision), `tools/generate-mini-vs-hosted.py` + its test, `usr/share/doc/mios/reference/mini-vs-hosted.md`, `automation/06-enable-external-repos.sh`, `usr/share/mios/mios.toml` (`[packages.*]`, `[metal.mesh]`).
+**Done When:** D9 states the operator's definition (**done**); the generated comparison stops claiming to define MiOS-Mini (**done**); Tailscale is BAKED rather than repo-dropped, with a unit and an SSOT key, so a Mini can reach its mesh without first reaching the network; the radio floor is expressed; and the split-plane doc says whether "Mini" is the host plane or the whole box.
+**Status:** partial
+**Why:** every architectural conclusion this session was reasoned from "offload = Mini is thin". The seat archetype work stands on its own, but the product it was attributed to does not exist -- and the one implementation the operator calls CURRENT turns out to ship as a repo file with nothing behind it. | **Domain:** Topology/SSOT | **Who:** architect
