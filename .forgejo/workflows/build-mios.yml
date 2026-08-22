@@ -46,6 +46,15 @@ jobs:
           # pushed state into the runner's job workspace. The
           # /Containerfile in that workspace is what podman build consumes.
 
+      - name: Enforce generated SSOT synchronization (sync-generated.sh)
+        run: |
+          bash ./tools/sync-generated.sh
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "ERROR: The following generated artifacts are out of sync with SSOT:" >&2
+            git status --porcelain >&2
+            exit 1
+          fi
+
       # WS-0A drift gate: source-tree fitness-functions, run before the bake so
       # un-wired SSOT keys / broken orchestration leaves fail fast. Mirrors the
       # post-build sub-phases in automation/build.sh and `just drift-gate`.

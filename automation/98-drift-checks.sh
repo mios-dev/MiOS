@@ -6091,6 +6091,7 @@ main() {
     check_hummingbird
     check_container_ports
     check_bootstrap_ports_drift
+    check_bootstrap_sync
     check_agent_pipe_budgets
     check_no_bare_port_literals
     check_dotfiles_projection
@@ -7663,6 +7664,21 @@ PYEOF
     )"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_blade_reconcile_schema: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+
+# Law 15 mirror: mios.toml [bootstrap.sync]. Authority is mios.git.
+check_bootstrap_sync() {
+    echo "[98-drift-checks]   check_bootstrap_sync"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
+            --root "$ROOT" --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_bootstrap_sync: $line"
         done <<<"$out"
         return
     fi
