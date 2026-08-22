@@ -310,7 +310,7 @@
 | T-322 | P1 | done | Docs/SSOT | MINI-01 -- The seat-vs-blade comparison is generated from the SSOT, so it cannot go stale |
 | T-323 | P1 | done | Topology/SSOT | MINI-02 -- A seat could not tell an unreachable blade from a broken model |
 | T-324 | P1 | planned | Naming/Addressing | ADDR-05 -- Retired ports live on in shipped units and Quadlets; the sweep only scans docs |
-| T-325 | P0 | planned | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
+| T-325 | P0 | done | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
 
 ---
 
@@ -2992,25 +2992,40 @@ That last row is why this is its own task and not a drive-by. `8432` is in `[doc
 **Done When:** the retired-port sweep covers `usr/lib/systemd/system/**` and `usr/share/containers/systemd/**`; the six non-comment sites are resolved or justified; the host-vs-container-internal ambiguity on `8432` is settled in the SSOT rather than in a unit comment; comment-only occurrences are either rewritten to port KEYS or registered as shrink-only debt.
 **Why:** T-316 and T-320 both found retired ports in EXECUTABLE positions, and both were found by hand. The gate that exists to catch them cannot see the tree where they live. | **Domain:** Naming/Addressing | **Who:** build agent
 
-## T-325 -- SEC-01: the seat's tenancy boundary cannot be switched on  (WS-GUARD | P0 | M)
+## T-325 -- SEC-01: the seat's tenancy boundary could not be switched on  (WS-GUARD | P0 | M)
 **Goal:** E-04 A security control that cannot be turned on is not a control -- the SSOT key a consumer reads must be the key the SSOT declares.
-**What+How:** MEASURED while grilling the MiOS-Mini/hosted difference. `[security.nohc_allowlist]` opens at `mios.toml:2474` and **is never closed**, so 17 keys that follow it are parsed as members of the allowlist rather than of `[security]`:
+**What+How:** MEASURED while grilling the MiOS-Mini/hosted difference, and it was worse than first recorded. `[security.nohc_allowlist]` opened at `mios.toml:2474` and **never closed**, so 15 keys below it parsed into the allowlist rather than `[security]`. A second runaway header, `[laws.projection_registry]`, swallowed two more. Every consumer reads `[security].<key>`, so every one of them silently took its compiled default:
 
-`rule_of_two_mode`, `quarantine_mode`, `api_require_auth`, `api_caller_keys_path`, `principal_bind_mode`, `firewall_high_privilege_verbs`, `taint_verbs`, `text_view_taint_prefixes`, `internal_tld_suffixes`, `arbiter_deny`, `arbiter_allow`, `arbiter_block_tier`, `arbiter_port`, `principal_mode`, `token_ttl_s`, `composefs_mode`, `mask_systemd_remount_fs`.
-
-Two of those consumers read the OTHER table:
-
-| consumer | reads | resolves to |
+| control | consumer | was |
 |---|---|---|
-| `usr/lib/mios/agent-pipe/server.py:772` | `_toml_section("security").get("api_require_auth", "false")` | the literal default -- the key is one level down |
-| `usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py:551` | `_toml_section("security").get("principal_bind_mode", "off")` | the literal default, same reason |
+| `api_require_auth` | `server.py:774` | always `false` -- the front-door bearer gate could not be turned on |
+| `principal_bind_mode` | `context/grounding.py:551` | always `off` -- the owner of a memory row could not be bound to an authenticated caller |
+| `rule_of_two_mode` | `server.py:2629` | always `off` -- the Rule-of-Two prompt-injection gate |
+| `quarantine_mode` | `server.py:2635` | always `off` -- the CaMeL dual-context quarantine |
+| `firewall_high_privilege_verbs` | `server.py:2595` | compiled list -- the semantic firewall's verb set |
+| `taint_verbs`, `text_view_taint_prefixes` | `server.py:2598,3990` | compiled defaults -- what taints a session |
+| `internal_tld_suffixes` | `server.py:3992` | compiled default |
+| `api_caller_keys_path` | `server.py:778` | compiled default |
+| `allowlist_hosts` | `server.py:2606` via `MIOS_SECURITY_ALLOWLIST_HOSTS` | the resolver emitted `MIOS_LAWS_PROJECTION_REGISTRY_ALLOWLIST_HOSTS`; **the name the code reads was emitted by nothing** |
+| `provenance_taint` | `server.py:2624` | always `false` |
 
-So `api_require_auth = true` in the SSOT does nothing, and `principal_bind_mode` can never leave `off`. The env escape hatches (`MIOS_API_REQUIRE_AUTH`, and grounding's equivalent) are not emitted by `tools/render-globals.py` either, so an operator's only route is a hand-written systemd drop-in.
+The misfiling is documented in the file itself: a comment above the duplicated `composefs_mode` read *"moved here to dedupe the second `[security]` section (strict TOML parsers reject duplicate sections)"*. Someone hit exactly this, deleted the second `[security]` header, moved one key -- and orphaned every other key under the header that was still open.
 
-The misfiling is provably accidental: `composefs_mode` and `mask_systemd_remount_fs` exist in BOTH `[security]` and `[security.nohc_allowlist]` -- someone appended below the allowlist header and re-declared the twins rather than noticing the header was still open.
+**Fixed:** the 17 keys are relocated into `[security]`; the two duplicate `composefs_mode`/`mask_systemd_remount_fs` declarations are deleted; `[security.nohc_allowlist]` now holds only its own `exempt_files`/`exempt_patterns`, and `[laws.projection_registry]` only `surfaces`. Both moves were validated by deep-comparing the parsed document before and after against an expected relocation, so an accidental extra edit could not pass. No `MIOS_SECURITY_NOHC_ALLOWLIST_*` name was referenced anywhere, so nothing broke; `allowlist_hosts` moving actually CLOSES a Law-9 hole, since the emitted name is now the name the code reads.
+**Gate (the real deliverable):** `tools/check-ssot-consumer-keys.py` -- gate 177. It scans shipped Python for `_toml_section("<t>").get("<k>")` and asserts `<t>.<k>` exists. A key declared elsewhere in the SSOT is **MISPLACED** (one side has the wrong path); one declared nowhere is **UNDECLARED** (an optional escape hatch, or a dead read). `[ssot_consumers].unresolved` is the shrink-only register with a `max_unresolved` ratchet. 19 sibling tests, a 3-case negative test. Renaming `api_require_auth` out from under its consumer now fails with `security.api_require_auth is read at usr/lib/mios/agent-pipe/server.py:774 and is declared NOWHERE in the SSOT`.
+**Where:** `usr/share/mios/mios.toml`, `tools/check-ssot-consumer-keys.py` + `tools/test_check-ssot-consumer-keys.py`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`.
+**Done When:** met. The 17 keys sit where their consumers read them; the duplicates are gone; the gate exists and is registered; `MIOS_SECURITY_ALLOWLIST_HOSTS` is emitted under the name the code reads.
+**Status:** done
 
-**Why this is P0 for the blade topology, not just tidiness.** On a fully hosted single machine every one of these services is loopback and single-tenant, so an ungated front door costs little. A MiOS-Mini seat inverts that: `MIOS_AI_ENDPOINT` points off-box by design, many seats share one blade, and `owner_user` -- the row-scope on the shared pgvector memory -- is derived from the request body's `user` field plus forwarded headers, both settable by any direct caller. `principal_bind_mode = enforce` is the control that binds that owner to an authenticated key. It is the seat topology's ONLY tenancy boundary, and it is unreachable.
-**Where:** `usr/share/mios/mios.toml` (`[security.nohc_allowlist]` at 2474 and everything below it), `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_pipe/context/grounding.py`, `tools/render-globals.py`, `automation/98-drift-checks.sh`.
-**Done When:** the 17 keys sit in the table their consumers read; the duplicate `composefs_mode`/`mask_systemd_remount_fs` declarations are resolved to one each; a gate asserts that every `_toml_section("<t>").get("<k>")` in shipped Python resolves to a key that actually exists at `<t>.<k>` in the SSOT -- that gate is the real deliverable, since this class is invisible by construction; and `MIOS_SECURITY_*` emission covers the moved keys so the env override is wired rather than folklore.
-**Note:** moving the keys does NOT turn anything on -- `api_require_auth` stays `false` and `principal_bind_mode` stays `off`. It makes them switchable. Flipping either is an operator decision about front-door posture, and the SSOT already says so.
-**Why:** the tree's recurring defect class, one level deeper than usual: not a gate reporting success over the wrong set, but a CONSUMER reading the wrong set, so the SSOT and the code disagree in silence and every test that stubs the value passes. | **Domain:** Security/Federation | **Who:** architect
+**Standing: 19 unresolved reads -> 9**, all registered, none of them a security control:
+
+| pair | kind | direction of the fix |
+|---|---|---|
+| `pgvector.memory_provider`, `pgvector.memory_guard_mode`, `pgvector.memguard_judge_mode` | MISPLACED -> `offline.*` | decide whether the memory guard is an `[offline]` concern or a `[pgvector]` one; moving changes emitted `MIOS_OFFLINE_*` names, so check references first |
+| `ai.micro_model`, `ai.micro_endpoint` | MISPLACED -> `ai.host_thresholds.*` | the micro lane's model/endpoint are not host thresholds; likely the same runaway-header shape |
+| `agent_passport.principal_mode` | MISPLACED -> `security.principal_mode` | the SSOT's own comment says the A2A federation reads `[agent_passport].principal_mode`; the key is in `[security]` |
+| `security` under `[a2a]` | UNDECLARED | an optional override -- absent means the default bearer scheme. Either declare it or note that absence is the contract |
+| `ai.permission_tiers` | UNDECLARED | `access/policy.py:97` -- verify whether the tier table is meant to be operator-tunable |
+| `computer_use.hidpi_scale_factor` | UNDECLARED | `server.py:4306` -- a display scale factor is exactly the kind of thing Law 7 says belongs in the SSOT |
+
+**Why:** the tree's recurring defect class, one level deeper than usual. Not a gate reporting success over the wrong set, but a CONSUMER reading the wrong set -- so the SSOT and the code disagree in silence, and every test that stubs the value passes. Nothing about a seat is safe to reason about until the controls that bound it are reachable. | **Domain:** Security/Federation | **Who:** architect

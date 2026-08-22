@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_unit_projection, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_unit_projection, test_ssot_consumer_keys, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,49 @@ test_account_column_parity() {
 }
 
 
+test_ssot_consumer_keys() {
+    log "Testing check_ssot_consumer_keys"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak="${toml}.sckbak"
+    cp "$toml" "$bak"
+
+    _sck_run() {
+        env MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" \
+            MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+            bash "${ROOT}/automation/98-drift-checks.sh" check_ssot_consumer_keys \
+            >/dev/null 2>&1
+    }
+    _sck_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _sck_run _sck_fail; die "$1"; }
+
+    # (1) Breaking a key a consumer reads must FAIL. Renaming [security]'s
+    # api_require_auth is exactly the T-325 defect, re-created.
+    sed -i '0,/^api_require_auth /s//api_require_auth_RENAMED /' "$toml"
+    _sck_run && _sck_fail "check_ssot_consumer_keys passed with api_require_auth renamed out from under its consumer"
+    cp "$bak" "$toml"
+
+    # (2) Raising the ceiling to absorb the new breakage must FAIL too.
+    sed -i '0,/^api_require_auth /s//api_require_auth_RENAMED /' "$toml"
+    sed -i 's/^max_unresolved = [0-9]*$/max_unresolved = 999/' "$toml"
+    _sck_run && _sck_fail "check_ssot_consumer_keys passed with the ceiling raised"
+    cp "$bak" "$toml"
+
+    # (3) Deleting the register must FAIL rather than read as "no breakage".
+    python3 - "$toml" <<'PYX'
+import io, re, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+s = re.sub(r'\[ssot_consumers\]\n.*?\n\]\n', '', s, count=1, flags=re.S)
+io.open(p, "w", encoding="utf-8", newline="\n").write(s)
+PYX
+    _sck_run && _sck_fail "check_ssot_consumer_keys passed with [ssot_consumers] absent"
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _sck_run || { unset -f _sck_run _sck_fail; die "check_ssot_consumer_keys failed after restoration"; }
+    unset -f _sck_run _sck_fail
+
+    log "Test_ssot_consumer_keys negative test passed"
+}
+
 test_unit_projection() {
     log "Testing check_unit_projection"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3275,6 +3318,7 @@ main() {
     test_node_pool
     test_mini_vs_hosted
     test_unit_projection
+    test_ssot_consumer_keys
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

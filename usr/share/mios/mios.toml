@@ -75,6 +75,25 @@ open_ports = [
 
 
 # ----------------------------------------------------------------------------
+# [ssot_consumers] -- Shrink-only register: config keys a consumer reads that
+# the SSOT does not declare at that path.
+# ----------------------------------------------------------------------------
+[ssot_consumers]
+doc = "Shipped Python reads config as _toml_section(\"<table>\").get(\"<key>\"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys."
+max_unresolved = 9
+unresolved = [
+  "a2a.security",                      # MISPLACED -> packages.security/security
+  "agent_passport.principal_mode",     # MISPLACED -> agents._defaults.auth.principal_mode/security.principal_mode
+  "ai.micro_endpoint",                 # MISPLACED -> ai.host_thresholds.micro_endpoint
+  "ai.micro_model",                    # MISPLACED -> ai.host_thresholds.micro_model
+  "ai.permission_tiers",               # UNDECLARED
+  "computer_use.hidpi_scale_factor",   # UNDECLARED
+  "pgvector.memguard_judge_mode",      # MISPLACED -> offline.memguard_judge_mode
+  "pgvector.memory_guard_mode",        # MISPLACED -> offline.memory_guard_mode
+  "pgvector.memory_provider",          # MISPLACED -> offline.memory_provider
+]
+
+# ----------------------------------------------------------------------------
 # [unit_projection] -- Shrink-only debt register for the [units] projection.
 # ----------------------------------------------------------------------------
 [unit_projection]
@@ -1646,6 +1665,222 @@ enable_units = [
 composefs_mode = "verity"
 mask_systemd_remount_fs = true
 
+
+# The keys below were ORPHANED under [security.nohc_allowlist]: that header
+# opened and never closed, so every consumer reading [security].<key> took its
+# compiled default instead. Gate: check_ssot_consumer_keys. See TASKS.md T-325.
+# F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
+# (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
+# the single dispatch chokepoint. A verb dispatch may hold AT MOST TWO of three
+# dangerous properties without human review:
+#   A  untrusted-input  -- the session ingested attacker-controllable content (the
+#                          existing provenance-taint chain above);
+#   B  sensitive-access -- the verb READS sensitive/private/cross-tenant data (the
+#                          per-verb `sensitive = true` flag below);
+#   C  state-change     -- the verb mutates state / has side-effects (the verb's
+#                          `permission` tier: write/interactive, derived via the same
+#                          tier->confinement policy the sandbox uses).
+# When ALL THREE hold, the chain is the classic prompt-injection kill-chain (untrusted
+# text -> reads secrets -> exfiltrates/acts) and is gated. Composes the EXISTING taint
+# + permission signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on all-three, LOG a structured audit event + proceed
+#                        (observe before you enforce; non-blocking).
+#   enforce           -- on all-three, route to HITL review / BLOCK (fail-safe: a
+#                        3-property chain requires a human; an out-of-band approval
+#                        lets the exact action through). Composes with the firewall +
+#                        HITL gates -- the STRICTER outcome wins.
+# DEFAULT off because a 3-property block reduces autonomous function -- opt in, then
+# validate the `sensitive = true` classification for the deployment. Env override:
+# MIOS_SECURITY_RULE_OF_TWO_MODE.
+rule_of_two_mode = "off"
+
+# F2 -- the CaMeL DUAL-CONTEXT QUARANTINE gate (Debenedetti et al., "Defeating Prompt
+# Injections by Design"), the deeper half of the prompt-injection defense and a STRICTER
+# superset of rule_of_two_mode above. The CaMeL principle: untrusted/attacker-
+# controllable content (web/file/tool output that TAINTS the session, axis A above) must
+# not be able to make the privileged action-planner take a PRIVILEGED action it would not
+# otherwise -- where "privileged" means the verb either READS sensitive data (axis B,
+# `sensitive = true`) OR mutates state / has side-effects (axis C, the write/interactive
+# permission tier). The boundary BITES when the session is TAINTED *and* the verb is
+# privileged (B OR C). Where rule_of_two_mode gates only the all-three chain (A AND B AND
+# C), quarantine-enforce ADDITIONALLY gates the tainted + (B OR C) case -- the posture for
+# full CaMeL isolation: untrusted-content-derived privileged actions cannot fire
+# autonomously; a human (or a non-tainted plan) must authorize them. Composes the SAME
+# EXISTING taint + permission + sensitive signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on a bite (tainted + privileged), LOG a structured audit event +
+#                        proceed (observe before you enforce; non-blocking). Use this to
+#                        measure how often untrusted content drives privileged actions.
+#   enforce           -- on a bite, route through mios_hitl.decide to HITL review / BLOCK
+#                        (fail-safe; an out-of-band or same-turn approval lets the exact
+#                        action through). Sits at the SAME single dispatch chokepoint as
+#                        the firewall + HITL + Rule-of-Two gates -- the STRICTER outcome
+#                        wins, so there is no second action path that bypasses it.
+# DEGRADE-OPEN (not-crash) but FAIL-SAFE (security): an error computing the boundary falls
+# back to the existing firewall/HITL/Rule-of-Two behaviour (never crash, never newly-open);
+# a confirmed tainted+privileged under enforce gates (fail toward safety). DEFAULT off
+# because the stricter block reduces autonomous function -- opt in for full CaMeL
+# isolation. Env override: MIOS_SECURITY_QUARANTINE_MODE.
+quarantine_mode = "off"
+
+# FED-G1 INBOUND AUTH GATE. The agent-pipe front door
+# (:8700 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
+# middleware gates those paths: a request must present the canonical shared key
+# (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
+# OR a per-caller key from `api_caller_keys_path` -> a scoped principal stashed for
+# RBAC. Discovery/health (`/v1/models`, agent-card, passport, `/health`,
+# `/v1/cluster/health`) stay OPEN so an unauth'd peer can still learn how to auth.
+# DEFAULT FALSE -> the middleware is a pass-through (byte-identical behaviour). Turn
+# ON only with a loopback or firewall-scoped (172.16/12) bind -- it changes the
+# front-door auth posture (operator-greenlight). The federation JOIN contract
+# (FED-G6/G8) enforces per-peer scope once peers are keyed.
+api_require_auth     = false
+api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
+
+# VERIFIED PRINCIPAL BINDING (multi-tenant security FOUNDATION). The owner used for
+# per-owner memory row-scoping (`owner_user`) is derived in _client_env from the
+# request-body `user` field + the forwarded x-openwebui-user-* HEADERS -- both
+# spoofable by a direct :8700 caller (set "user":"victim"). This setting binds that
+# owner to the AUTHENTICATED caller-key instead. Each entry in `api_caller_keys_path`
+# MAY carry an `account` field (alias `owner`) naming the account that key speaks for
+# (an `account` row in postgres/schema-init.sql). The canonical shared / ingress key
+# has NO bound account (it is the full-trust gateway credential) -> the forwarded
+# user is used as-is; that is how the OWUI gateway keeps per-user identity (OWUI
+# authenticates each user and forwards it, so the gateway is trusted to speak for
+# whichever user it forwards).
+#   off     (default) -- NO binding: trust the body/header user exactly as today
+#                        (BYTE-IDENTICAL behaviour). Single-user / trusted callers.
+#   verify            -- observe mode: resolve the caller-key's bound account; if it
+#                        MISMATCHES the body/header user, audit-log it (structured,
+#                        non-blocking) but STILL use the forwarded value (no behaviour
+#                        change -- visibility before enforcement).
+#   enforce           -- the token-bound account IS the owner: a spoofable body/header
+#                        user is overridden by the verified identity for row-scoping.
+# DEGRADE-OPEN everywhere: no token / an unbound key / a missing mapping / any error
+# -> off behaviour, so a turn is never broken and OWUI is never locked out. Pair with
+# api_require_auth = true (which actually REQUIRES a credential) for full multi-tenant
+# isolation -- binding alone identifies the owner; the gate decides who may connect.
+# Env override: MIOS_PRINCIPAL_BIND_MODE.
+principal_bind_mode  = "off"
+
+# Verbs whose dispatch is REFUSED when the session is tainted
+# (Phase A.3 / B.3 Semantic Firewall). These cause visible system
+# effects -- restarting services, injecting input into Win32 GUI
+# windows, restarting containers -- so the firewall blocks them
+# when an upstream tool_call in the same session was tainted.
+# Operator can add custom verbs to this list (e.g. when shipping
+# a new privileged shim) without touching agent-pipe code.
+firewall_high_privilege_verbs = [
+    "service_restart",
+    "container_restart",
+    "pc_type",
+    "pc_key",
+    "pc_click",
+    # Native text-editor write verbs -- tainted sessions can't
+    # craft them to drop payloads onto operator paths.
+    "text_create",
+    "text_str_replace",
+    "text_insert",
+    # Single most dangerous verb in the catalog: arbitrary
+    # Windows-side script execution. Always firewall-gated.
+    "powershell_run",
+    # Window-state verbs (D.3 PC-control template) -- tainted
+    # sessions moving / hiding operator windows is the kind of
+    # thing the firewall should refuse pre-clear.
+    "minimize_window",
+    "maximize_window",
+    "restore_window",
+    "resize_window",
+    "position_window",
+    # Package management WRITE verbs (D.4). Either platform's
+    # install path can land arbitrary code on the operator's
+    # machine -- tainted sessions are refused.
+    "winget_install",
+    "winget_upgrade",
+    "winget_uninstall",
+    "flatpak_install",
+    "flatpak_upgrade",
+    "flatpak_uninstall",
+]
+# WS-A14: verbs whose OWN execution introduces session taint (downstream
+# high-privilege verbs then get firewall-checked). UNIONED with the built-in
+# external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
+# add a verb here to taint on it without a code change. Empty by default.
+taint_verbs = []
+# Path prefixes whose text_view READ taints the session (the agent is reading
+# content it did not author, so downstream high-privilege verbs in the same
+# session get firewall-gated). This is the SAME write-protected prefix set the
+# native text editor refuses writes to, so a tainting read and a denied write
+# stay in lock-step -- keep it aligned with the editor's denied-write prefixes.
+text_view_taint_prefixes = [
+    "/etc/",
+    "/usr/",
+    "/boot/",
+    "/sys/",
+    "/proc/",
+    "/dev/",
+    "/mnt/c/Windows/",
+    "/mnt/c/Program Files/",
+    "/mnt/c/Program Files (x86)/",
+]
+# Host suffixes treated as the operator's OWN (internal) infrastructure: a URL
+# whose host ends with one of these is NOT a taint source (the *.local / *.lan
+# split-horizon + explicit internal zone). Single-label bare hostnames (no dot)
+# are also treated as internal by the classifier.
+internal_tld_suffixes = [".local", ".lan", ".internal"]
+# WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
+# arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
+# [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
+# arbiter permits everything until the operator sets a deny-list / block-tier.
+# Bridged to the service as MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER.
+arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
+arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
+arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
+arbiter_port       = 8760      # loopback port mios-policy-arbiter listens on
+# WS-A10 verified-caller principal (edge identity) -- RESERVED / aspirational.
+# This scoped-token gate ("verify" = require a valid scoped token, "enforce" =
+# verify + 401) was never wired into the inbound path; its token mint/verify core
+# was removed as dead. The IMPLEMENTED inbound-principal handling lives elsewhere:
+# [security].api_require_auth (bearer gate), [security].principal_bind_mode (owner
+# binding -> RLS, in mios_grounding), and [agent_passport].principal_mode (A2A
+# federation, in mios_a2a). Leave "off" unless/until the scoped-token path is
+# built. token_ttl_s = intended scoped-token lifetime. Env: MIOS_PRINCIPAL_MODE /
+# MIOS_TOKEN_TTL_S. Revocation: mios_crl (live, used by mios_a2a key-revoke).
+principal_mode     = "off"
+token_ttl_s        = 3600
+# ----------------------------------------------------------------------------
+# Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
+# allowlist. Hosts in this list are TRUSTED -- open_url to one of
+# these does NOT taint the session. Anything outside this list +
+# the compiled-in *.local / *.lan / single-label heuristic is
+# treated as external and contributes session taint, which gates
+# subsequent high-privilege verbs (in `firewall_high_privilege_verbs`
+# below). Operator can extend per deployment (LAN hosts, internal
+# SaaS, etc.) without touching code. CSV-form in the env (the
+# userenv.sh slot map flattens these lists).
+allowlist_hosts = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "host.containers.internal",
+    "mios-llm-light",
+    "mios-open-webui",
+    "mios-hermes",
+    "mios-pgvector",
+    "mios-forge",
+    "mios-searxng",
+    "mios-crawl4ai",
+    "mios-code-server",
+]
+
+# AIOS gap8: also taint EXTERNAL web fetches (web_search/web_extract/crawl/
+# web_scrape) so untrusted web content gates subsequent high-privilege verbs
+# (research-then-act) via the firewall below. DEFAULT FALSE -- gating reduces
+# autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
+# (RAG runs every turn -> tainting it would block all OS-control).
+provenance_taint = false
+
 # [security.credential_literals] -- Law-11 extension: default credentials still
 # baked into world-readable units. SHRINK-ONLY; T-175 rotates them to
 # /etc/mios/secrets.env (gate: check_credential_literals).
@@ -2410,37 +2645,6 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
 ]
 
-# ----------------------------------------------------------------------------
-# Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
-# allowlist. Hosts in this list are TRUSTED -- open_url to one of
-# these does NOT taint the session. Anything outside this list +
-# the compiled-in *.local / *.lan / single-label heuristic is
-# treated as external and contributes session taint, which gates
-# subsequent high-privilege verbs (in `firewall_high_privilege_verbs`
-# below). Operator can extend per deployment (LAN hosts, internal
-# SaaS, etc.) without touching code. CSV-form in the env (the
-# userenv.sh slot map flattens these lists).
-allowlist_hosts = [
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "host.containers.internal",
-    "mios-llm-light",
-    "mios-open-webui",
-    "mios-hermes",
-    "mios-pgvector",
-    "mios-forge",
-    "mios-searxng",
-    "mios-crawl4ai",
-    "mios-code-server",
-]
-
-# AIOS gap8: also taint EXTERNAL web fetches (web_search/web_extract/crawl/
-# web_scrape) so untrusted web content gates subsequent high-privilege verbs
-# (research-then-act) via the firewall below. DEFAULT FALSE -- gating reduces
-# autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
-# (RAG runs every turn -> tainting it would block all OS-control).
-provenance_taint = false
 
 [security.sigstore]
 cosign_major = 2
@@ -2524,197 +2728,6 @@ exempt_patterns = [
     ":8283"
 ]
 
-# F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
-# (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
-# the single dispatch chokepoint. A verb dispatch may hold AT MOST TWO of three
-# dangerous properties without human review:
-#   A  untrusted-input  -- the session ingested attacker-controllable content (the
-#                          existing provenance-taint chain above);
-#   B  sensitive-access -- the verb READS sensitive/private/cross-tenant data (the
-#                          per-verb `sensitive = true` flag below);
-#   C  state-change     -- the verb mutates state / has side-effects (the verb's
-#                          `permission` tier: write/interactive, derived via the same
-#                          tier->confinement policy the sandbox uses).
-# When ALL THREE hold, the chain is the classic prompt-injection kill-chain (untrusted
-# text -> reads secrets -> exfiltrates/acts) and is gated. Composes the EXISTING taint
-# + permission signals -- no new keyword classifier. Modes:
-#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
-#   audit             -- on all-three, LOG a structured audit event + proceed
-#                        (observe before you enforce; non-blocking).
-#   enforce           -- on all-three, route to HITL review / BLOCK (fail-safe: a
-#                        3-property chain requires a human; an out-of-band approval
-#                        lets the exact action through). Composes with the firewall +
-#                        HITL gates -- the STRICTER outcome wins.
-# DEFAULT off because a 3-property block reduces autonomous function -- opt in, then
-# validate the `sensitive = true` classification for the deployment. Env override:
-# MIOS_SECURITY_RULE_OF_TWO_MODE.
-rule_of_two_mode = "off"
-
-# F2 -- the CaMeL DUAL-CONTEXT QUARANTINE gate (Debenedetti et al., "Defeating Prompt
-# Injections by Design"), the deeper half of the prompt-injection defense and a STRICTER
-# superset of rule_of_two_mode above. The CaMeL principle: untrusted/attacker-
-# controllable content (web/file/tool output that TAINTS the session, axis A above) must
-# not be able to make the privileged action-planner take a PRIVILEGED action it would not
-# otherwise -- where "privileged" means the verb either READS sensitive data (axis B,
-# `sensitive = true`) OR mutates state / has side-effects (axis C, the write/interactive
-# permission tier). The boundary BITES when the session is TAINTED *and* the verb is
-# privileged (B OR C). Where rule_of_two_mode gates only the all-three chain (A AND B AND
-# C), quarantine-enforce ADDITIONALLY gates the tainted + (B OR C) case -- the posture for
-# full CaMeL isolation: untrusted-content-derived privileged actions cannot fire
-# autonomously; a human (or a non-tainted plan) must authorize them. Composes the SAME
-# EXISTING taint + permission + sensitive signals -- no new keyword classifier. Modes:
-#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
-#   audit             -- on a bite (tainted + privileged), LOG a structured audit event +
-#                        proceed (observe before you enforce; non-blocking). Use this to
-#                        measure how often untrusted content drives privileged actions.
-#   enforce           -- on a bite, route through mios_hitl.decide to HITL review / BLOCK
-#                        (fail-safe; an out-of-band or same-turn approval lets the exact
-#                        action through). Sits at the SAME single dispatch chokepoint as
-#                        the firewall + HITL + Rule-of-Two gates -- the STRICTER outcome
-#                        wins, so there is no second action path that bypasses it.
-# DEGRADE-OPEN (not-crash) but FAIL-SAFE (security): an error computing the boundary falls
-# back to the existing firewall/HITL/Rule-of-Two behaviour (never crash, never newly-open);
-# a confirmed tainted+privileged under enforce gates (fail toward safety). DEFAULT off
-# because the stricter block reduces autonomous function -- opt in for full CaMeL
-# isolation. Env override: MIOS_SECURITY_QUARANTINE_MODE.
-quarantine_mode = "off"
-
-# FED-G1 INBOUND AUTH GATE. The agent-pipe front door
-# (:8700 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
-# middleware gates those paths: a request must present the canonical shared key
-# (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
-# OR a per-caller key from `api_caller_keys_path` -> a scoped principal stashed for
-# RBAC. Discovery/health (`/v1/models`, agent-card, passport, `/health`,
-# `/v1/cluster/health`) stay OPEN so an unauth'd peer can still learn how to auth.
-# DEFAULT FALSE -> the middleware is a pass-through (byte-identical behaviour). Turn
-# ON only with a loopback or firewall-scoped (172.16/12) bind -- it changes the
-# front-door auth posture (operator-greenlight). The federation JOIN contract
-# (FED-G6/G8) enforces per-peer scope once peers are keyed.
-api_require_auth     = false
-api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
-
-# VERIFIED PRINCIPAL BINDING (multi-tenant security FOUNDATION). The owner used for
-# per-owner memory row-scoping (`owner_user`) is derived in _client_env from the
-# request-body `user` field + the forwarded x-openwebui-user-* HEADERS -- both
-# spoofable by a direct :8700 caller (set "user":"victim"). This setting binds that
-# owner to the AUTHENTICATED caller-key instead. Each entry in `api_caller_keys_path`
-# MAY carry an `account` field (alias `owner`) naming the account that key speaks for
-# (an `account` row in postgres/schema-init.sql). The canonical shared / ingress key
-# has NO bound account (it is the full-trust gateway credential) -> the forwarded
-# user is used as-is; that is how the OWUI gateway keeps per-user identity (OWUI
-# authenticates each user and forwards it, so the gateway is trusted to speak for
-# whichever user it forwards).
-#   off     (default) -- NO binding: trust the body/header user exactly as today
-#                        (BYTE-IDENTICAL behaviour). Single-user / trusted callers.
-#   verify            -- observe mode: resolve the caller-key's bound account; if it
-#                        MISMATCHES the body/header user, audit-log it (structured,
-#                        non-blocking) but STILL use the forwarded value (no behaviour
-#                        change -- visibility before enforcement).
-#   enforce           -- the token-bound account IS the owner: a spoofable body/header
-#                        user is overridden by the verified identity for row-scoping.
-# DEGRADE-OPEN everywhere: no token / an unbound key / a missing mapping / any error
-# -> off behaviour, so a turn is never broken and OWUI is never locked out. Pair with
-# api_require_auth = true (which actually REQUIRES a credential) for full multi-tenant
-# isolation -- binding alone identifies the owner; the gate decides who may connect.
-# Env override: MIOS_PRINCIPAL_BIND_MODE.
-principal_bind_mode  = "off"
-
-# Verbs whose dispatch is REFUSED when the session is tainted
-# (Phase A.3 / B.3 Semantic Firewall). These cause visible system
-# effects -- restarting services, injecting input into Win32 GUI
-# windows, restarting containers -- so the firewall blocks them
-# when an upstream tool_call in the same session was tainted.
-# Operator can add custom verbs to this list (e.g. when shipping
-# a new privileged shim) without touching agent-pipe code.
-firewall_high_privilege_verbs = [
-    "service_restart",
-    "container_restart",
-    "pc_type",
-    "pc_key",
-    "pc_click",
-    # Native text-editor write verbs -- tainted sessions can't
-    # craft them to drop payloads onto operator paths.
-    "text_create",
-    "text_str_replace",
-    "text_insert",
-    # Single most dangerous verb in the catalog: arbitrary
-    # Windows-side script execution. Always firewall-gated.
-    "powershell_run",
-    # Window-state verbs (D.3 PC-control template) -- tainted
-    # sessions moving / hiding operator windows is the kind of
-    # thing the firewall should refuse pre-clear.
-    "minimize_window",
-    "maximize_window",
-    "restore_window",
-    "resize_window",
-    "position_window",
-    # Package management WRITE verbs (D.4). Either platform's
-    # install path can land arbitrary code on the operator's
-    # machine -- tainted sessions are refused.
-    "winget_install",
-    "winget_upgrade",
-    "winget_uninstall",
-    "flatpak_install",
-    "flatpak_upgrade",
-    "flatpak_uninstall",
-]
-# WS-A14: verbs whose OWN execution introduces session taint (downstream
-# high-privilege verbs then get firewall-checked). UNIONED with the built-in
-# external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
-# add a verb here to taint on it without a code change. Empty by default.
-taint_verbs = []
-# Path prefixes whose text_view READ taints the session (the agent is reading
-# content it did not author, so downstream high-privilege verbs in the same
-# session get firewall-gated). This is the SAME write-protected prefix set the
-# native text editor refuses writes to, so a tainting read and a denied write
-# stay in lock-step -- keep it aligned with the editor's denied-write prefixes.
-text_view_taint_prefixes = [
-    "/etc/",
-    "/usr/",
-    "/boot/",
-    "/sys/",
-    "/proc/",
-    "/dev/",
-    "/mnt/c/Windows/",
-    "/mnt/c/Program Files/",
-    "/mnt/c/Program Files (x86)/",
-]
-# Host suffixes treated as the operator's OWN (internal) infrastructure: a URL
-# whose host ends with one of these is NOT a taint source (the *.local / *.lan
-# split-horizon + explicit internal zone). Single-label bare hostnames (no dot)
-# are also treated as internal by the classifier.
-internal_tld_suffixes = [".local", ".lan", ".internal"]
-# WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
-# arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
-# [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
-# arbiter permits everything until the operator sets a deny-list / block-tier.
-# Bridged to the service as MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER.
-arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
-arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
-arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
-arbiter_port       = 8760      # loopback port mios-policy-arbiter listens on
-# WS-A10 verified-caller principal (edge identity) -- RESERVED / aspirational.
-# This scoped-token gate ("verify" = require a valid scoped token, "enforce" =
-# verify + 401) was never wired into the inbound path; its token mint/verify core
-# was removed as dead. The IMPLEMENTED inbound-principal handling lives elsewhere:
-# [security].api_require_auth (bearer gate), [security].principal_bind_mode (owner
-# binding -> RLS, in mios_grounding), and [agent_passport].principal_mode (A2A
-# federation, in mios_a2a). Leave "off" unless/until the scoped-token path is
-# built. token_ttl_s = intended scoped-token lifetime. Env: MIOS_PRINCIPAL_MODE /
-# MIOS_TOKEN_TTL_S. Revocation: mios_crl (live, used by mios_a2a key-revoke).
-principal_mode     = "off"
-token_ttl_s        = 3600
-
-# Composefs security mode -- moved here to dedupe
-# the second [security] section (strict TOML parsers reject
-# duplicate sections).
-composefs_mode = "verity"
-# When composefs is in verity mode, automation/77-composefs-verity.sh
-# also masks systemd-remount-fs.service (known-broken with composefs on
-# Fedora 42+). Set to false to skip the mask if the base image's
-# systemd-remount-fs has been patched. No effect when composefs_mode is
-# "yes" or "off".
-mask_systemd_remount_fs = true
 
 # WS-7 (AIOS immutable-host hardening): fapolicyd PERMISSIVE/observe rollout.
 # DEFAULT-OFF. When true, the gated build step (automation/lib/
