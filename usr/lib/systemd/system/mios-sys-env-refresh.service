@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sys-env to probe and UPSERT the current system state (apps, services, models, hardware) into the pgvector sys_env:current row for global agent synchronization.
-# AI-related: /usr/libexec/mios/mios-sys-env, mios-sys-env, mios-pg-query, mios-podman-ps, mios-pgvector.service, multi-user.target
+/* AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sys-env to probe and UPSERT the current system state (apps, services, models, hardware) into the pgvector sys_env:current row for global agent synchronization. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_sys_env_refresh_service.md */
 [Unit]
 Description='MiOS' refresh the live system/environment cache (sys_env) in pgvector
 Documentation=file:///usr/libexec/mios/mios-sys-env

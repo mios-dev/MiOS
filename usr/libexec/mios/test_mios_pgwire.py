@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for the v3 extended-query wire builders in mios-pg-query (WS-A3 parameterized --exec-json path). Pure stdlib, no socket/DB/pytest. Loads the hyphenated mios-pg-query script via SourceFileLoader (does NOT run main) and verifies exact byte framing of Sync/Execute/Parse/Bind (type byte + self-inclusive Int32 length, NUL-terminated strings, text format codes, NULL=-1 length), encode_param coercion, and parse_envelope single-vs-batch + malformed handling.
-# AI-related: ./mios-pg-query
-# AI-functions: check, _declared_len_ok, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for the v3 extended-query wire builders in mios-pg-query (WS-A3 parameterized --exec-json path). ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_pgwire_py.md
 """Unit tests for the mios-pg-query extended-protocol wire builders (WS-A3)."""
 
 import importlib.machinery

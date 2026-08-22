@@ -11,14 +11,6 @@ function Resolve-MiosTomlText {
         return $script:_MiosTomlCache['_text']
     }
 
-    # MiOS is cross-platform, and this module runs under pwsh on Linux too (CI
-    # lints and Pester-tests it there). Every entry must therefore be built
-    # defensively: on Linux $env:USERPROFILE is null, and `Join-Path $null ...`
-    # throws ParameterBindingValidationException under StrictMode +
-    # ErrorActionPreference='Stop', which took out the whole Pester suite.
-    #
-    # Order mirrors the layered resolver contract used everywhere else in MiOS:
-    # explicit env override, then user tier, then host tier, then vendor.
     $candidates = @()
     foreach ($envVar in @($env:MIOS_TOML, $env:MIOS_VENDOR_TOML)) {
         if ($envVar) { $candidates += $envVar }

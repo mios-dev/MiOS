@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining warm browser connections via CDP and a stealth-fallback mechanism.
-# AI-related: mios-crawl4ai-service, mios-crawl, mios-searxng, mios-hermes-browser, mios-crawl4ai, mios-hermes-browser.service
-# AI-functions: lifespan, _md_ok, _ensure_crawler, _crawl_cdp, _do, _crawl_camoufox, healthz, crawl, main, class CrawlReq
+# AI-hint: !/usr/bin/env python3 FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_crawl4ai_mios_crawl4ai_service_py.md
 """mios-crawl4ai-service -- slim persistent crawl service (loopback FastAPI).
 
 The `crawl` broker verb (mios-crawl, the agent-facing surface) POSTs a URL

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate). Pure stdlib, no server.py / DB / pytest -- runs as `python3 test_mios_pdp.py` (exit 0 = pass) on the build host and as a build.sh sub-phase. Covers permission_rank (known/unknown tier), resolve_ceiling (empty=no-ceiling, known=rank, UNKNOWN=fail-closed-to-0 -- the WS-A9 fail-OPEN fix), and decide (denied, allowed-not-in, max_permission ceiling, non-verb passthrough, empty-policy allow-all).
-# AI-related: ./mios_pdp.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_pdp_py.md
 """Unit tests for mios_pdp (WS-A9)."""
 
 import sys

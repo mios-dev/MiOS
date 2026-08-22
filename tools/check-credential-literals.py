@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/SECRET/API_KEY=value), distinguishing real credentials from token-count and boolean settings, and holding the known defaults to a shrink-only grandfathered registry in [security.credential_literals].
-# AI-related: usr/share/mios/mios.toml, usr/share/containers/systemd, usr/lib/systemd/system, automation/99-postcheck.sh
+# AI-hint: !/usr/bin/env python3 Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_credential_literals_py.md
 """Fail if a unit gains a new baked-in credential. Law 11 scans only .env files."""
 import os
 import re

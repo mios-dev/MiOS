@@ -1,0 +1,12 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave). The planned-DAG execution brain: _execute_dag_node (run ONE node -- an agent delegation OR a tool verb -- with ReWOO #E ref resolution, action-hash dedup, A2A peer delegation, lane-aware token/deadline sizing, worker-tool surface + RBAC, retry/reflexion), _deepen_until_barrier (fast-lane work-steal coverage passes until the global barrier), _execute_dag_saturated (continuous ready-queue executor, SWARM_SATURATE), execute_dag (level-barrier path + saturate dispatch), _execute_dag_bounded (non-streaming TURN_DEADLINE backstop + client-disconnect cancel) and _execute_dag_emitting (streaming per-node endpoint emitters + live agent reasoning). Plus _record_dag_node_row (session-linked tool_call taint row) and the WS-6 run-template capture (RUN_TEMPLATE_ENABLE, _run_template_class, _capture_run_template), which since T-225 also records the TURN's intent key so the replay matcher in planner.py can answer 'have we planned this before?' before spending a planning call. Moved byte-identically -- NO consolidation of the four execute_dag entrypoints (a separate future task). Every server-side dep (config scalars, _AGENT_REGISTRY, the ContextVars, dispatch_mios_verb, the agent-call/scratchpad/grounding/db/a2a/worker-tool helpers) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _call_agent_complete/_web_research_enrich/_dag_levels/the SSE node emitters/_env_grounding/_action_hash/the RBAC filters are imported directly from their sibling modules. server.py re-imports every moved name under its original alias (surface-parity zero-diff).
+AI-related: ./server.py, ./mios_config.py, ./mios_agent_call.py, ./mios_web_research.py, ./mios_planner.py, ./mios_sse.py, ./mios_grounding.py, ./mios_hitlflow.py, ./mios_policy.py, ./test_mios_dag_exec.py
+AI-functions: load_run_templates, _deepen_until_barrier, _execute_dag_node, _record_dag_node_row, _execute_dag_saturated, _run_template_class, _capture_run_template, execute_dag, _execute_dag_bounded, _execute_dag_emitting, configure
+
+<!-- mios-src:df7b5fa217fe from usr/lib/mios/agent-pipe/mios_pipe/routing/dag_exec.py:1-3 -->
+

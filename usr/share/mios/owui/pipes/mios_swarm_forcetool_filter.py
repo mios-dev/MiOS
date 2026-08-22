@@ -1,5 +1,5 @@
-# AI-hint: Injects force_tool=true into the request body to force the executor proxy to use tool_choice=required, preventing models from narrating actions instead of executing them via the MiOS Agent Pipe.
-# AI-functions: __init__, inlet, class Filter, class Valves
+# AI-hint: Injects force_tool=true into the request body to force the executor proxy to use tool_choice=required, preventing models from narratin...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_swarm_forcetool_filter_py.md
 """
 title: MiOS Swarm · Force-tool
 author: MiOS

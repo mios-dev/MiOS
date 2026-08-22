@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. Verifies fact_ledger & progress_ledger table insertion triggers, both-intent DAG dependency wiring, parse_research_claims extractor, fact injection into action prompts, synthesis reducer, and stall re-plan triggers.
-# AI-related: ./mios_pipe/routing/dag_exec.py, ./mios_pipe/routing/swarm.py
-# AI-functions: check, t_both_intent_deps, t_parse_research_claims, t_execute_dag_node_ledger_writes, t_synthesis_reducer, t_replan_stall_trigger, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_dual_ledger_py.md
 """Unit tests for T-030 Dual-Ledger + Typed-Output Synthesis."""
 
 import asyncio

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans and double membership.
-# AI-related: tools/render-ports.py, usr/share/mios/mios.toml, automation/98-drift-checks.sh
-# AI-functions: load_module, TestDerivePorts, TestFindViolations, TestRenderTable, TestSweeperSkipsItsOwnEvidence
+# AI-hint: !/usr/bin/env python3 Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_render_ports_py.md
 
 import importlib.util
 import os
@@ -195,6 +193,43 @@ class TestStackIdOffset(unittest.TestCase):
 
         vals = list(shifted_ports.values())
         self.assertEqual(len(vals), len(set(vals)), "Collisions detected in shifted ports")
+
+
+class TestQuadletPortFallbacks(unittest.TestCase):
+    def test_quadlet_port_fallbacks_match_ssot(self):
+        import re
+        import sys
+        sys.path.insert(0, os.path.join(_HERE, "..", "usr", "lib", "mios"))
+        import mios_toml
+
+        data = mios_toml.load_merged()
+        ports = data.get("ports", {}) or {}
+
+        container_dir = os.path.join(_HERE, "..", "usr", "share", "containers", "systemd")
+        pattern = re.compile(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}")
+
+        tested = 0
+        for fname in os.listdir(container_dir):
+            if not fname.endswith(".container"):
+                continue
+            fpath = os.path.join(container_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as f:
+                content = f.read()
+            for match in pattern.finditer(content):
+                var_name, fallback_str = match.groups()
+                port_key = var_name.lower()
+                ssot_val = ports.get(port_key)
+                self.assertIsNotNone(
+                    ssot_val,
+                    f"Port key '{port_key}' in {fname} not found in SSOT [ports]"
+                )
+                self.assertEqual(
+                    int(fallback_str), int(ssot_val),
+                    f"In {fname}, ${{MIOS_PORT_{var_name}:-{fallback_str}}} does not match SSOT value {ssot_val}"
+                )
+                tested += 1
+
+        self.assertGreater(tested, 40, f"Expected >40 Quadlet port fallbacks tested, got {tested}")
 
 
 if __name__ == "__main__":

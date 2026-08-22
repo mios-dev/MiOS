@@ -1,6 +1,5 @@
-# AI-hint: Verb argument validation and synonym mapping helper (WS-DEBT / TD-5 / T-273). Extracted from mios_dispatch.py. Pure helper, must NOT import server.py or mios_dispatch.py.
-# AI-related: ./mios_dispatch.py, ./test_mios_argval.py
-# AI-functions: configure, _arg_with_synonyms, _validate_enum_args
+# AI-hint: Verb argument validation and synonym mapping helper (WS-DEBT / TD-5 / T-273). Extracted from mios_dispatch.py. Pure helper, must NOT import server.py or...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_argval_py.md
 
 from typing import Optional, Any
 
@@ -37,12 +36,6 @@ def _arg_with_synonyms(tool: str, canonical: str, args: dict) -> Any:
     return ""
 
 def _validate_enum_args(tool: str, args: dict) -> Optional[str]:
-    """Tool-Manager parameter validation (ref AIOS kernel C 3.7: "validate
-    parameters before execution to prevent tool crashes"). Reject a verb
-    arg whose value falls outside the enum DECLARED for it in mios.toml
-    [verbs.<tool>.params.<arg>.enum], BEFORE the command reaches the
-    broker -- previously such values passed through as a stray env var and
-    silently misbehaved."""
     if not isinstance(args, dict) or not args:
         return None
     vcfg = _VERB_CATALOG.get(tool)

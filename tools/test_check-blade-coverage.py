@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-blade-coverage.py. Cover every way the activation axis can be wrong -- a container classified neither way, one classified both ways, a requires or register entry naming no real container, an empty capability list that gates nothing, a capability no archetype grants, and a duplicated register entry -- plus the empty-set case, because a gate that passes over no containers is the failure this family exists to prevent.
-# AI-related: tools/check-blade-coverage.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-blade-coverage.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_blade_coverage_py.md
 """Tests for the blade activation-coverage gate."""
 
 import os

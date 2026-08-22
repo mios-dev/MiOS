@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-unit-projection.py. One case per way the [units] projection register can stop measuring: an entry naming a unit the SSOT does not project, one naming a file the tree does not ship, a duplicate, an unsorted list that hides an addition inside a reordering, a missing table, a missing ceiling, a ceiling raised to absorb new drift, and a ceiling left high after the debt shrank. Plus the alias half of [units] (string values are name aliases, not projected units) and the real tree.
-# AI-related: tools/check-unit-projection.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh, tools/native/mios-unit-gen/tests/projection.rs
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-unit-projection.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_unit_projection_py.md
 """Tests for the [units] projection debt-register gate."""
 
 import os

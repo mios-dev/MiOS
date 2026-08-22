@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_tokenize (WS-A5 tokenizer seam). Pure stdlib, no server.py/DB/pytest. Verifies the heuristic backend reproduces the pipe's prior len//4 estimate EXACTLY (byte-for-byte parity for count_text/count_messages, so swapping the inline //4 is behaviour-preserving), truncate_to_tokens honours the token budget (and == the old [:N] char slice), and set_backend swaps the measurement while degrading safely.
-# AI-related: ./mios_tokenize.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_tokenize (WS-A5 tokenizer seam). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_tokenize_py.md
 """Unit tests for mios_tokenize (WS-A5)."""
 
 import json

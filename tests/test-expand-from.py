@@ -1,15 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Smoke-test script to verify the skill engine's expand_from logic by validating that a single step with multiple browser targets correctly fans into multiple distinct execution steps.
-# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml, mios-skilltest, mios-no-browser-1, mios-no-browser-2, mios-no-browser-3
-# AI-functions: main
-"""Smoke-test the skill engine's expand_from semantics.
-
-Calls execute_skill('open-url-fallback-chain', ...) with 3 browsers
-and a deliberately-bad URL; verifies the engine fanned 1 step into
-3 (one per browser) by inspecting the returned `steps` list length.
-
-Exits 0 on PASS, 1 on FAIL.
-"""
+# AI-hint: !/usr/bin/env python3 Smoke-test script to verify the skill engine's expand_from logic by validating that a single step with multiple browser targets correctly fans ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_expand_from_py.md
 from __future__ import annotations
 
 import asyncio

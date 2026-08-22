@@ -1,14 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit test script to verify that the ReWOO #E<id> substitution logic correctly extracts specific fields from NDJSON blobs instead of injecting the entire raw JSON object into the planner's context.
-# AI-related: /usr/lib/mios/agent-pipe, mios-gui
-# AI-functions: _make, main
-"""Verify the ReWOO #E<id> substitution now smart-extracts a single
-field instead of pasting the whole upstream JSON blob.
-
-Test cases derived from operator's failure trace where the planner
-emitted open_app(name=#En1) and substitution pasted mios_apps's
-entire NDJSON output as the arg.
-"""
+# AI-hint: !/usr/bin/env python3 Unit test script to verify that the ReWOO #E<id> substitution logic correctly extracts specific fields from NDJSON blobs instead of inject...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_ek_smart_extract_py.md
 from __future__ import annotations
 import sys
 

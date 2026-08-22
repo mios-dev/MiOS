@@ -1,10 +1,5 @@
-#!/usr/bin/bash
-# AI-hint: Shared blade-resolution library. ONE implementation of the archetype ladder, the capability set and the alias table, sourced by usr/libexec/mios/role-apply (boot-time resolver) and usr/libexec/mios/mios-blade (the day-2 verb) so the two cannot drift. Every input is parameterized -- cmdline file, role.conf path, marker directory -- so tests/test-role-apply-precedence.sh drives the real functions rather than a copy.
-# AI-related: usr/libexec/mios/role-apply, usr/libexec/mios/mios-blade, usr/share/mios/mios.toml, usr/lib/bootc/kargs.d/05-mios-blade.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md
-# AI-functions: _cmdline_tok, _conf_get, _ssot_query, _hw_demotion, _resolve_role, _canon_role, _caps_for, _is_legal_cap, _resolve_features, _ssot_security, _auth_posture, _target_for
-#
-# Callers may pre-set ROLE_CONF / BLADE_D / CMDLINE_FILE; otherwise the FHS
-# defaults below apply.
+# AI-hint: !/usr/bin/bash Shared blade-resolution library. ONE implementation of the archetype ladder, the capability set and the alias table, sourced by usr/libexec/mios/role-appl...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_blade_sh.md
 
 : "${ROLE_CONF:=${MIOS_ETC_DIR:-/etc/mios}/role.conf}"
 : "${BLADE_D:=${MIOS_ETC_DIR:-/etc/mios}/blade.d}"
@@ -252,4 +247,66 @@ _auth_posture() {
 
 _target_for() {
     printf 'mios-%s.target' "$1"
+}
+
+_ssot_placement() {
+    python3 - <<'PY' 2>/dev/null || true
+import os, sys
+sys.path.insert(0, os.environ.get("MIOS_USR_DIR", "/usr/lib/mios"))
+import mios_toml
+
+blade = (mios_toml.load_merged().get("blade") or {})
+placement = blade.get("placement") or {}
+collapse = blade.get("collapse") or {}
+
+fo = placement.get("failover_order") or ["local", "localhost", "cluster"]
+if isinstance(fo, str):
+    fo = [fo]
+
+print("failover_order=%s" % " ".join(fo))
+print("dwell_s=%s" % str(collapse.get("dwell_s") or 30))
+print("recover_dwell_s=%s" % str(collapse.get("recover_dwell_s") or 120))
+print("fail_checks=%s" % str(collapse.get("fail_checks") or 3))
+PY
+}
+
+_resolve_placement_failover() {
+    local target="$1" status="${2:-failed}"
+    local p_info
+    p_info="$(_ssot_placement)"
+    local order dwell rec_dwell fail_c
+    order="$(printf '%s\n' "$p_info" | sed -n 's/^failover_order=//p')"
+    dwell="$(printf '%s\n' "$p_info" | sed -n 's/^dwell_s=//p')"
+    rec_dwell="$(printf '%s\n' "$p_info" | sed -n 's/^recover_dwell_s=//p')"
+    fail_c="$(printf '%s\n' "$p_info" | sed -n 's/^fail_checks=//p')"
+
+    local state_dir="/run/mios/failover"
+    mkdir -p "$state_dir" 2>/dev/null || true
+    local state_file="${state_dir}/${target}.state"
+    local now
+    now=$(date +%s)
+
+    if [[ -r "$state_file" ]]; then
+        local last_ts last_tier flaps
+        last_ts="$(sed -n 's/^last_ts=//p' "$state_file")"
+        last_tier="$(sed -n 's/^last_tier=//p' "$state_file")"
+        flaps="$(sed -n 's/^flaps=//p' "$state_file")"
+        local elapsed=$(( now - ${last_ts:-0} ))
+
+        if (( elapsed < ${rec_dwell:-120} )); then
+            printf '%s\tflapping_suppressed\t%s' "${last_tier:-local}" "${flaps:-1}"
+            return 0
+        fi
+    fi
+
+    local first_tier
+    first_tier="${order%% *}"
+    [[ -n "$first_tier" ]] || first_tier="local"
+
+    cat > "$state_file" <<EOF
+last_ts=$now
+last_tier=$first_tier
+flaps=1
+EOF
+    printf '%s\tassigned\t1' "$first_tier"
 }

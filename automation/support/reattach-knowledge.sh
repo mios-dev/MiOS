@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: This script updates the `webui.db` database to link "MiOS Session Memory" and "MiOS Documentation" knowledge IDs to the `mios-agent` model metadata, enabling full RAG capabilities for the OWUI interface.
-# AI-related: mios-agent, mios-open-webui, mios-open-webui.service
+# AI-hint: !/bin/bash This script updates the `webui.db` database to link "MiOS Session Memory" and "MiOS Documentation" knowledge IDs to the `mios-agent` model ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_reattach_knowledge_sh.md
 set -euo pipefail
 python3 - <<'PYEOF'
 import json

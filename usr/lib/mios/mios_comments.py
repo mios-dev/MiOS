@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block STAYs in code or MIGRATEs to documentation. Pure library: holds no policy constants, writes nothing.
-# AI-related: usr/lib/mios/mios_toml.py, usr/libexec/mios/mios-ai-tag, usr/libexec/mios/mios-manual, docs/agy/doc-generative-documentation.md
-# AI-functions: lex, classify, Policy, RefIndex, Block, Verdict
+# AI-hint: !/usr/bin/env python3 The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_mios_comments_py.md
 """Comment lexer + classifier for the generative documentation system.
 
 Spec: docs/agy/doc-generative-documentation.md sections 1.2 and 2.
@@ -468,6 +466,20 @@ def _lex_generic(path: str, src: str, style: str) -> list[Block]:
     return out
 
 
+def _find_native_comment_lex() -> str | None:
+    bin_name = "mios-comment-lex.exe" if os.name == "nt" else "mios-comment-lex"
+    for candidate in [
+        os.environ.get("MIOS_COMMENT_LEX_BIN"),
+        os.path.join(_REPO_ROOT, "tools", "native", "target", "release", bin_name),
+        os.path.join(_REPO_ROOT, "tools", "native", "target", "debug", bin_name),
+        os.path.join(_REPO_ROOT, "usr", "bin", bin_name),
+    ]:
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    import shutil
+    return shutil.which(bin_name)
+
+
 def lex(path: str, raw: bytes | None = None, ai_tag=None) -> list[Block]:
     """Comment blocks in one file.
 
@@ -475,6 +487,16 @@ def lex(path: str, raw: bytes | None = None, ai_tag=None) -> list[Block]:
     code line, or a style change ends it.
     """
     if raw is None:
+        native_bin = _find_native_comment_lex()
+        if native_bin and not path.endswith(".py"):
+            try:
+                import subprocess, json
+                proc = subprocess.run([native_bin, path], capture_output=True, check=True)
+                records = json.loads(proc.stdout.decode("utf-8"))
+                return [Block(**r) for r in records]
+            except Exception:
+                pass
+
         try:
             with open(path, "rb") as fh:
                 raw = fh.read()

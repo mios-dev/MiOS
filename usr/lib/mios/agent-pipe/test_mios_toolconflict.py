@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7). Pure stdlib + asyncio, no server.py / DB / pytest -- runs as `python3 test_mios_toolconflict.py` (exit 0 = pass) both on the build host and as a build.sh sub-phase. Covers the no-op fast path, parallel_limit caps, conflict_group mutual exclusion, group+limit composition (deadlock-free), cancellation-safety (no permit leak), release-on-exception, and from_catalog parsing.
-# AI-related: ./mios_toolconflict.py, ./test_mios_sched.py
-# AI-functions: _run, _peak_under, check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_toolconflict_py.md
 """Unit tests for mios_toolconflict (WS-A7 per-verb dispatch serialization)."""
 
 import asyncio

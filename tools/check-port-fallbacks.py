@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. Four shipped units pinned Environment=MIOS_PORT_*=<literal> unconditionally, three of them retired ports, so agent-pipe bound :8640 while MIOS_AI_ENDPOINT dialled :8700; the Windows LAN proxy's eleven fallbacks were an entire previous generation of numbers, and its env is never set on that side, so the fallback was always what ran. Comments, docs and generated projections are out of scope (check_doc_port_scheme owns those); the residue drains through the shrink-only [ports].stale_fallbacks register.
-# AI-related: usr/share/mios/mios.toml, tools/test_check-port-fallbacks.py, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh
-# AI-functions: ports_map, scan_paths, findings, register, classify, main
+# AI-hint: !/usr/bin/env python3 Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_port_fallbacks_py.md
 """Gate: a literal beside a MIOS_PORT_ name must be that port's value."""
 
 import os

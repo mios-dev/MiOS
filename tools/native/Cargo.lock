@@ -1487,6 +1487,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "mios-comment-lex"
+version = "0.3.0"
+dependencies = [
+ "clap",
+ "regex",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "mios-drift-runner"
 version = "0.3.0"
 

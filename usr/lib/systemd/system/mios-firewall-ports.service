@@ -1,5 +1,5 @@
-# AI-hint: Ensures critical MiOS service ports (resolved from the `[ports]` SSOT: open_webui, hermes, searxng, cockpit and peers, plus DNS 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and SearXNG.
-# AI-related: mios-open-webui, mios-searxng, mios-crawl4ai, firewalld.service, hermes-agent.service, mios-open-webui.service, mios-searxng.service, mios-crawl4ai.service, network-online.target, multi-user.target
+/* AI-hint: Ensures critical MiOS service ports (resolved from the `[ports]` SSOT: open_webui, hermes, searxng, cockpit and peers, plus DNS 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and... */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_firewall_ports_service.md */
 [Unit]
 # Ensure MiOS service ports are open in firewalld at every boot.
 #

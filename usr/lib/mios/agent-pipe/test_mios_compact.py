@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_compact (WS-A5 rolling-summary compaction planner). Pure stdlib, no server.py/DB/pytest. Verifies plan_compaction is a no-op when history fits, always keeps the last keep_recent non-system messages + system messages verbatim, marks the OLDEST overflow for summarization, and the kept set stays within budget.
-# AI-related: ./mios_compact.py, ./mios_tokenize.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_compact (WS-A5 rolling-summary compaction planner). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_compact_py.md
 """Unit tests for mios_compact (WS-A5)."""
 
 import sys

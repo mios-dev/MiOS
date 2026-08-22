@@ -1,5 +1,4 @@
-# AI-hint: Configures kernel arguments to force-probe both i915 and xe drivers, ensuring proper hardware recognition and driver binding for Intel Battlemage (Xe2) GPUs during the boot process.
-# Intel Battlemage (Xe2) Compute Stack driver bindings
-# Prevents legacy i915 driver from capturing consumer Battlemage cards
+# AI-hint: Configures kernel arguments to force-probe both i915 and xe drivers, ensuring proper hardware recognition and driver binding for Intel Battlemage (Xe2) ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_bootc_kargs_d_12_intel_xe_toml.md
 match-architectures = ["x86_64"]
 kargs = ["i915.force_probe=*", "xe.force_probe=*"]

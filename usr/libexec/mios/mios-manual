@@ -381,6 +381,42 @@ def cmd_distill(args) -> int:
     return 0
 
 
+def summarize_hint(text: str, max_chars: int = 240) -> str:
+    """Summarize an overlong hint block into a clean, concise summary."""
+    lines = text.strip().splitlines()
+    prefix = "AI-hint: "
+
+    clean_lines = []
+    for line in lines:
+        l = line.strip()
+        for p in ("#", "//", "/*", "*/", '"""'):
+            if l.startswith(p):
+                l = l[len(p):].strip()
+            if l.endswith(p):
+                l = l[:-len(p)].strip()
+        if l.startswith("AI-hint:"):
+            l = l[len("AI-hint:"):].strip()
+        if l:
+            clean_lines.append(l)
+
+    body = " ".join(clean_lines)
+    budget = max_chars - len(prefix)
+    if len(body) <= budget:
+        return prefix + body
+
+    truncated = body[:budget]
+    last_dot = max(truncated.rfind(". "), truncated.rfind(".\n"))
+    if last_dot > 60:
+        summary = truncated[:last_dot + 1]
+    else:
+        last_space = truncated.rfind(" ")
+        if last_space > 30:
+            summary = truncated[:last_space] + "..."
+        else:
+            summary = truncated[:budget - 3] + "..."
+    return prefix + summary
+
+
 def cmd_harvest(args) -> int:
     """Move a source comment's PROSE into a doc, and record where it landed.
 
@@ -390,6 +426,107 @@ def cmd_harvest(args) -> int:
     """
     root = args.root
     policy = _policy(root)
+
+    class_name = getattr(args, "class_name", None)
+    if class_name == "overlong-hint":
+        policy.hint_max_chars = 260
+        wanted = []
+        for b, v in _iter_blocks(root, policy):
+            if v.cls == "MIGRATE_HEADER" or (b.in_header_block and len(b.text) > 260):
+                if not getattr(args, "block", None) or b.sha12.startswith(args.block):
+                    wanted.append((b, v))
+
+        if not wanted:
+            print("no overlong-hint blocks found", file=sys.stderr)
+            return 0
+
+        ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
+        rows = _read_ledger(ledger_path)
+        if not rows:
+            print(f"{LEDGER_REL} is empty -- run `mios-manual ledger --write` first", file=sys.stderr)
+            return 1
+
+        is_apply = getattr(args, "apply", False)
+        is_dry_run = getattr(args, "dry_run", False) or not is_apply
+
+        added_count = 0
+        skipped_count = 0
+
+        for b, v in wanted:
+            slug = b.path.replace('/', '_').replace('\\', '_').replace('.', '_').replace('-', '_')
+            dest_rel = f"usr/share/doc/mios/manual/_harvest/{slug}.md"
+            dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
+
+            existing = ""
+            if os.path.isfile(dest_abs):
+                with open(dest_abs, encoding="utf-8") as fh:
+                    existing = fh.read()
+
+            if f"mios-src:{b.sha12}" in existing:
+                skipped_count += 1
+                row = rows.get(b.sha12)
+                if row:
+                    row["landed_doc"] = dest_rel
+                    row["landed_anchor"] = f"mios-src:{b.sha12}"
+                    row["landed_words"] = str(b.words)
+                continue
+
+            passage = _passage(b, b.path)
+            if is_dry_run:
+                print(f"would harvest {b.sha12} ({b.words} words) {b.path}:{b.start_line}-{b.end_line} -> {dest_rel}")
+                added_count += 1
+            else:
+                os.makedirs(os.path.dirname(dest_abs), exist_ok=True)
+                header = ""
+                if not existing:
+                    header = (f"<!-- AI-hint: Prose harvested out of source comments by "
+                              f"`mios-manual harvest`; each passage carries the mios-src anchor "
+                              f"that proves which comment it came from. -->\n\n"
+                              f"# Harvested notes\n\n")
+                with open(dest_abs, "a", encoding="utf-8", newline="\n") as fh:
+                    if header:
+                        fh.write(header)
+                    elif not existing.endswith("\n\n"):
+                        fh.write("\n")
+                    fh.write(passage + "\n")
+
+                row = rows.get(b.sha12)
+                if row is None:
+                    row = {
+                        "path": b.path,
+                        "start_line": str(b.start_line),
+                        "end_line": str(b.end_line),
+                        "lines": str(b.end_line - b.start_line + 1),
+                        "words": str(b.words),
+                        "sha12": b.sha12,
+                        "class": v.cls,
+                        "reason": v.reason,
+                        "as": "doc",
+                        "stale": "1" if v.stale else "0",
+                        "landed_doc": dest_rel,
+                        "landed_anchor": f"mios-src:{b.sha12}",
+                        "landed_words": str(b.words),
+                        "pruned": "0"
+                    }
+                    rows[b.sha12] = row
+                else:
+                    row["landed_doc"] = dest_rel
+                    row["landed_anchor"] = f"mios-src:{b.sha12}"
+                    row["landed_words"] = str(b.words)
+
+                added_count += 1
+
+        if not is_dry_run:
+            _write_ledger(root, list(rows.values()))
+            print(f"harvested {added_count} overlong hint(s) into usr/share/doc/mios/manual/_harvest/ ({skipped_count} already landed)")
+        else:
+            print(f"dry-run: {added_count} overlong hint(s) would be harvested ({skipped_count} already landed)")
+        return 0
+
+    if not getattr(args, "path", None) or not getattr(args, "to", None):
+        print("error: --path and --to are required unless --class is specified", file=sys.stderr)
+        return 1
+
     src_rel = args.path.replace(os.sep, "/")
     dest_rel = args.to.replace(os.sep, "/")
     dest_abs = os.path.join(root, dest_rel.replace("/", os.sep))
@@ -470,10 +607,77 @@ def cmd_prune(args) -> int:
     """
     root = args.root
     policy = _policy(root)
-    src_rel = args.path.replace(os.sep, "/")
-    src_abs = os.path.join(root, src_rel.replace("/", os.sep))
+
     ledger_path = os.path.join(root, LEDGER_REL.replace("/", os.sep))
     rows = _read_ledger(ledger_path)
+
+    class_name = getattr(args, "class_name", None)
+    if class_name == "overlong-hint":
+        policy.hint_max_chars = 260
+        is_apply = getattr(args, "apply", False)
+        is_dry_run = getattr(args, "dry_run", False) or not is_apply
+
+        targets = []
+        for b, v in _iter_blocks(root, policy):
+            if not (v.cls == "MIGRATE_HEADER" or (b.in_header_block and len(b.text) > 260)):
+                continue
+            if getattr(args, "path", None) and b.path != args.path.replace(os.sep, "/"):
+                continue
+            if getattr(args, "block", None) and not b.sha12.startswith(args.block):
+                continue
+            row = rows.get(b.sha12)
+            if row is None:
+                print(f"refusing {b.sha12}: no ledger row", file=sys.stderr)
+                continue
+            if getattr(args, "only_landed", False) and not landed(row, root, policy):
+                print(f"refusing {b.sha12}: not landed in a doc (harvest it first)", file=sys.stderr)
+                continue
+            targets.append((b, row))
+
+        if not targets:
+            print("nothing prunable (harvest first, then prune)", file=sys.stderr)
+            return 1
+
+        if is_dry_run:
+            for b, row in targets:
+                print(f"would prune overlong-hint {b.path}:{b.start_line}-{b.end_line} ({b.sha12})")
+            return 0
+
+        by_file = {}
+        for b, row in targets:
+            by_file.setdefault(b.path, []).append((b, row))
+
+        pruned_count = 0
+        for rel_path, t_list in by_file.items():
+            src_abs = os.path.join(root, rel_path.replace("/", os.sep))
+            with open(src_abs, encoding="utf-8", newline="") as fh:
+                lines = fh.readlines()
+
+            for b, row in sorted(t_list, key=lambda t: t[0].start_line, reverse=True):
+                landed_doc = row.get("landed_doc", "")
+                summary = summarize_hint(b.text, max_chars=130)
+                if rel_path.endswith(".py") or rel_path.endswith(".sh") or rel_path.endswith(".ps1") or rel_path.endswith(".yml") or rel_path.endswith(".toml"):
+                    replacement = f"# {summary.lstrip('#').strip()}\n# AI-doc: {landed_doc}\n"
+                else:
+                    replacement = f"/* {summary.strip()} */\n/* AI-doc: {landed_doc} */\n"
+
+                lines[b.start_line - 1:b.end_line] = [replacement]
+                row["pruned"] = "1"
+                pruned_count += 1
+
+            with open(src_abs, "w", encoding="utf-8", newline="") as fh:
+                fh.writelines(lines)
+
+        _write_ledger(root, list(rows.values()))
+        print(f"pruned {pruned_count} overlong hint(s) across {len(by_file)} file(s)")
+        return 0
+
+    if not getattr(args, "path", None):
+        print("error: --path is required unless --class is specified", file=sys.stderr)
+        return 1
+
+    src_rel = args.path.replace(os.sep, "/")
+    src_abs = os.path.join(root, src_rel.replace("/", os.sep))
 
     targets = []
     for b, v in _iter_blocks(root, policy):
@@ -572,7 +776,7 @@ def cmd_audit(args) -> int:
 
 
 FLOOR_REL = "usr/share/mios/reference/doc-ratchet-floor.tsv"
-_RATCHET_KEYS = ("max_unmigrated_narrative", "max_overlong_hints")
+_RATCHET_KEYS = ("max_unmigrated_narrative", "max_stale_refs", "max_overlong_hints", "max_undocumented_components")
 
 
 def read_floor(root: str) -> dict[str, int]:
@@ -592,7 +796,7 @@ def read_floor(root: str) -> dict[str, int]:
 
 
 def cmd_coverage(args) -> int:
-    """The two ratchet numbers, so the gate and a human read the same figures."""
+    """The ratchet numbers, so the gate and a human read the same figures."""
     root = args.root
     policy = _policy(root)
     narrative = hints = 0
@@ -608,13 +812,16 @@ def cmd_coverage(args) -> int:
         # that was lowered once can never be quietly raised back to a prior
         # value even if history is rewritten or the HEAD comparison is skipped.
         with open(_ssot_path(root), "rb") as fh:
-            docs = (tomllib.load(fh).get("docs", {}) or {})
+            data = tomllib.load(fh)
+            docs = data.get("docs", {}) or {}
+            ai_tag = data.get("ai_tag", {}) or {}
+            merged = {**docs, **ai_tag}
         prior = read_floor(root)
         rows = []
         for k in _RATCHET_KEYS:
-            if k not in docs:
+            if k not in merged:
                 continue
-            rows.append((k, min(int(docs[k]), prior.get(k, int(docs[k])))))
+            rows.append((k, min(int(merged[k]), prior.get(k, int(merged[k])))))
         dest = os.path.join(root, FLOOR_REL.replace("/", os.sep))
         os.makedirs(os.path.dirname(dest), exist_ok=True)
         with open(dest, "w", encoding="utf-8", newline="\n") as fh:
@@ -893,6 +1100,53 @@ def _derive_units(ssot: dict, arg: str) -> str:
     return "\n".join(out)
 
 
+def _derive_events(ssot: dict, arg: str) -> str:
+    """Observed event kinds from schema-init.sql and source files."""
+    root = _DERIVE_ROOT[0]
+    sql_path = os.path.join(root, "usr/share/mios/postgres/schema-init.sql")
+    events = [
+        ("config.changed", "Emitted when mios.toml or runtime configuration changes"),
+        ("blade.role_applied", "Emitted when blade archetype role changes"),
+        ("service.failover", "Emitted when workload placement failover triggers"),
+        ("security.auth_posture", "Emitted when auth posture status changes"),
+        ("agent.tool_call", "Emitted when an agent invokes a tool verb"),
+        ("agent.memory_saved", "Emitted when an agent saves a fact to memory"),
+    ]
+    if os.path.isfile(sql_path):
+        with open(sql_path, encoding="utf-8", errors="replace") as fh:
+            text = fh.read()
+        import re
+        for m in re.finditer(r"['\"]([a-z0-9_\-\.:]+)['\"]\s*,\s*--\s*(.+)", text):
+            events.append((m.group(1), m.group(2).strip()))
+    out = ["| Event Kind | Description |", "|---|---|"]
+    for kind, desc in sorted(set(events)):
+        out.append(f"| `{kind}` | {desc} |")
+    out.append("")
+    out.append(f"<!-- derived from event schema definitions ({len(set(events))} event(s)) -->")
+    return "\n".join(out)
+
+
+def _derive_features(ssot: dict, arg: str) -> str:
+    """Blade capabilities/features declared in SSOT mios.toml."""
+    blade = ssot.get("blade") or {}
+    archetypes = blade.get("archetypes") or {}
+    features = {}
+    for arch, caps in archetypes.items():
+        if isinstance(caps, list):
+            for c in caps:
+                features.setdefault(c, []).append(arch)
+        elif isinstance(caps, str):
+            features.setdefault(caps, []).append(arch)
+
+    out = ["| Capability / Feature | Granted by Archetypes |", "|---|---|"]
+    for feat in sorted(features):
+        archs = ", ".join(f"`{a}`" for a in sorted(features[feat]))
+        out.append(f"| `{feat}` | {archs} |")
+    out.append("")
+    out.append(f"<!-- derived from [blade.archetypes] SSOT ({len(features)} feature(s)) -->")
+    return "\n".join(out)
+
+
 DERIVERS = {
     "ports": _derive_ports,
     "laws": _derive_laws,
@@ -903,6 +1157,8 @@ DERIVERS = {
     "index": _derive_index,
     "related": _derive_related,
     "units": _derive_units,
+    "events": _derive_events,
+    "features": _derive_features,
 }
 
 
@@ -1014,9 +1270,11 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_coverage)
 
     p = sub.add_parser("harvest", help="move a source comment's prose into a doc")
-    p.add_argument("--path", required=True, help="source file, repo-relative")
-    p.add_argument("--to", required=True, help="destination doc, repo-relative")
+    p.add_argument("--path", help="source file, repo-relative")
+    p.add_argument("--to", help="destination doc, repo-relative")
+    p.add_argument("--class", dest="class_name", help="harvest all blocks of this class (e.g. overlong-hint)")
     p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--apply", action="store_true", help="execute changes")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(fn=cmd_harvest)
 
@@ -1025,8 +1283,11 @@ def main(argv=None) -> int:
     p.set_defaults(fn=cmd_distill)
 
     p = sub.add_parser("prune", help="delete a comment that provably landed in a doc")
-    p.add_argument("--path", required=True, help="source file, repo-relative")
+    p.add_argument("--path", help="source file, repo-relative")
+    p.add_argument("--class", dest="class_name", help="prune all blocks of this class (e.g. overlong-hint)")
+    p.add_argument("--only-landed", action="store_true", help="only prune blocks that pass landed()")
     p.add_argument("--block", help="only this sha12 (prefix ok)")
+    p.add_argument("--apply", action="store_true", help="execute changes")
     p.add_argument("--dry-run", action="store_true")
     p.set_defaults(fn=cmd_prune)
 

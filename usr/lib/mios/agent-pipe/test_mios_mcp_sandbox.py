@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for T-032 (SEC-01 Hermetic MCP Sandboxing). Pure stdlib + asyncio, no server.py/DB/network. Verifies MCP sandbox gate parsing, gatekeeper traversal blocking, and _McpStdioClient._spawn routing through the gatekeeper.
-# AI-related: ./mios_pipe/federation/mcp.py, /usr/libexec/mios/mcp-server-runner
-# AI-functions: check, t_sandbox_gate_parsing, t_gatekeeper_traversal_blocking, t_spawn_routes_through_gatekeeper, t_spawn_direct_when_disabled, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for T-032 (SEC-01 Hermetic MCP Sandboxing). Pure stdlib + asyncio, no server.py/DB/network.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_mcp_sandbox_py.md
 """Unit tests for T-032 SEC-01 Hermetic MCP Sandboxing."""
 
 import asyncio

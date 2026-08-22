@@ -1,6 +1,5 @@
-# AI-hint: mios_tools -- the in-sandbox Code Mode tool API (WS-2). This module is the LOCAL Python API the model's generated code imports INSIDE the coderun-sandbox. It is the whole point of Code Mode: instead of loading ~71 OpenAI
-# AI-related: mios_tools, mios-coderun-sandbox, socket.socket
-# AI-functions: _rpc, call, web_search, web_scrape, system_status, recall, json, class ToolError
+# AI-hint: mios_tools -- the in-sandbox Code Mode tool API (WS-2). This module is the LOCAL Python API the model's generated code imports INSIDE the coderun-sandbox.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_codemode_api_py.md
 """mios_tools -- the in-sandbox Code Mode tool API (WS-2).
 
 This module is the LOCAL Python API the model's generated code imports INSIDE the

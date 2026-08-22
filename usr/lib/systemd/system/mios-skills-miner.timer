@@ -1,18 +1,5 @@
-# AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.
-# AI-related: /usr/libexec/mios/mios-skills, mios-skills-miner, mios-skills, mios-skills-miner.service, timers.target
-# /usr/lib/systemd/system/mios-skills-miner.timer
-# Phase C.2 of the AgentOS roadmap: cadence for the background
-# skill miner. Interval lifted to mios.toml [skills].
-# mine_interval_minutes (default 60). Operator override:
-#   sudo systemctl edit mios-skills-miner.timer
-#   [Timer]
-#   OnUnitActiveSec=30min
-#
-# Disabled by default; operator opts in (or it inherits enablement
-# from the configurator HTML "Skills mining" toggle which maps to
-# [skills].enable). The .service ConditionPathExists guard means a
-# stripped-down deployment with the libexec script absent skips
-# silently.
+/* AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_skills_miner_timer.md */
 [Unit]
 Description='MiOS' Phase C.2 skill-miner cadence (sequential pattern mining)
 Documentation=file:///usr/libexec/mios/mios-skills

@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution compliance while ignoring internal identifiers and paths.
-# AI-functions: is_allowed, process
+# AI-hint: !/usr/bin/env python3 A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution co...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_quote_mios_py.md
 
 import re, sys
 from pathlib import Path

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_embed_backfill (WS-A2 embedding-version hygiene). Pure stdlib, no server.py / DB / pytest -- runs as `python3 test_mios_embed_backfill.py` (exit 0 = pass) on the build host and as a build.sh sub-phase. Covers the staleness predicate (needs_reembed: only emb-present rows with a mismatched/NULL version), the parameterized candidate-SELECT + version-stamp UPDATE SQL shapes, batch planning, and the plan summary.
-# AI-related: ./mios_embed_backfill.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_embed_backfill (WS-A2 embedding-version hygiene).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_embed_backfill_py.md
 """Unit tests for mios_embed_backfill (WS-A2)."""
 
 import sys

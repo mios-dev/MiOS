@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_cost (WS-RES-GOV cost/energy accounting, CLASSic Cost axis). Pure stdlib, no server.py/pytest. Verifies CostModel.estimate for a LOCAL GPU lane (energy = gpu_watts*elapsed -> Wh; $ from usd_per_kwh) and a REMOTE lane ($/Mtok, 0 local energy), plus the CostLedger accumulation (totals + per-lane breakdown) and remaining()/over_budget() against a $ ceiling.
-# AI-related: ./mios_cost.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_cost (WS-RES-GOV cost/energy accounting, CLASSic Cost axis). Pure stdlib, no server.py/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_cost_py.md
 """Unit tests for mios_cost (WS-RES-GOV)."""
 import sys
 

@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Use this script to provision the mios-pgvector PostgreSQL container, including setting up the data directory, deploying the schema, rendering the Quadlet configuration, and verifying the vector extension.
-# AI-related: /usr/share/mios/postgres, /usr/share/mios/postgres/schema-init.sql, mios-pgvector, mios-pgvector.container, mios-pgvector.service
+# AI-hint: !/bin/bash Use this script to provision the mios-pgvector PostgreSQL container, including setting up the data directory, deploying the schema, rendering...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_bringup_pgvector_sh.md
 set -euo pipefail
 
 SRC=/mnt/c/MiOS

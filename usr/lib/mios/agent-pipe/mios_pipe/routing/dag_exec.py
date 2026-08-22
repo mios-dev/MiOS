@@ -1,24 +1,5 @@
-# AI-hint: DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave). The planned-DAG execution brain: _execute_dag_node (run ONE node -- an agent delegation OR a tool verb -- with ReWOO #E ref resolution, action-hash dedup, A2A peer delegation, lane-aware token/deadline sizing, worker-tool surface + RBAC, retry/reflexion), _deepen_until_barrier (fast-lane work-steal coverage passes until the global barrier), _execute_dag_saturated (continuous ready-queue executor, SWARM_SATURATE), execute_dag (level-barrier path + saturate dispatch), _execute_dag_bounded (non-streaming TURN_DEADLINE backstop + client-disconnect cancel) and _execute_dag_emitting (streaming per-node endpoint emitters + live agent reasoning). Plus _record_dag_node_row (session-linked tool_call taint row) and the WS-6 run-template capture (RUN_TEMPLATE_ENABLE, _run_template_class, _capture_run_template), which since T-225 also records the TURN's intent key so the replay matcher in planner.py can answer 'have we planned this before?' before spending a planning call. Moved byte-identically -- NO consolidation of the four execute_dag entrypoints (a separate future task). Every server-side dep (config scalars, _AGENT_REGISTRY, the ContextVars, dispatch_mios_verb, the agent-call/scratchpad/grounding/db/a2a/worker-tool helpers) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _call_agent_complete/_web_research_enrich/_dag_levels/the SSE node emitters/_env_grounding/_action_hash/the RBAC filters are imported directly from their sibling modules. server.py re-imports every moved name under its original alias (surface-parity zero-diff).
-# AI-related: ./server.py, ./mios_config.py, ./mios_agent_call.py, ./mios_web_research.py, ./mios_planner.py, ./mios_sse.py, ./mios_grounding.py, ./mios_hitlflow.py, ./mios_policy.py, ./test_mios_dag_exec.py
-# AI-functions: load_run_templates, _deepen_until_barrier, _execute_dag_node, _record_dag_node_row, _execute_dag_saturated, _run_template_class, _capture_run_template, execute_dag, _execute_dag_bounded, _execute_dag_emitting, configure
-"""DAG execution entrypoints (refactor R8).
-
-Extracted VERBATIM from ``server.py`` -- the planned-DAG execution brain that
-runs a topological DAG of agent/verb nodes with retry, grounding, work-steal
-deepen and live per-node emit. The five execute_dag entrypoints
-(``_execute_dag_node``, ``_execute_dag_saturated``, ``execute_dag``,
-``_execute_dag_bounded``, ``_execute_dag_emitting``) are moved byte-identically;
-their later consolidation is a SEPARATE task. ``server.py`` re-imports every name
-under its original alias so the module's public surface is byte-identical.
-
-Sibling functions (``_call_agent_complete``, ``_web_research_enrich``,
-``_dag_levels``, the SSE node emitters, ``_env_grounding``, ``_action_hash``, the
-RBAC filters, ``_toml_section``) are imported directly; every other server-side
-symbol they touch (the config scalars, ``_AGENT_REGISTRY``, the ContextVars, the
-broker ``dispatch_mios_verb``, the agent-call/scratchpad/db/a2a/worker-tool
-helpers) is injected via :func:`configure` (one-way boundary -- this module never
-imports ``server``).
-"""
+# AI-hint: DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_dag_exec_py.md
 
 from __future__ import annotations
 
@@ -255,32 +236,6 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
 
 async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
                                 session_id: Optional[str], client) -> dict:
-    """A fast swarm node that finished its primary BEFORE the global barrier (i.e.
-    it computed faster than its peers) keeps producing ADDITIONAL, DISTINCT
-    coverage -- new angles / items / facets -- until the barrier fires (every
-    node's primary done): it does NOT idle. The intent is "wait for ALL nodes to
-    complete; the faster lanes just do another pass from ANOTHER facet -- everything
-    concurrent, every source every turn". The slowest node trips the barrier and
-    never enters here.
-
-    EARLY-EXIT (A8, SSOT [dispatch].deepen_early_exit, default OFF): when enabled,
-    each pass first asks the per-node Definition-of-Done judge whether the node's
-    CURRENT answer already satisfies its sub-query; if so the node STOPS deepening so
-    the heaviest compute is not spent re-answering an already-good node and the freed
-    lane lets slower nodes finish sooner. Default off -> runs to the bound (no
-    behaviour change). Degrade-open: the judge is bounded by DEEPEN_JUDGE_TIMEOUT_S
-    and ANY timeout / error / absent judge falls THROUGH to the deadline-bound loop
-    -- it can only ever STOP early on a clean 'satisfied', never under-compute.
-
- DETAIL-FILL ("also can loop to gather data in detail-fill
-    passes"): when DEEPEN_FETCH is on AND the node carries a web-capable refined
-    plan (a web/news turn), each pass FIRST fetches MORE web data on the facet
-    (bounded by DEEPEN_WEB_TIMEOUT_S; the fan-out diversifies sub-queries so each
-    pass surfaces fresh stories) and APPENDS the new stories to the shared
-    grounding -- so the loop ENRICHES the facts, not just re-reasons them. The
-    enriched grounding flows to the final synthesis. A non-web turn (no refined /
-    no web hint) just reasons over the grounding in hand (no contention).
-    Hard-bounded by DEEPEN_MAX_ITERS + DEEPEN_DEADLINE_S + the barrier."""
     aname = str(node.get("agent") or "")
     acfg = _AGENT_REGISTRY.get(aname) or {}
     base_q = str(node.get("_base_query") or node.get("title")
@@ -498,16 +453,6 @@ async def _execute_dag_node_core(node: dict, results_by_id: dict,
                                  seen_actions: dict, dag_summary: str,
                                  session_id: Optional[str], client,
                                  frag_q: "Optional[asyncio.Queue]" = None) -> dict:
-    """Execute ONE DAG node -- an `agent` delegation OR a `tool` verb --
-    and return its node_result (standard tool_call shape + node_id + _act).
-    READS the shared maps (a snapshot of completed levels) but does NOT
-    mutate them; execute_dag merges results after each level so concurrent
-    same-level nodes never race on writes. ReWOO #E<id> refs in args (verb)
-    or in the prompt (agent) resolve against the completed-level outputs.
-    When `frag_q` is supplied (the streaming DAG paths), an agent node STREAMS
-    its reasoning LIVE onto that queue as ("SF", name, fragment) events so the
-    emitting wrapper renders the agents' actual thinking into the dropdown --
-    not just engage/done status pings (operator: 'no thinking blocks')."""
     nid = str(node.get("id", "?"))
     if node.get("agent"):
         aname = str(node.get("agent"))
@@ -683,17 +628,6 @@ def _record_dag_node_row(res: dict, session_id: Optional[str]) -> None:
 async def _execute_dag_saturated(dag: dict, *, session_id: Optional[str],
                                  event_q: "Optional[asyncio.Queue]" = None,
                                  deepen_barrier: bool = False) -> dict:
-    """CONTINUOUS READY-QUEUE DAG executor ("nothing in the
-    pipeline is idle until synthesis"). A node dispatches the MOMENT its own deps
-    finish -- NOT at a topological-LEVEL barrier -- so a fast node's lane picks up
-    the next ready node immediately instead of idling for the slowest node in its
-    level. REAL concurrency is bounded by the global/endpoint/lane semaphores in
-    _call_agent_complete (saturate to capacity, never over). A finished AGENT node
-    deepens until the GLOBAL barrier (all primaries done) so no lane idles while
-    the swarm finishes. Same recording / emit / ReWOO-#E / dedup semantics as the
-    level path; dependents of a FAILED node are SKIPPED (independent branches keep
-    running -- more robust than the level path's whole-DAG fail-fast). Gated by
-    SWARM_SATURATE."""
     nodes = [n for n in (dag.get("nodes") or [])
              if isinstance(n, dict) and "id" in n]
     summary = dag.get("summary", "")
@@ -823,19 +757,6 @@ from mios_pipe.routing.run_template import (   # T-225: capture+replay source
 async def execute_dag(dag: dict, *, session_id: Optional[str],
                       event_q: "Optional[asyncio.Queue]" = None,
                       deepen_barrier: bool = False) -> dict:
-    """Execute the DAG. SWARM_SATURATE -> the continuous ready-queue
-    (_execute_dag_saturated, "nothing idle until synthesis"); else the legacy
-    concurrent topological-LEVEL path below (the proven fallback).
-
-    LEVEL path: every node whose deps are satisfied runs in PARALLEL
-    (asyncio.gather), so independent
-    sub-tasks -- including agent-delegation nodes routed to DIFFERENT sub-
-    agents -- run concurrently across the CPU + GPU lanes (operator
- "separate prompts per refinement step -> sub-agents...
-    concurrent Compute"). A level only starts once all earlier levels
-    finish, so ReWOO #E<id> refs always resolve. Reflexion-retries failed
-    verb nodes; fail-fast when a level has an unrecoverable failure.
-    Returns aggregate {success, node_results[], summary}."""
     _capture_run_template(dag, session_id)   # WS-6: additive, fire-and-forget
     try:
         from mios_pipe.routing.dag_validate import validate_dag
@@ -974,15 +895,6 @@ async def execute_dag(dag: dict, *, session_id: Optional[str],
 async def _execute_dag_bounded(dag: dict, *, session_id: Optional[str],
                                deepen_barrier: bool = False,
                                request=None) -> dict:
-    """Non-streaming execute_dag with a hard TURN_DEADLINE_S wall-clock backstop
- (runaway fix) PLUS client-disconnect cancellation (T21,
-) when `request` is provided: a non-streaming caller that hangs up
-    stops the swarm IMMEDIATELY rather than churning DAG+deepen to the deadline.
-    The STREAMING path self-bounds on disconnect in _execute_dag_emitting; this
-    closes the non-streaming gap. On timeout/disconnect, wait_for/cancel stops the
-    executor -> _execute_dag_saturated's CancelledError handler cancels in-flight
-    node tasks so they stop dispatching. Returns a partial result. Degrade-open:
-    request=None or REQUEST_CANCEL_ENABLE=false -> deadline-only (unchanged)."""
     _task = asyncio.create_task(
         execute_dag(dag, session_id=session_id, deepen_barrier=deepen_barrier))
     _disconnected = False
@@ -1024,18 +936,6 @@ async def _execute_dag_bounded(dag: dict, *, session_id: Optional[str],
 async def _execute_dag_emitting(dag: dict, *, session_id: Optional[str],
                                 chat_id: str, model: str,
                                 deepen_barrier: bool = False):
-    """Run execute_dag while LIVE-yielding per-node endpoint emitter bytes
- ("endpoint emitters for each ai endpoint/node") AND
-    the agents' streamed REASONING. Yields ("event", sse_bytes) as each DAG
-    node ENGAGES + finishes, then a final ("result", dag_result). Agent nodes
-    carry their registry endpoint / lane / model; verb nodes show 'verb
-    · <tool>'. Agent nodes also stream their thinking ("SF", name, frag onto
-    the shared queue) which is buffered per-agent and checkpoint-flushed as
-    reasoning_content deltas -- so the think dropdown shows the facets ACTUALLY
-    reasoning, not just engage/done pings (operator: "no thinking blocks
-    populating it"). The 0.25s poll lets the drainer notice the DAG finishing
-    even if the sentinel is lost to an unexpected raise -- then `await task`
-    re-raises it (parity with a plain `await execute_dag`)."""
     _my_cancel = asyncio.Event()
     _sup = bool(chat_id) and chat_id != "default"
     if _sup:
@@ -1141,21 +1041,6 @@ _EK_FIELD_REF_RE = re.compile(r"#E([A-Za-z0-9_]+)\.([A-Za-z0-9_]+)")
 
 
 def _smart_extract_from_jsonish(payload: str) -> str:
-    """Pull the most-useful single field out of a JSON-ish blob so a
-    ReWOO bare `#E<id>` ref doesn't paste the whole multi-line dump
-    into a downstream arg. Trace failure: mios_apps returns NDJSON
-    (one app per line). #En1 substituted the FULL stdout into
-    open_app(name=...), producing args like
-    `{"category":"linux-flatpak","name":"devel",...}\\n{"...":"..."}\\n`
-    which mios-launch can't resolve to anything.
-
-    Resolution order:
-      1. Single JSON object -> prefer `name`, then `launch`, then
-         `title`, then `id`, then `path`, then first string field.
-      2. NDJSON (one object per line) -> use the FIRST object's
-         best field via the same rule.
-      3. Not JSON -> return the first line, capped at 1024 chars
-         (matches the prior naive behavior for plain-text upstream)."""
     s = _sanitize_tool_text((payload or "").strip())
     if not s:
         return ""
@@ -1195,25 +1080,6 @@ def _smart_extract_from_jsonish(payload: str) -> str:
 
 
 def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
-    """ReWOO-style substitution: replace `#E<node-id>` tokens in arg
-    values with the captured stdout of the upstream node. Two forms
-    supported:
-
-                           the upstream output (handles JSON objects
-                           + NDJSON streams; falls back to first line
-                           for plain text). Caps at 1024 chars.
-                           JSON output. Use this when the planner
-                           knows which field it needs (e.g.,
-                           open_app(name='#En1.launch') to use the
-                           launch line from a mios_apps row).
-
-    Per ReWOO (Xu et al. 2023): the planner emits #E<id> placeholders
-    and the worker substitutes them with actual outputs at execute
-    time. Removes the per-step LLM re-plan that other frameworks
-    need.
-
-    Only handles string args (the common case for shell verbs).
-    Object / list args pass through unchanged."""
     if not args:
         return args
     out: dict = {}
@@ -1255,11 +1121,6 @@ def _substitute_ek_refs(args: dict, results_by_id: dict) -> dict:
 
 
 def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
-    """AIOS gap5 L2: dynamically size num_ctx to FIT the actual prompt+tool weight.
-    FAST lanes: raise toward WORKER_TOOL_CTX_MAX only as needed (never shrink, never
-    trim the contract). SLOW lanes: leave pinned at want_ctx (Layer 1 already shrank
-    their surface). Returns num_ctx. Degrade-open: CTX_FIT off / any error ->
-    want_ctx (today's static value)."""
     if not CTX_FIT:
         return want_ctx
     try:
@@ -1272,13 +1133,6 @@ def _fit_context(messages: list, tools: list, lane: str, want_ctx: int) -> int:
 
 
 def _node_deepens(node: dict) -> bool:
-    """True only for a node on a FAST lane (DEEPEN_LANES: dGPU/accelerator) -- the
-    work-stealing lanes that do EXTRA coverage passes until the barrier (operator
- "dGPU and accelerators that compute faster should just do another
-    pass from another facet"). A SLOW lane (CPU/iGPU/phone) does its ONE grounded
-    pass and then its primary trips the barrier for the fast lanes; it must NOT
-    deepen (it can barely finish one pass) -- the runaway/abandon source the
-    operator hit with local-cpu."""
     if not node.get("agent"):
         return False
     lane = _agent_lane(_AGENT_REGISTRY.get(str(node.get("agent"))) or {})
@@ -1286,12 +1140,6 @@ def _node_deepens(node: dict) -> bool:
 
 
 async def _reap_cpu_lane(reason: str) -> None:
-    """No-op on the /v1 plane. A llama.cpp / llama-swap generation ABORTS the moment
-    the client connection closes (unlike a legacy un-abortable backend), so a
-    cancelled / deadline-exceeded turn releases the lane on its own -- there is no
-    /v1 model-unload primitive to call and none is needed. Kept as a gated hook
-    (RUNAWAY_REAP_ENABLE) should a future backend ever need an explicit reap; never
-    raises into a turn."""
     if not RUNAWAY_REAP_ENABLE:
         return
     log.debug("runaway reaper (%s): /v1 lane self-releases on cancel -- no-op", reason)

@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for mios_reputation (#54 peer reputation): neutral-with-no-history, success-rate scoring, recent-failure penalty, and STABLE rank that preserves caller order when peers are all-neutral.
-# AI-related: mios_reputation
-# AI-functions: _check, t_neutral, t_scoring, t_recent_penalty, t_rank_stable, t_rank_prefers_reliable, main
+# AI-hint: Standalone unit test for mios_reputation (#54 peer reputation): neutral-with-no-history, success-rate scoring, recent-failure penalty, and STAB...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_reputation_py.md
 """Standalone unit test for mios_reputation (WS / #54 zero-trust federation).
 
 Pure stdlib + the sibling module only -- no server.py. Proves the deterministic

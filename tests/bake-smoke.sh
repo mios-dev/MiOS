@@ -19,11 +19,6 @@ if [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
     PODMAN_CMD="sudo podman"
 fi
 
-# Read the component lists from SSOT. A missing or empty list is FATAL, not a
-# fallback: `for x in ${EMPTY}` runs zero iterations and the loop still prints
-# "OK", so an SSOT edit that dropped a list would turn this whole harness into a
-# vacuous pass. The old fallbacks also hardcoded paths (Law 7) and capitalised
-# them ("Usr/..."), so they could never have matched anything anyway.
 _ssot_list() {
     python3 -c "
 import sys, tomllib

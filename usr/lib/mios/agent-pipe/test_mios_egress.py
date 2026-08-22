@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for tools/generate-egress-firewall (#54 egress firewall): build_ruleset emits a uid-scoped nftables ruleset with the always-allowed nets, per-mode final action (off=no-op, audit=log+accept, enforce=log+drop), and v4/v6 allowlist rules. Pure string assertions -- no nft binary needed (a separate nft -c check covers syntax on hosts that have it).
-# AI-related: tools/generate-egress-firewall.py
-# AI-functions: _check, _load_tool, t_always, t_modes, t_allow, t_scope, main
+# AI-hint: Standalone unit test for tools/generate-egress-firewall (#54 egress firewall): build_ruleset emits a uid-scoped nftables ruleset with the always-al...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_egress_py.md
 """Standalone unit test for the #54 egress-firewall generator.
 
 Pure: asserts the structure of build_ruleset's output (uid scoping, always-allowed

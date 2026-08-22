@@ -1,8 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=dev-only
-# AI-hint: Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to detect and bridge host-side GPU drivers for Mesa D3D12 and NVIDIA CUDA.
-# AI-related: mios-gpu-pv, mios-gpu-pv-detect, mios-gpu-pv-detect.service, display-manager.service, local-fs.target, multi-user.target
-# AI-functions: log
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=dev-only Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to de...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_24_gpu_pv_shim_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "${BASH_SOURCE[0]}")/lib/common.sh"

@@ -99,9 +99,6 @@ pub struct BuildConfig {
     pub ratchet: BuildRatchet,
 }
 
-/// Schema-generic configuration container. Owns stable fields directly
-/// (`meta`, `identity`, `build`) while storing all dynamic/operator-defined
-/// sections generically in `raw` to prevent recompilation on mios.toml schema changes.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct MiosConfig {
     #[serde(default)]

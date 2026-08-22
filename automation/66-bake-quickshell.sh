@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=bake-only
-# AI-hint: Installs Qt6 build-time tools, clones the quickshell repository, compiles it, and deploys the default declarative QML panels in /usr/share/mios/quickshell/.
-# AI-related: /usr/bin/quickshell, /usr/share/mios/quickshell/Config.qml
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=bake-only Installs Qt6 build-time tools, clones the quickshell repository, compiles it, and deploys the default declarative QML pa...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_66_bake_quickshell_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

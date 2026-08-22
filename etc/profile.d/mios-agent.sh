@@ -1,7 +1,5 @@
-#!/bin/sh
-# AI-hint: Configures shell environment for MiOS agents by injecting @-prefix command dispatching, setting MIOS_AGENT_DEFAULT, and providing the mios_repo_use helper for repository context switching.
-# AI-related: /etc/mios/agents/.local_key, mios-agent, mios-bootstrap, mios-repo
-# AI-functions: __mios_at_dispatch, __mios_at_widget, mios_repo_use
+# AI-hint: !/bin/sh Configures shell environment for MiOS agents by injecting @-prefix command dispatching, setting MIOS_AGENT_DEFAULT, and providing the mios_repo_use helper...
+# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_agent_sh.md
 
 case ":${PATH}:" in
     *":/usr/bin:"*) ;;

@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; rendered templates excluded). Directory-by-directory enumeration is what let the canonical OWUI pipe sit outside the gate while it did not import at all.
+# AI-hint: !/usr/bin/env bash Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lint_python_sh.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

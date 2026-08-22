@@ -1,8 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst, ensuring systemd-compatible container definitions are baked with correct host-specific UIDs, GIDs, and network configs.
-# AI-related: /usr/share/mios/kb
-# AI-functions: _render_with_envsubst, _render_with_bash
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst,...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_34_render_quadlets_sh.md
 set -euo pipefail
 
 # shellcheck disable=SC1090  # log.sh resolves at runtime: build ctx or installed

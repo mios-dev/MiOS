@@ -1,6 +1,5 @@
-# AI-hint: NATIVE single-agent tool-loop responders extracted VERBATIM from server.py
-# AI-related: ./server.py, ./mios_config.py, ./mios_turn.py, ./mios_sse.py, ./mios_verity.py, ./mios_secondary_loop.py, ./mios_jsonsalvage.py, ./test_mios_native_loop.py
-# AI-functions: _respond_native_loop_direct, _respond_local_state, _formulate_compute_snippet, _formulate_web_query, _format_local_state, configure
+# AI-hint: NATIVE single-agent tool-loop responders extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_turn.py, ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_native_loop_py.md
 """NATIVE single-agent tool-loop responders (strangler-fig refactor).
 
 Extracted VERBATIM from ``server.py``. ``_respond_native_loop_direct`` runs the

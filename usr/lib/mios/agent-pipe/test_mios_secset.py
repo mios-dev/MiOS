@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_secset (WS-A14 SSOT-derived security sets). Pure stdlib, no server.py/DB/pytest. Verifies high_privilege_set = curated base UNION SSOT additions (curated is the never-droppable floor; SSOT only adds), taint_verb_set merges built-in external-fetch verbs with SSOT taint_verbs, normalization (strip/drop-empty), and provenance() origin accounting (ssot_only / curated_only).
-# AI-related: ./mios_secset.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_secset (WS-A14 SSOT-derived security sets). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_secset_py.md
 """Unit tests for mios_secset (WS-A14)."""
 
 import sys

@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-node-pool.py. One case per way the fan-out pool can lie -- an exact alias counted as two lanes, one endpoint declared as two lanes, a lane [dispatch] does not budget, a blade that does not exist, and an endpoint with a baked port no overlay can move -- plus the declared-inert placeholder (an empty endpoint is not a defect), the empty-pool case, and the real tree.
-# AI-related: tools/check-node-pool.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-node-pool.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_node_pool_py.md
 """Tests for the fan-out pool gate."""
 
 import os

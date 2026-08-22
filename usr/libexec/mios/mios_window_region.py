@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Pure geometry helper for named window-snap regions. Given a monitor
-# AI-related: /usr/libexec/mios/mios-window, /usr/libexec/mios/mios-pc-control, /usr/share/mios/mios.toml
-# AI-functions: region_rect, normalize_region, rect_from_layout, main
+# AI-hint: !/usr/bin/env python3 Pure geometry helper for named window-snap regions.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_window_region_py.md
 """Named window-snap region geometry (pure, no side effects).
 
 The rectangle math is intentionally free of hardcoded pixel constants: half /

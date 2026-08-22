@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it names into bootstrap's root mios.toml. --check is the drift gate; --apply is what CI runs after a green build so the two repos cannot drift between releases.
-# AI-related: usr/share/mios/mios.toml, automation/98-drift-checks.sh, installation/UNIFY.md, .github/workflows/mios-ci.yml
-# AI-functions: load_manifest, mirror_files, mirror_tables, main
+# AI-hint: !/usr/bin/env python3 Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_bootstrap_py.md
 """Keep mios-bootstrap.git in step with mios.git (Law 15).
 
 Contract and rationale: installation/UNIFY.md.

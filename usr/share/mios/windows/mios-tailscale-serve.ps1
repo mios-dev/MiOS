@@ -1,6 +1,5 @@
-# AI-hint: Configures Tailscale's `serve` functionality on Windows to expose internal WSL2 MiOS services via tailnet-only HTTPS/TCP URLs by mapping local ports to Tailscale's proxy.
-# AI-related: /usr/share/mios/mios.toml, mios-tailscale-serve
-# AI-functions: Get-VmServedPorts, Test-WinReachable, Test-Port
+# AI-hint: Configures Tailscale's `serve` functionality on Windows to expose internal WSL2 MiOS services via tailnet-only HTTPS/TCP URLs by mapping local ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_tailscale_serve_ps1.md
 <#
   mios-tailscale-serve.ps1  --  stand up tailnet-only pretty-HTTPS URLs for the
   LIVE user-facing MiOS services, idempotently.

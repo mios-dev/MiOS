@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for the [units] projection debt register. The authoritative rendering comparison lives in the Rust test tools/native/mios-unit-gen/tests/projection.rs, which CI always runs; this gate enforces the half that needs no toolchain -- the register names real, declared, sorted, unique units and never grows past [unit_projection].max_drift. It runs mios-unit-gen --check too when a built binary is there, and SAYS SO when there is not, because a gate that skips quietly is how the golden test stayed green over a copy of itself for months.
-# AI-related: usr/share/mios/mios.toml, tools/test_check-unit-projection.py, tools/native/mios-unit-gen/src/lib.rs, tools/native/mios-unit-gen/tests/projection.rs, automation/98-drift-checks.sh
-# AI-functions: declared_units, unit_aliases, _built, register, max_drift, shipped, hygiene, binary_path, run_binary, main
+# AI-hint: !/usr/bin/env python3 Drift gate for the [units] projection debt register.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_unit_projection_py.md
 """Gate: the [units] projection's debt register is real, sorted and shrinking."""
 
 import os
@@ -48,7 +46,12 @@ def shipped(root: str) -> set:
     d = os.path.join(root, UNIT_DIR)
     if not os.path.isdir(d):
         return set()
-    return {n for n in os.listdir(d) if os.path.isfile(os.path.join(d, n))}
+    res = set()
+    for dp, _, fns in os.walk(d):
+        for f in fns:
+            rel = os.path.relpath(os.path.join(dp, f), d).replace(os.sep, "/")
+            res.add(rel)
+    return res
 
 
 def hygiene(data: dict, root: str) -> list:

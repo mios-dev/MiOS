@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest. Verifies the tier->profile mapping (read=none, write=workspace, interactive=strict), the explicit override, the FAIL-CLOSED stance (unknown/missing tier -> strictest, never none -- the security-critical property), and the per-dispatch workspace path (hashed verb, sanitized uniq, under the base).
-# AI-related: ./mios_sandbox.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_sandbox_py.md
 """Unit tests for mios_sandbox (WS-A13)."""
 
 import sys

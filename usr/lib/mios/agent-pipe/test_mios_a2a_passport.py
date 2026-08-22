@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal): claim shape, text-binding digest, and the send->verify roundtrip with injected fake sign/verify -- no server.py / live keys.
-# AI-related: mios_a2a_principal
-# AI-functions: _check, t_claims, t_roundtrip, t_tamper, t_unsigned, t_absent, main
+# AI-hint: Standalone unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal): claim shape, text-binding digest, and the send->verif...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_a2a_passport_py.md
 """Standalone unit test for mios_a2a_principal (WS-6 signed delegation principal).
 
 Pure stdlib + the sibling module only -- no server.py / Ed25519 keys. The real

@@ -1,23 +1,5 @@
-# AI-hint: WS-9 out-of-process policy-arbiter DECISION core. Pure-stdlib verdict logic the mios-policy-arbiter service uses to answer the agent-pipe's HITL arbiter client (_hitl_arbiter_verdict POSTs {verb,tier,args} -> {allow,reason}). decide() applies an explicit deny-list (always refuse), an allow-list (when set, only these auto-allow), and a risk-tier ceiling (verbs at/above arbiter_block_tier are refused) -- a SECOND, out-of-process opinion ON TOP of the in-process #62 HITL gate + WS-A9 PDP, so dangerous-verb policy can be changed/owned without redeploying the agent-pipe. The service wrapper owns HTTP + config load; this module is pure so it unit-tests in isolation.
-# AI-related: ./server.py, /usr/libexec/mios/mios-policy-arbiter, /usr/lib/systemd/system/mios-policy-arbiter.service, /usr/share/mios/mios.toml, ./mios_pdp.py, ./test_mios_arbiter.py
-# AI-functions: decide, class Verdict
-"""mios_arbiter -- the MiOS out-of-process policy-arbiter decision core (WS-9).
-
-Pure stdlib. The agent-pipe already has a HITL arbiter CLIENT
-(_hitl_arbiter_verdict) that POSTs a high-risk action to an external arbiter for
-an allow/deny verdict -- but no arbiter SERVICE existed. This is the decision
-logic that service runs: a deterministic, auditable second opinion that the
-operator can own/change independently of the agent-pipe.
-
-Policy (first match wins):
-  1. verb in deny  -> DENY (always; the hard floor)
-  2. allow set AND verb in allow -> ALLOW
-  3. allow set AND verb NOT in allow -> DENY (allow-list is exclusive)
-  4. tier rank >= block_tier rank -> DENY (risk ceiling)
-  5. otherwise -> ALLOW
-Fail-closed inputs (an unknown tier ranks above the top) keep an unclassified
-high-risk verb gated rather than waved through.
-"""
+# AI-hint: WS-9 out-of-process policy-arbiter DECISION core. Pure-stdlib verdict logic the mios-policy-arbiter service uses to answer the agent-pipe's...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_arbiter_py.md
 
 from __future__ import annotations
 

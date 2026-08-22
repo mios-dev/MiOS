@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""
-tools/generate-pipeline-index.py
-Generates usr/share/mios/reference/pipeline-index.tsv from automation/[0-9][0-9]-*.sh scripts.
-Enforces 1:1 mapping for stage identity coordinates (ADR-0012, WS-NUMBER AGY-644).
-"""
 
 import os
 import sys

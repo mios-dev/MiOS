@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Builds a verity-rooted Unified Kernel Image (UKI) and configures fapolicyd in permissive mode based on mios.toml flags; use this to generate the hardened UKI artifact and carve-out rules for the WS-7 security profile.
-# AI-related: mios-ws7-permissive, mios-agent-codegen, mios-verity
-# AI-functions: _ws7_scalar, _ws7_is_true, ws7_install_fapolicyd_observe, ws7_build_verity_uki, main
+# AI-hint: !/usr/bin/env bash Builds a verity-rooted Unified Kernel Image (UKI) and configures fapolicyd in permissive mode based on mios.toml flags; use this t...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_ws7_uki_fapolicyd_build_sh.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

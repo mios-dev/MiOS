@@ -1,6 +1,5 @@
-# AI-hint: Processes the OWUI output stream to wrap meta-narrative and reasoning lines in <think> tags for collapsible UI rendering while stripping hard refusal patterns based on the system's central refusal-patterns.txt (this display-side strip is the sole remaining consumer of that file; the daemon's refusal DETECTION is now model-driven, no pattern gate).
-# AI-related: /usr/share/mios/ai/, /usr/share/mios/ai/refusal-patterns.txt
-# AI-functions: _is_narration_line, __init__, _reload, _strip_refusals, _transform_lines, _flush_narration, _process, stream, outlet, class Filter, class Valves
+# AI-hint: Processes the OWUI output stream to wrap meta-narrative and reasoning lines in <think> tags for collapsible UI rendering while stripping hard...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_antimeta_filter_py.md
 """
 title: MiOS Anti-Meta Filter
 author: MiOS

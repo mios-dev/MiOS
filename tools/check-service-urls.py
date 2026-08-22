@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that templates its ${MIOS_PORT_*}, or membership of the shrink-only [urls].non_addressable register. A port in NEITHER fails the gate, so a new service cannot be added without stating how it is addressed; a port in BOTH fails too, because two answers is the problem this exists to prevent. The register only shrinks: a key leaves it by gaining a [urls] entry and can never be added back silently.
-# AI-related: usr/share/mios/mios.toml, tools/test_check-service-urls.py, automation/98-drift-checks.sh, usr/share/doc/mios/adr/0016-blade-node-topology.md
-# AI-functions: browser_openable, bare_port_addresses, covered_ports, port_keys, register, classify, main
+# AI-hint: !/usr/bin/env python3 Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_service_urls_py.md
 """Gate: one canonical address per service, or a registered reason there is none."""
 
 import os

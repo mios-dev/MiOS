@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Executes a sequential chain of diagnostic scripts (quick-summary, iommu-visualizer, system-profiler) to generate a comprehensive system performance and hardware configuration report in a timestamped directory.
-# AI-functions: print_banner, print_step, print_info, print_success, print_error, wait_for_user, check_sudo, create_output_dir, run_quick_summary, run_iommu_visualizer, run_system_profiler, generate_summary
+# AI-hint: !/bin/bash Executes a sequential chain of diagnostic scripts (quick-summary, iommu-visualizer, system-profiler) to generate a comprehensive system performance and h...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_run_all_profilers_sh.md
 set -euo pipefail
 
 readonly RED='\033[0;31m'

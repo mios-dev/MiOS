@@ -1,16 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Smoke-test script for the `_substitute_ek_refs` function in `server` to verify ReWOO #E<id> placeholder substitution logic, including multi-ref handling, missing ID preservation, and 1024-character output capping.
-# AI-related: /usr/lib/mios/agent-pipe
-# AI-functions: main
-"""Smoke-test _substitute_ek_refs.
-
-Verifies the ReWOO #E<id> placeholder substitution across the
-shapes a planner might emit:
-  * simple string substitution
-  * multiple refs in one arg
-  * refs to non-existent ids (preserved literal so dispatch errors)
-  * non-string args (passed through)
-"""
+# AI-hint: !/usr/bin/env python3 Smoke-test script for the `_substitute_ek_refs` function in `server` to verify ReWOO #E<id> placeholder substitution logic, including multi...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_ek_substitution_py.md
 from __future__ import annotations
 import sys
 

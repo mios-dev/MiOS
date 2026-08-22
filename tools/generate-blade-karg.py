@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 producer instead of depending on each installer to type it by hand. --check regenerates in memory and diffs, which is what makes this a projection rather than a hand-edited file.
-# AI-related: usr/share/mios/mios.toml, usr/lib/bootc/kargs.d/05-mios-blade.toml, usr/libexec/mios/role-apply, tools/test_generate-blade-karg.py
-# AI-functions: render, main
+# AI-hint: !/usr/bin/env python3 Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_blade_karg_py.md
 """Project [blade].type into a bootc kargs.d drop-in."""
 
 import os

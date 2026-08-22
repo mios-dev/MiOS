@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Configures the dynamic PostgreSQL-to-OS user account sync service, enabling live account mappings without the packaging-restricted NSS/PAM pgsql modules.
-# AI-related: 11-user.sh, schema-init.sql, mios-account-sync.service
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Configures the dynamic PostgreSQL-to-OS user account sync service, enabling live account mappings without the packag...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_13_accounts_db_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

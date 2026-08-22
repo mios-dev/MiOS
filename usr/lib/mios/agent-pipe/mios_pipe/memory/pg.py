@@ -1,5 +1,5 @@
-# AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe datastore client using parameterized queries and HNSW-indexed vector recall.
-# AI-functions: _pg_skip, _pg_mark_down, rid_to_pg_id, pg_config, dsn, vector_literal, build_insert, build_recall, recall_tuning, rls_enabled, build_set_owner, _owner_scope, execute, _table_columns, insert, recall
+# AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe datastore client using parameter...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_pg_py.md
 """mios_pg -- PostgreSQL + pgvector client foundation for the agent plane (WS-9).
 
 FOSS-pure PostgreSQL + pgvector client for the agent plane. The PURE, deterministic

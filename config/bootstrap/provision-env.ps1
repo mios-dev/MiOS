@@ -1,9 +1,5 @@
-﻿# AI-hint: Initializes the MiOS environment by defining directory structures, handling secure credential input, and managing .env file parsing for the build and deployment pipeline.
-# AI-related: mios-build, mios-secrets, mios-install
-# AI-functions: Read-Secret, Read-WithDefault, Import-EnvFile, Export-EnvFile
-# 'MiOS' Public Bootstrap -- Windows (PowerShell 5.1+)
-# Repository: mios-dev/mios-bootstrap
-# Usage: irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/config/bootstrap/provision-env.ps1 | iex
+# AI-hint: Initializes the MiOS environment by defining directory structures, handling secure credential input, and managing .env file parsing for the build and deployment pipeline.
+# AI-doc: usr/share/doc/mios/manual/_harvest/config_bootstrap_provision_env_ps1.md
 
 $ErrorActionPreference = "Stop"
 

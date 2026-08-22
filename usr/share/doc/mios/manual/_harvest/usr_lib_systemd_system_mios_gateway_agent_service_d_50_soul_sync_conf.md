@@ -1,0 +1,28 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Systemd drop-in for mios-gateway-agent.service that executes mios-hermes-soul-sync and mios-docs-index to ensure SOUL.md and the docs-index are synchronized from system paths to runtime paths on every start.
+AI-related: /usr/share/mios/ai/hermes-soul.md, /usr/libexec/mios/mios-hermes-soul-sync, /usr/libexec/mios/mios-docs-index, mios-hermes-soul-sync, mios-docs-index, mios-gateway-agent.service
+/usr/lib/systemd/system/mios-gateway-agent.service.d/50-soul-sync.conf
+
+Re-sync /var/lib/mios/hermes/SOUL.md from
+/usr/share/mios/ai/hermes-soul.md on every service start so SOUL.md
+updates propagate without a manual touch+restart. Operator-flagged
+2026-05-17: WSLg rule didn't take effect after my deploy because
+`cp` preserved mtime, so the firstboot-style content-diff check
+said "no change" -- the new prose never reached the agent.
+
+mios-hermes-soul-sync exits 0 on noop OR successful sync, so this
+ExecStartPre is safe to keep enabled even when SOUL.md is current.
+It also preserves any operator-appended runtime-context block (the
+### MIOS-RUNTIME-CONTEXT-BEGIN section firstboot adds for Discord
+defaults, etc.).
+
+Lives under /usr/lib/systemd/ (image-immutable) so a fresh Day-0
+install from clone gets the wiring without operator-side action.
+
+<!-- mios-src:75beaee4a414 from usr/lib/systemd/system/mios-gateway-agent.service.d/50-soul-sync.conf:1-19 -->
+

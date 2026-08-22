@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Shell entrypoint for the A2A federation loopback smoke test (roadmap B5 / T-066). Thin wrapper over mios-a2a-test --loopback: MiOS speaks to itself over the /a2a JSON-RPC surface and asserts a Message -> Task -> Artifact round-trip plus a recorded delegation chain. Operator runs this on a booted host.
-# AI-related: usr/libexec/mios/mios-a2a-test, usr/lib/mios/agent-pipe/mios_pipe/federation/a2a.py
+# AI-hint: !/usr/bin/env bash Shell entrypoint for the A2A federation loopback smoke test (roadmap B5 / T-066).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_tests_test_a2a_loopback_sh.md
 set -euo pipefail
 
 if [[ -z "${MIOS_AGENT_PIPE_URL:-}" && -r /etc/mios/install.env ]]; then

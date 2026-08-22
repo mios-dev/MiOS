@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Install + configure GNOME Remote Desktop in system/headless mode so
-# AI-related: /usr/libexec/mios/automation/35-xrdp-enhanced-session.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-route, gdm.service, gnome-remote-desktop.service
-# AI-functions: _log, _mios_toml_value
+# AI-hint: !/usr/bin/env bash Install + configure GNOME Remote Desktop in system/headless mode so AI-related: /usr/libexec/mios/automation/35-xrdp...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_automation_35_xrdp_enhanced_session_sh.md
 set -euo pipefail
 
 _log() { printf '[grd-enhanced] %s\n' "$*" >&2; }

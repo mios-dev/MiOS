@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: CI-visible proof that the documentation programme produced its artifacts: counts distilled manual pages, landed comment passages and spliced MIOS-GEN sections, then runs the mios-manual read-only gates (ledger, render, landing, coverage).
-# AI-related: /usr/libexec/mios/mios-manual, /usr/lib/mios/mios_comments.py, /usr/share/doc/mios/manual, /usr/share/mios/reference/manual-corpus.tsv, /usr/share/doc/mios/reference/documentation-pipeline.md
+# AI-hint: !/usr/bin/env bash CI-visible proof that the documentation programme produced its artifacts: counts distilled manual pages, landed comment passages and splice...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_doc_production_evidence_sh.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

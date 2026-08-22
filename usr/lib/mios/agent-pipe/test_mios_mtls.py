@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for tools/provision-agent-mtls (#54 mTLS PKI): the agent leaf cert is signed by the CA, carries clientAuth+serverAuth EKU, and re-runs reuse the CA (peer trust survives). Skips cleanly if cryptography is absent.
-# AI-related: tools/provision-agent-mtls.py
-# AI-functions: _skip, _load_tool, t_chain, t_eku, t_ca_reuse, main
+# AI-hint: Standalone unit test for tools/provision-agent-mtls (#54 mTLS PKI): the agent leaf cert is signed by the CA, carries clientAuth+serverAuth EKU, and r...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_mtls_py.md
 """Standalone unit test for the #54 mTLS provisioning tool.
 
 Provisions into a temp dir and verifies the PKI is correct: the agent leaf is

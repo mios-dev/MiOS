@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Provides the canonical legal/policy acknowledgment gate; agents use it to determine if the system requires a manual "Acknowledged" prompt or can proceed automatically based on MIOS_AGREEMENT_ACK environment variables.
-# AI-related: mios-bootstrap
-# AI-functions: mios_agreement_summary, _mios_agreement_render, mios_print_agreement_banner
+# AI-hint: !/usr/bin/env bash Provides the canonical legal/policy acknowledgment gate; agents use it to determine if the system requires a manual "Acknowledged" promp...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_agreements_banner_sh.md
 
 mios_agreement_summary() {
     cat <<'EOF'

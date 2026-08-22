@@ -1,6 +1,5 @@
-# AI-hint: Stdlib unit test for mios_clusterhealth -- the cluster/scheduler/health route LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave). Stubs every injected dep via configure() plus the runtime-reassigned lane resolver (sys.modules["mios_lanes_resolver"]._lane_resolver_current) with no network / no DB, then asserts each moved *_logic still produces the byte-shape the @app thin wrappers used to: cluster_health_logic (per-agent effective_up/failover_only rollup + lane_resolver snapshot via the getter), scheduler_state_logic (per-lane concurrency + admission/priority/kernel posture object), and health_logic (capability/health rollup -- backend/router/dci/security/passport blocks). Run: python test_mios_clusterhealth.py
-# AI-related: ./mios_clusterhealth.py, ./server.py
-# AI-functions: main
+# AI-hint: Stdlib unit test for mios_clusterhealth -- the cluster/scheduler/health route LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_clusterhealth_py.md
 """Stdlib unit tests for mios_clusterhealth (refactor ROUTE-SURFACE) -- stubbed, no I/O."""
 
 import asyncio

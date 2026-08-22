@@ -33,6 +33,9 @@ CREATE TABLE IF NOT EXISTS knowledge (
     passport      jsonb,                            -- ed25519 attribution envelope
     last_access   timestamptz,
     ts            timestamptz  DEFAULT now(),
+    origin_node   text         NOT NULL DEFAULT 'local',
+    logical_ts    bigint       NOT NULL DEFAULT 0,
+    logical_clock bigint       NOT NULL DEFAULT 0,
     -- hybrid-search full-text vector (language-neutral 'simple' config; the
     -- topical-anchor guard becomes a real tsvector fusion). NO stemming so it
     -- carries no language assumption (NO-HARDCODED-ENGLISH spirit).
@@ -77,7 +80,10 @@ CREATE TABLE IF NOT EXISTS agent_memory (
     source    text DEFAULT 'agent',                -- agent | operator
     emb       vector(768),
     passport  jsonb,
-    ts        timestamptz DEFAULT now()
+    ts        timestamptz DEFAULT now(),
+    origin_node  text NOT NULL DEFAULT 'local',
+    logical_ts   bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS agent_memory_emb_hnsw
     ON agent_memory USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
@@ -122,7 +128,10 @@ CREATE TABLE IF NOT EXISTS event (
     trace_id        text,
     span_id         text,
     parent_span_id  text,
-    ts          timestamptz DEFAULT now()
+    ts          timestamptz DEFAULT now(),
+    origin_node  text NOT NULL DEFAULT 'local',
+    logical_ts   bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS event_kind    ON event (kind);
 CREATE INDEX IF NOT EXISTS event_session ON event (session_id);
@@ -194,7 +203,10 @@ CREATE TABLE IF NOT EXISTS session (
     kind          text,                             -- hermes | cron | cli | delegate | mcp
     owui_chat_id  text,
     meta          jsonb,
-    ts            timestamptz DEFAULT now()
+    ts            timestamptz DEFAULT now(),
+    origin_node   text NOT NULL DEFAULT 'local',
+    logical_ts    bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS session_chat ON session (owui_chat_id);
 
@@ -325,7 +337,10 @@ CREATE TABLE IF NOT EXISTS scratch (
     lane     text,
     phase    text,
     note     text,
-    ts       timestamptz DEFAULT now()
+    ts       timestamptz DEFAULT now(),
+    origin_node   text NOT NULL DEFAULT 'local',
+    logical_ts    bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS scratch_chat ON scratch (chat_id, ts DESC);
 -- Reconcile the legacy-era scratch shape (source/topic/body) the mios-daemon
@@ -693,10 +708,24 @@ CREATE TABLE IF NOT EXISTS config_kv (
     emb_model    text,
     emb_version  text,
     ts           timestamptz DEFAULT now(),
+    origin_node  text NOT NULL DEFAULT 'local',
+    logical_ts   bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0,
     UNIQUE (scope, key, layer)
 );
 CREATE INDEX IF NOT EXISTS config_kv_emb_hnsw
     ON config_kv USING hnsw (emb vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+CREATE TABLE IF NOT EXISTS embeddings (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    hash          text UNIQUE,
+    model         text,
+    vector        vector(768),
+    ts            timestamptz DEFAULT now(),
+    origin_node   text NOT NULL DEFAULT 'local',
+    logical_ts    bigint NOT NULL DEFAULT 0,
+    logical_clock bigint NOT NULL DEFAULT 0
+);
 
 -- WS-BLADE provenance for divergence reconciliation (ADR-0017 D5 / AGY-1598)
 ALTER TABLE config_kv ADD COLUMN IF NOT EXISTS origin_node   text NOT NULL DEFAULT 'local';

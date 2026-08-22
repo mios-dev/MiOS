@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote API dispatch via the Hermes port.
-# AI-related: /usr/libexec/mios/mios-directory-lookup, /etc/mios/hermes/api.env, mios-directory-lookup, mios-agent
+# AI-hint: !/bin/bash Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote A...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_directory_dispatch_sh.md
 set -euo pipefail
 
 echo "── direct shim ──"

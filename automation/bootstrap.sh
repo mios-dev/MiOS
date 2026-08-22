@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment for the installation and staging phases.
-# AI-related: mios-pipeline, mios-build, mios-install-XXXXXX
+# AI-hint: !/bin/bash Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_bootstrap_sh.md
 set -euo pipefail
 
 PRIVATE_INSTALLER="https://raw.githubusercontent.com/mios-dev/mios/main/install.sh"

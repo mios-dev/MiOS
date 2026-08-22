@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. Verifies the WHERE fragment is PARAMETERIZED pg (named %(...)s placeholders, COALESCE not ??, no legacy time::now()/record-ids), TTL added only with_ttl, the count/select/delete SQL shapes (count(*) AS c, LIMIT %(limit)s, DELETE ... id = ANY(%(ids)s)), pg dict-row parsing (count + bigint ids), and plan_sweep arithmetic.
-# AI-related: ./mios_evict.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_evict_py.md
 """Unit tests for mios_evict (WS-A3 parameterized-pg cutover)."""
 
 import sys

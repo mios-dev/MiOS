@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabilities alongside Podman, resolving package conflicts via the defined moby configuration.
-# AI-related: docker.socket
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabiliti...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_39_moby_engine_sh.md
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

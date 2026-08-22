@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_kernel (WS-A11/WS-3 decomposition Stage 1b: the pure Kernel facade). Pure stdlib + asyncio, no server.py/DB/pytest. Verifies Kernel.handle routes via the injected router then runs via the injected dispatcher (passing the decision + refined + ctx through), requires both router+dispatcher (ValueError otherwise), and managers() reports which seams are wired. Uses the real mios_router + a fake dispatcher.
-# AI-related: ./mios_kernel.py, ./mios_router.py
-# AI-functions: check, main, class FakeDispatcher
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_kernel (WS-A11/WS-3 decomposition Stage 1b: the pure Kernel facade). Pure stdlib ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_kernel_py.md
 """Unit tests for mios_kernel (WS-A11/WS-3 Stage 1b)."""
 
 import asyncio

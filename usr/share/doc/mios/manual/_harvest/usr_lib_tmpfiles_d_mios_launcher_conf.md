@@ -1,0 +1,45 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Defines the /run/mios-launcher directory with 1777 permissions and mios ownership to provide a dedicated, persistent runtime path for the mios-launcher broker and hermes-agent to share sockets and tempfiles.
+AI-related: mios-launcher, mios-hermes, mios-gpu, hermes-agent.service
+/usr/lib/tmpfiles.d/mios-launcher.conf
+
+Dedicated runtime dir for the operator-side mios-launcher broker.
+Owned by `mios` so the user-systemd-managed daemon can bind +
+chmod its socket; sticky-bit world-rwx so service-user processes
+(notably mios-hermes, uid 820) can ALSO connect + write per-call
+tempfiles into the same dir.
+
+WHY a dedicated /run/mios-launcher/ INSTEAD of /run/mios/:
+  /run/mios/ already has a tmpfiles.d declaration in
+  mios-gpu.conf with mode 0755 root:root for GPU runtime files
+  (/run/mios/{cdi-detect.status,gpu-passthrough.status, ...}).
+  Two declarations for the same path with conflicting mode +
+  ownership trigger systemd-tmpfiles "duplicate line ... ignoring"
+  warnings and leave the resolved state non-deterministic across
+  boots. Splitting into /run/mios-launcher/ removes the conflict
+  entirely and gives the broker its own isolated lifecycle.
+
+`d` (create-AND-adjust) -- NOT `Z` (adjust-only). /run is tmpfs
+and gets wiped on every WSL boot, so the dir literally does not
+exist on cold start. An earlier `Z` declaration silently failed
+at boot because there was nothing to adjust -- which broke
+hermes-agent.service's ReadWritePaths=/run/mios-launcher mount-
+namespace setup. Operator-confirmed regression 2026-05-15: after
+`wsl --shutdown` + restart, hermes-agent flapped in 'activating'
+loop with journal-error "Failed to set up mount namespacing:
+/run/mios-launcher: No such file or directory". The chat UI
+surface of this failure was "Model not found" -- because OWUI
+was talking to a flapping gateway.
+
+`d` creates the dir if absent + sets the mode/owner; on
+subsequent tmpfiles passes it re-asserts mode 1777 mios mios,
+preserving the "fix perms drift" property the previous `Z` was
+trying to provide for the live-perm-regression case.
+
+<!-- mios-src:e4c1a703218e from usr/lib/tmpfiles.d/mios-launcher.conf:1-36 -->
+

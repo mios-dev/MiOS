@@ -1,6 +1,5 @@
-# AI-hint: Wraps the btop monitor to enforce MiOS-specific presets (palette, transparency, and process-only view) by seeding user configs from /etc/btop/ and intercepting the btop command to apply preset 4 by default.
-# AI-related: mios-btop
-# AI-functions: _mios_btop_seed_user_config, btop
+# AI-hint: Wraps the btop monitor to enforce MiOS-specific presets (palette, transparency, and process-only view) by seeding user configs from /etc/btop/ and intercepting the ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_btop_sh.md
 
 [ -n "${PS1:-}" ] || return 0
 

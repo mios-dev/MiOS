@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone unit test for the mios-daemon per-verb post-check after the NO-HARDCODE cutover. Proves the verb->check mapping is SSOT-driven (mios.toml [daemon.post_check]) not a code-baked dispatch map: the verb->signal table is READ from the layered toml (vendor value matches the shipped defaults), an unlisted verb degrades-open to checked=False, a NON-DEFAULT [daemon.post_check] layer changes which verbs get checked (behavior follows SSOT), and the check IMPLEMENTATIONS (file_exists / file_nonempty) still execute correctly when dispatched by signal name.
-# AI-related: ./mios-daemon, /usr/share/mios/mios.toml
-# AI-functions: _load, _write_toml, check, main
+# AI-hint: !/usr/bin/env python3 Standalone unit test for the mios-daemon per-verb post-check after the NO-HARDCODE cutover.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_daemon_postcheck_py.md
 """Unit test: mios-daemon per-verb post-check is SSOT-driven + degrade-open."""
 
 import ctypes

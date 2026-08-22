@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: The MISSING USB staging bridge -- stages every built immutable-MiOS artifact (oci-archive tar, Anaconda-bootc installer ISO, raw/qcow2/vhdx disk images, the mios.toml brain) onto a MiOS-Cat-prepared Ventoy USB (MiOS-Repo + MiOS-Data), resolving partition labels from mios.toml [cat.*] via the shared mios-common.sh resolver, and renders the from-SSOT loopback boot menu so one USB offline-installs the REAL bootc image. Zero-network; idempotent; degrade-open on single-partition sticks. Companion/caller-restorer for tools/install.sh + usr/libexec/mios/mios-stage-oci-archive.
-# AI-related: installation/mios-common.sh, tools/install.sh, usr/libexec/mios/mios-stage-oci-archive, cat/loopback.cfg, usr/share/mios/ventoy/ventoy.json, Justfile, usr/share/mios/mios.toml [cat.repo_partition]/[cat.data_partition]/[deploy.artifacts]
-# MIOS_INSTALLER_ROLE=usb-artifact-stager
+# AI-hint: !/usr/bin/env bash The MISSING USB staging bridge -- stages every built immutable-MiOS artifact (oci-archive tar, Anaconda-bootc installer ISO, raw/qcow2/vhdx ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/installation_stage_mios_repo_sh.md
 set -euo pipefail
 
 SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

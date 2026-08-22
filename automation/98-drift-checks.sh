@@ -1,9 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local Ollama lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a
-# AI-related: 99-postcheck.sh, build.sh, /usr/libexec/mios/mios-ai-hint-coverage, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1, /usr/share/mios/ai, /etc/mios/ai, /usr/lib/mios/agent-pipe, /usr/share/mios/ai/v1/packages, /usr/libexec/mios/mios-registry
-# AI-functions: python3, _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_agent_schema, check_ai_manifest, check_package_registry, check_cli_sql_safety
-# MIOS_DRIFT_CHECK_SOFT=1 to report but exit 0 (advisory, while a fix is staged).
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Source-tree drift fitness-functions (WS-0A).
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_98_drift_checks_sh.md
 set -euo pipefail
 
 PYTHON="python3"
@@ -6194,6 +6190,7 @@ main() {
     check_docs_ratchet
     check_legibility_ratchet
     check_docs_ratchet_monotone
+    check_no_generated_prose_in_resolvers
     check_manual_generated
     check_manual_ledger
     check_comment_landing
@@ -6371,6 +6368,15 @@ check_resolver_shell_equivalence() {
                  python3 tools/check-resolver-twin.py 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "resolver shell equivalence check failed"
+    fi
+}
+
+check_comment_lex_equivalence() {
+    echo "[98-drift-checks]   check_comment_lex_equivalence"
+    local out
+    if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-comment-lex-equivalence.py 2>&1); then
+        printf '%s\n' "$out" | tail -n 12 >&2
+        _violation "comment lexer equivalence check failed"
     fi
 }
 
@@ -6780,12 +6786,6 @@ check_github_slug_casing() {
     echo "[98-drift-checks]   All raw.githubusercontent.com URLs use canonical lowercase org/repo"
 }
 
-# Windows PowerShell 5.1 -- which is what runs the install path on a stock
-# Windows box -- reads a BOM-less file as ANSI, not UTF-8. Any .ps1 carrying
-# non-ASCII (the box-drawing run separators, arrows and accented text MiOS
-# prints) therefore MUST ship a UTF-8 BOM or its output is mojibake. This is the
-# same convention tools/render-globals.py already writes with (utf-8-sig).
-# Pure-ASCII scripts need no BOM and must not carry a pointless one.
 check_ps_encoding_and_bom() {
     echo "[98-drift-checks]   check_ps_encoding_and_bom"
     local out
@@ -7074,16 +7074,20 @@ try:
     import tomllib
 except Exception:
     sys.exit(0)
-KEYS = ("max_unmigrated_narrative", "max_overlong_hints")
+KEYS = ("max_unmigrated_narrative", "max_stale_refs", "max_overlong_hints", "max_undocumented_components")
 
 def load(blob):
     try:
-        return (tomllib.loads(blob).get("docs", {}) or {})
+        t = tomllib.loads(blob)
+        d = t.get("docs", {}) or {}
+        a = t.get("ai_tag", {}) or {}
+        return {**d, **a}
     except Exception:
         return None
 
 with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-    now = tomllib.load(fh).get("docs", {}) or {}
+    data = tomllib.load(fh)
+    now = {**(data.get("docs", {}) or {}), **(data.get("ai_tag", {}) or {})}
 prev_raw = subprocess.run(["git", "show", "HEAD:usr/share/mios/mios.toml"],
                           cwd=root, capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
@@ -7129,6 +7133,18 @@ PY
         return
     fi
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
+}
+
+check_no_generated_prose_in_resolvers() {
+    echo "[98-drift-checks]   check_no_generated_prose_in_resolvers"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "$line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
 }
 
 # Derived doc sections must match SSOT: see docs/agy/doc-generative-documentation.md
@@ -7747,7 +7763,7 @@ for table in RULE_KEYS:
     if not re.search(r"\borigin_node\b", body):
         viol.append("table '%s' has no origin_node column, so a merged row cannot be "
                     "attributed to the partition that wrote it" % table)
-    if not re.search(r"\blogical_ts\b", body):
+    if not re.search(r"\b(logical_ts|logical_clock)\b", body):
         viol.append("table '%s' has no logical_ts column, so append-ordered and "
                     "last-writer-wins have nothing to order by" % table)
 if viol:

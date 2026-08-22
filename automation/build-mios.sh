@@ -1,7 +1,5 @@
-#!/bin/bash
-# AI-hint: This script is the primary installation and ignition tool for MiOS; an agent uses it to clone the MiOS repository and merge its components into the Fedora Server root filesystem.
-# AI-related: /usr/share/mios/mios.toml.example., /etc/mios/install.env, mios-ignition, localhost:8080
-# AI-functions: log, log_warn, log_error, log_info, show_banner, collect_user_config, check_prerequisites, install_dependencies, fetch_mios_repo, queue_environment_files, merge_mios_structure, create_user_account
+# AI-hint: !/bin/bash This script is the primary installation and ignition tool for MiOS; an agent uses it to clone the MiOS repository and merge its components into the Fedora ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_build_mios_sh.md
 
 set -euo pipefail
 

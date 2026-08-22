@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for unmappable container names. Quadlet names a container `systemd-<unit>` when the unit does not declare ContainerName, so `podman ps` and `systemctl` disagree about what a thing is called -- during an incident that turns "which unit is this container?" into guesswork. Every [containers.<name>.Container] block must declare ContainerName equal to its own unit name; a TEMPLATE unit (`name@`) must instead name the instantiated form `<base>-%i`, because a template has no single container. Checks the SSOT and the rendered .container files together, so neither side can drift alone.
-# AI-related: usr/share/mios/mios.toml, usr/share/containers/systemd/*.container, tools/generate-pod-quadlets.py, tools/test_check-container-names.py
-# AI-functions: expected_name, ssot_containers, rendered_containers, main
+# AI-hint: !/usr/bin/env python3 Drift gate for unmappable container names.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_container_names_py.md
 """Gate: every Quadlet declares a ContainerName that matches its unit."""
 
 import glob

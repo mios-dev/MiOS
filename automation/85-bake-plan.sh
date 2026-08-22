@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=bake-only
-# AI-hint: Projects the sharded bake-plan files (.list) under /usr/lib/mios/bake/plan.d/
-# AI-related: usr/share/mios/mios.toml, tools/generate-bake-plan.py, usr/libexec/mios/mios-bake-group, automation/98-drift-checks.sh
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only Projects the sharded bake-plan files (.list) under /usr/lib/mios/bake/plan.d/ AI-related: usr/share/mios/mios.toml, to...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_85_bake_plan_sh.md
 set -euo pipefail
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

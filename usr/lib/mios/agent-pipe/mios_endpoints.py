@@ -1,20 +1,5 @@
-# AI-hint: Pure endpoint capability detection extracted verbatim from server.py (strangler-fig refactor R-wave). MiOS is OpenAI-/v1-only: every lane speaks /v1/chat/completions, so this module no longer classifies a wire DIALECT -- it answers "what FEATURES does THIS /v1 lane support?" from CONFIG-first signals: _binding_api reads the per-engine/per-agent `api` field; _endpoint_is_llamacpp (llama.cpp llama-server that exposes /slots KV paging), _endpoint_supports_tool_choice (llama.cpp 400s on tool_choice='required'), _endpoint_supports_parallel_tools (only the capable heavy lane emits well-formed parallel calls) all fall back to env-SSOT host:port hint tuples so NO bare port literal lives in the routing decision. The hint tuples + api-name sets (_NO_TOOL_CHOICE_*/_PARALLEL_TOOLS_HINTS/_LLAMACPP_API/_KV_PAGING_HINTS) moved with the fns since only this cluster consumed them. Self-contained + side-effect-free (stdlib + mios_config._DISPATCH_TOML); NO DI, never imports server. server.py re-imports every name under its original _-prefixed alias (surface-parity zero-diff).
-# AI-related: ./server.py, ./mios_config.py, ./test_mios_endpoints.py
-# AI-functions: _binding_api, _endpoint_supports_tool_choice, _endpoint_supports_parallel_tools, _endpoint_is_llamacpp
-"""Endpoint capability detection (pure leaf extracted from server.py).
-
-MiOS is OpenAI-/v1-only -- every lane exposes ``/v1/chat/completions``, so there
-is no wire-dialect to detect. This module probes what FEATURE-SET a given /v1
-endpoint supports: a llama.cpp ``llama-server`` that can do ``/slots`` KV paging,
-whether it accepts ``tool_choice='required'``, and whether its model reliably
-emits well-formed PARALLEL tool calls. Every probe is CONFIG-FIRST (a
-per-binding/agent ``api`` field wins) and falls back to an env-SSOT host:port
-hint tuple, so no bare port literal lives in the routing code. All functions are
-pure (endpoint string + cfg dict + optional engine); the only dependency is
-``mios_config._DISPATCH_TOML`` for the hint defaults. ``server.py`` re-imports
-every name under its original ``_``-prefixed alias so the module's importable
-surface is byte-identical (surface-parity gate).
-"""
+# AI-hint: Pure endpoint capability detection extracted verbatim from server.py (strangler-fig refactor R-wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_endpoints_py.md
 
 from __future__ import annotations
 

@@ -1,18 +1,5 @@
-# AI-hint: SWARM brain extracted VERBATIM from server.py (refactor R8 wave). The multi-agent fan-out + anti-fabrication synthesis core: _agent_dag_from_tasks (build a CONCURRENT per-agent DAG from refine's multi_task array -- facet de-dup, distinct-hardware spread, eligibility filter, slow-lane ceiling, live-node backfill) and _respond_agent_dag (execute the per-agent DAG concurrently then SYNTHESISE the outputs into ONE polished answer). The nested _synthesise carries the LOAD-BEARING anti-fabrication logic -- raw-research-as-only-ground-truth, honest-when-empty (never backfill today's news from training memory), punt-drop (_is_punt), the multi-facet CLOSED-LOOP replan (re-dispatch unfulfilled facets, adopt only if strictly more satisfied), the metadata-only audit envelope, and the empty-DAG native-loop fallback -- all moved byte-identically (NO consolidation; the four execute_dag entrypoints stay in mios_dag_exec). Every server-side dep (config scalars, _AGENT_REGISTRY/_VERB_CATALOG, the routed-domain ContextVar, _pick_agent/_dedup_pool_by_target/_reroute_dead_nodes/_live_agent_names/_agent_lane/_is_slow_lane_ep, the read/source/strip/usage helpers, _respond_native_loop_direct, _read_tool_enrich) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _execute_dag_bounded/_execute_dag_emitting (mios_dag_exec), the SSE emitters (mios_sse), loads_lenient (mios_jsonsalvage), _web_research_enrich (mios_web_research), polish_response (mios_verity) are imported directly from their sibling modules. server.py re-imports both moved names under their original aliases (surface-parity zero-diff); they are also injected into mios_toolexec via its configure(agent_dag_from_tasks=, respond_agent_dag=). A later wave folded the SWARM DECOMPOSER pair into the same module: _plan_swarm (the dedicated swarm planner -- splits a substantive ask into >=2 independent {agent, task} sub-tasks for concurrent dispatch, returns [] when not worth splitting) and _expand_facets (model-generated ADDITIONAL distinct facets so every live node works its own angle; self-gates to [] when the ask has no more real angles). Their server-side deps (the recursion-depth gate _depth_exhausted/_dispatch_depth/MAX_DISPATCH_DEPTH, the agent-catalog renderer _render_agent_catalog/_AGENT_CATALOG_RENDERED, SWARM_MODEL, _SWARM_SYSTEM_HEAD) are ALSO configure()-injected; the PLANNER_* config (SSOT) and _env_grounding are direct sibling imports (mios_config / mios_grounding). _plan_swarm carries no decorator here -- server.py re-applies @_traced_stage("plan") at the import boundary (the tracing infra stays in server.py).
-# AI-related: ./server.py, ./mios_config.py, ./mios_grounding.py, ./mios_dag_exec.py, ./mios_web_research.py, ./mios_sse.py, ./mios_jsonsalvage.py, ./mios_verity.py, ./mios_toolexec.py, ./test_mios_swarm.py
-# AI-functions: _agent_dag_from_tasks, _respond_agent_dag, _plan_swarm, _expand_facets, _reroute_dead_nodes, configure
-"""SWARM brain (refactor R8).
-
-Extracted VERBATIM from ``server.py`` -- the multi-agent fan-out + synthesis
-core. ``_agent_dag_from_tasks`` builds a CONCURRENT per-agent DAG from refine's
-``multi_task`` array; ``_respond_agent_dag`` executes that DAG concurrently and
-SYNTHESISES the agents' outputs into one polished answer. The nested
-``_synthesise`` holds the anti-fabrication logic (raw research is the only ground
-truth, honest-when-empty, punt-drop, closed-loop replan, audit envelope) moved
-byte-identically. ``server.py`` re-imports both names under their original alias
-so the importable surface is byte-identical; every server-side symbol is injected
-via :func:`configure` (one-way boundary -- this module never imports ``server``).
-"""
+# AI-hint: SWARM brain extracted VERBATIM from server.py (refactor R8 wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_swarm_py.md
 
 from __future__ import annotations
 
@@ -198,16 +185,6 @@ def configure(*, swarm_max_width=None, swarm_max_cpu_nodes=None,
 
 
 def _reroute_dead_nodes(dag: dict, live: set) -> list:
-    """Re-route any DAG `agent` node assigned to a node that is currently DOWN
-    onto a LIVE agent, preserving swarm width under an outage (operator
- "iGPU is down"). Universal chokepoint: runs on the FINAL DAG
-    regardless of which planner built it (multi_task / _plan_swarm / the
-    decompose_intent fallback). Spreads like _agent_dag_from_tasks -- prefer an
-    UNUSED live agent so the facets still fan out across DISTINCT engines, only
-    reusing a live agent when none are left. The default agent (Hermes, dGPU) is
-    never health_gate, so a live target always exists. Mutates nodes in place;
-    returns [(node_id, from, to), ...] for the log/emit. No-op when `live` is
-    empty/None (degrade open -- never strand a turn on a bad probe)."""
     if not live:
         return []
     nodes = [n for n in (dag.get("nodes") or []) if n.get("agent")]
@@ -232,14 +209,6 @@ def _reroute_dead_nodes(dag: dict, live: set) -> list:
 
 def _agent_dag_from_tasks(tasks: list, live_agents: Optional[set] = None,
                           include_research: bool = False) -> dict:
-    """Build a CONCURRENT per-agent DAG from refine's multi_task array:
-    one agent node per independent task, routed to the task's target_agent
-    (a registry key as-is, else role-matched via _pick_agent, else the
-    default agent), all deps=[] so they run in PARALLEL. This is refine's
-    OWN decomposition -- each sub-task already carries a target_agent hint
-    -- so no extra planner LLM call is needed. Realises the operator's
-    "separate prompts per refinement step -> sub-agents ... concurrent
-    Compute" directly. Returns {summary, nodes}."""
     nodes: list = []
     if isinstance(tasks, list) and tasks:
         _seen_f: set = set()
@@ -345,12 +314,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
                              streaming: bool, chat_id: str, model: str,
                              session_id: Optional[str], last_user_text: str,
                              persona_system: str, request=None):
-    """Execute a per-agent DAG concurrently and SYNTHESISE the agents'
-    outputs into ONE polished answer (multi_task -> parallel sub-agents).
-    The per-node audit envelope rides the reasoning channel; the polished
-    synthesis is the operator-facing answer -- same answer/dropdown split
-    as the agent + council paths. Streaming emits LIVE per-node endpoint
- statuses as the DAG runs, before the synthesis."""
     _dag_deep = bool(refined and (refined.get("deep") or refined.get("deep_research")))
     _dag_has_local = any(n.get("local_state") for n in (dag.get("nodes") or []))
 
@@ -608,11 +571,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
         return envelope, main, _needs_fallback
 
     async def _native_fallback(_main: str) -> tuple:
-        """Empty-DAG safety net : the swarm grounded nothing,
-        so re-answer via the ALWAYS-UP light-lane native loop (it does its own web
-        grounding + cites REAL urls). Returns (text, sources) on success, else
-        (None, []) -> the caller keeps the original DAG `main`. Degrade-open: never
-        raises, never recurses (the native loop never re-enters the DAG)."""
         try:
             _fb = await _respond_native_loop_direct(
                 refined, streaming=False, chat_id=chat_id, model=model,
@@ -722,14 +680,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
             log.debug("dag per-facet grounding skipped: %s", e)
 
     async def _ground_shared(emit=None) -> None:
-        """CASUAL swarm grounding ("ridiculous runtimes"): run
-        web_search ONCE on the user query and inject the SAME grounding into EVERY
-        agent node, so the nodes reason over shared facts instead of each running a
-        redundant per-node web_search tool-loop (6 nodes re-searching the same
-        single-intent query contended on the dGPU + SearXNG, so even hermes blew
-        the per-node deadline). _web_research_enrich self-gates on the web signal,
-        so a pure-local query is a no-op. Breadth preserved -- all nodes still fire,
-        they just share ONE search. Nodes flagged _no_tools so they don't re-search."""
         try:
             _agent_nodes = [n for n in dag.get("nodes", [])
                             if n.get("agent") and n.get("prompt")]
@@ -883,18 +833,6 @@ async def _respond_agent_dag(dag: dict, refined: Optional[dict], *,
 
 
 async def _plan_swarm(user_text: str, history: list = None) -> list:
-    """Dedicated SWARM decomposer ('AI SWARM', Layer B):
-    a narrowly-scoped planner call that splits a request into independent
-    {agent, task} assignments for CONCURRENT dispatch. More reliable at
-    emitting AGENT assignments than the general verb-DAG planner (which
-    skews toward verb nodes). Returns task dicts shaped for
-    _agent_dag_from_tasks ({target_agent, refined_text, title}), or [].
-
-    `history` (recent chat turns) is fed to the planner so a TERSE follow-up
-    inherits the established subject instead of the model inventing one
- (a terse "do deep research on it" follow-up lost the
-    subject established in prior turns and the planner fabricated unrelated
-    routes + constraints that searched garbage)."""
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return []
     if _depth_exhausted():
@@ -977,13 +915,6 @@ async def _plan_swarm(user_text: str, history: list = None) -> list:
 
 async def _expand_facets(user_text: str, existing: list, target_n: int,
                          history: Optional[list] = None) -> list:
-    """Generate ADDITIONAL distinct sub-topic facets so each live node works its
- OWN angle instead of the backfill round-robining a handful (
-    "diversify the backfill facets per node"). MODEL-generated -- NO hardcoded angle
-    list; self-gates to [] when the request genuinely has no more real angles (a
-    thin ask -> the backfill round-robins as before). Each item is a CLEAN
-    web-search phrase (the TOPIC, not an imperative). Returns up to (target_n -
-    len(existing)) NEW facets, deduped against the existing ones."""
     need = target_n - len(existing)
     if need <= 0 or not PLANNER_ENABLED or not (user_text or "").strip():
         return []

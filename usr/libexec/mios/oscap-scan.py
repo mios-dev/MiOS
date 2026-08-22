@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Helper script to parse mios.toml compliance options, dynamically construct an XCCDF tailoring file to skip specified rules, invoke oscap-im for scan/remediation, and execute mios-oscap-gate to enforce the build gate.
-# AI-related: /usr/share/mios/mios.toml, /usr/libexec/mios/mios-oscap-gate, Containerfile, oscap-im
+# AI-hint: !/usr/bin/env python3 Helper script to parse mios.toml compliance options, dynamically construct an XCCDF tailoring file to skip specified rules, invoke oscap-i...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_oscap_scan_py.md
 
 import os
 import sys

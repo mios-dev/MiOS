@@ -1,0 +1,83 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Defines the global podman/containerd storage backend (overlay driver) and critical mount_program overrides to ensure compatibility with WSL2 and nested container environments.
+/etc/containers/storage.conf
+'MiOS' rootful container storage config.
+
+Why this file lives in /etc and not /usr/share:
+  containers/storage's documented config-resolution chain is
+  $CONTAINERS_STORAGE_CONF -> /etc/containers/storage.conf ->
+  ~/.config/containers/storage.conf -> hardcoded defaults. The
+  /usr/share/containers/storage.conf path is convention but is NOT
+  read by libcontainers/storage at runtime, so a vendor file there is
+  ignored. Inheriting /etc/containers/storage.conf from the base
+  image (ghcr.io/ublue-os/ucore-hci) gave us its `mount_program =
+  /usr/bin/fuse-overlayfs` default, which then fails inside nested
+  containers and WSL2 distros where /dev/fuse is missing:
+
+      fuse-overlayfs: cannot mount: No such file or directory
+      Error: mounting storage for container ...: creating overlay
+          mount to /var/lib/containers/storage/overlay/.../merged
+
+Setting mount_program="" tells containers/storage to skip
+fuse-overlayfs and ask the kernel to do the overlay mount directly.
+The microsoft-WSL2 6.6 kernel (and every Linux >= 5.11) supports
+unprivileged overlayfs in user namespaces with metacopy=on +
+userxattr, which preserves uid/gid mappings without copy-up. This
+is the single change that closes the per-boot Quadlet failure
+cascade observed in MiOS WSL/nested-container deployments.
+
+Operators who legitimately want fuse-overlayfs (e.g. older kernels,
+specific shfs interactions) override here in /etc/ or in
+~/.config/containers/storage.conf -- /etc wins.
+
+<!-- mios-src:93b518d5f454 from etc/containers/storage.conf:1-30 -->
+
+### runroot / graphroot intentionally OMITTED. Why...
+
+runroot / graphroot intentionally OMITTED.
+
+Why: containers/storage's resolution chain reads /etc/containers/
+storage.conf for ALL users (root and non-root). When this file
+explicitly sets runroot=/run/containers/storage and
+graphroot=/var/lib/containers/storage, NON-ROOT podman invocations
+inherit those paths and fail at startup:
+
+    WARN[0000] RunRoot is pointing to a path (/run/containers/storage)
+               which is not writable. Most likely podman will fail.:
+               permission denied
+    Error: cannot evaluate symlinks on DB run root path
+               "/run/containers/storage": lstat /run/containers/storage:
+               permission denied
+
+(visible at every `wsl -d podman-MiOS-DEV` entry on 2026-05-06 paste
+until this fix). The default `user` (UID 1000) and the mios user can
+only write rootless paths. Letting podman default per-UID gives:
+  * root          : /run/containers/storage + /var/lib/containers/storage
+                    (the same paths this file used to set explicitly)
+  * non-root user : $XDG_RUNTIME_DIR/containers + ~/.local/share/containers/storage
+                    (rootless, writable by the user)
+
+Operators who want to override either path do so in their per-user
+~/.config/containers/storage.conf -- /etc wins for fields that ARE
+set here, but absent fields fall through to per-UID defaults.
+
+<!-- mios-src:d812e6153920 from etc/containers/storage.conf:6-31 -->
+
+### usr/lib/containers/storage is the logically-bound-image...
+
+/usr/lib/containers/storage is the logically-bound-image store. The
+OCI build (Containerfile) skopeo-copies every Quadlet's Image= into
+it (ARCHITECTURAL LAW 3 -- BOUND-IMAGES); it lives in immutable /usr
+so it survives the build's /var cleanup. Listing it here as a
+read-only additional store is what lets `bootc install` AND the
+running system resolve bound images with ZERO runtime pulls --
+without it, BIB/osbuild's bootc.install-to-filesystem stage fails
+every deployment artifact with "resolving bound image ...: does not
+resolve to an image ID" (operator-confirmed 2026-05-14).
+
+<!-- mios-src:34c4596b5b8f from etc/containers/storage.conf:34-42 -->

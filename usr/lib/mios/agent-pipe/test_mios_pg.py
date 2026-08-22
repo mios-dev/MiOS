@@ -1,11 +1,5 @@
-# AI-hint: Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert generation for knowledge and event tables.
-# AI-related: mios_pg
-# AI-functions: _check, _ssot_pgvector_port, t_config_dsn, t_vector_literal, t_build_insert, t_build_insert_jsonb, t_build_recall, t_build_recall_emb_version, t_recall_tuning, t_rid_to_pg_id, t_rls_owner_scope, main
-"""Standalone unit test for mios_pg pure helpers (WS-9 Postgres client).
-
-Pure stdlib + the sibling module only -- no psycopg, no live Postgres (the I/O is
-verified by the operator on MiOS-DEV). Run:  python test_mios_pg.py
-"""
+# AI-hint: Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert g...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_pg_py.md
 
 import asyncio
 import os

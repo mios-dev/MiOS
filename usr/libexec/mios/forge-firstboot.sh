@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: First-boot admin-bootstrap for the mios-forge Quadlet (Forgejo).
-# AI-related: /usr/libexec/mios/forge-firstboot.sh, /etc/mios/install.env, /etc/mios/forge/admin-password, /etc/mios/forge, /etc/mios/forge/admin-password., /etc/mios/forge/, /etc/mios/forge/runner-token, mios-forge, mios-forge-firstboot, mios-bootstrap
-# AI-functions: _log
+# AI-hint: !/usr/bin/env bash First-boot admin-bootstrap for the mios-forge Quadlet (Forgejo).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_forge_firstboot_sh.md
 
 set -euo pipefail
 

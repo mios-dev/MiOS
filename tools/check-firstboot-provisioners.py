@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for the first-boot provisioner triples (FBM T-200/T-202). Each provisioner must be WHOLE: the libexec fetcher exists and is the unit's ExecStart, the unit gates on the sentinel that fetcher writes (ConditionPathExists=!<sentinel>, spelled identically on both sides), a preset line enables it, and the /var dirs it writes are declared in tmpfiles.d rather than mkdir'd (Architectural Law 2). A half-wired triple looks installed and never runs -- the unit enabled with no fetcher, or a fetcher whose sentinel path the unit does not gate on, both fail silently at boot.
-# AI-related: usr/lib/systemd/system/mios-models-firstboot.service, usr/libexec/mios/mios-models-firstboot, usr/lib/systemd/system-preset/90-mios.preset, usr/lib/tmpfiles.d/, tools/test_check-firstboot-provisioners.py
-# AI-functions: tmpfiles_dirs, unit_field, check_one, main
+# AI-hint: !/usr/bin/env python3 Drift gate for the first-boot provisioner triples (FBM T-200/T-202).
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_firstboot_provisioners_py.md
 """Gate: every first-boot provisioner triple (fetcher + unit + preset) is whole."""
 
 import os

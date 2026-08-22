@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest. Verifies project_verb_catalog is DETERMINISTIC (sorted, stable field subset, byte-identical on re-run), carries registry_kind="verb-catalog" (NOT the hermes-build-tools registry), projects WS-A7 conflict_group/parallel_limit, and diff_manifest detects added/removed/changed verbs + a wrong registry_kind for the --check drift gate.
-# AI-related: ./mios_manifest.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_ai_manifest_py.md
 """Unit tests for mios_manifest (WS-A1)."""
 
 import json

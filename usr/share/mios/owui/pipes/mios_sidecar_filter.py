@@ -1,6 +1,5 @@
-# AI-hint: Injects sibling-agent activities (Sys-Agent, nudger, log-watcher, cron-director) into the OWUI chat stream by polling state files and emitting status events to provide the operator visibility into the full MiOS federation.
-# AI-related: mios-agent-nudger, mios-log-watcher, mios-cron-director, mios-hermes-tail, mios-delegation-prefilter, mios-daemon, mios-sys-agent
-# AI-functions: __init__, _cache_path, _load_cache, _save_cache, _format_hermes_tail, _format_nudger, _format_log_watcher, _format_cron, _format_daemon_classify, _format_daemon_refusal, _format_daemon_cron, _format_sys_agent
+# AI-hint: Injects sibling-agent activities (Sys-Agent, nudger, log-watcher, cron-director) into the OWUI chat stream by polling state files and emitting...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_sidecar_filter_py.md
 """
 title: MiOS Agents Sidecar
 author: MiOS

@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/generate-blade-karg.py. Assert the projection refuses an empty [blade].type and a type naming no archetype -- both would emit a karg selecting nothing -- and that the shipped file matches what render() produces, which is what makes it a projection rather than a hand-edited drop-in.
-# AI-related: tools/generate-blade-karg.py, usr/lib/bootc/kargs.d/05-mios-blade.toml, usr/share/mios/mios.toml
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/generate-blade-karg.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_blade_karg_py.md
 """Tests for the deploy-time blade karg projection."""
 
 import os

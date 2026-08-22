@@ -30,7 +30,6 @@
   Also strip the MiOS / MiOS-DEV profiles from the Windows Terminal settings.json.
 
 .EXAMPLE
-  # Dry-run (default) -- see exactly what would be removed:
   powershell -ExecutionPolicy Bypass -File .\Uninstall-MiOS.ps1
 
 .EXAMPLE
@@ -189,10 +188,6 @@ if ($SkipDataDrive) {
                 if ($MIOS_DIRS -contains $n) { _act "dir $root$n" { Remove-Item -LiteralPath $item.FullName -Recurse -Force } }
                 else { _keep "$root$n  (unlisted dir -- preserved for safety)" }
             } else {
-                # File at data-drive root. DO NOT blanket-delete every non-KEEP
-                # file -- that nukes genuine operator data dropped at M:\ root.
-                # Only remove files matching a known MiOS artifact pattern;
-                # preserve anything else (whitelist parity with $MIOS_DIRS).
                 $_miosFilePat = @(
                     # Top-level mios.git / mios-bootstrap checkout files (the M:\ root
                     # is a Total-Root-Merge of the repos, so these are all MiOS).

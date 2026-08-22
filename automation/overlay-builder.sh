@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to mirror a production MiOS environment for hosting Quadlets.
-# AI-related: /usr/lib/mios/logs, mios-forge, mios-guacamole, mios-pxe-hub, mios-crowdsec, mios-guacd, mios-postgres, mios-virt, mios-tmpfiles-prereq
-# AI-functions: _rsync_in
+# AI-hint: !/usr/bin/env bash Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_overlay_builder_sh.md
 
 set -euo pipefail
 

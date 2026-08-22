@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent rendering across shell scripts, config files, and documentation.
-# AI-related: /usr/share/mios/env.defaults
-# AI-functions: _shebang_is_text, is_text_file, list_tracked_files, sweep_text, bump, repl_decorative, main
+# AI-hint: !/usr/bin/env python3 A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_ascii_sweep_py.md
 
 from __future__ import annotations
 

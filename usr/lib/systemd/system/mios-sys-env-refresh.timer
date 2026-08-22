@@ -1,5 +1,5 @@
-# AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes.
-# AI-related: mios-sys-env-refresh, timers.target
+/* AI-hint: Systemd timer that triggers the mios-sys-env-refresh service every 900 seconds to synchronize the sys_env environment cache with current system state, ensuring shared snapshots reflect recent app/service changes. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_sys_env_refresh_timer.md */
 [Unit]
 Description='MiOS' refresh cadence for the sys_env environment cache
 

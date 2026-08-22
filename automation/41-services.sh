@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gating for bare-metal, VM, and WSL2 deployments.
-# AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, mios-ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gatin...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_41_services_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

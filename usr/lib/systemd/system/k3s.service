@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit file defining the K3s Kubernetes server service, managing the lifecycle, resource limits, and startup sequence for the MiOS cluster orchestration layer.
-# AI-related: mios-k3s-init, mios-k3s-init.service, network-online.target, multi-user.target
+/* AI-hint: Systemd unit file defining the K3s Kubernetes server service, managing the lifecycle, resource limits, and startup sequence for the MiOS cluster orchestration layer. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_k3s_service.md */
 [Unit]
 Description=Lightweight Kubernetes (K3s)
 Documentation=https://k3s.io

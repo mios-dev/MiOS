@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests for the Python tokenize/ast path and the inline-comment case.
-# AI-related: usr/lib/mios/mios_comments.py, usr/share/mios/mios.toml, docs/agy/doc-generative-documentation.md
-# AI-functions: main
+# AI-hint: !/usr/bin/env python3 Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_test_mios_comments_py.md
 """Fixtures for mios_comments.
 
 Every classifier rule gets at least one fixture that asserts the exact

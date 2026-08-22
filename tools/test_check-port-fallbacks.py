@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-port-fallbacks.py. Covers every idiom that hid a stale number -- an unconditional Environment= pin, a ${X:-N} shell fallback, get("X","N"), the DOUBLE fallback get(K,"N") or M whose second literal is the one that actually runs, the PowerShell _MiosPort 'X' N table, and the MIOS_<KEY>_PORT alias spelling -- plus a comment (never a finding), the shrink-only register in both directions, and the real tree, which must be clean.
-# AI-related: tools/check-port-fallbacks.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-port-fallbacks.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_port_fallbacks_py.md
 """Tests for the port-literal gate."""
 
 import os

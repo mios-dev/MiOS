@@ -1,5 +1,5 @@
-# AI-hint: Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). Injects lightweight stubs via configure() -- a fake FastAPI app, a one-agent registry, a one-verb catalog, a fake passport signer (no cryptography dependency), and a fake async HTTP client -- then asserts the AgentCard JSON shape + its A2A v1.0 JWS signature (RFC-7515 detached-JWS shape, and a real Ed25519 sign->verify round-trip with tamper-detection when python3-cryptography is present), the Open Agent Passport + AGNTCY-OASF manifest shapes, the A2A skill-directory projection, and the JSON-RPC 2.0 method dispatch (message/send round-trip, tasks/get not-found, unknown-method error) plus the principal-metadata gate. No network, no DB, no server import.
-# AI-related: ./mios_a2a.py, ./server.py
+# AI-hint: Stdlib unit test for the extracted A2A federation publish surface (mios_a2a).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_a2a_py.md
 """Unit tests for mios_a2a (A2A federation publish surface). Pure stdlib + stubs."""
 import asyncio
 import contextvars

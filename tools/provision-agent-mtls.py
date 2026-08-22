@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key.
-# AI-related: usr/share/mios/security, usr/share/mios/mios.toml, mios_a2a_principal, tools/generate-egress-firewall.py
-# AI-functions: _cfg, ensure_ca, issue_agent_cert, main
+# AI-hint: !/usr/bin/env python3 Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_provision_agent_mtls_py.md
 """Provision the MiOS agent mTLS keypair + CA (#54).
 
 Zero-trust federation needs peers to mutually authenticate. The ed25519 *message*

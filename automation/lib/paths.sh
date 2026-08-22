@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Defines and exports core MiOS filesystem constants (USR, ETC, VAR, LOG, BUILD) as environment variables to standardize directory paths for automation scripts and build tools.
-# AI-related: mios-build, mios-build-chain, mios-build-versions
+# AI-hint: !/usr/bin/env bash Defines and exports core MiOS filesystem constants (USR, ETC, VAR, LOG, BUILD) as environment variables to standardize directory paths for automatio...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_paths_sh.md
 
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_LOG_DIR:=${MIOS_USR_DIR}/logs}"

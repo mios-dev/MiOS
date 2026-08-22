@@ -1,5 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-webtools-crawl4ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-crawl4ai] in mios.toml.
-# /usr/share/containers/systemd/mios-webtools-crawl4ai.container
+/* AI-hint: GENERATED Quadlet container 'mios-webtools-crawl4ai' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-crawl4ai] in mios.toml. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_containers_systemd_mios_webtools_crawl4ai_container.md */
 
 [Unit]
 After=mios-webtools-firstboot.service

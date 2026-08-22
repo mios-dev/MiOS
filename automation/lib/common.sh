@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Provides idempotent shared helper functions, logging utilities, and environment resolution logic (masking, paths, globals) for MiOS build scripts and automation tools.
-# AI-related: globals.sh, build.sh, /usr/share/mios/tools/lib/userenv.sh, /usr/lib/mios/logs/, mios-k3s, mios-build-versions
-# AI-functions: _mios_locate_userenv, log_ts, log, warn, die, diag, record_version
+# AI-hint: !/usr/bin/env bash Provides idempotent shared helper functions, logging utilities, and environment resolution logic (masking, paths, globals) for MiOS build scripts a...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_common_sh.md
 
 source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/paths.sh"

@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit that executes /usr/libexec/mios-verify to perform a fs-verity cryptographic integrity audit of the root filesystem during the initrd boot sequence before mounting the sysroot.
-# AI-related: mios-verify, ostree-prepare-root.service, sysroot.mount, initrd-root-fs.target
+/* AI-hint: Systemd unit that executes /usr/libexec/mios-verify to perform a fs-verity cryptographic integrity audit of the root filesystem during the initrd boot sequence before mounting the sysroot. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_verify_service.md */
 [Unit]
 ConditionVirtualization=!container
 Description='MiOS' Cryptographic Integrity Audit (fs-verity)

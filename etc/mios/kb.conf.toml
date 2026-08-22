@@ -1,8 +1,5 @@
-# AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters for the local RAG pipeline.
-# AI-related: mios-kb, mios-dev, localhost:8642, localhost:11450, localhost:1234, localhost:4000
-# MiOS KB local config — overrides for downstream consumers
-# Day-0 defaults target the MiOS Gateway Agent endpoint at http://localhost:8642/v1
-# (LAW 5: UNIFIED-AI-REDIRECTS). Override per environment.
+# AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters f...
+# AI-doc: usr/share/doc/mios/manual/_harvest/etc_mios_kb_conf_toml.md
 
 [runtime]
 # Default to MiOS's own Gateway Agent endpoint. Honors $MIOS_AI_ENDPOINT if set.

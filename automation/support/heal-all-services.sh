@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for mios-gateway-agent, restart the agent, and verify the status of ttyd and skills-miner services.
-# AI-related: /usr/libexec/mios/mios-hermes-firstboot, mios-hermes-firstboot, mios-paths-env, mios-ttyd-bash, mios-ttyd-powershell, mios-skills-miner, mios-gateway-agent.service, skills-miner.timer, mios-hermes-firstboot.service, mios-skills-miner.timer
+# AI-hint: !/bin/bash Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for mios-gateway-agent, restart the agent, and verif...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_heal_all_services_sh.md
 set -euo pipefail
 
 echo "── deploy firstboot + env drop-in ──"

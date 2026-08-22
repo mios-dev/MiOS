@@ -1,6 +1,5 @@
-# AI-hint: WS-A18 federated agent discovery -- the PURE epidemic-gossip + SWIM-style anti-entropy core (the transport-free half; mios_reputation already scores peers, this adds the discovery algorithm). Deterministic, stdlib-only so it unit-tests in isolation: select_gossip_peers (seeded fanout pick -> reproducible per round, no Math.random), merge_peer/merge_peer_set (SWIM incarnation = heartbeat: higher wins, TRUST-GATED so a rogue/low-reputation peer's rumors are rejected -- ties to mios_reputation), prune_dead (TTL eviction of unheard peers), digest (the id->heartbeat rumor vector for anti-entropy). server.py owns the actual UDP/HTTP gossip transport + the periodic round; this owns the convergence logic.
-# AI-related: ./mios_reputation.py, ./mios_a2a_principal.py, ./mios_crl.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_gossip.py
-# AI-functions: select_gossip_peers, merge_peer, merge_peer_set, prune_dead, digest, class Peer
+# AI-hint: WS-A18 federated agent discovery -- the PURE epidemic-gossip + SWIM-style anti-entropy core (the transport-free half; mios_reputation alread...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_gossip_py.md
 """mios_gossip -- federated agent discovery via epidemic gossip + anti-entropy
 (WS-A18, the AIOS peer-discovery layer).
 

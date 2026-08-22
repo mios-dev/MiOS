@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Polls the hermes-agent.service status to bypass long gateway drain timeouts and logs the Discord patch status to verify successful configuration application during restart cycles.
-# AI-related: /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py, hermes-agent.service
+# AI-hint: !/bin/bash Polls the hermes-agent.service status to bypass long gateway drain timeouts and logs the Discord patch status to verify successful configur...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_wait_hermes_settle_sh.md
 set -euo pipefail
 for i in $(seq 1 30); do
     s=$(systemctl is-active hermes-agent.service)

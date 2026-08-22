@@ -1,10 +1,5 @@
-# AI-hint: User-specific configuration file for MiOS providing overrides for identity, locale, AI endpoints, and desktop themes, initialized from system defaults and used by the MiOS core to customize the local environment.
-# AI-related: /etc/mios/profile.toml, localhost:8080
-# ~/.config/mios/profile.toml -- Per-user 'MiOS' profile.
-#
-# Seeded from /etc/mios/profile.toml on first login by `mios init-user-space`.
-# Edit freely; `mios reinit-user-space` overwrites this file from the system
-# profile, so back up customizations first.
+# AI-hint: User-specific configuration file for MiOS providing overrides for identity, locale, AI endpoints, and desktop themes, initialized from system defaults and u...
+# AI-doc: usr/share/doc/mios/manual/_harvest/etc_skel__config_mios_profile_toml.md
 
 [identity]
 # `username` is fixed (it's your own login). Override fullname only.

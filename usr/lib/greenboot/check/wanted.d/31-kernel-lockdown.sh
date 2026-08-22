@@ -1,5 +1,5 @@
-#!/usr/bin/bash
-# AI-hint: Verifies the booted kernel enforces the lockdown mode the image kargs declare (`lockdown=integrity` in usr/lib/bootc/kargs.d), closing the gap where the karg is projection-checked at build but never confirmed on the running host; degrades open on kernels without the lockdown LSM (e.g. WSL2).
+# AI-hint: !/usr/bin/bash Verifies the booted kernel enforces the lockdown mode the image kargs declare (`lockdown=integrity` in usr/lib/bootc/karg...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_greenboot_check_wanted_d_31_kernel_lockdown_sh.md
 set -euo pipefail
 LOCKDOWN_FILE=/sys/kernel/security/lockdown
 if [[ -r "${LOCKDOWN_FILE}" ]]; then

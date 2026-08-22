@@ -1,6 +1,5 @@
-# AI-hint: The MiOS agent-pipe scheduler module. Provides (1) PriorityGate, the WS-1
-# AI-related: server.py, mios_config.py, test_mios_sched.py
-# AI-functions: __init__, cap, available, in_flight, queued, head_priority, stats, _pick, acquire, _release, release, class PriorityGate, configure, _lane_tool_cap, _agent_offload_engine, _resolve_autonomous_priority, _sched_priority, _sched_priority_core, _lane_sem_key
+# AI-hint: The MiOS agent-pipe scheduler module. Provides (1) PriorityGate, the WS-1 AI-related: server.py, mios_config.py, test_mios_sched.py AI-fun...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_sched_py.md
 """mios_sched -- scheduler primitives for the MiOS agent-pipe (WS-1, the AIOS
 Agent Scheduler reordering layer).
 

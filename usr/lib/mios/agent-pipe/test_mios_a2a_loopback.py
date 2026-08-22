@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extractor, and task classifier with stub A2A Task dicts (no network, no live services), mirroring the stub-based agent-pipe test style.
-# AI-related: /usr/libexec/mios/mios-a2a-test
-# AI-functions: _load_tester, test_build_message, test_extract_artifact_text, test_classify_task, main
+# AI-hint: !/usr/bin/env python3 Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extr...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_a2a_loopback_py.md
 """Offline tests for T-066 (A2A federation loopback smoke test).
 
 The network/CLI half of mios-a2a-test needs a live agent-pipe; the pure

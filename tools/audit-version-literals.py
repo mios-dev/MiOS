@@ -1,16 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emitting the version-literals audit TSV that drives the WS-FLOAT campaign.
-# AI-related: usr/share/mios/reference/version-literals-audit.tsv, usr/share/mios/mios.toml, automation/98-drift-checks.sh
-# AI-functions: classify_line, suggest_ssot_key, scan_repo, main
-"""
-tools/audit-version-literals.py -- Audit & inventory version tokens across MiOS repo.
-Classifies version literals as:
-  (a) SSOT-definition
-  (b) SSOT-derived/placeholder
-  (c) HARDCODED-literal
-
-Emits usr/share/mios/reference/version-literals-audit.tsv
-"""
+# AI-hint: !/usr/bin/env python3 Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_audit_version_literals_py.md
 
 import os
 import re

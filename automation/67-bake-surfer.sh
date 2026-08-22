@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=bake-only
-# AI-hint: Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural three-pane browser UI patches, and run native mach compilations.
-# AI-related: /usr/bin/mios-webshell, /usr/lib/mios/webshell/, usr/share/mios/mios.toml [colors], usr/share/mios/mios.toml [browser_ai], usr/share/mios/mios.toml [ports]
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=bake-only Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural thre...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_67_bake_surfer_sh.md
 set -euo pipefail
 # shellcheck disable=SC1090
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

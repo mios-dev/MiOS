@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comprehensive Software Bill of Materials for the MiOS ecosystem.
-# AI-related: mios-selinux-modules, mios-build-local, mios-ai, mios-ceph, mios-k3s, mios-guacamole, mios-pxe-hub, mios-ai.container, mios-ceph.container, mios-k3s.container
-# AI-functions: main
+# AI-hint: !/usr/bin/env python3 Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comp...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_generate_sbom_py.md
 
 import re
 import csv

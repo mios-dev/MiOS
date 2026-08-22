@@ -1,6 +1,5 @@
-# AI-hint: Dispatches the interactive shell startup verb defined in mios.toml [terminal.startup] to the terminal on login, ensuring the MiOS dashboard or "mini" view is rendered only in valid TTY sessions.
-# AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-motd, mios-env, mios-verbs
-# AI-functions: _mios_startup_verb
+# AI-hint: Dispatches the interactive shell startup verb defined in mios.toml [terminal.startup] to the terminal on login, ensuring the MiOS dashboard or "mini" view is ren...
+# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_zz_mios_motd_sh.md
 
 [ -n "${PS1:-}" ] || return 0
 [ -t 0 ] && [ -t 1 ] || return 0

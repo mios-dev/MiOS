@@ -1,12 +1,12 @@
-# AI-hint: Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and artifact availability.
-# AI-functions: get_last_rag_sync, get_version, sync_json_embeds, update_knowledge, update_status, sync_wiki
+# AI-hint: Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_wiki_py.md
 import os
 import re
 import json
 from datetime import datetime
 
 def get_last_rag_sync():
-    rag_file = "artifacts/repo-rag-snapshot.json.gz"
+    rag_file = "usr/share/mios/reference/manual-corpus.tsv"
     if os.path.exists(rag_file):
         mtime = os.path.getmtime(rag_file)
         return datetime.fromtimestamp(mtime).isoformat()

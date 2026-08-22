@@ -1,23 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture matching, and no forbidden table headers.
-# AI-functions: _github_error, _github_warning, validate_file, _emit, collect_files, main
-"""
-validate-kargs.py -- 'MiOS' kargs.d schema validator.
-
-Checks every *.toml in:
-  kargs.d/                              (repo root drop-ins)
-  usr/lib/bootc/kargs.d/  (image-baked drop-ins)
-
-Schema rules (bootc-dev/bootc authoritative):
-  - Top-level key `kargs` (required) must be a list of strings.
-  - Top-level key `match-architectures` (optional) must be a list of strings.
-  - NO other top-level keys.
-  - NO [section] table headers anywhere in the file.
-  - Each kargs entry must be a single string (not space-joined multi-arg).
-  - Keys with "delete" in their name are invalid parameter -- reject.
-
-Exit codes: 0 = pass, 1 = validation failure(s), 2 = usage error.
-"""
+# AI-hint: !/usr/bin/env python3 Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture match...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_validate_kargs_py.md
 from __future__ import annotations
 
 import argparse

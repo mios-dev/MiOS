@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_interop (WS-11 3-projection: the A2A skill shape). Pure stdlib, no server.py/DB/pytest. Verifies to_a2a_skill renders the A2A AgentCard skill entry (id/name/description/tags), namespaces recipe/skill ids (mios_recipe__/mios_skill__) to match relay routing while verbs keep the bare id, derives tags from kind/section/permission/tier (deduped), uses model_name as the display name, and project_all aligns the function-name vs a2a-id vs description across the three projections.
-# AI-related: ./mios_interop.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_interop (WS-11 3-projection: the A2A skill shape). Pure stdlib, no server.py/DB/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_interop_py.md
 """Unit tests for mios_interop (WS-11)."""
 
 import sys

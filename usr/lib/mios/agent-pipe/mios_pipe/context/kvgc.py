@@ -1,6 +1,5 @@
-# AI-hint: WS-A4 KV-cache file garbage-collection PLANNER. Pure-stdlib decision core for reclaiming the on-disk KV slot-save files the agent-pipe writes for conversation paging + WS-8 KV-forks (mios-kv-*.bin / fork children) under the llama.cpp --slot-save-path. plan_gc() decides which files to evict by TTL (age) THEN a total-size cap (oldest-first), never touching protected/active-slot files -- so an unbounded fork fan-out can't fill the disk. server.py owns the actual deletion (when the slots dir is FS-accessible) + the background loop; the systemd-tmpfiles age-out is the OS-level backstop. This module is pure (no fs/network) so it unit-tests in isolation.
-# AI-related: ./mios_kvfork.py, ./server.py, /usr/lib/tmpfiles.d/, /usr/share/mios/mios.toml, ./test_mios_kvgc.py
-# AI-functions: plan_gc, class GcPlan
+# AI-hint: WS-A4 KV-cache file garbage-collection PLANNER. Pure-stdlib decision core for reclaiming the on-disk KV slot-save files the agent-pipe writes...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_kvgc_py.md
 """mios_kvgc -- KV slot-file GC planning (WS-A4, the AIOS Context-Manager KV
 lifecycle layer).
 

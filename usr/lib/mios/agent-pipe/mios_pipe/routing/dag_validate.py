@@ -33,17 +33,6 @@ class DAGValidationVerdict:
 
 
 def validate_dag(dag_or_nodes: Union[Dict[str, Any], List[Dict[str, Any]]]) -> DAGValidationVerdict:
-    """Perform pre-execution validation and Kahn topological classification over plan nodes.
-    
-    Checks for:
-    1. Duplicate node IDs
-    2. Self-loop dependencies
-    3. Dangling dependencies (referencing non-existent node IDs)
-    4. Cycles (via Kahn's algorithm)
-    5. Orphan roots (graphs with nodes but no valid entry point)
-    
-    Returns a DAGValidationVerdict containing classification and a sanitized remediation order.
-    """
     if isinstance(dag_or_nodes, dict):
         raw_nodes = dag_or_nodes.get("nodes") or []
     elif isinstance(dag_or_nodes, list):

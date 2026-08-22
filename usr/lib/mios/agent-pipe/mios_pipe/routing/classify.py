@@ -126,12 +126,6 @@ async def classify_intent(user_text: str) -> Optional[dict]:
 
 
 async def _route_domain(user_text: str) -> Optional[str]:
-    """Stage-1 of the domain router: classify the query into ONE [routing.domains]
-    label via a constrained enum (response_format json_schema), THINKING-OFF
-    (llama.cpp #20345 silently drops the grammar when thinking is on). Returns the
-    validated domain, or None to fall through to the FULL surface (router off / no
-    domains / classify error / out-of-enum result). We VALIDATE the label in code
-    and never trust HTTP 200 alone (fail-open #19051)."""
     if not _ROUTING_ENABLE or not _ROUTING_DOMAINS or not (user_text or "").strip():
         return None
     names = list(_ROUTING_DOMAINS.keys())

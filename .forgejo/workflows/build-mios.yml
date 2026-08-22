@@ -1,21 +1,5 @@
-# AI-hint: Forgejo CI workflow that automates the OCI image build via podman, tags it with version/timestamp/SHA, and triggers the host's bootc switch to stage the new image for the next boot.
-# AI-related: /etc/mios/install.env, mios-forgejo-runner, mios-bootc-switch, mios-self-hosted, mios-dev, mios-bootc-switch.service, localhost:3000
-# .forgejo/workflows/build-mios.yml
-# Self-replication loop: triggered by `git push http://localhost:3000/<admin>/mios`,
-# this workflow runs in the mios-forgejo-runner Quadlet, builds a new OCI
-# image via `podman build` against /Containerfile, and signals the host's
-# mios-bootc-switch.path watcher to stage the new image for next boot.
-#
-# Privilege boundary:
-#   - Runner container (Privileged=true, documented exception): does
-#     `podman build` and writes the build-output sentinel.
-#   - Host (mios-bootc-switch.service triggered by mios-bootc-switch.path):
-#     reads the sentinel, runs `bootc switch --transport containers-storage`.
-#   - The runner has NO access to /usr/bin/bootc; the split is intentional.
-#
-# Storage: the runner shares /var/lib/containers/storage with the host
-# (Volume= in the Quadlet). After `podman build` produces
-# `localhost/mios:latest`, the image is visible to host bootc directly.
+# AI-hint: Forgejo CI workflow that automates the OCI image build via podman, tags it with version/timestamp/SHA, and triggers the host's bootc switch to stage the new ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/_forgejo_workflows_build_mios_yml.md
 
 name: build-mios
 on:
@@ -30,12 +14,6 @@ jobs:
       MIOS_DRIFT_REQUIRE_TOOLS: "1"
       GHCR_USER: ${{ secrets.GHCR_USER }}
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-      # The push step sources tools/lib/userenv.sh, which defaults MIOS_VENDOR_TOML
-      # to the ABSOLUTE /usr/share/mios/mios.toml -- on a self-hosted runner that
-      # resolves the INSTALLED SSOT (or empty if MiOS isn't installed on the host),
-      # NOT the checkout being built, so MIOS_IMAGE_NAME can come out empty/stale
-      # and the push exits 1. Point it at the checked-out SSOT so it resolves the
-      # version under build (parity with .github/workflows/mios-ci.yml).
       MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
     steps:
       - name: Checkout (live working tree of /)
@@ -145,14 +123,6 @@ jobs:
           echo "Building tag: ${TAG}"
 
       - name: Login to GHCR (raise base-image pull rate limit)
-        # Anonymous GHCR pulls hit "503 Egress is over the account limit"
-        # mid-pull on big multi-layer base images like ublue-os/ucore-hci.
-        # Authenticated pulls don't share the anonymous quota pool.
-        # GHCR_USER + GHCR_TOKEN are already set in the runner's secret
-        # store for the push step further down -- reusing them here costs
-        # nothing and unblocks the FROM in Containerfile. Skipped silently
-        # if the secrets aren't configured (build can still succeed if
-        # GHCR's anonymous pool happens to have headroom that minute).
         if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           echo "$GHCR_TOKEN" | podman login ghcr.io \
@@ -182,10 +152,6 @@ jobs:
 
       - name: Verify bootc lint passes (image must be bootc-switchable)
         run: |
-          # Containerfile already runs `bootc container lint` as the final
-          # build step (Architectural Law 4). This is a belt-and-suspenders
-          # check: confirm the freshly-built image still carries the
-          # required bootc labels before signaling the host watcher.
           podman image inspect localhost/mios:latest \
               --format '{{ index .Config.Labels "containers.bootc" }}' \
               | grep -qx '1' || {
@@ -201,11 +167,6 @@ jobs:
 
       - name: Signal host -> bootc switch on next boot
         run: |
-          # The host's mios-bootc-switch.path watches this file. Writing
-          # the timestamp + image ref triggers mios-bootc-switch.service,
-          # which validates the image exists in containers-storage and
-          # runs `bootc switch --transport containers-storage <ref>`.
-          # No reboot here; operator decides when to apply.
           install -d -m 0755 /var/lib/mios/forge-runner
           printf '%s %s\n' \
               "$(date -u +%FT%TZ)" \

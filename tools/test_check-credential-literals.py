@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered literal, fails a new one, fails a stale grandfathered entry, and does NOT mistake token-count settings, boolean feature flags or ${VAR}-indirected values for credentials.
-# AI-related: tools/check-credential-literals.py, usr/share/mios/mios.toml, usr/share/containers/systemd
+# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_credential_literals_py.md
 """Assert the unit-credential gate is precise in both directions."""
 import os
 import subprocess

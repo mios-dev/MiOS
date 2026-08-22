@@ -1,6 +1,5 @@
-# AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1: the pure Router. Maps a refined plan's intent (chat|dispatch|multi_task|agent|dag, + deep/deterministic flags) to a typed RouteDecision (mode + whether to fan out + the single dispatch tool), the "decide" half of the AIOS Router/Dispatcher split that today lives as a sprawling refined.get('intent') cascade inline in chat_completions. This module is PURE (no server/FastAPI/IO) so the routing decision is unit-testable in isolation; server.py keeps the branch BODIES for now and (Stage 2, VM-verified) will delegate the classification here. Additive + unwired in Stage 1 -> zero behaviour change.
-# AI-related: ./server.py, ./mios_kernel.py (Stage 2), ./test_mios_router.py
-# AI-functions: route, should_fanout, class RouteDecision, class Router
+# AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1: the pure Router.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_router_py.md
 """mios_router -- the pure routing decision for the MiOS agent-pipe (WS-A11/WS-3
 kernel decomposition, Stage 1).
 

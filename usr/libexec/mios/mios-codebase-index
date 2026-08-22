@@ -37,23 +37,26 @@ DEFAULT_ROOTS = [
     "/usr/lib/mios", "/usr/libexec/mios", "/usr/share/mios", "/etc/mios",
     "/srv/mios",
 ]
-EXT = {
-    ".md", ".sh", ".bash", ".py", ".toml", ".yaml", ".yml", ".json",
-    ".container", ".service", ".path", ".timer", ".socket", ".mount",
-    ".target", ".conf", ".te", ".html", ".js", ".css", ".ps1", ".rules",
-    ".env", ".sql", ".jinja", ".j2", ".repo", ".ini", ".cfg",
-}
-BASENAMES = {
-    "Containerfile", "Dockerfile", "Justfile", "justfile", "Makefile",
-    "VERSION", "README", "LICENSE",
-}
-SKIP_DIR = re.compile(
-    r"(^|/)(\.git|\.venv|venv|node_modules|site-packages|__pycache__|"
-    r"web_dist|dist|assets|\.cache|\.mypy_cache|\.pytest_cache|"
-    r"base-qwen[^/]*|model[^/]*|models|\.ruff_cache)(/|$)")
-SKIP_SUFFIX = re.compile(
-    r"\.(gguf|safetensors|bin|pt|pth|onnx|png|jpg|jpeg|gif|ico|webp|"
-    r"woff2?|ttf|otf|so|o|a|zip|gz|tar|whl|pyc|wasm|pdf|mp4|mp3)$", re.I)
+import importlib.machinery
+import importlib.util
+
+def _load_tagger(explicit: str | None = None):
+    cand = []
+    if explicit:
+        cand.append(explicit)
+    here = os.path.dirname(os.path.abspath(__file__))
+    cand.append(os.path.join(here, "mios-ai-tag"))
+    cand.append("/usr/libexec/mios/mios-ai-tag")
+    for p in cand:
+        if p and os.path.isfile(p):
+            loader = importlib.machinery.SourceFileLoader("mios_ai_tag", p)
+            spec = importlib.util.spec_from_loader("mios_ai_tag", loader)
+            mod = importlib.util.module_from_spec(spec)
+            loader.exec_module(mod)
+            return mod
+    raise RuntimeError("mios-ai-tag not found")
+
+_tagger = _load_tagger()
 
 AI_HINT_RE = re.compile(r"AI-hint:\s*(.+)", re.I)
 
@@ -122,41 +125,12 @@ def describe(path: str) -> tuple[str, str]:
     return ("", "none")
 
 
-def _has_shebang(path: str) -> bool:
-    try:
-        with open(path, "rb") as fh:
-            return fh.read(2) == b"#!"
-    except OSError:
-        return False
-
-
 def indexable(path: str) -> bool:
-    if SKIP_SUFFIX.search(path):
-        return False
-    base = os.path.basename(path)
-    _, ext = os.path.splitext(base)
-    ext = ext.lower()
-    if ext in EXT or base in BASENAMES:
-        return True
-    return ext == "" and _has_shebang(path)
+    return _tagger.indexable(path)
 
 
 def walk(roots: list[str]):
-    seen = set()
-    for root in roots:
-        if not os.path.isdir(root):
-            continue
-        for dirpath, dirnames, filenames in os.walk(root):
-            if SKIP_DIR.search(dirpath):
-                dirnames[:] = []
-                continue
-            dirnames[:] = [d for d in dirnames if not SKIP_DIR.search(os.path.join(dirpath, d))]
-            for fn in filenames:
-                p = os.path.join(dirpath, fn)
-                if p in seen or not indexable(p):
-                    continue
-                seen.add(p)
-                yield p
+    yield from _tagger.walk(roots)
 
 
 def main() -> int:

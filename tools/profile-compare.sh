@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: A diagnostic script that compares two system profile files to identify hardware discrepancies in CPU, GPU, memory, and kernel configurations for cross-system environment auditing.
-# AI-functions: print_header, compare_sections, quick_compare, main
+# AI-hint: !/bin/bash A diagnostic script that compares two system profile files to identify hardware discrepancies in CPU, GPU, memory, and kernel configurations for cross-syst...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_profile_compare_sh.md
 
 
 set -euo pipefail

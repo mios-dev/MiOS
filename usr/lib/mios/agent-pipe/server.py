@@ -1,6 +1,5 @@
-# AI-hint: FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to the hermes-agent backend and pgvector.
-# AI-related: mios_jsonsalvage, mios_owui, mios_sched, mios_evict, mios_hitl, mios_aci, mios_kvfork, mios_codemode, mios_pg, mios_lanes, mios_a2a_principal, mios_reputation, mios_selfimprove, /usr/share/mios/mios.toml
-# AI-functions: _toml_section, _cfg_num, _is_remote_endpoint, _should_health_probe, _parse_lane_caps, _lane_tool_cap, _dispatch_toml, _dispatch_num, _priority_gate, _parse_lane_priority, _lane_sem
+# AI-hint: FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_server_py.md
 """'MiOS' Agent Pipe -- standalone FastAPI service.
 
 Step 2 of the migration: ports the router + dispatch + agent-plane DB

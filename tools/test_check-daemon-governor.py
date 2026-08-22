@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate passes a complete governor and fails an ungated autonomous loop, a declared-but-unconsumed SSOT knob, a knob only NAMED in a comment or a test file, and a budget fallback that drifted more permissive than the SSOT.
-# AI-related: tools/check-daemon-governor.py, usr/libexec/mios/mios-daemon, usr/share/mios/mios.toml
+# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_daemon_governor_py.md
 """Assert the governor-coverage gate fails for each defect class it guards."""
 import os
 import subprocess

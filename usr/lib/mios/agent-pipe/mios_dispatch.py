@@ -1,31 +1,5 @@
-# AI-hint: Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave). The launcher chokepoint every MiOS verb passes through: _template_to_cmd (renders an SSOT [verbs.*].cmd template into the broker bash line -- {arg}/{arg!}/{arg=default}/{arg?FLAG}/{arg*} placeholder forms), _build_dispatch_cmd (the per-verb guard registry -- launch_app/window_op/os_recipe/pkg/pc_*/text_*/powershell_run branches; maps verb+args -> the bash command the broker runs; NEVER rename a verb key), and the taint->firewall->HITL->broker launcher proper: dispatch_mios_verb (public entry: alias-resolve, HITL block + ask-to-run pending, web_search recency/date anchor, single-flight dedup), _dispatch_bounded (WS-A7 conflict/parallel-limit + web_search SearXNG bulkhead) and _dispatch_mios_verb_inner (PDP/quota/firewall-taint/HITL/enum gates, then mios-sandbox-wrapped broker socket I/O over the CAPTURE_JSON: protocol). SECURITY-CRITICAL: every gate is NAME-KEYED (verb keys, permission tiers, _HIGH_PRIVILEGE_VERBS / _LAUNCH_VERBS membership) -- nothing renamed. dispatch_mios_verb is re-injected into mios_skills/mios_hitlflow/mios_planner. _classify_verb_taint/_session_is_tainted (mios_firewall), _hitl_block_reason/_hitl_arbiter_verdict/_match_user_cfg/_dispatch_pdp_reason/_dispatch_quota_reason (mios_policy), _action_hash/_pending_hash/_hitl_record_pending/_hitl_gate (mios_hitlflow), _loads_lenient (mios_jsonsalvage) and mios_sandbox are imported DIRECTLY from their sibling modules; every other server-side symbol (the verb catalog, the broker socket path, the DB-event helpers, the dispatch ContextVars, the sandbox-profile resolver, _arg_with_synonyms / _resolve_verb_key / _validate_enum_args / _trace_span / _TOOL_CONFLICT / the dedup state) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). server.py re-imports every moved name verbatim under its original alias (surface-parity zero-diff).
-# AI-related: ./server.py, ./mios_config.py, ./mios_sandbox.py, ./mios_secset.py, ./mios_toolconflict.py, ./mios_firewall.py, ./mios_policy.py, ./mios_hitlflow.py, ./mios_jsonsalvage.py, ./test_mios_dispatch.py
-# AI-functions: _arg_with_synonyms, _validate_enum_args, _dispatch_sandbox_profile, _sandbox_wrap_cmd, _template_to_cmd, _build_dispatch_cmd, dispatch_mios_verb, _dispatch_bounded, _dispatch_mios_verb_inner, dispatch_router, dispatch_verb, configure
-"""Verb->bash dispatch chokepoint -- the taint->firewall->HITL->broker launcher.
-
-Extracted verbatim from ``server.py`` (refactor R7). Holds the SSOT command-
-template renderer (``_template_to_cmd``), the per-verb dispatch-command builder
-(``_build_dispatch_cmd`` -- the launch_app / window_op / os_recipe / pkg / pc_* /
-text_* / powershell_run guard registry) and the launcher proper
-(``dispatch_mios_verb`` / ``_dispatch_bounded`` / ``_dispatch_mios_verb_inner``).
-``server.py`` re-imports every name under its original alias so the module's
-public surface is byte-identical.
-
-The moved bodies are UNCHANGED. ``_classify_verb_taint`` / ``_session_is_tainted``
-(mios_firewall), ``_hitl_block_reason`` / ``_HITL_ARBITER_URL`` /
-``_hitl_arbiter_verdict`` / ``_match_user_cfg`` / ``_dispatch_quota_reason`` /
-``_dispatch_pdp_reason`` (mios_policy), ``_action_hash`` / ``_pending_hash`` /
-``_hitl_record_pending`` / ``_hitl_gate`` (mios_hitlflow) and ``_loads_lenient``
-(mios_jsonsalvage) are imported directly from their sibling modules; ``mios_sandbox``
-is imported as a module. Every other server-side symbol they touch (the verb
-catalog, the broker socket path, the DB-event helpers, the dispatch ContextVars,
-the sandbox-profile resolver and the dedup state) is injected via
-:func:`configure` (one-way boundary -- this module never imports ``server``).
-
-SECURITY-CRITICAL: every gate here is NAME-KEYED (verb keys, the permission tier
-in mios_policy, the ``_HIGH_PRIVILEGE_VERBS`` / ``_LAUNCH_VERBS`` set membership).
-Nothing is renamed.
-"""
+# AI-hint: Verb->bash DISPATCH chokepoint extracted VERBATIM from server.py (refactor R7 wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_dispatch_py.md
 
 from __future__ import annotations
 
@@ -125,22 +99,6 @@ def _emit_dispatch_dedup_event(tool: str, args: dict,
 
 def _record_dispatch_tool_call_row(tool: str, result: dict,
                                    session_id: "Optional[str]") -> None:
-    """Persist a /v1/dispatch verb execution as a session-linked ``tool_call`` row
-    -- the SAME shape the chat dispatch fast-path and the DAG executor write -- so a
-    verb run through the dispatch HTTP front (mios-mcp-server's ``tools/call`` lands
-    here) is VISIBLE to same-session provenance-taint propagation.
-
-    ``_session_is_tainted`` decides the Semantic Firewall block by reading prior
-    ``tool_call`` rows with ``tainted = true``; the chat + DAG paths each record their
-    executions, but the dispatch path did not -- so a tainting verb dispatched here
-    left no row, the taint was never seen, and a downstream high-privilege verb in the
-    SAME session went un-gated. The taint markers come straight off the verb result
-    (``_classify_verb_taint`` set them inside the dispatch chokepoint): no new schema,
-    no new taint logic, just the missing persistence.
-
-    Best-effort / degrade-open: the verb has ALREADY executed by the time this runs,
-    so an absent DB writer or a write failure is swallowed (the audit row is not
-    load-bearing for the verb's own result)."""
     try:
         _row = {
             "tool": str(result.get("tool") or tool or ""),
@@ -277,18 +235,6 @@ async def _dispatch_bounded(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    """Bulkhead layer. web_search dispatches share a global concurrency
-    semaphore so a council/DAG fan-out -- each call itself expanding into
-    MIOS_WEB_FANOUT concurrent sub-queries -- can't stampede the local
-    SearXNG; excess calls QUEUE here, with a small pre-acquire jitter to
-    stagger simultaneous starts. All other verbs pass straight through.
-
-    WS-A7: additionally, every dispatch is wrapped in the Tool-Manager conflict
-    gate, which serializes verbs that declare a parallel_limit (per-verb
-    concurrency cap) or a conflict_group (named mutual-exclusion set, e.g. the
-    single-foreground-window UI verbs). The gate is a no-op for verbs that
-    declare neither (the overwhelming majority), so this adds ~zero overhead to
-    the common path while making stateful verbs fan-out-safe."""
     _t = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     async with _trace_span("dispatch", verb=_t), _TOOL_CONFLICT.guard(_t):
         if _t == "web_search":
@@ -362,12 +308,6 @@ async def _dispatch_mios_verb_live(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    """Public dispatch entry point, wrapping the bulkhead with a conversation-
-    scoped concurrent SINGLE-FLIGHT guard (anti-swarm-duplication; see
-    _dispatch_inflight). Concurrent identical (verb, resolved-args) dispatches
-    in the same conversation collapse to ONE broker execution + share the
-    result, so a side effect never fires N times across a fan-out. In-flight
-    only -> sequential repeats re-run fresh."""
     tool = _resolve_verb_key(str(tool))
     if isinstance(args, dict):
         args = {k: v for k, v in args.items() if v is not None}
@@ -501,10 +441,6 @@ async def _dispatch_mios_verb_live(
 
 def _emit_ro2_event(tool: str, args: dict, session_id: "Optional[str]",
                     verdict: "mios_ruleof2.RuleOfTwoVerdict", *, blocked: bool) -> None:
-    """Audit a Rule-of-Two all-three decision -- one structured observability shape for
-    both the audit-mode log line and the enforce-mode block. Carries the property
-    breakdown (which of A/B/C, the count, the mode) so the decision is reconstructable.
-    Best-effort / degrade-open: an absent DB writer or a write failure is swallowed."""
     try:
         _db_fire(_db_post(_db_create("event", {
             "source": "agent-pipe",
@@ -524,26 +460,6 @@ def _emit_ro2_event(tool: str, args: dict, session_id: "Optional[str]",
 
 async def _rule_of_two_gate(tool: str, args: dict, *,
                             session_id: "Optional[str]" = None) -> "Optional[dict]":
-    """The Rule-of-Two architectural gate (F2/T-033, CaMeL-class), composed at the
-    dispatch chokepoint. Returns a block_result dict to REFUSE the dispatch (enforce
-    mode, a confirmed all-three kill-chain not yet human-approved) or None to PROCEED.
-
-    Composes EXISTING signals -- it re-derives nothing: A (untrusted-input) is the
-    provenance-taint chain (``_session_is_tainted``); B (sensitive-access) + C
-    (state-change) are derived from the SSOT verb metadata INSIDE the pure
-    ``mios_ruleof2.evaluate`` (the [verbs.*].sensitive flag + the permission tier).
-    Placed AFTER the existing taint/HITL gates -- each of those returns early on its
-    own block -- so Rule-of-Two only ADDS a refusal (the stricter gate wins).
-
-      off     -> not consulted (the call-site guards on the mode -> byte-identical).
-      audit   -> structured non-blocking audit line, then proceed (observe before enforce).
-      enforce -> route the all-three posture through the SINGLE ``mios_hitl.decide``
-                 resolver; an explicit same-turn ask-to-run approval downgrades the
-                 block so the human who approved THIS exact action can run it.
-
-    Degrade-open: ANY error -> None (fall back to the existing firewall/HITL behaviour;
-    never crash, never newly block-everything). A CONFIRMED all-three under enforce
-    gates (fail toward safety)."""
     try:
         mode = mios_ruleof2.normalize_mode(RULE_OF_TWO_MODE)
         if mode == mios_ruleof2.MODE_OFF:
@@ -587,11 +503,6 @@ async def _rule_of_two_gate(tool: str, args: dict, *,
 def _emit_quarantine_event(tool: str, args: dict, session_id: "Optional[str]",
                            verdict: "mios_quarantine.QuarantineVerdict", *,
                            blocked: bool) -> None:
-    """Audit a CaMeL quarantine decision (the boundary BIT: tainted AND privileged) --
-    one structured observability shape for both the audit-mode log line and the
-    enforce-mode block. Carries the axis breakdown (A + whether B / C, the mode) so the
-    decision is reconstructable. Best-effort / degrade-open: an absent DB writer or a
-    write failure is swallowed."""
     try:
         _db_fire(_db_post(_db_create("event", {
             "source": "agent-pipe",
@@ -612,32 +523,6 @@ def _emit_quarantine_event(tool: str, args: dict, session_id: "Optional[str]",
 
 async def _quarantine_gate(tool: str, args: dict, *,
                            session_id: "Optional[str]" = None) -> "Optional[dict]":
-    """The CaMeL dual-context QUARANTINE gate (F2, the deeper half of T-033), composed
-    at the dispatch chokepoint AFTER the Rule-of-Two gate so it only ADDS a refusal
-    (stricter-wins). Returns a block_result dict to REFUSE the dispatch (enforce mode, a
-    confirmed tainted+privileged action not yet human-approved) or None to PROCEED.
-
-    Composes EXISTING signals -- it re-derives nothing: A (untrusted-input) is the
-    provenance-taint chain (``_session_is_tainted``); B (sensitive-access) + C
-    (state-change) come from the SSOT verb metadata INSIDE the pure
-    ``mios_quarantine.evaluate`` (the [verbs.*].sensitive flag + the permission tier).
-    The boundary BITES on tainted AND (sensitive OR state-change) -- the STRICTER
-    superset of Rule-of-Two's all-three, for when you want full CaMeL isolation.
-
-      off     -> not consulted (the call-site guards on the mode -> byte-identical).
-      audit   -> structured non-blocking audit line, then proceed (observe before enforce).
-      enforce -> route the bite posture through the SINGLE ``mios_hitl.decide`` resolver
-                 (quarantine_block=True); an explicit same-turn ask-to-run approval
-                 downgrades the block so the human who approved THIS exact action runs it.
-
-    SOUNDNESS: this sits at the SAME single chokepoint as the firewall / HITL /
-    Rule-of-Two gates and only ADDS a refusal -- there is no second action path that
-    bypasses it, and stricter-wins composition means enabling it can only make the
-    posture stricter, never weaker.
-
-    Degrade-open: ANY error -> None (fall back to the existing firewall/HITL/Rule-of-Two
-    behaviour; never crash, never newly block-everything). A CONFIRMED bite under enforce
-    gates (fail toward safety)."""
     try:
         mode = mios_quarantine.normalize_mode(QUARANTINE_MODE)
         if mode == mios_quarantine.MODE_OFF:
@@ -724,18 +609,6 @@ async def _dispatch_mios_verb_inner_raw(
     tool: str, args: dict, *,
     session_id: Optional[str] = None,
 ) -> dict:
-    """Run a single MiOS verb via the launcher broker (unix socket
-    /run/mios-launcher/launcher.sock). Returns a structured dict:
-    {success, tool, args, output, stderr, exit_code, latency_ms,
-     tainted, taint_reason}. Uses the broker's CAPTURE_JSON: protocol
-    so stdout/stderr split cleanly.
-
-    Phase A.3: Semantic Firewall stub -- when a high-privilege verb
-    is dispatched and the session has ANY upstream tainted tool_call,
-    the dispatch is REFUSED (not even sent to the broker) and an
-    event row is emitted (kind=firewall_block, severity=high).
-    Taint of the dispatched verb itself is computed from
-    _classify_verb_taint AND inherited from session state."""
     tool = re.sub(r"\(.*?\)\s*$", "", str(tool or "").strip()).strip().strip("`'\"")
     if _letta_dispatch_handler:
         _res = await _letta_dispatch_handler(tool, args, session_id)

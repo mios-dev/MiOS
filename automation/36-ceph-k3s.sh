@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision the storage and container orchestration layer of the MiOS cluster.
-# AI-related: /usr/share/mios/k3s-manifests/, /usr/share/mios/vendored/k3s, /usr/share/mios/vendored/k3s-install.sh, /usr/share/mios/vendored/sha256sum-amd64.txt, /usr/libexec/mios/ceph-bootstrap.sh, mios-ceph-bootstrap, ceph-bootstrap.service, mios-ceph-bootstrap.service, k3s.service, var-home.mount
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_36_ceph_k3s_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 source "$(dirname "$0")/lib/common.sh"

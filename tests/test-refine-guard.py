@@ -1,16 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Smoke-test script to verify that the `refine_intent` logic correctly overrides "chat" classifications for actionable commands (like URLs or shell commands) to ensure they are correctly routed to the dispatcher.
-# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml, mios-open-url
-# AI-functions: main
-"""Smoke-test the refine chat-promotion guard.
-
-Calls refine_intent() with three actionable inputs that a small
-refine model has historically misclassified as chat (operator-
-flagged trace: 'mios-open-url https://...' returned intent=chat
-+ fabricated 'Wikipedia has been opened' confirmation when nothing
-was actually executed). Verifies the post-parse guard rewrites
-chat -> dispatch.
-"""
+# AI-hint: !/usr/bin/env python3 Smoke-test script to verify that the `refine_intent` logic correctly overrides "chat" classifications for actionable commands (like URLs or sh...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_refine_guard_py.md
 from __future__ import annotations
 import asyncio
 import os

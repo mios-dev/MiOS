@@ -4,6 +4,7 @@ members = [
     "generate-names-registry",
     "mios-aiplane-lint",
     "mios-bake-plan",
+    "mios-comment-lex",
     "mios-drift-runner",
     "mios-resolver",
     "mios-ssot-lint",

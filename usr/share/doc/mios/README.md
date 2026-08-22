@@ -55,7 +55,9 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/documentation-pipeline.md` | How MiOS documentation is produced -- AI-hints stay in source and are projected forward, comments are scraped, sanitized and distilled into the manual on a daily pass. |
 | `usr/share/doc/mios/reference/drift-gates.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/reference/engineering-reference.md` | Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository... |
+| `usr/share/doc/mios/reference/events.md` | Derived reference documentation for observability event schema kinds. |
 | `usr/share/doc/mios/reference/everything-db-driven.md` | WS-VECTOR research + workflow -- make EVERYTHING in MiOS DB-driven + vectorized: mios.toml is the cold image-baked authoring seed, Postgres/pgvector (mios-pgvector, db=mios, /var) is the LIVE runtime... |
+| `usr/share/doc/mios/reference/features.md` | Derived reference documentation for blade capabilities and features. |
 | `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10:... |
 | `usr/share/doc/mios/reference/hwcaps.md` | Documentation for x86-64 microarchitecture optimization levels (v1-v4) used to determine which glibc-hwcaps packages to include in the build via the [hwcaps] table in mios.toml; explains the... |
 | `usr/share/doc/mios/reference/install-ordering.md` | The WS-DEPLOY workstream -- refactor + reorder the MiOS install/first-boot pipeline into a logical dependency DAG so a "missing dependency / not-ready / not-yet-built" state is structurally... |
@@ -78,7 +80,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
 | `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
 
-<!-- derived from the AI-hint headers of 43 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- derived from the AI-hint headers of 45 file(s) matching usr/share/doc/mios/reference/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
 
 ## concepts

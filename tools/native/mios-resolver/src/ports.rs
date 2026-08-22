@@ -1,19 +1,7 @@
-// AI-hint: Runtime port allocator -- derives every [ports] value from the [ports.categories] schema (base + index*stride) after layer merging, so operator/OEM overrides re-derive live. Mirrors mios_toml.derive_ports.
-// AI-related: usr/lib/mios/mios_toml.py, usr/share/mios/mios.toml, tools/render-ports.py
+/* AI-hint: Runtime port allocator -- derives every [ports] value from the [ports.categories] schema (base + index*stride) after layer merging, so operator/OEM overrides re-derive live. Mirrors mios_toml.derive_ports. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/tools_native_mios_resolver_src_ports_rs.md */
 use toml::Value;
 
-/// Allocate every `[ports]` value from `[ports.categories]`, in place.
-///
-/// Must run AFTER all layers merge so a factory/OEM default in the vendor
-/// mios.toml, an operator override in /etc/mios/mios.toml, and a user override
-/// in ~/.config all feed the same derivation. `members` is ordered and the order
-/// IS the numbering, so adding or removing a service reallocates the category
-/// without a hand edit. `pinned` entries are protocol contracts (DNS/53) and are
-/// written verbatim.
-///
-/// This OVERRIDES the flat `[ports]` table, which is only a rendered projection
-/// kept for readability -- otherwise a stale vendor literal would silently beat
-/// an operator who retargeted a category base.
 pub fn derive_ports(merged: &mut Value) {
     let cats: Vec<(String, Value)> = match merged
         .get("ports")

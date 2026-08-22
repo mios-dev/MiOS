@@ -1,0 +1,28 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Drop-in configuration for systemd-logind-varlink.socket that adds ConditionVirtualization checks to prevent the socket from attempting to activate and failing in container or WSL environments.
+AI-related: mios-skip-container, systemd-logind-varlink.socket, logind.service
+/usr/lib/systemd/system/systemd-logind-varlink.socket.d/10-mios-skip-container.conf
+
+Skip the logind varlink socket inside containers/WSL where logind itself
+is gated off. Without this drop-in the socket activates, the activated
+logind.service is skipped due to its own ConditionVirtualization=!wsl,
+the activation fails, the socket retries until TriggerLimitBurst is hit:
+
+    systemd[1]: systemd-logind-varlink.socket: Trigger limit hit,
+        refusing further activation.
+    systemd[1]: systemd-logind-varlink.socket: Failed with result
+        'trigger-limit-hit'.
+
+Failed-units count then includes the socket on every boot. Adding
+ConditionVirtualization to the [Unit] section makes systemd skip the
+socket entirely on container/WSL hosts, so the failure cascade never
+starts. Upstream applies the same condition to logind.service itself;
+this just propagates it to the matching varlink socket.
+
+<!-- mios-src:ded6d7e1d236 from usr/lib/systemd/system/systemd-logind-varlink.socket.d/10-mios-skip-container.conf:1-19 -->
+

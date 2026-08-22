@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Verifies mios-pgvector-major-upgrade never destroys an agent datastore -- exercises the no-op, unparseable-tag, downgrade-refusal, missing-old-image and failed-dump paths against a fake data dir with podman stubbed, asserting the cluster survives every one of them, plus the happy path that stashes rather than deletes.
-# AI-related: usr/libexec/mios/mios-pgvector-major-upgrade, mios-pgvector-major-upgrade.service, mios-pgvector.container
+# AI-hint: !/usr/bin/env bash Verifies mios-pgvector-major-upgrade never destroys an agent datastore -- exercises the no-op, unparseable-tag, downgrade-refusal, miss...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_pgvector_major_upgrade_sh.md
 set -euo pipefail
 
 _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

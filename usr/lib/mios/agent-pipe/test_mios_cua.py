@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_cua (WS-8 perceive->act->verify computer-use loop core). Pure stdlib, no server.py/VLM/pytest. Verifies the logical-action -> per-platform verb mapping (resolve_verb, fail-closed on unknown action/platform), observation-change/stall detection, the FAIL-SAFE verify-verdict parser (unparseable -> NOT done, never false success), the loop_status terminal decision (goal/budget/stall precedence), and the CuaTrace bookkeeping.
-# AI-related: ./mios_cua.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_cua (WS-8 perceive->act->verify computer-use loop core). Pure stdlib, no server.py/VLM/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_cua_py.md
 """Unit tests for mios_cua (WS-8)."""
 import asyncio
 import json

@@ -1,6 +1,5 @@
-# AI-hint: Pure Jensen-Shannon divergence monitor over agent-plane verdict/intent/score histograms (CONS-02). histogram() folds raw label samples into a normalized distribution; jensen_shannon() returns the bounded (0..1, log base 2) divergence between a live window and a frozen baseline; compare() scores every named axis at once and reports which ones crossed the alert threshold. The Goodhart early-warning alarm: self-improvement and multi-judge consensus can quietly optimize the verdict distribution, and without a divergence measure that shift is invisible until behaviour visibly degrades. No I/O, no config import, no DB, no server import -- the caller supplies the samples and the baseline.
-# AI-related: ../routing/consensus.py, ../../server.py, ../../test_mios_drift.py, usr/share/mios/postgres/schema-init.sql, usr/share/mios/mios.toml [drift_monitor]
-# AI-functions: histogram, jensen_shannon, compare, is_alerting
+# AI-hint: Pure Jensen-Shannon divergence monitor over agent-plane verdict/intent/score histograms (CONS-02).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_drift_monitor_py.md
 """Jensen-Shannon drift monitor (CONS-02). Bounded 0..1 divergence against a
 frozen baseline; rationale in usr/share/doc/mios/manual/ch53-drift-monitoring.md"""
 

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, identify orchestration scripts, and locate helper utilities.
-# AI-related: mios-bootstrap, mios-build-local, mios-build-builder
-# AI-functions: fence_for, section, main
+# AI-hint: !/usr/bin/env python3 Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, i...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_generate_build_scripts_py.md
 
 import os
 from pathlib import Path

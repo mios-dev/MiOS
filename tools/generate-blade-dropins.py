@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595).
-# AI-related: usr/share/mios/dropins/blade-*.conf, usr/share/mios/dropins/k3s-node-selectors.yaml, usr/share/mios/dropins/pcs-location-rules.pcs, usr/share/mios/mios.toml, automation/98-drift-checks.sh
+# AI-hint: !/usr/bin/env python3 Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595).
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_blade_dropins_py.md
 import os
 import sys
 

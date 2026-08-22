@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs the Oh-My-Posh shell prompt customizer by fetching the latest Go binary from GitHub, placing it in /usr/bin/oh-my-posh for system-wide use by mios-prompt.sh.
-# AI-related: mios-prompt.sh, /usr/libexec/mios/oh-my-posh/, mios-prompt
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs the Oh-My-Posh shell prompt customizer by fetching the latest Go binary from GitHub, placing it in /usr/bin/oh-my-po...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_62_oh_my_posh_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

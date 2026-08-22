@@ -1,33 +1,5 @@
-# AI-hint: Council input-diversity gate + confidence-aware aggregation bypass (T-047 RouteMoA GAP-1 / T-048 MOSAIC GAP-2). Pure geometry over the ALREADY-computed 768-d nomic council-response embeddings -- NO extra model calls beyond one embed per response (computed once, REUSED by both gates), NO hand-coded weights/keywords. select_diverse picks a diverse subset of council responses for the aggregator (lowest-mean-similarity seed + minimax-orthogonal expansion; a slot whose similarity to the selected set exceeds diversity_threshold is dropped/replaced by the next most-orthogonal candidate). should_bypass is the aggregation-bypass predicate (True iff every pairwise cosine exceeds aggregator_bypass_threshold -> the council converged -> skip the aggregator LLM). medoid_index picks the highest-confidence (most representative / consensus) individual response when bypassing. apply_council_gates is the async orchestrator swarm._synthesise calls: it embeds the k council outputs ONCE, applies bypass (precedence) then diversity, and emits the aggregator_bypass event via the injected event logger. _STATS/note_aggregator/bypassed_pct expose the bypass rate for /v1/cluster/health. Both gates DEFAULT-OFF (degrade-open): off => the synthesis path is byte-identical. Pure of server.py (one-way boundary); the cosine metric is the SSOT one from mios_toolsearch.
-# AI-related: ./swarm.py, ./toolsearch.py, ../kernel/clusterhealth.py, ../kernel/config.py, ./test_mios_council_diversity.py
-# AI-functions: select_diverse, should_bypass, medoid_index, apply_council_gates, note_aggregator, bypassed_pct, reset_stats
-"""Council diversity gate + aggregation bypass (T-047 GAP-1 / T-048 GAP-2).
-
-The council/swarm fan-out produces ``k`` responses that are then handed to a
-final aggregator LLM (``polish_response`` in :mod:`mios_pipe.routing.swarm`).
-Two failure modes this module addresses, BOTH riding the 768-d nomic embeddings
-that already exist on that path (no extra model calls, no per-pair calls):
-
-* **T-047 (RouteMoA input diversity).** An echo-chamber council -- several
-  near-identical responses -- wastes the aggregator's context and degrades
-  synthesis. :func:`select_diverse` prunes the inputs to a semantically diverse
-  subset: a lowest-mean-similarity seed, then minimax-orthogonal expansion; any
-  candidate whose similarity to the selected set exceeds ``diversity_threshold``
-  is redundant and is replaced by the next most-orthogonal candidate (dropped
-  when even the most-orthogonal remaining candidate is over threshold).
-
-* **T-048 (MOSAIC confidence-aware bypass).** When the whole council converges
-  (every pairwise cosine exceeds ``aggregator_bypass_threshold``) the expensive
-  aggregator call adds nothing. :func:`should_bypass` detects that; the caller
-  then ships the highest-confidence individual response (:func:`medoid_index`,
-  the consensus medoid) and skips the aggregator LLM.
-
-The decision is pure cosine geometry -- no hand-coded scoring weight, no keyword
-or language gate. Both gates default OFF (degrade-open); with both off nothing
-here runs and the synthesis path is byte-identical. This module never imports
-``server`` (one-way boundary); the cosine metric is the single SSOT one shared
-with the verb-retrieval cache in :mod:`mios_toolsearch`.
-"""
+# AI-hint: Council input-diversity gate + confidence-aware aggregation bypass (T-047 RouteMoA GAP-1 / T-048 MOSAIC GAP-2).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_council_diversity_py.md
 
 from __future__ import annotations
 
@@ -79,21 +51,6 @@ def _sim_matrix(vectors: list, cosine: Callable = _cosine) -> list:
 
 def select_diverse(vectors: list, threshold: float,
                    cosine: Callable = _cosine) -> list:
-    """T-047 RouteMoA input-diversity selection. Returns the SELECTED indices
-    (a subset of ``range(len(vectors))``) of the council responses to hand the
-    aggregator:
-
-      * seed ``i0 = argmin_i mean_{j!=i} S_ij`` -- the most peripheral response
-        (lowest mean similarity to the rest);
-      * expand by minimax: repeatedly add the remaining candidate whose MAXIMUM
-        similarity to the already-selected set is smallest (the most orthogonal);
-      * a candidate whose max-similarity to the selected set exceeds ``threshold``
-        is redundant -- it is passed over for the next most-orthogonal candidate;
-        once even the most-orthogonal remaining candidate is over threshold every
-        remaining response is a near-duplicate of the set and they are dropped.
-
-    The ranking is purely the cosine geometry -- no hand-coded weight. With <=1
-    response there is nothing to diversify (returns all indices)."""
     n = len(vectors)
     if n <= 1:
         return list(range(n))
@@ -135,11 +92,6 @@ def should_bypass(vectors: list, threshold: float,
 
 
 def medoid_index(vectors: list, cosine: Callable = _cosine) -> int:
-    """Index of the highest-confidence individual response: the medoid -- the
-    response with the HIGHEST mean cosine similarity to the others, i.e. the one
-    most representative of the converged council. When the bypass precondition
-    holds every candidate is near-identical, so this is a principled, weight-free
-    choice of the single response to ship instead of the aggregator's output."""
     n = len(vectors)
     if n <= 1:
         return 0
@@ -156,21 +108,6 @@ async def apply_council_gates(
     output_key: str = "output",
     log_event: Optional[Callable] = None,
 ) -> tuple:
-    """Apply the T-047 diversity gate + T-048 aggregation bypass over the council
-    response ``nodes`` (each a dict carrying ``output_key`` text). Embeds every
-    response's text ONCE via ``embed_one`` (the 768-d nomic vectors) and REUSES
-    those vectors for both gates -- zero per-pair model calls.
-
-    Returns ``(selected_nodes, bypass)`` where:
-      * ``selected_nodes`` -- the (possibly diversity-pruned) nodes for the
-        aggregator (unchanged when the diversity gate is off / nothing pruned);
-      * ``bypass`` -- ``None``, or ``{"node", "mean_similarity", "council_size"}``
-        when the council converged and the aggregator LLM must be SKIPPED (T-048).
-
-    Convergence (bypass) takes precedence over diversity pruning -- a converged
-    council needs neither aggregation nor trimming. Degrades OPEN: with both gates
-    off, <2 nodes, no embedder, or any missing embedding it returns the nodes
-    unchanged with ``bypass=None`` (behaviour identical to gates-off)."""
     if not (diversity_gate or aggregator_bypass):
         return (nodes, None)
     if not nodes or len(nodes) < 2 or embed_one is None:

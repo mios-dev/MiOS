@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Configures the system firewall by generating a persistent firewalld init script that maps resolved environment ports (SSH, RDP, K3s, Hermes, Open-WebUI) to the firewall's allowed rules.
-# AI-related: mios-firewall-init, mios-firewall, mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Configures the system firewall by generating a persistent firewalld init script that maps resolved environment ports (SSH, RDP,...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_45_firewall_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

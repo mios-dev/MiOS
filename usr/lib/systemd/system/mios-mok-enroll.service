@@ -1,5 +1,5 @@
-# AI-hint: One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/generate-uki-cmdline.py) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors automation/enroll-mok.sh (mokutil --import --root-pw, real /etc/pki/mios/mok.der key with the akmods-ublue fallback pick_key uses). Self-contained + idempotent: no-op when mokutil absent, Secure Boot off, key missing, or already enrolled/queued (/var/lib/mios/.mok-enrolled sentinel). Completes the shim -> GRUB -> UKI -> MOK-trusted chain that Ventoy's /S flag only covers for the USB's own shim.
-# AI-related: automation/enroll-mok.sh, automation/generate-mok-key.sh, automation/76-uki-render.sh, tools/generate-uki-cmdline.py, /etc/pki/mios/mok.der, /etc/pki/akmods/certs/akmods-ublue.der, usr/lib/bootc/kargs.d/32-mios-ws7-uki.toml, usr/share/doc/mios/reference/audit-deploy-plane.md
+/* AI-hint: One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/generate-uki-cmdline.py) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors... */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_mok_enroll_service.md */
 [Unit]
 Description='MiOS' first-boot MOK enrollment for Secure Boot UKI trust
 Documentation=https://github.com/mios-dev/mios

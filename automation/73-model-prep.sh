@@ -1,10 +1,8 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot. Folded from 38-llamacpp-prep + 38-vllm-prep; each block is independently env-gated (MIOS_LLAMACPP_BAKE_MODELS / MIOS_VLLM_BAKE_MODEL), writes a disjoint SEED_DIR, and only appends to sbom/models.tsv.
-# AI-functions: (see blocks below)
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot.
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
 
-# AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ensure local model availability.
-# AI-related: /usr/share/mios/llamacpp/models, mios-llm-light, mios-llm-light.container
+# AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ens...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

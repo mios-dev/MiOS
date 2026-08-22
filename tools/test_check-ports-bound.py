@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-ports-bound.py. Cover the four ways an allocated port can be wrong -- unreferenced and unregistered, registered though it IS referenced (the register must only shrink), a register entry naming no real port, and a duplicated entry -- plus the empty-set case, because a gate that passes over no ports is the exact failure this family of gates exists to prevent.
-# AI-related: tools/check-ports-bound.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-ports-bound.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_ports_bound_py.md
 """Tests for the allocated-but-unbound port gate."""
 
 import os

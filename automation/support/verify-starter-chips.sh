@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Installs and activates the mios-suggestion-refresh systemd service/timer, sets permissions for the firstboot binary, and verifies that prompt suggestions are successfully populated in the webui.db database.
-# AI-related: /usr/libexec/mios/mios-hermes-firstboot, /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-hermes-firstboot, mios-suggestion-refresh.service, mios-suggestion-refresh.timer
+# AI-hint: !/bin/bash Installs and activates the mios-suggestion-refresh systemd service/timer, sets permissions for the firstboot binary, and verifies that pr...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_verify_starter_chips_sh.md
 set -euo pipefail
 
 echo "── deploy units + script ──"

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal). Pure stdlib, no server.py/DB/pytest/network. Verifies text_digest determinism + SHA-256 correctness + input sensitivity + None/empty/int coercion, build_claims/build_metadata required keys+shapes+digest binding, and verify() round-trip: valid->True, tampered text->False(text_digest_mismatch BEFORE sig check), no-key/unsigned degrade->False(unsigned), absent block->None, bad signature->False. Injects fake sign_fn/verify_fn (no external Ed25519 key material).
-# AI-related: ./mios_a2a_principal.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal). Pure stdlib, no ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_a2a_principal_py.md
 """Unit tests for mios_a2a_principal (signed A2A delegation principal helpers)."""
 
 import hashlib

@@ -1,6 +1,5 @@
-# AI-hint: Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP). Hermetically stubs httpx + fastapi.responses + the injected deps (HTTP client / MCP-tool registry+lock / embedder / worker-cache invalidator) with NO network, DB, or subprocess, and asserts: the layered registry read (later overlay REPLACES by id), the ${ENV} header expansion, _mcp_http_rpc parsing BOTH application/json and text/event-stream responses, the per-server probe PROJECTION (tools/list -> mcp.<sid>.<tool> registry entries carrying namespace/tier/taint/examples + cache-invalidate + embed side-effects), the /v1/mcp/clients + /v1/mcp/tools + /v1/mcp/dispatch route-logic shapes, and the _McpStdioClient self-heal state machine (initialize once, skip re-init while alive, respawn+re-initialize after the subprocess dies).
-# AI-related: ./mios_mcp.py, ./server.py
-# AI-functions: _run, test_render_headers, test_load_registry_layered, test_http_rpc_json, test_http_rpc_sse, test_probe_server_projection, test_route_logic_shapes, test_call_tool_unknown, test_stdio_self_heal
+# AI-hint: Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_mcp_py.md
 """Offline unit tests for mios_mcp (no network, no DB, no real subprocess)."""
 
 import asyncio

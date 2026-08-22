@@ -1,6 +1,5 @@
-# AI-hint: WS-A15 pluggable MemoryProvider seam for the agent-pipe. Wraps the pgvector recall/store path behind a small MemoryProvider interface (retrieve/add) so the agent's long-term memory backend is swappable (a different vector store, a remote memory service, a test fake) without touching the recall call sites. PgVectorMemoryProvider is the default, delegating verbatim to the mios_pg client; get_memory_provider(name, backend) is a fail-CLOSED factory (raises ValueError on an unknown name). server.py owns the wiring (resolve [pgvector].memory_provider, build the module-global _MEMORY, route _recall_agent_memory/_recall_knowledge_pg through it); this module owns only the seam.
-# AI-related: ./mios_pg.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_memory.py
-# AI-functions: retrieve, add, get_memory_provider, register_provider, class MemoryProvider, class PgVectorMemoryProvider
+# AI-hint: WS-A15 pluggable MemoryProvider seam for the agent-pipe. Wraps the pgvector recall/store path behind a small MemoryProvider interface (retri...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_memory_py.md
 """mios_memory -- pluggable agent-memory provider seam (WS-A15, the AIOS
 Memory-Manager abstraction).
 

@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Hot-deploys source-only MiOS binaries, configuration files (tmpfiles/sysusers), and OWUI tools to the live VM's /usr path without a full image rebuild to apply immediate updates to the broker and system services.
-# AI-related: /usr/share/mios/openwebui/tools, /usr/share/mios/openwebui/tools/mios_computer_use.py, mios-coderun-sandbox, mios-launcher-daemon, mios-db, mios-docgen, mios-coderun-codemode, mios-stresstest, mios-owui-install-computer-use, mios-hermes-firstboot
+# AI-hint: !/bin/bash Hot-deploys source-only MiOS binaries, configuration files (tmpfiles/sysusers), and OWUI tools to the live VM's /usr path without a full i...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_deploy_tooling_live_sh.md
 set -euo pipefail
 SRC=/mnt/c/MiOS
 LX=/usr/libexec/mios

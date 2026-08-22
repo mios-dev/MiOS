@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Round-trips the documentation harvest loop in a throwaway git fixture -- ledger, harvest, the landed() predicate flipping false to true, prune refusing an unharvested block, prune deleting a landed one, the tombstone surviving regeneration, and the landing gate turning red when a harvested passage is later deleted from the doc.
-# AI-related: usr/libexec/mios/mios-manual, usr/lib/mios/mios_comments.py, automation/98-drift-checks.sh
+# AI-hint: !/usr/bin/env bash Round-trips the documentation harvest loop in a throwaway git fixture -- ledger, harvest, the landed() predicate flipping false to true, p...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_mios_manual_harvest_sh.md
 set -euo pipefail
 
 _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

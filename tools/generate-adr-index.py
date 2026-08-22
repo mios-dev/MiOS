@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265). The ADRs themselves stay baked under /usr per Law 1 -- a running MiOS carries its own why -- so this is a pointer, never a copy: one hop from either repo root to the index, a second to the decision itself. Derived, never hand-maintained (Law 8): check_adr_index regenerates and diffs it. --check exits 1 when the committed file is stale.
-# AI-related: usr/share/doc/mios/adr/, ADR.md, automation/98-drift-checks.sh, tools/test_generate-adr-index.py
-# AI-functions: parse_front_matter, collect, render, main
+# AI-hint: !/usr/bin/env python3 Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265).
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_adr_index_py.md
 """Generate the repo-root ADR.md breadcrumb from the baked ADR front-matter."""
 
 import os

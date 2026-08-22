@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Stdlib offline tests for the FBM model plane (T-201). Covers the CLI (`mios models list` reads the LAYERED [ai].firstboot_models rather than globbing the filesystem, so a declared-but-missing model is visible; add/rm edit the USER overlay and never the vendor file; a duplicate add is refused) and the first-boot fetcher's sha256 gate, driven end-to-end through a curl stub: a payload matching the declared digest installs, a mismatching one is REJECTED and the part file discarded so nothing unverified lands under a name the lanes would load. Before this the fetcher printed "Verifying sha256" and renamed without hashing anything. No network, no real models. Run: python3 test_mios_models.py
-# AI-related: ./mios-models, ./mios-models-firstboot, usr/share/mios/mios.toml
-# AI-functions: run_cli, mk_fetcher, main
+# AI-hint: !/usr/bin/env python3 Stdlib offline tests for the FBM model plane (T-201).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_models_py.md
 
 import hashlib
 import os

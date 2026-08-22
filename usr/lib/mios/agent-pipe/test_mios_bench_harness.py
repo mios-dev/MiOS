@@ -1,6 +1,5 @@
-#!/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3
-# AI-hint: Verification test suite for mios-bench harness CLI option parsing, metrics reporting, and table formatting.
-# AI-related: /usr/lib/mios/agent-pipe/test_mios_bench_harness.py, /usr/libexec/mios/mios-bench
+# AI-hint: !/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3 Verification test suite for mios-bench harness CLI option parsing, metrics reporting, a...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_bench_harness_py.md
 
 import sys
 import os

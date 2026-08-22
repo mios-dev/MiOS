@@ -27,12 +27,10 @@ else
     echo "[ai-bootstrap] WARN: tools/sync-wiki.py not found"
 fi
 
-if [[ -f "tools/generate-unified-knowledge.py" ]]; then
-    echo "[ai-bootstrap] Generating unified knowledge base"
+if [[ -f "usr/libexec/mios/mios-manual" ]]; then
+    echo "[ai-bootstrap] Generating manual audit index"
     [[ -f "tools/journal-sync.py" ]] && { python3 tools/journal-sync.py || true; }
-    python3 tools/generate-unified-knowledge.py || echo "[ai-bootstrap] WARN: knowledge base generation failed"
-else
-    echo "[ai-bootstrap] WARN: tools/generate-unified-knowledge.py not found"
+    python3 usr/libexec/mios/mios-manual audit --json > usr/share/mios/reference/audit-index.json || echo "[ai-bootstrap] WARN: manual audit index generation failed"
 fi
 
 if [[ -d "agents/research" ]]; then

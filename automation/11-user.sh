@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Configures PAM via authselect, creates the primary system user with fixed UID 1000, and assigns group memberships (wheel, libvirt, docker) to ensure proper session permissions and container access.
-# AI-related: mios-custom, mios-home, mios-wheel, mios-nfs
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Configures PAM via authselect, creates the primary system user with fixed UID 1000, and assigns group memberships (wheel, libvirt, ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_11_user_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

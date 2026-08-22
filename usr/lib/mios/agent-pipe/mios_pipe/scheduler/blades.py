@@ -1,6 +1,5 @@
-# AI-hint: Pure-stdlib BLADE/topology model for the agent-pipe (V4 + V5 multi-blade
-# AI-related: ./mios_config.py, ./mios_agentreg.py, ./server.py, ./test_mios_blades.py, /usr/share/mios/mios.toml
-# AI-functions: _as_int, local_blade_name, load_blade_pool, endpoint_blade_map, blade_for_endpoint, blade_vram_budget
+# AI-hint: Pure-stdlib BLADE/topology model for the agent-pipe (V4 + V5 multi-blade AI-related: ./mios_config.py, ./mios_agentreg.py, ./server.py, ....
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_blades_py.md
 """mios_blades -- blade (machine) topology + per-blade capacity model.
 
 V4 makes "nodes X, Y, Z are one machine" EXPRESSIBLE: each [nodes.*] may carry an

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model output). Pure stdlib, no pytest/DB/network/server.py. Verifies the documented contract: clean objects round-trip, ```json fences/leading-trailing prose are stripped, trailing commas / // and /* */ comments / Python True/False/None|NaN|undefined literals / empty-value-after-colon are repaired, truncated tails are best-effort re-balanced, field-level harvest recovers scalars+flat arrays around an unrecoverable break, and the documented NEGATIVES return None (empty/None/whitespace, pure non-JSON, top-level arrays, single-quoted keys, unterminated strings). Also pins the surprising flat-harvest nested-key leak.
-# AI-related: ./mios_jsonsalvage.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model outp...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_jsonsalvage_py.md
 """Unit tests for mios_jsonsalvage.loads_lenient (lenient JSON salvage)."""
 
 import math

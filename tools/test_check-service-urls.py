@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Unit tests for tools/check-service-urls.py. Cover the four ways a port's addressing can be wrong -- unclassified, double-classified, a register entry naming a port that does not exist, and a duplicated register entry -- plus the empty-set case, because a gate that passes over no ports is the failure this whole family of gates exists to prevent.
-# AI-related: tools/check-service-urls.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-service-urls.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_service_urls_py.md
 """Tests for the one-canonical-address-per-service gate."""
 
 import os

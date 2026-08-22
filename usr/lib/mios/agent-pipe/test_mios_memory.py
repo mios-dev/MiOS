@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_memory (WS-A15 MemoryProvider seam). Pure stdlib + asyncio, no server.py / DB / pytest -- runs as `python3 test_mios_memory.py` (exit 0 = pass) on the build host and as a build.sh sub-phase. Uses an injected FakeBackend (records recall/insert calls) to prove the PgVectorMemoryProvider forwards retrieve/add VERBATIM (golden parity vs the old direct mios_pg calls), and that get_memory_provider is fail-CLOSED (ValueError on an unknown name) + register_provider works.
-# AI-related: ./mios_memory.py
-# AI-functions: check, main, class FakeBackend
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_memory (WS-A15 MemoryProvider seam).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_memory_py.md
 """Unit tests for mios_memory (WS-A15)."""
 
 import asyncio

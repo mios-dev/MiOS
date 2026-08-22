@@ -1,25 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Post-build build script that enforces Architectural Law 7 (OFFLINE-FIRST) by scanning the Hermes dashboard web distribution and replacing all googleapis.com font URLs with inert data URIs to prevent runtime external network requests.
-# AI-functions: main
-"""Strip externally-hosted asset URLs from the built Hermes dashboard.
-
-Runs after `npm run build` against `<repo>/hermes_cli/web_dist`. The
-upstream React bundle ships five OPTIONAL theme stylesheets that
-reference `fonts.googleapis.com` for typography (Inter, JetBrains Mono,
-Spectral, IBM Plex, Share Tech Mono, Fraunces, DM Mono). The DEFAULT
-theme uses the @nous-research/ui bundled woff2 fonts (in `web/public/
-fonts/`) and works offline. Patching the optional-theme URLs to an
-inert `data:text/css,` URI keeps the theme switcher's UI alive but
-turns the non-default themes into a no-op rather than a Google Fonts
-fetch.
-
-Architectural Law 7 (OFFLINE-FIRST): the runtime must never reach out
-to an external service. Build-time deps (npm install from registry)
-happen once during image build; runtime is offline.
-
-Usage:
-    hermes-dashboard-strip-externals.py /path/to/hermes_cli/web_dist
-"""
+# AI-hint: !/usr/bin/env python3 Post-build build script that enforces Architectural Law 7 (OFFLINE-FIRST) by scanning the Hermes dashboard web dis...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_hermes_dashboard_strip_externals_py.md
 from __future__ import annotations
 import re
 import sys

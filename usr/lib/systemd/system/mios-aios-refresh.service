@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit to regenerate AIOS-native role systems from the SSOT and refresh the A2A fleet peer list (explicit nodes + mDNS/avahi discovery), providing the agent-pipe with updated verb catalogs and peer discovery.
-# AI-related: /usr/libexec/mios/mios-gen-role-system, /etc/mios/ai/v1/role-systems/, /usr/libexec/mios/mios-a2a-discover, /usr/libexec/mios/mios-a2a-mdns, /etc/avahi/services/mios-a2a.service, mios-gen-role-system, mios-a2a-discover, mios-a2a-mdns, mios-agent-pipe, mios-agent-pipe.service, avahi-daemon.service, network-online.target, multi-user.target
+/* AI-hint: Systemd unit to regenerate AIOS-native role systems from the SSOT and refresh the A2A fleet peer list (explicit nodes + mDNS/avahi discovery), providing the agent-pipe with updated verb catalogs and peer discovery. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_aios_refresh_service.md */
 [Unit]
 Description='MiOS' AIOS refresh -- regenerate SSOT-driven role SYSTEMs + discover the A2A fleet
 Documentation=file:///usr/libexec/mios/mios-gen-role-system

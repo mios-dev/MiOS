@@ -37,18 +37,11 @@ def main():
 
     env = os.environ.copy()
 
-    # Strip INHERITED MIOS_* before running the bash twin. The comparison asks
-    # "what does userenv.sh resolve from SSOT?", but bash reports every MIOS_*
-    # in its environment -- so any ambient var the TOML side has no key for
-    # shows up as a mismatch. CI sets MIOS_DRIFT_REQUIRE_TOOLS=1 as a workflow
-    # knob, which failed the check with:
-    #   Var MIOS_DRIFT_REQUIRE_TOOLS: Toml resolved '', Bash resolved '1'
-    # Keep only the tier pointers the resolver needs to find the SSOT layers.
     _TIER_VARS = {
         "MIOS_ROOT", "MIOS_TOML", "MIOS_TOML_ROOT",
         "MIOS_VENDOR_TOML", "MIOS_VENDOR_TOML_D",
         "MIOS_HOST_TOML", "MIOS_HOST_TOML_D",
-        "MIOS_USER_TOML", "MIOS_USER_TOML_D",
+        "MIOS_USER_TOML", "MIOS_USER_TOML_D", "MIOS_PYTHON_BIN",
     }
     for _k in [k for k in env if k.startswith("MIOS_") and k not in _TIER_VARS]:
         env.pop(_k, None)
@@ -64,6 +57,13 @@ def main():
                 bash_exe = path
                 break
 
+    py_exec = sys.executable.replace('\\', '/')
+    if os.name == "nt" and py_exec[1:2] == ":":
+        py_exec_msys = "/" + py_exec[0].lower() + py_exec[2:]
+    else:
+        py_exec_msys = py_exec
+    env["MIOS_PYTHON_BIN"] = py_exec_msys
+
     userenv_script = os.path.join(root, 'usr/lib/mios/userenv.sh').replace('\\', '/')
     py_exec = sys.executable.replace('\\', '/')
     cmd = [
@@ -74,6 +74,7 @@ def main():
         out = subprocess.check_output(cmd, env=env, stderr=subprocess.STDOUT).decode("utf-8")
         print(f"BASH OUTPUT: {out}", file=sys.stderr)
         bash_vars = json.loads(out)
+        bash_vars.pop("MIOS_PYTHON_BIN", None)
     except subprocess.CalledProcessError as e:
         print("Error: userenv.sh execution failed:\n", e.output.decode("utf-8", errors="ignore"), file=sys.stderr)
         sys.exit(1)
@@ -81,63 +82,7 @@ def main():
         print(f"Error: Failed to parse env JSON: {e}\nOutput was:\n{out}", file=sys.stderr)
         sys.exit(1)
 
-    merged_data = mios_toml.load_merged()
-    stack_id = mios_toml.get("ports", "stack_id")
-    try:
-        stack_offset = int(stack_id) * 10000 if stack_id is not None else 0
-    except ValueError:
-        stack_offset = 0
-
-    get_aliases = mios_toml.get_aliases
-    def process_val(dotted, v):
-        return mios_toml.process_val(dotted, v, stack_offset)
-    walk = mios_toml.walk
-
-    toml_vars = {}
-    
-    all_pairs = []
-    EXCLUDED_SECTIONS = mios_toml.EXCLUDED_SECTIONS
-    for sec, val in merged_data.items():
-        if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
-            all_pairs.extend(walk(val, sec))
-
-    WALK_MOSTLY_DEAD = mios_toml.WALK_MOSTLY_DEAD
-    WALK_EMIT_KEEP = mios_toml.WALK_EMIT_KEEP
-
-    import re as _re
-    _re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
-
-    exports_map = {}
-    for path, val in all_pairs:
-        val_processed = process_val(path, val)
-        if val_processed is None or val_processed == "":
-            continue
-        if path.startswith("converge."):
-            _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
-        else:
-            _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
-        # Same sanitization as tools/render-globals.py: a key like `mios-llm-worker@`
-        # is otherwise neither a legal sh nor PowerShell identifier (Law 13 twins).
-        canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
-        canonical = _re_unsafe.sub("_", canonical)
-        sec_name = path.split(".", 1)[0]
-        if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
-            pass
-        else:
-            exports_map[canonical] = str(val_processed)
-            
-        for leg in get_aliases(path):
-            if leg.endswith("_VERSION") and path.startswith("image.sidecars."):
-                exports_map[leg] = str(val_processed).rsplit(":", 1)[1] if ":" in str(val_processed) else "latest"
-            else:
-                exports_map[leg] = str(val_processed)
-
-    env_tbl = mios_toml.section(merged_data, "env")
-    if isinstance(env_tbl, dict):
-        for k, v in sorted(env_tbl.items()):
-            vp = process_val("env." + k, v)
-            if vp is not None and vp != "":
-                exports_map[k] = str(vp)
+    exports_map = mios_toml.emit_exports()
 
     ref_path = os.path.join(root, "usr/share/mios/referenced_names.txt")
     if os.path.isfile(ref_path):

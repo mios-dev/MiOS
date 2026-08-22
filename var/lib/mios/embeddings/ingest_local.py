@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (llama.cpp, Ollama, vLLM) and upserting the resulting vectors into the pgvector PostgreSQL database for RAG retrieval.
-# AI-related: mios-kb, localhost:8080, mios-llm-light (port key `llm_light`), localhost:8000, localhost:1234, localhost:4000, localhost:5432
-# AI-functions: embed_batch, stable_id, vector_literal, main
+# AI-hint: !/usr/bin/env python3 Processes chunks.jsonl by generating embeddings via OpenAI-compatible local endpoints (llama.cpp, Ollama, vLLM) and upserting the...
+# AI-doc: usr/share/doc/mios/manual/_harvest/var_lib_mios_embeddings_ingest_local_py.md
 """
 ingest_local.py — Embed chunks.jsonl against any OpenAI-API-compatible
 /v1/embeddings endpoint (LAW 5) and upsert into pgvector.

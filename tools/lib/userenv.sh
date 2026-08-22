@@ -1,8 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
-# AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, /usr/lib/mios/mios.d, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy
-# AI-functions: _mios_load_unified, _mios_legacy_get
-# MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every script.
+# AI-hint: !/usr/bin/env bash Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, an...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_userenv_sh.md
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
@@ -29,12 +26,12 @@ _mios_load_unified() {
     if [[ "$_use_rust" -eq 1 ]]; then
         if command -v mios-resolver >/dev/null 2>&1; then
             local _native_exports=""
-            if _native_exports=$(mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
+            if _native_exports=$(mios-resolver --emit=shell 2>/dev/null | tr -d '\r') && [[ -n "$_native_exports" ]]; then
                 eval "$_native_exports" && return 0
             fi
         elif [[ -x "/usr/libexec/mios/mios-resolver" ]]; then
             local _native_exports=""
-            if _native_exports=$(/usr/libexec/mios/mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
+            if _native_exports=$(/usr/libexec/mios/mios-resolver --emit=shell 2>/dev/null | tr -d '\r') && [[ -n "$_native_exports" ]]; then
                 eval "$_native_exports" && return 0
             fi
         fi
@@ -43,22 +40,33 @@ _mios_load_unified() {
     # 2. Daemon resolver fallback
     if command -v miosd >/dev/null 2>&1; then
         local _d_exports=""
-        if _d_exports=$(miosd resolve --shell 2>/dev/null) && [[ -n "$_d_exports" ]]; then
+        if _d_exports=$(miosd resolve --shell 2>/dev/null | tr -d '\r') && [[ -n "$_d_exports" ]]; then
             eval "$_d_exports" && return 0
         fi
     fi
 
     # 3. Python SSOT resolver fallback
-    local py_cmd=""
-    if command -v python3 >/dev/null 2>&1; then py_cmd="python3"
-    elif command -v python >/dev/null 2>&1; then py_cmd="python"
+    local py_cmd="${MIOS_PYTHON_BIN:-}"
+    if [[ -z "$py_cmd" ]]; then
+        if python3 -c "import sys" >/dev/null 2>&1; then py_cmd="python3"
+        elif python -c "import sys" >/dev/null 2>&1; then py_cmd="python"
+        elif py -c "import sys" >/dev/null 2>&1; then py_cmd="py"
+        fi
     fi
 
     if [[ -n "$py_cmd" ]]; then
         local _py_exports=""
-        _py_exports=$("$py_cmd" "$MIOS_ROOT/usr/lib/mios/mios_toml.py" --emit=shell 2>/dev/null)
-        if [[ -n "$_py_exports" ]]; then
-            eval "$_py_exports" && return 0
+        local _py_path="usr/lib/mios/mios_toml.py"
+        if [[ ! -f "$_py_path" && -n "$MIOS_ROOT" && -f "$MIOS_ROOT/usr/lib/mios/mios_toml.py" ]]; then
+            _py_path="$MIOS_ROOT/usr/lib/mios/mios_toml.py"
+        fi
+        if [[ -f "$_py_path" ]]; then
+            _py_exports=$(PYTHONIOENCODING=utf-8 $py_cmd "$_py_path" --emit=shell 2>/dev/null | tr -d '\r')
+            if [[ -n "$_py_exports" ]]; then
+                eval "$_py_exports"
+                unset MIOS_PYTHON_BIN 2>/dev/null || true
+                return 0
+            fi
         fi
     fi
 }

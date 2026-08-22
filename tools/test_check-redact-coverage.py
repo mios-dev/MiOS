@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully classified schema and fails an unclassified table, a table classified in both lists, a classified table absent from the schema, a free-text agent table dropped from the redact side, and a pg.py that hardcodes its redaction tuple or ignores the SSOT.
-# AI-related: tools/check-redact-coverage.py, usr/share/mios/mios.toml, usr/share/mios/postgres/schema-init.sql
+# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_redact_coverage_py.md
 """Assert the persist-redaction coverage gate fails for each defect class."""
 import os
 import subprocess

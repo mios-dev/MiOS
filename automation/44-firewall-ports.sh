@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Configures firewalld rules via firewall-offline-cmd to open specific TCP ports for MiOS services (Hermes, Open WebUI, Code Server, etc.) based on environment-derived port variables.
-# AI-related: mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link, mios-adguard, mios-pxe
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Configures firewalld rules via firewall-offline-cmd to open specific TCP ports for MiOS services (Hermes, Open We...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_44_firewall_ports_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

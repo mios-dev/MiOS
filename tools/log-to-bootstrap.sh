@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and RAG-enabled agent deployment.
-# AI-related: mios-bootstrap, mios-knowledge-graph, mios-context, mios-docs, mios-context-TIMESTAMP, mios-docs-TIMESTAMP, mios-rag, mios-llm-light, MIOS_AI_ENDPOINT (port key `hermes`, OpenAI /v1)
+# AI-hint: !/bin/bash Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_log_to_bootstrap_sh.md
 
 set -euo pipefail
 

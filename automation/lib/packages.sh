@@ -1,7 +1,5 @@
-#!/bin/bash
-# AI-hint: Provides shell functions to parse and extract package lists from mios.toml configuration files, supporting layered overrides and specific installation modes (strict/optional) for automated package management.
-# AI-related: automation/lib/packages.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/configurator/mios.html, mios-bootstrap
-# AI-functions: _resolve_mios_toml, get_packages_from_toml, get_packages, get_packages_strict, _is_section_enabled, install_packages, install_packages_strict, install_packages_optional
+# AI-hint: !/bin/bash Provides shell functions to parse and extract package lists from mios.toml configuration files, supporting layered overrides and specific installation mo...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_packages_sh.md
 
 _resolve_mios_toml() {
     local cand

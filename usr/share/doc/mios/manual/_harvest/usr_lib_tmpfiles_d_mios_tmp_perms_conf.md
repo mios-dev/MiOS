@@ -1,0 +1,32 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Configures systemd-tmpfiles to enforce 1777 permissions on /tmp and /var/tmp to ensure non-root traversability for mios-hermes sockets and mktemp operations.
+AI-related: mios-hermes, mios-tmp-perms, mios-launcher, mios-pc-control, mios-windows, tmp.mount
+/usr/lib/tmpfiles.d/mios-tmp-perms.conf
+
+Enforce /tmp + /var/tmp mode 1777 (canonical sticky-bit world-rwx).
+tmp.mount's Options=mode=1777 SHOULD set this at mount time, but
+some sequence on the live MiOS-DEV WSL2 host (cache-clear scripts?
+wsl-init? something else) reverts /tmp to mode 0666 -- which makes
+/tmp NON-TRAVERSABLE for non-root users. That breaks:
+  * /tmp/mios-launcher.sock connect (mios-hermes -> broker)
+  * mktemp from non-root contexts
+  * any flatpak that uses /tmp for sandbox scratch
+
+Operator-confirmed regression 2026-05-15 (debug session via
+agent-debug.py): mios-pc-control window-list fails because
+mios-windows ps fails because mios-hermes can't reach
+/tmp/mios-launcher.sock because /tmp is mode 0666.
+
+This entry runs at every systemd-tmpfiles-setup pass (boot + on
+socket activation) and forcibly re-applies mode 1777. The Z type
+= adjust mode + ownership recursively (only the /tmp directory
+itself, not its contents, since we don't pass --recursive intent
+via Z but the spec re-applies per-dir).
+
+<!-- mios-src:1294e0639e64 from usr/lib/tmpfiles.d/mios-tmp-perms.conf:1-23 -->
+

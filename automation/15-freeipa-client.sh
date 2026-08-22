@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs FreeIPA and SSSD packages and enables the mios-freeipa-enroll.service; use this script to provision identity management and verify SSSD file capabilities for zero-touch enrollment.
-# AI-related: /etc/mios/ipa-enroll.env, mios-freeipa-enroll, mios-freeipa-enroll.service
+# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Installs FreeIPA and SSSD packages and enables the mios-freeipa-enroll.service; use this script to provision iden...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_15_freeipa_client_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Bash oneshot run by mios-freeipa-enroll.service that joins the host to a FreeIPA domain via ipa-client-install; gated on /etc/mios/ipa-enroll.env existing (operator opt-in) and /etc/ipa/default.conf absent (not already enrolled).
-# AI-related: /usr/lib/mios/paths.sh, /etc/mios/ipa-enroll.env, mios-freeipa-enroll, mios-freeipa-enroll.service
-# AI-functions: _log
+# AI-hint: !/usr/bin/env bash Bash oneshot run by mios-freeipa-enroll.service that joins the host to a FreeIPA domain via ipa-client-install; gated on /etc/mios/i...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_freeipa_enroll_sh.md
 set -euo pipefail
 source /usr/lib/mios/paths.sh
 

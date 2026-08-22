@@ -1,6 +1,5 @@
-# AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation):
-# AI-related: server.py, mios_a2a_principal, mios_lanes
-# AI-functions: PeerReputation.record, PeerReputation.score, PeerReputation.rank, PeerReputation.snapshot, PeerReputation.rows, PeerReputation.restore
+# AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation): AI-related: server.py, mios_a2a_principal, mios_lanes AI-func...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_reputation_py.md
 """Peer reputation for zero-trust A2A federation (#54).
 
 Tracks how reliably each A2A peer has handled delegations and ranks candidates so

@@ -1,29 +1,5 @@
-# AI-hint: WS-8 computer-use perceive->act->verify loop core (the PURE half). Unifies GUI control across the Windows host desktop (windows_desktop_* verbs) and the Linux/Wayland desktop (linux_desktop_* verbs) behind ONE logical action vocabulary (screenshot/click/type/key/find_element/click_element/list_windows) via resolve_verb(action, platform) -- fail-closed (unknown action/platform -> None, never guess a verb). Owns the loop CONTROL: step budget, stall (no-screen-change) detection, and the terminal decision (loop_status), plus parse_verify_verdict which is FAIL-SAFE (unparseable verify -> NOT done, so a goal is never falsely declared reached). This module ALSO owns the I/O half (moved verbatim from server.py): _cua_loop drives the live perceive->act->verify loop, _cua_screenshot_uri/_cua_extract_png capture+locate a screenshot PNG, and _cua_vlm_json makes the VLM call -- all reading server-owned chokepoints (the verb-dispatch _dispatch_mios_verb_inner, the shared httpx _get_client, the _vision_backend_failed gate) + config constants (VISION_MODEL/VISION_ENDPOINT/CUA_MAX_STEPS/_BACKEND_KEY) injected via configure(); server.py keeps only the thin @app wrapper. Deterministic policy + injected I/O in the mios_preempt/mios_sandbox sibling style.
-# AI-related: ./server.py, ./mios_sandbox.py, ./mios_dispatch.py, ./mios_vision.py, /usr/share/mios/mios.toml, ./test_mios_cua.py
-# AI-functions: resolve_verb, observation_digest, observation_changed, parse_verify_verdict, loop_status, class CuaTrace, configure, v1_computer_use_logic, cua_router, v1_computer_use, _cua_extract_png, _cua_screenshot_uri, _cua_vlm_json, _cua_loop
-"""mios_cua -- unified computer-use perceive->act->verify loop (WS-8).
-
-A VLM-grounded computer-use agent runs a closed loop: PERCEIVE (screenshot ->
-the VLM locates UI / plans the next action) -> ACT (dispatch a click/type/key
-verb) -> VERIFY (screenshot -> the VLM checks whether the goal state holds) ->
-repeat until the goal is reached or a budget/stall guard fires. Before WS-8 the
-pieces existed (the Holo1.5 VLM lane + windows_desktop_* / linux_desktop_*
-verbs) but were never unified into one cross-platform loop.
-
-This module is the PURE control layer:
-  * resolve_verb()      -- ONE logical action vocabulary -> the right verb per
-                           platform (Windows host vs in-VM Linux desktop),
-                           fail-closed so a caller never invents a verb.
-  * loop_status()       -- the terminal decision after each VERIFY: goal reached
-                           / out of step budget / stalled (no screen change) /
-                           keep going.
-  * parse_verify_verdict() -- interpret the VLM's verify answer; FAIL-SAFE: an
-                           unparseable verdict is NOT-done, so the loop can never
-                           falsely declare success (it just runs to the budget).
-
-server.py owns the I/O (the VLM call, the verb dispatch, the screenshots) +
-the flag-gating; this is the deterministic, unit-testable policy.
-"""
+# AI-hint: WS-8 computer-use perceive->act->verify loop core (the PURE half).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_cua_py.md
 from __future__ import annotations
 
 import asyncio
@@ -55,14 +31,6 @@ _HIDPI_SCALE_FACTOR = 1.0
 def configure(*, cua_enable=None, dispatch_mios_verb_inner=None, get_client=None,
               vision_backend_failed=None, backend_key=None, vision_model=None,
               vision_endpoint=None, cua_max_steps=None, hidpi_scale_factor=None) -> None:
-    """Inject the computer-use route + I/O-loop deps under their EXACT original
-    names: the CUA_ENABLE gate flag, the verb-dispatch chokepoint
-    (_dispatch_mios_verb_inner), the shared httpx client (_get_client), the vision
-    backend-failure gate (_vision_backend_failed), and the config constants the
-    loop reads (_BACKEND_KEY / VISION_MODEL / VISION_ENDPOINT / CUA_MAX_STEPS).
-    Each field is gated on ``is not None`` (an empty backend key or a False flag is
-    a legitimate value), so an unset keyword leaves the prior binding. The loop
-    (_cua_loop) is module-local now, so it is NOT injected back."""
     global CUA_ENABLE, _dispatch_mios_verb_inner, _get_client, _vision_backend_failed
     global _BACKEND_KEY, VISION_MODEL, VISION_ENDPOINT, CUA_MAX_STEPS, _HIDPI_SCALE_FACTOR
     if cua_enable is not None:
@@ -143,14 +111,6 @@ def observation_changed(prev: object, cur: object) -> bool:
 
 
 def parse_verify_verdict(text: object) -> dict:
-    """Interpret a VLM verify answer into {done: bool, reason: str}. Accepts a
-    JSON object {"done": ..., "reason": ...} anywhere in the text, else the
-    sentinels GOAL_REACHED / DONE=YES / NOT_DONE (case-insensitive).
-
-    FAIL-SAFE: anything unparseable -> done=False. The loop therefore NEVER
-    falsely declares the goal reached on a malformed/ambiguous verify; it simply
-    keeps working until the step budget (the operator's 'never claim success you
-    didn't achieve' rule, enforced structurally)."""
     s = str(text or "")
     m = re.search(r"\{[^{}]*\"done\"[^{}]*\}", s, re.DOTALL)
     if m:
@@ -210,11 +170,6 @@ class CuaTrace:
 
 
 async def v1_computer_use_logic(request: Request) -> JSONResponse:
-    """WS-8 perceive->act->verify computer-use. Body: {goal, platform?
-    (windows|linux), max_steps?}. Runs the closed VLM loop and returns the trace
-    {status, reached, steps[...]}. DEFAULT-OFF (MIOS_CUA_ENABLE): returns a clear
-    disabled notice until the operator opts in AND a GPU VLM is loaded. Never
-    claims a goal it did not verify (fail-safe in mios_cua)."""
     if not CUA_ENABLE:
         return JSONResponse({"object": "mios.computer_use",
                              "enabled": False,
@@ -252,18 +207,12 @@ async def v1_computer_use(request: Request) -> JSONResponse:
 
 
 def _cua_extract_png(result: dict) -> "Optional[str]":
-    """Pull a screenshot PNG path out of a screenshot verb's result. The
-    *_desktop_screenshot verbs write a PNG + name it in stdout; degrade-open ->
-    None when no path is found."""
     out = str((result or {}).get("output") or "")
     m = re.search(r"(/[^\s\"']+\.png|[A-Za-z]:[\\/][^\s\"']+\.png)", out)
     return m.group(1) if m else None
 
 
 async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tuple":
-    """Take a screenshot via the platform's verb, read the PNG, return
-    (data_uri, raw_observation). Degrade-open -> (None, ""). The data URI is what
-    the VLM 'sees'; the raw observation digest drives stall detection."""
     verb = mios_cua.resolve_verb("screenshot", platform)
     if not verb:
         return None, ""
@@ -309,9 +258,6 @@ async def _cua_screenshot_uri(platform: str, session_id: "Optional[str]") -> "tu
 
 async def _cua_vlm_json(system: str, user_text: str,
                         image_uri: "Optional[str]") -> dict:
-    """One VLM call returning the model's parsed JSON object (a plan or a verify
-    verdict). Degrade-open -> {} on any backend/parse failure (the caller's
-    fail-safe handles an empty verdict as NOT-done)."""
     if not (image_uri and (VISION_MODEL or "").strip()):
         return {}
     content = [{"type": "text", "text": user_text},
@@ -432,10 +378,6 @@ async def _execute_click_hierarchy(verb: str, args: dict, platform: str, session
 async def _cua_loop(goal: str, platform: str = "windows",
                     max_steps: "Optional[int]" = None,
                     session_id: "Optional[str]" = None) -> dict:
-    """Run the perceive->act->verify loop until the VLM verifies the goal or a
-    budget/stall guard fires. Returns mios_cua.CuaTrace.to_dict(). VLM-gated +
-    degrade-open: no vision model / no screenshot -> an honest non-reached stop
-    (it never fabricates success)."""
     platform = (platform or "windows").strip().lower()
     if platform not in mios_cua.PLATFORMS:
         platform = "windows"

@@ -1,6 +1,5 @@
-# AI-hint: Provides filesystem-safe KV-cache fork primitives for the agent-pipe, enabling branching of shared conversation prefixes into independent child KV files via a two-step save/restore plan to support multi-path reasoning.
-# AI-related: mios-kv
-# AI-functions: kv_filename, conv_token, validate_fork, plan_fork, fork_outcome, parse_bool, clamp_branches
+# AI-hint: Provides filesystem-safe KV-cache fork primitives for the agent-pipe, enabling branching of shared conversation prefixes into independent c...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_kvfork_py.md
 """mios_kvfork -- KV-cache FORK primitives for the MiOS agent-pipe (WS-8, the
 AIOS context-manager "fork" capability that extends the existing demand-paging
 KV layer, server.py `_kv_paging` / `_kv_slot_action`).

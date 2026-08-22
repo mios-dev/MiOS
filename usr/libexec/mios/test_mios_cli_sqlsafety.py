@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone adversarial integration test proving the python memory CLIs (mios-kg, mios-remember) route TAINTED input (argv phrase/scope/fact/filter) through bound PARAMS, never spliced into the SQL string (WS-A3 CLI SQL-safety). Pure stdlib, no DB/pytest: loads each hyphenated tool via SourceFileLoader, replaces its single DB choke (_pg_json) with a capture stub, fires a SQL-injection payload, and asserts the payload appears ONLY in params and never as SQL ("drop table" absent from every statement; $-placeholders present).
-# AI-related: ./mios-kg, ./mios-remember, ./mios-pg-query
-# AI-functions: _load, check, main
+# AI-hint: !/usr/bin/env python3 Standalone adversarial integration test proving the python memory CLIs (mios-kg, mios-remember) route TAINTED input (argv phr...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_cli_sqlsafety_py.md
 """Adversarial SQL-injection integration test for the WS-A3 parameterized CLIs."""
 
 import argparse

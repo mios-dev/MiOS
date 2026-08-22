@@ -1,7 +1,5 @@
-# AI-hint: Idempotent PowerShell script to provision a rootful Podman machine named 'mios-builder' with full host CPU/RAM/GPU passthrough and nvidia-container-toolkit setup for Windows-based MiOS builds.
-# AI-related: mios-builder, mios-bootstrap, mios-dev, mios-build-builder
-# AI-functions: Log, Warn, Die, Invoke-MachineSSH
-#Requires -Version 7.1
+# AI-hint: Idempotent PowerShell script to provision a rootful Podman machine named 'mios-builder' with full host CPU/RAM/GPU passthrough and nvidia-container-toolkit s...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_mios_build_builder_ps1.md
 <#
 .SYNOPSIS
   'MiOS' builder - idempotent Podman machine provisioner for Windows.
@@ -216,12 +214,6 @@ if ($hasIntel -and -not $hasNvidia -and -not $hasAmd) {
   Warn 'Builder will use CPU inference; this does not affect building bootc images.'
 }
 
-# ---------------------------------------------------------------------------
-# 'MiOS' overlay -- make BUILDER look/feel like a Live 'MiOS' environment.
-# Rsyncs the user-facing assets (mios CLI, motd, vendor docs, paths.sh,
-# profile.d hooks) into the podman-machine without touching its systemd /
-# sysusers / tmpfiles plumbing (those live only in the bootc image).
-# ---------------------------------------------------------------------------
 $repoRoot = (Get-Location).Path -replace '\\','/' -replace '^([A-Za-z]):','/mnt/$1'.ToLower()
 # The above string ops on $1 don't work in PS; recompute properly:
 if ((Get-Location).Path -match '^([A-Za-z]):\\(.*)$') {

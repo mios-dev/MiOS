@@ -1,5 +1,5 @@
-# AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sriov-init to initialize SR-IOV network interfaces during the multi-user.target boot stage. Persistent mediated devices for SR-IOV VFs are generated via /usr/libexec/mios/mios-mdev-define-gen from mios.toml [mdev].
-# AI-related: /usr/libexec/mios/mios-sriov-init, /usr/libexec/mios/mios-mdev-define-gen, mios-sriov-init, multi-user.target, network-pre.target
+/* AI-hint: Systemd unit that executes /usr/libexec/mios/mios-sriov-init to initialize SR-IOV network interfaces during the multi-user.target boot stage. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_sriov_init_service.md */
 [Unit]
 Description='MiOS' Universal SR-IOV Initialization
 After=network-pre.target

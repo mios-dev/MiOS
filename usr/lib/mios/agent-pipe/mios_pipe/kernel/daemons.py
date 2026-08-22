@@ -1,19 +1,5 @@
-# AI-hint: BACKGROUND async daemon-loop bodies extracted VERBATIM from server.py
-# AI-related: ./server.py, ./mios_config.py, ./mios_gossip.py, ./mios_pg.py, ./mios_reputation.py, ./mios_selfimprove.py, ./mios_kvgc.py, ./mios_kvfork.py, ./test_mios_daemons.py
-# AI-functions: _membership_watch_loop, _gossip_loop, _reputation_restore, _reputation_flush, _selfimprove_report, _selfimprove_loop, _kv_gc_sweep_once, _kv_gc_loop, _consolidate_memory_sweep_once, _consolidate_group, _consolidate_memory_loop, daemons_router, selfimprove_report_ep, configure
-"""BACKGROUND async daemon loops (strangler-fig refactor).
-
-Extracted VERBATIM from ``server.py``. These are the long-lived ``create_task()``
-loop bodies the FastAPI startup hooks spawn: ``_membership_watch_loop`` (FED-G3
-live membership hot-reload), ``_gossip_loop`` (WS-A18 trust-gated epidemic peer
-discovery), ``_selfimprove_loop`` (#64 proactive finding surfacing), and the
-``_reputation_restore`` / ``_reputation_flush`` persistence helpers the reputation
-flush loop drives. Every heuristic/guard/comment stays byte-identical. Leaf deps
-are imported directly; every server-side symbol is injected via :func:`configure`
-(one-way boundary -- this module never imports ``server``). ``server.py`` keeps the
-``@app.on_event`` startup hooks and re-imports each loop under its original alias so
-the importable surface stays byte-identical.
-"""
+# AI-hint: BACKGROUND async daemon-loop bodies extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_gossip.py, ./mios_p...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_daemons_py.md
 
 from __future__ import annotations
 
@@ -73,12 +59,6 @@ _INJECTED = frozenset((
 
 
 def configure(**deps) -> None:
-    """Inject server-side deps under their EXACT original names (one-way boundary).
-
-    Called once from ``server.py`` after every injected symbol is defined. Each
-    keyword equals the module global it sets; the mutable registries are injected by
-    reference so in-place mutation stays shared with server.
-    """
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:
@@ -232,35 +212,14 @@ _PROPOSALS_LIST_LIMIT = 100
 
 
 async def _act_draft_proposal(finding: dict) -> Optional[dict]:
-    """Draft a bounded change PROPOSAL for one finding (the Autodata "implementer").
-
-    A proposal is {target_kind, target_id, change, rationale}: the artifact to change
-    (a prompt / skill / config entry IN the improvable surface), a described tweak,
-    and the rationale. Mapping a finding to a CONCRETE improvable target + a change is
-    a reasoning step that needs a live model -- and must NOT be a hardcoded
-    finding->artifact heuristic (that would be an English gate banned by Law 7) -- so
-    this seam is wired to a model-backed drafter validated by the operator. Until then
-    it returns None: nothing is fabricated, so even a flipped act_enabled never queues
-    a guessed change. Patched in tests to exercise the propose->prove->queue path."""
     return None
 
 
 async def _act_evaluate_proposal(proposal: dict) -> Optional[tuple]:
-    """Score the current baseline vs the proposed variant on a DISCRIMINATIVE held-out
-    eval (T-064). Returns (baseline_score, proposed_score) as pass^k reliabilities, or
-    None when no eval/solver is available (-> the proposal cannot be proven and is not
-    queued). The live path fetches eval candidates, curates them with the solver-gap
-    (mios_selfimprove_act.curate_eval over the SSOT weak/strong lane pair), runs each
-    variant through the lanes, and scores via mios_selfimprove_act.pass_hat_k_score --
-    a live, operator-validated step, so the offline default is None. Patched in tests
-    to supply synthetic baseline/proposed scores."""
     return None
 
 
 async def _act_queue_proposal(proposal: dict, verdict: dict) -> bool:
-    """QUEUE a validated, non-regressing proposal for human review (an `event` row).
-    NEVER applies it. Degrade-open: a pg miss logs + drops the proposal and returns
-    False; live serving is never affected. Returns True iff the row was written."""
     try:
         payload = {"proposal": proposal, "delta": verdict.get("delta"),
                    "target_kind": verdict.get("target_kind"),
@@ -281,16 +240,6 @@ async def _act_queue_proposal(proposal: dict, verdict: dict) -> bool:
 
 
 async def _selfimprove_act_pass() -> dict:
-    """One ACT pass: findings -> proposals -> proof-of-utility -> QUEUE (no apply).
-
-    DEFAULT-OFF: returns a no-op summary unless [selfimprove].act_enabled. For each
-    high/medium finding (bounded by max_proposals_per_pass): draft a proposal, REJECT
-    it up front if it is not in the SSOT improvable surface / is in the protected
-    surface (structural isolation -- it is never even scored), else prove utility
-    (pass^k non-regression) and QUEUE only a non-regressing proposal. Every accept/
-    reject is logged with the score delta (Autodata rejects ~half its own proposals).
-    Degrade-open: any error drops the current proposal, never the loop. Returns a
-    summary {acted, findings, drafted, queued, rejected}."""
     sect = _toml_section("selfimprove")
     if not bool(sect.get("act_enabled", False)):
         return {"acted": False, "reason": "disabled", "queued": 0, "rejected": 0}
@@ -344,9 +293,6 @@ async def _selfimprove_act_pass() -> dict:
 
 
 async def _selfimprove_proposals(limit: int = _PROPOSALS_LIST_LIMIT) -> dict:
-    """The QUEUED self-improvement proposals awaiting human approval (read-only).
-    Degrade-open -> {proposals:[], error} when pg is unreachable so the route stays
-    up. These are validated + non-regressing (T-064) but NEVER auto-applied."""
     try:
         rows = await _mios_pg.execute(
             "SELECT id, severity, summary, payload, ts FROM event "
@@ -392,11 +338,6 @@ async def _selfimprove_loop() -> None:
 
 
 def _kv_gc_sweep_once() -> None:
-    """WS-A4: one GC pass over the LOCAL KV slot dir (no-op when it's remote /
-    unset / empty). Plans TTL+size eviction via mios_kvgc, protecting the file of
-    whatever conversation is resident in the active slot, then removes evictees.
-    Best-effort + degrade-open: any error leaves the files (the tmpfiles age-out
-    is the backstop)."""
     d = KV_SLOTS_DIR
     if not (d and os.path.isdir(d)):
         return
@@ -546,9 +487,5 @@ async def selfimprove_report_ep() -> JSONResponse:
 
 @daemons_router.get("/v1/self-improve/proposals")
 async def selfimprove_proposals_ep() -> JSONResponse:
-    """Read-only: the QUEUED self-improvement proposals awaiting human approval -- the
-    ACT half of #64 (T-062). Each was validated for target isolation and proven
-    non-regressing (T-064 proof-of-utility) before queuing, but is NEVER auto-applied:
-    the operator reviews + approves out of band, then a separate path applies it."""
     return JSONResponse({"object": "mios.self_improve.proposals",
                          **(await _selfimprove_proposals())})

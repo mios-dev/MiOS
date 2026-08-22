@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for the mios_aci.normalize_output function to verify that ACI output truncation, labeling, and head/tail preservation logic correctly handles oversized command outputs.
-# AI-related: mios_aci
-# AI-functions: _check, t_within_budget, t_char_head_tail, t_line_head_tail, t_head_frac, t_degrade_open, main
+# AI-hint: Standalone unit test for the mios_aci.normalize_output function to verify that ACI output truncation, labeling, and head/tail preservation logic corre...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_aci_py.md
 """Standalone unit test for mios_aci.normalize_output (WS-5 ACI normalizer).
 
 Pure stdlib + the sibling module only. Run:  python test_mios_aci.py

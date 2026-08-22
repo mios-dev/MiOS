@@ -20,12 +20,6 @@ fi
 
 sed -i '/^MIOS_PORT_/d' "$ENV_FILE"
 
-# Ports are ALLOCATED from [ports.categories] (base + index*stride), not read
-# off the flat table -- and the allocation must honour the layered override
-# chain (vendor/OEM default < /etc operator < user). The shared resolver is the
-# only thing that does both, so prefer it; the awk fallback below can only see
-# the flat vendor projection and exists purely so a stripped build host without
-# python still produces SOMETHING rather than an empty install.env.
 if command -v python3 >/dev/null 2>&1; then
     if python3 - "$ENV_FILE" <<'PY'
 import sys, os

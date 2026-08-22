@@ -151,12 +151,20 @@ case "$POSTURE" in
     *)      log "Auth posture: undetermined (${POSTURE_WHY:-no detail})" ;;
 esac
 
+PLACEMENT_INFO="$(_ssot_placement)"
+P_FO="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^failover_order=//p')"
+P_DWELL="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^dwell_s=//p')"
+P_REC_DWELL="$(printf '%s\n' "$PLACEMENT_INFO" | sed -n 's/^recover_dwell_s=//p')"
+
 mkdir -p /run/mios
 cat > /run/mios/blade.env <<EOF
 MIOS_BLADE_TYPE="$ROLE"
 MIOS_BLADE_CAPS="$ALL_CAPS"
 MIOS_BLADE_AUTH_POSTURE="$POSTURE"
 MIOS_BLADE_AI_ENDPOINT="$POSTURE_EP"
+MIOS_BLADE_FAILOVER_ORDER="${P_FO:-local localhost cluster}"
+MIOS_BLADE_DWELL_S="${P_DWELL:-30}"
+MIOS_BLADE_RECOVER_DWELL_S="${P_REC_DWELL:-120}"
 EOF
 
 # Boot target. `set-default` decides the NEXT boot and starts nothing; the one

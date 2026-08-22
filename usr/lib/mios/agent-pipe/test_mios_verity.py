@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_verity (refactor R6 extraction). Pure stdlib, no server.py/DB/network/pytest. Pins the anti-fabrication invariants of the extracted POLISH/VERITY cluster: _strip_ungrounded_figures drops a $-price sentence whose number is ABSENT from the haystack while KEEPING a grounded one (and honours the >half-the-figures fail-safe by leaving the answer untouched); polish_response short-circuits to None on empty raw_text, and -- with every injected dep stubbed + httpx monkeypatched to a canned 200 + verity gated off (no hint_tools) -- passes a no-figure/no-contradiction draft through unchanged. Guards the extracted cluster + its configure() DI seam so a later move can't silently change fact-check behaviour.
-# AI-related: ./mios_verity.py
-# AI-functions: check, t_strip_figures, t_strip_failsafe, t_strip_unicode_sentence, t_abbr_from_ssot, t_polish_empty, t_polish_passthrough, t_clarify_empty, t_clarify_extracts_question, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_verity (refactor R6 extraction). Pure stdlib, no server.py/DB/network/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_verity_py.md
 """Unit tests for mios_verity (refactor R6)."""
 
 import asyncio

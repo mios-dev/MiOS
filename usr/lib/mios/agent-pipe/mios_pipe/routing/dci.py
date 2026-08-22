@@ -1,19 +1,5 @@
-# AI-hint: Deliberative Collective Intelligence (DCI) subsystem extracted verbatim from server.py (refactor R6 wave). 14 typed epistemic acts (Habermas-rooted, arxiv 2603.11781) grouped into 6 families -> _DCI_ACTS/_DCI_ACT_NAMES/_DCI_ACT_SCHEMA; the Phase B.1 single-persona Challenger critic (dci_critic_pass, _DCI_CRITIC_SYSTEM); the Phase B.2 4-persona convergent flow (run_dci_flow + _dci_call_persona over Framer/Explorer/Challenger/Integrator personas built by _persona_prompt with _PERSONA_ALLOWED_ACTS); and the Phase B.3 conditional escalation (critic_then_maybe_flow: cheap critic -> heavy flow -> taint-on-dissent). Config (_STACK_MODEL/_LIGHT_BASE) imported from mios_config; the DB-event helpers (_db_post/_db_create/_db_fire) + outbound-auth stamper (_apply_outbound_auth) are dependency-INJECTED via configure() (one-way boundary -- mios_dci NEVER imports server, enforced by 98-drift-checks check 6). server.py re-imports every name verbatim under its original alias (surface-parity zero-diff). The CRITIC_REFINE_* heavy-path executor-critic-refiner stays in server.py (uses _emit_session_event) and consumes dci_critic_pass re-imported from here.
-# AI-related: ./server.py, ./mios_config.py, ./mios_jsonsalvage.py, ./test_mios_dci.py
-# AI-functions: _persona_prompt, _dci_call_persona, run_dci_flow, critic_then_maybe_flow, dci_critic_pass, configure
-"""Deliberative Collective Intelligence (DCI) vocab + critic + convergent flow.
-
-Extracted verbatim from ``server.py``. Holds the DCI epistemic-act vocabulary +
-JSON schema, the four persona system prompts, the single-persona B.1 critic
-(``dci_critic_pass``), the 4-persona B.2 convergent flow (``run_dci_flow`` /
-``_dci_call_persona``) and the B.3 conditional-escalation chain
-(``critic_then_maybe_flow``). ``server.py`` re-imports every name under its
-original alias so the module's public surface is byte-identical.
-
-Config constants come from ``mios_config``; the server-side DB-event helpers and
-the outbound-auth header stamper are injected via :func:`configure` (one-way
-module boundary -- this module never imports ``server``).
-"""
+# AI-hint: Deliberative Collective Intelligence (DCI) subsystem extracted verbatim from server.py (refactor R6 wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_dci_py.md
 
 from __future__ import annotations
 
@@ -294,13 +280,6 @@ async def run_dci_flow(
     session_id: Optional[str] = None,
     r_max: Optional[int] = None,
 ) -> dict:
-    """Run the DCI-CF convergent flow on (user_text, envelope).
-    Returns a structured deliberation result:
-      {decision: <Integrator's final recommend act>,
-       rounds: [[act_per_persona, ...], ...],
-       dissents: [<tension acts>],
-       converged: bool}
-    Always returns -- the bounded loop guarantees termination."""
     if r_max is None:
         r_max = DCI_FLOW_R_MAX
     workspace: dict = {
@@ -418,17 +397,6 @@ async def critic_then_maybe_flow(
     *,
     session_id: Optional[str] = None,
 ) -> None:
-    """Chain B.1 critic -> conditional B.2 flow. Fire-and-forget
-    via _db_fire so the dispatch reply isn't delayed.
-
-    Phase B.3 flow:
-      1. Run dci_critic_pass (single-persona Challenger).
-      2. If the act is in (challenge, ask) AND confidence is high,
-         escalate to run_dci_flow (4 personas, bounded loop).
-      3. If the flow surfaces unresolved dissent, write a tainted
-         tool_call row keyed to the session so any subsequent
-         high-privilege verb in this session gets firewalled.
-    """
     if not (DCI_ENABLED or DCI_FLOW_ENABLED):
         return
     act = await dci_critic_pass(user_text, envelope, session_id=session_id)
@@ -474,14 +442,6 @@ async def dci_critic_pass(
     *,
     session_id: Optional[str] = None,
 ) -> Optional[dict]:
-    """Post-dispatch critic: invokes the DCI Challenger persona on
-    the (user_text, envelope) pair and emits ONE typed epistemic
-    act. Returns the parsed act dict, or None on any error.
-
-    Fire-and-forget at the caller's discretion -- the chat reply is
-    already rendered by the time this runs. Event row
-    written automatically (kind=dci_act, source=mios-agent-pipe).
-    """
     if not DCI_ENABLED or not user_text:
         return None
     compact = {

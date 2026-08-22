@@ -1,6 +1,5 @@
-# AI-hint: INFERENCE LANE-RESOLVER cluster extracted VERBATIM from server.py
-# AI-related: ./server.py, ./mios_config.py, ./mios_lanes.py, ./test_mios_lanes_resolver.py
-# AI-functions: _heavy_lane_up, _lane_resolver, _pick_tool_backend, _lane_resolver_current, configure
+# AI-hint: INFERENCE LANE-RESOLVER cluster extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_lanes.py, ./tes...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_lanes_resolver_py.md
 """INFERENCE lane-resolver cluster (strangler-fig refactor).
 
 Extracted VERBATIM from ``server.py``. ``_lane_resolver`` lazily builds the WS-1

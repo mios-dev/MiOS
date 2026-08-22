@@ -1,6 +1,5 @@
-# AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1b: the pure Kernel facade. Composes the AIOS managers (Scheduler / Memory / Context / Tool / Access) + the Router (mios_router) + a Dispatcher behind ONE seam, by INJECTION (server.py provides concrete impls built from its existing functions), so this module stays server.py-free + unit-testable. Defines the route->dispatch flow contract (Kernel.handle: router.route(refined) -> dispatcher.run(decision)) that chat_completions will delegate to in Stage 2 (VM-verified). Additive + unwired in Stage 1 -> zero behaviour change.
-# AI-related: ./mios_router.py, ./server.py, ./test_mios_kernel.py
-# AI-functions: handle, managers, class Kernel
+# AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1b: the pure Kernel facade.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_kernel_py.md
 """mios_kernel -- the MiOS agent-pipe Kernel facade (WS-A11/WS-3, Stage 1b).
 
 A thin composition that gives the decomposed agent-pipe ONE object holding the

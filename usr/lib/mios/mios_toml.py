@@ -1,6 +1,5 @@
-# AI-hint: The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. Collapses the ~13 independently re-rolled `try: import tomllib except: import tomli` + `deep_merge` + hardcoded-layer-path copies scattered across usr/libexec/mios/* and the agent-pipe tree into ONE overlay implementation with ONE set of semantics (vendor < host < user, highest wins, empty strings do not override). load_merged() gives the full three-layer overlay; load_vendor() gives the vendor-only view the offline drift-gates intentionally read; colors() is the ONE canonical palette-default map (mirrors mios.toml [colors]) so no tool re-declares the 12 hexes. Importers add usr/lib/mios to sys.path and `import mios_toml`. Pairs with mios-theme-render + mios-sync-theme (palette projection) and the drift-gates.
-# AI-related: ../../libexec/mios/mios-theme-render, ../../libexec/mios/mios-sync-theme, ../../share/mios/mios.toml, ../../../tools/lib/userenv.sh, ../../../automation/98-drift-checks.sh
-# AI-functions: load_merged, load_vendor, deep_merge, section, get, colors, layer_paths
+# AI-hint: The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_mios_toml_py.md
 """Shared layered mios.toml resolver (vendor < host < user) + canonical palette defaults."""
 
 from __future__ import annotations
@@ -600,6 +599,10 @@ def get_aliases(dotted_path):
         elif key in {"REF", "NAME", "TAG"}:
             aliases.append(f"MIOS_IMAGE_{key}")
 
+    elif dotted_path.startswith("versions."):
+        key = dotted_path[len("versions."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_VERSION_{key}")
+
     elif dotted_path.startswith("desktop."):
         key = dotted_path[len("desktop."):].upper().replace(".", "_").replace("-", "_")
         if key == "COLOR_SCHEME":
@@ -724,28 +727,61 @@ WALK_EMIT_KEEP = {
     "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
 }
 
+
+def emit_exports() -> dict[str, str]:
+    """Emit all derived MIOS_* environment variables from SSOT layers."""
+    import re as _re
+    _re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
+    data = load_merged()
+    ports = data.get("ports") or {}
+    try:
+        stack_offset = int(ports.get("stack_id", 0)) * 10000
+    except (TypeError, ValueError):
+        stack_offset = 0
+
+    exports: dict[str, str] = {}
+    for dotted, val in walk(data):
+        sec_name = dotted.split(".")[0]
+        if sec_name in EXCLUDED_SECTIONS:
+            continue
+        processed = process_val(dotted, val, stack_offset)
+        if processed == "":
+            continue
+        if dotted.startswith("converge."):
+            _cbody = "CONV_" + dotted[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
+        else:
+            _cbody = dotted.upper().replace(".", "_").replace("-", "_").replace("/", "_")
+        canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
+        canonical = _re_unsafe.sub("_", canonical)
+        if not (sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP):
+            exports[canonical] = str(processed)
+        for alias in get_aliases(dotted):
+            if alias.endswith("_VERSION") and dotted.startswith("image.sidecars."):
+                exports[_re_unsafe.sub("_", alias)] = str(processed).rsplit(":", 1)[1] if ":" in str(processed) else "latest"
+            else:
+                exports[_re_unsafe.sub("_", alias)] = str(processed)
+
+    for name, value in (colors(data) or {}).items():
+        k = name.upper() if name.upper().startswith("MIOS_COLOR_") else "MIOS_COLOR_" + name.upper()
+        exports.setdefault(_re_unsafe.sub("_", k), str(value))
+
+    env_tbl = section(data, "env")
+    if isinstance(env_tbl, dict):
+        for k, v in sorted(env_tbl.items()):
+            vp = process_val("env." + k, v, stack_offset)
+            if vp is not None and vp != "":
+                exports[_re_unsafe.sub("_", k)] = str(vp)
+
+    return exports
+
+
 if __name__ == "__main__":
-    import importlib.util
     import json
     import shlex
     import sys
-    here = os.path.dirname(os.path.abspath(__file__))
-    if here not in sys.path:
-        sys.path.insert(0, here)
-    sys.modules["mios_toml"] = sys.modules["__main__"]
-    root = os.environ.get("MIOS_ROOT") or os.path.normpath(
-        os.path.join(here, "..", ".."))
-    render_globals_path = os.path.join(root, "tools", "render-globals.py")
-    exports = {}
-    if os.path.isfile(render_globals_path):
-        try:
-            spec = importlib.util.spec_from_file_location("render_globals", render_globals_path)
-            rg = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(rg)
-            exports = rg.build_exports()
-        except Exception as e:
-            sys.stderr.write(f"mios_toml main error: {e}\n")
-
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    exports = emit_exports()
     fmt = "shell"
     for arg in sys.argv[1:]:
         if arg.startswith("--emit="):

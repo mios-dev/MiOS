@@ -20,7 +20,9 @@ if not os.path.exists(TEMPLATES_DIR):
 def to_pascal_case(s):
     return "".join(w.capitalize() for w in re.split(r"[-_]", s))
 
-def render_template(content, name, type_name):
+import argparse
+
+def render_template(content, name, type_name, description=None):
     date_str = datetime.now().strftime("%Y-%m-%d")
     pascal_name = to_pascal_case(name)
     
@@ -37,7 +39,7 @@ def render_template(content, name, type_name):
         content = content.replace("{{status}}", "accepted")
     elif type_name == "drift-check":
         content = content.replace("{{id}}", "99")
-        content = content.replace("{{description}}", "static check for " + name)
+        content = content.replace("{{description}}", description if description else "static check for " + name)
     elif type_name == "quadlet":
         content = content.replace("{{image}}", "docker.io/library/" + name + ":latest")
         content = content.replace("{{uid}}", "1000")
@@ -50,10 +52,13 @@ def render_template(content, name, type_name):
         content = content.replace("{{theme}}", "OS-Image & Build")
         content = content.replace("{{status}}", "proposed")
         content = content.replace("{{priority}}", "P2")
-        content = content.replace("{{description}}", "Description of " + name)
+        content = content.replace("{{description}}", description if description else "Description of " + name)
         content = content.replace("{{task_title}}", "Task 1 for " + name)
         content = content.replace("{{task_id}}", "999")
         
+    if description:
+        content = content.replace("{{description}}", description)
+
     return content
 
 def get_dest_path(name, type_name, repo_root):
@@ -109,38 +114,50 @@ def _try_native_bin(args_list):
 def main():
     _try_native_bin(sys.argv[1:])
     types = get_registered_types()
-    if len(sys.argv) >= 2 and sys.argv[1] == "--list":
+
+    parser = argparse.ArgumentParser(description="Scaffold new MiOS files from canonical templates.", add_help=False)
+    parser.add_argument("--list", action="store_true", help="List registered template types")
+    parser.add_argument("-o", "--out", dest="out_path", help="Target output filepath override")
+    parser.add_argument("-d", "--description", dest="description", help="Description interpolation override")
+    parser.add_argument("-h", "--help", action="store_true", help="Show usage")
+    parser.add_argument("type_name", nargs="?", help="Template type name")
+    parser.add_argument("name", nargs="?", help="Scaffold entity name")
+
+    args, unknown = parser.parse_known_args()
+
+    if args.list:
         for t in types:
             print(t)
         sys.exit(0)
 
-    if len(sys.argv) < 3:
-        print("Usage: mios-new <type> <name>")
+    if args.help or not args.type_name or not args.name:
+        print("Usage: mios-new <type> <name> [--out <path>] [--description <desc>]")
         print("Types: " + ", ".join(types))
-        sys.exit(1)
-        
-    type_name = sys.argv[1]
-    name = sys.argv[2]
-    
+        sys.exit(0 if args.help else 1)
+
+    type_name = args.type_name
+    name = args.name
+
     template_path = os.path.join(TEMPLATES_DIR, type_name)
     if not os.path.exists(template_path):
         print(f"Error: Template for '{type_name}' not found at {template_path}")
         sys.exit(1)
-        
+
     with open(template_path, "r", encoding="utf-8") as f:
         template_content = f.read()
-        
-    rendered = render_template(template_content, name, type_name)
-    
+
+    rendered = render_template(template_content, name, type_name, description=args.description)
+
     repo_root = os.environ.get("MIOS_DRIFT_CHECK_ROOT")
     if not repo_root:
         repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
-        
-    dest_path = get_dest_path(name, type_name, repo_root)
-    
+
+    dest_path = args.out_path if args.out_path else get_dest_path(name, type_name, repo_root)
+
     if dest_path:
+        dest_path = os.path.abspath(dest_path)
         os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-        if os.path.exists(dest_path):
+        if os.path.exists(dest_path) and not args.out_path:
             print(f"Error: Target file already exists at {dest_path}")
             sys.exit(1)
         with open(dest_path, "w", encoding="utf-8", newline="\n") as f:

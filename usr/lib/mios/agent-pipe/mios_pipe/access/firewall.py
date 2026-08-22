@@ -1,22 +1,5 @@
-# AI-hint: Provenance-taint + Semantic Firewall plane extracted verbatim from server.py (refactor R7 wave). Lethal-trifecta defense: a session that ingested EXTERNAL/untrusted content (external open_url, powershell_run output, system-path text_view, taint-declaring MCP tools, or the SSOT-opt-in web-fetch verbs) gets its tool_call rows tainted, and _session_is_tainted lets the caller's firewall BLOCK downstream high-privilege + exfiltration verbs in the same session. Holds _is_external_url (allowlist-host classifier, fail-safe External), _classify_verb_taint (per-verb taint introducer; NAME-KEYED on _TAINT_VERBS + the open_url/powershell_run/text_view/mcp.* heuristics) and _session_is_tainted (the pg taint-chain reader). SECURITY-CRITICAL: every verb key, heuristic and set-membership is moved byte-for-byte -- a silent gate-disable is the worst regression. The SSOT-derived _TAINT_VERBS set, the PROVENANCE_TAINT_ENABLE flag, the _ALLOWLIST_HOSTS host set, the _MCP_CLIENT_TOOLS registry and the _db_read pg reader are dependency-INJECTED via configure() (one-way boundary -- mios_firewall NEVER imports server). server.py re-imports every name under its EXACT original alias so the importable surface stays byte-identical.
-# AI-related: ./server.py, ./mios_secset.py, ./mios_pdp.py, ./mios_policy.py, ./test_mios_firewall.py
-# AI-functions: _is_external_url, _classify_verb_taint, _session_is_tainted, configure
-"""Provenance-taint + Semantic Firewall (lethal-trifecta defense).
-
-Extracted verbatim from ``server.py``. A session that has ingested external /
-untrusted content is BLOCKED (by the caller, using ``_session_is_tainted``) from
-high-privilege + exfiltration verbs. The three moved functions are unchanged;
-``server.py`` re-imports each under its original alias so the public surface is
-byte-identical.
-
-SECURITY-CRITICAL: the gates are NAME-KEYED on verb keys. Nothing is renamed and
-no set is inlined -- the SSOT-derived always-taint verb set (``_TAINT_VERBS``,
-built from ``mios_secset.taint_verb_set`` in server.py), the ``PROVENANCE_TAINT_ENABLE``
-opt-in flag, the operator-infrastructure ``_ALLOWLIST_HOSTS`` host set, the
-``_MCP_CLIENT_TOOLS`` registry and the ``_db_read`` pg taint-chain
-reader are all dependency-injected via :func:`configure` (one-way module
-boundary -- this module never imports ``server``).
-"""
+# AI-hint: Provenance-taint + Semantic Firewall plane extracted verbatim from server.py (refactor R7 wave).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_firewall_py.md
 
 from __future__ import annotations
 
@@ -43,12 +26,6 @@ _INTERNAL_TLD_SUFFIXES: tuple = (".local", ".lan", ".internal")
 def configure(*, taint_verbs=None, provenance_taint_enable=None,
               allowlist_hosts=None, mcp_client_tools=None, db_read=None,
               text_view_taint_prefixes=None, internal_tld_suffixes=None) -> None:
-    """Inject server.py's SSOT-derived sets, the provenance flag and the DB
-    reader under their EXACT original server-side global names.
-
-    Injected via ``is not None`` guards so a falsey-but-real value (False, an
-    empty set) still overrides the placeholder; the sets/dict are shared by
-    reference so server-side mutation stays visible."""
     global _TAINT_VERBS, PROVENANCE_TAINT_ENABLE, _ALLOWLIST_HOSTS
     global _MCP_CLIENT_TOOLS, _db_read
     global _TEXT_VIEW_TAINT_PREFIXES, _INTERNAL_TLD_SUFFIXES
@@ -64,9 +41,6 @@ def configure(*, taint_verbs=None, provenance_taint_enable=None,
 
 
 def _is_external_url(url: str) -> bool:
-    """Return True if the URL points OUTSIDE the operator's own
-    infrastructure (i.e. a taint source). Best-effort host parse;
-    anything ambiguous defaults to External (fail-safe)."""
     if not url or not isinstance(url, str):
         return False
     try:

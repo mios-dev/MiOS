@@ -1,6 +1,5 @@
-# AI-hint: WS-A5 rolling-summary compaction planner for the agent-pipe. When a conversation's message history exceeds a token budget, plan_compaction() decides WHICH older messages to fold into a rolling summary and which recent ones to keep verbatim (always keeping the last keep_recent turns + any pinned system messages), measured via mios_tokenize. It returns the split (to_summarize / to_keep) -- the actual summarization LLM call stays in server.py; this module owns only the deterministic, testable DECISION of where to cut.
-# AI-related: ./mios_tokenize.py, ./server.py, ./mios_ctxpack.py, ./test_mios_compact.py
-# AI-functions: plan_compaction, class CompactionPlan
+# AI-hint: WS-A5 rolling-summary compaction planner for the agent-pipe. When a conversation's message history exceeds a token budget, plan_compaction...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_compact_py.md
 """mios_compact -- rolling-summary compaction planning (WS-A5, the AIOS
 Context-Manager history-compaction layer).
 

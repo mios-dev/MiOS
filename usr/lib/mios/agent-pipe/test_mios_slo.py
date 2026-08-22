@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_slo (WS-SCHED-SLO deadline/SLO scheduling core). Pure stdlib, no server.py/pytest. Verifies classify (autonomous/clamped -> best_effort, foreground -> interactive), per-class deadline budgets, the EDF least-deadline-first sort key (earliest deadline first, interactive tie-break), and the FAIL-CLOSED shed decision (interactive never shed; best_effort shed under over-ceiling OR unknown-health, the inversion of the degrade-open hole).
-# AI-related: ./mios_slo.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_slo (WS-SCHED-SLO deadline/SLO scheduling core). Pure stdlib, no server.py/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_slo_py.md
 """Unit tests for mios_slo (WS-SCHED-SLO)."""
 import sys
 

@@ -1,0 +1,21 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Defines filesystem permissions and ownership for the mios-hermes-browser directory and profile, ensuring the mios-ai user can write launch logs and access the CDP Chrome profile to prevent service crash-loops.
+AI-related: mios-hermes-browser, mios-ai, mios-hermes
+/usr/lib/tmpfiles.d/mios-hermes-browser.conf
+
+The mios-hermes-browser service (User=mios-hermes) writes its launch.log
+and the CDP Chrome profile under /var/lib/mios/hermes-browser. That dir
+can pre-exist owned by root (created before the unit's StateDirectory=
+applied), which left the service unable to write launch.log -> bash
+"Permission denied" on line 103 -> the background ChromeDev launch never
+ran -> CDP never bound -> the unit crash-looped 500+ times and the local
+browse tool fell out of the loop (operator 2026-05-22). Own the tree to
+the service user so the launcher + CDP profile are always writable.
+
+<!-- mios-src:509c3c6c1063 from usr/lib/tmpfiles.d/mios-hermes-browser.conf:1-12 -->
+

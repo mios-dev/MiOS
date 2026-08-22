@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact].tables or .exempt, that the agent-plane content tables are on the redact side, and that memory/pg.py reads the SSOT list instead of hardcoding table names.
-# AI-related: usr/share/mios/mios.toml, usr/share/mios/postgres/schema-init.sql, usr/lib/mios/agent-pipe/mios_pipe/memory/pg.py, usr/lib/mios/agent-pipe/mios_pipe/redact.py
+# AI-hint: !/usr/bin/env python3 DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_redact_coverage_py.md
 """Fail if a pgvector table is neither redacted nor explicitly exempt on persist."""
 import os
 import re

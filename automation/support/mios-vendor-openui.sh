@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Build-time script that fetches and installs the OpenUI generative-UI bundle (JS/CSS) into /usr/share/mios/openui to ensure offline-first availability for the OWUI Tool.
-# AI-related: /usr/share/mios/openui, /usr/share/mios/openui/., /usr/share/mios/vendored/, mios-vendor-openui
+# AI-hint: !/usr/bin/env bash Build-time script that fetches and installs the OpenUI generative-UI bundle (JS/CSS) into /usr/share/mios/openui to ensure offline-...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_mios_vendor_openui_sh.md
 set -euo pipefail
 
 DEST=/usr/share/mios/openui

@@ -1,6 +1,5 @@
-# AI-hint: PER-TURN message-prep + agent-selection helpers extracted VERBATIM from
-# AI-related: ./server.py, ./mios_config.py, ./test_mios_turn.py
-# AI-functions: _extract_last_user_text, _pick_agent, _casual_agent_label, _live_agent_names, _split_think_tags, _strip_think_tags, configure
+# AI-hint: PER-TURN message-prep + agent-selection helpers extracted VERBATIM from AI-related: ./server.py, ./mios_config.py, ./test_mios_turn.py AI-fun...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_turn_py.md
 """PER-TURN message-prep + agent-selection helpers (strangler-fig refactor).
 
 Extracted VERBATIM from ``server.py``. These are the small cohesive turn-prep

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Golden fixture test runner for mios-new template generator across all 20 template types.
-# AI-related: /usr/libexec/mios/mios-new, /usr/share/mios/templates/, tests/templates/golden/
-# AI-functions: generate_golden_snapshots, test_templates_match_golden
+# AI-hint: !/usr/bin/env python3 Golden fixture test runner for mios-new template generator across all 20 template types.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_templates_golden_py.md
 
 import os
 import sys

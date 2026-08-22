@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner
-# AI-related: /usr/libexec/mios/mios-forgejo-runner-firstboot.sh, /etc/mios/forge/runner-token, mios-forgejo-runner-firstboot, mios-forgejo-runner, mios-forge-firstboot, mios-self-hosted, mios-forge, mios-forgejo-runner.service, mios-forge.service, localhost:3000
+# AI-hint: !/usr/bin/env bash Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner AI-related: /usr/libexec/mios/mios-forgejo-runner-fir...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_forgejo_runner_firstboot_sh.md
 set -euo pipefail
 
 SENTINEL=/srv/mios/forge-runner/.runner

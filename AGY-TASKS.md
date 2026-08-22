@@ -4857,7 +4857,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** today an operator can enter through several files with divergent elevation/prereq/TOML-resolution logic, the web door dead-ends before the installer, and every fix must be hand-copied into a second repo where it silently rots.
 **Dep:** none
 
-## AGY-641..AGY-648 -- One global 0-99 numbering so OCI layer = stage = step = drift-check, renumber-immune  (WS-NUMBER | P2 | M) **[DESIGN LANDED + critic-hardened (reference/audit-numbering-unification.md); EXECUTION PENDING -- AGY-641 (single progress count) done in build.sh; AGY-647 CORE done (149 colliding (NN) labels deleted; SSOT ordinal is now the single check number; FULL gate green). 642 (regression gate check_pipeline_numbering + negative test) DONE; 643/645 (inline runtime-CC display) remain -- generate-gate-index.py is the ONE real label-parser to update in lockstep]**
+## AGY-641..AGY-648 -- One global 0-99 numbering so OCI layer = stage = step = drift-check, renumber-immune  (WS-NUMBER | P2 | M) **[DONE]**
 **Goal:** E-07 The drift-gate as the enforcement plane -- one numbering system across scripts, stages and checks so a log line, a build layer and a gate id all name the same thing.
 **What+How:** (641) one progress counter in `build.sh` rather than per-script counts; (642) `check_pipeline_numbering` as a regression gate plus its negative test; (643) renumber-immune check labels so inserting a check does not rewrite 100 others; (644) publish the OCI-layer = stage = step = check map; (645) tag every log line with its number; (646) the numbering doc; (647) migrate the legacy check numbers onto the SSOT ordinal (the 149 colliding `(NN)` labels deleted); (648) verify the inline runtime display. `generate-gate-index.py` is the ONE real label parser and must be updated in lockstep with any label change.
 **Where:** `automation/98-drift-checks.sh`, `build.sh`, `generate-gate-index.py`, `usr/share/mios/reference/audit-numbering-unification.md`
@@ -9873,7 +9873,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** with the check scoped to one regex, the exact class of drift the campaign just fixed can reappear on the next commit and no gate will notice.
 **Dep:** AGY-1563
 
-## AGY-1565 -- Give image refs `:latest` INTENT with digests resolved at BUILD, and record the offline-vendored pin exception in an ADR  (WS-FLOAT | P2 | M)
+## AGY-1565 -- Give image refs `:latest` INTENT with digests resolved at BUILD, and record the offline-vendored pin exception in an ADR  (WS-FLOAT | P2 | M)  **DONE**
 **Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- makes "reproducible = baked manifest + SBOM" true, with every legitimate pin justified rather than assumed.
 **What+How:** Per ADR-0003, digests and versions are SBOM data resolved at build, never hand-typed in SSOT. For registry-pulled sidecars express `:latest` (or a floating major) in `[image.sidecars]` and let the build resolve and record the `@sha256` into the baked SBOM manifest -- reconciling this with the `_sidecar_image` digest-SSOT fallback already in `tools/generate-pod-quadlets.py`. For OFFLINE-vendored artifacts (the k3s tarball, the hermes wheel) do NOT float: write an ADR under `docs/adr/` stating why that specific version is pinned for the mirror and how a bump flows (bump SSOT → re-vendor → digest re-recorded), so the float-vs-pin tension is an explicit recorded decision instead of undocumented drift.
 **Where:** `usr/share/mios/mios.toml [image.sidecars]`, `tools/generate-pod-quadlets.py` (`_sidecar_image`), the build SBOM step, a new/updated ADR under `docs/adr/`
@@ -9969,7 +9969,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** stale-artefact failures cost more CI round-trips than any real defect during the port campaign, and each one arrives as five separate unhelpful "X is stale" gate messages.
 **Dep:** none
 
-## AGY-1576 -- Make `mios-template-engine` honour its documented contract or retire it into `mios-new`  (WS-PORTFLOAT | P3 | S)
+## AGY-1576 -- Make `mios-template-engine` honour its documented contract or retire it into `mios-new`  (WS-PORTFLOAT | P3 | S)  **DONE**
 **Goal:** E-04 One template per file type + the `mios new` scaffolder -- one generator with one contract, which is the precondition for a conformance gate.
 **What+How:** `usr/libexec/mios/mios-template-engine` advertises `<kind> <target_filepath> [description]` but delegates to `mios-new`, which is name-addressed and picks its own canonical destination; the shim then relocates the result and re-substitutes `{{description}}` -- it works, but it is a workaround. It also has ZERO callers (grep-verified: only itself and AGY-TASKS.md). Either give `mios-new` real `--out <path>` and `--description` flags and reduce the engine to a straight pass-through, or delete `mios-template-engine` and update every doc under `usr/share/doc/mios/` that mentions it.
 **Where:** `usr/libexec/mios/mios-template-engine, usr/libexec/mios/mios-new, usr/share/doc/mios/`
@@ -9977,7 +9977,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** two overlapping scaffolders is precisely the duplication this campaign exists to remove, and the documented contract currently lies to anyone who reads it.
 **Dep:** none
 
-## AGY-1577 -- Delete the ~200-line Python heredoc from both `userenv.sh` twins once the native resolver is proven  (WS-PORTFLOAT | P2 | M)
+## AGY-1577 -- Delete the ~200-line Python heredoc from both `userenv.sh` twins once the native resolver is proven  (WS-PORTFLOAT | P2 | M) **DONE**
 **Goal:** E-01 Compiled native tier -- removes the last duplicated copy of resolver logic, so the compiled resolver is the only implementation.
 **What+How:** AGY-1176 claimed this was done, but the embedded Python heredoc in `usr/lib/mios/userenv.sh` and its byte-parity twin `tools/lib/userenv.sh` is still present and is still the production resolver. It may only be removed after AGY-1572 ships the binary and the differential gate is green. Then reduce both twins to a short chain -- try `mios-resolver --emit=shell`, else `miosd`, else fail loudly -- and retire `check_userenv_parity` (27), since a one-line file cannot drift.
 **Where:** `usr/lib/mios/userenv.sh, tools/lib/userenv.sh, automation/98-drift-checks.sh`
@@ -9985,7 +9985,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** the heredoc is the third live copy of the resolver and the sole reason the twin-parity gates exist, so every resolver change is currently a three-place edit.
 **Dep:** AGY-1572
 
-## AGY-1578 -- Add an end-to-end `stack_id` offset test across all three port surfaces  (WS-PORTFLOAT | P3 | S)
+## AGY-1578 -- Add an end-to-end `stack_id` offset test across all three port surfaces  (WS-PORTFLOAT | P3 | S)  **DONE**
 **Goal:** E-13 Ports are allocated from SSOT, not hand-assigned -- proves the multi-stack offset that lets two MiOS hosts share one LAN.
 **What+How:** `[ports].stack_id` shifts every non-pinned port by `stack_id * 10000` and is implemented three times -- `mios_toml.process_val`, `walk.rs::process_val` and `automation/35-render-ports.sh` -- with no end-to-end test; the Rust CLI ignored it entirely until this campaign. Add a test that sets `stack_id = 1`, resolves through each of the three surfaces, and asserts every port shifted by 10000 EXCEPT `adguard_dns` (53, pinned) and `stack_id` itself, and that no two shifted ports collide.
 **Where:** `tools/test_render_ports.py, tools/native/mios-resolver/src/ports.rs, tests/drift-gate-negatives.sh`
@@ -9993,7 +9993,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** multi-stack co-existence is a shipped feature that is currently unverified, and one of its three implementations was silently a no-op.
 **Dep:** none
 
-## AGY-1579 -- Reconcile in-container port fallbacks with the host allocation and record the rule in SSOT  (WS-PORTFLOAT | P3 | M)
+## AGY-1579 -- Reconcile in-container port fallbacks with the host allocation and record the rule in SSOT  (WS-PORTFLOAT | P3 | M) **DONE**
 **Goal:** E-13 Ports are allocated from SSOT, not hand-assigned -- the last place a port literal legitimately differs from SSOT becomes documented and gated rather than folklore.
 **What+How:** Several Quadlets pass `${MIOS_PORT_X:-<upstream-default>}` where the fallback is the UPSTREAM in-container port (pgvector 5432, vllm 11441, cpu-node 11451, crawl4ai 11235), so fallback and SSOT deliberately disagree -- defensible, but nowhere recorded. Meanwhile `[ports.categories.sidecar]` now allocates real keys for the sidecar daemons (guacd, redis, chrome_cdp, otelcol, pxe_hub_api, forge_ssh_git). Decide per service whether the container binds the SSOT port or the upstream default behind a host-side publish, write that decision into the `[ports.categories]` `doc` field, and make each `:-N` fallback consistent with the decision.
 **Where:** `usr/share/mios/mios.toml, usr/share/containers/systemd/*.container, tools/generate-pod-quadlets.py`
@@ -10062,7 +10062,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** today regenerating the manual DELETES its H1 title while simultaneously fixing 20 dead links -- the committed file and its generator diverged in both directions, the signature of an ungated generator.
 **Dep:** AGY-1584
 
-## AGY-1586 -- Generate the five derived reference docs and the missing `/usr/share/doc/mios/` entry point  (WS-DOCGEN | P1 | M)
+## AGY-1586 -- Generate the five derived reference docs and the missing `/usr/share/doc/mios/` entry point  (WS-DOCGEN | P1 | M)  **DONE**
 **Goal:** E-13/Law 8 Ports, laws, pipeline, verbs and units have exactly ONE generated answer, and a reader landing on a booted host has somewhere to start.
 **What+How:** `mios-manual render` emits `reference/ports.md` (from `[ports.categories]` + `[ports]`), `reference/laws.md` (from `[laws]`, 16 rows, plus the 12 root exceptions), `reference/pipeline.md` (from `[build.pipeline]`), `reference/cli.md` (113 `[verbs.*]` + the `usr/libexec/mios/` backends), `reference/units.md` (from the UNIT FILES, not `mios.toml [units.*]` and never `globals.*`), and `usr/share/doc/mios/README.md` -- 130 baked doc files currently have NO entry point on a host. Every derived section ends with a `<!-- derived from ... -->` provenance line. These are the single answers the 1,155 stale port refs across 122 of 225 files can then be rewritten against; note the SSOT's OWN inline comments are stale too (`mios.toml:9438` says Open WebUI is at `:3033`, `:9439-9440` cites a port 9119 that exists nowhere), so a prose fix that trusts mios.toml comments re-imports the errors.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/reference/{ports,laws,pipeline,cli,units}.md, usr/share/doc/mios/README.md`
@@ -10079,7 +10079,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** 24 of the ~70 stale refs sit inside AI-hint/AI-related header lines, which never self-correct because `mios-ai-tag` reuses an existing hint verbatim forever -- so without a gate they are permanent.
 **Dep:** AGY-1586
 
-## AGY-1588 -- Harvest the 363 over-cap AI-hints into docs, then prune them behind the landing gate  (WS-DOCGEN | P1 | L)
+## AGY-1588 -- Harvest the 363 over-cap AI-hints into docs, then prune them behind the landing gate  (WS-DOCGEN | P1 | L) **DONE**
 **Goal:** D-7 The ~100k characters of prose currently hiding in the `AI-hint:` field live in documentation, and the tagger's own cap becomes safe to re-impose.
 **What+How:** 363 hints (18.9%) exceed the tagger's 260-char `_clean()` cap and were therefore NOT written by `mios-ai-tag` -- they are hand-written mini-documents topping out at 2,837 chars (`mios_pipe/routing/agent_call.py`), 2,642 (`swarm.py`), 2,158 (`a2a.py`), 2,128 (`web_research.py`), 1,980 (`vision.py`), 1,947 (`mios_dispatch.py`). Run `mios-manual harvest --class=overlong-hint --apply` to write each into `usr/share/doc/mios/manual/_harvest/<slug>.md` annotated `<!-- mios-src: <path>:<a>-<b> sha=<sha12> -->`, filling the ledger's `landed_*` columns; SOURCE IS NOT TOUCHED in this step. Land drift check 154 `check_comment_landing` (pointer resolution + landing predicate for pruned rows + `landed_doc` may never be cleared). ONLY THEN run `prune --class=overlong-hint --only-landed --apply`, which replaces each hint with a `<=260`-char summary plus an `AI-doc:` row and REFUSES any block whose predicate is false. Finally ratchet `[ai_tag].hint_max_chars` back to 260 and `max_overlong_hints` to 0.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/manual/_harvest/, usr/share/mios/reference/manual-corpus.tsv, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/mios.toml`
@@ -10087,7 +10087,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** this is the single largest data-loss hazard in the tree -- `existing_hint()` re-applies the 260-char cap on reuse, so the very next tagger run silently truncates all 363.
 **Dep:** AGY-1587, AGY-1582
 
-## AGY-1589 -- Land the comment ratchet and its monotone guard  (WS-DOCGEN | P1 | M)
+## AGY-1589 -- Land the comment ratchet and its monotone guard  (WS-DOCGEN | P1 | M) **DONE**
 **Goal:** D-8 Narrative comment volume can only go down, and "raise the ceiling" is a gate violation rather than a one-character fix.
 **What+How:** Drift check 155 `check_comment_ratchet` asserts `unmigrated_narrative <= [docs].max_unmigrated_narrative`, `stale_refs <= [docs].max_stale_refs`, `overlong_hints <= [ai_tag].max_overlong_hints` and `undocumented_components <= [docs].max_undocumented_components`, resolving each ceiling with the layered pattern `mios-ai-hint-coverage` already uses (CLI > env > mios.toml > permissive report-only fallback). Drift check 156 `check_doc_ratchet_monotone` then asserts every one of those four ceilings is `<=` the value in `usr/share/mios/reference/doc-ratchet-floor.tsv`, which `mios-manual coverage --write-floor` can only ever LOWER (it writes `min(recorded, current)`). Both need negative tests: a 12-line 60-word narrative block added to a scratch `usr/lib/mios/*.py` must turn 155 red, and incrementing any ceiling by 1 must turn 156 red. Neither may be added to `[testing].negative_coverage_exempt` -- both are exercisable with a pure text edit on a Linux runner.
 **Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/libexec/mios/mios-manual, usr/share/mios/reference/doc-ratchet-floor.tsv, usr/share/mios/mios.toml`
@@ -10095,7 +10095,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** gate 155 alone is unfalsifiable in practice -- this repo has a documented history of gates that cannot fail, and a ratchet whose ceiling is freely raisable is exactly one of them.
 **Dep:** AGY-1584
 
-## AGY-1590 -- Harvest the narrative mass: mios.toml, the two Windows entry points, and the agent-pipe tree  (WS-DOCGEN | P2 | XL)
+## AGY-1590 -- Harvest the narrative mass: mios.toml, the two Windows entry points, and the agent-pipe tree  (WS-DOCGEN | P2 | XL) **DONE**
 **Goal:** D-9 The 1,764 narrative blocks / 16,481 lines / ~150k words of design prose living in comments become chapters and ADRs.
 **What+How:** Harvest in yield order, one wave per commit, each followed by a gated prune. Wave A: `usr/share/mios/mios.toml` (36,159 narrative words / 4,050 lines), `build-mios.ps1` (23,791 / 2,975) and `Get-MiOS.ps1` (17,041 / 2,032) -- three files hold 55% of all narrative. Wave B: `usr/lib/mios/agent-pipe/**`, 14 of the top 25 files (`memory/pg.py`, `routing/dag_exec.py`, `mios_surface.py`, `scheduler/preempt.py`, `federation/a2a.py`, `routing/agentreg.py`, `server.py`, `mios_dispatch.py`, ...), assembled as ONE "agent-pipe architecture" chapter -- which is what those module docstrings collectively already are. Wave C: every `as=adr-candidate` block becomes a real ADR, starting with `.github/workflows/mios-ci.yml:282` (42 lines giving root cause, exact error text and operator confirmation for the rootful-podman GID-remap bake failure) and `mios.toml:5457` (90 lines, the crawl4ai container scrapped, citing Law 5). Wave D: systemd/Quadlet prologues into `reference/units.md` -- config formats are comment-DOMINATED (`.rules` 78%, `.conf` 64%, `.preset` 54%, `.service`/`.timer` 43%, `.toml` 39%) and are the real design-intent surface. Lower `[docs].max_unmigrated_narrative` and the floor after each wave.
 **Where:** `usr/share/doc/mios/manual/, usr/share/doc/mios/adr/, usr/share/mios/mios.toml, build-mios.ps1, Get-MiOS.ps1, usr/lib/mios/agent-pipe/**`
@@ -10103,7 +10103,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** this is the extraction prize -- ~150k words of decisions, rejected alternatives and incident history that today only an agent reading whole files can find.
 **Dep:** AGY-1588, AGY-1589
 
-## AGY-1591 -- Stop projecting AI-hint prose into globals.{sh,ps1} and gate it  (WS-DOCGEN | P2 | M)
+## AGY-1591 -- Stop projecting AI-hint prose into globals.{sh,ps1} and gate it  (WS-DOCGEN | P2 | M) **DONE**
 **Goal:** Law 8 The generated resolvers carry VALUES, not documentation, and a unit's narrative has exactly one home.
 **What+How:** `automation/lib/globals.sh` and `globals.ps1` each carry 129 `AI-hint:` blocks as `MIOS_UNITS_*_COMMENT` environment-variable VALUES -- 1.19 MB of generated shell/PowerShell that is mostly prose, and the fourth home of every unit sentence (unit file -> `mios.toml [units.*]`, 182 tables / 115 `comment=` keys -> globals.sh -> globals.ps1), which is why both resolvers show exactly 486 narrative lines. Teach `tools/render-globals.py` to skip the `comment` key, re-run `bash tools/sync-generated.sh`, and add drift check 157 `check_no_generated_prose_in_resolvers` asserting zero `AI-hint:` and zero `MIOS_UNITS_[A-Z0-9_]*_COMMENT=` in either file. THIS MUST LAND AFTER AGY-1590 wave D: the unit narrative it deletes must already be harvested from the unit files, or the projection removes the only copy some readers have.
 **Where:** `tools/render-globals.py, automation/lib/globals.sh, automation/lib/globals.ps1, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh`
@@ -10111,7 +10111,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** one stale sentence about `hermes-agent.service` on `:8642` currently exists in four materially different file formats, and fixing the doc fixes none of the others.
 **Dep:** AGY-1590
 
-## AGY-1592 -- Retire the comment graveyard and the unified-knowledge dump  (WS-DOCGEN | P2 | M)
+## AGY-1592 -- Retire the comment graveyard and the unified-knowledge dump  (WS-DOCGEN | P2 | M) **DONE**
 **Goal:** D-10 No documentation surface is built by scraping deleted comments or dumping whole files.
 **What+How:** `usr/share/doc/mios/knowledge/recovered_comments.md` is 4.13 MB / 60,019 lines / 801 file sections -- 42% of the entire markdown corpus -- and `tools/lib/extract_comments.py:29-34` builds it from git diffs by harvesting ONLY DELETED comment lines: a graveyard, stale by construction, whose first entry is already contradicted by `automation/lib/globals.sh:170`. Run `mios-manual audit --corpus-extra` over it ONCE as a rescue pass, harvest anything classified MIGRATE whose target still resolves, then delete both the file and the extractor. Separately retire `tools/generate-unified-knowledge.py`: it walks CWD not `--root`, has no CLI and no `--check`, its category taxonomy keys off `specs/core`/`specs/memory`/`evals/` (only `specs/engineering` exists, so nearly everything lands in "other" and never enters the semantic index), its extension filter is inverted so any dotfile sweeps in, and its three-regex redaction misses `sk-proj-*`, `ghp_*`, PEM and JWT while the output is copied into agent-visible scratch. Replace the RAG-seeding use with `mios-manual audit --json`.
 **Where:** `usr/share/doc/mios/knowledge/recovered_comments.md (delete), tools/lib/extract_comments.py (delete), tools/generate-unified-knowledge.py (delete), automation/ai-bootstrap.sh, tools/sync-wiki.py`
@@ -10119,7 +10119,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** 42% of the doc corpus by bytes is mechanically-transcribed deleted comments shipped into `/usr/share/doc/`, and one commit has already re-duplicated part of it back into manual.md.
 **Dep:** AGY-1590
 
-## AGY-1593 -- Collapse the 69-copy boilerplate, the 3 duplicate doc pairs, and mios-codebase-index's rival taggability  (WS-DOCGEN | P2 | M)
+## AGY-1593 -- Collapse the 69-copy boilerplate, the 3 duplicate doc pairs, and mios-codebase-index's rival taggability  (WS-DOCGEN | P2 | M) **DONE**
 **Goal:** D-11 Every fact has one home; the codebase is quickly auditable because there is nothing to cross-check.
 **What+How:** (1) The two-paragraph "MiOS is one thing built two ways at once ... `bootc upgrade` it like a `git pull` ... `bootc rollback` it like a Ctrl-Z" block appears in 69 files (~48 KB) and every copy drifts independently -- some name GNOME 50, some name ports, some name lanes. Replace all 69 with `<!-- MIOS-GEN:boilerplate:what-mios-is -->` rendered from the single authored chapter. (2) De-duplicate the three near-verbatim doc pairs (~116 KB, already diverging on facts): `docs/agy/doc-mios-mini.md` <-> `concepts/mios-mini-architecture.md`, `doc-container-runtime.md` <-> `concepts/container-os-runtime.md`, `doc-foss-upstream.md` <-> `concepts/foss-upstream-map.md`; add `docs/agy/README.md` marking that tree process-only, the pattern `usr/share/doc/mios/archive/` already models. (3) Delete `mios-codebase-index`'s private `EXT`/`BASENAMES`/`SKIP_DIR`/`SKIP_SUFFIX` -- a second, already-diverged definition of the corpus that includes `.json` (which mios-ai-tag explicitly skips as comment-less) -- and import `mios-ai-tag` through the same `SourceFileLoader` shim `mios-ai-hint-coverage` uses.
 **Where:** `usr/share/doc/mios/**, docs/agy/**, usr/libexec/mios/mios-codebase-index, usr/share/mios/**`
@@ -10127,7 +10127,7 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** "fewer, more feature-complete components" is unachievable while three tools disagree about which files exist and one paragraph has 69 independently-drifting copies.
 **Dep:** AGY-1592
 
-## AGY-1594 -- Port the comment lexer hot path to Rust behind the unchanged mios-manual CLI  (WS-DOCGEN | P3 | L)
+## AGY-1594 -- Port the comment lexer hot path to Rust behind the unchanged mios-manual CLI  (WS-DOCGEN | P3 | L)  **DONE**
 **Goal:** Law 14 The whole-tree lexing pass runs in the native tier without creating a second definition of the corpus.
 **What+How:** `lex()` over 2,142 files is the only compute-bound part of the system; classification, rendering and the ledger stay in Python because they are policy and because taggability must remain defined exactly once, in `mios-ai-tag`, which four tools import. Add a `mios-comment-lex` crate under `tools/native/` alongside the existing `mios-ssot-walk`/`mios-ssot-lint` crates, emitting the same `Block` JSON records. `mios_comments.lex()` becomes a two-branch dispatcher: call the binary when present, fall back to the Python lexer otherwise, and add a differential gate asserting the two produce identical `sha12` sets over the tree -- the same strangler-fig shape `check_resolver_shell_equivalence` already uses for `mios-resolver`. Only start after AGY-1583's 30 fixtures are frozen, so the Rust implementation is validated against a fixed oracle rather than a moving one.
 **Where:** `tools/native/mios-comment-lex/, tools/native/Cargo.toml, usr/lib/mios/mios_comments.py, automation/98-drift-checks.sh`
@@ -10164,7 +10164,7 @@ when the machine holding it dies.
 **Why:** without this, "migrate anywhere" is false for exactly the services that matter most, and the failure presents as a hang rather than a decision.
 **Dep:** AGY-1595
 
-## AGY-1597 -- Implement local-first failover ordering with asymmetric anti-flap dwell  (WS-BLADE | P1 | M)
+## AGY-1597 -- Implement local-first failover ordering with asymmetric anti-flap dwell  (WS-BLADE | P1 | M)  **DONE**
 **What+How:** Implement `[blade.placement].failover_order = ["local","localhost","cluster"]` and the `[blade.collapse]` dwell values. A failed workload is retried in place before the cluster is asked to allocate it elsewhere. Release back to the mesh uses `recover_dwell_s`, which is deliberately several times `dwell_s`.
 **Where:** `usr/libexec/mios/role-apply, usr/share/mios/mios.toml [blade.placement] [blade.collapse], usr/lib/systemd/system/`
 **Done When:** killing a service restarts it in place without a migration event; killing the machine migrates it; a link flapping faster than `recover_dwell_s` produces exactly one migration, not one per flap.
@@ -10179,7 +10179,7 @@ when the machine holding it dies.
 **Why:** enabling divergence without provenance produces a merge nobody can compute and silent data loss on rejoin.
 **Dep:** none
 
-## AGY-1599 -- Implement the per-class reconcile rules, with config_kv conflicts raised to the operator  (WS-BLADE | P2 | L)
+## AGY-1599 -- Implement the per-class reconcile rules, with config_kv conflicts raised to the operator  (WS-BLADE | P2 | L)  **DONE**
 **What+How:** Implement the four merge classes from ADR-0017 D5: union-by-hash for `knowledge`/embeddings, append-ordered for `agent_memory`/`event`, last-writer-wins for `session`/`scratch`, and conflict-is-error for `config_kv`. The last is deliberately NOT auto-merged -- a `config_kv` divergence surfaces to the operator, because config is intent and silently picking a winner lets a partition change policy.
 **Where:** `usr/libexec/mios/, usr/share/mios/postgres/, usr/share/mios/mios.toml [blade.reconcile]`
 **Done When:** a simulated partition with writes on both sides reconciles losslessly for the first three classes; a divergent `config_kv` key blocks reconcile and names the conflicting keys; only then may `enabled` flip to true.
@@ -10194,7 +10194,7 @@ when the machine holding it dies.
 **Why:** the seat's whole contract is that its front door is off-box, so the one failure it must explain clearly is the one where the box behind the door is gone.
 **Dep:** none
 
-## AGY-1601 -- Ratchet the 150 stale AI-related references down to zero  (WS-DOCGEN | P2 | M)
+## AGY-1601 -- Ratchet the 150 stale AI-related references down to zero  (WS-DOCGEN | P2 | M) **DONE**
 **Goal:** D-4 Documentation references resolve -- an `AI-related` line that names a file which no longer exists sends the next reader (human or agent) to a dead path.
 **What+How:** `check_doc_refs_resolve` reports 150 dangling references after the false-positive fix (it now understands that `usr/share/mios/mios.toml [laws]` is a file plus a TOML section, not a path). Work the list down: for each, either correct the path, drop the reference if the target was deliberately removed, or add it to `[docs].ref_allowlist` when it is genuinely runtime-created. Lower `[docs].max_stale_refs` with each batch.
 **Where:** `usr/share/mios/mios.toml [docs].max_stale_refs, automation/*.sh, tools/*.py, usr/libexec/mios/*`
@@ -10210,7 +10210,7 @@ MiOS is a proof of an idea (ROADMAP.md, "What this roadmap is evidence for").
 These four close the gaps between what the thesis claims and what the tree can
 demonstrate. Nothing new starts until they do.
 
-## AGY-1602 -- Audit every drift-check for falsifiability  (WS-THESIS | P0 | L)
+## AGY-1602 -- Audit every drift-check for falsifiability  (WS-THESIS | P0 | L)  **DONE**
 **Goal:** Thesis part 1 -- a check that cannot fail asserts a proof that does not exist, so a hollow gate does not merely miss bugs, it falsifies the claim that drift is mechanically impossible.
 **What+How:** For each of the 181 checks in `automation/98-drift-checks.sh`, establish the edit that makes it RED and prove it with a negative test. Known failure shapes to look for, all found in this tree: violations written to stderr while the wrapper captures stdout; `2>&1` placed after a heredoc delimiter where it redirects nothing; inverted polarity (`if out=$(...)` instead of `if ! out=...`); a target path or generator that does not exist so `regen_and_diff` returns Skip; an empty SSOT list so the loop runs zero times; a `-maxdepth` that cannot reach the files the check names.
 **Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/*.py`
@@ -10218,7 +10218,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** four hollow checks were found in a single session, three of them shipped green for weeks. The count of undiscovered ones is unknown, which is the problem.
 **Dep:** none
 
-## AGY-1603 -- Make all 66 units reproduce from SSOT  (WS-THESIS | P0 | L)
+## AGY-1603 -- Make all 66 units reproduce from SSOT  (WS-THESIS | P0 | L)  **DONE**
 **Goal:** Thesis part 1 -- systemd is the largest surface in the image, so 39 units that do not regenerate is the biggest single hole in "one file defines the OS".
 **What+How:** `mios-unit-gen --check` reports 27 of 66 units matching. Work `[unit_projection].drift` down: for each registered unit, diff the rendered output against `usr/lib/systemd/system` and either fix the renderer or correct the `[units.*]` declaration. Lower `max_drift` with each batch; the ratchet only descends.
 **Where:** `tools/native/mios-unit-gen/, usr/share/mios/mios.toml [units], [unit_projection]`
@@ -10226,7 +10226,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the claim is that the OS is a projection. For 39 units it currently is not, and the gate that should have said so was reporting success without comparing anything.
 **Dep:** none
 
-## AGY-1604 -- Close the documentation campaign  (WS-THESIS | P1 | L)
+## AGY-1604 -- Close the documentation campaign  (WS-THESIS | P1 | L)  **DONE**
 **Goal:** Legibility is the deliverable, so the doc programme is not tidying -- it is the artifact a reader receives.
 **What+How:** Drive `[docs].max_unmigrated_narrative` from 1724 to 0 via `mios-manual harvest -> verify -> prune`, and `[docs].max_stale_refs` from 150 to 0 (AGY-1601). Then retire the four surfaces the build spec names once their content has provably landed.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/, usr/share/mios/reference/manual-corpus.tsv`
@@ -10234,7 +10234,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** 1,724 narrative blocks are knowledge trapped where no reader will find it, and the repo is meant to be the thing that carries the idea.
 **Dep:** none
 
-## AGY-1605 -- Prove projection completeness over every shipped file  (WS-THESIS | P1 | L)
+## AGY-1605 -- Prove projection completeness over every shipped file  (WS-THESIS | P1 | L)  **DONE**
 **Goal:** Thesis part 1 -- a surface with no generator and no gate is a surface the claim does not cover, and today nothing enumerates them.
 **What+How:** Enumerate every tracked file that ships in the image and classify it: GENERATED (names its generator and its gate), AUTHORED (explicitly declared, with a reason), or UNCLASSIFIED. Add a gate that fails on any UNCLASSIFIED file. The 9 `.desktop` launchers found ungoverned this session are the pattern -- they looked covered because a vacuous check said so.
 **Where:** `usr/share/mios/mios.toml [laws.projection_registry], automation/98-drift-checks.sh`
@@ -10242,7 +10242,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** "everything is projected" is currently an assertion about an unenumerated set. Until the set is enumerated the claim is unfalsifiable, which is the same defect as a hollow gate.
 **Dep:** AGY-1602
 
-## AGY-1606 -- Drive the legibility floors down  (WS-THESIS | P2 | L)
+## AGY-1606 -- Drive the legibility floors down  (WS-THESIS | P2 | L)  **DONE**
 **Goal:** The repository IS the deliverable -- a person should be able to read it and see the idea.
 **What+How:** `[legibility]` now ratchets tracked files, size, shell and PowerShell lines, automation phases and libexec verbs, all floored at today's measurement. Reduce them by folding: PowerShell is 33,168 lines against 9,011 of Rust while Law 14 makes Rust the native tier; 282 libexec verbs and 72 automation phases carry heavy duplication; two vendored assets are most of the 202 MB.
 **Where:** `usr/share/mios/mios.toml [legibility], usr/libexec/mios/, automation/, tools/native/`

@@ -1,5 +1,5 @@
-# AI-hint: Normalizes raw tool/terminal output into a context-safe format by preserving the head and tail while eliding the middle with a specific marker to prevent context window saturation while preserving critical end-of-command results.
-# AI-functions: _omit_marker, normalize_output
+# AI-hint: Normalizes raw tool/terminal output into a context-safe format by preserving the head and tail while eliding the middle with a specific marker...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_aci_py.md
 """mios_aci -- pure Agent-Computer Interface output normalizer (WS-5).
 
 DB-free + stdlib-only so the truncation logic unit-tests in isolation

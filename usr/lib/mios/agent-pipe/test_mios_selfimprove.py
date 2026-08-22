@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for mios_selfimprove (#64 self-improve analysis): per-tool failure-rate + slow-tool + unreliable-peer findings, min-samples gating, severity ranking, and clean-input -> no findings.
-# AI-related: mios_selfimprove
-# AI-functions: _check, t_failing, t_min_samples, t_slow, t_peer, t_clean, t_ranking, main
+# AI-hint: Standalone unit test for mios_selfimprove (#64 self-improve analysis): per-tool failure-rate + slow-tool + unreliable-peer findings, min-sampl...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_selfimprove_py.md
 """Standalone unit test for mios_selfimprove (#64 self-improvement analyzer).
 
 Pure stdlib + the sibling module only -- no server.py / DB. Proves the analyzer

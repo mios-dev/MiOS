@@ -1,6 +1,5 @@
-# AI-hint: Tiered local web-EXTRACT `WebSearchProvider` for Hermes-Agent: fast offline urllib+regex strip first, escalating JS-heavy/dynamic/thin pages to crawl4ai (headless Chrome over CDP + Camoufox stealth retry) via mios-crawl. No cloud, no firecrawl SDK.
-# AI-related: mios-firecrawl, mios-web-extract, mios-crawl, mios-crawl4ai, mios-hermes-browser
-# AI-functions: _fetch_one, _crawl_one, name, display_name, is_available, supports_search, supports_extract, extract, class MiosFetchProvider
+# AI-hint: Tiered local web-EXTRACT `WebSearchProvider` for Hermes-Agent: fast offline urllib+regex strip first, escalating JS-heavy/dynamic/thin ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_hermes_plugins_web_miosfetch_provider_py.md
 """MiOS tiered web-EXTRACT provider for Hermes-Agent.
 
 Why this exists (operator-confirmed): hermes's bundled `firecrawl`

@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Installs wrapper scripts for mios-agent-claude, mios-agent-gemini, and mios-llm to /usr/local/bin/ to inject the MiOS system prompt into various LLM CLI clients via the MIOS_AI_ENDPOINT.
-# AI-related: /usr/share/mios/ai, /etc/mios/ai, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, mios-agent-claude, mios-agent-gemini, mios-llm, mios-agents, mios-bootstrap, mios-dev
+# AI-hint: !/usr/bin/env bash Installs wrapper scripts for mios-agent-claude, mios-agent-gemini, and mios-llm to /usr/local/bin/ to inject the MiOS system prompt into various LLM ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/install_mios_agents_sh.md
 set -euo pipefail
 
 # MIOS_REQUIRE_AGREEMENT_ACK).

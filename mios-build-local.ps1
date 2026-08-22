@@ -1,12 +1,5 @@
 # AI-hint: Legacy PowerShell redirector that routes local build commands to build-mios.ps1 to maintain backward compatibility for existing MiOS build scripts and one-liners.
-# AI-related: mios-build-local
-#Requires -Version 5.1
-# 'MiOS' Windows build orchestrator -- legacy redirector.
-#
-# This file was renamed to build-mios.ps1 to align with the cross-platform
-# entry-point convention (build-mios.{sh,ps1}). This redirector exists so
-# existing irm | iex one-liners and shortcuts that point at the old
-# mios-build-local.ps1 URL keep working.
+# AI-doc: usr/share/doc/mios/manual/_harvest/mios_build_local_ps1.md
 
 $ErrorActionPreference = "Stop"
 $target = Join-Path $PSScriptRoot 'build-mios.ps1'

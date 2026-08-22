@@ -1,7 +1,5 @@
-﻿# AI-hint: A Windows-native OCI image exporter that extracts rootfs layers directly from GHCR to create .tar.zst files for WSL or converts existing disk images to .vhdx via qemu-img.exe without requiring Podman or WSL.
-# AI-related: mios-cloud-build, mios-dev, mios-windows-export, mios-hyperv-create
-# AI-functions: Write-Step, Write-Ok, Write-Warn, Write-Bad, Test-CommandExists, Install-WingetTool, Get-GhcrToken, Resolve-ImageRef, Get-ImageManifest, Save-ImageLayers, Merge-LayersToTar, Compress-WithZstd
-#Requires -Version 7.0
+# AI-hint: A Windows-native OCI image exporter that extracts rootfs layers directly from GHCR to create .tar.zst files for WSL or converts existing disk images to .vhdx via qemu-...
+# AI-doc: usr/share/doc/mios/manual/_harvest/mios_windows_export_ps1.md
 <#
 .SYNOPSIS
     Windows-native MiOS OCI exporter / converter -- no podman machine required.

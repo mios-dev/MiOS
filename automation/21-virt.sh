@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs and configures virtualization (KVM/QEMU/Libvirt), container runtimes (Podman/Buildah), Cockpit management, and CrowdSec security tools to establish the core virtualization and containerization stack.
-# AI-related: mios-kver, mios-virtio
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs and configures virtualization (KVM/QEMU/Libvirt), container runtimes (Podman/Buildah), Cockpit management, and CrowdSec se...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_21_virt_sh.md
 set -euo pipefail
 # shellcheck disable=SC1090  # log.sh resolves at runtime: build ctx or installed
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

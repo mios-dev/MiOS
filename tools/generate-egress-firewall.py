@@ -1,19 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation).
-# AI-related: usr/share/mios/security, usr/share/mios/mios.toml, usr/lib/systemd/system/mios-agent-pipe.service, tools/generate-k3s-manifests.sh
-# AI-functions: agent_user, build_ruleset, main
-"""Generate the MiOS agent egress firewall (#54).
-
-Zero-trust federation calls for an OUTBOUND firewall: a compromised or misled
-agent must not be able to exfiltrate to arbitrary internet hosts. The correct
-layer for that is the OS (nftables), scoped to the agent's uid -- an app-level
-hook would be incomplete (httpx clients are constructed ad-hoc throughout the
-orchestrator). This emits that ruleset from SSOT; the operator applies it.
-
-It is uid-scoped, so it does not disturb other users: `web_search` keeps working
-because the agent reaches searxng over loopback, and searxng (a different uid)
-reaches the internet.
-"""
+# AI-hint: !/usr/bin/env python3 Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation).
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_egress_firewall_py.md
 from __future__ import annotations
 
 import os

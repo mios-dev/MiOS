@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Sibling unit test for tools/check-tasks-status-parity.py. Builds throwaway TASKS.md files and asserts every direction the real drift produced: agreeing surfaces pass, a table cell that disagrees with the task section FAILS, a '?' placeholder fails whenever a section can answer it, both `## T-1 -- Title` and `## T-1: Title` heading styles are parsed, a free-prose status is compared on its head token only (so `done -- long explanation` still matches `done`), an unknown status word fails on either surface, and a task section with no summary row fails. Run: python3 test_check-tasks-status-parity.py
-# AI-related: ./check-tasks-status-parity.py, TASKS.md
-# AI-functions: check, mkrepo, run, main
+# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-tasks-status-parity.py.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_tasks_status_parity_py.md
 
 import importlib.util
 import os

@@ -1,7 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Curated global MiOS logging template (ADR-0012, doc-unified-pipeline.md). Source this
-# AI-related: docs/agy/doc-unified-pipeline.md, automation/build.sh, usr/libexec/mios/*.sh
-# AI-functions: mios_tag, mios_log, mios_ok, mios_warn, mios_err, mios_skip, mios_step
+# AI-hint: !/usr/bin/env bash Curated global MiOS logging template (ADR-0012, doc-unified-pipeline.md).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_log_sh.md
 
 mios_tag() {
     if [ -n "${MIOS_LOG_TAG:-}" ]; then printf '%s' "$MIOS_LOG_TAG"; return; fi

@@ -1,5 +1,5 @@
-# AI-hint: Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowledge blocks, and file metadata.
-# AI-functions: parse_markdown_metadata, generate_json_manifest, generate_gzipped_manifest
+# AI-hint: Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_ai_manifest_py.md
 import os
 import json
 import re
@@ -30,15 +30,6 @@ _TRACKED_CACHE = None
 
 
 def tracked_files():
-    """Repo-relative paths git tracks, or None when git is unavailable.
-
-    The manifests embed a walk of the tree. Walking the FILESYSTEM makes the
-    output a function of the developer's working directory -- local scratch
-    files, .bak files and untracked notes all land in root-manifest.json -- so
-    a manifest generated on a dev box can never match one regenerated on a
-    clean CI checkout, and check_ai_manifests_fresh fails forever. Restricting
-    the walk to tracked files makes the artifact reproducible anywhere.
-    """
     global _TRACKED_CACHE
     if _TRACKED_CACHE is None:
         try:

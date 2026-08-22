@@ -1,0 +1,42 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Configures sshd.service to only start if not in a WSL environment or if a podman-specific SSH config exists, preventing port 22 collisions with Windows host services while ensuring podman-machine functionality.
+AI-related: mios-wsl2, mios-bootstrap, sshd.service
+/usr/lib/systemd/system/sshd.service.d/10-mios-wsl2.conf
+
+WSL2 with mirrored networking (the MiOS default in mios-bootstrap's
+.wslconfig setup) exposes the Windows host's :22 inside the distro's
+network namespace. When sshd tries to bind 0.0.0.0:22 it collides
+with whatever Windows-side service is on that port (typically
+Microsoft OpenSSH, which most Windows installs ship enabled).
+Result: sshd repeatedly fails with "Bind to port 22 on 0.0.0.0
+failed: Address already in use" and gives up.
+
+However, when MiOS is the OS layer for a podman-machine distro
+(i.e. `podman machine init` provisioned us), podman-machine writes
+/etc/ssh/sshd_config.d/99-podman-sshd.conf with a non-22 port (the
+port podman picks for its rootful/rootless SSH forwarder). In that
+scenario sshd MUST run -- it's how the Windows host's `podman` CLI
+talks to the dev VM's podman service. Blocking sshd here breaks
+Podman Desktop and every `podman` command on the host.
+
+Solution: OR'd conditions. Skip sshd only when we're on WSL AND
+podman-machine has NOT configured sshd. The leading `|` makes each
+condition independently sufficient -- if either is true, the unit
+starts.
+
+Operators who want sshd reachable from the LAN on plain WSL (no
+podman-machine) can override this drop-in by creating their own at
+/etc/systemd/system/sshd.service.d/ that drops the ConditionVirtualization
+gate and adds a non-22 Port directive in sshd_config.d/.
+
+Bare-metal, Hyper-V, QEMU, and other VM-shape deployments are
+unaffected: sshd binds :22 normally because there's no host-network
+collision.
+
+<!-- mios-src:0009965f57dc from usr/lib/systemd/system/sshd.service.d/10-mios-wsl2.conf:1-33 -->
+

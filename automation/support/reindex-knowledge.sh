@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Triggers a full re-vectorization of Open WebUI knowledge collections via the /api/v1/knowledge/reindex endpoint to rebuild ChromaDB collections after a cache wipe or data migration.
-# AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, mios-cache-clear, localhost (port key `open_webui`)
+# AI-hint: !/bin/bash Triggers a full re-vectorization of Open WebUI knowledge collections via the /api/v1/knowledge/reindex endpoint to rebuild ChromaDB collecti...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_reindex_knowledge_sh.md
 set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'

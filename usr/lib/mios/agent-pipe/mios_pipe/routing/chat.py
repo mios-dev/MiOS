@@ -1,20 +1,5 @@
-# AI-hint: The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from
-# AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_native_loop.py, ./mios_swarm.py, ./mios_dag_exec.py, ./mios_refine.py, ./mios_planner.py, ./mios_grounding.py, ./mios_verity.py, ./test_mios_chat.py
-# AI-functions: chat_completions_logic, responses_api_logic, chat_router, responses_api, configure, _quick_chat_reply, _is_memory_question, _ask_for_location, _hints_write_action, _needs_external_knowledge, _shadow_queue_tasks, _budget_num, _budget_bucket, _budget_window_total, _budget_debit, _budget_prune_inflight, _budget_admit, _budget_release_inflight
-"""CHAT-COMPLETIONS router-brain (strangler-fig refactor capstone).
-
-Extracted VERBATIM from ``server.py``. :func:`chat_completions_logic` is the
-per-turn orchestrator that routes a request through the precedence vision ->
-client-tools -> OS fast-path -> trivial-chat -> memory/local-state -> native
-loop -> multi-task -> council/swarm -> polish, keeping every heuristic, guard
-and comment byte-identical. The dispatched responders are imported directly
-from their siblings; every server-resident helper/scalar/ContextVar plus the
-live verb catalog and agent registry are injected via :func:`configure` under
-their exact original names (one-way boundary -- this module never imports
-``server``). ``server.py`` keeps the route + ``chat_completions`` handler as a
-thin wrapper reaching this logic through ``sys.modules`` so the importable
-surface stays byte-identical.
-"""
+# AI-hint: The agent-pipe CHAT-COMPLETIONS router-brain, extracted VERBATIM from AI-related: ./server.py, ./mios_vision.py, ./mios_oscontrol.py, ./mios_...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_chat_py.md
 
 from __future__ import annotations
 
@@ -283,12 +268,6 @@ _INJECTED = frozenset((
 
 
 def configure(**deps) -> None:
-    """Inject server-side deps under their EXACT original names (one-way boundary).
-
-    Called from ``server.py`` after every injected symbol is defined; re-called by
-    ``_reload_membership`` with ``_AGENT_REGISTRY`` on a live agent add/drop. Each
-    keyword equals the module global it sets; unknown keys are ignored.
-    """
     g = globals()
     if "_KERNEL" in deps and deps["_KERNEL"] is not None:
         deps["_KERNEL"].dispatcher._handlers["chat"] = _kernel_chat_handler
@@ -327,12 +306,6 @@ def _drop_stale_tool_results(messages: list, ttl_turns: int) -> list:
 
 
 def _trim_sys_prefix(sys_prefix: list, lane: str) -> list:
-    """Cap each system-prefix block for a SLOW lane ("add
-    per-lane context trimming") so a slow-prefill node (iGPU / phone / remote
-    accelerator) finishes within its read budget instead of being abandoned
-    mid-compute by the big ~7K pipeline web-research block. The gist survives
-    (top stories / top RAG hits lead each block); the tail is dropped. gpu + cpu
-    (local) keep the FULL prefix. Returns the list unchanged for a fast lane."""
     if lane not in SLOW_LANES or SLOW_LANE_BLOCK_CHARS <= 0:
         return sys_prefix
     _pin = _agent_contract()
@@ -381,14 +354,6 @@ async def _summarize_evicted_messages(evicted_messages: list) -> str:
 
 
 async def _quick_chat_reply(user_text: str, history: list = None) -> str:
-    """Generate the conversational reply for an intent=chat turn.
-
-    Separate from refine because the JSON classifier reliably tags chat
- but does NOT reliably emit a `reply` field (operator test
-    greetings classified chat with reply=None -> the turn fell through to
-    Hermes, which then tried a nonexistent 'chat' verb). think=False on
-    the micro lane; plain prose, GENERATED in the user's language (never
-    a canned/hardcoded string)."""
     if not user_text or not user_text.strip():
         return ""
     msgs = [{"role": "system",
@@ -505,17 +470,6 @@ def _hints_write_action(refined: "Optional[dict]") -> bool:
 
 
 async def _needs_external_knowledge(user_text: str) -> bool:
-    """Generative knowledge-gap judge ("use web tools for
-    knowledge gaps EVERY TURN"; NO keyword lists). For a LOCAL-STATE turn, decide
-    whether FULLY answering ALSO requires facts that exist only OFF this machine --
-    published/theoretical specs, benchmarks, capabilities, ratings, reviews, prices,
-    or whether an installed version is the latest. Inspecting the machine yields its
-    own identity/state (which GPU/CPU/app it HAS, live usage) but NOT such external
-    facts, so a small model collapses "the theoretical specs of MY GPU" to local-only
-    and then DROPS or FABRICATES the external half. A focused yes/no (constrained
-    enum, thinking-off) is far more reliable than asking the big refine call to juggle
-    local+web. True only on a confident yes; degrade-CLOSED (error/None -> False =
-    unchanged pure-local behaviour, so 'what's open'/'list my games' never web-search)."""
     if not (user_text or "").strip():
         return False
     sys = (
@@ -558,17 +512,6 @@ async def _needs_external_knowledge(user_text: str) -> bool:
 
 def _shadow_queue_tasks(tasks: list[dict],
                         session_id: Optional[str]) -> list[dict]:
-    """Write one row per refined multi-task entry to the CANONICAL pg `kanban`
-    table. Returns the same list augmented with `hermes_task_id` so the
-    dispatcher + polish can refer to each row by id.
-
-    WS-A3: this was the legacy `kanban_shadow` shadow-queue, which silently
-    no-op'd once the legacy backend (:8000) was retired (and whose pg mirror targeted a
-    `kanban_shadow` table that doesn't exist) -- so the multi-task queue was
-    invisible. It now upserts the canonical pg `kanban` (id/title/status/detail
-    jsonb) via a PARAMETERIZED statement (psycopg binds values; never spliced),
-    giving every agent a single pg-visible queue. Hermes (or whichever sub-agent
-    picks up a task) syncs its native kanban entry back via the existing path."""
     if not isinstance(tasks, list) or not tasks:
         return []
     out: list[dict] = []
@@ -685,18 +628,6 @@ def _budget_prune_inflight(now: float) -> None:
 
 async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
                         turn_token: Optional[str] = None) -> tuple:
-    """Aggregate-budget admission for a NEW turn. Returns (allowed, reason).
-
-    HARD-HALTS (allowed=False) when the conversation OR the autonomous-source
-    token ceiling is already exhausted within the window, or when the concurrent
-    autonomous in-flight cap is reached. On ADMIT it debit-on-admits a
-    conservative per-turn estimate to both relevant buckets and (for an
-    autonomous turn with a turn_token) registers the turn in-flight -- so the
-    NEXT turn for an exhausted bucket is refused, which is the runaway tripwire
-    (it stops the SOURCE re-firing). DEGRADE-OPEN: any error -> allowed.
-
-    The check is BEFORE this turn's real tokens are known; the rolling window
-    ages the estimate out, so the ceiling bounds the RATE of turns per window."""
     if not BUDGET_ENABLE:
         return True, ""
     try:
@@ -733,13 +664,6 @@ async def _budget_admit(conv_key: str, autonomous_source: Optional[str],
 
 
 async def _budget_release_inflight(turn_token: Optional[str]) -> None:
-    """Drop an autonomous turn's in-flight token (best-effort; degrade-open).
-    Idempotent. The autonomous turn registers in-flight in _budget_admit; this
-    is the PROMPT release for paths that have a clean terminal point. The
-    leak-proof backstop is _budget_prune_inflight (TTL): the streaming path
-    returns its generator BEFORE the turn truly ends, so there is no single
-    reliable removal point in the giant handler -- the TTL guarantees no slot
-    leaks even when no explicit release fires."""
     if not turn_token:
         return
     try:
@@ -1431,12 +1355,6 @@ async def chat_completions_logic(request: Request) -> Any:
 
 
 async def responses_api_logic(request: Request) -> Any:
-    """OpenAI Responses API (Tier-2, additive). A THIN facade: translates the
-    Responses request to a chat/completions call against THIS server's own full
-    pipeline (self-proxy -> reuse refine/route/swarm/polish, no duplication), then
-    reshapes the answer into the Responses items model. /v1/chat/completions is
-    untouched. Minimal v1: text/message `input` -> one output_text message item +
-    usage; `instructions` -> a system message. Streaming/items/hosted-tools TODO."""
     try:
         body = _loads_lenient(await request.body() or b"{}")
     except Exception:

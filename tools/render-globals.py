@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants and no shim indirection. --check is the drift gate.
-# AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, automation/lib/globals.ps1, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh
-# AI-functions: build_exports, expand_template, render_sh, render_ps1, main
+# AI-hint: !/usr/bin/env python3 Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_globals_py.md
 """render-globals.py -- generate BOTH globals resolvers from the SSOT.
 
 automation/lib/globals.sh and globals.ps1 used to be two divergent hand-typed
@@ -66,6 +64,8 @@ def build_exports() -> dict:
         # MIOS_..._WORKER@_... which is neither valid sh nor valid PowerShell).
         if section in mios_toml.EXCLUDED_SECTIONS:
             continue
+        if dotted.endswith(".comment") or dotted.split(".")[-1] == "comment":
+            continue
         processed = mios_toml.process_val(dotted, val, stack_offset)
         if processed == "":
             continue
@@ -128,7 +128,7 @@ def expand_template(value: str, lang: str) -> str:
 
 
 HEADER_SH = '''#!/usr/bin/env bash
-# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.ps1, tools/render-globals.py
 # AI-functions: _mios_resolve_version
 #
@@ -157,7 +157,7 @@ export MIOS_VERSION
 
 # Raw: the emitted PowerShell carries Windows path separators ('..\\..\\VERSION'),
 # which Python would otherwise read as escape sequences.
-HEADER_PS = r'''# AI-hint: GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
+HEADER_PS = r'''# GENERATED IN FULL from usr/share/mios/mios.toml by tools/render-globals.py. Zero hand-written constants; DO NOT EDIT -- re-run the renderer.
 # AI-related: usr/share/mios/mios.toml, automation/lib/globals.sh, tools/render-globals.py
 # AI-functions: Resolve-MiosVersion
 #

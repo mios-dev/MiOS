@@ -1,6 +1,5 @@
-#!/usr/bin/env bash
-# AI-hint: Proves role-apply's five-tier role ladder against fixtures, running the REAL functions extracted from the shipped script. Guards the regression the karg producer introduced: usr/lib/bootc/kargs.d/05-mios-blade.toml puts mios.blade= on EVERY cmdline, so the old `if [[ -z "$ROLE" ]]` guard made /etc/mios/role.conf, its FEATURES and the hardware demotion permanently unreachable -- `mios blade set` did nothing and `mios blade add-capability` was wiped on the next boot, because role-apply clears /etc/mios/blade.d each run.
-# AI-related: usr/libexec/mios/role-apply, usr/libexec/mios/mios-blade, usr/lib/bootc/kargs.d/05-mios-blade.toml, usr/share/mios/mios.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md
+# AI-hint: !/usr/bin/env bash Proves role-apply's five-tier role ladder against fixtures, running the REAL functions extracted from the shipped script.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_role_apply_precedence_sh.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

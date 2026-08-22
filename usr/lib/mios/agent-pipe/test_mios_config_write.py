@@ -1,6 +1,5 @@
 # AI-hint: Standalone unit test for the /portal/config read/write routes to ensure correct auth, TOML parsing, and background DB re-seeding.
-# AI-related: /usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py, /usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py
-# AI-functions: TestConfigWrite
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_config_write_py.md
 
 import unittest
 import sys

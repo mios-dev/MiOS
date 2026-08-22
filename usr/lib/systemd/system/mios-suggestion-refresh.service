@@ -1,11 +1,5 @@
-# AI-hint: Systemd unit that triggers a one-shot script to refresh MiOS-aware starter chips in webui.db by querying pgvector and the refine endpoint, ensuring the UI prompt suggestions stay current.
-# AI-related: /usr/libexec/mios/mios-suggestion-refresh., /usr/libexec/mios/mios-suggestion-refresh, mios-suggestion-refresh, mios-agent-pipe, mios-agent-pipe.service, mios-pgvector.service, mios-llm-light.service, multi-user.target
-# /usr/lib/systemd/system/mios-suggestion-refresh.service
-# One-shot wrapper around /usr/libexec/mios/mios-suggestion-refresh.
-# Generates fresh MiOS-aware starter chips + writes them into
-# webui.db ui.prompt_suggestions. Fired by the matching .timer
-# on a 10-min cadence (operator-tunable). Safe to run any time;
-# on failure the previous chips remain in place.
+/* AI-hint: Systemd unit that triggers a one-shot script to refresh MiOS-aware starter chips in webui.db by querying pgvector and the refine endpoint, ensuring the UI prompt suggestions stay current. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_suggestion_refresh_service.md */
 
 [Unit]
 Description='MiOS' starter-chip refresh (revolving suggestions)

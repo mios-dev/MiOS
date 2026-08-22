@@ -1,7 +1,5 @@
-#!/bin/bash
-# AI-hint: Interactive Profiler Menu
-# AI-related: mios-build-assessment
-# AI-functions: show_banner, show_menu, show_help, run_quick_summary, run_iommu_analyzer, run_full_profiler, run_all_tools, view_results, compare_profiles, open_output_dir, check_system_status, main
+# AI-hint: !/bin/bash Interactive Profiler Menu AI-related: mios-build-assessment AI-functions: show_banner, show_menu, show_help, run_quick_summary, run_iommu_analyze...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_system_profile_sh.md
 
 
 set -euo pipefail

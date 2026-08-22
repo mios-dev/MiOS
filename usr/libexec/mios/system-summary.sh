@@ -1,6 +1,5 @@
-#!/bin/bash
-# AI-hint: Standalone diagnostic that prints a colorized terminal report of the build/dev host - distro, kernel, uptime, CPU+virt flags, memory, GPU/NVIDIA, storage/disks, and IOMMU group isolation; run manually for a fast hardware overview, not part of boot.
-# AI-functions: print_header, check_status, main
+# AI-hint: !/bin/bash Standalone diagnostic that prints a colorized terminal report of the build/dev host - distro, kernel, uptime, CPU+virt flags, memory, GPU/NVIDIA,...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_system_summary_sh.md
 
 
 set -euo pipefail

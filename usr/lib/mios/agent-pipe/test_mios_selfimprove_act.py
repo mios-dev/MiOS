@@ -1,6 +1,5 @@
-# AI-hint: Standalone unit test for mios_selfimprove_act (T-062 ACT + T-064 proof-of-utility decision core): structural anti-reward-hacking isolation (improvable allowed / protected denied / deny-wins / empty-degrade-closed), proposal shape validation, the Autodata solver-gap discriminative signal + eval curation, the pass^k reliability score, the proof-of-utility non-regression gate (margin + require-improvement), and decide_proposal composing them so a proposal targeting the protected evaluator surface is rejected BEFORE it is ever scored. Pure stdlib + the two sibling modules (mios_selfimprove_act / mios_bench) -- no server.py / DB / live models. Surfaces/ids are synthetic non-dictionary tokens so the test proves STRUCTURAL set-membership, never an English/keyword match.
-# AI-related: mios_selfimprove_act, mios_bench
-# AI-functions: _check, t_isolation, t_validate, t_gap, t_curate, t_passhatk, t_proof, t_decide, main
+# AI-hint: Standalone unit test for mios_selfimprove_act (T-062 ACT + T-064 proof-of-utility decision core): structural anti-reward-hacking isolation...
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_selfimprove_act_py.md
 """Standalone unit test for mios_selfimprove_act (T-062/T-064 ACT decision core).
 
 Pure stdlib + the sibling modules only -- no server.py / DB / live models. Proves

@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network. Verifies the CRL class: revoke()->is_revoked True, restore()->False, ids() reflects the current sorted set, load() round-trips from list/tuple/set/dict-with-revoked/malformed (degrade-open to empty), merge() unions ids, __init__ normalization (str-coerce + strip + drop-empty + dedup), unknown-id negatives, and the whitespace/None/empty edge cases the verifier relies on.
-# AI-related: ./mios_crl.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_crl_py.md
 """Unit tests for mios_crl (WS-A10 token/cert revocation list)."""
 
 import sys

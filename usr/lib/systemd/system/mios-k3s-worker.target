@@ -1,5 +1,5 @@
-# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
-# AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target
+/* AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies. */
+/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_k3s_worker_target.md */
 [Unit]
 Description='MiOS' K3s worker role (agent)
 Requires=multi-user.target

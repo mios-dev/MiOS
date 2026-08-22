@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_kvgc (WS-A4 KV-file GC planner). Pure stdlib, no server.py/DB/podman/pytest. Verifies the TTL pass (age-out old files), the total-size cap (oldest-first eviction until under cap), that protected/active-slot files are NEVER evicted (even when over cap), freed-bytes accounting, and the empty/no-op cases.
-# AI-related: ./mios_kvgc.py
-# AI-functions: check, main
+# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_kvgc (WS-A4 KV-file GC planner). Pure stdlib, no server.py/DB/podman/pytest.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_kvgc_py.md
 """Unit tests for mios_kvgc (WS-A4)."""
 
 import sys

@@ -1,0 +1,49 @@
+<!-- AI-hint: Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. -->
+
+# Harvested notes
+
+### AI-hint
+
+AI-hint: Defines additional image stores for container engines; currently disabled as a no-op to prevent permission-related startup failures for rootless podman users on podman-machine-os.
+AI-related: mios-additionalstores
+/etc/containers/storage.conf.d/30-mios-additionalstores.conf
+
+DISABLED 2026-05-06.
+
+This file used to add /var/lib/containers/storage as an
+`additionalimagestores` entry so rootless users could read
+rootful-built images (Universal Blue / Bazzite pattern). On
+bare-metal Fedora atomic-desktop bases that works because
+/var/lib/containers/storage is mode 0755 -- non-root users can
+read but not write.
+
+On podman-machine-os (the WSL2 dev VM in MiOS-DEV) the rootful
+storage path is created mode 0700 by machine-os defaults. With
+the additional store configured, rootless podman invocations
+(default `user` UID 1000, the mios user) ALL fail at startup:
+
+    Error: configure storage:
+      open /var/lib/containers/storage/overlay-images/images.lock:
+      open /var/lib/containers/storage/overlay-images/images.lock:
+      permission denied
+
+(visible at every `wsl -d podman-MiOS-DEV` entry on 2026-05-06
+paste). This blocks every podman invocation rootless users
+attempt -- including the dashboard MOTD's `podman ps` count, the
+Quadlet status display, etc.
+
+The fix on machine-os specifically would be to chmod the rootful
+store dir to 0755 and ensure images.lock is mode 0644. That's a
+seed-time chmod we'll add when the rest of the rootless flow is
+stable. Until then this file is intentionally a no-op (no
+`[storage.options]` block written) so default rootless storage
+resolution proceeds cleanly.
+
+To re-enable the cross-store bridge later:
+  1. Verify /var/lib/containers/storage is at least mode 0755 + g+rx
+  2. Verify images.lock is at least mode 0644
+  3. Restore the [storage.options] additionalimagestores block
+     that this file used to ship with.
+
+<!-- mios-src:185ab798ff0e from etc/containers/storage.conf.d/30-mios-additionalstores.conf:1-40 -->
+

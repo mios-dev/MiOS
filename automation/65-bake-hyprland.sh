@@ -1,7 +1,5 @@
-#!/bin/bash
-# MIOS_APPLY_CLASS=universal
-# AI-hint: Installs Hyprland tiling compositor, XWayland, window routing helpers, and constructs the base layout configuration inside /usr/share/mios/hyprland/hyprland.conf.
-# AI-related: /usr/share/mios/hyprland/hyprland.conf, /usr/bin/hyprland
+# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs Hyprland tiling compositor, XWayland, window routing helpers, and constructs the base layout configuration inside...
+# AI-doc: usr/share/doc/mios/manual/_harvest/automation_65_bake_hyprland_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,26 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Integration test script to verify that the `refine` post-parse logic correctly demotes long, multi-step prompts to `agent` intent while preserving short, direct commands as `dispatch` intents.
-# AI-related: /usr/lib/mios/agent-pipe, /usr/share/mios/mios.toml
-# AI-functions: main
-"""Verify the new refine post-parse guards demote misclassified
-intents to `agent`. Three cases:
-
-  1. Long multi-step prompt -- exact operator-flagged trace:
-     "find all of my installed games; research all their ratings,
-     review and launch the highest reviewed game I have installed
-     for me on my PC". Refine model may emit intent=dispatch (as
-     it did in the failure trace); the length guard should promote
-     to agent so the planner can decompose.
-  2. Short legitimate dispatch -- "open chrome". Should pass
-     through as intent=dispatch (length under threshold).
-  3. Multi-word arg value -- simulate a refine output via direct
-     guard invocation (refine model is non-deterministic, so we
-     can't always force it; this case is exercised by calling the
-     guard logic directly with a forged envelope).
-
-Live test against the real refine endpoint -- slow (15-30s per
-call on CPU).
-"""
+# AI-hint: !/usr/bin/env python3 Integration test script to verify that the `refine` post-parse logic correctly demotes long, multi-step prompts to `agent` intent while prese...
+# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_refine_guards_py.md
 from __future__ import annotations
 import asyncio
 import os

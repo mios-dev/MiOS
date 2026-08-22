@@ -1,7 +1,5 @@
-#!/usr/bin/env python3
-# AI-hint: Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. The archetype has exactly ONE canonical name, [blade].type; every archetype must ship the target its name derives, every alias must land on an archetype, the role targets must form a COMPLETE conflict graph (an incomplete one makes `mios blade set` start the new role without stopping the old), no [Install] may carry an alias that systemd cannot accept, and the retired [profile].role/.features spelling must not come back -- in the SSOT or in either resolver's keep-list.
-# AI-related: usr/share/mios/mios.toml, usr/lib/mios/blade.sh, usr/libexec/mios/role-apply, usr/libexec/mios/mios-blade, usr/lib/mios/mios_toml.py, tools/native/mios-ssot-walk/src/lib.rs, tools/test_check-role-ssot.py
-# AI-functions: archetypes, aliases, role_targets, unit_body, check_type, check_targets, check_capabilities_consumed, check_aliases, check_conflicts, check_aliases_in_units, check_profile_retired, check_no_hardcoded_roles, collect, main
+# AI-hint: !/usr/bin/env python3 Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is.
+# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_role_ssot_py.md
 """Gate: the blade role is stated once, legally, and in one place."""
 
 import os

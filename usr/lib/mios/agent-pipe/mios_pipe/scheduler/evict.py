@@ -1,6 +1,5 @@
-# AI-hint: WS-A3 pure, DB-free logic for the knowledge-table eviction sweep -- now PARAMETERIZED POSTGRES (the cutover). Builds parameterized pg SQL (named %(min_access)s/%(ttl_days)s/%(limit)s/%(ids)s placeholders -- NO string interpolation, injection-safe) + parses pg dict-rows, replacing the old legacy query fragments that NO-OP'd under db_backend=postgres (the legacy DELETE/count never reached pg). server.py owns the mios_pg I/O + the loop; this module owns the deterministic SQL-building + parsing + the blast-radius arithmetic so it unit-tests in isolation.
-# AI-related: ./mios_pg.py, ./server.py, /usr/share/mios/postgres/schema-init.sql, ./test_mios_evict.py
-# AI-functions: evict_where, order_by, count_sql, select_ids_sql, delete_ids_sql, evict_params, parse_count, parse_ids, plan_sweep
+# AI-hint: WS-A3 pure, DB-free logic for the knowledge-table eviction sweep -- now PARAMETERIZED POSTGRES (the cutover).
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_evict_py.md
 """mios_evict -- pure helpers for the knowledge-table eviction sweep (WS-A3).
 
 DB-free + stdlib-only so the SQL-building, response-parsing, and planning logic

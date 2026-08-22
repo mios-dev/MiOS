@@ -1,6 +1,5 @@
-#!/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3
-# AI-hint: Verification test suite for mios_cua hierarchy routing, verify-after-action, and coordinate scaling.
-# AI-related: /usr/lib/mios/agent-pipe/test_mios_cua_hierarchy.py, /usr/lib/mios/agent-pipe/mios_pipe/routing/cua.py
+# AI-hint: !/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3 Verification test suite for mios_cua hierarchy routing, verify-after-action, and coordinate scaling.
+# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_cua_hierarchy_py.md
 
 import sys
 import os
