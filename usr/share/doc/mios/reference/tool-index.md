@@ -445,6 +445,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/dag_exec.py` | DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave). The planned-DAG execution brain: _execute_dag_node (run ONE node -- an agent delegation OR a tool verb -- with ReWOO #E... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/dag_validate.py` | Pure pre-execution validator and Kahn topological classifier for runtime agent DAGs. |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/dci.py` | Deliberative Collective Intelligence (DCI) subsystem extracted verbatim from server.py (refactor R6 wave). 14 typed epistemic acts (Habermas-rooted, arxiv 2603.11781) grouped into 6 families ->... |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py` | Verb -> bash COMMAND BUILDER, extracted VERBATIM from mios_dispatch.py (T-273). The pure-ish half of the dispatch chokepoint: _dispatch_sandbox_profile (resolve the WS-A13 confinement profile from... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/dispatcher.py` | WS-A11/WS-3 server.py decomposition -- Stage 1c: the pure Dispatcher. Runs a RouteDecision (from mios_router) by routing its `mode` to the matching per-mode HANDLER, where handlers are INJECTED... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/fanout.py` | Council/swarm fan-out SELECTION (refactor R3 wave; de-hardcoded per operator "the scoring IS a hardcode in and of itself"). Sole export _pick_fanout_agents (now async): picks the SECONDARY (name,cfg)... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/hopbudget.py` | WS-4 orchestrator-worker hop-budget + effort-scaling pure core. Extracts the cross-hop recursion-bound DECISIONS (depth_exhausted, the Via-chain loop guard, the Max-Forwards-style header seed) out of... |
@@ -586,6 +587,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_dbwrite.py` | Unit tests for mios_pipe.dbwrite. |
 | `usr/lib/mios/agent-pipe/test_mios_dci.py` | Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. Pins the DCI epistemic-act vocabulary + structured-output contract the... |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch.py` | Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint). Verifies _build_dispatch_cmd shapes a representative verb's argv (both a hardcoded branch and an SSOT cmd-template... |
+| `usr/lib/mios/agent-pipe/test_mios_dispatch_cmd.py` | Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273). Imported directly, never through mios_dispatch, so it proves the... |
 | `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + its integration with mios_router + mios_kernel. Pure stdlib + asyncio, no... |
 | `usr/lib/mios/agent-pipe/test_mios_drift_monitor.py` | Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no live model: the module is pure. Proves the Done-When math... |
 | `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. Verifies fact_ledger & progress_ledger table insertion triggers,... |
@@ -697,7 +699,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. Collapses the ~13 independently re-rolled `try: import tomllib except: import tomli` +... |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests for the Python tokenize/ast path and the inline-comment case. |
 
-<!-- derived from the AI-hint headers of 387 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 389 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
