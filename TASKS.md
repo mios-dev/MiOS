@@ -317,6 +317,8 @@
 | T-329 | P1 | partial | Topology/SSOT | BLADE-07 -- blade_reachability_critical was emitted, described in docs, and read by nothing |
 | T-330 | P1 | planned | Build/Image | BAKE-01 -- A ~16 GB payload ships for a lane no archetype starts |
 | T-331 | P0 | partial | Topology/SSOT | MINI-03 -- MiOS-Mini is the BOX; the tree said it was the seat, and shipped that |
+| T-332 | P1 | planned | Docs/SSOT | MINI-04 -- One architecture, two documents, two names, both shipped (207 of 224 lines identical) |
+| T-333 | P0 | planned | Topology/SSOT | MINI-05 -- Every capability a MiOS-Mini is defined by is single-node or absent |
 
 ---
 
@@ -3151,3 +3153,54 @@ So `mios-metal-architecture.md` is a 138-line design with source URLs for a mach
 
 Sub-tasks to split out as each is scoped: AP/radio plane · mesh control plane · router core · hypervisor plane · hyper-converged storage · HA/quorum for 2-6 nodes.
 **Why:** every architectural decision on this branch was reasoned from "Mini = seat". The seat archetype is real and the work built on it stands, but the NAME was attached to the wrong half of the system, and a generated document asserted it. A wrong noun in an SSOT-projected doc propagates further than a wrong constant, because nothing regenerates a reader's understanding. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-332 -- MINI-04: one architecture, two documents, two names, both shipped  (WS-MINI | P1 | S)
+**Goal:** E-08 One canonical document per subject. Two copies of an architecture under two names is a naming contradiction that regenerates itself every time either is edited.
+**What+How:** MEASURED, exactly:
+
+| | `docs/agy/doc-mios-mini.md` | `usr/share/doc/mios/concepts/mios-metal-architecture.md` |
+|---|---|---|
+| lines | 224 | 224 |
+| lines identical to the other | **207** | **207** |
+| differing lines | 17, of which **15 are the name** | same |
+
+They are one document with a find-and-replace applied. One says *"**MiOS-Mini** is a deliberately small Fedora bootc image whose only job is to be the metal-owning firmware of a box: a headless, immutable hypervisor + hardware packet-router + Wi-Fi access point"*; the other says the identical sentence with **MiOS-Metal**. ADR-0016 D3's rename produced a COPY rather than a move, and both now ship.
+
+**The names need not conflict, and the resolution should keep both.** Per T-331 the operator's definition makes **MiOS-Mini the BOX** -- the hardware appliance. "MiOS-Metal" is a good name for the *metal-owning host plane image* that runs on that box and boots the MiOS guest. Box and plane are different levels, and a document about the plane may legitimately be called Metal. What is not legitimate is two full copies where editing one silently diverges from the other.
+
+**Constraint on the fix:** `docs/agy/` is NOT under `usr/`, so it is repo-only and never deployed; `usr/share/doc/mios/concepts/` ships to the booted host. The canonical text must therefore live in the shipped path, and the `docs/agy/` copy become a pointer -- not the other way round.
+
+**One detail to settle, not to guess:** the shipped Metal doc's ASCII diagram at line 33 still labels the box `MiOS-MINI` (the find-and-replace missed it). Under T-331 that label is arguably CORRECT -- the box IS a MiOS-Mini, and the host plane inside it is Metal. Decide deliberately whether the diagram names the box or the plane, and make the label match; do not "fix" it reflexively to Metal.
+**Where:** `docs/agy/doc-mios-mini.md`, `usr/share/doc/mios/concepts/mios-metal-architecture.md`, `usr/share/doc/mios/reference/audit-mios-metal.md`, `usr/share/doc/mios/README.md`, `automation/98-drift-checks.sh` (`check_metal_vfio`).
+**Done When:** one canonical copy; the other is a pointer; the diagram label is a decision rather than a leftover; and a gate catches the next near-duplicate pair -- `docs/agy/dedup-campaign.md` already exists, so this belongs to that campaign rather than to a one-off deletion here.
+**Note:** deliberately NOT fixed in this change. `docs/agy/` is another agent's working tree and it has an in-flight dedup campaign; deleting or rewriting its file mid-flight would collide. This entry hands over the measurement.
+**Why:** the duplication is what let ADR-0016 D3 assert a wrong name for a whole session without anything contradicting it -- the doc that disagreed was a copy nobody diffed. | **Domain:** Docs/SSOT | **Who:** architect
+
+## T-333 -- MINI-05: every capability a MiOS-Mini is defined by is single-node or absent  (WS-MINI | P0 | XL)
+**Goal:** E-07 A 2-6 box fleet is the normal deployment shape, so single-node must be the degenerate case of the fleet design, not the only case that exists.
+**What+How:** A six-lane audit of the tree, each lane verified adversarially against "if someone booted this image on a mini-PC today, would it work?". The answer is no for every lane, and the *reasons differ*, which is why this is one task with six children rather than one lump.
+
+| Lane | What ships | Fleet-ready? |
+|---|---|---|
+| **Wi-Fi AP** | nothing at all. `hostapd` appears in 3 DOCUMENTS and no unit, Quadlet, SSOT key or capability. `wpa_supplicant`/`nl80211` appear on one line each, in duplicate doc tables. | **absent** |
+| **Mesh / VPN** | no transport. Tailscale is an *external* dependency (a repo file dropped at build, package never installed); `headscale` is a name in `[metal.mesh]` with zero implementation; `wireguard`/`wg-quick`/`netbird`/`nebula`/`zerotier`/`tinc`/`VXLAN` = **zero hits repo-wide**. | **absent** |
+| **Router core** | `nftables` inet + flowtable and `dnsmasq` are design prose only. | **absent** |
+| **Hypervisor** | `[metal].enabled = false`; `[metal.gpu]` declares VFIO assignments and arbitration. | **gated off** |
+| **Hyper-converged storage** | Ceph is the only distributed stack and is real code -- bootstrap unit, `ceph-bootstrap.sh`, a MON-only Quadlet, a 252-line CephFS provisioner, a config renderer. But it is **single-node, MON-only, opt-in**: the bootstrap unit is never enabled, refuses to run under virtualisation, and `ceph-bootstrap.sh` **never touches a block device** -- no OSD is ever created. Nothing in the tree adds a second MON or joins a peer. | **single-node scaffold** |
+| **HA** | `mios-ha-bootstrap.service:21` runs `pcs cluster setup --name mios-ha $(hostname -s) --force` with `stonith-enabled=false`. A one-node Pacemaker cluster with fencing disabled. | **single-node, unfenced** |
+| **Containers** | 23 Quadlets in 3 generated pods, all `Network=host`. **k3s ships as `server` on every machine that runs it; no agent/worker path exists anywhere in the tree.** | **single-node** |
+
+**The finding that matters most is not any single lane.** `[blade.requires]` already generates k3s `nodeSelector`s and Pacemaker location rules (`tools/generate-blade-dropins.py`), and **nothing consumes them at runtime**. The placement machinery for a fleet is projected, gated and tested -- and inert. That is the same decorative-key failure as `[greenboot].blade_reachability_critical` (T-329) and `[security].api_require_auth` (T-325), except it is the whole scheduler axis rather than one flag.
+
+**What 2-6 nodes specifically breaks:**
+* **k3s as server everywhere** gives N independent control planes, not one cluster. A fleet needs exactly one `--cluster-init` server and the rest joining -- either as servers with an embedded-etcd quorum or as agents. Nothing decides which, because `[blade.archetypes]` grants `controller` to four archetypes and `mios-k3s` requires it, so four machines would each stand up a control plane.
+* **Two nodes cannot hold quorum.** Both etcd and Corosync need an odd count or a witness. At the operator's stated *minimum* of 2, HA is impossible without a qdevice/arbiter, and at 3 it works. The design must state which of the two shapes it targets rather than inherit a three-node assumption.
+* **Ceph at 2-6** means `size`/`min_size` is a real decision: at 3 you survive one loss, at 2 you go read-only on any loss. `check_cephfs_ssot` already refuses a loopback monitor address once `enable=true`, so the gate is ahead of the implementation.
+* **`stonith-enabled=false` is safe on one node and dangerous on several.** Unfenced multi-node Pacemaker with shared storage is how split-brain corrupts data. Fencing is not optional once node 2 exists.
+
+**Where:** `usr/lib/systemd/system/mios-ha-bootstrap.service`, `usr/libexec/mios/ceph-bootstrap.sh`, `usr/share/containers/systemd/mios-k3s.container`, `tools/generate-blade-dropins.py`, `usr/share/mios/mios.toml` (`[blades]`, `[metal]`, `[metal.mesh]`, `[blade.archetypes]`).
+**Done When:** each lane has its own task with a stated target shape for 2-6 nodes, and the two that are dangerous rather than merely missing -- unfenced multi-node Pacemaker, and k3s-server-on-every-controller -- are gated so they cannot be reached accidentally by adding a second machine.
+**Status:** planned
+
+Children to split: MINI-05a AP/radio plane · 05b mesh control plane · 05c router core · 05d hypervisor plane · 05e Ceph beyond one MON · 05f k3s server/agent election · 05g Pacemaker quorum + fencing for 2-6.
+**Why:** T-331 established that MiOS-Mini is the box and that most of what it is defined by is a target. This is the measurement of exactly how far the target is, so the roadmap stops describing a machine the image cannot be. | **Domain:** Topology/SSOT | **Who:** architect
