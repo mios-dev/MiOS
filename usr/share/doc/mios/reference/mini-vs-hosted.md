@@ -13,15 +13,15 @@ A **MiOS-Mini** is a box. A **hosted MiOS OCI image** is the same image in a dif
 
 `[blade.planes].owner` is that line, and it is the whole definition of offload:
 
-- **`mini`** — the plane owns metal this box has and a guest does not: radios, the uplink NIC, the hypervisor itself, a vote in the cluster. It **cannot be shed**, because a hosted image has nothing to shed it onto.
+- **`mini`** — the plane owns metal this box has and a guest does not: radios, the uplink NIC, the hypervisor itself. It **cannot be shed**, because a hosted image has nothing to shed it onto.
 - **`either`** — the plane is a workload. A Mini runs it by default and may hand it to any peer; a hosted image can accept it.
 
-So "offload all services to hosted MiOS OCI image(s)" means exactly **3 of 8 planes**: `ai`, `orchestrator`, `storage`. The other 5 (`ha`, `hypervisor`, `mesh`, `radio`, `router`) are what make the box a Mini, and a Mini that shed them would stop being one.
+So "offload all services to hosted MiOS OCI image(s)" means exactly **4 of 8 planes**: `ai`, `ha`, `orchestrator`, `storage`. The other 4 (`hypervisor`, `mesh`, `radio`, `router`) are what make the box a Mini, and a Mini that shed them would stop being one.
 
 | Plane | Owner | Can be shed | Baked | Wired |
 |---|---|---|---|---|
 | `ai` | `either` | yes | n/a — payload, not RPM | `usr/share/containers/systemd/mios-llm-light.container` |
-| `ha` | `mini` | **no** | yes — `pacemaker`, `corosync` | `usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh` |
+| `ha` | `either` | yes | yes — `pacemaker`, `corosync` | `usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh` |
 | `hypervisor` | `mini` | **no** | yes — `libvirt`, `qemu-kvm` | `usr/lib/sysctl.d/99-mios-vmhost.conf` |
 | `mesh` | `mini` | **no** | **no** — missing `tailscale` | **nothing declared** |
 | `orchestrator` | `either` | yes | yes — `k3s` | `usr/share/containers/systemd/mios-k3s.container` |
@@ -32,13 +32,15 @@ So "offload all services to hosted MiOS OCI image(s)" means exactly **3 of 8 pla
 | Plane | What it does |
 |---|---|
 | `ai` | the OpenAI-compatible front door and the lanes behind it |
-| `ha` | Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1) |
+| `ha` | Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote (ADR-0016 D11), so fencing one goes via its host |
 | `hypervisor` | runs the VMs and containers every other plane lands in |
 | `mesh` | joins every node and service into one addressable overlay |
-| `orchestrator` | k3s: places containers across the fleet (ADR-0017 D1) |
-| `radio` | serves WiFi clients as an access point |
-| `router` | is the uplink: forwards, NATs and filters for the clients it serves |
-| `storage` | CephFS: the shared filesystem a shed workload keeps its state on |
+| `orchestrator` | k3s: places containers across the fleet (ADR-0017 D1). Peers JOIN one elected server, never stand up their own (ADR-0016 D11) |
+| `radio` | serves WiFi clients as an access point; needs [blade.hardware].min_ap_capable of the min_interfaces |
+| `router` | is the uplink: forwards, NATs and filters for the clients it serves, on a different interface from the one serving them |
+| `storage` | CephFS, shadow-copied across the mesh (local, localhost, remote) so a shed workload lands on its data rather than cold-starting |
+
+Two of those planes share one metal floor. Serving clients **and** being the uplink needs **2 separate interfaces**, at least **1** of which can run as an access point — any mix of radios and wired links counts (ADR-0016 D11). A box below that floor can host `router` or `radio`, never both.
 
 **Read the two right-hand columns narrowly.** *Baked* means every marker package is in `[packages]` — Law 12 satisfied, nothing to fetch at boot. *Wired* means the named file exists in the tree. Neither claims the plane is finished: `router` is baked and its forwarding sysctl is applied, and it still has no NAT ruleset or client DHCP (T-337). A plane is only complete when a gate proves it end to end.
 
@@ -49,7 +51,7 @@ What that leaves open right now, derived rather than asserted:
 - `mesh` (`mini`) has **no wiring declared** — nothing in the tree activates it.
 - `radio` (`mini`) has **no wiring declared** — nothing in the tree activates it.
 
-Every one of those is an `owner = "mini"` plane, which is the finding: the planes a hosted image was never going to provide are the ones the Mini does not yet have either.
+Every one of those is an `owner = "mini"` plane, and that is the finding: the planes a hosted image was never going to provide are exactly the ones the Mini does not have yet — and the only ones adding a peer cannot supply.
 
 ## Part 2 — the two modes
 

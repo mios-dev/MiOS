@@ -274,5 +274,54 @@ class TestPlanes(unittest.TestCase):
                 self.assertTrue(wired, "%s points at a file that is gone: %s"
                                 % (name, wired_by))
 
+
+class TestHardwareFloor(unittest.TestCase):
+    """The floor is INTERFACES, not radios: any mix counts as long as two are
+    separate and one can be an AP. ADR-0016 D11."""
+
+    def test_the_floor_is_rendered_from_the_ssot(self):
+        d = with_planes()
+        d["blade"]["hardware"] = {"min_interfaces": 3, "min_ap_capable": 2}
+        text = mod.render(d, _ROOT)
+        self.assertIn("**3 separate interfaces**", text)
+        self.assertIn("least **2**", text)
+
+    def test_no_declared_floor_renders_no_claim(self):
+        # Better silent than inventing a floor the SSOT never stated.
+        text = mod.render(with_planes(), _ROOT)
+        self.assertNotIn("separate interfaces", text)
+
+    def test_the_shipped_floor_admits_a_wired_plus_radio_box(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            hw = (tomllib.load(fh)["blade"]).get("hardware") or {}
+        self.assertEqual(hw.get("min_interfaces"), 2)
+        # One AP-capable interface, not two radios -- 1 radio + 1 wired WAN
+        # must satisfy the floor.
+        self.assertEqual(hw.get("min_ap_capable"), 1)
+
+
+class TestOpenItemsClaim(unittest.TestCase):
+    """The "only a Mini can supply these" sentence is a CLAIM about the open
+    set. It must be derived, or moving one owner silently makes it false."""
+
+    def test_all_mini_open_items_keep_the_strong_claim(self):
+        text = mod.render(with_planes(), _ROOT)
+        self.assertIn("only ones adding a peer cannot supply", text)
+
+    def test_an_open_either_plane_retracts_it(self):
+        d = with_planes()
+        d["blade"]["planes"]["storage"]["markers"] = ["not-a-package"]
+        text = mod.render(d, _ROOT)
+        self.assertNotIn("only ones adding a peer cannot supply", text)
+        self.assertIn("can be supplied by adding a peer", text)
+
+    def test_the_shipped_tree_still_earns_the_strong_claim(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            data = tomllib.load(fh)
+        rows = mod.plane_rows(_ROOT, data)
+        open_rows = [r for r in rows if (r[3] and r[4]) or not r[5]]
+        self.assertTrue(open_rows, "nothing open -- this test would pass vacuously")
+        self.assertEqual(set(r[2] for r in open_rows), {"mini"})
+
 if __name__ == "__main__":
     unittest.main()

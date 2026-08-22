@@ -204,8 +204,8 @@ def render(data: dict, root: str = ".") -> str:
       "offload:")
     a("")
     a("- **`mini`** — the plane owns metal this box has and a guest does not: "
-      "radios, the uplink NIC, the hypervisor itself, a vote in the cluster. It "
-      "**cannot be shed**, because a hosted image has nothing to shed it onto.")
+      "radios, the uplink NIC, the hypervisor itself. It **cannot be shed**, "
+      "because a hosted image has nothing to shed it onto.")
     a("- **`either`** — the plane is a workload. A Mini runs it by default and "
       "may hand it to any peer; a hosted image can accept it.")
     a("")
@@ -244,12 +244,22 @@ def render(data: dict, root: str = ".") -> str:
             a("| `%s` | %s |" % (name, role))
         a("")
     if planes:
-        a("**Read the two right-hand columns narrowly.** *Baked* means every marker "
-          "package is in `[packages]` — Law 12 satisfied, nothing to fetch at boot. "
-          "*Wired* means the named file exists in the tree. Neither claims the plane "
-          "is finished: `router` is baked and its forwarding sysctl is applied, and "
-          "it still has no NAT ruleset or client DHCP (T-337). A plane is only "
-          "complete when a gate proves it end to end.")
+        hw = (data.get("blade") or {}).get("hardware") or {}
+        if hw:
+            a("Two of those planes share one metal floor. Serving clients "
+              "**and** being the uplink needs **%s separate interfaces**, at "
+              "least **%s** of which can run as an access point — any mix of "
+              "radios and wired links counts (ADR-0016 D11). A box below that "
+              "floor can host `router` or `radio`, never both."
+              % (hw.get("min_interfaces", "?"), hw.get("min_ap_capable", "?")))
+            a("")
+        a("**Read the two right-hand columns narrowly.** *Baked* means every "
+          "marker package is in `[packages]` — Law 12 satisfied, nothing to "
+          "fetch at boot. *Wired* means the named file exists in the tree. "
+          "Neither claims the plane is finished: `router` is baked and its "
+          "forwarding sysctl is applied, and it still has no NAT ruleset or "
+          "client DHCP (T-337). A plane is only complete when a gate proves it "
+          "end to end.")
         a("")
         unbaked = [r for r in planes if r[3] and r[4]]
         unwired = [r for r in planes if not r[5]]
@@ -257,17 +267,28 @@ def render(data: dict, root: str = ".") -> str:
             a("What that leaves open right now, derived rather than asserted:")
             a("")
             for name, _r, owner, _m, missing, _w, _wd in unbaked:
-                a("- `%s` (`%s`) is **not baked** — `%s` absent from `[packages]`, so "
-                  "the plane would have to be fetched at runtime, which Law 12 "
-                  "forbids." % (name, owner, "`, `".join(missing)))
+                a("- `%s` (`%s`) is **not baked** — `%s` absent from "
+                  "`[packages]`, so the plane would have to be fetched at "
+                  "runtime, which Law 12 forbids."
+                  % (name, owner, "`, `".join(missing)))
             for name, _r, owner, _m, _mi, wired_by, _wd in unwired:
                 if not wired_by:
-                    a("- `%s` (`%s`) has **no wiring declared** — nothing in the tree "
-                      "activates it." % (name, owner))
+                    a("- `%s` (`%s`) has **no wiring declared** — nothing in "
+                      "the tree activates it." % (name, owner))
             a("")
-            a("Every one of those is an `owner = \"mini\"` plane, which is the "
-              "finding: the planes a hosted image was never going to provide are "
-              "the ones the Mini does not yet have either.")
+            # Derived, not asserted: if a movable plane ever joins this set the
+            # sentence must change, because then a peer COULD supply it.
+            open_owners = set(r[2] for r in unbaked) | set(
+                r[2] for r in unwired if not r[5])
+            if open_owners == {"mini"}:
+                a("Every one of those is an `owner = \"mini\"` plane, and that "
+                  "is the finding: the planes a hosted image was never going to "
+                  "provide are exactly the ones the Mini does not have yet — "
+                  "and the only ones adding a peer cannot supply.")
+            else:
+                a("Not all of those are `owner = \"mini\"`. The `%s` ones can "
+                  "be supplied by adding a peer; the `mini` ones cannot."
+                  % "`, `".join(sorted(open_owners - {"mini"})))
             a("")
     a("## Part 2 — the two modes")
     a("")

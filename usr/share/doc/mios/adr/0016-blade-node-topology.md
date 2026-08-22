@@ -8,7 +8,7 @@ date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
 laws: [1, 3, 5, 7, 8, 9, 12]
-ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
+ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blade.hardware, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
 related_ws: [WS-BLADE, WS-MIOSSYS, WS-GUARD]
 supersedes: []
 superseded_by: []
@@ -650,6 +650,78 @@ That is the finding this decision exists to make visible: **the planes a hosted 
 going to provide are precisely the ones the Mini does not have yet.** The gap between the two
 products is not that hosted instances are missing capability — it is that the Mini-only tier is the
 least built tier in the tree, and it is the only tier that cannot be filled by adding a peer.
+
+
+### 11. Four axes the operator settled, and what each one costs
+
+Decision 10 drew the ownership line and left five axes open. Four are answered here. Each changes
+what gets built, so each is recorded with the price it carries rather than as a preference.
+
+#### 11.1 The hardware floor is **interfaces**, not radios
+
+> *"1 radio + 1 WAN, 2 radios and/or any amount of either as long as it combines to 2 separate
+> interfaces."*
+
+`[blade.hardware].min_interfaces = 2`, `min_ap_capable = 1`. Serving clients **and** being the uplink
+needs two separate interfaces; any mix satisfies it — one radio plus a wired WAN, two radios, or
+more. At least one must be able to run as an access point.
+
+This is a better constraint than a radio count, because it is the one that is actually true: the
+`radio` and `router` planes need *separation*, not *wirelessness*. It also widens the hardware
+envelope considerably — a mini-PC with an ethernet port and one WiFi card qualifies.
+
+The cost is that the floor is now checkable at runtime and nothing checks it. A box with one
+interface can still resolve an archetype that grants both planes, and will simply fail to be an
+uplink and an AP at once. A gate has to enforce this or it is documentation.
+
+#### 11.2 A guest may hold a vote, so `ha` moves to `either`
+
+`[blade.planes.ha].owner` was `mini` on the reasoning that fencing needs a real machine to power-cycle.
+The operator's answer overrides that: a hosted MiOS image may be a cluster member.
+
+What this buys is an odd quorum on two physical boxes — the common small-fleet case — without
+buying a third box. `corosync-qdevice` and `corosync-qnetd` are already in `[packages]`, so the
+mechanism ships.
+
+**The cost is that fencing a guest goes via its host, which is a strictly weaker guarantee.** If the
+host is the thing that failed, the fence cannot be confirmed, and an unconfirmable fence is how
+Pacemaker deadlocks rather than corrupts — it will refuse to recover the resource. `pacemaker-unfenced`
+therefore stops being a one-node concession and becomes a real design item: STONITH must be
+configured with a fencing path per member *kind*, not one path for all members.
+
+#### 11.3 Peer #2 **joins**; it does not federate
+
+> One cluster, one elected server. Later boxes join it.
+
+This settles the `k3s-multi-server` hazard's *shape*: the defect is not that the unit runs
+`k3s server`, it is that it runs it unconditionally. The fix is an election — first box up is the
+server, every later box resolves `K3S_URL` to it and starts as an agent — not a second control plane.
+
+The cost is that a join-based cluster has a single control plane to lose. At three or more boxes the
+k3s-native answer is an HA control plane (embedded etcd across three servers), which means the
+election is not "one server forever" but "one server until there are three". That threshold has to be
+declared in SSOT alongside `[blades].typical_nodes`, or the fleet grows into a split-brain instead of
+into quorum.
+
+#### 11.4 CephFS shadow-copies across the mesh, so a shed workload is never cold
+
+> *"CephFS has shadow-copies across the mesh (local, localhost and remote)."*
+
+This was not one of the three options offered, and it is a better answer than any of them. The
+question assumed the peer either has the data or does not, making CephFS a *precondition* of
+accepting work. Replication removes the question: the data is already wherever the workload lands,
+so a shed is warm by construction and placement never has to check for a mount.
+
+It also makes `storage` structurally different from the other two `either` planes. `ai` and
+`orchestrator` are shed *to* one peer; `storage` is present on *all* of them. It is a movable plane
+that is never actually moved — only extended.
+
+**Two costs, both real.** First, "remote" in that sentence means data at rest on a machine outside the
+site, which collides with `[security.redact]` on the persist path and with the `config_kv`
+conflict-is-error rule in ADR-0017 D5 — a shadow copy that diverges during a partition is exactly the
+case that ADR says an operator must resolve. Second, replication is not free: every write costs
+bandwidth on the mesh, and the mesh plane is the one that is not baked yet (D10). CephFS
+shadow-copies over a link that does not exist is the ordering problem to solve first.
 
 
 ## Consequences

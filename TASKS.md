@@ -3345,24 +3345,38 @@ does not have yet, and they are the only ones a peer cannot supply.**
 
 **Done When:** every `owner = "mini"` plane is baked and wired (`radio` and `mesh` are the two open
 ones -- `radio` is T-333/MINI-05a, `mesh` is T-335); a gate proves a `mini` plane can never be
-scheduled onto a hosted instance; and the operator has settled the five axes below, each of which
-changes what gets built rather than how it is described.
+scheduled onto a hosted instance; `[blade.hardware]`'s interface floor is enforced rather than
+documented; and axis 5 below is settled.
 
-**Open, and blocking the fleet design rather than this decision:**
+**Four axes SETTLED by the operator (ADR-0016 D11), each with the work it creates:**
 
-1. **Radio count.** Serving clients *and* being the uplink needs two radios, or a wired WAN plus one.
-   That is a hardware floor on the product. Which is the reference Mini?
-2. **Uplink loss.** When the Mini's WAN dies, the box still serves clients and the mesh still routes.
-   Does a peer with a live uplink become the exit node, or does the site go dark?
-3. **`ha` ownership.** It is declared `mini` because a vote needs a real machine to fence. If a hosted
-   instance may hold a Corosync vote, it moves to `either` -- and `pacemaker-unfenced` stops being a
-   one-node concession.
-4. **Shed state.** `storage` is `either`, so CephFS is what a shed workload keeps state on. If the
-   plane a workload is shed *to* has no CephFS mount, the shed is a cold start. Is CephFS a
-   precondition of accepting work?
-5. **Cluster join.** *"It's all hosted as its own cluster"* -- when peer #2 arrives, does it join the
-   Mini's cluster or federate with it? Joining needs a server/agent election (`k3s-multi-server`);
-   federating needs a second control plane and a policy for which one owns a workload.
+1. **Hardware floor is INTERFACES, not radios.** *"1 radio + 1 WAN, 2 radios and/or any amount of
+   either as long as it combines to 2 separate interfaces."* Landed as `[blade.hardware]`
+   `min_interfaces = 2`, `min_ap_capable = 1`. **Creates:** nothing enforces it. A one-interface box
+   still resolves an archetype granting both `radio` and `router` and fails at runtime. Needs a gate.
+2. **A guest MAY hold a vote**, so `[blade.planes.ha].owner` moved `mini` -> `either`. **Creates:**
+   fencing a guest goes via its host, so STONITH needs a fencing path per member *kind*. An
+   unconfirmable fence deadlocks Pacemaker rather than corrupting -- it refuses to recover the
+   resource. `pacemaker-unfenced` is now a design item, not a one-node concession.
+3. **Peer #2 JOINS one elected server**, never federates. **Creates:** the `k3s-multi-server` fix is
+   an election (first box up is the server; later boxes resolve `K3S_URL` to it and start as agents),
+   not a second control plane. At 3+ boxes the k3s-native answer is an HA control plane (embedded
+   etcd across 3 servers), so the election is "one server until there are three" -- that threshold
+   must be declared in SSOT beside `[blades].typical_nodes` or the fleet grows into split-brain.
+4. **CephFS shadow-copies across the mesh** (local, localhost, remote), so a shed workload lands on
+   its data and is never cold. Not one of the offered options and better than all three: it removes
+   the precondition question instead of answering it. **Creates:** (a) "remote" means data at rest
+   off-site, which collides with `[security.redact]` on the persist path and with ADR-0017 D5's
+   `config_kv` conflict-is-error rule -- a shadow copy that diverges during a partition is exactly
+   the case an operator must resolve; (b) replication needs the mesh, and `mesh` is the plane that is
+   not baked. CephFS shadow-copies over a link that does not exist is the ordering problem.
+
+**Still open:**
+
+5. **Uplink loss.** When the Mini's WAN dies, the box still serves clients and the mesh still routes.
+   Does a peer with a live uplink become the exit node, or does the site go dark? `router` is
+   `owner = "mini"` and therefore cannot be shed -- so if the answer is "a peer takes over", the
+   thing that moves is the *default route*, not the plane, and that needs its own declaration.
 
 **Why:** without the `mini`/`either` line, "offload all services" and "a Mini is a complete cluster"
 are the same sentence read two ways, and the tree cannot tell which one a scheduler should obey.

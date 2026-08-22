@@ -13221,6 +13221,15 @@ scratch      = "last-writer-wins"
 config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winner
 
 
+# [blade.hardware] -- the metal floor a Mini must meet. ADR-0016 D11.
+# Serving clients AND being the uplink needs two SEPARATE interfaces.
+
+# Any mix counts: 1 radio + 1 wired WAN, 2 radios, or more of either.
+# At least min_ap_capable of them must be able to run as an access point.
+[blade.hardware]
+min_interfaces = 2
+min_ap_capable = 1
+
 # [blade.planes] -- which planes a Mini owns and which can be shed.
 # Meaning of owner/markers/wired_by: ADR-0016 Decision 10.
 
@@ -13237,13 +13246,13 @@ markers  = ["libvirt", "qemu-kvm"]
 wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
 
 [blade.planes.radio]
-role     = "serves WiFi clients as an access point"
+role     = "serves WiFi clients as an access point; needs [blade.hardware].min_ap_capable of the min_interfaces"
 owner    = "mini"
 markers  = ["hostapd", "wpa_supplicant"]
 wired_by = ""
 
 [blade.planes.router]
-role     = "is the uplink: forwards, NATs and filters for the clients it serves"
+role     = "is the uplink: forwards, NATs and filters for the clients it serves, on a different interface from the one serving them"
 owner    = "mini"
 markers  = ["firewalld", "dnsmasq"]
 wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
@@ -13255,20 +13264,20 @@ markers  = ["tailscale"]
 wired_by = ""
 
 [blade.planes.storage]
-role     = "CephFS: the shared filesystem a shed workload keeps its state on"
+role     = "CephFS, shadow-copied across the mesh (local, localhost, remote) so a shed workload lands on its data rather than cold-starting"
 owner    = "either"
 markers  = ["ceph-common", "cephadm"]
 wired_by = "usr/share/containers/systemd/mios-ceph.container"
 
 [blade.planes.orchestrator]
-role     = "k3s: places containers across the fleet (ADR-0017 D1)"
+role     = "k3s: places containers across the fleet (ADR-0017 D1). Peers JOIN one elected server, never stand up their own (ADR-0016 D11)"
 owner    = "either"
 markers  = ["k3s"]
 wired_by = "usr/share/containers/systemd/mios-k3s.container"
 
 [blade.planes.ha]
-role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1)"
-owner    = "mini"
+role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote (ADR-0016 D11), so fencing one goes via its host"
+owner    = "either"
 markers  = ["pacemaker", "corosync"]
 wired_by = "usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh"
 
