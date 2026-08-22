@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a fully hosted, feature-complete MiOS blade. Every number is DERIVED from mios.toml ([blade.archetypes], [blade.requires], [blade].seat_side, [greenboot], [urls]), because a hand-written comparison is exactly the document that goes stale the moment an archetype gains a capability. --check is the drift gate.
 # AI-related: usr/share/mios/mios.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md, automation/98-drift-checks.sh, tools/test_generate-mini-vs-hosted.py
-# AI-functions: load, archetype_rows, seat_units, gated_off_on_seat, greenboot_rows, overlay_keys, render, main
+# AI-functions: load, archetype_rows, seat_units, gated_off_on_seat, greenboot_rows, overlay_keys, baked_payloads, render, main
 """Project the seat-vs-blade comparison out of the SSOT."""
 
 import os
@@ -90,6 +90,24 @@ def overlay_keys(data: dict) -> list:
     ]
 
 
+def baked_payloads(data: dict) -> list:
+    """[(name, source)] for every model weight the image bakes. Derived, never
+    hand-listed -- ADR-0016 D7."""
+    out = []
+    spec = str(((data.get("llamacpp") or {}).get("bake_models") or "")).strip()
+    for entry in spec.split(","):
+        entry = entry.strip()
+        if not entry or "=" not in entry:
+            continue
+        local, remote = entry.split("=", 1)
+        out.append((local.strip(), remote.strip()))
+    vllm = (data.get("ai") or {}).get("vllm") or {}
+    model = str(vllm.get("bake_model") or "").strip()
+    if model:
+        out.append(("vLLM snapshot", model))
+    return out
+
+
 def render(data: dict) -> str:
     rows = archetype_rows(data)
     seat_row = next(r for r in rows if r[0] == SEAT)
@@ -110,10 +128,12 @@ def render(data: dict) -> str:
     a("")
     a("# MiOS-Mini vs a fully hosted MiOS — what actually differs")
     a("")
-    a("**They are the same image.** There is no MiOS-Mini Containerfile, no "
-      "MiOS-Mini tag, and no conditional bake. A seat is `[blade].type = "
-      "\"%s\"` — an archetype that grants no capabilities — plus an "
-      "`/etc/mios` overlay. Every difference below is a *runtime* difference." % SEAT)
+    a("**\"MiOS-Mini\" names a `[blade].type`, never an artifact** (ADR-0016 D9). "
+      "There is no MiOS-Mini Containerfile, no MiOS-Mini tag, and no conditional "
+      "bake — the seat and the blade are the same OCI image, byte for byte. A "
+      "seat is `[blade].type = \"%s\"`, an archetype that grants no "
+      "capabilities, plus an `/etc/mios` overlay. Every difference below is a "
+      "*runtime* difference." % SEAT)
     a("")
     a("| Surface | MiOS-Mini (seat) | Fully hosted (`%s`) |" % full[0])
     a("|---|---|---|")
@@ -186,9 +206,27 @@ def render(data: dict) -> str:
       "resolver calls \"the always-on floor\". When the blade is unreachable a "
       "seat has a front door that can reach nothing. The model weights are "
       "baked regardless (Law 12), so a seat carries them and never loads them.")
+    payloads = baked_payloads(data)
+    if payloads:
+        a("")
+        a("Exactly what it carries and never loads — derived from "
+          "`[llamacpp].bake_models` and `[ai.vllm].bake_model`, so this list "
+          "cannot drift from what the image actually bakes:")
+        a("")
+        a("| Baked payload | Source |")
+        a("|---|---|")
+        for name, source in payloads:
+            a("| `%s` | `%s` |" % (name, source))
+        vllm = (data.get("ai") or {}).get("vllm") or {}
+        if str(vllm.get("bake_model") or "").strip() and not vllm.get("enable"):
+            a("")
+            a("The vLLM snapshot is baked while `[ai.vllm].enable = false`: it "
+              "ships on every image, seat and blade alike, and no archetype "
+              "starts the lane that would load it. That is an unreviewed "
+              "default rather than Law 12 discipline — see T-330.")
     a("")
     a("Whether that is right is an operator decision, recorded in ADR-0016 "
-      "Decision 4, not a defect: giving a seat a micro local lane would trade "
+      "Decision 6, not a defect: giving a seat a micro local lane would trade "
       "\"offload *all* services\" for a degraded-but-alive floor.")
     a("")
     return "\n".join(L) + "\n"

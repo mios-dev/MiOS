@@ -61,7 +61,20 @@ class TestDerivation(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_the_document_states_they_are_one_image(self):
-        self.assertIn("They are the same image", mod.render(synthetic()))
+        # Assert the CLAIM, not one phrasing of it -- this test used to pin an
+        # exact sentence and went red when the sentence was improved.
+        text = mod.render(synthetic())
+        self.assertIn("same OCI image", text)
+        for denial in ("no MiOS-Mini Containerfile", "no MiOS-Mini tag",
+                       "no conditional bake"):
+            self.assertIn(denial, text)
+
+    def test_the_document_states_mini_is_never_an_artifact(self):
+        # ADR-0016 D9. "Mini" reads like a smaller build and is not one, so the
+        # comparison has to say so before anything else.
+        text = mod.render(synthetic())
+        self.assertIn("never an artifact", text)
+        self.assertIn("D9", text)
 
     def test_the_rendered_counts_are_the_derived_ones(self):
         d = synthetic(extra_gated=2)
@@ -72,6 +85,45 @@ class TestRendering(unittest.TestCase):
 
     def test_render_is_deterministic(self):
         self.assertEqual(mod.render(synthetic()), mod.render(synthetic()))
+
+
+class TestBakedPayloads(unittest.TestCase):
+    """The seat's disk cost is DERIVED from the bake specs, never hand-listed --
+    a hand-listed one goes stale the first time a model is swapped."""
+
+    def test_the_gguf_spec_splits_into_local_and_source(self):
+        d = {"llamacpp": {"bake_models": "a.gguf=org/repo:a-Q4.gguf,b.gguf=org2/repo2:b.gguf"}}
+        self.assertEqual(mod.baked_payloads(d),
+                         [("a.gguf", "org/repo:a-Q4.gguf"), ("b.gguf", "org2/repo2:b.gguf")])
+
+    def test_a_malformed_entry_is_skipped_not_guessed(self):
+        d = {"llamacpp": {"bake_models": "a.gguf=org/repo:a.gguf,,justaname"}}
+        self.assertEqual(mod.baked_payloads(d), [("a.gguf", "org/repo:a.gguf")])
+
+    def test_the_vllm_snapshot_counts_as_a_payload(self):
+        d = {"ai": {"vllm": {"bake_model": "org/Model-AWQ"}}}
+        self.assertEqual(mod.baked_payloads(d), [("vLLM snapshot", "org/Model-AWQ")])
+
+    def test_an_empty_vllm_model_bakes_nothing(self):
+        self.assertEqual(mod.baked_payloads({"ai": {"vllm": {"bake_model": ""}}}), [])
+
+    def test_no_bake_spec_at_all_is_an_empty_list(self):
+        self.assertEqual(mod.baked_payloads({}), [])
+
+    def test_the_document_names_every_payload(self):
+        d = synthetic()
+        d["llamacpp"] = {"bake_models": "x.gguf=org/repo:x.gguf"}
+        d["ai"] = {"vllm": {"bake_model": "org/Big-AWQ", "enable": False}}
+        text = mod.render(d)
+        self.assertIn("x.gguf", text)
+        self.assertIn("org/Big-AWQ", text)
+        # Baked while the lane is off is worth saying out loud (ADR-0016 D7).
+        self.assertIn("T-330", text)
+
+    def test_an_enabled_vllm_lane_draws_no_complaint(self):
+        d = synthetic()
+        d["ai"] = {"vllm": {"bake_model": "org/Big-AWQ", "enable": True}}
+        self.assertNotIn("T-330", mod.render(d))
 
 
 class TestRealTree(unittest.TestCase):

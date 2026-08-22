@@ -29,7 +29,6 @@ generators and the agent-facing CLIs.
 <!-- MIOS-GEN:index:usr/libexec/mios/mios-* -->
 | File | What it is |
 |---|---|
-| `usr/libexec/mios/MiOS-Mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-a2a-delegate` | Python shim for mid-run agent-to-agent delegation via the /v1/a2a/dispatch endpoint, allowing agents to offload sub-tasks to peers and inject responses into their reasoning loop as a live bus. |
 | `usr/libexec/mios/mios-a2a-discover` | Scans and validates A2A peer nodes from mios.toml and CIDR ranges to populate /etc/mios/ai/v1/a2a-peers.json, ensuring the agent-pipe has a verified list of live, reachable peers for delegation. |
 | `usr/libexec/mios/mios-a2a-mdns` | SSOT-driven avahi/mDNS side of A2A discovery. Renders the LAN-announce avahi service file from the /usr/lib template (port + service-type substituted from mios.toml, never hardcoded) when... |
@@ -240,7 +239,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -301,6 +300,7 @@ is generated, its generator is here.
 | `tools/render-globals.py` | Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants and no shim indirection. --check is the drift gate. |
 | `tools/render-ports.py` | Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator retargets a whole category by changing one base. --check... |
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
+| `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it names into bootstrap's root mios.toml. --check is the... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and artifact availability. |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shape the audit TSV is built from. |
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. Cover every way the activation axis can be wrong -- a container classified neither way, one classified both ways, a requires or register entry naming no... |
@@ -329,7 +329,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 77 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 78 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

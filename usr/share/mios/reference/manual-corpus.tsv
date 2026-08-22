@@ -28,41 +28,41 @@
 .github/workflows/mios-ci.yml	112	113	2	14	5975a06ac915	STAY	local-scoped		0				0
 .github/workflows/mios-ci.yml	121	124	4	38	421f9de27b15	STAY	midsize-why		0				0
 .github/workflows/mios-ci.yml	131	131	1	6	cf4ea5f3cff5	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	138	138	1	5	b10b778d51d8	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	142	142	1	11	763db428f44d	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	146	148	3	31	d255aa36368b	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	153	154	2	23	574a3e5e9dca	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	157	157	1	11	e25dd631f9a4	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	161	163	3	25	1840a7d08cf1	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	190	198	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
-.github/workflows/mios-ci.yml	202	209	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
-.github/workflows/mios-ci.yml	225	225	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	249	255	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
-.github/workflows/mios-ci.yml	265	268	4	45	bb115ad60339	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	276	278	3	31	4344358da414	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	280	280	1	4	98c5001eabea	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	286	286	1	8	a3d803844fcc	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	289	289	1	3	c8f82965cee6	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	301	308	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	310	316	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	322	333	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
-.github/workflows/mios-ci.yml	345	352	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
-.github/workflows/mios-ci.yml	362	365	4	29	874362a069a1	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	368	368	1	3	ee573bae3b99	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	375	416	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
-.github/workflows/mios-ci.yml	419	423	5	52	468de1b725d5	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	440	444	5	38	c390f3916297	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	459	459	1	12	8fc42e8edc15	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	463	478	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
-.github/workflows/mios-ci.yml	481	481	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	502	502	1	15	350923ec108b	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	533	533	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
-.github/workflows/mios-ci.yml	575	579	5	51	bfdeb57544a6	STAY	midsize-why		0				0
-.github/workflows/mios-ci.yml	586	592	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
-.github/workflows/mios-ci.yml	618	625	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
-.github/workflows/mios-ci.yml	627	633	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
-.github/workflows/mios-ci.yml	639	640	2	21	052c46f6412a	STAY	local-scoped		0				0
-.github/workflows/mios-ci.yml	660	665	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
+.github/workflows/mios-ci.yml	141	141	1	5	b10b778d51d8	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	145	145	1	11	763db428f44d	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	152	154	3	31	d255aa36368b	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	159	160	2	23	574a3e5e9dca	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	163	163	1	11	e25dd631f9a4	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	167	169	3	25	1840a7d08cf1	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	196	204	9	98	6b7280f004e5	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6b7280f004e5	98	0
+.github/workflows/mios-ci.yml	208	215	8	59	9084b8acca81	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9084b8acca81	59	0
+.github/workflows/mios-ci.yml	231	231	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	255	261	7	70	0e4256b66c2a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:0e4256b66c2a	70	0
+.github/workflows/mios-ci.yml	271	274	4	45	bb115ad60339	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	282	284	3	31	4344358da414	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	286	286	1	4	98c5001eabea	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	292	292	1	8	a3d803844fcc	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	295	295	1	3	c8f82965cee6	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	307	314	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	316	322	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	328	339	12	97	b896b941f929	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:b896b941f929	97	0
+.github/workflows/mios-ci.yml	351	358	8	63	488fc6bcd3a7	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:488fc6bcd3a7	63	0
+.github/workflows/mios-ci.yml	368	371	4	29	874362a069a1	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	374	374	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	381	422	42	399	feb6b6ba127c	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/workflows.md	mios-src:feb6b6ba127c	399	0
+.github/workflows/mios-ci.yml	425	429	5	52	468de1b725d5	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	446	450	5	38	c390f3916297	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	465	465	1	12	8fc42e8edc15	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	469	484	16	152	6ec74752970a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:6ec74752970a	152	0
+.github/workflows/mios-ci.yml	487	487	1	8	5c07b98d0c1c	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	508	508	1	15	350923ec108b	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	539	539	1	1	a1a9ff52a22c	STAY	inline-scoped		0				0
+.github/workflows/mios-ci.yml	581	585	5	51	bfdeb57544a6	STAY	midsize-why		0				0
+.github/workflows/mios-ci.yml	592	598	7	72	617b0a013ef0	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:617b0a013ef0	72	0
+.github/workflows/mios-ci.yml	624	631	8	82	9565dcccef24	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9565dcccef24	82	0
+.github/workflows/mios-ci.yml	633	639	7	60	32d6ab8c2bce	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:32d6ab8c2bce	60	0
+.github/workflows/mios-ci.yml	645	646	2	21	052c46f6412a	STAY	local-scoped		0				0
+.github/workflows/mios-ci.yml	666	671	6	53	c5329a266c25	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:c5329a266c25	53	0
 .github/workflows/url-probe.yml	1	1	1	10	8661e4a2789d	STAY	ai-header		0				0
 Get-MiOS.ps1	1	3	3	52	6cb747722e65	STAY	ai-header		0				0
 Get-MiOS.ps1	4	4	1	0	e3b0c44298fc	STAY	inline-scoped		0				0
@@ -706,7 +706,6 @@ automation/69-bake-lookingglass-client.sh	55	55	1	14	4e7f2f48ec53	STAY	inline-sc
 automation/72-hermes-agent.sh	1	5	5	44	744fd1199c21	STAY	ai-header		0				0
 automation/72-hermes-agent.sh	17	17	1	5	693ea20f63f6	STAY	inline-scoped		0				0
 automation/72-hermes-agent.sh	18	18	1	3	e28e723b91a6	STAY	inline-scoped		0				0
-automation/72-hermes-agent.sh	69	74	6	72	540cc82d5b8d	MIGRATE	narrative-rationale		0	usr/share/doc/mios/concepts/OFFLINE-FIRST.md	mios-src:540cc82d5b8d	72	1
 automation/72-hermes-agent.sh	72	73	2	24	716eeb22eb34	STAY	local-scoped		0				0
 automation/72-hermes-agent.sh	76	77	2	18	359574ddbd46	STAY	local-scoped		0				0
 automation/72-hermes-agent.sh	91	93	3	33	b99ea90966dc	STAY	midsize-why		0				0
@@ -3456,90 +3455,90 @@ tests/drift-gate-negatives.sh	1748	1749	2	19	f7e2ad26101d	STAY	local-scoped		0		
 tests/drift-gate-negatives.sh	1754	1754	1	12	d1e69bd24275	STAY	local-scoped		0				0
 tests/drift-gate-negatives.sh	1760	1760	1	12	e970272ff27a	STAY	local-scoped		0				0
 tests/drift-gate-negatives.sh	1791	1792	2	22	ec71bf86748d	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1797	1798	2	20	2e0167ba71d0	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1815	1815	1	12	e86ef25b2188	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1820	1820	1	12	2a2201369a54	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1843	1844	2	21	28e023e02b77	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1851	1851	1	13	204aa8c32ba7	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1871	1872	2	26	d22a3550f145	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	1886	1886	1	14	53f880868296	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1900	1901	2	23	fccc426beff7	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1929	1930	2	22	fe7fb1c663cd	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1931	1931	1	10	063841ca660b	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	1937	1937	1	12	a45e932df88c	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1938	1938	1	13	b87b527e03e2	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	1944	1945	2	23	2c64b843bfca	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1946	1946	1	10	47a86d707372	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	1953	1954	2	20	7397a75d9e8f	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1984	1985	2	21	892b15d5780b	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	1993	1993	1	11	839f79456f42	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2001	2002	2	21	62cbcefb6a60	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2010	2011	2	22	920db2c31cfe	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2019	2020	2	23	7b87cec1df48	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2029	2031	3	26	59ce5e69d3f4	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2058	2059	2	22	24f1bb82d3ae	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2067	2068	2	26	a7383d3bbc62	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2088	2091	4	47	2198ec113905	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2104	2105	2	22	a310709a70cf	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2121	2123	3	38	cd0d031cbe71	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2152	2154	3	32	3348e32b2178	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2156	2157	2	22	70e2636947b3	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2171	2172	2	23	e8a0206b2040	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2200	2201	2	25	62a119ebc837	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2214	2216	3	38	555064c879bb	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2231	2232	2	22	bf0a462591ec	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2247	2248	2	23	4de7d4d4d62e	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2274	2277	4	47	c58732e405f6	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2294	2294	1	11	5dbb558aa515	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2341	2344	4	50	548e0b8a60a7	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2366	2368	3	38	c2a985c2473b	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2385	2385	1	14	c33687a797a8	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2406	2407	2	19	1650bc8f5984	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2435	2436	2	22	0462439d4b54	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2437	2437	1	4	cef447094a64	DROP	banner		0				0
-tests/drift-gate-negatives.sh	2453	2454	2	23	0a4f24bca314	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2510	2511	2	17	77adf362a9c8	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2544	2544	1	8	3d21447379b5	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	2591	2591	1	2	5b1c45088db2	DROP	banner		0				0
-tests/drift-gate-negatives.sh	2643	2643	1	8	39d611abc648	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2660	2660	1	12	f7b6a067cecb	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2676	2677	2	18	0033290b495f	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2690	2690	1	7	6388fac5bddf	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2691	2691	1	5	dff2ae8d5410	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	2725	2725	1	12	6465c7605a83	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2734	2734	1	12	e26443306037	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2736	2738	3	29	8e43a8f72c1f	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2760	2760	1	11	660736d6943c	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2792	2792	1	11	4b1c7fe5097a	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2804	2804	1	10	0564a64dbec8	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2841	2842	2	17	478034c96517	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2859	2859	1	9	fce9a82a3459	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2874	2875	2	23	269a51333185	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2893	2893	1	12	18f640af4d9f	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2921	2921	1	11	50b5156860e4	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2958	2959	2	20	7dd0d721fa11	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	2970	2972	3	33	ba5679ee8cd4	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	2990	2990	1	12	535e27a559e5	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3000	3001	2	26	98b022a877a8	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3022	3023	2	15	c8553a078b61	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3032	3034	3	35	19a667dd8a41	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3045	3046	2	21	bb57d9b444a1	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3065	3066	2	21	5ae335ba94ac	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3099	3099	1	9	1f890fa8959e	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3116	3116	1	9	855fae30868f	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3133	3133	1	11	efe421088c6a	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3134	3134	1	4	c1a37393390e	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	3142	3142	1	13	f4f4df5894d3	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3144	3144	1	4	3529147320ee	DROP	banner		0				0
-tests/drift-gate-negatives.sh	3176	3177	2	27	8756432730d4	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3192	3193	2	17	3423f7db93ba	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3210	3211	2	17	e7f35f45b218	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3225	3225	1	14	fb147ac71afc	STAY	local-scoped		0				0
-tests/drift-gate-negatives.sh	3226	3226	1	12	561529089693	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	3241	3243	3	39	39864b27e093	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3265	3266	2	26	a750c6dbaa25	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3278	3278	1	5	b34c607da2f0	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	3287	3292	6	59	1a2b377668f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:1a2b377668f5	59	0
+tests/drift-gate-negatives.sh	1797	1798	2	18	42d02ef0e157	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1813	1813	1	12	e86ef25b2188	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1818	1818	1	12	2a2201369a54	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1841	1842	2	21	28e023e02b77	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1849	1849	1	13	204aa8c32ba7	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1869	1870	2	26	d22a3550f145	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	1884	1884	1	14	53f880868296	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1898	1899	2	23	fccc426beff7	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1927	1928	2	22	fe7fb1c663cd	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1929	1929	1	10	063841ca660b	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	1935	1935	1	12	a45e932df88c	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1936	1936	1	13	b87b527e03e2	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	1942	1943	2	23	2c64b843bfca	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1944	1944	1	10	47a86d707372	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	1951	1952	2	20	7397a75d9e8f	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1982	1983	2	21	892b15d5780b	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1991	1991	1	11	839f79456f42	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	1999	2000	2	21	62cbcefb6a60	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2008	2009	2	22	920db2c31cfe	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2017	2018	2	23	7b87cec1df48	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2027	2029	3	26	59ce5e69d3f4	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2056	2057	2	22	24f1bb82d3ae	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2065	2066	2	26	a7383d3bbc62	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2086	2089	4	47	2198ec113905	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2102	2103	2	22	a310709a70cf	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2119	2121	3	38	cd0d031cbe71	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2150	2152	3	32	3348e32b2178	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2154	2155	2	22	70e2636947b3	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2169	2170	2	23	e8a0206b2040	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2198	2199	2	25	62a119ebc837	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2212	2214	3	38	555064c879bb	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2229	2230	2	22	bf0a462591ec	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2245	2246	2	23	4de7d4d4d62e	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2272	2275	4	47	c58732e405f6	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2292	2292	1	11	5dbb558aa515	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2339	2342	4	50	548e0b8a60a7	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2364	2366	3	38	c2a985c2473b	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2383	2383	1	14	c33687a797a8	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2404	2405	2	19	1650bc8f5984	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2433	2434	2	22	0462439d4b54	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2435	2435	1	4	cef447094a64	DROP	banner		0				0
+tests/drift-gate-negatives.sh	2451	2452	2	23	0a4f24bca314	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2508	2509	2	17	77adf362a9c8	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2542	2542	1	8	3d21447379b5	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	2589	2589	1	2	5b1c45088db2	DROP	banner		0				0
+tests/drift-gate-negatives.sh	2641	2641	1	8	39d611abc648	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2658	2658	1	12	f7b6a067cecb	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2674	2675	2	18	0033290b495f	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2688	2688	1	7	6388fac5bddf	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2689	2689	1	5	dff2ae8d5410	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	2723	2723	1	12	6465c7605a83	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2732	2732	1	12	e26443306037	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2734	2736	3	29	8e43a8f72c1f	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2758	2758	1	11	660736d6943c	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2790	2790	1	11	4b1c7fe5097a	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2802	2802	1	10	0564a64dbec8	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2839	2840	2	17	478034c96517	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2857	2857	1	9	fce9a82a3459	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2872	2873	2	23	269a51333185	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2891	2891	1	12	18f640af4d9f	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2919	2919	1	11	50b5156860e4	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2956	2957	2	20	7dd0d721fa11	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2968	2970	3	33	ba5679ee8cd4	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	2988	2988	1	12	535e27a559e5	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	2998	2999	2	26	98b022a877a8	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3020	3021	2	15	c8553a078b61	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3030	3032	3	35	19a667dd8a41	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3043	3044	2	21	bb57d9b444a1	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3063	3064	2	21	5ae335ba94ac	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3097	3097	1	9	1f890fa8959e	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3114	3114	1	9	855fae30868f	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3131	3131	1	11	efe421088c6a	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3132	3132	1	4	c1a37393390e	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	3140	3140	1	13	f4f4df5894d3	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3142	3142	1	4	3529147320ee	DROP	banner		0				0
+tests/drift-gate-negatives.sh	3174	3175	2	27	8756432730d4	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3190	3191	2	17	3423f7db93ba	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3208	3209	2	17	e7f35f45b218	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3223	3223	1	14	fb147ac71afc	STAY	local-scoped		0				0
+tests/drift-gate-negatives.sh	3224	3224	1	12	561529089693	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	3239	3241	3	39	39864b27e093	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3263	3264	2	26	a750c6dbaa25	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3276	3276	1	5	b34c607da2f0	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	3285	3290	6	59	1a2b377668f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:1a2b377668f5	59	0
 tests/drift-gate-readonly.sh	1	1	1	2	4189f864510a	STAY	local-scoped		0				0
 tests/drift-parity.sh	1	3	3	16	61d899f4c217	STAY	ai-header		0				0
 tests/fixtures/mios.toml	1	1	1	3	f8c3aa3cbcc7	STAY	ai-header		0				0
@@ -3608,6 +3607,16 @@ tests/test-greenboot-blade-guard.sh	75	75	1	3	0bbc9621dbe4	STAY	local-scoped		0	
 tests/test-greenboot-blade-guard.sh	89	89	1	15	f979995b705a	STAY	local-scoped		0				0
 tests/test-greenboot-blade-guard.sh	92	92	1	3	23fd1d354601	STAY	local-scoped		0				0
 tests/test-greenboot-blade-guard.sh	96	96	1	3	0bbc9621dbe4	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	1	4	4	89	8213217871f5	STAY	ai-header		0				0
+tests/test-greenboot-blade-reachability.sh	19	20	2	16	07e220d15d21	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	28	28	1	12	9287fc8b34c0	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	32	32	1	3	0bbc9621dbe4	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	35	35	1	1	70a0bce8cab2	DROP	banner		0				0
+tests/test-greenboot-blade-reachability.sh	37	37	1	2	8f5f4738f72c	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	52	54	3	30	b3440cc65679	STAY	midsize-why		0				0
+tests/test-greenboot-blade-reachability.sh	73	73	1	4	425d99312c58	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	81	81	1	14	1ae37ca05cb5	STAY	local-scoped		0				0
+tests/test-greenboot-blade-reachability.sh	102	102	1	5	4899fe71594a	STAY	local-scoped		0				0
 tests/test-launch-args.py	1	2	2	30	1bedc1bd110b	STAY	ai-header		0				0
 tests/test-launch-args.py	12	12	1	2	74a64c79f57a	STAY	inline-scoped		0				0
 tests/test-launch-args.py	13	13	1	4	cc713c17fe59	STAY	inline-scoped		0				0
@@ -3711,6 +3720,15 @@ tests/test-seat-activates-nothing.py	99	99	1	5	1aa0dbdb6791	STAY	inline-scoped		
 tests/test-seat-activates-nothing.py	100	100	1	3	45ec26667f74	STAY	inline-scoped		0				0
 tests/test-seat-activates-nothing.py	101	101	1	2	b55e65abaacc	STAY	inline-scoped		0				0
 tests/test-seat-activates-nothing.py	102	102	1	2	b55e65abaacc	STAY	inline-scoped		0				0
+tests/test-seat-auth-posture.sh	1	4	4	113	badcba5a798a	STAY	ai-header		0				0
+tests/test-seat-auth-posture.sh	16	16	1	3	ee573bae3b99	STAY	local-scoped		0				0
+tests/test-seat-auth-posture.sh	23	23	1	8	adea231ba33b	STAY	local-scoped		0				0
+tests/test-seat-auth-posture.sh	30	30	1	5	c61de70c7fe4	STAY	inline-scoped		0				0
+tests/test-seat-auth-posture.sh	37	37	1	8	2cb744e7814f	STAY	local-scoped		0				0
+tests/test-seat-auth-posture.sh	49	50	2	30	557226639446	STAY	midsize-why		0				0
+tests/test-seat-auth-posture.sh	62	62	1	5	5f3e33635df3	STAY	local-scoped		0				0
+tests/test-seat-auth-posture.sh	95	95	1	15	2e2b6f109783	STAY	local-scoped		0				0
+tests/test-seat-auth-posture.sh	102	102	1	13	bba1a28d34ac	STAY	local-scoped		0				0
 tests/test-theme-merge.py	1	3	3	18	9dfcac286a81	STAY	ai-header		0				0
 tests/test-think-stripper.py	1	4	4	34	125eaa238f2d	STAY	ai-header		0				0
 tests/test-think-stripper.py	5	7	2	17	3c4013021e97	STAY	local-scoped		0				0
@@ -3895,6 +3913,7 @@ tools/check-role-ssot.py	145	146	2	26	f26a752fd3b3	STAY	midsize-why		0				0
 tools/check-role-ssot.py	171	172	2	24	7c5991ba05bd	STAY	local-scoped		0				0
 tools/check-role-ssot.py	202	204	3	23	759f2c1b72f7	STAY	midsize-why		0				0
 tools/check-role-ssot.py	216	219	4	42	e080ce806843	STAY	midsize-why		0				0
+tools/check-role-ssot.py	230	233	4	34	767ed858af45	STAY	midsize-why		0				0
 tools/check-schema-consumers.py	1	4	4	110	588e1e2a0b1e	STAY	ai-header		0				0
 tools/check-schema-consumers.py	5	5	1	12	8ffac51bbd65	STAY	local-scoped		0				0
 tools/check-schema-consumers.py	14	14	1	5	0afcda800e58	STAY	inline-scoped		0				0
@@ -3930,19 +3949,18 @@ tools/check-tasks-status-parity.py	13	14	2	22	eb2366336db3	STAY	local-scoped		0	
 tools/check-tasks-status-parity.py	20	20	1	10	010adb005103	STAY	local-scoped		0				0
 tools/check-tasks-status-parity.py	27	28	2	14	2d83b02c14d7	STAY	local-scoped		0				0
 tools/check-tasks-status-parity.py	67	67	1	12	15668b99c6e8	STAY	local-scoped		0				0
-tools/check-unit-projection.py	1	4	4	102	6b1879f63a1e	STAY	ai-header		0				0
+tools/check-unit-projection.py	1	4	4	103	8221f2197afe	STAY	ai-header		0				0
 tools/check-unit-projection.py	5	5	1	12	4ff6188fdb17	STAY	local-scoped		0				0
-tools/check-unit-projection.py	13	13	1	5	0afcda800e58	STAY	inline-scoped		0				0
-tools/check-unit-projection.py	14	14	1	2	652a73c43ff5	STAY	inline-scoped		0				0
-tools/check-unit-projection.py	21	22	2	18	12373d0a8e11	STAY	local-scoped		0				0
-tools/check-unit-projection.py	27	27	1	8	c65396428222	STAY	local-scoped		0				0
-tools/check-unit-projection.py	32	32	1	5	736bfd9876e0	STAY	local-scoped		0				0
-tools/check-unit-projection.py	40	40	1	10	670dd351c271	STAY	local-scoped		0				0
-tools/check-unit-projection.py	46	46	1	5	8604cd81d484	STAY	local-scoped		0				0
-tools/check-unit-projection.py	54	54	1	10	f34b340c0fbe	STAY	local-scoped		0				0
-tools/check-unit-projection.py	103	103	1	7	3c6cd8c92766	STAY	local-scoped		0				0
-tools/check-unit-projection.py	113	113	1	12	00a6692fcac5	STAY	local-scoped		0				0
-tools/check-unit-projection.py	144	150	7	77	24fe6d8ba72a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/reference/drift-gates.md	mios-src:24fe6d8ba72a	77	1
+tools/check-unit-projection.py	14	14	1	5	0afcda800e58	STAY	inline-scoped		0				0
+tools/check-unit-projection.py	15	15	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/check-unit-projection.py	22	23	2	18	12373d0a8e11	STAY	local-scoped		0				0
+tools/check-unit-projection.py	28	28	1	8	c65396428222	STAY	local-scoped		0				0
+tools/check-unit-projection.py	33	33	1	5	736bfd9876e0	STAY	local-scoped		0				0
+tools/check-unit-projection.py	41	41	1	10	670dd351c271	STAY	local-scoped		0				0
+tools/check-unit-projection.py	47	47	1	5	8604cd81d484	STAY	local-scoped		0				0
+tools/check-unit-projection.py	55	55	1	10	f34b340c0fbe	STAY	local-scoped		0				0
+tools/check-unit-projection.py	113	117	5	35	02a02ba94c4f	STAY	midsize-why		0				0
+tools/check-unit-projection.py	134	134	1	12	00a6692fcac5	STAY	local-scoped		0				0
 tools/compile-dashboard-binary.py	1	2	2	7	4c308f805424	STAY	ai-header		0				0
 tools/compile-dashboard-binary.py	3	6	3	17	05c793e68a18	STAY	midsize-why		0				0
 tools/compile-templates.py	1	4	4	18	f3e8618bdd25	STAY	ai-header		0				0
@@ -4004,7 +4022,7 @@ tools/generate-k3s-manifests.sh	30	30	1	4	bbf39936c1f8	STAY	inline-scoped		0				
 tools/generate-k3s-manifests.sh	45	45	1	4	4306c17a989d	STAY	inline-scoped		0				0
 tools/generate-manual.py	1	3	3	27	f3d544f03e34	STAY	ai-header		0				0
 tools/generate-manual.py	28	34	7	68	448a427d36d9	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:448a427d36d9	68	0
-tools/generate-mini-vs-hosted.py	1	4	4	69	42924f5d38f6	STAY	ai-header		0				0
+tools/generate-mini-vs-hosted.py	1	4	4	70	ec8790a47788	STAY	ai-header		0				0
 tools/generate-mini-vs-hosted.py	5	5	1	8	54b3a7d515fc	STAY	local-scoped		0				0
 tools/generate-mini-vs-hosted.py	12	12	1	5	0afcda800e58	STAY	inline-scoped		0				0
 tools/generate-mini-vs-hosted.py	13	13	1	2	652a73c43ff5	STAY	inline-scoped		0				0
@@ -4012,6 +4030,7 @@ tools/generate-mini-vs-hosted.py	35	35	1	7	604ac3947328	STAY	local-scoped		0				
 tools/generate-mini-vs-hosted.py	53	53	1	13	434ed84f0f6e	STAY	local-scoped		0				0
 tools/generate-mini-vs-hosted.py	64	64	1	9	80d79810cf27	STAY	local-scoped		0				0
 tools/generate-mini-vs-hosted.py	82	83	2	23	728fe6f09090	STAY	local-scoped		0				0
+tools/generate-mini-vs-hosted.py	94	95	2	14	1ddf0eed8f50	STAY	local-scoped		0				0
 tools/generate-names-registry.py	1	1	1	2	c8a5e92d1c7b	STAY	local-scoped		0				0
 tools/generate-names-registry.py	67	69	3	31	1b5be8feba4e	STAY	midsize-why		0				0
 tools/generate-names-registry.py	71	72	2	17	54db87f1b341	STAY	local-scoped		0				0
@@ -4277,14 +4296,23 @@ tools/sign-powershell.ps1	35	38	4	36	49a994854bf8	STAY	midsize-why		0				0
 tools/sign-powershell.ps1	53	53	1	7	66a735b428da	STAY	local-scoped		0				0
 tools/sign-powershell.ps1	70	70	1	8	e9ffb74001bb	STAY	local-scoped		0				0
 tools/standardize-docs.py	1	2	2	29	62ad67996432	STAY	ai-header		0				0
-tools/sync-generated.sh	1	18	18	143	aa7f84d33b8f	STAY	ai-header		0				0
+tools/sync-bootstrap.py	1	4	4	61	1eca232c6c39	STAY	ai-header		0				0
+tools/sync-bootstrap.py	5	8	3	12	2d659e36d796	MIGRATE	midsize-narrative		0				0
+tools/sync-bootstrap.py	20	20	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
+tools/sync-bootstrap.py	21	21	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/sync-bootstrap.py	39	39	1	10	b70ce1dddd99	STAY	local-scoped		0				0
+tools/sync-bootstrap.py	57	61	5	34	b2787db29dff	STAY	midsize-why		0				0
+tools/sync-bootstrap.py	85	85	1	12	8cfc9f6a7113	STAY	local-scoped		0				0
+tools/sync-bootstrap.py	139	139	1	12	75ad1ecda7fe	STAY	local-scoped		0				0
+tools/sync-generated.sh	1	18	18	144	ed1bc1429de5	STAY	ai-header		0				0
 tools/sync-generated.sh	24	37	14	124	4cf964f45b77	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:4cf964f45b77	124	0
 tools/sync-generated.sh	41	41	1	10	4147b14ec471	STAY	local-scoped		0				0
 tools/sync-generated.sh	59	64	6	65	7173c25c3b4b	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:7173c25c3b4b	65	0
-tools/sync-generated.sh	93	95	3	31	2e5bb3040842	STAY	midsize-why		0				0
-tools/sync-generated.sh	108	109	2	22	7865acffeeb4	STAY	local-scoped		0				0
-tools/sync-generated.sh	127	129	3	31	15461f205c8d	STAY	midsize-why		0				0
-tools/sync-generated.sh	132	134	3	35	b211e9d47c7a	STAY	midsize-why		0				0
+tools/sync-generated.sh	77	80	4	53	31cef5cc147e	STAY	midsize-why		0				0
+tools/sync-generated.sh	114	116	3	31	2e5bb3040842	STAY	midsize-why		0				0
+tools/sync-generated.sh	129	130	2	22	7865acffeeb4	STAY	local-scoped		0				0
+tools/sync-generated.sh	148	150	3	31	15461f205c8d	STAY	midsize-why		0				0
+tools/sync-generated.sh	153	155	3	35	b211e9d47c7a	STAY	midsize-why		0				0
 tools/sync-wiki.py	1	2	2	36	318b4990bdfe	STAY	ai-header		0				0
 tools/sync-wiki.py	47	47	1	7	afb8bea10331	STAY	inline-scoped		0				0
 tools/system-profiler.sh	1	3	3	44	748f5d79729b	STAY	ai-header		0				0
@@ -4355,15 +4383,17 @@ tools/test_check-redact-coverage.py	1	3	3	64	a0236a774608	STAY	ai-header		0				0
 tools/test_check-redact-coverage.py	4	4	1	10	48dc9edf7fbe	STAY	local-scoped		0				0
 tools/test_check-role-ssot.py	1	3	3	112	ad7cffe533a2	STAY	ai-header		0				0
 tools/test_check-role-ssot.py	4	4	1	6	97d401b572fb	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	18	18	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
-tools/test_check-role-ssot.py	19	19	1	2	652a73c43ff5	STAY	inline-scoped		0				0
-tools/test_check-role-ssot.py	25	26	2	17	e747e4f7fc2d	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	34	34	1	5	484f35f4eef0	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	57	57	1	11	1a20b2bf6527	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	119	119	1	9	cac3597d20c7	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	170	170	1	9	d76b39e8a0a2	STAY	local-scoped		0				0
-tools/test_check-role-ssot.py	208	210	3	31	b7ac0bbe1a26	STAY	midsize-why		0				0
-tools/test_check-role-ssot.py	222	223	2	16	c24480bd0324	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	20	20	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
+tools/test_check-role-ssot.py	21	21	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/test_check-role-ssot.py	27	28	2	17	e747e4f7fc2d	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	36	36	1	5	484f35f4eef0	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	59	59	1	11	1a20b2bf6527	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	121	121	1	9	cac3597d20c7	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	172	172	1	9	d76b39e8a0a2	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	210	212	3	31	b7ac0bbe1a26	STAY	midsize-why		0				0
+tools/test_check-role-ssot.py	224	225	2	16	c24480bd0324	STAY	local-scoped		0				0
+tools/test_check-role-ssot.py	276	277	2	27	4b46045d32c6	STAY	midsize-why		0				0
+tools/test_check-role-ssot.py	296	296	1	7	1d69cf6945bd	STAY	local-scoped		0				0
 tools/test_check-schema-consumers.py	1	4	4	101	dad6d6af1953	STAY	ai-header		0				0
 tools/test_check-schema-consumers.py	32	33	2	19	bbda5e237d16	STAY	local-scoped		0				0
 tools/test_check-schema-consumers.py	98	99	2	25	ba690422dc65	STAY	local-scoped		0				0
@@ -4414,7 +4444,11 @@ tools/test_generate-mini-vs-hosted.py	4	4	1	6	bcb8c671878c	STAY	local-scoped		0	
 tools/test_generate-mini-vs-hosted.py	17	17	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
 tools/test_generate-mini-vs-hosted.py	18	18	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/test_generate-mini-vs-hosted.py	49	49	1	11	981b51cf77de	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	93	93	1	12	1acaa45c20e0	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	64	65	2	24	0b1644668964	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	73	74	2	22	2ae1c67cba4c	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	91	92	2	25	d2cf9b4afef4	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	120	120	1	13	e798e5aebc9b	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	145	145	1	12	1acaa45c20e0	STAY	local-scoped		0				0
 tools/test_render_globals.py	1	4	4	50	3e8cd568dfcd	STAY	ai-header		0				0
 tools/test_render_globals.py	27	27	1	10	0366619e9244	STAY	local-scoped		0				0
 tools/test_render_globals.py	32	32	1	10	c03816312f08	STAY	local-scoped		0				0
@@ -4511,10 +4545,17 @@ usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	17	17	1	3	0bbc9621dbe4	ST
 usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	24	24	1	11	09a41938a243	STAY	local-scoped		0				0
 usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	43	43	1	6	0f604047cedb	STAY	inline-scoped		0				0
 usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	44	44	1	5	6120f4ef1722	STAY	inline-scoped		0				0
-usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	48	49	2	22	f556c2074da8	STAY	local-scoped		0				0
-usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	53	53	1	13	4a056e95b8ec	STAY	local-scoped		0				0
-usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	57	57	1	4	3cde96fabc27	STAY	inline-scoped		0				0
-usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	102	102	1	8	04fd341975f3	STAY	local-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	48	49	2	12	a4d3ccccec78	STAY	local-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	53	53	1	0	f3d41c5e4be6	DROP	banner		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	55	55	1	4	3a354c92b69a	STAY	inline-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	57	57	1	2	38c3dfbe717d	STAY	inline-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	60	60	1	3	52781ca6b551	STAY	inline-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	75	75	1	1	53995087405a	DROP	banner		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	88	89	2	22	f556c2074da8	STAY	local-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	93	93	1	13	4a056e95b8ec	STAY	local-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	97	97	1	4	3cde96fabc27	STAY	inline-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	142	142	1	8	04fd341975f3	STAY	local-scoped		0				0
+usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh	162	162	1	11	5b127a0ac5cf	STAY	local-scoped		0				0
 usr/lib/greenboot/check/wanted.d/30-nvidia-cdi.sh	1	2	2	26	140662951f1b	STAY	ai-header		0				0
 usr/lib/greenboot/check/wanted.d/31-kernel-lockdown.sh	1	2	2	45	fd3b3bf79803	STAY	ai-header		0				0
 usr/lib/greenboot/check/wanted.d/40-role-target.sh	1	3	3	29	9ee4e5a60fbe	STAY	ai-header		0				0
@@ -7861,7 +7902,7 @@ usr/lib/mios/agents/opencode-gateway/server.py	77	83	7	47	93ef4e2f3aa3	MIGRATE	n
 usr/lib/mios/agents/opencode-gateway/server.py	105	105	1	5	f4ce1b2c5ac6	STAY	inline-scoped		0				0
 usr/lib/mios/agents/opencode-gateway/server.py	123	136	14	109	fd05adc8a631	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:fd05adc8a631	109	0
 usr/lib/mios/agents/opencode-gateway/server.py	269	277	9	71	3242f7b0c8f2	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/opencode-gateway.md	mios-src:3242f7b0c8f2	71	0
-usr/lib/mios/blade.sh	1	7	7	82	d49b8663e8c6	STAY	ai-header		0				0
+usr/lib/mios/blade.sh	1	7	7	84	42793013f21d	STAY	ai-header		0				0
 usr/lib/mios/blade.sh	13	14	2	16	eaf7ba540baa	STAY	local-scoped		0				0
 usr/lib/mios/blade.sh	20	20	1	1	0dca2d32eedf	DROP	commented-out-code		0				0
 usr/lib/mios/blade.sh	26	27	2	23	a6e2d829ebc9	STAY	local-scoped		0				0
@@ -7876,6 +7917,7 @@ usr/lib/mios/blade.sh	125	125	1	0	75a3dedb3323	DROP	banner		0				0
 usr/lib/mios/blade.sh	146	147	2	23	527e56807b8b	STAY	local-scoped		0				0
 usr/lib/mios/blade.sh	152	154	3	34	62be59173096	STAY	midsize-why		0				0
 usr/lib/mios/blade.sh	189	190	2	19	c6c587176cf2	STAY	local-scoped		0				0
+usr/lib/mios/blade.sh	199	200	2	22	c3fc2d738df5	STAY	local-scoped		0				0
 usr/lib/mios/crawl4ai/mios-crawl4ai-service.py	1	4	4	46	2d755b1e90ff	STAY	ai-header		0				0
 usr/lib/mios/crawl4ai/mios-crawl4ai-service.py	5	44	39	260	2b3f3daa86bf	MIGRATE	narrative-history	adr-candidate	0	usr/share/doc/mios/manual/crawl4ai.md	mios-src:2b3f3daa86bf	260	0
 usr/lib/mios/crawl4ai/mios-crawl4ai-service.py	65	65	1	6	865aac3e2dab	STAY	inline-scoped		0				0

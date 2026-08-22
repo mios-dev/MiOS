@@ -311,8 +311,11 @@
 | T-323 | P1 | done | Topology/SSOT | MINI-02 -- A seat could not tell an unreachable blade from a broken model |
 | T-324 | P1 | planned | Naming/Addressing | ADDR-05 -- Retired ports live on in shipped units and Quadlets; the sweep only scans docs |
 | T-325 | P0 | done | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
-| T-326 | P1 | planned | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
-| T-327 | P0 | planned | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
+| T-326 | P1 | done | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
+| T-327 | P0 | partial | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
+| T-328 | P2 | planned | Topology/SSOT | BLADE-06 -- The seat-floor opt-in, and the OR-gate the activation axis lacks |
+| T-329 | P1 | partial | Topology/SSOT | BLADE-07 -- blade_reachability_critical was emitted, described in docs, and read by nothing |
+| T-330 | P1 | planned | Build/Image | BAKE-01 -- A ~16 GB payload ships for a lane no archetype starts |
 
 ---
 
@@ -3032,25 +3035,89 @@ The misfiling is documented in the file itself: a comment above the duplicated `
 
 **Why:** the tree's recurring defect class, one level deeper than usual. Not a gate reporting success over the wrong set, but a CONSUMER reading the wrong set -- so the SSOT and the code disagree in silence, and every test that stubs the value passes. Nothing about a seat is safe to reason about until the controls that bound it are reachable. | **Domain:** Security/Federation | **Who:** architect
 
-## T-326 -- BUILD-01: `sync-generated.sh` needs two passes and says nothing  (WS-GUARD | P1 | S)
-**Goal:** E-08 A regenerate-and-diff gate is only as good as the regeneration -- one pass of the generator must reach a fixpoint, or the gate can pass over a stale tree.
-**What+How:** MEASURED the hard way: CI went red on `bbd453e` with `tools/manifest.json` missing the two tools that commit added, after a LOCAL `sync-generated.sh` run and a LOCAL drift gate that both passed. A second pass changes the tree; the script does not say so, and `git add -A` between the passes commits the intermediate state. Reproduced twice in one session -- the same shape also put the narrative census +1 over the ceiling after a "clean" sync.
-**Where:** `tools/sync-generated.sh` (step 6 AI manifests, step 7 manual ledger), `automation/98-drift-checks.sh` (`check_ai_manifests_fresh`).
-**Done When:** one invocation reaches a fixpoint -- either the step order is corrected so nothing a later step writes is embedded by an earlier one, or the script loops until `git status --porcelain` stops changing (bounded, and LOUD when it needed more than one pass). A gate asserts the fixpoint property: run the generator twice, fail if the second pass changes anything.
-**Why:** every projection gate in this tree is regenerate-and-diff. A generator that is not idempotent in one pass makes all of them conditionally correct, and the failure surfaces as a red CI run on a commit whose author watched the gate pass. Workaround until fixed: run `sync-generated.sh` until `git status` stabilises -- which is what a fixpoint loop should be doing for the operator.
+## T-326 -- BUILD-01: `sync-generated.sh` could not see a file git did not track  (WS-GUARD | P1 | S)
+**Goal:** E-08 A regenerate-and-diff gate is only as good as the regeneration -- one pass must reach a fixpoint, or the gate can pass over a stale tree.
+**What+How:** MEASURED the hard way, twice in one session. CI went red on `bbd453e` with `tools/manifest.json` missing the two tools that commit added, after a LOCAL sync and a LOCAL drift gate that both passed. The same shape put the narrative census +1 over its ceiling after another "clean" sync.
+
+Root cause, and it is not a loop-count problem: **steps 6 and 7 census `git ls-files`.** `tools/generate-ai-manifest.py:45` and `usr/libexec/mios/mios-manual:676` both enumerate the git INDEX, so a newly created file is invisible to them until something tracks it. The sequence that bites is the ordinary one -- write a new tool, sync, watch the gate pass, `git add -A`, commit -- because the `git add` is what finally makes the file censusable, one commit too late. The script's own step-7 comment had noticed half of it (*"`git add` a new file BEFORE syncing, or its blocks land only once committed -- green locally, red in CI"*) and left the burden on the contributor.
+
+**Fixed:** a `0/7` step registers intent-to-add (`git add -N`) for every untracked file under the censused trees before anything else runs, and NAMES each one it registered. `-N` stages no content, so it cannot turn a sync into an accidental commit of work in progress. Proven live: an untracked `tools/zz-t326-probe.py` created and then synced ONCE landed in both `tools/manifest.json` and `manual-corpus.tsv` (2 hits each) -- before the fix that needed a commit and a second pass.
+**Where:** `tools/sync-generated.sh`.
+**Done When:** met -- one invocation sees a new file. Remaining: a gate asserting the fixpoint property (run the generator twice, fail if the second pass changes anything) would close the class rather than this instance.
+**Why:** every projection gate in this tree is regenerate-and-diff. A generator that cannot see a new file makes all of them conditionally correct, and the failure surfaces as a red CI run on a commit whose author watched the gate pass locally.
 **Dep:** none. | **Domain:** Build/SSOT | **Who:** build agent
 
 ## T-327 -- SEC-02: make the seat's auth posture enforced by construction  (WS-GUARD | P0 | M)
-**Goal:** E-04 A seat that points off-box must not be able to run without a tenancy boundary -- the posture is a property of the ROLE, not of an operator remembering a flag.
-**What+How:** T-325 made `[security].api_require_auth` and `[security].principal_bind_mode` reachable; it deliberately changed neither default. Flipping them in the vendor SSOT is the WRONG next step and is refused here: a fully hosted MiOS is one machine on loopback with one human, where `api_require_auth = true` would demand a key from every client and `principal_bind_mode = enforce` would demand `/etc/mios/ai/v1/caller-keys.json` before the agent plane could answer its own front door. The SSOT already says as much -- *"Turn ON only with a loopback or firewall-scoped (172.16/12) bind ... operator-greenlight"*.
+**Goal:** E-04 A seat that points off-box must not run without a tenancy boundary -- the posture is a property of the ROLE, not of an operator remembering a flag.
+**What+How:** T-325 made `[security].api_require_auth` and `[security].principal_bind_mode` reachable; it deliberately changed neither default. Flipping them in the vendor SSOT is the WRONG move and is refused here: a fully hosted MiOS is one machine on loopback with one human, where `api_require_auth = true` would demand a key from every client and `principal_bind_mode = enforce` would demand `/etc/mios/ai/v1/caller-keys.json` before the agent plane could answer its own front door. The SSOT already says so -- *"Turn ON only with a loopback or firewall-scoped (172.16/12) bind ... operator-greenlight"*.
 
-The roadmap-serving answer is to make the posture follow the ROLE, per ADR-0016 D5:
+The posture follows the ROLE instead, per ADR-0016 D5. `_auth_posture()` in `usr/lib/mios/blade.sh` resolves the merged `[ai].endpoint` and returns one of four verdicts:
 
-* **Vendor default stays off.** Loopback, single-tenant, no key. Enforced today by `check_vendor_urls`, which asserts the vendor `[ai].endpoint` is local.
-* **A seat asserts its own posture at runtime.** When the resolved `MIOS_AI_ENDPOINT` is NOT loopback, `api_require_auth` must be on and `principal_bind_mode` must not be `off`. This cannot be a build-time gate: the off-box value arrives in the `/etc/mios` overlay, which the image never sees.
-* **Degrade open, but LOUDLY** (Law 12). A seat with an off-box endpoint and auth off must still boot -- it must not brick a machine over a policy default -- but it must say so in the boot record, in `mios blade status`, and on the dashboard beside the blade-reachability state T-323 already computes. A silent seat is the failure mode being fixed; a refusing seat is a new one.
-* **Firstboot provisions the key** so the posture is reachable without hand-editing: generate a caller key into `/etc/mios/secrets.env` (0600, Law 11) when a seat is resolved, so `enforce` is one flag away rather than a project.
+| verdict | when | what it means |
+|---|---|---|
+| `local` | the front door is loopback | single-tenant; the auth question does not arise, whatever the flags say |
+| `armed` | off-box AND both controls on | a seat with a tenancy boundary |
+| `exposed` | off-box and NOT gated | serves other machines without binding a caller -- **named, never blocked** |
+| `unknown` | no endpoint resolved | say so rather than assume either way |
 
-**Where:** `usr/libexec/mios/role-apply` or `usr/lib/mios/blade.sh` (the posture assertion belongs beside the role resolution), `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh` (recorded, non-critical -- ADR-0016 D8), `usr/share/mios/mios.toml` (`[security]`), `tests/test-seat-auth-posture.sh`.
-**Done When:** a seat with an off-box endpoint and `api_require_auth = false` boots, works, and SAYS so in three places; a seat with auth on and a provisioned key is silent; a hosted blade on loopback is unaffected in every case; the assertion is unit-tested against a fixture overlay rather than a live host.
+`role-apply` logs the verdict, and records it in `/run/mios/blade.env` (`MIOS_BLADE_AUTH_POSTURE`, `MIOS_BLADE_AI_ENDPOINT`) and in `role.active` (`AUTH_POSTURE=`). **Degrade open, Law 12**: an exposed seat still resolves its role and boots. `_auth_posture` cannot fail, so no caller can turn a policy default into a failed boot by treating its exit code as a gate -- the test pins that.
+**Where:** `usr/lib/mios/blade.sh` (`_ssot_security`, `_auth_posture`), `usr/libexec/mios/role-apply`, `tests/test-seat-auth-posture.sh`, `.github/workflows/mios-ci.yml`.
+**Done When:** three of five clauses met.
+* a seat with an off-box endpoint and auth off boots and SAYS so -- **done for the boot record** (journal line, `blade.env`, `role.active`); `mios blade status` and the dashboard remain.
+* a seat with both controls on is silent -- **done** (`armed` logs one ordinary line).
+* a hosted blade on loopback is unaffected -- **done**, and pinned: a loopback front door with BOTH controls off is explicitly not a finding.
+* unit-tested against a fixture overlay rather than a live host -- **done**, 8 assertions over real `/etc` overlays through the real resolver; no host, no live endpoint.
+* firstboot provisions a caller key into `/etc/mios/secrets.env` (0600, Law 11) so `enforce` is one flag away -- **not done**, and it is what keeps this partial.
+**Status:** partial
+
+The remaining work is the provisioning half, and it is the harder half: a key generated at firstboot has to reach every client that dials the front door (OWUI, the `mios`/`@` CLI, the dashboard, a peer seat) or turning the flag on trades a silent exposure for a silent outage. That is why the flags are still off and why this entry does not claim otherwise.
 **Why:** the operator answer to "should auth be on?" is "on a seat, yes; on a hosted box, it is noise". Encoding that in the role is the difference between a security control that exists and one that is documented. | **Domain:** Security/Federation | **Who:** architect
+
+## T-328 -- BLADE-06: the `seat-floor` opt-in, and the OR-gate the axis lacks  (WS-BLADE | P2 | M)
+**Goal:** E-07 A seat offloads by definition, but the operator -- not the archetype -- decides whether it keeps a degraded floor.
+**What+How:** ADR-0016 D6 decided a seat has no local inference lane by definition, with an OPT-IN escape hatch: a `seat-floor` capability granted by no archetype, ungating exactly one micro lane. `lfm2-700m` is already baked and CPU-only, so the cost is zero when off. Not built; this entry is the spec, because the mechanism turns out to be the interesting part.
+
+**The activation axis can only express AND.** `tools/generate-blade-dropins.py` writes ONE file per capability (`blade-<cap>.conf`, a bare `ConditionPathExists=/etc/mios/blade.d/<cap>`), and `automation/48-mios-dropin-fanout.sh:75-82` copies one per capability into each unit's `.d/` as `50-blade-<cap>.conf`. systemd ANDs unprefixed conditions, so a unit listing two capabilities needs both. There is no way today to say *"this unit runs under `service-plane` **or** `seat-floor`"*, which is exactly what the floor needs: `mios-llm-light` must keep running on every serving blade AND additionally run on a seat that opted in.
+
+**The idiom exists and this tree already uses it.** systemd ORs the `|`-prefixed conditions of a given type together and ANDs that group with the unprefixed ones. Four shipped units rely on it -- `usr/lib/systemd/system/mios-mok-enroll.service:13-14` (either MOK cert) and `usr/lib/systemd/system/systemd-logind.service.d/dbus.conf:9-10` (either dbus implementation) are the clean examples. So this is a generator change, not a systemd question.
+
+**Shape of the work:**
+1. `[blade].opt_in_caps = ["seat-floor"]` -- capabilities no archetype grants, legal only through the FEATURES escape hatch (`/etc/mios/role.conf`, or `mios.features=` on the cmdline).
+2. `[blade.any_of].mios-llm-light = ["service-plane", "seat-floor"]`, replacing that unit's `[blade.requires]` entry.
+3. The generator gains a PER-UNIT drop-in for any_of units -- `blade-any-<unit>.conf` with one `ConditionPathExists=|/etc/mios/blade.d/<cap>` line per alternative -- because an OR cannot be expressed as one file per capability the way AND can. The fanout installs it as `50-blade-any.conf`, which composes correctly with any remaining unprefixed AND capability on the same unit.
+4. `blade.sh`: `_ssot_query` emits `SSOT_CAPS_OPTIN`, and `_is_legal_cap` accepts it -- otherwise `role-apply` refuses the marker as an unknown capability and the opt-in cannot be taken.
+5. `check_blade_coverage`: `any_of` is a third classification alongside gated / seat-side / ungated (mutually exclusive with all three); an `opt_in_caps` entry counts as GRANTED so the "granted by NO archetype" rule does not fire; and an opt-in capability no unit names is dead weight and must fail.
+6. `tools/test_check-blade-coverage.py` + a negative case; the projection is regenerate-and-diff like every other.
+
+**Where:** `usr/share/mios/mios.toml` (`[blade].opt_in_caps`, `[blade.any_of]`), `tools/generate-blade-dropins.py`, `automation/48-mios-dropin-fanout.sh`, `usr/lib/mios/blade.sh`, `tools/check-blade-coverage.py` + its sibling test, `tests/drift-gate-negatives.sh`.
+**Done When:** a seat with `FEATURES=seat-floor` in `/etc/mios/role.conf` starts `mios-llm-light` and nothing else it did not start before; a seat without it starts exactly the 6 units it does today; every serving archetype is byte-for-byte unaffected; and the generated comparison counts the floor lane so `mini-vs-hosted.md` stops saying a seat has zero lanes in every configuration.
+**Why:** D6 without the opt-in is a decision with no lever. And the OR gap is worth closing on its own -- the axis currently forces every capability question to be a conjunction, which is why `mios-llm-light` could not be both a blade service and an opt-in seat floor.
+**Dep:** none. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-329 -- BLADE-07: a seat's blade reachability is now in the boot record  (WS-BLADE | P1 | S)
+**Goal:** E-07 A seat that cannot reach its blade must say so where an operator will see it, without rolling itself back over another machine's outage.
+**What+How:** ADR-0016 D8. `[greenboot].blade_reachability_critical` existed, was emitted as `MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL`, and was **read by nothing** -- the only consumer was `tools/generate-mini-vs-hosted.py`, which *described* the key in prose. The same decorative-key failure as `[greenboot].critical_services` before T-314 and `[profile].role` before T-315: the SSOT documented a behaviour the tree did not have.
+
+`40-mios-ai-plane.sh` now probes it. `_blade_reachable` reads `MIOS_BLADE_AI_ENDPOINT` and `MIOS_BLADE_AUTH_POSTURE` from `/run/mios/blade.env` (written by `role-apply`, T-327), parses host and port -- including IPv6 literals and a portless URL taking its scheme's default -- and TCP-probes it. The result is logged on every boot. It affects the exit code **only** when the SSOT flag is on, which it is not by default.
+**Where:** `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh`, `tests/test-greenboot-blade-reachability.sh`, `.github/workflows/mios-ci.yml`.
+**Done When:** met for the reachability half. `[blade].min_peer_version` -- the other half of D8, making seat/blade upgrade skew visible -- is NOT built and is tracked here.
+**Status:** partial
+
+9 assertions against a REAL listening socket on an ephemeral port and a real closed port, not a mock. The two that carry the decision:
+* an unreachable blade leaves `rc=0` at the shipped default -- **recorded, not critical**;
+* flipping the flag to `true` makes the same outage fatal, so the key is demonstrably load-bearing rather than decorative again.
+
+A fixed port would have passed on a stale socket from an earlier run, which is how an earlier reachability test in this tree fooled itself; the fixture binds port 0 and reads back what the kernel gave it.
+**Why:** T-323 gave a seat the ability to tell an unreachable blade from a broken model, and that signal stopped at the probe. A seat whose blade is gone now says so in the boot record. The dashboard surface is still open. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-330 -- BAKE-01: a ~16 GB payload ships for a lane no archetype starts  (WS-BLADE | P1 | M)
+**Goal:** E-08 Law 12 bakes what the image NEEDS. A payload nothing can load is not offline-readiness, it is weight.
+**What+How:** MEASURED while making the seat's disk cost visible for ADR-0016 D7. `automation/73-model-prep.sh:92` reads `MIOS_VLLM_BAKE_MODEL`, and `automation/lib/globals.sh:4766` defaults it non-empty (`stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ`), so **the vLLM snapshot is baked into every image** -- while `[ai.vllm].enable = false` and `mios-llm-heavy-alt` is capability-gated behind `gpu-serving`. A seat carries it and cannot start the lane; a `headless` or `controller` blade carries it and cannot either. Only `hybrid` and `compute` can, and only after the operator enables the lane.
+
+I nearly recorded the opposite. A first grep for `MIOS_VLLM_BAKE_MODEL=` found nothing in `globals.sh` and I concluded the key was decorative and the weights were NOT baked. The resolver emits defaults as `: "${VAR:=value}"`, which that pattern does not match. Re-grepping without the `=` anchor found it. The correction is recorded because the wrong conclusion was the comfortable one -- it would have closed the finding instead of opening it.
+
+**The tension is real, which is why this is not a one-line flip.** Law 12 says bake, do not fetch, and degrade open; a lane whose weights are absent needs egress on the first boot that enables it, which is exactly what Law 12 exists to prevent. Against that: shipping ~16 GB (the SSOT's own figure) on every seat, endpoint and headless blade for a lane they cannot run is a cost paid by every install to serve a minority configuration.
+**Where:** `usr/share/mios/mios.toml` (`[ai.vllm].bake_model`, `[ai.vllm].enable`), `automation/lib/globals.sh` (generated -- change the SSOT, not the file), `automation/73-model-prep.sh`, `tools/generate-mini-vs-hosted.py`.
+**Done When:** the decision is made explicitly and recorded in ADR-0016 rather than inherited from a default nobody chose. Either (a) the payload becomes opt-in -- empty by default, baked when the operator sets it, with the heavy lane's first start documented as needing egress; or (b) it stays baked and the ADR says why, with the size stated so it is a chosen cost. **Measure the real bake delta before choosing** -- the ~16 GB figure is the SSOT's prose, not something this session weighed.
+**Why:** the generated comparison now lists what a seat carries and never loads. Three GGUFs are small and defensible. The fourth is not obviously either, and nobody has said which.
+**Dep:** none. | **Domain:** Build/Image | **Who:** build agent

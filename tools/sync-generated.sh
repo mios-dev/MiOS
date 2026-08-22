@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: One entry point that regenerates EVERY SSOT projection in dependency order (ports -> globals -> quadlets -> names -> env-baseline -> AI manifests), so a contributor cannot land a change with a stale generated artefact.
 # AI-related: tools/render-ports.py, tools/render-globals.py, tools/generate-pod-quadlets.py, tools/generate-names-registry.py, tools/generate-ai-manifest.py, automation/98-drift-checks.sh
-# AI-functions: main
+# AI-functions: _register_new_files, main
 #
 # ORDER MATTERS and is the whole point of this script:
 #   1. render-ports        [ports.categories] -> flat [ports] + ${MIOS_PORT_*:-N} fallbacks
@@ -74,7 +74,28 @@ export MIOS_USER_TOML_D="$ROOT/.mios-absent.d"
 
 step() { printf '[sync-generated] %s\n' "$1"; }
 
+# Steps 6 and 7 census `git ls-files`, so a file git does not yet TRACK is
+# invisible to both. Intent-to-add makes it visible without staging content, so
+# one pass suffices. Without this, sync and the gate pass locally and CI goes
+# red on the commit that finally tracked the file. See TASKS.md T-326.
+_register_new_files() {
+    command -v git >/dev/null 2>&1 || return 0
+    git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || return 0
+    local new f
+    new="$(git -C "$ROOT" ls-files --others --exclude-standard \
+        -- automation tools usr etc srv tests 2>/dev/null || true)"
+    [[ -n "$new" ]] || return 0
+    while IFS= read -r f; do
+        [[ -n "$f" ]] || continue
+        step "     new file registered so the census can see it: $f"
+        git -C "$ROOT" add -N -- "$f" >/dev/null 2>&1 || true
+    done <<< "$new"
+}
+
 main() {
+    step "0/7 registering untracked files (the census reads the git index)"
+    _register_new_files
+
     step "1/6 ports  -- [ports.categories] projection + fallbacks"
     "$PY" tools/render-ports.py
 

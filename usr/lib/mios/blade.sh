@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 # AI-hint: Shared blade-resolution library. ONE implementation of the archetype ladder, the capability set and the alias table, sourced by usr/libexec/mios/role-apply (boot-time resolver) and usr/libexec/mios/mios-blade (the day-2 verb) so the two cannot drift. Every input is parameterized -- cmdline file, role.conf path, marker directory -- so tests/test-role-apply-precedence.sh drives the real functions rather than a copy.
 # AI-related: usr/libexec/mios/role-apply, usr/libexec/mios/mios-blade, usr/share/mios/mios.toml, usr/lib/bootc/kargs.d/05-mios-blade.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md
-# AI-functions: _cmdline_tok, _conf_get, _ssot_query, _hw_demotion, _resolve_role, _canon_role, _caps_for, _is_legal_cap, _resolve_features, _target_for
+# AI-functions: _cmdline_tok, _conf_get, _ssot_query, _hw_demotion, _resolve_role, _canon_role, _caps_for, _is_legal_cap, _resolve_features, _ssot_security, _auth_posture, _target_for
 #
 # Callers may pre-set ROLE_CONF / BLADE_D / CMDLINE_FILE; otherwise the FHS
 # defaults below apply.
@@ -194,6 +194,60 @@ _url_is_local() {
         *://127.0.0.1|*://127.0.0.1:*|*://127.0.0.1/*) return 0 ;;
     esac
     return 1
+}
+
+# Auth posture per ADR-0016 D5. Emits: <verdict>\t<url>\t<detail>, where verdict
+# is local|armed|exposed|unknown. Verdict table: TASKS.md T-327.
+_ssot_security() {
+    python3 - <<'SECPY' 2>/dev/null || true
+import os
+import sys
+
+sys.path.insert(0, os.environ.get("MIOS_USR_DIR", "/usr/lib/mios"))
+import mios_toml  # noqa: E402
+
+sec = (mios_toml.load_merged().get("security") or {})
+
+
+def flag(value):
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+print("require=%d" % (1 if flag(sec.get("api_require_auth")) else 0))
+print("bind=%s" % (str(sec.get("principal_bind_mode") or "off").strip().lower()))
+SECPY
+}
+
+_auth_posture() {
+    local ep
+    ep="$(_ssot_offload_targets | awk -F'\t' '$1 == "ai" { print $2; exit }')"
+    if [[ -z "$ep" ]]; then
+        printf 'unknown\t\tno [ai].endpoint resolved'
+        return 0
+    fi
+    if _url_is_local "$ep"; then
+        printf 'local\t%s\tloopback front door -- single-tenant, no key needed' "$ep"
+        return 0
+    fi
+
+    local sec require bind
+    sec="$(_ssot_security)"
+    require="$(printf '%s\n' "$sec" | sed -n 's/^require=//p')"
+    bind="$(printf '%s\n' "$sec" | sed -n 's/^bind=//p')"
+    [[ -n "$require" ]] || require=0
+    [[ -n "$bind" ]] || bind=off
+
+    local gaps=""
+    [[ "$require" == "1" ]] || gaps="[security].api_require_auth is off"
+    if [[ "$bind" == "off" ]]; then
+        [[ -z "$gaps" ]] || gaps="${gaps}; "
+        gaps="${gaps}[security].principal_bind_mode is off"
+    fi
+    if [[ -z "$gaps" ]]; then
+        printf 'armed\t%s\tauth required, principal bound (%s)' "$ep" "$bind"
+    else
+        printf 'exposed\t%s\t%s' "$ep" "$gaps"
+    fi
 }
 
 _target_for() {

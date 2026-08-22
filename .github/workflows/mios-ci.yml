@@ -134,6 +134,9 @@ jobs:
       - name: A seat can see whether its blade is there (tests/test-blade-reachability.sh)
         run: bash ./tests/test-blade-reachability.sh
 
+      - name: A seat's auth posture follows its role (tests/test-seat-auth-posture.sh)
+        run: bash ./tests/test-seat-auth-posture.sh
+
       - name: A seat activates nothing (tests/test-seat-activates-nothing.py)
         # The executable definition of MiOS-Mini.
         run: python3 ./tests/test-seat-activates-nothing.py
@@ -141,6 +144,9 @@ jobs:
       - name: Greenboot skips what the blade does not activate
         # Without this guard a seat rolls itself back on every boot.
         run: bash ./tests/test-greenboot-blade-guard.sh
+
+      - name: A seat records its blade's reachability (tests/test-greenboot-blade-reachability.sh)
+        run: bash ./tests/test-greenboot-blade-reachability.sh
 
       - name: Lint coverage (python + shell file sets)
         # Assert the linters still SEE every payload area. Enumerating dirs one

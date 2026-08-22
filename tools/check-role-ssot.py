@@ -227,7 +227,11 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
                 continue
             code = line.split("#", 1)[0]
             for name in names:
-                if re.search(r"\b%s\b" % re.escape(name), code):
+                # A token after `.` is a member/key access, not a bare role:
+                # `[ai].endpoint` names a TOML key that happens to share a name
+                # with an archetype. `mios-endpoint.target` is still caught --
+                # only `.` is excluded, never `-`.
+                if re.search(r"(?<!\.)\b%s\b" % re.escape(name), code):
                     viol.append("%s:%d spells the archetype '%s' as a literal -- "
                                 "the archetype table is [blade.archetypes], not "
                                 "code (Law 7)" % (rel, num, name))

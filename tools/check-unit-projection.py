@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the [units] projection debt register. The authoritative rendering comparison lives in the Rust test tools/native/mios-unit-gen/tests/projection.rs, which CI always runs; this gate enforces the half that needs no toolchain -- the register names real, declared, sorted, unique units and never grows past [unit_projection].max_drift. It runs mios-unit-gen --check too when a built binary is there, and SAYS SO when there is not, because a gate that skips quietly is how the golden test stayed green over a copy of itself for months.
 # AI-related: usr/share/mios/mios.toml, tools/test_check-unit-projection.py, tools/native/mios-unit-gen/src/lib.rs, tools/native/mios-unit-gen/tests/projection.rs, automation/98-drift-checks.sh
-# AI-functions: declared_units, unit_aliases, register, max_drift, shipped, hygiene, binary_path, run_binary, main
+# AI-functions: declared_units, unit_aliases, _built, register, max_drift, shipped, hygiene, binary_path, run_binary, main
 """Gate: the [units] projection's debt register is real, sorted and shrinking."""
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -99,14 +100,34 @@ def hygiene(data: dict, root: str) -> list:
     return viol
 
 
-def binary_path(root: str):
-    """A built mios-unit-gen, release preferred, or None."""
+def _built(root: str):
     for rel in ("target/release/mios-unit-gen", "target/debug/mios-unit-gen",
                 "target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe"):
         p = os.path.join(root, "tools/native", rel)
         if os.path.isfile(p) and os.access(p, os.X_OK):
             return p
     return None
+
+
+def binary_path(root: str, build: bool = True):
+    """A built mios-unit-gen, building it once if cargo is available.
+
+    Without this the gate SKIPS its rendering comparison wherever nobody has run
+    cargo -- which is every CI checkout, the one place it matters. See T-317.
+    """
+    found = _built(root)
+    if found or not build:
+        return found
+    if not shutil.which("cargo"):
+        return None
+    try:
+        subprocess.run(["cargo", "build", "--manifest-path",
+                        os.path.join(root, "tools/native/Cargo.toml"),
+                        "-p", "mios-unit-gen"],
+                       capture_output=True, timeout=600)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return _built(root)
 
 
 def run_binary(path: str, root: str):
@@ -152,7 +173,7 @@ def main() -> int:
 
     reg, units = register(data), declared_units(data)
     note = ("mios-unit-gen --check agrees" if binary else
-            "NOT rendering-checked here: no built mios-unit-gen. "
+            "NOT rendering-checked here: no mios-unit-gen and no cargo to build one. "
             "tools/native/mios-unit-gen/tests/projection.rs is the authority and CI runs it")
     print("[check-unit-projection] %d unit(s) declared in [units.*] (plus %d name "
           "aliases sharing the table), %d registered as drifted (ceiling %s). %s."
