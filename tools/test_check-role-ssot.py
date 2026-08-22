@@ -76,6 +76,24 @@ class TestTargets(unittest.TestCase):
         self.assertTrue(any("legal unit-name stem" in v for v in out))
 
 
+class TestCapabilitiesConsumed(unittest.TestCase):
+    def test_a_capability_nothing_requires_fails(self):
+        d = data(archetypes={"hybrid": ["x", "decorative"], "endpoint": []})
+        d["blade"]["requires"] = {"a": ["x"]}
+        out = mod.check_capabilities_consumed(d)
+        self.assertTrue(any("decorative" in v for v in out))
+
+    def test_a_fully_consumed_table_is_clean(self):
+        d = data(archetypes={"hybrid": ["x"], "endpoint": []})
+        d["blade"]["requires"] = {"a": ["x"]}
+        self.assertEqual(mod.check_capabilities_consumed(d), [])
+
+    def test_the_seat_granting_nothing_is_not_a_violation(self):
+        d = data(archetypes={"endpoint": []})
+        d["blade"]["requires"] = {}
+        self.assertEqual(mod.check_capabilities_consumed(d), [])
+
+
 class TestAliases(unittest.TestCase):
     def test_an_alias_onto_an_archetype_is_clean(self):
         self.assertEqual(mod.check_aliases(data(alias={"k3s": "hybrid"})), [])

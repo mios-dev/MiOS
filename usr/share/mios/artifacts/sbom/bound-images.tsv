@@ -13,7 +13,7 @@ docker.io/rancher/k3s:v1.36.3-k3s1	local	extra
 docker.io/lmsysorg/sglang:latest	local	sys
 docker.io/vllm/vllm-openai:latest	local	extra
 ghcr.io/open-webui/open-webui:main	local	heavy
-docker.io/jaegertracing/all-in-one:latest	local	extra
+docker.io/jaegertracing/all-in-one:1.76.0	local	extra
 docker.io/pgvector/pgvector:pg18	local	extra
 quay.io/poseidon/matchbox:latest	local	extra
 docker.io/searxng/searxng:latest	local	extra

@@ -35,10 +35,10 @@ ports.mcp  MIOS_PORTS_MCP
 ports.guacd  MIOS_PORTS_GUACD
 ports.redis  MIOS_PORTS_REDIS
 ports.chrome_cdp  MIOS_PORTS_CHROME_CDP
+ports.chrome_cdp_worker  MIOS_PORTS_CHROME_CDP_WORKER
 ports.otelcol_otlp  MIOS_PORTS_OTELCOL_OTLP
 ports.otelcol_ui  MIOS_PORTS_OTELCOL_UI
 ports.pxe_hub_api  MIOS_PORTS_PXE_HUB_API
-ports.forge_ssh_git  MIOS_PORTS_FORGE_SSH_GIT
 ports.unbound  MIOS_PORTS_UNBOUND
 ports.categories.edge.base  MIOS_PORTS_CATEGORIES_EDGE_BASE
 ports.categories.edge.stride  MIOS_PORTS_CATEGORIES_EDGE_STRIDE
@@ -88,6 +88,8 @@ ports.categories.devtools.doc  MIOS_PORTS_CATEGORIES_DEVTOOLS_DOC
 ports.categories.sidecar.base  MIOS_PORTS_CATEGORIES_SIDECAR_BASE
 ports.categories.sidecar.stride  MIOS_PORTS_CATEGORIES_SIDECAR_STRIDE
 ports.categories.sidecar.members  MIOS_PORTS_CATEGORIES_SIDECAR_MEMBERS
+ports.categories.sidecar.pinned.chrome_cdp  MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP
+ports.categories.sidecar.pinned.chrome_cdp_worker  MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP_WORKER
 ports.categories.sidecar.doc  MIOS_PORTS_CATEGORIES_SIDECAR_DOC
 ports.categories.bridge.base  MIOS_PORTS_CATEGORIES_BRIDGE_BASE
 ports.categories.bridge.stride  MIOS_PORTS_CATEGORIES_BRIDGE_STRIDE

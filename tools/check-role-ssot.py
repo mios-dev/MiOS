@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. The archetype has exactly ONE canonical name, [blade].type; every archetype must ship the target its name derives, every alias must land on an archetype, the role targets must form a COMPLETE conflict graph (an incomplete one makes `mios blade set` start the new role without stopping the old), no [Install] may carry an alias that systemd cannot accept, and the retired [profile].role/.features spelling must not come back -- in the SSOT or in either resolver's keep-list.
 # AI-related: usr/share/mios/mios.toml, usr/lib/mios/blade.sh, usr/libexec/mios/role-apply, usr/libexec/mios/mios-blade, usr/lib/mios/mios_toml.py, tools/native/mios-ssot-walk/src/lib.rs, tools/test_check-role-ssot.py
-# AI-functions: archetypes, aliases, role_targets, unit_body, check_type, check_targets, check_aliases, check_conflicts, check_aliases_in_units, check_profile_retired, check_no_hardcoded_roles, collect, main
+# AI-functions: archetypes, aliases, role_targets, unit_body, check_type, check_targets, check_capabilities_consumed, check_aliases, check_conflicts, check_aliases_in_units, check_profile_retired, check_no_hardcoded_roles, collect, main
 """Gate: the blade role is stated once, legally, and in one place."""
 
 import os
@@ -82,6 +82,26 @@ def check_targets(data: dict, root: str) -> list:
             viol.append("archetype '%s' derives %s, which is not a shipped unit -- "
                         "role-apply would set-default a target that does not exist"
                         % (name, unit))
+    return viol
+
+
+def check_capabilities_consumed(data: dict) -> list:
+    """Every capability an archetype grants must be required by some unit --
+    the reverse of check_blade_coverage, which proves the forward direction."""
+    granted, viol = set(), []
+    for caps in ((data.get("blade") or {}).get("archetypes") or {}).values():
+        if isinstance(caps, str):
+            caps = [caps]
+        granted |= {str(c).strip() for c in (caps or []) if str(c).strip()}
+    required = set()
+    for caps in ((data.get("blade") or {}).get("requires") or {}).values():
+        if isinstance(caps, str):
+            caps = [caps]
+        required |= {str(c).strip() for c in (caps or []) if str(c).strip()}
+    for cap in sorted(granted - required):
+        viol.append("capability '%s' is granted by an archetype but required by "
+                    "NO unit -- an archetype that grants only it is a duplicate "
+                    "of one that grants nothing" % cap)
     return viol
 
 
@@ -204,6 +224,7 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
 def collect(data: dict, root: str) -> list:
     return (check_type(data)
             + check_targets(data, root)
+            + check_capabilities_consumed(data)
             + check_aliases(data)
             + check_conflicts(data, root)
             + check_aliases_in_units(root)

@@ -4,7 +4,7 @@
 # AI-functions: cdp_responding, wait_for_cdp, kill_existing
 set -uo pipefail
 
-CDP_PORT="${HERMES_BROWSER_CDP_PORT:-9222}"
+CDP_PORT="${HERMES_BROWSER_CDP_PORT:-${MIOS_PORT_CHROME_CDP:-9222}}"
 PROFILE_DIR="${HERMES_BROWSER_PROFILE_DIR:-/var/lib/mios/hermes-browser/profile}"
 if [ -n "${HERMES_BROWSER_HEADLESS:-}" ]; then
     HEADLESS="$HERMES_BROWSER_HEADLESS"

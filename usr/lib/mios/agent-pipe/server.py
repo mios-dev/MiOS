@@ -322,7 +322,7 @@ _OTEL_ENABLE = (
     .strip().lower() not in {"false", "0", "no", "off", ""}
 )
 _OTEL_ENDPOINT = (
-    str(os.environ.get("MIOS_OTEL_ENDPOINT") or _otel_toml.get("otel_endpoint", "http://localhost:4317"))
+    str(os.environ.get("MIOS_OTEL_ENDPOINT") or _otel_toml.get("otel_endpoint", "http://localhost:8575"))
     .strip()
 )
 

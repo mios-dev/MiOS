@@ -2480,10 +2480,10 @@ exempt_patterns = [
     "wsl\\.localhost",
     "localhost:8700",
     "localhost:8720",
-    "localhost:4317",
+    "localhost:8575",
     ":8700",
     ":8720",
-    ":4317",
+    ":8575",
     ":11436",
     ":8740",
     ":11435",
@@ -4874,7 +4874,7 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 # traces and spans are exported to the OTLP collector.
 [observability]
 otel_enable   = false
-otel_endpoint = "http://localhost:4317"
+otel_endpoint = "http://localhost:${MIOS_PORT_OTELCOL_OTLP}"
 record_mode   = false
 replay_mode   = false
 # Full-visibility debug surface (operator posture): stream internal reasoning,
@@ -9729,15 +9729,18 @@ oscontrol          =  8950   # mios-oscontrol-server: Windows-side UI Automation
 mcp                = 8770    # MCP host server (/mcp + A2A /.well-known; served by hermes-agent). LOOPBACK only. (Matches [agent].server_port when that key is absent.)
 guacd              = 8560    # guacd protocol daemon behind mios-guacamole (upstream default 4822). Was hardcoded in the Quadlet with no SSOT key.
 redis              = 8565    # redis/valkey backing the firecrawl api+worker in the mios-webtools pod (was hardcoded 6380 in three Quadlets, no SSOT key).
-chrome_cdp         = 8570    # Chrome DevTools Protocol endpoint crawl4ai drives (upstream default 9222). Was hardcoded, no SSOT key.
+chrome_cdp         = 9222    # Chrome DevTools Protocol on the PRIMARY browser (mios-hermes-browser.service). Pinned: an external contract, and its binder is a static flatpak flags file.
+chrome_cdp_worker  = 9223    # CDP on the SECOND browser (mios-hermes-browser-worker.service, profile-w2). Pinned alongside its primary.
 otelcol_otlp       = 8575    # OpenTelemetry OTLP gRPC receiver on mios-otelcol (upstream default 4317).
 otelcol_ui         = 8580    # Jaeger all-in-one query UI on mios-otelcol (upstream default 16686).
 pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream default 8081; its HTTP side rides forge_http's band).
-forge_ssh_git      = 8590    # Forgejo IN-CONTAINER git-ssh listener (was hardcoded 49922 in the Quadlet). Distinct from forge_ssh, the host-published port.
 
 # Allocated ports nothing references yet. SHRINK-ONLY (gate: check_ports_bound).
-# Per-key reasons: TASKS.md T-318.
-unbound = ["chrome_cdp", "forge_ssh_git", "otelcol_otlp", "otelcol_ui"]
+# Per-key reasons: TASKS.md T-318. chrome_cdp_worker's only binder is an
+# `Environment=` literal in a shipped .service -- systemd does not expand ${} in
+# Environment=, and the [units] block that WOULD render the placeholder is inert
+# until T-317 makes mios-unit-gen faithful.
+unbound = ["chrome_cdp_worker"]
 
 # ----------------------------------------------------------------------------
 # [ports.categories] -- THE NUMBERING SSOT.
@@ -9830,8 +9833,11 @@ doc     = "Developer surfaces served to a browser."
 [ports.categories.sidecar]
 base    = 8560
 stride  = 5
-members = ["guacd", "redis", "chrome_cdp", "otelcol_otlp", "otelcol_ui", "pxe_hub_api", "forge_ssh_git"]
-doc     = "Supporting daemons that bind a real port but are not user-facing services. These were HARDCODED in Quadlets with no SSOT key at all (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger 16686, matchbox 8081, Forgejo git-ssh 49922), so nothing could detect a collision when a container was added. Now allocated and collision-checked like everything else."
+members = ["guacd", "redis", "", "otelcol_otlp", "otelcol_ui", "pxe_hub_api", ""]
+# CDP is an external contract, like DNS/53: DevTools clients and Playwright
+# assume 9222, and the primary binder is a static flatpak flags file.
+pinned  = { chrome_cdp = 9222, chrome_cdp_worker = 9223 }
+doc     = "Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Allocating a key is only half the job: the service must then BIND it, which is why [ports].unbound is a shrink-only register gated by check_ports_bound. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORT_FORGE_SSH."
 
 [ports.categories.bridge]
 base    = 8950
@@ -9877,18 +9883,22 @@ crawl_service      = "http://127.0.0.1:${MIOS_PORT_CRAWL4AI}"
 hermes             = "http://localhost:${MIOS_PORT_HERMES}/v1"
 open_webui         = "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"
 code_server        = "http://localhost:${MIOS_PORT_CODE_SERVER}/"
+otelcol_ui         = "http://localhost:${MIOS_PORT_OTELCOL_UI}/"
 local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 
 # Ports with no canonical URL yet. SHRINK-ONLY (gate: check_service_urls).
-# agent_pipe is canonically MIOS_AI_ENDPOINT (Law 5) and never gains a key here.
+# Two keys never gain an entry here: agent_pipe is canonically
+# MIOS_AI_ENDPOINT, and otelcol_otlp is [observability].otel_endpoint. Each is
+# the key its consumers already resolve, so a second would be duplication.
 non_addressable = [
   "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
-  "chrome_cdp", "cockpit_link", "cpu_node", "daemon_agent", "firecrawl",
-  "forge_ssh", "forge_ssh_git", "guacamole_web", "guacd", "hermes_dashboard",
+  "chrome_cdp", "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
+  "firecrawl",
+  "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
   "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
-  "otelcol_otlp", "otelcol_ui", "prefilter", "pxe_hub_api", "rdp", "redis",
+  "otelcol_otlp", "prefilter", "pxe_hub_api", "rdp", "redis",
   "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",
 ]
 
@@ -9989,7 +9999,10 @@ adguard            = "docker.io/adguard/adguardhome:latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
 valkey             = "docker.io/valkey/valkey:latest"
-otelcol            = "docker.io/jaegertracing/all-in-one:latest"
+# Pinned, not floating: `all-in-one` is the Jaeger v1 line only (v2 ships as
+# jaegertracing/jaeger), and the tag decides which env model the collector's
+# host-port vars belong to -- so a float would silently unbind two SSOT ports.
+otelcol            = "docker.io/jaegertracing/all-in-one:1.76.0"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -10081,7 +10094,7 @@ gid  = 824
 # SSOT for the ${MIOS_CRAWL_*}/${MIOS_FIRECRAWL_*} placeholders consumed by
 # mios-webtools-crawl4ai.container + mios-webtools-firecrawl-{api,worker}.container;
 # mapped to env in tools/lib/userenv.sh and rendered via automation/34-render-quadlets.sh.
-cdp_url            = "http://127.0.0.1:9222"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
+cdp_url            = "http://127.0.0.1:${MIOS_PORT_CHROME_CDP}"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
 camoufox           = true                     # enable the Camoufox stealth-Firefox fail-retry fallback
 min_chars          = 200                      # crawl4ai: minimum extracted chars before a page is considered non-empty
 firecrawl_workers  = 2                        # NUM_WORKERS_PER_QUEUE for firecrawl-api + firecrawl-worker
@@ -10656,7 +10669,7 @@ core = [
   "docker.io/adguard/adguardhome:latest",
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
-  "docker.io/jaegertracing/all-in-one:latest",
+  "docker.io/jaegertracing/all-in-one:1.76.0",
   "docker.io/lmsysorg/sglang:latest",
   "docker.io/pgvector/pgvector:pg18",
   "docker.io/rancher/k3s:v1.36.3-k3s1",
@@ -12869,7 +12882,7 @@ Wants = "network-online.target"
 [containers.mios-webtools-crawl4ai.Container]
 ContainerName = "mios-webtools-crawl4ai"
 Environment = [
-  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:9222}",
+  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}}",
   "MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI:-8810}",
   "MIOS_CRAWL_BIND=127.0.0.1",
   "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
@@ -13006,14 +13019,22 @@ Wants = "network-online.target"
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
 Group = "${MIOS_OTELCOL_GID:-829}"
-Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:latest}"
+# Pinned: `all-in-one` is the Jaeger v1 line only (v2 ships as
+# jaegertracing/jaeger), and :latest == 1.76.0. The tag decides which env model
+# the two host-port vars below belong to, so it cannot float.
+Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:1.76.0}"
+# Jaeger v1 binds via viper AutomaticEnv with `-`/`.` -> `_`, so
+# `collector.otlp.grpc.host-port` and `query.http-server.host-port` map to the
+# two names below. Without them the SSOT keys named numbers nothing bound.
 Environment = [
-  "COLLECTOR_OTLP_ENABLED=true"
+  "COLLECTOR_OTLP_ENABLED=true",
+  "COLLECTOR_OTLP_GRPC_HOST_PORT=:${MIOS_PORT_OTELCOL_OTLP:-8575}",
+  "QUERY_HTTP_SERVER_HOST_PORT=:${MIOS_PORT_OTELCOL_UI:-8580}"
 ]
 Label = [
   "org.opencontainers.image.title=mios-otelcol",
-  "org.opencontainers.image.url=http://localhost:16686/",
-  "io.podman_desktop.openInBrowser=http://localhost:16686/"
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/"
 ]
 Pod = "mios-webtools.pod"
 User = "${MIOS_OTELCOL_UID:-829}"
@@ -13146,7 +13167,7 @@ mios-llm-light                 = ["service-plane"]
 mios-open-webui                = ["service-plane"]
 mios-otelcol                   = ["service-plane"]
 mios-pgvector                  = ["service-plane"]
-mios-pxe-hub                   = ["service-plane"]
+mios-pxe-hub       = ["controller", "service-plane"]
 mios-searxng                   = ["service-plane"]
 mios-webtools-crawl4ai         = ["service-plane"]
 mios-webtools-firecrawl-api    = ["service-plane"]

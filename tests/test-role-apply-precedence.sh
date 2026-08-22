@@ -21,9 +21,10 @@ trap 'rm -rf "$FIXTURE"' EXIT
 
 # The REAL library, driven against a fixture tree. role-apply itself would try
 # to set the hostname and talk to systemd; the resolver it sources does not.
-ROLE_CONF="${FIXTURE}/role.conf"
-CMDLINE_FILE="${FIXTURE}/cmdline"
-BLADE_D="${FIXTURE}/blade.d"
+# Read by the sourced resolver, not by this file.
+export ROLE_CONF="${FIXTURE}/role.conf"
+export CMDLINE_FILE="${FIXTURE}/cmdline"
+export BLADE_D="${FIXTURE}/blade.d"
 # shellcheck source=/dev/null
 source "$LIB"
 : > "$ROLE_CONF"
@@ -31,11 +32,11 @@ source "$LIB"
 
 # Values the SSOT query would export. hybrid is the shipped [blade].type, so
 # `mios.blade=hybrid` on the cmdline is the GENERATED karg, not a choice.
-SSOT_TYPE="hybrid"
-SSOT_FALLBACK="headless"
-SSOT_ARCHETYPES="compute controller desktop endpoint ha-node headless hybrid k3s-master"
-SSOT_CAPS_LEGAL="controller gpu-serving service-plane"
-SSOT_ALIASES="ha=ha-node k3s=k3s-master"
+export SSOT_TYPE="hybrid"
+export SSOT_FALLBACK="headless"
+export SSOT_ARCHETYPES="compute controller desktop endpoint ha-node headless hybrid k3s-master"
+export SSOT_CAPS_LEGAL="controller gpu-serving service-plane"
+export SSOT_ALIASES="ha=ha-node k3s=k3s-master"
 
 # Normal hardware for the ladder tests; the real _hw_demotion is exercised on
 # its own below, and re-stubbed to fire for the tier-precedence cases.
@@ -93,20 +94,20 @@ awk '/^_hw_demotion\(\) \{/,/^\}/' "$LIB" | sed 's/^_hw_demotion()/_hw_demotion_
     > "${FIXTURE}/hw.sh"
 # shellcheck disable=SC1091
 . "${FIXTURE}/hw.sh"
-[[ "$(VIRT=wsl; IS_BLACKWELL=false; _hw_demotion_real)" == "wsl" ]] \
+[[ "$(export VIRT=wsl IS_BLACKWELL=false; _hw_demotion_real)" == "wsl" ]] \
     || die "the real _hw_demotion must report the wsl reason"
-[[ -z "$(VIRT=wsl; IS_BLACKWELL=false; SSOT_FALLBACK=""; _hw_demotion_real)" ]] \
+[[ -z "$(export VIRT=wsl IS_BLACKWELL=false SSOT_FALLBACK=""; _hw_demotion_real)" ]] \
     || die "with no [blade].fallback the sniff must refuse to guess an archetype"
 ok "the hardware sniff reports a reason and refuses to guess without [blade].fallback"
 
 # --- the Law-12 floor is the cmdline, not a baked-in archetype name ---------
 set_cmdline "root=UUID=x ro mios.blade=hybrid"; : > "$ROLE_CONF"
-[[ "$(SSOT_TYPE=""; SSOT_FALLBACK=""; role)" == "hybrid" ]] \
+[[ "$(export SSOT_TYPE="" SSOT_FALLBACK=""; role)" == "hybrid" ]] \
     || die "with an unreadable SSOT the generated karg must still supply the role"
-[[ "$(SSOT_TYPE=""; SSOT_FALLBACK=""; source_of)" == "cmdline" ]] \
+[[ "$(export SSOT_TYPE="" SSOT_FALLBACK=""; source_of)" == "cmdline" ]] \
     || die "wrong source for the cmdline floor"
 set_cmdline "root=UUID=x ro"
-[[ -z "$(SSOT_TYPE=""; SSOT_FALLBACK=""; role)" ]] \
+[[ -z "$(export SSOT_TYPE="" SSOT_FALLBACK=""; role)" ]] \
     || die "with neither an SSOT nor a karg the resolver must return nothing, not a guess"
 ok "the Law-12 floor is the generated karg; nothing is invented"
 

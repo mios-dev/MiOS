@@ -53,7 +53,8 @@ from pydantic import BaseModel
 
 from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 
-CDP_URL = os.environ.get("MIOS_CRAWL_CDP_URL", "http://127.0.0.1:9222").strip()
+CDP_URL = (os.environ.get("MIOS_CRAWL_CDP_URL")
+           or "http://127.0.0.1:%s" % os.environ.get("MIOS_PORT_CHROME_CDP", "9222")).strip()
 CAMOUFOX_ON = os.environ.get("MIOS_CRAWL_CAMOUFOX", "true").strip().lower() in (
     "1", "true", "yes", "on")
 MIN_CHARS = int(os.environ.get("MIOS_CRAWL_MIN_CHARS", "200"))

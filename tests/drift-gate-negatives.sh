@@ -1783,6 +1783,23 @@ test_role_ssot() {
         die "check_role_ssot passed with an archetype hardcoded in blade.sh"
     fi
 
+    cp "$lbak" "$lib"
+
+    # (6) A capability every archetype grants and NO unit requires must FAIL:
+    # `controller` was in exactly that state, so the controller archetype
+    # behaved identically to headless.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^endpoint   = \[\]$", s, re.M)
+assert m, "archetype anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "endpoint   = []\nnegtest    = [\"negtest-decorative-cap\"]" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1; then
+        _role_restore; rm -f "$tbak" "$ubak" "$lbak"
+        die "check_role_ssot passed with a capability no unit requires"
+    fi
+
     _role_restore
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_role_ssot >/dev/null 2>&1 \
         || { rm -f "$tbak" "$ubak" "$lbak"; die "check_role_ssot failed after restoration"; }
@@ -1869,17 +1886,21 @@ test_ports_bound() {
     log "Testing check_ports_bound"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local backup="${toml}.negbak"
-    local reg='unbound = ["chrome_cdp", "forge_ssh_git", "otelcol_otlp", "otelcol_ui"]'
     cp "$toml" "$backup"
 
-    # (1) An allocated port that nothing references and nothing registers must
-    # FAIL -- the collision checker would otherwise guard a number nothing binds.
-    python3 -c 'import io,sys
-p,old,new=sys.argv[1],sys.argv[2],sys.argv[3]
+    # Both cases sabotage the LIVE mechanism rather than a literal copy of the
+    # register's contents: anchoring on those made this test go inert the moment
+    # a key drained out of it.
+
+    # (1) A newly allocated port that nothing references and nothing registers
+    # must FAIL -- otherwise the collision checker guards a number nothing binds.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-assert s.count(old)==1,"unbound register anchor moved"
-io.open(p,"w",encoding="utf-8",newline="\n").write(s.replace(old,new))' \
-        "$toml" "$reg" 'unbound = ["forge_ssh_git", "otelcol_otlp", "otelcol_ui"]'
+m=re.search(r"^\[ports\]\n", s, re.M)
+assert m, "flat [ports] table not found"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.end()] + "negtest_unbound_port = 8599\n" + s[m.end():])' "$toml"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
         mv "$backup" "$toml"
         die "check_ports_bound passed with an allocated port nothing references"
@@ -1888,12 +1909,13 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(s.replace(old,new))' \
 
     # (2) The register must only SHRINK: a port that IS referenced may not sit
     # in it, or the list silently rots into decoration.
-    python3 -c 'import io,sys
-p,old=sys.argv[1],sys.argv[2]
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-assert s.count(old)==1,"unbound register anchor moved"
+m=re.search(r"^unbound = \[", s, re.M)
+assert m, "unbound register not found"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
-    s.replace(old, old[:-1] + ", \"guacd\"]"))' "$toml" "$reg"
+    s[:m.end()] + "\"guacd\", " + s[m.end():])' "$toml"
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
         mv "$backup" "$toml"
         die "check_ports_bound passed with a REFERENCED port still in the unbound register"
