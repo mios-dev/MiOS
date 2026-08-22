@@ -289,6 +289,12 @@ CREATE TABLE IF NOT EXISTS run_template (
 );
 CREATE INDEX IF NOT EXISTS run_template_class ON run_template (class);
 CREATE INDEX IF NOT EXISTS run_template_ts    ON run_template (ts DESC);
+-- T-225: `class` is a hash of the PLAN's shape, so it can only be computed
+-- AFTER planning -- useless for deciding whether to plan at all. The intent key
+-- is derived from the TURN, which is the question asked before the planner runs.
+ALTER TABLE run_template ADD COLUMN IF NOT EXISTS intent     text;
+ALTER TABLE run_template ADD COLUMN IF NOT EXISTS intent_key text;
+CREATE INDEX IF NOT EXISTS run_template_intent_key ON run_template (intent_key);
 
 -- ── scratch: per-chat working memory (folds the in-process _SCRATCHPADS so it
 --    survives agent-pipe restarts) ─────────────────────────────────────────────

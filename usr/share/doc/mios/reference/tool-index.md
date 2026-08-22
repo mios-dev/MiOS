@@ -468,9 +468,11 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/refine.py` | REFINE intent-classifier extracted verbatim from server.py (refactor R5/mios_refine wave). The PRIMARY pre-router pass -- refine_intent() calls the micro/refine model (own httpx) and parses the... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/reflect.py` | Reflection / self-assessment cluster extracted verbatim from server.py (strangler-fig wave). Two cohesive async helpers that ASSESS execution outcomes and emit verdict/correction events:... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/remote_adapter.py` | Remote multi-provider adapter module. Normalizes OpenAI Chat Completions requests for remote [nodes.*] bindings declaring api='anthropic'|'gemini' and translates their responses back into standard... |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/replay.py` | OAI-04/T-225 run-template REPLAY matcher -- the reuse half of the WS-6 capture path. Pure stdlib and deliberately MODEL-FREE: the whole point is to answer a repeated intent without spending a... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/router.py` | WS-A11/WS-3 server.py decomposition -- Stage 1: the pure Router. Maps a refined plan's intent (chat|dispatch|multi_task|agent|dag, + deep/deterministic flags) to a typed RouteDecision (mode + whether... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/routing.py` | ROUTING layer extracted verbatim from server.py (refactor R2/mios_routing wave). The deterministic SSOT-config routing loaders -- _load_routing_domains (mios.toml [routing.domains.*] -> the 2-stage... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/ruleof2.py` | CaMeL-class architectural prompt-injection defense -- Meta's "Agents Rule of Two" composed as a DETERMINISTIC (not probabilistic) dispatch gate. A turn/verb may hold AT MOST TWO of three properties... |
+| `usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py` | WS-6 run-template CAPTURE + the T-225 replay source, extracted out of dag_exec so the two halves of one feature live together. Owns the structural plan-shape class (_run_template_class -- computable... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py` | Sub-agent TOOL LOOP for the OpenAI /v1 surface (MiOS is /v1-only), extracted verbatim from server.py (refactor R4 + a later move-home wave). Holds _v1_secondary_tool_loop (the pipe-side READ-ONLY... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/smartroute.py` | WS-A16 cost/quality SmartRouting core, designed per researched best practice (LiteLLM router + adaptive/cascading routing): LOCAL-FIRST escalation -- always try the cheap/local lane(s) first, and... |
 | `usr/lib/mios/agent-pipe/mios_pipe/routing/sse.py` | OpenAI streaming SSE chunk + status-emit primitives extracted from server.py (refactor WS R2 leaf wave). Encodes chat-completion deltas in the OpenAI streaming protocol so any gateway... |
@@ -656,11 +658,13 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_reflect.py` | Standalone assert-script unit test for mios_reflect (strangler-fig extraction). Pure stdlib, no server.py/DB/network/pytest. Pins the self-assessment invariants of the extracted cluster:... |
 | `usr/lib/mios/agent-pipe/test_mios_registry.py` | Standalone assert-script unit test for mios_registry (WS-A17 versioned package + registry projection). Pure stdlib, no server.py/DB/pytest. Verifies build_package produces a versioned self-describing... |
 | `usr/lib/mios/agent-pipe/test_mios_remote_adapter.py` | Unit test for mios_pipe.routing.remote_adapter. Validates Anthropic, Gemini, and OpenAI remote calls. |
+| `usr/lib/mios/agent-pipe/test_mios_replay.py` | Standalone assert-script unit test for the T-225 run-template REPLAY path -- the pure matcher (mios_pipe.routing.replay), the capture round-trip (mios_pipe.routing.run_template), and the planner... |
 | `usr/lib/mios/agent-pipe/test_mios_reputation.py` | Standalone unit test for mios_reputation (#54 peer reputation): neutral-with-no-history, success-rate scoring, recent-failure penalty, and STABLE rank that preserves caller order when peers are... |
 | `usr/lib/mios/agent-pipe/test_mios_router.py` | Standalone assert-script unit test for mios_router (WS-A11/WS-3 decomposition Stage 1: the pure Router). Pure stdlib, no server.py/DB/pytest. Verifies each intent (chat|dispatch|multi_task|agent|dag)... |
 | `usr/lib/mios/agent-pipe/test_mios_router_parity.py` | Standalone assert-script unit test for mios_router Stage-2 parity. Pure stdlib, no server.py/DB/pytest. Loads tests/router_corpus.json and verifies Router.route(plan).mode matches expected_mode and... |
 | `usr/lib/mios/agent-pipe/test_mios_routing.py` | Standalone assert-script unit test for mios_routing (refactor R2 ROUTING-layer extraction). Pure stdlib, no server.py/DB/network/pytest. Writes a synthetic mios.toml [routing] block + points... |
 | `usr/lib/mios/agent-pipe/test_mios_ruleof2.py` | Offline stdlib-assert test for the F2/T-033 Rule-of-Two architectural prompt-injection gate. Two layers: (1) the PURE evaluator mios_ruleof2 -- is_state_change derives property C from the SSOT... |
+| `usr/lib/mios/agent-pipe/test_mios_run_template.py` | Standalone assert-script unit test for mios_pipe.routing.run_template -- the WS-6 capture half plus the T-225 replay read side, extracted out of dag_exec. Proves the structural plan-shape class is... |
 | `usr/lib/mios/agent-pipe/test_mios_sandbox.py` | Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest. Verifies the tier->profile mapping (read=none, write=workspace,... |
 | `usr/lib/mios/agent-pipe/test_mios_sched.py` | Standalone unit test for mios_sched -- PriorityGate concurrency logic (permit capping, priority reordering, anti-starvation) plus the lane/scheduling/priority decision helpers (_lane_tool_cap,... |
 | `usr/lib/mios/agent-pipe/test_mios_scratchpad.py` | Unit tests for mios_pipe.context.scratchpad. |
@@ -706,7 +710,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. Collapses the ~13 independently re-rolled `try: import tomllib except: import tomli` +... |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests for the Python tokenize/ast path and the inline-comment case. |
 
-<!-- derived from the AI-hint headers of 393 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 397 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs

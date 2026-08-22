@@ -2812,7 +2812,7 @@ _dispatch_inflight: dict[str, "asyncio.Future"] = {}
 
 from mios_dag_exec import (   # noqa: E402  (R8: DAG execution entrypoints, moved verbatim)
     _deepen_until_barrier, _execute_dag_node, _record_dag_node_row,
-    _execute_dag_saturated, RUN_TEMPLATE_ENABLE, _run_template_class,
+    _execute_dag_saturated, RUN_TEMPLATE_ENABLE, _run_template_class, load_run_templates,
     _capture_run_template, execute_dag, _execute_dag_bounded,
     _execute_dag_emitting,
     _EK_REF_RE, _EK_FIELD_REF_RE, _smart_extract_from_jsonish,
@@ -3048,7 +3048,7 @@ sys.modules["mios_planner"].configure(
     agent_registry=_AGENT_REGISTRY,
     short_prompt_chars=(_toml_section("planner") or {}).get("short_prompt_chars"),
     short_prompt_words=(_toml_section("planner") or {}).get("short_prompt_words"),
-)
+    replay_templates=load_run_templates)   # T-225 intent-keyed replay source
 from mios_planner import (  # noqa: E402,F401
     _PLANNER_SYSTEM, _planner_system_for, _action_domain_verbs)
 

@@ -36,8 +36,9 @@ from typing import Optional
 import httpx
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
-from mios_config import _STACK_MODEL, _LIGHT_BASE
+from mios_config import _STACK_MODEL, _LIGHT_BASE, _toml_section
 from mios_verbcatalog import _render_verb_catalog
+from mios_pipe.routing import replay as _replay   # T-225 intent-keyed replay
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -76,7 +77,8 @@ def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
               agent_catalog_rendered=None, routed_domain_var=None,
               is_action_domain=None, verb_catalog=None, routing_domains=None,
               build_dispatch_cmd=None, agent_registry=None,
-              short_prompt_chars=None, short_prompt_words=None) -> None:
+              short_prompt_chars=None, short_prompt_words=None,
+              replay_templates=None) -> None:
     """Inject the server.py runtime deps the planner calls back into, then
     (re)build _PLANNER_SYSTEM once the rendered catalogs are available. The
     verb_catalog / routing_domains args feed the now-native _planner_system_for /
@@ -84,6 +86,7 @@ def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
     short_prompt_chars / short_prompt_words args carry the SSOT [planner]
     short-prompt-skip cutoffs (None = keep the baseline)."""
     global _VERB_CATALOG_RENDERED, _RECIPE_CATALOG_RENDERED, _AGENT_CATALOG_RENDERED
+    global _replay_templates
     global _routed_domain_var, _is_action_domain, _VERB_CATALOG, _ROUTING_DOMAINS
     global _build_dispatch_cmd, _AGENT_REGISTRY
     global PLANNER_SHORT_PROMPT_CHARS, PLANNER_SHORT_PROMPT_WORDS
@@ -113,6 +116,8 @@ def configure(*, verb_catalog_rendered=None, recipe_catalog_rendered=None,
             and _RECIPE_CATALOG_RENDERED is not None
             and _AGENT_CATALOG_RENDERED is not None):
         _build_planner_system()
+    if replay_templates is not None:
+        globals()["_replay_templates"] = replay_templates
 
 
 def _build_planner_system() -> None:
@@ -308,6 +313,52 @@ def _planner_system_for(domain: Optional[str]) -> str:
     return _PLANNER_SYSTEM
 
 
+_replay_templates = None   # injected: async () -> list[dict] of stored templates
+
+
+def _replay_cfg() -> tuple:
+    """(enabled, threshold, candidates) from [run_template]. Read at call time so
+    a host override lands without a restart."""
+    rt = _toml_section("run_template") or {}
+    en = str(os.environ.get("MIOS_RUN_TEMPLATE_REPLAY")
+             or rt.get("replay_enable", "false")).strip().lower() in {"1", "true", "yes", "on"}
+    try:
+        thr = float(rt.get("replay_threshold", 0.85))
+    except (TypeError, ValueError):
+        thr = 0.85
+    try:
+        cand = int(rt.get("replay_candidates", 50))
+    except (TypeError, ValueError):
+        cand = 50
+    return en, thr, max(1, cand)
+
+
+async def _replay_lookup(user_text: str) -> "Optional[dict]":
+    """A stored DAG for a repeated intent, or None to plan.
+
+    Lexical, not embedded; degrades open. Manual ch61."""
+    enabled, threshold, candidates = _replay_cfg()
+    if not enabled or _replay_templates is None:
+        return None
+    try:
+        rows = await _replay_templates(candidates)
+        tpl, score, why = _replay.match_template(user_text, rows or [], threshold)
+        if tpl is None:
+            log.info("run-template replay: planning (%s)", why)
+            return None
+        dag = dict(tpl.get("dag") or {})
+        if not dag.get("nodes"):
+            return None
+        dag["replayed"] = True
+        dag["replay_score"] = round(float(score), 4)
+        log.info("run-template replay: HIT (%s, %d node(s)) -- planner call skipped",
+                 why, len(dag["nodes"]))
+        return dag
+    except Exception as e:  # noqa: BLE001 -- degrade-open: a replay bug must never block planning
+        log.debug("run-template replay skipped: %s", e)
+        return None
+
+
 async def decompose_intent(user_text: str) -> Optional[dict]:
     """Call the planner LLM to emit a DAG of dispatch verbs for a
     multi-step user intent. Returns the parsed dict, or None on
@@ -323,6 +374,9 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
     if not PLANNER_ENABLED or not user_text or not user_text.strip():
         return None
     _ut = user_text.strip()
+    _replayed = await _replay_lookup(_ut)
+    if _replayed is not None:
+        return _replayed
     _domain = _routed_domain_var.get(None)  # routed once at the chat entry
     if (len(_ut) < PLANNER_SHORT_PROMPT_CHARS
             and len(_ut.split()) <= PLANNER_SHORT_PROMPT_WORDS
@@ -393,6 +447,8 @@ async def decompose_intent(user_text: str) -> Optional[dict]:
             log.info("planner emitted unknown verb %r; discarding DAG",
                      n.get("tool"))
             return None
+    # T-225: the capture path keys on the TURN. Manual ch61.
+    parsed["intent"] = _ut[:2000]
     return parsed
 
 
