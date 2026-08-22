@@ -3,7 +3,7 @@
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
-status: proposed
+status: accepted
 date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
@@ -18,11 +18,11 @@ superseded_by: []
 
 ## Status
 
-**Proposed.** Decisions 1 and 2 below are mechanical consequences of what the tree already is
-and are recommended for acceptance as written. **Decision 3 (naming) is deliberately left open**
-— it is the operator's call and every other decision here is independent of it. **Decision 4
-records a mechanism that already ships**; what it decides is only the three unfinished pieces
-listed under it.
+**Accepted.** The operator settled the four open questions: a seat is an **archetype**, not an
+image; the two Hermes port keys **collapse into one**; blade-reachability as a boot-critical
+condition is **configurable, defaulting to off**; and `Containerfile.minimal` is **deleted**.
+Decisions 1 and 2 were already mechanical consequences of what the tree is. Decision 3 (naming)
+is settled by subtraction — with the lineage claimant gone, only two claimants to *mini* remain.
 
 ## Context
 
@@ -31,7 +31,7 @@ Three separate things in this repository currently answer to a variant of the na
 | Claimant | What it actually is | Evidence |
 |---|---|---|
 | `[mini]` + `mios-mini-architecture.md` | A **tiny headless hypervisor-router**: binds every dGPU to `vfio-pci`, owns the NICs/radios/TPM, and boots the *full* MiOS as a super-privileged guest VM | `bind_dgpu_vfio = true`, `dgpumode = "vfio-pci"`, `[mini.gpu].assignments`, `[mini.mesh]` headscale; 224-line architecture doc with decisions D1–D5 and risks R1–R10 |
-| `Containerfile.minimal` | A **base-lineage variant**: bare `fedora-bootc` instead of `ucore-hci`. Its own header calls it *"MiOS-Lite"* and marks it `STUB / EXPERIMENTAL` | `Containerfile.minimal` header; ~1.2 GB vs ~2.5 GB |
+| `Containerfile.minimal` (**deleted**) | A **base-lineage variant** on bare `fedora-bootc`. It could not build: 8 of the 9 phase scripts it named no longer existed | header called it *"MiOS-Lite"*, `STUB / EXPERIMENTAL`; removed with its three dead `[image].minimal_*` keys |
 | The operator's stated intent | A **full-featured seat** that runs the whole UX but offloads every service to a hosted MiOS OCI image, local / localhost / remote | stated requirement |
 
 The first two are not variants of each other, and neither is the third. They differ on **two
@@ -42,9 +42,11 @@ orthogonal axes** that the naming has collapsed into one:
 * **Role** — what the machine *does* (owns metal and hypervises; serves services to others; runs
   the UX and consumes services). Affects which units start and where addresses point.
 
-Conflating them is why "mini" has three meanings. `[profile].role` already exists (`"developer"`,
-with `features = ["ai", "virtualization", "k3s"]`), and `Containerfile.minimal` already exists;
-they are answers on different axes.
+Conflating them is why "mini" had three meanings. Deleting `Containerfile.minimal` removes the
+lineage claimant outright: it named 8 phase scripts that no longer exist, so it had not been
+buildable for some time, and its `[image].minimal_base/_tag/_name` keys had zero consumers and
+were not even emitted. **Two claimants remain, both on the role axis**, which is what makes the
+naming question tractable.
 
 ### What the tree can express today
 
@@ -53,7 +55,7 @@ Measured, not assumed:
 | Fact | Value |
 |---|---|
 | Pods | **All three are `Network=host`.** No container publishes a port |
-| `[urls]` coverage | **9 of 41** addressable ports have a canonical URL; the other **32 are hand-composed** in 1–18 files each |
+| `[urls]` coverage | **9 of 40** addressable ports have a canonical URL; the other **31 are hand-composed** in 1–18 files each |
 | Consumers hand-composing an address | ~125 non-generated, non-doc files |
 | `[blade]` **singular** | **Implemented.** `type = "hybrid"`, `[blade.archetypes]`, `[blade.requires]` — the OS-role activation axis |
 | `[blades]` **plural** | **Zero keys.** An empty section under a 30-line comment about nodes — a different axis (see below) |
@@ -131,6 +133,18 @@ success over a set that excludes the thing it checks.** It is also the strongest
 Decision 1 — "offload is only an addressing change" is a promise the tree cannot keep until one
 service has one address.
 
+**Resolved.** There is one Hermes, so there is now one key: `[ports].hermes = 8720`, which
+`hermes-worker.service` binds. `hermes_worker` is gone, the greenboot probe names the unit that
+exists, and all 17 executable retired-port defaults now carry their SSOT value.
+
+Deleting the key exposed a second defect worth recording, because it nearly shipped: **`[ports]`
+allocates positionally** (`base + index * stride`), so removing one member silently renumbered the
+five services after it — `daemon_agent`, `model_router`, `arbiter`, `mcp` and `opencode_gateway`
+each slid down a slot. A collapse of two Hermes keys had a blast radius of five unrelated services,
+and no gate would have objected because the result was internally consistent. `[ports.categories]`
+now accepts an **empty member as a reserved slot** that holds its index without naming a port, so a
+retired service cannot renumber its neighbours. Every other port is byte-identical to before.
+
 ## Decision
 
 ### 1. Service addressing becomes total through `[urls]`, and offload is an overlay
@@ -179,8 +193,10 @@ Two coherent resolutions exist and the rest of this ADR holds under either:
   `mios-mini-mesh-gen` and drift-check #68 move with it. Costs a rename across the most finished
   design artifact in the tree; costs nothing architectural.
 
-`Containerfile.minimal` is on the **lineage** axis in both cases and should be named for its base,
-not for a role — its own header already calls it *MiOS-Lite*.
+The lineage axis now has **one** member — the single root `Containerfile` — so nothing on that
+axis competes for the name. `check_lint_is_final` globs `Containerfile*` rather than naming files,
+and fails when the glob is empty, so a future lineage variant is covered the day it lands and a
+tree with none cannot pass Law 4 vacuously.
 
 ### 4. One image, role by flag — already the mechanism; finish it on `[blade]`
 
@@ -198,7 +214,12 @@ What this ADR decides is the three unfinished pieces, and that they land on `[bl
 * **`05-mios-blade.toml` gets generated** so the karg the resolver already parses has a producer
   under Law 8, rather than depending on each installer to type it.
 
-A seat adds one archetype to `[blade.archetypes]` — capabilities it does *not* carry, plus the
+**A seat is `[blade.archetypes].endpoint`** — no new name for a thing the tree already had. The
+archetype table is now declared in full (`hybrid`, `compute`, `controller`, `endpoint`, `headless`,
+`desktop`); an archetype with **no capabilities is a seat**, because a blade activates a unit only
+when its `ConditionPathExists=/etc/mios/blade.d/<cap>` marker is present. Declaring the table is
+behaviour-preserving — `role-apply` already resolved an undeclared archetype to `[]` — so this
+states what the tree did rather than changing it. A seat therefore costs one archetype plus the
 `[urls]` overlay from Decision 1. No new Containerfile, no new axis.
 
 Lineage stays a **bake-time** fork, because it is one — a different `FROM`.
@@ -230,9 +251,10 @@ must never imply a role.
   script and its gate agree with each other while both ignore the source of truth. The work is
   therefore not "make greenboot role-aware" — it is *give the existing role-awareness an SSOT*, so a
   seat's critical set is declared rather than inferred from whatever happens to be enabled.
-* **Whether a seat's "critical" may include reaching its blade is still the real question**, and it
-  is unchanged by the above: answering yes makes boot success network-dependent, which collides with
-  Law 12 (degrade open, never block boot) and must be a recorded choice rather than a side effect.
+* **Whether a seat's "critical" may include reaching its blade is now a recorded choice**, not an
+  implication: `[greenboot].blade_reachability_critical` defaults to `false`, so Law 12 holds by
+  default (degrade open, never block boot) and an operator who wants a seat to fail its boot when
+  its blade is unreachable opts in explicitly, in the SSOT, where the trade is visible.
 * **Law 3 BOUND-IMAGES** symlinks every Quadlet image so it ships *with* the host. A seat that runs
   none of them still carries all of them. Either Law 3 gains a role-aware exception, or a seat is
   not actually smaller — only quieter.

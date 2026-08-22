@@ -103,7 +103,7 @@ def _a2a_self_peer_url(url: str) -> bool:
     "mios-local" while A2A_SELF_ID defaults to "local-mios" -- an id mismatch. So
     exclude by URL (id-agnostic). Only LOOPBACK :8640 is self; a remote node on
     :8640 (real host/tailnet IP) is a legitimate peer and is NOT excluded."""
-    _self_port = str(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")).strip()
+    _self_port = str(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")).strip()
     u = (url or "").lower()
     return (f":{_self_port}" in u) and (
         "127.0.0.1" in u or "localhost" in u or "://[::1]" in u or "0.0.0.0" in u)

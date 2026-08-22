@@ -1735,7 +1735,7 @@
           <fieldset>
             <legend>[agents.hermes] — agent gateway + tool loop</legend>
             <label for="f-agh-endpoint">endpoint</label>
-            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES_WORKER}/v1">
+            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES}/v1">
             <label for="f-agh-model">model</label>
             <input type="text" id="f-agh-model" data-key="agents.hermes.model" placeholder="mios-heavy">
             <label for="f-agh-role">role</label>
@@ -2389,8 +2389,6 @@
         <input type="text" id="f-port-oscontrol" data-key="ports.oscontrol" data-type="int" placeholder="8453">
         <label for="f-port-mcp">mcp (MCP host server / well-known; loopback)</label>
         <input type="text" id="f-port-mcp" data-key="ports.mcp" data-type="int" placeholder="8460">
-        <label for="f-port-hermes-worker">hermes_worker (Hermes-Agent worker instance)</label>
-        <input type="text" id="f-port-hermes-worker" data-key="ports.hermes_worker" data-type="int" placeholder="8643">
         <label for="f-port-hermes-dashboard">hermes_dashboard (Hermes Dashboard web UI)</label>
         <input type="text" id="f-port-hermes-dashboard" data-key="ports.hermes_dashboard" data-type="int" placeholder="8119">
         <label for="f-port-crawl4ai">crawl4ai (local crawl4ai engine FastAPI)</label>

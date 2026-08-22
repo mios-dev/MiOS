@@ -101,7 +101,7 @@ def _dispatch_num(env: str, key: str, default, cast=int):
     return default
 
 
-PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
+PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
 MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORT_MCP", "mcp", None)
 _LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450")
@@ -109,7 +109,7 @@ BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
            or (_LIGHT_BASE + "/v1"
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
                   in {"1", "true", "yes", "on"}
-               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1")).rstrip("/")
+               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1")).rstrip("/")
 _BACKEND_IS_LIGHT = (
     (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
     in {"1", "true", "yes", "on"}
@@ -121,10 +121,10 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (mios-llm-light on
 _HERMES_ENDPOINT = (os.environ.get("MIOS_HERMES_ENDPOINT")
                     or _toml_section("hermes").get("endpoint")
-                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1").rstrip("/")
+                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
 _HERMES_WORKER_ENDPOINT = (os.environ.get("MIOS_HERMES_WORKER_ENDPOINT")
                            or _toml_section("agents").get("hermes", {}).get("endpoint")
-                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES_WORKER', '8643')}/v1").rstrip("/")
+                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
 _AUTH_HOSTPORTS = {
     _BACKEND_HOSTPORT,
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
@@ -142,7 +142,7 @@ _TOOL_BACKEND_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
 _TOOL_BACKEND_HEAVY = (os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY")
                        or _toml_section("nodes").get("local-sglang", {}).get("endpoint")
-                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8442')}/v1").rstrip("/")
+                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8530')}/v1").rstrip("/")
 _TOOL_BACKEND_HEAVY_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY_MODEL", "mios-heavy")
 _HEAVY_PROBE_TTL = float(os.environ.get("MIOS_AGENT_PIPE_HEAVY_PROBE_TTL", "30"))

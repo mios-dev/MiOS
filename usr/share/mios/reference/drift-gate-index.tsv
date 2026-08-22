@@ -41,7 +41,7 @@
 40	check_quadlet_privilege	mios.toml absent
 41	check_unit_security	check_unit_security
 42	check_var_closure	SOFT: python3 missing
-43	check_lint_is_final	Containerfile + Containerfile.minimal end with 'RUN bootc container lint'
+43	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 44	check_firstboot_degrade_open	every *firstboot* script degrades open
 45	check_vendor_urls	no vendor cloud URL in active config
 46	check_resolver_twin_parity	SOFT: python3 missing

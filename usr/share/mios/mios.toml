@@ -992,12 +992,12 @@ comment = "# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/co
 Environment = [
   "HOME=/var/lib/mios/hermes-worker",
   "HERMES_HOME=/var/lib/mios/hermes-worker",
-  "SEARXNG_URL=http://localhost:8888",
-  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235",
-  "FIRECRAWL_API_URL=http://127.0.0.1:3002",
-  "PORT=${MIOS_PORT_HERMES_WORKER:-8730}",
-  "API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730}",
-  "HERMES_BACKEND_BASE_URL=http://localhost:11441",
+  "SEARXNG_URL=http://localhost:${MIOS_PORT_SEARXNG}",
+  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:${MIOS_PORT_CRAWL4AI}",
+  "FIRECRAWL_API_URL=http://127.0.0.1:${MIOS_PORT_FIRECRAWL}",
+  "PORT=${MIOS_PORT_HERMES}",
+  "API_SERVER_PORT=${MIOS_PORT_HERMES}",
+  "HERMES_BACKEND_BASE_URL=http://localhost:${MIOS_PORT_VLLM}",
   "HERMES_MAX_TOKENS=8192",
   "BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}",
 ]
@@ -2937,7 +2937,7 @@ privilege_group = "privileged"
 # is the backstop. The :8720 gateway service stays thin for INCOMING Discord/CLI ->
 # :8700 (unification preserved; :8730 worker is a distinct instance, Discord OFF).
 # hermes stays a first-class dispatched agent (job/strengths surface via the pipe loop).
-endpoint = "http://localhost:${MIOS_PORT_HERMES_WORKER}/v1"
+endpoint = "http://localhost:${MIOS_PORT_HERMES}/v1"
 model    = "mios-heavy"
 role     = "general"
 # health_gate: the :8730 hermes-worker is a SEPARATE service bound to the heavy
@@ -8469,14 +8469,6 @@ local_tag      = "localhost/mios:latest"
 # track 6.1/7.0 without bumping code.
 machine_os_repo = "quay.io/podman/machine-os"
 machine_os_tag  = "6.0"
-# Sibling minimal-track image (Containerfile.minimal): builds from
-# bare fedora-bootc instead of ucore-hci. Smaller (~1.2 GB vs ~2.5 GB)
-# but lacks NVIDIA kmod + libvirt + ZFS prebakes. Operators on
-# non-HCI workloads can target the minimal tag instead.
-minimal_base = "quay.io/fedora/fedora-bootc:latest"
-minimal_tag  = "localhost/mios-minimal:latest"
-minimal_name = "ghcr.io/mios-dev/mios-minimal"
-
 # ----------------------------------------------------------------------------
 # [deployment] -- bootc-image-builder (BIB) target formats.
 #
@@ -9707,8 +9699,7 @@ cockpit_link       = 8120    # mios-cockpit-link Podman Desktop discovery shim
 searxng            = 8800     # local privacy-respecting metasearch
 crawl4ai           = 8810    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 firecrawl          = 8820     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3033=open_webui.)
-hermes             = 8720     # Hermes-Agent (canonical /v1; live MiOS agent at /)
-hermes_worker      = 8730     # Hermes-Agent worker instance
+hermes             = 8720     # Hermes gateway (canonical /v1). ONE key: hermes-worker.service is the only unit running `hermes gateway run` and binds this.
 hermes_dashboard   = 8210     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 8200     # Open WebUI (rich LLM interface at http://localhost:3033)
 # hermes_workspace REMOVED (port 3033 freed) -- use the
@@ -9816,7 +9807,7 @@ doc     = "Datastores (the unified agent DB)."
 [ports.categories.agent]
 base    = 8700
 stride  = 10
-members = ["agent_pipe", "prefilter", "hermes", "hermes_worker", "daemon_agent", "model_router", "arbiter", "mcp", "opencode_gateway"]
+members = ["agent_pipe", "prefilter", "hermes", "", "daemon_agent", "model_router", "arbiter", "mcp", "opencode_gateway"]
 doc     = "Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes."
 
 [ports.categories.webtools]
@@ -10762,6 +10753,9 @@ pcrs    = "7"
 
 [greenboot]
 critical_services = ["agent-pipe", "llm-light", "pgvector"]
+# May a seat fail its boot when its blade is unreachable? Default no: Law 12
+# says degrade open. true makes boot success network-dependent -- opt in only.
+blade_reachability_critical = false
 
 [agent_pipe.quality]
 min_length  = 5
@@ -13070,8 +13064,15 @@ mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
 [blade]
 type = "hybrid"
 
+# An archetype expands to the capabilities its blade activates. An archetype
+# with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]
-hybrid = ["gpu-serving", "controller"]
+hybrid     = ["gpu-serving", "controller"]
+compute    = ["gpu-serving"]
+controller = ["controller"]
+endpoint   = []
+headless   = []
+desktop    = []
 
 [blade.requires]
 mios-llm-heavy = ["gpu-serving"]

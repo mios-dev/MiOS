@@ -8,7 +8,6 @@ ports.searxng  MIOS_PORTS_SEARXNG
 ports.crawl4ai  MIOS_PORTS_CRAWL4AI
 ports.firecrawl  MIOS_PORTS_FIRECRAWL
 ports.hermes  MIOS_PORTS_HERMES
-ports.hermes_worker  MIOS_PORTS_HERMES_WORKER
 ports.hermes_dashboard  MIOS_PORTS_HERMES_DASHBOARD
 ports.open_webui  MIOS_PORTS_OPEN_WEBUI
 ports.code_server  MIOS_PORTS_CODE_SERVER
@@ -273,9 +272,6 @@ image.tag  MIOS_IMAGE_TAG
 image.local_tag  MIOS_IMAGE_LOCAL_TAG
 image.machine_os_repo  MIOS_IMAGE_MACHINE_OS_REPO
 image.machine_os_tag  MIOS_IMAGE_MACHINE_OS_TAG
-image.minimal_base  MIOS_IMAGE_MINIMAL_BASE
-image.minimal_tag  MIOS_IMAGE_MINIMAL_TAG
-image.minimal_name  MIOS_IMAGE_MINIMAL_NAME
 image.sidecars.sys  MIOS_IMAGE_SIDECARS_SYS
 image.sidecars.cuda  MIOS_IMAGE_SIDECARS_CUDA
 image.sidecars.k3s  MIOS_IMAGE_SIDECARS_K3S

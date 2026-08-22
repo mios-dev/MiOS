@@ -26,7 +26,6 @@ is the obvious case, since it cannot float.
 | agent | agent_pipe | 8700 |
 | agent | prefilter | 8710 |
 | agent | hermes | 8720 |
-| agent | hermes_worker | 8730 |
 | agent | daemon_agent | 8740 |
 | agent | model_router | 8750 |
 | agent | arbiter | 8760 |

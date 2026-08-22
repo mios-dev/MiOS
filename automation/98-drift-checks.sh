@@ -2641,7 +2641,7 @@ PY
 check_no_mkdir_in_var() {
     local pat='mkdir[^;&|#]*['\''"[:space:]]/var/'
     local hits="" f active m
-    for f in "$ROOT"/automation/[0-9]*.sh "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+    for f in "$ROOT"/automation/[0-9]*.sh "$ROOT"/Containerfile*; do
         [[ -f "$f" ]] || continue
         active=$(sed -E '/^[[:space:]]*#/d' "$f")
         m=$(printf '%s\n' "$active" | grep -nE "$pat" || true)
@@ -2726,19 +2726,24 @@ check_var_closure() {
 }
 
 check_lint_is_final() {
-    local bad="" cf last want="RUN bootc container lint"
-    for cf in "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+    # Globbed, not named: a hardcoded list silently skips a file that was
+    # renamed and reports success over the ones that remain.
+    local bad="" cf last n=0 want="RUN bootc container lint"
+    for cf in "$ROOT"/Containerfile*; do
         [[ -f "$cf" ]] || continue
+        n=$((n + 1))
         last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
         if [[ "$last" != "$want" ]]; then
             bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'
         fi
     done
-    if [[ -n "$bad" ]]; then
+    if [[ "$n" -eq 0 ]]; then
+        _violation "(43) no Containerfile* at the repo root -- Law 4 would pass vacuously"
+    elif [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
     else
-        echo "[98-drift-checks]   Containerfile + Containerfile.minimal end with 'RUN bootc container lint'"
+        echo "[98-drift-checks]   all $n root Containerfile(s) end with 'RUN bootc container lint'"
     fi
 }
 

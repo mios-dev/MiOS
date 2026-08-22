@@ -709,6 +709,8 @@ def _derive_ports(ssot: dict, arg: str) -> str:
     for cname in names:
         cat = cats[cname] or {}
         for m in cat.get("members", []) or []:
+            if not m:      # reserved slot: holds an index, names no service
+                continue
             out.append(f"| {cname} | {m} | {ports.get(m, '?')} |")
         for pin, val in (cat.get("pinned", {}) or {}).items():
             out.append(f"| {cname} | {pin} (pinned) | {val} |")

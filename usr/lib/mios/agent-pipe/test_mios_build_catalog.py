@@ -12,7 +12,7 @@ def setUpModule():
         import psycopg
     except ImportError:
         raise unittest.SkipTest("no live pgvector -- integration test")
-    port = os.environ.get("MIOS_PORT_PGVECTOR", "8432")
+    port = os.environ.get("MIOS_PORT_PGVECTOR", "8600")
     dsn = f"postgresql://mios:mios@localhost:{port}/mios"
     try:
         with psycopg.connect(dsn, connect_timeout=1):

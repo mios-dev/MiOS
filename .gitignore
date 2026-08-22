@@ -73,7 +73,6 @@ docs/agy/w10-live-boot/*
 !/CLAUDE.md
 !/CONTRIBUTING.md
 !/Containerfile
-!/Containerfile.minimal
 !/GEMINI.md
 !/Justfile
 !/LICENSE

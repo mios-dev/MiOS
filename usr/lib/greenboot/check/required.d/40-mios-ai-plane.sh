@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # AI-hint: greenboot required check that verifies the core MiOS AI plane (agent-pipe, llm-light, pgvector) answered after boot; a non-zero exit triggers bootc rollback. Service ports are sourced from the SSOT bridge (/etc/mios/install.env) and only ENABLED services are probed, so it degrades open instead of false-failing.
-# AI-related: mios-greenboot, mios-agent-pipe.service, mios-llm-light.service, mios-pgvector.service, /etc/mios/install.env, mios-sync-env
+# AI-related: mios-greenboot, mios-agent-pipe.service, mios-llm-light.service, mios-pgvector.service, hermes-worker.service, /etc/mios/install.env, mios-sync-env
 set -euo pipefail
 
 TIMEOUT=60          # max seconds to wait per service before declaring it down
@@ -14,7 +14,10 @@ fail() { echo "[mios-greenboot] $*" >&2; }
 
 if [[ -r "$ENV_FILE" ]]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
-    set +u; set -a; source "$ENV_FILE" 2>/dev/null || true; set +a
+    set +u; set -a
+    # shellcheck disable=SC1090  # runtime SSOT bridge; absent on a fresh boot
+    source "$ENV_FILE" 2>/dev/null || true
+    set +a
     [ "$_mios_had_u" = 1 ] && set -u
 fi
 
@@ -75,7 +78,7 @@ rc=0
 check_service mios-agent-pipe.service "${MIOS_PORT_AGENT_PIPE:-}" http /v1/models || rc=1
 check_service mios-llm-light.service  "${MIOS_PORT_LLM_LIGHT:-}"  tcp || rc=1
 check_service mios-pgvector.service   "${MIOS_PORT_PGVECTOR:-}"   tcp || rc=1
-check_service hermes.service          "${MIOS_PORT_HERMES:-}"     tcp || rc=1
+check_service hermes-worker.service   "${MIOS_PORT_HERMES:-}"     tcp || rc=1
 
 if [[ "$rc" -eq 0 ]]; then
     log "AI plane healthy"

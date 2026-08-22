@@ -50,6 +50,10 @@ def derive_ports(data: dict) -> dict:
         base = int(cfg.get("base", 0))
         stride = int(cfg.get("stride", 1))
         for idx, member in enumerate(cfg.get("members") or []):
+            # An empty member is a RESERVED slot: it burns its index so a
+            # retired service cannot renumber every service after it.
+            if not member:
+                continue
             out[member] = base + idx * stride
         for name, value in (cfg.get("pinned") or {}).items():
             out[name] = int(value)
@@ -81,6 +85,8 @@ def find_violations(data: dict) -> list[str]:
             continue
         names = list(cfg.get("members") or []) + list((cfg.get("pinned") or {}).keys())
         for name in names:
+            if not name:      # reserved slot -- holds an index, names no port
+                continue
             if name in seen:
                 problems.append(
                     f"port '{name}' is claimed by both [ports.categories.{seen[name]}] "

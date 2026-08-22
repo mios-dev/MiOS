@@ -84,8 +84,8 @@ export MIOS_VERSION
 [ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
 : "${MIOS_AGENTS_HERMES_CPU_MODEL:=mios-heavy}"
 : "${MIOS_AGENTS_HERMES_DEFAULT:=false}"
-: "${MIOS_PORT_HERMES_WORKER:=8730}"
-[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES_WORKER}"'/v1'
+: "${MIOS_PORT_HERMES:=8720}"
+[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_AGENTS_HERMES_FANOUT:=false}"
 : "${MIOS_AGENTS_HERMES_HEALTH_GATE:=true}"
 : "${MIOS_AGENTS_HERMES_JOB:=General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.}"
@@ -134,7 +134,6 @@ export MIOS_VERSION
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION:=0.0}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MTLS:=false}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL:=false}"
-: "${MIOS_PORT_HERMES:=8720}"
 [ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_AGENT_PIPE_BACKEND_MODEL:=hermes-agent}"
 : "${MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH:=true}"
@@ -230,6 +229,8 @@ export MIOS_VERSION
 : "${MIOS_BIB_ALPINE_IMAGE:=docker.io/library/alpine:latest}"
 : "${MIOS_BIB_ALPINE_VERSION:=docker.io/library/alpine:latest}"
 : "${MIOS_BIB_IMAGE:=quay.io/centos-bootc/bootc-image-builder:latest}"
+: "${MIOS_BLADE_ARCHETYPES_COMPUTE:=gpu-serving}"
+: "${MIOS_BLADE_ARCHETYPES_CONTROLLER:=controller}"
 : "${MIOS_BLADE_ARCHETYPES_HYBRID:=gpu-serving,controller}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY:=gpu-serving}"
 : "${MIOS_BLADE_TYPE:=hybrid}"
@@ -943,6 +944,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GRAPHICS_GDK_BACKEND:=x11}"
 : "${MIOS_GRAPHICS_GSK_RENDERER:=ngl}"
 : "${MIOS_GRAPHICS_XCURSOR_PATH:=~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps}"
+: "${MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL:=false}"
 : "${MIOS_GREENBOOT_CRITICAL_SERVICES:=agent-pipe,llm-light,pgvector}"
 : "${MIOS_GUACAMOLE_IMAGE:=docker.io/guacamole/guacamole:latest}"
 : "${MIOS_GUACAMOLE_VERSION:=docker.io/guacamole/guacamole:latest}"
@@ -966,8 +968,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_HERMES_USER:=mios-hermes}"
 : "${MIOS_HERMES_VENV:=/usr/lib/mios/agents/.venv}"
 : "${MIOS_HERMES_VERSION:=docker.io/nousresearch/hermes-agent:latest}"
-[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES_WORKER}"'/v1'
-: "${MIOS_HERMES_WORKER_PORT:=8730}"
+[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_HITL_ENABLE:=true}"
 : "${MIOS_HITL_MODE:=log}"
 : "${MIOS_HOSTNAME:=mios}"
@@ -1479,7 +1480,7 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_ADMIN_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_BASE:=8700}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_DOC:=Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes.}"
-: "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,hermes_worker,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
+: "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_BASE:=8950}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_DOC:=Cross-OS bridges (Windows-side UI Automation executor). LOOPBACK-only.}"
@@ -1542,7 +1543,6 @@ to" / "let me know".
 : "${MIOS_PORTS_GUACD:=8560}"
 : "${MIOS_PORTS_HERMES:=8720}"
 : "${MIOS_PORTS_HERMES_DASHBOARD:=8210}"
-: "${MIOS_PORTS_HERMES_WORKER:=8730}"
 : "${MIOS_PORTS_K3S_API:=8450}"
 : "${MIOS_PORTS_LLM_LIGHT:=8500}"
 : "${MIOS_PORTS_MCP:=8770}"
@@ -2197,7 +2197,7 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
-[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
@@ -3457,7 +3457,7 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
-[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"

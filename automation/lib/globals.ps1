@@ -109,8 +109,8 @@ $script:MIOS_PORT_SGLANG = if ($env:MIOS_PORT_SGLANG) { $env:MIOS_PORT_SGLANG } 
 $script:MIOS_AGENTS_HERMES_CPU_ENDPOINT = if ($env:MIOS_AGENTS_HERMES_CPU_ENDPOINT) { $env:MIOS_AGENTS_HERMES_CPU_ENDPOINT } else { "http://localhost:$($script:MIOS_PORT_SGLANG)/v1" }
 $script:MIOS_AGENTS_HERMES_CPU_MODEL = if ($env:MIOS_AGENTS_HERMES_CPU_MODEL) { $env:MIOS_AGENTS_HERMES_CPU_MODEL } else { 'mios-heavy' }
 $script:MIOS_AGENTS_HERMES_DEFAULT = if ($env:MIOS_AGENTS_HERMES_DEFAULT) { $env:MIOS_AGENTS_HERMES_DEFAULT } else { 'false' }
-$script:MIOS_PORT_HERMES_WORKER = if ($env:MIOS_PORT_HERMES_WORKER) { $env:MIOS_PORT_HERMES_WORKER } else { 8730 }
-$script:MIOS_AGENTS_HERMES_ENDPOINT = if ($env:MIOS_AGENTS_HERMES_ENDPOINT) { $env:MIOS_AGENTS_HERMES_ENDPOINT } else { "http://localhost:$($script:MIOS_PORT_HERMES_WORKER)/v1" }
+$script:MIOS_PORT_HERMES = if ($env:MIOS_PORT_HERMES) { $env:MIOS_PORT_HERMES } else { 8720 }
+$script:MIOS_AGENTS_HERMES_ENDPOINT = if ($env:MIOS_AGENTS_HERMES_ENDPOINT) { $env:MIOS_AGENTS_HERMES_ENDPOINT } else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_AGENTS_HERMES_FANOUT = if ($env:MIOS_AGENTS_HERMES_FANOUT) { $env:MIOS_AGENTS_HERMES_FANOUT } else { 'false' }
 $script:MIOS_AGENTS_HERMES_HEALTH_GATE = if ($env:MIOS_AGENTS_HERMES_HEALTH_GATE) { $env:MIOS_AGENTS_HERMES_HEALTH_GATE } else { 'true' }
 $script:MIOS_AGENTS_HERMES_JOB = if ($env:MIOS_AGENTS_HERMES_JOB) { $env:MIOS_AGENTS_HERMES_JOB } else { 'General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.' }
@@ -159,7 +159,6 @@ $script:MIOS_AGENTS__DEFAULTS_TRANSPORT = if ($env:MIOS_AGENTS__DEFAULTS_TRANSPO
 $script:MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION = if ($env:MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION) { $env:MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION } else { '0.0' }
 $script:MIOS_AGENTS__DEFAULTS_TRUST_MTLS = if ($env:MIOS_AGENTS__DEFAULTS_TRUST_MTLS) { $env:MIOS_AGENTS__DEFAULTS_TRUST_MTLS } else { 'false' }
 $script:MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL = if ($env:MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL) { $env:MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL } else { 'false' }
-$script:MIOS_PORT_HERMES = if ($env:MIOS_PORT_HERMES) { $env:MIOS_PORT_HERMES } else { 8720 }
 $script:MIOS_AGENT_PIPE_BACKEND = if ($env:MIOS_AGENT_PIPE_BACKEND) { $env:MIOS_AGENT_PIPE_BACKEND } else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_AGENT_PIPE_BACKEND_MODEL = if ($env:MIOS_AGENT_PIPE_BACKEND_MODEL) { $env:MIOS_AGENT_PIPE_BACKEND_MODEL } else { 'hermes-agent' }
 $script:MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH = if ($env:MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH) { $env:MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH } else { 'true' }
@@ -255,6 +254,8 @@ $script:MIOS_BASE_IMAGE = if ($env:MIOS_BASE_IMAGE) { $env:MIOS_BASE_IMAGE } els
 $script:MIOS_BIB_ALPINE_IMAGE = if ($env:MIOS_BIB_ALPINE_IMAGE) { $env:MIOS_BIB_ALPINE_IMAGE } else { 'docker.io/library/alpine:latest' }
 $script:MIOS_BIB_ALPINE_VERSION = if ($env:MIOS_BIB_ALPINE_VERSION) { $env:MIOS_BIB_ALPINE_VERSION } else { 'docker.io/library/alpine:latest' }
 $script:MIOS_BIB_IMAGE = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { 'quay.io/centos-bootc/bootc-image-builder:latest' }
+$script:MIOS_BLADE_ARCHETYPES_COMPUTE = if ($env:MIOS_BLADE_ARCHETYPES_COMPUTE) { $env:MIOS_BLADE_ARCHETYPES_COMPUTE } else { 'gpu-serving' }
+$script:MIOS_BLADE_ARCHETYPES_CONTROLLER = if ($env:MIOS_BLADE_ARCHETYPES_CONTROLLER) { $env:MIOS_BLADE_ARCHETYPES_CONTROLLER } else { 'controller' }
 $script:MIOS_BLADE_ARCHETYPES_HYBRID = if ($env:MIOS_BLADE_ARCHETYPES_HYBRID) { $env:MIOS_BLADE_ARCHETYPES_HYBRID } else { 'gpu-serving,controller' }
 $script:MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY = if ($env:MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY) { $env:MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY } else { 'gpu-serving' }
 $script:MIOS_BLADE_TYPE = if ($env:MIOS_BLADE_TYPE) { $env:MIOS_BLADE_TYPE } else { 'hybrid' }
@@ -968,6 +969,7 @@ $script:MIOS_GRAPHICS_FORCE_SOFTWARE_GL = if ($env:MIOS_GRAPHICS_FORCE_SOFTWARE_
 $script:MIOS_GRAPHICS_GDK_BACKEND = if ($env:MIOS_GRAPHICS_GDK_BACKEND) { $env:MIOS_GRAPHICS_GDK_BACKEND } else { 'x11' }
 $script:MIOS_GRAPHICS_GSK_RENDERER = if ($env:MIOS_GRAPHICS_GSK_RENDERER) { $env:MIOS_GRAPHICS_GSK_RENDERER } else { 'ngl' }
 $script:MIOS_GRAPHICS_XCURSOR_PATH = if ($env:MIOS_GRAPHICS_XCURSOR_PATH) { $env:MIOS_GRAPHICS_XCURSOR_PATH } else { '~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps' }
+$script:MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL = if ($env:MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL) { $env:MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL } else { 'false' }
 $script:MIOS_GREENBOOT_CRITICAL_SERVICES = if ($env:MIOS_GREENBOOT_CRITICAL_SERVICES) { $env:MIOS_GREENBOOT_CRITICAL_SERVICES } else { 'agent-pipe,llm-light,pgvector' }
 $script:MIOS_GUACAMOLE_IMAGE = if ($env:MIOS_GUACAMOLE_IMAGE) { $env:MIOS_GUACAMOLE_IMAGE } else { 'docker.io/guacamole/guacamole:latest' }
 $script:MIOS_GUACAMOLE_VERSION = if ($env:MIOS_GUACAMOLE_VERSION) { $env:MIOS_GUACAMOLE_VERSION } else { 'docker.io/guacamole/guacamole:latest' }
@@ -991,8 +993,7 @@ $script:MIOS_HERMES_URL = if ($env:MIOS_HERMES_URL) { $env:MIOS_HERMES_URL } els
 $script:MIOS_HERMES_USER = if ($env:MIOS_HERMES_USER) { $env:MIOS_HERMES_USER } else { 'mios-hermes' }
 $script:MIOS_HERMES_VENV = if ($env:MIOS_HERMES_VENV) { $env:MIOS_HERMES_VENV } else { '/usr/lib/mios/agents/.venv' }
 $script:MIOS_HERMES_VERSION = if ($env:MIOS_HERMES_VERSION) { $env:MIOS_HERMES_VERSION } else { 'docker.io/nousresearch/hermes-agent:latest' }
-$script:MIOS_HERMES_WORKER_ENDPOINT = if ($env:MIOS_HERMES_WORKER_ENDPOINT) { $env:MIOS_HERMES_WORKER_ENDPOINT } else { "http://localhost:$($script:MIOS_PORT_HERMES_WORKER)/v1" }
-$script:MIOS_HERMES_WORKER_PORT = if ($env:MIOS_HERMES_WORKER_PORT) { $env:MIOS_HERMES_WORKER_PORT } else { 8730 }
+$script:MIOS_HERMES_WORKER_ENDPOINT = if ($env:MIOS_HERMES_WORKER_ENDPOINT) { $env:MIOS_HERMES_WORKER_ENDPOINT } else { "http://localhost:$($script:MIOS_PORT_HERMES)/v1" }
 $script:MIOS_HITL_ENABLE = if ($env:MIOS_HITL_ENABLE) { $env:MIOS_HITL_ENABLE } else { 'true' }
 $script:MIOS_HITL_MODE = if ($env:MIOS_HITL_MODE) { $env:MIOS_HITL_MODE } else { 'log' }
 $script:MIOS_HOSTNAME = if ($env:MIOS_HOSTNAME) { $env:MIOS_HOSTNAME } else { 'mios' }
@@ -1504,7 +1505,7 @@ $script:MIOS_PORTS_CATEGORIES_ADMIN_MEMBERS = if ($env:MIOS_PORTS_CATEGORIES_ADM
 $script:MIOS_PORTS_CATEGORIES_ADMIN_STRIDE = if ($env:MIOS_PORTS_CATEGORIES_ADMIN_STRIDE) { $env:MIOS_PORTS_CATEGORIES_ADMIN_STRIDE } else { 10 }
 $script:MIOS_PORTS_CATEGORIES_AGENT_BASE = if ($env:MIOS_PORTS_CATEGORIES_AGENT_BASE) { $env:MIOS_PORTS_CATEGORIES_AGENT_BASE } else { 8700 }
 $script:MIOS_PORTS_CATEGORIES_AGENT_DOC = if ($env:MIOS_PORTS_CATEGORIES_AGENT_DOC) { $env:MIOS_PORTS_CATEGORIES_AGENT_DOC } else { 'Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes.' }
-$script:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS = if ($env:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS) { $env:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS } else { 'agent_pipe,prefilter,hermes,hermes_worker,daemon_agent,model_router,arbiter,mcp,opencode_gateway' }
+$script:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS = if ($env:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS) { $env:MIOS_PORTS_CATEGORIES_AGENT_MEMBERS } else { 'agent_pipe,prefilter,hermes,,daemon_agent,model_router,arbiter,mcp,opencode_gateway' }
 $script:MIOS_PORTS_CATEGORIES_AGENT_STRIDE = if ($env:MIOS_PORTS_CATEGORIES_AGENT_STRIDE) { $env:MIOS_PORTS_CATEGORIES_AGENT_STRIDE } else { 10 }
 $script:MIOS_PORTS_CATEGORIES_BRIDGE_BASE = if ($env:MIOS_PORTS_CATEGORIES_BRIDGE_BASE) { $env:MIOS_PORTS_CATEGORIES_BRIDGE_BASE } else { 8950 }
 $script:MIOS_PORTS_CATEGORIES_BRIDGE_DOC = if ($env:MIOS_PORTS_CATEGORIES_BRIDGE_DOC) { $env:MIOS_PORTS_CATEGORIES_BRIDGE_DOC } else { 'Cross-OS bridges (Windows-side UI Automation executor). LOOPBACK-only.' }
@@ -1567,7 +1568,6 @@ $script:MIOS_PORTS_GUACAMOLE_WEB = if ($env:MIOS_PORTS_GUACAMOLE_WEB) { $env:MIO
 $script:MIOS_PORTS_GUACD = if ($env:MIOS_PORTS_GUACD) { $env:MIOS_PORTS_GUACD } else { 8560 }
 $script:MIOS_PORTS_HERMES = if ($env:MIOS_PORTS_HERMES) { $env:MIOS_PORTS_HERMES } else { 8720 }
 $script:MIOS_PORTS_HERMES_DASHBOARD = if ($env:MIOS_PORTS_HERMES_DASHBOARD) { $env:MIOS_PORTS_HERMES_DASHBOARD } else { 8210 }
-$script:MIOS_PORTS_HERMES_WORKER = if ($env:MIOS_PORTS_HERMES_WORKER) { $env:MIOS_PORTS_HERMES_WORKER } else { 8730 }
 $script:MIOS_PORTS_K3S_API = if ($env:MIOS_PORTS_K3S_API) { $env:MIOS_PORTS_K3S_API } else { 8450 }
 $script:MIOS_PORTS_LLM_LIGHT = if ($env:MIOS_PORTS_LLM_LIGHT) { $env:MIOS_PORTS_LLM_LIGHT } else { 8500 }
 $script:MIOS_PORTS_MCP = if ($env:MIOS_PORTS_MCP) { $env:MIOS_PORTS_MCP } else { 8770 }
@@ -2222,7 +2222,7 @@ $script:MIOS_UNITS_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNITS_
 $script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT } else { '# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway''s. Discord is off here regardless.' }
-$script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT } else { 'HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}' }
+$script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT } else { "HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:$($script:MIOS_PORT_SEARXNG),MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:$($script:MIOS_PORT_CRAWL4AI),FIRECRAWL_API_URL=http://127.0.0.1:$($script:MIOS_PORT_FIRECRAWL),PORT=$($script:MIOS_PORT_HERMES),API_SERVER_PORT=$($script:MIOS_PORT_HERMES),HERMES_BACKEND_BASE_URL=http://localhost:$($script:MIOS_PORT_VLLM),HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:`${MIOS_PORT_CHROME_CDP_WORKER:-9223}" }
 $script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE } else { '-/etc/mios/install.env,-/etc/mios/hermes/api.env' }
 $script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART } else { '/usr/lib/mios/agents/.venv/bin/hermes gateway run' }
 $script:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE = if ($env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE) { $env:MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE } else { '+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub' }
@@ -3482,7 +3482,7 @@ $script:MIOS_UNIT_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY = if ($env:MIOS_UNIT_HE
 $script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT } else { '# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway''s. Discord is off here regardless.' }
-$script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT } else { 'HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}' }
+$script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT } else { "HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:$($script:MIOS_PORT_SEARXNG),MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:$($script:MIOS_PORT_CRAWL4AI),FIRECRAWL_API_URL=http://127.0.0.1:$($script:MIOS_PORT_FIRECRAWL),PORT=$($script:MIOS_PORT_HERMES),API_SERVER_PORT=$($script:MIOS_PORT_HERMES),HERMES_BACKEND_BASE_URL=http://localhost:$($script:MIOS_PORT_VLLM),HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:`${MIOS_PORT_CHROME_CDP_WORKER:-9223}" }
 $script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE } else { '-/etc/mios/install.env,-/etc/mios/hermes/api.env' }
 $script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART } else { '/usr/lib/mios/agents/.venv/bin/hermes gateway run' }
 $script:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE = if ($env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE) { $env:MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE } else { '+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub' }
