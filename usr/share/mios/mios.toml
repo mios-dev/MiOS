@@ -7519,10 +7519,6 @@ user        = "mios"
 pass        = "mios"
 db          = "mios"
 data_dir    = "/var/lib/mios/pgvector"
-# Initdb restore slot for the PG-major migration: mios-pgvector-major-upgrade
-# writes the old cluster's logical dump here and the container mounts it into
-# docker-entrypoint-initdb.d, so a fresh cluster of the new major replays it.
-# Empty file = no-op on every ordinary boot.
 restore_sql = "/var/lib/mios/pgvector-restore.sql"
 schema_init = "/usr/share/mios/postgres/schema-init.sql"
 embed_model = "nomic-embed-text"   # 768-dim, OWUI-compat (vector(768))
@@ -10004,9 +10000,9 @@ cuda               = "ghcr.io/mostlygeek/llama-swap:cuda"
 # stage downstream (operator-confirmed every other sidecar
 # entry in this section was already fully qualified; k3s was the only
 # regression and broke ALL deployment artifacts). Keep the registry prefix.
-k3s                = "docker.io/rancher/k3s:v1.36.3-k3s1"
-ceph               = "quay.io/ceph/ceph:v19"
-forge              = "codeberg.org/forgejo/forgejo:12"
+k3s                = "docker.io/rancher/k3s:${MIOS_VERSION_K3S}"
+ceph               = "quay.io/ceph/ceph:${MIOS_VERSION_CEPH}"
+forge              = "codeberg.org/forgejo/forgejo:${MIOS_VERSION_FORGEJO}"
 searxng            = "docker.io/searxng/searxng:latest"
 # web-tools POD ("consolidate containers to share similar
 # services together" + "co-locate the real firecrawl stack" + "make it a pod").
@@ -14478,3 +14474,12 @@ not_mirrored = [
   "installation/mios-common.sh", "README.md", "CLAUDE.md", "AGENTS.md",
   "GEMINI.md", ".gitignore", "VERSION",
 ]
+
+# [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
+[legibility]
+max_tracked_files = 2389
+max_tracked_mb    = 202
+max_shell_lines   = 46389   # bash is glue only (Law 14)
+max_ps_lines      = 33174   # no new PowerShell-as-program (Law 14)
+max_automation_phases = 72
+max_libexec_verbs     = 283

@@ -2859,8 +2859,10 @@ test_globals_generated() {
 }
 
 _neg_gate() {
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
-        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
+    # REQUIRE_TOOLS is forwarded deliberately: checks that shell out to a built
+    # binary choose between "skip" and "fail" on it, so a test that cannot set
+    # it cannot exercise the failing path -- the path that matters.
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \n    MIOS_DRIFT_ROOT="$ROOT" \n    MIOS_DRIFT_REQUIRE_TOOLS="${MIOS_DRIFT_REQUIRE_TOOLS:-0}" \n        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
 }
 
 test_adhoc_toml_parsers() {
@@ -3322,6 +3324,51 @@ test_bootstrap_sync() {
     log "check_bootstrap_sync negative test passed"
 }
 
+test_legibility_ratchet() {
+    log "Testing check_legibility_ratchet"
+    local probe="${ROOT}/automation/mios-negtest-bulk.sh"
+    # Adding shell lines must fail: bash is glue only, and the floors only fall.
+    { echo '#!/usr/bin/env bash'; for i in $(seq 1 200); do echo "true  # filler $i"; done; } > "$probe"
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    if _neg_gate check_legibility_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+        die "check_legibility_ratchet passed despite 200 new shell lines"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+    _neg_gate check_legibility_ratchet || die "check_legibility_ratchet failed after restoration"
+    log "check_legibility_ratchet negative test passed"
+}
+
+test_resolver_differential_parity() {
+    log "Testing check_resolver_differential_parity"
+    local bin="" b
+    for b in "${ROOT}/tools/native/target/release/mios-resolver"              "${ROOT}/tools/native/target/release/mios-resolver.exe"              "${ROOT}/tools/native/target/debug/mios-resolver"              "${ROOT}/tools/native/target/debug/mios-resolver.exe"; do
+        [ -f "$b" ] && { bin="$b"; break; }
+    done
+
+    # The failure path is assertable either way: with no binary the Python and
+    # Rust resolvers were never compared, so REQUIRE_TOOLS=1 must refuse rather
+    # than print an advisory skip.
+    if [ -n "$bin" ]; then
+        mv "$bin" "${bin}.negtest"
+    fi
+    if MIOS_DRIFT_REQUIRE_TOOLS=1 _neg_gate check_resolver_differential_parity; then
+        [ -n "$bin" ] && mv "${bin}.negtest" "$bin"
+        die "check_resolver_differential_parity passed with no resolver binary under REQUIRE_TOOLS=1"
+    fi
+    [ -n "$bin" ] && mv "${bin}.negtest" "$bin"
+
+    if [ -z "$bin" ]; then
+        # Without a binary there is no parity to restore TO. Saying so is
+        # honest; silently asserting success here would be the vacuous pass this
+        # suite exists to catch.
+        log "check_resolver_differential_parity: refusal path proven; parity path needs a built mios-resolver (CI builds it)"
+        return 0
+    fi
+    MIOS_DRIFT_REQUIRE_TOOLS=0 _neg_gate check_resolver_differential_parity         || die "check_resolver_differential_parity failed after restoration"
+    log "check_resolver_differential_parity negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3372,6 +3419,8 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_docs_ratchet
+    test_resolver_differential_parity
+    test_legibility_ratchet
     test_bootstrap_sync
     test_no_inert_ssot_tables
     test_doc_refs_resolve

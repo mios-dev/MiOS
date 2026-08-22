@@ -169,5 +169,33 @@ class TestSweeperSkipsItsOwnEvidence(unittest.TestCase):
         self.assertGreater(len(swept), 200)
 
 
+class TestStackIdOffset(unittest.TestCase):
+    def test_stack_id_offset_shifts_non_pinned_ports(self):
+        import sys
+        sys.path.insert(0, os.path.join(_HERE, "..", "usr", "lib", "mios"))
+        import mios_toml
+
+        data = mios_toml.load_merged()
+        ports = data.get("ports", {}) or {}
+        offset = 10000
+        shifted_ports = {}
+
+        for k, v in ports.items():
+            if isinstance(v, (int, str)) and str(v).isdigit():
+                val = int(v)
+                proc = mios_toml.process_val(f"ports.{k}", val, offset)
+                shifted_ports[k] = int(proc)
+
+                if k == "stack_id":
+                    self.assertEqual(int(proc), val)
+                elif val == 53:
+                    self.assertEqual(int(proc), 53)
+                else:
+                    self.assertEqual(int(proc), val + offset)
+
+        vals = list(shifted_ports.values())
+        self.assertEqual(len(vals), len(set(vals)), "Collisions detected in shifted ports")
+
+
 if __name__ == "__main__":
     unittest.main()

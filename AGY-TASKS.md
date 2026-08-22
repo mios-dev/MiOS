@@ -9856,7 +9856,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** without the inventory each stale pin is only found by an operator noticing a broken repo months later, exactly as the k3s/k8s mismatch was.
 **Dep:** none
 
-## AGY-1563 -- Establish ONE version SSOT and convert every consumer to a derivation (the k3s→k8s cascade, generalized)  (WS-FLOAT | P1 | L)
+## AGY-1563 -- Establish ONE version SSOT and convert every consumer to a derivation (the k3s→k8s cascade, generalized)  (WS-FLOAT | P1 | L)  **DONE**
+
 **Goal:** E-14 Float latest globally -- one declared value, every downstream version derived, so a single SSOT bump propagates without a second hand edit.
 **What+How:** Consolidate version definitions into `mios.toml [image.sidecars]` (image refs) plus a new `[versions]` table for non-image numbers (k8s minor derivable from the k3s tag, wheel pins, tool versions), each mapped to a `MIOS_*` by `usr/lib/mios/userenv.sh` and its `.ps1`/`globals.ps1` twins (Law 15 double-repo). Then walk AGY-1562's class-(c) list and convert each literal to a derivation: DNF repo minors computed off `$MIOS_K3S_VERSION` (`grep -oE 'v?[0-9]+\.[0-9]+'`, the shape the `5793d4ac` hotfix used), COPR endpoints on `${FEDORA_VERSION}`, Quadlet labels keeping `${VAR}` placeholders. Never reintroduce a bare literal; use `${VAR:-safe-default}` only where a fallback is genuinely required.
 **Where:** `usr/share/mios/mios.toml`, `usr/lib/mios/userenv.sh` (+ `.ps1` / `globals.ps1` twins), every consumer named in the 1562 audit
@@ -9932,7 +9933,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** the coupling already cost two CI round-trips and it blocks AGY-1169, which stays open until the renderer can choose its own output format.
 **Dep:** none
 
-## AGY-1572 -- Build and install the `mios-resolver` binary into the image and cut generation over to it behind a differential gate  (WS-PORTFLOAT | P1 | L)
+## AGY-1572 -- Build and install the `mios-resolver` binary into the image and cut generation over to it behind a differential gate  (WS-PORTFLOAT | P1 | L)  **DONE**
+
 **Goal:** E-01 Compiled native tier: Rust-port the build orchestrator and the libexec tool fleet -- moves the resolver from a crate that merely compiles to the code the product actually runs.
 **What+How:** `tools/render-globals.py` and the `[ports]` derivation run through the PYTHON resolver (`usr/lib/mios/mios_toml.py`); the Rust `mios-resolver` mirrors that logic in `ports.rs` / `emit_ps.rs` / `emit_shell.rs` but is never built into the image, so `userenv.sh`'s `command -v mios-resolver` branch is dead in production. Add a bake phase that compiles `tools/native` and installs the binary to `/usr/libexec/mios/mios-resolver`, keeping a degrade-chain to the Python path when the binary is absent. Then add a differential drift-check asserting `mios-resolver --emit=shell|powershell|json` is byte-identical to the Python render against the real SSOT.
 **Where:** `automation/ (new phase), Containerfile, tools/native/mios-resolver/, automation/98-drift-checks.sh`
@@ -9949,7 +9951,8 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Why:** inert SSOT is worse than absent SSOT -- an operator flips `use_rust_resolver_*` in the configurator, nothing changes, and trust in the one config surface is gone.
 **Dep:** none
 
-## AGY-1574 -- Clear the `check_var_closure` "referenced but NOT emitted" backlog and flip the check from SOFT to hard-fail  (WS-PORTFLOAT | P2 | M)
+## AGY-1574 -- Clear the `check_var_closure` "referenced but NOT emitted" backlog and flip the check from SOFT to hard-fail  (WS-PORTFLOAT | P2 | M)  **DONE**
+
 **Goal:** E-10 One canonical name: the unified names/keys registry -- closes the referenced-but-unemitted key-library drift class the epic names explicitly.
 **What+How:** `check_var_closure` reports ~180 referenced-but-unemitted names. With the generated resolvers and renderers now excluded as emitters, the remainder is real signal in three classes: (1) PREFIX ARTEFACTS -- `MIOS_A2A_`, `MIOS_AGENT_`, `MIOS_PORT_` are regex captures of dynamic expansions like `MIOS_PORT_${name}`, so teach `automation/lib/mios_var_closure.py` to drop a trailing-`_` capture that is a strict prefix of a known name; (2) DOUBLE-PREFIX -- `[mios]` walks to `MIOS_MIOS_NAME` / `MIOS_MIOS_FIND_ALIASES_*`, so either alias the `mios.*` section to a single `MIOS_` prefix in `get_aliases()` or rename the section; (3) GENUINELY MISSING -- `MIOS_CONVERGE_*` and `MIOS_COLOR_ANSI_*` are emitted only into `globals.sh`, so confirm the resolver emits them too. Then convert the check from SOFT WARNING to a hard violation.
 **Where:** `automation/lib/mios_var_closure.py, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh`
@@ -10032,7 +10035,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** three different values for one port and a model that does not exist mean the teacher path is untested folklore, and the 260 cap is a live data-loss trigger worth ~100k characters of prose.
 **Dep:** AGY-1580
 
-## AGY-1583 -- Build the comment lexer + classifier library with the 30-fixture unit test  (WS-DOCGEN | P1 | L)
+## AGY-1583 -- Build the comment lexer + classifier library with the 30-fixture unit test  (WS-DOCGEN | P1 | L)  **DONE**
+
 **Goal:** D-3 "Stay in code" vs "migrate to docs" is a mechanical, testable function -- not a judgement call made once per file by whoever is reading it.
 **What+How:** New `usr/lib/mios/mios_comments.py` (beside `mios_toml.py`, the established shared-library home) exporting `lex(path) -> list[Block]` and `classify(block, policy, refindex) -> Verdict`. Lex per language via `mios_ai_tag.comment_style()`, with three overrides: Python via `tokenize` COMMENT tokens + `ast` docstrings (NEVER regex -- regex miscounts multi-line data strings as prose), PowerShell `<# #>`, Rust `///`/`//!`. Classify with the ordered first-match rule set R0..R7 in BUILD-SPEC section 2: generated-artifact -> llm-payload -> header -> commented-out-code -> banner -> size+signal -> inline -> stale axis. Every threshold and every signal regex comes from `[docs]`/`[docs.signals]`, never from code. Ship `usr/libexec/mios/test_mios_manual.py` with the 30 named fixtures, each asserting an exact `(class, reason)` pair, including the boundary case `mios-tailscale-serve.ps1:67` (2 lines, ~28 words, why-signal, no narrative-signal -> STAY via the mid-size rule).
 **Where:** `usr/lib/mios/mios_comments.py, usr/libexec/mios/test_mios_manual.py, usr/share/mios/mios.toml, Justfile`
@@ -10040,7 +10044,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** without a fixed classifier the ratchet has no comparable number and "we migrated some comments" is unmeasurable.
 **Dep:** AGY-1581
 
-## AGY-1584 -- Land `mios-manual` with the corpus ledger and retire generate-manual.py  (WS-DOCGEN | P1 | L)
+## AGY-1584 -- Land `mios-manual` with the corpus ledger and retire generate-manual.py  (WS-DOCGEN | P1 | L)  **DONE**
+
 **Goal:** D-4 One documentation CLI exists, it reads the repo, and its output is reproducible byte-for-byte between a developer and CI.
 **What+How:** New `usr/libexec/mios/mios-manual` with six subcommands (`render`, `audit`, `coverage`, `harvest`, `prune`, `ledger`). Corpus = `mios_ai_tag.walk()` INTERSECT `git ls-files` -- adopt `generate-ai-manifest.py`'s `tracked_files()` determinism rule verbatim, since a filesystem walk makes the artifact a function of the developer's working directory and can then never match a clean CI regeneration. Emit `usr/share/mios/reference/manual-corpus.tsv` (path, span, lines, words, sha12, class, reason, as, stale, landed_doc, landed_anchor, landed_words, pruned), carrying `landed_*` forward by `sha12` so reformatting the surrounding code never loses a landing record, and retaining pruned rows as tombstones. Retire `tools/generate-manual.py`: it imports only `os/argparse/shutil`, performs zero repo reads, is 1311 lines of hardcoded literal, ships 21 of 43 links broken, and `shutil.rmtree`s `usr/share/doc/mios/manual/` unconditionally BEFORE and independent of `--output`. `mios-manual --out` must never delete a path it was not asked to write.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/mios/reference/manual-corpus.tsv, tools/generate-manual.py (delete), Justfile`
@@ -10048,7 +10053,8 @@ document's own sub-taxonomy for the documentation programme.
 **Why:** the two surfaces in this repo that are actually documentation are the only two with no drift gate, which is exactly why the shipped manual has 21 dead links and 50 `file:///C:/MiOS/` paths inside a Linux OS's docs.
 **Dep:** AGY-1583
 
-## AGY-1585 -- Create the authored manual tree and gate manual.md with `render --check` (the real AGY-238)  (WS-DOCGEN | P1 | L)
+## AGY-1585 -- Create the authored manual tree and gate manual.md with `render --check` (the real AGY-238)  (WS-DOCGEN | P1 | L)  **DONE**
+
 **Goal:** D-5 Regeneration can never destroy hand-written prose, and a stale manual fails the build.
 **What+How:** Create `usr/share/doc/mios/manual/NN-*.md`, each with YAML front matter (`chapter`, `part`, `title`, `status`, `sources`, `harvest`). Migrate `generate-manual.py`'s 154 `{title, desc, content, citations}` records into those files as DATA -- they are genuine hand-written narrative no extractor can synthesize -- dropping the `credits.md#L39` line-number citations, the `file:///C:/MiOS/` URI scheme, the per-page boilerplate and the hardcoded "Seven Architectural Laws" list that contradicts `[laws]` (16 rows). The generator writes ONLY inside `<!-- MIOS-GEN:id --> ... <!-- /MIOS-GEN -->` marker pairs plus its own declared output list; prose outside markers is invisible to it. Add drift check 152 `check_manual_generated` (byte-diff of manual.md, the derived reference docs and every marker interior; plus zero `file://` and zero `C:[\\/]`), its `test_manual_generated` with BOTH phases -- a marker-interior edit must go red, an outside-the-marker edit must stay green -- and add `mios-manual render` as step 7 of `tools/sync-generated.sh`. Note `AGY-238` is marked `[DONE]` in AGY-TASKS.md:2423 and is NOT done: there is no `--check` flag and no `check_manual_generated` anywhere.
 **Where:** `usr/share/doc/mios/manual/, usr/share/doc/mios/manual.md, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/sync-generated.sh, usr/share/mios/reference/drift-gate-index.tsv`
@@ -10194,4 +10200,52 @@ when the machine holding it dies.
 **Where:** `usr/share/mios/mios.toml [docs].max_stale_refs, automation/*.sh, tools/*.py, usr/libexec/mios/*`
 **Done When:** `max_stale_refs` reaches 0 and `check_doc_refs_resolve` passes with it; no reference is silenced by widening the allowlist without a stated reason.
 **Why:** the count was 0 only because the check could never fail -- its violations went to stderr while the wrapper captured stdout, so it reported success on every run. The real backlog was invisible.
+**Dep:** none
+
+---
+
+## WS-THESIS -- the four open campaigns
+
+MiOS is a proof of an idea (ROADMAP.md, "What this roadmap is evidence for").
+These four close the gaps between what the thesis claims and what the tree can
+demonstrate. Nothing new starts until they do.
+
+## AGY-1602 -- Audit every drift-check for falsifiability  (WS-THESIS | P0 | L)
+**Goal:** Thesis part 1 -- a check that cannot fail asserts a proof that does not exist, so a hollow gate does not merely miss bugs, it falsifies the claim that drift is mechanically impossible.
+**What+How:** For each of the 181 checks in `automation/98-drift-checks.sh`, establish the edit that makes it RED and prove it with a negative test. Known failure shapes to look for, all found in this tree: violations written to stderr while the wrapper captures stdout; `2>&1` placed after a heredoc delimiter where it redirects nothing; inverted polarity (`if out=$(...)` instead of `if ! out=...`); a target path or generator that does not exist so `regen_and_diff` returns Skip; an empty SSOT list so the loop runs zero times; a `-maxdepth` that cannot reach the files the check names.
+**Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/*.py`
+**Done When:** every dispatched check has a negative test that demonstrably fails on an injected defect; `check_negative_coverage` passes with an empty exempt list, or each exemption states why the check is structurally unfalsifiable.
+**Why:** four hollow checks were found in a single session, three of them shipped green for weeks. The count of undiscovered ones is unknown, which is the problem.
+**Dep:** none
+
+## AGY-1603 -- Make all 66 units reproduce from SSOT  (WS-THESIS | P0 | L)
+**Goal:** Thesis part 1 -- systemd is the largest surface in the image, so 39 units that do not regenerate is the biggest single hole in "one file defines the OS".
+**What+How:** `mios-unit-gen --check` reports 27 of 66 units matching. Work `[unit_projection].drift` down: for each registered unit, diff the rendered output against `usr/lib/systemd/system` and either fix the renderer or correct the `[units.*]` declaration. Lower `max_drift` with each batch; the ratchet only descends.
+**Where:** `tools/native/mios-unit-gen/, usr/share/mios/mios.toml [units], [unit_projection]`
+**Done When:** `max_drift` reaches 0 with `check_unit_projection` green, and the golden fixtures are regenerated from SSOT rather than copied from the tree they verify.
+**Why:** the claim is that the OS is a projection. For 39 units it currently is not, and the gate that should have said so was reporting success without comparing anything.
+**Dep:** none
+
+## AGY-1604 -- Close the documentation campaign  (WS-THESIS | P1 | L)
+**Goal:** Legibility is the deliverable, so the doc programme is not tidying -- it is the artifact a reader receives.
+**What+How:** Drive `[docs].max_unmigrated_narrative` from 1724 to 0 via `mios-manual harvest -> verify -> prune`, and `[docs].max_stale_refs` from 150 to 0 (AGY-1601). Then retire the four surfaces the build spec names once their content has provably landed.
+**Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/, usr/share/mios/reference/manual-corpus.tsv`
+**Done When:** both ratchets read 0, `check_comment_landing` proves every pruned block still lands, and the generated manual builds from SSOT plus harvested prose alone.
+**Why:** 1,724 narrative blocks are knowledge trapped where no reader will find it, and the repo is meant to be the thing that carries the idea.
+**Dep:** none
+
+## AGY-1605 -- Prove projection completeness over every shipped file  (WS-THESIS | P1 | L)
+**Goal:** Thesis part 1 -- a surface with no generator and no gate is a surface the claim does not cover, and today nothing enumerates them.
+**What+How:** Enumerate every tracked file that ships in the image and classify it: GENERATED (names its generator and its gate), AUTHORED (explicitly declared, with a reason), or UNCLASSIFIED. Add a gate that fails on any UNCLASSIFIED file. The 9 `.desktop` launchers found ungoverned this session are the pattern -- they looked covered because a vacuous check said so.
+**Where:** `usr/share/mios/mios.toml [laws.projection_registry], automation/98-drift-checks.sh`
+**Done When:** zero UNCLASSIFIED files; the projection registry names a generator and a gate for every generated surface; adding an ungoverned file to the image fails the gate.
+**Why:** "everything is projected" is currently an assertion about an unenumerated set. Until the set is enumerated the claim is unfalsifiable, which is the same defect as a hollow gate.
+**Dep:** AGY-1602
+
+## AGY-1606 -- Drive the legibility floors down  (WS-THESIS | P2 | L)
+**Goal:** The repository IS the deliverable -- a person should be able to read it and see the idea.
+**What+How:** `[legibility]` now ratchets tracked files, size, shell and PowerShell lines, automation phases and libexec verbs, all floored at today's measurement. Reduce them by folding: PowerShell is 33,168 lines against 9,011 of Rust while Law 14 makes Rust the native tier; 282 libexec verbs and 72 automation phases carry heavy duplication; two vendored assets are most of the 202 MB.
+**Where:** `usr/share/mios/mios.toml [legibility], usr/libexec/mios/, automation/, tools/native/`
+**Done When:** each floor is materially lower with no capability lost, and the PowerShell-to-Rust ratio has inverted for anything that is a program rather than glue.
+**Why:** an idea nobody can read is not demonstrated. Size is therefore a correctness property here, not hygiene.
 **Dep:** none

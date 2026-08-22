@@ -2,6 +2,69 @@
      AI-related: /usr/lib/mios/bake/plan.d/NN-, /etc/mios/blade.d/, /usr/share/mios/artifacts/sbom/bound-images.tsv, /usr/libexec/mios/miosd, /usr/share/mios/vllm/model, mios-bake-group, mios-bakescratch, mios-llm-heavy, mios-llm-heavy-alt, mios-dropin-fanout -->
 # MiOS -- Master Roadmap (SINGULAR monolith)
 
+## What this roadmap is evidence for
+
+MiOS is a **proof of an idea**, not a product chasing users. Everything below is
+either evidence for the thesis or it is housekeeping, and the difference should
+be visible from the entry.
+
+**The thesis, in four parts that stand or fall together:**
+
+1. **One file defines the whole OS.** Every surface of a running system is a
+   projection of `usr/share/mios/mios.toml`, and drift from it is mechanically
+   impossible.
+2. **Agents operate it natively.** The machine is driven through a typed verb
+   surface rather than shell improvisation.
+3. **(1) is what makes (2) possible.** An agent can reason about one declarative
+   surface; it cannot reason about a thousand hand-edited files. The two claims
+   are one claim.
+4. **It is one reproducible, immutable artifact.** Rebuildable and rollback-able,
+   with provenance from SBOM rather than pinned literals.
+
+**What counts as evidence.** A drift-check that *cannot fail* is not evidence --
+it asserts a proof that does not exist, and it is worse than having no check,
+because it stops anyone looking. For part 1, the standard is: every surface has a
+generator AND a gate that demonstrably goes red. A gate without a negative test
+has not been shown to be a gate at all.
+
+**What the reader is meant to receive.** The artifact is *the repository itself*,
+small enough that a person can read it and see the idea. That makes size and file
+count first-class goals rather than hygiene -- see `[legibility]` in
+`mios.toml`, which ratchets them downward the same way the documentation census
+does.
+
+**Deployment scope is universal.** Blades, mesh, bare metal, VM, WSL and cloud
+are all in scope. Design ahead of hardware is legitimate here; presenting a
+*designed* plane as a *demonstrated* one is not.
+
+### Honest state, measured rather than asserted
+
+| | Measured | Note |
+|---|---:|---|
+| Runs on | MiOS-DEV VM / WSL | Bare metal is **untried**; blade/mesh/vfio behaviour is design, not observation. |
+| Tracked files | 2,383 | The reading surface. |
+| Tracked size | 202 MB | Two vendored assets are most of it. |
+| Shell / Python / PowerShell / Rust | 46k / 106k / 33k / 9k lines | Law 14 makes Rust the native tier; PowerShell currently outweighs it 3.6x. |
+| Drift checks | 181 | Falsifiability audited per check, not assumed. |
+| Units reproducing from SSOT | 27 of 66 | 39 registered as drifting: the largest hole in part 1 of the thesis. |
+
+### The four open campaigns
+
+Nothing new starts until these close. Each is tracked as a ratchet with a
+measured floor, so "finished" is a number reaching zero rather than a judgement.
+
+1. **Falsifiable gates.** Audit every check for whether an edit exists that makes
+   it red. Directly load-bearing: a hollow gate falsifies part 1.
+2. **Unit projection.** 39 of 66 units do not regenerate from SSOT. systemd is
+   the largest surface, so this is the biggest single gap in "one file defines
+   the OS".
+3. **Documentation.** 1,724 unharvested narrative comments and 150 stale
+   references. Legibility is the deliverable, so this is not tidying.
+4. **Projection completeness.** Every file in the image must be generated+gated
+   or explicitly declared authored. Anything else is a surface the thesis does
+   not cover.
+
+
 > The one canonical roadmap. Absorbs all former top-level `*-PLAN-*.md` + `concepts/*` planning docs. Workstreams map to `T-*` in TASKS.md.
 
 <!-- ROADMAP_ROLLUP_START -->

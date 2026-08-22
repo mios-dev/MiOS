@@ -2,7 +2,7 @@
 # AI-hint: Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, and image build settings used by all system tools and scripts.
 # AI-related: ./tools/lib/userenv.sh, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/share/mios/env.defaults, /usr/lib/mios/mios.d, mios-bootstrap, mios-colors, mios-opencode-gateway, mios-llm-heavy-alt, mios-llm-heavy
 # AI-functions: _mios_load_unified, _mios_legacy_get
-# MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every
+# MIOS_* environment variables. Sourced by Justfile, /etc/profile.d, every script.
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"
@@ -24,171 +24,43 @@ _mios_load_unified() {
     if [[ "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:-true}" == "false" || "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:-true}" == "0" ]]; then
         _use_rust=0
     fi
-    if [[ "$_use_rust" -eq 1 ]] && command -v mios-resolver >/dev/null 2>&1; then
-        local _native_exports=""
-        if _native_exports=$(mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
-            eval "$_native_exports" && return 0
+
+    # 1. Native compiled resolver binary (primary tier)
+    if [[ "$_use_rust" -eq 1 ]]; then
+        if command -v mios-resolver >/dev/null 2>&1; then
+            local _native_exports=""
+            if _native_exports=$(mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
+                eval "$_native_exports" && return 0
+            fi
+        elif [[ -x "/usr/libexec/mios/mios-resolver" ]]; then
+            local _native_exports=""
+            if _native_exports=$(/usr/libexec/mios/mios-resolver --emit=shell 2>/dev/null) && [[ -n "$_native_exports" ]]; then
+                eval "$_native_exports" && return 0
+            fi
         fi
     fi
+
+    # 2. Daemon resolver fallback
     if command -v miosd >/dev/null 2>&1; then
-        eval "$(miosd resolve --shell 2>/dev/null)" || true
+        local _d_exports=""
+        if _d_exports=$(miosd resolve --shell 2>/dev/null) && [[ -n "$_d_exports" ]]; then
+            eval "$_d_exports" && return 0
+        fi
     fi
+
+    # 3. Python SSOT resolver fallback
     local py_cmd=""
-    if python3 -c "import sys" >/dev/null 2>&1; then
-        py_cmd="python3"
-    elif python -c "import sys" >/dev/null 2>&1; then
-        py_cmd="python"
-    else
-        return 0
+    if command -v python3 >/dev/null 2>&1; then py_cmd="python3"
+    elif command -v python >/dev/null 2>&1; then py_cmd="python"
     fi
-    local vendor_d="${MIOS_VENDOR_TOML_D:-/usr/lib/mios/mios.d}"
-    local host_d="${MIOS_HOST_TOML_D:-$(dirname "$MIOS_HOST_TOML")/mios.d}"
-    local user_d="${MIOS_USER_TOML_D:-${MIOS_CONFIG_DIR}/mios.d}"
-    local exports
-    local _mios_xtrace_was_on=0; case "$-" in *x*) _mios_xtrace_was_on=1 ;; esac; set +x
-    exports=$(MIOS_VENDOR_TOML="$MIOS_VENDOR_TOML" MIOS_HOST_TOML="$MIOS_HOST_TOML" \
-              MIOS_USER_TOML="$MIOS_USER_TOML" MIOS_VENDOR_TOML_D="$vendor_d" \
-              MIOS_HOST_TOML_D="$host_d" MIOS_USER_TOML_D="$user_d" MIOS_ROOT="$MIOS_ROOT" \
-              PYTHONIOENCODING="utf-8" \
-              "$py_cmd" - <<'PY'
-import os, sys, shlex, re, glob
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        sys.exit(0)
 
-ROOT = os.environ.get("MIOS_ROOT", ".")
-
-def normalize_path(p):
-    if not p:
-        return p
-    if os.name == "nt" or sys.platform == "win32":
-        m = re.match(r"^/([a-zA-Z])/(.*)", p)
-        if m:
-            return f"{m.group(1)}:/{m.group(2)}"
-    return p
-
-ROOT = normalize_path(ROOT)
-
-def _frags(d):
-    if not d or not os.path.isdir(d):
-        return []
-    return sorted(glob.glob(os.path.join(d, "*.toml")), key=os.path.basename)
-
-layers = ([normalize_path(os.environ.get("MIOS_VENDOR_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_VENDOR_TOML_D", "")))]
-          + [normalize_path(os.environ.get("MIOS_HOST_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_HOST_TOML_D", "")))]
-          + [normalize_path(os.environ.get("MIOS_USER_TOML", ""))] + [normalize_path(x) for x in _frags(normalize_path(os.environ.get("MIOS_USER_TOML_D", "")))])
-
-def deep_merge(dst, src):
-    for k, v in src.items():
-        if isinstance(v, dict) and isinstance(dst.get(k), dict):
-            deep_merge(dst[k], v)
-        elif isinstance(v, str) and v == "" and dst.get(k) not in (None, ""):
-            continue  # empty string never overrides a non-empty value (parity with mios_toml.py:52)
-        else:
-            dst[k] = v
-
-merged = {}
-for path in layers:
-    if not path or not os.path.isfile(path):
-        continue
-    try:
-        with open(path, "rb") as f:
-            deep_merge(merged, tomllib.load(f))
-    except Exception as e:
-        sys.stderr.write(f"userenv: failed to parse {path}: {e}\n")
-
-def get(d, dotted):
-    for p in dotted.split("."):
-        if not isinstance(d, dict) or p not in d:
-            return None
-        d = d[p]
-    return d
-
-stack_id = get(merged, "ports.stack_id")
-try:
-    stack_offset = int(stack_id) * 10000 if stack_id is not None else 0
-except ValueError:
-    stack_offset = 0
-
-try:
-    sys.path.insert(0, os.environ.get("MIOS_ROOT_LIB", os.path.join(ROOT, "usr/lib/mios")))
-    import mios_toml
-    get_aliases = mios_toml.get_aliases
-    walk = mios_toml.walk
-    def process_val(dotted, v):
-        return mios_toml.process_val(dotted, v, stack_offset)
-    EXCLUDED_SECTIONS = mios_toml.EXCLUDED_SECTIONS
-    WALK_MOSTLY_DEAD = mios_toml.WALK_MOSTLY_DEAD
-    WALK_EMIT_KEEP = mios_toml.WALK_EMIT_KEEP
-except ImportError:
-    sys.exit(0)
-
-all_pairs = []
-for sec, val in merged.items():
-    if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
-        all_pairs.extend(walk(val, sec))
-
-import re as _re
-_re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
-
-exports_map = {}
-
-for path, val in all_pairs:
-    val_processed = process_val(path, val)
-    if val_processed is None or val_processed == "":
-        continue
-    
-    if path.startswith("converge."):
-        _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
-    else:
-        _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
-    # Same sanitization as tools/render-globals.py: a key like `mios-llm-worker@`
-    # is otherwise neither a legal sh nor PowerShell identifier (Law 13 twins).
-    canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
-    canonical = _re_unsafe.sub("_", canonical)
-    
-    sec_name = path.split(".", 1)[0]
-    if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
-        pass
-    else:
-        exports_map[canonical] = val_processed
-            
-    for leg in get_aliases(path):
-        if leg.endswith("_VERSION") and path.startswith("image.sidecars."):
-            exports_map[leg] = str(val_processed).rsplit(":", 1)[1] if ":" in str(val_processed) else "latest"
-        else:
-            exports_map[leg] = val_processed
-
-_env_tbl = merged.get("env")
-if isinstance(_env_tbl, dict):
-    for _k, _v in sorted(_env_tbl.items()):
-        _vp = process_val("env." + _k, _v)
-        if _vp is not None and _vp != "":
-            exports_map[_k] = _vp
-
-for env_name, val_processed in sorted(exports_map.items()):
-    print(f"export {env_name}={shlex.quote(str(val_processed))}")
-
-ref_path = os.path.join(ROOT, "usr/share/mios/referenced_names.txt")
-if os.path.isfile(ref_path):
-    try:
-        with open(ref_path, "r", encoding="utf-8") as f:
-            for line in f:
-                v = line.strip()
-                if v and v not in exports_map:
-                    print(f"export {v}=\"${{{v}:-}}\"")
-    except Exception:
-        pass
-PY
-    )
-    if [[ -n "$exports" ]]; then
-        eval "$exports"
+    if [[ -n "$py_cmd" ]]; then
+        local _py_exports=""
+        _py_exports=$("$py_cmd" "$MIOS_ROOT/usr/lib/mios/mios_toml.py" --emit=shell 2>/dev/null)
+        if [[ -n "$_py_exports" ]]; then
+            eval "$_py_exports" && return 0
+        fi
     fi
-    if [[ "$_mios_xtrace_was_on" -eq 1 ]]; then set -x; fi
 }
 _mios_load_unified
 
