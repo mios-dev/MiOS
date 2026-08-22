@@ -1794,8 +1794,8 @@ test_unit_projection() {
     _up_run && _up_fail "check_unit_projection passed with a raised ceiling"
     cp "$bak" "$toml"
 
-    # (2) Dropping a still-drifting unit must FAIL. Anchor the edit INSIDE
-    # [unit_projection] -- an unanchored regex hit another table's array.
+    # (2) Toolchain-free half: register below its own ceiling. The renderer half
+    # is asserted by tests/projection.rs. See TASKS.md T-317.
     python3 - "$toml" <<'PYX'
 import io, re, sys
 p = sys.argv[1]
@@ -1803,13 +1803,11 @@ s = io.open(p, encoding="utf-8").read()
 start = s.index("[unit_projection]")
 end = s.index("\n]\n", start) + len("\n]\n")
 block = s[start:end]
-block = re.sub(r'(max_drift = )(\d+)',
-               lambda m: m.group(1) + str(int(m.group(2)) - 1), block, count=1)
 block, n = re.subn(r'\n  "[^"]+",(?=\n\])', '', block, count=1)
 assert n == 1, "no register entry was removed -- the mutation would prove nothing"
 io.open(p, "w", encoding="utf-8", newline="\n").write(s[:start] + block + s[end:])
 PYX
-    _up_run && _up_fail "check_unit_projection passed with a drifting unit dropped from the register"
+    _up_run && _up_fail "check_unit_projection passed with the register below its own ceiling"
     cp "$bak" "$toml"
 
     # (3) An entry naming a unit [units.*] does not project must FAIL.

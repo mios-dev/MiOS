@@ -311,7 +311,7 @@
 | T-323 | P1 | done | Topology/SSOT | MINI-02 -- A seat could not tell an unreachable blade from a broken model |
 | T-324 | P1 | planned | Naming/Addressing | ADDR-05 -- Retired ports live on in shipped units and Quadlets; the sweep only scans docs |
 | T-325 | P0 | done | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
-| T-326 | P1 | planned | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
+| T-326 | P1 | done | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
 | T-327 | P0 | planned | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
 
 ---
@@ -3032,12 +3032,16 @@ The misfiling is documented in the file itself: a comment above the duplicated `
 
 **Why:** the tree's recurring defect class, one level deeper than usual. Not a gate reporting success over the wrong set, but a CONSUMER reading the wrong set -- so the SSOT and the code disagree in silence, and every test that stubs the value passes. Nothing about a seat is safe to reason about until the controls that bound it are reachable. | **Domain:** Security/Federation | **Who:** architect
 
-## T-326 -- BUILD-01: `sync-generated.sh` needs two passes and says nothing  (WS-GUARD | P1 | S)
-**Goal:** E-08 A regenerate-and-diff gate is only as good as the regeneration -- one pass of the generator must reach a fixpoint, or the gate can pass over a stale tree.
-**What+How:** MEASURED the hard way: CI went red on `bbd453e` with `tools/manifest.json` missing the two tools that commit added, after a LOCAL `sync-generated.sh` run and a LOCAL drift gate that both passed. A second pass changes the tree; the script does not say so, and `git add -A` between the passes commits the intermediate state. Reproduced twice in one session -- the same shape also put the narrative census +1 over the ceiling after a "clean" sync.
-**Where:** `tools/sync-generated.sh` (step 6 AI manifests, step 7 manual ledger), `automation/98-drift-checks.sh` (`check_ai_manifests_fresh`).
-**Done When:** one invocation reaches a fixpoint -- either the step order is corrected so nothing a later step writes is embedded by an earlier one, or the script loops until `git status --porcelain` stops changing (bounded, and LOUD when it needed more than one pass). A gate asserts the fixpoint property: run the generator twice, fail if the second pass changes anything.
-**Why:** every projection gate in this tree is regenerate-and-diff. A generator that is not idempotent in one pass makes all of them conditionally correct, and the failure surfaces as a red CI run on a commit whose author watched the gate pass. Workaround until fixed: run `sync-generated.sh` until `git status` stabilises -- which is what a fixpoint loop should be doing for the operator.
+## T-326 -- BUILD-01: `sync-generated.sh` could not see a file git did not track  (WS-GUARD | P1 | S)
+**Goal:** E-08 A regenerate-and-diff gate is only as good as the regeneration -- one pass must reach a fixpoint, or the gate can pass over a stale tree.
+**What+How:** MEASURED the hard way, twice in one session. CI went red on `bbd453e` with `tools/manifest.json` missing the two tools that commit added, after a LOCAL sync and a LOCAL drift gate that both passed. The same shape put the narrative census +1 over its ceiling after another "clean" sync.
+
+Root cause, and it is not a loop-count problem: **steps 6 and 7 census `git ls-files`.** `tools/generate-ai-manifest.py:45` and `usr/libexec/mios/mios-manual:676` both enumerate the git INDEX, so a newly created file is invisible to them until something tracks it. The sequence that bites is the ordinary one -- write a new tool, sync, watch the gate pass, `git add -A`, commit -- because the `git add` is what finally makes the file censusable, one commit too late. The script's own step-7 comment had noticed half of it (*"`git add` a new file BEFORE syncing, or its blocks land only once committed -- green locally, red in CI"*) and left the burden on the contributor.
+
+**Fixed:** a `0/7` step registers intent-to-add (`git add -N`) for every untracked file under the censused trees before anything else runs, and NAMES each one it registered. `-N` stages no content, so it cannot turn a sync into an accidental commit of work in progress. Proven live: an untracked `tools/zz-t326-probe.py` created and then synced ONCE landed in both `tools/manifest.json` and `manual-corpus.tsv` (2 hits each) -- before the fix that needed a commit and a second pass.
+**Where:** `tools/sync-generated.sh`.
+**Done When:** met -- one invocation sees a new file. Remaining: a gate asserting the fixpoint property (run the generator twice, fail if the second pass changes anything) would close the class rather than this instance.
+**Why:** every projection gate in this tree is regenerate-and-diff. A generator that cannot see a new file makes all of them conditionally correct, and the failure surfaces as a red CI run on a commit whose author watched the gate pass locally.
 **Dep:** none. | **Domain:** Build/SSOT | **Who:** build agent
 
 ## T-327 -- SEC-02: make the seat's auth posture enforced by construction  (WS-GUARD | P0 | M)
