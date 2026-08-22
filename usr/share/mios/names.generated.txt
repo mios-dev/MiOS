@@ -39,6 +39,7 @@ ports.otelcol_otlp  MIOS_PORTS_OTELCOL_OTLP
 ports.otelcol_ui  MIOS_PORTS_OTELCOL_UI
 ports.pxe_hub_api  MIOS_PORTS_PXE_HUB_API
 ports.forge_ssh_git  MIOS_PORTS_FORGE_SSH_GIT
+ports.unbound  MIOS_PORTS_UNBOUND
 ports.categories.edge.base  MIOS_PORTS_CATEGORIES_EDGE_BASE
 ports.categories.edge.stride  MIOS_PORTS_CATEGORIES_EDGE_STRIDE
 ports.categories.edge.members  MIOS_PORTS_CATEGORIES_EDGE_MEMBERS

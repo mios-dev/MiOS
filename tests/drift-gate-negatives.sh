@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,47 @@ test_account_column_parity() {
 }
 
 
+test_ports_bound() {
+    log "Testing check_ports_bound"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    local reg='unbound = ["chrome_cdp", "forge_ssh_git", "otelcol_otlp", "otelcol_ui"]'
+    cp "$toml" "$backup"
+
+    # (1) An allocated port that nothing references and nothing registers must
+    # FAIL -- the collision checker would otherwise guard a number nothing binds.
+    python3 -c 'import io,sys
+p,old,new=sys.argv[1],sys.argv[2],sys.argv[3]
+s=io.open(p,encoding="utf-8").read()
+assert s.count(old)==1,"unbound register anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(s.replace(old,new))' \
+        "$toml" "$reg" 'unbound = ["forge_ssh_git", "otelcol_otlp", "otelcol_ui"]'
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_ports_bound passed with an allocated port nothing references"
+    fi
+    cp "$backup" "$toml"
+
+    # (2) The register must only SHRINK: a port that IS referenced may not sit
+    # in it, or the list silently rots into decoration.
+    python3 -c 'import io,sys
+p,old=sys.argv[1],sys.argv[2]
+s=io.open(p,encoding="utf-8").read()
+assert s.count(old)==1,"unbound register anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s.replace(old, old[:-1] + ", \"guacd\"]"))' "$toml" "$reg"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_ports_bound passed with a REFERENCED port still in the unbound register"
+    fi
+
+    mv "$backup" "$toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1 \
+        || die "check_ports_bound failed after restoration"
+
+    log "Test_ports_bound negative test passed"
+}
+
 test_service_urls() {
     log "Testing check_service_urls"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2820,6 +2861,7 @@ main() {
     test_adr_index
     test_greenboot
     test_service_urls
+    test_ports_bound
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

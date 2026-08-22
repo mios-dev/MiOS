@@ -4477,6 +4477,7 @@ required_checks = [
     "check_tasks_status_parity",
     "check_container_names",
     "check_service_urls",
+    "check_ports_bound",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6245,6 +6246,7 @@ main() {
     check_tasks_status_parity
     check_container_names
     check_service_urls
+    check_ports_bound
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7275,6 +7277,20 @@ check_service_urls() {
     echo "[98-drift-checks]   check_service_urls"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-service-urls.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_ports_bound() {
+    echo "[98-drift-checks]   check_ports_bound"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ports-bound.py 2>&1)"; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 _violation "$line"

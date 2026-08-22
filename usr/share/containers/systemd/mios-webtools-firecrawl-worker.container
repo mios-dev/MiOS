@@ -8,8 +8,8 @@ Wants=mios-webtools-redis.service
 
 [Container]
 ContainerName=mios-webtools-firecrawl-worker
-Environment=REDIS_URL=redis://127.0.0.1:6380
-Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380
+Environment=REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}
+Environment=REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}
 Environment=HOST=127.0.0.1
 Environment=PORT=${MIOS_PORT_FIRECRAWL:-8820}
 Environment=USE_DB_AUTHENTICATION=false

@@ -9734,6 +9734,10 @@ otelcol_ui         = 8580    # Jaeger all-in-one query UI on mios-otelcol (upstr
 pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream default 8081; its HTTP side rides forge_http's band).
 forge_ssh_git      = 8590    # Forgejo IN-CONTAINER git-ssh listener (was hardcoded 49922 in the Quadlet). Distinct from forge_ssh, the host-published port.
 
+# Allocated ports nothing references yet. SHRINK-ONLY (gate: check_ports_bound).
+# Per-key reasons: TASKS.md T-318.
+unbound = ["chrome_cdp", "forge_ssh_git", "otelcol_otlp", "otelcol_ui"]
+
 # ----------------------------------------------------------------------------
 # [ports.categories] -- THE NUMBERING SSOT.
 #
@@ -12288,9 +12292,9 @@ Environment = [
   "FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
   "GITEA__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
   "FORGEJO__server__START_SSH_SERVER=true",
-  "FORGEJO__server__SSH_PORT=49922",
+  "FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
   "FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0",
-  "FORGEJO__server__SSH_LISTEN_PORT=49922",
+  "FORGEJO__server__SSH_LISTEN_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
   "FORGEJO__database__DB_TYPE=sqlite3",
   "FORGEJO__database__PATH=/data/forgejo.db",
   "FORGEJO__service__DISABLE_REGISTRATION=true",
@@ -12394,7 +12398,7 @@ Environment = [
   "POSTGRESQL_USERNAME=${MIOS_PG_USER:-mios}",
   "POSTGRESQL_PASSWORD=${MIOS_PG_PASS:-mios}",
   "GUACD_HOSTNAME=localhost",
-  "GUACD_PORT=4822"
+  "GUACD_PORT=${MIOS_PORT_GUACD:-8560}"
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_GUACAMOLE_GID:-810}"
@@ -12423,7 +12427,7 @@ Wants = "network-online.target mios-pgvector.service"
 
 [containers.mios-guacd.Container]
 ContainerName = "mios-guacd"
-Exec = "guacd -b 0.0.0.0 -f"
+Exec = "guacd -b 0.0.0.0 -l ${MIOS_PORT_GUACD:-8560} -f"
 Group = "${MIOS_GUACD_GID:-811}"
 Image = "${MIOS_GUACD_IMAGE:-docker.io/guacamole/guacd:latest}"
 Pod = "mios-system.pod"
@@ -12793,7 +12797,7 @@ Wants = "network-online.target"
 
 [containers.mios-pxe-hub.Container]
 ContainerName = "mios-pxe-hub"
-Exec = "/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
+Exec = "/usr/bin/matchbox -address 0.0.0.0:${MIOS_PORT_PXE_HUB_API:-8585} -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
 Group = "0"
 Image = "${MIOS_PXE_HUB_IMAGE:-quay.io/poseidon/matchbox:latest}"
 Pod = "mios-system.pod"
@@ -12901,8 +12905,8 @@ After = "mios-webtools-firstboot.service"
 [containers.mios-webtools-firecrawl-api.Container]
 ContainerName = "mios-webtools-firecrawl-api"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:6380",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
   "HOST=127.0.0.1",
   "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
@@ -12942,8 +12946,8 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-firecrawl-worker.Container]
 ContainerName = "mios-webtools-firecrawl-worker"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:6380",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
   "HOST=127.0.0.1",
   "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
@@ -12980,7 +12984,7 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-redis.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-webtools-redis"
-Exec = "valkey-server --bind 127.0.0.1 --port 6380 --appendonly no"
+Exec = "valkey-server --bind 127.0.0.1 --port ${MIOS_PORT_REDIS:-8565} --appendonly no"
 Group = "0"
 Image = "docker.io/valkey/valkey:latest"
 Label = "org.opencontainers.image.title=mios-webtools-redis"
