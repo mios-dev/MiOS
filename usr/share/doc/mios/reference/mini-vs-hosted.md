@@ -42,6 +42,20 @@ So "offload all services to hosted MiOS OCI image(s)" means exactly **4 of 8 pla
 
 Two of those planes share one metal floor. Serving clients **and** being the uplink needs **2 separate interfaces**, at least **1** of which can run as an access point — any mix of radios and wired links counts (ADR-0016 D11). A box below that floor can host `router` or `radio`, never both.
 
+The axes the operator settled, as the SSOT now carries them (ADR-0016 D11 and D12):
+
+| Key | Value | What it settles |
+|---|---|---|
+| `[blade.hardware].min_interfaces` | `2` | separate interfaces a Mini needs to be AP and uplink at once |
+| `[blade.hardware].min_ap_capable` | `1` | of them that must be able to run as an access point |
+| `[blade.cluster].k3s_servers` | `1` | control planes in the whole fleet, at any node count |
+| `[blade.cluster].control_plane_ha` | `false` | promotion threshold: containers keep running, scheduling stops |
+| `[blade.fencing].method` | `sbd` | how a member is fenced -- self-fence, so none must be reached |
+| `[blade.fencing].diskless` | `true` | watchdog driven by quorum, no shared block device |
+| `[blade.storage].replication` | `all` | data classes that shadow-copy across the mesh |
+| `[blade.storage].at_rest` | `encrypted` | how an off-site shadow copy is protected |
+| `[blade.uplink].failover` | `peer` | where the DEFAULT ROUTE goes when the WAN dies (the plane stays) |
+
 **Read the two right-hand columns narrowly.** *Baked* means every marker package is in `[packages]` — Law 12 satisfied, nothing to fetch at boot. *Wired* means the named file exists in the tree. Neither claims the plane is finished: `router` is baked and its forwarding sysctl is applied, and it still has no NAT ruleset or client DHCP (T-337). A plane is only complete when a gate proves it end to end.
 
 What that leaves open right now, derived rather than asserted:

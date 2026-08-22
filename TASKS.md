@@ -3346,7 +3346,7 @@ does not have yet, and they are the only ones a peer cannot supply.**
 **Done When:** every `owner = "mini"` plane is baked and wired (`radio` and `mesh` are the two open
 ones -- `radio` is T-333/MINI-05a, `mesh` is T-335); a gate proves a `mini` plane can never be
 scheduled onto a hosted instance; `[blade.hardware]`'s interface floor is enforced rather than
-documented; and axis 5 below is settled.
+documented; and axes 9 and 10 below are settled.
 
 **Four axes SETTLED by the operator (ADR-0016 D11), each with the work it creates:**
 
@@ -3371,12 +3371,40 @@ documented; and axis 5 below is settled.
    the case an operator must resolve; (b) replication needs the mesh, and `mesh` is the plane that is
    not baked. CephFS shadow-copies over a link that does not exist is the ordering problem.
 
-**Still open:**
+**Four more SETTLED (ADR-0016 D12), each holding one of D11's weakened guarantees:**
 
-5. **Uplink loss.** When the Mini's WAN dies, the box still serves clients and the mesh still routes.
-   Does a peer with a live uplink become the exit node, or does the site go dark? `router` is
-   `owner = "mini"` and therefore cannot be shed -- so if the answer is "a peer takes over", the
-   thing that moves is the *default route*, not the plane, and that needs its own declaration.
+5. **Uplink loss: the default route moves to a peer; the plane stays.** `[blade.uplink].failover =
+   "peer"`. A *route* is a third movable category alongside plane and workload, which is why it is
+   not modelled as `owner`. Deliberately NOT `[security].egress` -- that is an allowlist, a different
+   mechanism on the same word.
+6. **SBD self-fence, diskless.** `[blade.fencing]`. Removes the guest-fencing question rather than
+   answering it: no member ever has to be REACHED to be fenced, which is a STRONGER guarantee than
+   the metal-only posture D11.2 replaced. Diskless keeps the fence off the storage plane so the two
+   failure domains stay separate. `sbd` + `fence-agents-all` already ship. **Creates:** a watchdog
+   device in each guest (libvirt `<watchdog>` or permitted `softdog`), and `stonith-enabled=true`.
+7. **One control plane, always.** `[blade.cluster]` `k3s_servers = 1`, `control_plane_ha = false`.
+   Simpler than k3s-native etcd-at-three, and defensible because containers keep RUNNING when the
+   server is down -- only scheduling stops. Makes the `k3s-multi-server` fix small: exactly one box
+   runs `k3s server`, the rest resolve `K3S_URL` to it. **Creates:** containers are best-effort
+   across a control-plane outage while VMs are genuinely HA under Pacemaker. State that asymmetry;
+   do not let callers assume the two workload kinds have equal availability.
+8. **Encrypt at rest, replicate every class.** `[blade.storage]` `replication = "all"`,
+   `at_rest = "encrypted"`. Keeps D11.4's promise for every data class.
+
+**Still open -- both are tensions D12 created with decisions already taken, not new questions:**
+
+9. **Who holds the shadow-copy key?** `[security].disk_encryption` is TPM2-sealed to PCR 7 of ONE
+   box, so it cannot travel with a shadow copy. Two mutually exclusive options: every mesh member
+   holds a site key (remote peer CAN read it -- shed stays warm, D11.4 holds, encryption protects
+   against physical theft but not against whoever operates the remote box); or the remote peer does
+   NOT hold it (stores ciphertext it cannot use -- shed there is COLD for stateful workloads, which
+   contradicts D11.4). Picking one silently reverses either D11.4 or the threat model.
+10. **Does uplink failover try local first?** ADR-0017 D3 makes local-first the house ordering, and
+    `[blade.hardware]` guarantees a second interface that might have its own uplink -- yet
+    `failover = "peer"` skips the local step. Either make it `["local", "peer"]` and consistent with
+    D3, or record uplink failover as a deliberate D3 exception because a dead WAN is not a crashed
+    process and retrying in place is pointless. Also ordering: handing a route to a peer is a MESH
+    operation, and `mesh` has no package and no wiring -- this cannot be built before the mesh is.
 
 **Why:** without the `mini`/`either` line, "offload all services" and "a Mini is a complete cluster"
 are the same sentence read two ways, and the tree cannot tell which one a scheduler should obey.

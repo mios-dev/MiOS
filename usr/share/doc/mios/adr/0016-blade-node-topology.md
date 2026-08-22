@@ -8,7 +8,7 @@ date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
 laws: [1, 3, 5, 7, 8, 9, 12]
-ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blade.hardware, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
+ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blade.hardware, blade.cluster, blade.fencing, blade.storage, blade.uplink, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
 related_ws: [WS-BLADE, WS-MIOSSYS, WS-GUARD]
 supersedes: []
 superseded_by: []
@@ -722,6 +722,92 @@ conflict-is-error rule in ADR-0017 D5 — a shadow copy that diverges during a p
 case that ADR says an operator must resolve. Second, replication is not free: every write costs
 bandwidth on the mesh, and the mesh plane is the one that is not baked yet (D10). CephFS
 shadow-copies over a link that does not exist is the ordering problem to solve first.
+
+
+### 12. The four consequences of D11, settled — and the two tensions they leave
+
+D11's answers each weakened a guarantee to buy a capability. These four decide how each weakened
+guarantee is held. Two of them create a tension with a decision already taken, and both are recorded
+here rather than resolved silently.
+
+#### 12.1 Every member self-fences; no member has to be reached
+
+`[blade.fencing].method = "sbd"`, `diskless = true`.
+
+D11.2 let a guest hold a vote, which made fencing the open question: fencing a guest via its host
+fails exactly when the host is what failed. SBD removes the question rather than answering it —
+each member runs a watchdog and self-fences on quorum loss, so **no member ever has to be reached to
+be fenced.** That is what makes a guest vote safe, and it is a stronger guarantee than the metal-only
+posture D11.2 replaced, not a weaker one.
+
+Diskless mode drives the watchdog from quorum alone, so no shared block device is needed — which
+matters because the shared filesystem is CephFS, and making the fence depend on the storage plane
+would couple two failure domains that should stay separate.
+
+`sbd` and `fence-agents-all` are already in `[packages]`. The plane is baked; what is missing is the
+watchdog device in each guest (libvirt must expose one, or `softdog` must be permitted) and the
+`stonith-enabled=true` that `pacemaker-unfenced` currently holds off.
+
+#### 12.2 One control plane, always — containers outlive it
+
+`[blade.cluster].k3s_servers = 1`, `control_plane_ha = false`.
+
+No promotion threshold and no election race. This is deliberately simpler than the k3s-native
+"embedded etcd at three servers" path, and it is defensible for one specific reason: **when the k3s
+server is down, containers keep running.** Only *scheduling* stops. A 2–6 box fleet that loses its
+control plane degrades to "nothing new starts", not "everything stops".
+
+It also makes the `k3s-multi-server` hazard's fix concrete and small: exactly one box runs
+`k3s server`; every other box resolves `K3S_URL` to it and starts as an agent. `[blade.cluster].server`
+is empty by default, meaning the first Mini installed, and may be set to pin a specific box.
+
+The cost is stated plainly: containers are best-effort across a control-plane outage while VMs are
+genuinely HA under Pacemaker. That asymmetry is a real property of this design, and callers should
+not be told the two workload kinds have equal availability.
+
+#### 12.3 Encrypt at rest and replicate everything — and the key question is open
+
+`[blade.storage].replication = "all"`, `at_rest = "encrypted"`.
+
+No per-class filter: `knowledge`, `agent_memory`, `session` and `config_kv` all shadow-copy.
+Confidentiality comes from encryption rather than from withholding classes, which keeps D11.4's
+promise that a shed workload is never cold for *any* data class.
+
+**The tension.** `[security].disk_encryption` is TPM2-sealed to PCR 7 of one box, so it cannot travel
+with a shadow copy. A remote shadow needs a different key, and which one decides what the encryption
+actually buys:
+
+* If **every mesh member holds the site key**, the remote peer can read the copy — so a shed there is
+  warm, D11.4 holds, and encryption protects against physical theft of the remote box but **not**
+  against whoever operates it.
+* If **the remote peer does not hold the key**, it stores ciphertext it cannot use — so a shed to
+  that peer is **cold for stateful workloads**, which contradicts D11.4.
+
+Those are the only two options and they are mutually exclusive. This is recorded as unsettled
+(T-338 axis 6) because picking one silently would quietly reverse either D11.4 or the threat model.
+
+#### 12.4 The default route moves; the router plane does not
+
+`[blade.uplink].failover = "peer"`.
+
+`router` is `owner = "mini"` and stays put. When the WAN dies the Mini keeps serving its clients and
+keeps routing them — what moves is the **default route**, handed to a peer with a live uplink. This
+introduces a third movable category alongside plane and workload: a *route* is neither, and it needs
+its own declaration, which is why it is not modelled as `owner` on a plane.
+
+Deliberately **not** `[security].egress`, which is an allowlist and a different concept; naming this
+one `egress` would have collided two unrelated mechanisms on one word.
+
+**The tension.** ADR-0017 D3 makes local-first the house failover ordering: retry in place, then let
+the cluster allocate. `failover = "peer"` skips the local step even though `[blade.hardware]`
+guarantees a second interface that might itself have an uplink. Either the second interface should be
+tried first (making this `["local", "peer"]` and consistent with D3), or uplink failover is a
+deliberate exception to D3 because a dead WAN is not a crashed process and retrying in place is
+usually pointless. That is T-338 axis 7.
+
+This also depends on the plane that is not baked: handing a default route to a peer is a mesh
+operation (a Tailscale exit node, in the current implementation), and `mesh` has no package and no
+wiring. Ordering matters — the uplink failover cannot be built before the mesh is.
 
 
 ## Consequences

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- TWO systematic comparisons. First the two PRODUCTS: a MiOS-Mini (owns metal: radios, uplink, hypervisor, a cluster vote) against a hosted MiOS OCI image (accepts shed workloads), derived from [blade.planes] where `owner` decides what can ever move and package markers decide what is actually baked. Then the two MODES one node boots into -- seat and full host. Every number is DERIVED from mios.toml ([blade.archetypes], [blade.requires], [blade].seat_side, [greenboot], [urls]), because a hand-written comparison is exactly the document that goes stale the moment an archetype gains a capability. --check is the drift gate.
 # AI-related: usr/share/mios/mios.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md, automation/98-drift-checks.sh, tools/test_generate-mini-vs-hosted.py
-# AI-functions: load, all_packages, plane_rows, shed_split, archetype_rows, seat_units, gated_off_on_seat, greenboot_rows, overlay_keys, baked_payloads, render, main
+# AI-functions: load, all_packages, plane_rows, policy_rows, shed_split, archetype_rows, seat_units, gated_off_on_seat, greenboot_rows, overlay_keys, baked_payloads, render, main
 """Project the seat-vs-blade comparison out of the SSOT."""
 
 import os
@@ -61,6 +61,29 @@ def plane_rows(root: str, data: dict) -> list:
         rows.append((name, str(spec.get("role") or ""), str(spec.get("owner") or ""),
                      markers, missing, wired_by, wired))
     return rows
+
+
+def policy_rows(data: dict) -> list:
+    """(key, value, what it settles) for the axes ADR-0016 D11/D12 fixed. An
+    SSOT key nothing renders is a decorative key."""
+    b = data.get("blade") or {}
+    spec = [
+        ("blade.hardware", "min_interfaces", "separate interfaces a Mini needs to be AP and uplink at once"),
+        ("blade.hardware", "min_ap_capable", "of them that must be able to run as an access point"),
+        ("blade.cluster", "k3s_servers", "control planes in the whole fleet, at any node count"),
+        ("blade.cluster", "control_plane_ha", "promotion threshold: containers keep running, scheduling stops"),
+        ("blade.fencing", "method", "how a member is fenced -- self-fence, so none must be reached"),
+        ("blade.fencing", "diskless", "watchdog driven by quorum, no shared block device"),
+        ("blade.storage", "replication", "data classes that shadow-copy across the mesh"),
+        ("blade.storage", "at_rest", "how an off-site shadow copy is protected"),
+        ("blade.uplink", "failover", "where the DEFAULT ROUTE goes when the WAN dies (the plane stays)"),
+    ]
+    out = []
+    for table, key, what in spec:
+        node = b.get(table.split(".", 1)[1]) or {}
+        if key in node:
+            out.append(("[%s].%s" % (table, key), node[key], what))
+    return out
 
 
 def shed_split(rows: list) -> tuple:
@@ -252,6 +275,17 @@ def render(data: dict, root: str = ".") -> str:
               "radios and wired links counts (ADR-0016 D11). A box below that "
               "floor can host `router` or `radio`, never both."
               % (hw.get("min_interfaces", "?"), hw.get("min_ap_capable", "?")))
+            a("")
+        pol = policy_rows(data)
+        if pol:
+            a("The axes the operator settled, as the SSOT now carries them "
+              "(ADR-0016 D11 and D12):")
+            a("")
+            a("| Key | Value | What it settles |")
+            a("|---|---|---|")
+            for key, val, what in pol:
+                shown = str(val).lower() if isinstance(val, bool) else str(val)
+                a("| `%s` | `%s` | %s |" % (key, shown, what))
             a("")
         a("**Read the two right-hand columns narrowly.** *Baked* means every "
           "marker package is in `[packages]` — Law 12 satisfied, nothing to "

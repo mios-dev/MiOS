@@ -323,5 +323,48 @@ class TestOpenItemsClaim(unittest.TestCase):
         self.assertTrue(open_rows, "nothing open -- this test would pass vacuously")
         self.assertEqual(set(r[2] for r in open_rows), {"mini"})
 
+
+class TestPolicyRows(unittest.TestCase):
+    """The recurring defect this repo keeps producing is an SSOT key emitted by
+    the resolver and read by nothing. Every axis D11/D12 settled must reach the
+    page, or it is decorative."""
+
+    def test_a_declared_axis_reaches_the_page(self):
+        d = with_planes()
+        d["blade"]["cluster"] = {"k3s_servers": 1, "control_plane_ha": False}
+        text = mod.render(d, _ROOT)
+        self.assertIn("`[blade.cluster].k3s_servers`", text)
+
+    def test_a_bool_renders_as_toml_not_python(self):
+        # `False` in a TOML-keyed table would be a copy-paste trap.
+        d = with_planes()
+        d["blade"]["cluster"] = {"control_plane_ha": False}
+        text = mod.render(d, _ROOT)
+        self.assertIn("| `false` |", text)
+        self.assertNotIn("| `False` |", text)
+
+    def test_an_absent_key_renders_no_row(self):
+        # Never invent a default -- an unset axis is unsettled, not zero.
+        rows = mod.policy_rows(with_planes())
+        self.assertEqual(rows, [])
+
+    def test_changing_the_value_changes_the_page(self):
+        d = with_planes()
+        d["blade"]["uplink"] = {"failover": "peer"}
+        self.assertIn("| `peer` |", mod.render(d, _ROOT))
+        d["blade"]["uplink"] = {"failover": "none"}
+        self.assertIn("| `none` |", mod.render(d, _ROOT))
+
+    def test_every_shipped_axis_is_rendered(self):
+        # The real assertion: nothing D11/D12 settled is left off the page.
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            data = tomllib.load(fh)
+        rows = mod.policy_rows(data)
+        self.assertEqual(len(rows), 9, "an axis was added to the SSOT and not "
+                                       "to policy_rows -- it would be decorative")
+        text = open(os.path.join(_ROOT, mod.OUT), encoding="utf-8").read()
+        for key, _v, _w in rows:
+            self.assertIn("`%s`" % key, text)
+
 if __name__ == "__main__":
     unittest.main()

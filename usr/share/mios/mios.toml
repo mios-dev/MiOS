@@ -13221,6 +13221,42 @@ scratch      = "last-writer-wins"
 config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winner
 
 
+# [blade.cluster] -- one control plane, always. ADR-0016 D12.2.
+# Containers keep running when the server is down; scheduling stops.
+
+# server: empty = the first Mini installed. Set it to pin a specific box.
+[blade.cluster]
+k3s_servers      = 1
+server           = ""
+control_plane_ha = false
+
+# [blade.fencing] -- self-fence on quorum loss. ADR-0016 D12.1.
+# No member must be reached to be fenced; that is what makes a guest vote safe.
+
+# diskless = quorum-driven watchdog only, no shared block device.
+# Packages `sbd` and `fence-agents-all` already ship.
+[blade.fencing]
+method   = "sbd"
+diskless = true
+
+# [blade.storage] -- CephFS shadow-copy policy. ADR-0016 D12.3.
+# Every class replicates; encryption, not withholding, is the confidentiality.
+
+# NOT [security].disk_encryption: that is TPM2-sealed to one box and cannot
+# travel with a shadow copy. Who holds the travelling key is UNSETTLED.
+
+# See ADR-0016 D12.3: whether a remote peer holds the key is UNSETTLED.
+[blade.storage]
+replication = "all"
+at_rest     = "encrypted"
+
+# [blade.uplink] -- `router` is owner=mini and never moves; the DEFAULT ROUTE
+# does. NOT [security].egress, which is an allowlist rather than a failover.
+
+# ADR-0016 D12.4. Tension with ADR-0017 D3 (local-first) is recorded there.
+[blade.uplink]
+failover = "peer"
+
 # [blade.hardware] -- the metal floor a Mini must meet. ADR-0016 D11.
 # Serving clients AND being the uplink needs two SEPARATE interfaces.
 
