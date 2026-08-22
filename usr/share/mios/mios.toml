@@ -9876,6 +9876,17 @@ local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 
+# Ports with no canonical URL yet. SHRINK-ONLY (gate: check_service_urls).
+# agent_pipe is canonically MIOS_AI_ENDPOINT (Law 5) and never gains a key here.
+non_addressable = [
+  "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
+  "chrome_cdp", "cockpit_link", "cpu_node", "daemon_agent", "firecrawl",
+  "forge_ssh", "forge_ssh_git", "guacamole_web", "guacd", "hermes_dashboard",
+  "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
+  "otelcol_otlp", "otelcol_ui", "prefilter", "pxe_hub_api", "rdp", "redis",
+  "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",
+]
+
 # ----------------------------------------------------------------------------
 # [generator] -- Quadlet & manifest generator configuration
 # ----------------------------------------------------------------------------

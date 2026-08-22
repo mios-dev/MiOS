@@ -1222,6 +1222,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
+: "${MIOS_NON_ADDRESSABLE_URL:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,chrome_cdp,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,forge_ssh_git,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,otelcol_ui,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 : "${MIOS_OBSERVABILITY_CHANNELS_CONTENT:=content}"
 : "${MIOS_OBSERVABILITY_CHANNELS_PLAN:=reasoning}"
 : "${MIOS_OBSERVABILITY_CHANNELS_SOURCE:=source}"
@@ -4684,6 +4685,7 @@ to" / "let me know".
 [ -n "${MIOS_URLS_HERMES+x}" ] || MIOS_URLS_HERMES='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 [ -n "${MIOS_URLS_LLM_LIGHT+x}" ] || MIOS_URLS_LLM_LIGHT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
 [ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"'/mios/mios.git'
+: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,chrome_cdp,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,forge_ssh_git,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,otelcol_ui,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 [ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
 [ -n "${MIOS_URLS_PGVECTOR+x}" ] || MIOS_URLS_PGVECTOR='postgresql://mios:mios@localhost:'"${MIOS_PORT_PGVECTOR}"'/mios'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"

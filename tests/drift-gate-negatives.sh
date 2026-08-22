@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,50 @@ test_account_column_parity() {
 }
 
 
+test_service_urls() {
+    log "Testing check_service_urls"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    local reg_tail='"sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",'
+    local reg_head='  "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",'
+    cp "$toml" "$backup"
+
+    # (1) A port in NEITHER [urls] nor the register must FAIL. Dropping an entry
+    # from the shrink-only register is exactly how a real regression looks.
+    python3 -c 'import io,sys
+p,old,new=sys.argv[1],sys.argv[2],sys.argv[3]
+s=io.open(p,encoding="utf-8").read()
+assert s.count(old)==1,"non_addressable tail anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(s.replace(old,new))' \
+        "$toml" "$reg_tail" '"sglang", "ssh", "ttyd_bash", "ttyd_powershell",'
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_service_urls passed with a port in neither [urls] nor the register"
+    fi
+    cp "$backup" "$toml"
+
+    # (2) A register entry naming a port that does not exist must FAIL -- a stale
+    # register is how these lists rot into decoration. The bogus name is
+    # ASSEMBLED so this file never contains the literal it searches for.
+    python3 -c 'import io,sys
+p,old=sys.argv[1],sys.argv[2]
+ghost="mios_negtest"+"_ghost_port"
+s=io.open(p,encoding="utf-8").read()
+assert s.count(old)==1,"register head anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s.replace(old, old+"\n  \""+ghost+"\","))' "$toml" "$reg_head"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_service_urls passed with a register entry naming no real port"
+    fi
+
+    mv "$backup" "$toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 \
+        || die "check_service_urls failed after restoration"
+
+    log "Test_service_urls negative test passed"
+}
+
 test_greenboot() {
     log "Testing check_greenboot"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2775,6 +2819,7 @@ main() {
     test_container_names
     test_adr_index
     test_greenboot
+    test_service_urls
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

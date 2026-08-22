@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+# AI-hint: Unit tests for tools/check-service-urls.py. Cover the four ways a port's addressing can be wrong -- unclassified, double-classified, a register entry naming a port that does not exist, and a duplicated register entry -- plus the empty-set case, because a gate that passes over no ports is the failure this whole family of gates exists to prevent.
+# AI-related: tools/check-service-urls.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
+"""Tests for the one-canonical-address-per-service gate."""
+
+import os
+import sys
+import unittest
+from importlib.machinery import SourceFileLoader
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+mod = SourceFileLoader(
+    "check_service_urls", os.path.join(_HERE, "check-service-urls.py")).load_module()
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover
+    import tomli as tomllib  # type: ignore
+
+
+def data(ports=None, urls=None, register=None):
+    d = {"ports": dict(ports or {}), "urls": dict(urls or {})}
+    if register is not None:
+        d["urls"]["non_addressable"] = list(register)
+    return d
+
+
+class TestPortKeys(unittest.TestCase):
+    def test_stack_id_is_not_a_port(self):
+        self.assertEqual(mod.port_keys(data({"a": 1, "stack_id": 0})), {"a"})
+
+    def test_non_numeric_is_not_a_port(self):
+        self.assertEqual(mod.port_keys(data({"a": 1, "categories": {}})), {"a"})
+
+
+class TestCovered(unittest.TestCase):
+    def test_templated_port_is_covered(self):
+        d = data({"forge_http": 8400}, {"forge": "http://x:${MIOS_PORT_FORGE_HTTP}"})
+        self.assertEqual(mod.covered_ports(d), {"forge_http"})
+
+    def test_one_url_may_cover_several_ports(self):
+        d = data({"a": 1, "b": 2}, {"u": "${MIOS_PORT_A}/${MIOS_PORT_B}"})
+        self.assertEqual(mod.covered_ports(d), {"a", "b"})
+
+    def test_literal_port_number_does_not_count_as_covered(self):
+        # A literal is exactly the hardcoding the gate wants replaced.
+        d = data({"forge_http": 8400}, {"forge": "http://x:8400"})
+        self.assertEqual(mod.covered_ports(d), set())
+
+    def test_register_list_is_not_scanned_as_a_url(self):
+        d = data({"a": 1}, {}, ["a"])
+        self.assertEqual(mod.covered_ports(d), set())
+
+
+class TestClassify(unittest.TestCase):
+    def test_clean_tree_has_no_violations(self):
+        d = data({"a": 1, "b": 2}, {"u": "http://x:${MIOS_PORT_A}"}, ["b"])
+        self.assertEqual(mod.classify(d), [])
+
+    def test_unclassified_port_fails(self):
+        d = data({"a": 1, "b": 2}, {"u": "http://x:${MIOS_PORT_A}"}, [])
+        self.assertEqual(len(mod.classify(d)), 1)
+        self.assertIn("'b'", mod.classify(d)[0])
+
+    def test_port_in_both_fails(self):
+        d = data({"a": 1}, {"u": "http://x:${MIOS_PORT_A}"}, ["a"])
+        self.assertIn("two answers", mod.classify(d)[0])
+
+    def test_register_naming_a_missing_port_fails(self):
+        d = data({"a": 1}, {"u": "http://x:${MIOS_PORT_A}"}, ["ghost"])
+        self.assertIn("not a [ports] key", mod.classify(d)[0])
+
+    def test_duplicate_register_entry_fails(self):
+        d = data({"a": 1, "b": 2}, {"u": "http://x:${MIOS_PORT_A}"}, ["b", "b"])
+        self.assertIn("twice", mod.classify(d)[0])
+
+    def test_empty_port_table_fails_rather_than_passing_vacuously(self):
+        self.assertIn("vacuously", mod.classify(data({}, {}, []))[0])
+
+    def test_register_whitespace_and_blanks_are_ignored(self):
+        d = data({"a": 1, "b": 2}, {"u": "${MIOS_PORT_A}"}, [" b ", "", "  "])
+        self.assertEqual(mod.classify(d), [])
+
+
+class TestShippedTree(unittest.TestCase):
+    def test_the_real_ssot_classifies_every_port(self):
+        with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
+            real = tomllib.load(fh)
+        self.assertEqual(mod.classify(real), [])
+
+    def test_every_register_entry_is_a_real_port(self):
+        with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
+            real = tomllib.load(fh)
+        self.assertTrue(set(mod.register(real)) <= mod.port_keys(real))
+
+    def test_the_register_is_not_empty_yet(self):
+        # Guards the test itself: if the register ever empties, these assertions
+        # stop proving anything and this line is the reminder to delete them.
+        with open(os.path.join(_ROOT, mod.TOML), "rb") as fh:
+            real = tomllib.load(fh)
+        self.assertGreater(len(mod.register(real)), 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
