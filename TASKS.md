@@ -297,6 +297,9 @@
 | T-309 | P3 | planned | Security/Sandbox | SBX-01 -- Reconcile the reference bwrap argv with the wrapper |
 | T-310 | P2 | planned | Security/Transport | SEC-TLS-01 -- Five outbound clients disable TLS verification |
 | T-311 | P3 | planned | Naming/Hygiene | NAME2-04 -- Rename the globals that are truly mutated at runtime |
+| T-312 | P1 | in-progress | Topology/SSOT | BLADE-01 -- Total [urls]: one canonical address per service |
+| T-313 | P2 | planned | Topology/SSOT | BLADE-02 -- [blades] becomes the machine registry; nodes gain a blade |
+| T-314 | P2 | planned | Lifecycle/Health | BLADE-03 -- Role-aware greenboot so a seat does not roll itself back |
 
 ---
 
@@ -2770,3 +2773,30 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** A reader cannot currently tell `_VERB_CATALOG` (injected once, then read) from `_NODE_LIVE` (written from several coroutines) by looking. The second needs a concurrency argument; the first does not.
 **Dep:** After T-238's measurement. Several of these names are injected BY NAME through `configure()` and re-exported verbatim by `server.py` for the surface-parity gate, so the rename must move all three surfaces together -- which is why it is its own task rather than a sweep.
 **Status:** planned | **Domain:** Naming/Hygiene | **Who:** naming agent
+
+## T-312 -- BLADE-01: Total `[urls]` -- one canonical address per service  (WS-BLADE | P1 | M)
+**Goal:** E-09 One value, one name -- a service's address is stated once, so pointing it at another machine is an overlay rather than a refactor.
+**What+How:** MEASURED: `[urls]` carries 9 of 41 addressable ports; the other 32 have their address hand-composed as `localhost:${MIOS_PORT_X}` in 1-18 files each (~125 non-generated, non-doc consumer files, ~338 references). Because all three pods are `Network=host`, every service genuinely IS on the host loopback -- so the ~600 `localhost` references are the architecture, not sloppiness, and offloading a service is purely an ADDRESSING change. Give every addressable port exactly one `[urls]` key; make consumers resolve `MIOS_URL_*`; add `check_service_urls` enforcing (a) every port has a URL or is registered non-addressable, and (b) no NEW consumer hand-composes an address, with a shrink-only per-file register draining the existing debt the way `[refactor].oversize` and `[schema].unconsumed` do. Offload then becomes an `/etc/mios/mios.toml` overlay -- no quadlet change, no code change.
+**Where:** `usr/share/mios/mios.toml` (`[urls]` + the register), `tools/check-service-urls.py` + `tools/test_check-service-urls.py`, `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`, the consumer tranches.
+**Done When:** Every numeric `[ports].*` key resolves to exactly one `[urls]` entry or a registered non-addressable reason; the gate fails on a new hand-composed address and on a register entry that grows or names a deleted file; and re-pointing one service at a remote host is proven by an `/etc/mios` overlay alone, with no file under `usr/` changed.
+**Why:** This is the whole of "offload to a hosted MiOS", mechanically. It is required under every answer to the MiOS-Mini naming question, which is why it lands before that question is settled. ADR-0016 Decision 1.
+**Dep:** none -- independent, and a prerequisite for T-313.
+**Status:** in-progress -- ADR-0016 written and the audit complete (9/41 covered, 32 uncovered and ALL 32 actually addressed somewhere, so none is dead). First de-duplication landed: `[ai].endpoint` hardcoded `http://localhost:8700/v1` instead of resolving `${MIOS_PORT_AGENT_PIPE}` -- a Law-7 literal restating a port the SSOT already owns. Now templated; `MIOS_AI_ENDPOINT` resolves byte-identically (`http://localhost:8700/v1`) and check_no_hardcode / check_no_duplicate_value_key / check_var_closure / check_globals_generated / check_resolved_env_lossless all pass. Note that agent-pipe therefore needs NO `[urls]` entry -- `MIOS_AI_ENDPOINT` is its canonical name and Law 5 already points every consumer at it. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-313 -- BLADE-02: `[blades]` becomes the machine registry; nodes gain a blade  (WS-BLADE | P2 | M)
+**Goal:** E-09 One value, one name -- "which machine" is a first-class field, so capacity and reachability stop being inferred from an endpoint string.
+**What+How:** `[blades]` is an EMPTY section today -- zero keys under a 30-line comment about nodes -- while the agent plane keeps `_BLADE_POOL`, `_ENDPOINT_BLADE` and `_LOCAL_BLADE` and `[admission].multiblade_enable` is `false`. Meanwhile `[nodes.*]` declares six nodes of which FIVE point at the same endpoint and the same model (`localhost:${MIOS_PORT_SGLANG}`, `mios-heavy`) and one ships empty, and `local-cpu` declares `lane = "gpu"` pointing at the GPU heavy lane -- so the "pool" is five aliases for one backend and there is no CPU lane at all. Collapse the node list to what actually exists FIRST, then make `[blades.<name>]` the machine registry (reachability, served addresses, capacity envelope) and give each node a `blade` field. Promote `health_gate`'s auto-join/drop semantics from the node to the blade.
+**Where:** `usr/share/mios/mios.toml` (`[blades]`, `[nodes.*]`), `usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py` (`_load_node_pool`), `mios_pipe/scheduler/vram.py`, `mios_pipe/scheduler/admission.py`.
+**Done When:** Every `[nodes.*]` entry names a blade that exists; no two node keys are aliases for the same (endpoint, model) unless the SSOT says so explicitly; the VRAM/admission blade machinery reads `[blades]` rather than inferring from endpoints; and a gate fails on an alias pair or an orphan node.
+**Why:** Capacity fan-out currently believes it has five lanes when it has one backend, and the blade code has no SSOT to read. ADR-0016 Decision 2.
+**Dep:** After T-312 (a blade serves addresses; addresses must be canonical first).
+**Status:** planned | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-314 -- BLADE-03: Role-aware greenboot so a seat does not roll itself back  (WS-BLADE | P2 | S)
+**Goal:** E-24 Autonomy guardrails -- a machine's health check asks about the services that machine actually runs.
+**What+How:** `[greenboot].critical_services = ["agent-pipe", "llm-light", "pgvector"]` is unconditional. A seat that offloads llm-light and pgvector fails the check on EVERY boot, and greenboot hands that to `bootc` as a bad boot -- so the machine rolls itself back, forever, for working as designed. Make the critical set resolve per `[profile].role`, and decide explicitly whether a seat's "critical" may include reachability of its blade. If it may, boot success becomes network-dependent, which collides with Law 12 (degrade open, never block boot) and must be a recorded choice rather than a side effect.
+**Where:** `usr/share/mios/mios.toml` (`[greenboot]`, `[profile]`), `etc/greenboot/check/required.d/50-mios-core.sh`, `miosd greenboot`.
+**Done When:** A machine in a service-offloading role passes greenboot with those services absent; a machine in a hosting role still fails when they are down; and the network-dependence question is answered in the SSOT rather than implied.
+**Why:** The most concrete way a thin MiOS breaks today is not a missing feature -- it is a rollback loop caused by a health check that assumes every machine is the same machine. ADR-0016 consequences.
+**Dep:** After T-312 defines what a role means for addressing.
+**Status:** planned | **Domain:** Lifecycle/Health | **Who:** architect

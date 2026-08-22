@@ -3,7 +3,7 @@
 
 # MiOS Architecture Decision Records
 
-**15 ADRs** (12 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
+**16 ADRs** (12 accepted). The records live at [`usr/share/doc/mios/adr/`](usr/share/doc/mios/adr/) and are **baked into the image** -- a running MiOS carries its own *why*. This file is the root breadcrumb so an agent starting at either repo root reaches any decision in two hops; the format and status lifecycle are described in [the ADR README](usr/share/doc/mios/adr/README.md).
 
 | # | Decision | Status | Date | Laws | SSOT keys |
 |---|---|---|---|---|---|
@@ -22,5 +22,6 @@
 | 0013 | ["Deploy-surface consolidation behind installation/mios-install"](usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md) | accepted | 2026-07-28 | 1, 7, 8, 9 | `install.target`, `cat.mode` |
 | 0014 | ["The bootc-install bare-metal leg: bootc install to-disk --transport oci"](usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md) | proposed | 2026-07-28 | 3, 4, 12 | `image.sidecars`, `build.bake` |
 | 0015 | ["Unified key library architecture & full de-duplication campaign"](usr/share/doc/mios/adr/0015-unified-key-library-architecture.md) | accepted | 2026-07-31 | 7, 8, 9, 13 | `build.bake`, `colors`, `ai`, `ports` |
+| 0016 | ["Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"](usr/share/doc/mios/adr/0016-blade-node-topology.md) | proposed | 2026-08-22 | 1, 3, 5, 7, 8, 9, 12 | `urls`, `ports`, `blades`, `nodes`, +4 |
 
-<!-- derived from the front-matter of 15 file(s) under usr/share/doc/mios/adr/ -->
+<!-- derived from the front-matter of 16 file(s) under usr/share/doc/mios/adr/ -->

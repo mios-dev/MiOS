@@ -7793,7 +7793,7 @@ rag_rerank = false
 # surface at :8720 made the interactive `@` bypass the orchestrator + fail. NOTE:
 # this is the CLIENT surface only; the pipe's OWN inference backend is
 # MIOS_AGENT_PIPE_BACKEND (separate), so :8700 here does not self-loop.
-endpoint            = "http://localhost:8700/v1"
+endpoint            = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
 # Served model id the orchestrator advertises on :8700/v1/models, and the model
 # every THIN client requests (the @/mios CLI via MIOS_AI_GATEWAY_MODEL, the Hermes
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so

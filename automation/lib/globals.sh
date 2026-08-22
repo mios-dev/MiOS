@@ -167,7 +167,7 @@ export MIOS_VERSION
 : "${MIOS_AI_BAKE_MODELS:=granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent}"
 : "${MIOS_AI_DIR:=/usr/share/mios/ai}"
 : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-: "${MIOS_AI_ENDPOINT:=http://localhost:8700/v1}"
+[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
 : "${MIOS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
 : "${MIOS_AI_MCP_DIR:=/srv/ai/mcp}"
 : "${MIOS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
@@ -744,7 +744,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_XBOX_COLORS_ACCENT:=#282262}"
 : "${MIOS_EDITIONS_MIOS_XBOX_MINI_GPU_ARBITRATION:=static}"
 : "${MIOS_EDITIONS_MIOS_XBOX_MINI_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
-: "${MIOS_ENDPOINT:=http://localhost:8700/v1}"
+[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
 : "${MIOS_ENHANCED_SESSION_ENABLED:=true}"
 : "${MIOS_ENHANCED_SESSION_PORT:=13389}"
 : "${MIOS_ENHANCED_SESSION_RESOLUTION:=auto}"
