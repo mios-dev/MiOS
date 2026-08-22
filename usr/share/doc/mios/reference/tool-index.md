@@ -29,7 +29,6 @@ generators and the agent-facing CLIs.
 <!-- MIOS-GEN:index:usr/libexec/mios/mios-* -->
 | File | What it is |
 |---|---|
-| `usr/libexec/mios/MiOS-Mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-a2a-delegate` | Python shim for mid-run agent-to-agent delegation via the /v1/a2a/dispatch endpoint, allowing agents to offload sub-tasks to peers and inject responses into their reasoning loop as a live bus. |
 | `usr/libexec/mios/mios-a2a-discover` | Scans and validates A2A peer nodes from mios.toml and CIDR ranges to populate /etc/mios/ai/v1/a2a-peers.json, ensuring the agent-pipe has a verified list of live, reachable peers for delegation. |
 | `usr/libexec/mios/mios-a2a-mdns` | SSOT-driven avahi/mDNS side of A2A discovery. Renders the LAN-announce avahi service file from the /usr/lib template (port + service-type substituted from mios.toml, never hardcoded) when... |
@@ -240,7 +239,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -259,6 +258,7 @@ is generated, its generator is here.
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/SECRET/API_KEY=value), distinguishing real credentials from... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon] and [budget] knobs all have real consumers (no... |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). Each provisioner must be WHOLE: the libexec fetcher exists and is the unit's ExecStart, the unit gates on the sentinel that... |
+| `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a defect waiting for the operator to add a peer.... |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. (1) Every ToC link in usr/share/doc/mios/manual.md resolves to an existing chapter file and, where a fragment is given, a real anchor, and no chapter is... |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). Walks usr/lib/mios/agent-pipe/mios_pipe RECURSIVELY (the bash predecessor scanned find -maxdepth 1, so it certified "all modules... |
 | `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another node's (endpoint, model, lane) is not a lane -- it is... |
@@ -309,6 +309,7 @@ is generated, its generator is here.
 | `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered literal, fails a new one, fails a stale grandfathered entry, and does... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate passes a complete governor and fails an ungated autonomous loop, a... |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. Builds throwaway repo roots holding a synthetic fetcher/unit/preset/tmpfiles set and asserts each half-wiring is caught: a missing... |
+| `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py. Covers both detectors independently -- k3s multi-server needs BOTH two grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must clear... |
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean ToC and non-zero on a dangling chapter link, a missing anchor,... |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). Builds throwaway repo roots with a synthetic mios.toml [refactor] block and fake module files,... |
 | `tools/test_check-node-pool.py` | Unit tests for tools/check-node-pool.py. One case per way the fan-out pool can lie -- an exact alias counted as two lanes, one endpoint declared as two lanes, a lane [dispatch] does not budget, a... |
@@ -330,7 +331,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 78 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 80 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

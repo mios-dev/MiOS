@@ -255,6 +255,12 @@ $script:MIOS_BASE_IMAGE = if ($env:MIOS_BASE_IMAGE) { $env:MIOS_BASE_IMAGE } els
 $script:MIOS_BIB_ALPINE_IMAGE = if ($env:MIOS_BIB_ALPINE_IMAGE) { $env:MIOS_BIB_ALPINE_IMAGE } else { 'docker.io/library/alpine:latest' }
 $script:MIOS_BIB_ALPINE_VERSION = if ($env:MIOS_BIB_ALPINE_VERSION) { $env:MIOS_BIB_ALPINE_VERSION } else { 'docker.io/library/alpine:latest' }
 $script:MIOS_BIB_IMAGE = if ($env:MIOS_BIB_IMAGE) { $env:MIOS_BIB_IMAGE } else { 'quay.io/centos-bootc/bootc-image-builder:latest' }
+$script:MIOS_BLADES_HAZARDS_ACCEPTED = if ($env:MIOS_BLADES_HAZARDS_ACCEPTED) { $env:MIOS_BLADES_HAZARDS_ACCEPTED } else { 'k3s-multi-server,pacemaker-unfenced' }
+$script:MIOS_BLADES_HAZARDS_DOC = if ($env:MIOS_BLADES_HAZARDS_DOC) { $env:MIOS_BLADES_HAZARDS_DOC } else { 'A MiOS-Mini fleet is 2-6 boxes (T-331), so a configuration that only works standalone is a defect waiting for the operator to add a peer. Each entry here is a hazard the tree currently carries, accepted deliberately while the fleet design lands (T-333). k3s-multi-server: four archetypes grant what mios-k3s requires and the unit runs `k3s server` with no K3S_URL, so every controller stands up its OWN control plane instead of joining one -- three default `hybrid` Minis would be three clusters sharing one token. pacemaker-unfenced: mios-ha-bootstrap sets stonith-enabled=false, which is correct for the one-node cluster it creates and is how split-brain corrupts data once a peer exists. Retiring an entry means the detector stops reproducing it, not editing this list.' }
+$script:MIOS_BLADES_HAZARDS_MAX_ACCEPTED = if ($env:MIOS_BLADES_HAZARDS_MAX_ACCEPTED) { $env:MIOS_BLADES_HAZARDS_MAX_ACCEPTED } else { 2 }
+$script:MIOS_BLADES_MAX_NODES = if ($env:MIOS_BLADES_MAX_NODES) { $env:MIOS_BLADES_MAX_NODES } else { 6 }
+$script:MIOS_BLADES_MIN_NODES = if ($env:MIOS_BLADES_MIN_NODES) { $env:MIOS_BLADES_MIN_NODES } else { 1 }
+$script:MIOS_BLADES_TYPICAL_NODES = if ($env:MIOS_BLADES_TYPICAL_NODES) { $env:MIOS_BLADES_TYPICAL_NODES } else { 3 }
 $script:MIOS_BLADE_ARCHETYPES_COMPUTE = if ($env:MIOS_BLADE_ARCHETYPES_COMPUTE) { $env:MIOS_BLADE_ARCHETYPES_COMPUTE } else { 'gpu-serving,service-plane' }
 $script:MIOS_BLADE_ARCHETYPES_CONTROLLER = if ($env:MIOS_BLADE_ARCHETYPES_CONTROLLER) { $env:MIOS_BLADE_ARCHETYPES_CONTROLLER } else { 'controller,service-plane' }
 $script:MIOS_BLADE_ARCHETYPES_DESKTOP = if ($env:MIOS_BLADE_ARCHETYPES_DESKTOP) { $env:MIOS_BLADE_ARCHETYPES_DESKTOP } else { 'service-plane' }

@@ -3293,6 +3293,22 @@ enable                    = false
 #   vram_budget_mb = 80000          # an 80GB accelerator box
 # ...then point nodes at their blade:  [nodes.potato-dgpu] ... blade = "potato"
 [blades]
+# Fleet shape. The operator's number: 2-3 boxes typically, 6 at most, and a
+# single Mini standalone is valid. Gate: check_fleet_safety.
+min_nodes     = 1
+typical_nodes = 3
+max_nodes     = 6
+
+# [blades.hazards] -- SHRINK-ONLY: configs safe on one node, unsafe above it.
+# Detected from the tree, never hand-listed. Gate: check_fleet_safety.
+[blades.hazards]
+doc = "A MiOS-Mini fleet is 2-6 boxes (T-331), so a configuration that only works standalone is a defect waiting for the operator to add a peer. Each entry here is a hazard the tree currently carries, accepted deliberately while the fleet design lands (T-333). k3s-multi-server: four archetypes grant what mios-k3s requires and the unit runs `k3s server` with no K3S_URL, so every controller stands up its OWN control plane instead of joining one -- three default `hybrid` Minis would be three clusters sharing one token. pacemaker-unfenced: mios-ha-bootstrap sets stonith-enabled=false, which is correct for the one-node cluster it creates and is how split-brain corrupts data once a peer exists. Retiring an entry means the detector stops reproducing it, not editing this list."
+max_accepted = 2
+accepted = [
+  "k3s-multi-server",
+  "pacemaker-unfenced",
+]
+
 
 # ----------------------------------------------------------------------------
 # CANONICAL WORKER + NODE POOL ("don't have separate CPU
