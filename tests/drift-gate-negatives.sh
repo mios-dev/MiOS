@@ -1731,6 +1731,26 @@ test_account_column_parity() {
 }
 
 
+test_adr_index() {
+    log "Testing check_adr_index"
+    local idx="${ROOT}/ADR.md"
+    local backup="${idx}.negbak"
+    cp "$idx" "$backup"
+
+    printf '\n| 9999 | hand-edited row | accepted | | | |\n' >> "$idx"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_adr_index >/dev/null 2>&1; then
+        mv "$backup" "$idx"
+        die "check_adr_index passed despite a hand-edited ADR.md"
+    fi
+
+    mv "$backup" "$idx"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_adr_index >/dev/null 2>&1 \
+        || die "check_adr_index failed after restoration"
+
+    log "Test_adr_index negative test passed"
+}
+
 test_schema_consumers() {
     log "Testing check_schema_consumers"
     local sql="${ROOT}/usr/share/mios/postgres/schema-init.sql"
@@ -2635,6 +2655,7 @@ main() {
     test_module_length
     test_firstboot_provisioners
     test_schema_consumers
+    test_adr_index
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

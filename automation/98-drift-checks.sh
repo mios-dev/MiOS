@@ -4432,6 +4432,7 @@ required_checks = [
     "check_firstboot_degrade_open",
     "check_firstboot_provisioners",
     "check_schema_consumers",
+    "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
     "check_replaceme_mount_substitution",
@@ -6196,6 +6197,7 @@ main() {
     check_module_length
     check_firstboot_provisioners
     check_schema_consumers
+    check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
     check_no_duplicate_value_key
@@ -7167,6 +7169,18 @@ check_manual_links() {
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_manual_links: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_adr_index() {
+    echo "[98-drift-checks]   check_adr_index"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_adr_index: $line"
         done <<<"$out"
         return
     fi

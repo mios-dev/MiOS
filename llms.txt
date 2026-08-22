@@ -178,8 +178,11 @@ API) and in historical migration notes — not as a live MiOS backend.
 
 ## Architecture Decision Records
 
-ADRs ship in the image at `usr/share/doc/mios/adr/` (indexed by
-`usr/share/doc/mios/README.md`).
+ADRs ship in the image at `usr/share/doc/mios/adr/` -- a running MiOS carries
+its own *why* (Law 1), so they are never moved out of `/usr`. The repo-root
+breadcrumb [`ADR.md`](ADR.md) is generated from their front-matter by
+`tools/generate-adr-index.py` and drift-checked, so any decision is two hops
+from either repo root.
 
 ## License
 

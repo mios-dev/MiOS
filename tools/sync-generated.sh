@@ -90,9 +90,10 @@ main() {
     # Index generators. Both were missing here, so adding a drift check or a
     # numbered automation phase left their index stale and the gate red on a
     # tree that otherwise looked synced.
-    step "4b/6 gate + pipeline indexes"
+    step "4b/6 gate + pipeline + ADR indexes"
     "$PY" tools/generate-gate-index.py >/dev/null
     "$PY" tools/generate-pipeline-index.py >/dev/null
+    "$PY" tools/generate-adr-index.py >/dev/null
 
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then

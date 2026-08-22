@@ -2576,7 +2576,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** One MiOS-Cat home exists at `cat\`; `C:\MiOS` contains no installer tree; a cross-repo `diff` finds no `medicat_installer` duplicate; the deepest path drops from `src\autounattend\medicat_installer\resources\ventoy\` to `cat\resources\ventoy\`.
 **Why:** Two byte-identical installer copies in two repos mean every fix must be applied twice or the deployed stick silently runs the stale one, and the copy under `C:\MiOS/usr`-adjacent source violates Law 1.
 **Dep:** First WS-CAT task; unblocks T-257/T-258/T-259. Verify-no-consumer gate before any delete.
-**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+**Status:** planned -- **NOT COMPLETABLE IN mios.git.** Every path in its Where line is `C:\mios-bootstrap\...` -- the move of `medicat_installer` into `cat/` and the retirement of `installation/MiOS-Cat.bat` both happen THERE. mios.git has no `cat/` tree to flatten (only the single `cat/loopback.cfg`, itself a candidate double-track). Tracked here because mios.toml is the shared cross-repo SSOT (Law 15); execute in mios-bootstrap.git. | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
 
 ## T-257 -- CAT-02: One verb vocabulary across the tri-launcher, with all logic in `cat\lib\`  (WS-CAT | P1 | L)
 **Goal:** E-21 One deploy front door: flatten every install path -- `cat <verb>` means exactly the same thing in PowerShell, sh and cmd, with zero duplicated business logic.
@@ -2585,7 +2585,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** `cat install` is headless-identical across `.ps1`, `.sh` and `.bat`; no business logic is duplicated between launchers; the no-verb invocation opens the menu; the `.bat` is a reduced WinPE shim.
 **Why:** The three launchers currently implement different feature sets, so which one the operator happens to run decides whether staging, DISM injection and self-update happen at all.
 **Dep:** After T-256 (single home). Pairs with T-259 (web one-liners fold into `cat install`).
-**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+**Status:** planned -- **NOT COMPLETABLE IN mios.git.** `bootstrap.ps1` <-> `Get-MiOS-Backend.ps1` <-> `MiOS-Cat.ps1` and the bash twin are all bootstrap files; the verb dispatcher and tri-launcher parity are bootstrap work. Tracked here because mios.toml is the shared cross-repo SSOT (Law 15); execute in mios-bootstrap.git. | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
 
 ## T-258 -- CAT-03: Add the `[cat]` SSOT block and fix the dangling `drivepath`/`medicatver`/`cache_path` reads  (WS-CAT | P1 | M)
 **Goal:** E-21 One deploy front door: flatten every install path -- the installer reads its values from the real SSOT instead of silently falling back to hardcoded defaults.
@@ -2603,7 +2603,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** `irm …/cat | iex` and `curl …/cat.sh | sh` reach an identical verb set; `cat install` means the same thing regardless of shell; the legacy scripts are thin shims rather than peer implementations.
 **Why:** Four independent bootstrap bodies drift apart and `Get-MiOS`'s `irm|iex` path currently orphans MiOS-Cat entirely, so the shell the operator happens to use changes what actually gets installed.
 **Dep:** After T-257 (verb dispatch exists). Published `irm`/`curl` URLs stay unchanged.
-**Status:** planned | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
+**Status:** planned -- **NOT COMPLETABLE IN mios.git.** The `irm|iex` one-liners and their fold into `cat install` are bootstrap-owned. Tracked here because mios.toml is the shared cross-repo SSOT (Law 15); execute in mios-bootstrap.git. | **Domain:** Deploy/Cat | **Who:** deploy/installer agent
 
 ## T-260 -- CATREPO-01: Always-present small `MiOS-Repo` shadow-config partition plus the kickstart path fix  (WS-CATREPO | P1 | L)
 **Goal:** E-11 Unified config surface: mios.toml, the configurator and the Portal are one door at :8640/ -- the USB shadow-config partition becomes the offline embodiment of the shareable open→configure→deploy link.
@@ -2648,7 +2648,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** `cat/` tracks source only; ~6 MB+ of tracked cruft no longer exists; the committed Ventoy/7z/MediCat binaries are gone while fetch-on-demand still succeeds end to end.
 **Why:** Committed multi-GB binaries and stray patch/scratch files make the installer repo slow to clone and leave four abandoned patch files that a future agent will read as live state.
 **Dep:** After T-256 (single-owner flatten). Verify-no-consumer before each delete.
-**Status:** planned | **Domain:** Deploy/Cat/Flatten | **Who:** cleanup agent
+**Status:** planned -- **NOT COMPLETABLE IN mios.git.** The bundled binaries to purge (`installation/bin/{7z.exe,7z.dll}`) are a bootstrap-owned double-track sitting in this tree; deleting them is the bootstrap repo's call under Law 15. Tracked here because mios.toml is the shared cross-repo SSOT (Law 15); execute in mios-bootstrap.git. | **Domain:** Deploy/Cat/Flatten | **Who:** cleanup agent
 
 ## T-265 -- CATFLAT-02: Generated ADR root breadcrumb plus spec cross-reference  (WS-CATFLAT | P2 | S)
 **Goal:** E-06 Test and documentation harness: negative self-tests, coverage, doc integrity -- an agent landing in either repo root reaches the decision record in two hops.
