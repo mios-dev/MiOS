@@ -10121,3 +10121,55 @@ document's own sub-taxonomy for the documentation programme.
 ```
 
 ---
+
+---
+
+## WS-BLADE -- workload mobility (ADR-0017)
+
+Programme: `usr/share/doc/mios/adr/0017-blade-workload-mobility.md`, extending
+ADR-0016. The capability model in `[blade.archetypes]`/`[blade.requires]` already
+decides WHERE a service may land; these finish what happens when it cannot, or
+when the machine holding it dies.
+
+## AGY-1595 -- Project [blade.requires] to k3s nodeSelectors and Pacemaker location rules  (WS-BLADE | P1 | M)
+**Goal:** E-18 One SSOT declaration drives every consumer -- a placement constraint stops being hand-maintained in two scheduler dialects.
+**What+How:** `[blade.requires]` maps a service to the capabilities it needs and `[blade.archetypes]` maps an archetype to the capabilities it grants; today only systemd `ConditionPathExists` gating consumes them. Extend `tools/generate-blade-dropins.py` to ALSO emit k3s `nodeSelector`/`tolerations` for container workloads and `pcs constraint location` rules for VM resources, both derived from the same two tables. Neither scheduler gets a hand-written constraint.
+**Where:** `tools/generate-blade-dropins.py, usr/share/mios/mios.toml, automation/98-drift-checks.sh`
+**Done When:** every service in `[blade.requires]` yields a k3s selector or a Pacemaker location rule; a new capability added to SSOT appears in both without editing either scheduler's config; a drift-check fails when a hand-written constraint exists that SSOT did not produce.
+**Why:** two schedulers with hand-maintained constraints drift silently, and the drift only surfaces as a workload that mysteriously will not schedule.
+**Dep:** none
+
+## AGY-1596 -- Give every GPU-gated service a CPU fallback lane so placement never refuses  (WS-BLADE | P1 | M)
+**What+How:** ADR-0017 D2: a service requiring `gpu-serving` that lands on a GPU-less blade must start its CPU lane rather than fail to schedule. Add a `cpu_fallback` alongside the requirement for `mios-llm-heavy`, `mios-llm-heavy-alt` and `mios-llm-worker@`, pointing at the already-shipped `mios-llm-light`. The fallback must present the SAME `/v1` contract on the SAME SSOT-allocated port so no caller can tell which kind of blade answered.
+**Where:** `usr/share/mios/mios.toml [blade.requires], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py`
+**Done When:** a GPU-gated unit started on a GPU-less blade serves `/v1/models` from the CPU lane; the caller's endpoint is unchanged; a drift-check asserts every `gpu-serving` requirement declares a fallback.
+**Why:** without this, "migrate anywhere" is false for exactly the services that matter most, and the failure presents as a hang rather than a decision.
+**Dep:** AGY-1595
+
+## AGY-1597 -- Implement local-first failover ordering with asymmetric anti-flap dwell  (WS-BLADE | P1 | M)
+**What+How:** Implement `[blade.placement].failover_order = ["local","localhost","cluster"]` and the `[blade.collapse]` dwell values. A failed workload is retried in place before the cluster is asked to allocate it elsewhere. Release back to the mesh uses `recover_dwell_s`, which is deliberately several times `dwell_s`.
+**Where:** `usr/libexec/mios/role-apply, usr/share/mios/mios.toml [blade.placement] [blade.collapse], usr/lib/systemd/system/`
+**Done When:** killing a service restarts it in place without a migration event; killing the machine migrates it; a link flapping faster than `recover_dwell_s` produces exactly one migration, not one per flap.
+**Why:** most failures are a crashed process on a healthy machine where a restart is the whole fix; migrating first turns two seconds into a cold start and possibly a volume move.
+**Dep:** AGY-1595
+
+## AGY-1598 -- Add origin-node id and logical timestamp to the pgvector schema  (WS-BLADE | P0 | M)
+**What+How:** ADR-0017 D5 states the merge rules are not implementable without provenance on every row. Add an origin-node id and a logical timestamp to `knowledge`, `agent_memory`, `event`, `session`, `scratch` and `config_kv` in `usr/share/mios/postgres/schema-init.sql`, backfilled to the local node for existing rows. This is a PREREQUISITE, not an optimisation: `[blade.reconcile].enabled` ships `false` and must not be flipped until this lands.
+**Where:** `usr/share/mios/postgres/schema-init.sql, usr/libexec/mios/seed-db-config.py, usr/share/mios/mios.toml [blade.reconcile]`
+**Done When:** every row in the six tables carries origin + logical timestamp; existing rows are backfilled; a drift-check fails if `[blade.reconcile].enabled = true` while any of the six lacks the columns.
+**Why:** enabling divergence without provenance produces a merge nobody can compute and silent data loss on rejoin.
+**Dep:** none
+
+## AGY-1599 -- Implement the per-class reconcile rules, with config_kv conflicts raised to the operator  (WS-BLADE | P2 | L)
+**What+How:** Implement the four merge classes from ADR-0017 D5: union-by-hash for `knowledge`/embeddings, append-ordered for `agent_memory`/`event`, last-writer-wins for `session`/`scratch`, and conflict-is-error for `config_kv`. The last is deliberately NOT auto-merged -- a `config_kv` divergence surfaces to the operator, because config is intent and silently picking a winner lets a partition change policy.
+**Where:** `usr/libexec/mios/, usr/share/mios/postgres/, usr/share/mios/mios.toml [blade.reconcile]`
+**Done When:** a simulated partition with writes on both sides reconciles losslessly for the first three classes; a divergent `config_kv` key blocks reconcile and names the conflicting keys; only then may `enabled` flip to true.
+**Why:** the availability choice in ADR-0017 is only affordable if each data class has a fixed rule decided in advance; a vague rule is how this design fails.
+**Dep:** AGY-1598
+
+## AGY-1600 -- Make "blade unreachable" legible instead of surfacing as a model error  (WS-BLADE | P1 | S)
+**What+How:** ADR-0016 §6 notes the detection exists but is unwired: a seat whose blade is gone should say "blade unreachable", not return an inference error. Wire the `[blade.discovery]` health chain result into the dashboard and the `/v1` error path so the failure names its own cause, and record blade reachability in the boot record as a non-critical check per ADR-0016 §8.
+**Where:** `usr/lib/mios/agent-pipe/, usr/share/mios/hermes/, usr/share/mios/mios.toml [blade.discovery] [greenboot]`
+**Done When:** with the blade unreachable, the dashboard states "blade unreachable" and `/v1` returns a named error rather than a model failure; greenboot records the check without failing the boot.
+**Why:** the seat's whole contract is that its front door is off-box, so the one failure it must explain clearly is the one where the box behind the door is gone.
+**Dep:** none

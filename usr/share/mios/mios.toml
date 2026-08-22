@@ -13173,6 +13173,41 @@ seat_side = [
   "mios-ttyd-powershell",       # browser pty
 ]
 
+# ---- Workload mobility. Rationale: ADR-0017.
+
+[blade.placement]
+# Image -> k3s. libvirt domain -> Pacemaker. Never the other kind.
+containers = "k3s"
+vms        = "pacemaker"
+# Retry in place first: most failures are a crash on a healthy machine.
+failover_order = ["local", "localhost", "cluster"]
+
+[blade.collapse]
+# Asymmetric on purpose: quick to absorb, slow to release. Anti-flap.
+fail_checks     = 3
+dwell_s         = 30
+recover_dwell_s = 120
+
+[blade.discovery]
+# First healthy tier wins; same chain answers "am I isolated".
+order            = ["localhost", "mdns", "tailnet", "remote"]
+health_path      = "/v1/models"
+health_timeout_s = 3
+remote           = ""      # operator-declared fallback endpoint; empty = none
+
+[blade.reconcile]
+# Blade-to-blade only; seats are stateless (ADR-0016 s8). Needs origin+ts
+# columns first -- see ADR-0017 D5.
+enabled      = false             # flip on only once the schema carries origin+ts
+knowledge    = "union-by-hash"
+embeddings   = "union-by-hash"
+agent_memory = "append-ordered"
+event        = "append-ordered"
+session      = "last-writer-wins"
+scratch      = "last-writer-wins"
+config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winner
+
+
 # An archetype expands to the capabilities its blade activates. An archetype
 # with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]
