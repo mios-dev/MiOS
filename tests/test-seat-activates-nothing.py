@@ -26,6 +26,22 @@ def _caps(v):
     return [v] if isinstance(v, str) else list(v or [])
 
 
+def _long_running():
+    """Shipped .service units that stay up (a oneshot needs no blade gate)."""
+    out = set()
+    d = os.path.join(_ROOT, "usr/lib/systemd/system")
+    for name in sorted(os.listdir(d)):
+        if not name.endswith(".service") or "@" in name:
+            continue
+        with open(os.path.join(d, name), encoding="utf-8", errors="replace") as fh:
+            body = fh.read()
+        stype = next((l.split("=", 1)[1].strip() for l in body.splitlines()
+                      if l.startswith("Type=")), "")
+        if stype != "oneshot":
+            out.add(name[:-len(".service")])
+    return out
+
+
 def starts(data, archetype) -> set:
     """Containers a blade of this archetype activates.
 
@@ -55,6 +71,21 @@ class TestSeatActivatesNothing(unittest.TestCase):
         req = self.d["blade"]["requires"]
         ungated = sorted(c for c in self.conts if not _caps(req.get(c)))
         self.assertEqual(ungated, [])
+
+    def test_native_long_running_units_are_gated_or_declared_seat_side(self):
+        # The containers were only half the plane: 18 long-running .service
+        # units shipped ungated, so a seat started every one of them.
+        req = set(self.d["blade"]["requires"])
+        seat = set(self.d["blade"].get("seat_side") or [])
+        for u in sorted(_long_running()):
+            self.assertTrue(u in req or u in seat, "%s is classified nowhere" % u)
+
+    def test_the_seat_runs_its_front_door_and_nothing_that_serves(self):
+        seat = set(self.d["blade"].get("seat_side") or [])
+        self.assertIn("mios-agent-pipe", seat)      # reaches the blade
+        for serving in ("hermes-worker", "k3s", "mios-finetune-serve",
+                        "mios-opencode-gateway", "mios-policy-arbiter"):
+            self.assertNotIn(serving, seat, serving)
 
     def test_the_ungated_register_is_drained(self):
         self.assertEqual(list(self.d["blade"].get("ungated") or []), [])

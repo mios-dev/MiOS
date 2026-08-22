@@ -123,6 +123,10 @@ main() {
     # committed -- green locally, red in CI.
     step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
     if [ -r usr/libexec/mios/mios-manual ]; then
+        # MIOS-GEN marker blocks first: api.md, ports-and-laws.md and tool-index.md
+        # are DERIVED and gated, but `render` lived outside this pipeline, so any
+        # SSOT or tools/ change left them stale and the gate red on a synced tree.
+        MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" render >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" coverage --write-floor >/dev/null
     else

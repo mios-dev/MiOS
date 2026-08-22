@@ -285,8 +285,24 @@ AND, so a lane needs both markers.
 
 Only the seat's behaviour changes: every other archetype activates exactly what it did before,
 because the three GPU lanes were already skipped wherever `gpu-serving` was absent.
+
+**"Offload all services" cannot mean "start nothing."** The containers were half the plane: 18
+long-running native `.service` units shipped ungated, so a seat started every one of them, and the
+coverage gate's own "23 of 23" was reported over a set that excluded them. Those 18 split on the
+seat/serving line this ADR already draws — *a seat runs the UX and consumes addresses*:
+
+* **Gated off on a seat** (serving): `hermes-worker`, `k3s`, `mios-account-sync`, `mios-agents`,
+  `mios-cron-director`, `mios-daemon`, `mios-finetune-serve`, `mios-mcp`, `mios-opencode-gateway`,
+  `mios-policy-arbiter`.
+* **`[blade].seat_side`** — a *positive* declaration, not debt: `mios-agent-pipe` (the local front
+  door whose `MIOS_AI_ENDPOINT` points at the blade), `hermes-dashboard`, the two CDP browsers,
+  `mios-hermes-tail`, and the two `ttyd` bridges. A seat with no agent-pipe has no way to reach its
+  blade at all.
+
+The gate now classifies **40 units** — containers and native units share one namespace, since a
+Quadlet named `x` generates `x.service` — into exactly one of gated / seat-side / ungated-debt.
 `tests/test-seat-activates-nothing.py` is the executable definition and runs in CI; returning one
-container to ungated turns it red.
+container *or one native unit* to ungated turns it red.
 
 A seat therefore costs one archetype plus the overlay from Decision 1. No new Containerfile, no new
 axis, and — measured — **no service.**

@@ -9,6 +9,9 @@ from importlib.machinery import SourceFileLoader
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
+# A root with no usr/lib/systemd/system: synthetic cases must see only their
+# own declared containers, never the real tree's 18 long-running units.
+_NOROOT = os.path.join(_HERE, "no-such-root")
 mod = SourceFileLoader(
     "check_blade_coverage", os.path.join(_HERE, "check-blade-coverage.py")).load_module()
 
@@ -40,40 +43,40 @@ class TestReaders(unittest.TestCase):
 class TestClassify(unittest.TestCase):
     def test_fully_classified_is_clean(self):
         d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=["b"])
-        self.assertEqual(mod.classify(d), [])
+        self.assertEqual(mod.classify(d, _NOROOT), [])
 
     def test_unclassified_container_fails(self):
         d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=[])
-        self.assertEqual(len(mod.classify(d)), 1)
-        self.assertIn("'b'", mod.classify(d)[0])
+        self.assertEqual(len(mod.classify(d, _NOROOT)), 1)
+        self.assertIn("'b'", mod.classify(d, _NOROOT)[0])
 
     def test_classified_both_ways_fails(self):
         d = data(["a"], req={"a": ["gpu-serving"]}, ungated=["a"])
-        self.assertTrue(any("only shrinks" in v for v in mod.classify(d)))
+        self.assertTrue(any("classified more than once" in v for v in mod.classify(d, _NOROOT)))
 
     def test_requires_naming_a_missing_container_fails(self):
         d = data(["a"], req={"ghost": ["gpu-serving"]}, ungated=["a"])
-        self.assertTrue(any("not a declared container" in v for v in mod.classify(d)))
+        self.assertTrue(any("not a declared container" in v for v in mod.classify(d, _NOROOT)))
 
     def test_register_naming_a_missing_container_fails(self):
         d = data(["a"], req={"a": ["gpu-serving"]}, ungated=["ghost"])
-        self.assertTrue(any("not a declared container" in v for v in mod.classify(d)))
+        self.assertTrue(any("not a declared container" in v for v in mod.classify(d, _NOROOT)))
 
     def test_empty_capability_list_fails(self):
         d = data(["a"], req={"a": []}, ungated=[])
-        self.assertTrue(any("gates nothing" in v for v in mod.classify(d)))
+        self.assertTrue(any("gates nothing" in v for v in mod.classify(d, _NOROOT)))
 
     def test_capability_no_archetype_grants_fails(self):
         d = data(["a"], archetypes={"hybrid": ["gpu-serving"]},
                  req={"a": ["storage-serving"]}, ungated=[])
-        self.assertTrue(any("granted by NO" in v for v in mod.classify(d)))
+        self.assertTrue(any("granted by NO" in v for v in mod.classify(d, _NOROOT)))
 
     def test_duplicate_register_entry_fails(self):
         d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=["b", "b"])
-        self.assertTrue(any("twice" in v for v in mod.classify(d)))
+        self.assertTrue(any("twice" in v for v in mod.classify(d, _NOROOT)))
 
     def test_empty_container_table_fails_rather_than_passing_vacuously(self):
-        self.assertIn("vacuously", mod.classify(data([], req={}, ungated=[]))[0])
+        self.assertIn("vacuously", mod.classify(data([], req={}, ungated=[]), _NOROOT)[0])
 
 
 class TestShippedTree(unittest.TestCase):
@@ -82,7 +85,7 @@ class TestShippedTree(unittest.TestCase):
             self.real = tomllib.load(fh)
 
     def test_the_real_ssot_classifies_every_container(self):
-        self.assertEqual(mod.classify(self.real), [])
+        self.assertEqual(mod.classify(self.real, _ROOT), [])
 
     def test_the_gpu_lanes_are_capability_gated(self):
         req = mod.requires(self.real)
@@ -103,6 +106,31 @@ class TestShippedTree(unittest.TestCase):
         req = mod.requires(self.real)
         for c in sorted(mod.containers(self.real)):
             self.assertTrue(req.get(c), "%s is gated by nothing" % c)
+
+    def test_the_long_running_units_are_in_scope(self):
+        # This gate once counted CONTAINERS only and reported "23 of 23" over a
+        # set that excluded 18 long-running units. Guard the wider scope.
+        units = mod.long_running_units(_ROOT)
+        self.assertGreater(len(units), 10)
+        self.assertIn("mios-agent-pipe", units)
+        self.assertNotIn("mios-firstboot", units)   # oneshots need no blade gate
+
+    def test_seat_side_units_are_not_also_gated(self):
+        req, seat = mod.requires(self.real), set(mod.seat_side(self.real))
+        self.assertFalse(seat & set(req))
+
+    def test_the_front_door_is_seat_side(self):
+        # A seat with no agent-pipe has no way to reach its blade.
+        self.assertIn("mios-agent-pipe", mod.seat_side(self.real))
+
+    def test_every_long_running_unit_has_exactly_one_classification(self):
+        req = set(mod.requires(self.real))
+        seat = set(mod.seat_side(self.real))
+        reg = set(mod.register(self.real))
+        for u in sorted(mod.long_running_units(_ROOT)):
+            hits = [g for g, s in (("requires", req), ("seat_side", seat),
+                                   ("ungated", reg)) if u in s]
+            self.assertEqual(len(hits), 1, "%s -> %s" % (u, hits))
 
 
 if __name__ == "__main__":
