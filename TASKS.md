@@ -308,6 +308,7 @@
 | T-320 | P1 | done | Naming/Addressing | ADDR-03 -- The front door bound a retired port: 54 stale literals beside MIOS_PORT_* names |
 | T-321 | P1 | done | Build/SSOT | ADDR-04 -- A generator rewrote the fixtures that prove it works; four addresses could never be offloaded |
 | T-322 | P1 | done | Docs/SSOT | MINI-01 -- The seat-vs-blade comparison is generated from the SSOT, so it cannot go stale |
+| T-323 | P1 | done | Topology/SSOT | MINI-02 -- A seat could not tell an unreachable blade from a broken model |
 
 ---
 
@@ -2875,6 +2876,20 @@ Standing: **5 nodes over 4 distinct endpoints, 0 alias pairs, a cpu lane that ex
 
 
 
+
+
+## T-323 -- MINI-02: A seat could not tell an unreachable blade from a broken model  (WS-BLADE | P1 | S)
+**Goal:** E-09 One value, one name -- and one place to ask the only question a seat has.
+**What+How:** MEASURED, live. `mios_pipe/routing/lanes.py` documents its own behaviour: *"The terminal (light) lane is returned as the floor even if its own probe is failing, so a turn degrades rather than dead-ends."* On a blade that is exactly right -- the light lane is local and nearly always up. On a SEAT every lane is remote, so `pick()` hands back a `Lane` pointing at a machine that is not there and the failure surfaces as a transport error on the next request. Reproduced by driving the real resolver with an all-dead probe: `pick("default") -> Lane('light', 'http://blade-01.mesh.mios.local:8500/v1', ...)`. For a seat that is the single most important distinction in the system -- *is the model broken, or is my blade gone?* -- and nothing answered it. `mios blade status` now does.
+**Where:** `usr/lib/mios/blade.sh` (`_ssot_offload_targets`, `_url_is_local`), `usr/libexec/mios/mios-blade` (`status`), `tests/test-blade-reachability.sh`, `.github/workflows/mios-ci.yml`, `tools/check-role-ssot.py`.
+**Done When:** One command reports every address this blade offloads to, whether each is local or remote, and whether it answers; a seat with an overlay reads REMOTE and a blade without one reads local; and it is proven against a real socket, not a mock.
+**Why:** Deliberately NOT changed: the resolver's degrade-to-terminal behaviour, and `[greenboot].blade_reachability_critical = false`. A seat must not roll itself back because its blade rebooted (Law 12), and the hot path must not gain a new failure mode. The fix is DIAGNOSIS, not policy -- zero changes to routing.
+**Dep:** after T-322, which is where the constraint was first written down.
+**Status:** done -- `mios blade status` gained an **Offload targets** section listing `[ai].endpoint`, `[search].endpoint` and every `[nodes.*].endpoint` resolved through the merged overlay, each labelled `local`/`REMOTE` and `up`/`UNREACHABLE`. The local-vs-remote column IS the seat/blade tell: with no overlay every target is local; with a seat's overlay the offloaded ones read REMOTE. `${MIOS_PORT_*}` placeholders are expanded from the environment the resolver already populates -- never a second resolution of the TOML -- and an unexpanded one is reported `UNRESOLVED` rather than probed as a literal URL, since a URL with a `${...}` in it would always "fail" and hide the real problem.
+
+Proven end to end against a REAL listening socket on an EPHEMERAL port: one target up, one target dead, and the nodes the overlay does not name still local. The ephemeral port matters -- the first version used a fixed one and passed against a stale listener left over from a manual run, which is the same "reports success over nothing" failure this ledger keeps recording, committed while writing the test for it. 6 assertions in `tests/test-blade-reachability.sh`, wired into CI, and proven by sabotage: collapsing the local/REMOTE label turns it red.
+
+**Gate defect found and fixed en route.** `check_role_ssot`'s no-archetype-literal rule fired on `blade.sh` for the word `endpoint` -- inside the embedded python that READS `[blade.archetypes]`, where `endpoint` is a TOML key (`[ai].endpoint`), not a role. The rule now skips heredoc bodies, since a heredoc is not shell control flow, and a case arm AFTER the heredoc closes is still caught -- otherwise the exclusion would become a way to hide anything. Both directions asserted (31 assertions). | **Domain:** Topology/SSOT | **Who:** architect
 
 ## T-322 -- MINI-01: What actually differs between MiOS-Mini and a hosted MiOS  (WS-BLADE | P1 | S)
 **Goal:** E-08 Derived surfaces are generated -- including the document that explains the design, because that is the one that rots first.

@@ -211,7 +211,20 @@ def check_no_hardcoded_roles(data: dict, root: str) -> list:
                 lines = fh.readlines()
         except OSError:
             continue
+        in_heredoc = None
         for num, line in enumerate(lines, 1):
+            # A heredoc body is not shell control flow. The embedded python that
+            # READS [blade.archetypes] necessarily names TOML keys -- `endpoint`
+            # is both an archetype and a very ordinary config key -- and flagging
+            # that would punish the SSOT read this rule exists to require.
+            if in_heredoc is not None:
+                if line.strip() == in_heredoc:
+                    in_heredoc = None
+                continue
+            opened = re.search(r"<<-?'?([A-Za-z_][A-Za-z0-9_]*)'?", line)
+            if opened:
+                in_heredoc = opened.group(1)
+                continue
             code = line.split("#", 1)[0]
             for name in names:
                 if re.search(r"\b%s\b" % re.escape(name), code):

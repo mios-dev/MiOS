@@ -149,6 +149,53 @@ _resolve_features() {
     printf '%s,%s' "$(_cmdline_tok mios.features)" "$(_conf_get "$ROLE_CONF" FEATURES)"
 }
 
+# The addresses a seat offloads to, as "<label><TAB><url>" lines. ${MIOS_PORT_*}
+# placeholders are expanded from the environment the resolver populates -- the
+# same values every consumer sees, never a second resolution of the TOML.
+_ssot_offload_targets() {
+    python3 - <<'TARGETS' 2>/dev/null || true
+import os
+import re
+import sys
+
+sys.path.insert(0, os.environ.get("MIOS_USR_DIR", "/usr/lib/mios"))
+import mios_toml  # noqa: E402
+
+d = mios_toml.load_merged()
+seen = set()
+_VAR = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+
+def expand(url):
+    """Substitute from the environment; leave an unset name visible rather
+    than silently emitting a broken URL."""
+    return _VAR.sub(lambda m: os.environ.get(m.group(1), m.group(0)), url)
+
+
+def emit(label, url):
+    url = expand(str(url or "").strip())
+    if url and url not in seen:
+        seen.add(url)
+        print("%s\t%s" % (label, url))
+
+
+emit("ai", (d.get("ai") or {}).get("endpoint"))
+emit("search", (d.get("search") or {}).get("endpoint"))
+for name, cfg in sorted((d.get("nodes") or {}).items()):
+    if isinstance(cfg, dict):
+        emit("node:%s" % name, cfg.get("endpoint"))
+TARGETS
+}
+# Is a URL host this machine? A seat's targets are elsewhere; a blade's are its
+# own loopback.
+_url_is_local() {
+    case "$1" in
+        *://localhost|*://localhost:*|*://localhost/*) return 0 ;;
+        *://127.0.0.1|*://127.0.0.1:*|*://127.0.0.1/*) return 0 ;;
+    esac
+    return 1
+}
+
 _target_for() {
     printf 'mios-%s.target' "$1"
 }

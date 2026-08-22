@@ -204,6 +204,33 @@ class TestNoHardcodedRoles(unittest.TestCase):
             out = mod.check_no_hardcoded_roles(data(), tmp)
             self.assertTrue(any("endpoint" in v for v in out))
 
+    def test_a_heredoc_body_is_not_shell_control_flow(self):
+        # The embedded python that READS [blade.archetypes] necessarily names
+        # TOML keys, and `endpoint` is both an archetype and an ordinary config
+        # key -- flagging it would punish the SSOT read this rule requires.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, mod.BLADE_CODE[0])
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("_q() {\n    python3 - <<'PY'\n"
+                         "print((d.get('ai') or {}).get('endpoint'))\n"
+                         "PY\n}\n")
+            self.assertEqual(mod.check_no_hardcoded_roles(data(), tmp), [])
+
+    def test_a_case_arm_AFTER_a_heredoc_is_still_caught(self):
+        # ...and closing the heredoc must resume checking, or the exclusion
+        # becomes a way to hide anything.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, mod.BLADE_CODE[0])
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write("_q() {\n    python3 - <<'PY'\nprint('x')\nPY\n}\n"
+                         'case "$ROLE" in\n  endpoint) T=x ;;\nesac\n')
+            out = mod.check_no_hardcoded_roles(data(), tmp)
+            self.assertTrue(any("endpoint" in v for v in out), out)
+
     def test_a_mention_in_a_comment_is_not_a_hardcode(self):
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:

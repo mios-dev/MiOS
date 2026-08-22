@@ -282,6 +282,7 @@ is generated, its generator is here.
 | `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-manual.py` | A generation tool to compile and structure the complete 50-chapter MiOS User Manual into a single All-in-One file, cleaning up modular directories. |
+| `tools/generate-mini-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a fully hosted, feature-complete MiOS blade. Every number is... |
 | `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). Renders usr/share/containers/systemd/<name>.pod deterministically from each [pods.<name>]... |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
 | `tools/generate-unified-knowledge.py` | Parses codebase files to extract metadata, redact secrets, and compile a compressed `repo-rag-snapshot.json.gz` file to provide a unified semantic knowledge base for RAG-based AI agents. |
@@ -316,12 +317,13 @@ is generated, its generator is here.
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). Builds throwaway ADR trees and asserts: front-matter scalars and [a, b] lists parse, a file without an `adr:` key is skipped, ordering... |
 | `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. Assert the projection refuses an empty [blade].type and a type naming no archetype -- both would emit a karg selecting nothing -- and that the shipped... |
+| `tools/test_generate-mini-vs-hosted.py` | Sibling unit test for tools/generate-mini-vs-hosted.py. The comparison document exists because a hand-written one goes stale the moment an archetype gains a capability, so these assert the numbers... |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X} templates stay live in both languages, and that... |
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 70 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 72 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

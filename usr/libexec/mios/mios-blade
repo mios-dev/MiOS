@@ -152,6 +152,33 @@ case "$cmd" in
         if command -v systemctl >/dev/null 2>&1; then
             echo "Systemd Default Target: $(systemctl get-default 2>/dev/null || echo unknown)"
         fi
+
+        # Where this blade's services actually live, and whether they answer.
+        # On a seat every target is REMOTE, so this is the one question a seat
+        # operator has: is my blade there? Without it an unreachable blade looks
+        # like a broken model -- the lane resolver hands back its terminal lane
+        # even when the probe fails, by design, so the turn degrades rather than
+        # dead-ends and the transport error is all you see.
+        echo "Offload targets:"
+        _any=0
+        while IFS="$(printf '\t')" read -r _label _url; do
+            [ -n "${_url:-}" ] || continue
+            _any=1
+            if _url_is_local "$_url"; then _where="local"; else _where="REMOTE"; fi
+            case "$_url" in
+                *'${'*) printf '  %-22s %-7s %s  (UNRESOLVED)\n' "$_label" "$_where" "$_url"; continue ;;
+            esac
+            if command -v curl >/dev/null 2>&1 &&
+               curl -sS -o /dev/null --max-time "${MIOS_BLADE_PROBE_TIMEOUT:-2}" "$_url" 2>/dev/null; then
+                _state="up"
+            else
+                _state="UNREACHABLE"
+            fi
+            printf '  %-22s %-7s %-12s %s\n' "$_label" "$_where" "$_state" "$_url"
+        done <<EOF
+$(_ssot_offload_targets)
+EOF
+        [ "$_any" = 1 ] || echo "  (none resolved -- the SSOT could not be read)"
         ;;
     help|--help|-h)
         show_help
