@@ -313,6 +313,7 @@
 | T-325 | P0 | done | Security/Federation | SEC-01 -- An unclosed table header made the seat's tenancy boundary unswitchable |
 | T-326 | P1 | done | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
 | T-327 | P0 | partial | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
+| T-328 | P2 | planned | Topology/SSOT | BLADE-06 -- The seat-floor opt-in, and the OR-gate the activation axis lacks |
 
 ---
 
@@ -3069,3 +3070,24 @@ The posture follows the ROLE instead, per ADR-0016 D5. `_auth_posture()` in `usr
 
 The remaining work is the provisioning half, and it is the harder half: a key generated at firstboot has to reach every client that dials the front door (OWUI, the `mios`/`@` CLI, the dashboard, a peer seat) or turning the flag on trades a silent exposure for a silent outage. That is why the flags are still off and why this entry does not claim otherwise.
 **Why:** the operator answer to "should auth be on?" is "on a seat, yes; on a hosted box, it is noise". Encoding that in the role is the difference between a security control that exists and one that is documented. | **Domain:** Security/Federation | **Who:** architect
+
+## T-328 -- BLADE-06: the `seat-floor` opt-in, and the OR-gate the axis lacks  (WS-BLADE | P2 | M)
+**Goal:** E-07 A seat offloads by definition, but the operator -- not the archetype -- decides whether it keeps a degraded floor.
+**What+How:** ADR-0016 D6 decided a seat has no local inference lane by definition, with an OPT-IN escape hatch: a `seat-floor` capability granted by no archetype, ungating exactly one micro lane. `lfm2-700m` is already baked and CPU-only, so the cost is zero when off. Not built; this entry is the spec, because the mechanism turns out to be the interesting part.
+
+**The activation axis can only express AND.** `tools/generate-blade-dropins.py` writes ONE file per capability (`blade-<cap>.conf`, a bare `ConditionPathExists=/etc/mios/blade.d/<cap>`), and `automation/48-mios-dropin-fanout.sh:75-82` copies one per capability into each unit's `.d/` as `50-blade-<cap>.conf`. systemd ANDs unprefixed conditions, so a unit listing two capabilities needs both. There is no way today to say *"this unit runs under `service-plane` **or** `seat-floor`"*, which is exactly what the floor needs: `mios-llm-light` must keep running on every serving blade AND additionally run on a seat that opted in.
+
+**The idiom exists and this tree already uses it.** systemd ORs the `|`-prefixed conditions of a given type together and ANDs that group with the unprefixed ones. Four shipped units rely on it -- `usr/lib/systemd/system/mios-mok-enroll.service:13-14` (either MOK cert) and `usr/lib/systemd/system/systemd-logind.service.d/dbus.conf:9-10` (either dbus implementation) are the clean examples. So this is a generator change, not a systemd question.
+
+**Shape of the work:**
+1. `[blade].opt_in_caps = ["seat-floor"]` -- capabilities no archetype grants, legal only through the FEATURES escape hatch (`/etc/mios/role.conf`, or `mios.features=` on the cmdline).
+2. `[blade.any_of].mios-llm-light = ["service-plane", "seat-floor"]`, replacing that unit's `[blade.requires]` entry.
+3. The generator gains a PER-UNIT drop-in for any_of units -- `blade-any-<unit>.conf` with one `ConditionPathExists=|/etc/mios/blade.d/<cap>` line per alternative -- because an OR cannot be expressed as one file per capability the way AND can. The fanout installs it as `50-blade-any.conf`, which composes correctly with any remaining unprefixed AND capability on the same unit.
+4. `blade.sh`: `_ssot_query` emits `SSOT_CAPS_OPTIN`, and `_is_legal_cap` accepts it -- otherwise `role-apply` refuses the marker as an unknown capability and the opt-in cannot be taken.
+5. `check_blade_coverage`: `any_of` is a third classification alongside gated / seat-side / ungated (mutually exclusive with all three); an `opt_in_caps` entry counts as GRANTED so the "granted by NO archetype" rule does not fire; and an opt-in capability no unit names is dead weight and must fail.
+6. `tools/test_check-blade-coverage.py` + a negative case; the projection is regenerate-and-diff like every other.
+
+**Where:** `usr/share/mios/mios.toml` (`[blade].opt_in_caps`, `[blade.any_of]`), `tools/generate-blade-dropins.py`, `automation/48-mios-dropin-fanout.sh`, `usr/lib/mios/blade.sh`, `tools/check-blade-coverage.py` + its sibling test, `tests/drift-gate-negatives.sh`.
+**Done When:** a seat with `FEATURES=seat-floor` in `/etc/mios/role.conf` starts `mios-llm-light` and nothing else it did not start before; a seat without it starts exactly the 6 units it does today; every serving archetype is byte-for-byte unaffected; and the generated comparison counts the floor lane so `mini-vs-hosted.md` stops saying a seat has zero lanes in every configuration.
+**Why:** D6 without the opt-in is a decision with no lever. And the OR gap is worth closing on its own -- the axis currently forces every capability question to be a conjunction, which is why `mios-llm-light` could not be both a blade service and an opt-in seat floor.
+**Dep:** none. | **Domain:** Topology/SSOT | **Who:** architect

@@ -110,10 +110,12 @@ def render(data: dict) -> str:
     a("")
     a("# MiOS-Mini vs a fully hosted MiOS — what actually differs")
     a("")
-    a("**They are the same image.** There is no MiOS-Mini Containerfile, no "
-      "MiOS-Mini tag, and no conditional bake. A seat is `[blade].type = "
-      "\"%s\"` — an archetype that grants no capabilities — plus an "
-      "`/etc/mios` overlay. Every difference below is a *runtime* difference." % SEAT)
+    a("**\"MiOS-Mini\" names a `[blade].type`, never an artifact** (ADR-0016 D9). "
+      "There is no MiOS-Mini Containerfile, no MiOS-Mini tag, and no conditional "
+      "bake — the seat and the blade are the same OCI image, byte for byte. A "
+      "seat is `[blade].type = \"%s\"`, an archetype that grants no "
+      "capabilities, plus an `/etc/mios` overlay. Every difference below is a "
+      "*runtime* difference." % SEAT)
     a("")
     a("| Surface | MiOS-Mini (seat) | Fully hosted (`%s`) |" % full[0])
     a("|---|---|---|")
@@ -188,7 +190,7 @@ def render(data: dict) -> str:
       "baked regardless (Law 12), so a seat carries them and never loads them.")
     a("")
     a("Whether that is right is an operator decision, recorded in ADR-0016 "
-      "Decision 4, not a defect: giving a seat a micro local lane would trade "
+      "Decision 6, not a defect: giving a seat a micro local lane would trade "
       "\"offload *all* services\" for a degraded-but-alive floor.")
     a("")
     return "\n".join(L) + "\n"

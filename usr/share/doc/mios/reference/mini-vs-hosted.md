@@ -3,7 +3,7 @@
 
 # MiOS-Mini vs a fully hosted MiOS — what actually differs
 
-**They are the same image.** There is no MiOS-Mini Containerfile, no MiOS-Mini tag, and no conditional bake. A seat is `[blade].type = "endpoint"` — an archetype that grants no capabilities — plus an `/etc/mios` overlay. Every difference below is a *runtime* difference.
+**"MiOS-Mini" names a `[blade].type`, never an artifact** (ADR-0016 D9). There is no MiOS-Mini Containerfile, no MiOS-Mini tag, and no conditional bake — the seat and the blade are the same OCI image, byte for byte. A seat is `[blade].type = "endpoint"`, an archetype that grants no capabilities, plus an `/etc/mios` overlay. Every difference below is a *runtime* difference.
 
 | Surface | MiOS-Mini (seat) | Fully hosted (`hybrid`) |
 |---|---|---|
@@ -67,5 +67,5 @@ A service's canonical address is the key its consumers already resolve (ADR-0016
 
 A seat has **no local inference floor**. Every lane — heavy, alt, light and the CPU node — is capability-gated off, including the lane the resolver calls "the always-on floor". When the blade is unreachable a seat has a front door that can reach nothing. The model weights are baked regardless (Law 12), so a seat carries them and never loads them.
 
-Whether that is right is an operator decision, recorded in ADR-0016 Decision 4, not a defect: giving a seat a micro local lane would trade "offload *all* services" for a degraded-but-alive floor.
+Whether that is right is an operator decision, recorded in ADR-0016 Decision 6, not a defect: giving a seat a micro local lane would trade "offload *all* services" for a degraded-but-alive floor.
 

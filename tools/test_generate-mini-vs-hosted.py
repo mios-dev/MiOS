@@ -61,7 +61,20 @@ class TestDerivation(unittest.TestCase):
 
 class TestRendering(unittest.TestCase):
     def test_the_document_states_they_are_one_image(self):
-        self.assertIn("They are the same image", mod.render(synthetic()))
+        # Assert the CLAIM, not one phrasing of it -- this test used to pin an
+        # exact sentence and went red when the sentence was improved.
+        text = mod.render(synthetic())
+        self.assertIn("same OCI image", text)
+        for denial in ("no MiOS-Mini Containerfile", "no MiOS-Mini tag",
+                       "no conditional bake"):
+            self.assertIn(denial, text)
+
+    def test_the_document_states_mini_is_never_an_artifact(self):
+        # ADR-0016 D9. "Mini" reads like a smaller build and is not one, so the
+        # comparison has to say so before anything else.
+        text = mod.render(synthetic())
+        self.assertIn("never an artifact", text)
+        self.assertIn("D9", text)
 
     def test_the_rendered_counts_are_the_derived_ones(self):
         d = synthetic(extra_gated=2)
