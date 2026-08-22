@@ -180,15 +180,15 @@ self-development workflow have the full runtime surface available.
 Representative Quadlet units under `usr/share/containers/systemd/`:
 
 * `mios-llm-light` — the **primary** local inference lane (llama.cpp behind
-  the `llama-swap` proxy image, `:11450`; also serves embeddings via
+  the `llama-swap` proxy image, port key `llm_light`; also serves embeddings via
   `nomic-embed-text`)
-* `mios-llm-heavy` / `mios-llm-heavy-alt` — gated heavy GPU lanes (SGLang on
-  `:11441` served-name `mios-heavy`; vLLM alternate). Off by default on VRAM
+* `mios-llm-heavy` / `mios-llm-heavy-alt` — gated heavy GPU lanes (vLLM on
+  port key `vllm`, served-name `mios-heavy`; SGLang alternate on `sglang`). Off by default on VRAM
   grounds
 * `mios-pgvector` — PostgreSQL + pgvector, the unified agent datastore
-  (`:5432`)
-* `mios-open-webui` — Open WebUI browser front-end (`:3030`)
-* `mios-searxng` — SearXNG metasearch backing `web_search` (`:8888`)
+  (port key `pgvector`)
+* `mios-open-webui` — Open WebUI browser front-end (port key `open_webui`)
+* `mios-searxng` — SearXNG metasearch backing `web_search` (port key `searxng`)
 * `mios-guacamole` (with `mios-guacd`, `mios-guacamole-postgres`) — browser
   desktop
 * `mios-forge` / `mios-forgejo-runner` — local git forge + CI runner
@@ -197,8 +197,8 @@ Representative Quadlet units under `usr/share/containers/systemd/`:
   cluster path
 * (every Quadlet under `usr/share/containers/systemd/`)
 
-The MiOS-Hermes gateway (`:8642`), the agent-pipe orchestrator (`:8640`), the
-delegation prefilter (`:8641`), and the opencode `/v1` gateway (`:8633`) run as
+The MiOS-Hermes gateway (`hermes`), the agent-pipe orchestrator (`agent_pipe`), the
+delegation prefilter (`prefilter`), and the opencode `/v1` gateway (`opencode_gateway`) run as
 service units alongside these containers (see §11). MiOS-DEV needs the `mios`
 user appended (uid 1000, the same login user the production image ships) so the
 same per-user configs and rootless podman behaviors carry across.
@@ -228,24 +228,24 @@ talk to the same local brain with no vendor lock-in.
 Behind that one endpoint is the local agent stack (verify ports against the
 units / `mios.toml`):
 
-* **agent-pipe** (`:8640`) — standalone orchestrator: router + refine +
+* **agent-pipe** (port key `agent_pipe`) — standalone orchestrator: router + refine +
   council/swarm fan-out + critic/polish; fronts Hermes for every gateway.
-* **MiOS-Hermes** (`:8642`) — OpenAI-compatible agent gateway: sessions,
+* **MiOS-Hermes** (port key `hermes`) — OpenAI-compatible agent gateway: sessions,
   tool-loop, skills, browser/CDP control.
-* **mios-gateway-agent** (`:8642`) — Next-generation OpenAI-compatible agent gateway replacing Hermes (phase 2, disabled until T-083).
-* **prefilter** (`:8641`) — injects fan-out hints on decomposable prompts,
+* **mios-gateway-agent** (port key `hermes`) — Next-generation OpenAI-compatible agent gateway replacing Hermes (phase 2, disabled until T-083).
+* **prefilter** (port key `prefilter`) — injects fan-out hints on decomposable prompts,
   forwards to Hermes.
-* **mios-llm-light** (`:11450`) — **primary** inference lane: llama.cpp behind
+* **mios-llm-light** (port key `llm_light`) — **primary** inference lane: llama.cpp behind
   the upstream `llama-swap` proxy image (`ghcr.io/mostlygeek/llama-swap`),
   multi-model auto-swap + KV-cache paging; serves everyday models, the
   `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`,
   OpenAI-compat `/v1/embeddings`). Model map:
   `usr/share/mios/llamacpp/llama-swap.yaml`.
-* **mios-llm-heavy** (`:11441`, served-name `mios-heavy`) / **mios-llm-heavy-alt**
-  — gated heavy GPU lanes (SGLang / vLLM), off by default on VRAM grounds.
-* **opencode-gateway** (`:8633`) — opencode → OpenAI `/v1` shim; a real `/v1`
+* **mios-llm-heavy** (port key `vllm`, served-name `mios-heavy`) / **mios-llm-heavy-alt**
+  (port key `sglang`) — gated heavy GPU lanes (vLLM / SGLang), off by default on VRAM grounds.
+* **opencode-gateway** (port key `opencode_gateway`) — opencode → OpenAI `/v1` shim; a real `/v1`
   council peer (loopback).
-* **OWUI** (`:3030`) — Open WebUI front-end; **SearXNG** (`:8888`) backs
+* **OWUI** (port key `open_webui`) — Open WebUI front-end; **SearXNG** (port key `searxng`) backs
   `web_search`.
 * **pgvector** (`:5432`) — PostgreSQL + pgvector, the unified agent datastore
   (agent memory, events, tool calls, sessions, skills, scratch, knowledge with

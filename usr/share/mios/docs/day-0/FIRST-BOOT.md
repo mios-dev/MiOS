@@ -53,7 +53,7 @@ it, and what to do if a step fails.
      the GGUFs are present, so a network-less first boot simply retries next time.
 5. The **AI plane** comes up (host services + Quadlets, all wanted by
    `multi-user.target`):
-   - `mios-llm-light.service` (:11450) — the **primary** local inference lane:
+   - `mios-llm-light.service` (port key `llm_light`) — the **primary** local inference lane:
      llama.cpp behind the upstream `mios-llm-light` proxy image, multi-model
      auto-swap + KV-cache paging. It serves the everyday models, the
      `mios-opencode` coder model, **and embeddings** (`nomic-embed-text`,
@@ -66,13 +66,13 @@ it, and what to do if a step fails.
      `kanban`, `directory_entry`, … tables. This replaces the old
      vector-index-population step — vectors live in pgvector now, embedded via
      `nomic-embed-text` on `mios-llm-light`.
-   - `hermes-agent.service` (:8642) — the OpenAI-compatible agent gateway and
+   - `hermes-agent.service` (port key `hermes`) — the OpenAI-compatible agent gateway and
      tool-loop, resolving its backend from `MIOS_AI_ENDPOINT` (Law 5).
-   - `mios-agent-pipe.service` (:8640) — the orchestrator (router + refine +
+   - `mios-agent-pipe.service` (port key `agent_pipe`) — the orchestrator (router + refine +
      council/swarm fan-out + critic/polish) that fronts Hermes for every
      gateway; depends on `hermes-agent` and `mios-pgvector`.
-   - The heavy lanes `mios-llm-heavy.service` (:11441, SGLang) and
-     `mios-llm-heavy-alt.service` (vLLM) stay **gated/off-by-default** (VRAM)
+   - The heavy lanes `mios-llm-heavy.service` (port key `vllm`, vLLM) and
+     `mios-llm-heavy-alt.service` (port key `sglang`, SGLang) stay **gated/off-by-default** (VRAM)
      until enabled in `mios.toml` and reachable.
 6. **Cockpit** lands on **:9090** over TLS with the platform CA.
 
@@ -86,7 +86,7 @@ it, and what to do if a step fails.
 ## Verifying
 
 ```sh
-# AI plane reachable on the unified endpoint (default :8642/v1):
+# AI plane reachable on the unified endpoint ($MIOS_AI_ENDPOINT):
 mios "hello — confirm you're up"
 
 # Structured host health check (privilege chain, services, GPU, OWUI, etc.):
@@ -95,8 +95,8 @@ mios-doctor
 # Spot-check the individual planes:
 systemctl status mios-llm-light.service mios-pgvector.service \
                  hermes-agent.service mios-agent-pipe.service
-curl -s http://localhost:11450/v1/models        # light lane: served models
-curl -s http://localhost:11450/v1/embeddings -d '{"model":"nomic-embed-text","input":"ping"}' \
+curl -s "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/models"   # light lane: served models
+curl -s "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1/embeddings" -d '{"model":"nomic-embed-text","input":"ping"}' \
      -H 'content-type: application/json'         # embeddings lane
 ```
 
@@ -119,10 +119,10 @@ systemd-firstboot.service
         ├──► mios-ai-firstboot.service         (agent venv + llama.cpp GGUFs)
         │
         └──► AI plane (Quadlets + host services)
-                ├──► mios-llm-light.service    (:11450 — primary inference + embeddings)
+                ├──► mios-llm-light.service    (port key `llm_light` — primary inference + embeddings)
                 ├──► mios-pgvector.service     (:5432  — schema init on first run)
-                ├──► hermes-agent.service      (:8642  — OpenAI gateway)
-                └──► mios-agent-pipe.service   (:8640  — orchestrator, fronts Hermes)
+                ├──► hermes-agent.service      (port key `hermes` — OpenAI gateway)
+                └──► mios-agent-pipe.service   (port key `agent_pipe` — orchestrator, fronts Hermes)
 ```
 
 All of the above are `WantedBy=multi-user.target`. Ordering inside the AI plane
@@ -184,6 +184,6 @@ First boot is the seam where Day-0 becomes the running system. From here:
 - the **bootc lifecycle** (`bootc upgrade` / `bootc rollback`) carries that image
   forward on real hosts — see the deploy guide;
 - the **AI plane** you just watched come up serves every front-end (OWUI on
-  :3030, the Discord gateway, the `mios` CLI) through the agent-pipe → Hermes
+  the `open_webui` port, the Discord gateway, the `mios` CLI) through the agent-pipe → Hermes
   orchestration over pgvector memory, with MCP exposing the tool surface and A2A
   federating peer agents.

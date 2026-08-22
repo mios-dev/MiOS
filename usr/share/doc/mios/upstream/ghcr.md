@@ -75,7 +75,7 @@ build-time bound images, and the published output.
 | `ghcr.io/mios-dev/mios@sha256:…` | Digest-pinned (most reproducible/secure) |
 | `localhost/mios:latest` | Local build target (`MIOS_LOCAL_TAG`, `Justfile`) |
 | `ghcr.io/ublue-os/ucore-hci:stable-nvidia` | Upstream base image (`MIOS_BASE_IMAGE`, `Justfile`) |
-| `ghcr.io/mostlygeek/llama-swap:cuda` | Upstream proxy image fronting `mios-llm-light` (`:11450`); bound into the MiOS image per Law 3 |
+| `ghcr.io/mostlygeek/llama-swap:cuda` | Upstream proxy image fronting `mios-llm-light` (port key `llm_light`); bound into the MiOS image per Law 3 |
 | `quay.io/centos-bootc/bootc-image-builder:latest` | BIB — cuts disk artifacts from the image (`MIOS_BIB_IMAGE`, `Justfile`; Quay, not GHCR) |
 | `anchore/syft:latest` | SBOM generator (`just sbom`; Docker Hub, not GHCR) |
 

@@ -63,12 +63,47 @@ def t_reset():
     check("reset: allowed after reset", t.check("u", 0.6).allowed is True)
 
 
+def t_snapshot_restore():
+    """T-228: a principal's budget window survives a restart; a stale one does not."""
+    t = q.QuotaTracker(rpm_limit=0, daily_budget=10.0)
+    t.check("alice", 100.0, cost=3.0)
+    t.check("alice", 101.0, cost=2.0)
+    t.check("bob", 101.0, cost=1.0)
+    a, b = t.snapshot("alice"), t.snapshot("bob")
+    check("snapshot: carries the principal's own spend", a["spent"] == 5.0, str(a))
+    check("snapshot: principals stay separate", b["spent"] == 1.0, str(b))
+    check("snapshot: an unknown principal is zero, not an error",
+          t.snapshot("nobody") == {"principal": "nobody", "window_start": 0.0, "spent": 0.0})
+    check("snapshot: the RPM deque is deliberately NOT carried", "rpm" not in a and "reqs" not in a)
+
+    fresh = q.QuotaTracker(rpm_limit=0, daily_budget=10.0)
+    check("restore: a live window is re-seated",
+          fresh.restore("alice", a["window_start"], a["spent"], 200.0) is True
+          and fresh.spent("alice", 200.0) == 5.0)
+    check("restore: the budget is still ENFORCED after the restore",
+          fresh.check("alice", 200.0, cost=6.0).allowed is False)
+    check("restore: what still fits is still allowed",
+          fresh.check("alice", 200.0, cost=4.0).allowed is True)
+
+    stale = q.QuotaTracker(rpm_limit=0, daily_budget=10.0)
+    check("restore: a rolled-over window is refused, not resurrected",
+          stale.restore("alice", 1.0, 9.0, 1.0 + 86400.0 + 1) is False
+          and stale.spent("alice", 1.0 + 86400.0 + 1) == 0.0)
+    check("restore: a zero/absent row restores nothing",
+          stale.restore("x", 0, 0, 100.0) is False)
+    check("restore: a non-numeric row is refused rather than raising",
+          stale.restore("x", "bad", None, 100.0) is False)
+    check("restore: an empty principal is refused",
+          stale.restore("", 100.0, 1.0, 101.0) is False)
+
+
 def main():
     t_rpm()
     t_isolation()
     t_budget()
     t_unlimited()
     t_reset()
+    t_snapshot_restore()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

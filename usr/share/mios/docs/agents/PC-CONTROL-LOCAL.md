@@ -1,4 +1,4 @@
-<!-- AI-hint: Explains MiOS's local-only, vision-grounded desktop-automation lane (the "Computer Use" capability) — how screenshot-capture (mios-pc-control / mios-computer-use) is bridged to UI click-coordinates by a local grounding VLM (qwen3-vl:4b on the mios-llm-light lane, or UI-TARS on the gated mios-llm-heavy-alt vLLM lane) and orchestrated by Hermes + opencode, with no cloud APIs. Use to understand how PC/desktop control fits the whole MiOS agent stack.
+<!-- AI-hint: Explains MiOS's local-only, vision-grounded desktop-automation lane (the "Computer Use" capability) — how screenshot-capture (mios-pc-control / mios-computer-use) is bridged to UI click-coordinates by a local grounding VLM (qwen3-vl:4b on the mios-llm-light lane, or UI-TARS on the gated mios-llm-heavy vLLM lane) and orchestrated by Hermes + opencode, with no cloud APIs. Use to understand how PC/desktop control fits the whole MiOS agent stack.
      AI-related: /usr/libexec/mios/mios-pc-control, /usr/libexec/mios/mios-pc-vision, /usr/libexec/mios/mios-computer-use, /usr/libexec/mios/mios-computer-use-server, /usr/lib/mios/agents/opencode/bin/opencode, /usr/share/mios/llamacpp/mios-llm-light.yaml, mios-pc-control, mios-pc-vision, mios-computer-use, mios-llm-light, mios-llm-heavy-alt, mios-hermes-browser, mios-opencode-gateway -->
 # Local-only PC Control: vision-grounded desktop automation under MiOS
 
@@ -9,8 +9,8 @@ MCP/A2A node server `mios-computer-use-server`) and the federation story are
 documented in
 [`usr/share/doc/mios/concepts/computer-use-federation.md`](../../../doc/mios/concepts/computer-use-federation.md).
 The grounding-VLM upgrade path named below is wired: the vision pass targets the
-**`mios-llm-light`** lane (`:11450`) serving `qwen3-vl:4b` when its GGUFs are
-present, with the gated **`mios-llm-heavy-alt`** (vLLM) lane (`:11440`,
+**`mios-llm-light`** lane (port key `llm_light`) serving `qwen3-vl:4b` when its GGUFs are
+present, with the gated **`mios-llm-heavy`** (vLLM) lane (port key `vllm`,
 served-name `mios-grounding`) as the heavyweight alternative for UI-TARS-class
 heads — both VRAM-gated until the dGPU frees. The original research synthesis is
 retained below for provenance; engine/port references have been updated to the
@@ -31,9 +31,9 @@ in** — open apps, click buttons, fill forms, verify results — entirely on lo
 inference, with no cloud vision API in the loop. It is the "hands and eyes" of the
 agent plane:
 
-- The **agent-pipe** (`:8640`) orchestrator refines a request, fans it out across
+- The **agent-pipe** (port key `agent_pipe`) orchestrator refines a request, fans it out across
   the council/swarm, and dispatches tool/verb calls.
-- **MiOS-Hermes** (`:8642`), the OpenAI-compatible gateway and tool-loop agent,
+- **MiOS-Hermes** (port key `hermes`), the OpenAI-compatible gateway and tool-loop agent,
   owns the plan and the desktop tool loop (screenshot → ground → act → verify).
 - The **inference lanes** (`mios-llm-light` primary, `mios-llm-heavy`/`-heavy-alt`
   gated) do the actual generation — including the grounding-VLM pass.
@@ -58,15 +58,15 @@ coordinates for UI elements. The cleanest local options:
 
 | Vision model | Size | Native grounding? | How MiOS serves it | Notes |
 |---|---|---|---|---|
-| **UI-TARS-1.5-7B** (ByteDance, Apache 2.0) | 7B | YES — trained on Win/macOS/Web GUI traces, returns absolute coords directly | gated `mios-llm-heavy-alt` vLLM lane (`:11440`, served-name `mios-grounding`) | Purpose-built for PC control; **strongest local option** for the heavy lane |
-| **Qwen3-VL** (Alibaba, Apache 2.0) | 2B / 4B / 8B / 32B / 235B | YES — 2D grounding (absolute + relative coords); native "operates PC/mobile GUIs, recognizes elements" | `qwen3-vl:4b` in the `mios-llm-light` mios-llm-light map (`:11450`) | Smaller variants run on the 4090 alongside the everyday models |
+| **UI-TARS-1.5-7B** (ByteDance, Apache 2.0) | 7B | YES — trained on Win/macOS/Web GUI traces, returns absolute coords directly | gated `mios-llm-heavy` vLLM lane (port key `vllm`, served-name `mios-grounding`) | Purpose-built for PC control; **strongest local option** for the heavy lane |
+| **Qwen3-VL** (Alibaba, Apache 2.0) | 2B / 4B / 8B / 32B / 235B | YES — 2D grounding (absolute + relative coords); native "operates PC/mobile GUIs, recognizes elements" | `qwen3-vl:4b` in the `mios-llm-light` mios-llm-light map (port key `llm_light`) | Smaller variants run on the 4090 alongside the everyday models |
 | Llama 3.2-Vision | 11B / 90B | NO grounding — general image understanding only | (not baked; opt-in) | Needs Set-of-Mark prompting for grounding; weaker for PC tasks |
 | MiniCPM-V / Moondream | 2B–8B | Partial | (not baked) | OCR-strong; coordinate output is unreliable |
 
 **Recommended baseline:** `qwen3-vl:4b` for the grounding pass, served on the
-primary `mios-llm-light` lane (`:11450`) — the same llama.cpp engine that already
+primary `mios-llm-light` lane (port key `llm_light`) — the same llama.cpp engine that already
 serves the everyday chat/reasoning models, the `mios-opencode` coder model, and
-embeddings (`nomic-embed-text`). **Upgrade path:** the gated `mios-llm-heavy-alt`
+embeddings (`nomic-embed-text`). **Upgrade path:** the gated `mios-llm-heavy`
 vLLM lane for UI-TARS-1.5-7B-class heads (which need vLLM, not llama.cpp) when the
 dGPU frees.
 
@@ -101,7 +101,7 @@ dGPU frees.
   Windows side.
 * **opencode** (host install at `/usr/lib/mios/agents/opencode/bin/opencode`)
   served as a first-class OpenAI `/v1` council peer by
-  `mios-opencode-gateway.service` (`:8633`); the orchestrator dispatches code-heavy
+  `mios-opencode-gateway.service` (port key `opencode_gateway`); the orchestrator dispatches code-heavy
   work to it in parallel.
 
 ## What's bridged: screenshot → action
@@ -123,17 +123,17 @@ model is just another entry in the lane's model map:
   loads on demand. It is INERT until both GGUFs exist under `/models` (the operator
   downloads them; the security classifier blocks the fetch for the build
   assistant). Once present, `cu_ground` / `mios-pc-vision`'s vision fallback
-  activates — the endpoint already points at `:11450`.
+  activates — the endpoint already points at the `llm_light` port.
 * **`mios-pc-vision` resolution:** it reads `vision_grounding_endpoint`
-  (`http://localhost:11450/v1`, the `mios-llm-light` lane) and
+  (the `mios-llm-light` lane, port key `llm_light`) and
   `vision_grounding_model` from the layered `mios.toml` resolver — TOML-first, no
   env-var hardcoding.
 * **Heavy-lane alternative:** grounding heads that need vLLM rather than llama.cpp
-  (UI-TARS-1.5-7B, GUI-Actor, Holo1.5) target the gated `mios-llm-heavy-alt` lane
-  at `grounding_endpoint = http://localhost:11440/v1`, `grounding_model =
+  (UI-TARS-1.5-7B, GUI-Actor, Holo1.5) target the gated `mios-llm-heavy` lane
+  at `grounding_endpoint = http://localhost:${MIOS_PORT_VLLM}/v1`, `grounding_model =
   mios-grounding`. To serve one, set `vllm_bake_model` to the head and
   `vllm_served_name = "mios-grounding"` in the `[ai.vllm]` overlay and enable
-  `mios-llm-heavy-alt.service` when VRAM frees.
+  `mios-llm-heavy.service` when VRAM frees.
 
 ### The shim contract
 
@@ -165,10 +165,10 @@ architecturally clean orchestration is:
 | Phase | Owner | Tools |
 |---|---|---|
 | **Plan**: decompose "open Notepad and type 'hello'" into clicks/keys | Hermes (text reasoner on `mios-llm-light`) | `todo`, `delegate_task`, reasoning |
-| **Ground** each step: where IS the Notepad icon? | `mios-pc-vision` / `cu_ground` (grounding VLM on `mios-llm-light` `:11450`, or the gated vLLM lane `:11440`) | screenshot → vision LLM call |
+| **Ground** each step: where IS the Notepad icon? | `mios-pc-vision` / `cu_ground` (grounding VLM on `mios-llm-light`, port key `llm_light`, or the gated vLLM lane, port key `vllm`) | screenshot → vision LLM call |
 | **Act**: clicks + keystrokes | `mios-pc-control` (Win32 SendInput) / `mios-computer-use` (portal + AT-SPI) | — |
 | **Verify**: screenshot + diff against goal | Hermes + vision grounding | — |
-| **Code-gen** when a task wants a script (PowerShell, Python) | opencode `/v1` peer | orchestrator-dispatched (`:8633`) |
+| **Code-gen** when a task wants a script (PowerShell, Python) | opencode `/v1` peer | orchestrator-dispatched (port key `opencode_gateway`) |
 
 For BROWSER tasks (URL nav, form fill, scraping), skip the vision loop entirely —
 Hermes's `browser_*` toolset uses DOM/aria references which are deterministic and
@@ -186,9 +186,9 @@ Win32/Wayland GUIs.
 
 # 2. Point mios-pc-vision at the lane via mios.toml [ai] overlay:
 #      vision_grounding_model    = "qwen3-vl:4b"
-#      vision_grounding_endpoint = "http://localhost:11450/v1"   # mios-llm-light
-#    (or, for a UI-TARS-class head on vLLM, enable mios-llm-heavy-alt and set
-#     grounding_endpoint = http://localhost:11440/v1 / grounding_model =
+#      vision_grounding_endpoint = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light
+#    (or, for a UI-TARS-class head on vLLM, enable mios-llm-heavy and set
+#     grounding_endpoint = http://localhost:${MIOS_PORT_VLLM}/v1 / grounding_model =
 #     "mios-grounding")
 
 # 3. Author / refine a pc-control SKILL in pgvector (the agent's skill store)
@@ -246,4 +246,4 @@ UNPRIVILEGED-QUADLETS):
 | 8 | https://github.com/anomalyco/opencode/pull/7302 | opencode native browser tools (Playwright; alternative to Hermes `browser_*` path) |
 | 9 | https://github.com/microsoft/UFO | Windows-specific reference (Hybrid UIA + Vision); architecturally similar to `mios-pc-control` + `mios-pc-vision` |
 | 10 | https://github.com/openinterpreter/open-interpreter | Vision-mode reference; uses screenshot + cloud vision; MiOS replaces with local Qwen3-VL or UI-TARS |
-| 11 | https://github.com/vllm-project/vllm | Engine behind the gated `mios-llm-heavy-alt` grounding lane (UI-TARS-class heads need vLLM, not llama.cpp) |
+| 11 | https://github.com/vllm-project/vllm | Engine behind the gated `mios-llm-heavy` grounding lane (UI-TARS-class heads need vLLM, not llama.cpp) |

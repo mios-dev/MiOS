@@ -55,10 +55,11 @@ when adding new scripts. See `CLAUDE.md` for the sub-phase ranges.
 
 > **Inference note.** MiOS no longer bakes or runs Ollama. Local inference and
 > embeddings are served by `mios-llm-light` (llama.cpp behind the upstream
-> llama-swap proxy image, `:11450`), with optional heavy GPU lanes (`mios-llm-heavy`,
-> SGLang `:11441`; `mios-llm-heavy-alt`, vLLM). Any historical "ollama-prep"
-> model-bake step is retired — model provisioning now targets the
-> GGUF map at `usr/share/mios/llamacpp/mios-llm-light.yaml`.
+> llama-swap proxy image, port key `llm_light`), with optional heavy GPU lanes
+> (`mios-llm-heavy`, vLLM, port key `vllm`; `mios-llm-heavy-alt`, SGLang, port
+> key `sglang`). Any historical "ollama-prep" model-bake step is retired — model
+> provisioning now targets the GGUF map at
+> `usr/share/mios/llamacpp/mios-llm-light.yaml`.
 
 Per-phase error handling: `automation/build.sh:234-237` toggles `set +e` around
 each script invocation so individual failures are captured in
@@ -140,14 +141,15 @@ and tool talks to one brain.
 - **Unified endpoint (LAW 5).** All system agents target the OpenAI-v1 protocol
   at `MIOS_AI_ENDPOINT`. Vendor-hardcoded
   URLs are forbidden. Behind that single redirect sits the agent stack:
-  the agent-pipe (`:8640`) → the MiOS-Hermes gateway (`:8642`, sessions /
-  tool-calling / skills) → the inference lanes (`mios-llm-light` on `:11450`
-  for everyday models *and* embeddings via `nomic-embed-text`/`/v1/embeddings`;
-  the gated heavy lanes `mios-llm-heavy` SGLang `:11441` and `mios-llm-heavy-alt`
-  vLLM). The prefilter (`:8641`), Open WebUI front-end (`:3030`), and SearXNG
-  search (`:8888`) round out the surface. The point of LAW 5 is that any
-  OpenAI-API-compatible client speaks to this whole chain without knowing which
-  lane answered.
+  the agent-pipe (port key `agent_pipe`) → the MiOS-Hermes gateway (port key
+  `hermes`, sessions / tool-calling / skills) → the inference lanes
+  (`mios-llm-light` on the `llm_light` port for everyday models *and*
+  embeddings via `nomic-embed-text`/`/v1/embeddings`; the gated heavy lanes
+  `mios-llm-heavy` vLLM on the `vllm` port and `mios-llm-heavy-alt` SGLang on
+  the `sglang` port). The prefilter (port key `prefilter`), Open WebUI
+  front-end (port key `open_webui`), and SearXNG search (port key `searxng`)
+  round out the surface. The point of LAW 5 is that any OpenAI-API-compatible
+  client speaks to this whole chain without knowing which lane answered.
 - **Persistent agent state.** The unified agent datastore is PostgreSQL +
   pgvector (`mios-pgvector` container, `:5432`); pgvector is the vector store for
   RAG/recall, and the schema (`usr/share/mios/postgres/schema-init.sql`) carries

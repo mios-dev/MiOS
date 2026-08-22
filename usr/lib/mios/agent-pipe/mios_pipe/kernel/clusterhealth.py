@@ -46,6 +46,7 @@ from mios_dci import (
     DCI_ENABLED, DCI_MODEL, DCI_ENDPOINT, DCI_FLOW_ENABLED, DCI_FLOW_R_MAX,
     DCI_FLOW_TRIGGER_CONF, _DCI_ACTS, _DCI_PERSONAS,
 )
+from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -311,7 +312,7 @@ async def cluster_health_logic() -> JSONResponse:
     failover_chain per agent. Public (no auth) so a sidecar / dashboard can
     pull it the same way A2A clients pull the agent card."""
     try:
-        async with httpx.AsyncClient(verify=False, timeout=3.0,
+        async with httpx.AsyncClient(verify=_PROBE_VERIFY_TLS, timeout=3.0,
                                      follow_redirects=False) as client:
             agents_out: list = []
             for name, cfg in _AGENT_REGISTRY.items():

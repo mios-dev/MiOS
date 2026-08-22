@@ -19,9 +19,11 @@ from __future__ import annotations
 
 import asyncio
 import os
+import re
 import time
 
 import httpx
+from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
 
 _AGENT_REGISTRY = None
@@ -94,7 +96,7 @@ async def _live_agent_names() -> set:
                 return False
 
         try:
-            async with httpx.AsyncClient(verify=False, timeout=_to,
+            async with httpx.AsyncClient(verify=_PROBE_VERIFY_TLS, timeout=_to,
                                          follow_redirects=False) as client:
                 results = await asyncio.gather(
                     *[_probe1(client, c.get("endpoint")) for _n, c in to_probe],

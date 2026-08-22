@@ -14,7 +14,7 @@ Fedora workstation *and* a local, self-hosted agentic AI OS. The AI half runs
 entirely on your hardware behind a single OpenAI-compatible endpoint
 (`MIOS_AI_ENDPOINT`): the **agent-pipe**
 orchestrator and **MiOS-Hermes** gateway reason over requests, while the
-**`mios-llm-light`** inference lane (`:11450`) does the generation **and** the
+**`mios-llm-light`** inference lane (port key `llm_light`) does the generation **and** the
 embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`), and
 **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`) holds the unified agent
 memory.
@@ -40,7 +40,7 @@ self-replicating property is what makes the agent stack trustworthy.
 - An OpenAI-API-compatible endpoint that implements the **Vector Stores**,
   **Files** (`purpose=assistants`), and **Responses** API surfaces. On MiOS the
   unified endpoint (`MIOS_AI_ENDPOINT`) is
-  fronted by the agent stack over the `mios-llm-light` lane (`:11450`) —
+  fronted by the agent stack over the `mios-llm-light` lane (port key `llm_light`) —
   whether these higher-level surfaces are available depends on the runtime in
   front of it. A LiteLLM proxy (or any gateway) that fronts a backend
   implementing these surfaces is the portable option. Architectural Law 5
@@ -53,7 +53,7 @@ self-replicating property is what makes the agent stack trustworthy.
 ## Step 0 — Set the unified env
 
 ```bash
-export MIOS_AI_ENDPOINT=${MIOS_AI_ENDPOINT:-http://localhost:8642/v1}
+export MIOS_AI_ENDPOINT="${MIOS_AI_ENDPOINT:?set on-host (SSOT: mios.toml [ai].endpoint)}"
 export MIOS_AI_KEY=${MIOS_AI_KEY:-}    # empty key accepted locally
 ```
 

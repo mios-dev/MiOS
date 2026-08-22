@@ -20,6 +20,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Supersede stale PR bakes; never cancel main -- that run publishes and signs.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   MIOS_DRIFT_REQUIRE_TOOLS: "1"
   # GitHub Actions and the self-hosted Forgejo runner are EQUAL, bit-for-bit
@@ -59,7 +64,12 @@ jobs:
       - name: Install shellcheck, powershell and .NET SDK
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 || true
+          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap || true
+          # pyflakes backs lint-python.sh's undefined-name pass; without it that
+          # pass fails closed under MIOS_DRIFT_REQUIRE_TOOLS=1.
+          python3 -m pip install --quiet --disable-pip-version-check pyflakes \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyflakes \
+            || true
 
       - name: Shell linting (lint-shell.sh)
         run: bash ./automation/lint-shell.sh
@@ -79,6 +89,17 @@ jobs:
       - name: PowerShell Pester test suite (run-pester.sh)
         run: bash ./tests/powershell/run-pester.sh
 
+      - name: Dispatch sandbox seccomp filter (test-sandbox-seccomp.sh)
+        # bubblewrap is installed above, so the live tier really runs: it asserts
+        # the confined process loads a filter instead of reporting `Seccomp: 0`.
+        run: bash ./tests/test-sandbox-seccomp.sh
+
+      - name: PowerShell object-flattening (test-powershell-flatten.sh)
+        # The runner installs powershell above, so the live tier really runs
+        # here: a console-less runspace renders every object as a blank line,
+        # and only executing pwsh proves the wrapper fixes it.
+        run: bash ./tests/test-powershell-flatten.sh
+
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 
@@ -92,9 +113,48 @@ jobs:
       - name: Documentation harvest round-trip (test-mios-manual-harvest.sh)
         run: bash ./tests/test-mios-manual-harvest.sh
 
+      - name: Offload is an /etc overlay (tests/test-offload-overlay.py)
+        # ADR-0016's central claim, made executable.
+        run: python3 ./tests/test-offload-overlay.py
+
+      - name: A seat can see whether its blade is there (tests/test-blade-reachability.sh)
+        run: bash ./tests/test-blade-reachability.sh
+
+      - name: A seat activates nothing (tests/test-seat-activates-nothing.py)
+        # The executable definition of MiOS-Mini.
+        run: python3 ./tests/test-seat-activates-nothing.py
+
+      - name: Greenboot skips what the blade does not activate
+        # Without this guard a seat rolls itself back on every boot.
+        run: bash ./tests/test-greenboot-blade-guard.sh
+
+      - name: Lint coverage (python + shell file sets)
+        # Assert the linters still SEE every payload area. Enumerating dirs one
+        # at a time is what left usr/share/mios unscanned; the shell twin had
+        # never been wired into any runner at all.
+        run: |
+          bash ./tests/test-lint-python-coverage.sh
+          bash ./tests/test-lint-shell-coverage.sh
+      - name: OWUI pipe endpoint resolution (tests/test-owui-pipe-endpoints.py)
+        # The canonical OWUI entry point must import and resolve its backend from
+        # the SSOT; it did neither. Skips itself if pydantic/aiohttp are absent.
+        run: python3 ./tests/test-owui-pipe-endpoints.py
       - name: Manuals & docs production evidence (doc-production-evidence.sh)
         # Prints what the documentation programme produced, then re-runs its read-only gates.
         run: bash ./tests/doc-production-evidence.sh
+
+      - name: tools/ sibling unit tests
+        # check_module_test_coverage REQUIRES a tools/test_<module>.py beside
+        # every tools/ module, but nothing executed them -- one had been failing
+        # on the default branch unnoticed. Run them.
+        run: |
+          cd ./tools
+          fails=0
+          for t in test_*.py; do
+            if python3 "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"
+            else echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1)); fi
+          done
+          [ "$fails" -eq 0 ] || { echo "$fails tools test(s) failed" >&2; exit 1; }
 
       - name: SSOT-render conformance lint (97-ssot-lint.sh)
         run: bash ./automation/97-ssot-lint.sh
@@ -147,17 +207,21 @@ jobs:
             echo "::error::${fails} agent-pipe test script(s) failed"; exit 1
           fi
 
-      - name: Office-format converter unit test (test_mios_docgen.py)
-        # mios-docgen converts office file formats (Pandoc/LibreOffice); the manuals gates run above.
+      - name: Libexec unit tests (usr/libexec/mios/test_mios_*.py)
+        # Loops the directory so a new libexec test is never silently unrun.
         run: |
           cd ./usr/libexec/mios
-          if python3 test_mios_docgen.py >/dev/null 2>&1; then
-            echo "  [ OK ] test_mios_docgen.py (office-format converter, not the manuals)"
-          else
-            python3 test_mios_docgen.py || true
-            echo "::error::test_mios_docgen.py failed"; exit 1
+          fails=0
+          for t in test_mios_*.py; do
+            if python3 "$t" >/dev/null 2>&1; then
+              echo "  [ OK ] $t"
+            else
+              echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1))
+            fi
+          done
+          if [ "$fails" -gt 0 ]; then
+            echo "::error::${fails} libexec test(s) failed"; exit 1
           fi
-
       - name: AI-plane source drift checks (98-drift-checks.sh)
         run: bash ./automation/98-drift-checks.sh
 
@@ -377,8 +441,9 @@ jobs:
                   exit 1
               }
 
-      - name: Rechunk for smaller Day-2 deltas (publish only)
-        if: env.PUBLISH == 'true' && github.event_name != 'pull_request'
+      - name: Rechunk for smaller Day-2 deltas (validates on PRs too)
+        # PRs exercise the rechunkers (warn-only, image discarded); main additionally publishes the result.
+        if: env.PUBLISH == 'true'
         run: |
           set -uo pipefail
           # Improved rechunking for smaller Day-2 deltas. PREFER rpm-ostree's
@@ -420,10 +485,14 @@ jobs:
               _RECHUNKED=1
               echo "rechunk: bootc-base-imagectl fallback OK"
           fi
+          # Strict on PRs, degrade-open on main: a lossless layering win must never block a publish.
           if [[ -n "${_RECHUNKED}" ]]; then
               sudo podman tag "${IMAGE_TAG}-rechunked" "${IMAGE_TAG}"
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+              echo "::error::all rechunkers failed -- pre-merge rechunk validation is strict"
+              exit 1
           else
-              echo "WARN: all rechunkers failed; pushing un-rechunked image" >&2
+              echo "WARN: all rechunkers failed; publishing un-rechunked image" >&2
           fi
           sudo podman tag "${IMAGE_TAG}" "localhost/mios:latest"
 

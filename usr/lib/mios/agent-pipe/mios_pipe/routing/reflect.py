@@ -1,6 +1,6 @@
 # AI-hint: Reflection / self-assessment cluster extracted verbatim from server.py (strangler-fig wave). Two cohesive async helpers that ASSESS execution outcomes and emit verdict/correction events: _inline_satisfaction_check (synchronous per-turn Definition-of-Done check -- AND-folds this turn's tool_call rows, or trusts a delivered agent answer, into a user_query_(un)satisfied event so polish can ground-truth the wrapped reply on the CURRENT turn instead of waiting for mios-daemon's 30s async loop; also carries the structural write-action-claim guard keyed on the verb-permission class) and reflect_on_step_failure (ReWOO-style single-step reflection -- routes a failed DAG node + its captured error back to the small REFINE model for ONE corrected step, emitting reflect_corrected / reflect_unfixable session events). Both moved byte-for-byte. The server-side DB writers (_db_read/_db_write/_emit_session_event), the live _VERB_CATALOG, the REFINE_* model-call constants and the _REFLECT_SYSTEM prompt are dependency-INJECTED via configure() under their EXACT original server names (one-way boundary -- this module NEVER imports server); the sibling readers _recent_reflections (mios_hitlflow) and loads_lenient (mios_jsonsalvage) are imported directly. server.py re-imports both names verbatim so its public surface is byte-identical.
-# AI-related: ./server.py, ./mios_hitlflow.py, ./mios_jsonsalvage.py, ./test_mios_reflect.py
-# AI-functions: _inline_satisfaction_check, reflect_on_step_failure, _recent_satisfaction_verdicts, _recent_tool_history, _judge_answer_satisfied, configure
+# AI-related: ./server.py, ./mios_hitlflow.py, ./mios_jsonsalvage.py, ./consensus.py, ./test_mios_reflect.py, ./test_mios_consensus.py
+# AI-functions: _inline_satisfaction_check, reflect_on_step_failure, _recent_satisfaction_verdicts, _recent_tool_history, _judge_answer_satisfied, _judge_lane_vote, _judge_panel_verdict, configure
 """Reflection / self-assessment cluster (per-turn DoD verdict + failed-step reflection).
 
 Extracted verbatim from ``server.py``. ``_inline_satisfaction_check`` runs the
@@ -28,6 +28,7 @@ from typing import Optional
 import httpx
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+from mios_pipe.routing import consensus as _consensus
 from mios_hitlflow import _recent_reflections
 
 
@@ -43,18 +44,32 @@ REFINE_ENDPOINT = ""
 REFINE_TIMEOUT_S = 30
 _REFLECT_SYSTEM = ""
 JUDGE_EXAMPLES = ""
+CONSENSUS_ENABLED = False
+CONSENSUS_LANES: list = []
+CONSENSUS_THRESHOLD = 0.5
+CONSENSUS_MIN_LANES = 2
+CONSENSUS_TIMEOUT_S = 20.0
+CONSENSUS_WEIGHT_FLOOR = 0.1
+_consensus_reliability = None
 
 
 def configure(*, db_read=None, db_write=None, emit_session_event=None,
               verb_catalog=None, refine_enabled=None, refine_model=None,
               refine_endpoint=None, refine_timeout_s=None,
-              reflect_system=None, judge_examples=None) -> None:
+              reflect_system=None, judge_examples=None,
+              consensus_enabled=None, consensus_lanes=None,
+              consensus_threshold=None, consensus_min_lanes=None,
+              consensus_timeout_s=None, consensus_weight_floor=None,
+              consensus_reliability=None) -> None:
     """Inject the server.py symbols the reflection helpers read. Each arg keeps its
     original server name as a module global; None means 'leave as-is' so a partial
     re-inject is safe."""
     global _db_read, _db_write, _emit_session_event, _VERB_CATALOG
     global REFINE_ENABLED, REFINE_MODEL, REFINE_ENDPOINT, REFINE_TIMEOUT_S
     global _REFLECT_SYSTEM, JUDGE_EXAMPLES
+    global CONSENSUS_ENABLED, CONSENSUS_LANES, CONSENSUS_THRESHOLD
+    global CONSENSUS_MIN_LANES, CONSENSUS_TIMEOUT_S, CONSENSUS_WEIGHT_FLOOR
+    global _consensus_reliability
     if db_read is not None:
         _db_read = db_read
     if db_write is not None:
@@ -75,6 +90,20 @@ def configure(*, db_read=None, db_write=None, emit_session_event=None,
         _REFLECT_SYSTEM = reflect_system
     if judge_examples is not None:
         JUDGE_EXAMPLES = judge_examples
+    if consensus_enabled is not None:
+        CONSENSUS_ENABLED = consensus_enabled
+    if consensus_lanes is not None:
+        CONSENSUS_LANES = list(consensus_lanes)
+    if consensus_threshold is not None:
+        CONSENSUS_THRESHOLD = consensus_threshold
+    if consensus_min_lanes is not None:
+        CONSENSUS_MIN_LANES = consensus_min_lanes
+    if consensus_timeout_s is not None:
+        CONSENSUS_TIMEOUT_S = consensus_timeout_s
+    if consensus_weight_floor is not None:
+        CONSENSUS_WEIGHT_FLOOR = consensus_weight_floor
+    if consensus_reliability is not None:
+        _consensus_reliability = consensus_reliability
 
 
 async def _inline_satisfaction_check(
@@ -392,31 +421,106 @@ async def _recent_tool_history(session_id: Optional[str],
     return list(reversed(rows))
 
 
+async def _judge_lane_vote(query: str, answer: str, *, endpoint: str = "",
+                           model: str = "", timeout_s: float = 0.0):
+    """Ask ONE judge lane the DoD question: True / False / None (abstain --
+    transport error, non-200, unparseable). Abstain is NOT a "no"; see ch52."""
+    ep = (endpoint or REFINE_ENDPOINT or "").rstrip("/")
+    if not ep:
+        return None
+    examples = JUDGE_EXAMPLES or "a punt, refusal, 'I cannot', or 'where to look'"
+    payload = {
+        "model": model or REFINE_MODEL,
+        "messages": [
+            {"role": "system", "content":
+             "Reply ONLY 'yes' or 'no'. Does the ANSWER substantively "
+             f"satisfy the QUERY with concrete specifics -- NOT {examples}?"},
+            {"role": "user", "content":
+             f"QUERY: {query[:400]}\n\nANSWER:\n{answer[:2000]} /no_think"}],
+        "temperature": 0.0, "max_tokens": 8, "stream": False}
+    try:
+        async with httpx.AsyncClient(timeout=timeout_s or REFINE_TIMEOUT_S) as s:
+            r = await s.post(f"{ep}/v1/chat/completions", json=payload,
+                             headers={"Content-Type": "application/json"})
+            if r.status_code != 200:
+                return None
+            _jm = ((r.json().get("choices") or [{}])[0]).get("message") or {}
+            c = (_jm.get("content") or _jm.get("reasoning_content") or "").strip().lower()
+            if not c:
+                return None
+            return not c.startswith("n")
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def _judge_panel_verdict(query: str, answer: str):
+    """CONS-01 panel: poll every lane concurrently, fold by weight. None when
+    off, under-configured or short of quorum -- caller keeps single-lane."""
+    if not CONSENSUS_ENABLED:
+        return None
+    lanes = [d for d in (CONSENSUS_LANES or []) if isinstance(d, dict)]
+    if len(lanes) < max(2, int(CONSENSUS_MIN_LANES)):
+        return None
+    names = []
+    tasks = []
+    for idx, lane in enumerate(lanes):
+        name = str(lane.get("name") or f"lane{idx}")
+        names.append(name)
+        tasks.append(_judge_lane_vote(
+            query, answer,
+            endpoint=str(lane.get("endpoint") or ""),
+            model=str(lane.get("model") or ""),
+            timeout_s=float(CONSENSUS_TIMEOUT_S or 0.0)))
+    try:
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+    except Exception:  # noqa: BLE001
+        return None
+    verdicts = {}
+    for name, res in zip(names, results):
+        verdicts[name] = None if isinstance(res, BaseException) else res
+    # Declared per-lane weight first; a reliability scorer, when one is wired,
+    # overrides it. Neither is required -- absent both, the panel is uniform.
+    declared = {}
+    for idx, lane in enumerate(lanes):
+        w = lane.get("weight")
+        if w is not None:
+            declared[names[idx]] = w
+    reliability = declared
+    if callable(_consensus_reliability):
+        try:
+            scored = _consensus_reliability(names) or {}
+            if isinstance(scored, dict):
+                reliability = {**declared, **scored}
+        except Exception:  # noqa: BLE001
+            pass
+    weights = _consensus.resolve_weights(
+        names, reliability, floor=float(CONSENSUS_WEIGHT_FLOOR))
+    fold = _consensus.weighted_vote(
+        verdicts, weights,
+        threshold=float(CONSENSUS_THRESHOLD),
+        min_lanes=int(CONSENSUS_MIN_LANES))
+    if fold.get("decision") is None:
+        log.debug("consensus: no quorum (%s live) -- falling back to single judge",
+                  fold.get("live"))
+        return None
+    log.debug("consensus: decision=%s score=%.3f agreement=%.3f over %d lanes",
+              fold["decision"], fold["score"], fold["agreement"], fold["live"])
+    return bool(fold["decision"])
+
+
 async def _judge_answer_satisfied(query: str, answer: str) -> bool:
     """Micro-LLM Definition-of-Done: does `answer` substantively satisfy
     `query` (concrete specifics, NOT a punt)? Drives the swarm deepen loop
     ("all loop until satisfied",). Degrades to True on any
-    error so a judge hiccup never makes a node loop forever."""
+    error so a judge hiccup never makes a node loop forever. With
+    `[consensus].enable` on, a weighted quorum decides instead -- see ch52."""
     if not answer or not answer.strip():
         return False
     try:
-        examples = JUDGE_EXAMPLES or "a punt, refusal, 'I cannot', or 'where to look'"
-        payload = {
-            "model": REFINE_MODEL,
-            "messages": [
-                {"role": "system", "content":
-                 "Reply ONLY 'yes' or 'no'. Does the ANSWER substantively "
-                 f"satisfy the QUERY with concrete specifics -- NOT {examples}?"},
-                {"role": "user", "content":
-                 f"QUERY: {query[:400]}\n\nANSWER:\n{answer[:2000]} /no_think"}],
-            "temperature": 0.0, "max_tokens": 8, "stream": False}
-        async with httpx.AsyncClient(timeout=REFINE_TIMEOUT_S) as s:
-            r = await s.post(f"{REFINE_ENDPOINT}/v1/chat/completions", json=payload,
-                             headers={"Content-Type": "application/json"})
-            if r.status_code != 200:
-                return True
-            _jm = ((r.json().get("choices") or [{}])[0]).get("message") or {}
-            c = (_jm.get("content") or _jm.get("reasoning_content") or "").strip().lower()
-            return not c.startswith("n")
+        panel = await _judge_panel_verdict(query, answer)
+        if panel is not None:
+            return panel
     except Exception:  # noqa: BLE001
-        return True
+        pass
+    vote = await _judge_lane_vote(query, answer)
+    return True if vote is None else vote

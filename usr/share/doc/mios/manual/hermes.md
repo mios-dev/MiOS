@@ -13,19 +13,19 @@ so this worker config is durable across boots.
 
 This is the P1 worker: a REAL agent that runs its OWN
 native browser_*/CDP + terminal + file + skills tool loop, doing its OWN
-inference on the heavy lane (:11441 mios-heavy, SGLang, --tool-call-parser
+inference on the heavy lane (mios-heavy, port key `vllm`, vLLM, --tool-call-parser
 qwen25 = native OpenAI tool_calls). It serves the OpenAI /v1 surface on :8643
 and is the WORKER-DISPATCH target of [agents.hermes].endpoint in mios.toml.
 
-The :8642 gateway (hermes-agent.service) is UNAFFECTED -- it stays the thin
+The gateway on the `hermes` port (hermes-agent.service) is UNAFFECTED -- it stays the thin
 Discord/CLI gateway. This worker enables ONLY the api_server platform (NO
 Discord token => no contention for the host-global discord-bot-token scope
-lock held by the :8642 gateway).
+lock held by the gateway on the `hermes` port).
 
-LOOP-SAFETY: this worker hits the REAL :11441 model lane for inference, so it
-never relays back to :8640. mcp_servers.mios stays DISABLED here (the relay's
-MIOS_AGENT_PIPE_URL=:8640 would let a worker re-enter the orchestrator ->
-:8640 -> council -> worker cycle). The worker's native toolsets already give
+LOOP-SAFETY: this worker hits the REAL `vllm` model lane for inference, so it
+never relays back to the `agent_pipe` port. mcp_servers.mios stays DISABLED here (the relay's
+MIOS_AGENT_PIPE_URL pointed at the `agent_pipe` port would let a worker re-enter the orchestrator ->
+agent-pipe -> council -> worker cycle). The worker's native toolsets already give
 it terminal/file/web/browser/skills without the MCP relay. The P0 hop-budget/
 Via guard (_HOP_HEADER/_VIA_HEADER, server.py) is the backstop either way.
 

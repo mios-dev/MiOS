@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# AI-hint: MiOS agentic-capability benchmark harness CLI -- the runner half of the blueprint's missing benchmark piece. `score` (OFFLINE, pure): reads a trial-results JSON and prints the CLASSic rollup + pass@k / pass^k (tau-bench reliability) via the tested mios_bench core. `run` (VM-gated): drives a suite of prompts against the agent-pipe endpoint (:8640, MIOS_AI_ENDPOINT, Law-5) k times each, substring-checks the answer, writes the results JSON that `score` consumes. Stdlib-only; scoring logic lives in mios_bench (unit-tested).
-# AI-related: /usr/lib/mios/agent-pipe/mios_bench.py, mios_bench, /usr/share/doc/mios/concepts/aios-engineering-blueprint.md, localhost:8640
+# AI-hint: MiOS agentic-capability benchmark harness CLI. `score` (OFFLINE, pure): reads a trial-results JSON, prints the CLASSic rollup + pass@k / pass^k (tau-bench) via the tested mios_bench core. `run` (VM-gated): drives prompt suites at the agent-pipe endpoint (port key `agent_pipe`, MIOS_AI_ENDPOINT, Law-5) k times, substring-checks answers, writes the JSON `score` reads.
+# AI-related: /usr/lib/mios/agent-pipe/mios_bench.py, mios_bench, /usr/share/doc/mios/concepts/aios-engineering-blueprint.md, agent-pipe (port key `agent_pipe`)
 # AI-functions: _load_json, cmd_score, cmd_run, main
 """mios-bench -- agentic-capability benchmark harness for the MiOS agent plane.
 

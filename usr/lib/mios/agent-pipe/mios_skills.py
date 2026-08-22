@@ -451,6 +451,71 @@ def _skill_render_args(args: dict, params: dict) -> dict:
 _SKILL_INV_META: dict = {}
 
 
+_PG_ID_PREFIX = "skill_invocation:pg#"
+
+
+def _pg_row_id(inv_id):
+    """The postgres row id behind an invocation handle, or None when the handle
+    came from the legacy backend or from the synthetic no-DB fallback."""
+    if not isinstance(inv_id, str) or not inv_id.startswith(_PG_ID_PREFIX):
+        return None
+    try:
+        return int(inv_id[len(_PG_ID_PREFIX):])
+    except ValueError:
+        return None
+
+
+async def _pg_invocation_open(skill_id, params, session_id, envelope):
+    """INSERT the open-time invocation row and return its handle.
+
+    Under pg-primary the legacy CREATE above is discarded, so without this the
+    row only ever appeared at CLOSE and started_at/params were lost. Returns
+    None when postgres is absent, so the synthetic fallback still applies."""
+    try:
+        rows = await _mios_pg.execute(
+            "INSERT INTO skill_invocation "
+            "(skill, session_id, started_at, params, passport) "
+            "VALUES (%(skill)s, %(session)s, now(), %(params)s::jsonb, "
+            "        %(passport)s::jsonb) RETURNING id",
+            {"skill": str(skill_id), "session": session_id,
+             "params": json.dumps(params or {}),
+             "passport": json.dumps(envelope) if envelope is not None else None},
+            fetch=True)
+    except Exception:  # noqa: BLE001 -- an invocation must never fail on the DB
+        return None
+    if not rows:
+        return None
+    row = rows[0] if isinstance(rows[0], dict) else {}
+    rid = row.get("id")
+    return f"{_PG_ID_PREFIX}{int(rid)}" if rid is not None else None
+
+
+async def _pg_invocation_close(row_id: int, success: bool) -> None:
+    """Stamp ended_at + success on the open-time row. Best-effort."""
+    try:
+        await _mios_pg.execute(
+            "UPDATE skill_invocation SET ended_at = now(), success = %(ok)s "
+            "WHERE id = %(id)s",
+            {"ok": bool(success), "id": int(row_id)}, fetch=False)
+    except Exception:  # noqa: BLE001
+        log.debug("skills: could not close invocation %s", row_id)
+
+
+async def _pg_attribute_tool_call(row_id: int, tool_call_id, step_index) -> None:
+    """Record the skill -> tool_call edge the RELATE used to express.
+    Idempotent: a retried step updates its index instead of erroring."""
+    try:
+        await _mios_pg.execute(
+            "INSERT INTO skill_tool_call (invocation_id, tool_call_id, step_index) "
+            "VALUES (%(inv)s, %(tc)s, %(step)s) "
+            "ON CONFLICT (invocation_id, tool_call_id) "
+            "DO UPDATE SET step_index = EXCLUDED.step_index",
+            {"inv": int(row_id), "tc": str(tool_call_id),
+             "step": int(step_index)}, fetch=False)
+    except Exception:  # noqa: BLE001
+        log.debug("skills: could not attribute tool_call %s", tool_call_id)
+
+
 async def _skill_invocation_open(skill_id: str,
                                  params: dict,
                                  session_id: Optional[str]) -> Optional[str]:
@@ -490,6 +555,8 @@ async def _skill_invocation_open(skill_id: str,
             if isinstance(rows, list) and rows and isinstance(rows[0], dict):
                 inv_id = rows[0].get("id")
     if not inv_id:
+        inv_id = await _pg_invocation_open(skill_id, params, session_id, envelope)
+    if not inv_id:
         inv_id = "skill_invocation:pg-" + uuid.uuid4().hex
     _SKILL_INV_META[inv_id] = {"skill": skill_id, "session": session_id}
     return inv_id
@@ -500,7 +567,11 @@ async def _skill_invocation_close(inv_id: Optional[str],
     if not inv_id:
         return
     meta = _SKILL_INV_META.pop(inv_id, None)
-    if meta:
+    row_id = _pg_row_id(inv_id)
+    if row_id is not None:
+        # The open-time row already exists; mirroring here would duplicate it.
+        await _pg_invocation_close(row_id, success)
+    elif meta:
         try:
             _pg_mirror("skill_invocation", {
                 "skill": meta.get("skill"),
@@ -524,6 +595,9 @@ async def _skill_attribute_tool_call(inv_id: Optional[str],
     populations (Phase C.2 closes the loop on its own output)."""
     if not inv_id or not tool_call_id:
         return
+    row_id = _pg_row_id(inv_id)
+    if row_id is not None:
+        await _pg_attribute_tool_call(row_id, tool_call_id, step_index)
     sql = (
         f"RELATE {inv_id}->emitted->{tool_call_id} "
         f"SET step_index = {int(step_index)};"

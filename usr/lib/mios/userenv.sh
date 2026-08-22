@@ -128,6 +128,9 @@ for sec, val in merged.items():
     if isinstance(val, dict) and sec not in EXCLUDED_SECTIONS:
         all_pairs.extend(walk(val, sec))
 
+import re as _re
+_re_unsafe = _re.compile(r"[^A-Za-z0-9_]")
+
 exports_map = {}
 
 for path, val in all_pairs:
@@ -139,7 +142,10 @@ for path, val in all_pairs:
         _cbody = "CONV_" + path[len("converge."):].upper().replace(".", "_").replace("-", "_").replace("/", "_")
     else:
         _cbody = path.upper().replace(".", "_").replace("-", "_").replace("/", "_")
+    # Same sanitization as tools/render-globals.py: a key like `mios-llm-worker@`
+    # is otherwise neither a legal sh nor PowerShell identifier (Law 13 twins).
     canonical = _cbody if _cbody.startswith("MIOS_") else "MIOS_" + _cbody
+    canonical = _re_unsafe.sub("_", canonical)
     
     sec_name = path.split(".", 1)[0]
     if sec_name in WALK_MOSTLY_DEAD and canonical not in WALK_EMIT_KEEP:
@@ -227,14 +233,21 @@ fi
 
 _ssot_lint_ports_dummy=(
     "MIOS_PORT_AGENT_PIPE"
+    "MIOS_PORT_CHROME_CDP"
     "MIOS_PORT_COCKPIT_LINK"
     "MIOS_PORT_CPU_NODE"
     "MIOS_PORT_CRAWL4AI"
     "MIOS_PORT_FIRECRAWL"
     "MIOS_PORT_FORGE_HTTP"
+    "MIOS_PORT_FORGE_SSH"
+    "MIOS_PORT_GUACD"
     "MIOS_PORT_LLM_LIGHT"
     "MIOS_PORT_OPEN_WEBUI"
+    "MIOS_PORT_OTELCOL_OTLP"
+    "MIOS_PORT_OTELCOL_UI"
     "MIOS_PORT_PGVECTOR"
+    "MIOS_PORT_PXE_HUB_API"
+    "MIOS_PORT_REDIS"
     "MIOS_PORT_SEARXNG"
     "MIOS_PORT_SGLANG"
     "MIOS_PORT_VLLM"

@@ -53,7 +53,7 @@ operator-gated.
 | WS-10 GGUF/mios-llm-light | **done** (38-llamacpp-prep.sh, quadlet, config) | GGUF bake + live tune |
 
 > WS-10 is the foundation the others assume: it converted the inference plane
-> from the retired Ollama lane to **`mios-llm-light`** (`:11450`) — llama.cpp
+> from the retired Ollama lane to **`mios-llm-light`** (port key `llm_light`) — llama.cpp
 > behind the upstream llama-swap proxy image
 > (`ghcr.io/mostlygeek/llama-swap`), serving the everyday models, the
 > `mios-opencode` coder model, and embeddings (`nomic-embed-text`,
@@ -183,7 +183,7 @@ applied all shared-file edits cleanly (no repeat of the earlier corruption).
 - **WS-8 kv_fork — LANDED.** `mios_kvfork.py` + test (34/34) + `kv_fork()`
   (default-off). **Post-run fix:** dropped the dead `clamp_branches` import.
   Operates only when `kv_paging` is on AND the endpoint speaks llama.cpp `/slots`
-  (i.e. `mios-llm-light` on `:11450`), copying a conversation's saved KV slot into
+  (i.e. `mios-llm-light` on the `llm_light` port), copying a conversation's saved KV slot into
   a new conversation for parallel cognitive paths.
 - **WS-7 UKI/fapolicyd — SCAFFOLDED, default-off/observe (SAFE), NOT enforce-
   ready.** Verifier-confirmed not boot-enforcing. Enforce-promotion blocked on:

@@ -12,7 +12,7 @@ log = logging.getLogger("mios-lldap-seed")
 def get_pg_config():
     e = os.environ
     try:
-        port = int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432)
+        port = int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600)
     except (TypeError, ValueError):
         port = 8432
     return {

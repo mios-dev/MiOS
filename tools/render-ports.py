@@ -50,6 +50,10 @@ def derive_ports(data: dict) -> dict:
         base = int(cfg.get("base", 0))
         stride = int(cfg.get("stride", 1))
         for idx, member in enumerate(cfg.get("members") or []):
+            # An empty member is a RESERVED slot: it burns its index so a
+            # retired service cannot renumber every service after it.
+            if not member:
+                continue
             out[member] = base + idx * stride
         for name, value in (cfg.get("pinned") or {}).items():
             out[name] = int(value)
@@ -81,6 +85,8 @@ def find_violations(data: dict) -> list[str]:
             continue
         names = list(cfg.get("members") or []) + list((cfg.get("pinned") or {}).keys())
         for name in names:
+            if not name:      # reserved slot -- holds an index, names no port
+                continue
             if name in seen:
                 problems.append(
                     f"port '{name}' is claimed by both [ports.categories.{seen[name]}] "
@@ -171,8 +177,11 @@ _FALLBACK_RE = re.compile(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}")
 _ALIAS = {"GUACAMOLE": "GUACAMOLE_WEB"}
 
 _SWEEP_PATHS = ("automation", "usr", "etc", "tools")
+# A test fixture that deliberately carries a STALE literal is the only way to
+# prove this sweeper works -- rewriting it turns the proof green over nothing.
 _SWEEP_SKIP = ("manifest.json", ".tsv", "/reference/", "/knowledge/",
-               "/target/", "/.git/", "node_modules")
+               "/target/", "/.git/", "node_modules",
+               "/tools/test_", "/tests/")
 
 
 def _sweep_files(root: str):

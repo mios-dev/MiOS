@@ -318,5 +318,5 @@ async def chat_completions(req: ChatCompletionRequest):
 if __name__ == "__main__":
     import uvicorn
     gateway_cfg = _toml_section("gateway")
-    port = int(os.environ.get("MIOS_PORT_HERMES", gateway_cfg.get("port") or 8642))
+    port = int(os.environ.get("MIOS_PORT_HERMES", gateway_cfg.get("port") or 8720))
     uvicorn.run(app, host="0.0.0.0", port=port)

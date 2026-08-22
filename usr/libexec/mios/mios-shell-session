@@ -1,0 +1,235 @@
+#!/usr/bin/env python3
+# AI-hint: SHELL-01 runner for the persistent PTY substrate. Drives tmux with the pure protocol in mios_pipe.routing.pty: `exec` sends one nonce-framed command into the chat's session (creating it under the bwrap baseline jail on first use), polls the pane until the marker for THAT nonce appears, and returns ACI-elided output plus the exit code and cwd. `gc` reaps sessions idle past [shell_session].idle_s; `list` and `kill` are the operator verbs. Every decision that can be made without a process lives in the pure module and is tested there; this file is the I/O shell around it. Degrades open: tmux absent, the substrate disabled, or the session cap reached all return a structured error rather than raising.
+# AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/pty.py, usr/lib/mios/agent-pipe/mios_pipe/routing/aci.py, usr/share/mios/mios.toml [shell_session], usr/lib/systemd/system/mios-shell-session-gc.service
+# AI-functions: _cfg, _run, _ensure_session, _session_count, do_exec, do_gc, do_list, do_kill, main
+"""Persistent tmux-backed shell sessions (SHELL-01)."""
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+
+for _lib in ("/usr/lib/mios/agent-pipe",
+             os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "..", "lib", "mios", "agent-pipe")):
+    _lib = os.path.normpath(_lib)
+    if os.path.isdir(_lib) and _lib not in sys.path:
+        sys.path.insert(0, _lib)
+
+try:
+    from mios_pipe.routing import pty as P
+    from mios_pipe.routing.aci import normalize_output
+except ImportError as exc:  # pragma: no cover -- partial checkout
+    print(json.dumps({"ok": False, "error": f"pty protocol unavailable: {exc}"}))
+    sys.exit(0)
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover -- py<3.11
+    import tomli as tomllib
+
+
+def _cfg() -> dict:
+    """[shell_session] through the layered resolver, falling back to the vendor
+    file so the runner still answers on a host without the resolver."""
+    for lib in ("/usr/lib/mios",
+                os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "..", "..", "lib", "mios")):
+        lib = os.path.normpath(lib)
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return (mios_toml.load_merged().get("shell_session") or {})
+    except Exception:
+        path = os.environ.get("MIOS_TOML", "/usr/share/mios/mios.toml")
+        try:
+            with open(path, "rb") as fh:
+                return (tomllib.load(fh).get("shell_session") or {})
+        except Exception:
+            return {}
+
+
+_CONF_PATH = ""
+
+
+def _conf(cfg) -> str:
+    """Materialise the tmux.conf once per run and cache its path."""
+    global _CONF_PATH
+    if _CONF_PATH:
+        return _CONF_PATH
+    root = str(cfg.get("state_dir", "/var/lib/mios/shell-sessions"))
+    try:
+        os.makedirs(root, exist_ok=True)
+        path = os.path.join(root, "tmux.conf")
+        body = P.tmux_conf(int(cfg.get("history_limit", 50000)))
+        if not os.path.exists(path) or open(path, encoding="utf-8").read() != body:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(body)
+        _CONF_PATH = path
+    except OSError:
+        _CONF_PATH = ""
+    return _CONF_PATH
+
+
+def _run(argv, timeout=10):
+    """tmux call -> (rc, stdout). Never raises: a missing tmux is an error the
+    caller reports, not a traceback in the agent's face."""
+    if not argv:
+        return 127, ""
+    try:
+        r = subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
+        return r.returncode, (r.stdout or "")
+    except (OSError, subprocess.SubprocessError):
+        return 127, ""
+
+
+def _session_count(cfg) -> int:
+    rc, out = _run(P.tmux_argv("list", "", socket_name=cfg.get("socket_name", "mios"), conf_path=_conf(cfg)))
+    if rc != 0:
+        return 0
+    return sum(1 for ln in out.splitlines()
+               if ln.strip().startswith(P.SESSION_PREFIX))
+
+
+def _ensure_session(session_id, cfg):
+    """Create the session if absent. Returns (ok, error)."""
+    sock = cfg.get("socket_name", "mios")
+    rc, _ = _run(P.tmux_argv("has", session_id, socket_name=sock, conf_path=_conf(cfg)))
+    if rc == 0:
+        return True, ""
+    cap = int(cfg.get("max_sessions", 8) or 8)
+    if _session_count(cfg) >= cap:
+        return False, f"session cap reached ({cap}); kill one first"
+    state = P.session_path(session_id, str(cfg.get("state_dir",
+                                                   "/var/lib/mios/shell-sessions")))
+    try:
+        os.makedirs(state, exist_ok=True)
+    except OSError:
+        pass
+    # BEFORE new-session: tmux applies history-limit only to panes created
+    # after it is set, so setting it afterwards leaves this pane at the default.
+    rc, _ = _run(P.tmux_argv("new", session_id, socket_name=sock,
+                             shell=str(cfg.get("shell", "/bin/bash")),
+                             conf_path=_conf(cfg)))
+    if rc != 0:
+        return False, "tmux could not start the session"
+    # Silence the PTY echo and the prompt before any command runs, so a captured
+    # result is the command's OUTPUT and not a transcript of the terminal.
+    _run(P.tmux_argv("send", session_id, command=P.session_init_cmd(),
+                     socket_name=sock, conf_path=_conf(cfg)))
+    time.sleep(0.15)
+    return True, ""
+
+
+def do_exec(args) -> dict:
+    cfg = _cfg()
+    if not cfg.get("enable"):
+        return {"ok": False, "error": "[shell_session].enable is false"}
+    ok, err = _ensure_session(args.session, cfg)
+    if not ok:
+        return {"ok": False, "error": err}
+    sock = cfg.get("socket_name", "mios")
+    nonce = P.new_nonce()
+    _run(P.tmux_argv("send", args.session, command=P.wrap_command(args.command, nonce),
+                     socket_name=sock, conf_path=_conf(cfg)))
+    deadline = time.time() + float(args.timeout or cfg.get("timeout_s", 120))
+    parsed = None
+    while time.time() < deadline:
+        rc, pane = _run(P.tmux_argv("capture", args.session, socket_name=sock, conf_path=_conf(cfg)))
+        if rc == 0:
+            parsed = P.parse_result(pane, nonce)
+            if parsed is not None:
+                break
+        else:
+            # The pane is gone: the command killed the shell (`exit`, a fatal
+            # signal). Without this the poll spins to the full timeout on a
+            # session that will never answer.
+            has, _ = _run(P.tmux_argv("has", args.session, socket_name=sock, conf_path=_conf(cfg)))
+            if has != 0:
+                return {"ok": False,
+                        "error": "the session exited while running this command",
+                        "exit_code": None,
+                        "session": P.session_key(args.session)}
+        time.sleep(0.2)
+    if parsed is None:
+        return {"ok": False, "error": "timed out waiting for the command to finish",
+                "session": P.session_key(args.session)}
+    body = normalize_output(parsed["output"],
+                            max_chars=int(cfg.get("max_output_chars", 24000)),
+                            max_lines=int(cfg.get("max_output_lines", 400)),
+                            label="shell")
+    _touch(args.session, cfg)
+    return {"ok": parsed["exit_code"] == 0, "output": body,
+            "exit_code": parsed["exit_code"], "cwd": parsed["cwd"],
+            "session": P.session_key(args.session)}
+
+
+def _touch(session_id, cfg) -> None:
+    """Stamp last-activity for the reaper. Best-effort."""
+    try:
+        state = P.session_path(session_id, str(cfg.get("state_dir",
+                                                       "/var/lib/mios/shell-sessions")))
+        os.makedirs(state, exist_ok=True)
+        with open(os.path.join(state, "last"), "w", encoding="utf-8") as fh:
+            fh.write(str(time.time()))
+    except OSError:
+        pass
+
+
+def do_gc(args) -> dict:
+    cfg = _cfg()
+    sock = cfg.get("socket_name", "mios")
+    idle_s = float(cfg.get("idle_s", 1800))
+    rc, out = _run(P.tmux_argv("list", "", socket_name=sock))
+    if rc != 0:
+        return {"ok": True, "reaped": [], "note": "no tmux server"}
+    reaped = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) < 2 or not parts[0].startswith(P.SESSION_PREFIX):
+            continue
+        if P.is_idle(parts[1], idle_s=idle_s):
+            _run(["tmux", "-L", sock, "kill-session", "-t", parts[0]])
+            reaped.append(parts[0])
+    return {"ok": True, "reaped": reaped}
+
+
+def do_list(args) -> dict:
+    cfg = _cfg()
+    rc, out = _run(P.tmux_argv("list", "", socket_name=cfg.get("socket_name", "mios"), conf_path=_conf(cfg)))
+    sessions = [ln.split()[0] for ln in out.splitlines()
+                if ln.strip().startswith(P.SESSION_PREFIX)] if rc == 0 else []
+    return {"ok": True, "sessions": sessions}
+
+
+def do_kill(args) -> dict:
+    cfg = _cfg()
+    rc, _ = _run(P.tmux_argv("kill", args.session,
+                             socket_name=cfg.get("socket_name", "mios"),
+                             conf_path=_conf(cfg)))
+    return {"ok": rc == 0, "session": P.session_key(args.session)}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="persistent shell sessions (SHELL-01)")
+    sub = ap.add_subparsers(dest="action", required=True)
+    e = sub.add_parser("exec"); e.add_argument("command")
+    e.add_argument("--session", default="default")
+    e.add_argument("--timeout", type=float, default=0)
+    sub.add_parser("gc")
+    sub.add_parser("list")
+    k = sub.add_parser("kill"); k.add_argument("--session", default="default")
+    args = ap.parse_args()
+    result = {"exec": do_exec, "gc": do_gc, "list": do_list,
+              "kill": do_kill}[args.action](args)
+    print(json.dumps(result))
+    # Always exit 0: the JSON carries the outcome, and a non-zero here would
+    # read as a dispatch failure rather than a command failure.
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

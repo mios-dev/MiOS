@@ -78,10 +78,31 @@ drift-gate:
         done; \
         if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails test script failed" >&2; exit 1; fi; \
         echo "[drift-gate] all agent-pipe unit tests passed"
-    @echo "[drift-gate] test_mios_docgen.py"
-    @cd ./usr/libexec/mios && \
+    @echo "[drift-gate] libexec unit tests"
+    @cd ./usr/libexec/mios && fails=0; \
         py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
-        if "$py_exec" test_mios_docgen.py >/dev/null 2>&1; then echo "  [ OK ] test_mios_docgen.py"; else echo "  [FAIL] test_mios_docgen.py" >&2; exit 1; fi
+        for t in test_mios_*.py; do \
+            if "$py_exec" "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"; \
+            else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
+        done; \
+        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails libexec test(s) failed" >&2; exit 1; fi
+    @echo "[drift-gate] native golden-master (systemd unit snapshots)"
+    @# A new unit file with no golden snapshot only failed in CI, six minutes in.
+    @if command -v cargo >/dev/null 2>&1; then \
+        cd ./tools/native && cargo test -p mios-unit-gen --test golden_master -q; \
+    elif [ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" = "1" ]; then \
+        echo "[drift-gate] cargo absent and MIOS_DRIFT_REQUIRE_TOOLS=1" >&2; exit 1; \
+    else \
+        echo "  SKIP: cargo absent -- a unit without a golden snapshot will only fail in CI"; \
+    fi
+    @echo "[drift-gate] tools/ sibling unit tests"
+    @cd ./tools && fails=0; \
+        py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
+        for t in test_*.py; do \
+            if "$py_exec" "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"; \
+            else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
+        done; \
+        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails tools test(s) failed" >&2; exit 1; fi
     @echo "[drift-gate] 98-drift-checks.sh"
     bash ./automation/98-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh"
@@ -94,6 +115,10 @@ drift-gate:
     bash ./tests/test-firstboot-prestage.sh
     @echo "[drift-gate] tests/test-pgvector-major-upgrade.sh"
     bash ./tests/test-pgvector-major-upgrade.sh
+    @echo "[drift-gate] tests/test-powershell-flatten.sh"
+    bash ./tests/test-powershell-flatten.sh
+    @echo "[drift-gate] tests/test-sandbox-seccomp.sh"
+    bash ./tests/test-sandbox-seccomp.sh
     @echo "[drift-gate] usr/lib/mios/test_mios_comments.py"
     python3 ./usr/lib/mios/test_mios_comments.py
     @echo "[drift-gate] tests/test-mios-manual-harvest.sh"
@@ -102,9 +127,16 @@ drift-gate:
     bash ./tests/doc-production-evidence.sh
     @echo "[drift-gate] automation/lint-python.sh"
     bash ./automation/lint-python.sh
+    @echo "[drift-gate] tests/test-lint-python-coverage.sh"
+    bash ./tests/test-lint-python-coverage.sh
+    @echo "[drift-gate] tests/test-lint-shell-coverage.sh"
+    bash ./tests/test-lint-shell-coverage.sh
     @echo "[drift-gate] tests/test-theme-merge.py"
     @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
         "$py_exec" ./tests/test-theme-merge.py
+    @echo "[drift-gate] tests/test-owui-pipe-endpoints.py"
+    @py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
+        "$py_exec" ./tests/test-owui-pipe-endpoints.py
 
 
 

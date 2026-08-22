@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# AI-hint: FBM CLI -- 'mios models {list,sync}' lists local GGUF models and (re)runs the first-boot
-# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml
+# AI-hint: FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it could not show a declared-but-missing model); `sync` re-runs the first-boot provisioner; `add`/`rm` edit the USER overlay at ~/.config/mios/mios.toml rather than the vendor file, per the vendor<host<user cascade; `cache` pre-seeds from a local directory for air-gapped installs.
+# AI-related: mios-models-firstboot, mios-models-firstboot.service, /usr/share/mios/mios.toml, /usr/lib/mios/mios_toml.py, tools/check-firstboot-models.py
+# AI-functions: _user_toml_path, _declared_models, _on_disk, _fmt_size, do_list, do_sync, do_add, do_rm, do_cache, main
 import sys
 import os
 import pathlib
+import re
 try:
     import tomllib
 except ImportError:
@@ -17,14 +19,83 @@ MODELS_DIR = pathlib.Path("/var/lib/mios/llamacpp/models")
 if os.name == 'nt':
     MODELS_DIR = pathlib.Path("C:/var/lib/mios/llamacpp/models")
 
+def _user_toml_path():
+    """The user overlay `add`/`rm` write. Highest tier of the cascade, so a
+    per-user model set never edits the vendor file."""
+    p = os.environ.get("MIOS_USER_TOML")
+    if p:
+        return pathlib.Path(p)
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.join(
+        os.path.expanduser("~"), ".config")
+    return pathlib.Path(base) / "mios" / "mios.toml"
+
+
+def _declared_models():
+    """[ai].firstboot_models resolved through the vendor<host<user cascade.
+
+    Falls back to reading MIOS_TOML directly when mios_toml is unavailable
+    (a bare checkout), so the CLI still answers rather than erroring."""
+    # Installed path first, then repo-relative, so the CLI resolves the SAME
+    # cascade whether it runs from /usr/libexec or from a checkout.
+    _here = os.path.dirname(os.path.abspath(__file__))
+    for _lib in ("/usr/lib/mios",
+                 os.path.join(_here, "..", "..", "lib", "mios")):
+        _lib = os.path.normpath(_lib)
+        if os.path.isdir(_lib) and _lib not in sys.path:
+            sys.path.insert(0, _lib)
+    try:
+        import mios_toml
+        cfg = mios_toml.load_merged()
+    except Exception:
+        path = os.environ.get("MIOS_TOML") or (
+            "C:/MiOS/usr/share/mios/mios.toml" if os.name == "nt"
+            else "/usr/share/mios/mios.toml")
+        try:
+            with open(path, "rb") as fh:
+                cfg = tomllib.load(fh)
+        except Exception:
+            return []
+    entries = (cfg.get("ai") or {}).get("firstboot_models") or []
+    return [e for e in entries if isinstance(e, dict) and e.get("name")]
+
+
+def _on_disk():
+    """{filename: size_bytes} for every GGUF actually present."""
+    out = {}
+    if MODELS_DIR.exists():
+        for f in MODELS_DIR.iterdir():
+            if f.is_file() and f.suffix == ".gguf":
+                out[f.name] = f.stat().st_size
+    return out
+
+
+def _fmt_size(n):
+    return f"{n / (1024 * 1024):.2f} MB"
+
+
 def do_list():
-    if not MODELS_DIR.exists():
-        print("No models found.")
-        return
-    print(f"Models in {MODELS_DIR}:")
-    for f in MODELS_DIR.iterdir():
-        if f.is_file() and f.suffix == '.gguf':
-            print(f"  - {f.name} ({f.stat().st_size / (1024*1024):.2f} MB)")
+    """The DECLARED set joined against disk. A declared model that is missing
+    is the interesting case -- globbing the filesystem could never show it."""
+    declared = _declared_models()
+    present = _on_disk()
+
+    print(f"Declared in [ai].firstboot_models: {len(declared)}")
+    if not declared:
+        print("  (none -- the provisioner resolves an empty list and no-ops)")
+    for m in declared:
+        name = str(m.get("name"))
+        lane = m.get("lane") or m.get("target_lane") or "-"
+        if name in present:
+            print(f"  [present] {name}  ({_fmt_size(present[name])}, lane={lane})")
+        else:
+            print(f"  [MISSING] {name}  (lane={lane}) -- run `mios models sync`")
+
+    extra = sorted(set(present) - {str(m.get("name")) for m in declared})
+    if extra:
+        print(f"\nOn disk but not declared ({MODELS_DIR}):")
+        for name in extra:
+            print(f"  [undeclared] {name}  ({_fmt_size(present[name])})")
+    return 0
 
 def do_sync():
     fb = pathlib.Path("/usr/libexec/mios/mios-models-firstboot")
@@ -43,16 +114,78 @@ def do_sync():
     os.system(f"python3 {fb}")
     
 
-def do_add(name):
-    print(f"Adding model {name} (Not implemented in stub)")
+def do_add(name, source=None, sha256=None, lane=None):
+    """Append an entry to the USER overlay's [[ai.firstboot_models]].
+
+    Written as an array-of-tables append so an existing user file keeps every
+    other key it holds; the vendor file is never touched."""
+    if not source:
+        print("Usage: mios models add <name> <source-url> [sha256] [lane]")
+        return 2
+    path = _user_toml_path()
+    existing = {str(m.get("name")) for m in _declared_models()}
+    if name in existing:
+        print(f"{name} is already declared. `mios models rm {name}` first to change it.")
+        return 1
+    path.parent.mkdir(parents=True, exist_ok=True)
+    body = path.read_text(encoding="utf-8") if path.exists() else ""
+    if body and not body.endswith("\n"):
+        body += "\n"
+    entry = ["", "[[ai.firstboot_models]]",
+             f'name   = "{name}"',
+             f'source = "{source}"']
+    if sha256:
+        entry.append(f'sha256 = "{sha256}"')
+    else:
+        entry.append("# sha256 = \"\"   # UNSET: the fetcher installs this weight unverified")
+    if lane:
+        entry.append(f'lane   = "{lane}"')
+    path.write_text(body + "\n".join(entry) + "\n", encoding="utf-8")
+    print(f"Added {name} to {path}")
+    if not sha256:
+        print("WARNING: no sha256 given -- this model will be provisioned unverified.")
+    print("Run `mios models sync` to fetch it.")
+    return 0
+
 
 def do_rm(name):
+    """Remove a declared entry from the USER overlay, and/or the file on disk.
+
+    Both halves are reported separately: dropping the declaration without
+    deleting the weight (or the reverse) is a legitimate thing to want."""
+    rc = 1
+    path = _user_toml_path()
+    if path.exists():
+        lines = path.read_text(encoding="utf-8").splitlines()
+        out, i, removed = [], 0, False
+        while i < len(lines):
+            if lines[i].strip() == "[[ai.firstboot_models]]":
+                block, j = [lines[i]], i + 1
+                while j < len(lines) and not lines[j].lstrip().startswith("["):
+                    block.append(lines[j]); j += 1
+                if any(re.match(r'\s*name\s*=\s*["\']%s["\']\s*$' % re.escape(name), b)
+                       for b in block):
+                    removed = True
+                    while out and not out[-1].strip():
+                        out.pop()
+                    i = j
+                    continue
+                out.extend(block); i = j
+                continue
+            out.append(lines[i]); i += 1
+        if removed:
+            path.write_text("\n".join(out).rstrip("\n") + "\n", encoding="utf-8")
+            print(f"Removed the {name} declaration from {path}")
+            rc = 0
+        else:
+            print(f"{name} is not declared in {path}")
+
     p = MODELS_DIR / name
     if p.exists():
         p.unlink()
-        print(f"Removed {name}")
-    else:
-        print(f"Model {name} not found.")
+        print(f"Removed the file {p}")
+        rc = 0
+    return rc
 
 def do_cache(src_dir):
     src = pathlib.Path(src_dir)
@@ -75,7 +208,7 @@ def do_cache(src_dir):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: mios models {list|sync|add <name>|rm <name>|cache <dir>}")
+        print("Usage: mios models {list|sync|add <name> <url> [sha256] [lane]|rm <name>|cache <dir>}")
         sys.exit(1)
         
     cmd = sys.argv[1]
@@ -84,9 +217,9 @@ def main():
     elif cmd == "sync":
         do_sync()
     elif cmd == "add" and len(sys.argv) > 2:
-        do_add(sys.argv[2])
+        sys.exit(do_add(*sys.argv[2:6]) or 0)
     elif cmd == "rm" and len(sys.argv) > 2:
-        do_rm(sys.argv[2])
+        sys.exit(do_rm(sys.argv[2]) or 0)
     elif cmd == "cache" and len(sys.argv) > 2:
         do_cache(sys.argv[2])
     else:

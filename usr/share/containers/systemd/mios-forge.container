@@ -19,9 +19,9 @@ Environment=GITEA__server__HTTP_ADDR=0.0.0.0
 Environment=FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}
 Environment=GITEA__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}
 Environment=FORGEJO__server__START_SSH_SERVER=true
-Environment=FORGEJO__server__SSH_PORT=49922
+Environment=FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-8410}
 Environment=FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0
-Environment=FORGEJO__server__SSH_LISTEN_PORT=49922
+Environment=FORGEJO__server__SSH_LISTEN_PORT=${MIOS_PORT_FORGE_SSH:-8410}
 Environment=FORGEJO__database__DB_TYPE=sqlite3
 Environment=FORGEJO__database__PATH=/data/forgejo.db
 Environment=FORGEJO__service__DISABLE_REGISTRATION=true

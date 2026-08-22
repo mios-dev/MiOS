@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# AI-hint: Generates Headscale/Tailscale mesh configuration from mios.toml [metal.mesh] SSOT.
+set -euo pipefail
+
+TOML="${1:-/usr/share/mios/mios.toml}"
+
+ENABLED="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('metal',{}).get('mesh',{}).get('enabled', False)).lower())" 2>/dev/null || echo "False")"
+DOMAIN="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('metal',{}).get('mesh',{}).get('headscale_domain', 'mesh.mios.internal'))" 2>/dev/null || echo "Mesh.mios.internal")"
+VNET="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(d.get('metal',{}).get('mesh',{}).get('vnet_cidr', '10.42.0.0/16'))" 2>/dev/null || echo "10.42.0.0/16")"
+SWTPM="$(python3 -c "import tomllib; f=open('${TOML}','rb'); d=tomllib.load(f); print(str(d.get('metal',{}).get('mesh',{}).get('swtpm_vtpm', True)).lower())" 2>/dev/null || echo "True")"
+
+cat <<EOF
+MIOS_METAL_MESH_ENABLED="${ENABLED}"
+MIOS_HEADSCALE_DOMAIN="${DOMAIN}"
+MIOS_METAL_VNET_CIDR="${VNET}"
+MIOS_METAL_SWTPM_VTPM="${SWTPM}"
+EOF

@@ -235,7 +235,7 @@ python3 - "$(cd "$(dirname "$0")" && pwd)/../../lib/mios" <<'PY_SEED'
 import os, sys, json, subprocess, socket, time
 sys.path.insert(0, sys.argv[1]); import mios_toml  # the ONE shared layered resolver
 
-PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "5432")
+PORT = int(os.environ.get("MIOS_PORT_PGVECTOR") or os.environ.get("MIOS_PG_PORT") or "8600")
 db_ready = False
 for _ in range(45):
     try:

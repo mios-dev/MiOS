@@ -22,7 +22,8 @@ The single source of truth is `/usr/share/mios/ai/system.md`. Operate under it.
 That file defines the agent's role as a node in the federated MiOS AI stack
 (agent-pipe orchestration → MiOS-Hermes tool-loop → PostgreSQL + pgvector memory
 → MCP for tools / A2A for agents), the inference lanes it reasons over
-(`mios-llm-light` primary on `:11450`, plus the gated heavy lanes), and the
+(`mios-llm-light` primary on the `llm_light` port, plus the gated heavy
+lanes), and the
 never-deny / never-fabricate / act-don't-narrate doctrine.
 
 ## Layered resolution (highest wins)

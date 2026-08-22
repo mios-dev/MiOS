@@ -137,7 +137,7 @@ theme: OS-Image & Build
 status: done
 priority: P1
 laws: [3, 8]
-ssot_keys: ["blade.type", "blade.archetypes", "blade.requires"]
+ssot_keys: ["blade.type", "blade.fallback", "blade.archetypes", "blade.role_aliases", "blade.requires", "blade.seat_side", "blade.soft_ok", "blade.ungated"]
 adr: [1]
 deps: [WS-BAKEGATE]
 acceptance: |
@@ -150,6 +150,7 @@ acceptance: |
 - **Files:** `usr/share/mios/mios.toml` (`[blade]`/`[blade.archetypes]`/`[blade.requires]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf` (generated), `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml` (generated), `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, the `mios blade` verb.
 - **Accept:** one universal image; on a `controller` blade `systemctl status mios-llm-heavy.service` reports condition-skipped with zero VRAM touched, while a `gpu-serving` blade starts it; `mios blade add-capability gpu-serving` lights the unit hot (no reboot); the drop-in generator is drift-gated; `[blades.*]`/`[nodes.*]` fleet-dispatch (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A).
 - **Deps:** none hard; complements WS-BAKEGATE (activation vs bake orthogonality) and WS-MIOSSYS (activation `Condition*` unchanged by consolidation).
+- **Closed (T-315).** All three named deliverables landed. The karg producer (`tools/generate-blade-karg.py` -> `usr/lib/bootc/kargs.d/05-mios-blade.toml`, gate `check_blade_karg`) exists; `[profile]` is retired outright rather than aliased, because measurement showed it was dead on both ends -- no reader, and its only writer emitted `Role` with a capital R; and `role-apply` is demoted to a resolver whose one remaining imperative act is conditional on the role having CHANGED. Two corrections to the plan are recorded in ADR-0016 Decision 4 and T-315: the `systemctl` calls could not simply be deleted (the image bakes `multi-user.target`, so on the first boot after install nothing else reaches the role target, and the default archetype's target requires `graphical.target`), and shipping the karg producer had silently disabled `/etc/mios/role.conf`, its `FEATURES=`, and the hardware fallbacks -- `mios blade set` did nothing and `mios blade add-capability` was erased on the next boot. Resolution is now a five-tier ladder, gated by `check_role_ssot`, with 14 fixture-driven assertions in `tests/test-role-apply-precedence.sh`. Two archetypes (`k3s-master`, `ha-node`) were added because `role-apply` already selected their targets while granting them zero capabilities, and the role targets now form a complete `Conflicts=` graph so day-2 switching actually stops the previous role. See ADR-0016.
 
 
 ## WS-MIOSSYS — MiOS-Sys shared-base consolidation of the sidecar fleet

@@ -228,7 +228,7 @@ MIOS_ROOT / MIOS_TOML* from the environment. On a MiOS host (or the MiOS-DEV
 container) those are already exported and point at the INSTALLED system, so
 an unpinned run silently renders the installed SSOT into this repo's
 artefacts -- which is how globals.ps1 ended up carrying 'MiOS User' and
-:8640. Pin every tier to the tree being synced.
+the installed host's `agent_pipe` port. Pin every tier to the tree being synced.
 
 <!-- mios-src:7173c25c3b4b from tools/sync-generated.sh:59-64 -->
 

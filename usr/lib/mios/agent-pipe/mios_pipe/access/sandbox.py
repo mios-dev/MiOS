@@ -1,4 +1,4 @@
-# AI-hint: WS-A13 risk-tier dispatch-sandbox profile resolver. Pure-stdlib core that maps a verb's permission tier (read|write|interactive) to a SandboxProfile -- the confinement (mechanism + writable workspace + read-only/network posture) the dispatch chokepoint should run the verb under. read -> none (pure info), write -> a per-dispatch writable workspace with the rest read-only, interactive -> the strictest isolation (bwrap/podman, no net). FAIL-CLOSED (security-sensitive, NOT degrade-open): an unknown/missing tier resolves to the STRICTEST profile, never 'none'. server.py owns the actual confinement (bwrap/seccomp/podman) + the workspace tmpfiles; this module owns only the deterministic policy so it unit-tests in isolation.
+# AI-hint: WS-A13 risk-tier dispatch-sandbox profile resolver. Pure-stdlib core that maps a verb's permission tier (read|write|interactive) to a SandboxProfile -- the confinement (mechanism + writable workspace + read-only/network posture) the dispatch chokepoint should run the verb under. read -> none (pure info), write -> a per-dispatch writable workspace with the rest read-only, interactive -> the strictest isolation (bwrap/podman, no net). FAIL-CLOSED (security-sensitive, NOT degrade-open): an unknown/missing tier resolves to the STRICTEST profile, never 'none'. mios-sandbox-exec owns the actual confinement (bwrap + the T-230 seccomp filter) and the workspace; this module owns the deterministic POLICY so it unit-tests in isolation. build_bwrap_argv is a reference shape, not the argv that runs -- see T-309.
 # AI-related: ./server.py, ./mios_pdp.py, /usr/share/mios/mios.toml, /var/lib/mios/ai/dispatch, ./test_mios_sandbox.py
 # AI-functions: resolve_profile, workspace_path, build_bwrap_argv, class SandboxProfile
 """mios_sandbox -- risk-tier dispatch sandbox profiles (WS-A13, the AIOS
@@ -104,10 +104,14 @@ def sandbox_exec_prefix(profile: "SandboxProfile", *,
 def build_bwrap_argv(profile: "SandboxProfile", cmd: Sequence[str], *,
                      workspace: Optional[str] = None,
                      bwrap: str = "bwrap") -> "list[str]":
-    """WS-A13 enforcement primitive: translate a resolved SandboxProfile into the
-    concrete bubblewrap argv server.py should exec (the PURE, testable half; the
-    actual exec/seccomp + workspace mkdir stays in server.py). `cmd` is the verb's
-    argv. Flags verified against bubblewrap docs (ArchWiki Bubblewrap/Examples):
+    """WS-A13 REFERENCE argv for a resolved SandboxProfile.
+
+    NOT what runs. The executor is `usr/libexec/mios/mios-seccomp-filter` +
+    `usr/libexec/mios/mios-sandbox-exec`, which builds its own flag set (narrower
+    namespace unsharing, plus --cap-drop ALL and the T-230 --seccomp filter this
+    function does not model). Read the wrapper, not this, for what a confined
+    verb actually gets; reconciling the two is T-309. `cmd` is the verb's argv.
+    Flags verified against bubblewrap docs (ArchWiki Bubblewrap/Examples):
 
       mechanism 'none'  -> NO wrapper: returns cmd unchanged (run direct).
       confined          -> bwrap --die-with-parent --new-session --unshare-all

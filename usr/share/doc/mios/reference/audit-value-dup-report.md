@@ -112,7 +112,7 @@ plus a bespoke `MIOS_<SVC>_PORT` form, leaving `MIOS_PORT_<X>` unpopulated.
 ### 4.2 Ports are spelled up to three ways
 
 `MIOS_COCKPIT_PORT` = `MIOS_PORTS_COCKPIT` = `MIOS_PORT_COCKPIT` = `8090` (full 3-way alias).
-Forge (`8300`/`8301`) and SearXNG (`8899`) follow the same triple. The de-dup should pick
+Forge (`8300`/`8301`) and SearXNG (the `searxng` port) follow the same triple. The de-dup should pick
 ONE canonical port spelling (recommend the `[ports]`-table-native `MIOS_PORTS_<X>`) and
 derive the other two — or delete them — closing the section-4.1 empties in the process.
 

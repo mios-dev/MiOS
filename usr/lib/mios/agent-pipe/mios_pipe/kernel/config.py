@@ -101,15 +101,15 @@ def _dispatch_num(env: str, key: str, default, cast=int):
     return default
 
 
-PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8640"))
+PORT = int(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700"))
 # MIOS_PORTS_MCP to the same value) then the [ports].mcp SSOT table. NO literal
 MCP_SERVER_PORT = _cfg_num(_toml_section("ports"), "MIOS_PORT_MCP", "mcp", None)
-_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450")
+_LIGHT_BASE = "http://localhost:" + (os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500")
 BACKEND = (os.environ.get("MIOS_AGENT_PIPE_BACKEND")
            or (_LIGHT_BASE + "/v1"
                if (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
                   in {"1", "true", "yes", "on"}
-               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1")).rstrip("/")
+               else f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1")).rstrip("/")
 _BACKEND_IS_LIGHT = (
     (os.environ.get("MIOS_AGENT_PIPE_BACKEND_LIGHT") or "").strip().lower()
     in {"1", "true", "yes", "on"}
@@ -121,10 +121,10 @@ _BACKEND_HOSTPORT = BACKEND.split("://")[-1].split("/")[0]
 # MIOS_AGENT_PIPE_BACKEND is repointed at a keyless local lane (mios-llm-light on
 _HERMES_ENDPOINT = (os.environ.get("MIOS_HERMES_ENDPOINT")
                     or _toml_section("hermes").get("endpoint")
-                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8642')}/v1").rstrip("/")
+                    or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
 _HERMES_WORKER_ENDPOINT = (os.environ.get("MIOS_HERMES_WORKER_ENDPOINT")
                            or _toml_section("agents").get("hermes", {}).get("endpoint")
-                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES_WORKER', '8643')}/v1").rstrip("/")
+                           or f"http://localhost:{os.environ.get('MIOS_PORT_HERMES', '8720')}/v1").rstrip("/")
 _AUTH_HOSTPORTS = {
     _BACKEND_HOSTPORT,
     _HERMES_ENDPOINT.split("://")[-1].split("/")[0],
@@ -142,7 +142,7 @@ _TOOL_BACKEND_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL", "granite4.1:8b")
 _TOOL_BACKEND_HEAVY = (os.environ.get("MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY")
                        or _toml_section("nodes").get("local-sglang", {}).get("endpoint")
-                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8442')}/v1").rstrip("/")
+                       or f"http://localhost:{os.environ.get('MIOS_PORT_SGLANG', '8530')}/v1").rstrip("/")
 _TOOL_BACKEND_HEAVY_MODEL = os.environ.get(
     "MIOS_AGENT_PIPE_TOOL_BACKEND_HEAVY_MODEL", "mios-heavy")
 _HEAVY_PROBE_TTL = float(os.environ.get("MIOS_AGENT_PIPE_HEAVY_PROBE_TTL", "30"))
@@ -164,6 +164,10 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 
 _LIGHT_LANE = os.environ.get("MIOS_LLM_CPU_ENDPOINT",
                              _LIGHT_BASE).rstrip("/")  # mios-llm-light (WS-0B: one owned port key)
+# TLS verification on reachability probes; insecure is opt-in. Probes degrade
+# open, so an unverifiable peer reads as down, never as a crash.
+PROBE_VERIFY_TLS = os.environ.get(
+    "MIOS_SECURITY_PROBE_VERIFY_TLS", "true").lower() not in {"false", "0", "no"}
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
 ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)
@@ -283,7 +287,52 @@ COUNCIL_AGGREGATOR_BYPASS_THRESHOLD = _cfg_num(
     _COUNCIL_TOML, "MIOS_COUNCIL_AGGREGATOR_BYPASS_THRESHOLD",
     "aggregator_bypass_threshold", 0.95, cast=float)
 
+_DRIFT_MONITOR_TOML = _toml_section("drift_monitor") or {}
+DRIFT_MONITOR_ENABLED = _cfg_bool(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_ENABLE", "enable", False)
+DRIFT_MONITOR_THRESHOLD = _cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_THRESHOLD", "threshold", 0.2, cast=float)
+DRIFT_MONITOR_WINDOW = int(_cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_WINDOW", "window", 200, cast=float))
+DRIFT_MONITOR_MIN_SAMPLES = int(_cfg_num(
+    _DRIFT_MONITOR_TOML, "MIOS_DRIFT_MONITOR_MIN_SAMPLES", "min_samples", 30, cast=float))
+DRIFT_MONITOR_AXES = [str(a) for a in (_DRIFT_MONITOR_TOML.get("axes") or [])]
+
+_CONSENSUS_TOML = _toml_section("consensus") or {}
+CONSENSUS_ENABLED = _cfg_bool(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_ENABLE", "enable", False)
+CONSENSUS_THRESHOLD = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_THRESHOLD", "threshold", 0.5, cast=float)
+CONSENSUS_MIN_LANES = int(_cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_MIN_LANES", "min_lanes", 2, cast=float))
+CONSENSUS_TIMEOUT_S = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_TIMEOUT_S", "timeout_s", 20.0, cast=float)
+CONSENSUS_WEIGHT_FLOOR = _cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_WEIGHT_FLOOR", "weight_floor", 0.1, cast=float)
+CONSENSUS_RRF_K = int(_cfg_num(
+    _CONSENSUS_TOML, "MIOS_CONSENSUS_RRF_K", "rrf_k", 60, cast=float))
+# Each lane is {name, endpoint, model, weight}; endpoint/model empty means
+# "the refine lane", so a panel can be declared without repeating its address.
+CONSENSUS_LANES = [d for d in (_CONSENSUS_TOML.get("lanes") or []) if isinstance(d, dict)]
+
+_PGVECTOR_TOML = _toml_section("pgvector") or {}
+# Postgres is the agent plane's SOLE datastore since the WS-A3 cutover, so
+# "enabled and backed by postgres" IS "primary". These were referenced from
+# server.py without ever being defined -- see manual ch54.
+_PG_ENABLED = _cfg_bool(_PGVECTOR_TOML, "MIOS_PG_ENABLE", "enable", True)
+_PG_PRIMARY = _PG_ENABLED and str(
+    os.environ.get("MIOS_PG_BACKEND")
+    or _PGVECTOR_TOML.get("db_backend", "postgres")).strip().lower() == "postgres"
+
 _MEMORY_TOML = _toml_section("memory") or {}
+MEMORY_CONSOLIDATE_ENABLED = _cfg_bool(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE", "consolidate", True)
+MEMORY_CONSOLIDATE_INTERVAL_S = int(_cfg_num(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE_INTERVAL_S",
+    "consolidate_interval_s", 3600, cast=float))
+MEMORY_CONSOLIDATE_MAX_GROUPS = int(_cfg_num(
+    _MEMORY_TOML, "MIOS_MEMORY_CONSOLIDATE_MAX_GROUPS",
+    "consolidate_max_groups", 200, cast=float))
 KV_SLOT_PERSIST = (
     os.environ.get("MIOS_KV_SLOT_PERSIST", "").strip().lower() in {"1", "true", "yes"}
     or str(_MEMORY_TOML.get("kv_slot_persist", "true")).strip().lower() in {"1", "true", "yes", "on"}

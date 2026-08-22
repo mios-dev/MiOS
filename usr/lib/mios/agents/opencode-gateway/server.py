@@ -45,7 +45,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 HOST = os.environ.get("MIOS_OPENCODE_HOST", "127.0.0.1")
-PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8633"))
+PORT = int(os.environ.get("MIOS_PORT_OPENCODE_GATEWAY", "8780"))
 OPENCODE_BIN = os.environ.get(
     "MIOS_OPENCODE_BIN", "/usr/lib/mios/agents/opencode/bin/opencode"
 )

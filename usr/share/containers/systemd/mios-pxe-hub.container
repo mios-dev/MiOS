@@ -9,7 +9,8 @@ Description='MiOS' PXE Boot Hub
 Wants=network-online.target
 
 [Container]
-Exec=/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
+ContainerName=mios-pxe-hub
+Exec=/usr/bin/matchbox -address 0.0.0.0:${MIOS_PORT_PXE_HUB_API:-8585} -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets
 Group=0
 Image=quay.io/poseidon/matchbox:latest
 Pod=mios-system.pod

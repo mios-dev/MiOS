@@ -3,12 +3,12 @@
 # AI-hint: Installs and configures virtualization (KVM/QEMU/Libvirt), container runtimes (Podman/Buildah), Cockpit management, and CrowdSec security tools to establish the core virtualization and containerization stack.
 # AI-related: mios-kver, mios-virtio
 set -euo pipefail
+# shellcheck disable=SC1090  # log.sh resolves at runtime: build ctx or installed
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/packages.sh"
 source "${SCRIPT_DIR}/lib/common.sh"
 
-KVER=$(cat /tmp/mios-kver 2>/dev/null || find /usr/lib/modules/ -mindepth 1 -maxdepth 1 -printf "%f\n" | sort -V | tail -1)
 
 mios_log "Install KVM/QEMU/Libvirt"
 install_packages "virt"
@@ -78,8 +78,8 @@ scurl -sL "$VIRTIO_URL" -o ${MIOS_SHARE_DIR}/virtio/virtio-win.iso 2>/dev/null |
 mios_ok "Virtualization stack ready"
 
 mkdir -p /etc/mios
-/usr/libexec/mios/mios-mini-vfio-gen > /etc/mios/mini-vfio.env
-mios_ok "Materialized mini-vfio.env"
+/usr/libexec/mios/mios-metal-vfio-gen > /etc/mios/metal-vfio.env
+mios_ok "Materialized metal-vfio.env"
 
-/usr/libexec/mios/mios-mini-mesh-gen > /etc/mios/mini-mesh.env
-mios_ok "Materialized mini-mesh.env"
+/usr/libexec/mios/mios-metal-mesh-gen > /etc/mios/metal-mesh.env
+mios_ok "Materialized metal-mesh.env"

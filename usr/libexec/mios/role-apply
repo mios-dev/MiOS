@@ -1,7 +1,7 @@
 #!/usr/bin/bash
-# AI-hint: Executes the MiOS Unified Initialization and Role Engine to configure system identity, manage user home directories, and detect hardware/virtualization profiles to determine the system's operational role.
-# AI-related: /usr/lib/mios/paths.sh, mios-role, mios-headless, mios-desktop, mios-k3s-master, mios-ha-node, mios-pxe-hub, waydroid-container.service, mios-pxe-hub.service, mios-headless.target
-# AI-functions: log
+# AI-hint: Boot-time blade resolver. Resolves ONE archetype from a five-tier ladder (explicit karg > /etc/mios/role.conf > vendor [blade].type > hardware demotion > hybrid), materializes its capability markers into /etc/mios/blade.d/, writes /run/mios/blade.env, and set-defaults the role target for every subsequent boot. It starts a target ONLY when the role actually changed -- steady-state boots are fully declarative and the markers alone decide what runs.
+# AI-related: /usr/lib/mios/paths.sh, /usr/lib/mios/blade.sh, /usr/lib/bootc/kargs.d/05-mios-blade.toml, /etc/mios/role.conf, /etc/mios/blade.d/, usr/libexec/mios/mios-blade, usr/share/mios/mios.toml, usr/share/doc/mios/adr/0016-blade-node-topology.md
+# AI-functions: log, warn
 set -euo pipefail
 if [[ -f "/usr/lib/mios/paths.sh" ]]; then
     source /usr/lib/mios/paths.sh
@@ -12,10 +12,31 @@ fi
 ROLE_CONF="${MIOS_ETC_DIR}/role.conf"
 STATE_DIR="${MIOS_VAR_DIR}"
 BLADE_D="${MIOS_ETC_DIR}/blade.d"
+UNIT_DIR="/usr/lib/systemd/system"
 mkdir -p "$STATE_DIR"
 mkdir -p "$BLADE_D"
 
-log() { printf '[mios-role] %s\n' "$*"; }
+log()  { printf '[mios-role] %s\n' "$*"; }
+warn() { printf '[mios-role] WARN: %s\n' "$*" >&2; }
+
+# The resolver lives in /usr/lib/mios/blade.sh: role-apply and the `mios blade`
+# verb share ONE implementation of the ladder, capabilities and aliases.
+_BLADE_LIB="$(dirname "$0")/../../lib/mios/blade.sh"
+if [[ -r "/usr/lib/mios/blade.sh" ]]; then
+    # shellcheck source=/dev/null
+    source /usr/lib/mios/blade.sh
+elif [[ -r "$_BLADE_LIB" ]]; then
+    # shellcheck source=/dev/null
+    source "$_BLADE_LIB"
+fi
+if ! declare -F _resolve_role >/dev/null; then
+    warn "blade.sh not found; cannot resolve a role"
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Identity + home seeding (unchanged behaviour).
+# ---------------------------------------------------------------------------
 
 MAC=$(cat /sys/class/net/e*/address /sys/class/net/w*/address 2>/dev/null | head -1 || echo "")
 MACH_ID=$(cat /etc/machine-id 2>/dev/null || echo "")
@@ -57,56 +78,31 @@ if lspci -d 10de: 2>/dev/null | grep -qi "GB20\|GB10"; then
     log "RTX 50 Blackwell detected - enforcing safety parameters"
 fi
 
-ROLE=""
-FEATURES=""
+# ---------------------------------------------------------------------------
+# Resolve.
+# ---------------------------------------------------------------------------
 
-if [[ -r /proc/cmdline ]]; then
-    for tok in $(< /proc/cmdline); do
-        case "$tok" in
-            mios.blade=*)   ROLE="${tok#mios.blade=}" ;;
-            mios.role=*)     ROLE="${tok#mios.role=}" ;;
-            mios.features=*) FEATURES="${tok#mios.features=}" ;;
-        esac
-    done
+SSOT_TYPE=""; SSOT_FALLBACK=""; SSOT_ARCHETYPES=""; SSOT_CAPS_LEGAL=""; SSOT_ALIASES=""
+# TD-1: eval-safe, input=shlex.quote()d output of _ssot_query reading the vendor mios.toml, not agent-controlled
+eval "$(_ssot_query)"
+
+_picked="$(_resolve_role)"
+RAW_ROLE="${_picked%%$'\t'*}"
+ROLE_SOURCE="${_picked##*$'\t'}"
+if [[ -z "$RAW_ROLE" ]]; then
+    warn "no archetype could be resolved (source: $ROLE_SOURCE); writing no markers"
 fi
+ROLE="$(_canon_role "$RAW_ROLE")"
+[[ "$ROLE" == "$RAW_ROLE" ]] || log "Role alias '$RAW_ROLE' resolves to archetype '$ROLE'"
 
-if [[ -z "$ROLE" && -r "$ROLE_CONF" ]]; then
-    . "$ROLE_CONF"
+CAPS="$(_caps_for "$ROLE")"
+if [[ -n "${SSOT_ARCHETYPES:-}" && " $SSOT_ARCHETYPES " != *" $ROLE "* ]]; then
+    warn "'$ROLE' (from $ROLE_SOURCE) is not a declared archetype; known: ${SSOT_ARCHETYPES}"
+    warn "no capability markers will be written -- this blade will start nothing"
 fi
-
-if [[ -z "$ROLE" ]]; then
-    ROLE=$(python3 -c "import sys, os; sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios')); import mios_toml; print(mios_toml.get('blade', 'type', default='hybrid'))" 2>/dev/null || echo "")
-fi
-
-if [[ -z "$ROLE" ]]; then
-    if [[ "$VIRT" == "wsl" || -e /dev/dxg ]]; then
-        ROLE="headless"
-        log "WSL detected - defaulting to headless role"
-    elif [[ "$IS_BLACKWELL" == "true" ]]; then
-        ROLE="headless"
-        log "Blackwell safety - defaulting to headless role"
-    elif ! compgen -G "/dev/dri/renderD*" >/dev/null && [[ ! -e /sys/class/drm/card0 ]]; then
-        ROLE="headless"
-        log "No DRM device - defaulting to headless role"
-    fi
-fi
-
-ROLE="${ROLE:-hybrid}"
-log "Resolved blade archetype role: $ROLE"
+log "Resolved blade archetype role: $ROLE (from $ROLE_SOURCE)"
 
 rm -f "$BLADE_D"/* 2>/dev/null || true
-
-CAPS=$(python3 -c "
-import sys, os
-sys.path.insert(0, os.environ.get('MIOS_USR_DIR', '/usr/lib/mios'))
-import mios_toml
-d = mios_toml.load_merged()
-blade = d.get('blade', {})
-btype = '$ROLE'
-archetypes = blade.get('archetypes', {})
-caps = archetypes.get(btype, [])
-print(' '.join(caps))
-" 2>/dev/null || echo "")
 
 for cap in $CAPS; do
     if [[ -n "$cap" ]]; then
@@ -115,15 +111,19 @@ for cap in $CAPS; do
     fi
 done
 
-if [[ -n "$FEATURES" ]]; then
-    IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
-    for f in "${FEAT_ARR[@]}"; do
-        if [[ -n "$f" ]]; then
-            touch "$BLADE_D/$f"
-            log "Materialized additional capability marker: $f"
-        fi
-    done
-fi
+# Extra capabilities from the cmdline and the host tier. Unknown names are
+# refused: no ConditionPathExists would ever ask for such a marker.
+FEATURES="$(_resolve_features)"
+IFS=',' read -r -a FEAT_ARR <<< "$FEATURES"
+for f in "${FEAT_ARR[@]:-}"; do
+    [[ -n "$f" ]] || continue
+    if [[ -n "${SSOT_CAPS_LEGAL:-}" ]] && ! _is_legal_cap "$f"; then
+        warn "ignoring unknown capability '$f' -- no archetype grants it (legal: ${SSOT_CAPS_LEGAL})"
+        continue
+    fi
+    touch "$BLADE_D/$f"
+    log "Materialized additional capability marker: $f"
+done
 
 ALL_CAPS=""
 if [[ -d "$BLADE_D" ]]; then
@@ -136,26 +136,44 @@ MIOS_BLADE_TYPE="$ROLE"
 MIOS_BLADE_CAPS="$ALL_CAPS"
 EOF
 
-TARGET="mios-headless.target"
-case "$ROLE" in
-    hybrid)     TARGET="mios-hybrid.target" ;;
-    compute)    TARGET="mios-compute.target" ;;
-    endpoint)   TARGET="mios-endpoint.target" ;;
-    controller) TARGET="mios-controller.target" ;;
-    headless)   TARGET="mios-headless.target" ;;
-    desktop)    TARGET="mios-desktop.target" ;;
-    k3s*)       TARGET="mios-k3s-master.target" ;;
-    ha*)        TARGET="mios-ha-node.target" ;;
-    *)          log "WARN: unknown role '$ROLE' - defaulting to headless" ;;
-esac
+# Boot target. `set-default` decides the NEXT boot and starts nothing; the one
+# `start` left fires only when the role CHANGED.
 
-log "Setting default target to $TARGET"
-systemctl set-default --no-block "$TARGET" 2>/dev/null || true
-log "Triggering role target: $TARGET"
-systemctl start --no-block "$TARGET" 2>/dev/null || true
+TARGET=""
+if [[ -n "$ROLE" ]]; then
+    TARGET="$(_target_for "$ROLE")"
+    if [[ ! -e "${UNIT_DIR}/${TARGET}" && ! -e "/etc/systemd/system/${TARGET}" ]]; then
+        if [[ -n "${SSOT_FALLBACK:-}" ]]; then
+            warn "no unit ${TARGET} is installed; falling back to [blade].fallback"
+            TARGET="$(_target_for "$SSOT_FALLBACK")"
+        else
+            warn "no unit ${TARGET} is installed and [blade].fallback is unset"
+            TARGET=""
+        fi
+    fi
+fi
+
+PREV_TARGET=""
+[[ -r "$STATE_DIR/role.active" ]] && PREV_TARGET="$(_conf_get "$STATE_DIR/role.active" TARGET)"
+CUR_DEFAULT="$(systemctl get-default 2>/dev/null || echo "")"
+
+if [[ -z "$TARGET" ]]; then
+    warn "no role target resolved; leaving the boot default at ${CUR_DEFAULT:-unknown}"
+elif [[ "$PREV_TARGET" != "$TARGET" || "$CUR_DEFAULT" != "$TARGET" ]]; then
+    log "Setting default target to $TARGET (was: ${CUR_DEFAULT:-unknown})"
+    systemctl set-default --no-block "$TARGET" 2>/dev/null || warn "set-default $TARGET failed"
+fi
+
+if [[ -n "$TARGET" && "$PREV_TARGET" != "$TARGET" ]]; then
+    log "Role changed (${PREV_TARGET:-first run} -> $TARGET); activating it in this boot"
+    systemctl start --no-block "$TARGET" 2>/dev/null || warn "start $TARGET failed"
+elif [[ -n "$TARGET" ]]; then
+    log "Role unchanged; $TARGET is already the default -- starting nothing"
+fi
 
 cat > "$STATE_DIR/role.active" <<EOF
 ROLE=$ROLE
+ROLE_SOURCE=$ROLE_SOURCE
 FEATURES=$ALL_CAPS
 VIRT=$VIRT
 BLACKWELL=$IS_BLACKWELL
@@ -163,4 +181,4 @@ TARGET=$TARGET
 APPLIED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 EOF
 
-log "Role apply complete; system is transitioning to $TARGET"
+log "Role apply complete; active role is $ROLE ($TARGET)"

@@ -5,7 +5,6 @@
 # Quadlet state changes (services flapping, endpoint reachability
 # coming and going) reach the pre-login banner without operator
 # intervention.
-
 [Unit]
 Description='MiOS' dashboard /etc/issue.d refresh timer
 Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh

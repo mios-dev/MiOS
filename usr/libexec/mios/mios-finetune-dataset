@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: A script to generate a supervised fine-tuning (SFT) JSONL dataset by distilling a teacher model's responses to live system verbs and intent schemas into a training corpus for the MiOS role model.
-# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-finetune-smoke, localhost:11450
+# AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, mios-finetune-smoke, mios-llm-light (port key `llm_light`)
 """'MiOS' fine-tune dataset builder -- SELF-DISTILLATION, no hardcoded English.
 
 Builds a supervised fine-tuning (SFT) corpus for a small MiOS role model by
@@ -289,7 +289,7 @@ INTENT_SEEDS = [
 
 
 def build(cfg: dict, limit: int | None) -> dict:
-    endpoint = str(cfg.get("teacher_endpoint") or f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")
+    endpoint = str(cfg.get("teacher_endpoint") or f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8500')}")
     model = str(cfg.get("teacher_model") or "gemma4:12b")
     pipe_url = str(cfg.get("pipe_url") or "http://127.0.0.1:8640")
     seeds = _cint(cfg.get("seeds_per_capability"), 4)

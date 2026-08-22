@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata-only updates and trigger full chunking/embedding.
-# AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, localhost:3030
+# AI-related: /usr/libexec/mios/mios-knowledge-search, mios-knowledge-search, localhost (port key `open_webui`)
 set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'

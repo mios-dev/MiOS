@@ -1,4 +1,4 @@
-use mios_unit_gen::{render_units, verify_golden_master};
+use mios_unit_gen::{drift_register, project, render_units};
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,97 +18,84 @@ fn repo_root() -> PathBuf {
     }
 }
 
-/// Compare unit bodies on content, not on byte-exactness: line endings differ
-/// between a Windows checkout and the Linux build, and a trailing newline is
-/// not drift. Anything else is.
-fn normalize(s: &str) -> String {
-    let mut out: Vec<&str> = s.lines().map(|l| l.trim_end()).collect();
-    while out.last().is_some_and(|l| l.is_empty()) {
-        out.pop();
+fn read_ssot(root: &Path) -> String {
+    let ssot_path = root.join("usr/share/mios/mios.toml");
+    match fs::read_to_string(&ssot_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("mios-unit-gen: cannot read {}: {e}", ssot_path.display());
+            std::process::exit(1);
+        }
     }
-    out.join("\n")
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
+    let root = repo_root();
 
-    if args.iter().any(|a| a == "--selftest") {
-        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-        let root = Path::new(&manifest_dir).join("../../../");
-        let systemd_dir = root.join("usr/lib/systemd/system");
-        let golden_dir = Path::new(&manifest_dir).join("tests/golden");
-        if let Err(e) = verify_golden_master(&systemd_dir, &golden_dir) {
-            eprintln!("Selftest failed: {e}");
-            std::process::exit(1);
+    // Render one unit, or list what [units.*] covers. This is how a drift entry
+    // is diagnosed and drained: `--render x.service | diff - usr/lib/systemd/system/x.service`.
+    if args.iter().any(|a| a == "--list") {
+        for name in render_units(&read_ssot(&root))?.keys() {
+            println!("{name}");
         }
-        println!("mios-unit-gen selftest PASSED");
+        return Ok(());
+    }
+    if let Some(i) = args.iter().position(|a| a == "--render") {
+        let want = args.get(i + 1).map(String::as_str).unwrap_or("");
+        let rendered = render_units(&read_ssot(&root))?;
+        match rendered.get(want) {
+            Some(body) => print!("{body}"),
+            None => {
+                eprintln!("mios-unit-gen: [units.\"{want}\"] is not declared in the SSOT");
+                std::process::exit(1);
+            }
+        }
         return Ok(());
     }
 
-    if args.iter().any(|a| a == "--check") {
-        // A drift check must COMPARE. The previous implementation rendered the
-        // units in memory, printed "check PASSED (rendered N units)" and
-        // returned -- it could only fail if rendering itself threw, so it could
-        // never detect the one thing it exists to detect: mios.toml [units.*]
-        // having drifted from the unit files on disk.
-        let root = repo_root();
-        let ssot_path = root.join("usr/share/mios/mios.toml");
-        let ssot_content = match fs::read_to_string(&ssot_path) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("mios-unit-gen: cannot read {}: {e}", ssot_path.display());
-                std::process::exit(1);
-            }
-        };
-        let rendered = match render_units(&ssot_content) {
-            Ok(r) => r,
-            Err(e) => {
-                eprintln!("mios-unit-gen: render error: {e}");
-                std::process::exit(1);
-            }
-        };
-        if rendered.is_empty() {
+    // A drift check must COMPARE. This one used to render into memory and
+    // return; --selftest diffed the tree against a copy of itself.
+    if args.iter().any(|a| a == "--check" || a == "--selftest") {
+        let p = project(&root)?;
+        let declared = p.faithful.len() + p.drifted.len() + p.missing.len();
+        if declared == 0 {
             eprintln!("mios-unit-gen: rendered 0 units from [units.*] -- SSOT empty or unreadable");
             std::process::exit(1);
         }
 
-        let unit_dir = root.join("usr/lib/systemd/system");
-        let mut missing = Vec::new();
-        let mut drifted = Vec::new();
-        for (filename, body) in &rendered {
-            let on_disk = unit_dir.join(filename);
-            match fs::read_to_string(&on_disk) {
-                Err(_) => missing.push(filename.clone()),
-                Ok(actual) => {
-                    if normalize(&actual) != normalize(body) {
-                        drifted.push(filename.clone());
-                    }
-                }
-            }
-        }
+        let register = drift_register(&read_ssot(&root))?;
+        let unexpected: Vec<&String> = p.drifted.iter().filter(|f| !register.contains(f)).collect();
+        // Shrink-only: an entry that no longer drifts must LEAVE the register,
+        // or the register stops measuring anything and starts hiding the next one.
+        let stale: Vec<&String> = register.iter().filter(|f| !p.drifted.contains(f)).collect();
 
-        if missing.is_empty() && drifted.is_empty() {
-            println!(
-                "mios-unit-gen check PASSED ({} units match usr/lib/systemd/system)",
-                rendered.len()
-            );
+        println!(
+            "[mios-unit-gen] [units.*] declares {declared} of {} shipped units: {} faithful, \
+             {} drifted (register: {}), {} missing on disk, {} undeclared.",
+            declared + p.undeclared.len(),
+            p.faithful.len(),
+            p.drifted.len(),
+            register.len(),
+            p.missing.len(),
+            p.undeclared.len()
+        );
+
+        if unexpected.is_empty() && stale.is_empty() && p.missing.is_empty() {
             return Ok(());
         }
-        eprintln!(
-            "mios-unit-gen check FAILED: {} rendered, {} missing on disk, {} drifted",
-            rendered.len(),
-            missing.len(),
-            drifted.len()
-        );
-        for f in missing.iter().take(20) {
-            eprintln!("  MISSING  {f}");
+        for f in &unexpected {
+            eprintln!("  DRIFTED    {f}  (not in [unit_projection].drift)");
         }
-        for f in drifted.iter().take(20) {
-            eprintln!("  DRIFTED  {f}");
+        for f in &stale {
+            eprintln!("  NO-LONGER  {f}  (drop it from [unit_projection].drift -- the register only shrinks)");
+        }
+        for f in &p.missing {
+            eprintln!("  MISSING    {f}  ([units.*] declares it; no such file on disk)");
         }
         std::process::exit(1);
     }
 
-    println!("mios-unit-gen binary ready");
+    println!("mios-unit-gen: --check | --list | --render <unit>");
     Ok(())
 }

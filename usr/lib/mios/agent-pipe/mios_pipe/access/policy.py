@@ -1,6 +1,6 @@
 # AI-hint: RBAC/PDP/quota + human-in-the-loop POLICY plane extracted verbatim from server.py (refactor R7 security wave). The least-privilege + approval-gate decision helpers: the #55 risk lattice (_PERMISSION_TIERS / _perm_rank), the effective-tier resolver (_effective_perm, recipe-aware), the #62 HITL block-reason + out-of-process arbiter (_hitl_block_reason / _hitl_arbiter_verdict, off by default), the per-AGENT and per-USER capability surface filters (_agent_rbac_filter / _user_rbac_filter via the shared mios_pdp core, fail-closed on unknown max_permission), the principal resolver (_match_user_cfg), the WS-6 per-user quota gate (_quota_for / _dispatch_quota_reason), and the WS-A9 dispatch-time PDP (_dispatch_pdp_reason). Gates are NAME-KEYED on verb keys + permission tiers -- never rename a verb key, gate name, or tier. mios_pdp (as _pdp) + mios_quota are imported direct; _toml_section comes from mios_config; every server symbol they touch (the verb/recipe catalogs, _AGENT_REGISTRY, the HITL/client/dispatch ContextVars, _pending_hash, _get_client, the DB-event helpers) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). server.py re-imports every moved name verbatim under its original alias (surface-parity zero-diff).
 # AI-related: ./server.py, ./mios_config.py, ./mios_pdp.py, ./mios_quota.py, ./mios_secset.py, ./test_mios_policy.py
-# AI-functions: _perm_rank, _effective_perm, _hitl_block_reason, _hitl_arbiter_verdict, _agent_rbac_filter, _match_user_cfg, _user_rbac_filter, _quota_for, _dispatch_quota_reason, _dispatch_pdp_reason, configure
+# AI-functions: quota_preload, _quota_load, _quota_save, _quota_hydrate, _quota_persist, _perm_rank, _effective_perm, _hitl_block_reason, _hitl_arbiter_verdict, _agent_rbac_filter, _match_user_cfg, _user_rbac_filter, _quota_for, _dispatch_quota_reason, _dispatch_pdp_reason, configure
 """RBAC / PDP / quota + human-in-the-loop policy decision plane.
 
 Extracted verbatim from ``server.py``. Holds the least-privilege capability
@@ -23,12 +23,14 @@ original alias so the module's public surface is byte-identical.
 
 from __future__ import annotations
 
+import asyncio
 import contextvars  # noqa: F401 -- referenced in injected ContextVar type hints
 import logging
 import time
 from typing import Optional
 
 import mios_pdp as _pdp   # WS-A9 policy decision point (capability gate)
+import mios_pg as _mios_pg   # WS-9 pg client -- the durable quota ledger
 import mios_quota         # WS-6 per-user quota / rate-limit (inert until configured)
 import mios_hitl          # the shared HITL verdict resolver (mios_hitl.decide) both gates route through
 from mios_config import _toml_section   # layered mios.toml SSOT reader
@@ -314,6 +316,78 @@ _PDP_AUDIT_ALLOW = str((_toml_section("ai") or {}).get("pdp_audit_allow")
 
 
 _QUOTA_TRACKERS: dict = {}
+_QUOTA_HYDRATED: set = set()
+_QUOTA_LEDGER: dict = {}   # principal -> {"window_start": float, "spent": float}
+_QUOTA_PERSIST = False     # set by quota_preload() once the store is reachable
+
+
+async def quota_preload() -> int:
+    """Startup: read every persisted budget window before the first dispatch.
+
+    Degrades open: an unreachable store means every principal starts at zero."""
+    global _QUOTA_PERSIST
+    try:
+        rows = await _mios_pg.execute(
+            "SELECT principal, window_start, spent FROM quota_ledger", fetch=True)
+    except Exception:  # noqa: BLE001 -- degrade-open
+        return 0
+    if rows is None:
+        return 0
+    _QUOTA_PERSIST = True
+    for r in rows:
+        name = str((r or {}).get("principal") or "")
+        if not name:
+            continue
+        _QUOTA_LEDGER[name] = {
+            "window_start": float((r or {}).get("window_start") or 0.0),
+            "spent": float((r or {}).get("spent") or 0.0),
+        }
+    return len(_QUOTA_LEDGER)
+
+
+def _quota_load(principal: str):
+    return _QUOTA_LEDGER.get(str(principal or ""))
+
+
+def _quota_save(principal: str, window_start: float, spent: float) -> None:
+    """Write-through: the in-process map first, then a fire-and-forget upsert."""
+    name = str(principal or "")
+    _QUOTA_LEDGER[name] = {"window_start": float(window_start), "spent": float(spent)}
+    if not _QUOTA_PERSIST:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:      # no loop (a sync test / CLI) -> in-memory only
+        return
+    loop.create_task(_mios_pg.execute(
+        "INSERT INTO quota_ledger (principal, window_start, spent, updated_at) "
+        "VALUES (%(p)s, %(w)s, %(s)s, now()) "
+        "ON CONFLICT (principal) DO UPDATE SET window_start = EXCLUDED.window_start, "
+        "spent = EXCLUDED.spent, updated_at = now()",
+        {"p": name, "w": float(window_start), "s": float(spent)}))
+
+
+def _quota_hydrate(ulabel: str, tracker, now: float) -> None:
+    """Seat a persisted budget window on first use. Degrades open."""
+    if ulabel in _QUOTA_HYDRATED:
+        return
+    _QUOTA_HYDRATED.add(ulabel)
+    try:
+        row = _quota_load(ulabel)
+        if row:
+            tracker.restore(ulabel, row.get("window_start", 0),
+                            row.get("spent", 0), now)
+    except Exception:  # noqa: BLE001 -- degrade-open
+        pass
+
+
+def _quota_persist(ulabel: str, tracker) -> None:
+    """Write the principal's budget window back. Degrades open."""
+    try:
+        snap = tracker.snapshot(ulabel)
+        _quota_save(ulabel, snap["window_start"], snap["spent"])
+    except Exception:  # noqa: BLE001 -- degrade-open
+        pass
 
 
 def _quota_for(ulabel: str, ucfg: dict):
@@ -343,10 +417,13 @@ def _dispatch_quota_reason(verb: str) -> "Optional[str]":
         tr = _quota_for(ulabel, ucfg)
         if tr is None:
             return None
-        v = tr.check(ulabel, time.time())
+        now = time.time()
+        _quota_hydrate(ulabel, tr, now)
+        v = tr.check(ulabel, now)
         if not v.allowed:
             return (f"quota exceeded for user '{ulabel}' ({v.reason}); "
                     f"'{verb}' was NOT executed.")
+        _quota_persist(ulabel, tr)
         return None
     except Exception:  # noqa: BLE001 -- degrade-open: a quota bug never blocks work
         return None

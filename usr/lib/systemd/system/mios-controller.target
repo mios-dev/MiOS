@@ -4,7 +4,8 @@
 Description='MiOS' Controller Role
 Requires=multi-user.target
 After=multi-user.target
-Conflicts=mios-desktop.target mios-headless.target
+Conflicts=mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target
 AllowIsolate=yes
+
 [Install]
 WantedBy=multi-user.target

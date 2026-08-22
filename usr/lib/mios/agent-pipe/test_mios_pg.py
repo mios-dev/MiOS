@@ -1,6 +1,6 @@
 # AI-hint: Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert generation for knowledge and event tables.
 # AI-related: mios_pg
-# AI-functions: _check, t_config_dsn, t_vector_literal, t_build_insert, t_build_insert_jsonb, t_build_recall, t_build_recall_emb_version, t_recall_tuning, t_rid_to_pg_id, t_rls_owner_scope, main
+# AI-functions: _check, _ssot_pgvector_port, t_config_dsn, t_vector_literal, t_build_insert, t_build_insert_jsonb, t_build_recall, t_build_recall_emb_version, t_recall_tuning, t_rid_to_pg_id, t_rls_owner_scope, main
 """Standalone unit test for mios_pg pure helpers (WS-9 Postgres client).
 
 Pure stdlib + the sibling module only -- no psycopg, no live Postgres (the I/O is
@@ -13,6 +13,25 @@ import sys
 import types
 
 import mios_pg as P
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # pragma: no cover -- py<3.11
+    import tomli as tomllib  # type: ignore
+
+
+def _ssot_pgvector_port() -> int:
+    """[ports].pgvector, read rather than restated: this assertion used to carry
+    its own literal, and that literal was a retired port."""
+    for cand in ("/usr/share/mios/mios.toml",
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              "../../../../usr/share/mios/mios.toml")):
+        try:
+            with open(cand, "rb") as fh:
+                return int(tomllib.load(fh)["ports"]["pgvector"])
+        except (OSError, KeyError, ValueError):
+            continue
+    raise SystemExit("test_mios_pg: cannot read [ports].pgvector from the SSOT")
 
 _RESULTS: list = []
 
@@ -30,8 +49,9 @@ def t_config_dsn() -> None:
                                    "password": "p", "dbname": "d"}, str(c))
     _check("dsn: built", P.dsn(c) == "postgresql://u:p@h:5544/d", P.dsn(c))
     d = P.pg_config({})
-    _check("config: local defaults", d["host"] == "localhost" and d["port"] == 8432
-           and d["user"] == "mios" and d["dbname"] == "mios", str(d))
+    want = _ssot_pgvector_port()
+    _check("config: local defaults", d["host"] == "localhost" and d["port"] == want
+           and d["user"] == "mios" and d["dbname"] == "mios", "%s (SSOT port %d)" % (d, want))
 
 
 def t_vector_literal() -> None:

@@ -232,12 +232,12 @@ class TestDiscoveryHelpers(_A2AClientBase):
     that now live in the module (moved verbatim out of server.py)."""
 
     def test_self_peer_url_only_excludes_loopback_on_self_port(self):
-        os.environ.pop("MIOS_PORT_AGENT_PIPE", None)   # default 8640
+        os.environ.pop("MIOS_PORT_AGENT_PIPE", None)   # falls back to [ports].agent_pipe
         f = mios_a2a_client._a2a_self_peer_url
-        self.assertTrue(f("http://127.0.0.1:8640"))
-        self.assertTrue(f("http://localhost:8640/v1"))
-        self.assertTrue(f("http://[::1]:8640"))
-        self.assertFalse(f("http://10.0.0.5:8640"))
+        self.assertTrue(f("http://127.0.0.1:8700"))
+        self.assertTrue(f("http://localhost:8700/v1"))
+        self.assertTrue(f("http://[::1]:8700"))
+        self.assertFalse(f("http://10.0.0.5:8700"))
         self.assertFalse(f("http://127.0.0.1:9999"))
         self.assertFalse(f(""))
 
@@ -246,7 +246,7 @@ class TestDiscoveryHelpers(_A2AClientBase):
         try:
             f = mios_a2a_client._a2a_self_peer_url
             self.assertTrue(f("http://127.0.0.1:8650"))
-            self.assertFalse(f("http://127.0.0.1:8640"))
+            self.assertFalse(f("http://127.0.0.1:8700"))
         finally:
             os.environ.pop("MIOS_PORT_AGENT_PIPE", None)
 

@@ -79,8 +79,9 @@ host* and a *single file that runs off M: in place*.
   (`usr/lib/bootc/kargs.d/10-mios-console.toml`) keeps the Hyper-V console visible.
 - **Networking:** Hyper-V does not auto-forward localhost; bridge the front door
   with `netsh interface portproxy add v4tov4 listenaddress=127.0.0.1
-  listenport=8640 connectaddress=<guest-ip> connectport=8640` so
-  `http://localhost:8640/v1` (the OpenAI front door, ADR-0006) reaches the guest.
+  listenport=${MIOS_PORT_AGENT_PIPE} connectaddress=<guest-ip>
+  connectport=${MIOS_PORT_AGENT_PIPE}` so `$MIOS_AI_ENDPOINT` (the OpenAI front
+  door, ADR-0006) reaches the guest.
 - **Sovereign storage on M::** attach a **second** dynamic `.vhdx` on M: as a
   single-node Ceph OSD block device (appears in-guest as `/dev/sdb`).
   `/var/home` and `/var/lib/containers` are already CephFS mounts
@@ -198,12 +199,14 @@ C:\mios-bootstrap (Windows deploy — sibling repo, not this image):
 - `deploy-mios-hyperv-m.ps1` (new): (a) `podman machine`-load the image tar + run
   `just vhdx` if the vhdx is missing; (b) `New-VM -Generation 2` off the M: vhdx;
   (c) `Set-VMFirmware -SecureBootTemplate MicrosoftUEFICertificateAuthority`;
-  (d) create + attach `mios-ceph-osd.vhdx`; (e) `netsh portproxy` `:8640`;
+  (d) create + attach `mios-ceph-osd.vhdx`;
+  (e) `netsh portproxy` on the `agent_pipe` port;
   (f) optional `Add-VMGpuPartitionAdapter` or the DDA block.
 
 Fastest path to first boot: re-establish a Linux podman once → load the image tar
 → `just vhdx` onto M: → `New-VM -Generation 2` + Microsoft-UEFI-CA + `Start-VM` →
-`netsh portproxy :8640` → `curl http://localhost:8640/v1/models` from Windows. Then
+`netsh portproxy` on the `agent_pipe` port →
+`curl http://localhost:${MIOS_PORT_AGENT_PIPE}/v1/models` from Windows. Then
 harden: DDA/GPU-P, then sovereign Ceph-on-M:, then confirm `bootc upgrade`/`rollback`.
 
 ## References
@@ -222,4 +225,4 @@ harden: DDA/GPU-P, then sovereign Ceph-on-M:, then confirm `bootc upgrade`/`roll
 - MiOS memory: "release topology" (the image these artifacts are cut from), Day-0
   build GREEN (the Day-0 image boot-verify).
 - Sibling ADRs: ADR-0001 (the universal image + Law 2 background), ADR-0006 (the
-  `:8640` OpenAI front door the portproxy targets).
+  OpenAI front door on the `agent_pipe` port that the portproxy targets).

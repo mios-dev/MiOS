@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-# AI-hint: Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Pure stdlib, no server.py/DB/pytest. Verifies batch_key normalization (scheme + /v1 stripped), the is_native_batch BYPASS test (vLLM/SGLang/llama.cpp lanes -> bypass client-side coalescing, the research-grounded core), and the CoalesceWindow flush decision (open-on-first, flush on max-size OR interval-elapsed, deterministic via passed-in now).
-# AI-related: ./mios_batch.py
-# AI-functions: check, main
+# AI-hint: Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Stdlib + asyncio, no DB/pytest. Verifies batch_key normalization (scheme + /v1 stripped), the is_native_batch BYPASS test (vLLM/SGLang/llama.cpp lanes -> bypass client-side coalescing, the research-grounded core), the CoalesceWindow flush decision (open-on-first, flush on max-size OR interval-elapsed, deterministic via passed-in now), and the async Coalescer: a disabled or native call is never awaited, concurrent same-key callers leave as ONE group, max_size flushes without waiting out the interval, distinct keys never share a window, a group is sealed on flush so the next caller opens a fresh one, and no window is left behind. The T-226 chokepoint wiring is proven by its own sibling, test_mios_httpclient.py.
+# AI-related: ./mios_batch.py, ./mios_pipe/kernel/httpclient.py
+# AI-functions: check, t_key, t_native_bypass, t_window_size, t_window_interval, t_coalescer, main
 """Unit tests for mios_batch (WS-A6)."""
 
+import asyncio
 import sys
+import time
 
 import mios_batch as mb
 
@@ -53,11 +55,67 @@ def t_window_interval():
     check("window: zero interval -> immediate flush", w0.should_flush(0.0) is True)
 
 
+async def _coalescer_cases():
+    C = mb.Coalescer
+
+    c = C(enabled=False, interval_s=5.0)
+    t0 = time.perf_counter()
+    r = await c.hold("http://remote:9999", "m")
+    check("coalescer: disabled never holds",
+          r["held"] is False and (time.perf_counter() - t0) < 0.05, str(r))
+
+    c = C(enabled=True, interval_s=5.0, native_hints=["8500"])
+    t0 = time.perf_counter()
+    r = await c.hold("http://localhost:8500/v1", "m")
+    check("coalescer: a native lane bypasses the window",
+          r["held"] is False and r["reason"] == "native"
+          and (time.perf_counter() - t0) < 0.05, str(r))
+
+    c = C(enabled=True, interval_s=0.12, max_size=8)
+    t0 = time.perf_counter()
+    outs = await asyncio.gather(*[c.hold("http://remote:9999", "m") for _ in range(4)])
+    held = (time.perf_counter() - t0)
+    check("coalescer: concurrent same-key callers form ONE group",
+          {o["group_size"] for o in outs} == {4}, str(outs))
+    check("coalescer: exactly one leader", sum(1 for o in outs if o["leader"]) == 1)
+    check("coalescer: the group waits out the interval", held >= 0.10, f"{held:.3f}s")
+    check("coalescer: the group is not held past the interval", held < 0.6, f"{held:.3f}s")
+    check("coalescer: no window is left behind", c.open_groups == 0)
+
+    c = C(enabled=True, interval_s=30.0, max_size=3)
+    t0 = time.perf_counter()
+    outs = await asyncio.gather(*[c.hold("http://remote:9999", "m") for _ in range(3)])
+    check("coalescer: max_size flushes without waiting out the interval",
+          all(o["reason"] == "full" for o in outs) and (time.perf_counter() - t0) < 1.0,
+          str(outs))
+    check("coalescer: a full group leaves nothing behind", c.open_groups == 0)
+
+    c = C(enabled=True, interval_s=0.05, max_size=8)
+    outs = await asyncio.gather(c.hold("http://a:1", "m"), c.hold("http://b:2", "m"))
+    check("coalescer: distinct endpoints never share a window",
+          [o["group_size"] for o in outs] == [1, 1], str(outs))
+    outs = await asyncio.gather(c.hold("http://a:1", "m1"), c.hold("http://a:1", "m2"))
+    check("coalescer: distinct models never share a window",
+          [o["group_size"] for o in outs] == [1, 1], str(outs))
+
+    c = C(enabled=True, interval_s=0.02, max_size=8)
+    a = await c.hold("http://remote:9999", "m")
+    b = await c.hold("http://remote:9999", "m")
+    check("coalescer: a flushed group is sealed, the next caller opens a fresh one",
+          a["group_size"] == 1 and b["group_size"] == 1, f"{a} {b}")
+    check("coalescer: sequential holds leave nothing behind", c.open_groups == 0)
+
+
+def t_coalescer():
+    asyncio.run(_coalescer_cases())
+
+
 def main():
     t_key()
     t_native_bypass()
     t_window_size()
     t_window_interval()
+    t_coalescer()
     print(f"\n{'ok' if _fails == 0 else str(_fails) + ' FAILED'}")
     return 1 if _fails else 0
 

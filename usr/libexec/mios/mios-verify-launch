@@ -35,7 +35,7 @@ import sys
 import urllib.parse
 import urllib.request
 
-_PORT = os.environ.get("MIOS_DAEMON_AGENT_PORT", "8644")
+_PORT = os.environ.get("MIOS_DAEMON_AGENT_PORT", "8740")
 AGENT_URL = os.environ.get(
     "MIOS_DAEMON_AGENT_URL", f"http://127.0.0.1:{_PORT}").rstrip("/")
 

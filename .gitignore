@@ -67,12 +67,12 @@ docs/agy/w10-live-boot/*
 /research/*
 !/research/multi-agent-orchestration-strategies-2026-07-05.md
 !/research/mesh-gradient-living-wallpaper-2026-07-06.md
+!/ADR.md
 !/AGENTS.md
 !/AGREEMENTS.md
 !/CLAUDE.md
 !/CONTRIBUTING.md
 !/Containerfile
-!/Containerfile.minimal
 !/GEMINI.md
 !/Justfile
 !/LICENSE

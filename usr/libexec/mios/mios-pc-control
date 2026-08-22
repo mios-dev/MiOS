@@ -72,7 +72,7 @@ def _get_executor_endpoint():
                     if ep:
                         ep = ep.replace("localhost", gw).replace("127.0.0.1", gw)
                     else:
-                        port = os.environ.get("MIOS_PORT_OSCONTROL", os.environ.get("MIOS_OSCONTROL_PORT", "11437"))
+                        port = os.environ.get("MIOS_PORT_OSCONTROL", os.environ.get("MIOS_OSCONTROL_PORT", "8950"))
                         ep = f"http://{gw}:{port}"
             except Exception:
                 pass

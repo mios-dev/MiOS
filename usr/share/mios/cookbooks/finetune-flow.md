@@ -18,8 +18,8 @@ GNOME/Wayland, GPU access via CDI, KVM/libvirt, and a k3s+Ceph cluster path also
 ships a full local agent stack behind one OpenAI-compatible endpoint.
 
 The agent plane runs entirely on that local stack: the **agent-pipe** orchestrator
-(`:8640`) refines a request and fans it out across a council/swarm; **MiOS-Hermes**
-(`:8642`) is the OpenAI-compatible gateway and tool-loop agent; **PostgreSQL +
+(port key `agent_pipe`) refines a request and fans it out across a council/swarm; **MiOS-Hermes**
+(port key `hermes`) is the OpenAI-compatible gateway and tool-loop agent; **PostgreSQL +
 pgvector** (`mios-pgvector`, `:5432`) is the unified agent memory (tiered memory,
 knowledge, sessions, skills, RAG embeddings); **MCP** exposes the tool surface and
 **A2A** federates peer agents. Every one of those components resolves the model via
@@ -29,15 +29,15 @@ the single endpoint named by `MIOS_AI_ENDPOINT`
 Behind that endpoint are the **inference lanes** that do the actual generation and
 embeddings:
 
-- **`mios-llm-light`** (`mios-llm-light.service`, `:11450`) — the **primary** lane:
+- **`mios-llm-light`** (`mios-llm-light.service`, port key `llm_light`) — the **primary** lane:
   a `llama.cpp` multi-model server fronted by the
   [`mios-llm-light`](https://github.com/mostlygeek/llama-swap) proxy image
   (`ghcr.io/mostlygeek/llama-swap`), which auto-swaps the everyday chat/reasoning
   models behind one endpoint with KV-cache paging, **and** serves embeddings
   (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`) plus the `mios-opencode`
   coder model. Model map: `usr/share/mios/llamacpp/mios-llm-light.yaml`.
-- **`mios-llm-heavy`** (`:11441`, SGLang, served-name `mios-heavy`) and
-  **`mios-llm-heavy-alt`** (`:11440`, vLLM) — gated heavy GPU lanes, off by default
+- **`mios-llm-heavy`** (vLLM, port key `vllm`, served-name `mios-heavy`) and
+  **`mios-llm-heavy-alt`** (SGLang, port key `sglang`) — gated heavy GPU lanes, off by default
   on VRAM, that sit alongside the light lane for larger or higher-throughput models.
 
 This cookbook is how you make those lanes serve a model that is *more* MiOS-shaped.
@@ -51,7 +51,7 @@ someone's GPU.
 
 A purpose-built, agent-driven variant of this loop ships as the **fine-tune
 subsystem** (mios.toml `[finetune]`): it self-distils a strong local *teacher*
-(`granite4.1:8b`, served by `mios-llm-light` on `:11450`) into a small role model
+(`granite4.1:8b`, served by `mios-llm-light` on the `llm_light` port) into a small role model
 (default `target_role = "refiner"`), exports a LoRA/GGUF adapter, and can re-serve it
 on the opt-in `mios-finetune-serve` endpoint (`:11438`). The corpus is generated from
 the live system — the verb catalog from the running pipe plus real operator Q+A from
@@ -164,11 +164,11 @@ OpenAI-API-compatible), point `$MIOS_AI_ENDPOINT` at the served model, and
 re-run the local-runner against it. The cleanest re-entry is to add the tuned
 model (or its GGUF) to the `mios-llm-light` model map at
 `usr/share/mios/llamacpp/mios-llm-light.yaml` so `mios-llm-light` swaps it in on demand
-on `:11450`. Folding the GGUF into the map (rather than serving it ad hoc) is what
+on the `llm_light` port. Folding the GGUF into the map (rather than serving it ad hoc) is what
 makes the tuned model survive an image rebuild and ride the bootc lifecycle.
 
 ```bash
-# Tuned model served locally (mios-llm-light :11450 / a heavy lane)
+# Tuned model served locally (the mios-llm-light lane / a heavy lane)
 python3 ./var/lib/mios/evals/mios-knowledge.local-runner.py \
   --endpoint "$MIOS_AI_ENDPOINT" \
   --model    "$MIOS_AI_MODEL" \

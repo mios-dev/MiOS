@@ -26,7 +26,6 @@ is the obvious case, since it cannot float.
 | agent | agent_pipe | 8700 |
 | agent | prefilter | 8710 |
 | agent | hermes | 8720 |
-| agent | hermes_worker | 8730 |
 | agent | daemon_agent | 8740 |
 | agent | model_router | 8750 |
 | agent | arbiter | 8760 |
@@ -50,11 +49,11 @@ is the obvious case, since it cannot float.
 | inference | sglang | 8530 |
 | sidecar | guacd | 8560 |
 | sidecar | redis | 8565 |
-| sidecar | chrome_cdp | 8570 |
 | sidecar | otelcol_otlp | 8575 |
 | sidecar | otelcol_ui | 8580 |
 | sidecar | pxe_hub_api | 8585 |
-| sidecar | forge_ssh_git | 8590 |
+| sidecar | chrome_cdp (pinned) | 9222 |
+| sidecar | chrome_cdp_worker (pinned) | 9223 |
 | webtools | searxng | 8800 |
 | webtools | crawl4ai | 8810 |
 | webtools | firecrawl | 8820 |

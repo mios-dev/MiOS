@@ -17,7 +17,7 @@ TARGET_SECTIONS = [
     "ports", "ai", "identity", "locale", "auth", "network", "desktop", 
     "branding", "image", "bootstrap", "profile", "colors", "observability", 
     "sandbox", "security", "code_mode", "hermes", "routing", "agents", "a2a",
-    "power", "mini"
+    "power", "metal"
 ]
 
 SHORT_ALIAS_PREFIX = {

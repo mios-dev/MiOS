@@ -6,7 +6,7 @@
 Operator directive: *"make sure A2A and agent passports are researched to be
 OpenAI and native."* This records the research, the authoritative specs, and how
 MiOS conforms — exposing **both** the native agent standards **and** the
-OpenAI-compatible API on the same front door (`agent-pipe` :8640).
+OpenAI-compatible API on the same front door (`agent-pipe`, port key `agent_pipe`).
 
 ## A2A (Agent2Agent) — native inter-agent protocol
 

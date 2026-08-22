@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Executes a SearXNG image search and opens the top result's URL in the system's default browser, optionally moving the resulting window to a specified screen position.
-# AI-related: /usr/libexec/mios/mios-show-image, mios-searxng, mios-open-url, mios-window, mios-window-active, localhost:8888
+# AI-related: /usr/libexec/mios/mios-show-image, mios-searxng, mios-open-url, mios-window, mios-window-active, port key `searxng`
 # AI-functions: usage, pick_img_src
 
 set -uo pipefail

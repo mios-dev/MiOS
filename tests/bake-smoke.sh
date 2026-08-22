@@ -50,6 +50,8 @@ N_UNITS=$(printf '%s\n' ${UNITS} | grep -c .)
 N_PY=$(printf '%s\n' ${PY_ENTRIES} | grep -c .)
 echo "[bake-smoke] SSOT components: ${N_PY} python, ${N_SHIMS} shims, ${N_UNITS} units"
 
+# errexit would abort ON this pipeline, so the FAIL branches below could never report.
+set +e
 ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     set -e
     n=0
@@ -76,12 +78,13 @@ ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     echo \"units: OK (\$n)\"
 
     echo \"SMOKE_RUN_PASS\"
-" | tee /tmp/mios-bake-smoke.$$.log
+" 2> >(sed 's/^/[bake-smoke][podman-stderr] /' >&2) | tee /tmp/mios-bake-smoke.$$.log
 
 # The container's own exit status is what matters -- `| tee` would otherwise
 # hand us tee's. And the marker must actually appear: a run that dies after the
 # last echo but before exiting non-zero would otherwise read as a pass.
 run_rc=${PIPESTATUS[0]}
+set -e
 if [ "${run_rc}" -ne 0 ]; then
     rm -f "/tmp/mios-bake-smoke.$$.log"
     echo "[bake-smoke] FAIL: container assertions exited ${run_rc}" >&2

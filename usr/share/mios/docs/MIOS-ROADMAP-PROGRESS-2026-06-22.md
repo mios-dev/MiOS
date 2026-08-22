@@ -20,7 +20,7 @@ means *active + live-fired*, not "built + gated-OFF" (the WS-G standard).
 | **B2** tiering page-in bump | added the missing `access_count`/`recall_hits`/`last_access`/hot bump to the **live pgvector** recall path (it lived only in the dead legacy datastore path) | after recalls, 5 rows `access_count>0` (was 0) |
 | **C0** code-server `:8080→:8800` | repo was correct; deployed + surfaced the pod dependency | `:8800` bound, `:8080` freed |
 | **E1** OWUI location firstboot | wired `mios-owui-apply-system-prompt` into `mios-hermes-firstboot` | in the firstboot chain (idempotent) |
-| **F1** OWUI RAG embedding | engine `ollama`(→`/api/embed` 404) → `openai`(→`/v1/embeddings`) + embed `--parallel 4` | `:11450/v1/embeddings` 768-dim verified; **residual below** |
+| **F1** OWUI RAG embedding | engine `ollama`(→`/api/embed` 404) → `openai`(→`/v1/embeddings`) + embed `--parallel 4` | the `llm_light` lane's `/v1/embeddings` 768-dim verified; **residual below** |
 | latent bug | `_usage_completeness_mw` passed bytes to `loads_lenient(str)` → silent no-op (usage guarantee broken too) | fixed; usage + mios_mode now land |
 
 ## ✅ Done — second pass (after the Stop-hook "keep going")
@@ -72,12 +72,12 @@ and (now) `mios-devforge.pod`.
 ## ⛔ Gated / not done (need operator-VM / egress / keyed peers)
 
 - **A6** kernel Stage-2 hot-path swap — needs operator VM parity loop.
-- **A3** opencode `:8633` — RESOLVED via honest exclusion (roadmap's documented
+- **A3** opencode (port key `opencode_gateway`) — RESOLVED via honest exclusion (roadmap's documented
   fallback). Root cause found live: opencode's model `local/mios-opencode:latest`
   resolves fine (llama-swap alias → granite, real completion verified), but
   `opencode run --format json` returns EMPTY even so — an upstream opencode 1.17.9
   headless limitation in the non-TTY gateway (the long-standing "run hangs/returns
-  zero"). opencode's own `:8633` is therefore unreachable; it was masquerading as a
+  zero"). opencode's own `opencode_gateway` port is therefore unreachable; it was masquerading as a
   council peer by FAILING OVER to hermes (a shared backend), inflating
   `council_peers_up` to 3. Kept `enabled=false`; made `/v1/cluster/health` count only
   ENABLED, non-default, effective_up peers (+ `council_distinct_up` excludes

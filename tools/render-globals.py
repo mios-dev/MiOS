@@ -268,7 +268,12 @@ def _ps_assign(name: str, value: str, exports: dict | None = None) -> str:
     elif len(parts) == 1:
         rendered = "'%s'" % value.replace("'", "''")
     else:
-        live_parts = [p for i, p in enumerate(parts) if i % 2 and (exports is not None and p in exports)]
+        # `exports is None` means "caller supplied no name table", which the
+        # branch below already reads as "every placeholder is live". The two
+        # tests disagreed, so no-table callers silently got a single-quoted
+        # literal and the expansion branch was unreachable.
+        live_parts = [p for i, p in enumerate(parts)
+                      if i % 2 and (exports is None or p in exports)]
         if not live_parts:
             rendered = "'%s'" % value.replace("'", "''")
         else:

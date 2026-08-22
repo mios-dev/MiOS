@@ -16,7 +16,7 @@ def _get_psycopg():
 
 def get_dsn() -> str:
     host = os.environ.get("MIOS_PG_HOST", "localhost")
-    port = int(os.environ.get("MIOS_PORT_PGVECTOR", "8432") or 8432)
+    port = int(os.environ.get("MIOS_PORT_PGVECTOR", "8600") or 8600)
     user = os.environ.get("MIOS_PG_USER", "mios")
     password = os.environ.get("MIOS_PG_PASS", "mios")
     dbname = os.environ.get("MIOS_PG_DB", "mios")

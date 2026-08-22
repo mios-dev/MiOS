@@ -13,7 +13,7 @@ metadata:
       - delegate_subtask_to_peer_agent
 ---
 <!-- AI-hint: Defines the parallel-fanout skill for Hermes to replace serial tool-call loops with `delegate_subtask_to_peer_agent(tasks=[...])` when processing independent subtasks like multi-file audits or multi-host queries to optimize execution via child agents.
-     AI-related: /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md., mios-hermes-firstboot, mios-ollama, hermes-agent.service, localhost:11434 -->
+     AI-related: /usr/share/mios/hermes/skills/parallel-fanout/SKILL.md., mios-hermes-firstboot, mios-llm-light, hermes-agent.service, MIOS_AI_ENDPOINT -->
 
 # Parallel fan-out via `delegate_subtask_to_peer_agent`
 
@@ -104,7 +104,7 @@ better the child performs and the smaller the back-and-forth.
 delegate_subtask_to_peer_agent(tasks=[
   {
     "goal": "Confirm whether the granite4.1:8b model is served and ready for inference.",
-    "context": "The mios-llm-light lane serves on host port 11450 (OpenAI-compat). `curl http://localhost:11450/v1/models` lists the served models. Return YES/NO + which model ids are present."
+    "context": "The mios-llm-light lane serves on the `llm_light` port (OpenAI-compat). `curl $MIOS_AI_ENDPOINT/models` lists the served models. Return YES/NO + which model ids are present."
   },
   {
     "goal": "Verify the hermes-agent service is healthy.",

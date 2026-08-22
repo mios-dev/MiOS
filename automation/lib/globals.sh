@@ -84,8 +84,8 @@ export MIOS_VERSION
 [ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
 : "${MIOS_AGENTS_HERMES_CPU_MODEL:=mios-heavy}"
 : "${MIOS_AGENTS_HERMES_DEFAULT:=false}"
-: "${MIOS_PORT_HERMES_WORKER:=8730}"
-[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES_WORKER}"'/v1'
+: "${MIOS_PORT_HERMES:=8720}"
+[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_AGENTS_HERMES_FANOUT:=false}"
 : "${MIOS_AGENTS_HERMES_HEALTH_GATE:=true}"
 : "${MIOS_AGENTS_HERMES_JOB:=General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.}"
@@ -134,7 +134,6 @@ export MIOS_VERSION
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION:=0.0}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MTLS:=false}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL:=false}"
-: "${MIOS_PORT_HERMES:=8720}"
 [ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_AGENT_PIPE_BACKEND_MODEL:=hermes-agent}"
 : "${MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH:=true}"
@@ -167,7 +166,7 @@ export MIOS_VERSION
 : "${MIOS_AI_BAKE_MODELS:=granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent}"
 : "${MIOS_AI_DIR:=/usr/share/mios/ai}"
 : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-: "${MIOS_AI_ENDPOINT:=http://localhost:8700/v1}"
+[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
 : "${MIOS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
 : "${MIOS_AI_MCP_DIR:=/srv/ai/mcp}"
 : "${MIOS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
@@ -230,8 +229,62 @@ export MIOS_VERSION
 : "${MIOS_BIB_ALPINE_IMAGE:=docker.io/library/alpine:latest}"
 : "${MIOS_BIB_ALPINE_VERSION:=docker.io/library/alpine:latest}"
 : "${MIOS_BIB_IMAGE:=quay.io/centos-bootc/bootc-image-builder:latest}"
-: "${MIOS_BLADE_ARCHETYPES_HYBRID:=gpu-serving,controller}"
-: "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY:=gpu-serving}"
+: "${MIOS_BLADE_ARCHETYPES_COMPUTE:=gpu-serving,service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_CONTROLLER:=controller,service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_DESKTOP:=service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_HA_NODE:=controller,service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_HEADLESS:=service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_HYBRID:=gpu-serving,controller,service-plane}"
+: "${MIOS_BLADE_ARCHETYPES_K3S_MASTER:=controller,service-plane}"
+: "${MIOS_BLADE_FALLBACK:=headless}"
+: "${MIOS_BLADE_REQUIRES_HERMES_WORKER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_K3S:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_ACCOUNT_SYNC:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_ADGUARD:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_AGENTS:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_CEPH:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_COCKPIT_LINK:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_CODE_SERVER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_CPU_NODE:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_CRON_DIRECTOR:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_DAEMON:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_EMBED_BACKFILL:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_FINETUNE_SERVE:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_FORGE:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_FORGEJO_RUNNER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_FORGEJO_RUNNER_FIRSTBOOT:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_FORGE_FIRSTBOOT:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_GIT_ROOT_INIT:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_GUACAMOLE:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_GUACD:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_HERMES_BROWSER_WORKER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_K3S:=controller,service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_K3S_MASTER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY:=gpu-serving,service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_LLM_HEAVY_ALT:=gpu-serving,service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_LLM_LIGHT:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_LLM_WORKER_:=gpu-serving,service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_MCP:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_OPENCODE_GATEWAY:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_OPEN_WEBUI:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_OTELCOL:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_PASSPORT_PROVISION:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_PGVECTOR:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_PGVECTOR_BACKUP:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_POLICY_ARBITER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_PXE_HUB:=controller,service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_SEARXNG:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_SKILLS_MINER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_SYS_ENV_REFRESH:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_USERDB_RENDER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_WEBTOOLS_CRAWL4AI:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_WEBTOOLS_FIRECRAWL_API:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_WEBTOOLS_FIRECRAWL_WORKER:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_WEBTOOLS_REDIS:=service-plane}"
+: "${MIOS_BLADE_ROLE_ALIASES_HA:=ha-node}"
+: "${MIOS_BLADE_ROLE_ALIASES_K3S:=k3s-master}"
+: "${MIOS_BLADE_SEAT_SIDE:=mios-agent-pipe,hermes-dashboard,mios-hermes-browser,mios-hermes-tail,mios-ttyd-bash,mios-ttyd-powershell}"
+: "${MIOS_BLADE_SOFT_OK:=hermes-worker}"
 : "${MIOS_BLADE_TYPE:=hybrid}"
 : "${MIOS_BOOLEAN_PARAM_KEYWORDS:=enable,force,success,active,dryrun}"
 : "${MIOS_BOOTSTRAP_MODE:=auto}"
@@ -255,7 +308,8 @@ export MIOS_VERSION
 : "${MIOS_BROWSER_AI_ENABLE:=true}"
 : "${MIOS_BROWSER_AI_PACKAGE:=Zen-Team.Zen-Browser.Twilight}"
 : "${MIOS_BROWSER_AI_PREFS:=browser.ml.enable|bool|true,browser.smartwindow.enabled|bool|true,browser.ml.chat.enabled|bool|true,browser.ml.chat.hideLocalhost|bool|false,browser.ml.chat.shortcuts|bool|true,browser.ml.chat.menu|bool|true,browser.ml.pageAssist.enabled|bool|true,browser.ml.linkPreview.enabled|bool|true}"
-: "${MIOS_BROWSER_AI_PROVIDER_URL:=http://localhost:8200}"
+: "${MIOS_PORT_OPEN_WEBUI:=8200}"
+[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"
 : "${MIOS_BROWSER_FAMILY_CHROMIUM:=chrome,chromium,brave,edge,vivaldi,opera}"
 : "${MIOS_BROWSER_FAMILY_EPIPHANY:=epiphany,gnome.web,gnome.epiphany}"
 : "${MIOS_BROWSER_FAMILY_FIREFOX:=firefox,mozilla,librewolf,waterfox,zen,floorp}"
@@ -277,7 +331,7 @@ export MIOS_VERSION
 : "${MIOS_BUILDER_DISTRO:=MiOS-DEV}"
 : "${MIOS_BUILD_AI_RAM_FLOOR_GB:=12}"
 : "${MIOS_BUILD_ARTIFACTS_OUTPUT_DIR:=build}"
-: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:7,codeberg.org/forgejo/forgejo:12,docker.io/adguard/adguardhome:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:latest,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:pg18,docker.io/rancher/k3s:v1.36.3-k3s1,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:v19,quay.io/poseidon/matchbox:latest}"
+: "${MIOS_BUILD_BAKE_CORE:=localhost/mios-sys,localhost/mios-cuda,localhost/mios-crawl4ai-slim:latest,localhost/mios-firecrawl:v1.0.0,code.forgejo.org/forgejo/runner:7,codeberg.org/forgejo/forgejo:12,docker.io/adguard/adguardhome:latest,docker.io/guacamole/guacamole:latest,docker.io/guacamole/guacd:latest,docker.io/jaegertracing/all-in-one:1.76.0,docker.io/lmsysorg/sglang:latest,docker.io/pgvector/pgvector:pg18,docker.io/rancher/k3s:v1.36.3-k3s1,docker.io/searxng/searxng:latest,docker.io/valkey/valkey:latest,docker.io/vllm/vllm-openai:latest,ghcr.io/mostlygeek/llama-swap:cuda,ghcr.io/open-webui/open-webui:main,quay.io/centos-bootc/bootc-image-builder:latest,quay.io/ceph/ceph:v19,quay.io/poseidon/matchbox:latest}"
 : "${MIOS_BUILD_BAKE_FIRSTBOOT_TOKENS:=vllm,sglang,crawl4ai,firecrawl}"
 : "${MIOS_BUILD_BAKE_GROUPS:=sys,cuda,heavy,extra}"
 : "${MIOS_BUILD_BAKE_GROUP_MEMBERS_CUDA:=cuda}"
@@ -327,7 +381,8 @@ export MIOS_VERSION
 : "${MIOS_CEPH_UID:=819}"
 : "${MIOS_CEPH_USER:=mios-ceph}"
 : "${MIOS_CEPH_VERSION:=quay.io/ceph/ceph:v19}"
-: "${MIOS_CHROME_CDP_PORT:=8570}"
+: "${MIOS_CHROME_CDP_PORT:=9222}"
+: "${MIOS_CHROME_CDP_WORKER_PORT:=9223}"
 : "${MIOS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
 : "${MIOS_COCKPIT_ALLOW_UNENCRYPTED:=true}"
 : "${MIOS_COCKPIT_IDLE_TIMEOUT:=0}"
@@ -435,7 +490,13 @@ export MIOS_VERSION
 : "${MIOS_COMPUTER_USE_REQUIRE_APPROVAL:=true}"
 : "${MIOS_COMPUTER_USE_SERVER_PORT:=11438}"
 : "${MIOS_COMPUTER_USE_VERIFY_AFTER_ACT:=true}"
-: "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP:=http://localhost:8720/v1}"
+: "${MIOS_CONSENSUS_ENABLE:=false}"
+: "${MIOS_CONSENSUS_MIN_LANES:=2}"
+: "${MIOS_CONSENSUS_RRF_K:=60}"
+: "${MIOS_CONSENSUS_THRESHOLD:=0.5}"
+: "${MIOS_CONSENSUS_TIMEOUT_S:=20.0}"
+: "${MIOS_CONSENSUS_WEIGHT_FLOOR:=0.1}"
+[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_CONVERGE_GATEWAY_MODE:=http}"
 : "${MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE:=64}"
 : "${MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY:=4}"
@@ -471,10 +532,9 @@ export MIOS_VERSION
 : "${MIOS_CPU_NODE_THREADS:=14}"
 : "${MIOS_CRAWL4AI_PORT:=8810}"
 : "${MIOS_CRAWL_CAMOUFOX:=true}"
-: "${MIOS_CRAWL_CDP_URL:=http://127.0.0.1:9222}"
+: "${MIOS_PORT_CHROME_CDP:=9222}"
+[ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP}"
 : "${MIOS_CRAWL_MIN_CHARS:=200}"
-: "${MIOS_PORT_CRAWL4AI:=8810}"
-[ -n "${MIOS_CRAWL_SERVICE_URL+x}" ] || MIOS_CRAWL_SERVICE_URL='http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"
 : "${MIOS_CROWDSEC_IMAGE:=docker.io/crowdsecurity/crowdsec:latest}"
 : "${MIOS_CROWDSEC_VERSION:=docker.io/crowdsecurity/crowdsec:latest}"
 : "${MIOS_CUDA_IMAGE:=ghcr.io/mostlygeek/llama-swap:cuda}"
@@ -692,7 +752,10 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=1724}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"
 : "${MIOS_DOCS_MIGRATE_MIN_WORDS:=60}"
+: "${MIOS_DOCS_PORT_CLEAN:=README.md,CLAUDE.md,GEMINI.md,AGENTS.md,MiOS.md,SECURITY.md,.github/ai-instructions.md,llms.txt,llms-full.txt,usr/share/doc/mios/reference/api.md,system-prompt.md,tools/README.md,etc/mios/ai/system-prompt.md,etc/mios/system-prompts/mios-reviewer.md,usr/share/mios/ai/INDEX.md,usr/share/mios/ai/audit-prompt.md,usr/share/mios/security/README.md,usr/share/mios/docs/agents/AI-ARCHITECTURE.md,usr/share/mios/docs/ai-pipeline-map.md,usr/share/mios/cookbooks/ingest-kb.md,usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md,usr/share/mios/hermes/skills/parallel-fanout/SKILL.md,installation/UNIFY.md,tools/windows/README-WINDOWS.md,etc/mios/system-prompts/mios-engineer.md,etc/mios/system-prompts/mios-troubleshoot.md,usr/share/mios/ai/system.md,usr/share/mios/ai/hermes-soul-full.md,usr/share/mios/cookbooks/finetune-flow.md,usr/share/mios/cookbooks/local-rag-day0.md,usr/share/mios/docs/day-0/FIRST-BOOT.md,usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md,usr/share/mios/docs/terminal/INVOCATIONS.md,usr/share/mios/hermes/skills/mios-environment/SKILL.md,usr/share/mios/hermes/skills/opencode-delegation/SKILL.md,usr/share/mios/open-webui/system-prompts/mios-agent.md,usr/share/doc/mios/manual.md,usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md,usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md,usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md,usr/share/doc/mios/adr/0006-openai-api-only-ai-contract.md,usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md,usr/share/doc/mios/adr/0009-unified-config-surface.md,usr/share/doc/mios/adr/README.md,usr/share/doc/mios/concepts/OFFLINE-FIRST.md,usr/share/doc/mios/concepts/a2a-passport-conformance-2026-06-20.md,usr/share/doc/mios/concepts/agent-pipe-openai-standards-master-plan.md,usr/share/doc/mios/concepts/aios-engineering-blueprint.md,usr/share/doc/mios/concepts/aios-implementation-plan.md,usr/share/doc/mios/concepts/coderun-sandbox.md,usr/share/doc/mios/concepts/container-os-runtime.md,usr/share/doc/mios/concepts/foss-upstream-map.md,usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md,usr/share/doc/mios/concepts/multi-agent-buildout-plan.md,usr/share/doc/mios/concepts/naming-refactor-plan.md,usr/share/doc/mios/concepts/postgres-pgvector-unification.md,usr/share/doc/mios/concepts/roadmap-snapshot-decomposition-2026-06-22.md,usr/share/doc/mios/concepts/unified-ai-pipeline-2026-06-16.md,usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md,usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md,usr/share/doc/mios/concepts/ws-a3-central-path-cutover-worklist.md,usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md,usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md,usr/share/doc/mios/finetune.md,usr/share/doc/mios/guides/agent-windows-ssh.md,usr/share/doc/mios/guides/deploy.md,usr/share/doc/mios/guides/edge-node-join.md,usr/share/doc/mios/guides/engineering.md,usr/share/doc/mios/guides/hummingbird-distroless.md,usr/share/doc/mios/guides/inference-consolidation.md,usr/share/doc/mios/guides/security.md,usr/share/doc/mios/manual/ch05-federation-and-computer-use.md,usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md,usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md,usr/share/doc/mios/manual/ch25-local-search-engine-and-searxng.md,usr/share/doc/mios/manual/ch48-local-ai-web-consoles.md,usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md,usr/share/doc/mios/manual/federation.md,usr/share/doc/mios/manual/hermes.md,usr/share/doc/mios/manual/llamacpp.md,usr/share/doc/mios/manual/mios.md,usr/share/doc/mios/manual/opencode-gateway.md,usr/share/doc/mios/manual/root.md,usr/share/doc/mios/manual/routing.md,usr/share/doc/mios/manual/scheduler.md,usr/share/doc/mios/manual/system.md,usr/share/doc/mios/manual/tools.md,usr/share/doc/mios/reference/PACKAGES.md,usr/share/doc/mios/reference/audit-security.md,usr/share/doc/mios/reference/build-scripts.md,usr/share/doc/mios/reference/credits.md,usr/share/doc/mios/reference/engineering-reference.md,usr/share/doc/mios/reference/hwcaps.md,usr/share/doc/mios/reference/maturity-and-release-runbook.md,usr/share/doc/mios/reference/sources.md,usr/share/doc/mios/reference/tree.md,usr/share/doc/mios/upstream/cdi.md,usr/share/doc/mios/upstream/deploy-targets.md,usr/share/doc/mios/upstream/fedora-bootc.md,usr/share/doc/mios/upstream/ghcr.md,usr/share/doc/mios/upstream/nvidia.md,usr/share/doc/mios/upstream/podman.md,usr/share/doc/mios/upstream/related-distros.md,usr/share/doc/mios/upstream/selinux.md,usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md,usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md,usr/share/mios/docs/install-robustness-2026-06-21.md,automation/67-bake-surfer.sh,usr/share/mios/owui/pipes/mios_agent_pipe.py}"
 : "${MIOS_DOCS_REF_ALLOWLIST:=/etc/ceph/ceph.conf,/etc/cdi/nvidia.yaml,/var/run/cdi/nvidia.yaml,/etc/containers/policy.json,/etc/mios/manifest.json,/var/,@@MIOS_}"
+: "${MIOS_DOCS_RENDER_EXTRA:=llms.txt,llms-full.txt}"
+: "${MIOS_DOCS_RETIRED_PORTS:=11434,11450,11441,3030,8432,8441,8442,8633,8640,8641,8642,8888,8899}"
 [ -n "${MIOS_DOCS_SANITIZE_PATH_REWRITES+x}" ] || MIOS_DOCS_SANITIZE_PATH_REWRITES='['"'"'file:///C:/MiOS/'"'"', '"'"''"'"'],['"'"'file:///C:/'"'"', '"'"''"'"'],['"'"'C:\\MiOS\\'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:/MiOS/'"'"', '"'"'/usr/share/mios/'"'"'],['"'"'C:\\MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'C:/MiOS'"'"', '"'"'/usr/share/mios'"'"'],['"'"'/mnt/c/MiOS'"'"', '"'"'/usr/share/mios'"'"']'
 [ -n "${MIOS_DOCS_SANITIZE_REDACT_PATTERNS+x}" ] || MIOS_DOCS_SANITIZE_REDACT_PATTERNS='(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|passwd|password|token)[A-Za-z0-9_]*\s*[:=]+\s*(?![>\s])[^\s"'"'"']{4,},\bsha256:[0-9a-f]{64}\b,(?i)\bBearer\s+[A-Za-z0-9._-]{16,}'
 : "${MIOS_DOCS_SANITIZE_REDACT_WITH:=[redacted]}"
@@ -702,7 +765,12 @@ is *also* a local, self-hosted, agentic AI operating system.
 [ -n "${MIOS_DOCS_SIGNALS_WHY+x}" ] || MIOS_DOCS_SIGNALS_WHY='\b(because|so that|otherwise|avoid|prevents?|must not|never|do not|fail-open|fail-closed|deliberately|intentionally|noqa|workaround|upstream bug|race|deadlock)\b'
 : "${MIOS_DOCS_STAY_MAX_LINES:=2}"
 : "${MIOS_DOCS_STAY_MAX_WORDS:=25}"
-: "${MIOS_DRIFT_DENYLIST:=mios_batch,mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
+: "${MIOS_DRIFT_DENYLIST:=mios_ctxpack,mios_embed_backfill,mios_provider_translate,mios_smartroute,mios_worker_tools}"
+: "${MIOS_DRIFT_MONITOR_AXES:=verdict,intent}"
+: "${MIOS_DRIFT_MONITOR_ENABLE:=false}"
+: "${MIOS_DRIFT_MONITOR_MIN_SAMPLES:=30}"
+: "${MIOS_DRIFT_MONITOR_THRESHOLD:=0.2}"
+: "${MIOS_DRIFT_MONITOR_WINDOW:=200}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_DEBLOAT_PROFILE:=minimal}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_POSTURE:=B}"
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_UUP_ARCH:=amd64}"
@@ -710,8 +778,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_AUTOUNATTEND_XBOX_ENABLE:=false}"
 : "${MIOS_EDITIONS_MIOS_BRANDING_LIVING_WALLPAPER:=false}"
 : "${MIOS_EDITIONS_MIOS_COLORS_ACCENT:=#1A407F}"
-: "${MIOS_EDITIONS_MIOS_MINI_GPU_ARBITRATION:=static}"
-: "${MIOS_EDITIONS_MIOS_MINI_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
+: "${MIOS_EDITIONS_MIOS_METAL_GPU_ARBITRATION:=static}"
+: "${MIOS_EDITIONS_MIOS_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_AUTOUNATTEND_DEBLOAT_PROFILE:=gaming}"
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_AUTOUNATTEND_POSTURE:=C}"
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_AUTOUNATTEND_UUP_ARCH:=arm64}"
@@ -719,8 +787,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_AUTOUNATTEND_XBOX_ENABLE:=true}"
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_BRANDING_LIVING_WALLPAPER:=true}"
 : "${MIOS_EDITIONS_MIOS_XBOX_ARM_COLORS_ACCENT:=#4B105C}"
-: "${MIOS_EDITIONS_MIOS_XBOX_ARM_MINI_GPU_ARBITRATION:=static}"
-: "${MIOS_EDITIONS_MIOS_XBOX_ARM_MINI_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
+: "${MIOS_EDITIONS_MIOS_XBOX_ARM_METAL_GPU_ARBITRATION:=static}"
+: "${MIOS_EDITIONS_MIOS_XBOX_ARM_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
 : "${MIOS_EDITIONS_MIOS_XBOX_AUTOUNATTEND_DEBLOAT_PROFILE:=gaming}"
 : "${MIOS_EDITIONS_MIOS_XBOX_AUTOUNATTEND_POSTURE:=C}"
 : "${MIOS_EDITIONS_MIOS_XBOX_AUTOUNATTEND_UUP_ARCH:=amd64}"
@@ -728,9 +796,9 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_XBOX_AUTOUNATTEND_XBOX_ENABLE:=true}"
 : "${MIOS_EDITIONS_MIOS_XBOX_BRANDING_LIVING_WALLPAPER:=true}"
 : "${MIOS_EDITIONS_MIOS_XBOX_COLORS_ACCENT:=#282262}"
-: "${MIOS_EDITIONS_MIOS_XBOX_MINI_GPU_ARBITRATION:=static}"
-: "${MIOS_EDITIONS_MIOS_XBOX_MINI_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
-: "${MIOS_ENDPOINT:=http://localhost:8700/v1}"
+: "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ARBITRATION:=static}"
+: "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
+[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
 : "${MIOS_ENHANCED_SESSION_ENABLED:=true}"
 : "${MIOS_ENHANCED_SESSION_PORT:=13389}"
 : "${MIOS_ENHANCED_SESSION_RESOLUTION:=auto}"
@@ -871,7 +939,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_FORGE_IMAGE:=codeberg.org/forgejo/forgejo:12}"
 : "${MIOS_FORGE_RUNNER_IMAGE:=code.forgejo.org/forgejo/runner:7}"
 : "${MIOS_FORGE_RUNNER_VERSION:=code.forgejo.org/forgejo/runner:7}"
-: "${MIOS_FORGE_SSH_GIT_PORT:=8590}"
 : "${MIOS_FORGE_SSH_PORT:=8410}"
 : "${MIOS_FORGE_UID:=816}"
 : "${MIOS_PORT_FORGE_HTTP:=8400}"
@@ -929,7 +996,11 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GRAPHICS_GDK_BACKEND:=x11}"
 : "${MIOS_GRAPHICS_GSK_RENDERER:=ngl}"
 : "${MIOS_GRAPHICS_XCURSOR_PATH:=~/.local/share/icons:~/.icons:/usr/share/icons:/usr/share/pixmaps}"
-: "${MIOS_GREENBOOT_CRITICAL_SERVICES:=agent-pipe,llm-light,pgvector}"
+: "${MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL:=false}"
+: "${MIOS_GREENBOOT_CRITICAL_SERVICES:=agent-pipe,llm-light,pgvector,hermes}"
+: "${MIOS_GREENBOOT_PROBE_AGENT_PIPE_KIND:=http}"
+: "${MIOS_GREENBOOT_PROBE_AGENT_PIPE_PATH:=/v1/models}"
+: "${MIOS_GREENBOOT_PROBE_HERMES_UNIT:=hermes-worker.service}"
 : "${MIOS_GUACAMOLE_IMAGE:=docker.io/guacamole/guacamole:latest}"
 : "${MIOS_GUACAMOLE_VERSION:=docker.io/guacamole/guacamole:latest}"
 : "${MIOS_GUACD_IMAGE:=docker.io/guacamole/guacd:latest}"
@@ -948,12 +1019,10 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_HERMES_MODEL:=granite4.1:8b}"
 : "${MIOS_HERMES_PORT:=8720}"
 : "${MIOS_HERMES_UID:=820}"
-[ -n "${MIOS_HERMES_URL+x}" ] || MIOS_HERMES_URL='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_HERMES_USER:=mios-hermes}"
 : "${MIOS_HERMES_VENV:=/usr/lib/mios/agents/.venv}"
 : "${MIOS_HERMES_VERSION:=docker.io/nousresearch/hermes-agent:latest}"
-[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES_WORKER}"'/v1'
-: "${MIOS_HERMES_WORKER_PORT:=8730}"
+[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_HITL_ENABLE:=true}"
 : "${MIOS_HITL_MODE:=log}"
 : "${MIOS_HOSTNAME:=mios}"
@@ -1019,8 +1088,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LAUNCH_TARGET_LEAD_PHRASES:=the,a,an,my}"
 : "${MIOS_LAUNCH_TARGET_TRAIL_PHRASES:=application,program,app,window}"
 [ -n "${MIOS_LAWS_LAWS+x}" ] || MIOS_LAWS_LAWS='{'"'"'id'"'"': 1, '"'"'slug'"'"': '"'"'USR-OVER-ETC'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_usr_over_etc'"'"'},{'"'"'id'"'"': 2, '"'"'slug'"'"': '"'"'NO-MKDIR-IN-VAR'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_no_mkdir_in_var'"'"'},{'"'"'id'"'"': 3, '"'"'slug'"'"': '"'"'BOUND-IMAGES'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item14'"'"'},{'"'"'id'"'"': 4, '"'"'slug'"'"': '"'"'BOOTC-CONTAINER-LINT'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_lint_is_final'"'"'},{'"'"'id'"'"': 5, '"'"'slug'"'"': '"'"'UNIFIED-AI-REDIRECTS'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item12'"'"'},{'"'"'id'"'"': 6, '"'"'slug'"'"': '"'"'UNPRIVILEGED-QUADLETS'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_quadlet_privilege'"'"'},{'"'"'id'"'"': 7, '"'"'slug'"'"': '"'"'NO-HARDCODE'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_no_hardcode'"'"'},{'"'"'id'"'"': 8, '"'"'slug'"'"': '"'"'SSOT-PROJECTION'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_projection_registry'"'"'},{'"'"'id'"'"': 9, '"'"'slug'"'"': '"'"'ONE-CANONICAL-NAME'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_var_closure'"'"'},{'"'"'id'"'"': 10, '"'"'slug'"'"': '"'"'BARE-SAFE-ENV'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item16'"'"'},{'"'"'id'"'"': 11, '"'"'slug'"'"': '"'"'SECRETS-NEVER-IN-ENV'"'"', '"'"'applies_to'"'"': '"'"'bootc'"'"', '"'"'enforced_by'"'"': '"'"'99-postcheck.sh:item17'"'"'},{'"'"'id'"'"': 12, '"'"'slug'"'"': '"'"'BAKE-NOT-FETCH'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_dag_integrity,check_firstboot_degrade_open'"'"'},{'"'"'id'"'"': 13, '"'"'slug'"'"': '"'"'NATIVE-DROPINS'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_resolver_twin_parity'"'"'},{'"'"'id'"'"': 14, '"'"'slug'"'"': '"'"'TARGET-LANGUAGES'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_target_languages'"'"'},{'"'"'id'"'"': 15, '"'"'slug'"'"': '"'"'DOUBLE-REPO-TRIPLE-CHECK'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'process:CLAUDE.md/AGENTS.md (both repos); parity via 98-drift-checks.sh checks 22+27'"'"'},{'"'"'id'"'"': 16, '"'"'slug'"'"': '"'"'ONE-TEMPLATE-PER-TYPE'"'"', '"'"'applies_to'"'"': '"'"'both'"'"', '"'"'enforced_by'"'"': '"'"'98-drift-checks.sh:check_template_conformance'"'"'}'
-: "${MIOS_LAWS_PROJECTION_REGISTRY_ALLOWLIST_HOSTS:=localhost,127.0.0.1,::1,host.containers.internal,mios-llm-light,mios-open-webui,mios-hermes,mios-pgvector,mios-forge,mios-searxng,mios-crawl4ai,mios-code-server}"
-: "${MIOS_LAWS_PROJECTION_REGISTRY_PROVENANCE_TAINT:=false}"
 [ -n "${MIOS_LAWS_PROJECTION_REGISTRY_SURFACES+x}" ] || MIOS_LAWS_PROJECTION_REGISTRY_SURFACES='{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-theme-render'"'"', '"'"'check'"'"': '"'"'check_dotfiles_projection'"'"', '"'"'output'"'"': '"'"'etc/ (and various target registries)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-sync-toml'"'"', '"'"'check'"'"': '"'"'check_toml_projection'"'"', '"'"'output'"'"': '"'"'usr/share/mios/mios.toml.bak (and metadata)'"'"'},{'"'"'generator'"'"': '"'"'automation/98-drift-checks.sh'"'"', '"'"'check'"'"': '"'"'check_drift_projection'"'"', '"'"'output'"'"': '"'"'stdout (drift assertions)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_manual_ledger'"'"', '"'"'output'"'"': '"'"'usr/share/mios/reference/manual-corpus.tsv'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_manual_generated'"'"', '"'"'output'"'"': '"'"'usr/share/doc/mios/ (MIOS-GEN marker interiors)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_comment_landing'"'"', '"'"'output'"'"': '"'"'usr/share/doc/mios/ (harvested passages + mios-src anchors)'"'"'},{'"'"'generator'"'"': '"'"'usr/libexec/mios/mios-manual'"'"', '"'"'check'"'"': '"'"'check_docs_ratchet_monotone'"'"', '"'"'output'"'"': '"'"'usr/share/mios/reference/doc-ratchet-floor.tsv'"'"'}'
 : "${MIOS_LAWS_TARGET_LANGUAGES_GRANDFATHERED_CS:=usr/share/mios/windows/MiOS-Launcher.cs,usr/share/mios/windows/MiosServiceTool.cs}"
 : "${MIOS_LIBEXEC_DIR:=/usr/libexec/mios}"
@@ -1035,7 +1102,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LLAMACPP_USER:=mios-llamacpp}"
 : "${MIOS_LLM_LIGHT_IMAGE:=ghcr.io/mostlygeek/llama-swap:cuda}"
 : "${MIOS_LLM_LIGHT_PORT:=8500}"
-[ -n "${MIOS_LLM_LIGHT_URL+x}" ] || MIOS_LLM_LIGHT_URL='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
 : "${MIOS_LLM_LIGHT_VERSION:=ghcr.io/mostlygeek/llama-swap:cuda}"
 : "${MIOS_LOCALE:=en_US.UTF-8}"
 : "${MIOS_LOCALE_KEYBOARD_LAYOUT:=us}"
@@ -1053,9 +1119,23 @@ is *also* a local, self-hosted, agentic AI operating system.
 [ -n "${MIOS_MCP_REGISTRY+x}" ] || MIOS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR}"'/v1/mcp.json'
 : "${MIOS_MEMORY_COMPACTION_INTERVAL:=20}"
 : "${MIOS_MEMORY_COMPACTION_THRESHOLD_PCT:=80}"
+: "${MIOS_MEMORY_CONSOLIDATE:=true}"
+: "${MIOS_MEMORY_CONSOLIDATE_INTERVAL_S:=3600}"
+: "${MIOS_MEMORY_CONSOLIDATE_MAX_GROUPS:=200}"
 : "${MIOS_MEMORY_KV_SLOT_PERSIST:=true}"
 : "${MIOS_MEMORY_N_CTX:=8000}"
 : "${MIOS_MEMORY_TOOL_RESULT_TTL_TURNS:=5}"
+: "${MIOS_METAL_BIND_DGPU_VFIO:=true}"
+: "${MIOS_METAL_DGPUMODE:=vfio-pci}"
+: "${MIOS_METAL_ENABLED:=false}"
+: "${MIOS_METAL_GPU_ARBITRATION:=static}"
+: "${MIOS_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
+: "${MIOS_METAL_GUEST_CPU_PERCENT:=85}"
+: "${MIOS_METAL_GUEST_RAM_PERCENT:=85}"
+: "${MIOS_METAL_MESH_ENABLED:=false}"
+: "${MIOS_METAL_MESH_HEADSCALE_DOMAIN:=mesh.mios.local}"
+: "${MIOS_METAL_MESH_SWTPM_VTPM:=true}"
+: "${MIOS_METAL_MESH_VNET_CIDR:=100.64.0.0/10}"
 : "${MIOS_META_EDITOR_URL:=/usr/share/mios/configurator/mios.html}"
 : "${MIOS_META_FORMAT:=toml}"
 : "${MIOS_META_MIOS_VERSION:=0.3.0}"
@@ -1067,17 +1147,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_POWERSHELL:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_PYTHON:=true}"
 : "${MIOS_MIGRATION_USE_RUST_RESOLVER_SHELL:=true}"
-: "${MIOS_MINI_BIND_DGPU_VFIO:=true}"
-: "${MIOS_MINI_DGPUMODE:=vfio-pci}"
-: "${MIOS_MINI_ENABLED:=false}"
-: "${MIOS_MINI_GPU_ARBITRATION:=static}"
-: "${MIOS_MINI_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
-: "${MIOS_MINI_GUEST_CPU_PERCENT:=85}"
-: "${MIOS_MINI_GUEST_RAM_PERCENT:=85}"
-: "${MIOS_MINI_MESH_ENABLED:=false}"
-: "${MIOS_MINI_MESH_HEADSCALE_DOMAIN:=mesh.mios.local}"
-: "${MIOS_MINI_MESH_SWTPM_VTPM:=true}"
-: "${MIOS_MINI_MESH_VNET_CIDR:=100.64.0.0/10}"
 : "${MIOS_MIOS_DEVELOPER:=MiOS}"
 : "${MIOS_MIOS_FIND_ALIASES_CALCULATOR:=gnome-calculator}"
 : "${MIOS_MIOS_FIND_ALIASES_CALCULATOR_WIN:=calc}"
@@ -1175,24 +1244,20 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NETWORK_RETRY_DELAYS_SECONDS:=0,5,15,30}"
 : "${MIOS_NETWORK_RETRY_HTTP_STATUS_RETRY:=502,503,504}"
 : "${MIOS_NETWORK_RETRY_TOTAL_TIMEOUT_SEC:=120}"
-: "${MIOS_NODES_LOCAL_CPU_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
+: "${MIOS_NODES_LOCAL_CPU_API:=llamacpp}"
+: "${MIOS_PORT_CPU_NODE:=8510}"
+[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_CPU_NODE}"'/v1'
 : "${MIOS_NODES_LOCAL_CPU_HEALTH_GATE:=true}"
-: "${MIOS_NODES_LOCAL_CPU_LANE:=gpu}"
-: "${MIOS_NODES_LOCAL_CPU_MODEL:=mios-heavy}"
-: "${MIOS_NODES_LOCAL_DGPU_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_DGPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_DGPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
-: "${MIOS_NODES_LOCAL_DGPU_HEALTH_GATE:=true}"
-: "${MIOS_NODES_LOCAL_DGPU_LANE:=gpu}"
-: "${MIOS_NODES_LOCAL_DGPU_MODEL:=mios-heavy}"
+: "${MIOS_NODES_LOCAL_CPU_LANE:=cpu}"
+: "${MIOS_NODES_LOCAL_CPU_MODEL:=mios-agent-cpu}"
 : "${MIOS_NODES_LOCAL_IGPU_API:=llamacpp}"
 : "${MIOS_NODES_LOCAL_IGPU_LANE:=igpu}"
 : "${MIOS_NODES_LOCAL_IGPU_MODEL:=mios-igpu}"
-: "${MIOS_NODES_LOCAL_LLAMASWAP_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
+: "${MIOS_NODES_LOCAL_LLAMASWAP_API:=llamacpp}"
+[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"'/v1'
 : "${MIOS_NODES_LOCAL_LLAMASWAP_HEALTH_GATE:=true}"
-: "${MIOS_NODES_LOCAL_LLAMASWAP_LANE:=gpu}"
-: "${MIOS_NODES_LOCAL_LLAMASWAP_MODEL:=mios-heavy}"
+: "${MIOS_NODES_LOCAL_LLAMASWAP_LANE:=cpu}"
+: "${MIOS_NODES_LOCAL_LLAMASWAP_MODEL:=mios-agent-cpu}"
 : "${MIOS_NODES_LOCAL_SGLANG_API:=openai}"
 [ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
 : "${MIOS_NODES_LOCAL_SGLANG_HEALTH_GATE:=true}"
@@ -1204,6 +1269,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
+: "${MIOS_NON_ADDRESSABLE_URL:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 : "${MIOS_OBSERVABILITY_CHANNELS_CONTENT:=content}"
 : "${MIOS_OBSERVABILITY_CHANNELS_PLAN:=reasoning}"
 : "${MIOS_OBSERVABILITY_CHANNELS_SOURCE:=source}"
@@ -1212,7 +1278,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OBSERVABILITY_CHANNELS_TOOL_RESULT:=reasoning}"
 : "${MIOS_OBSERVABILITY_DEBUG:=true}"
 : "${MIOS_OBSERVABILITY_OTEL_ENABLE:=false}"
-: "${MIOS_OBSERVABILITY_OTEL_ENDPOINT:=http://localhost:4317}"
+: "${MIOS_PORT_OTELCOL_OTLP:=8575}"
+[ -n "${MIOS_OBSERVABILITY_OTEL_ENDPOINT+x}" ] || MIOS_OBSERVABILITY_OTEL_ENDPOINT='http://localhost:'"${MIOS_PORT_OTELCOL_OTLP}"
 : "${MIOS_OBSERVABILITY_RECORD_MODE:=false}"
 : "${MIOS_OBSERVABILITY_REPLAY_MODE:=false}"
 : "${MIOS_OBSERVABILITY_SURFACE_DEFAULT:=clean}"
@@ -1250,7 +1317,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OPEN_WEBUI_IMAGE:=ghcr.io/open-webui/open-webui:main}"
 : "${MIOS_OPEN_WEBUI_PORT:=8200}"
 : "${MIOS_OPEN_WEBUI_UID:=817}"
-: "${MIOS_PORT_OPEN_WEBUI:=8200}"
 [ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
 : "${MIOS_OPEN_WEBUI_USER:=mios-open-webui}"
 : "${MIOS_OPEN_WEBUI_VERSION:=ghcr.io/open-webui/open-webui:main}"
@@ -1264,10 +1330,12 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OS_CONTROL_REGION_SNAP_HALVES:=true}"
 : "${MIOS_OS_CONTROL_RESTORE_IF_RUNNING:=true}"
 : "${MIOS_OS_CONTROL_TILE_GAP_PX:=8}"
-: "${MIOS_OTELCOL_IMAGE:=docker.io/jaegertracing/all-in-one:latest}"
+: "${MIOS_OTELCOL_IMAGE:=docker.io/jaegertracing/all-in-one:1.76.0}"
 : "${MIOS_OTELCOL_OTLP_PORT:=8575}"
 : "${MIOS_OTELCOL_UI_PORT:=8580}"
-: "${MIOS_OTELCOL_VERSION:=docker.io/jaegertracing/all-in-one:latest}"
+: "${MIOS_PORT_OTELCOL_UI:=8580}"
+[ -n "${MIOS_OTELCOL_UI_URL+x}" ] || MIOS_OTELCOL_UI_URL='http://localhost:'"${MIOS_PORT_OTELCOL_UI}"'/'
+: "${MIOS_OTELCOL_VERSION:=docker.io/jaegertracing/all-in-one:1.76.0}"
 [ -n "${MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE+x}" ] || MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE='# MiOS AI
 Front door of MiOS, a local-first agentic OS. You refine intent, plan,
 delegate to sub-agents, and shape the final answer. Live facts (services,
@@ -1382,8 +1450,6 @@ to" / "let me know".
 : "${MIOS_PGVECTOR_RLS_MODE:=off}"
 : "${MIOS_PGVECTOR_SCHEMA_INIT:=/usr/share/mios/postgres/schema-init.sql}"
 : "${MIOS_PGVECTOR_UID:=826}"
-: "${MIOS_PORT_PGVECTOR:=8600}"
-[ -n "${MIOS_PGVECTOR_URL+x}" ] || MIOS_PGVECTOR_URL='postgresql://mios:mios@localhost:'"${MIOS_PORT_PGVECTOR}"'/mios'
 : "${MIOS_PGVECTOR_USER:=mios-pgvector}"
 : "${MIOS_PGVECTOR_VERSION:=docker.io/pgvector/pgvector:pg18}"
 : "${MIOS_PG_DATA_DIR:=/var/lib/mios/pgvector}"
@@ -1462,7 +1528,7 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_ADMIN_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_BASE:=8700}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_DOC:=Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes.}"
-: "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,hermes_worker,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
+: "${MIOS_PORTS_CATEGORIES_AGENT_MEMBERS:=agent_pipe,prefilter,hermes,,daemon_agent,model_router,arbiter,mcp,opencode_gateway}"
 : "${MIOS_PORTS_CATEGORIES_AGENT_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_BASE:=8950}"
 : "${MIOS_PORTS_CATEGORIES_BRIDGE_DOC:=Cross-OS bridges (Windows-side UI Automation executor). LOOPBACK-only.}"
@@ -1498,8 +1564,10 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_INFERENCE_MEMBERS:=llm_light,cpu_node,vllm,sglang}"
 : "${MIOS_PORTS_CATEGORIES_INFERENCE_STRIDE:=10}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_BASE:=8560}"
-: "${MIOS_PORTS_CATEGORIES_SIDECAR_DOC:=Supporting daemons that bind a real port but are not user-facing services. These were HARDCODED in Quadlets with no SSOT key at all (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger 16686, matchbox 8081, Forgejo git-ssh 49922), so nothing could detect a collision when a container was added. Now allocated and collision-checked like everything else.}"
-: "${MIOS_PORTS_CATEGORIES_SIDECAR_MEMBERS:=guacd,redis,chrome_cdp,otelcol_otlp,otelcol_ui,pxe_hub_api,forge_ssh_git}"
+: "${MIOS_PORTS_CATEGORIES_SIDECAR_DOC:=Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Allocating a key is only half the job: the service must then BIND it, which is why [ports].unbound is a shrink-only register gated by check_ports_bound. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORT_FORGE_SSH.}"
+: "${MIOS_PORTS_CATEGORIES_SIDECAR_MEMBERS:=guacd,redis,,otelcol_otlp,otelcol_ui,pxe_hub_api,}"
+: "${MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP:=9222}"
+: "${MIOS_PORTS_CATEGORIES_SIDECAR_PINNED_CHROME_CDP_WORKER:=9223}"
 : "${MIOS_PORTS_CATEGORIES_SIDECAR_STRIDE:=5}"
 : "${MIOS_PORTS_CATEGORIES_WEBTOOLS_BASE:=8800}"
 : "${MIOS_PORTS_CATEGORIES_WEBTOOLS_DOC:=Search, crawl and scrape backends (the mios-webtools pod). LOOPBACK-only.}"
@@ -1510,7 +1578,8 @@ to" / "let me know".
 : "${MIOS_PORTS_CATEGORIES_WEBUI_MEMBERS:=open_webui,hermes_dashboard,guacamole_web}"
 : "${MIOS_PORTS_CATEGORIES_WEBUI_STRIDE:=10}"
 : "${MIOS_PORTS_CEPH_DASHBOARD:=8460}"
-: "${MIOS_PORTS_CHROME_CDP:=8570}"
+: "${MIOS_PORTS_CHROME_CDP:=9222}"
+: "${MIOS_PORTS_CHROME_CDP_WORKER:=9223}"
 : "${MIOS_PORTS_COCKPIT:=8110}"
 : "${MIOS_PORTS_COCKPIT_LINK:=8120}"
 : "${MIOS_PORTS_CODE_SERVER:=8900}"
@@ -1520,12 +1589,10 @@ to" / "let me know".
 : "${MIOS_PORTS_FIRECRAWL:=8820}"
 : "${MIOS_PORTS_FORGE_HTTP:=8400}"
 : "${MIOS_PORTS_FORGE_SSH:=8410}"
-: "${MIOS_PORTS_FORGE_SSH_GIT:=8590}"
 : "${MIOS_PORTS_GUACAMOLE_WEB:=8220}"
 : "${MIOS_PORTS_GUACD:=8560}"
 : "${MIOS_PORTS_HERMES:=8720}"
 : "${MIOS_PORTS_HERMES_DASHBOARD:=8210}"
-: "${MIOS_PORTS_HERMES_WORKER:=8730}"
 : "${MIOS_PORTS_K3S_API:=8450}"
 : "${MIOS_PORTS_LLM_LIGHT:=8500}"
 : "${MIOS_PORTS_MCP:=8770}"
@@ -1546,26 +1613,25 @@ to" / "let me know".
 : "${MIOS_PORTS_STACK_ID:=0}"
 : "${MIOS_PORTS_TTYD_BASH:=8310}"
 : "${MIOS_PORTS_TTYD_POWERSHELL:=8320}"
+: "${MIOS_PORTS_UNBOUND:=chrome_cdp_worker}"
 : "${MIOS_PORTS_VLLM:=8520}"
 : "${MIOS_PORT_ADGUARD_DNS:=53}"
 : "${MIOS_PORT_ADGUARD_UI:=8050}"
 : "${MIOS_PORT_ARBITER:=8760}"
 : "${MIOS_PORT_CEPH_DASHBOARD:=8460}"
-: "${MIOS_PORT_CHROME_CDP:=8570}"
+: "${MIOS_PORT_CHROME_CDP_WORKER:=9223}"
 : "${MIOS_PORT_COCKPIT_LINK:=8120}"
-: "${MIOS_PORT_CPU_NODE:=8510}"
+: "${MIOS_PORT_CRAWL4AI:=8810}"
 : "${MIOS_PORT_DAEMON_AGENT:=8740}"
 : "${MIOS_PORT_FIRECRAWL:=8820}"
 : "${MIOS_PORT_FORGE_SSH:=8410}"
-: "${MIOS_PORT_FORGE_SSH_GIT:=8590}"
 : "${MIOS_PORT_GUACD:=8560}"
 : "${MIOS_PORT_HERMES_DASHBOARD:=8210}"
 : "${MIOS_PORT_K3S_API:=8450}"
 : "${MIOS_PORT_MCP:=8770}"
 : "${MIOS_PORT_MODEL_ROUTER:=8750}"
 : "${MIOS_PORT_OSCONTROL:=8950}"
-: "${MIOS_PORT_OTELCOL_OTLP:=8575}"
-: "${MIOS_PORT_OTELCOL_UI:=8580}"
+: "${MIOS_PORT_PGVECTOR:=8600}"
 : "${MIOS_PORT_PREFILTER:=8710}"
 : "${MIOS_PORT_PXE_HUB_API:=8585}"
 : "${MIOS_PORT_RDP:=8300}"
@@ -1575,9 +1641,18 @@ to" / "let me know".
 : "${MIOS_PORT_STACK_ID:=0}"
 : "${MIOS_PORT_TTYD_BASH:=8310}"
 : "${MIOS_PORT_TTYD_POWERSHELL:=8320}"
+: "${MIOS_PORT_UNBOUND:=chrome_cdp_worker}"
 : "${MIOS_POSTGRES_IMAGE:=docker.io/library/postgres:latest}"
 : "${MIOS_POSTGRES_VERSION:=docker.io/library/postgres:latest}"
+: "${MIOS_POWERSHELL_ENUMERATION_LIMIT:=16}"
 : "${MIOS_POWERSHELL_EXE:=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
+: "${MIOS_POWERSHELL_FLATTEN:=true}"
+: "${MIOS_POWERSHELL_FLATTEN_WIDTH:=200}"
+: "${MIOS_POWERSHELL_MAX_OUTPUT_BYTES:=262144}"
+: "${MIOS_POWERSHELL_MAX_SCRIPT_BYTES:=65536}"
+: "${MIOS_POWERSHELL_PLAIN_TEXT:=true}"
+: "${MIOS_POWERSHELL_STAGE_DIR:=/mnt/c/Users/Public/Documents/mios-ps}"
+: "${MIOS_POWERSHELL_TRIM_TRAILING:=true}"
 : "${MIOS_POWER_UPS_DESC:=MiOS Uninterruptible Power Supply}"
 : "${MIOS_POWER_UPS_DRIVER:=usbhid-ups}"
 : "${MIOS_POWER_UPS_PORT:=auto}"
@@ -1589,8 +1664,6 @@ to" / "let me know".
 : "${MIOS_PREFLIGHT_MIN_WINDOWS_BUILD:=22000}"
 : "${MIOS_PREFLIGHT_REQUIRE_ADMIN:=true}"
 : "${MIOS_PREFLIGHT_REQUIRE_VIRT:=true}"
-: "${MIOS_PROFILE_FEATURES:=ai,virtualization,k3s}"
-: "${MIOS_PROFILE_ROLE:=developer}"
 : "${MIOS_PROFILE_TOML_HOST:=/etc/mios/profile.toml}"
 : "${MIOS_PROFILE_TOML_VENDOR:=/usr/share/mios/profile.toml}"
 : "${MIOS_PXE_HUB_API_PORT:=8585}"
@@ -1611,6 +1684,8 @@ to" / "let me know".
 : "${MIOS_RDP_PORT:=8300}"
 : "${MIOS_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_REDIS_PORT:=8565}"
+: "${MIOS_REFACTOR_MAX_LINES:=800}"
+[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{'"'"'path'"'"': '"'"'mios_pipe/federation/a2a.py'"'"', '"'"'lines'"'"': 1545},{'"'"'path'"'"': '"'"'mios_pipe/federation/http_caps.py'"'"', '"'"'lines'"'"': 820},{'"'"'path'"'"': '"'"'mios_pipe/memory/knowledge.py'"'"', '"'"'lines'"'"': 961},{'"'"'path'"'"': '"'"'mios_pipe/routing/agent_call.py'"'"', '"'"'lines'"'"': 1153},{'"'"'path'"'"': '"'"'mios_pipe/routing/chat.py'"'"', '"'"'lines'"'"': 1786},{'"'"'path'"'"': '"'"'mios_pipe/routing/dag_exec.py'"'"', '"'"'lines'"'"': 1297},{'"'"'path'"'"': '"'"'mios_pipe/routing/native_loop.py'"'"', '"'"'lines'"'"': 1190},{'"'"'path'"'"': '"'"'mios_pipe/routing/portal.py'"'"', '"'"'lines'"'"': 1675},{'"'"'path'"'"': '"'"'mios_pipe/routing/refine.py'"'"', '"'"'lines'"'"': 1120},{'"'"'path'"'"': '"'"'mios_pipe/routing/swarm.py'"'"', '"'"'lines'"'"': 1062},{'"'"'path'"'"': '"'"'mios_pipe/routing/web_research.py'"'"', '"'"'lines'"'"': 987},{'"'"'path'"'"': '"'"'mios_dispatch.py'"'"', '"'"'lines'"'"': 943},{'"'"'path'"'"': '"'"'server.py'"'"', '"'"'lines'"'"': 4975}'
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
 : "${MIOS_REFINE_CHAT_CHARS:=40}"
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
@@ -1676,6 +1751,9 @@ to" / "let me know".
 : "${MIOS_ROUTING_WEB_SEARCH_TRIGGER_CONTEXTS:=web,internet,online}"
 : "${MIOS_ROUTING_WEB_SEARCH_TRIGGER_PHRASES:=search,look up,google,find,search the web,search online}"
 : "${MIOS_RUN_TEMPLATE_ENABLE:=true}"
+: "${MIOS_RUN_TEMPLATE_REPLAY_CANDIDATES:=50}"
+: "${MIOS_RUN_TEMPLATE_REPLAY_ENABLE:=false}"
+: "${MIOS_RUN_TEMPLATE_REPLAY_THRESHOLD:=0.85}"
 : "${MIOS_SANDBOX_ENABLE:=false}"
 : "${MIOS_SCHEDULER_MAX_PREEMPT_DEPTH:=1}"
 : "${MIOS_SCHEDULER_MAX_SUSPENDED:=4}"
@@ -1698,9 +1776,10 @@ to" / "let me know".
 : "${MIOS_SCHED_URGENCY_HIGH_TERMS:=high,urgent,now}"
 : "${MIOS_SCHED_URGENCY_LOW:=2}"
 : "${MIOS_SCHED_URGENCY_LOW_TERMS:=low,background,defer}"
+[ -n "${MIOS_SCHEMA_UNCONSUMED+x}" ] || MIOS_SCHEMA_UNCONSUMED='{'"'"'table'"'"': '"'"'mios_security.fido2_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the FIDO2 enrolment path'"'"'},{'"'"'table'"'"': '"'"'mios_security.usb_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the USBGuard rule sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_users'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_preauth_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_acl_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.keepass_vaults'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the vault integration'"'"'},{'"'"'table'"'"': '"'"'mios_identity.account_preferences'"'"', '"'"'reason'"'"': '"'"'T-246: duplicate of the live account_preference; RESOLVE, do not extend'"'"'},{'"'"'table'"'"': '"'"'person_device'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any device-enrolment writer'"'"'},{'"'"'table'"'"': '"'"'person_app_install'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any app-inventory writer'"'"'}'
 : "${MIOS_SEARCH_ANCHOR_STOPWORDS:=the,a,an,of,to,from,and,or,for,in,on,at,by,with,as,is,are,was,were,be,this,that,these,those,it,its,me,my,we,our,you,your,they,them,what,which,who,when,where,why,how,do,does,did,can,could,will,would,should,may,might,near,into,about,than,then,there,here,out,not,no,all,any,some,more,most,find,get,make,show,give,tell,list,need,want,like,use,using,best,cheap,cheapest}"
 : "${MIOS_SEARCH_ENABLE:=true}"
-: "${MIOS_SEARCH_ENDPOINT:=http://localhost:8800/}"
+[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORT_SEARXNG}"'/'
 : "${MIOS_SEARXNG_GID:=818}"
 : "${MIOS_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_SEARXNG_PORT:=8800}"
@@ -1708,6 +1787,9 @@ to" / "let me know".
 [ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL='http://localhost:'"${MIOS_PORT_SEARXNG}"
 : "${MIOS_SEARXNG_USER:=mios-searxng}"
 : "${MIOS_SEARXNG_VERSION:=docker.io/searxng/searxng:latest}"
+: "${MIOS_SECURITY_ALLOWLIST_HOSTS:=localhost,127.0.0.1,::1,host.containers.internal,mios-llm-light,mios-open-webui,mios-hermes,mios-pgvector,mios-forge,mios-searxng,mios-crawl4ai,mios-code-server}"
+: "${MIOS_SECURITY_PROBE_VERIFY_TLS:=true}"
+: "${MIOS_SECURITY_PROVENANCE_TAINT:=false}"
 : "${MIOS_SELFIMPROVE_ACCEPT_MARGIN:=0.0}"
 : "${MIOS_SELFIMPROVE_ACT_ENABLED:=false}"
 : "${MIOS_SELFIMPROVE_FAIL_THRESHOLD:=0.3}"
@@ -1752,7 +1834,7 @@ to" / "let me know".
 : "${MIOS_SERVICES_SEARXNG_UID:=818}"
 : "${MIOS_SERVICES_SEARXNG_USER:=mios-searxng}"
 : "${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:=true}"
-: "${MIOS_SERVICES_WEBTOOLS_CDP_URL:=http://127.0.0.1:9222}"
+[ -n "${MIOS_SERVICES_WEBTOOLS_CDP_URL+x}" ] || MIOS_SERVICES_WEBTOOLS_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:=mios}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:=INFO}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:=2}"
@@ -1781,6 +1863,16 @@ to" / "let me know".
 : "${MIOS_SHELL_ALIAS_GP:=git push}"
 : "${MIOS_SHELL_ALIAS_GS:=git status}"
 : "${MIOS_SHELL_ALIAS_LL:=ls -la}"
+: "${MIOS_SHELL_SESSION_ENABLE:=false}"
+: "${MIOS_SHELL_SESSION_HISTORY_LIMIT:=50000}"
+: "${MIOS_SHELL_SESSION_IDLE_S:=1800}"
+: "${MIOS_SHELL_SESSION_MAX_OUTPUT_CHARS:=24000}"
+: "${MIOS_SHELL_SESSION_MAX_OUTPUT_LINES:=400}"
+: "${MIOS_SHELL_SESSION_MAX_SESSIONS:=8}"
+: "${MIOS_SHELL_SESSION_SHELL:=/bin/bash}"
+: "${MIOS_SHELL_SESSION_SOCKET_NAME:=mios}"
+: "${MIOS_SHELL_SESSION_STATE_DIR:=/var/lib/mios/shell-sessions}"
+: "${MIOS_SHELL_SESSION_TIMEOUT_S:=120}"
 : "${MIOS_SKILLS_AUTO_PROMOTE_THRESHOLD:=0.85}"
 : "${MIOS_SKILLS_ENABLE:=true}"
 : "${MIOS_SKILLS_LOCAL_CATALOG_DIR:=/var/lib/mios/skills}"
@@ -1805,6 +1897,9 @@ to" / "let me know".
 : "${MIOS_SSH_KEY_ACTION:=generate}"
 : "${MIOS_SSH_PORT:=2222}"
 : "${MIOS_SSH_USER:=agent}"
+[ -n "${MIOS_SSOT_CONSUMERS_DOC+x}" ] || MIOS_SSOT_CONSUMERS_DOC='Shipped Python reads config as _toml_section("<table>").get("<key>"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys.'
+: "${MIOS_SSOT_CONSUMERS_MAX_UNRESOLVED:=9}"
+: "${MIOS_SSOT_CONSUMERS_UNRESOLVED:=a2a.security,agent_passport.principal_mode,ai.micro_endpoint,ai.micro_model,ai.permission_tiers,computer_use.hidpi_scale_factor,pgvector.memguard_judge_mode,pgvector.memory_guard_mode,pgvector.memory_provider}"
 : "${MIOS_STACK_ID_PORT:=0}"
 : "${MIOS_STACK_MODEL:=granite4.1:8b}"
 : "${MIOS_STORAGE_CEPHFS_AUTOMOUNT_ENABLE:=true}"
@@ -2114,6 +2209,7 @@ to" / "let me know".
 : "${MIOS_TTYD_WRITABLE:=true}"
 : "${MIOS_UKI_VERITY_BUILD:=false}"
 : "${MIOS_UKI_VERITY_UKI_BUILD:=false}"
+: "${MIOS_UNBOUND_PORT:=chrome_cdp_worker}"
 : "${MIOS_UNITS_AGENT_PIPE:=mios-agent-pipe.service}"
 : "${MIOS_UNITS_CEPH:=mios-ceph.service}"
 : "${MIOS_UNITS_COCKPIT_LINK:=mios-cockpit-link.service}"
@@ -2155,7 +2251,7 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
-[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
@@ -2438,18 +2534,18 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_COMMENT='# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
 # AI-related: mios-compute, mios-headless.target'
-: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Compute Role'
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_COMMENT='# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
 # AI-related: mios-controller, mios-headless.target'
-: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Controller Role'
 : "${MIOS_UNITS_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_DAEMON_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -2522,10 +2618,10 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-dashboard-render-issue.sh}"
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
 # AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service'
-: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-headless.target mios-k3s-master.target mios-ha-node.target}"
+: "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Desktop Role'
 : "${MIOS_UNITS_MIOS_DESKTOP_TARGET_UNIT_REQUIRES:=multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service}"
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -2562,10 +2658,10 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_COMMENT='# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
 # AI-related: mios-endpoint, mios-headless.target'
-: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Endpoint Role'
 : "${MIOS_UNITS_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_FINETUNE_SERVE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -2625,8 +2721,8 @@ to" / "let me know".
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\'"'"''
-: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
-: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=yes}"
+: "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=yes}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNITS_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER:=firewalld.service network-online.target}"
@@ -2867,18 +2963,18 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
 # AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target'
-: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target mios-k3s-master.target}"
+: "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' HA Cluster Node Role'
 : "${MIOS_UNITS_MIOS_HA_NODE_TARGET_UNIT_REQUIRES:=multi-user.target corosync.service pacemaker.service}"
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_COMMENT='# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
 # AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target'
-: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-k3s-master.target mios-ha-node.target}"
+: "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Headless Role'
 : "${MIOS_UNITS_MIOS_HEADLESS_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HERMES_BROWSER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -2974,25 +3070,26 @@ to" / "let me know".
 # rewrite could never reach.'
 [ -n "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Agent first-boot config + key generation'
 : "${MIOS_UNITS_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
-: "${MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_ALIAS:=default.target.mios-hybrid}"
+: "${MIOS_UNITS_MIOS_HYBRID_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
-: "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
 # AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target'
+: "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target}"
 [ -n "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hybrid role (desktop + k3s-worker + ceph-osd)'
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_REQUIRES:=graphical.target}"
 : "${MIOS_UNITS_MIOS_HYBRID_TARGET_UNIT_WANTS:=k3s-agent.service}"
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
 # AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target'
-: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target mios-ha-node.target}"
+: "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target}"
 [ -n "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s Master Role'
 : "${MIOS_UNITS_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES:=multi-user.target k3s.service}"
-: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS:=default.target.mios-k3s-worker}"
+: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
 # AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target'
 [ -n "${MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s worker role (agent)'
@@ -3180,6 +3277,23 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-policy-arbiter}"
 [ -n "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9)'
 : "${MIOS_UNITS_MIOS_POLICY_ARBITER_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-shell-session gc}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_USER:=mios-ai}"
+[ -n "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_COMMENT='# AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state.
+# AI-related: /usr/libexec/mios/mios-shell-session, mios-shell-session-gc.timer, /usr/share/mios/mios.toml [shell_session]'
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-shell-session}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_DESCRIPTION:=Reap idle MiOS shell sessions}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_INSTALL_WANTEDBY:=timers.target}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_TIMER_ONBOOTSEC:=10min}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_TIMER_ONUNITINACTIVESEC:=10min}"
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_TIMER_PERSISTENT:=true}"
+[ -n "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_UNIT_COMMENT='# AI-hint: Fires mios-shell-session-gc.service periodically so idle persistent shells are reclaimed without an operator.
+# AI-related: mios-shell-session-gc.service'
+: "${MIOS_UNITS_MIOS_SHELL_SESSION_GC_TIMER_UNIT_DESCRIPTION:=Periodic reap of idle MiOS shell sessions}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC:=2min}"
 : "${MIOS_UNITS_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC:=10min}"
@@ -3398,7 +3512,7 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_COMMENT='# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/config AND a
 # distinct $HOME/XDG so the discord scope-lock dir (derived from $HOME) can
 # never collide with the :8642 gateway'"'"'s. Discord is off here regardless.'
-[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:8888,MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235,FIRECRAWL_API_URL=http://127.0.0.1:3002,PORT=${MIOS_PORT_HERMES_WORKER:-8730},API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730},HERMES_BACKEND_BASE_URL=http://localhost:11441,HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
@@ -3681,18 +3795,18 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_COMMENT='# AI-hint: Defines the compute systemd target for MiOS, representing a compute/worker node.
 # AI-related: mios-compute, mios-headless.target'
-: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_CONFLICTS:=mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Compute Role'
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_COMMENT='# AI-hint: Defines the controller systemd target for MiOS, representing the cluster controller.
 # AI-related: mios-controller, mios-headless.target'
-: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Controller Role'
 : "${MIOS_UNIT_MIOS_CONTROLLER_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_DAEMON_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -3765,10 +3879,10 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_DASHBOARD_ISSUE_TIMER_UNIT_DOCUMENTATION:=file:///usr/libexec/mios/mios-dashboard-render-issue.sh}"
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
 # AI-related: mios-desktop, mios-headless, mios-k3s-master, mios-ha-node, gdm.service, libvirtd.service, libvirtd.socket, virtnetworkd.service, virtqemud.service, virtstoraged.service'
-: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-headless.target mios-k3s-master.target mios-ha-node.target}"
+: "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Desktop Role'
 : "${MIOS_UNIT_MIOS_DESKTOP_TARGET_UNIT_REQUIRES:=multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service}"
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -3805,10 +3919,10 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_EMBED_BACKFILL_TIMER_UNIT_DOCUMENTATION:=file:///usr/lib/mios/agent-pipe/mios_pipe/memory/embed_backfill.py}"
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_COMMENT='# AI-hint: Defines the endpoint systemd target for MiOS, representing an edge/client node.
 # AI-related: mios-endpoint, mios-headless.target'
-: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target}"
+: "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Endpoint Role'
 : "${MIOS_UNIT_MIOS_ENDPOINT_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_FINETUNE_SERVE_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -3868,8 +3982,8 @@ to" / "let me know".
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\'"'"''
-: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=true}"
-: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=true}"
+: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTCONTROLGROUPS:=yes}"
+: "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_PROTECTKERNELTUNABLES:=yes}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_REMAINAFTEREXIT:=yes}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_SERVICE_TYPE:=oneshot}"
 : "${MIOS_UNIT_MIOS_FIREWALL_PORTS_SERVICE_UNIT_AFTER:=firewalld.service network-online.target}"
@@ -4110,18 +4224,18 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_GPU_STATUS_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS/blob/main/docs/gpu-passthrough.md}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-ha-node.target unit to identify and configure a node as a High Availability cluster member, ensuring it conflicts with desktop/headless modes and requires corosync/pacemaker services.
 # AI-related: mios-ha-node, mios-desktop, mios-headless, mios-k3s-master, corosync.service, pacemaker.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-k3s-master.target'
-: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target mios-k3s-master.target}"
+: "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' HA Cluster Node Role'
 : "${MIOS_UNIT_MIOS_HA_NODE_TARGET_UNIT_REQUIRES:=multi-user.target corosync.service pacemaker.service}"
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_COMMENT='# AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
 # AI-related: mios-desktop, mios-k3s-master, mios-ha-node, multi-user.target, mios-desktop.target, mios-k3s-master.target, mios-ha-node.target'
-: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-k3s-master.target mios-ha-node.target}"
+: "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Headless Role'
 : "${MIOS_UNIT_MIOS_HEADLESS_TARGET_UNIT_REQUIRES:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HERMES_BROWSER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
@@ -4217,25 +4331,26 @@ to" / "let me know".
 # rewrite could never reach.'
 [ -n "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hermes-Agent first-boot config + key generation'
 : "${MIOS_UNIT_MIOS_HERMES_FIRSTBOOT_SERVICE_UNIT_DOCUMENTATION:=https://github.com/MiOS-DEV/MiOS}"
-: "${MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_ALIAS:=default.target.mios-hybrid}"
+: "${MIOS_UNIT_MIOS_HYBRID_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_AFTER:=graphical.target}"
-: "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_COMMENT='# AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes.
 # AI-related: mios-hybrid, k3s-agent.service, graphical.target, default.target'
+: "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target}"
 [ -n "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Hybrid role (desktop + k3s-worker + ceph-osd)'
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_REQUIRES:=graphical.target}"
 : "${MIOS_UNIT_MIOS_HYBRID_TARGET_UNIT_WANTS:=k3s-agent.service}"
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.
 # AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target'
-: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-desktop.target mios-headless.target mios-ha-node.target}"
+: "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_CONFLICTS:=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target}"
 [ -n "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s Master Role'
 : "${MIOS_UNIT_MIOS_K3S_MASTER_TARGET_UNIT_REQUIRES:=multi-user.target k3s.service}"
-: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_ALIAS:=default.target.mios-k3s-worker}"
+: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
 : "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_AFTER:=multi-user.target}"
-: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=true}"
+: "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_ALLOWISOLATE:=yes}"
 [ -n "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_COMMENT='# AI-hint: Defines the systemd target for the MiOS K3s worker node role, ensuring the k3s-agent.service is active and providing a specific target for orchestrating worker-node lifecycle and dependencies.
 # AI-related: mios-k3s-worker, k3s-agent.service, multi-user.target, default.target'
 [ -n "${MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_K3S_WORKER_TARGET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' K3s worker role (agent)'
@@ -4423,6 +4538,23 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-policy-arbiter}"
 [ -n "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_DESCRIPTION=''"'"'MiOS'"'"' out-of-process HITL policy arbiter (WS-9)'
 : "${MIOS_UNIT_MIOS_POLICY_ARBITER_SERVICE_UNIT_WANTS:=network-online.target}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_EXECSTART:=/usr/libexec/mios/mios-shell-session gc}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_GROUP:=mios-ai}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_SUCCESSEXITSTATUS:=0 1}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_TYPE:=oneshot}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_SERVICE_USER:=mios-ai}"
+[ -n "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_COMMENT='# AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state.
+# AI-related: /usr/libexec/mios/mios-shell-session, mios-shell-session-gc.timer, /usr/share/mios/mios.toml [shell_session]'
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_CONDITIONPATHEXISTS:=/usr/libexec/mios/mios-shell-session}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_SERVICE_UNIT_DESCRIPTION:=Reap idle MiOS shell sessions}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_INSTALL_WANTEDBY:=timers.target}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_TIMER_ONBOOTSEC:=10min}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_TIMER_ONUNITINACTIVESEC:=10min}"
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_TIMER_PERSISTENT:=true}"
+[ -n "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_UNIT_COMMENT+x}" ] || MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_UNIT_COMMENT='# AI-hint: Fires mios-shell-session-gc.service periodically so idle persistent shells are reclaimed without an operator.
+# AI-related: mios-shell-session-gc.service'
+: "${MIOS_UNIT_MIOS_SHELL_SESSION_GC_TIMER_UNIT_DESCRIPTION:=Periodic reap of idle MiOS shell sessions}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_INSTALL_WANTEDBY:=timers.target}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ACCURACYSEC:=2min}"
 : "${MIOS_UNIT_MIOS_SKILLS_MINER_TIMER_TIMER_ONBOOTSEC:=10min}"
@@ -4546,6 +4678,9 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_WSL_FLATPAK_EXPORT_SYNC_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Re-fire flatpak->WSL .desktop sync when flatpak installs/uninstalls land'
 : "${MIOS_UNIT_OPEN_WEBUI:=mios-open-webui.service}"
 : "${MIOS_UNIT_PGVECTOR:=mios-pgvector.service}"
+[ -n "${MIOS_UNIT_PROJECTION_DOC+x}" ] || MIOS_UNIT_PROJECTION_DOC='[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree'"'"'s 120 units are in that state, which is the larger debt behind T-317.'
+: "${MIOS_UNIT_PROJECTION_DRIFT:=hermes-worker-firstboot.service,hermes-worker.service,mios-account-sync.service,mios-additionalimagestores-perms.path,mios-adguard-firstboot.service,mios-agent-pipe.service,mios-agents.service,mios-ai-firstboot.service,mios-ai-firstboot.timer,mios-aios-refresh.timer,mios-ceph-bootstrap.service,mios-daemon.service,mios-embed-backfill.service,mios-finetune-serve.service,mios-firewall-ports.service,mios-forge-firstboot.service,mios-forgejo-runner-firstboot.service,mios-gpu-amd.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-status.service,mios-hermes-browser-worker.service,mios-hermes-browser.service,mios-hermes-firstboot.service,mios-libexec-perms.path,mios-mcp.service,mios-models-firstboot.service,mios-opencode-gateway.service,mios-pgvector-backup.service,mios-pgvector-backup.timer,mios-podman-gc.service,mios-policy-arbiter.service,mios-shell-session-gc.service,mios-suggestion-refresh.timer,mios-swarm-pack-firstboot.service,mios-sys-env-refresh.timer,mios-userdb-render.service,mios-webtools-firstboot.service,mios-wsl-flatpak-export-sync.path}"
+: "${MIOS_UNIT_PROJECTION_MAX_DRIFT:=39}"
 : "${MIOS_UNIT_SEARXNG:=mios-searxng.service}"
 [ -n "${MIOS_UNIT_USER_SESSION+x}" ] || MIOS_UNIT_USER_SESSION='user@'"${MIOS_UID}"'.service'
 : "${MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY:=remote-fs.target}"
@@ -4603,13 +4738,11 @@ to" / "let me know".
 : "${MIOS_URLS_BOOTSTRAP_REPO:=https://github.com/mios-dev/mios-bootstrap.git}"
 [ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORT_COCKPIT}"
 [ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER}"'/'
-[ -n "${MIOS_URLS_CRAWL_SERVICE+x}" ] || MIOS_URLS_CRAWL_SERVICE='http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"
 [ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"
-[ -n "${MIOS_URLS_HERMES+x}" ] || MIOS_URLS_HERMES='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
-[ -n "${MIOS_URLS_LLM_LIGHT+x}" ] || MIOS_URLS_LLM_LIGHT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
 [ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"'/mios/mios.git'
+: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 [ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
-[ -n "${MIOS_URLS_PGVECTOR+x}" ] || MIOS_URLS_PGVECTOR='postgresql://mios:mios@localhost:'"${MIOS_PORT_PGVECTOR}"'/mios'
+[ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
 [ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORT_SEARXNG}"
 : "${MIOS_USER:=mios}"

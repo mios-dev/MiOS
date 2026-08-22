@@ -37,9 +37,13 @@ def _li(title: str, url: str, snippet: str = "") -> str:
     t = html.escape(title or url or "(result)")
     u = html.escape(url or "#")
     s = html.escape(snippet or "")
+    # The snippet is built outside the f-string: a backslash inside an f-string
+    # expression only parses on 3.12+, and one unparseable module blinds every
+    # AST-walking gate in the tree.
+    snip = f'<p class="mios-wr-snip">{s}</p>' if s else ""
     return (f'<li class="mios-wr-item"><a href="{u}" target="_blank" '
             f'rel="noopener noreferrer">{t}</a>'
-            f'{("<p class=\"mios-wr-snip\">" + s + "</p>") if s else ""}</li>')
+            f'{snip}</li>')
 
 
 def _extract_results(res: Any) -> list:

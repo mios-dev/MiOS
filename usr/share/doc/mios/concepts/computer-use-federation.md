@@ -13,9 +13,10 @@ a `git pull` and `bootc rollback` like a Ctrl-Z) that is *also* a **local,
 self-replicating agentic AI operating system**. The same image that ships
 GNOME/Wayland and the virtualisation/cluster stack also ships a full local agent
 stack behind one OpenAI-compatible endpoint: the **agent-pipe** orchestrator
-(`:8640`) refines and fans a request across a council/swarm; **MiOS-Hermes**
-(`:8642`) is the tool-loop gateway; **pgvector** (`:5432`) is the unified agent
-memory; the **inference lanes** (`mios-llm-light` `:11450` primary, the gated
+(port key `agent_pipe`) refines and fans a request across a council/swarm;
+**MiOS-Hermes** (port key `hermes`) is the tool-loop gateway; **pgvector**
+(`:5432`) is the unified agent memory; the **inference lanes**
+(`mios-llm-light`, port key `llm_light`, primary, the gated
 `mios-llm-heavy`/`mios-llm-heavy-alt` GPU lanes) do generation and embeddings;
 **MCP** exposes the tool surface and **A2A** federates peer agents.
 
@@ -155,7 +156,7 @@ desktop.
 
 Grounding resolves through the same unified inference plane as the rest of MiOS,
 so there is no separate vision backend to provision. Baseline `qwen3-vl:4b` runs
-on the **always-on `mios-llm-light` lane** (`:11450`, llama.cpp behind the
+on the **always-on `mios-llm-light` lane** (port key `llm_light`, llama.cpp behind the
 `mios-llm-light` proxy image) -- the same engine that serves the everyday chat
 models and embeddings, auto-swapping the vision model on demand. It is INERT
 until the GGUFs are baked under `/models` (the operator downloads the weights;

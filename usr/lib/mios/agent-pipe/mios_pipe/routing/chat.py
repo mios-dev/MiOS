@@ -621,9 +621,9 @@ def _budget_num(env: str, key: str, default, cast=int):
 BUDGET_CONV_TOKEN_CEIL = _budget_num(
     "MIOS_BUDGET_CONV_TOKEN_CEIL", "conversation_token_ceil", 2_000_000)
 BUDGET_AUTO_TOKEN_CEIL = _budget_num(
-    "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 1_000_000)
+    "MIOS_BUDGET_AUTO_TOKEN_CEIL", "autonomous_token_ceil", 400_000)
 BUDGET_AUTO_MAX_INFLIGHT = _budget_num(
-    "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 2)
+    "MIOS_BUDGET_AUTO_MAX_INFLIGHT", "autonomous_max_inflight", 1)
 BUDGET_WINDOW_S = _budget_num("MIOS_BUDGET_WINDOW_S", "window_s", 3600, float)
 BUDGET_ENABLE = str(os.environ.get(
     "MIOS_BUDGET_ENABLE",
@@ -870,7 +870,7 @@ async def chat_completions_logic(request: Request) -> Any:
             log.info("Replay mode active: loaded %d LLM responses, %d tool responses for session %s",
                      len(llm_q), len(tool_q), replay_sess_id)
             
-            h = hashlib.md5(replay_sess_id.encode("utf-8")).hexdigest()
+            h = hashlib.md5(replay_sess_id.encode("utf-8"), usedforsecurity=False).hexdigest()
             seed = int(h, 16) % (2**32)
             random.seed(seed)
             try:
@@ -1462,7 +1462,7 @@ async def responses_api_logic(request: Request) -> Any:
         return JSONResponse(content={"error": {"message": "you must provide 'input'",
             "type": "invalid_request_error", "param": "input", "code": None}},
             status_code=400)
-    _port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8640")
+    _port = os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")
     try:
         async with httpx.AsyncClient(timeout=300.0) as s:
             r = await s.post(f"http://127.0.0.1:{_port}/v1/chat/completions",

@@ -1,4 +1,4 @@
-<!-- AI-hint: Defines the CLI grammar and shell-widget behavior for the `mios` command and the `@` shortcut — the terminal front door to the MiOS local agent. Covers verb dispatch, the chat path to MiOS-Hermes (:8642/v1), the `@` bash/zsh widget + real binary, quoting/escaping, TTY vs non-TTY output, and exit codes. Grounds the user-facing entry point in MiOS's wider agentic-AI-OS stack (Hermes gateway -> agent-pipe -> inference lanes -> pgvector memory).
+<!-- AI-hint: Defines the CLI grammar and shell-widget behavior for the `mios` command and the `@` shortcut — the terminal front door to the MiOS local agent. Covers verb dispatch, the chat path to MiOS-Hermes (port key `hermes`, `/v1`), the `@` bash/zsh widget + real binary, quoting/escaping, TTY vs non-TTY output, and exit codes. Grounds the user-facing entry point in MiOS's wider agentic-AI-OS stack (Hermes gateway -> agent-pipe -> inference lanes -> pgvector memory).
      AI-related: /usr/bin/mios, /usr/bin/@, /etc/profile.d/mios-agent.sh, /etc/profile.d/mios-verbs.sh, /usr/share/mios/ai/system.md, mios-agent -->
 <!-- FHS: /usr/share/mios/docs/terminal/INVOCATIONS.md -->
 
@@ -25,11 +25,11 @@ Where the request goes once you press Enter:
         │  (verb? → exec the wrapper directly)
         │  (deterministic "open <app>" → mios-launch)
         ▼  (everything else → chat)
-  MIOS_AI_ENDPOINT  (default http://localhost:8642/v1)
+  MIOS_AI_ENDPOINT  (resolves to the hermes port)
         ▼
   MiOS-Hermes  — OpenAI-compatible agent gateway, tool-loop, sessions, skills
-        ▼  (front-ends route through it; agent-pipe :8640 orchestrates fan-out)
-  inference lanes (mios-llm-light :11450, gated heavy lanes)
+        ▼  (front-ends route through it; agent-pipe (port key agent_pipe) orchestrates fan-out)
+  inference lanes (mios-llm-light on the llm_light port, gated heavy lanes)
         ▼
   pgvector memory (:5432)  ·  tools over MCP  ·  peers over A2A
 ```
@@ -65,7 +65,7 @@ mios help                    Show the verb + chat usage.
 | `mios dash` / `mios mini` | Framed dashboard (services + endpoints + git tree); `mini` = compact. |
 | `mios config` | Open the HTML configurator (the `mios.toml` editor) in your browser. |
 | `mios code` | Open code-server (`http://localhost:8080/`) in your browser. |
-| `mios ai` | Open Open WebUI (`http://localhost:3030/`) in your browser. |
+| `mios ai` | Open Open WebUI (port key `open_webui`) in your browser. |
 | `mios ai clear` | DAY-0 clean slate: wipe chats/jobs/kanban/DBs/RAG. |
 | `mios xbox` | Xbox VM Secure Boot / XML repair. |
 | `mios virt` | Apply optimized VM config + CPU pinning. |
@@ -193,15 +193,15 @@ mios sync-env                         # regenerate install.env after editing mio
 ## Related
 
 - Endpoint resolution and the AI plane: see `MIOS_AI_ENDPOINT` (Law 5) and the
-  inference lanes — **`mios-llm-light`** (`:11450`, primary llama.cpp lane behind
+  inference lanes — **`mios-llm-light`** (port key `llm_light`, primary llama.cpp lane behind
   the upstream `mios-llm-light` proxy image; serves everyday models, the
   `mios-opencode` coder model, **and** embeddings via `nomic-embed-text`) plus
-  the gated heavy lanes **`mios-llm-heavy`** (SGLang, `:11441`) and
-  **`mios-llm-heavy-alt`** (vLLM). The lanes speak the OpenAI/Ollama-compatible
+  the gated heavy lanes **`mios-llm-heavy`** (vLLM, port key `vllm`) and
+  **`mios-llm-heavy-alt`** (SGLang, port key `sglang`). The lanes speak the OpenAI/Ollama-compatible
   API (an upstream API-compat reference only — Ollama itself is not a MiOS
   backend).
-- Orchestration: **agent-pipe** (`:8640`) fronting **MiOS-Hermes** (`:8642`),
-  with the **prefilter** (`:8641`) and **opencode-gateway** (`:8633`).
+- Orchestration: **agent-pipe** (port key `agent_pipe`) fronting **MiOS-Hermes** (port key `hermes`),
+  with the **prefilter** (port key `prefilter`) and **opencode-gateway** (port key `opencode_gateway`).
 - Memory: **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`) — the unified
   agent datastore (agent_memory, event, tool_call, session, skill, scratch,
   knowledge, sys_env, kanban, …), accessed via `mios-pg-query` / `mios-db --pg`.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
-# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local :11434 lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a
+# AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local Ollama lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a
 # AI-related: 99-postcheck.sh, build.sh, /usr/libexec/mios/mios-ai-hint-coverage, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1, /usr/share/mios/ai, /etc/mios/ai, /usr/lib/mios/agent-pipe, /usr/share/mios/ai/v1/packages, /usr/libexec/mios/mios-registry
 # AI-functions: python3, _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_agent_schema, check_ai_manifest, check_package_registry, check_cli_sql_safety
 # MIOS_DRIFT_CHECK_SOFT=1 to report but exit 0 (advisory, while a fix is staged).
@@ -2091,10 +2091,15 @@ def check_roundtrip(root):
         mat_data = tomllib.loads(materialized_toml_str)
     except Exception as parse_err:
         print("Materialized TOML parsing failed!")
-        print("Lines 30-70:")
         lines = materialized_toml_str.splitlines()
-        for i, l in enumerate(lines[29:70]):
-            print(f"{i+30:2d}: {l}")
+        import re as _re
+        _m = _re.search(r"at line (\d+)", str(parse_err))
+        _n = int(_m.group(1)) if _m else getattr(parse_err, "lineno", None)
+        _lo = max(0, (_n - 4)) if _n else 29
+        _hi = (_n + 3) if _n else 70
+        print("Lines %d-%d:" % (_lo + 1, _hi))
+        for i, l in enumerate(lines[_lo:_hi]):
+            print(f"{_lo+i+1:4d}: {l}")
         raise parse_err
 
     scopes = ["ports", "ai", "routing", "pgvector", "a2a", "mcp", "observability", "sandbox", "security", "agent_passport", "agent_pipe"]
@@ -2641,7 +2646,7 @@ PY
 check_no_mkdir_in_var() {
     local pat='mkdir[^;&|#]*['\''"[:space:]]/var/'
     local hits="" f active m
-    for f in "$ROOT"/automation/[0-9]*.sh "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+    for f in "$ROOT"/automation/[0-9]*.sh "$ROOT"/Containerfile*; do
         [[ -f "$f" ]] || continue
         active=$(sed -E '/^[[:space:]]*#/d' "$f")
         m=$(printf '%s\n' "$active" | grep -nE "$pat" || true)
@@ -2726,19 +2731,24 @@ check_var_closure() {
 }
 
 check_lint_is_final() {
-    local bad="" cf last want="RUN bootc container lint"
-    for cf in "$ROOT/Containerfile" "$ROOT/Containerfile.minimal"; do
+    # Globbed, not named: a hardcoded list silently skips a file that was
+    # renamed and reports success over the ones that remain.
+    local bad="" cf last n=0 want="RUN bootc container lint"
+    for cf in "$ROOT"/Containerfile*; do
         [[ -f "$cf" ]] || continue
+        n=$((n + 1))
         last="$(grep -vE '^[[:space:]]*(#|$)' "$cf" | tail -1)"
         if [[ "$last" != "$want" ]]; then
             bad+="    ${cf#"$ROOT"/}: final instruction is [$last], expected [$want]"$'\n'
         fi
     done
-    if [[ -n "$bad" ]]; then
+    if [[ "$n" -eq 0 ]]; then
+        _violation "(43) no Containerfile* at the repo root -- Law 4 would pass vacuously"
+    elif [[ -n "$bad" ]]; then
         printf '%s' "$bad" >&2
         _violation "a Containerfile's final instruction is not 'RUN bootc container lint' (Law 4 BOOTC-CONTAINER-LINT) -- lint MUST be the last layer"
     else
-        echo "[98-drift-checks]   Containerfile + Containerfile.minimal end with 'RUN bootc container lint'"
+        echo "[98-drift-checks]   all $n root Containerfile(s) end with 'RUN bootc container lint'"
     fi
 }
 
@@ -2784,6 +2794,37 @@ check_vendor_urls() {
         _violation "a vendor cloud URL is hardcoded in active AI-plane config (Law 5 UNIFIED-AI-REDIRECTS) -- route through MIOS_AI_ENDPOINT"
     else
         echo "[98-drift-checks]   no vendor cloud URL in active config"
+    fi
+
+    # ADR-0016 D5: the VENDOR endpoint stays local; only an /etc overlay
+    # may point it off-box.
+    local ep_out
+    ep_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'ENDPY'
+import os, re, sys
+try:
+    import tomllib as _t
+except ImportError:
+    try:
+        import tomli as _t  # type: ignore
+    except ImportError:
+        sys.exit(0)
+root = os.environ["MIOS_DRIFT_ROOT"]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    data = _t.load(fh)
+ep = str((data.get("ai") or {}).get("endpoint") or "")
+if not ep:
+    print("[ai].endpoint is empty -- every client resolves MIOS_AI_ENDPOINT from it")
+    sys.exit(0)
+host = re.sub(r"^[a-z]+://", "", ep).split("/")[0].split(":")[0]
+if host not in ("localhost", "127.0.0.1", "::1", "[::1]"):
+    print("[ai].endpoint is %s: the VENDOR default must stay local (ADR-0016 D5). "
+          "Point it off-box in /etc/mios, never in the shipped SSOT" % ep)
+ENDPY
+)"
+    if [[ -n "$ep_out" ]]; then
+        _violation "$ep_out"
+    else
+        echo "[98-drift-checks]   vendor [ai].endpoint is local"
     fi
 }
 
@@ -3109,7 +3150,7 @@ check_impossible_eol_regressions() {
     local f
     while read -r f; do
         [[ -f "$f" ]] || continue
-        [[ "$(basename "$f")" == "mios-mini-architecture.md" ]] && continue
+        [[ "$(basename "$f")" == "mios-metal-architecture.md" ]] && continue
         
         if grep -F "mdevctl vGPU" "$f" &>/dev/null; then
             if ! grep -E "mdevctl vGPU.*(impossible|unsupported|out of scope|reject)" "$f" &>/dev/null; then
@@ -3931,20 +3972,80 @@ check_greenboot() {
         _violation "(54) greenboot required checks directory ($gb_dir) is missing"
         return
     fi
-    local critical_services=("agent-pipe" "llm-light" "pgvector" "hermes")
-    local s script_found
-    for s in "${critical_services[@]}"; do
-        script_found=0
-        for f in "$gb_dir"/*; do
-            if [[ -f "$f" ]] && grep -q "$s" "$f" 2>/dev/null; then
-                script_found=1
-                break
-            fi
-        done
-        if [[ "$script_found" -eq 0 ]]; then
-            _violation "(54) greenboot missing health-check script for critical service: $s"
+    # The critical set is READ FROM THE SSOT, never restated here: a hardcoded copy
+    # agrees with the scripts it checks while both drift away from mios.toml.
+    local gb_out line
+    gb_out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_GB_DIR="$gb_dir" python3 - <<'PY'
+import os, re, sys
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping greenboot check\n")
+        sys.exit(0)
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+gb_dir = os.environ["MIOS_DRIFT_GB_DIR"]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    data = _toml.load(fh)
+gb = data.get("greenboot") or {}
+critical = [str(x).strip() for x in (gb.get("critical_services") or []) if str(x).strip()]
+probe = gb.get("probe") or {}
+if not critical:
+    print("(54) [greenboot].critical_services is empty or absent -- greenboot coverage "
+          "would pass vacuously over an empty set")
+
+# Executable bodies of the required.d scripts (a mention in a comment is not cover).
+bodies, probed, ssot_driven = {}, set(), False
+for name in sorted(os.listdir(gb_dir)):
+    fp = os.path.join(gb_dir, name)
+    if not os.path.isfile(fp):
+        continue
+    try:
+        body = open(fp, encoding="utf-8", errors="replace").read()
+    except OSError:
+        continue
+    code = "\n".join(l for l in body.splitlines() if not l.lstrip().startswith("#"))
+    bodies[name] = code
+    if "MIOS_GREENBOOT_CRITICAL_SERVICES" in code:
+        ssot_driven = True
+    for m in re.finditer(r"\b(?:mios-)?([a-z0-9][a-z0-9_-]*)\.service\b", code):
+        probed.add(m.group(1))
+
+def unit_for(svc):
+    """What the probe derives: the [greenboot.probe] override, else the convention."""
+    spec = probe.get(svc.replace("-", "_")) or probe.get(svc) or {}
+    unit = str(spec.get("unit") or "").strip()
+    return unit or ("mios-%s.service" % svc)
+
+def unit_exists(unit):
+    stem = unit[:-len(".service")] if unit.endswith(".service") else unit
+    if stem in (data.get("containers") or {}):
+        return True
+    return os.path.isfile(os.path.join(root, "usr/lib/systemd/system", unit))
+
+for svc in critical:
+    if ssot_driven:
+        # The probe list is DERIVED, so cover means: the unit it derives exists.
+        unit = unit_for(svc)
+        if not unit_exists(unit):
+            print("(54) [greenboot].critical_services names '%s', but the probe would "
+                  "derive %s, which is not a shipped unit or a declared container"
+                  % (svc, unit))
+        continue
+    key = svc[5:] if svc.startswith("mios-") else svc
+    if key not in probed:
+        print("(54) greenboot missing health-check script for critical service: %s "
+              "(no required.d script references %s.service outside comments)" % (svc, svc))
+PY
+)"
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            _violation "$line"
         fi
-    done
+    done <<< "$gb_out"
 }
 
 check_clevis_luks() {
@@ -3965,21 +4066,21 @@ check_clevis_luks() {
     fi
 }
 
-check_mini_vfio() {
-    echo "[98-drift-checks]   MiOS-Mini vfio-pci SSOT projection check"
-    local gen="$ROOT/usr/libexec/mios/mios-mini-vfio-gen"
+check_metal_vfio() {
+    echo "[98-drift-checks]   MiOS-Metal vfio-pci SSOT projection check"
+    local gen="$ROOT/usr/libexec/mios/mios-metal-vfio-gen"
     if [[ ! -x "$gen" && -f "$gen" ]]; then
         chmod +x "$gen" 2>/dev/null || true
     fi
     if [[ -f "$gen" ]]; then
         local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
-        if [[ "$out" == *"MIOS_MINI_ENABLED="* ]]; then
+        if [[ "$out" == *"MIOS_METAL_ENABLED="* ]]; then
             return 0
         else
-            _violation "(68) MiOS-Mini vfio generator failed to project SSOT configuration"
+            _violation "(68) MiOS-Metal vfio generator failed to project SSOT configuration"
         fi
     else
-        _violation "(68) MiOS-Mini vfio generator script missing"
+        _violation "(68) MiOS-Metal vfio generator script missing"
     fi
 }
 
@@ -4430,6 +4531,21 @@ required_checks = [
     "check_no_mkdir_in_var",
     "check_quadlet_privilege",
     "check_firstboot_degrade_open",
+    "check_firstboot_provisioners",
+    "check_schema_consumers",
+    "check_tasks_status_parity",
+    "check_container_names",
+    "check_service_urls",
+    "check_ports_bound",
+    "check_blade_coverage",
+    "check_blade_karg",
+    "check_role_ssot",
+    "check_port_fallbacks",
+    "check_node_pool",
+    "check_mini_vs_hosted",
+    "check_unit_projection",
+    "check_ssot_consumer_keys",
+    "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
     "check_replaceme_mount_substitution",
@@ -5630,24 +5746,17 @@ PY
 
 
 check_module_length() {
-    local dir="$ROOT/usr/lib/mios/agent-pipe/mios_pipe"
-    if [[ ! -d "$dir" ]]; then
-        return 0
+    echo "[98-drift-checks]   check_module_length"
+    # Walks the package RECURSIVELY against the [refactor] shrink-only register.
+    # The former body used find -maxdepth 1 and saw 9 of 112 modules.
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_module_length: $line"
+        done <<<"$out"
+        return
     fi
-    local hits="" f lines
-    while IFS= read -r f; do
-        [[ -f "$f" ]] || continue
-        lines=$(wc -l < "$f")
-        if [[ "$lines" -gt 800 ]]; then
-            hits+="    ${f#$ROOT/} ($lines lines)\n"
-        fi
-    done < <(find "$dir" -maxdepth 1 -type f -name '*.py' 2>/dev/null)
-    if [[ -n "$hits" ]]; then
-        printf '%b' "$hits" >&2
-        _violation "mios_pipe module exceeds 800-line limit. The monolith extraction demands small, cohesive sibling modules."
-    else
-        echo "[98-drift-checks]   mios_pipe sibling modules are all <= 800 lines"
-    fi
+    echo "[98-drift-checks]   $out"
 }
 
 check_vendored_assets_non_stub() {
@@ -6123,7 +6232,7 @@ main() {
     check_nested_podman_caps
     check_bake_budget
     check_clevis_luks
-    check_mini_vfio
+    check_metal_vfio
     check_router_parity
     check_council_gate_ssot
     check_containerfile_pinned_clones
@@ -6176,6 +6285,11 @@ main() {
     check_manual_generated
     check_manual_ledger
     check_comment_landing
+    check_credential_literals
+    check_redact_coverage
+    check_daemon_governor
+    check_manual_links
+    check_doc_port_scheme
 
 
     check_chrony_ptp_dropin
@@ -6194,6 +6308,21 @@ main() {
     check_db_seed_coverage
     check_account_column_parity
     check_module_length
+    check_firstboot_provisioners
+    check_schema_consumers
+    check_tasks_status_parity
+    check_container_names
+    check_service_urls
+    check_ports_bound
+    check_blade_coverage
+    check_blade_karg
+    check_role_ssot
+    check_port_fallbacks
+    check_node_pool
+    check_mini_vs_hosted
+    check_unit_projection
+    check_ssot_consumer_keys
+    check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
     check_no_duplicate_value_key
@@ -7121,6 +7250,285 @@ check_manual_ledger() {
         return
     fi
     echo "[98-drift-checks]   $out"
+}
+
+check_credential_literals() {
+    echo "[98-drift-checks]   check_credential_literals"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_credential_literals: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_redact_coverage() {
+    echo "[98-drift-checks]   check_redact_coverage"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_redact_coverage: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_daemon_governor() {
+    echo "[98-drift-checks]   check_daemon_governor"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_daemon_governor: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_manual_links() {
+    echo "[98-drift-checks]   check_manual_links"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_manual_links: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_adr_index() {
+    echo "[98-drift-checks]   check_adr_index"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_adr_index: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_schema_consumers() {
+    echo "[98-drift-checks]   check_schema_consumers"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_schema_consumers: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_tasks_status_parity() {
+    echo "[98-drift-checks]   check_tasks_status_parity"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks-status-parity.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_tasks_status_parity: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_container_names() {
+    echo "[98-drift-checks]   check_container_names"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-container-names.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_container_names: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_service_urls() {
+    echo "[98-drift-checks]   check_service_urls"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-service-urls.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_ports_bound() {
+    echo "[98-drift-checks]   check_ports_bound"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ports-bound.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_blade_coverage() {
+    echo "[98-drift-checks]   check_blade_coverage"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_ssot_consumer_keys() {
+    echo "[98-drift-checks]   check_ssot_consumer_keys"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot-consumer-keys.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_unit_projection() {
+    echo "[98-drift-checks]   check_unit_projection"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-unit-projection.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_mini_vs_hosted() {
+    echo "[98-drift-checks]   check_mini_vs_hosted"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/generate-mini-vs-hosted.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_node_pool() {
+    echo "[98-drift-checks]   check_node_pool"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-node-pool.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_port_fallbacks() {
+    echo "[98-drift-checks]   check_port_fallbacks"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-port-fallbacks.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_role_ssot() {
+    echo "[98-drift-checks]   check_role_ssot"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-role-ssot.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_blade_karg() {
+    echo "[98-drift-checks]   check_blade_karg"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-blade-karg.py --check 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "check_blade_karg: $line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_firstboot_provisioners() {
+    echo "[98-drift-checks]   check_firstboot_provisioners"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-firstboot-provisioners.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_firstboot_provisioners: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_doc_port_scheme() {
+    echo "[98-drift-checks]   check_doc_port_scheme"
+    # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
+    local lists pat f hits
+    lists="$(cd "$ROOT" && python3 - <<'PYEOF'
+import tomllib
+docs = tomllib.load(open("usr/share/mios/mios.toml", "rb")).get("docs", {})
+print("|".join(str(p) for p in docs.get("retired_ports", [])))
+print("\n".join(docs.get("port_clean", [])))
+PYEOF
+)"
+    pat="${lists%%$'\n'*}"
+    if [[ -z "$pat" ]]; then
+        _violation "check_doc_port_scheme: [docs].retired_ports is empty or unreadable"
+        return
+    fi
+    while IFS= read -r f; do
+        [[ -z "$f" ]] && continue
+        if [[ ! -f "$ROOT/$f" ]]; then
+            _violation "[docs].port_clean names a missing file: $f"
+            continue
+        fi
+        hits="$(grep -nE "(^|[^0-9])(${pat})([^0-9]|$)" "$ROOT/$f" || true)"
+        if [[ -n "$hits" ]]; then
+            while IFS= read -r line; do
+                _violation "retired port literal in ${f}: ${line}"
+            done <<<"$hits"
+        fi
+    done <<<"${lists#*$'\n'}"
 }
 
 main "$@"

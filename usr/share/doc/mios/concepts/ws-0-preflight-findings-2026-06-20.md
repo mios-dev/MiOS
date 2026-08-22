@@ -20,8 +20,8 @@
 |---|---|---|---|
 | `usr/lib/mios/agent-pipe/server.py` line count | 27,162 (older draft: 26,151) | **27,311** | drifted +149 again; re-scope WS-3/WS-A11 against 27,311 |
 | `patch.py`..`patch5.py` in `agent-pipe/` | "must delete" | **absent** (0 files, 0 `import patch`) | deletion is a no-op — struck from WS-3 |
-| `--served-model-name mios-heavy` collision | real | **real & intentional** | both `mios-llm-heavy.container` (SGLang :11441) and `mios-llm-heavy-alt.container` (vLLM :11440) serve `mios-heavy`; documented mutually-exclusive "enable ONE on a shared GPU" — NOT a bug to gate |
-| port/model drift (file counts) | :11434×18, gemma4×30, qwen3×110 | :11434×59, gemma4×24, qwen3×76, mios-heavy×46 | drift real but partly reduced; remaining `:11434` refs are mostly docs/vendor-compat, not active lanes |
+| `--served-model-name mios-heavy` collision | real | **real & intentional** | both `mios-llm-heavy.container` (vLLM, port key `vllm`) and `mios-llm-heavy-alt.container` (SGLang, port key `sglang`) serve `mios-heavy`; documented mutually-exclusive "enable ONE on a shared GPU" — NOT a bug to gate |
+| port/model drift (file counts) | retired-Ollama-lane×18, gemma4×30, qwen3×110 | retired-Ollama-lane×59, gemma4×24, qwen3×76, mios-heavy×46 | drift real but partly reduced; remaining retired-Ollama-lane refs are mostly docs/vendor-compat, not active lanes |
 
 ## The plan's PREFLIGHT premises that are now STALE
 
@@ -43,13 +43,13 @@ implementation. Against `HEAD` the following PREFLIGHT/WS-0A claims are false:
    - `usr/libexec/mios/test_mios_docgen.py` explicitly (~419–428)
 
 3. **"`99-postcheck.sh` Law-5 is vendor-URL-only (no port/model patterns)."**
-   FALSE. Law-5 now has §12 (vendor URLs), **§12b** (retired `:11434` local-lane
+   FALSE. Law-5 now has §12 (vendor URLs), **§12b** (the retired Ollama local-lane
    check, lines ~423–451), and **§12c** (dispatch-target recursion guard). The
    WS-0A1 "extend Law-5 to lane/port/model literals" work is already present.
 
 4. **"WS-0A must be split into 0A1/0A2 and built."** Largely MOOT. The
    drift-freeze gate is already implemented and wired:
-   - `98-drift-checks.sh` (294 lines): `check_dead_lane` (retired :11434),
+   - `98-drift-checks.sh` (294 lines): `check_dead_lane` (the retired Ollama lane),
      `check_retired_models` (gemma4 / qwen3:1.7b in a consumer),
      `check_structured` (ai/v1 manifest parse + schema), `check_hint_coverage`
      (WS-10 AI-hint coverage), `check_module_boundary` (WS-3 sibling-imports-monolith).

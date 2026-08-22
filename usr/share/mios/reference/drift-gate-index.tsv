@@ -41,7 +41,7 @@
 40	check_quadlet_privilege	mios.toml absent
 41	check_unit_security	check_unit_security
 42	check_var_closure	SOFT: python3 missing
-43	check_lint_is_final	Containerfile + Containerfile.minimal end with 'RUN bootc container lint'
+43	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 44	check_firstboot_degrade_open	every *firstboot* script degrades open
 45	check_vendor_urls	no vendor cloud URL in active config
 46	check_resolver_twin_parity	SOFT: python3 missing
@@ -74,7 +74,7 @@
 73	check_nested_podman_caps	nested-podman capability flags & reference doc verified
 74	check_bake_budget	bake-budget gate: projected baked image size within SSOT runner_disk_budget_gb limit
 75	check_clevis_luks	clevis LUKS SSOT projection check
-76	check_mini_vfio	MiOS-Mini vfio-pci SSOT projection check
+76	check_metal_vfio	MiOS-Metal vfio-pci SSOT projection check
 77	check_router_parity	Router Stage-2 parity gate satisfied
 78	check_council_gate_ssot	council-gate SSOT parameters defined in mios.toml and consumed by code
 79	check_containerfile_pinned_clones	all git clone invocations in Containerfiles carry explicit
@@ -127,32 +127,52 @@
 126	check_manual_generated	check_manual_generated
 127	check_manual_ledger	the corpus ledger regenerates verbatim from the tracked tree
 128	check_comment_landing	every pruned comment still lands in a doc
-129	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
-130	check_renderer_gate_coverage	renderer gate coverage verified clean
-131	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
-132	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
-133	check_verb_templates	verb templates compile and validate against SSOT args
-134	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
-135	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-136	check_pipe_extraction_parity	python3 absent
-137	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
-138	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
-139	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
-140	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
-141	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
-142	check_db_seed_coverage	DB seed coverage gate verified clean
-143	check_account_column_parity	account column parity gate verified clean
-144	check_module_length	mios_pipe sibling modules are all <= 800 lines
-145	check_vendored_assets_non_stub	vendored assets dir absent
-146	check_resolved_env_lossless	resolved environment is lossless
-147	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-148	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-149	check_value_aliases	value-alias consistency verified
-150	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-151	check_bash_phase_ratchet	bash phase script count ratchet check
-152	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-153	check_negatives_are_effective	negative-test effectiveness check
-154	check_skip_list_covered	checking workflow skip-list coverage and parity
-155	check_ai_manifests_fresh	checking AI manifest freshness
-156	check_ports_category_schema	checking port category schema (allocation + collisions)
-157	check_globals_generated	checking generated globals resolvers match SSOT
+129	check_credential_literals	check_credential_literals
+130	check_redact_coverage	check_redact_coverage
+131	check_daemon_governor	check_daemon_governor
+132	check_manual_links	check_manual_links
+133	check_doc_port_scheme	check_doc_port_scheme
+134	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
+135	check_renderer_gate_coverage	renderer gate coverage verified clean
+136	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
+137	check_negative_coverage	negative test coverage gate: all dispatched checks are covered or exempt
+138	check_verb_templates	verb templates compile and validate against SSOT args
+139	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
+140	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
+141	check_pipe_extraction_parity	python3 absent
+142	check_guacamole_consistency	guacamole desktop entry & SSOT consistency verified
+143	check_v2v_import_ssot	virt-v2v import wrapper & SSOT parity verified
+144	check_law_enforcers	all [laws].enforced_by targets resolve in codebase
+145	check_usr_over_etc	Law 1 USR-OVER-ETC verified clean
+146	check_projection_registry	Law 8 SSOT-PROJECTION registry verified clean
+147	check_db_seed_coverage	DB seed coverage gate verified clean
+148	check_account_column_parity	account column parity gate verified clean
+149	check_module_length	check_module_length
+150	check_firstboot_provisioners	check_firstboot_provisioners
+151	check_schema_consumers	check_schema_consumers
+152	check_tasks_status_parity	check_tasks_status_parity
+153	check_container_names	check_container_names
+154	check_service_urls	check_service_urls
+155	check_ports_bound	check_ports_bound
+156	check_blade_coverage	check_blade_coverage
+157	check_blade_karg	check_blade_karg
+158	check_role_ssot	check_role_ssot
+159	check_port_fallbacks	check_port_fallbacks
+160	check_node_pool	check_node_pool
+161	check_mini_vs_hosted	check_mini_vs_hosted
+162	check_unit_projection	check_unit_projection
+163	check_ssot_consumer_keys	check_ssot_consumer_keys
+164	check_adr_index	check_adr_index
+165	check_vendored_assets_non_stub	vendored assets dir absent
+166	check_resolved_env_lossless	resolved environment is lossless
+167	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+168	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+169	check_value_aliases	value-alias consistency verified
+170	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+171	check_bash_phase_ratchet	bash phase script count ratchet check
+172	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+173	check_negatives_are_effective	negative-test effectiveness check
+174	check_skip_list_covered	checking workflow skip-list coverage and parity
+175	check_ai_manifests_fresh	checking AI manifest freshness
+176	check_ports_category_schema	checking port category schema (allocation + collisions)
+177	check_globals_generated	checking generated globals resolvers match SSOT

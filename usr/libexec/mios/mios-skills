@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: CLI tool for mining repetitive tool_call sequences into typed-verb DAGs in parameterized Postgres/pgvector, providing a unified skill catalog for mios-agent-pipe, Hermes, and OpenCode to share standardized, parameterized action sequences. All SQL is bound out-of-band via mios-db --pg-json ($1..$n placeholders).
-# AI-related: /usr/libexec/mios/mios-db, /usr/libexec/mios/mios-pg-query, /usr/share/mios/skills, mios-agent-pipe, mios-db, mios-skill, mios-ai, localhost:8640
+# AI-related: /usr/libexec/mios/mios-db, /usr/libexec/mios/mios-pg-query, /usr/share/mios/skills, mios-agent-pipe, mios-db, mios-skill, mios-ai, port key `agent_pipe`
 """mios-skills -- Sequential Pattern Mining + cross-agent skill catalog CLI.
 
 Phase C.2 of the AgentOS roadmap. Mines the Postgres `tool_call`

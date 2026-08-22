@@ -9,13 +9,14 @@ Wants=network-online.target mios-pgvector.service
 
 [Container]
 AutoUpdate=registry
+ContainerName=mios-guacamole
 Environment=POSTGRESQL_HOSTNAME=localhost
 Environment=POSTGRESQL_PORT=${MIOS_PORT_PGVECTOR:-8600}
 Environment=POSTGRESQL_DATABASE=mios
 Environment=POSTGRESQL_USERNAME=mios
 Environment=POSTGRESQL_PASSWORD=mios
 Environment=GUACD_HOSTNAME=localhost
-Environment=GUACD_PORT=4822
+Environment=GUACD_PORT=${MIOS_PORT_GUACD:-8560}
 EnvironmentFile=/etc/mios/install.env
 Group=810
 Image=docker.io/guacamole/guacamole:latest

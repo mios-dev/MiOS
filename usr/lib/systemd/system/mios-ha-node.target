@@ -4,7 +4,8 @@
 Description='MiOS' HA Cluster Node Role
 Requires=multi-user.target corosync.service pacemaker.service
 After=multi-user.target
-Conflicts=mios-desktop.target mios-headless.target mios-k3s-master.target
+Conflicts=mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target
 AllowIsolate=yes
+
 [Install]
 WantedBy=multi-user.target

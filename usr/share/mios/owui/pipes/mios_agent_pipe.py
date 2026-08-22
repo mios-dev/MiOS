@@ -11,7 +11,8 @@ description: |
   regardless of OWUI's routing decisions (the global Filter chain
   can be bypassed when a Pipe takes over):
 
-    1. PROXY -> prefilter (:8641) -> hermes (:8642). Streams SSE
+    1. PROXY -> prefilter -> hermes ([ports] prefilter/hermes).
+       Streams SSE
        chunks back to the operator as fast as they arrive. Unbounded
        sock_read so long CPU-bound tool turns don't TransferEncoding-
        Error the response.
@@ -31,10 +32,10 @@ description: |
        MIOS-HERMES AGENTS THINKING PRINTS COULD BE EMMITED AND/OR
        COLLAPSABLE AS THINKING IN OWUI".
 
-  Default BACKEND_URL is 127.0.0.1 (the host-process prefilter).
-  Previous container-internal address (host.containers.internal)
-  was a leftover from the container-era Quadlet -- OWUI runs as a
-  host process now, so that address never resolved.
+  BACKEND_URL resolves from MIOS_AI_ENDPOINT (Law 5), so it tracks
+  [ports].agent_pipe. The container-internal address
+  (host.containers.internal) was a leftover from the container-era
+  Quadlet -- OWUI runs as a host process now, so it never resolved.
 """
 
 from pydantic import BaseModel, Field
@@ -44,7 +45,7 @@ import re
 import shlex
 import asyncio
 import time
-from typing import AsyncGenerator, Awaitable, Callable, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, Optional
 
 import aiohttp
 
@@ -101,7 +102,12 @@ _TAIL_ICONS = {
 import base64 as _base64
 import urllib.parse as _urlparse  # noqa: F401  (reserved for record-id quoting)
 
-_DB_URL  = os.environ.get("MIOS_DB_URL",  "http://localhost:8000")
+# Empty by DEFAULT. These rows (session / tool_call / event) are written by
+# agent-pipe, which this pipe proxies through -- the copies below survived the
+# extraction and addressed the DECOMMISSIONED datastore, so they were not
+# "un-mirrored writes", they were writes to nothing. Set MIOS_DB_URL to
+# re-enable them against a live legacy endpoint.
+_DB_URL  = os.environ.get("MIOS_DB_URL", "")
 _DB_USER = os.environ.get("MIOS_DB_USER", "root")
 _DB_PASS = os.environ.get("MIOS_DB_PASS", "root")
 _DB_NS   = os.environ.get("MIOS_DB_NS",   "mios")
@@ -115,6 +121,8 @@ async def _db_post(sql: str, *, timeout: float = 3.0) -> Optional[list]:
     per-statement results, or None on any error. A 30s backoff after
     each failure prevents per-turn retry storms when the DB is down."""
     global _DB_DOWN_UNTIL
+    if not _DB_URL:
+        return None
     if not sql or not sql.strip():
         return None
     if time.time() < _DB_DOWN_UNTIL:
@@ -189,8 +197,9 @@ def _env_ok(v) -> bool:
 class Pipe:
     class Valves(BaseModel):
         BACKEND_URL: str = Field(
-            default="http://host.containers.internal:8640/v1",
-            description="OpenAI-compat backend = the standalone MiOS Agent Pipe service at :8640 (NOT hermes directly). The router/dispatch/writes chain is extracted out of this OWUI pipe class into a gateway-agnostic FastAPI service so Hermes Discord + future Slack/Telegram/MCP gateways get the same tool-understanding parity as OWUI. The agent-pipe service forwards to hermes-agent (:8642) itself. OWUI runs in a podman Quadlet so the host is reached via host.containers.internal.",
+            default_factory=lambda: os.environ.get(
+                "MIOS_AI_ENDPOINT", "http://127.0.0.1:8700/v1"),
+            description="OpenAI-compat backend = the standalone MiOS Agent Pipe service (NOT hermes directly). Resolved from MIOS_AI_ENDPOINT, the one front door every agent and tool targets (Law 5), so the port follows [ports].agent_pipe instead of being frozen here. The router/dispatch/writes chain is extracted out of this OWUI pipe class into a gateway-agnostic FastAPI service so Hermes Discord + future Slack/Telegram/MCP gateways get the same tool-understanding parity as OWUI; agent-pipe forwards to hermes-agent itself. The former default named a RETIRED port on host.containers.internal -- an address this file's own docstring already recorded as never resolving once OWUI became a host process -- so the canonical OWUI entry point could not reach agent-pipe at all.",
         )
         BACKEND_MODEL: str = Field(
             default="hermes-agent",
@@ -203,15 +212,17 @@ class Pipe:
 
         REFINE_ENABLED: bool = Field(
             default=False,
-            description="In-pipe CPU refinement pass. MiOS-Agent (agent-pipe :8640) handles refine centrally as of Phase D.5a -- having this ENABLED here causes a DOUBLE refine (OWUI pipe rewrites the prompt, then agent-pipe rewrites it again). Default flipped to False; agent-pipe's iGPU-lane qwen3:1.7b refine is faster than the dGPU qwen2.5-coder:7b path this valve used. Set to true ONLY when running OWUI without agent-pipe in front.",
+            description="In-pipe CPU refinement pass. MiOS-Agent (agent-pipe, [ports].agent_pipe) handles refine centrally as of Phase D.5a -- having this ENABLED here causes a DOUBLE refine (OWUI pipe rewrites the prompt, then agent-pipe rewrites it again). Default flipped to False; agent-pipe's iGPU-lane qwen3:1.7b refine is faster than the dGPU qwen2.5-coder:7b path this valve used. Set to true ONLY when running OWUI without agent-pipe in front.",
         )
         REFINE_MODEL: str = Field(
             default="qwen2.5-coder:7b",
             description="Small NON-THINKING CPU model used for refinement. qwen3.x family models all emit to message.thinking with empty message.content even with /nothink directive (modelfile-level thinking-mode override). qwen2.5-coder:7b is the available non-thinking model that produces content directly. ~4.7 GB on CPU; cold load 30-90s on WSL2 disk, warm calls 3-10s. Loaded once with keep_alive=-1.",
         )
         REFINE_ENDPOINT: str = Field(
-            default="http://host.containers.internal:8450",
-            description="Refine-call endpoint -- mios-llm-light (:8450, llama.cpp behind llama-swap; the local inference :11434 lane is retired G5). Hits /api/chat (NOT /v1, which drops options field).",
+            default_factory=lambda: (
+                os.environ.get("MIOS_REFINE_ENDPOINT")
+                or "http://127.0.0.1:" + os.environ.get("MIOS_PORT_LLM_LIGHT", "8500")),
+            description="Refine-call endpoint -- mios-llm-light (llama.cpp behind llama-swap), resolved from MIOS_REFINE_ENDPOINT or [ports].llm_light. Hits /api/chat (NOT /v1, which drops the options field). The former default froze :8450, which under the current port scheme is [ports].k3s_api -- a refine call would have gone to the Kubernetes API server -- on a host.containers.internal address that stopped resolving when OWUI became a host process.",
         )
         REFINE_TIMEOUT_S: int = Field(
             default=180,
@@ -249,7 +260,7 @@ class Pipe:
 
         POLISH_ENABLED: bool = Field(
             default=False,
-            description="In-pipe polish pass. agent-pipe :8640 (Phase D.5b) handles polish centrally and wraps the raw sub-agent output in a <details type='reasoning'> dropdown ITSELF. Having this ENABLED here causes a DOUBLE polish + double-wrap. Default flipped to False; the OWUI pipe trusts agent-pipe's centralised pass. Set to true ONLY when running OWUI without agent-pipe in front.",
+            description="In-pipe polish pass. agent-pipe (Phase D.5b) handles polish centrally and wraps the raw sub-agent output in a <details type='reasoning'> dropdown ITSELF. Having this ENABLED here causes a DOUBLE polish + double-wrap. Default flipped to False; the OWUI pipe trusts agent-pipe's centralised pass. Set to true ONLY when running OWUI without agent-pipe in front.",
         )
         POLISH_MODEL: str = Field(
             default="qwen2.5-coder:7b",
@@ -411,7 +422,7 @@ class Pipe:
         """Resolve THIS request's OWUI environment into a {{TOKEN}}: value map.
 
         Single source of truth shared by _resolve_env_vars (system-prompt
-        substitution) and pipe() (structural forward to :8640 as
+        substitution) and pipe() (structural forward to agent-pipe as
         metadata.variables). Channels, in priority order: the frontend-captured
         browser variables (metadata.variables AND body.variables -- locale /
         timezone / live geolocation); the OWUI-backend-substituted location

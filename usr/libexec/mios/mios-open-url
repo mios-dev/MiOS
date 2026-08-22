@@ -38,7 +38,11 @@ while [ "$#" -gt 0 ]; do
         --browser) OVERRIDE="${2:-}"; shift $(( $# >= 2 ? 2 : 1 )) ;;
         --private) case "$(printf '%s' "${2:-true}" | tr '[:upper:]' '[:lower:]')" in false|0|no|off) PRIVATE=0 ;; *) PRIVATE=1 ;; esac; shift $(( $# >= 2 ? 2 : 1 )) ;;
         --reuse)   case "$(printf '%s' "${2:-true}" | tr '[:upper:]' '[:lower:]')" in false|0|no|off) REUSE=0 ;; *) REUSE=1 ;; esac; shift $(( $# >= 2 ? 2 : 1 )) ;;
-        --profile) PROFILE="${2:-}"; shift $(( $# >= 2 ? 2 : 1 )) ;;
+        # Accepted for CLI compatibility but NOT wired to any launcher: it was
+        # parsed into a variable nothing read, so it silently did nothing.
+        --profile) PROFILE="${2:-}"
+                   [ -z "$PROFILE" ] || printf 'mios-open-url: --profile %s is not implemented; ignoring\n' "$PROFILE" >&2
+                   shift $(( $# >= 2 ? 2 : 1 )) ;;
         --)        shift ;;
         *)         if [ -z "$URL" ]; then URL="$1"; elif [ -z "$OVERRIDE" ]; then OVERRIDE="$1"; fi; shift ;;
     esac
@@ -153,7 +157,8 @@ except Exception:
 
 _derive_verify_pattern() {
     local target="$1"
-    local _pattern_last="$(printf '%s' "$target" | awk -F. "{print tolower(\$NF)}")"
+    local _pattern_last
+    _pattern_last="$(printf '%s' "$target" | awk -F. "{print tolower(\$NF)}")"
     local _pattern_desktop_name=""
     for _df in "/var/lib/flatpak/exports/share/applications/$target.desktop" \
                "/var/lib/flatpak/app/$target/current/active/files/share/applications/$target.desktop" \
@@ -196,7 +201,7 @@ while IFS= read -r TARGET; do
     fi
 
     if [ "$_already_running" = "1" ] && { echo "$TARGET" | grep -qiE 'chrome|chromium'; }; then
-        _cdp_port="${CDP_PORT:-9222}"
+        _cdp_port="${CDP_PORT:-${MIOS_PORT_CHROME_CDP:-9222}}"
         if curl -fsS -m 2 "http://127.0.0.1:${_cdp_port}/json/version" >/dev/null 2>&1; then
             echo "[mios-open-url] browser $TARGET is already running with CDP -> opening tab via CDP" >&2
             if /usr/lib/mios/agents/.venv/bin/python3 - "$_cdp_port" "$URL" <<'PYEOF' 2>/dev/null; then

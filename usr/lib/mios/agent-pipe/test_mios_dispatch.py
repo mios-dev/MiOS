@@ -400,4 +400,145 @@ def test_normalize_container_exec():
 
 test_normalize_container_exec()
 
+
+# ---------------------------------------------------------------------------
+# Rule-of-Two and CaMeL quarantine: the two SECURITY gates at the dispatch
+# chokepoint. Both had ZERO coverage. Each is exercised through configure()
+# with a stubbed taint oracle -- no DB, no network, no live verb.
+# ---------------------------------------------------------------------------
+
+_RO2_CATALOG = {
+    # tainted + sensitive + state-change = the all-three posture RO2 blocks on.
+    "danger": {"cmd": "x", "permission": "write", "sensitive": True},
+    # sensitive but read-only: <=2 axes, so RO2 proceeds while quarantine bites.
+    "peek":   {"cmd": "x", "permission": "read", "sensitive": True},
+    "benign": {"cmd": "x", "permission": "read"},
+}
+
+
+def _wire_gates(*, ro2="off", quarantine="off", tainted=True, approved=None):
+    """Configure just enough for the two gates, and stub the taint oracle."""
+    hitl_var = contextvars.ContextVar("hitl_approved", default=None)
+    if approved is not None:
+        hitl_var.set(approved)
+    mios_dispatch.configure(
+        verb_catalog=_RO2_CATALOG,
+        rule_of_two_mode=ro2,
+        quarantine_mode=quarantine,
+        hitl_approved_var=hitl_var,
+    )
+
+    async def _stub_tainted(session_id):
+        return tainted, ["stub-chain"]
+
+    mios_dispatch._session_is_tainted = _stub_tainted
+    mios_dispatch._hitl_record_pending = lambda *a, **k: None
+    return hitl_var
+
+
+def test_rule_of_two_gate():
+    # off -> never consulted, whatever the posture.
+    _wire_gates(ro2="off", tainted=True)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", {}, session_id="s1")) is None
+
+    # audit -> observes, never blocks.
+    _wire_gates(ro2="audit", tainted=True)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", {}, session_id="s1")) is None
+
+    # enforce + all three axes -> BLOCK.
+    _wire_gates(ro2="enforce", tainted=True)
+    blocked = asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", {}, session_id="s1"))
+    assert blocked and blocked.get("rule_of_two_blocked") is True, blocked
+
+    # enforce, but untainted -> only two axes -> proceed.
+    _wire_gates(ro2="enforce", tainted=False)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", {}, session_id="s1")) is None
+
+    # enforce + tainted, but the verb is neither sensitive nor state-changing.
+    _wire_gates(ro2="enforce", tainted=True)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "benign", {}, session_id="s1")) is None
+
+    # No session id at all -> A cannot be established -> proceed.
+    _wire_gates(ro2="enforce", tainted=True)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate("danger", {})) is None
+
+    print("[PASS] rule-of-two gate: off/audit/enforce, all-three vs fewer")
+
+
+def test_rule_of_two_same_turn_approval_downgrades():
+    """The human who approved THIS exact action may run it -- keyed on the
+    action hash, so an approval for a DIFFERENT action must not carry over."""
+    args = {"path": "/tmp/x"}
+    _wire_gates(ro2="enforce", tainted=True)
+    right = mios_dispatch._pending_hash("danger", args)
+
+    _wire_gates(ro2="enforce", tainted=True, approved=right)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", args, session_id="s1")) is None, "matching approval must downgrade"
+
+    _wire_gates(ro2="enforce", tainted=True, approved="not-the-right-hash")
+    blocked = asyncio.run(mios_dispatch._rule_of_two_gate(
+        "danger", args, session_id="s1"))
+    assert blocked, "an approval for a different action must NOT downgrade"
+    print("[PASS] rule-of-two: approval is action-hash keyed")
+
+
+def test_quarantine_gate():
+    # off -> never consulted.
+    _wire_gates(quarantine="off", tainted=True)
+    assert asyncio.run(mios_dispatch._quarantine_gate(
+        "danger", {}, session_id="s1")) is None
+
+    # audit -> observes, never blocks.
+    _wire_gates(quarantine="audit", tainted=True)
+    assert asyncio.run(mios_dispatch._quarantine_gate(
+        "danger", {}, session_id="s1")) is None
+
+    # enforce + tainted + privileged -> BITE.
+    _wire_gates(quarantine="enforce", tainted=True)
+    assert asyncio.run(mios_dispatch._quarantine_gate(
+        "danger", {}, session_id="s1")) is not None
+
+    # STRICTER SUPERSET of rule-of-two: a tainted read-only SENSITIVE verb is
+    # only two axes, so RO2 proceeds -- quarantine still bites.
+    _wire_gates(ro2="enforce", quarantine="enforce", tainted=True)
+    assert asyncio.run(mios_dispatch._rule_of_two_gate(
+        "peek", {}, session_id="s1")) is None, "RO2 needs all three"
+    assert asyncio.run(mios_dispatch._quarantine_gate(
+        "peek", {}, session_id="s1")) is not None, "quarantine bites on the superset"
+
+    # untainted -> nothing to quarantine.
+    _wire_gates(quarantine="enforce", tainted=False)
+    assert asyncio.run(mios_dispatch._quarantine_gate(
+        "danger", {}, session_id="s1")) is None
+
+    print("[PASS] quarantine gate: bites on the strict superset of rule-of-two")
+
+
+def test_gates_degrade_open():
+    """ANY internal error must fall back to the EXISTING gates, never crash and
+    never newly block everything -- a gate that fails closed here would take the
+    whole dispatch plane down."""
+    for gate in (mios_dispatch._rule_of_two_gate, mios_dispatch._quarantine_gate):
+        _wire_gates(ro2="enforce", quarantine="enforce", tainted=True)
+
+        async def _boom(session_id):
+            raise RuntimeError("taint oracle exploded")
+
+        mios_dispatch._session_is_tainted = _boom
+        assert asyncio.run(gate("danger", {}, session_id="s1")) is None, \
+            f"{gate.__name__} must degrade OPEN on an internal error"
+    print("[PASS] both gates degrade open on an internal error")
+
+
+test_rule_of_two_gate()
+test_rule_of_two_same_turn_approval_downgrades()
+test_quarantine_gate()
+test_gates_degrade_open()
+
 print("test_mios_dispatch: ALL PASS")

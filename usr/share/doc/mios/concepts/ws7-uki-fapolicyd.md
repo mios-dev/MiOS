@@ -13,7 +13,8 @@ workstation** (the whole OS is a single container image — boot it, `bootc
 upgrade` it like a `git pull`, `bootc rollback` it like a Ctrl-Z) that is *also*
 a **local, self-replicating, agentic AI operating system** (a full agent stack
 behind one OpenAI-compatible endpoint: agent-pipe orchestration, the MiOS-Hermes
-gateway, pgvector memory, and the `mios-llm-light` inference lane on `:11450`).
+gateway, pgvector memory, and the `mios-llm-light` inference lane on the
+`llm_light` port).
 
 Those two halves create a tension that WS-7 exists to resolve. The immutable
 half wants a root of trust that goes all the way down — a kernel image and a

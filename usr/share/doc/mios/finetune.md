@@ -61,7 +61,7 @@ The corpus is grounded in the **live system surface**, never a hand-written topi
 list — the same no-hardcode discipline that governs the rest of MiOS:
 
 1. The verb catalog (name + description) is pulled from the running agent-pipe
-   (`/v1/verbs/openai-tools` at `[finetune].pipe_url`, `http://127.0.0.1:8640`).
+   (`/v1/verbs/openai-tools` at `[finetune].pipe_url`, the `agent_pipe` port).
    The catalog tracks the real install, so the example count tracks whatever is
    actually wired (on the developer's box this is on the order of ~60 verbs).
 2. For each capability, the **teacher** writes N diverse realistic user requests
@@ -79,7 +79,7 @@ So the dataset tracks the real install; the model writes all the English.
 
 `teacher_model = "granite4.1:8b"`, served by **`mios-llm-light`** — the primary
 local inference lane (llama.cpp behind the `mios-llm-light` proxy image) at
-`teacher_endpoint = "http://localhost:11450"`. The teacher must be a *served*
+`teacher_endpoint` (the `llm_light` port). The teacher must be a *served*
 model that is stronger than the student: pointing it at an unserved tag (e.g.
 `granite4.1:8b/9b`, which `mios-llm-light` does not serve) 404s the teacher and
 starves dataset generation. The student's base (`granite4.1:8b`) stays below the

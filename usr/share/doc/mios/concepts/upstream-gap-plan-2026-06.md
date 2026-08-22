@@ -4,8 +4,8 @@
 
 > **Status (re-baselined 2026-06-13):** This is a living research/roadmap doc. The inference and
 > datastore facts below are current as of the migration off the early Ollama/legacy datastore/Qdrant stack:
-> local inference and embeddings now run on the **`mios-llm-light`** lane (`:11450`), the heavy GPU
-> lanes are **`mios-llm-heavy`** (SGLang, `:11441`) and **`mios-llm-heavy-alt`** (vLLM, `:11440`),
+> local inference and embeddings now run on the **`mios-llm-light`** lane (port key `llm_light`), the heavy GPU
+> lanes are **`mios-llm-heavy`** (vLLM, port key `vllm`) and **`mios-llm-heavy-alt`** (SGLang, port key `sglang`),
 > and the unified agent datastore is **PostgreSQL + pgvector** (`mios-pgvector`, `:5432`). Ollama
 > survives only as an *upstream API-compat reference* (the lanes speak the OpenAI/Ollama-compatible
 > API). Where a task below still names a retired component in its rationale, that is historical
@@ -26,7 +26,7 @@ sequences the moves that close the gap — while protecting the parts that alrea
 maps onto one stage of the MiOS lifecycle or one plane of the agent stack:
 
 - **Compute topology** (Waves 0, 2) — the **inference lanes** that feed the brain: `mios-llm-light`
-  (primary, `:11450`), the gated heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt`, and the native iGPU
+  (primary, port key `llm_light`), the gated heavy lanes `mios-llm-heavy`/`mios-llm-heavy-alt`, and the native iGPU
   lane. *Purpose: more local FLOPs per watt, fewer cross-host hops, a heavy/VLM lane that unblocks
   computer-use.*
 - **Image & lifecycle** (Waves 1, 4) — the **build pipeline → OCI image → bootc lifecycle** itself:
@@ -40,7 +40,7 @@ maps onto one stage of the MiOS lifecycle or one plane of the agent stack:
   plumbing (the source of the recurring narrate-instead-of-call failures) with open standards.*
 
 The connective tissue is unchanged: a user request flows from a front-end into the **agent-pipe**
-orchestrator (`:8640`), which refines and fans it out; **MiOS-Hermes** (`:8642`) is the
+orchestrator (port key `agent_pipe`), which refines and fans it out; **MiOS-Hermes** (port key `hermes`) is the
 OpenAI-compatible gateway and tool-loop agent; **pgvector** is the unified memory; the **inference
 lanes** do the generation and embeddings; **MCP/A2A** expose tools and federate peers. Every task below
 is justified by how it serves that throughline, and every retirement is gated so we never rip out a
@@ -63,7 +63,7 @@ Legend: **[VERIFY]** gated on a probe · **conf:H/M/L** confidence · **eff:S/M/
 | # | Finding | Status vs MiOS memory |
 |---|---------|----------------------|
 | A | **AMD/Intel iGPU compute now works *inside* WSL2.** AMD shipped **ROCDXG** (`librocdxg`, ROCm 7.2.1 + Adrenalin 26.2.2, production Mar 2026, **incl. Strix/Strix Halo APUs**); Intel ships **Level Zero/OpenCL/OpenVINO** — both route GPGPU through the same `/dev/dxg`/DXGKRNL paravirt path NVIDIA uses. | **OVERTURNS** `gpu_igpu_compute_topology` ("AMD/Intel iGPU CANNOT compute in WSL"). Hardware-dependent → **[VERIFY]**. |
-| B | **The gated heavy lane is NOT VRAM-blocked.** `--gpu-memory-utilization ~0.15–0.3` + **KV-cache CPU offload** (vLLM 0.22.1 native; SGLang 0.5.12 HiSparse) runs a quantized heavy/VLM lane in the ~4 GB the Windows host leaves on the 4090. | **OVERTURNS** the "heavy-lane VRAM-blocked" note in `gemma4_planner_deploy` / AIOS memories. **[VERIFY]** cheap. *(MiOS already serves `mios-llm-heavy` (SGLang, `:11441`) live; the alternate `mios-llm-heavy-alt` (vLLM, `:11440`) stays gated.)* |
+| B | **The gated heavy lane is NOT VRAM-blocked.** `--gpu-memory-utilization ~0.15–0.3` + **KV-cache CPU offload** (vLLM 0.22.1 native; SGLang 0.5.12 HiSparse) runs a quantized heavy/VLM lane in the ~4 GB the Windows host leaves on the 4090. | **OVERTURNS** the "heavy-lane VRAM-blocked" note in `gemma4_planner_deploy` / AIOS memories. **[VERIFY]** cheap. *(MiOS already serves `mios-llm-heavy` (vLLM, port key `vllm`) live; the alternate `mios-llm-heavy-alt` (SGLang, port key `sglang`) stays gated.)* |
 | C | **WSLg-over-RDP cross-session rendering is STILL unfixed** (wslg#471/#1456 open; #1440 new regression). KasmVNC stands — but **Selkies (WebRTC+NVENC)** is a GPU-accelerated upgrade over KasmVNC/llvmpipe. | **CONFIRMS** `mios_gui_remote_display`; adds a better bypass. |
 | D | **bootc-in-WSL is architecturally blocked** (no upstream fix; Build 2026 `wslc` is a Docker-Desktop replacement, *not* OS-image import). `bootc upgrade/switch` refuse to run in WSL ("requires a booted host system"). | New constraint → formalize **dual-personality image**. |
 | E | **Podman rootful-socket drop-in + CDI auto-refresh** obsolete two MiOS hacks (the `mios-podman-ps` snapshot timer and manual GPU-CDI regen). | New, clean upstream wins. |
@@ -89,8 +89,8 @@ lane the agent-pipe depends on.)*
 - **T0.2 [VERIFY] heavy lane in ~4 GB.** Launch vLLM 0.22.1 (or SGLang 0.5.12 HiSparse) with
   `--gpu-memory-utilization 0.2` + KV-CPU-offload on a small quantized model against the partially-occupied
   4090. **Gate:** serves an OpenAI-compatible completion without OOM while the Windows host holds ~20 GB.
-  *(SGLang already validated live as `mios-llm-heavy` :11441; this gate covers the `mios-llm-heavy-alt`
-  vLLM path before un-gating it.)* conf:H
+  *(vLLM already validated live as `mios-llm-heavy`, port key `vllm`; this gate covers the `mios-llm-heavy-alt`
+  SGLang path before un-gating it.)* conf:H
 - **T0.3 Re-baseline WSL.** Record live `wsl --version`/kernel; confirm ≥2.7.5 (6.18) so T0.1/coopmat2
   prerequisites hold. Set the stage for `sparseVhd`/`autoMemoryReclaim` (T1.3). conf:H
 
@@ -140,12 +140,12 @@ gated on a Wave-0 probe so a working lane is never removed on an assumption.
   Keep the Windows-native server as fallback until the in-VM lane is proven under load. (The iGPU node ships
   with an EMPTY endpoint in vendor `mios.toml` for privacy; the tailnet IP is set in `/etc/mios`.) conf:M eff:M
 - **T2.2 [gated on T0.2] Activate the alternate heavy + VLM lane.** Run a quantized heavy lane in the
-  partial 4090 (low gpu-mem-util + KV-CPU-offload). MiOS already serves `mios-llm-heavy` (SGLang, `:11441`,
-  HiCache CPU KV-offload) — this task un-gates the `mios-llm-heavy-alt` vLLM path (`:11440`,
-  PagedAttention+APC) and, on either lane, **unblocks computer-use:** serve **Qwen3-VL** or **UI-TARS** for
+  partial 4090 (low gpu-mem-util + KV-CPU-offload). MiOS already serves `mios-llm-heavy` (vLLM, port key
+  `vllm`, PagedAttention+APC) — this task un-gates the `mios-llm-heavy-alt` SGLang path (port key `sglang`,
+  HiCache CPU KV-offload) and, on either lane, **unblocks computer-use:** serve **Qwen3-VL** or **UI-TARS** for
   the `mios-computer-use`/`verify_launch` visual probe (validate grounding accuracy — Qwen3-VL
   pixel-grounding is reportedly weak; UI-TARS may ground better). The vision-grounding GGUF can also be
-  served on `mios-llm-light` (`:11450`) once provisioned (see `mios-llm-light.yaml`'s `qwen3-vl:4b` entry).
+  served on `mios-llm-light` (port key `llm_light`) once provisioned (see `mios-llm-light.yaml`'s `qwen3-vl:4b` entry).
   Re-enable the gemma4 planner heavy path this frees. conf:H eff:M
 - **T2.3 llama.cpp RPC fabric + coopmat2.** Run an `rpc-server` per lane/node (phone/iGPU/dGPU/cluster);
   agent-pipe targets one logical RPC endpoint for models too big for any single lane — maps directly onto

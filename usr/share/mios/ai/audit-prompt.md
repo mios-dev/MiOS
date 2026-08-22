@@ -90,7 +90,7 @@ AI plane unified and least-privileged:
 | **BOUND-IMAGES** | `for c in usr/share/containers/systemd/*.container etc/containers/systemd/*.container; do test -e "usr/lib/bootc/bound-images.d/$(basename "$c")" \|\| echo "missing: $c"; done` |
 | **BOOTC-CONTAINER-LINT** | `grep -n 'RUN bootc container lint' Containerfile \| tail -1` must be the LAST `RUN` instruction (verify with `tac Containerfile \| grep -m1 '^RUN'`). |
 | **UNIFIED-AI-REDIRECTS** | `grep -rE 'https?://(api\.openai\.com\|api\.anthropic\.com\|generativelanguage\.googleapis\.com\|api\.cohere)' --include='*.sh' --include='*.py' --include='*.json' .` -- any vendor-hardcoded URL is a finding (every agent/tool must resolve through `MIOS_AI_ENDPOINT`). The upstream proxy image `ghcr.io/mostlygeek/llama-swap` and "OpenAI/Ollama-compatible API" references are legitimate and NOT findings. |
-| **UNPRIVILEGED-QUADLETS** | `for c in usr/share/containers/systemd/*.container etc/containers/systemd/*.container; do { grep -q '^User=' "$c" && grep -q '^Group=' "$c" && grep -q '^Delegate=yes' "$c"; } \|\| echo "$c missing User/Group/Delegate"; done`. Documented exceptions (rationale in each unit header): `mios-ceph` and `mios-k3s` (require uid 0); `mios-forgejo-runner` (`User=0`/`Group=0` -- the closed self-replication loop runs `podman build` + `bootc switch`); the upstream `mios-llm-heavy` (SGLang) image, which runs image-default root (root-only `nvidia-smi` GPU probe, no `mios` user). |
+| **UNPRIVILEGED-QUADLETS** | `for c in usr/share/containers/systemd/*.container etc/containers/systemd/*.container; do { grep -q '^User=' "$c" && grep -q '^Group=' "$c" && grep -q '^Delegate=yes' "$c"; } \|\| echo "$c missing User/Group/Delegate"; done`. Documented exceptions (rationale in each unit header): `mios-ceph` and `mios-k3s` (require uid 0); `mios-forgejo-runner` (`User=0`/`Group=0` -- the closed self-replication loop runs `podman build` + `bootc switch`); the upstream `mios-llm-heavy` (vLLM) image, which runs image-default root (root-only `nvidia-smi` GPU probe, no `mios` user). |
 
 ### 2. Build Correctness
 - `bash -n automation/build.sh` → must parse.
@@ -115,7 +115,7 @@ Per `usr/share/doc/mios/guides/engineering.md` shell conventions:
 - Every `Image=` ref in Quadlets must be parsed, classified (registry, repo, tag).
   `grep -h '^Image=' usr/share/containers/systemd/*.container etc/containers/systemd/*.container | sort -u`.
   (Expected upstream images include `ghcr.io/mostlygeek/llama-swap:cuda` for
-  `mios-llm-light`, `lmsysorg/sglang` for `mios-llm-heavy`, `vllm/vllm-openai`
+  `mios-llm-light`, `vllm/vllm-openai` for `mios-llm-heavy`, `lmsysorg/sglang`
   for `mios-llm-heavy-alt`, and the `pgvector`/PostgreSQL image for
   `mios-pgvector` -- all legitimate, function-named units over upstream engines.)
 - `bound-images.d/` symlink targets must resolve. For each entry:
@@ -152,7 +152,7 @@ cite a real shipped file -- a stale path is a promise the image can't keep.
 - `Justfile` targets mentioned in any `.md` must exist:
   `grep -hoE 'just [a-z-]+' *.md | awk '{print $2}' | sort -u | xargs -I{} sh -c 'grep -q "^{}:" Justfile || echo "missing target: {}"'`.
 - AI-plane currency: docs must describe the **current** inference + memory stack
-  -- function-named inference lanes (`mios-llm-light` primary `:11450` incl.
+  -- function-named inference lanes (`mios-llm-light` primary (port key `llm_light`) incl.
   embeddings, gated `mios-llm-heavy`/`mios-llm-heavy-alt`) and the
   PostgreSQL+pgvector agent datastore (`mios-pgvector` `:5432`). References to the
   retired backends as *live* (`Ollama`/`mios-ollama`, `the legacy datastore`, `Qdrant`, the

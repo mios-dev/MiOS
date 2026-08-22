@@ -216,6 +216,42 @@ CREATE TABLE IF NOT EXISTS skill_invocation (
     ts          timestamptz DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS skill_inv_skill ON skill_invocation (skill);
+-- A3F-01: the open-time half of the invocation. The row used to be created only
+-- at CLOSE (a _pg_mirror of {skill, success, session_id}), because the open-time
+-- CREATE went through the legacy seam, which discards writes under pg-primary --
+-- so started_at and params never landed anywhere.
+ALTER TABLE skill_invocation ADD COLUMN IF NOT EXISTS started_at timestamptz;
+ALTER TABLE skill_invocation ADD COLUMN IF NOT EXISTS ended_at   timestamptz;
+ALTER TABLE skill_invocation ADD COLUMN IF NOT EXISTS params     jsonb;
+ALTER TABLE skill_invocation ADD COLUMN IF NOT EXISTS passport   jsonb;
+
+-- A3F-01: the `emitted` edge, as a table. mios_skills._skill_attribute_tool_call
+-- issued `RELATE <inv>->emitted-><tool_call>` through the legacy seam, so under
+-- pg-primary EVERY skill->tool_call attribution edge was silently dropped and the
+-- miner could not subtract skill-emitted runs from its candidate population.
+CREATE TABLE IF NOT EXISTS skill_tool_call (
+    invocation_id bigint NOT NULL
+        REFERENCES skill_invocation (id) ON DELETE CASCADE,
+    tool_call_id  text   NOT NULL,
+    step_index    integer NOT NULL DEFAULT 0,
+    ts            timestamptz DEFAULT now(),
+    PRIMARY KEY (invocation_id, tool_call_id)
+);
+CREATE INDEX IF NOT EXISTS skill_tool_call_tc
+    ON skill_tool_call (tool_call_id);
+
+-- ── quota_ledger: per-principal budget window that survives a restart ─────────
+-- KACT-03/T-228: the tracker counted per principal but only in memory, so any
+-- restart -- including a `bootc` upgrade -- handed an exhausted account a fresh
+-- allowance. The RPM deque is deliberately NOT stored: a sliding minute of
+-- request timestamps is meaningless after a restart, and replaying it would
+-- deny a caller for traffic sent before the process existed.
+CREATE TABLE IF NOT EXISTS quota_ledger (
+    principal    text PRIMARY KEY,
+    window_start double precision NOT NULL,
+    spent        double precision NOT NULL DEFAULT 0,
+    updated_at   timestamptz NOT NULL DEFAULT now()
+);
 
 -- ── sys_env: singleton live environment cache ────────────────────────────────
 CREATE TABLE IF NOT EXISTS sys_env (
@@ -253,6 +289,12 @@ CREATE TABLE IF NOT EXISTS run_template (
 );
 CREATE INDEX IF NOT EXISTS run_template_class ON run_template (class);
 CREATE INDEX IF NOT EXISTS run_template_ts    ON run_template (ts DESC);
+-- T-225: `class` is a hash of the PLAN's shape, so it can only be computed
+-- AFTER planning -- useless for deciding whether to plan at all. The intent key
+-- is derived from the TURN, which is the question asked before the planner runs.
+ALTER TABLE run_template ADD COLUMN IF NOT EXISTS intent     text;
+ALTER TABLE run_template ADD COLUMN IF NOT EXISTS intent_key text;
+CREATE INDEX IF NOT EXISTS run_template_intent_key ON run_template (intent_key);
 
 -- ── scratch: per-chat working memory (folds the in-process _SCRATCHPADS so it
 --    survives agent-pipe restarts) ─────────────────────────────────────────────
@@ -586,6 +628,23 @@ INSERT INTO config_layer (rank, name) VALUES
     (3, 'machine')
 ON CONFLICT (rank) DO UPDATE SET name = EXCLUDED.name;
 
+-- CONS-02 Goodhart alarm. One row per drift sample: `axis` names the
+-- distribution ("verdict", "intent", "score"), `dist` is the normalized
+-- histogram, and `kind` marks the frozen reference ('baseline') apart from the
+-- periodic observations ('sample'). Divergence is not stored -- it is derived
+-- from a (baseline, sample) pair, so re-thresholding never needs a backfill.
+CREATE TABLE IF NOT EXISTS drift_snapshot (
+    id bigserial PRIMARY KEY,
+    ts timestamptz DEFAULT now(),
+    kind text NOT NULL DEFAULT 'sample',
+    axis text NOT NULL,
+    dist jsonb NOT NULL,
+    samples integer NOT NULL DEFAULT 0,
+    source text
+);
+CREATE INDEX IF NOT EXISTS drift_snapshot_axis_ts_idx
+    ON drift_snapshot (axis, kind, ts DESC);
+
 CREATE TABLE IF NOT EXISTS config_event (
     id          bigserial PRIMARY KEY,
     ts          timestamptz DEFAULT now(),
@@ -851,6 +910,35 @@ ALTER TABLE account ADD COLUMN IF NOT EXISTS shell text;
 
 CREATE SEQUENCE IF NOT EXISTS uid_alloc START WITH 1000;
 
+-- allocate_gid() drew from uid_alloc, the SAME sequence allocate_uid() draws
+-- from. mios-account-sync allocates the gid first and the uid second, so every
+-- new account got gid=N / uid=N+1 and a user-private group (uid == gid) -- the
+-- Fedora default and what `useradd -m` expects -- was unreachable.
+CREATE SEQUENCE IF NOT EXISTS gid_alloc START WITH 1000;
+
+-- An EXISTING cluster already handed gids out of uid_alloc, and a fresh
+-- gid_alloc starting at 1000 would re-issue them. Advance past the highest gid
+-- on record -- and ONLY that. Advancing past uid_alloc as well would push the
+-- first gid to 1001 on a brand-new cluster whose first uid is 1000, which is
+-- exactly the user-private group (uid == gid) this change exists to restore.
+DO $$
+DECLARE
+    v_floor bigint;
+    v_at    bigint;
+BEGIN
+    SELECT COALESCE(max(gid), 0) + 1 INTO v_floor
+      FROM account WHERE gid IS NOT NULL;
+    SELECT CASE WHEN is_called THEN last_value + 1 ELSE last_value END
+      INTO v_at FROM gid_alloc;
+    IF v_floor > v_at THEN
+        PERFORM setval('gid_alloc', v_floor, false);
+    END IF;
+EXCEPTION WHEN undefined_table OR undefined_column THEN
+    -- account not created yet on a first-ever init: START WITH 1000 stands.
+    NULL;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION allocate_uid() RETURNS integer AS $$
 BEGIN
     RETURN nextval('uid_alloc');
@@ -859,7 +947,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION allocate_gid() RETURNS integer AS $$
 BEGIN
-    RETURN nextval('uid_alloc');
+    RETURN nextval('gid_alloc');
 END;
 $$ LANGUAGE plpgsql;
 

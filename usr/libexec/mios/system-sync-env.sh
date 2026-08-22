@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: layered mios.toml dotfile.
-# AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/configurator/mios.html, /etc/mios/install.env.XXXXXX, mios-sync-env, mios-tools, localhost:8642
+# AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, /usr/share/mios/configurator/mios.html, /etc/mios/install.env.XXXXXX, mios-sync-env, mios-tools, mios-hermes (port key `hermes`)
 # AI-functions: generate_env
 set -euo pipefail
 
@@ -25,6 +25,7 @@ if [[ ! -r "$RESOLVER" ]]; then
     echo "Mios-sync-env: resolver $RESOLVER not found" >&2
     exit 1
 fi
+# shellcheck disable=SC1090  # resolver path is a variable by design (vendor/host/user cascade)
 . "$RESOLVER"
 
 _ENV_UNSAFE='[[:space:]"'"'"'$`#]'
@@ -114,7 +115,7 @@ EOF
     [[ -n "${MIOS_PORT_VLLM:-}" ]]   && emit MIOS_AI_HEAVY_ALT_ENDPOINT "http://localhost:${MIOS_PORT_VLLM}/v1"
 
     # MIOS_PORT_PGVECTOR is bridged too so shell consumers that can't parse TOML
-    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_HERMES_WORKER MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT MIOS_PORT_TTYD_BASH MIOS_PORT_TTYD_POWERSHELL MIOS_PORT_CRAWL4AI MIOS_PORT_FIRECRAWL MIOS_PORT_CPU_NODE MIOS_PORT_OSCONTROL MIOS_PORT_COCKPIT MIOS_PORT_COCKPIT_LINK; do
+    for _pk in MIOS_PORT_LLM_LIGHT MIOS_PORT_HERMES MIOS_PORT_AGENT_PIPE MIOS_PORT_PREFILTER MIOS_PORT_OPENCODE MIOS_PORT_PGVECTOR MIOS_PORT_SGLANG MIOS_PORT_VLLM MIOS_PORT_FORGE_HTTP MIOS_FORGE_HTTP_PORT MIOS_PORT_FORGE_SSH MIOS_FORGE_SSH_PORT MIOS_PORT_OPEN_WEBUI MIOS_PORT_CODE_SERVER MIOS_PORT_SEARXNG MIOS_SEARXNG_PORT MIOS_PORT_TTYD_BASH MIOS_PORT_TTYD_POWERSHELL MIOS_PORT_CRAWL4AI MIOS_PORT_FIRECRAWL MIOS_PORT_CPU_NODE MIOS_PORT_OSCONTROL MIOS_PORT_COCKPIT MIOS_PORT_COCKPIT_LINK; do
         _pv="${!_pk:-}"
         if [[ -n "$_pv" ]]; then emit ${_pk} "${_pv}"; fi
     done

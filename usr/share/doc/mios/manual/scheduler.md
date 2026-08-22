@@ -32,7 +32,7 @@ stability/security via mios_quota / mios_trace / mios_stress / the fitness gates
 but had NO standard agentic-capability benchmark runner. This module is the pure,
 deterministic half of that harness: the reliability metrics + the CLASSic rollup.
 The libexec `mios-bench` CLI drives trials against the agent-pipe endpoint
-(:8640) -- that half needs the live VM -- then scores the results through here.
+(port key `agent_pipe`) -- that half needs the live VM -- then scores the results through here.
 
 RESEARCH GROUNDING (web-verified):
   * pass@k -- "at least one of k samples passes". Unbiased estimator

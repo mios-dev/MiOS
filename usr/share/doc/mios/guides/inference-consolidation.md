@@ -17,7 +17,7 @@ By moving to a unified `single` engine mode with vLLM multi-LoRA support, the pr
 | Before | VRAM | After | VRAM |
 |---|---|---|---|
 | `mios-llm-light` llama-swap (3 models co-resident) | ~6.7 GB | `mios-llm-light` (unchanged, + cache-reuse) | ~6.7 GB |
-| `mios-llm-heavy` (SGLang, separate process) | ~12 GB | `mios-llm-heavy` (vLLM, multi-LoRA, shared base) | ~12 GB |
+| `mios-llm-heavy` (vLLM, separate process) | ~12 GB | `mios-llm-heavy` (vLLM, multi-LoRA, shared base) | ~12 GB |
 | `mios-llm-heavy-alt` (:11440, second process) | ~12 GB | ~~`mios-llm-heavy-alt`~~ (retired) | **0 GB** |
 | **Total** | **~30.7 GB** ❌ over 24 GB | **Total** | **~18.7 GB** ✅ |
 
@@ -37,7 +37,7 @@ To migrate to the single-engine multi-LoRA topology, follow these steps:
    ```
 4. Verify the active adapters endpoint:
    ```bash
-   curl http://localhost:8640/v1/inference/lora/list
+   curl http://localhost:${MIOS_PORT_AGENT_PIPE}/v1/inference/lora/list
    ```
 5. Retire the secondary alternative service by updating your configuration:
    ```toml

@@ -14,7 +14,7 @@
 
 MiOS is a single immutable bootc/OCI Fedora image that is *also* a local,
 self-replicating agentic AI OS. Both halves run on the same host: an agent stack
-(agent-pipe `:8640`, MiOS-Hermes `:8642`, the inference lanes, pgvector `:5432`)
+(agent-pipe on the `agent_pipe` port, MiOS-Hermes on the `hermes` port, the inference lanes, pgvector `:5432`)
 that can launch apps, run containers, and pass a GPU into a lane, sitting next to
 a desktop the operator actually uses. SELinux enforcing is the mandatory-access
 layer that keeps that powerful agentic surface confined: it is one of the three

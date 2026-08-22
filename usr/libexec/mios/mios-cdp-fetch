@@ -17,6 +17,7 @@ Headless + observational (no visible window): the same CDP surface the agent's
 browser_navigate uses, exposed as a deterministic verb the pipeline can call so
 the answer is grounded in the actual page, not the model's guess.
 """
+import os
 import sys
 import json
 import time
@@ -27,7 +28,8 @@ import urllib.parse
 
 import websockets  # 16.0, present in the agent venv
 
-CDP = "http://127.0.0.1:9222"
+CDP = os.environ.get("MIOS_CRAWL_CDP_URL") or (
+    "http://127.0.0.1:%s" % os.environ.get("MIOS_PORT_CHROME_CDP", "9222"))
 
 
 def _http(method, path, timeout=8):

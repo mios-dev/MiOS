@@ -75,6 +75,73 @@ open_ports = [
 
 
 # ----------------------------------------------------------------------------
+# [ssot_consumers] -- Shrink-only register: config keys a consumer reads that
+# the SSOT does not declare at that path.
+# ----------------------------------------------------------------------------
+[ssot_consumers]
+doc = "Shipped Python reads config as _toml_section(\"<table>\").get(\"<key>\"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys."
+max_unresolved = 9
+unresolved = [
+  "a2a.security",                      # MISPLACED -> packages.security/security
+  "agent_passport.principal_mode",     # MISPLACED -> agents._defaults.auth.principal_mode/security.principal_mode
+  "ai.micro_endpoint",                 # MISPLACED -> ai.host_thresholds.micro_endpoint
+  "ai.micro_model",                    # MISPLACED -> ai.host_thresholds.micro_model
+  "ai.permission_tiers",               # UNDECLARED
+  "computer_use.hidpi_scale_factor",   # UNDECLARED
+  "pgvector.memguard_judge_mode",      # MISPLACED -> offline.memguard_judge_mode
+  "pgvector.memory_guard_mode",        # MISPLACED -> offline.memory_guard_mode
+  "pgvector.memory_provider",          # MISPLACED -> offline.memory_provider
+]
+
+# ----------------------------------------------------------------------------
+# [unit_projection] -- Shrink-only debt register for the [units] projection.
+# ----------------------------------------------------------------------------
+[unit_projection]
+doc = "[units.*] is the SOURCE and usr/lib/systemd/system is the DERIVED artifact (Law 8), but the declarations went stale while nothing compared them: mios-unit-gen --check rendered into memory, printed PASSED and returned, and its golden test diffed the unit tree against tests/golden/, a byte copy of that same tree. This register lists every unit [units.*] declares whose rendering no longer matches the file it ships. It only shrinks -- tools/native/mios-unit-gen/tests/projection.rs fails an entry that has stopped drifting as loudly as one that starts, so the count cannot be padded. Draining an entry: `mios-unit-gen --render <unit> | diff - usr/lib/systemd/system/<unit>`, then correct [units.*] (the file on disk is what boots, so it wins). A unit absent from BOTH this register and [units.*] is not covered at all -- 52 of the tree's 120 units are in that state, which is the larger debt behind T-317."
+max_drift = 39
+drift = [
+  "hermes-worker-firstboot.service",
+  "hermes-worker.service",
+  "mios-account-sync.service",
+  "mios-additionalimagestores-perms.path",
+  "mios-adguard-firstboot.service",
+  "mios-agent-pipe.service",
+  "mios-agents.service",
+  "mios-ai-firstboot.service",
+  "mios-ai-firstboot.timer",
+  "mios-aios-refresh.timer",
+  "mios-ceph-bootstrap.service",
+  "mios-daemon.service",
+  "mios-embed-backfill.service",
+  "mios-finetune-serve.service",
+  "mios-firewall-ports.service",
+  "mios-forge-firstboot.service",
+  "mios-forgejo-runner-firstboot.service",
+  "mios-gpu-amd.service",
+  "mios-gpu-intel.service",
+  "mios-gpu-nvidia.service",
+  "mios-gpu-status.service",
+  "mios-hermes-browser-worker.service",
+  "mios-hermes-browser.service",
+  "mios-hermes-firstboot.service",
+  "mios-libexec-perms.path",
+  "mios-mcp.service",
+  "mios-models-firstboot.service",
+  "mios-opencode-gateway.service",
+  "mios-pgvector-backup.service",
+  "mios-pgvector-backup.timer",
+  "mios-podman-gc.service",
+  "mios-policy-arbiter.service",
+  "mios-shell-session-gc.service",
+  "mios-suggestion-refresh.timer",
+  "mios-swarm-pack-firstboot.service",
+  "mios-sys-env-refresh.timer",
+  "mios-userdb-render.service",
+  "mios-webtools-firstboot.service",
+  "mios-wsl-flatpak-export-sync.path",
+]
+
+# ----------------------------------------------------------------------------
 # [units] -- Systemd unit definitions SSOT (WS-SYSTEMD schema).
 # ----------------------------------------------------------------------------
 [units."mios-podman-gc.service".Unit]
@@ -92,8 +159,7 @@ Description = "Weekly Podman Cleanup"
 
 [units."mios-podman-gc.timer".Timer]
 OnCalendar = "weekly"
-Persistent = true
-
+Persistent = "true"
 [units."mios-podman-gc.timer".Install]
 WantedBy = "timers.target"
 
@@ -107,7 +173,7 @@ ConditionPathExists = "!/var/lib/mios/.ai-firstboot-done"
 comment = "# First retry shortly after boot, then every 10min while the service sits\n# inactive and the sentinel is still absent. Persistent catches up a missed\n# window across a shutdown. The timer OWNS retry now (the .service no longer\n# carries Restart=on-failure / StartLimitBurst)."
 OnBootSec = "2min"
 OnUnitInactiveSec = "10min"
-Persistent = true
+Persistent = "true"
 Unit = "mios-ai-firstboot.service"
 
 [units."mios-ai-firstboot.timer".Install]
@@ -121,8 +187,7 @@ Description = "Periodic MiOS AIOS refresh (SSOT role SYSTEMs + A2A fleet discove
 comment = "# 2 min after boot (agent-pipe up by then), then every 15 min so the role\n# SYSTEMs track catalog/SSOT changes and the peer list tracks the live fleet."
 OnBootSec = "2min"
 OnUnitActiveSec = "15min"
-Persistent = true
-
+Persistent = "true"
 [units."mios-aios-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -136,8 +201,7 @@ OnBootSec = "2min"
 OnUnitActiveSec = "5min"
 AccuracySec = "30s"
 Unit = "mios-dashboard-issue.service"
-Persistent = false
-
+Persistent = "false"
 [units."mios-dashboard-issue.timer".Install]
 WantedBy = "timers.target"
 
@@ -151,8 +215,7 @@ OnBootSec = "5min"
 OnUnitActiveSec = "15min"
 AccuracySec = "1min"
 Unit = "mios-embed-backfill.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-embed-backfill.timer".Install]
 WantedBy = "timers.target"
 
@@ -164,7 +227,7 @@ Documentation = "file:///usr/lib/systemd/system/mios-pgvector-backup.service"
 [units."mios-pgvector-backup.timer".Timer]
 comment = "# Daily, shortly after midnight local time. Persistent=true catches up a missed\n# run (machine asleep/off at the scheduled time) on the next boot. Randomized\n# delay spreads the dump off the exact minute so it doesn't collide with other\n# midnight jobs."
 OnCalendar = "*-*-* 00:30:00"
-Persistent = true
+Persistent = "true"
 RandomizedDelaySec = "15m"
 AccuracySec = "5m"
 
@@ -193,8 +256,7 @@ OnBootSec = "10min"
 OnUnitActiveSec = "60min"
 AccuracySec = "2min"
 Unit = "mios-skills-miner.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-skills-miner.timer".Install]
 WantedBy = "timers.target"
 
@@ -209,8 +271,7 @@ OnBootSec = "2min"
 OnUnitActiveSec = "10min"
 AccuracySec = "1min"
 Unit = "mios-suggestion-refresh.service"
-Persistent = true
-
+Persistent = "true"
 [units."mios-suggestion-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -223,8 +284,7 @@ comment = "# Mirrors the daemon's directory_entry refresh cadence (~15 min): ins
 OnBootSec = "45s"
 OnUnitActiveSec = "900s"
 AccuracySec = "10s"
-Persistent = true
-
+Persistent = "true"
 [units."mios-sys-env-refresh.timer".Install]
 WantedBy = "timers.target"
 
@@ -253,9 +313,8 @@ comment = "# AI-hint: Defines the compute systemd target for MiOS, representing 
 Description = "'MiOS' Compute Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
-AllowIsolate = true
-
+Conflicts = "mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-compute.target".Install]
 WantedBy = "multi-user.target"
 
@@ -264,9 +323,8 @@ comment = "# AI-hint: Defines the controller systemd target for MiOS, representi
 Description = "'MiOS' Controller Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-controller.target".Install]
 WantedBy = "multi-user.target"
 
@@ -275,9 +333,8 @@ comment = "# AI-hint: Defines the mios-desktop.target systemd unit to initialize
 Description = "'MiOS' Desktop Role"
 Requires = "multi-user.target gdm.service libvirtd.service libvirtd.socket virtnetworkd.service virtqemud.service virtstoraged.service virtnodedevd.service"
 After = "multi-user.target"
-Conflicts = "mios-headless.target mios-k3s-master.target mios-ha-node.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-controller.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-desktop.target".Install]
 WantedBy = "multi-user.target"
 
@@ -286,9 +343,8 @@ comment = "# AI-hint: Defines the endpoint systemd target for MiOS, representing
 Description = "'MiOS' Endpoint Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-ha-node.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-endpoint.target".Install]
 WantedBy = "multi-user.target"
 
@@ -297,9 +353,8 @@ comment = "# AI-hint: Defines the mios-ha-node.target unit to identify and confi
 Description = "'MiOS' HA Cluster Node Role"
 Requires = "multi-user.target corosync.service pacemaker.service"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target mios-k3s-master.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-headless.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-ha-node.target".Install]
 WantedBy = "multi-user.target"
 
@@ -308,9 +363,8 @@ comment = "# AI-hint: Defines the headless systemd target for MiOS, enforcing a 
 Description = "'MiOS' Headless Role"
 Requires = "multi-user.target"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-k3s-master.target mios-ha-node.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-hybrid.target mios-k3s-master.target"
+AllowIsolate = "yes"
 [units."mios-headless.target".Install]
 WantedBy = "multi-user.target"
 
@@ -319,20 +373,20 @@ comment = "# AI-hint: Defines the mios-hybrid.target unit to orchestrate the con
 Description = "'MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)"
 Requires = "graphical.target"
 After = "graphical.target"
-AllowIsolate = true
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-k3s-master.target"
+AllowIsolate = "yes"
 Wants = "k3s-agent.service"
 
 [units."mios-hybrid.target".Install]
-Alias = "default.target.mios-hybrid"
+WantedBy = "multi-user.target"
 
 [units."mios-k3s-master.target".Unit]
 comment = "# AI-hint: Defines the systemd target for a K3s master node role, ensuring the K3s service is active and mutually exclusive with other MiOS node profiles like desktop or headless.\n# AI-related: mios-desktop, mios-headless, mios-ha-node, k3s.service, multi-user.target, mios-desktop.target, mios-headless.target, mios-ha-node.target"
 Description = "'MiOS' K3s Master Role"
 Requires = "multi-user.target k3s.service"
 After = "multi-user.target"
-Conflicts = "mios-desktop.target mios-headless.target mios-ha-node.target"
-AllowIsolate = true
-
+Conflicts = "mios-compute.target mios-controller.target mios-desktop.target mios-endpoint.target mios-ha-node.target mios-headless.target mios-hybrid.target"
+AllowIsolate = "yes"
 [units."mios-k3s-master.target".Install]
 WantedBy = "multi-user.target"
 
@@ -341,11 +395,11 @@ comment = "# AI-hint: Defines the systemd target for the MiOS K3s worker node ro
 Description = "'MiOS' K3s worker role (agent)"
 Requires = "multi-user.target"
 After = "multi-user.target"
-AllowIsolate = true
+AllowIsolate = "yes"
 Wants = "k3s-agent.service"
 
 [units."mios-k3s-worker.target".Install]
-Alias = "default.target.mios-k3s-worker"
+WantedBy = "multi-user.target"
 
 [units."mios-cockpit-link.socket".Unit]
 comment = "# AI-hint: Socket file for mios-cockpit-link proxy. Maps port 8091 on host/WSL to the cockpit service.\n# AI-related: usr/lib/systemd/system/mios-cockpit-link.service"
@@ -400,9 +454,8 @@ ExecStart = '''/bin/bash -c '\
     /usr/bin/firewall-cmd --reload >/dev/null 2>&1; \
     echo "MiOS firewalld ports: $(/usr/bin/firewall-cmd --list-ports 2>/dev/null)"; \
     exit 0\''''
-ProtectKernelTunables = true
-ProtectControlGroups = true
-
+ProtectKernelTunables = "yes"
+ProtectControlGroups = "yes"
 [units."mios-firewall-ports.service".Install]
 WantedBy = "multi-user.target"
 
@@ -830,6 +883,34 @@ SuccessExitStatus = "0 1 2 3"
 WantedBy = "multi-user.target"
 
 
+[units."mios-shell-session-gc.service".Unit]
+comment = "# AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state.\n# AI-related: /usr/libexec/mios/mios-shell-session, mios-shell-session-gc.timer, /usr/share/mios/mios.toml [shell_session]"
+Description = "Reap idle MiOS shell sessions"
+ConditionPathExists = "/usr/libexec/mios/mios-shell-session"
+
+[units."mios-shell-session-gc.service".Service]
+Type = "oneshot"
+User = "mios-ai"
+Group = "mios-ai"
+ExecStart = "/usr/libexec/mios/mios-shell-session gc"
+# The reaper is best-effort: a tmux hiccup must never fault the timer.
+SuccessExitStatus = "0 1"
+
+[units."mios-shell-session-gc.service".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-shell-session-gc.timer".Unit]
+comment = "# AI-hint: Fires mios-shell-session-gc.service periodically so idle persistent shells are reclaimed without an operator.\n# AI-related: mios-shell-session-gc.service"
+Description = "Periodic reap of idle MiOS shell sessions"
+
+[units."mios-shell-session-gc.timer".Timer]
+OnBootSec = "10min"
+OnUnitInactiveSec = "10min"
+Persistent = "true"
+
+[units."mios-shell-session-gc.timer".Install]
+WantedBy = "timers.target"
+
 [units."mios-bound-images-firstboot.service".Unit]
 comment = "# AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open).\n# Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset.\n# AI-related: /usr/libexec/mios/mios-bound-images-firstboot, /usr/share/mios/mios.toml"
 Description = "First-boot Bound Images Provisioner"
@@ -964,12 +1045,12 @@ comment = "# SEPARATE HERMES_HOME + HOME => fully isolated pid/lock/state/DBs/co
 Environment = [
   "HOME=/var/lib/mios/hermes-worker",
   "HERMES_HOME=/var/lib/mios/hermes-worker",
-  "SEARXNG_URL=http://localhost:8888",
-  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:11235",
-  "FIRECRAWL_API_URL=http://127.0.0.1:3002",
-  "PORT=${MIOS_PORT_HERMES_WORKER:-8730}",
-  "API_SERVER_PORT=${MIOS_PORT_HERMES_WORKER:-8730}",
-  "HERMES_BACKEND_BASE_URL=http://localhost:11441",
+  "SEARXNG_URL=http://localhost:${MIOS_PORT_SEARXNG}",
+  "MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:${MIOS_PORT_CRAWL4AI}",
+  "FIRECRAWL_API_URL=http://127.0.0.1:${MIOS_PORT_FIRECRAWL}",
+  "PORT=${MIOS_PORT_HERMES}",
+  "API_SERVER_PORT=${MIOS_PORT_HERMES}",
+  "HERMES_BACKEND_BASE_URL=http://localhost:${MIOS_PORT_VLLM}",
   "HERMES_MAX_TOKENS=8192",
   "BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}",
 ]
@@ -1574,6 +1655,8 @@ developer = "MiOS"
 # validity_days   = 90
 
 [security]
+# TLS verification on agent-plane reachability probes. false = self-signed mesh only.
+probe_verify_tls = true
 enable_units = [
   "usbguard.service",
   "auditd.service",
@@ -1581,6 +1664,292 @@ enable_units = [
 ]
 composefs_mode = "verity"
 mask_systemd_remount_fs = true
+
+
+# The keys below were ORPHANED under [security.nohc_allowlist]: that header
+# opened and never closed, so every consumer reading [security].<key> took its
+# compiled default instead. Gate: check_ssot_consumer_keys. See TASKS.md T-325.
+# F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
+# (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
+# the single dispatch chokepoint. A verb dispatch may hold AT MOST TWO of three
+# dangerous properties without human review:
+#   A  untrusted-input  -- the session ingested attacker-controllable content (the
+#                          existing provenance-taint chain above);
+#   B  sensitive-access -- the verb READS sensitive/private/cross-tenant data (the
+#                          per-verb `sensitive = true` flag below);
+#   C  state-change     -- the verb mutates state / has side-effects (the verb's
+#                          `permission` tier: write/interactive, derived via the same
+#                          tier->confinement policy the sandbox uses).
+# When ALL THREE hold, the chain is the classic prompt-injection kill-chain (untrusted
+# text -> reads secrets -> exfiltrates/acts) and is gated. Composes the EXISTING taint
+# + permission signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on all-three, LOG a structured audit event + proceed
+#                        (observe before you enforce; non-blocking).
+#   enforce           -- on all-three, route to HITL review / BLOCK (fail-safe: a
+#                        3-property chain requires a human; an out-of-band approval
+#                        lets the exact action through). Composes with the firewall +
+#                        HITL gates -- the STRICTER outcome wins.
+# DEFAULT off because a 3-property block reduces autonomous function -- opt in, then
+# validate the `sensitive = true` classification for the deployment. Env override:
+# MIOS_SECURITY_RULE_OF_TWO_MODE.
+rule_of_two_mode = "off"
+
+# F2 -- the CaMeL DUAL-CONTEXT QUARANTINE gate (Debenedetti et al., "Defeating Prompt
+# Injections by Design"), the deeper half of the prompt-injection defense and a STRICTER
+# superset of rule_of_two_mode above. The CaMeL principle: untrusted/attacker-
+# controllable content (web/file/tool output that TAINTS the session, axis A above) must
+# not be able to make the privileged action-planner take a PRIVILEGED action it would not
+# otherwise -- where "privileged" means the verb either READS sensitive data (axis B,
+# `sensitive = true`) OR mutates state / has side-effects (axis C, the write/interactive
+# permission tier). The boundary BITES when the session is TAINTED *and* the verb is
+# privileged (B OR C). Where rule_of_two_mode gates only the all-three chain (A AND B AND
+# C), quarantine-enforce ADDITIONALLY gates the tainted + (B OR C) case -- the posture for
+# full CaMeL isolation: untrusted-content-derived privileged actions cannot fire
+# autonomously; a human (or a non-tainted plan) must authorize them. Composes the SAME
+# EXISTING taint + permission + sensitive signals -- no new keyword classifier. Modes:
+#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
+#   audit             -- on a bite (tainted + privileged), LOG a structured audit event +
+#                        proceed (observe before you enforce; non-blocking). Use this to
+#                        measure how often untrusted content drives privileged actions.
+#   enforce           -- on a bite, route through mios_hitl.decide to HITL review / BLOCK
+#                        (fail-safe; an out-of-band or same-turn approval lets the exact
+#                        action through). Sits at the SAME single dispatch chokepoint as
+#                        the firewall + HITL + Rule-of-Two gates -- the STRICTER outcome
+#                        wins, so there is no second action path that bypasses it.
+# DEGRADE-OPEN (not-crash) but FAIL-SAFE (security): an error computing the boundary falls
+# back to the existing firewall/HITL/Rule-of-Two behaviour (never crash, never newly-open);
+# a confirmed tainted+privileged under enforce gates (fail toward safety). DEFAULT off
+# because the stricter block reduces autonomous function -- opt in for full CaMeL
+# isolation. Env override: MIOS_SECURITY_QUARANTINE_MODE.
+quarantine_mode = "off"
+
+# FED-G1 INBOUND AUTH GATE. The agent-pipe front door
+# (:8700 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
+# middleware gates those paths: a request must present the canonical shared key
+# (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
+# OR a per-caller key from `api_caller_keys_path` -> a scoped principal stashed for
+# RBAC. Discovery/health (`/v1/models`, agent-card, passport, `/health`,
+# `/v1/cluster/health`) stay OPEN so an unauth'd peer can still learn how to auth.
+# DEFAULT FALSE -> the middleware is a pass-through (byte-identical behaviour). Turn
+# ON only with a loopback or firewall-scoped (172.16/12) bind -- it changes the
+# front-door auth posture (operator-greenlight). The federation JOIN contract
+# (FED-G6/G8) enforces per-peer scope once peers are keyed.
+api_require_auth     = false
+api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
+
+# VERIFIED PRINCIPAL BINDING (multi-tenant security FOUNDATION). The owner used for
+# per-owner memory row-scoping (`owner_user`) is derived in _client_env from the
+# request-body `user` field + the forwarded x-openwebui-user-* HEADERS -- both
+# spoofable by a direct :8700 caller (set "user":"victim"). This setting binds that
+# owner to the AUTHENTICATED caller-key instead. Each entry in `api_caller_keys_path`
+# MAY carry an `account` field (alias `owner`) naming the account that key speaks for
+# (an `account` row in postgres/schema-init.sql). The canonical shared / ingress key
+# has NO bound account (it is the full-trust gateway credential) -> the forwarded
+# user is used as-is; that is how the OWUI gateway keeps per-user identity (OWUI
+# authenticates each user and forwards it, so the gateway is trusted to speak for
+# whichever user it forwards).
+#   off     (default) -- NO binding: trust the body/header user exactly as today
+#                        (BYTE-IDENTICAL behaviour). Single-user / trusted callers.
+#   verify            -- observe mode: resolve the caller-key's bound account; if it
+#                        MISMATCHES the body/header user, audit-log it (structured,
+#                        non-blocking) but STILL use the forwarded value (no behaviour
+#                        change -- visibility before enforcement).
+#   enforce           -- the token-bound account IS the owner: a spoofable body/header
+#                        user is overridden by the verified identity for row-scoping.
+# DEGRADE-OPEN everywhere: no token / an unbound key / a missing mapping / any error
+# -> off behaviour, so a turn is never broken and OWUI is never locked out. Pair with
+# api_require_auth = true (which actually REQUIRES a credential) for full multi-tenant
+# isolation -- binding alone identifies the owner; the gate decides who may connect.
+# Env override: MIOS_PRINCIPAL_BIND_MODE.
+principal_bind_mode  = "off"
+
+# Verbs whose dispatch is REFUSED when the session is tainted
+# (Phase A.3 / B.3 Semantic Firewall). These cause visible system
+# effects -- restarting services, injecting input into Win32 GUI
+# windows, restarting containers -- so the firewall blocks them
+# when an upstream tool_call in the same session was tainted.
+# Operator can add custom verbs to this list (e.g. when shipping
+# a new privileged shim) without touching agent-pipe code.
+firewall_high_privilege_verbs = [
+    "service_restart",
+    "container_restart",
+    "pc_type",
+    "pc_key",
+    "pc_click",
+    # Native text-editor write verbs -- tainted sessions can't
+    # craft them to drop payloads onto operator paths.
+    "text_create",
+    "text_str_replace",
+    "text_insert",
+    # Single most dangerous verb in the catalog: arbitrary
+    # Windows-side script execution. Always firewall-gated.
+    "powershell_run",
+    # Window-state verbs (D.3 PC-control template) -- tainted
+    # sessions moving / hiding operator windows is the kind of
+    # thing the firewall should refuse pre-clear.
+    "minimize_window",
+    "maximize_window",
+    "restore_window",
+    "resize_window",
+    "position_window",
+    # Package management WRITE verbs (D.4). Either platform's
+    # install path can land arbitrary code on the operator's
+    # machine -- tainted sessions are refused.
+    "winget_install",
+    "winget_upgrade",
+    "winget_uninstall",
+    "flatpak_install",
+    "flatpak_upgrade",
+    "flatpak_uninstall",
+]
+# WS-A14: verbs whose OWN execution introduces session taint (downstream
+# high-privilege verbs then get firewall-checked). UNIONED with the built-in
+# external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
+# add a verb here to taint on it without a code change. Empty by default.
+taint_verbs = []
+# Path prefixes whose text_view READ taints the session (the agent is reading
+# content it did not author, so downstream high-privilege verbs in the same
+# session get firewall-gated). This is the SAME write-protected prefix set the
+# native text editor refuses writes to, so a tainting read and a denied write
+# stay in lock-step -- keep it aligned with the editor's denied-write prefixes.
+text_view_taint_prefixes = [
+    "/etc/",
+    "/usr/",
+    "/boot/",
+    "/sys/",
+    "/proc/",
+    "/dev/",
+    "/mnt/c/Windows/",
+    "/mnt/c/Program Files/",
+    "/mnt/c/Program Files (x86)/",
+]
+# Host suffixes treated as the operator's OWN (internal) infrastructure: a URL
+# whose host ends with one of these is NOT a taint source (the *.local / *.lan
+# split-horizon + explicit internal zone). Single-label bare hostnames (no dot)
+# are also treated as internal by the classifier.
+internal_tld_suffixes = [".local", ".lan", ".internal"]
+# WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
+# arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
+# [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
+# arbiter permits everything until the operator sets a deny-list / block-tier.
+# Bridged to the service as MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER.
+arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
+arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
+arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
+arbiter_port       = 8760      # loopback port mios-policy-arbiter listens on
+# WS-A10 verified-caller principal (edge identity) -- RESERVED / aspirational.
+# This scoped-token gate ("verify" = require a valid scoped token, "enforce" =
+# verify + 401) was never wired into the inbound path; its token mint/verify core
+# was removed as dead. The IMPLEMENTED inbound-principal handling lives elsewhere:
+# [security].api_require_auth (bearer gate), [security].principal_bind_mode (owner
+# binding -> RLS, in mios_grounding), and [agent_passport].principal_mode (A2A
+# federation, in mios_a2a). Leave "off" unless/until the scoped-token path is
+# built. token_ttl_s = intended scoped-token lifetime. Env: MIOS_PRINCIPAL_MODE /
+# MIOS_TOKEN_TTL_S. Revocation: mios_crl (live, used by mios_a2a key-revoke).
+principal_mode     = "off"
+token_ttl_s        = 3600
+# ----------------------------------------------------------------------------
+# Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
+# allowlist. Hosts in this list are TRUSTED -- open_url to one of
+# these does NOT taint the session. Anything outside this list +
+# the compiled-in *.local / *.lan / single-label heuristic is
+# treated as external and contributes session taint, which gates
+# subsequent high-privilege verbs (in `firewall_high_privilege_verbs`
+# below). Operator can extend per deployment (LAN hosts, internal
+# SaaS, etc.) without touching code. CSV-form in the env (the
+# userenv.sh slot map flattens these lists).
+allowlist_hosts = [
+    "localhost",
+    "127.0.0.1",
+    "::1",
+    "host.containers.internal",
+    "mios-llm-light",
+    "mios-open-webui",
+    "mios-hermes",
+    "mios-pgvector",
+    "mios-forge",
+    "mios-searxng",
+    "mios-crawl4ai",
+    "mios-code-server",
+]
+
+# AIOS gap8: also taint EXTERNAL web fetches (web_search/web_extract/crawl/
+# web_scrape) so untrusted web content gates subsequent high-privilege verbs
+# (research-then-act) via the firewall below. DEFAULT FALSE -- gating reduces
+# autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
+# (RAG runs every turn -> tainting it would block all OS-control).
+provenance_taint = false
+
+# [security.credential_literals] -- Law-11 extension: default credentials still
+# baked into world-readable units. SHRINK-ONLY; T-175 rotates them to
+# /etc/mios/secrets.env (gate: check_credential_literals).
+[security.credential_literals]
+grandfathered = [
+  "usr/lib/systemd/system/mios-agents.service:MIOS_DEFAULT_PASSWORD",
+  "usr/lib/systemd/system/mios-ha-bootstrap.service:HA_PASSWORD",
+  "usr/share/containers/systemd/mios-guacamole.container:POSTGRESQL_PASSWORD",
+  "usr/share/containers/systemd/mios-k3s.container:K3S_TOKEN",
+  "usr/share/containers/systemd/mios-open-webui.container:RAG_OPENAI_API_KEY",
+  "usr/share/containers/systemd/mios-open-webui.container:WEBUI_SECRET_KEY",
+  "usr/share/containers/systemd/mios-pgvector.container:POSTGRES_PASSWORD",
+]
+
+# [security.redact] -- DURA-02 redaction on PERSIST; every schema table sits in
+# exactly one list below (gate: check_redact_coverage).
+[security.redact]
+enable      = true
+# A redaction error refuses the write; never fall through to an unredacted one.
+fail_closed = true
+# Agent-plane free text -- where a secret or PII actually lands.
+tables = [
+  "agent_memory", "config_event", "directory_entry", "event",
+  "fact_ledger", "gateway_sessions", "kanban", "knowledge",
+  "log_digest", "mios_rag", "peer_reputation", "pending_action",
+  "progress_ledger", "scratch", "session", "skill_invocation",
+  "tasks", "tool_call",
+]
+# Structured system/config tables: redaction would CORRUPT the value, not
+# protect it, and they hold no free-form prose.
+# drift_snapshot holds normalized LABEL HISTOGRAMS and counts; skill_tool_call
+# holds two ids and a step index. Both are structure, never content. Exempt.
+exempt = [
+    "account",
+    "account_preference",
+    "agent_keypair",
+    "alias",
+    "app_install",
+    "appx_removal",
+    "build_phase",
+    "build_recipe",
+    "capability_removal",
+    "component_removal",
+    "config_kv",
+    "config_layer",
+    "debloat_policy",
+    "debloat_profile",
+    "domain_verb",
+    "drift_snapshot",
+    "feature_removal",
+    "feature_set",
+    "mios_identity",
+    "mios_security",
+    "package_set",
+    "person",
+    "person_app_install",
+    "person_device",
+    "person_pref",
+    "preset",
+    "quota_ledger",
+    "resolves_to",
+    "run_template",
+    "skill",
+    "skill_tool_call",
+    "sys_env",
+    "system_config",
+    "verb",
+    "xbox_feature"
+]
 
 [security.cosign]
 policy_mode = "matchRepository"
@@ -1842,7 +2211,7 @@ port   = "auto"
 desc   = "MiOS Uninterruptible Power Supply"
 
 # MiOS-Mini GPU arbitration and guest assignment (WS-F5)
-[mini.gpu]
+[metal.gpu]
 # Rule: Each GPU (PCI/IOMMU address) must be assigned to exactly one owner/guest.
 # Forbid assigning the same PCI address to multiple active guests to prevent hardware conflicts.
 assignments = { mios-guest = ["0000:01:00.0"] }
@@ -1850,8 +2219,12 @@ arbitration = "static"   # GPU arbitration model: "static" (pre-bind at boot), "
 
 # ----------------------------------------------------------------------------
 # [ai] -- Local AI surface (Architectural Law 5: UNIFIED-AI-REDIRECTS).
-# endpoint MUST stay on localhost; vendor cloud URLs are forbidden by audit
-# (postcheck #12 enforces this in the active config).
+# The VENDOR default stays local and never names a vendor cloud URL. An
+# operator OVERLAY may point endpoint anywhere -- that is how a seat offloads
+# (ADR-0016 D1), and local/localhost/remote are three values of one mechanism.
+# An off-box endpoint leaves the machine, so [security].api_require_auth is a
+# seat's precondition, not a preference (ADR-0016 D5). The old note here cited
+# "postcheck #12" as the enforcer; no such check has ever existed.
 # Maps to MIOS_AI_ENDPOINT, MIOS_AI_MODEL, MIOS_AI_EMBED_MODEL, MIOS_AI_KEY,
 # MIOS_SYSTEM_PROMPT_FILE, MIOS_MCP_REGISTRY.
 #
@@ -2131,7 +2504,7 @@ bullets = [
 # `web_search` tool target without breaking Architectural Law 5 -- a
 # search proxy is not a model, so no UNIFIED-AI-REDIRECTS exception
 # is required.
-endpoint = "http://localhost:8800/"
+endpoint = "http://localhost:${MIOS_PORT_SEARXNG}/"
 enable   = true
 # Topical-anchor stopwords for mios-web-search query expansion (the structural
 # off-topic screen that requires an expanded sub-query to share >=1 CONTENT token
@@ -2206,6 +2579,13 @@ device = "nvidia.com/gpu=all"
 # once the confinement executor lands + is VM-verified. Env: MIOS_SANDBOX_ENABLE.
 [sandbox]
 enable = false
+# T-230: bwrap already confined the filesystem and the network for an opted-in
+# verb; the confined process still reported `Seccomp: 0`. Manual ch62.
+seccomp_enable = true      # off => bwrap runs with no syscall filter (the old behaviour)
+seccomp_action = "errno"   # errno => the call returns EPERM; kill => the process dies
+# Extends the BASELINE floor in mios_pipe/access/seccomp.py; it cannot shrink it.
+seccomp_deny   = ["swapon", "swapoff", "reboot", "settimeofday", "clock_settime",
+                  "process_vm_readv", "process_vm_writev"]
 
 # ----------------------------------------------------------------------------
 [laws]
@@ -2269,37 +2649,6 @@ surfaces = [
   { generator = "usr/libexec/mios/mios-manual", check = "check_docs_ratchet_monotone", output = "usr/share/mios/reference/doc-ratchet-floor.tsv" },
 ]
 
-# ----------------------------------------------------------------------------
-# Phase B.3 of the AgentOS roadmap: TOML-driven Semantic Firewall
-# allowlist. Hosts in this list are TRUSTED -- open_url to one of
-# these does NOT taint the session. Anything outside this list +
-# the compiled-in *.local / *.lan / single-label heuristic is
-# treated as external and contributes session taint, which gates
-# subsequent high-privilege verbs (in `firewall_high_privilege_verbs`
-# below). Operator can extend per deployment (LAN hosts, internal
-# SaaS, etc.) without touching code. CSV-form in the env (the
-# userenv.sh slot map flattens these lists).
-allowlist_hosts = [
-    "localhost",
-    "127.0.0.1",
-    "::1",
-    "host.containers.internal",
-    "mios-llm-light",
-    "mios-open-webui",
-    "mios-hermes",
-    "mios-pgvector",
-    "mios-forge",
-    "mios-searxng",
-    "mios-crawl4ai",
-    "mios-code-server",
-]
-
-# AIOS gap8: also taint EXTERNAL web fetches (web_search/web_extract/crawl/
-# web_scrape) so untrusted web content gates subsequent high-privilege verbs
-# (research-then-act) via the firewall below. DEFAULT FALSE -- gating reduces
-# autonomous function, so the operator opts in. LOCAL rag/recall are NOT tainted
-# (RAG runs every turn -> tainting it would block all OS-control).
-provenance_taint = false
 
 [security.sigstore]
 cosign_major = 2
@@ -2372,10 +2721,10 @@ exempt_patterns = [
     "wsl\\.localhost",
     "localhost:8700",
     "localhost:8720",
-    "localhost:4317",
+    "localhost:8575",
     ":8700",
     ":8720",
-    ":4317",
+    ":8575",
     ":11436",
     ":8740",
     ":11435",
@@ -2383,197 +2732,6 @@ exempt_patterns = [
     ":8283"
 ]
 
-# F2 / T-033 -- the CaMeL-class "Rule of Two" architectural prompt-injection defense
-# (Meta, "Agents Rule of Two"), applied as a DETERMINISTIC (not probabilistic) gate at
-# the single dispatch chokepoint. A verb dispatch may hold AT MOST TWO of three
-# dangerous properties without human review:
-#   A  untrusted-input  -- the session ingested attacker-controllable content (the
-#                          existing provenance-taint chain above);
-#   B  sensitive-access -- the verb READS sensitive/private/cross-tenant data (the
-#                          per-verb `sensitive = true` flag below);
-#   C  state-change     -- the verb mutates state / has side-effects (the verb's
-#                          `permission` tier: write/interactive, derived via the same
-#                          tier->confinement policy the sandbox uses).
-# When ALL THREE hold, the chain is the classic prompt-injection kill-chain (untrusted
-# text -> reads secrets -> exfiltrates/acts) and is gated. Composes the EXISTING taint
-# + permission signals -- no new keyword classifier. Modes:
-#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
-#   audit             -- on all-three, LOG a structured audit event + proceed
-#                        (observe before you enforce; non-blocking).
-#   enforce           -- on all-three, route to HITL review / BLOCK (fail-safe: a
-#                        3-property chain requires a human; an out-of-band approval
-#                        lets the exact action through). Composes with the firewall +
-#                        HITL gates -- the STRICTER outcome wins.
-# DEFAULT off because a 3-property block reduces autonomous function -- opt in, then
-# validate the `sensitive = true` classification for the deployment. Env override:
-# MIOS_SECURITY_RULE_OF_TWO_MODE.
-rule_of_two_mode = "off"
-
-# F2 -- the CaMeL DUAL-CONTEXT QUARANTINE gate (Debenedetti et al., "Defeating Prompt
-# Injections by Design"), the deeper half of the prompt-injection defense and a STRICTER
-# superset of rule_of_two_mode above. The CaMeL principle: untrusted/attacker-
-# controllable content (web/file/tool output that TAINTS the session, axis A above) must
-# not be able to make the privileged action-planner take a PRIVILEGED action it would not
-# otherwise -- where "privileged" means the verb either READS sensitive data (axis B,
-# `sensitive = true`) OR mutates state / has side-effects (axis C, the write/interactive
-# permission tier). The boundary BITES when the session is TAINTED *and* the verb is
-# privileged (B OR C). Where rule_of_two_mode gates only the all-three chain (A AND B AND
-# C), quarantine-enforce ADDITIONALLY gates the tainted + (B OR C) case -- the posture for
-# full CaMeL isolation: untrusted-content-derived privileged actions cannot fire
-# autonomously; a human (or a non-tainted plan) must authorize them. Composes the SAME
-# EXISTING taint + permission + sensitive signals -- no new keyword classifier. Modes:
-#   off     (default) -- the gate is NOT consulted (byte-identical behaviour).
-#   audit             -- on a bite (tainted + privileged), LOG a structured audit event +
-#                        proceed (observe before you enforce; non-blocking). Use this to
-#                        measure how often untrusted content drives privileged actions.
-#   enforce           -- on a bite, route through mios_hitl.decide to HITL review / BLOCK
-#                        (fail-safe; an out-of-band or same-turn approval lets the exact
-#                        action through). Sits at the SAME single dispatch chokepoint as
-#                        the firewall + HITL + Rule-of-Two gates -- the STRICTER outcome
-#                        wins, so there is no second action path that bypasses it.
-# DEGRADE-OPEN (not-crash) but FAIL-SAFE (security): an error computing the boundary falls
-# back to the existing firewall/HITL/Rule-of-Two behaviour (never crash, never newly-open);
-# a confirmed tainted+privileged under enforce gates (fail toward safety). DEFAULT off
-# because the stricter block reduces autonomous function -- opt in for full CaMeL
-# isolation. Env override: MIOS_SECURITY_QUARANTINE_MODE.
-quarantine_mode = "off"
-
-# FED-G1 INBOUND AUTH GATE. The agent-pipe front door
-# (:8700 /v1/* + /a2a) accepts requests with NO credential today. When ON, an ASGI
-# middleware gates those paths: a request must present the canonical shared key
-# (API_SERVER_KEY -- what OWUI + the `mios`/`@` CLI already send), the ingress key,
-# OR a per-caller key from `api_caller_keys_path` -> a scoped principal stashed for
-# RBAC. Discovery/health (`/v1/models`, agent-card, passport, `/health`,
-# `/v1/cluster/health`) stay OPEN so an unauth'd peer can still learn how to auth.
-# DEFAULT FALSE -> the middleware is a pass-through (byte-identical behaviour). Turn
-# ON only with a loopback or firewall-scoped (172.16/12) bind -- it changes the
-# front-door auth posture (operator-greenlight). The federation JOIN contract
-# (FED-G6/G8) enforces per-peer scope once peers are keyed.
-api_require_auth     = false
-api_caller_keys_path = "/etc/mios/ai/v1/caller-keys.json"
-
-# VERIFIED PRINCIPAL BINDING (multi-tenant security FOUNDATION). The owner used for
-# per-owner memory row-scoping (`owner_user`) is derived in _client_env from the
-# request-body `user` field + the forwarded x-openwebui-user-* HEADERS -- both
-# spoofable by a direct :8700 caller (set "user":"victim"). This setting binds that
-# owner to the AUTHENTICATED caller-key instead. Each entry in `api_caller_keys_path`
-# MAY carry an `account` field (alias `owner`) naming the account that key speaks for
-# (an `account` row in postgres/schema-init.sql). The canonical shared / ingress key
-# has NO bound account (it is the full-trust gateway credential) -> the forwarded
-# user is used as-is; that is how the OWUI gateway keeps per-user identity (OWUI
-# authenticates each user and forwards it, so the gateway is trusted to speak for
-# whichever user it forwards).
-#   off     (default) -- NO binding: trust the body/header user exactly as today
-#                        (BYTE-IDENTICAL behaviour). Single-user / trusted callers.
-#   verify            -- observe mode: resolve the caller-key's bound account; if it
-#                        MISMATCHES the body/header user, audit-log it (structured,
-#                        non-blocking) but STILL use the forwarded value (no behaviour
-#                        change -- visibility before enforcement).
-#   enforce           -- the token-bound account IS the owner: a spoofable body/header
-#                        user is overridden by the verified identity for row-scoping.
-# DEGRADE-OPEN everywhere: no token / an unbound key / a missing mapping / any error
-# -> off behaviour, so a turn is never broken and OWUI is never locked out. Pair with
-# api_require_auth = true (which actually REQUIRES a credential) for full multi-tenant
-# isolation -- binding alone identifies the owner; the gate decides who may connect.
-# Env override: MIOS_PRINCIPAL_BIND_MODE.
-principal_bind_mode  = "off"
-
-# Verbs whose dispatch is REFUSED when the session is tainted
-# (Phase A.3 / B.3 Semantic Firewall). These cause visible system
-# effects -- restarting services, injecting input into Win32 GUI
-# windows, restarting containers -- so the firewall blocks them
-# when an upstream tool_call in the same session was tainted.
-# Operator can add custom verbs to this list (e.g. when shipping
-# a new privileged shim) without touching agent-pipe code.
-firewall_high_privilege_verbs = [
-    "service_restart",
-    "container_restart",
-    "pc_type",
-    "pc_key",
-    "pc_click",
-    # Native text-editor write verbs -- tainted sessions can't
-    # craft them to drop payloads onto operator paths.
-    "text_create",
-    "text_str_replace",
-    "text_insert",
-    # Single most dangerous verb in the catalog: arbitrary
-    # Windows-side script execution. Always firewall-gated.
-    "powershell_run",
-    # Window-state verbs (D.3 PC-control template) -- tainted
-    # sessions moving / hiding operator windows is the kind of
-    # thing the firewall should refuse pre-clear.
-    "minimize_window",
-    "maximize_window",
-    "restore_window",
-    "resize_window",
-    "position_window",
-    # Package management WRITE verbs (D.4). Either platform's
-    # install path can land arbitrary code on the operator's
-    # machine -- tainted sessions are refused.
-    "winget_install",
-    "winget_upgrade",
-    "winget_uninstall",
-    "flatpak_install",
-    "flatpak_upgrade",
-    "flatpak_uninstall",
-]
-# WS-A14: verbs whose OWN execution introduces session taint (downstream
-# high-privilege verbs then get firewall-checked). UNIONED with the built-in
-# external-fetch set (web_search/web_extract/crawl/web_scrape) by mios_secset --
-# add a verb here to taint on it without a code change. Empty by default.
-taint_verbs = []
-# Path prefixes whose text_view READ taints the session (the agent is reading
-# content it did not author, so downstream high-privilege verbs in the same
-# session get firewall-gated). This is the SAME write-protected prefix set the
-# native text editor refuses writes to, so a tainting read and a denied write
-# stay in lock-step -- keep it aligned with the editor's denied-write prefixes.
-text_view_taint_prefixes = [
-    "/etc/",
-    "/usr/",
-    "/boot/",
-    "/sys/",
-    "/proc/",
-    "/dev/",
-    "/mnt/c/Windows/",
-    "/mnt/c/Program Files/",
-    "/mnt/c/Program Files (x86)/",
-]
-# Host suffixes treated as the operator's OWN (internal) infrastructure: a URL
-# whose host ends with one of these is NOT a taint source (the *.local / *.lan
-# split-horizon + explicit internal zone). Single-label bare hostnames (no dot)
-# are also treated as internal by the classifier.
-internal_tld_suffixes = [".local", ".lan", ".internal"]
-# WS-9 out-of-process policy arbiter (mios-policy-arbiter.service) policy. The
-# arbiter is a SECOND opinion the agent-pipe consults for high-risk verbs when
-# [ai].hitl_arbiter_url points at it. Default policy is allow-all (empty) -> the
-# arbiter permits everything until the operator sets a deny-list / block-tier.
-# Bridged to the service as MIOS_ARBITER_DENY / _ALLOW / _BLOCK_TIER.
-arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
-arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
-arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
-arbiter_port       = 8760      # loopback port mios-policy-arbiter listens on
-# WS-A10 verified-caller principal (edge identity) -- RESERVED / aspirational.
-# This scoped-token gate ("verify" = require a valid scoped token, "enforce" =
-# verify + 401) was never wired into the inbound path; its token mint/verify core
-# was removed as dead. The IMPLEMENTED inbound-principal handling lives elsewhere:
-# [security].api_require_auth (bearer gate), [security].principal_bind_mode (owner
-# binding -> RLS, in mios_grounding), and [agent_passport].principal_mode (A2A
-# federation, in mios_a2a). Leave "off" unless/until the scoped-token path is
-# built. token_ttl_s = intended scoped-token lifetime. Env: MIOS_PRINCIPAL_MODE /
-# MIOS_TOKEN_TTL_S. Revocation: mios_crl (live, used by mios_a2a key-revoke).
-principal_mode     = "off"
-token_ttl_s        = 3600
-
-# Composefs security mode -- moved here to dedupe
-# the second [security] section (strict TOML parsers reject
-# duplicate sections).
-composefs_mode = "verity"
-# When composefs is in verity mode, automation/77-composefs-verity.sh
-# also masks systemd-remount-fs.service (known-broken with composefs on
-# Fedora 42+). Set to false to skip the mask if the base image's
-# systemd-remount-fs has been patched. No effect when composefs_mode is
-# "yes" or "off".
-mask_systemd_remount_fs = true
 
 # WS-7 (AIOS immutable-host hardening): fapolicyd PERMISSIVE/observe rollout.
 # DEFAULT-OFF. When true, the gated build step (automation/lib/
@@ -2830,7 +2988,7 @@ privilege_group = "privileged"
 # is the backstop. The :8720 gateway service stays thin for INCOMING Discord/CLI ->
 # :8700 (unification preserved; :8730 worker is a distinct instance, Discord OFF).
 # hermes stays a first-class dispatched agent (job/strengths surface via the pipe loop).
-endpoint = "http://localhost:${MIOS_PORT_HERMES_WORKER}/v1"
+endpoint = "http://localhost:${MIOS_PORT_HERMES}/v1"
 model    = "mios-heavy"
 role     = "general"
 # health_gate: the :8730 hermes-worker is a SEPARATE service bound to the heavy
@@ -3188,17 +3346,15 @@ enable                    = false
 # models (gemma4:12b + qwen3:1.7b + ...) concurrently, the root cause of the
 # 75s/150s node timeouts on the "global trending tech" research turn. All worker
 # nodes now share the sglang endpoint+model so the fan-out is real concurrency.
-[nodes.local-dgpu]
-endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
-model    = "mios-heavy"        # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
-lane     = "gpu"
-api      = "openai"            # SGLang speaks /v1 + honours tool_choice=required
-health_gate = true
+# Local CPU lane -- mios-cpu-node, a bare llama.cpp llama-server on granite-4.1-8b
+# with n-gpu-layers 0. Was pointed at the SGLang GPU endpoint with lane="gpu", so
+# the name was the only CPU thing about it and the pool had no CPU lane at all
+# while [dispatch] budgeted one (lane_priority cpu:7, lane_concurrency_cpu 2).
 [nodes.local-cpu]
-endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
-model    = "mios-heavy"        # SGLang heavy lane (ALL AGENTS USE SGLANG)
-lane     = "gpu"
-api      = "openai"
+endpoint = "http://localhost:${MIOS_PORT_CPU_NODE}/v1"
+model    = "mios-agent-cpu"    # canonical CPU Modelfile tag, never a raw base
+lane     = "cpu"
+api      = "llamacpp"          # /slots KV-paging, no tool_choice=required
 health_gate = true
 # Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
 # NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
@@ -3242,11 +3398,11 @@ health_gate = true             # inert until the gated mios-llm-heavy.service is
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:${MIOS_PORT_SGLANG}/v1"   # ALL AGENTS USE SGLANG (was mios-llm-light)
-model       = "mios-heavy"     # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
-lane        = "gpu"            # shares the dGPU lane semaphore
-api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
-health_gate = true             # inert until mios-llm-heavy is up + reachable
+endpoint    = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
+model       = "mios-agent-cpu" # a resident alias of the light lane's model map
+lane        = "cpu"            # llama.cpp serving lane, not the dGPU semaphore
+api         = "llamacpp"       # /slots KV-paging, no tool_choice=required
+health_gate = true             # inert until GGUFs are provisioned + the lane is up
 
 # ─── Inference Lanes (WS-1 / WS-2) ────────────────────────────────────
 [lanes.light]
@@ -3519,11 +3675,109 @@ tenant_max_concurrency = 0
 judge_examples = "a punt, refusal, 'I cannot', or 'where to look'"
 
 # ----------------------------------------------------------------------------
+# [drift_monitor] -- CONS-02 Jensen-Shannon Goodhart alarm. Observe-only.
+# Separate from [drift] above, which registers agent-pipe module wiring
+# exceptions and has nothing to do with distribution drift. See manual ch53.
+[drift_monitor]
+enable      = false   # off by default: observe-only alarm, no behaviour change
+threshold   = 0.2     # JSD (0..1, log base 2) at or above which drift_alert fires
+window      = 200     # most recent samples per axis that form the live window
+min_samples = 30      # live observations required before an axis may alert at all
+axes        = ["verdict", "intent"]   # label extractors live in server.py _DRIFT_AXIS_LABELS
+
+# ----------------------------------------------------------------------------
+# [schema] -- SHRINK-ONLY dead-table register (check_schema_consumers). See ch55.
+[schema]
+unconsumed = [
+    # WS-SEC (T-151 / ACCT-02): the PostgresOS security schema was declared
+    # ahead of its readers. Nothing in the tree mentions these six at all.
+    { table = "mios_security.fido2_keys",            reason = "T-151 WS-SEC: declared ahead of the FIDO2 enrolment path" },
+    { table = "mios_security.usb_rules",             reason = "T-151 WS-SEC: declared ahead of the USBGuard rule sync" },
+    { table = "mios_security.headscale_users",       reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.headscale_preauth_keys", reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.headscale_acl_rules",   reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.keepass_vaults",        reason = "T-151 WS-SEC: declared ahead of the vault integration" },
+    # T-246: a SECOND preference table, one letter from the LIVE
+    # `account_preference` that materialize-user-config.py actually reads. This
+    # one is the trap case -- a writer aimed at the wrong name would look
+    # correct and lose every row. Resolve by dropping it or by folding the live
+    # table into it; do not leave both.
+    { table = "mios_identity.account_preferences",   reason = "T-246: duplicate of the live account_preference; RESOLVE, do not extend" },
+    # The person_* graph: person + person_pref have consumers, these two do not.
+    { table = "person_device",                       reason = "person graph: declared ahead of any device-enrolment writer" },
+    { table = "person_app_install",                  reason = "person graph: declared ahead of any app-inventory writer" },
+]
+
+# ----------------------------------------------------------------------------
+# [refactor] -- module-size ratchet for the agent-pipe extraction (check 149).
+# `oversize` is a SHRINK-ONLY debt register; numbers may only go DOWN. See ch54.
+[refactor]
+max_lines = 800
+oversize = [
+    { path = "mios_pipe/federation/a2a.py",        lines = 1545 },
+    { path = "mios_pipe/federation/http_caps.py",  lines =  820 },
+    { path = "mios_pipe/memory/knowledge.py",      lines =  961 },
+    { path = "mios_pipe/routing/agent_call.py",    lines = 1153 },
+    { path = "mios_pipe/routing/chat.py",          lines = 1786 },
+    { path = "mios_pipe/routing/dag_exec.py",      lines = 1297 },
+    { path = "mios_pipe/routing/native_loop.py",   lines = 1190 },
+    { path = "mios_pipe/routing/portal.py",        lines = 1675 },
+    { path = "mios_pipe/routing/refine.py",        lines = 1120 },
+    { path = "mios_pipe/routing/swarm.py",         lines = 1062 },
+    { path = "mios_pipe/routing/web_research.py",  lines =  987 },
+    # Agent-pipe ROOT modules. These sat outside every earlier version of this
+    # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
+    # own remainder and mios_dispatch.py is T-273's named target.
+    { path = "mios_dispatch.py",                   lines =  943 },
+    { path = "server.py",                          lines = 4975 },
+]
+
+# ----------------------------------------------------------------------------
+# [shell_session] -- SHELL-01 persistent PTY substrate. See manual ch56.
+[shell_session]
+enable       = false   # off by default: a long-lived shell is state the agent can accumulate
+socket_name  = "mios"  # tmux -L namespace, kept off an operator's default socket
+shell        = "/bin/bash"
+state_dir    = "/var/lib/mios/shell-sessions"
+idle_s       = 1800    # reap a session after this long with no command
+max_sessions = 8       # hard cap on concurrent shells
+timeout_s    = 120     # per-command wall clock before the runner gives up
+max_output_chars = 24000   # ACI-elided, not raw-truncated (head+tail kept)
+max_output_lines = 400
+history_limit    = 50000  # tmux keeps 2000 lines by default; a long command would lose its HEAD
+
+# ----------------------------------------------------------------------------
+# [powershell] -- Windows-side `powershell_run` execution (mios-powershell).
+# Object-pipeline flattening and the script/output caps: manual ch57.
+[powershell]
+flatten           = true    # render the success stream through Out-String
+flatten_width     = 200     # column budget the formatter sizes tables against
+enumeration_limit = 16      # $FormatEnumerationLimit -- nested items shown before "..."
+plain_text        = true    # $PSStyle.OutputRendering: strip ANSI from output and errors
+trim_trailing     = true    # drop formatter column padding before the JSON envelope
+max_script_bytes  = 65536   # inbound script cap
+max_output_bytes  = 262144  # per-stream cap applied after flattening
+stage_dir         = '/mnt/c/Users/Public/Documents/mios-ps'   # Windows-visible staging mount
+
+# ----------------------------------------------------------------------------
+# [consensus] -- CONS-01 weighted multi-judge Definition-of-Done.
+# Fold, abstention rule, quorum floor and weighting: manual ch52.
+[consensus]
+enable       = false   # off by default: the panel costs one model call per lane per verdict
+threshold    = 0.5     # weight-share of "yes" needed to call the answer satisfied
+min_lanes    = 2       # live (non-abstaining) votes required before the fold is trusted
+timeout_s    = 20.0    # per-lane judge call budget
+weight_floor = 0.1     # lowest weight a lane can be reduced to; never zero it out
+rrf_k        = 60      # Reciprocal-Rank-Fusion damping when lanes return RANKED lists
+# One entry per judge lane. Leave `endpoint`/`model` empty to reuse the refine
+# lane's. Declare 2-3; more lanes cost proportionally more per verdict.
+lanes = []
+
+# ----------------------------------------------------------------------------
 [drift]
 # Sibling-module allowlist/denylist: agent-pipe modules that are permitted to have
 # transitional unwired (imported-but-dead) status in check_unwired_modules.
 denylist = [
-    "mios_batch",
     "mios_ctxpack",
     "mios_embed_backfill",
     "mios_provider_translate",
@@ -3953,6 +4207,8 @@ slo_shed_enable   = false       # off => admission never sheds (capacity-only, a
 # NON-native endpoints (a rate-limited remote core, added via WS-A16). With only
 # local lanes -- all native -- this is INERT. batch_native_hints = host:port
 # substrings that self-batch (the local lane ports). Env: MIOS_BATCH_*.
+# T-226: an httpx request hook on the one shared AsyncClient, registered
+# only when true. Manual ch59.
 batch_enable        = false
 batch_interval_s    = 0.05      # window for a NON-native endpoint (seconds)
 batch_max_size      = 8         # flush a window at this many pending calls
@@ -4121,6 +4377,12 @@ verbs  = ""        # CSV override of gated verbs; blank = _HIGH_PRIVILEGE_VERBS
 # At 70% of n_ctx, the system warns the agent about context usage.
 # At 100% of n_ctx, the oldest turns are evicted, summarized, and archived.
 [memory]
+# CONS/MEM: periodic knowledge-table consolidation. Rows answering the SAME
+# normalized question collapse into the newest, with the losers' access and
+# recall counters folded in so K-LRU tiering never sees a merge as a reset.
+consolidate            = true    # run the sweep at all
+consolidate_interval_s = 3600    # seconds between sweeps (first sweep is one interval after boot)
+consolidate_max_groups = 200     # duplicate groups merged per sweep; bounds one pass's DB work
 n_ctx = 8000
 compaction_interval = 20
 tool_result_ttl_turns = 5
@@ -4133,6 +4395,11 @@ kv_slot_persist = true
 # + fire-and-forget so it can never affect a live run.
 [run_template]
 enable = true
+# T-225 REPLAY (the reuse half). Default OFF: replaying the WRONG plan costs
+# more than re-planning. Model-free by design -- manual ch61.
+replay_enable     = false
+replay_threshold  = 0.85   # Jaccard a NON-exact intent match must reach to replay
+replay_candidates = 50     # newest templates considered per turn
 
 # ── WS-5 Agent-Computer Interface output normalizer. Head-TAIL
 # truncation of tool/terminal results (keep the start + the end, elide the
@@ -4655,7 +4922,7 @@ docgen_max_bytes   = 20000000    # refuse inputs/content larger than this (DoS g
 # traces and spans are exported to the OTLP collector.
 [observability]
 otel_enable   = false
-otel_endpoint = "http://localhost:4317"
+otel_endpoint = "http://localhost:${MIOS_PORT_OTELCOL_OTLP}"
 record_mode   = false
 replay_mode   = false
 # Full-visibility debug surface (operator posture): stream internal reasoning,
@@ -6715,7 +6982,7 @@ permission = "interactive"
 [verbs.powershell_run]
 section    = "Windows-side shell"
 sig        = "script, timeout=30?, work_dir?"
-desc       = "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead."
+desc       = "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Object output is flattened to plain text, so cmdlets that emit .NET objects (Get-Service, Get-Process, Get-ChildItem) return readable tables. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead."
 examples   = ["run a powershell command on windows", "set a windows firewall rule via powershell", "query windows services with get-service", "run this .ps1 on the host"]
 tier       = "rare"
 permission = "write"
@@ -6740,6 +7007,27 @@ sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].san
 # that PRODUCES files (the LiteCUA Worker role) vs the cu_* verbs that DRIVE the
 # desktop. Backed by mios-docgen; gated by [computer_use].docgen_enable (default
 # off -> verbs visible but inert/degrade-open). permission=write (writes a file).
+[verbs.shell_session]
+section = "Persistent shell"
+sig     = "command, session?, timeout=120?"
+desc    = "Run a command in a PERSISTENT bash session whose cwd, environment and history SURVIVE across turns -- `cd /tmp && export FOO=bar` then `echo $PWD $FOO` returns `/tmp bar`. One session per chat, tmux-backed, bwrap-confined at baseline. Use when a workflow needs several steps to share state; for a one-shot isolated command use run_sandboxed_code instead. Output is ACI-elided (head+tail kept) rather than raw-truncated."
+model_name = "run_in_shell"
+examples = [
+  "run these three commands in the same shell",
+  "cd into the repo and keep me there",
+  "set an env var and use it in the next command",
+  "continue in the same working directory",
+]
+tier       = "rare"
+permission = "write"
+sandbox_profile = "baseline"
+cmd = "mios-shell-session exec --session {session=default} --timeout {timeout=120} {command!}"
+
+[verbs.shell_session.params]
+command = { type = "string", aliases = ["cmd", "script", "code", "run"] }
+session = { type = "string", aliases = ["session_id", "chat", "id"] }
+timeout = { type = "integer", default = 120 }
+
 [verbs.docgen_build]
 hidden = true
 section    = "Doc-gen"
@@ -7521,11 +7809,29 @@ kernel_dispatch = true
 db_authoritative = false
 rag_hybrid = false
 rag_rerank = false
-# FBM (first-boot models, T-200): add [[ai.firstboot_models]] { name, source, sha256? } entries to
-# provision GGUF weights at first boot via mios-models-firstboot (curl, resumable, degrade-open);
-# add [[ai.firstboot_bound_images]] { image } for mios-bound-images-firstboot. None are declared by
-# default -- the provisioners resolve an empty list and no-op, so the machinery ships dormant until
-# an operator adds entries here.
+# FBM (first-boot models, T-200/T-201). Entry schema, one array-of-tables row
+# per model:
+#
+#     [[ai.firstboot_models]]
+#     name   = "qwen3-8b-q4.gguf"   # filename under /var/lib/mios/llamacpp/models
+#     source = "https://..."        # direct GGUF/HF URL; curl -C - resumable
+#     sha256 = "<hex>"              # OPTIONAL, but see below
+#     lane   = "llm_light"          # optional [ports] lane hint, reported by `mios models list`
+#
+# sha256 is ENFORCED when present: the fetcher streams the downloaded part file
+# through sha256, and on mismatch DELETES it and skips the model rather than
+# installing an unverified weight under a name the lanes would load (it used to
+# print "Verifying sha256" and rename without hashing anything). Omitting the
+# key provisions the model unverified, and `mios models add` says so.
+#
+# Edit this vendor list for a fleet default; `mios models add|rm` writes the
+# USER overlay (~/.config/mios/mios.toml) instead, per the vendor<host<user
+# cascade. `mios models list` prints the RESOLVED set joined against disk, so a
+# declared-but-missing model is visible.
+#
+# Also: [[ai.firstboot_bound_images]] { image } for mios-bound-images-firstboot.
+# None are declared by default -- the provisioners resolve an empty list and
+# no-op, so the machinery ships dormant until an operator adds entries.
 # Canonical agent surface = the AGENT-PIPE ORCHESTRATOR on :8700 (served model
 # "MiOS-Agent"), the UNIFIED entrypoint ("UNIFY THE MiOS AI
 # PIPELINE"). MIOS_AI_ENDPOINT (the surface every OpenAI-API client + the `@`/
@@ -7538,7 +7844,7 @@ rag_rerank = false
 # surface at :8720 made the interactive `@` bypass the orchestrator + fail. NOTE:
 # this is the CLIENT surface only; the pipe's OWN inference backend is
 # MIOS_AGENT_PIPE_BACKEND (separate), so :8700 here does not self-loop.
-endpoint            = "http://localhost:8700/v1"
+endpoint            = "http://localhost:${MIOS_PORT_AGENT_PIPE}/v1"
 # Served model id the orchestrator advertises on :8700/v1/models, and the model
 # every THIN client requests (the @/mios CLI via MIOS_AI_GATEWAY_MODEL, the Hermes
 # desktop app, and the `hermes` CLI REPL). SSOT for the agent-surface model name so
@@ -7994,7 +8300,7 @@ grounding_model    = "mios-grounding"
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:8500/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+micro_endpoint           = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -8212,14 +8518,6 @@ local_tag      = "localhost/mios:latest"
 # track 6.1/7.0 without bumping code.
 machine_os_repo = "quay.io/podman/machine-os"
 machine_os_tag  = "6.0"
-# Sibling minimal-track image (Containerfile.minimal): builds from
-# bare fedora-bootc instead of ucore-hci. Smaller (~1.2 GB vs ~2.5 GB)
-# but lacks NVIDIA kmod + libvirt + ZFS prebakes. Operators on
-# non-HCI workloads can target the minimal tag instead.
-minimal_base = "quay.io/fedora/fedora-bootc:latest"
-minimal_tag  = "localhost/mios-minimal:latest"
-minimal_name = "ghcr.io/mios-dev/mios-minimal"
-
 # ----------------------------------------------------------------------------
 # [deployment] -- bootc-image-builder (BIB) target formats.
 #
@@ -8535,7 +8833,7 @@ verify_probes = [
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
-provider_url = "http://localhost:8200"            # OWUI front door = the MiOS AI pipeline
+provider_url = "http://localhost:${MIOS_PORT_OPEN_WEBUI}"            # OWUI front door = the MiOS AI pipeline
 # Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
@@ -9450,8 +9748,7 @@ cockpit_link       = 8120    # mios-cockpit-link Podman Desktop discovery shim
 searxng            = 8800     # local privacy-respecting metasearch
 crawl4ai           = 8810    # local crawl engine -- the crawl4ai FastAPI (crawl4ai over Chrome CDP + Camoufox fallback), the crawl4ai member of the mios-webtools pod. LOOPBACK only (127.0.0.1), NOT a published/LAN port.
 firecrawl          = 8820     # self-hosted firecrawl api -- the firecrawl-api member of the mios-webtools pod (Hermes's native web backend; FIRECRAWL_API_URL). LOOPBACK only (127.0.0.1), NOT a published/LAN port. (3002 is firecrawl's own default; free on MiOS -- 3000=forge_http, 3033=open_webui.)
-hermes             = 8720     # Hermes-Agent (canonical /v1; live MiOS agent at /)
-hermes_worker      = 8730     # Hermes-Agent worker instance
+hermes             = 8720     # Hermes gateway (canonical /v1). ONE key: hermes-worker.service is the only unit running `hermes gateway run` and binds this.
 hermes_dashboard   = 8210     # Hermes Dashboard web UI (sessions, skills, stats)
 open_webui         = 8200     # Open WebUI (rich LLM interface at http://localhost:3033)
 # hermes_workspace REMOVED (port 3033 freed) -- use the
@@ -9480,11 +9777,23 @@ oscontrol          =  8950   # mios-oscontrol-server: Windows-side UI Automation
 mcp                = 8770    # MCP host server (/mcp + A2A /.well-known; served by hermes-agent). LOOPBACK only. (Matches [agent].server_port when that key is absent.)
 guacd              = 8560    # guacd protocol daemon behind mios-guacamole (upstream default 4822). Was hardcoded in the Quadlet with no SSOT key.
 redis              = 8565    # redis/valkey backing the firecrawl api+worker in the mios-webtools pod (was hardcoded 6380 in three Quadlets, no SSOT key).
-chrome_cdp         = 8570    # Chrome DevTools Protocol endpoint crawl4ai drives (upstream default 9222). Was hardcoded, no SSOT key.
+chrome_cdp         = 9222    # Chrome DevTools Protocol on the PRIMARY browser (mios-hermes-browser.service). Pinned: an external contract, and its binder is a static flatpak flags file.
+chrome_cdp_worker  = 9223    # CDP on the SECOND browser (mios-hermes-browser-worker.service, profile-w2). Pinned alongside its primary.
 otelcol_otlp       = 8575    # OpenTelemetry OTLP gRPC receiver on mios-otelcol (upstream default 4317).
 otelcol_ui         = 8580    # Jaeger all-in-one query UI on mios-otelcol (upstream default 16686).
 pxe_hub_api        = 8585    # matchbox gRPC/API on mios-pxe-hub (upstream default 8081; its HTTP side rides forge_http's band).
-forge_ssh_git      = 8590    # Forgejo IN-CONTAINER git-ssh listener (was hardcoded 49922 in the Quadlet). Distinct from forge_ssh, the host-published port.
+
+# Files pairing a MIOS_PORT_* name with a literal that disagrees with this table.
+# SHRINK-ONLY (gate: check_port_fallbacks), and currently EMPTY -- a new entry
+# needs a reason here, not just a line.
+stale_fallbacks = []
+
+# Allocated ports nothing references yet. SHRINK-ONLY (gate: check_ports_bound).
+# Per-key reasons: TASKS.md T-318. chrome_cdp_worker's only binder is an
+# `Environment=` literal in a shipped .service -- systemd does not expand ${} in
+# Environment=, and the [units] block that WOULD render the placeholder is inert
+# until T-317 makes mios-unit-gen faithful.
+unbound = ["chrome_cdp_worker"]
 
 # ----------------------------------------------------------------------------
 # [ports.categories] -- THE NUMBERING SSOT.
@@ -9559,7 +9868,7 @@ doc     = "Datastores (the unified agent DB)."
 [ports.categories.agent]
 base    = 8700
 stride  = 10
-members = ["agent_pipe", "prefilter", "hermes", "hermes_worker", "daemon_agent", "model_router", "arbiter", "mcp", "opencode_gateway"]
+members = ["agent_pipe", "prefilter", "hermes", "", "daemon_agent", "model_router", "arbiter", "mcp", "opencode_gateway"]
 doc     = "Agent plane. Ordered along the request path: pipe -> prefilter -> hermes -> workers -> router -> arbiter, then the MCP host and the /v1 gateway shims. All LOOPBACK-only except hermes."
 
 [ports.categories.webtools]
@@ -9577,8 +9886,11 @@ doc     = "Developer surfaces served to a browser."
 [ports.categories.sidecar]
 base    = 8560
 stride  = 5
-members = ["guacd", "redis", "chrome_cdp", "otelcol_otlp", "otelcol_ui", "pxe_hub_api", "forge_ssh_git"]
-doc     = "Supporting daemons that bind a real port but are not user-facing services. These were HARDCODED in Quadlets with no SSOT key at all (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger 16686, matchbox 8081, Forgejo git-ssh 49922), so nothing could detect a collision when a container was added. Now allocated and collision-checked like everything else."
+members = ["guacd", "redis", "", "otelcol_otlp", "otelcol_ui", "pxe_hub_api", ""]
+# CDP is an external contract, like DNS/53: DevTools clients and Playwright
+# assume 9222, and the primary binder is a static flatpak flags file.
+pinned  = { chrome_cdp = 9222, chrome_cdp_worker = 9223 }
+doc     = "Supporting daemons that bind a real port but are not user-facing services. Each was HARDCODED in a Quadlet with no SSOT key (guacd 4822, redis 6380, Chrome CDP 9222, OTLP 4317, Jaeger query 16686, matchbox 8081), so nothing could detect a collision when a container was added. Allocating a key is only half the job: the service must then BIND it, which is why [ports].unbound is a shrink-only register gated by check_ports_bound. Index 6 is a RESERVED slot -- forge_ssh_git named a second Forgejo SSH listener that does not exist, since SSH_PORT and SSH_LISTEN_PORT both resolve MIOS_PORT_FORGE_SSH."
 
 [ports.categories.bridge]
 base    = 8950
@@ -9610,23 +9922,36 @@ wsl_firstboot      = "mios-wsl-firstboot.service"
 user_session       = "user@${MIOS_UID}.service"
 
 # ----------------------------------------------------------------------------
-# [urls] -- service endpoints. Every one is a TEMPLATE over a [ports] key, never
-# a baked number, so retargeting a port category (see [ports.categories]) moves
-# the URLs with it. The renderer expands ${...} into the target language.
+# [urls] -- the BROWSER-OPENABLE surface: portal tiles and openInBrowser
+# labels, http/https only, never the inter-service endpoint table. Values
+# template a [ports] key. Gate: check_service_urls.
 # ----------------------------------------------------------------------------
 [urls]
 forge              = "http://localhost:${MIOS_PORT_FORGE_HTTP}"
 cockpit            = "https://localhost:${MIOS_PORT_COCKPIT}"
-llm_light          = "http://localhost:${MIOS_PORT_LLM_LIGHT}"
-pgvector           = "postgresql://mios:mios@localhost:${MIOS_PORT_PGVECTOR}/mios"
 searxng            = "http://localhost:${MIOS_PORT_SEARXNG}"
-crawl_service      = "http://127.0.0.1:${MIOS_PORT_CRAWL4AI}"
-hermes             = "http://localhost:${MIOS_PORT_HERMES}/v1"
 open_webui         = "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"
 code_server        = "http://localhost:${MIOS_PORT_CODE_SERVER}/"
+otelcol_ui         = "http://localhost:${MIOS_PORT_OTELCOL_UI}/"
 local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
+
+# Ports with no browser-openable URL: either they serve no page, or their
+# address is already a key their consumers resolve -- agent_pipe is
+# MIOS_AI_ENDPOINT, pgvector MIOS_DB_URL, llm_light MIOS_LLM_CPU_ENDPOINT,
+# hermes MIOS_HERMES_ENDPOINT, crawl4ai MIOS_CRAWL_SERVICE_URL, otelcol_otlp
+# [observability].otel_endpoint.
+non_addressable = [
+  "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
+  "crawl4ai", "hermes", "llm_light", "pgvector",
+  "chrome_cdp", "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
+  "firecrawl",
+  "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
+  "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
+  "otelcol_otlp", "prefilter", "pxe_hub_api", "rdp", "redis",
+  "sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",
+]
 
 # ----------------------------------------------------------------------------
 # [generator] -- Quadlet & manifest generator configuration
@@ -9725,7 +10050,10 @@ adguard            = "docker.io/adguard/adguardhome:latest"
 vllm               = "docker.io/vllm/vllm-openai:latest"
 sglang             = "docker.io/lmsysorg/sglang:latest"
 valkey             = "docker.io/valkey/valkey:latest"
-otelcol            = "docker.io/jaegertracing/all-in-one:latest"
+# Pinned, not floating: `all-in-one` is the Jaeger v1 line only (v2 ships as
+# jaegertracing/jaeger), and the tag decides which env model the collector's
+# host-port vars belong to -- so a float would silently unbind two SSOT ports.
+otelcol            = "docker.io/jaegertracing/all-in-one:1.76.0"
 
 # ----------------------------------------------------------------------------
 # [image.sys] / [image.cuda] -- SSOT sections for the consolidated shared bases
@@ -9817,7 +10145,7 @@ gid  = 824
 # SSOT for the ${MIOS_CRAWL_*}/${MIOS_FIRECRAWL_*} placeholders consumed by
 # mios-webtools-crawl4ai.container + mios-webtools-firecrawl-{api,worker}.container;
 # mapped to env in tools/lib/userenv.sh and rendered via automation/34-render-quadlets.sh.
-cdp_url            = "http://127.0.0.1:9222"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
+cdp_url            = "http://127.0.0.1:${MIOS_PORT_CHROME_CDP}"  # crawl4ai -> existing local Chrome over CDP (PRIMARY engine)
 camoufox           = true                     # enable the Camoufox stealth-Firefox fail-retry fallback
 min_chars          = 200                      # crawl4ai: minimum extracted chars before a page is considered non-empty
 firecrawl_workers  = 2                        # NUM_WORKERS_PER_QUEUE for firecrawl-api + firecrawl-worker
@@ -10392,7 +10720,7 @@ core = [
   "docker.io/adguard/adguardhome:latest",
   "docker.io/guacamole/guacamole:latest",
   "docker.io/guacamole/guacd:latest",
-  "docker.io/jaegertracing/all-in-one:latest",
+  "docker.io/jaegertracing/all-in-one:1.76.0",
   "docker.io/lmsysorg/sglang:latest",
   "docker.io/pgvector/pgvector:pg18",
   "docker.io/rancher/k3s:v1.36.3-k3s1",
@@ -10472,14 +10800,14 @@ idle_timeout = 0
 # Every Quadlet declares Network=mios.network so they share a flat
 # rootful bridge with the LAN-reachable PublishPort= surface above.
 # ----------------------------------------------------------------------------
-[mini]
+[metal]
 enabled = false
 guest_cpu_percent = 85
 guest_ram_percent = 85
 bind_dgpu_vfio   = true
 dgpumode         = "vfio-pci"
 
-[mini.mesh]
+[metal.mesh]
 enabled = false
 headscale_domain = "mesh.mios.local"
 vnet_cidr = "100.64.0.0/10"
@@ -10504,7 +10832,15 @@ pin     = "tpm2"
 pcrs    = "7"
 
 [greenboot]
-critical_services = ["agent-pipe", "llm-light", "pgvector"]
+critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes"]
+# May a seat fail its boot when its blade is unreachable? Default no: Law 12
+# says degrade open. true makes boot success network-dependent -- opt in only.
+blade_reachability_critical = false
+
+# Probe overrides; unit/port default to mios-<n>.service and MIOS_PORT_<N>.
+[greenboot.probe]
+agent_pipe = { kind = "http", path = "/v1/models" }
+hermes     = { unit = "hermes-worker.service" }
 
 [agent_pipe.quality]
 min_length  = 5
@@ -11344,14 +11680,6 @@ http_status_retry   = [502, 503, 504]  # only these status codes trigger retry
 total_timeout_sec   = 120
 
 # ----------------------------------------------------------------------------
-# [profile] -- developer-vs-server-vs-kiosk flavor and feature toggles.
-# Maps to MIOS_PROFILE_ROLE, MIOS_PROFILE_FEATURES (comma-joined).
-# ----------------------------------------------------------------------------
-[profile]
-role     = "developer"
-features = ["ai", "virtualization", "k3s"]
-
-# ----------------------------------------------------------------------------
 # [quadlets.enable] -- per-Quadlet first-boot enablement flags.
 # Defaults are all true; the system never disables a service via static
 # config. Incompatible deployments are gated via systemd Condition*
@@ -11794,7 +12122,7 @@ automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 mode            = "http"          # "queue" = in-process; "http" = legacy :8720 (default)
 queue_maxsize   = 64              # max pending requests in the asyncio.Queue
 worker_concurrency = 4            # parallel GatewayWorker coroutines
-fallback_http   = "http://localhost:8720/v1"   # used when mode="http" or worker fails
+fallback_http   = "http://localhost:${MIOS_PORT_HERMES}/v1"   # used when mode="http" or worker fails
 
 [converge.inference]
 heavy_engine_mode = "single"        # "dual" = SGLang + vLLM; "single" = vLLM multi-LoRA
@@ -11891,6 +12219,39 @@ ConditionVirtualization = "!container"
 Description = "'MiOS' Ceph Monitor (Podman-native)"
 Wants = "network-online.target"
 
+
+[containers.mios-cockpit-link.Unit]
+After = "network-online.target cockpit.socket mios-webtools-firstboot.service"
+ConditionPathExists = "/usr/lib/systemd/system/cockpit.socket"
+ConditionVirtualization = ["!wsl", "!container"]
+Description = "'MiOS' Cockpit web-console discovery shim (Podman Desktop link)"
+Documentation = "https://cockpit-project.org/"
+Wants = "network-online.target"
+
+[containers.mios-cockpit-link.Container]
+ContainerName = "mios-cockpit-link"
+EnvironmentFile = "/etc/mios/install.env"
+Exec = "socat tcp-listen:${MIOS_PORT_COCKPIT_LINK},bind=0.0.0.0,fork,reuseaddr tcp:host.containers.internal:9090"
+Group = "65534"
+Image = "localhost/mios-sys:latest"
+Label = [
+  "org.opencontainers.image.title=mios-cockpit-link",
+  "org.opencontainers.image.url=https://localhost:9090/",
+  "org.opencontainers.image.documentation=https://cockpit-project.org/documentation.html",
+  "io.podman_desktop.openInBrowser=https://localhost:9090/"
+]
+Pod = "mios-system.pod"
+User = "65534"
+
+[containers.mios-cockpit-link.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-cockpit-link.Service]
+Delegate = "yes"
+EnvironmentFile = "/etc/mios/install.env"
+Restart = "on-failure"
+RestartSec = "15s"
+TimeoutStartSec = "60s"
 
 [containers.mios-code-server.Container]
 AutoUpdate = "registry"
@@ -11993,9 +12354,9 @@ Environment = [
   "FORGEJO__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
   "GITEA__server__HTTP_PORT=${MIOS_PORT_FORGE_HTTP:-8400}",
   "FORGEJO__server__START_SSH_SERVER=true",
-  "FORGEJO__server__SSH_PORT=49922",
+  "FORGEJO__server__SSH_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
   "FORGEJO__server__SSH_LISTEN_HOST=0.0.0.0",
-  "FORGEJO__server__SSH_LISTEN_PORT=49922",
+  "FORGEJO__server__SSH_LISTEN_PORT=${MIOS_PORT_FORGE_SSH:-8410}",
   "FORGEJO__database__DB_TYPE=sqlite3",
   "FORGEJO__database__PATH=/data/forgejo.db",
   "FORGEJO__service__DISABLE_REGISTRATION=true",
@@ -12091,6 +12452,7 @@ Wants = "network-online.target mios-forgejo-runner-firstboot.service"
 
 [containers.mios-guacamole.Container]
 AutoUpdate = "registry"
+ContainerName = "mios-guacamole"
 Environment = [
   "POSTGRESQL_HOSTNAME=localhost",
   "POSTGRESQL_PORT=${MIOS_PORT_PGVECTOR:-8600}",
@@ -12098,7 +12460,7 @@ Environment = [
   "POSTGRESQL_USERNAME=${MIOS_PG_USER:-mios}",
   "POSTGRESQL_PASSWORD=${MIOS_PG_PASS:-mios}",
   "GUACD_HOSTNAME=localhost",
-  "GUACD_PORT=4822"
+  "GUACD_PORT=${MIOS_PORT_GUACD:-8560}"
 ]
 EnvironmentFile = "/etc/mios/install.env"
 Group = "${MIOS_GUACAMOLE_GID:-810}"
@@ -12127,7 +12489,7 @@ Wants = "network-online.target mios-pgvector.service"
 
 [containers.mios-guacd.Container]
 ContainerName = "mios-guacd"
-Exec = "guacd -b 0.0.0.0 -f"
+Exec = "guacd -b 0.0.0.0 -l ${MIOS_PORT_GUACD:-8560} -f"
 Group = "${MIOS_GUACD_GID:-811}"
 Image = "${MIOS_GUACD_IMAGE:-docker.io/guacamole/guacd:latest}"
 Pod = "mios-system.pod"
@@ -12496,7 +12858,8 @@ Description = "'MiOS' PostgreSQL + pgvector (unified agent-plane datastore, FOSS
 Wants = "network-online.target"
 
 [containers.mios-pxe-hub.Container]
-Exec = "/usr/bin/matchbox -address 0.0.0.0:8081 -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
+ContainerName = "mios-pxe-hub"
+Exec = "/usr/bin/matchbox -address 0.0.0.0:${MIOS_PORT_PXE_HUB_API:-8585} -data-path /var/lib/matchbox/data -assets-path /var/lib/matchbox/assets"
 Group = "0"
 Image = "${MIOS_PXE_HUB_IMAGE:-quay.io/poseidon/matchbox:latest}"
 Pod = "mios-system.pod"
@@ -12570,7 +12933,7 @@ Wants = "network-online.target"
 [containers.mios-webtools-crawl4ai.Container]
 ContainerName = "mios-webtools-crawl4ai"
 Environment = [
-  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:9222}",
+  "MIOS_CRAWL_CDP_URL=${MIOS_CRAWL_CDP_URL:-http://127.0.0.1:${MIOS_PORT_CHROME_CDP:-9222}}",
   "MIOS_PORT_CRAWL4AI=${MIOS_PORT_CRAWL4AI:-8810}",
   "MIOS_CRAWL_BIND=127.0.0.1",
   "MIOS_CRAWL_CAMOUFOX=${MIOS_CRAWL_CAMOUFOX:-true}",
@@ -12604,8 +12967,8 @@ After = "mios-webtools-firstboot.service"
 [containers.mios-webtools-firecrawl-api.Container]
 ContainerName = "mios-webtools-firecrawl-api"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:6380",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
   "HOST=127.0.0.1",
   "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
@@ -12645,8 +13008,8 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-firecrawl-worker.Container]
 ContainerName = "mios-webtools-firecrawl-worker"
 Environment = [
-  "REDIS_URL=redis://127.0.0.1:6380",
-  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:6380",
+  "REDIS_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
+  "REDIS_RATE_LIMIT_URL=redis://127.0.0.1:${MIOS_PORT_REDIS:-8565}",
   "HOST=127.0.0.1",
   "PORT=${MIOS_PORT_FIRECRAWL:-8820}",
   "USE_DB_AUTHENTICATION=false",
@@ -12683,7 +13046,7 @@ Wants = "mios-webtools-redis.service"
 [containers.mios-webtools-redis.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-webtools-redis"
-Exec = "valkey-server --bind 127.0.0.1 --port 6380 --appendonly no"
+Exec = "valkey-server --bind 127.0.0.1 --port ${MIOS_PORT_REDIS:-8565} --appendonly no"
 Group = "0"
 Image = "docker.io/valkey/valkey:latest"
 Label = "org.opencontainers.image.title=mios-webtools-redis"
@@ -12707,14 +13070,22 @@ Wants = "network-online.target"
 [containers.mios-otelcol.Container]
 ContainerName = "mios-otelcol"
 Group = "${MIOS_OTELCOL_GID:-829}"
-Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:latest}"
+# Pinned: `all-in-one` is the Jaeger v1 line only (v2 ships as
+# jaegertracing/jaeger), and :latest == 1.76.0. The tag decides which env model
+# the two host-port vars below belong to, so it cannot float.
+Image = "${MIOS_OTELCOL_IMAGE:-docker.io/jaegertracing/all-in-one:1.76.0}"
+# Jaeger v1 binds via viper AutomaticEnv with `-`/`.` -> `_`, so
+# `collector.otlp.grpc.host-port` and `query.http-server.host-port` map to the
+# two names below. Without them the SSOT keys named numbers nothing bound.
 Environment = [
-  "COLLECTOR_OTLP_ENABLED=true"
+  "COLLECTOR_OTLP_ENABLED=true",
+  "COLLECTOR_OTLP_GRPC_HOST_PORT=:${MIOS_PORT_OTELCOL_OTLP:-8575}",
+  "QUERY_HTTP_SERVER_HOST_PORT=:${MIOS_PORT_OTELCOL_UI:-8580}"
 ]
 Label = [
   "org.opencontainers.image.title=mios-otelcol",
-  "org.opencontainers.image.url=http://localhost:16686/",
-  "io.podman_desktop.openInBrowser=http://localhost:16686/"
+  "org.opencontainers.image.url=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/",
+  "io.podman_desktop.openInBrowser=http://localhost:${MIOS_PORT_OTELCOL_UI:-8580}/"
 ]
 Pod = "mios-webtools.pod"
 User = "${MIOS_OTELCOL_UID:-829}"
@@ -12746,8 +13117,8 @@ autounattend.debloat_profile  = "minimal"
 autounattend.xbox.enable     = "false"
 colors.accent                = "#1A407F"
 branding.living_wallpaper    = "false"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox]
 autounattend.uup_channel     = "dev"
@@ -12757,8 +13128,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#282262"
 branding.living_wallpaper    = "true"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 [editions.mios-xbox-arm]
 autounattend.uup_channel     = "dev"
@@ -12768,8 +13139,8 @@ autounattend.debloat_profile  = "gaming"
 autounattend.xbox.enable     = "true"
 colors.accent                = "#4B105C"
 branding.living_wallpaper    = "true"
-mini.gpu.arbitration         = "static"
-mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
+metal.gpu.arbitration        = "static"
+metal.gpu.assignments        = { mios-guest = ["0000:01:00.0"] }
 
 # ----------------------------------------------------------------------------
 # [blade] -- node activation capabilities and targets (WS-BLADE)
@@ -12778,11 +13149,103 @@ mini.gpu.assignments         = { mios-guest = ["0000:01:00.0"] }
 [blade]
 type = "hybrid"
 
+# Where the hardware sniff demotes to, and where role-apply falls back when the
+# resolved archetype ships no target. Must itself be an archetype, and must be
+# an archetype that survives on any hardware -- it is chosen precisely when the
+# machine cannot do what the resolved role implies. Gate: check_role_ssot.
+fallback = "headless"
+
+# Services a seat still starts because no capability gates them yet.
+# SHRINK-ONLY (gate: check_blade_coverage). Drained by T-319; keep it at [].
+ungated = []
+
+# Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
+soft_ok = ["hermes-worker"]
+
+# Units a seat DELIBERATELY runs: what the PERSON touches. A blade runs what
+# the WORK needs. See ADR-0016 D4.
+seat_side = [
+  "mios-agent-pipe",            # the local front door; MIOS_AI_ENDPOINT points it at a blade
+  "hermes-dashboard",           # browser UI
+  "mios-hermes-browser",        # CDP browser the agent tools drive
+  "mios-hermes-tail",           # journal tail into the UI
+  "mios-ttyd-bash",             # browser pty
+  "mios-ttyd-powershell",       # browser pty
+]
+
+# An archetype expands to the capabilities its blade activates. An archetype
+# with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]
-hybrid = ["gpu-serving", "controller"]
+hybrid     = ["gpu-serving", "controller", "service-plane"]
+compute    = ["gpu-serving", "service-plane"]
+controller = ["controller", "service-plane"]
+headless   = ["service-plane"]
+desktop    = ["service-plane"]
+endpoint   = []
+# Cluster roles. They already shipped mios-k3s-master.target / mios-ha-node.target
+# and role-apply already selected them from a `k3s*`/`ha*` glob -- but they were
+# absent HERE, so such a blade resolved to zero capabilities and started nothing
+# while its target came up.
+k3s-master = ["controller", "service-plane"]
+ha-node    = ["controller", "service-plane"]
+
+# Legacy role spellings, mapped onto an archetype. This table replaces the
+# `k3s*)` / `ha*)` globs in role-apply: a glob accepted `k3sx` too, selecting a
+# target for a role that grants nothing. Every value must be an archetype key
+# (gate: check_role_ssot).
+[blade.role_aliases]
+k3s = "k3s-master"
+ha  = "ha-node"
 
 [blade.requires]
-mios-llm-heavy = ["gpu-serving"]
+# GPU lanes: gpu-serving AND service-plane (repeated ConditionPathExists is AND).
+mios-llm-heavy     = ["gpu-serving", "service-plane"]
+mios-llm-heavy-alt = ["gpu-serving", "service-plane"]
+"mios-llm-worker@" = ["gpu-serving", "service-plane"]
+# The rest of the service plane: offloaded wholesale on a seat.
+mios-adguard                   = ["service-plane"]
+mios-ceph                      = ["service-plane"]
+mios-cockpit-link              = ["service-plane"]
+mios-code-server               = ["service-plane"]
+mios-cpu-node                  = ["service-plane"]
+mios-forge                     = ["service-plane"]
+mios-forgejo-runner            = ["service-plane"]
+mios-guacamole                 = ["service-plane"]
+mios-guacd                     = ["service-plane"]
+mios-k3s           = ["controller", "service-plane"]
+mios-llm-light                 = ["service-plane"]
+mios-open-webui                = ["service-plane"]
+mios-otelcol                   = ["service-plane"]
+mios-pgvector                  = ["service-plane"]
+mios-pxe-hub       = ["controller", "service-plane"]
+mios-hermes-browser-worker = ["service-plane"]   # the WORKER's browser, gated with hermes-worker
+mios-searxng                   = ["service-plane"]
+mios-webtools-crawl4ai         = ["service-plane"]
+mios-webtools-firecrawl-api    = ["service-plane"]
+mios-webtools-firecrawl-worker = ["service-plane"]
+mios-webtools-redis            = ["service-plane"]
+# Native (non-Quadlet) long-running units. Same rule: a seat offloads them.
+hermes-worker                  = ["service-plane"]
+k3s                            = ["service-plane"]
+mios-account-sync              = ["service-plane"]
+mios-agents                    = ["service-plane"]
+mios-cron-director             = ["service-plane"]
+mios-daemon                    = ["service-plane"]
+mios-finetune-serve            = ["service-plane"]
+mios-mcp                       = ["service-plane"]
+mios-opencode-gateway          = ["service-plane"]
+mios-policy-arbiter            = ["service-plane"]
+# Units that activate a gated unit and cannot work without it. See ADR-0016 D4.
+mios-embed-backfill            = ["service-plane"]
+mios-forge-firstboot           = ["service-plane"]
+mios-forgejo-runner-firstboot  = ["service-plane"]
+mios-git-root-init             = ["service-plane"]
+mios-k3s-master                = ["service-plane"]
+mios-passport-provision        = ["service-plane"]
+mios-pgvector-backup           = ["service-plane"]
+mios-skills-miner              = ["service-plane"]
+mios-sys-env-refresh           = ["service-plane"]
+mios-userdb-render             = ["service-plane"]
 
 # ----------------------------------------------------------------------------
 # Proposed sections for roadmap index validation compatibility (WS-CAT / WS-DOTFILES)
@@ -13619,6 +14082,113 @@ stay_max_words         = 25
 migrate_min_lines      = 6      # ratchet: 6 -> 4 -> 3 as the mid-size band clears
 migrate_min_words      = 60
 landing_min_word_ratio = 0.90   # a doc passage must retain this much of the block
+render_extra           = ["llms.txt", "llms-full.txt"]   # non-.md files mios-manual render also splices
+
+# Retired AI-plane port numbers: every one has a [ports] successor key.
+retired_ports = [11434, 11450, 11441, 3030, 8432, 8441, 8442, 8633, 8640, 8641, 8642, 8888, 8899]
+# Living contract docs that must reference [ports] KEYS, never the numbers above.
+port_clean = [
+  "README.md", "CLAUDE.md", "GEMINI.md", "AGENTS.md", "MiOS.md", "SECURITY.md",
+  ".github/ai-instructions.md", "llms.txt", "llms-full.txt",
+  "usr/share/doc/mios/reference/api.md",
+  # Runtime AI payloads and operator surfaces (T-304, batch 1).
+  "system-prompt.md", "tools/README.md",
+  "etc/mios/ai/system-prompt.md", "etc/mios/system-prompts/mios-reviewer.md",
+  "usr/share/mios/ai/INDEX.md", "usr/share/mios/ai/audit-prompt.md",
+  "usr/share/mios/security/README.md",
+  "usr/share/mios/docs/agents/AI-ARCHITECTURE.md",
+  "usr/share/mios/docs/ai-pipeline-map.md",
+  "usr/share/mios/cookbooks/ingest-kb.md",
+  "usr/share/mios/hermes/skills/mios-skill-catalog/SKILL.md",
+  "usr/share/mios/hermes/skills/parallel-fanout/SKILL.md",
+  # T-305 batch 2. Hint-only files stay out: their bodies are historical.
+  "installation/UNIFY.md", "tools/windows/README-WINDOWS.md",
+  "etc/mios/system-prompts/mios-engineer.md",
+  "etc/mios/system-prompts/mios-troubleshoot.md",
+  "usr/share/mios/ai/system.md", "usr/share/mios/ai/hermes-soul-full.md",
+  "usr/share/mios/cookbooks/finetune-flow.md",
+  "usr/share/mios/cookbooks/local-rag-day0.md",
+  "usr/share/mios/docs/day-0/FIRST-BOOT.md",
+  "usr/share/mios/docs/agents/PC-CONTROL-LOCAL.md",
+  "usr/share/mios/docs/terminal/INVOCATIONS.md",
+  "usr/share/mios/hermes/skills/mios-environment/SKILL.md",
+  "usr/share/mios/hermes/skills/opencode-delegation/SKILL.md",
+  "usr/share/mios/open-webui/system-prompts/mios-agent.md",
+  "usr/share/doc/mios/manual.md",
+  "usr/share/doc/mios/manual/ch04-the-agentic-ai-stack.md",
+  "usr/share/doc/mios/manual/ch10-local-inference-lanes-and-llama-cpp.md",
+  # T-306: the documentation long tail. Historical archives stay verbatim and out.
+  "usr/share/doc/mios/adr/0005-sovereign-run-off-m-drive.md",
+  "usr/share/doc/mios/adr/0006-openai-api-only-ai-contract.md",
+  "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md",
+  "usr/share/doc/mios/adr/0009-unified-config-surface.md",
+  "usr/share/doc/mios/adr/README.md",
+  "usr/share/doc/mios/concepts/OFFLINE-FIRST.md",
+  "usr/share/doc/mios/concepts/a2a-passport-conformance-2026-06-20.md",
+  "usr/share/doc/mios/concepts/agent-pipe-openai-standards-master-plan.md",
+  "usr/share/doc/mios/concepts/aios-engineering-blueprint.md",
+  "usr/share/doc/mios/concepts/aios-implementation-plan.md",
+  "usr/share/doc/mios/concepts/coderun-sandbox.md",
+  "usr/share/doc/mios/concepts/container-os-runtime.md",
+  "usr/share/doc/mios/concepts/foss-upstream-map.md",
+  "usr/share/doc/mios/concepts/mios-app-browser-portal-dashboard-design-2026-07-03.md",
+  "usr/share/doc/mios/concepts/multi-agent-buildout-plan.md",
+  "usr/share/doc/mios/concepts/naming-refactor-plan.md",
+  "usr/share/doc/mios/concepts/postgres-pgvector-unification.md",
+  "usr/share/doc/mios/concepts/roadmap-snapshot-decomposition-2026-06-22.md",
+  "usr/share/doc/mios/concepts/unified-ai-pipeline-2026-06-16.md",
+  "usr/share/doc/mios/concepts/upstream-gap-plan-2026-06.md",
+  "usr/share/doc/mios/concepts/ws-0-preflight-findings-2026-06-20.md",
+  "usr/share/doc/mios/concepts/ws-a3-central-path-cutover-worklist.md",
+  "usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md",
+  "usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md",
+  "usr/share/doc/mios/finetune.md",
+  "usr/share/doc/mios/guides/agent-windows-ssh.md",
+  "usr/share/doc/mios/guides/deploy.md",
+  "usr/share/doc/mios/guides/edge-node-join.md",
+  "usr/share/doc/mios/guides/engineering.md",
+  "usr/share/doc/mios/guides/hummingbird-distroless.md",
+  "usr/share/doc/mios/guides/inference-consolidation.md",
+  "usr/share/doc/mios/guides/security.md",
+  "usr/share/doc/mios/manual/ch05-federation-and-computer-use.md",
+  "usr/share/doc/mios/manual/ch11-heavy-gpu-lanes-and-sglang-vllm.md",
+  "usr/share/doc/mios/manual/ch14-agent-to-agent-delegation-protocols.md",
+  "usr/share/doc/mios/manual/ch25-local-search-engine-and-searxng.md",
+  "usr/share/doc/mios/manual/ch48-local-ai-web-consoles.md",
+  "usr/share/doc/mios/manual/ch51-distilled-system-knowledge-code-invariants.md",
+  "usr/share/doc/mios/manual/federation.md",
+  "usr/share/doc/mios/manual/hermes.md",
+  "usr/share/doc/mios/manual/llamacpp.md",
+  "usr/share/doc/mios/manual/mios.md",
+  "usr/share/doc/mios/manual/opencode-gateway.md",
+  "usr/share/doc/mios/manual/root.md",
+  "usr/share/doc/mios/manual/routing.md",
+  "usr/share/doc/mios/manual/scheduler.md",
+  "usr/share/doc/mios/manual/system.md",
+  "usr/share/doc/mios/manual/tools.md",
+  "usr/share/doc/mios/reference/PACKAGES.md",
+  "usr/share/doc/mios/reference/audit-security.md",
+  "usr/share/doc/mios/reference/build-scripts.md",
+  "usr/share/doc/mios/reference/credits.md",
+  "usr/share/doc/mios/reference/engineering-reference.md",
+  "usr/share/doc/mios/reference/hwcaps.md",
+  "usr/share/doc/mios/reference/maturity-and-release-runbook.md",
+  "usr/share/doc/mios/reference/sources.md",
+  "usr/share/doc/mios/reference/tree.md",
+  "usr/share/doc/mios/upstream/cdi.md",
+  "usr/share/doc/mios/upstream/deploy-targets.md",
+  "usr/share/doc/mios/upstream/fedora-bootc.md",
+  "usr/share/doc/mios/upstream/ghcr.md",
+  "usr/share/doc/mios/upstream/nvidia.md",
+  "usr/share/doc/mios/upstream/podman.md",
+  "usr/share/doc/mios/upstream/related-distros.md",
+  "usr/share/doc/mios/upstream/selinux.md",
+  "usr/share/mios/docs/MIOS-GEMINI-TASKS-2026-06-22.md",
+  "usr/share/mios/docs/MIOS-ROADMAP-PROGRESS-2026-06-22.md",
+  "usr/share/mios/docs/install-robustness-2026-06-21.md",
+    "automation/67-bake-surfer.sh",
+    "usr/share/mios/owui/pipes/mios_agent_pipe.py"
+]
 
 # Ratchet floors, monotone decreasing. Measured, not guessed.
 # Method + full census: docs/agy/doc-generative-documentation.md

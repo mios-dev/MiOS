@@ -34,18 +34,18 @@ agents.**
 operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI)
       │
       ▼
-  agent-pipe :8640           (mios-agent-pipe.service)
+  agent-pipe (port key agent_pipe)           (mios-agent-pipe.service)
       │  standalone orchestrator: router + REFINE + council/swarm fan-out
       │  + CRITIC/POLISH; injects the refined plan into every sub-agent hop;
       │  fronts Hermes for every gateway; writes/reads pgvector memory
       │
       ▼
-  prefilter :8641            (mios-delegation-prefilter.service)
+  prefilter (port key prefilter)            (mios-delegation-prefilter.service)
       │  injects tool_choice=delegate_task on fan-outable prompts,
       │  forwards to Hermes
       │
       ▼
-  Hermes :8642               (hermes-agent.service)
+  Hermes (port key hermes)               (hermes-agent.service)
       │  ├─ OpenAI-compatible agent gateway: sessions, the tool-loop, skills,
       │  │   browser/CDP control
       │  ├─ skills: mios-environment, windows-control, pc-control,
@@ -54,17 +54,17 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
       │  │           session_search, code_execution, browser, discord,
       │  │           cronjob, clarify
       │  ├─ delegate_task → child agents
-      │  └─ dispatch → MiOS-OpenCoder (opencode /v1 council peer :8633)
+      │  └─ dispatch → MiOS-OpenCoder (opencode /v1 council peer, port key opencode_gateway)
       │
       ▼
   inference lanes            (function-named; OpenAI/Ollama-compatible API)
-      │    mios-llm-light :11450   PRIMARY — llama.cpp behind mios-llm-light;
+      │    mios-llm-light (port key llm_light)   PRIMARY — llama.cpp behind mios-llm-light;
       │                            everyday chat/reasoning models + the
       │                            mios-opencode coder model + embeddings
       │                            (nomic-embed-text, /v1/embeddings)
-      │    mios-llm-heavy :11441   heavy GPU lane (SGLang, served-name
+      │    mios-llm-heavy (port key vllm)   heavy GPU lane (vLLM, served-name
       │                            mios-heavy); gated off by default (VRAM)
-      │    mios-llm-heavy-alt :11440  alternate heavy lane (vLLM); gated
+      │    mios-llm-heavy-alt (port key sglang)  alternate heavy lane (SGLang); gated
       │
       ▼
   response streams back through the orchestrator to the front-end
@@ -81,11 +81,11 @@ operator front-end          (Open WebUI, Discord/chat gateway, or the `mios` CLI
 
 ## The inference lanes (what serves what)
 
-| Lane | Unit | Port | Role |
+| Lane | Unit | `[ports]` key | Role |
 |---|---|---|---|
-| MiOS-LLM-Light | `mios-llm-light.service` | `:11450` | **Primary** local inference — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging (slot save/restore to disk); serves everyday chat/reasoning models, the `mios-opencode` coder model, **and** embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). |
-| MiOS-LLM-Heavy | `mios-llm-heavy.service` | `:11441` | Heavy GPU lane (SGLang, served-name `mios-heavy`, HiCache CPU KV-offload). **Gated/off-by-default** (VRAM). |
-| MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `:11440` | Alternate heavy lane (vLLM, PagedAttention + prefix cache). **Gated/off-by-default** (VRAM). |
+| MiOS-LLM-Light | `mios-llm-light.service` | `llm_light` | **Primary** local inference — `llama.cpp` behind the `mios-llm-light` proxy image; multi-model auto-swap + KV-cache paging (slot save/restore to disk); serves everyday chat/reasoning models, the `mios-opencode` coder model, **and** embeddings (`nomic-embed-text`, OpenAI-compat `/v1/embeddings`). |
+| MiOS-LLM-Heavy | `mios-llm-heavy.service` | `vllm` | Heavy GPU lane (vLLM, served-name `mios-heavy`, PagedAttention + prefix cache). **Gated/off-by-default** (VRAM). |
+| MiOS-LLM-Heavy-Alt | `mios-llm-heavy-alt.service` | `sglang` | Alternate heavy lane (SGLang, HiCache CPU KV-offload). **Gated/off-by-default** (VRAM). |
 | MiOS-LLM-Worker | `mios-llm-worker@.service` | — | Single-model swarm workers (templated; for the dGPU swarm topology). |
 
 The light lane's model map is
@@ -117,7 +117,7 @@ logs and files on pass/fail." Daemons stay observation-only.
 
 The always-on `mios-daemon-agent` (a CPU-pinned, low-resource sub-agent) tails
 system logs and feeds context to the council; per `[agents.mios-daemon-agent]`
-in `mios.toml` it now dispatches reasoning to the heavy SGLang lane (`:11441`)
+in `mios.toml` it now dispatches reasoning to the heavy SGLang lane (port key `sglang`)
 like the other council agents rather than the contended light lane. Its
 background log/journal watch stays read-only.
 
@@ -144,12 +144,12 @@ loop.
   these surfaces, so peer agents can be federated by adding them to the
   `mcp.json` / `a2a-peers.json` overlays.
 - `web_search` is backed by a local **SearXNG** (`mios-searxng.service`,
-  `:8888`); the front-end is **Open WebUI** (`mios-open-webui.service`, `:3030`).
+  port key `searxng`); the front-end is **Open WebUI** (`mios-open-webui.service`, port key `open_webui`).
 - The coder peer is served through the **opencode-gateway**
-  (`mios-opencode-gateway.service`, `:8633`) as a first-class OpenAI `/v1`
+  (`mios-opencode-gateway.service`, port key `opencode_gateway`) as a first-class OpenAI `/v1`
   council member, registered as `[agents.opencode]`:
   ```
-  POST http://localhost:8633/v1/chat/completions
+  POST http://localhost:${MIOS_PORT_OPENCODE_GATEWAY}/v1/chat/completions
     { "model": "mios-opencode:latest", "messages": [...] }
   ```
   The agent-pipe orchestrator dispatches code-heavy facets to it in parallel
@@ -238,15 +238,15 @@ refine/critic/polish.
 ## History (superseded snapshot)
 
 This file began as a 2026-05-16 snapshot describing an Ollama-backed chain in
-which the prefilter did the refinement and `mistral-magistral-small-2509` ran on Ollama
-(`:11434`) under a tight VRAM budget. That topology has since changed:
+which the prefilter did the refinement and `mistral-magistral-small-2509` ran on the retired
+Ollama lane under a tight VRAM budget. That topology has since changed:
 
 - Inference moved off **Ollama** to the function-named lanes
-  (`mios-llm-light` primary on `:11450`, gated heavy lanes); Ollama survives
+  (`mios-llm-light` primary on the `llm_light` port, gated heavy lanes); Ollama survives
   only as an upstream API-compat reference and in migration notes.
 - The datastore moved off **the legacy datastore**/**Qdrant** to **PostgreSQL + pgvector**.
-- The **agent-pipe** (`:8640`) became the standalone orchestrator that owns
-  refine/council/swarm/critic/polish; the prefilter (`:8641`) was narrowed to
+- The **agent-pipe** (port key `agent_pipe`) became the standalone orchestrator that owns
+  refine/council/swarm/critic/polish; the prefilter (port key `prefilter`) was narrowed to
   fan-out hint injection.
 - **opencode** became a co-equal `/v1` council peer via the opencode-gateway,
   not a Hermes ACP-over-stdio child.

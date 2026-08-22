@@ -34,6 +34,38 @@ _pg_down_until = 0.0
 _PG_BACKOFF_S = 30.0
 
 
+_REDACT_CFG: dict = {}
+
+
+def _redact_cfg() -> dict:
+    """[security.redact] from the mios.toml cascade, read once and cached."""
+    global _REDACT_CFG
+    if not _REDACT_CFG:
+        try:
+            from mios_pipe.kernel.config import _toml_section
+            _REDACT_CFG = (_toml_section("security") or {}).get("redact", {}) or {}
+        except Exception:  # noqa: BLE001 -- degrade to the built-in floor below
+            _REDACT_CFG = {}
+        if not _REDACT_CFG.get("tables"):
+            # Floor so an unreadable SSOT never turns redaction off.
+            _REDACT_CFG = {"enable": True, "fail_closed": True,
+                           "tables": ["knowledge", "agent_memory", "event", "tool_call"]}
+    return _REDACT_CFG
+
+
+def _redact_targets(sql: str) -> list:
+    """Tables named in this statement that [security.redact].tables covers."""
+    cfg = _redact_cfg()
+    if not cfg.get("enable", True):
+        return []
+    low = (sql or "").lower()
+    return [t for t in cfg.get("tables", []) if t in low]
+
+
+def _redact_fail_closed() -> bool:
+    return bool(_redact_cfg().get("fail_closed", True))
+
+
 def _pg_skip() -> bool:
     return time.monotonic() < _pg_down_until
 
@@ -69,7 +101,7 @@ def pg_config(env: Optional[dict] = None) -> dict:
     e = env if env is not None else os.environ
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
+        "port": int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600),
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),
@@ -211,7 +243,7 @@ async def rerank_candidates(query: str, candidates: list, table: str) -> list:
             return r.get("fact") or r.get("answer") or ""
 
     docs = [get_candidate_text(r) for r in candidates]
-    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8450"
+    light_port = os.environ.get("MIOS_PORT_LLM_LIGHT") or "8500"
     url = os.environ.get("MIOS_RERANK_URL") or f"http://localhost:{light_port}/v1/rerank"
     model = os.environ.get("MIOS_RERANK_MODEL") or "bge-reranker-v2-m3"
 
@@ -562,7 +594,7 @@ async def execute(sql: str, params: Optional[dict] = None,
     if _pg_skip():
         return None
         
-    if params and any(t in sql.lower() for t in ("knowledge", "agent_memory", "event", "tool_call")):
+    if params and _redact_targets(sql):
         try:
             from mios_pipe.redact import redact
             if isinstance(params, dict):
@@ -583,8 +615,12 @@ async def execute(sql: str, params: Optional[dict] = None,
                     else:
                         new_params_list.append(v)
                 params = type(params)(new_params_list)
-        except Exception:
-            pass
+        except Exception as e:  # noqa: BLE001
+            if _redact_fail_closed():
+                log.error("redact failed for %s; refusing the write (fail_closed): %s",
+                          _redact_targets(sql), e)
+                return None
+            log.warning("redact failed; writing UNREDACTED (fail_closed=false): %s", e)
 
     try:
         import psycopg  # lazy: only needed at cutover, not for the pure helpers

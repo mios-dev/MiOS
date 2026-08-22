@@ -108,7 +108,7 @@ Inert until peers are registered in `a2a-peers.json`. The four primitives:
     LIVE: 12 reasoning deltas over a real chat).
   - **CLI + OWUI:** render it (prior work).
   - **Desktop app** (Nous Research Hermes, `AppData\Local\hermes`, v0.16.0): its
-    `config.yaml` backend is `http://127.0.0.1:8640/v1` (the MiOS agent-pipe), it
+    `config.yaml` backend is the MiOS agent-pipe (`$MIOS_AI_ENDPOINT`), it
     reads streaming `delta.reasoning_content` (`agent/chat_completion_helpers.py`
     ~887/1792) and **displays reasoning live during streaming**
     (`_fire_reasoning_delta` structured-reasoning deltas + a post-response display

@@ -1,0 +1,192 @@
+<!-- AI-hint: Chapter 54: Agent-Pipe Importability. Records the defect class that let agent-pipe's server module reference names nothing defines, the three undefined module-scope names that made it unimportable, the four further undefined names found once a real checker ran, the two gates that were silently vacuous because of it, and the knowledge-memory consolidation loop restored in the process. Covers what each gate now enforces and why an ImportError from repo code must fail rather than skip. -->
+
+# <a name="54_agent_pipe_importability"></a>Chapter 54: Agent-Pipe Importability
+
+> Part VI: The Local AI Plane of the [MiOS manual](../manual.md).
+
+> Path Reference: `/usr/share/doc/mios/manual.md#54_agent_pipe_importability`
+
+#### Overview
+
+`usr/lib/mios/agent-pipe/server.py` is the router and dispatch gateway every
+front-end talks to. It parsed cleanly, passed every syntax check, and could not
+be imported: three module-scope names it referenced were defined nowhere in the
+repository. This chapter records what went wrong, because the interesting part
+is not the three names — it is that two separate gates were positioned to catch
+this and both reported success.
+
+#### <a name="54_the_three_undefined_names"></a>54.The Three Undefined Names: The Three Undefined Names
+
+| Name | Symptom | Resolution |
+|---|---|---|
+| `_consolidate_memory_loop` | `from mios_daemons import ...` for a function that existed nowhere | implemented in `mios_pipe/kernel/daemons.py` (below) |
+| `_match_user_cfg`, `_user_rbac_filter` | injected into the a2a and http_caps configure calls, never imported | imported from `mios_policy`, where they live |
+| `_PG_PRIMARY`, `_PG_ENABLED`, `_PERMISSION_TIERS` | referenced bare at six sites | resolved in the config layer from `[pgvector]`, and imported from `mios_policy` |
+
+`_PG_PRIMARY` is worth a note. Two early call sites read it as
+`globals().get("_PG_PRIMARY", False)` — someone had already met its absence and
+worked around it locally rather than defining it. The later sites read it bare
+and raised. It now resolves from SSOT: Postgres is the agent plane's sole
+datastore since the WS-A3 cutover, so `[pgvector].enable` plus
+`db_backend = "postgres"` *is* "primary".
+
+#### <a name="54_why_the_gates_missed_it"></a>54.Why the Gates Missed It: Why the Gates Missed It
+
+Two gates should have caught this.
+
+**`lint-python.sh`** ran `ast.parse` over every Python file. That proves a file
+*parses*; it says nothing about whether the names it uses exist. All three
+undefined names sat behind a clean parse.
+
+**`test_mios_approutes.py`**, the live-app route-parity gate, imported the real
+FastAPI app and compared its served routes against the committed golden. It
+wrapped that import in `except ImportError: raise unittest.SkipTest(...)`,
+reasoning that a bare checkout may lack fastapi. But an `ImportError` naming a
+*symbol* is not an absent dependency — it is a code defect. The gate skipped,
+reported OK, and the golden went unverified for as long as the defect existed.
+
+Both are now closed:
+
+* `lint-python.sh` gained an **undefined-name pass** over every Python file,
+  backed by pyflakes and failing closed under `MIOS_DRIFT_REQUIRE_TOOLS=1`.
+* The route-parity gate distinguishes causes. A `ModuleNotFoundError` naming a
+  third-party package still skips; one naming a module *this repo ships* fails,
+  as does any `ImportError`, `NameError` or `AttributeError` — those mean
+  server.py references something the repo does not define.
+
+The general rule the episode argues for: **a gate may skip on the environment,
+never on the artifact.** A skip that can be triggered by the code under test is
+not a gate.
+
+#### <a name="54_the_four_further_defects"></a>54.The Four Further Defects: The Four Further Defects
+
+The undefined-name pass found four more files on its first run, all real:
+
+| File | Name | Consequence |
+|---|---|---|
+| `mios_pipe/memory/knowledge.py` | `os` at six sites | see below |
+| `mios_pipe/memory/memory.py` | `Optional` in a signature | unresolvable annotation |
+| `mios_pipe/access/hitlflow.py` | `AsyncGenerator` in a return annotation | unresolvable annotation |
+| `mios_pipe/routing/turn.py` | `re` in a parameter annotation | unresolvable annotation |
+
+The `knowledge.py` one was not cosmetic. `_evict_knowledge` calls
+`os.environ.get` as its third statement, and `os` was never imported — so every
+eviction sweep raised `NameError` immediately and the function's trailing
+`except Exception` swallowed it, returning `{"deleted": 0, "dry_run": True}`.
+The K-LRU + TTL knowledge eviction loop had been reporting a clean no-op sweep
+while never reaching its own logic. A blanket `except Exception` around a whole
+function body will convert a missing import into a plausible-looking result;
+that is the reason the undefined-name pass has to exist upstream of it.
+
+#### <a name="54_memory_consolidation"></a>54.Memory Consolidation: Memory Consolidation
+
+`_consolidate_memory_loop` was imported and spawned as a background task under
+`AGENT_MEMORY_RECALL_ENABLED`, but never written. It is now implemented in
+`mios_pipe/kernel/daemons.py` as a periodic sweep over the `knowledge` table:
+
+* Rows answering the **same normalized question** (`lower(btrim(q))`) collapse
+  into the newest.
+* The losers' `access_count` and `recall_hits` are **folded into the survivor**,
+  and its `last_access` takes the group maximum. Consolidation must not look
+  like a reset to the K-LRU tiering that reads those counters — a merge that
+  zeroed usage history would make hot rows evictable.
+* A group containing **any pinned row is skipped entirely**: pinned means an
+  operator asked for that exact entry to survive, and a merge could delete it.
+* Each group is merged in its own statement, so one bad row cannot roll back the
+  whole sweep, and `consolidate_max_groups` bounds one pass's work.
+
+It is Postgres-only; on the legacy seam it reports a no-op rather than a partial
+merge. Tunables live in `[memory]`: `consolidate`, `consolidate_interval_s`,
+`consolidate_max_groups`.
+
+#### <a name="54_the_module_size_ratchet"></a>54.The Module-Size Ratchet: The Module-Size Ratchet
+
+The same vacuous-gate pattern appeared a third time. `check_module_length`
+enforced an 800-line ceiling on the extracted modules — and scanned them with
+`find -maxdepth 1`. It saw nine files. There are 112. Every module the
+extraction actually produced lives one directory deeper, and eleven of them are
+between 820 and 1,786 lines. The gate had been reporting "all modules are
+&lt;= 800 lines" against a set that excluded all of them.
+
+The check now walks the package recursively, in `tools/check-module-length.py`,
+against a shrink-only register in `[refactor]`:
+
+* `max_lines` (800) applies to any file **not** in the register — a new module
+  over the limit fails, and the failure message says to split it rather than to
+  grandfather it.
+* `oversize` records each pre-existing file's current length. A listed file that
+  **grows** past its recorded number fails.
+* A listed file that **shrinks** also fails, with a message asking for the entry
+  to be lowered. That is what makes it a ratchet rather than a permanent
+  exemption: a win has to be written down before the gate goes green again.
+* An entry naming a file that no longer exists fails, so the register cannot rot
+  into a list of ghosts.
+
+Nine directions are covered by `tools/test_check-module-length.py`, including
+the nested-file case the old body structurally could not see.
+
+#### <a name="54_the_owui_entry_point"></a>54.The OWUI Entry Point: The OWUI Entry Point
+
+The same investigation, run over `usr/share/mios/owui/pipes/mios_agent_pipe.py`
+— the file whose own docstring calls it "the canonical user-facing entry point
+in OWUI" — found four defects in one file:
+
+1. **It did not import.** `Any` is used in a `Pipe`-body annotation and was
+   never imported, and the file has no `from __future__ import annotations`, so
+   the annotation is evaluated at class-definition time. The module raised
+   `NameError` on load.
+2. **`BACKEND_URL` named a retired port** — `host.containers.internal:8640`,
+   where `[ports].agent_pipe` is 8700. The address was retired too: the file's
+   own docstring records that `host.containers.internal` "never resolved" once
+   OWUI became a host process, while the default kept pointing at it.
+3. **`REFINE_ENDPOINT` named `:8450`**, which under the current scheme is
+   `[ports].k3s_api`. A refine call would have gone to the Kubernetes API
+   server. (Latent — the refine valve ships off.)
+4. **Five write sites addressed a decommissioned datastore.** These were
+   described as "un-mirrored writes"; they were writes to nothing. `_DB_URL`
+   defaulted to the retired endpoint at `:8000`, and agent-pipe — which this
+   pipe proxies through — has owned `session`, `tool_call` and `event` since the
+   extraction the file's docstring describes as complete.
+
+Both endpoints now resolve from the SSOT (`MIOS_AI_ENDPOINT` per Law 5, and
+`MIOS_REFINE_ENDPOINT` or `[ports].llm_light`), the dead writes are off unless
+`MIOS_DB_URL` is set explicitly, and the file is registered in
+`[docs].port_clean` so a retired number cannot return to it.
+
+**Why nothing caught it:** `lint-python.sh` scanned `usr/lib/mios`, `tools` and
+`usr/libexec/mios`. It never scanned `usr/share/mios`, which is where the
+runtime Python payloads that ship *into other programs* live.
+`tests/test-owui-pipe-endpoints.py` now asserts the module imports, that both
+defaults track the port SSOT, and that neither names anything in
+`[docs].retired_ports`.
+
+#### <a name="54_asking_git_for_the_file_set"></a>54.Asking Git for the File Set: Asking Git for the File Set
+
+Adding `usr/share/mios` to the list of scanned directories would have fixed this
+instance and left the shape intact — the next payload directory would be the
+next blind spot. The gate now asks **git** for its file set instead:
+`git ls-files '*.py'`, plus every tracked file whose *first two bytes* are `#!`
+on a line naming python. A new Python payload is covered the moment it is
+tracked, wherever it lives. Coverage went from 550 files to 614.
+
+Three exclusions are deliberate, and each has a reason worth stating so nobody
+"fixes" a red build by narrowing coverage again:
+
+* **Templates and golden snapshots** carry `{{placeholders}}` and are not valid
+  Python until rendered.
+* **The shebang must be real** — `#!` at byte 0. Matching "python" anywhere in
+  the first line also catches a Dockerfile `FROM` line and ordinary prose, which
+  is exactly what the first attempt did.
+* **Zipapps are skipped.** `usr/libexec/mios/mios-dashboard` is a shebang
+  followed by a ZIP payload — executable Python, but not Python *source*, so
+  `py_compile` cannot read it. The previous implementation excluded it by
+  accident, via a `file(1)` text check it happened to fail.
+
+`tests/test-lint-python-coverage.sh` re-derives the set using the gate's own
+logic (`MIOS_LINT_PYTHON_LIST=1`) and asserts one representative from each
+payload area is present and each deliberate exclusion is absent. Negative-tested
+by re-dropping `usr/share/mios`, which reds it.
+
+Its shell twin, `tests/test-lint-shell-coverage.sh`, already existed — and was
+wired into no runner at all, so it had never executed. Both are wired in now.
+

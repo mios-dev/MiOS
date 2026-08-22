@@ -1,6 +1,6 @@
-# AI-hint: DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave). The planned-DAG execution brain: _execute_dag_node (run ONE node -- an agent delegation OR a tool verb -- with ReWOO #E ref resolution, action-hash dedup, A2A peer delegation, lane-aware token/deadline sizing, worker-tool surface + RBAC, retry/reflexion), _deepen_until_barrier (fast-lane work-steal coverage passes until the global barrier), _execute_dag_saturated (continuous ready-queue executor, SWARM_SATURATE), execute_dag (level-barrier path + saturate dispatch), _execute_dag_bounded (non-streaming TURN_DEADLINE backstop + client-disconnect cancel) and _execute_dag_emitting (streaming per-node endpoint emitters + live agent reasoning). Plus _record_dag_node_row (session-linked tool_call taint row) and the WS-6 run-template capture (RUN_TEMPLATE_ENABLE, _run_template_class, _capture_run_template). Moved byte-identically -- NO consolidation of the four execute_dag entrypoints (a separate future task). Every server-side dep (config scalars, _AGENT_REGISTRY, the ContextVars, dispatch_mios_verb, the agent-call/scratchpad/grounding/db/a2a/worker-tool helpers) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _call_agent_complete/_web_research_enrich/_dag_levels/the SSE node emitters/_env_grounding/_action_hash/the RBAC filters are imported directly from their sibling modules. server.py re-imports every moved name under its original alias (surface-parity zero-diff).
+# AI-hint: DAG EXECUTION entrypoints extracted VERBATIM from server.py (refactor R8 wave). The planned-DAG execution brain: _execute_dag_node (run ONE node -- an agent delegation OR a tool verb -- with ReWOO #E ref resolution, action-hash dedup, A2A peer delegation, lane-aware token/deadline sizing, worker-tool surface + RBAC, retry/reflexion), _deepen_until_barrier (fast-lane work-steal coverage passes until the global barrier), _execute_dag_saturated (continuous ready-queue executor, SWARM_SATURATE), execute_dag (level-barrier path + saturate dispatch), _execute_dag_bounded (non-streaming TURN_DEADLINE backstop + client-disconnect cancel) and _execute_dag_emitting (streaming per-node endpoint emitters + live agent reasoning). Plus _record_dag_node_row (session-linked tool_call taint row) and the WS-6 run-template capture (RUN_TEMPLATE_ENABLE, _run_template_class, _capture_run_template), which since T-225 also records the TURN's intent key so the replay matcher in planner.py can answer 'have we planned this before?' before spending a planning call. Moved byte-identically -- NO consolidation of the four execute_dag entrypoints (a separate future task). Every server-side dep (config scalars, _AGENT_REGISTRY, the ContextVars, dispatch_mios_verb, the agent-call/scratchpad/grounding/db/a2a/worker-tool helpers) is dependency-INJECTED via configure() (one-way boundary -- this module NEVER imports server). _call_agent_complete/_web_research_enrich/_dag_levels/the SSE node emitters/_env_grounding/_action_hash/the RBAC filters are imported directly from their sibling modules. server.py re-imports every moved name under its original alias (surface-parity zero-diff).
 # AI-related: ./server.py, ./mios_config.py, ./mios_agent_call.py, ./mios_web_research.py, ./mios_planner.py, ./mios_sse.py, ./mios_grounding.py, ./mios_hitlflow.py, ./mios_policy.py, ./test_mios_dag_exec.py
-# AI-functions: _deepen_until_barrier, _execute_dag_node, _record_dag_node_row, _execute_dag_saturated, _run_template_class, _capture_run_template, execute_dag, _execute_dag_bounded, _execute_dag_emitting, configure
+# AI-functions: load_run_templates, _deepen_until_barrier, _execute_dag_node, _record_dag_node_row, _execute_dag_saturated, _run_template_class, _capture_run_template, execute_dag, _execute_dag_bounded, _execute_dag_emitting, configure
 """DAG execution entrypoints (refactor R8).
 
 Extracted VERBATIM from ``server.py`` -- the planned-DAG execution brain that
@@ -247,6 +247,10 @@ def configure(*, deepen_fetch=None, deepen_deadline_s=None, deepen_max_iters=Non
         _db_create = db_create
     if pg_mirror is not None:
         _pg_mirror = pg_mirror
+    _configure_run_template(
+        run_template_enable=RUN_TEMPLATE_ENABLE, pg_primary=_PG_PRIMARY,
+        db_read=_db_read, db_create=_db_create, db_post=_db_post,
+        db_fire=_db_fire, pg_mirror=_pg_mirror)
 
 
 async def _deepen_until_barrier(node: dict, res: dict, barrier: "asyncio.Event",
@@ -811,44 +815,10 @@ RUN_TEMPLATE_ENABLE = str(os.environ.get("MIOS_RUN_TEMPLATE")
                           ).strip().lower() in {"1", "true", "yes"}
 
 
-def _run_template_class(dag: dict) -> str:
-    """Structural intent-class key for a DAG: sorted tool/agent names + total
-    edge count, hashed. Same plan SHAPE -> same class regardless of phrasing."""
-    nodes = dag.get("nodes") or []
-    sig = sorted(str(n.get("tool") or n.get("agent") or "?") for n in nodes)
-    edges = sum(len(n.get("deps") or []) for n in nodes)
-    raw = "|".join(sig) + f"#e{edges}"
-    return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:16]
+from mios_pipe.routing.run_template import (   # T-225: capture+replay source
+    _run_template_class, _capture_run_template, load_run_templates,
+    configure as _configure_run_template)
 
-
-def _capture_run_template(dag: dict, session_id: Optional[str]) -> None:
-    """Fire-and-forget capture of a planned DAG as a replayable template. Never
-    raises (degrade-open) -- capture must not affect the run."""
-    if not RUN_TEMPLATE_ENABLE:
-        return
-    try:
-        nodes = dag.get("nodes") or []
-        if not nodes:
-            return
-        _pg_mirror("run_template", {                               # WS-9c
-            "class": _run_template_class(dag),
-            "summary": str(dag.get("summary") or "")[:500],
-            "node_count": len(nodes),
-            "dag": dag,
-            "session_id": session_id,
-        })
-        sql = _db_create("run_template", {
-            "class": _run_template_class(dag),
-            "summary": str(dag.get("summary") or "")[:500],
-            "node_count": len(nodes),
-            "dag": dag,
-        }, now_fields=("ts",), _mirror=False)
-        if session_id:
-            sql = sql.rstrip().rstrip(";") + f", session = {session_id};"
-        if not _PG_PRIMARY:                      # WS-9c: pgvector mirror is primary
-            _db_fire(_db_post(sql))
-    except Exception:  # noqa: BLE001
-        pass
 
 async def execute_dag(dag: dict, *, session_id: Optional[str],
                       event_q: "Optional[asyncio.Queue]" = None,

@@ -172,6 +172,98 @@ def t_skill_invocation_lifecycle():
           any(p.startswith(f"UPDATE {inv}") for p in posts), str(posts))
 
 
+class _PGStub:
+    """Records every (sql, params, fetch) the module sends to postgres and
+    replays a canned RETURNING row for the invocation INSERT."""
+
+    def __init__(self, insert_id=None):
+        self.calls = []
+        self.insert_id = insert_id
+
+    async def execute(self, sql, params=None, *, fetch=False, **kw):
+        self.calls.append((" ".join(sql.split()), params or {}, fetch))
+        if fetch and "RETURNING id" in sql:
+            return [{"id": self.insert_id}] if self.insert_id is not None else []
+        return None
+
+
+def _with_pg(stub):
+    """Swap the module's mios_pg seam for the stub; returns the original."""
+    prev = s._mios_pg
+    s._mios_pg = stub
+    return prev
+
+
+def t_pg_invocation_lifecycle():
+    # Under pg-primary the legacy CREATE returns nothing, so open must fall
+    # through to a REAL postgres row rather than the synthetic uuid handle.
+    async def dead_post(sql, *a, **k):
+        return None
+
+    stub = _PGStub(insert_id=77)
+    prev = _with_pg(stub)
+    try:
+        s.configure(db_post=dead_post)
+        inv = asyncio.run(s._skill_invocation_open("skill:abc", {"a": 1}, "sess:1"))
+        check("open: handle names the pg row", inv == "skill_invocation:pg#77", str(inv))
+        ins = [c for c in stub.calls if "INSERT INTO skill_invocation" in c[0]]
+        check("open: one INSERT with RETURNING id", len(ins) == 1)
+        check("open: started_at and params are persisted",
+              ins and "started_at, params" in ins[0][0]
+              and ins[0][1].get("params") == '{"a": 1}', str(ins[:1]))
+
+        stub.calls.clear()
+        asyncio.run(s._skill_invocation_close(inv, True))
+        upd = [c for c in stub.calls if c[0].startswith("UPDATE skill_invocation")]
+        check("close: updates the SAME row", len(upd) == 1
+              and upd[0][1] == {"ok": True, "id": 77}, str(upd))
+        check("close: does not INSERT a duplicate",
+              not any("INSERT INTO skill_invocation" in c[0] for c in stub.calls))
+
+        stub.calls.clear()
+        asyncio.run(s._skill_attribute_tool_call(inv, "tool_call:9", 3))
+        edge = [c for c in stub.calls if "skill_tool_call" in c[0]]
+        check("attribute: the edge is persisted", len(edge) == 1)
+        check("attribute: edge carries invocation, tool_call and step",
+              edge and edge[0][1] == {"inv": 77, "tc": "tool_call:9", "step": 3},
+              str(edge))
+        check("attribute: a retried step upserts rather than erroring",
+              edge and "ON CONFLICT (invocation_id, tool_call_id)" in edge[0][0])
+    finally:
+        _with_pg(prev)
+
+
+def t_pg_absent_falls_back():
+    async def dead_post(sql, *a, **k):
+        return None
+
+    stub = _PGStub(insert_id=None)   # postgres reachable but returns nothing
+    prev = _with_pg(stub)
+    try:
+        s.configure(db_post=dead_post)
+        inv = asyncio.run(s._skill_invocation_open("skill:abc", {}, None))
+        check("open: no pg row -> synthetic handle still returned",
+              isinstance(inv, str) and inv.startswith("skill_invocation:pg-"), str(inv))
+        check("open: synthetic handle has no pg row id",
+              s._pg_row_id(inv) is None)
+
+        mirrored = []
+        s.configure(pg_mirror=lambda t, r: mirrored.append((t, r)))
+        asyncio.run(s._skill_invocation_close(inv, False))
+        check("close: synthetic handle still mirrors the outcome",
+              len(mirrored) == 1 and mirrored[0][0] == "skill_invocation", str(mirrored))
+    finally:
+        _with_pg(prev)
+
+
+def t_pg_row_id_parsing():
+    check("row id: legacy handle -> None", s._pg_row_id("skill_invocation:abc") is None)
+    check("row id: synthetic handle -> None", s._pg_row_id("skill_invocation:pg-deadbeef") is None)
+    check("row id: pg handle -> int", s._pg_row_id("skill_invocation:pg#42") == 42)
+    check("row id: non-string -> None", s._pg_row_id(None) is None)
+    check("row id: unparseable suffix -> None", s._pg_row_id("skill_invocation:pg#x") is None)
+
+
 def t_skill_attribute_tool_call():
     posts = []
 
@@ -243,6 +335,9 @@ def main():
     t_skill_render_args()
     t_skill_invocation_lifecycle()
     t_skill_attribute_tool_call()
+    t_pg_invocation_lifecycle()
+    t_pg_absent_falls_back()
+    t_pg_row_id_parsing()
     t_slug_for_skill()
     t_render_skill_md()
     with tempfile.TemporaryDirectory() as td:

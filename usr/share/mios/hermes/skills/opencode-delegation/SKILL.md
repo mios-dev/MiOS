@@ -11,7 +11,7 @@ metadata:
   hermes:
     requires_tools: []
 ---
-<!-- AI-hint: Defines the routing logic for the agent-pipe orchestrator to delegate multi-file refactors, filesystem-heavy loops, and code-aware PC-control tasks to the opencode peer via the :8633 gateway.
+<!-- AI-hint: Defines the routing logic for the agent-pipe orchestrator to delegate multi-file refactors, filesystem-heavy loops, and code-aware PC-control tasks to the opencode peer via the gateway on the `opencode_gateway` port.
      AI-related: /usr/lib/mios/agents/opencode/bin/opencode, mios-opencode-gateway, mios-opencode, mios-find, mios-opencode-gateway.service -->
 
 # opencode — the coding specialist /v1 council peer
@@ -21,11 +21,11 @@ metadata:
 
 opencode (the SST/charm coding agent binary at
 `/usr/lib/mios/agents/opencode/bin/opencode`) runs behind an OpenAI
-`/v1` gateway (`mios-opencode-gateway.service`, loopback `:8633`,
+`/v1` gateway (`mios-opencode-gateway.service`, loopback,
 SSOT slot `[ports].opencode_gateway`). It is registered in the swarm
 as `[agents.opencode]` — a **peer agent on the same OpenAI contract
-as you (Hermes :8642)**, dispatched by the agent-pipe orchestrator
-(`:8640`), NOT a sub-process spawned over ACP/stdio.
+as you (Hermes, port key `hermes`)**, dispatched by the agent-pipe orchestrator
+(port key `agent_pipe`), NOT a sub-process spawned over ACP/stdio.
 
 This is the current model. The retired model spawned opencode via
 Hermes's native `delegate_subtask_to_peer_agent(acp_command="opencode")` —

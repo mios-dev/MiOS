@@ -11,11 +11,18 @@ def get_pg_config():
     e = os.environ
     return {
         "host": e.get("MIOS_PG_HOST", "localhost"),
-        "port": int(e.get("MIOS_PORT_PGVECTOR", "8432") or 8432),
+        "port": int(e.get("MIOS_PORT_PGVECTOR", "8600") or 8600),
         "user": e.get("MIOS_PG_USER", "mios"),
         "password": e.get("MIOS_PG_PASS", "mios"),
         "dbname": e.get("MIOS_PG_DB", "mios"),
     }
+
+def escape_toml_key(k):
+    import re
+    if re.match(r"^[A-Za-z0-9_-]+$", k):
+        return k
+    escaped = k.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
 
 def format_toml_value(val):
     if isinstance(val, bool):
@@ -29,17 +36,11 @@ def format_toml_value(val):
         items = [format_toml_value(x) for x in val]
         return "[" + ", ".join(items) + "]"
     elif isinstance(val, dict):
-        items = [f"{k} = {format_toml_value(v)}" for k, v in sorted(val.items())]
+        items = [f"{escape_toml_key(k)} = {format_toml_value(v)}"
+                 for k, v in sorted(val.items())]
         return "{" + ", ".join(items) + "}"
     else:
         return str(val)
-
-def escape_toml_key(k):
-    import re
-    if re.match(r"^[A-Za-z0-9_-]+$", k):
-        return k
-    escaped = k.replace("\\", "\\\\").replace('"', '\\"')
-    return f'"{escaped}"'
 
 def main():
     try:
@@ -99,7 +100,7 @@ def main():
                             print(f"[{escape_toml_key(scope)}]")
                             printed_section_header = True
                             first_printed = True
-                        print(f"{k} = {format_toml_value(v)}")
+                        print(f"{escape_toml_key(k)} = {format_toml_value(v)}")
                     
                     for k in keys:
                         v = config_by_scope[scope][k]
@@ -109,7 +110,8 @@ def main():
                             print(f"[{escape_toml_key(scope)}.{escape_toml_key(k)}]")
                             first_printed = True
                             for sub_k in sorted(v.keys()):
-                                print(f"{sub_k} = {format_toml_value(v[sub_k])}")
+                                print(f"{escape_toml_key(sub_k)} = "
+                                      f"{format_toml_value(v[sub_k])}")
 
                 cur.execute(
                     """
@@ -145,7 +147,7 @@ def main():
                     print("[verbs._defaults]")
                     first_printed = True
                     for k in sorted(defaults.keys()):
-                        print(f"{k} = {format_toml_value(defaults[k])}")
+                        print(f"{escape_toml_key(k)} = {format_toml_value(defaults[k])}")
 
                 cur.execute(
                     """

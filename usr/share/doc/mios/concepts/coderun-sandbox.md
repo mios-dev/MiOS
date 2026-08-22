@@ -12,8 +12,9 @@ root**, when an agent generates a script and runs it, it is editing a live,
 version-locked OS — there is no throwaway VM to mess up.
 
 That is the tension this doc resolves. The MiOS agent stack (the agent-pipe
-orchestrator on `:8640`, the MiOS-Hermes gateway on `:8642`, the local
-inference lanes led by `mios-llm-light` on `:11450`, PostgreSQL+pgvector memory,
+orchestrator on the `agent_pipe` port, the MiOS-Hermes gateway on the
+`hermes` port, the local inference lanes led by `mios-llm-light` on the
+`llm_light` port, PostgreSQL+pgvector memory,
 the MCP tool surface) runs as **direct host installs** by operator design — the
 agents *are* the OS operating itself, so they live on the host root, not in a
 container. But that same design means model-generated or untrusted code must

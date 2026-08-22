@@ -299,7 +299,7 @@ outside them:
   root.
 - The whole AI surface is reachable only through the single OpenAI-compatible
   endpoint behind `MIOS_AI_ENDPOINT` (Architectural Law 5); the firewall keeps
-  the inference lanes (`mios-llm-light` on `:11450`, the gated heavy lanes) and
+  the inference lanes (`mios-llm-light` on the `llm_light` port, the gated heavy lanes) and
   the PostgreSQL+pgvector datastore (`:5432`) on loopback / trusted interfaces
   rather than exposing them on the `drop` default zone.
 - Code the agent runs on the operator's behalf is subject to fapolicyd execution

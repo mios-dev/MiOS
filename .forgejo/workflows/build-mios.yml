@@ -53,6 +53,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y powershell dotnet-sdk-8.0 || true
+          # pyflakes backs lint-python.sh's undefined-name pass; without it that
+          # pass fails closed under MIOS_DRIFT_REQUIRE_TOOLS=1.
+          python3 -m pip install --quiet --disable-pip-version-check pyflakes \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyflakes \
+            || true
 
       - name: Python linting (lint-python.sh)
         run: bash ./automation/lint-python.sh
@@ -84,17 +89,32 @@ jobs:
             echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
           fi
 
-      - name: Office-format converter unit test (test_mios_docgen.py)
-        # mios-docgen converts office file formats (Pandoc/LibreOffice); the manuals gates run below.
+      - name: Libexec unit tests (usr/libexec/mios/test_mios_*.py)
+        # Loops the directory so a new libexec test is never silently unrun.
         run: |
           cd ./usr/libexec/mios
-          if python3 test_mios_docgen.py >/dev/null 2>&1; then
-            echo "  [ OK ] test_mios_docgen.py (office-format converter, not the manuals)"
-          else
-            python3 test_mios_docgen.py || true
-            echo "test_mios_docgen.py failed" >&2; exit 1
+          fails=0
+          for t in test_mios_*.py; do
+            if python3 "$t" >/dev/null 2>&1; then
+              echo "  [ OK ] $t"
+            else
+              echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1))
+            fi
+          done
+          if [ "$fails" -gt 0 ]; then
+            echo "${fails} libexec test(s) failed" >&2; exit 1
           fi
-
+      - name: Lint coverage (python + shell file sets)
+        # Assert the linters still SEE every payload area. Enumerating dirs one
+        # at a time is what left usr/share/mios unscanned; the shell twin had
+        # never been wired into any runner at all.
+        run: |
+          bash ./tests/test-lint-python-coverage.sh
+          bash ./tests/test-lint-shell-coverage.sh
+      - name: OWUI pipe endpoint resolution (tests/test-owui-pipe-endpoints.py)
+        # The canonical OWUI entry point must import and resolve its backend from
+        # the SSOT; it did neither. Skips itself if pydantic/aiohttp are absent.
+        run: python3 ./tests/test-owui-pipe-endpoints.py
       - name: Manuals & docs production evidence (doc-production-evidence.sh)
         # Prints what the documentation programme produced, then re-runs its read-only gates.
         run: bash ./tests/doc-production-evidence.sh

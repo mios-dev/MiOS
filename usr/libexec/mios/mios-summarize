@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Provides tiered summarization (L0/L1/L2) via a local LLM on the CPU-bound light lane to generate concise abstracts and structured overviews for efficient document indexing and navigation.
-# AI-related: localhost:11450
+# AI-related: port key `llm_light`
 """mios-summarize -- tiered summarisation (the L0/L1/L2 gating primitive).
 
 P5.3 (Hermes v2026.5.28 / OpenViking brief): the ingestion + context-gating
@@ -41,7 +41,7 @@ import urllib.error
 import urllib.request
 
 ENDPOINT = os.environ.get("MIOS_SUMMARIZE_ENDPOINT",
-                          f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8450')}")   # mios-llm-light /v1 (legacy :11435 lane retired)
+                          f"http://localhost:{os.environ.get('MIOS_PORT_LLM_LIGHT', '8500')}")   # mios-llm-light /v1 (legacy :11435 lane retired)
 MODEL = os.environ.get("MIOS_SUMMARIZE_MODEL", "qwen3:1.7b")  # served by mios-llm-light
 L2_MAX = int(os.environ.get("MIOS_SUMMARIZE_L2_MAX_CHARS", "20000"))
 TIMEOUT = float(os.environ.get("MIOS_SUMMARIZE_TIMEOUT", "120"))

@@ -34,7 +34,7 @@ runs `bootstrap.ps1` (dev-VM + Windows integration; OCI build is a later opt-in)
 | virtualization (B2) | blocker | `build-mios.ps1` Phase-0 VT-x/AMD-V (`VirtualizationFirmwareEnabled`+`HypervisorPresent`) preflight → clean "enable in BIOS" remediation instead of cryptic HCS 0x80370102 |
 | no-WSL reboot (B3) | blocker | flag `$script:WslJustInstalled` + HALT after Phase 0 with an idempotent "reboot then re-run" banner (was falling through to a cryptic podman fail) |
 | build-success mask | high | generated `mios build` captures the OCI driver's `$LASTEXITCODE` → reports real failure ("MiOS AI will NOT be operational…") instead of false success |
-| AI-plane smoke | high | `post-bootstrap-smoke.sh` §9: bounded-retry `:11450/v1/models` (P0) + `:8640` front door (P1) — the actual "MiOS AI is operational" check |
+| AI-plane smoke | high | `post-bootstrap-smoke.sh` §9: bounded-retry the `llm_light` lane's `/v1/models` (P0) + the `agent_pipe` front door (P1) — the actual "MiOS AI is operational" check |
 | smoke wiring | high | the generated `mios build` now RUNS the smoke in MiOS-DEV after a successful build (it was never invoked) |
 | clone retry | high | `Get-MiOS.ps1` fresh-clone retries 3× (2/5/10s backoff) instead of aborting the whole install on one network blip |
 
@@ -57,5 +57,5 @@ runs `bootstrap.ps1` (dev-VM + Windows integration; OCI build is a later opt-in)
 ```powershell
 irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/Get-MiOS.ps1 | iex
 # then, after `mios build` (it now auto-runs the smoke):
-mios smoke      # re-checks AI plane (:11450 /v1/models, :8640) + parity
+mios smoke      # re-checks AI plane (the llm_light /v1/models lane, the agent_pipe front door) + parity
 ```

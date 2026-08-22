@@ -1735,7 +1735,7 @@
           <fieldset>
             <legend>[agents.hermes] — agent gateway + tool loop</legend>
             <label for="f-agh-endpoint">endpoint</label>
-            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES_WORKER}/v1">
+            <input type="text" id="f-agh-endpoint" data-key="agents.hermes.endpoint" placeholder="http://localhost:${MIOS_PORT_HERMES}/v1">
             <label for="f-agh-model">model</label>
             <input type="text" id="f-agh-model" data-key="agents.hermes.model" placeholder="mios-heavy">
             <label for="f-agh-role">role</label>
@@ -2389,8 +2389,6 @@
         <input type="text" id="f-port-oscontrol" data-key="ports.oscontrol" data-type="int" placeholder="8453">
         <label for="f-port-mcp">mcp (MCP host server / well-known; loopback)</label>
         <input type="text" id="f-port-mcp" data-key="ports.mcp" data-type="int" placeholder="8460">
-        <label for="f-port-hermes-worker">hermes_worker (Hermes-Agent worker instance)</label>
-        <input type="text" id="f-port-hermes-worker" data-key="ports.hermes_worker" data-type="int" placeholder="8643">
         <label for="f-port-hermes-dashboard">hermes_dashboard (Hermes Dashboard web UI)</label>
         <input type="text" id="f-port-hermes-dashboard" data-key="ports.hermes_dashboard" data-type="int" placeholder="8119">
         <label for="f-port-crawl4ai">crawl4ai (local crawl4ai engine FastAPI)</label>
@@ -3059,6 +3057,32 @@
         <input type="text" id="f-sched-cw" data-key="sched.score_complexity_weight" data-type="float" placeholder="0.4">
         <label for="f-sched-uw">score_urgency_weight</label>
         <input type="text" id="f-sched-uw" data-key="sched.score_urgency_weight" data-type="float" placeholder="0.6">
+      </fieldset>
+      <fieldset>
+        <legend>[drift_monitor] — Jensen-Shannon Goodhart alarm (observe-only)</legend>
+        <label for="f-drm-enable">enable (off = no divergence is computed and no alert can fire)</label>
+        <input type="text" id="f-drm-enable" data-key="drift_monitor.enable" data-type="bool" placeholder="false">
+        <label for="f-drm-thr">threshold (JSD 0..1 at or above which drift_alert fires)</label>
+        <input type="text" id="f-drm-thr" data-key="drift_monitor.threshold" data-type="float" placeholder="0.2">
+        <label for="f-drm-win">window (most recent verdicts per axis forming the live window)</label>
+        <input type="text" id="f-drm-win" data-key="drift_monitor.window" data-type="int" placeholder="200">
+        <label for="f-drm-min">min_samples (observations required before an axis may alert)</label>
+        <input type="text" id="f-drm-min" data-key="drift_monitor.min_samples" data-type="int" placeholder="30">
+      </fieldset>
+      <fieldset>
+        <legend>[consensus] — weighted multi-judge Definition-of-Done</legend>
+        <label for="f-cons-enable">enable (off = the judge stays single-lane on the fast CPU path)</label>
+        <input type="text" id="f-cons-enable" data-key="consensus.enable" data-type="bool" placeholder="false">
+        <label for="f-cons-thr">threshold (weight-share of &quot;yes&quot; needed to call an answer satisfied)</label>
+        <input type="text" id="f-cons-thr" data-key="consensus.threshold" data-type="float" placeholder="0.5">
+        <label for="f-cons-min">min_lanes (live non-abstaining votes required for a quorum)</label>
+        <input type="text" id="f-cons-min" data-key="consensus.min_lanes" data-type="int" placeholder="2">
+        <label for="f-cons-to">timeout_s (per-lane judge call budget)</label>
+        <input type="text" id="f-cons-to" data-key="consensus.timeout_s" data-type="float" placeholder="20.0">
+        <label for="f-cons-floor">weight_floor (lowest weight a lane drops to; never zeroed out)</label>
+        <input type="text" id="f-cons-floor" data-key="consensus.weight_floor" data-type="float" placeholder="0.1">
+        <label for="f-cons-rrfk">rrf_k (Reciprocal-Rank-Fusion damping for ranked-list lanes)</label>
+        <input type="text" id="f-cons-rrfk" data-key="consensus.rrf_k" data-type="int" placeholder="60">
       </fieldset>
       <fieldset>
         <legend>[dispatch] — multi-agent fan-out + admission</legend>

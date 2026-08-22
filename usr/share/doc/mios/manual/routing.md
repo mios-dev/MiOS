@@ -90,7 +90,7 @@ Bounded entry point (/24): concurrent agent dispatches
 
 Best-effort non-streaming /v1 call to a secondary fan-out agent.
     Returns (name, text); text='' -> dropped from the merge. A dead or
-    absent endpoint (e.g. opencode :8633 when not served as /v1) just
+    absent endpoint (e.g. opencode on the `opencode_gateway` port when not served as /v1) just
     yields '' and is skipped, so fan-out degrades to the live agents.
 
  CPU-lane offload : a secondary always runs
@@ -104,7 +104,7 @@ Best-effort non-streaming /v1 call to a secondary fan-out agent.
     (chat_template_kwargs enable_thinking=False) -- a qwen3 model left on its
     default thinking split dumps its answer into message.reasoning with EMPTY
     content, so a secondary would fold in nothing. Custom gateways (opencode
-    :8633, hermes :8642) share the exact same /v1 path.
+    on `opencode_gateway`, hermes on `hermes`) share the exact same /v1 path.
 
  P3.2b AUTO-FAILOVER ('remove SPOFs'): when a
     transport-level failure (unreachable endpoint, non-200, timeout)
@@ -1167,7 +1167,7 @@ WS-1 unified lane resolver (mios_lanes), built LAZILY from SSOT so _toml_section
     / _get_client are defined, then cached. ONE place a model lane is chosen: the
     [ai].heavy_engine-preferred heavy lane, then the other heavy lane, then the always-on
     light lane, with a per-lane cooldown so a dead lane fails over (never 404s). Collapses
-    the two 'mios-heavy' lanes (SGLang :11441 + vLLM :11440) behind one selector.
+    the two 'mios-heavy' lanes (vLLM on `vllm` + SGLang on `sglang`) behind one selector.
 
 <!-- mios-src:8200d2470c87 from usr/lib/mios/agent-pipe/mios_pipe/routing/lanes_resolver.py:86-90 -->
 
@@ -1992,7 +1992,7 @@ DAEMON-DIAGNOSE ("the daemon monitors the pipeline and reports
 
 ### Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent...
 
-Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode :8633,
+Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode on the `opencode_gateway` port,
     hermes, daemon-agent, any node bound to a /v1 endpoint -- MiOS is /v1-only, so
     this is the single tool-loop mechanism for the /chat/completions shape): POST
     (non-streaming) -> read message.tool_calls (RESCUING a narrated call from

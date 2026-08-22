@@ -6,7 +6,6 @@
 # either creation or modification, so re-running the workflow with
 # the same image ref still triggers a re-stage (bootc switch is
 # idempotent on identical refs -- this is fine).
-
 [Unit]
 Description='MiOS' watch for Forgejo Runner build output -> bootc switch
 Documentation=file:///usr/libexec/mios/bootc-switch-from-build.sh

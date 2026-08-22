@@ -90,9 +90,22 @@ main() {
     # Index generators. Both were missing here, so adding a drift check or a
     # numbered automation phase left their index stale and the gate red on a
     # tree that otherwise looked synced.
-    step "4b/6 gate + pipeline indexes"
+    step "4a/6 seat-vs-blade comparison (derived from [blade.*])"
+    MIOS_ROOT="$ROOT" "$PY" tools/generate-mini-vs-hosted.py >/dev/null
+
+    step "4b/6 gate + pipeline + ADR indexes"
     "$PY" tools/generate-gate-index.py >/dev/null
     "$PY" tools/generate-pipeline-index.py >/dev/null
+    "$PY" tools/generate-adr-index.py >/dev/null
+
+    step "4c/6 blade projections (drop-ins + the deploy-time karg)"
+    "$PY" tools/generate-blade-dropins.py >/dev/null
+    "$PY" tools/generate-blade-karg.py >/dev/null
+
+    # AFTER the kargs.d producers: the UKI cmdline is derived from every
+    # kargs.d/*.toml, and it was gated without ever being regenerated here.
+    step "4d/6 UKI cmdline (derived from kargs.d)"
+    "$PY" tools/generate-uki-cmdline.py >/dev/null
 
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then
@@ -113,6 +126,10 @@ main() {
     # committed -- green locally, red in CI.
     step "7/7 manual corpus ledger (last: it censuses every tracked source file)"
     if [ -r usr/libexec/mios/mios-manual ]; then
+        # MIOS-GEN marker blocks first: api.md, ports-and-laws.md and tool-index.md
+        # are DERIVED and gated, but `render` lived outside this pipeline, so any
+        # SSOT or tools/ change left them stale and the gate red on a synced tree.
+        MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" render >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" ledger --write >/dev/null
         MIOS_ROOT="$ROOT" "$PY" usr/libexec/mios/mios-manual --root "$ROOT" coverage --write-floor >/dev/null
     else

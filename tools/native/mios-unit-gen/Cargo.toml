@@ -6,5 +6,5 @@ edition.workspace = true
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
+toml = { version = "0.8", features = ["preserve_order"] }
 thiserror = "1.0"
