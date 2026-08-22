@@ -1669,6 +1669,7 @@ exempt = [
     "person_device",
     "person_pref",
     "preset",
+    "quota_ledger",
     "resolves_to",
     "run_template",
     "skill",

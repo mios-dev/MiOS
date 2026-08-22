@@ -884,6 +884,9 @@ async def lifespan(app):
     if AGENT_MEMORY_RECALL_ENABLED:
         asyncio.create_task(_consolidate_memory_loop())
 
+    if (_qn := await sys.modules["mios_policy"].quota_preload()):
+        log.info("quota ledger: %d principal budget(s) restored", _qn)
+
     for _pn, _pc in (("router", _ROUTER_SYSTEM), ("refine", _REFINE_SYSTEM),
                      ("polish", _POLISH_SYSTEM), ("planner", _PLANNER_SYSTEM),
                      ("reflect", _REFLECT_SYSTEM), ("swarm", _SWARM_SYSTEM),
@@ -1148,10 +1151,7 @@ async def lora_list():
 
 
 from mios_pipe.kernel.httpclient import (   # noqa: E402  -- WS-A6/T-226 chokepoint
-    _batch_request_hook,
-    _get_client,
-    configure as _configure_httpclient,
-)
+    _batch_request_hook, _get_client, configure as _configure_httpclient)
 
 
 

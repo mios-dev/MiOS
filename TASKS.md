@@ -213,7 +213,7 @@
 | T-225 | P2 | in-progress | Orchestration/Determinism | OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG |
 | T-226 | P3 | done | Scheduling | KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3] |
 | T-227 | P2 | in-progress | Routing/Cost | KACT-02 -- Remote SmartRouting + quality-gate + daily budget (`m |
-| T-228 | P3 | in-progress | Cost/Identity | KACT-03 -- Per-user quota keying + persistence on verified princ |
+| T-228 | P3 | done | Cost/Identity | KACT-03 -- Per-user quota keying + persistence on verified princ |
 | T-229 | P3 | in-progress | Federation/Discovery | KACT-04 -- Gossip/DHT federated discovery transport (`mios_gossi |
 | T-230 | P2 | in-progress | Security/Sandbox | KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`m |
 | T-231 | P2 | planned/unverified | Lifecycle/Health | KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI q |
@@ -2343,7 +2343,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Two different verified principals accrue separate quota, and a restart of agent-pipe leaves both balances intact rather than reset to zero.
 **Why:** One noisy caller consumes everyone's budget today, and any restart -- including a `bootc` upgrade -- hands an exhausted account a fresh allowance.
 **Dep:** After FED-G1/T-001 principal extraction; pairs with T-227.
-**Status:** in-progress (built-gated) | **Domain:** Cost/Identity | **Who:** agent-pipe agent
+**Status:** done -- the tracker was already keyed per principal via `_match_user_cfg()`; what was missing was durability, so every restart -- including a `bootc` upgrade -- handed an exhausted account a fresh allowance. `quota_ledger` (principal, window_start, spent, updated_at) joins `schema-init.sql`, and the policy plane gained `quota_preload()` (startup, async) + `_quota_load`/`_quota_save` (synchronous hot path, fire-and-forget upsert). The RPM deque is deliberately NOT persisted: a sliding minute of request timestamps is meaningless after a restart, and replaying it would deny a caller for traffic sent before the process existed -- only the budget window, whose whole purpose is to outlive the process, is stored. `restore()` refuses a rolled-over window, so a stale row cannot resurrect spend the caller has since been forgiven. Every failure path degrades open: an unreachable store preloads nothing, never claims persistence, and never blocks work. PROVEN LIVE against a real PostgreSQL 16: alice and bob accrued 5.0/1.0 separately, a restart restored both (`boot 2: 2 persisted budget(s) restored`), and enforcement survived it -- alice +6.0 DENIED (5+6 > 10) while bob +6.0 ALLOWED. 11 assertions in `test_mios_quota.py` + 5 in `test_mios_policy.py` against a fake store, negative-tested against two sabotages (a preload that returns nothing; a restore that ignores a rolled-over window). | **Domain:** Cost/Identity | **Who:** agent-pipe agent
 
 ## T-229 -- KACT-04: Gossip/DHT discovery transport for federated peers  (WS-GUARD | P3 | M)
 **Goal:** E-24 Autonomy guardrails -- A2A federation reaches WAN peers with no central registry, so reputation (and the redaction boundary) travels with membership.

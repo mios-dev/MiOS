@@ -281,6 +281,11 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [One Chokepoint](manual/ch59-request-coalescing.md#59_one_chokepoint): Covers the httpx request hook on the single shared AsyncClient.
   * [Sealing](manual/ch59-request-coalescing.md#59_sealing): Details why a flushed group must close before its event is set.
   * [Off Means Absent](manual/ch59-request-coalescing.md#59_off_means_absent): Explains why the default-off hook is never registered at all.
+* **[Chapter 60: Durable Quota](manual/ch60-durable-quota.md)**
+  * [What Persists](manual/ch60-durable-quota.md#60_what_persists): Covers why the spend window is stored and the RPM window is thrown away.
+  * [Stale Rows](manual/ch60-durable-quota.md#60_stale_rows): Explains why a rolled-over window is refused rather than replayed.
+  * [A Synchronous Gate Over an Async Store](manual/ch60-durable-quota.md#60_sync_gate_async_store): Details the startup preload and the fire-and-forget write-through.
+  * [Degrade Open](manual/ch60-durable-quota.md#60_degrade_open): Explains why an unreachable ledger must never block work.
 
 ---
 
@@ -352,6 +357,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch57-powershell-object-flattening.md` | Chapter 57: PowerShell Object Flattening. Records why an object-returning cmdlet reached the model as a BLANK LINE rather than as noise, how a console-less runspace collapses every formatter column... |
 | `usr/share/doc/mios/manual/ch58-roadmap-status-parity.md` | Chapter 58: Roadmap Status Parity. Records the drift that let TASKS.md answer "what is left?" two different ways -- a summary-table cell and the task's own Status line -- and the 49 rows where they... |
 | `usr/share/doc/mios/manual/ch59-request-coalescing.md` | Chapter 59: Request Coalescing. Explains why MiOS deliberately does NOT client-side batch its own inference lanes -- vLLM, SGLang and llama.cpp already run continuous batching, so a second layer only... |
+| `usr/share/doc/mios/manual/ch60-durable-quota.md` | Chapter 60: Durable Quota. Records why a per-principal budget that lives only in memory is not a budget at all -- every restart, including a bootc upgrade, hands an exhausted account a fresh... |
 
-<!-- derived from the AI-hint headers of 59 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 60 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

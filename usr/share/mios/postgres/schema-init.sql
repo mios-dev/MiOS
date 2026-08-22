@@ -240,6 +240,19 @@ CREATE TABLE IF NOT EXISTS skill_tool_call (
 CREATE INDEX IF NOT EXISTS skill_tool_call_tc
     ON skill_tool_call (tool_call_id);
 
+-- ── quota_ledger: per-principal budget window that survives a restart ─────────
+-- KACT-03/T-228: the tracker counted per principal but only in memory, so any
+-- restart -- including a `bootc` upgrade -- handed an exhausted account a fresh
+-- allowance. The RPM deque is deliberately NOT stored: a sliding minute of
+-- request timestamps is meaningless after a restart, and replaying it would
+-- deny a caller for traffic sent before the process existed.
+CREATE TABLE IF NOT EXISTS quota_ledger (
+    principal    text PRIMARY KEY,
+    window_start double precision NOT NULL,
+    spent        double precision NOT NULL DEFAULT 0,
+    updated_at   timestamptz NOT NULL DEFAULT now()
+);
+
 -- ── sys_env: singleton live environment cache ────────────────────────────────
 CREATE TABLE IF NOT EXISTS sys_env (
     id    text PRIMARY KEY,                         -- 'current'

@@ -1,6 +1,6 @@
-# AI-hint: WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-window request-rate cap (RPM) AND a per-window cost budget, checked before a dispatch so one principal can't exhaust the shared local lanes / a paid remote budget. check() prunes the window, denies on rate or budget, else records + allows. Pure (caller passes `now` -> deterministic); server.py keys it on the WS-A10 verified principal + persists/wires. Per-user isolation; limits<=0 disable a dimension (the single-user default = unlimited = behaviour-preserving).
+# AI-hint: WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-window request-rate cap (RPM) AND a per-window cost budget, checked before a dispatch so one principal can't exhaust the shared local lanes / a paid remote budget. check() prunes the window, denies on rate or budget, else records + allows. Pure (caller passes `now` -> deterministic); server.py keys it on the WS-A10 verified principal; snapshot()/restore() carry a principal's window across a restart, so an exhausted budget is not refilled by a bootc upgrade. Per-user isolation; limits<=0 disable a dimension (the single-user default = unlimited = behaviour-preserving).
 # AI-related: ./mios_smartroute.py, ./server.py, /usr/share/mios/mios.toml, ./test_mios_quota.py
-# AI-functions: check, spent, reset, class QuotaTracker, class QuotaVerdict
+# AI-functions: check, spent, reset, snapshot, restore, class QuotaTracker, class QuotaVerdict
 """mios_quota -- per-user quota + rate limiting (WS-6, the AIOS multi-tenant
 fairness layer).
 
@@ -95,3 +95,30 @@ class QuotaTracker:
     def reset(self, user: str) -> None:
         self._reqs.pop(str(user), None)
         self._spend.pop(str(user), None)
+
+    def snapshot(self, user: str) -> dict:
+        """A principal's durable ledger: budget window + spend.
+
+        The RPM deque is deliberately not carried. Manual ch60."""
+        u = str(user or "")
+        w = self._spend.get(u)
+        if not w:
+            return {"principal": u, "window_start": 0.0, "spent": 0.0}
+        return {"principal": u, "window_start": float(w[0]), "spent": float(w[1])}
+
+    def restore(self, user: str, window_start: float, spent: float,
+                now: float) -> bool:
+        """Re-seat a persisted budget window.
+
+        False (restoring nothing) once the window has rolled over. Manual ch60."""
+        u = str(user or "")
+        try:
+            ws, sp = float(window_start), float(spent)
+        except (TypeError, ValueError):
+            return False
+        if u == "" or ws <= 0 or sp <= 0:
+            return False
+        if (float(now) - ws) >= self.budget_window_s:
+            return False
+        self._spend[u] = [ws, sp]
+        return True

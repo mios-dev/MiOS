@@ -97,4 +97,102 @@ finally:
 print("ok  _hitl_block_reason blocks interactive / passes read in block-mode")
 
 
+# ---------------------------------------------------------------------------
+# T-228: the durable quota ledger. Two principals accrue separately, the window
+# is written through, and a RESTART (a fresh module state seeded from the same
+# rows) leaves both balances -- and the enforcement -- intact.
+# ---------------------------------------------------------------------------
+import asyncio as _asyncio
+
+
+class _FakePg:
+    """A quota_ledger in a dict, with the same SELECT/UPSERT shape as psycopg."""
+
+    def __init__(self, rows=None, fail=False):
+        self.rows = dict(rows or {})
+        self.fail = fail
+        self.writes = 0
+
+    async def execute(self, sql, params=None, *, fetch=False, cfg=None, rls_owner=None):
+        if self.fail:
+            raise RuntimeError("store unreachable")
+        if sql.strip().upper().startswith("SELECT"):
+            return [{"principal": k, "window_start": v[0], "spent": v[1]}
+                    for k, v in sorted(self.rows.items())]
+        self.writes += 1
+        self.rows[params["p"]] = (params["w"], params["s"])
+        return None
+
+
+def _reseat(pg):
+    """Simulate a process restart: clear every in-memory quota structure, then
+    re-run the startup preload against the same store."""
+    mios_policy._QUOTA_TRACKERS.clear()
+    mios_policy._QUOTA_HYDRATED.clear()
+    mios_policy._QUOTA_LEDGER.clear()
+    mios_policy._QUOTA_PERSIST = False
+    mios_policy._mios_pg = pg
+    return _asyncio.run(mios_policy.quota_preload())
+
+
+async def _spend_async(principal, cost, budget):
+    tr = mios_policy._quota_for(principal, {"daily_budget": budget})
+    now = _time.time()
+    mios_policy._quota_hydrate(principal, tr, now)
+    v = tr.check(principal, now, cost=cost)
+    if v.allowed:
+        mios_policy._quota_persist(principal, tr)
+        await _asyncio.sleep(0)   # let the fire-and-forget upsert run
+        await _asyncio.sleep(0)
+    return v
+
+
+def _spend(principal, cost, budget=10.0):
+    """The gate runs inside the event loop, so the write-through does too --
+    _quota_save deliberately no-ops when no loop is running."""
+    return _asyncio.run(_spend_async(principal, cost, budget))
+
+
+import time as _time
+
+_pg = _FakePg()
+assert _reseat(_pg) == 0, "an empty ledger preloads nothing"
+_spend("alice", 3.0)
+_spend("alice", 2.0)
+_spend("bob", 1.0)
+assert _pg.rows["alice"][1] == 5.0, _pg.rows
+assert _pg.rows["bob"][1] == 1.0, _pg.rows
+print("ok  quota ledger: two principals accrue SEPARATELY and are written through")
+
+n = _reseat(_pg)
+assert n == 2, n
+tr_a = mios_policy._quota_for("alice", {"daily_budget": 10.0})
+tr_b = mios_policy._quota_for("bob", {"daily_budget": 10.0})
+_now = _time.time()
+mios_policy._quota_hydrate("alice", tr_a, _now)
+mios_policy._quota_hydrate("bob", tr_b, _now)
+assert tr_a.spent("alice", _now) == 5.0, tr_a.spent("alice", _now)
+assert tr_b.spent("bob", _now) == 1.0, tr_b.spent("bob", _now)
+print("ok  quota ledger: a RESTART leaves both balances intact, not reset to zero")
+
+assert _spend("alice", 6.0).allowed is False, "an exhausted budget must stay exhausted"
+assert _spend("bob", 6.0).allowed is True, "a principal under budget is unaffected"
+print("ok  quota ledger: the budget is still ENFORCED across the restart")
+
+_hydrated_once = _pg.writes
+mios_policy._quota_hydrate("alice", tr_a, _now)
+assert _pg.writes == _hydrated_once, "hydrate must not write"
+print("ok  quota ledger: hydration happens once and never writes")
+
+_bad = _FakePg(fail=True)
+assert _reseat(_bad) == 0, "an unreachable store must preload nothing, not raise"
+assert mios_policy._QUOTA_PERSIST is False, "a failed preload must not claim persistence"
+assert _spend("carol", 1.0).allowed is True, "an unreachable store must not block work"
+print("ok  quota ledger: an unreachable store degrades OPEN")
+
+mios_policy._QUOTA_TRACKERS.clear()
+mios_policy._QUOTA_HYDRATED.clear()
+mios_policy._QUOTA_LEDGER.clear()
+mios_policy._QUOTA_PERSIST = False
+
 print("\nALL mios_policy tests passed")
