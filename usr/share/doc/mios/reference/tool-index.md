@@ -258,6 +258,7 @@ is generated, its generator is here.
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). Walks usr/lib/mios/agent-pipe/mios_pipe RECURSIVELY (the bash predecessor scanned find -maxdepth 1, so it certified "all modules... |
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact].tables or .exempt, that the agent-plane content tables are... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
+| `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree -- something that SELECTs, INSERTs or otherwise names it in code... |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
 | `tools/gen-pipe-boundary-manifest.py` | Generates a machine-readable module-boundary manifest for the agent-pipe DI contract. |
@@ -291,13 +292,14 @@ is generated, its generator is here.
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean ToC and non-zero on a dangling chapter link, a missing anchor... |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). Builds throwaway repo roots with a synthetic mios.toml [refactor] block and fake module files,... |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully classified schema and fails an unclassified table, a table... |
+| `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. Builds throwaway git repos holding a synthetic schema-init.sql plus a mios.toml register, and asserts every direction: a table with a real code... |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X} templates stay live in both languages, and that... |
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 48 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 50 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

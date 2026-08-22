@@ -3599,6 +3599,29 @@ min_samples = 30      # live observations required before an axis may alert at a
 axes        = ["verdict", "intent"]   # label extractors live in server.py _DRIFT_AXIS_LABELS
 
 # ----------------------------------------------------------------------------
+# [schema] -- SHRINK-ONLY dead-table register (check_schema_consumers). See ch55.
+[schema]
+unconsumed = [
+    # WS-SEC (T-151 / ACCT-02): the PostgresOS security schema was declared
+    # ahead of its readers. Nothing in the tree mentions these six at all.
+    { table = "mios_security.fido2_keys",            reason = "T-151 WS-SEC: declared ahead of the FIDO2 enrolment path" },
+    { table = "mios_security.usb_rules",             reason = "T-151 WS-SEC: declared ahead of the USBGuard rule sync" },
+    { table = "mios_security.headscale_users",       reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.headscale_preauth_keys", reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.headscale_acl_rules",   reason = "T-151 WS-SEC: declared ahead of the headscale control-plane sync" },
+    { table = "mios_security.keepass_vaults",        reason = "T-151 WS-SEC: declared ahead of the vault integration" },
+    # T-246: a SECOND preference table, one letter from the LIVE
+    # `account_preference` that materialize-user-config.py actually reads. This
+    # one is the trap case -- a writer aimed at the wrong name would look
+    # correct and lose every row. Resolve by dropping it or by folding the live
+    # table into it; do not leave both.
+    { table = "mios_identity.account_preferences",   reason = "T-246: duplicate of the live account_preference; RESOLVE, do not extend" },
+    # The person_* graph: person + person_pref have consumers, these two do not.
+    { table = "person_device",                       reason = "person graph: declared ahead of any device-enrolment writer" },
+    { table = "person_app_install",                  reason = "person graph: declared ahead of any app-inventory writer" },
+]
+
+# ----------------------------------------------------------------------------
 # [refactor] -- module-size ratchet for the agent-pipe extraction (check 149).
 # `oversize` is a SHRINK-ONLY debt register; numbers may only go DOWN. See ch54.
 [refactor]

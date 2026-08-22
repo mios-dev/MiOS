@@ -1731,6 +1731,31 @@ test_account_column_parity() {
 }
 
 
+test_schema_consumers() {
+    log "Testing check_schema_consumers"
+    local sql="${ROOT}/usr/share/mios/postgres/schema-init.sql"
+    local backup="${sql}.negbak"
+    cp "$sql" "$backup"
+
+    # A brand-new table nothing reads or writes must fail the gate.
+    # The name is ASSEMBLED so this file never contains the literal: the gate
+    # counts any non-doc file naming a table as a consumer, so a spelled-out
+    # sabotage name here would make the gate "find" one and the test vacuous.
+    local orphan="mios_negtest""_orphan_tbl"
+    printf '\nCREATE TABLE IF NOT EXISTS %s (id bigint);\n' "$orphan" >> "$sql"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_schema_consumers >/dev/null 2>&1; then
+        mv "$backup" "$sql"
+        die "check_schema_consumers passed despite a table with no reader or writer"
+    fi
+
+    mv "$backup" "$sql"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_schema_consumers >/dev/null 2>&1 \
+        || die "check_schema_consumers failed after restoration"
+
+    log "Test_schema_consumers negative test passed"
+}
+
 test_firstboot_provisioners() {
     log "Testing check_firstboot_provisioners"
     local unit="${ROOT}/usr/lib/systemd/system/mios-models-firstboot.service"
@@ -2609,6 +2634,7 @@ main() {
     test_account_column_parity
     test_module_length
     test_firstboot_provisioners
+    test_schema_consumers
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
