@@ -314,6 +314,7 @@
 | T-326 | P1 | done | Build/SSOT | BUILD-01 -- sync-generated.sh needs two passes and says nothing; a gate passed over a stale tree |
 | T-327 | P0 | partial | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
 | T-328 | P2 | planned | Topology/SSOT | BLADE-06 -- The seat-floor opt-in, and the OR-gate the activation axis lacks |
+| T-329 | P1 | partial | Topology/SSOT | BLADE-07 -- blade_reachability_critical was emitted, described in docs, and read by nothing |
 
 ---
 
@@ -3091,3 +3092,19 @@ The remaining work is the provisioning half, and it is the harder half: a key ge
 **Done When:** a seat with `FEATURES=seat-floor` in `/etc/mios/role.conf` starts `mios-llm-light` and nothing else it did not start before; a seat without it starts exactly the 6 units it does today; every serving archetype is byte-for-byte unaffected; and the generated comparison counts the floor lane so `mini-vs-hosted.md` stops saying a seat has zero lanes in every configuration.
 **Why:** D6 without the opt-in is a decision with no lever. And the OR gap is worth closing on its own -- the axis currently forces every capability question to be a conjunction, which is why `mios-llm-light` could not be both a blade service and an opt-in seat floor.
 **Dep:** none. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-329 -- BLADE-07: a seat's blade reachability is now in the boot record  (WS-BLADE | P1 | S)
+**Goal:** E-07 A seat that cannot reach its blade must say so where an operator will see it, without rolling itself back over another machine's outage.
+**What+How:** ADR-0016 D8. `[greenboot].blade_reachability_critical` existed, was emitted as `MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL`, and was **read by nothing** -- the only consumer was `tools/generate-mini-vs-hosted.py`, which *described* the key in prose. The same decorative-key failure as `[greenboot].critical_services` before T-314 and `[profile].role` before T-315: the SSOT documented a behaviour the tree did not have.
+
+`40-mios-ai-plane.sh` now probes it. `_blade_reachable` reads `MIOS_BLADE_AI_ENDPOINT` and `MIOS_BLADE_AUTH_POSTURE` from `/run/mios/blade.env` (written by `role-apply`, T-327), parses host and port -- including IPv6 literals and a portless URL taking its scheme's default -- and TCP-probes it. The result is logged on every boot. It affects the exit code **only** when the SSOT flag is on, which it is not by default.
+**Where:** `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh`, `tests/test-greenboot-blade-reachability.sh`, `.github/workflows/mios-ci.yml`.
+**Done When:** met for the reachability half. `[blade].min_peer_version` -- the other half of D8, making seat/blade upgrade skew visible -- is NOT built and is tracked here.
+**Status:** partial
+
+9 assertions against a REAL listening socket on an ephemeral port and a real closed port, not a mock. The two that carry the decision:
+* an unreachable blade leaves `rc=0` at the shipped default -- **recorded, not critical**;
+* flipping the flag to `true` makes the same outage fatal, so the key is demonstrably load-bearing rather than decorative again.
+
+A fixed port would have passed on a stale socket from an earlier run, which is how an earlier reachability test in this tree fooled itself; the fixture binds port 0 and reads back what the kernel gave it.
+**Why:** T-323 gave a seat the ability to tell an unreachable blade from a broken model, and that signal stopped at the probe. A seat whose blade is gone now says so in the boot record. The dashboard surface is still open. | **Domain:** Topology/SSOT | **Who:** architect

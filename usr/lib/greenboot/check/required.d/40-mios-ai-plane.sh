@@ -45,6 +45,46 @@ _http_up() {
     esac
 }
 
+# ADR-0016 D8: recorded every boot, critical only when
+# [greenboot].blade_reachability_critical says so.
+_endpoint_host_port() {
+    local url="$1" rest hostport host port scheme
+    scheme="${url%%://*}"; [[ "$scheme" != "$url" ]] || scheme=http
+    rest="${url#*://}"
+    hostport="${rest%%/*}"
+    if [[ "$hostport" == \[*\]* ]]; then          # [::1]:8700 or [::1]
+        host="${hostport%%]*}]"
+        port="${hostport##*]}"; port="${port#:}"
+    else
+        host="${hostport%%:*}"
+        port="${hostport#*:}"; [[ "$port" != "$hostport" ]] || port=""
+    fi
+    if [[ -z "$port" ]]; then
+        case "$scheme" in https) port=443 ;; *) port=80 ;; esac
+    fi
+    printf '%s\t%s' "$host" "$port"
+}
+
+_blade_reachable() {
+    local ep="${MIOS_BLADE_AI_ENDPOINT:-}" hp host port
+    if [[ -z "$ep" || "${MIOS_BLADE_AUTH_POSTURE:-}" == "local" ]]; then
+        log "blade reachability: front door is local -- nothing off-box to reach"
+        return 0
+    fi
+    hp="$(_endpoint_host_port "$ep")"
+    host="${hp%%$'\t'*}"; port="${hp##*$'\t'}"
+    if [[ -z "$host" || -z "$port" ]]; then
+        log "blade reachability: could not parse ${ep}"
+        return 0
+    fi
+    if _tcp_up "$host" "$port"; then
+        log "blade ${host}:${port} reachable"
+        return 0
+    fi
+    fail "blade ${host}:${port} UNREACHABLE -- this seat offloads to it"
+    return 1
+}
+
 # is-enabled reports INSTALLATION, not whether a unit will start. Ask the same
 # question the unit's own ConditionPathExists asks. See ADR-0016 D4.
 _blade_activates() {
@@ -118,6 +158,14 @@ for _svc in $_svcs; do
     [[ -n "$_port" ]] || _port="$(_var "MIOS_PORT_${_U}")"
     check_service "$_unit" "$_port" "$_kind" "$_path" || rc=1
 done
+
+# Recorded on every boot, critical only when the SSOT says so.
+if ! _blade_reachable; then
+    case "$(printf '%s' "${MIOS_GREENBOOT_BLADE_REACHABILITY_CRITICAL:-}" | tr '[:upper:]' '[:lower:]')" in
+        1|true|yes|on) rc=1 ;;
+        *) log "blade unreachable is RECORDED, not critical -- [greenboot].blade_reachability_critical is off" ;;
+    esac
+fi
 
 if [[ "$rc" -eq 0 ]]; then
     log "AI plane healthy"

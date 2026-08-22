@@ -524,10 +524,11 @@ become opt-in there.
 Memory, sessions, skills and events live on the blade. A seat keeps nothing, which is the honest
 reading of "offload all services" and is hereby the contract rather than an accident.
 
-Two consequences the tree does not yet express. `[greenboot].blade_reachability_critical = false` is
-right — a seat must not roll itself back over someone else's outage — but it means a seat's greenboot
-can only ever fail on `mios-agent-pipe`, so blade reachability belongs in the boot record as a
-**recorded, non-critical** check. And nothing anywhere expresses a compatibility floor: seat and
+Two consequences the tree did not express. `[greenboot].blade_reachability_critical = false` is
+right — a seat must not roll itself back over someone else's outage — but it meant a seat's greenboot
+could only ever fail on `mios-agent-pipe`, and the key itself was read by nothing: its only consumer
+was the generator that *described* it. Blade reachability is now **recorded on every boot** and
+becomes critical only when that flag says so (T-329). And nothing anywhere expresses a compatibility floor: seat and
 blade `bootc upgrade` independently, and a seat two releases ahead of its blade fails
 mysteriously. `[blade].min_peer_version`, reported by the reachability probe and **non-fatal**, is
 the smallest thing that makes that legible.

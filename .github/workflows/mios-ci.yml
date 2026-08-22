@@ -131,6 +131,9 @@ jobs:
         # Without this guard a seat rolls itself back on every boot.
         run: bash ./tests/test-greenboot-blade-guard.sh
 
+      - name: A seat records its blade's reachability (tests/test-greenboot-blade-reachability.sh)
+        run: bash ./tests/test-greenboot-blade-reachability.sh
+
       - name: Lint coverage (python + shell file sets)
         # Assert the linters still SEE every payload area. Enumerating dirs one
         # at a time is what left usr/share/mios unscanned; the shell twin had
