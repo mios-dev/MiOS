@@ -2,15 +2,15 @@
   "object": "mios.capability.manifest",
   "ceiling": "interactive",
   "summary": {
-    "total": 143,
+    "total": 144,
     "by_kind": {
       "recipe": 19,
       "skill": 12,
-      "verb": 112
+      "verb": 113
     },
     "by_tier": {
       "read": 70,
-      "write": 70,
+      "write": 71,
       "interactive": 3
     }
   },
@@ -99,7 +99,7 @@
       "platforms": [
         "linux"
       ],
-      "description": "Probe the Windows OS-control plane (in-session executor :11437 + WSL-interop) and report typed JSON status {executor, interop, blind, reason}. Use to EXPLAIN why a Windows control/recipe action (show-"
+      "description": "Probe the Windows OS-control plane (in-session executor :8950 + WSL-interop) and report typed JSON status {executor, interop, blind, reason}. Use to EXPLAIN why a Windows control/recipe action (show-n"
     },
     {
       "name": "read-clipboard",
@@ -813,6 +813,12 @@
       "kind": "verb",
       "tier": "read",
       "description": "Check ONE Linux systemd SERVICE: is-active state + a status snapshot for the named unit (e.g. mios-agent-pipe, hermes-agent). For systemd services -- NOT podman CONTAINERS (use container_status) and N"
+    },
+    {
+      "name": "shell_session",
+      "kind": "verb",
+      "tier": "write",
+      "description": "Run a command in a PERSISTENT bash session whose cwd, environment and history SURVIVE across turns -- `cd /tmp && export FOO=bar` then `echo $PWD $FOO` returns `/tmp bar`. One session per chat, tmux-b"
     },
     {
       "name": "summarize",

@@ -260,6 +260,12 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [What Counts as a Consumer](manual/ch55-dead-schema-and-half-wired-units.md#55_what_counts_as_a_consumer): Explains why docs, config and generated projections are excluded as evidence.
   * [The Provisioner-Triple Gate](manual/ch55-dead-schema-and-half-wired-units.md#55_the_provisioner_triple_gate): Details the fetcher/unit/preset/tmpfiles checks for first-boot provisioners.
 
+* **[Chapter 56: Persistent Shell Sessions](manual/ch56-persistent-shell-sessions.md)**
+  * [The Nonce Framing](manual/ch56-persistent-shell-sessions.md#56_the_nonce_framing): Covers the BEGIN/END sentinels and why output cannot forge completion.
+  * [What Only Running It Revealed](manual/ch56-persistent-shell-sessions.md#56_what_only_running_it_revealed): Details the echo, hang and lost-head defects the unit tests could not see.
+  * [Session Isolation](manual/ch56-persistent-shell-sessions.md#56_session_isolation): Explains the session-key rules that stop one chat reading another's shell.
+  * [Shell Session Configuration](manual/ch56-persistent-shell-sessions.md#56_shell_session_configuration): Lists the [shell_session] keys and the run_in_shell verb.
+
 ---
 
 ## The chapter files
@@ -326,6 +332,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch53-drift-monitoring.md` | Chapter 53: Drift Monitoring. Explains the Jensen-Shannon Goodhart alarm that watches the agent plane's own verdict and intent distributions for a silent shift. Covers the bounded 0..1 divergence... |
 | `usr/share/doc/mios/manual/ch54-agent-pipe-importability.md` | Chapter 54: Agent-Pipe Importability. Records the defect class that let agent-pipe's server module reference names nothing defines, the three undefined module-scope names that made it unimportable,... |
 | `usr/share/doc/mios/manual/ch55-dead-schema-and-half-wired-units.md` | Chapter 55: Dead Schema and Half-Wired Units. Two fitness functions for things that exist but do nothing. check_schema_consumers requires every table in schema-init.sql to have a real code consumer,... |
+| `usr/share/doc/mios/manual/ch56-persistent-shell-sessions.md` | Chapter 56: Persistent Shell Sessions. Explains the SHELL-01 substrate that lets cwd, environment and history survive across agent turns. Covers the BEGIN/END nonce framing and the two spoofing... |
 
-<!-- derived from the AI-hint headers of 55 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 56 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

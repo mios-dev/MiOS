@@ -830,6 +830,34 @@ SuccessExitStatus = "0 1 2 3"
 WantedBy = "multi-user.target"
 
 
+[units."mios-shell-session-gc.service".Unit]
+comment = "# AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state.\n# AI-related: /usr/libexec/mios/mios-shell-session, mios-shell-session-gc.timer, /usr/share/mios/mios.toml [shell_session]"
+Description = "Reap idle MiOS shell sessions"
+ConditionPathExists = "/usr/libexec/mios/mios-shell-session"
+
+[units."mios-shell-session-gc.service".Service]
+Type = "oneshot"
+User = "mios-ai"
+Group = "mios-ai"
+ExecStart = "/usr/libexec/mios/mios-shell-session gc"
+# The reaper is best-effort: a tmux hiccup must never fault the timer.
+SuccessExitStatus = "0 1"
+
+[units."mios-shell-session-gc.service".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-shell-session-gc.timer".Unit]
+comment = "# AI-hint: Fires mios-shell-session-gc.service periodically so idle persistent shells are reclaimed without an operator.\n# AI-related: mios-shell-session-gc.service"
+Description = "Periodic reap of idle MiOS shell sessions"
+
+[units."mios-shell-session-gc.timer".Timer]
+OnBootSec = "10min"
+OnUnitInactiveSec = "10min"
+Persistent = "true"
+
+[units."mios-shell-session-gc.timer".Install]
+WantedBy = "timers.target"
+
 [units."mios-bound-images-firstboot.service".Unit]
 comment = "# AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open).\n# Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset.\n# AI-related: /usr/libexec/mios/mios-bound-images-firstboot, /usr/share/mios/mios.toml"
 Description = "First-boot Bound Images Provisioner"
@@ -3644,6 +3672,20 @@ oversize = [
     { path = "mios_dispatch.py",                   lines =  943 },
     { path = "server.py",                          lines = 4979 },
 ]
+
+# ----------------------------------------------------------------------------
+# [shell_session] -- SHELL-01 persistent PTY substrate. See manual ch56.
+[shell_session]
+enable       = false   # off by default: a long-lived shell is state the agent can accumulate
+socket_name  = "mios"  # tmux -L namespace, kept off an operator's default socket
+shell        = "/bin/bash"
+state_dir    = "/var/lib/mios/shell-sessions"
+idle_s       = 1800    # reap a session after this long with no command
+max_sessions = 8       # hard cap on concurrent shells
+timeout_s    = 120     # per-command wall clock before the runner gives up
+max_output_chars = 24000   # ACI-elided, not raw-truncated (head+tail kept)
+max_output_lines = 400
+history_limit    = 50000  # tmux keeps 2000 lines by default; a long command would lose its HEAD
 
 # ----------------------------------------------------------------------------
 # [consensus] -- CONS-01 weighted multi-judge Definition-of-Done.
@@ -6887,6 +6929,27 @@ sandbox_profile = "workspace"   # opt-in sandbox confinement (see [dispatch].san
 # that PRODUCES files (the LiteCUA Worker role) vs the cu_* verbs that DRIVE the
 # desktop. Backed by mios-docgen; gated by [computer_use].docgen_enable (default
 # off -> verbs visible but inert/degrade-open). permission=write (writes a file).
+[verbs.shell_session]
+section = "Persistent shell"
+sig     = "command, session?, timeout=120?"
+desc    = "Run a command in a PERSISTENT bash session whose cwd, environment and history SURVIVE across turns -- `cd /tmp && export FOO=bar` then `echo $PWD $FOO` returns `/tmp bar`. One session per chat, tmux-backed, bwrap-confined at baseline. Use when a workflow needs several steps to share state; for a one-shot isolated command use run_sandboxed_code instead. Output is ACI-elided (head+tail kept) rather than raw-truncated."
+model_name = "run_in_shell"
+examples = [
+  "run these three commands in the same shell",
+  "cd into the repo and keep me there",
+  "set an env var and use it in the next command",
+  "continue in the same working directory",
+]
+tier       = "rare"
+permission = "write"
+sandbox_profile = "baseline"
+cmd = "mios-shell-session exec --session {session=default} --timeout {timeout=120} {command!}"
+
+[verbs.shell_session.params]
+command = { type = "string", aliases = ["cmd", "script", "code", "run"] }
+session = { type = "string", aliases = ["session_id", "chat", "id"] }
+timeout = { type = "integer", default = 120 }
+
 [verbs.docgen_build]
 hidden = true
 section    = "Doc-gen"

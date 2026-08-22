@@ -1,5 +1,5 @@
 {
-  "count": 112,
+  "count": 113,
   "data": [
     {
       "description": "Hand a SUB-TASK to another registered agent and GET ITS ANSWER BACK so YOU fold it into your own reasoning (you stay in control; this is NOT a final user reply and NOT a take-over). Pick a peer by id (mios-a2a-delegate --list-peers) or by skill name (--list-skills). Use when you want a second agent's result; to PASS THE SESSION to another agent use transfer_session_to_agent.",
@@ -822,6 +822,16 @@
       "permission": "read",
       "section": "System",
       "sig": "name",
+      "tier": "rare"
+    },
+    {
+      "description": "Run a command in a PERSISTENT bash session whose cwd, environment and history SURVIVE across turns -- `cd /tmp && export FOO=bar` then `echo $PWD $FOO` returns `/tmp bar`. One session per chat, tmux-backed, bwrap-confined at baseline. Use when a workflow needs several steps to share state; for a one-shot isolated command use run_sandboxed_code instead. Output is ACI-elided (head+tail kept) rather than raw-truncated.",
+      "hidden": false,
+      "model_name": "run_in_shell",
+      "name": "shell_session",
+      "permission": "write",
+      "section": "Persistent shell",
+      "sig": "command, session?, timeout=120?",
       "tier": "rare"
     },
     {
