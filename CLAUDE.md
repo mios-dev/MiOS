@@ -71,7 +71,7 @@ itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
 
 1. **USR-OVER-ETC** — vendor/static config lives under `/usr`: `/usr/lib/<component>.d/`, the `/usr/share/mios/mios.toml` SSOT monolith, and `/usr/lib/mios/mios.d/*.toml` vendor fragments. `/etc` is admin-override-only. The overlay resolves vendor(`/usr`) < host(`/etc`) < user(`~/.config`).
 2. **NO-MKDIR-IN-VAR** — every `/var/` path is declared via `usr/lib/tmpfiles.d/*.conf`, never `mkdir`'d in a numbered image-build step.
-3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` (generated at bake by `08-system-files-overlay.sh`) so it ships *with* the host.
+3. **BOUND-IMAGES** — every Quadlet image is symlinked into `/usr/lib/bootc/bound-images.d/` (generated at bake by `01-system-files-overlay.sh`) so it ships *with* the host.
 4. **BOOTC-CONTAINER-LINT** — the **final** instruction of every `Containerfile` is `RUN bootc container lint`; fail the lint, fail the build.
 5. **UNIFIED-AI-REDIRECTS** — every agent and tool targets `MIOS_AI_ENDPOINT`. No vendor cloud URLs, no vendor-specific agent/product names, no retired local-lane ports in code, docs, or commits (registry: `[docs].retired_ports`).
 6. **UNPRIVILEGED-QUADLETS** — every Quadlet declares `User=`, `Group=`, `Delegate=yes`. Root (`User=root`/`0`) is allowed **only** for units in `mios.toml [security.privileged_quadlets].root`, each with a justification.
@@ -85,7 +85,7 @@ itself an SSOT: `usr/share/mios/mios.toml [laws]` is the canonical registry
 14. **TARGET-LANGUAGES** — all NEW applicable code uses the roadmap's language-per-domain targets (Rust for native tooling/services/validation; Python for the AI plane; Bun/TS for the web Portal; bash is thin GLUE only). No new C#/Batch/Go/PowerShell-as-program — those are grandfathered-for-port, not a licence for more (ADR-0011 §2 / WS-LANG).
 15. **DOUBLE-REPO-TRIPLE-CHECK** — before ANY change: (1) **double-check BOTH repos** — `mios.git` (this repo; `.git` IS `/`) **and** `mios-bootstrap.git` (the installer/user-overlay) — for current state, the shared cross-repo SSOT (`mios.toml`, the `userenv` twins, `[ports]`/`[colors]`), duplication, and the other agent's in-flight work; (2) **triple-check everything** — re-read the target, re-verify the assumption, and render/parse/test the result — **before acting**. Measure thrice, cut once; **then code**. A surface mirrored across both repos must be updated in both (or the divergence justified).
 
-Quadlets are generated, not hand-edited into final form — see `automation/14-generate-quadlets.sh` and `15-render-quadlets.sh`. Kernel args ship in `usr/lib/bootc/kargs.d/`.
+Quadlets are generated, not hand-edited into final form — see `automation/14-generate-quadlets.sh` and `34-render-quadlets.sh`. Kernel args ship in `usr/lib/bootc/kargs.d/`.
 
 ## The local AI plane
 

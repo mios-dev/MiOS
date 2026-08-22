@@ -122,7 +122,7 @@ cleanup.
   /etc/, e.g., yum repos, nvidia-container-toolkit).
 - The `usr/`, `etc/`, `home/`, `srv/` directories at repo root mirror the
   deployed root; the overlay is applied by
-  `automation/08-system-files-overlay.sh`.
+  `automation/01-system-files-overlay.sh`.
 
 ### Quadlets (container units)
 
@@ -139,7 +139,7 @@ cleanup.
 
 - Per-rule individual `.te` modules, not monolithic.
 - New booleans/fcontexts go in the `semanage` block of
-  `automation/37-selinux.sh`.
+  `automation/38-selinux.sh`.
 
 ### Services
 

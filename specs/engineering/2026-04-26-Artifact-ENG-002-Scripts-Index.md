@@ -48,7 +48,7 @@ stands up the AI plane — the inference lanes, the agent units, and the
 PostgreSQL+pgvector schema are just more numbered steps. So this index is also a
 map of how the "agentic AI OS" half of MiOS gets baked in:
 
-- `38-hermes-agent.sh` installs the unified agent plane (agent-pipe + MiOS-Hermes
+- `72-hermes-agent.sh` installs the unified agent plane (agent-pipe + MiOS-Hermes
   + opencode) into the image.
 - `38-llamacpp-prep.sh` bakes the GGUF weights for **`mios-llm-light`** (the
   primary `llama.cpp`/`llama-swap` inference + embeddings lane on `:11450`) so it
@@ -56,7 +56,7 @@ map of how the "agentic AI OS" half of MiOS gets baked in:
 - `38-vllm-prep.sh` bakes the **`mios-llm-heavy-alt`** (vLLM) gated heavy-lane
   weights; the SGLang `mios-llm-heavy` lane is likewise gated off by default on
   VRAM grounds.
-- `15-render-quadlets.sh` / `41-mios-dropin-fanout.sh` render the Quadlet units
+- `34-render-quadlets.sh` / `48-mios-dropin-fanout.sh` render the Quadlet units
   (including the agent + inference + pgvector containers) from `mios.toml`.
 
 Every contribution to these scripts must obey the six **Architectural Laws** that
@@ -76,7 +76,7 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 
 ## Numbered build sub-phases (Phase-2, run in order by `build.sh`)
 
-> `08-system-files-overlay.sh` is special-cased: it runs **pre-pipeline** from the
+> `01-system-files-overlay.sh` is special-cased: it runs **pre-pipeline** from the
 > `Containerfile` (applying the `usr/ etc/ srv/ var/` overlay) and is *skipped* by
 > `build.sh`. All other numbered scripts run in lexicographic/numeric order.
 
@@ -92,8 +92,8 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 - **Path:** `automation/05-enable-external-repos.sh`
 - **Description:** Enable external/third-party package repositories used later in the pipeline.
 
-### `08-system-files-overlay.sh`
-- **Path:** `automation/08-system-files-overlay.sh`
+### `01-system-files-overlay.sh`
+- **Path:** `automation/01-system-files-overlay.sh`
 - **Description:** Apply the repo-root `usr/ etc/ srv/ var/` overlay onto the image. **Runs pre-pipeline from the `Containerfile`; skipped by `build.sh`.**
 
 ### `09-fonts.sh`
@@ -112,20 +112,20 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 - **Path:** `automation/12-virt.sh`
 - **Description:** 12-virt: Virtualization, containers, orchestration, gaming (KVM/QEMU + libvirt + Podman).
 
-### `13-ceph-k3s.sh`
-- **Path:** `automation/13-ceph-k3s.sh`
+### `36-ceph-k3s.sh`
+- **Path:** `automation/36-ceph-k3s.sh`
 - **Description:** 13-ceph-k3s: Ceph distributed storage + K3s Kubernetes (the one-node-cluster growth path).
 
-### `15-render-quadlets.sh`
-- **Path:** `automation/15-render-quadlets.sh`
+### `34-render-quadlets.sh`
+- **Path:** `automation/34-render-quadlets.sh`
 - **Description:** Render Quadlet container units from `mios.toml` placeholders (`${MIOS_*}` substitution) — including the agent, inference, and `mios-pgvector` units. Must run before unit start.
 
 ### `18-apply-boot-fixes.sh`
 - **Path:** `automation/18-apply-boot-fixes.sh`
 - **Description:** Systemd execution analysis & WSL2 boot-loop fixes.
 
-### `19-k3s-selinux.sh`
-- **Path:** `automation/19-k3s-selinux.sh`
+### `37-k3s-selinux.sh`
+- **Path:** `automation/37-k3s-selinux.sh`
 - **Description:** SELinux policy adjustments for the K3s lane.
 
 ### `20-fapolicyd-trust.sh`
@@ -204,12 +204,12 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 - **Path:** `automation/37-flatpak-env.sh`
 - **Description:** 37-flatpak-env: Capture the Flatpak environment for boot-time install.
 
-### `37-selinux.sh`
-- **Path:** `automation/37-selinux.sh`
+### `38-selinux.sh`
+- **Path:** `automation/38-selinux.sh`
 - **Description:** 37-selinux: Build-time SELinux policy fixes (per-rule `.te` modules; new booleans/fcontexts land here).
 
-### `38-hermes-agent.sh`
-- **Path:** `automation/38-hermes-agent.sh`
+### `72-hermes-agent.sh`
+- **Path:** `automation/72-hermes-agent.sh`
 - **Description:** UNIFIED agent-plane install driver — installs MiOS-Hermes + agent-pipe + opencode into `/usr/lib/mios/agents/` (shared Python venv, systemd services, core binaries). This is the step that bakes in the agentic AI OS half.
 
 ### `38-llamacpp-prep.sh`
@@ -234,7 +234,7 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 
 ### `39-opencode.sh`
 - **Path:** `automation/39-opencode.sh`
-- **Description:** RETIRED — a no-op shim. The opencode install (binary fetch + `opencode.json` landing) was merged into `38-hermes-agent.sh`. Kept as a stable filename placeholder.
+- **Description:** RETIRED — a no-op shim. The opencode install (binary fetch + `opencode.json` landing) was merged into `72-hermes-agent.sh`. Kept as a stable filename placeholder.
 
 ### `40-composefs-verity.sh`
 - **Path:** `automation/40-composefs-verity.sh`
@@ -248,8 +248,8 @@ Laws 5–6 keep the AI plane unified (one `MIOS_AI_ENDPOINT`) and least-privileg
 - **Path:** `automation/41-gpu-cdi-toolkits.sh`
 - **Description:** 41-gpu-cdi-toolkits: install vendor CDI generators (AMD + Intel) so containers see the hardware without manual `--device` flags.
 
-### `41-mios-dropin-fanout.sh`
-- **Path:** `automation/41-mios-dropin-fanout.sh`
+### `48-mios-dropin-fanout.sh`
+- **Path:** `automation/48-mios-dropin-fanout.sh`
 - **Description:** Fan out MiOS systemd drop-ins / Quadlet overlays across their target units.
 
 ### `42-cosign-policy.sh`

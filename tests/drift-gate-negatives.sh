@@ -3253,6 +3253,25 @@ unused_key = "nothing reads this"
     log "check_no_inert_ssot_tables negative test passed"
 }
 
+test_bootstrap_sync() {
+    log "Testing check_bootstrap_sync"
+    local boot="${MIOS_BOOTSTRAP_ROOT:-/c/mios-bootstrap}"
+    [ -d "$boot" ] || { log "bootstrap repo absent; skipping"; return 0; }
+    local f="${boot}/installation/UNIFY.md"
+    [ -f "$f" ] || { log "no mirrored file to mutate; skipping"; return 0; }
+    local bak; bak="$(mktemp)"; cp "$f" "$bak"
+    # Drift in a MIRRORED file must fail: mios.git is the authority, and the
+    # whole point is that a shared surface cannot change in only one repo.
+    printf '\nDRIFT PROBE\n' >> "$f"
+    if _neg_gate check_bootstrap_sync; then
+        cp "$bak" "$f"; rm -f "$bak"
+        die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"
+    fi
+    cp "$bak" "$f"; rm -f "$bak"
+    _neg_gate check_bootstrap_sync || die "check_bootstrap_sync failed after restoration"
+    log "check_bootstrap_sync negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3303,6 +3322,7 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_docs_ratchet
+    test_bootstrap_sync
     test_no_inert_ssot_tables
     test_doc_refs_resolve
     test_desktop_launchers

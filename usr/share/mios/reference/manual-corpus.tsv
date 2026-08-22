@@ -3,19 +3,19 @@
 .forgejo/workflows/build-mios.yml	1	18	18	147	a58a0dbdcdd6	STAY	ai-header		0				0
 .forgejo/workflows/build-mios.yml	33	38	6	63	1328de9fd76a	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:1328de9fd76a	63	0
 .forgejo/workflows/build-mios.yml	45	47	3	28	6ad013c0a69b	STAY	midsize-why		0				0
-.forgejo/workflows/build-mios.yml	49	51	3	27	a113c471fd31	STAY	midsize-why		0				0
-.forgejo/workflows/build-mios.yml	56	57	2	15	a3c478469cd8	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	93	93	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	108	110	3	31	d255aa36368b	STAY	midsize-why		0				0
-.forgejo/workflows/build-mios.yml	115	116	2	23	574a3e5e9dca	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	119	119	1	11	e25dd631f9a4	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	131	131	1	8	a88aee412b8c	STAY	inline-scoped		0				0
-.forgejo/workflows/build-mios.yml	134	134	1	3	c8f82965cee6	STAY	inline-scoped		0				0
-.forgejo/workflows/build-mios.yml	139	146	8	79	9b1abfdb404e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9b1abfdb404e	79	0
-.forgejo/workflows/build-mios.yml	155	156	2	15	99d2d210b8b8	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	159	159	1	3	ee573bae3b99	STAY	local-scoped		0				0
-.forgejo/workflows/build-mios.yml	176	179	4	34	147551906b1c	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:147551906b1c	34	0
-.forgejo/workflows/build-mios.yml	195	199	5	36	c8be1fb9930b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:c8be1fb9930b	36	0
+.forgejo/workflows/build-mios.yml	58	60	3	27	a113c471fd31	STAY	midsize-why		0				0
+.forgejo/workflows/build-mios.yml	65	66	2	15	a3c478469cd8	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	102	102	1	12	4cb2be3fa5db	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	117	119	3	31	d255aa36368b	STAY	midsize-why		0				0
+.forgejo/workflows/build-mios.yml	124	125	2	23	574a3e5e9dca	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	128	128	1	11	e25dd631f9a4	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	140	140	1	8	a88aee412b8c	STAY	inline-scoped		0				0
+.forgejo/workflows/build-mios.yml	143	143	1	3	c8f82965cee6	STAY	inline-scoped		0				0
+.forgejo/workflows/build-mios.yml	148	155	8	79	9b1abfdb404e	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/workflows.md	mios-src:9b1abfdb404e	79	0
+.forgejo/workflows/build-mios.yml	164	165	2	15	99d2d210b8b8	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	168	168	1	3	ee573bae3b99	STAY	local-scoped		0				0
+.forgejo/workflows/build-mios.yml	185	188	4	34	147551906b1c	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:147551906b1c	34	0
+.forgejo/workflows/build-mios.yml	204	208	5	36	c8be1fb9930b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/workflows.md	mios-src:c8be1fb9930b	36	0
 .forgejo/workflows/url-probe.yml	1	1	1	9	3ef29e95a62a	STAY	ai-header		0				0
 .github/workflows/mios-ci.yml	1	2	2	37	1143953e3ced	STAY	ai-header		0				0
 .github/workflows/mios-ci.yml	5	13	9	67	dc685a024553	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/workflows.md	mios-src:dc685a024553	67	0
@@ -805,23 +805,24 @@ automation/98-drift-checks.sh	6033	6033	1	3	2baccfaa57df	STAY	local-scoped		0			
 automation/98-drift-checks.sh	6042	6043	2	23	532cd4a5778d	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	6046	6048	3	27	cd87a464c8b5	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	6055	6055	1	5	b34c607da2f0	STAY	inline-scoped		0				0
-automation/98-drift-checks.sh	6346	6349	4	43	8ea98e3465e1	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6361	6362	2	21	13efaae6a477	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	6426	6430	5	52	8b090e6f22f4	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6499	6503	5	50	6eaf54cc340d	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6538	6539	2	19	63a249896aee	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	6559	6562	4	36	a427d2f30874	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6618	6621	4	37	6bfceaac51ad	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6699	6702	4	49	0a67ec9ad733	STAY	midsize-why		0				0
-automation/98-drift-checks.sh	6778	6783	6	70	62f7b82da080	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/automation.md	mios-src:62f7b82da080	70	0
-automation/98-drift-checks.sh	6994	6994	1	4	27372f76b5f6	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7061	7061	1	8	e4bacea04137	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7129	7129	1	8	bdfe851692a3	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7142	7142	1	8	accc477b4682	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7155	7155	1	9	6d45b0c3821a	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7574	7574	1	13	3f7bba27b294	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7600	7600	1	1	d7b3a261b719	DROP	banner		0				0
-automation/98-drift-checks.sh	7606	7606	1	10	f63267e0ec99	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	6347	6350	4	43	8ea98e3465e1	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6362	6363	2	21	13efaae6a477	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	6427	6431	5	52	8b090e6f22f4	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6500	6504	5	50	6eaf54cc340d	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6539	6540	2	19	63a249896aee	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	6560	6563	4	36	a427d2f30874	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6619	6622	4	37	6bfceaac51ad	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6700	6703	4	49	0a67ec9ad733	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	6779	6784	6	70	62f7b82da080	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/automation.md	mios-src:62f7b82da080	70	0
+automation/98-drift-checks.sh	6995	6995	1	4	27372f76b5f6	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7062	7062	1	8	e4bacea04137	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7130	7130	1	8	bdfe851692a3	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7143	7143	1	8	accc477b4682	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7156	7156	1	9	6d45b0c3821a	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7575	7575	1	13	3f7bba27b294	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7601	7601	1	1	d7b3a261b719	DROP	banner		0				0
+automation/98-drift-checks.sh	7607	7607	1	10	f63267e0ec99	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7674	7674	1	8	03252a4bab69	STAY	local-scoped		0				0
 automation/99-postcheck.sh	1	5	5	43	845010814b0e	STAY	ai-header		0				0
 automation/99-postcheck.sh	196	196	1	2	bd3a3e388485	STAY	inline-scoped		0				0
 automation/99-postcheck.sh	198	198	1	4	a745dfc28176	STAY	inline-scoped		0				0
@@ -3535,8 +3536,9 @@ tests/drift-gate-negatives.sh	3208	3209	2	17	e7f35f45b218	STAY	local-scoped		0		
 tests/drift-gate-negatives.sh	3223	3223	1	14	fb147ac71afc	STAY	local-scoped		0				0
 tests/drift-gate-negatives.sh	3224	3224	1	12	561529089693	STAY	inline-scoped		0				0
 tests/drift-gate-negatives.sh	3239	3241	3	39	39864b27e093	STAY	midsize-why		0				0
-tests/drift-gate-negatives.sh	3257	3257	1	5	b34c607da2f0	STAY	inline-scoped		0				0
-tests/drift-gate-negatives.sh	3266	3271	6	59	1a2b377668f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:1a2b377668f5	59	0
+tests/drift-gate-negatives.sh	3263	3264	2	26	a750c6dbaa25	STAY	midsize-why		0				0
+tests/drift-gate-negatives.sh	3276	3276	1	5	b34c607da2f0	STAY	inline-scoped		0				0
+tests/drift-gate-negatives.sh	3285	3290	6	59	1a2b377668f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tests.md	mios-src:1a2b377668f5	59	0
 tests/drift-gate-readonly.sh	1	1	1	2	4189f864510a	STAY	local-scoped		0				0
 tests/drift-parity.sh	1	3	3	16	61d899f4c217	STAY	ai-header		0				0
 tests/fixtures/mios.toml	1	1	1	3	f8c3aa3cbcc7	STAY	ai-header		0				0
@@ -4294,6 +4296,14 @@ tools/sign-powershell.ps1	35	38	4	36	49a994854bf8	STAY	midsize-why		0				0
 tools/sign-powershell.ps1	53	53	1	7	66a735b428da	STAY	local-scoped		0				0
 tools/sign-powershell.ps1	70	70	1	8	e9ffb74001bb	STAY	local-scoped		0				0
 tools/standardize-docs.py	1	2	2	29	62ad67996432	STAY	ai-header		0				0
+tools/sync-bootstrap.py	1	4	4	61	1eca232c6c39	STAY	ai-header		0				0
+tools/sync-bootstrap.py	5	8	3	12	2d659e36d796	MIGRATE	midsize-narrative		0				0
+tools/sync-bootstrap.py	20	20	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
+tools/sync-bootstrap.py	21	21	1	2	652a73c43ff5	STAY	inline-scoped		0				0
+tools/sync-bootstrap.py	39	39	1	10	b70ce1dddd99	STAY	local-scoped		0				0
+tools/sync-bootstrap.py	57	61	5	34	b2787db29dff	STAY	midsize-why		0				0
+tools/sync-bootstrap.py	85	85	1	12	8cfc9f6a7113	STAY	local-scoped		0				0
+tools/sync-bootstrap.py	139	139	1	12	75ad1ecda7fe	STAY	local-scoped		0				0
 tools/sync-generated.sh	1	18	18	144	ed1bc1429de5	STAY	ai-header		0				0
 tools/sync-generated.sh	24	37	14	124	4cf964f45b77	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:4cf964f45b77	124	0
 tools/sync-generated.sh	41	41	1	10	4147b14ec471	STAY	local-scoped		0				0
@@ -10748,6 +10758,10 @@ usr/share/mios/mios.toml	14352	14352	1	11	468e02ea2a88	STAY	inline-scoped		0				
 usr/share/mios/mios.toml	14353	14353	1	10	41c1d80a5728	STAY	inline-scoped		0				0
 usr/share/mios/mios.toml	14354	14354	1	12	a11d3b223ded	STAY	inline-scoped		0				0
 usr/share/mios/mios.toml	14355	14355	1	6	b4ea5cdb04fd	STAY	inline-scoped		0				0
+usr/share/mios/mios.toml	14443	14443	1	7	54f4741f5988	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	14445	14445	1	11	836dab8c495e	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	14456	14456	1	8	3e0eb633acbb	STAY	local-scoped		0				0
+usr/share/mios/mios.toml	14459	14459	1	6	6654f4a66b0e	STAY	local-scoped		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	1	3	3	50	0b3a8f0ee8b3	STAY	ai-header		0				0
 usr/share/mios/openwebui/tools/mios_computer_use.py	4	43	39	219	9cde6af7c1f5	MIGRATE	narrative-history		0	usr/share/doc/mios/manual/tools.md	mios-src:9cde6af7c1f5	219	0
 usr/share/mios/openwebui/tools/mios_computer_use.py	64	65	2	19	4ba014eb5e64	STAY	local-scoped		0				0

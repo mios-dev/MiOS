@@ -14439,3 +14439,26 @@ icon = "system-search-symbolic"
 categories = "Network;WebBrowser;"
 keywords = "mios;searxng;search;metasearch;privacy;"
 ai_hint = "Desktop entry for the SearXNG metasearch proxy; used by agents to identify and launch the local search interface at port 8899 via a web browser."
+
+# [bootstrap.sync] -- Law 15 mirror manifest. Contract: installation/UNIFY.md.
+[bootstrap.sync]
+# Byte-identical in both repos; mios.git wins. Never list a bootstrap-owned file.
+mirror_files = [
+  "Get-MiOS.ps1",
+  "LICENSE",
+  "build-mios.ps1",
+  "installation/UNIFY.md",
+  "installation/mios-common.ps1",
+  "etc/skel/.config/mios/system-prompt.md",
+  "etc/usbguard/rules.conf",
+]
+
+# SSOT tables mirrored into bootstrap's root mios.toml.
+mirror_toml_tables = ["ports"]
+
+# Deliberately NOT mirrored; reasons in installation/UNIFY.md.
+not_mirrored = [
+  "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
+  "installation/mios-common.sh", "README.md", "CLAUDE.md", "AGENTS.md",
+  "GEMINI.md", ".gitignore", "VERSION",
+]
