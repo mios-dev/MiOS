@@ -110,7 +110,10 @@ def normalize_container_exec(script: str) -> str:
     script = re.sub(r'\b(podman)\s+exec\s+(\-[a-zA-Z]+|\-\-tty\b)', clean_flags, script, flags=re.IGNORECASE)
     
     script = re.sub(
-        r'\b(podman\s+exec\s+(?:-[a-zA-Z\d\-]+(?:\s+[^\s]+)?\s+)*[\w\-\.]+)\s+(bash|sh|zsh|/bin/bash|/bin/sh|/bin/zsh)(\s+-[a-zA-Z\d\-]+)*\s*$',
+        # A flag's ARGUMENT may not start with '-'; that would be the next flag.
+        # With [^\s]+ both parses were legal and the group backtracked
+        # exponentially on model-controlled input (~1.64^n). See TASKS.md T-336.
+        r'\b(podman\s+exec\s+(?:-[a-zA-Z\d\-]+(?:\s+[^-\s]\S*)?\s+)*[\w\-\.]+)\s+(bash|sh|zsh|/bin/bash|/bin/sh|/bin/zsh)(\s+-[a-zA-Z\d\-]+)*\s*$',
         r'\1 true',
         script,
         flags=re.IGNORECASE | re.MULTILINE

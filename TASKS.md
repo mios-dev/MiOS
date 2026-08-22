@@ -321,6 +321,8 @@
 | T-333 | P0 | planned | Topology/SSOT | MINI-05 -- Every capability a MiOS-Mini is defined by is single-node or absent |
 | T-334 | P1 | done | Topology/SSOT | MINI-06 -- The fleet had no declared size, so nothing could see a one-node-only config |
 | T-335 | P0 | partial | Topology/SSOT | MINI-07 -- "Offload" means SHED, not thin; and the live mesh (Tailscale) is not installed |
+| T-336 | P0 | done | Security/Federation | SEC-03 -- A ReDoS on model-controlled input in the dispatch path |
+| T-337 | P1 | planned | Topology/SSOT | MINI-08 -- The router plane is further along than reported; three more decorative key families |
 
 ---
 
@@ -3262,3 +3264,47 @@ That is a **Law 12 (BAKE-NOT-FETCH) violation with a circular dependency**: the 
 **Done When:** D9 states the operator's definition (**done**); the generated comparison stops claiming to define MiOS-Mini (**done**); Tailscale is BAKED rather than repo-dropped, with a unit and an SSOT key, so a Mini can reach its mesh without first reaching the network; the radio floor is expressed; and the split-plane doc says whether "Mini" is the host plane or the whole box.
 **Status:** partial
 **Why:** every architectural conclusion this session was reasoned from "offload = Mini is thin". The seat archetype work stands on its own, but the product it was attributed to does not exist -- and the one implementation the operator calls CURRENT turns out to ship as a repo file with nothing behind it. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-336 -- SEC-03: a ReDoS on model-controlled input in the dispatch path  (WS-GUARD | P0 | S)
+**Goal:** E-04 A regex that runs on model output must not be a denial-of-service primitive.
+**What+How:** CodeQL flagged `usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py:113` ("inefficient regular expression") and `:115` ("polynomial regex on uncontrolled data"). Reproduced with real timings rather than taken on trust -- the podman-exec shell-stripper backtracks **exponentially**:
+
+| repetitions of `"-- "` | seconds |
+|---|---|
+| 22 | 0.016 |
+| 26 | 0.098 |
+| 28 | 0.259 |
+| 30 | 0.699 |
+| 32 | **1.900** |
+
+~2.7x per +2, i.e. roughly `1.64^n`. At n=40 that is ~40 seconds; `script` is model-controlled, so a modest string hangs the dispatch path.
+
+**Cause:** `(?:-[a-zA-Z\d\-]+(?:\s+[^\s]+)?\s+)*` let a flag's ARGUMENT start with `-`, so `-a -b` had two legal parses -- `-b` as a new flag, or as `-a`'s argument. Ambiguity across a `*` is the classic blowup.
+
+**Fix:** the argument may not start with `-`; that would be the next flag. `(?:\s+[^-\s]\S*)?`. One parse, no backtracking. **n=2000 now runs in 0.0009s** -- linear.
+
+Behaviour is byte-identical on every real form, including the flag-with-argument cases the narrower class could plausibly have broken (`--user 1000`, `-e FOO=bar`, `--workdir /srv`), plus the two negative cases (`echo hello`, `bash -c 'ls'`) that must be left alone.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py`, `usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py`.
+**Done When:** met. The regression test pins a wall-clock BOUND on a 2000-repetition input and a non-exponential growth ratio, rather than asserting a pattern string -- the defect is behavioural, so the test must be too. **Verified to fail on the old pattern**: reverted in place, the test ran past 400 seconds and was killed; restored, it passes in 0.003s.
+**Status:** done
+
+**Not fixed, and deliberately: CodeQL alerts 179/180 on `:73-74` ("uncontrolled data in path expression") are FALSE POSITIVES.** `sess_id` is sanitised on the line above -- `"".join(c for c in sess_id if c.isalnum() or c in "-_")[:32]` -- which strips `/` **and** `.`, so `..` cannot survive and traversal is impossible. CodeQL does not see through the generator expression. Patching a non-defect to silence a scanner is how a real one gets missed later.
+**Why:** the alert count grew from 5 high to 1 critical / 8 high / 14 medium across the branch, and both PRs merged, so this is live on `main`. | **Domain:** Security/Federation | **Who:** build agent
+
+## T-337 -- MINI-08: the router plane is further along than reported, and three more key families are decorative  (WS-MINI | P1 | M)
+**Goal:** E-08 An audit that overstates a gap is as harmful as one that misses it -- both misdirect the next person.
+**What+How:** An adversarial verification pass over the six-lane capability audit (T-333) corrected several of its claims, including two of mine. Recording the corrections, because the wrong ones were the confident ones.
+
+**I was wrong that the router plane has nothing.** `usr/lib/sysctl.d/99-mios-vmhost.conf:6-10` ships `net.ipv4.ip_forward = 1`, `net.ipv4.conf.all.forwarding = 1`, `net.ipv6.conf.all.forwarding = 1` and the bridge-netfilter pair. `sysctl.d` is auto-applied, so this is **WIRED with no unit needed** -- the one genuine router prerequisite already in place. NAT/masquerade is indeed absent.
+
+**Three more decorative key families, on top of the four already found (T-325, T-329):**
+* **`/usr/libexec/mios-firewall-init` is written and `chmod +x`'d by `automation/45-firewall.sh:13,49` and invoked by NOTHING.** It holds all the zone policy -- `--set-default-zone=drop`, the trusted-interface list, per-zone cockpit. `mios-firewall-ports.service` is real and preset-enabled but **inlines its own port list and never calls it**. Zone policy is decorative.
+* **`[network].firewalld_default_zone`/`allow_ssh`/`allow_cockpit`/`allow_libvirt_bridge`** are emitted, aliased in both resolvers, surfaced in the configurator -- and read by zero consumers, while `45-firewall.sh:19` hardcodes `--set-default-zone=drop`. That is a Law 7 NO-HARDCODE violation with an operator-visible knob attached to nothing.
+* **The whole `[metal]` namespace is inert end-to-end.** `21-virt.sh` runs the generators, which write `/etc/mios/metal-vfio.env` and `/etc/mios/metal-mesh.env` -- and nothing reads either file. The only other `MIOS_METAL_*` reference is `98-drift-checks.sh:4020`, which asserts the generator's own output contains a string. So the namespace T-335 proposes to extend with `[metal.wifi]` is hollow.
+
+**Also found:** a Law 9 ONE-CANONICAL-NAME break -- the generators emit `MIOS_METAL_DGPU_MODE`/`MIOS_METAL_VNET_CIDR` while `names.generated.txt:652,655` declares `MIOS_METAL_DGPUMODE`/`MIOS_METAL_MESH_VNET_CIDR`. And `NetworkManager-wifi` ships only inside `[packages.gnome]`, so a **headless build has no wifi station driver at all**, let alone AP mode.
+
+**Corrections to T-333's own numbers:** `hostapd` appears in **5** files, not 3 (it missed ADR-0016 and TASKS.md), and its `mios.toml` line citations run ~16 low throughout.
+**Where:** `automation/45-firewall.sh`, `usr/lib/sysctl.d/99-mios-vmhost.conf`, `usr/share/mios/mios.toml` (`[network]`, `[metal]`), `automation/21-virt.sh`, `usr/share/mios/reference/names.generated.txt`.
+**Done When:** the firewall init script is either invoked or deleted; `[network]` is read by its consumer or retired; `[metal]`'s env files are consumed or the generators stop writing them; the two `MIOS_METAL_*` spellings are reconciled; and `NetworkManager-wifi` moves out of `[packages.gnome]` if a headless Mini is to have a radio.
+**Why:** T-333 said "the router core is absent". Half of it is, and the half that is not was already working. An audit that overstates sends the next person to build something that exists. | **Domain:** Topology/SSOT | **Who:** architect
