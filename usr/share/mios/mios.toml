@@ -2641,22 +2641,22 @@ unconsumed = [
 [refactor]
 max_lines = 800
 oversize = [
-    { path = "mios_pipe/federation/a2a.py",        lines = 1545 },
-    { path = "mios_pipe/federation/http_caps.py",  lines =  820 },
-    { path = "mios_pipe/memory/knowledge.py",      lines =  961 },
-    { path = "mios_pipe/routing/agent_call.py",    lines = 1153 },
-    { path = "mios_pipe/routing/chat.py",          lines = 1786 },
-    { path = "mios_pipe/routing/dag_exec.py",      lines = 1297 },
-    { path = "mios_pipe/routing/native_loop.py",   lines = 1190 },
-    { path = "mios_pipe/routing/portal.py",        lines = 1675 },
-    { path = "mios_pipe/routing/refine.py",        lines = 1120 },
-    { path = "mios_pipe/routing/swarm.py",         lines = 1062 },
-    { path = "mios_pipe/routing/web_research.py",  lines =  987 },
+    { path = "mios_pipe/federation/a2a.py",        lines = 1544 },
+    { path = "mios_pipe/federation/http_caps.py",  lines =  819 },
+    { path = "mios_pipe/memory/knowledge.py",      lines =  960 },
+    { path = "mios_pipe/routing/agent_call.py",    lines = 1152 },
+    { path = "mios_pipe/routing/chat.py",          lines = 1704 },
+    { path = "mios_pipe/routing/dag_exec.py",      lines = 1145 },
+    { path = "mios_pipe/routing/native_loop.py",   lines = 1189 },
+    { path = "mios_pipe/routing/portal.py",        lines = 1674 },
+    { path = "mios_pipe/routing/refine.py",        lines = 1119 },
+    { path = "mios_pipe/routing/swarm.py",         lines =  993 },
+    { path = "mios_pipe/routing/web_research.py",  lines =  986 },
     # Agent-pipe ROOT modules. These sat outside every earlier version of this
     # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
     # own remainder and mios_dispatch.py is T-273's named target.
-    { path = "mios_dispatch.py",                   lines =  943 },
-    { path = "server.py",                          lines = 4975 },
+    { path = "mios_dispatch.py",                   lines =  816 },
+    { path = "server.py",                          lines = 4974 },
 ]
 
 # ----------------------------------------------------------------------------
@@ -9997,7 +9997,8 @@ exempt = [
   "check_unit_security",
   "check_var_closure",
   "check_vendor_urls",
-  "check_verb_backends"
+  "check_verb_backends",
+  "check_comment_lex_equivalence"
 ]
 
 # ----------------------------------------------------------------------------
@@ -10405,8 +10406,10 @@ icon = "preferences-system"
 categories = "System;Settings;PackageManager;"
 keywords = "mios;configurator;system;settings;packages;flatpak;ai;"
 startup_wm_class = "org.gnome.Epiphany"
-ai_hint = "Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:8700/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop)."
-ai_related = "/etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:8700/configure"
+port_key = "agent_pipe"
+path = "/configure"
+ai_hint = "Desktop entry for MiOS Settings — the one unified configuration surface. Launches mios-configurator-launch, which opens the configurator embedded in the MiOS Portal (http://localhost:{port}/configure) and falls back to the standalone HTML editor only when the Portal is unreachable. All settings serialise to the mios.toml SSOT (identity, AI models, packages, flatpaks, desktop)."
+ai_related = "/etc/mios/mios.toml, /usr/libexec/mios/mios-configurator-launch, mios-configurator-launch, http://localhost:{port}/configure"
 trailing_comments = [
   "# WSLg auto-publishes this entry to the Windows Start Menu under",
   "# \"<Distro> Apps\" when MiOS-DEV is the source distro, so the same",
