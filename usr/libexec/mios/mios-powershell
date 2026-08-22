@@ -1,13 +1,27 @@
 #!/bin/bash
-# AI-hint: Executes PowerShell scripts on Windows via pwsh.exe or powershell.exe, providing a first-class `powershell_run` verb for agents to interact with Windows cmdlets, registry, and COM objects with standardized JSON output.
-# AI-related: /usr/libexec/mios/mios-powershell, mios-ttyd-powershell, mios-ps-XXXXXX, mios-ps, mios-ps-out-XXXXXX, mios-ps-err-XXXXXX, mios-ttyd-powershell.service
-# AI-functions: usage, _truncate
+# AI-hint: Executes PowerShell scripts on Windows via pwsh.exe or powershell.exe, providing a first-class `powershell_run` verb for agents to interact with Windows cmdlets, registry, and COM objects with standardized JSON output. The success stream is FLATTENED through Out-String at an explicit width because the broker runs with no console: PowerShell's default formatter sizes every column against a window width of -1 and renders each object as a BLANK LINE, so an object-returning cmdlet otherwise reaches the model as empty output. Knobs live in mios.toml [powershell]; manual ch57.
+# AI-related: /usr/libexec/mios/mios-powershell, mios-ttyd-powershell, mios-ps-XXXXXX, mios-ps, mios-ps-out-XXXXXX, mios-ps-err-XXXXXX, mios-ttyd-powershell.service, usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh
+# AI-functions: usage, _cfg_bool, _ps_squote, _win_path, _flatten_prologue, _wrap_call, _truncate
 set -euo pipefail
 
 set -u
 
+for _ue in /usr/lib/mios/userenv.sh /usr/share/mios/tools/lib/userenv.sh; do
+    if [ -r "$_ue" ]; then
+        # shellcheck disable=SC1090
+        . "$_ue" >/dev/null 2>&1 || true
+        break
+    fi
+done
+
 MAX_SCRIPT_BYTES="${MIOS_POWERSHELL_MAX_SCRIPT_BYTES:-65536}"   # 64 KiB
 MAX_OUTPUT_BYTES="${MIOS_POWERSHELL_MAX_OUTPUT_BYTES:-262144}"  # 256 KiB
+FLATTEN="${MIOS_POWERSHELL_FLATTEN:-true}"
+FLATTEN_WIDTH="${MIOS_POWERSHELL_FLATTEN_WIDTH:-200}"
+ENUM_LIMIT="${MIOS_POWERSHELL_ENUMERATION_LIMIT:-16}"
+PLAIN_TEXT="${MIOS_POWERSHELL_PLAIN_TEXT:-true}"
+TRIM_TRAILING="${MIOS_POWERSHELL_TRIM_TRAILING:-true}"
+STAGE_DIR="${MIOS_POWERSHELL_STAGE_DIR:-/mnt/c/Users/Public/Documents/mios-ps}"
 
 usage() {
     cat <<'USAGE'
@@ -19,7 +33,60 @@ First-class Windows-side PowerShell execution. The script runs
 under pwsh.exe (preferred) or powershell.exe with -NoProfile
 -NonInteractive. stdout / stderr / exit code are returned to
 the caller (or wrapped in a JSON envelope with --json).
+
+The success stream is flattened through Out-String at an explicit
+width, so cmdlets that emit .NET objects arrive as plain text
+instead of the blank lines a console-less formatter produces.
+Disable with [powershell].flatten = false.
 USAGE
+}
+
+_cfg_bool() {
+    case "${1,,}" in
+        1|true|yes|on) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
+# Escape a value for a PowerShell single-quoted literal.
+_ps_squote() { printf "'%s'" "${1//\'/\'\'}"; }
+
+# WSL mount -> the Windows form of the same path (/mnt/c/x -> C:\x). A path
+# outside /mnt/<drive> is already native and passes through unchanged.
+_win_path() {
+    local p="$1"
+    if [[ "$p" =~ ^/mnt/([a-zA-Z])(/.*)?$ ]]; then
+        local drive="${BASH_REMATCH[1]}" rest="${BASH_REMATCH[2]:-}"
+        printf '%s:%s' "${drive^^}" "${rest//\//\\}"
+    else
+        printf '%s' "$p"
+    fi
+}
+
+# Runspace prologue. Without a console WindowSize.Width is -1, every formatter
+# column collapses to zero and objects render as blank lines.
+_flatten_prologue() {
+    if _cfg_bool "$PLAIN_TEXT"; then
+        printf '%s' 'try{$PSStyle.OutputRendering="PlainText"}catch{}; '
+    fi
+    if _cfg_bool "$FLATTEN"; then
+        printf '$FormatEnumerationLimit=%d; ' "$ENUM_LIMIT"
+    fi
+    printf '%s' 'try{[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new($false);$OutputEncoding=[System.Text.UTF8Encoding]::new($false)}catch{}; '
+    if [[ -n "$WORK_DIR" ]]; then
+        printf 'Set-Location -LiteralPath %s; ' "$(_ps_squote "$WORK_DIR")"
+    fi
+}
+
+# `& <script>` keeps the callee a real script: its own line numbers survive in
+# error records, and its `exit N` returns here through $LASTEXITCODE instead of
+# killing the runspace with the format buffer still unflushed.
+_wrap_call() {
+    if _cfg_bool "$FLATTEN"; then
+        printf '%s | Out-String -Stream -Width %d' "$1" "$FLATTEN_WIDTH"
+    else
+        printf '%s' "$1"
+    fi
 }
 
 if [[ "$#" -eq 0 ]]; then
@@ -59,9 +126,10 @@ done
 
 if [[ "$SHELL_MODE" -eq 1 ]]; then
     for cand in \
+        "${MIOS_POWERSHELL_EXE:-}" \
         "/mnt/c/Program Files/PowerShell/7/pwsh.exe" \
         "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
-        if [[ -x "$cand" ]]; then
+        if [[ -n "$cand" && -x "$cand" ]]; then
             exec "$cand" -NoProfile
         fi
     done
@@ -93,9 +161,10 @@ fi
 
 PWSH=""
 for cand in \
+    "${MIOS_POWERSHELL_EXE:-}" \
     "/mnt/c/Program Files/PowerShell/7/pwsh.exe" \
     "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe"; do
-    if [[ -x "$cand" ]]; then
+    if [[ -n "$cand" && -x "$cand" ]]; then
         PWSH="$cand"
         break
     fi
@@ -115,20 +184,25 @@ if [[ -z "$PWSH" ]]; then
     exit 1
 fi
 
+# The user script, verbatim -- nothing prepended, so an error record still
+# names the caller's own line number.
+BODY_FILE="$(mktemp -t mios-ps-body-XXXXXX.ps1)"
 TMPFILE="$(mktemp -t mios-ps-XXXXXX.ps1)"
-trap 'rm -f "$TMPFILE"' EXIT
+trap 'rm -f "$TMPFILE" "$BODY_FILE"' EXIT
+printf '%s\n' "$SCRIPT" > "$BODY_FILE"
 {
-  printf '%s\n' 'try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false); $OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}'
-  printf '%s\n' "$SCRIPT"
+  cat "$BODY_FILE"
   printf '%s\n' 'exit ([int]$LASTEXITCODE)'
 } > "$TMPFILE"
 
-WIN_STAGE_DIR="/mnt/c/Users/Public/Documents/mios-ps"
+WIN_STAGE_DIR="$STAGE_DIR"
+WIN_STAGE_WIN="$(_win_path "$STAGE_DIR")"
+WIN_SEP="/"; [[ "$WIN_STAGE_WIN" == *"\\"* ]] && WIN_SEP="\\"
 WIN_PATH=""
 if mkdir -p "$WIN_STAGE_DIR" 2>/dev/null && [[ -w "$WIN_STAGE_DIR" ]]; then
     cp "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"
-    WIN_PATH="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$TMPFILE")"
-    trap 'rm -f "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"' EXIT
+    WIN_PATH="${WIN_STAGE_WIN}${WIN_SEP}$(basename "$TMPFILE")"
+    trap 'rm -f "$TMPFILE" "$BODY_FILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"' EXIT
 fi
 
 if [[ "$ELEVATE" -eq 1 ]] && [[ -z "$WIN_PATH" ]]; then
@@ -146,70 +220,67 @@ if [[ "$ELEVATE" -eq 1 ]]; then
     touch "$OUT_FILE" "$ERR_FILE"
     cp "$OUT_FILE" "$WIN_STAGE_DIR/$(basename "$OUT_FILE")"
     cp "$ERR_FILE" "$WIN_STAGE_DIR/$(basename "$ERR_FILE")"
-    trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" "${WIN_STAGE_DIR}/$(basename "$OUT_FILE")" "${WIN_STAGE_DIR}/$(basename "$ERR_FILE")" 2>/dev/null' EXIT
+    trap 'rm -f "$TMPFILE" "$BODY_FILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" "${WIN_STAGE_DIR}/$(basename "$OUT_FILE")" "${WIN_STAGE_DIR}/$(basename "$ERR_FILE")" 2>/dev/null' EXIT
 else
-    trap 'rm -f "$TMPFILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" 2>/dev/null' EXIT
-fi
-
-PWSH_ARGS=(-NoProfile -NonInteractive -ExecutionPolicy Bypass)
-if [[ -n "$WIN_PATH" ]]; then
-    PWSH_ARGS+=(-File "$WIN_PATH")
-else
-    PWSH_ARGS+=(-Command "-")
-fi
-
-if [[ -n "$WORK_DIR" ]]; then
-    {
-        printf 'Set-Location -LiteralPath %s\n' "$(printf "'%s'" "${WORK_DIR//\'/\'\'}" )"
-        cat "$TMPFILE"
-    } > "${TMPFILE}.cd"
-    mv "${TMPFILE}.cd" "$TMPFILE"
-    if [[ -n "$WIN_PATH" ]]; then
-        cp "$TMPFILE" "$WIN_STAGE_DIR/$(basename "$TMPFILE")"
-    fi
+    trap 'rm -f "$TMPFILE" "$BODY_FILE" "$OUT_FILE" "$ERR_FILE" "${WIN_STAGE_DIR}/$(basename "$TMPFILE")" 2>/dev/null' EXIT
 fi
 
 EXIT_CODE=0
 if [[ "$ELEVATE" -eq 1 ]]; then
-    WIN_OUT_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$OUT_FILE")"
-    WIN_ERR_FILE="C:\\Users\\Public\\Documents\\mios-ps\\$(basename "$ERR_FILE")"
-    
-    WIN_PWSH=""
-    if [[ "$PWSH" == "/mnt/c/Program Files/PowerShell/7/pwsh.exe" ]]; then
-        WIN_PWSH="C:\\Program Files\\PowerShell\\7\\pwsh.exe"
-    elif [[ "$PWSH" == "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe" ]]; then
-        WIN_PWSH="C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
-    else
-        WIN_PWSH="$(basename "$PWSH")"
-    fi
-    
+    WIN_OUT_FILE="${WIN_STAGE_WIN}${WIN_SEP}$(basename "$OUT_FILE")"
+    WIN_ERR_FILE="${WIN_STAGE_WIN}${WIN_SEP}$(basename "$ERR_FILE")"
+
+    WIN_PWSH="$(_win_path "$PWSH")"
+    [[ "$WIN_PWSH" == "$PWSH" ]] && WIN_PWSH="$(basename "$PWSH")"
+
     WIN_PATH_ESC="${WIN_PATH//\\/\\\\}"
     WIN_OUT_ESC="${WIN_OUT_FILE//\\/\\\\}"
     WIN_ERR_ESC="${WIN_ERR_FILE//\\/\\\\}"
     PWSH_ESC="${WIN_PWSH//\\/\\\\}"
-    
-    ELEVATED_SCRIPT="& '$WIN_PATH_ESC' > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE"
+
+    ELEVATED_SCRIPT="$(_flatten_prologue)$(_wrap_call "& '$WIN_PATH_ESC'") > '$WIN_OUT_ESC' 2> '$WIN_ERR_ESC'; exit \$LASTEXITCODE"
     ENCODED_CMD=$(printf '%s' "$ELEVATED_SCRIPT" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')
-    
+
     ELEVATE_CMD="try { \$p = Start-Process '$PWSH_ESC' -Verb RunAs -Wait -PassThru -WindowStyle Hidden -ArgumentList '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', '$ENCODED_CMD'; exit \$p.ExitCode } catch { [Console]::Error.WriteLine('UAC elevation failed: ' + \$_.Exception.Message); exit 1223 }"
-    
+
     timeout --preserve-status "$TIMEOUT" "$PWSH" -NoProfile -ExecutionPolicy Bypass -Command "$ELEVATE_CMD" >/dev/null 2>"$ERR_FILE" || EXIT_CODE=$?
-    
+
     if [[ "$EXIT_CODE" -ne 1223 ]]; then
-        cat "/mnt/c/Users/Public/Documents/mios-ps/$(basename "$OUT_FILE")" >> "$OUT_FILE"
-        cat "/mnt/c/Users/Public/Documents/mios-ps/$(basename "$ERR_FILE")" >> "$ERR_FILE"
+        cat "${WIN_STAGE_DIR}/$(basename "$OUT_FILE")" >> "$OUT_FILE"
+        cat "${WIN_STAGE_DIR}/$(basename "$ERR_FILE")" >> "$ERR_FILE"
     fi
+elif [[ -n "$WIN_PATH" ]]; then
+    timeout --preserve-status "$TIMEOUT" "$PWSH" \
+        -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -Command "$(_flatten_prologue)$(_wrap_call "& $(_ps_squote "$WIN_PATH")"); exit ([int]\$LASTEXITCODE)" \
+        >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
 else
-    if [[ -n "$WIN_PATH" ]]; then
-        timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
-            >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+    # No Windows-visible path to `&`: the script becomes an inline scriptblock
+    # carried by -EncodedCommand. `-Command -` cannot serve here -- it reads
+    # stdin a line at a time, so a multi-line block never parses. Flattening
+    # still applies; an error record reports the wrapper's line, not the
+    # caller's.
+    INLINE="$(_flatten_prologue)"
+    if _cfg_bool "$FLATTEN"; then
+        INLINE+="& {
+$(cat "$BODY_FILE")
+} | Out-String -Stream -Width ${FLATTEN_WIDTH}"
     else
-        timeout --preserve-status "$TIMEOUT" "$PWSH" "${PWSH_ARGS[@]}" \
-            <"$TMPFILE" >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
+        INLINE+="$(cat "$BODY_FILE")"
     fi
+    INLINE+='
+exit ([int]$LASTEXITCODE)'
+    INLINE_B64="$(printf '%s' "$INLINE" | iconv -f UTF-8 -t UTF-16LE | base64 | tr -d '\n')"
+    timeout --preserve-status "$TIMEOUT" "$PWSH" \
+        -NoProfile -NonInteractive -ExecutionPolicy Bypass \
+        -EncodedCommand "$INLINE_B64" \
+        >"$OUT_FILE" 2>"$ERR_FILE" || EXIT_CODE=$?
 fi
 
 sed -i 's/\r$//' "$OUT_FILE" "$ERR_FILE" 2>/dev/null || true
+if _cfg_bool "$FLATTEN" && _cfg_bool "$TRIM_TRAILING"; then
+    sed -i 's/[[:blank:]]*$//' "$OUT_FILE" 2>/dev/null || true
+fi
 
 _truncate() {
     local file="$1" cap="$2"
@@ -226,18 +297,19 @@ _truncate "$OUT_FILE" "$MAX_OUTPUT_BYTES"
 _truncate "$ERR_FILE" "$MAX_OUTPUT_BYTES"
 
 if [[ "$EMIT_JSON" -eq 1 ]]; then
-    python3 -c "
-import json
-with open('$OUT_FILE') as f: out = f.read()
-with open('$ERR_FILE') as f: err = f.read()
+    MIOS_PS_OUT="$OUT_FILE" MIOS_PS_ERR="$ERR_FILE" MIOS_PS_RC="$EXIT_CODE" python3 -c '
+import json, os
+with open(os.environ["MIOS_PS_OUT"], encoding="utf-8", errors="replace") as f: out = f.read()
+with open(os.environ["MIOS_PS_ERR"], encoding="utf-8", errors="replace") as f: err = f.read()
+rc = int(os.environ["MIOS_PS_RC"])
 print(json.dumps({
-    'ok': $EXIT_CODE == 0,
-    'verb': 'powershell_run',
-    'exit_code': $EXIT_CODE,
-    'stdout': out,
-    'stderr': err,
+    "ok": rc == 0,
+    "verb": "powershell_run",
+    "exit_code": rc,
+    "stdout": out,
+    "stderr": err,
 }))
-"
+'
 else
     cat "$OUT_FILE"
     if [[ -s "$ERR_FILE" ]]; then

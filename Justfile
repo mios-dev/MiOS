@@ -98,6 +98,8 @@ drift-gate:
     bash ./tests/test-firstboot-prestage.sh
     @echo "[drift-gate] tests/test-pgvector-major-upgrade.sh"
     bash ./tests/test-pgvector-major-upgrade.sh
+    @echo "[drift-gate] tests/test-powershell-flatten.sh"
+    bash ./tests/test-powershell-flatten.sh
     @echo "[drift-gate] usr/lib/mios/test_mios_comments.py"
     python3 ./usr/lib/mios/test_mios_comments.py
     @echo "[drift-gate] tests/test-mios-manual-harvest.sh"

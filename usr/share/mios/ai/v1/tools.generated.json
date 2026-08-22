@@ -705,7 +705,7 @@
       "tier": "rare"
     },
     {
-      "description": "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead.",
+      "description": "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Object output is flattened to plain text, so cmdlets that emit .NET objects (Get-Service, Get-Process, Get-ChildItem) return readable tables. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead.",
       "hidden": false,
       "model_name": "",
       "name": "powershell_run",

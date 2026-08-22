@@ -265,6 +265,13 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [What Only Running It Revealed](manual/ch56-persistent-shell-sessions.md#56_what_only_running_it_revealed): Details the echo, hang and lost-head defects the unit tests could not see.
   * [Session Isolation](manual/ch56-persistent-shell-sessions.md#56_session_isolation): Explains the session-key rules that stop one chat reading another's shell.
   * [Shell Session Configuration](manual/ch56-persistent-shell-sessions.md#56_shell_session_configuration): Lists the [shell_session] keys and the run_in_shell verb.
+* **[Chapter 57: PowerShell Object Flattening](manual/ch57-powershell-object-flattening.md)**
+  * [The Failure Was Silence](manual/ch57-powershell-object-flattening.md#57_the_failure_was_silence): Covers why an object-returning cmdlet returned a blank line, not noise.
+  * [Why the Obvious Fixes Fail](manual/ch57-powershell-object-flattening.md#57_why_the_obvious_fixes_fail): Details the three interception approaches a console-less runspace defeats.
+  * [The Wrapper](manual/ch57-powershell-object-flattening.md#57_the_wrapper): Explains the four properties the call form has to hold at once.
+  * [The No-Staging Fallback](manual/ch57-powershell-object-flattening.md#57_the_no_staging_fallback): Covers why -EncodedCommand replaces the line-at-a-time stdin reader.
+  * [PowerShell Configuration](manual/ch57-powershell-object-flattening.md#57_powershell_configuration): Lists the [powershell] keys and the derived Windows staging path.
+  * [Flattening Tests](manual/ch57-powershell-object-flattening.md#57_flattening_tests): Details the stub and live tiers of test-powershell-flatten.sh.
 
 ---
 
@@ -333,6 +340,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch54-agent-pipe-importability.md` | Chapter 54: Agent-Pipe Importability. Records the defect class that let agent-pipe's server module reference names nothing defines, the three undefined module-scope names that made it unimportable,... |
 | `usr/share/doc/mios/manual/ch55-dead-schema-and-half-wired-units.md` | Chapter 55: Dead Schema and Half-Wired Units. Two fitness functions for things that exist but do nothing. check_schema_consumers requires every table in schema-init.sql to have a real code consumer,... |
 | `usr/share/doc/mios/manual/ch56-persistent-shell-sessions.md` | Chapter 56: Persistent Shell Sessions. Explains the SHELL-01 substrate that lets cwd, environment and history survive across agent turns. Covers the BEGIN/END nonce framing and the two spoofing... |
+| `usr/share/doc/mios/manual/ch57-powershell-object-flattening.md` | Chapter 57: PowerShell Object Flattening. Records why an object-returning cmdlet reached the model as a BLANK LINE rather than as noise, how a console-less runspace collapses every formatter column... |
 
-<!-- derived from the AI-hint headers of 56 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 57 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

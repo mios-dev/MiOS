@@ -3688,6 +3688,19 @@ max_output_lines = 400
 history_limit    = 50000  # tmux keeps 2000 lines by default; a long command would lose its HEAD
 
 # ----------------------------------------------------------------------------
+# [powershell] -- Windows-side `powershell_run` execution (mios-powershell).
+# Object-pipeline flattening and the script/output caps: manual ch57.
+[powershell]
+flatten           = true    # render the success stream through Out-String
+flatten_width     = 200     # column budget the formatter sizes tables against
+enumeration_limit = 16      # $FormatEnumerationLimit -- nested items shown before "..."
+plain_text        = true    # $PSStyle.OutputRendering: strip ANSI from output and errors
+trim_trailing     = true    # drop formatter column padding before the JSON envelope
+max_script_bytes  = 65536   # inbound script cap
+max_output_bytes  = 262144  # per-stream cap applied after flattening
+stage_dir         = '/mnt/c/Users/Public/Documents/mios-ps'   # Windows-visible staging mount
+
+# ----------------------------------------------------------------------------
 # [consensus] -- CONS-01 weighted multi-judge Definition-of-Done.
 # Fold, abstention rule, quorum floor and weighting: manual ch52.
 [consensus]
@@ -6904,7 +6917,7 @@ permission = "interactive"
 [verbs.powershell_run]
 section    = "Windows-side shell"
 sig        = "script, timeout=30?, work_dir?"
-desc       = "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead."
+desc       = "Execute a PowerShell script on the WINDOWS side (not the Linux sandbox). High-privilege -- tainted sessions are refused; script cap 64 KiB. Object output is flattened to plain text, so cmdlets that emit .NET objects (Get-Service, Get-Process, Get-ChildItem) return readable tables. Use for Windows-host administration / cmdlets. For sandboxed Linux bash/python use run_sandboxed_code instead."
 examples   = ["run a powershell command on windows", "set a windows firewall rule via powershell", "query windows services with get-service", "run this .ps1 on the host"]
 tier       = "rare"
 permission = "write"
