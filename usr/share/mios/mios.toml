@@ -3638,6 +3638,11 @@ oversize = [
     { path = "mios_pipe/routing/refine.py",        lines = 1120 },
     { path = "mios_pipe/routing/swarm.py",         lines = 1062 },
     { path = "mios_pipe/routing/web_research.py",  lines =  987 },
+    # Agent-pipe ROOT modules. These sat outside every earlier version of this
+    # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
+    # own remainder and mios_dispatch.py is T-273's named target.
+    { path = "mios_dispatch.py",                   lines = 1178 },
+    { path = "server.py",                          lines = 4979 },
 ]
 
 # ----------------------------------------------------------------------------

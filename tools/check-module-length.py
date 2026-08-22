@@ -13,7 +13,10 @@ except ModuleNotFoundError:  # pragma: no cover -- py<3.11
     import tomli as tomllib  # type: ignore
 
 PKG = os.path.join("usr", "lib", "mios", "agent-pipe")
-SUBDIR = "mios_pipe"
+# The whole agent-pipe tree, not just mios_pipe/: mios_dispatch.py (1178 lines)
+# and server.py (4979) live at the ROOT and were outside every earlier version
+# of this gate. Shims are excluded -- they are ~28 lines of lazy re-export.
+SUBDIRS = ("mios_pipe", ".")
 
 
 def load_policy(root: str) -> tuple:
@@ -29,6 +32,15 @@ def load_policy(root: str) -> tuple:
     return max_lines, recorded
 
 
+def _is_shim(path: str) -> bool:
+    """A lazy re-export shim (~28 lines) is not a module worth sizing."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            return "Re-export shim for" in fh.read(400)
+    except OSError:
+        return False
+
+
 def _count(path: str) -> int:
     with open(path, "rb") as fh:
         return sum(1 for _ in fh)
@@ -38,18 +50,35 @@ def scan(root: str) -> tuple:
     """Return (violations, checked). A violation is a human-readable string."""
     max_lines, recorded = load_policy(root)
     base = os.path.join(root, PKG)
-    top = os.path.join(base, SUBDIR)
-    if not os.path.isdir(top):
+    if not os.path.isdir(base):
         return [], 0
     seen = set()
     bad = []
     checked = 0
-    for dirpath, _dirs, files in os.walk(top):
-        for fn in sorted(files):
+    scanned = set()
+    walked = []
+    for sub in SUBDIRS:
+        top = os.path.normpath(os.path.join(base, sub))
+        if not os.path.isdir(top):
+            continue
+        if sub == ".":
+            walked.append((top, sorted(os.listdir(top))))
+        else:
+            for dirpath, _dirs, files in os.walk(top):
+                walked.append((dirpath, sorted(files)))
+    for dirpath, files in walked:
+        for fn in files:
             if not fn.endswith(".py") or fn == "__init__.py":
                 continue
             full = os.path.join(dirpath, fn)
+            if not os.path.isfile(full):
+                continue
             rel = os.path.relpath(full, base).replace(os.sep, "/")
+            if rel in scanned:
+                continue
+            scanned.add(rel)
+            if _is_shim(full):
+                continue
             checked += 1
             n = _count(full)
             if rel in recorded:

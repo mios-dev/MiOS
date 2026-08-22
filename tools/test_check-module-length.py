@@ -86,6 +86,30 @@ def t_init_and_nonpy_skipped():
     shutil.rmtree(root)
 
 
+def t_root_level_module_is_seen():
+    """mios_dispatch.py and server.py live at the agent-pipe ROOT, outside
+    mios_pipe/. Both earlier versions of this gate walked only mios_pipe/, so
+    the two biggest modules in the package were never sized."""
+    root = mkroot({"root_big.py": 900})
+    bad, checked = run(root)
+    check("a ROOT-level module is scanned", checked >= 1)
+    check("a ROOT-level module over the limit fails",
+          any("root_big.py" in b for b in bad))
+    shutil.rmtree(root)
+
+
+def t_shim_is_skipped():
+    """A lazy re-export shim is ~28 lines of boilerplate, not a module."""
+    root = mkroot({"shim_mod.py": 5})
+    full = os.path.join(root, M.PKG, "shim_mod.py")
+    with open(full, "w") as fh:
+        fh.write("# AI-hint: Re-export shim for mios_pipe.routing.thing\n")
+        fh.write("\n".join(str(i) for i in range(900)) + "\n")
+    bad, checked = run(root)
+    check("a re-export shim is excluded from sizing", bad == [])
+    shutil.rmtree(root)
+
+
 def t_grandfathered_at_recorded_passes():
     root = mkroot({"mios_pipe/routing/legacy.py": 1200},
                   oversize=[("mios_pipe/routing/legacy.py", 1200)])
@@ -137,6 +161,8 @@ def main():
     t_new_oversize_fails()
     t_nested_is_seen()
     t_init_and_nonpy_skipped()
+    t_root_level_module_is_seen()
+    t_shim_is_skipped()
     t_grandfathered_at_recorded_passes()
     t_grandfathered_growth_fails()
     t_grandfathered_shrink_fails()
