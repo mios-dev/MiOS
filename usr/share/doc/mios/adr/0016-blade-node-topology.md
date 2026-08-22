@@ -341,19 +341,32 @@ must never imply a role.
 
 **Costs and hazards**
 
-* **Greenboot already degrades open, and `[greenboot].critical_services` is why that is luck rather
-  than design.** The shipped check `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh` opens each
-  probe with `systemctl is-enabled --quiet "$unit" || { log "not enabled on this role"; return 0; }`,
-  so a seat that never enables `mios-llm-light`/`mios-pgvector` passes cleanly — there is no rollback
-  loop. But it passes because the check reads `is-enabled`, **not** because it reads the SSOT: it
-  hardcodes its own four unit/port pairs and never consults `[greenboot].critical_services`.
-  `MIOS_GREENBOOT_CRITICAL_SERVICES` is emitted by both `globals` twins and consumed by no shipped
-  code — the same decorative-key failure as `[profile].role`, and it has already drifted: the SSOT
-  lists three services, the check probes four (it adds `hermes`), and `check_greenboot` in
-  `automation/98-drift-checks.sh` hardcodes the *check's* four rather than the *SSOT's* three, so the
-  script and its gate agree with each other while both ignore the source of truth. The work is
-  therefore not "make greenboot role-aware" — it is *give the existing role-awareness an SSOT*, so a
-  seat's critical set is declared rather than inferred from whatever happens to be enabled.
+* **A seat would have rolled itself back on every boot, and I said twice that it would not.** The
+  first draft of this ADR predicted the rollback loop; the second "corrected" it on the grounds that
+  `40-mios-ai-plane.sh` opens each probe with `systemctl is-enabled --quiet "$unit" || return 0`.
+  That correction was wrong. **`is-enabled` reports installation, not whether a unit will start.**
+  `Condition*` is evaluated at *start* time, so a capability-skipped unit is still enabled — and a
+  Quadlet-generated unit reports `generated`, which also exits 0. On a seat the guard therefore does
+  not fire: greenboot probes `mios-pgvector` and `mios-llm-light` on ports nothing is listening on,
+  fails the required check, and hands `bootc` a bad boot.
+
+  *Evidence level, stated honestly:* the units carry `[Install] WantedBy=` so Quadlet installs them,
+  and `Condition*`-vs-enablement is documented systemd behaviour — but this container has no system
+  bus and no man pages, so that half is reasoning rather than measurement. The fix does not depend on
+  resolving it: the probe now asks **the same question the unit's own `ConditionPathExists` asks** —
+  is the capability marker present in `/etc/mios/blade.d/`. Under the pessimistic reading that
+  removes the rollback loop; under the optimistic one it replaces an accident with a design.
+  `tests/test-greenboot-blade-guard.sh` exercises the real predicate against a fixture tree (no
+  systemd required) and runs in CI; neutering the marker check turns it red. It degrades open when
+  the blade resolver has not run at all, per Law 12.
+
+* **`[greenboot].critical_services` is still read by nothing.** The check
+  hardcodes its own four unit/port pairs. `MIOS_GREENBOOT_CRITICAL_SERVICES` is emitted by both
+  `globals` twins and consumed by no shipped code — the same decorative-key failure as
+  `[profile].role`, and it had already drifted: the SSOT lists three services, the check probes four
+  (it adds `hermes`), and `check_greenboot` hardcoded the *check's* four rather than the *SSOT's*
+  three, so the script and its gate agreed with each other while both ignored the source of truth.
+  The gate now reads the SSOT; wiring the *probe* to it is what remains of T-314.
 * **Whether a seat's "critical" may include reaching its blade is now a recorded choice**, not an
   implication: `[greenboot].blade_reachability_critical` defaults to `false`, so Law 12 holds by
   default (degrade open, never block boot) and an operator who wants a seat to fail its boot when

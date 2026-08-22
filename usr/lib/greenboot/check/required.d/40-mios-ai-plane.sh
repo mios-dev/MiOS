@@ -12,6 +12,12 @@ ENV_FILE=/etc/mios/install.env
 log()  { echo "[mios-greenboot] $*"; }
 fail() { echo "[mios-greenboot] $*" >&2; }
 
+# /run/mios/blade.env carries MIOS_BLADE_CAPS, written by role-apply.
+if [[ -r /run/mios/blade.env ]]; then
+    # shellcheck disable=SC1091
+    . /run/mios/blade.env 2>/dev/null || true
+fi
+
 if [[ -r "$ENV_FILE" ]]; then
     _mios_had_u=0; case "$-" in *u*) _mios_had_u=1;; esac
     set +u; set -a
@@ -39,9 +45,31 @@ _http_up() {
     esac
 }
 
+# A unit this blade does not activate must not be probed. `systemctl is-enabled`
+# reports INSTALLATION, not whether the unit will start: Condition* is evaluated
+# at start time, so a capability-skipped unit still reads as enabled (a Quadlet
+# unit reads "generated", which also exits 0). Ask the SAME question the unit's
+# own ConditionPathExists asks -- is the capability marker present.
+_blade_activates() {
+    local unit="$1" caps cap
+    caps="$(printf '%s' "${MIOS_BLADE_CAPS:-}" | tr ',' ' ')"
+    # No resolver output at all: degrade OPEN and probe, as before (Law 12).
+    [[ -z "$caps" && ! -d /etc/mios/blade.d ]] && return 0
+    for f in "/usr/lib/systemd/system/${unit}.d"/50-blade-*.conf; do
+        [[ -e "$f" ]] || continue
+        cap="${f##*/50-blade-}"; cap="${cap%.conf}"
+        [[ -e "/etc/mios/blade.d/${cap}" ]] || return 1
+    done
+    return 0
+}
+
 check_service() {
     local unit="$1" port="$2" kind="$3" path="${4:-}" deadline probe_desc
 
+    if ! _blade_activates "$unit"; then
+        log "${unit} not activated by this blade type"
+        return 0
+    fi
     if ! systemctl is-enabled --quiet "$unit" 2>/dev/null; then
         log "${unit} not enabled on this role"
         return 0

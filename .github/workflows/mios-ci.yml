@@ -121,6 +121,10 @@ jobs:
         # The executable definition of MiOS-Mini.
         run: python3 ./tests/test-seat-activates-nothing.py
 
+      - name: Greenboot skips what the blade does not activate
+        # Without this guard a seat rolls itself back on every boot.
+        run: bash ./tests/test-greenboot-blade-guard.sh
+
       - name: Lint coverage (python + shell file sets)
         # Assert the linters still SEE every payload area. Enumerating dirs one
         # at a time is what left usr/share/mios unscanned; the shell twin had
