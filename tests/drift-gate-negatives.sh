@@ -1776,6 +1776,46 @@ test_schema_consumers() {
     log "Test_schema_consumers negative test passed"
 }
 
+test_tasks_status_parity() {
+    log "Testing check_tasks_status_parity"
+    local tasks="${ROOT}/TASKS.md"
+    local backup="${tasks}.negbak"
+    cp "$tasks" "$backup"
+
+    # Flip ONE summary-table cell away from what that task's own section says.
+    # The sabotage targets the first row whose status the gate can resolve, so
+    # the test does not depend on any particular task id surviving edits.
+    local tid
+    tid="$(grep -m1 -oE '^\| T-[0-9]+ \| P[0-9] \| (done|done-by-code|planned|in-progress) \|' "$tasks" \
+            | awk '{print $2}')"
+    if [[ -z "$tid" ]]; then
+        mv "$backup" "$tasks"
+        die "test_tasks_status_parity found no resolvable summary row to sabotage"
+    fi
+    sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P9 | pending |/" "$tasks"
+    sed -i "0,/^| ${tid} | P9 | pending |/s/| P9 |/| P1 |/" "$tasks"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1; then
+        mv "$backup" "$tasks"
+        die "check_tasks_status_parity passed while the summary table contradicted ${tid}'s own Status line"
+    fi
+    mv "$backup" "$tasks"
+
+    # The '?' placeholder must fail too -- it is how the drift hid for 28 rows.
+    cp "$tasks" "$backup"
+    sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P1 | ? |/" "$tasks"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1; then
+        mv "$backup" "$tasks"
+        die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"
+    fi
+    mv "$backup" "$tasks"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 \
+        || die "check_tasks_status_parity failed after restoration"
+
+    log "Test_tasks_status_parity negative test passed"
+}
+
 test_firstboot_provisioners() {
     log "Testing check_firstboot_provisioners"
     local unit="${ROOT}/usr/lib/systemd/system/mios-models-firstboot.service"
@@ -2655,6 +2695,7 @@ main() {
     test_module_length
     test_firstboot_provisioners
     test_schema_consumers
+    test_tasks_status_parity
     test_adr_index
     test_vendored_assets_non_stub
     test_resolved_env_lossless

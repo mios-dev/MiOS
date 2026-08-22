@@ -150,17 +150,18 @@
 149	check_module_length	check_module_length
 150	check_firstboot_provisioners	check_firstboot_provisioners
 151	check_schema_consumers	check_schema_consumers
-152	check_adr_index	check_adr_index
-153	check_vendored_assets_non_stub	vendored assets dir absent
-154	check_resolved_env_lossless	resolved environment is lossless
-155	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-156	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-157	check_value_aliases	value-alias consistency verified
-158	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-159	check_bash_phase_ratchet	bash phase script count ratchet check
-160	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-161	check_negatives_are_effective	negative-test effectiveness check
-162	check_skip_list_covered	checking workflow skip-list coverage and parity
-163	check_ai_manifests_fresh	checking AI manifest freshness
-164	check_ports_category_schema	checking port category schema (allocation + collisions)
-165	check_globals_generated	checking generated globals resolvers match SSOT
+152	check_tasks_status_parity	check_tasks_status_parity
+153	check_adr_index	check_adr_index
+154	check_vendored_assets_non_stub	vendored assets dir absent
+155	check_resolved_env_lossless	resolved environment is lossless
+156	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+157	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+158	check_value_aliases	value-alias consistency verified
+159	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+160	check_bash_phase_ratchet	bash phase script count ratchet check
+161	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+162	check_negatives_are_effective	negative-test effectiveness check
+163	check_skip_list_covered	checking workflow skip-list coverage and parity
+164	check_ai_manifests_fresh	checking AI manifest freshness
+165	check_ports_category_schema	checking port category schema (allocation + collisions)
+166	check_globals_generated	checking generated globals resolvers match SSOT

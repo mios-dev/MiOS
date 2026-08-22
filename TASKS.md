@@ -43,7 +43,7 @@
 | T-035 | P2 | done | Memory | MEM-02 -- Self-Editing Tiered Memory (MemGPT-style) |
 | T-036 | P2 | done | Memory/Context | MEM-03 -- Context Compaction + Stale Tool Result Clearing |
 | T-037 | P2 | done | Security/Orchestration | SEC-04 -- Per-Agent Access Control + HITL at MCP Chokepoint |
-| T-038 | P2 | done-by-code | Computer Use | CU-01 -- Computer-Use Action Hierarchy + Verify-After-Action |
+| T-038 | P2 | partial | Computer Use | CU-01 -- Computer-Use Action Hierarchy + Verify-After-Action |
 | T-039 | P2 | done | Observability/Reliability | OBS-02 -- AIOS-Bench Harness (Task Accuracy x Systems Metrics) |
 | T-040 | P2 | done | Observability | OBS-03 -- Record-and-Replay Determinism |
 | T-041 | P2 | done-by-code | Ops/Networking | C3 -- De-publish searxng + Drop Heavy-Alt Stray Port |
@@ -88,7 +88,7 @@
 | T-080 | P3 | done-by-code | Gateway/MCP | GWY-05 -- MCP Client: stdio â†’ mios-mcp-server (Phase 2) |
 | T-081 | P3 | done-by-code | Gateway/Tools | GWY-06 -- Skill Catalog + SearXNG + Browser Verb Pass-Through (P |
 | T-082 | P3 | done-by-code | Gateway/Config | GWY-07 -- Migrate Hermes Config to mios.toml [gateway] SSOT (Pha |
-| T-083 | P3 | done | Gateway/Ops | GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase  |
+| T-083 | P3 | partial | Gateway/Ops | GWY-08 -- Hermes ➔ mios-gateway-agent Service Transition (Phase  |
 | T-084 | P2 | done | Storage/Config | STRG-01 -- CephFS SSOT Block in mios.toml |
 | T-085 | P2 | done | Storage/Auth | STRG-02 -- mios-cephfs-provision Script + PAM Integration |
 | T-086 | P2 | done | Storage/Orchestration | STRG-03 -- Per-Session XDG_RUNTIME_DIR Isolation |
@@ -119,8 +119,8 @@
 | T-110 | P1 | done | Observability | FV-01 -- Canonical typed-event schema + per-surface routing + su |
 | T-111 | P1 | done | Tool-calling | CHATQ-02 -- Constrained tool-calling + tools-on-final + verb-cat |
 | T-112 | P1 | done | Tool-calling/Grounding | CHATQ-03 -- First-class list_dir verb + cwd act-before-answer gr |
-| T-113 | P0 | ? | Anti-Fabrication/Orchestration | FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no r |
-| T-114 | P0 | ? | Anti-Fabrication/Grounding | FAB-02 -- pipeline fabricates web/news content + invents entitie |
+| T-113 | P0 | done-by-code | Anti-Fabrication/Orchestration | FAB-01 -- @ agent-pipe FABRICATES tool execution + results (no r |
+| T-114 | P0 | done-by-code | Anti-Fabrication/Grounding | FAB-02 -- pipeline fabricates web/news content + invents entitie |
 | T-115 | P1 | done | Observability | CQ1 refine scaffold STILL leaking on CLI + redundant refine pass |
 | T-116 | P1 | done | OS-Control | OSCTL-01 -- Hermes browser opens NEW WINDOWS instead of reusing  |
 | T-117 | P1 | done | OS-Control | OSCTL-02 -- Hermes container-exec: stale container name + intera |
@@ -138,26 +138,26 @@
 | T-129 | P2 | done | Install/Windows | WIN-03 -- Podman CLI-only default + optional Desktop, and a logi |
 | T-130 | P3 | done | Install/Windows | WIN-04 -- Residual minimal-Win11 hardening (GPU driver / long-pa |
 | T-131 | P2 | done | Install/Windows | WIN-05 -- Zero-touch offline multi-user Win11 provisioning via S |
-| T-132 | P2 | ? | Windows/Install | WISO-01 -- Shared install-time provisioning core (`MiOS-Provisio |
-| T-133 | P2 | ? | Windows/Install | WISO-02 -- NTLite preset sanitizer (`ConvertTo-MiOSPreset.ps1` - |
-| T-134 | P2 | ? | Windows/Install | WISO-03 -- Schneegans autounattend generator + 96 GB C: carve  ( |
-| T-135 | P2 | ? | Windows/Install | WISO-04 -- Existing-Windows parity path (`Invoke-MiOSProvision.p |
-| T-136 | P3 | ? | Windows/Install | WISO-05 -- OEM driver export for slipstream (`Export-MiOSDrivers |
+| T-132 | P2 | done | Windows/Install | WISO-01 -- Shared install-time provisioning core (`MiOS-Provisio |
+| T-133 | P2 | done | Windows/Install | WISO-02 -- NTLite preset sanitizer (`ConvertTo-MiOSPreset.ps1` - |
+| T-134 | P2 | done | Windows/Install | WISO-03 -- Schneegans autounattend generator + 96 GB C: carve  ( |
+| T-135 | P2 | done | Windows/Install | WISO-04 -- Existing-Windows parity path (`Invoke-MiOSProvision.p |
+| T-136 | P3 | done | Windows/Install | WISO-05 -- OEM driver export for slipstream (`Export-MiOSDrivers |
 | T-137 | P2 | done | Windows/Install | WISO-06 -- UUP-Dump source-ISO automation (`mios-uup-fetch`)  [P |
 | T-138 | P2 | done | Windows/Install | WISO-07 -- DISM-native debloat + oscdimg assembly + CI  [P2] |
-| T-139 | P2 | ? | Windows/Install | WISO-08 -- Stage MiOS branding assets into the image  [P2] |
-| T-140 | P2 | ? | Windows/Gaming | XBOX-01 -- Xbox Full Screen Experience out of the box  [P2] |
-| T-141 | P3 | ? | Windows/Gaming | XBOX-02 -- Gaming loadout + Xbox tuning  [P3] |
-| T-142 | P2 | ? | Windows/Gaming | XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-t |
-| T-143 | P2 | ? | Windows/Branding | WBRAND-01 -- Global Windows branding/theme from SSOT  [P2] |
+| T-139 | P2 | done | Windows/Install | WISO-08 -- Stage MiOS branding assets into the image  [P2] |
+| T-140 | P2 | done | Windows/Gaming | XBOX-01 -- Xbox Full Screen Experience out of the box  [P2] |
+| T-141 | P3 | done | Windows/Gaming | XBOX-02 -- Gaming loadout + Xbox tuning  [P3] |
+| T-142 | P2 | done | Windows/Gaming | XBOX-03 -- MiOS-XBOX posture decision (A pure-gaming vs B keep-t |
+| T-143 | P2 | done | Windows/Branding | WBRAND-01 -- Global Windows branding/theme from SSOT  [P2] |
 | T-144 | P2 | pending | Linux/Branding | WBRAND-02 -- Linux desktop palette parity via matugen  [P2] |
 | T-145 | P3 | done | Windows/Branding | WBRAND-03 -- Re-assert branding on Windows update drift  [P3] |
-| T-146 | P2 | ? | Windows/Install | WEDITION-01 -- Editions SSOT matrix  [P2] |
-| T-147 | P1 | ? | Windows/SSOT | WEDITION-02 -- SSOT keys + configurator for the ISO/branding sur |
-| T-148 | P3 | ? | Windows/Install | WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`)   |
-| T-149 | P2 | ? | Windows/Install | WEDITION-04 -- Fold reverting generated-file changes into the ge |
-| T-150 | P2 | pending | Data/Accounts | ACCT-01 -- Account SSOT schema + install-time seeding (pgvector  |
-| T-151 | P2 | ? | Linux/Accounts | ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 |
+| T-146 | P2 | done | Windows/Install | WEDITION-01 -- Editions SSOT matrix  [P2] |
+| T-147 | P1 | done | Windows/SSOT | WEDITION-02 -- SSOT keys + configurator for the ISO/branding sur |
+| T-148 | P3 | done | Windows/Install | WEDITION-03 -- ARM64 / 26H1 handheld edition (`MiOS-XBOX-ARM`)   |
+| T-149 | P2 | done | Windows/Install | WEDITION-04 -- Fold reverting generated-file changes into the ge |
+| T-150 | P2 | completed | Data/Accounts | ACCT-01 -- Account SSOT schema + install-time seeding (pgvector  |
+| T-151 | P2 | completed | Linux/Accounts | ACCT-02 -- Linux DB-native accounts via NSS + PAM (libnss-pgsql2 |
 | T-152 | P2 | completed | Windows/Accounts | ACCT-03 -- Windows DB->SAM live account-sync service (MiOS-XBOX) |
 | T-153 | P2 | completed | UI/Accounts | ACCT-04 -- DB account management surfaces + consumer cutover  [P |
 | T-154 | P2 | pending | Agents/Orchestration | MAO-01 -- Typed handoffs + parallel guardrails + tracing spans   |
@@ -168,9 +168,9 @@
 | T-159 | P3 | pending | Agents/A2A | MAO-06 -- Progressive payload / token-efficiency modes  [P3] |
 | T-160 | P3 | pending | Agents/Reputation | MAO-07 -- Cheap contribution evaluation → reputation (IntrospecL |
 | T-161 | P2 | pending | Agents/Orchestration | MAO-08 -- Selectable topology + debate protocol from SSOT  [P2] |
-| T-162 | P3 | ? | Branding | WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permis |
-| T-163 | P3 | ? | Linux/Branding | WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quic |
-| T-164 | P3 | ? | Windows/Branding | WBRAND-06 -- Windows animated background + SSOT living-wallpaper |
+| T-162 | P3 | done | Branding | WBRAND-04 -- SSOT living-wallpaper shader (self-authored, permis |
+| T-163 | P3 | done | Linux/Branding | WBRAND-05 -- Linux living wallpaper (GNOME layer / optional Quic |
+| T-164 | P3 | done | Windows/Branding | WBRAND-06 -- Windows animated background + SSOT living-wallpaper |
 | T-165 | P2 | planned | SSOT/Cross-cutting | NAME-01 -- Global naming minification → one unified names/keys r |
 | T-166 | P1 | planned | Install/Deploy/SSOT | DEPLOY-01 -- Install/first-boot reorder → eliminate "missing dep |
 | T-167 | P2 | done | Tool-execution/Sandbox | SHELL-01 -- Persistent PTY / stateful shell substrate  [P2] |
@@ -181,11 +181,11 @@
 | T-172 | P2 | done | Observability/Safety | CONS-02 -- JSD drift monitor  [P2] |
 | T-173 | P0 | done | Autonomy/Safety | GUARD-01 -- Daemon runaway controls, FULLY implemented. `escalation_cooldown_s`/`escalation_max_attempts` were declared-and-dead (zero consumers); `_escalation_allowed()` now suppresses repeat escalation of the same concern inside the cooldown, parks it permanently at the attempt cap, keeps concerns independent, bounds its table and degrades open at cooldown<=0 -- applied at the refusal AND launch-verifier escalation sites. The host-pressure governor covered only 5 of 11 loops; the 6 that bypassed it (launch-verifier, fs-watcher, task-collector, index, satisfaction, rolling-report) now consult it, with fs-watcher still DRAINING inotify under pressure so the fd cannot overflow. `check_daemon_governor` (gate 160) makes it non-regressable: every autonomous loop must consult the gate, every [daemon] knob must have a real consumer (a mention in a comment or a test file does not count), and agent-pipe budget fallbacks must match the SSOT. 9-case + 7-case sibling tests, negative test. |
 | T-174 | P0 | done | Autonomy/Scheduling | GUARD-02 -- Aggregate token/turn budget + background preemption. Verified ENFORCED end to end: `chat.py` admits autonomous work against `autonomous_max_inflight` with a pruned in-flight set and debits a rolling `window_s` bucket; `agent_call.py` trims history when `conversation_token_ceil`/`autonomous_token_ceil` are exceeded and caps dispatch depth. FIXED: chat.py's fallback defaults had drifted MORE PERMISSIVE than the SSOT (autonomous_token_ceil 1,000,000 vs 400,000; autonomous_max_inflight 2 vs 1), so a failed TOML read silently ran 2.5x the token ceiling and double the concurrency. Now equal, and `check_daemon_governor` fails any future drift. |
-| T-175 | P1 | in-progress | Data/Durability | DURA-01 -- pgvector durability + exposure hardening. EXPOSURE AUDITED: the cluster binds `listen_addresses=127.0.0.1` on the `pgvector` port inside `mios-ai.pod` as uid 826 (not network-exposed), but its credential is `Environment=POSTGRES_PASSWORD=mios` in a WORLD-READABLE Quadlet -- and Law 11's enforcer never saw it, because it scans only `*.env`/`*secrets*` files for three hardcoded secret NAMES. A sweep found 7 such literals across units, including `WEBUI_SECRET_KEY=mios-stable-secret-change-me`. LANDED: `check_credential_literals` (gate 162) + `[security.credential_literals].grandfathered`, a SHRINK-ONLY registry -- the 7 are recorded, a NEW one fails the gate, and removing one without updating the list also fails. It distinguishes credentials from token COUNTS, boolean flags and `${VAR}` indirection (8-case sibling test + negative test). REMAINING for done: rotate the 7 into `/etc/mios/secrets.env` (0600) via `EnvironmentFile=`, which needs firstboot generation plus unit ordering AND a migration guard -- POSTGRES_PASSWORD only applies at initdb, so rotating it on an existing cluster locks the agent plane out of its own datastore. Needs a host to validate; not shippable blind. Durability (WAL/backup cadence) also still open. |
+| T-175 | P1 | planned | Data/Durability | DURA-01 -- pgvector durability + exposure hardening. EXPOSURE AUDITED: the cluster binds `listen_addresses=127.0.0.1` on the `pgvector` port inside `mios-ai.pod` as uid 826 (not network-exposed), but its credential is `Environment=POSTGRES_PASSWORD=mios` in a WORLD-READABLE Quadlet -- and Law 11's enforcer never saw it, because it scans only `*.env`/`*secrets*` files for three hardcoded secret NAMES. A sweep found 7 such literals across units, including `WEBUI_SECRET_KEY=mios-stable-secret-change-me`. LANDED: `check_credential_literals` (gate 162) + `[security.credential_literals].grandfathered`, a SHRINK-ONLY registry -- the 7 are recorded, a NEW one fails the gate, and removing one without updating the list also fails. It distinguishes credentials from token COUNTS, boolean flags and `${VAR}` indirection (8-case sibling test + negative test). REMAINING for done: rotate the 7 into `/etc/mios/secrets.env` (0600) via `EnvironmentFile=`, which needs firstboot generation plus unit ordering AND a migration guard -- POSTGRES_PASSWORD only applies at initdb, so rotating it on an existing cluster locks the agent plane out of its own datastore. Needs a host to validate; not shippable blind. Durability (WAL/backup cadence) also still open. |
 | T-176 | P1 | done | Security/Privacy | DURA-02 -- Secret/PII redaction on persist + federate. FEDERATE was already wired (a2a.py redacts every outbound task payload). PERSIST covered only 4 of the schema's 50 tables via a hardcoded tuple in `memory/pg.py`, leaving free-text sinks -- `scratch`, `session`, `gateway_sessions`, `fact_ledger`, `log_digest`, `kanban`, `tasks`, `mios_rag`, `skill_invocation`, `progress_ledger`, `pending_action`, `directory_entry`, `config_event`, `peer_reputation` -- writing raw. New `[security.redact]` SSOT classifies ALL 50 tables (18 redacted / 32 exempt, with structured key/config tables exempt because redaction would corrupt them, e.g. `agent_keypair.public_key_pem`). pg.py now reads the SSOT and FAILS CLOSED: a redaction error refuses the write instead of silently persisting raw text (CLAUDE.md: never persist secrets). `check_redact_coverage` (gate 161) fails any table classified in neither/both lists, any classified table absent from the schema, any free-text table dropped from the redact side, and any return to a hardcoded tuple. 8-case sibling test + negative test. |
 | T-177 | P3 | planned | Memory/Filesystem | LSFS-01 -- Semantic-FS verbs + task-state protocol  [P3] |
 | T-178 | P1 | in-progress | AI-plane/Inference/Deploy | HEAVY-01 -- provision the heavy dGPU model so the stated lanes d |
-| T-200 | P2 | planned | Provisioning/AI-lanes | FBM-01 -- First-boot large-model provisioner (`mios-models-first |
+| T-200 | P2 | in-progress | Provisioning/AI-lanes | FBM-01 -- First-boot large-model provisioner (`mios-models-first |
 | T-201 | P2 | done | SSOT/CLI | FBM-02 -- `[ai.firstboot_models]` SSOT + `mios models {list,sync |
 | T-202 | P3 | done-by-code | Provisioning/Containers | FBM-03 -- Heavy-lane bound-images first-boot pull (`mios-bound-i |
 | T-203 | P3 | planned | UI/Provisioning | FBM-04 -- Portal model-provisioning status tile + air-gapped pre |
@@ -211,29 +211,29 @@
 | T-223 | P3 | done-by-code | OpenAI-conformance | OAI-02 -- Tier-1 `usage` detail fields + strict function schemas |
 | T-224 | P2 | done | OS-control/ACI | OAI-03 -- Persistent PTY/tmux stateful shell + PowerShell object |
 | T-225 | P2 | in-progress | Orchestration/Determinism | OAI-04 -- Run-template REPLAY-REUSE (intent-keyed zero-token DAG |
-| T-226 | P3 | ? | Scheduling | KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3] |
-| T-227 | P2 | ? | Routing/Cost | KACT-02 -- Remote SmartRouting + quality-gate + daily budget (`m |
-| T-228 | P3 | ? | Cost/Identity | KACT-03 -- Per-user quota keying + persistence on verified princ |
-| T-229 | P3 | ? | Federation/Discovery | KACT-04 -- Gossip/DHT federated discovery transport (`mios_gossi |
-| T-230 | P2 | ? | Security/Sandbox | KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`m |
+| T-226 | P3 | in-progress | Scheduling | KACT-01 -- Wire batch-coalescing chokepoint (`mios_batch`)  [P3] |
+| T-227 | P2 | in-progress | Routing/Cost | KACT-02 -- Remote SmartRouting + quality-gate + daily budget (`m |
+| T-228 | P3 | in-progress | Cost/Identity | KACT-03 -- Per-user quota keying + persistence on verified princ |
+| T-229 | P3 | in-progress | Federation/Discovery | KACT-04 -- Gossip/DHT federated discovery transport (`mios_gossi |
+| T-230 | P2 | in-progress | Security/Sandbox | KACT-05 -- Per-verb risk-tier bwrap/seccomp ENFORCEMENT exec (`m |
 | T-231 | P2 | planned/unverified | Lifecycle/Health | KACT-06 -- `Notify=healthy` + `HealthCmd` + rollback across AI q |
 | T-232 | P3 | planned | UI/QML | UISHELL-01 -- Native QML Services/Swarm views (replace web-Porta |
 | T-233 | P3 | planned | UI/QML | UISHELL-02 -- Login-prompt QML popup (`PortalData.login()`)  [P3 |
 | T-234 | P3 | done | UI/Config | UISHELL-03 -- Reconcile `mios-webshell` AI-sidebar endpoint (`:3 |
-| T-235 | P3 | ? | UI/Architecture | UISHELL-04 -- Cockpit native-vs-web decision  [P3] |
+| T-235 | P3 | planned | UI/Architecture | UISHELL-04 -- Cockpit native-vs-web decision  [P3] |
 | T-236 | P2 | planned | SSOT/Identity | NAME2-01 -- Agent-plane user SSOT reconciliation (820/822 → 850) |
 | T-237 | P3 | blocked | Naming | NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent` |
-| T-238 | P3 | ? | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
-| T-239 | P3 | ? | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
+| T-238 | P3 | planned | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
+| T-239 | P3 | in-progress | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
 | T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored w |
 | T-241 | P2 | done | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
 | T-242 | P1 | done-by-code | AI-plane/SSOT/DB | VECTOR-00 -- V0 Foundation: unified DB + provenance + DB->TOML m |
-| T-243 | P1 | planned | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
-| T-244 | P2 | planned | AI-plane/Vectorization | VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve |
+| T-243 | P1 | completed | AI-plane/SSOT/DB | VECTOR-01 -- V1 Config read-path: DB becomes the runtime read (T |
+| T-244 | P2 | completed | AI-plane/Vectorization | VECTOR-02 -- V2 AI-plane vectors: embed skill/verb/tool_call/eve |
 | T-245 | P2 | planned | Build/Install/Xbox/DB | VECTOR-03 -- V3 Build catalog: package/build/xbox/debloat tables |
-| T-246 | P2 | planned | Accounts/Identity/DB | VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirecti |
+| T-246 | P2 | in-progress | Accounts/Identity/DB | VECTOR-04 -- V4 Accounts/users: DB-owned ids + prefs + bidirecti |
 | T-247 | P3 | planned | SSOT/DB/Configurator | VECTOR-05 -- V5 Invert authority: DB=SSOT, TOML=generated export |
-| T-248 | P1 | done | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
+| T-248 | P1 | completed | Build/Bake | BAKE-01 -- `[build.bake]` core allow-list + bake-plan projection ( |
 | T-249 | P1 | done | Build/Activation | BLADE-01 -- Universal-core + blade-type activation gate (`Conditi |
 | T-250 | P1 | done | Build/Consolidation | MIOSSYS-01 -- mios-sys + mios-cuda shared-base consolidation (~18 |
 | T-251 | P2 | done | SBOM/Provenance | SBOM-01 -- build-time provenance beyond images (model/pkg hashes) |
@@ -258,8 +258,8 @@
 | T-269 | P1 | done-by-code | Build/Security | DEBT-02 -- shellcheck CI gate + kill the 9 eval-on-agent-args verbs (TD-1) |
 | T-270 | P1 | done-by-code | Dotfiles/SSOT | DOTFILES-01 -- [dotfiles.registry.*] + mios-dotfiles-render + apply verb + both-sides gate (ADR-0010) |
 | T-271 | P1 | done-by-code | Build/Templates | TEMPLATE-01 -- Compiled file-pattern system + mios new + conformance check + Law-14 (ADR-0011) |
-| T-272 | P1 | planned | Build/Lang | LANG-01 -- Stand up Rust workspace + port first fragile bash tool (drift-runner/verb dispatcher) |
-| T-273 | P2 | planned | AI-Plane/Refactor | DEBT-03 -- Split mios_dispatch.py + finish server.py decomposition (TD-5) |
+| T-272 | P1 | done-by-code | Build/Lang | LANG-01 -- Stand up Rust workspace + port first fragile bash tool (drift-runner/verb dispatcher) |
+| T-273 | P2 | in-progress | AI-Plane/Refactor | DEBT-03 -- Split mios_dispatch.py + finish server.py decomposition (TD-5) |
 | T-274 | P1 | done | Deploy/MiOS-Cat | CATREPO-FIX -- MiOS-Cat stages `repos/` onto the DATA partition instead of the REPO partition (WS-CATREPO, rel T-260). Repos (config/source clone) belong on the small always-present MiOS-Repo (E:); MiOS-Data is caches/models/user-DBs/deps ONLY. Fix the staging path in `cat/MiOS-Cat.bat` + `.ps1` so repos land on MiOS-Repo. **Done-when:** a fresh `cat stage` places `repos/` on MiOS-Repo, nothing repo-class on MiOS-Data, kickstart path aligned. |
 | T-275 | P1 | done | UX/Branding, Lang | WALL-RUST -- Consolidate the WebView2 wallpaper host + the WSLg gui-watch daemon into ONE silent native **Rust** service (WS-LANG / Law 14): `wry` WorkerW host + `windows-service`, fold gui-watch, drop both `Run` keys (MiOSWallpaper + MiOS-GuiWatch), window never surfaces + no console flash. Compile via the now-provisioned Rust (Install-MiosRust). **Done-when:** login shows the wallpaper with zero visible windows/terminals; one auto-start service; Run keys gone. |
 | T-276 | P1 | done | UX/Branding | WALL-BAKE -- Bake the reworked living-wallpaper (calm 16-colour ocean: pure blend, role-weighted proc, tamed highlights, zen pace, colour-spill-from-void intro, black bg, live theme sync) into MiOS-Xbox provisioning: regen `Get-MiOSLivingWallpaperHtmlB64` from the canonical `usr/share/mios/branding/living-wallpaper.html` + emit the `a0..a15` (mode-less) URL in `MiOS-Provision.lib.ps1`. **Done-when:** a freshly-flashed MiOS-Xbox desktop matches the live wallpaper exactly. |
@@ -293,6 +293,7 @@
 | T-305 | P2 | done | Docs/DocGen | DOCGEN-12 -- batch 2 of the payload de-rot: 24 files, 127 verified edits (17 full-mode + 7 AI-hint headers whose rot projected into the generated indexes). Covers `ai/system.md`, `ai/hermes-soul-full.md`, both remaining `etc/mios/system-prompts/*`, `mios-environment` + `opencode-delegation` SKILL.md, `open-webui/system-prompts/mios-agent.md`, both remaining cookbooks, `docs/day-0/FIRST-BOOT.md`, `docs/agents/PC-CONTROL-LOCAL.md`, `docs/terminal/INVOCATIONS.md`, `installation/UNIFY.md`, `tools/windows/README-WINDOWS.md`, the manual ToC blurbs and chapters ch04/ch10, and the seven hint-only docs. Runnable `curl` examples now resolve the port from the environment instead of hardcoding it. The verifier pass also proved its own worth by rejecting 87 proposals that were already applied. **Done-when (met):** 39 files in `[docs].port_clean`; `check_doc_port_scheme` green; hint-only files deliberately excluded because their bodies are historical. |
 | T-306 | P2 | done | Docs/DocGen | DOCGEN-13 -- de-rot the documentation long tail: 74 files, 310 verified edits across ADRs, concepts, guides, upstream notes, reference docs and distilled manual pages (388 sites in, 38 out). `[docs].port_clean` grows 39 -> 107 files. The verifiers rejected 10 proposals, among them a rewrite that would have made an engine claim wrong, a mis-mapped key (8642 read as `llm_light`), a runnable `export` that would have stopped running, and two edits inside `mios-src` anchored passages. Historical archives (knowledge/, archive/, audits/, roadmap/history/, upstream-gaps) stay verbatim by design. **Done-when (met):** gate green over 107 files. |
 | T-307 | P2 | done | Docs/DocGen | DOCGEN-14 -- de-rot the AI-hint headers the generated indexes read from: 35 source files (headers only, bodies untouched) plus four systemd units fixed at their source under `usr/lib/systemd/system` with golden-master snapshots refreshed (`cargo test --test golden_master` green). After re-render `tool-index.md` and `README.md` carry ZERO retired ports -- they healed from the corrected hints, which is the generative pipeline working as designed. Two enumerated port lists (`mios-firewall-ports`, `service-health.sh`) now name `[ports]` categories instead of literal lists that drift; the latter's hint was also truncated mid-word and is repaired. **Done-when (met):** generated indexes clean, gate green. |
+| T-308 | P1 | done | Roadmap/Gates | ROADMAP-01 -- TASKS.md summary table and task sections agreed |
 
 ---
 
@@ -824,7 +825,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** A patch changing only `server.py` produces a delta bundle <= 15% of full image size, `mios-oci-delta-apply` applies it and `bootc status` shows the new deployment staged, and a SHA-256 signature mismatch aborts the apply with an error.
 **Why:** Every update currently ships the full multi-GB OCI image, saturating edge and IoT uplinks and making routine `bootc upgrade` impractical anywhere off a fat link.
 **Dep:** T-002 (BOOT-01), T-034 (SEC-03 SHA-256 chain).
-**Status:** open | **Domain:** Distribution/Edge
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: the rechunk delta path ships as `automation/build/rechunk.sh`. | **Domain:** Distribution/Edge
 
 ## T-051 -- FED-G7: Route A2A fan-out on the full AgentCard `skills[]` array  (WS-FED | P2 | M)
 **Goal:** E-23 DB-driven configuration and vector recall -- peer selection is decided by embedded skill semantics recorded in Postgres rather than ad-hoc string proximity, so every federated peer stays an interchangeable, correctly-chosen OpenAI endpoint (NS-2).
@@ -878,7 +879,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** A 3-step parallel workflow declared in YAML executes deterministically -- same step order, same outputs across runs -- and a failing step honours `fail_fast` by halting the group rather than continuing.
 **Why:** Prompt-chained orchestration spends tokens re-deciding a fixed sequence every turn and gives no reproducible execution trace when a multi-step job goes wrong.
 **Dep:** T-031 (ORCH-04 ReAct loop).
-**Status:** open | **Domain:** Orchestration
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: `usr/share/mios/conductor/test-workflow.yaml` + `mios_pipe/routing/conductor.py`, reached from `server.py` behind the `[orchestration].conductor_enable` gate. | **Domain:** Orchestration
 
 ## T-055 -- MEM-04: Hindsight multi-strategy retrieval replaces the MAIA v8.0 pools  (WS-H4 | P3 | L)
 **Goal:** E-23 DB-driven configuration and vector recall -- one Postgres+pgvector datastore answers recall through several complementary strategies instead of a bespoke legacy pool.
@@ -896,7 +897,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** The 17K-token prefix hits HiCache on the second request (measurable prefill drop) and the nightly consolidation job reduces `agent_memory` row count by at least 20% without losing a recallable fact.
 **Why:** Re-prefilling a 17K-token tool surface on every turn burns GPU time on identical input, while an ever-growing `agent_memory` makes every subsequent recall slower.
 **Dep:** T-035 (MEM-02), T-021 (MEM-01).
-**Status:** open | **Domain:** Memory/Scheduling
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: `--cache-reuse 256` in `usr/share/mios/llamacpp/mios-llm-light.yaml` plus the `_consolidate_memory_sweep_once` sweep in `mios_pipe/kernel/daemons.py`. | **Domain:** Memory/Scheduling
 
 ## T-057 -- ORCH-07: Rich relationship edges on the personal knowledge graph  (WS-VECTOR | P3 | M)
 **Goal:** E-23 DB-driven configuration and vector recall -- the datastore stores relationships, not just rows, so the agent can resolve possessive references against the operator's own machine.
@@ -905,7 +906,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** "Open my browser" launches the application named by the `app_install` preference edge with no application named in the prompt.
 **Why:** Without edges the agent either asks the operator to name their own defaults every time or guesses, which makes possessive phrasing unusable.
 **Dep:** T-035 (MEM-02).
-**Status:** open | **Domain:** Memory/UX
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: `kg_lookup` resolves alias -> resolves_to -> app_install in `mios_pipe/memory/knowledge.py`, covered by `test_mios_knowledge.py`. | **Domain:** Memory/UX
 
 ## T-058 -- SCHED-03: Autellix-style MLFQ scheduling over whole agent programs [VM]  (WS-GUARD | P3 | XL)
 **Goal:** E-24 Autonomy guardrails -- background swarm work is preempted by foreground turns on lane priority, so a batch job cannot make the interactive assistant feel dead.
@@ -914,7 +915,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** With four or more concurrent tasks running, a short interactive query returns in under 500ms while a long swarm batch continues in parallel.
 **Why:** Per-request FIFO lets one long DAG monopolise the lane, so the operator's own prompt waits behind a background job on their own hardware.
 **Dep:** T-019 (SCHED-01), T-020 (SCHED-02). Operator VM [VM].
-**Status:** open | **Domain:** Scheduling
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: the MLFQ ordering (LRU eviction + contention-gated priority decay) in `mios_pipe/scheduler/preempt.py`, covered by `test_mios_preempt.py`. | **Domain:** Scheduling
 
 ## T-059 -- DATA-01: Declarative agent cards and an A2A-discoverable directory  (WS-VECTOR | P3 | M)
 **Goal:** E-23 DB-driven configuration and vector recall -- the agent roster is a queryable `directory_entry` surface, not a static file each peer must read.
@@ -932,7 +933,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** After a wrong `memory_replace`, calling `memory_rollback` with a prior timestamp restores the previous fact and a subsequent `memory_search` returns it.
 **Why:** Today one bad self-edit permanently destroys the fact it overwrote, with no recovery path short of a database restore.
 **Dep:** T-035 (MEM-02).
-**Status:** open | **Domain:** Memory/Data
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: `valid_from`/`valid_to` columns on `knowledge` and `agent_memory` in `usr/share/mios/postgres/schema-init.sql`. | **Domain:** Memory/Data
 
 ## T-061 -- ORCH-09: Code-mode execution for heavy verb chains and recipes  (WS-CODEMODE | P3 | L)
 **Goal:** E-24 Autonomy guardrails -- bulk intermediate data never enters model context, so a large fetch cannot blow a session's token budget.
@@ -941,7 +942,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** A recipe fetching 50KB of web content executes in the sandbox and returns roughly a 200-token summary into model context, with the raw payload absent from the transcript.
 **Why:** Piping raw tool output through the model burns context on data the model never needed to see, and pushes long chains into truncation.
 **Dep:** T-045 (F2 coderun-sandbox).
-**Status:** open | **Domain:** Orchestration/Memory
+**Status:** done-by-code -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: the `[code_mode]` SSOT section and the `code_mode` verb. | **Domain:** Orchestration/Memory
 
 ## T-062 -- B3: Self-improvement ACT half -- propose, prove, stage  (WS-B3 | P3 | XL)
 **Goal:** E-24 Autonomy guardrails -- self-modification is bounded by construction: nothing reaches main without a proof and a human, and the whole path is default-off.
@@ -1988,7 +1989,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Repeated identical high-severity classifications are suppressed by dedup+cooldown, loops skip a tick when the pressure gate fires, concurrent cron actions cannot stack under the cap, and `test_mios_daemon.py` covers both the gate and the dedup.
 **Why:** Five subsystems guard the shared 4090 with independent local heuristics that do not compose, so the daemon->swarm runaway had no cumulative tripwire and no host-pressure circuit breaker -- it already happened once on live hardware.
 **Dep:** first-wave safety; composes with T-174 (budget) and the existing admission controller into one pressure signal
-**Status:** planned | **Domain:** Autonomy/Safety | **Who:** agent-pipe/daemon engineer
+**Status:** done -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: `_host_pressure_gate()` in `usr/libexec/mios/mios-daemon` guarding the loops, the `[daemon]` SSOT section, `_dedup_suppressed` + the escalation cooldown, the `cron_concurrency_cap` defer, and `test_mios_daemon.py`. | **Domain:** Autonomy/Safety | **Who:** agent-pipe/daemon engineer
 
 ## T-174 -- GUARD-02: aggregate token/turn budget with foreground preemption of background work  (WS-GUARD | P0 | M)
 **Goal:** E-24 Autonomy guardrails -- background autonomy is budgeted and preemptible, so a self-driving loop cannot monopolize the GPU.
@@ -1997,7 +1998,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** A background loop self-limits and hard-halts at its budget, a foreground turn demonstrably preempts background work for the next GPU slot, and recursion beyond `max_dispatch_depth` is refused.
 **Why:** No cumulative token or turn ceiling exists and autonomous work is not first-class isolated at the queue, so a background loop can consume unbounded GPU while an interactive turn waits behind it.
 **Dep:** pairs with T-173; both must compose into the single host-pressure signal the admission controller and swarm-width logic read
-**Status:** planned | **Domain:** Autonomy/Scheduling | **Who:** agent-pipe scheduler engineer
+**Status:** done -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: the `[budget]` SSOT section, `MAX_DISPATCH_DEPTH` wired through `server.py`, and the preemption state machine in `mios_pipe/scheduler/preempt.py` covered by `test_mios_preempt.py`. | **Domain:** Autonomy/Scheduling | **Who:** agent-pipe scheduler engineer
 
 ## T-175 -- DURA-01 nightly `pg_dump` backup timer + loopback-only pgvector bind  (WS-DURA | P1 | M)
 **Goal:** E-23 DB-driven configuration and vector recall -- the pgvector datastore that holds the whole agent brain survives a disk loss and is not reachable off-host by default.
@@ -2017,7 +2018,7 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** a turn containing a synthetic key and a synthetic PII string reaches pgvector, the scratchpad and an A2A echo scrubbed; the pattern set is read from SSOT (grep finds no inline deny-list); `test_*` cases cover redact-on-persist and redact-on-federate and fail if the filter is bypassed.
 **Why:** secrets and PII are written verbatim into pgvector, broadcast on the scratchpad and echoed over A2A today -- once federation leaves loopback, every leaked token is permanently in a peer's memory store.
 **Dep:** Should precede any non-loopback A2A federation; composes with the passport gate (T-001/T-014).
-**Status:** planned | **Domain:** Security/Privacy | **Who:** agent-pipe backend engineer
+**Status:** done -- the summary table already carried this verdict; the detail line had never been updated. Re-verified against the tree: the `[security.redact]` SSOT pattern set consumed on the persist path (`mios_pipe/memory/pg.py`) and the federate path (`mios_pipe/federation/a2a.py`), covered by `test_mios_redact.py`. | **Domain:** Security/Privacy | **Who:** agent-pipe backend engineer
 
 ---
 
@@ -2731,3 +2732,11 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Dep:** none — independent Python-only refactor track; `check_unwired_modules` confirms each extraction is live.
 **Status:** in-progress -- FIRST SPLIT LANDED. `mios_dispatch.py` 1178 -> 943 lines: the command BUILDER (`_dispatch_sandbox_profile`, `_sandbox_wrap_cmd`, `normalize_container_exec`, `_build_dispatch_cmd`) moved VERBATIM to `mios_pipe/routing/dispatch_cmd.py` with its own `configure()` seam; `mios_dispatch` re-imports the four names so its surface is byte-identical, and its configure() forwards the three injected values so ONE call still configures the whole chokepoint. The launcher proper and every gate (taint / HITL / Rule-of-Two / quarantine / broker socket I/O) stay put -- this module builds a command, it never runs one. Order mattered: the two security gates had zero tests, so they were covered FIRST (20 assertions, mutation-tested) and then deliberately NOT moved. Verified: all 156 agent-pipe tests, live route-parity against the real FastAPI app, and 18 isolation assertions in a new `test_mios_dispatch_cmd.py` that imports the module DIRECTLY -- proving the extraction is standalone rather than a file that merely moved. The `[refactor].oversize` ratchet did its job: it FAILED on the shrink until the entry was lowered to 943. REMAINING: `server.py` (4979) and the rest of mios_dispatch's launcher half. **Who:** AI-plane agent
 
+## T-308 -- ROADMAP-01: One answer to "what is left?" -- summary-table/section status parity  (WS-TESTDOC | P1 | S)
+**Goal:** E-09 One value, one name -- a task's status is recorded once and read the same way from either surface, so the roadmap cannot be driven to completion against a number that is wrong.
+**What+How:** `TASKS.md` states every task's status twice -- a summary-table cell and the task's own `**Status:**` line -- with nothing keeping them in step; they had diverged in 49 of 286 rows. Settle every disagreement against the TREE rather than either prose surface (a status claiming completion has to name an artifact that exists), then add `check_tasks_status_parity` so the two can never drift again. Also run the `tools/` sibling unit tests: `check_module_test_coverage` requires one beside every `tools/` module but nothing ever executed them.
+**Where:** `TASKS.md`; `tools/check-tasks-status-parity.py` + `tools/test_check-tasks-status-parity.py`; `automation/98-drift-checks.sh`; `tests/drift-gate-negatives.sh`; `Justfile`; `.github/workflows/mios-ci.yml`; `usr/share/doc/mios/manual/ch58-roadmap-status-parity.md`.
+**Done When:** No row in `TASKS.md` disagrees with its own task section, the `?` placeholder is rejected wherever a section can answer it, the gate refuses to pass over an empty row set, and every `tools/test_*.py` runs in both `just drift-gate` and CI.
+**Why:** 28 rows carried `?`, seven said `done-by-code` while the detail said `open`, and three P0 rows said `done` while the detail said `planned`. Whichever surface a reader trusted, they got a confident and different answer about what remained.
+**Dep:** none -- independent.
+**Status:** done -- all 49 disagreements settled: 10 detail lines were stale against a tree that already had the artifact (`_host_pressure_gate()` in `mios-daemon`, the `[budget]` section, `usr/share/mios/conductor/` behind `conductor_enable`, `kg_lookup`, the MLFQ ordering in `mios_pipe/scheduler/preempt.py`, the bitemporal `valid_from`/`valid_to` columns, `[code_mode]`, `--cache-reuse 256`, `[security.redact]` on the persist AND federate paths) and were rewritten WITH that evidence inline; the other 39 table cells took the section's newer verdict. `check_tasks_status_parity` (gate 152 of 167) compares the cell to the head token of the status, so a detail line may carry paragraphs of evidence and still be comparable to a one-word cell; it rejects `?`, rejects an unknown status word on either surface, fails on a section with no row, and fails rather than passing vacuously when the table parses to zero rows. Negative-tested both directions and proven effective by neutering the gate. Open count is now an honest **70**. `tools/test_render_globals.py` had been RED on the default branch: two assertions expected `_ps_assign` to expand `${MIOS_*}` when given no name table, while a contradictory guard made that branch unreachable -- resolved in favour of the tests, with `automation/lib/globals.ps1` proven byte-identical after the fix. Manual ch58. | **Domain:** Roadmap/Gates | **Who:** repo maintainer

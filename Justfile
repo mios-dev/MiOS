@@ -86,6 +86,14 @@ drift-gate:
             else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
         done; \
         if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails libexec test(s) failed" >&2; exit 1; fi
+    @echo "[drift-gate] tools/ sibling unit tests"
+    @cd ./tools && fails=0; \
+        py_exec="python3"; [ -x /usr/lib/mios/agents/.venv/bin/python3 ] && py_exec="/usr/lib/mios/agents/.venv/bin/python3"; \
+        for t in test_*.py; do \
+            if "$py_exec" "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"; \
+            else echo "  [FAIL] $t"; fails=$((fails + 1)); fi; \
+        done; \
+        if [ "$fails" -gt 0 ]; then echo "[drift-gate] $fails tools test(s) failed" >&2; exit 1; fi
     @echo "[drift-gate] 98-drift-checks.sh"
     bash ./automation/98-drift-checks.sh
     @echo "[drift-gate] tests/drift-gate-negatives.sh"

@@ -272,6 +272,10 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [The No-Staging Fallback](manual/ch57-powershell-object-flattening.md#57_the_no_staging_fallback): Covers why -EncodedCommand replaces the line-at-a-time stdin reader.
   * [PowerShell Configuration](manual/ch57-powershell-object-flattening.md#57_powershell_configuration): Lists the [powershell] keys and the derived Windows staging path.
   * [Flattening Tests](manual/ch57-powershell-object-flattening.md#57_flattening_tests): Details the stub and live tiers of test-powershell-flatten.sh.
+* **[Chapter 58: Roadmap Status Parity](manual/ch58-roadmap-status-parity.md)**
+  * [The Drift](manual/ch58-roadmap-status-parity.md#58_the_drift): Covers the 49 rows where TASKS.md disagreed with itself about what was left.
+  * [Neither Surface Wins](manual/ch58-roadmap-status-parity.md#58_neither_surface_wins): Explains why each disagreement was settled against the tree, not the prose.
+  * [The Gate](manual/ch58-roadmap-status-parity.md#58_the_gate): Details check_tasks_status_parity and why it refuses to pass over an empty set.
 
 ---
 
@@ -341,6 +345,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch55-dead-schema-and-half-wired-units.md` | Chapter 55: Dead Schema and Half-Wired Units. Two fitness functions for things that exist but do nothing. check_schema_consumers requires every table in schema-init.sql to have a real code consumer,... |
 | `usr/share/doc/mios/manual/ch56-persistent-shell-sessions.md` | Chapter 56: Persistent Shell Sessions. Explains the SHELL-01 substrate that lets cwd, environment and history survive across agent turns. Covers the BEGIN/END nonce framing and the two spoofing... |
 | `usr/share/doc/mios/manual/ch57-powershell-object-flattening.md` | Chapter 57: PowerShell Object Flattening. Records why an object-returning cmdlet reached the model as a BLANK LINE rather than as noise, how a console-less runspace collapses every formatter column... |
+| `usr/share/doc/mios/manual/ch58-roadmap-status-parity.md` | Chapter 58: Roadmap Status Parity. Records the drift that let TASKS.md answer "what is left?" two different ways -- a summary-table cell and the task's own Status line -- and the 49 rows where they... |
 
-<!-- derived from the AI-hint headers of 57 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 58 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

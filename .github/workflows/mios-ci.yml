@@ -89,6 +89,12 @@ jobs:
       - name: PowerShell Pester test suite (run-pester.sh)
         run: bash ./tests/powershell/run-pester.sh
 
+      - name: PowerShell object-flattening (test-powershell-flatten.sh)
+        # The runner installs powershell above, so the live tier really runs
+        # here: a console-less runspace renders every object as a blank line,
+        # and only executing pwsh proves the wrapper fixes it.
+        run: bash ./tests/test-powershell-flatten.sh
+
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh
 
@@ -116,6 +122,19 @@ jobs:
       - name: Manuals & docs production evidence (doc-production-evidence.sh)
         # Prints what the documentation programme produced, then re-runs its read-only gates.
         run: bash ./tests/doc-production-evidence.sh
+
+      - name: tools/ sibling unit tests
+        # check_module_test_coverage REQUIRES a tools/test_<module>.py beside
+        # every tools/ module, but nothing executed them -- one had been failing
+        # on the default branch unnoticed. Run them.
+        run: |
+          cd ./tools
+          fails=0
+          for t in test_*.py; do
+            if python3 "$t" >/dev/null 2>&1; then echo "  [ OK ] $t"
+            else echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1)); fi
+          done
+          [ "$fails" -eq 0 ] || { echo "$fails tools test(s) failed" >&2; exit 1; }
 
       - name: SSOT-render conformance lint (97-ssot-lint.sh)
         run: bash ./automation/97-ssot-lint.sh

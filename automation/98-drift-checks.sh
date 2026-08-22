@@ -4432,6 +4432,7 @@ required_checks = [
     "check_firstboot_degrade_open",
     "check_firstboot_provisioners",
     "check_schema_consumers",
+    "check_tasks_status_parity",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6197,6 +6198,7 @@ main() {
     check_module_length
     check_firstboot_provisioners
     check_schema_consumers
+    check_tasks_status_parity
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7193,6 +7195,18 @@ check_schema_consumers() {
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_schema_consumers: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_tasks_status_parity() {
+    echo "[98-drift-checks]   check_tasks_status_parity"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks-status-parity.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_tasks_status_parity: $line"
         done <<<"$out"
         return
     fi
