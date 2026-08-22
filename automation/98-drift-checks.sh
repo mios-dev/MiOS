@@ -4430,6 +4430,7 @@ required_checks = [
     "check_no_mkdir_in_var",
     "check_quadlet_privilege",
     "check_firstboot_degrade_open",
+    "check_firstboot_provisioners",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
     "check_replaceme_mount_substitution",
@@ -6192,6 +6193,7 @@ main() {
     check_db_seed_coverage
     check_account_column_parity
     check_module_length
+    check_firstboot_provisioners
     check_vendored_assets_non_stub
     check_resolved_env_lossless
     check_no_duplicate_value_key
@@ -7163,6 +7165,18 @@ check_manual_links() {
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_manual_links: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_firstboot_provisioners() {
+    echo "[98-drift-checks]   check_firstboot_provisioners"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-firstboot-provisioners.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_firstboot_provisioners: $line"
         done <<<"$out"
         return
     fi

@@ -67,7 +67,7 @@ def run_fetcher(fetch, binn, toml_path, payload):
     env["MIOS_FAKE_PAYLOAD"] = payload
     r = subprocess.run([sys.executable, str(fetch)],
                        capture_output=True, text=True, env=env)
-    return r.stdout + r.stderr
+    return r.stdout + r.stderr, r.returncode
 
 
 def t_cli_reads_the_ssot():
@@ -130,23 +130,31 @@ def t_fetcher_verifies_sha256():
             f'sha256 = "{digest}"\n', encoding="utf-8")
 
         fetch, models, binn = mk_fetcher(tmp)
-        out = run_fetcher(fetch, binn, toml, payload)
+        out, rc = run_fetcher(fetch, binn, toml, payload)
         check("fetch: a matching payload verifies", "sha256 OK" in out, out)
         check("fetch: a matching payload is installed",
               (models / "good.gguf").exists(), out)
+        check("fetch: a complete run writes the sentinel",
+              (tmp / "done").exists(), out)
+        check("fetch: a complete run exits 0", rc == 0, out)
 
         # Reset and replay with a substituted payload.
         (tmp / "done").unlink(missing_ok=True)
         (models / "good.gguf").unlink(missing_ok=True)
-        out = run_fetcher(fetch, binn, toml, "EVIL-substituted-weights")
+        out, rc = run_fetcher(fetch, binn, toml, "EVIL-substituted-weights")
         check("fetch: a mismatching payload is REJECTED",
               "MISMATCH" in out, out)
         check("fetch: the rejected weight is NOT installed",
               not (models / "good.gguf").exists(), out)
         check("fetch: the part file is discarded so a resume cannot poison it",
               not (models / "good.gguf.part").exists(), out)
+        # The sentinel is the unit's ConditionPathExists gate. Writing it after a
+        # rejected download would retire the provisioner having fetched nothing.
+        check("fetch: a rejected model leaves the sentinel UNWRITTEN so the timer retries",
+              not (tmp / "done").exists(), out)
+        check("fetch: names what is still missing", "still missing" in out, out)
         check("fetch: still exits 0 (degrade-open; a pull never blocks boot)",
-              (tmp / "done").exists(), out)
+              rc == 0, out)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

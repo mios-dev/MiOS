@@ -55,7 +55,7 @@ except Exception as e:
     sys.exit(0)
 
 ai_cfg = cfg.get("ai", {})
-models = ai_cfg.get("firstboot_models", [])
+models = [m for m in (ai_cfg.get("firstboot_models") or []) if isinstance(m, dict)]
 
 if not models:
     print("No firstboot_models found in config.")
@@ -105,7 +105,20 @@ else:
         part_dest.rename(dest)
         print(f"Successfully provisioned {name}")
             
-SENTINEL.touch()
-PROGRESS.write_text("Complete\n")
-print("First-boot model provisioning complete (sentinel written).")
+# The sentinel is the unit's ConditionPathExists gate, so writing it
+# unconditionally retired the provisioner after ONE pass -- a failed download or
+# a rejected digest meant that model was never fetched again. Write it only when
+# every declared model is actually on disk; otherwise leave it and let
+# mios-models-firstboot.timer come back. Still exit 0 either way: degrade-open,
+# a pull must never block boot (Architectural Law 12).
+_missing = [str(m.get("name")) for m in models
+            if m.get("name") and not (MODELS_DIR / str(m.get("name"))).exists()]
+if _missing:
+    PROGRESS.write_text("Incomplete: " + ", ".join(_missing) + "\n")
+    print(f"WARN: {len(_missing)} declared model(s) still missing: {', '.join(_missing)}")
+    print("Sentinel NOT written -- the timer will retry.")
+else:
+    SENTINEL.touch()
+    PROGRESS.write_text("Complete\n")
+    print("First-boot model provisioning complete (sentinel written).")
 sys.exit(0)

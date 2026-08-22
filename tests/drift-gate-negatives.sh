@@ -1731,6 +1731,28 @@ test_account_column_parity() {
 }
 
 
+test_firstboot_provisioners() {
+    log "Testing check_firstboot_provisioners"
+    local unit="${ROOT}/usr/lib/systemd/system/mios-models-firstboot.service"
+    local backup="${unit}.negbak"
+    cp "$unit" "$backup"
+
+    # Break the sentinel gate: point it at a path the fetcher never writes, so
+    # the oneshot would run on every boot forever.
+    sed -i 's#^ConditionPathExists=.*#ConditionPathExists=!/var/lib/mios/.not-a-real-sentinel#' "$unit"
+
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_provisioners >/dev/null 2>&1; then
+        mv "$backup" "$unit"
+        die "check_firstboot_provisioners passed despite a sentinel the fetcher never writes"
+    fi
+
+    mv "$backup" "$unit"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_provisioners >/dev/null 2>&1 \
+        || die "check_firstboot_provisioners failed after restoration"
+
+    log "Test_firstboot_provisioners negative test passed"
+}
+
 test_module_length() {
     log "Testing check_module_length"
     # Two directories deep on purpose: the former -maxdepth 1 body could not
@@ -2586,6 +2608,7 @@ main() {
     test_db_seed_coverage
     test_account_column_parity
     test_module_length
+    test_firstboot_provisioners
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
