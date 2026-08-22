@@ -102,5 +102,37 @@ class TestShippedTree(unittest.TestCase):
         self.assertGreater(len(mod.register(real)), 0)
 
 
+class TestBrowserOpenable(unittest.TestCase):
+    """[urls] is what a person clicks -- one meaning, not two."""
+
+    def test_an_http_entry_is_clean(self):
+        self.assertEqual(mod.browser_openable(
+            {"urls": {"forge": "http://localhost:${MIOS_PORT_FORGE_HTTP}"}}), [])
+
+    def test_an_https_entry_is_clean(self):
+        self.assertEqual(mod.browser_openable(
+            {"urls": {"cockpit": "https://localhost:${MIOS_PORT_COCKPIT}"}}), [])
+
+    def test_a_dsn_fails(self):
+        # [urls].pgvector shipped as a postgresql:// DSN, which made the table
+        # mean both "a tile" and "an inter-service address".
+        out = mod.browser_openable(
+            {"urls": {"pgvector": "postgresql://mios@localhost:8600/mios"}})
+        self.assertTrue(out)
+        self.assertIn("postgresql", out[0])
+
+    def test_a_non_url_fails(self):
+        self.assertTrue(mod.browser_openable({"urls": {"x": "localhost:8600"}}))
+
+    def test_the_register_list_is_not_treated_as_a_url(self):
+        self.assertEqual(mod.browser_openable(
+            {"urls": {"non_addressable": ["a", "b"]}}), [])
+
+    def test_the_shipped_table_is_browser_openable(self):
+        import os
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            self.assertEqual(mod.browser_openable(tomllib.load(fh)), [])
+
+
 if __name__ == "__main__":
     unittest.main()

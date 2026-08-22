@@ -156,5 +156,66 @@ class TestShippedTree(unittest.TestCase):
             self.assertEqual(len(hits), 1, "%s -> %s" % (u, hits))
 
 
+class TestSeatDeadWeight(unittest.TestCase):
+    """The AI plane couples over ADDRESSES, which the dependency walk cannot see."""
+
+    def _tree(self, tmp, units, seat, req, urls=None, endpoint=""):
+        d = os.path.join(tmp, "usr/lib/systemd/system")
+        os.makedirs(d, exist_ok=True)
+        for name, body in units.items():
+            with open(os.path.join(d, name), "w", encoding="utf-8") as fh:
+                fh.write(body)
+        return {"ports": {"worker_cdp": 9223, "front": 8700},
+                "urls": dict(urls or {}),
+                "ai": {"endpoint": endpoint},
+                "blade": {"archetypes": {"hybrid": ["service-plane"], "endpoint": []},
+                          "seat_side": list(seat), "requires": dict(req)}}
+
+    def test_a_seat_side_binder_whose_only_client_is_gated_fails(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._tree(tmp, {
+                "browser-w.service": "Environment=MIOS_PORT_WORKER_CDP=9223\n",
+                "worker.service": "Environment=URL=http://localhost:9223\n",
+            }, seat=["browser-w"], req={"worker": ["service-plane"]})
+            out = mod.seat_dead_weight(d, tmp)
+            self.assertTrue(any("browser-w" in v for v in out), out)
+
+    def test_an_ungated_client_clears_it(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._tree(tmp, {
+                "browser-w.service": "Environment=MIOS_PORT_WORKER_CDP=9223\n",
+                "tool.service": "Environment=URL=http://localhost:9223\n",
+            }, seat=["browser-w"], req={})
+            self.assertEqual(mod.seat_dead_weight(d, tmp), [])
+
+    def test_a_person_facing_port_is_exempt(self):
+        # The front door's client is every human and CLI, not another unit.
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._tree(tmp, {
+                "front.service": "Environment=MIOS_PORT_FRONT=8700\n",
+                "owui.service": "Environment=URL=http://localhost:8700\n",
+            }, seat=["front"], req={"owui": ["service-plane"]},
+                endpoint="http://localhost:${MIOS_PORT_FRONT}/v1")
+            self.assertEqual(mod.seat_dead_weight(d, tmp), [])
+
+    def test_a_urls_entry_also_makes_a_port_person_facing(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            d = self._tree(tmp, {
+                "front.service": "Environment=MIOS_PORT_FRONT=8700\n",
+                "owui.service": "Environment=URL=http://localhost:8700\n",
+            }, seat=["front"], req={"owui": ["service-plane"]},
+                urls={"front": "http://localhost:${MIOS_PORT_FRONT}/"})
+            self.assertEqual(mod.seat_dead_weight(d, tmp), [])
+
+    def test_the_real_tree_has_no_dead_weight_on_a_seat(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            real = tomllib.load(fh)
+        self.assertEqual(mod.seat_dead_weight(real, _ROOT), [])
+
+
 if __name__ == "__main__":
     unittest.main()

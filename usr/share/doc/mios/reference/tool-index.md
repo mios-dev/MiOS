@@ -260,6 +260,7 @@ is generated, its generator is here.
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). Each provisioner must be WHOLE: the libexec fetcher exists and is the unit's ExecStart, the unit gates on the sentinel that... |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped MiOS manual: asserts every ToC link in usr/share/doc/mios/manual.md resolves to an existing chapter file and, where a fragment is given, to a real anchor inside... |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). Walks usr/lib/mios/agent-pipe/mios_pipe RECURSIVELY (the bash predecessor scanned find -maxdepth 1, so it certified "all modules... |
+| `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. Four shipped units pinned Environment=MIOS_PORT_*=<literal>... |
 | `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. Every numeric [ports] key must be referenced as MIOS_PORT_<KEY> by a non-SSOT, non-doc, non-generated file, or sit in the shrink-only [ports].unbound... |
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact].tables or .exempt, that the agent-plane content tables are... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
@@ -303,6 +304,7 @@ is generated, its generator is here.
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. Builds throwaway repo roots holding a synthetic fetcher/unit/preset/tmpfiles set and asserts each half-wiring is caught: a missing... |
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean ToC and non-zero on a dangling chapter link, a missing anchor... |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). Builds throwaway repo roots with a synthetic mios.toml [refactor] block and fake module files,... |
+| `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. Covers every idiom that hid a stale number -- an unconditional Environment= pin, a ${X:-N} shell fallback, get("X","N"), the DOUBLE fallback get(K,"N")... |
 | `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. Cover the four ways an allocated port can be wrong -- unreferenced and unregistered, registered though it IS referenced (the register must only shrink), a... |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully classified schema and fails an unclassified table, a table... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. Covers every way the role axis can go wrong -- an illegal [blade].type, an archetype whose derived target is not shipped, an alias landing off the archetype... |
@@ -317,7 +319,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 66 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 68 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

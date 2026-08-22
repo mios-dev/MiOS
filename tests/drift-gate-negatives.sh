@@ -1929,6 +1929,26 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
         die "check_blade_coverage passed with a capability no archetype grants"
     fi
 
+    cp "$backup" "$toml"
+
+    # (3) A seat-side unit whose port only a GATED unit dials must FAIL. The
+    # coupling is an ADDRESS, so the dependency walk cannot see it: the second
+    # CDP browser sat seat-side while its only client was gated off.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^mios-hermes-browser-worker = \[[^\]]*\][^\n]*\n", s, re.M)
+assert m, "worker-browser gate anchor moved"
+s = s[:m.start()] + s[m.end():]
+m2 = re.search(r'"'"'^  "mios-hermes-browser",[^\n]*\n'"'"', s, re.M)
+assert m2, "seat_side anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m2.end()] + "  \"mios-hermes-browser-worker\",\n" + s[m2.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_blade_coverage passed with a seat-side unit only a gated unit dials"
+    fi
+
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 \
         || die "check_blade_coverage failed after restoration"
@@ -2017,6 +2037,22 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
         mv "$backup" "$toml"
         die "check_service_urls passed with a register entry naming no real port"
+    fi
+
+    cp "$backup" "$toml"
+
+    # An inter-service scheme in [urls] must FAIL: the table is the
+    # browser-openable surface, and a postgresql:// DSN made it mean two things.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^\[urls\]\n", s, re.M)
+assert m, "[urls] table not found"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.end()] + "negtest_dsn        = \"postgresql://u@localhost:5432/d\"\n" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_service_urls passed with a non-browser scheme in [urls]"
     fi
 
     mv "$backup" "$toml"

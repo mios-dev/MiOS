@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the blade ACTIVATION axis. Every Quadlet container AND every long-running native .service unit must be classified exactly once: capability-gated in [blade.requires], listed in [blade].seat_side (it deliberately runs everywhere, because a seat still needs its UX and front door), or in the shrink-only [blade].ungated debt register. Counting only containers was this gate's own blind spot -- it reported "23 of 23" over a set that excluded 18 long-running units. Also fails an entry naming a unit that does not exist, a capability no archetype grants, and a unit classified two ways.
 # AI-related: usr/share/mios/mios.toml, tools/test_check-blade-coverage.py, automation/48-mios-dropin-fanout.sh, tools/generate-blade-dropins.py
-# AI-functions: containers, long_running_units, all_units, known_units, requires, archetype_caps, register, seat_side, soft_ok, unit_pulls, dependency_violations, classify, main
+# AI-functions: containers, long_running_units, all_units, known_units, port_namers, person_facing, seat_dead_weight, requires, archetype_caps, register, seat_side, soft_ok, unit_pulls, dependency_violations, classify, main
 """Gate: every service is capability-gated, or registered as ungated core."""
 
 import os
+import re
 import sys
 
 try:
@@ -133,6 +134,69 @@ def dependency_violations(data: dict, root: str) -> list:
     return viol
 
 
+def port_namers(data: dict, root: str) -> dict:
+    """{port-key: {unit-stem, ...}} over every shipped unit that names a port,
+    by MIOS_PORT_<KEY> or by its literal value."""
+    ports = {k: v for k, v in (data.get("ports") or {}).items() if isinstance(v, int)}
+    out = {k: set() for k in ports}
+    for base in ("usr/lib/systemd/system", "usr/share/containers/systemd"):
+        d = os.path.join(root, base)
+        if not os.path.isdir(d):
+            continue
+        for name in sorted(os.listdir(d)):
+            path = os.path.join(d, name)
+            if not os.path.isfile(path) or "." not in name:
+                continue
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    body = fh.read()
+            except OSError:
+                continue
+            code = "\n".join(l for l in body.splitlines()
+                              if not l.lstrip().startswith("#"))
+            stem = name.rsplit(".", 1)[0]
+            for key, num in ports.items():
+                if ("MIOS_PORT_%s" % key.upper()) in code or \
+                        re.search(r"(?<![0-9])%d(?![0-9])" % num, code):
+                    out[key].add(stem)
+    return out
+
+
+def person_facing(data: dict) -> set:
+    """Ports whose client is the human: anything with a browser-openable [urls]
+    entry, plus the front door [ai].endpoint resolves. Derived, not declared."""
+    out = set()
+    for value in ((data.get("urls") or {}).values()):
+        if isinstance(value, str):
+            out |= {m.lower() for m in
+                    re.findall(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}", value)}
+    endpoint = str((data.get("ai") or {}).get("endpoint") or "")
+    out |= {m.lower() for m in
+            re.findall(r"\$\{MIOS_PORT_([A-Z0-9_]+)\}", endpoint)}
+    return out
+
+
+def seat_dead_weight(data: dict, root: str) -> list:
+    """A seat-side unit whose port only a gated unit dials is dead weight. The
+    coupling is an address, so the dependency walk cannot see it."""
+    req, seat = requires(data), set(seat_side(data))
+    soft = set(soft_ok(data))
+    viol = []
+    for key, namers in sorted(port_namers(data, root).items()):
+        if key in person_facing(data):
+            continue          # the client is the human, not another unit
+        binders = namers & seat
+        others = namers - seat
+        if not binders or not others:
+            continue          # nobody else names it: the person is the client
+        if others - set(req) - soft:
+            continue          # at least one ungated client remains
+        viol.append("seat-side %s binds '%s', but every other unit naming it "
+                    "(%s) is capability-gated -- on a seat it serves nothing"
+                    % ("/".join(sorted(binders)), key, ", ".join(sorted(others))))
+    return viol
+
+
 def requires(data: dict) -> dict:
     """{service: [capability, ...]} from [blade.requires]."""
     out = {}
@@ -206,6 +270,7 @@ def classify(data: dict, root: str = ".") -> list:
                     "[blade].ungated" % svc)
 
     viol.extend(dependency_violations(data, root))
+    viol.extend(seat_dead_weight(data, root))
     return viol
 
 

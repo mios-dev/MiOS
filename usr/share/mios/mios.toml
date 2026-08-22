@@ -9874,18 +9874,14 @@ wsl_firstboot      = "mios-wsl-firstboot.service"
 user_session       = "user@${MIOS_UID}.service"
 
 # ----------------------------------------------------------------------------
-# [urls] -- service endpoints. Every one is a TEMPLATE over a [ports] key, never
-# a baked number, so retargeting a port category (see [ports.categories]) moves
-# the URLs with it. The renderer expands ${...} into the target language.
+# [urls] -- the BROWSER-OPENABLE surface: portal tiles and openInBrowser
+# labels, http/https only, never the inter-service endpoint table. Values
+# template a [ports] key. Gate: check_service_urls.
 # ----------------------------------------------------------------------------
 [urls]
 forge              = "http://localhost:${MIOS_PORT_FORGE_HTTP}"
 cockpit            = "https://localhost:${MIOS_PORT_COCKPIT}"
-llm_light          = "http://localhost:${MIOS_PORT_LLM_LIGHT}"
-pgvector           = "postgresql://mios:mios@localhost:${MIOS_PORT_PGVECTOR}/mios"
 searxng            = "http://localhost:${MIOS_PORT_SEARXNG}"
-crawl_service      = "http://127.0.0.1:${MIOS_PORT_CRAWL4AI}"
-hermes             = "http://localhost:${MIOS_PORT_HERMES}/v1"
 open_webui         = "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"
 code_server        = "http://localhost:${MIOS_PORT_CODE_SERVER}/"
 otelcol_ui         = "http://localhost:${MIOS_PORT_OTELCOL_UI}/"
@@ -9893,12 +9889,14 @@ local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 
-# Ports with no canonical URL yet. SHRINK-ONLY (gate: check_service_urls).
-# Two keys never gain an entry here: agent_pipe is canonically
-# MIOS_AI_ENDPOINT, and otelcol_otlp is [observability].otel_endpoint. Each is
-# the key its consumers already resolve, so a second would be duplication.
+# Ports with no browser-openable URL: either they serve no page, or their
+# address is already a key their consumers resolve -- agent_pipe is
+# MIOS_AI_ENDPOINT, pgvector MIOS_DB_URL, llm_light MIOS_LLM_CPU_ENDPOINT,
+# hermes MIOS_HERMES_ENDPOINT, crawl4ai MIOS_CRAWL_SERVICE_URL, otelcol_otlp
+# [observability].otel_endpoint.
 non_addressable = [
   "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
+  "crawl4ai", "hermes", "llm_light", "pgvector",
   "chrome_cdp", "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
@@ -13116,13 +13114,12 @@ ungated = []
 # Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
 soft_ok = ["hermes-worker"]
 
-# Units a seat DELIBERATELY runs: the UX and the front door it exists to be.
-# "Offload all services" cannot mean "start nothing" (ADR-0016 D4).
+# Units a seat DELIBERATELY runs: what the PERSON touches. A blade runs what
+# the WORK needs. See ADR-0016 D4.
 seat_side = [
   "mios-agent-pipe",            # the local front door; MIOS_AI_ENDPOINT points it at a blade
   "hermes-dashboard",           # browser UI
   "mios-hermes-browser",        # CDP browser the agent tools drive
-  "mios-hermes-browser-worker", # second CDP browser for the worker loop
   "mios-hermes-tail",           # journal tail into the UI
   "mios-ttyd-bash",             # browser pty
   "mios-ttyd-powershell",       # browser pty
@@ -13167,12 +13164,13 @@ mios-forge                     = ["service-plane"]
 mios-forgejo-runner            = ["service-plane"]
 mios-guacamole                 = ["service-plane"]
 mios-guacd                     = ["service-plane"]
-mios-k3s                       = ["service-plane"]
+mios-k3s           = ["controller", "service-plane"]
 mios-llm-light                 = ["service-plane"]
 mios-open-webui                = ["service-plane"]
 mios-otelcol                   = ["service-plane"]
 mios-pgvector                  = ["service-plane"]
 mios-pxe-hub       = ["controller", "service-plane"]
+mios-hermes-browser-worker = ["service-plane"]   # the WORKER's browser, gated with hermes-worker
 mios-searxng                   = ["service-plane"]
 mios-webtools-crawl4ai         = ["service-plane"]
 mios-webtools-firecrawl-api    = ["service-plane"]

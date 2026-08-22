@@ -192,6 +192,17 @@ every port as addressed-or-registered so a new service cannot land without an an
 This is Law 9 (one canonical name) applied to **addresses**, and it is required under *every*
 answer to the naming question, which is why it is decided first and separately.
 
+**`[urls]` is now scoped rather than proposed.** This decision said `[urls]` is "the browser-openable
+surface … to be scoped to that job or retired". It is scoped: every entry must use an `http`/`https`
+scheme, which is what *a person can open it* means, and `check_service_urls` fails anything else.
+Four entries were inter-service addresses wearing a tile's clothes — `pgvector` was a
+`postgresql://` DSN, and `llm_light`, `hermes` and `crawl_service` were `/v1` API bases. Each already
+has exactly one canonical name its consumers resolve (`MIOS_DB_URL`, `MIOS_LLM_CPU_ENDPOINT`,
+`MIOS_HERMES_ENDPOINT`, `MIOS_CRAWL_SERVICE_URL`), so a `[urls]` key for them was the second name
+this decision exists to prevent. They move to the register, whose comment now names the only two
+reasons an entry may appear there: the port serves no page, or its address is already stated
+elsewhere. The register stops being debt and becomes a classification — which is what it always was.
+
 ### 2. A blade is a machine; a node is a lane on a blade
 
 * A **blade** is a machine that serves addresses. `[blades.<name>]` becomes the machine registry:
@@ -397,6 +408,47 @@ off three archetypes where it works today.
 This is also why "must be classified" and "may be gated" are different sets: a oneshot needs no
 classification of its own, but may legitimately be gated because of what it activates. Ten units
 are gated for exactly that reason.
+
+#### The line itself: a seat runs I/O, a blade runs compute and state
+
+The `seat_side` list was assembled unit by unit, which left the *rule* implicit — and an implicit
+rule cannot be checked. Stated: **a seat runs what the person touches; a blade runs what the work
+needs.** Everything that survives on a seat is local I/O — the front door every client dials
+(`mios-agent-pipe`), the browser the person watches (`mios-hermes-browser`), the UI
+(`hermes-dashboard`), the journal view (`mios-hermes-tail`), and two ptys. Everything gated is
+compute or state — inference, database, search, crawl, workers, cluster.
+
+That rule settles the case that exposed it. **`mios-hermes-browser-worker` was seat-side and should
+never have been:** it is not the person's browser, it is a second headless Chrome on `profile-w2`
+whose only client is `hermes-worker`, which a seat does not run. A seat was starting a browser for a
+worker it did not have. It is now gated with its consumer, which changes **only** the seat — every
+other archetype keeps it.
+
+The rule is mechanical, and the mechanism is why it was missed. **The AI plane couples over
+ADDRESSES, not unit dependencies**, so the `Requires=`/`Wants=` walk that found the eleven
+dependency violations structurally could not see this one: `hermes-worker` reaches the browser
+through `BROWSER_CDP_URL`, and systemd has no idea. `check_blade_coverage` now also reads the port
+graph: a seat-side unit that binds a port whose every *other* namer is capability-gated serves
+nothing on a seat and fails the gate. The exemption is derived, not declared — a port is
+person-facing when it has a browser-openable `[urls]` entry or is the one `[ai].endpoint` resolves,
+which is exactly why `mios-agent-pipe` is legitimate seat-side while the worker browser is not.
+
+#### Two roles the archetype table had not been asked about
+
+**CDP stays local, permanently, and that is not a limitation.** The primary browser's binder is
+`usr/share/mios/flatpak-flags/com.google.ChromeDev.flags`, a static flatpak argument file that
+cannot template a placeholder — so `chrome_cdp` is pinned at 9222 rather than derived into the 8xxx
+band. Under the I/O-versus-compute line that is correct rather than merely unavoidable: the browser
+is a *device*, like the display and the keyboard. A seat offloads compute and state; it does not
+offload the screen it is looking at.
+
+**`mios-k3s` runs `k3s server` — a cluster control plane — and now requires `controller`.** The
+default is unchanged: `[blade].type = "hybrid"` grants `controller`, as do `controller`,
+`k3s-master` and `ha-node`. What changes is that an explicitly-chosen `compute`, `desktop` or
+`headless` blade stops running a Kubernetes control plane, which is the plain meaning of those
+names — `hybrid`'s own target wants `k3s-agent.service`, the *agent*, not the server. This is the
+last consumer the `controller` capability needed: it was granted by four archetypes and required by
+nothing, so a `controller` blade behaved exactly like a `headless` one.
 
 A seat therefore costs one archetype plus the overlay from Decision 1. No new Containerfile, no new
 axis, and — measured — **no service.**

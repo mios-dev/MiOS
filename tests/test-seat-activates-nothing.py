@@ -84,8 +84,23 @@ class TestSeatActivatesNothing(unittest.TestCase):
         seat = set(self.d["blade"].get("seat_side") or [])
         self.assertIn("mios-agent-pipe", seat)      # reaches the blade
         for serving in ("hermes-worker", "k3s", "mios-finetune-serve",
-                        "mios-opencode-gateway", "mios-policy-arbiter"):
+                        "mios-opencode-gateway", "mios-policy-arbiter",
+                        # The WORKER's browser, not the person's: its only
+                        # client is hermes-worker, which a seat does not run.
+                        "mios-hermes-browser-worker"):
             self.assertNotIn(serving, seat, serving)
+
+    def test_the_seat_line_is_io_versus_compute(self):
+        """Everything a seat runs is something the PERSON touches."""
+        seat = set(self.d["blade"].get("seat_side") or [])
+        self.assertEqual(seat, {
+            "mios-agent-pipe",        # the front door every client dials
+            "hermes-dashboard",       # the UI
+            "mios-hermes-browser",    # the browser the person watches
+            "mios-hermes-tail",       # the journal view
+            "mios-ttyd-bash",         # a pty
+            "mios-ttyd-powershell",   # a pty
+        })
 
     def test_the_ungated_register_is_drained(self):
         self.assertEqual(list(self.d["blade"].get("ungated") or []), [])
