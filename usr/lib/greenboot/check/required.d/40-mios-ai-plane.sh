@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/bash greenboot required check that verifies the core MiOS AI plane (agent-pipe, llm-light, pgvector) answered after boot; a no...
+#!/usr/bin/bash
+# AI-hint: greenboot required check that verifies the core MiOS AI plane (agent-pipe, llm-light, pgvector) answered after boot; a no...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_greenboot_check_required_d_40_mios_ai_plane_sh.md
 set -euo pipefail
 

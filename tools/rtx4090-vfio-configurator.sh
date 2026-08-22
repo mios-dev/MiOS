@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passth...
+#!/bin/bash
+# AI-hint: Automates RTX 4090 GPU and associated audio controller isolation by identifying PCI IDs and configuring /etc/modprobe.d/vfio.conf for VFIO passth...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_rtx4090_vfio_configurator_sh.md
 
 set -euo pipefail

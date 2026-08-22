@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Initializes the Ceph cluster on first boot by running cephadm bootstrap with single-host defaults and creating a sentinel file to prevent...
+#!/usr/bin/env bash
+# AI-hint: bash Initializes the Ceph cluster on first boot by running cephadm bootstrap with single-host defaults and creating a sentinel file to prevent...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_ceph_bootstrap_sh.md
 set -euo pipefail
 

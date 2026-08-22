@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Install + configure GNOME Remote Desktop in system/headless mode so AI-related: /usr/libexec/mios/automation/35-xrdp...
+#!/usr/bin/env bash
+# AI-hint: bash Install + configure GNOME Remote Desktop in system/headless mode so AI-related: /usr/libexec/mios/automation/35-xrdp...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_automation_35_xrdp_enhanced_session_sh.md
 set -euo pipefail
 

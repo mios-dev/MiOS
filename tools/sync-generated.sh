@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash One entry point that regenerates EVERY SSOT projection in dependency order (ports -> globals -> quadlets -> names -> env-baseline -> AI manifests), ...
+#!/usr/bin/env bash
+# AI-hint: bash One entry point that regenerates EVERY SSOT projection in dependency order (ports -> globals -> quadlets -> names -> env-baseline -> AI manifests), ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_generated_sh.md
 set -euo pipefail
 

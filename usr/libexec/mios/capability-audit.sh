@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash A diagnostic script that audits hardware topology, IOMMU groups, VFIO bindings, and PCIe layout to determine device passthrough readine...
+#!/usr/bin/env bash
+# AI-hint: bash A diagnostic script that audits hardware topology, IOMMU groups, VFIO bindings, and PCIe layout to determine device passthrough readine...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_capability_audit_sh.md
 
 set -euo pipefail

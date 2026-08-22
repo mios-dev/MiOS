@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Automates the deployment of the agent-pipe service by copying source files, stripping CRLF, performing a pre-restart import check in the ser...
+#!/bin/bash
+# AI-hint: Automates the deployment of the agent-pipe service by copying source files, stripping CRLF, performing a pre-restart import check in the ser...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_deploy_agent_pipe_sh.md
 set -euo pipefail
 

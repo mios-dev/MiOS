@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash mios-mcp-enable-tier0.sh -- OPERATOR-RUN activation of the Tier-0 MCP servers AI-related: /usr/libexec/mios/mios-mcp-enable-tier0....
+#!/usr/bin/env bash
+# AI-hint: bash mios-mcp-enable-tier0.sh -- OPERATOR-RUN activation of the Tier-0 MCP servers AI-related: /usr/libexec/mios/mios-mcp-enable-tier0....
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_mcp_enable_tier0_sh.md
 set -uo pipefail
 VENV=/var/lib/mios/ai/mcp-venv

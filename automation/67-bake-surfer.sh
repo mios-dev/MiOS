@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash MIOS_APPLY_CLASS=bake-only Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural thre...
+#!/bin/bash
+# AI-hint: MIOS_APPLY_CLASS=bake-only Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural thre...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_67_bake_surfer_sh.md
 set -euo pipefail
 # shellcheck disable=SC1090

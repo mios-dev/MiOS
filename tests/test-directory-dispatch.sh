@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote A...
+#!/bin/bash
+# AI-hint: Validates the end-to-end integration between the agent-pipe gateway and the directory_lookup tool by testing both direct CLI execution and remote A...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_directory_dispatch_sh.md
 set -euo pipefail
 

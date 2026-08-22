@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only Projects the sharded bake-plan files (.list) under /usr/lib/mios/bake/plan.d/ AI-related: usr/share/mios/mios.toml, to...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=bake-only Projects the sharded bake-plan files (.list) under /usr/lib/mios/bake/plan.d/ AI-related: usr/share/mios/mios.toml, to...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_85_bake_plan_sh.md
 set -euo pipefail
 

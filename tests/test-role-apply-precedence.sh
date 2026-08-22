@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Proves role-apply's five-tier role ladder against fixtures, running the REAL functions extracted from the shipped script.
+#!/usr/bin/env bash
+# AI-hint: bash Proves role-apply's five-tier role ladder against fixtures, running the REAL functions extracted from the shipped script.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_role_apply_precedence_sh.md
 set -euo pipefail
 

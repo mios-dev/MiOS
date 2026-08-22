@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash The MISSING USB staging bridge -- stages every built immutable-MiOS artifact (oci-archive tar, Anaconda-bootc installer ISO, raw/qcow2/vhdx ...
+#!/usr/bin/env bash
+# AI-hint: bash The MISSING USB staging bridge -- stages every built immutable-MiOS artifact (oci-archive tar, Anaconda-bootc installer ISO, raw/qcow2/vhdx ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/installation_stage_mios_repo_sh.md
 set -euo pipefail
 

@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gatin...
+#!/bin/bash
+# AI-hint: MIOS_APPLY_CLASS=universal Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gatin...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_41_services_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

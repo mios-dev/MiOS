@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
+#!/usr/bin/env bash
+# AI-hint: bash Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_drift_gate_negatives_sh.md
 set -euo pipefail
 
@@ -3317,6 +3318,21 @@ test_resolver_differential_parity() {
     log "check_resolver_differential_parity negative test passed"
 }
 
+test_no_generated_prose_in_resolvers() {
+    log "Testing check_no_generated_prose_in_resolvers"
+    local sh_file="${ROOT}/automation/lib/globals.sh"
+    local backup; backup="$(mktemp)"
+    cp "$sh_file" "$backup"
+    echo "# AI-hint: test prose line" >> "$sh_file"
+    if _neg_gate check_no_generated_prose_in_resolvers; then
+        cp "$backup" "$sh_file"; rm -f "$backup"
+        die "check_no_generated_prose_in_resolvers passed despite AI-hint prose line"
+    fi
+    cp "$backup" "$sh_file"; rm -f "$backup"
+    _neg_gate check_no_generated_prose_in_resolvers || die "check_no_generated_prose_in_resolvers failed after restoration"
+    log "check_no_generated_prose_in_resolvers negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3447,74 +3463,6 @@ main() {
     test_blade_coverage
     test_blade_karg
     test_role_ssot
-test_no_generated_prose_in_resolvers() {
-    log "Testing check_no_generated_prose_in_resolvers"
-    local sh_file="${ROOT}/automation/lib/globals.sh"
-    local backup; backup="$(mktemp)"
-    cp "$sh_file" "$backup"
-    echo "# AI-hint: test prose line" >> "$sh_file"
-    if _neg_gate check_no_generated_prose_in_resolvers; then
-        cp "$backup" "$sh_file"; rm -f "$backup"
-        die "check_no_generated_prose_in_resolvers passed despite AI-hint prose line"
-    fi
-    cp "$backup" "$sh_file"; rm -f "$backup"
-    _neg_gate check_no_generated_prose_in_resolvers || die "check_no_generated_prose_in_resolvers failed after restoration"
-    log "check_no_generated_prose_in_resolvers negative test passed"
-}
-
-main() {
-    test_version_ssot
-    test_resolver_equivalence
-    test_eval_safety
-    test_shellcheck_failure
-    test_names_registry
-    test_root_toml_subset
-    test_toml_projection
-    test_curl_retry
-    test_resolver_ssot_refs
-    test_nested_podman_caps
-    test_bake_budget
-    test_module_test_coverage
-    test_router_parity
-    test_council_gate_ssot
-    test_agent_pipe_budgets
-    test_bake_tokens
-    test_containerfile_pinned_clones
-    test_firstboot_tier
-    test_rechunk_budget
-    test_bake_core_reconcile
-    test_nested_podman_retry
-    test_gate_registry
-    test_test_hermeticity
-    test_no_mkdir_in_var
-    test_quadlet_privilege
-    test_lint_is_final
-    test_firstboot_degrade_open
-    test_require_tools
-    test_ssot_lint_deadkey
-    test_soft_mode_not_committed
-    test_oci_archive_path
-    test_replaceme_mount_substitution
-    test_kickstart_shell_syntax
-    test_port_fallbacks
-    test_node_pool
-    test_mini_vs_hosted
-    test_unit_projection
-    test_ssot_consumer_keys
-    test_vendored_assets_non_stub
-    test_resolved_env_lossless
-    test_no_duplicate_value_key
-    test_no_hardcoded_ssot_literal
-    test_pipeline_numbering
-    test_value_aliases
-    test_bash_phase_ratchet
-    test_ports_category_schema
-    test_globals_generated
-    test_cargo_deny
-    test_powershell_parse
-    test_ps_redirectors
-    test_unpinned_runtime_fetches
-    test_windows_exe_provenance
     test_no_generated_prose_in_resolvers
     log "All negative tests completed successfully"
 }

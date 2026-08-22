@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Hot-deploys source-only MiOS binaries, configuration files (tmpfiles/sysusers), and OWUI tools to the live VM's /usr path without a full i...
+#!/bin/bash
+# AI-hint: Hot-deploys source-only MiOS binaries, configuration files (tmpfiles/sysusers), and OWUI tools to the live VM's /usr path without a full i...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_deploy_tooling_live_sh.md
 set -euo pipefail
 SRC=/mnt/c/MiOS

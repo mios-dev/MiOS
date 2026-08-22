@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata...
+#!/bin/bash
+# AI-hint: Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_force_revectorize_sh.md
 set -euo pipefail
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to ...
+#!/usr/bin/env bash
+# AI-hint: bash Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_overlay_builder_sh.md
 
 set -euo pipefail

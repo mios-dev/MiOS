@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Installs systemd drop-in files for NVIDIA services to implement ExecCondition guards, ensuring units skip execution...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Installs systemd drop-in files for NVIDIA services to implement ExecCondition guards, ensuring units skip execution...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_22_akmod_guards_sh.md
 set -euo pipefail
 

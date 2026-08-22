@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot.
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
 
 # AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ens...

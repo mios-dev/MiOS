@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Proves the greenboot AI-plane check skips a unit this blade does not activate.
+#!/usr/bin/env bash
+# AI-hint: bash Proves the greenboot AI-plane check skips a unit this blade does not activate.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_greenboot_blade_guard_sh.md
 set -euo pipefail
 

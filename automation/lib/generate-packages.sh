@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash WS-A17 build-time materializer for the local package registry.
+#!/usr/bin/env bash
+# AI-hint: bash WS-A17 build-time materializer for the local package registry.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_generate_packages_sh.md
 set -euo pipefail
 

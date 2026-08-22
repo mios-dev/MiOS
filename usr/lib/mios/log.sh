@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Curated global MiOS logging template (ADR-0012, doc-unified-pipeline.md).
+#!/usr/bin/env bash
+# AI-hint: bash Curated global MiOS logging template (ADR-0012, doc-unified-pipeline.md).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_log_sh.md
 
 mios_tag() {

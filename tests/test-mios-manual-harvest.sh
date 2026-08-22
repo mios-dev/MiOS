@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Round-trips the documentation harvest loop in a throwaway git fixture -- ledger, harvest, the landed() predicate flipping false to true, p...
+#!/usr/bin/env bash
+# AI-hint: bash Round-trips the documentation harvest loop in a throwaway git fixture -- ledger, harvest, the landed() predicate flipping false to true, p...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_mios_manual_harvest_sh.md
 set -euo pipefail
 

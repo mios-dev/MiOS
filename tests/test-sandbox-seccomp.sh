@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Guards the T-230 syscall filter on usr/libexec/mios/mios-sandbox-exec.
+#!/usr/bin/env bash
+# AI-hint: bash Guards the T-230 syscall filter on usr/libexec/mios/mios-sandbox-exec.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_sandbox_seccomp_sh.md
 set -euo pipefail
 

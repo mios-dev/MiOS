@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Proves ADR-0016 D8 -- a seat's blade reachability is RECORDED on every boot and is not critical unless [greenboot].blade_reachabi...
+#!/usr/bin/env bash
+# AI-hint: bash Proves ADR-0016 D8 -- a seat's blade reachability is RECORDED on every boot and is not critical unless [greenboot].blade_reachabi...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_greenboot_blade_reachability_sh.md
 set -euo pipefail
 

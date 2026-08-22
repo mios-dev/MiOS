@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Provides shell functions to parse and extract package lists from mios.toml configuration files, supporting layered overrides and specific installation mo...
+#!/bin/bash
+# AI-hint: Provides shell functions to parse and extract package lists from mios.toml configuration files, supporting layered overrides and specific installation mo...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_packages_sh.md
 
 _resolve_mios_toml() {

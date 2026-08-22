@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pr...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pr...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_51_hardening_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

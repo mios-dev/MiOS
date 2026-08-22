@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment...
+#!/bin/bash
+# AI-hint: Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_bootstrap_sh.md
 set -euo pipefail
 

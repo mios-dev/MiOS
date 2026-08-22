@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Read-only health dashboard: lists systemd --failed units, prints active/enabled state for the full mios-* + hermes/owui/searxng/forge service s...
+#!/bin/bash
+# AI-hint: Read-only health dashboard: lists systemd --failed units, prints active/enabled state for the full mios-* + hermes/owui/searxng/forge service s...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_service_health_sh.md
 set -euo pipefail
 

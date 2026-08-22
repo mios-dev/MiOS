@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Builds a verity-rooted Unified Kernel Image (UKI) and configures fapolicyd in permissive mode based on mios.toml flags; use this t...
+#!/usr/bin/env bash
+# AI-hint: bash Builds a verity-rooted Unified Kernel Image (UKI) and configures fapolicyd in permissive mode based on mios.toml flags; use this t...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_ws7_uki_fapolicyd_build_sh.md
 set -euo pipefail
 

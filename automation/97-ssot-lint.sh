@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line ha...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line ha...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_97_ssot_lint_sh.md
 set -euo pipefail
 

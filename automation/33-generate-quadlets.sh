@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Automatically generates Quadlet configuration files (.pod, .container, .network) from the mios.toml SSOT at im...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Automatically generates Quadlet configuration files (.pod, .container, .network) from the mios.toml SSOT at im...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_33_generate_quadlets_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

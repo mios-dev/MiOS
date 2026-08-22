@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash MIOS_APPLY_CLASS=bake-only Runs Syft to generate CycloneDX + SPDX SBOM manifests into ${MIOS_USR_DIR}/artifacts/sbom.
+#!/bin/bash
+# AI-hint: MIOS_APPLY_CLASS=bake-only Runs Syft to generate CycloneDX + SPDX SBOM manifests into ${MIOS_USR_DIR}/artifacts/sbom.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_90_generate_sbom_sh.md
 set -uo pipefail   # deliberately NOT -e
 

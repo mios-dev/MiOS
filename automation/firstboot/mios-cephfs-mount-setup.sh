@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Firstboot setup script for CephFS mount/automount systemd template units and login profiles.
+#!/usr/bin/env bash
+# AI-hint: bash Firstboot setup script for CephFS mount/automount systemd template units and login profiles.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_firstboot_mios_cephfs_mount_setup_sh.md
 
 set -euo pipefail

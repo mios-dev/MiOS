@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Validates ttyd service drop-ins, triggers the mios-hermes-firstboot service to apply systemd configurations, and verifies filesystem pe...
+#!/bin/bash
+# AI-hint: Validates ttyd service drop-ins, triggers the mios-hermes-firstboot service to apply systemd configurations, and verifies filesystem pe...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_verify_ttyd_userdropin_sh.md
 set -euo pipefail
 

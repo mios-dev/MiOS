@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Proves `mios blade status` answers the one question a MiOS-Mini seat has -- is my blade there? On a seat every offload target is REMOTE, an...
+#!/usr/bin/env bash
+# AI-hint: bash Proves `mios blade status` answers the one question a MiOS-Mini seat has -- is my blade there? On a seat every offload target is REMOTE, an...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_blade_reachability_sh.md
 set -euo pipefail
 

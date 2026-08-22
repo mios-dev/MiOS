@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Unified builder script to build localhost/mios-sys and localhost/mios-cuda shared-base images into the additional containers-storage r...
+#!/usr/bin/env bash
+# AI-hint: bash Unified builder script to build localhost/mios-sys and localhost/mios-cuda shared-base images into the additional containers-storage r...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_57_mios_sys_build_sh.md
 set -euo pipefail
 

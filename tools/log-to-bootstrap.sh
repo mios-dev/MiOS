@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and...
+#!/bin/bash
+# AI-hint: Syncs AI RAG artifacts and wiki documentation from the local build environment to the MiOS-bootstrap repository to prepare the system for distribution and...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_log_to_bootstrap_sh.md
 
 set -euo pipefail

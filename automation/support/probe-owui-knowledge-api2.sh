@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash A diagnostic script that extracts the Open WebUI admin token from the local SQLite DB to probe the knowledge base API endpoints, ver...
+#!/bin/bash
+# AI-hint: A diagnostic script that extracts the Open WebUI admin token from the local SQLite DB to probe the knowledge base API endpoints, ver...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_probe_owui_knowledge_api2_sh.md
 set -euo pipefail
 TOKEN=$(python3 -c "

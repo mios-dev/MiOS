@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Composites the MiOS dashboard into /etc/issue.d/30-mios.issue so it AI-related: /usr/libexec/mios/mios-dashboard-render-issu...
+#!/usr/bin/env bash
+# AI-hint: bash Composites the MiOS dashboard into /etc/issue.d/30-mios.issue so it AI-related: /usr/libexec/mios/mios-dashboard-render-issu...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_dashboard_render_issue_sh.md
 set -uo pipefail
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Build-time script that fetches and installs the OpenUI generative-UI bundle (JS/CSS) into /usr/share/mios/openui to ensure offline-...
+#!/usr/bin/env bash
+# AI-hint: bash Build-time script that fetches and installs the OpenUI generative-UI bundle (JS/CSS) into /usr/share/mios/openui to ensure offline-...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_mios_vendor_openui_sh.md
 set -euo pipefail
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Provides idempotent shared helper functions, logging utilities, and environment resolution logic (masking, paths, globals) for MiOS build scripts a...
+#!/usr/bin/env bash
+# AI-hint: bash Provides idempotent shared helper functions, logging utilities, and environment resolution logic (masking, paths, globals) for MiOS build scripts a...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_common_sh.md
 
 source "$(dirname "${BASH_SOURCE[0]}")/masking.sh"

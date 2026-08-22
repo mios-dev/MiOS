@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Self-contained test harness for automation/97-ssot-lint.sh -- builds throwaway fixture trees (a fully-wired key, a both-sides orphan, ...
+#!/usr/bin/env bash
+# AI-hint: bash Self-contained test harness for automation/97-ssot-lint.sh -- builds throwaway fixture trees (a fully-wired key, a both-sides orphan, ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_tests_test_97_ssot_lint_sh.md
 set -euo pipefail
 

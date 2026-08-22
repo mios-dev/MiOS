@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; ...
+#!/usr/bin/env bash
+# AI-hint: bash Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lint_python_sh.md
 set -euo pipefail
 

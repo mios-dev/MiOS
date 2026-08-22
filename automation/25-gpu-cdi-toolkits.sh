@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs AMD and Intel vendor-specific CDI (Container Device Interface) generator tools (amd-ctk and intel-cdi-specs-ge...
+#!/bin/bash
+# AI-hint: MIOS_APPLY_CLASS=universal Installs AMD and Intel vendor-specific CDI (Container Device Interface) generator tools (amd-ctk and intel-cdi-specs-ge...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_25_gpu_cdi_toolkits_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

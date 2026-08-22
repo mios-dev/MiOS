@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for mios-gateway-agent, restart the agent, and verif...
+#!/bin/bash
+# AI-hint: Executes a recovery sequence to redeploy firstboot binaries, apply environment drop-ins for mios-gateway-agent, restart the agent, and verif...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_heal_all_services_sh.md
 set -euo pipefail
 

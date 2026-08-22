@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Initialize the deployed root `/` as a git working tree of the local AI-related: /usr/lib/mios/paths.sh, /usr/libexec/mios/git-root-init.sh...
+#!/usr/bin/env bash
+# AI-hint: bash Initialize the deployed root `/` as a git working tree of the local AI-related: /usr/lib/mios/paths.sh, /usr/libexec/mios/git-root-init.sh...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_git_root_init_sh.md
 
 set -euo pipefail

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Coverage test for automation/lint-python.sh. Asserts the gate actually SEES a representative Python file from every payload area -- not t...
+#!/usr/bin/env bash
+# AI-hint: bash Coverage test for automation/lint-python.sh. Asserts the gate actually SEES a representative Python file from every payload area -- not t...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_lint_python_coverage_sh.md
 
 set -euo pipefail

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Fixes boot-time failures by restoring execution bits on MiOS binaries, correcting USBGuard permissions, resolvi...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Fixes boot-time failures by restoring execution bits on MiOS binaries, correcting USBGuard permissions, resolvi...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_52_apply_boot_fixes_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

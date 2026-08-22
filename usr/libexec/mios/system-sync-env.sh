@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash layered mios.toml dotfile. AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, ...
+#!/usr/bin/env bash
+# AI-hint: bash layered mios.toml dotfile. AI-related: /etc/mios/install.env, /etc/mios/mios.toml, /usr/share/mios/mios.toml, /usr/lib/mios/userenv.sh, ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_system_sync_env_sh.md
 set -euo pipefail
 

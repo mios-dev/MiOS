@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Installs and activates the mios-suggestion-refresh systemd service/timer, sets permissions for the firstboot binary, and verifies that pr...
+#!/bin/bash
+# AI-hint: Installs and activates the mios-suggestion-refresh systemd service/timer, sets permissions for the firstboot binary, and verifies that pr...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_verify_starter_chips_sh.md
 set -euo pipefail
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Verifies mios-pgvector-major-upgrade never destroys an agent datastore -- exercises the no-op, unparseable-tag, downgrade-refusal, miss...
+#!/usr/bin/env bash
+# AI-hint: bash Verifies mios-pgvector-major-upgrade never destroys an agent datastore -- exercises the no-op, unparseable-tag, downgrade-refusal, miss...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_pgvector_major_upgrade_sh.md
 set -euo pipefail
 

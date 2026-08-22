@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Executes `bootc switch` to update the active system partition to a local image (e.g., `localhost/mios:latest`) by parsing the `l...
+#!/usr/bin/env bash
+# AI-hint: bash Executes `bootc switch` to update the active system partition to a local image (e.g., `localhost/mios:latest`) by parsing the `l...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_bootc_switch_from_build_sh.md
 set -euo pipefail
 

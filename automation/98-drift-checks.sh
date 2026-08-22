@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Source-tree drift fitness-functions (WS-0A).
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Source-tree drift fitness-functions (WS-0A).
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_98_drift_checks_sh.md
 set -euo pipefail
 

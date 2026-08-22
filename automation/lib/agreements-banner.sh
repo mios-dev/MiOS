@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Provides the canonical legal/policy acknowledgment gate; agents use it to determine if the system requires a manual "Acknowledged" promp...
+#!/usr/bin/env bash
+# AI-hint: bash Provides the canonical legal/policy acknowledgment gate; agents use it to determine if the system requires a manual "Acknowledged" promp...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_agreements_banner_sh.md
 
 mios_agreement_summary() {

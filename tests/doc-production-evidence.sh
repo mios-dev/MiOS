@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash CI-visible proof that the documentation programme produced its artifacts: counts distilled manual pages, landed comment passages and splice...
+#!/usr/bin/env bash
+# AI-hint: bash CI-visible proof that the documentation programme produced its artifacts: counts distilled manual pages, landed comment passages and splice...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_doc_production_evidence_sh.md
 set -euo pipefail
 

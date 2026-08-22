@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Documented in INDEX.md sec 4 as the canonical CLI for inspecting the AI-related: /etc/mios/env.d/, /etc/mios/install.env, /etc/mios/env.d, /u...
+#!/usr/bin/env bash
+# AI-hint: bash Documented in INDEX.md sec 4 as the canonical CLI for inspecting the AI-related: /etc/mios/env.d/, /etc/mios/install.env, /etc/mios/env.d, /u...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_system_env_sh.md
 set -euo pipefail
 

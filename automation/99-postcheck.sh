@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and C...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and C...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_99_postcheck_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash Summarizes the operational status of core MiOS services, identifies failed systemd units, and audits active network port listeners to pr...
+#!/bin/bash
+# AI-hint: Summarizes the operational status of core MiOS services, identifies failed systemd units, and audits active network port listeners to pr...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_service_state_compact_sh.md
 set -euo pipefail
 echo "=== FINAL service state ==="

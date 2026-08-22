@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=universal Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabiliti...
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=universal Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabiliti...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_39_moby_engine_sh.md
 set -euo pipefail
 

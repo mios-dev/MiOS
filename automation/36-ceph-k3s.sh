@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash MIOS_APPLY_CLASS=universal Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision ...
+#!/bin/bash
+# AI-hint: MIOS_APPLY_CLASS=universal Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_36_ceph_k3s_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

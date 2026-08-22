@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only BOOT-02 OpenSCAP scan-only build gate.
+#!/usr/bin/env bash
+# AI-hint: bash MIOS_APPLY_CLASS=bake-only BOOT-02 OpenSCAP scan-only build gate.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_86_oscap_compliance_sh.md
 set -euo pipefail
 

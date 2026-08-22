@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash Firstboot setup script for XDG profile script symlink and user directories init systemd user service.
+#!/usr/bin/env bash
+# AI-hint: bash Firstboot setup script for XDG profile script symlink and user directories init systemd user service.
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_firstboot_mios_xdg_setup_sh.md
 
 set -euo pipefail

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env bash mios-flatpaks CLI: operator-friendly wrapper over `flatpak` for the system-wide Flatpak surface (list/add/remove/update/search/bake-stat...
+#!/usr/bin/env bash
+# AI-hint: bash mios-flatpaks CLI: operator-friendly wrapper over `flatpak` for the system-wide Flatpak surface (list/add/remove/update/search/bake-stat...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_flatpaks_manage_sh.md
 set -euo pipefail
 

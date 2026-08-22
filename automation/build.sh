@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash This script is the primary build runner for MiOS, managing the build lifecycle by parsing `mios.toml` configurations, enforcing environment constraints, and ren...
+#!/bin/bash
+# AI-hint: This script is the primary build runner for MiOS, managing the build lifecycle by parsing `mios.toml` configurations, enforcing environment constraints, and ren...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_build_sh.md
 set -euo pipefail
 

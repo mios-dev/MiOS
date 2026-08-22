@@ -1,4 +1,5 @@
-# AI-hint: !/bin/bash A smoke-test script to verify the MCP server's health by validating HTTP endpoints (/v1/verbs, /v1/dispatch) and stdio JSON-RPC interactions ...
+#!/bin/bash
+# AI-hint: A smoke-test script to verify the MCP server's health by validating HTTP endpoints (/v1/verbs, /v1/dispatch) and stdio JSON-RPC interactions ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_smoke_mcp_server_sh.md
 set -euo pipefail
 
