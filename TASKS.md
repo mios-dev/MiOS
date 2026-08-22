@@ -315,6 +315,7 @@
 | T-327 | P0 | partial | Security/Federation | SEC-02 -- A seat's auth posture must follow the role, not an operator remembering a flag |
 | T-328 | P2 | planned | Topology/SSOT | BLADE-06 -- The seat-floor opt-in, and the OR-gate the activation axis lacks |
 | T-329 | P1 | partial | Topology/SSOT | BLADE-07 -- blade_reachability_critical was emitted, described in docs, and read by nothing |
+| T-330 | P1 | planned | Build/Image | BAKE-01 -- A ~16 GB payload ships for a lane no archetype starts |
 
 ---
 
@@ -3108,3 +3109,15 @@ The remaining work is the provisioning half, and it is the harder half: a key ge
 
 A fixed port would have passed on a stale socket from an earlier run, which is how an earlier reachability test in this tree fooled itself; the fixture binds port 0 and reads back what the kernel gave it.
 **Why:** T-323 gave a seat the ability to tell an unreachable blade from a broken model, and that signal stopped at the probe. A seat whose blade is gone now says so in the boot record. The dashboard surface is still open. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-330 -- BAKE-01: a ~16 GB payload ships for a lane no archetype starts  (WS-BLADE | P1 | M)
+**Goal:** E-08 Law 12 bakes what the image NEEDS. A payload nothing can load is not offline-readiness, it is weight.
+**What+How:** MEASURED while making the seat's disk cost visible for ADR-0016 D7. `automation/73-model-prep.sh:92` reads `MIOS_VLLM_BAKE_MODEL`, and `automation/lib/globals.sh:4766` defaults it non-empty (`stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ`), so **the vLLM snapshot is baked into every image** -- while `[ai.vllm].enable = false` and `mios-llm-heavy-alt` is capability-gated behind `gpu-serving`. A seat carries it and cannot start the lane; a `headless` or `controller` blade carries it and cannot either. Only `hybrid` and `compute` can, and only after the operator enables the lane.
+
+I nearly recorded the opposite. A first grep for `MIOS_VLLM_BAKE_MODEL=` found nothing in `globals.sh` and I concluded the key was decorative and the weights were NOT baked. The resolver emits defaults as `: "${VAR:=value}"`, which that pattern does not match. Re-grepping without the `=` anchor found it. The correction is recorded because the wrong conclusion was the comfortable one -- it would have closed the finding instead of opening it.
+
+**The tension is real, which is why this is not a one-line flip.** Law 12 says bake, do not fetch, and degrade open; a lane whose weights are absent needs egress on the first boot that enables it, which is exactly what Law 12 exists to prevent. Against that: shipping ~16 GB (the SSOT's own figure) on every seat, endpoint and headless blade for a lane they cannot run is a cost paid by every install to serve a minority configuration.
+**Where:** `usr/share/mios/mios.toml` (`[ai.vllm].bake_model`, `[ai.vllm].enable`), `automation/lib/globals.sh` (generated -- change the SSOT, not the file), `automation/73-model-prep.sh`, `tools/generate-mini-vs-hosted.py`.
+**Done When:** the decision is made explicitly and recorded in ADR-0016 rather than inherited from a default nobody chose. Either (a) the payload becomes opt-in -- empty by default, baked when the operator sets it, with the heavy lane's first start documented as needing egress; or (b) it stays baked and the ADR says why, with the size stated so it is a chosen cost. **Measure the real bake delta before choosing** -- the ~16 GB figure is the SSOT's prose, not something this session weighed.
+**Why:** the generated comparison now lists what a seat carries and never loads. Three GGUFs are small and defensible. The fourth is not obviously either, and nobody has said which.
+**Dep:** none. | **Domain:** Build/Image | **Who:** build agent

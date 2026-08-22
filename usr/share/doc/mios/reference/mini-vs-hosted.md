@@ -67,5 +67,16 @@ A service's canonical address is the key its consumers already resolve (ADR-0016
 
 A seat has **no local inference floor**. Every lane — heavy, alt, light and the CPU node — is capability-gated off, including the lane the resolver calls "the always-on floor". When the blade is unreachable a seat has a front door that can reach nothing. The model weights are baked regardless (Law 12), so a seat carries them and never loads them.
 
+Exactly what it carries and never loads — derived from `[llamacpp].bake_models` and `[ai.vllm].bake_model`, so this list cannot drift from what the image actually bakes:
+
+| Baked payload | Source |
+|---|---|
+| `granite-4.1-8b.gguf` | `unsloth/granite-4.1-8b-GGUF:granite-4.1-8b-Q4_K_M.gguf` |
+| `lfm2-700m.gguf` | `LiquidAI/LFM2-700M-GGUF:LFM2-700M-Q4_K_M.gguf` |
+| `embeddinggemma-300m-qat-q8_0.gguf` | `ggml-org/embeddinggemma-300m-qat-q8_0-GGUF:embeddinggemma-300m-qat-Q8_0.gguf` |
+| `vLLM snapshot` | `stelterlab/Qwen3-30B-A3B-Instruct-2507-AWQ` |
+
+The vLLM snapshot is baked while `[ai.vllm].enable = false`: it ships on every image, seat and blade alike, and no archetype starts the lane that would load it. That is an unreviewed default rather than Law 12 discipline — see T-330.
+
 Whether that is right is an operator decision, recorded in ADR-0016 Decision 6, not a defect: giving a seat a micro local lane would trade "offload *all* services" for a degraded-but-alive floor.
 
