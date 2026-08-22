@@ -5,6 +5,7 @@
 
 import asyncio
 import re
+import os
 import unittest
 
 import mios_turn
@@ -147,6 +148,45 @@ class TestLiveAgentNames(unittest.TestCase):
         _configure(reg, node_live={"gated": (time.time(), False)})
         live = asyncio.run(mios_turn._live_agent_names())
         self.assertEqual(live, {"local"})
+
+
+class TestProbeVerifyTLS(unittest.TestCase):
+    """T-310: probes verify TLS unless the SSOT opts out. See ADR-0016."""
+
+    _SITES = (
+        "mios_pipe/routing/turn.py",
+        "mios_pipe/routing/portal.py",
+        "mios_pipe/kernel/clusterhealth.py",
+    )
+
+    @staticmethod
+    def _resolve(value):
+        """The module-level expression, evaluated the way each site evaluates it."""
+        return (value or "true").lower() not in {"false", "0", "no"}
+
+    def test_default_verifies(self):
+        self.assertIs(self._resolve(None), True)
+        self.assertIs(self._resolve("true"), True)
+
+    def test_opt_out_values(self):
+        for v in ("false", "FALSE", "0", "no", "No"):
+            self.assertIs(self._resolve(v), False, v)
+
+    def test_unknown_value_stays_secure(self):
+        for v in ("maybe", "", "yes", "1"):
+            self.assertIs(self._resolve(v), True, v)
+
+    def test_no_site_hardcodes_verify_false(self):
+        import os
+        base = os.path.dirname(os.path.abspath(__file__))
+        for rel in self._SITES:
+            body = open(os.path.join(base, rel), encoding="utf-8").read()
+            self.assertNotIn("verify=False", body, rel)
+            self.assertIn("verify=_PROBE_VERIFY_TLS", body, rel)
+
+    def test_module_constant_matches_env(self):
+        self.assertIs(mios_turn._PROBE_VERIFY_TLS,
+                      self._resolve(os.environ.get("MIOS_SECURITY_PROBE_VERIFY_TLS")))
 
 
 if __name__ == "__main__":

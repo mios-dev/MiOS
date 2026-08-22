@@ -394,6 +394,7 @@ sandbox.seccomp_enable  MIOS_SANDBOX_SECCOMP_ENABLE
 sandbox.seccomp_action  MIOS_SANDBOX_SECCOMP_ACTION
 sandbox.seccomp_deny  MIOS_SANDBOX_SECCOMP_DENY
 security.privileged_units.unconfined  MIOS_SECURITY_PRIVILEGED_UNITS_UNCONFINED
+security.probe_verify_tls  MIOS_SECURITY_PROBE_VERIFY_TLS
 security.enable_units  MIOS_SECURITY_ENABLE_UNITS
 security.composefs_mode  MIOS_SECURITY_COMPOSEFS_MODE
 security.mask_systemd_remount_fs  MIOS_SECURITY_MASK_SYSTEMD_REMOUNT_FS

@@ -32,10 +32,10 @@ from typing import Any, Optional
 
 import httpx
 from fastapi import APIRouter, Request, WebSocket, BackgroundTasks
-from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
-                               Response)
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from mios_jsonsalvage import loads_lenient as _loads_lenient
+from mios_pipe.kernel.config import PROBE_VERIFY_TLS as _PROBE_VERIFY_TLS
 
 log = logging.getLogger("mios-agent-pipe")
 
@@ -1156,7 +1156,7 @@ async def portal_stats_logic(request: Request) -> JSONResponse:
                 "image": cinfo.get("image", ""),
                 "url": f"https://{PORTAL_PUBLIC_HOST}:{svc['port']}"
                        f"{svc.get('path', '/')}"}
-    async with httpx.AsyncClient(verify=False, timeout=4.0,
+    async with httpx.AsyncClient(verify=_PROBE_VERIFY_TLS, timeout=4.0,
                                  follow_redirects=False) as client:
         services = await asyncio.gather(
             *[_check(s, client) for s in _PORTAL_SERVICES])
@@ -1191,7 +1191,7 @@ async def portal_service_detail_logic(port: int, request: Request) -> JSONRespon
             except: pass
             logs = ""
     ok = False
-    async with httpx.AsyncClient(verify=False, timeout=4.0,
+    async with httpx.AsyncClient(verify=_PROBE_VERIFY_TLS, timeout=4.0,
                                  follow_redirects=False) as client:
         try:
             r = await client.get(svc["local"])
@@ -1214,7 +1214,7 @@ async def portal_swarm_logic(request: Request) -> JSONResponse:
     show up/down as they join/leave the swarm."""
     if not _portal_authed(request):
         return JSONResponse({"error": "auth required"}, status_code=401)
-    async with httpx.AsyncClient(verify=False, timeout=3.0,
+    async with httpx.AsyncClient(verify=_PROBE_VERIFY_TLS, timeout=3.0,
                                  follow_redirects=False) as client:
         agents = await asyncio.gather(
             *[sys.modules["mios_portal"]._portal_swarm_probe(n, c, client)

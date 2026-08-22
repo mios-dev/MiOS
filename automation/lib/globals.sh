@@ -1739,6 +1739,7 @@ to" / "let me know".
 [ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL='http://localhost:'"${MIOS_PORT_SEARXNG}"
 : "${MIOS_SEARXNG_USER:=mios-searxng}"
 : "${MIOS_SEARXNG_VERSION:=docker.io/searxng/searxng:latest}"
+: "${MIOS_SECURITY_PROBE_VERIFY_TLS:=true}"
 : "${MIOS_SELFIMPROVE_ACCEPT_MARGIN:=0.0}"
 : "${MIOS_SELFIMPROVE_ACT_ENABLED:=false}"
 : "${MIOS_SELFIMPROVE_FAIL_THRESHOLD:=0.3}"

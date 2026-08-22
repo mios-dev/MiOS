@@ -164,6 +164,10 @@ _MICRO_BASE = (_MICRO_ENDPOINT[:-3].rstrip("/")
 
 _LIGHT_LANE = os.environ.get("MIOS_LLM_CPU_ENDPOINT",
                              _LIGHT_BASE).rstrip("/")  # mios-llm-light (WS-0B: one owned port key)
+# TLS verification on reachability probes; insecure is opt-in. Probes degrade
+# open, so an unverifiable peer reads as down, never as a crash.
+PROBE_VERIFY_TLS = os.environ.get(
+    "MIOS_SECURITY_PROBE_VERIFY_TLS", "true").lower() not in {"false", "0", "no"}
 ROUTER_ENABLED = os.environ.get("MIOS_AGENT_PIPE_ROUTER_ENABLED",
                                 "true").lower() not in {"false", "0", "no"}
 ROUTER_MODEL = os.environ.get("MIOS_AGENT_PIPE_ROUTER_MODEL", _MICRO_MODEL)

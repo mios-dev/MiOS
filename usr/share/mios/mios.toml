@@ -1602,6 +1602,8 @@ developer = "MiOS"
 # validity_days   = 90
 
 [security]
+# TLS verification on agent-plane reachability probes. false = self-signed mesh only.
+probe_verify_tls = true
 enable_units = [
   "usbguard.service",
   "auditd.service",
