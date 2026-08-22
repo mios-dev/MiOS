@@ -68,9 +68,30 @@ fi
 
 log "live tier: $(bwrap --version 2>/dev/null || echo bwrap)"
 ws="${TMP}/ws"; mkdir -p "$ws"
+
+# Some runners cannot configure loopback in a fresh net namespace; that is the
+# RUNNER, not the sandbox. Probe once, fall back to --net. Manual ch62.
+NET_ARG=()
+if ! bwrap --ro-bind / / --dev /dev --unshare-net --die-with-parent \
+        /bin/true >/dev/null 2>&1; then
+    NET_ARG=(--net)
+    log "NOTE: this host cannot unshare the net namespace under bwrap;"
+    log "      running the confined checks WITH the network (seccomp unaffected)"
+fi
+
 run_confined() {
-    bash "$EXEC" --level enforce --workspace "$ws" -- /bin/sh -c "$1" 2>&1
+    bash "$EXEC" --level enforce "${NET_ARG[@]}" --workspace "$ws" -- /bin/sh -c "$1" 2>&1
 }
+
+probe="$(run_confined 'echo PROBE=up')" || true
+if ! grep -q "PROBE=up" <<<"$probe"; then
+    if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+        die "bwrap present but cannot run here, and MIOS_DRIFT_REQUIRE_TOOLS=1: $probe"
+    fi
+    log "SKIP live tier: bwrap present but unusable on this host -- $probe"
+    log "PASS (generator tier only)"
+    exit 0
+fi
 
 out="$(run_confined '
     echo "PID1=$(cat /proc/1/comm)"

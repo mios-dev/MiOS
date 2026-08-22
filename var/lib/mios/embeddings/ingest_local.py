@@ -66,7 +66,7 @@ def embed_batch(client: httpx.Client, endpoint: str, key: str, model: str,
 
 def stable_id(chunk_id: str) -> int:
     """Deterministic 64-bit id from the chunk's string id."""
-    return int(hashlib.sha1(chunk_id.encode()).hexdigest()[:16], 16)
+    return int(hashlib.sha1(chunk_id.encode(), usedforsecurity=False).hexdigest()[:16], 16)
 
 
 def vector_literal(vec) -> str:

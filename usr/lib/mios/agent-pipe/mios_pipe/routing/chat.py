@@ -870,7 +870,7 @@ async def chat_completions_logic(request: Request) -> Any:
             log.info("Replay mode active: loaded %d LLM responses, %d tool responses for session %s",
                      len(llm_q), len(tool_q), replay_sess_id)
             
-            h = hashlib.md5(replay_sess_id.encode("utf-8")).hexdigest()
+            h = hashlib.md5(replay_sess_id.encode("utf-8"), usedforsecurity=False).hexdigest()
             seed = int(h, 16) % (2**32)
             random.seed(seed)
             try:

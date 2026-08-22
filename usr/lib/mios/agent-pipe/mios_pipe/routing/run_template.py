@@ -11,6 +11,15 @@ from typing import Optional
 from mios_pipe.routing import replay as _replay   # T-225 intent keying
 
 RUN_TEMPLATE_ENABLE = True
+_MAX_ROWS = 500        # hard read cap; the caller's limit slices the result
+
+# Constant statement: _db_read takes no bind parameters, so no caller value
+# may reach the SQL text.
+_SQL_LOAD = (
+    "SELECT intent, intent_key, dag, class, ts FROM run_template "
+    "WHERE intent_key IS NOT NULL AND intent_key <> '' "
+    "ORDER BY ts DESC LIMIT 500"
+)
 _PG_PRIMARY = False
 _db_read = None
 _db_create = None
@@ -55,15 +64,13 @@ async def load_run_templates(limit: int = 50) -> list:
     if not RUN_TEMPLATE_ENABLE or _db_read is None:
         return []
     n = max(1, int(limit or 50))
-    sql = ("SELECT intent, intent_key, dag, class, ts FROM run_template "
-           f"WHERE intent_key IS NOT NULL AND intent_key <> '' ORDER BY ts DESC LIMIT {n}")
     try:
-        resp = await _db_read(sql + ";", pg_sql=sql)
+        resp = await _db_read(_SQL_LOAD + ";", pg_sql=_SQL_LOAD)
     except Exception:  # noqa: BLE001 -- degrade-open: a read failure just means planning
         return []
     for st in (resp or []):
         if isinstance(st, dict) and isinstance(st.get("result"), list):
-            return st["result"]
+            return st["result"][:n]
     return []
 
 

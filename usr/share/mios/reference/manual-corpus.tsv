@@ -3577,6 +3577,7 @@ tests/test-reflection.py	21	21	1	2	8fd01c634ab8	STAY	inline-scoped		0				0
 tests/test-sandbox-seccomp.sh	1	4	4	114	f3270e1c9aa3	STAY	ai-header		0				0
 tests/test-sandbox-seccomp.sh	23	23	1	2	98e90e436295	STAY	local-scoped		0				0
 tests/test-sandbox-seccomp.sh	59	59	1	2	577830035670	STAY	local-scoped		0				0
+tests/test-sandbox-seccomp.sh	72	73	2	25	6a928abc41c5	STAY	local-scoped		0				0
 tests/test-theme-merge.py	1	3	3	18	9dfcac286a81	STAY	ai-header		0				0
 tests/test-think-stripper.py	1	4	4	34	125eaa238f2d	STAY	ai-header		0				0
 tests/test-think-stripper.py	5	7	2	17	3c4013021e97	STAY	local-scoped		0				0
@@ -6090,14 +6091,16 @@ usr/lib/mios/agent-pipe/mios_pipe/routing/ruleof2.py	97	106	10	79	2e7c89d49b84	M
 usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	1	3	3	103	6f146cd2bcdf	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	4	4	1	8	7af892308459	STAY	local-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	11	11	1	3	bfbdd797619a	STAY	inline-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	24	24	1	7	d67e39e51206	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	44	45	2	21	bc09691fdb4a	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	54	54	1	9	f67906ee131e	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	62	62	1	9	92ec3e36ded8	STAY	inline-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	71	72	2	19	5d52696ba607	STAY	local-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	88	88	1	1	3044f81eb950	DROP	banner		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	92	92	1	5	329ab488a6fd	STAY	inline-scoped		0				0
-usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	94	94	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	14	14	1	10	6fd4ec128d6c	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	16	17	2	16	0f3b135f8902	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	33	33	1	7	d67e39e51206	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	53	54	2	21	bc09691fdb4a	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	63	63	1	9	f67906ee131e	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	69	69	1	9	92ec3e36ded8	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	78	79	2	19	5d52696ba607	STAY	local-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	95	95	1	1	3044f81eb950	DROP	banner		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	99	99	1	5	329ab488a6fd	STAY	inline-scoped		0				0
+usr/lib/mios/agent-pipe/mios_pipe/routing/run_template.py	101	101	1	2	f56ee1e18c22	STAY	inline-scoped		0				0
 usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py	1	3	3	162	cc15a5547030	STAY	ai-header		0				0
 usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py	4	22	18	125	d764a4a8ab48	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/routing.md	mios-src:d764a4a8ab48	125	0
 usr/lib/mios/agent-pipe/mios_pipe/routing/secondary_loop.py	38	40	3	32	03dd8b4132ca	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/routing.md	mios-src:03dd8b4132ca	32	0

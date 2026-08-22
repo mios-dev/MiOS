@@ -295,6 +295,7 @@
 | T-307 | P2 | done | Docs/DocGen | DOCGEN-14 -- de-rot the AI-hint headers the generated indexes read from: 35 source files (headers only, bodies untouched) plus four systemd units fixed at their source under `usr/lib/systemd/system` with golden-master snapshots refreshed (`cargo test --test golden_master` green). After re-render `tool-index.md` and `README.md` carry ZERO retired ports -- they healed from the corrected hints, which is the generative pipeline working as designed. Two enumerated port lists (`mios-firewall-ports`, `service-health.sh`) now name `[ports]` categories instead of literal lists that drift; the latter's hint was also truncated mid-word and is repaired. **Done-when (met):** generated indexes clean, gate green. |
 | T-308 | P1 | done | Roadmap/Gates | ROADMAP-01 -- TASKS.md summary table and task sections agreed |
 | T-309 | P3 | planned | Security/Sandbox | SBX-01 -- Reconcile the reference bwrap argv with the wrapper |
+| T-310 | P2 | planned | Security/Transport | SEC-TLS-01 -- Five outbound clients disable TLS verification |
 
 ---
 
@@ -2750,3 +2751,12 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** A reader who consults the policy module today concludes verbs run under `--unshare-all` with capabilities intact. Neither half of that is true, and it is the kind of wrong belief that gets relied on in a review.
 **Dep:** After T-230 (which added the seccomp flag the function does not model). Needs a VM/host to verify a namespace change safely.
 **Status:** planned | **Domain:** Security/Sandbox | **Who:** security agent
+
+## T-310 -- SEC-TLS-01: Five outbound clients disable TLS certificate verification  (WS-GUARD | P2 | S)
+**Goal:** E-24 Autonomy guardrails -- an outbound probe cannot be silently answered by whoever is on the wire.
+**What+How:** Five `httpx.AsyncClient(verify=False, ...)` call sites ship on the default branch: `mios_pipe/routing/turn.py:98` (node liveness probe), `mios_pipe/routing/portal.py:1159/1194/1217` (Portal service probes) and `mios_pipe/kernel/clusterhealth.py:314`. CodeQL rates this class high (`py/request-without-cert-validation`), and it is a real weakness rather than a false positive: any of these endpoints resolved to an `https://` URL is probed with certificate checking OFF, so a MITM answers the liveness/health question and the plane treats a hostile lane as live. The probable original reason is self-signed certificates on local lanes. The fix is to verify by DEFAULT and narrow the exception: keep verification off only for a loopback/unix-socket target, or supply the local CA, driven by one SSOT key rather than five literals -- for `http://` targets `verify` is irrelevant anyway, so the flag buys nothing in the common case and only weakens the uncommon one.
+**Where:** `usr/lib/mios/agent-pipe/mios_pipe/routing/turn.py`, `usr/lib/mios/agent-pipe/mios_pipe/routing/portal.py`, `usr/lib/mios/agent-pipe/mios_pipe/kernel/clusterhealth.py`, plus the SSOT key and a drift-check forbidding a bare `verify=False`.
+**Done When:** No `verify=False` literal remains outside the one narrow, SSOT-gated helper; a probe against a self-signed LOCAL lane still succeeds on a real host; a probe against an untrusted certificate fails instead of reporting the lane live; and a gate fails if a new `verify=False` appears.
+**Why:** A liveness probe that cannot tell a real lane from an impostor is a routing decision made by the attacker. It is also the only remaining high-severity class CodeQL reports on this tree.
+**Dep:** none -- independent. Needs a host with the real lane certificates to verify the loosened path still works, which is why it is recorded rather than patched blind.
+**Status:** planned | **Domain:** Security/Transport | **Who:** security agent

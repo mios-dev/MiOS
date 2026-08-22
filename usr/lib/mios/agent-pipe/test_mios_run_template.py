@@ -93,11 +93,22 @@ def t_load():
     check("load: filters to rows that actually carry a key",
           "intent_key IS NOT NULL" in seen.get("sql", ""), seen.get("sql", ""))
     check("load: newest first", "ORDER BY ts DESC" in seen.get("sql", ""))
-    check("load: honours the caller's limit", "LIMIT 7" in seen.get("sql", ""), seen.get("sql", ""))
+    check("load: the statement is a CONSTANT -- no caller value reaches the SQL",
+          seen.get("sql", "").rstrip(";") == RT._SQL_LOAD, seen.get("sql", ""))
+    check("load: the read is capped in the statement itself",
+          f"LIMIT {RT._MAX_ROWS}" in seen.get("sql", ""), seen.get("sql", ""))
 
-    asyncio.run(RT.load_run_templates(0))
-    check("load: a zero/absent limit falls back to a sane one, never LIMIT 0",
-          "LIMIT 0" not in seen.get("sql", ""), seen.get("sql", ""))
+    async def _many(sql, pg_sql=None):
+        seen["sql"] = pg_sql or sql
+        return [{"result": [{"intent": f"turn {i}", "intent_key": R.intent_key(f"turn {i}"),
+                             "dag": {"nodes": [{"id": 1}]}} for i in range(40)]}]
+
+    _wire([], db_read=_many)
+    check("load: the caller's limit slices the RESULT",
+          len(asyncio.run(RT.load_run_templates(7))) == 7)
+    check("load: a zero/absent limit falls back to a sane one, never zero rows",
+          len(asyncio.run(RT.load_run_templates(0))) == 40)
+    _wire([], db_read=_read)
 
     async def _boom(sql, pg_sql=None):
         raise RuntimeError("db down")
