@@ -295,6 +295,7 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [No libseccomp](manual/ch62-sandbox-seccomp.md#62_no_libseccomp): Covers the classic-BPF filter assembled in pure stdlib.
   * [The Number Table Is ABI, Not Trust](manual/ch62-sandbox-seccomp.md#62_abi_not_trust): Explains why syscall numbers are cross-checked against kernel headers.
   * [A Filter That Denies Nothing Is Worse Than None](manual/ch62-sandbox-seccomp.md#62_nothing_is_worse): Details the three refusals and the wrapper's exit-126 stance.
+  * [Environment vs Artifact](manual/ch62-sandbox-seccomp.md#62_environment_vs_artifact): Explains what a two-tier test may skip on and what it may never skip.
   * [Two Argv Builders, One Executor](manual/ch62-sandbox-seccomp.md#62_two_argv_builders): Records the divergence left for T-309 rather than changed blind.
 
 ---

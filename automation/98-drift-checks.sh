@@ -4433,6 +4433,7 @@ required_checks = [
     "check_firstboot_provisioners",
     "check_schema_consumers",
     "check_tasks_status_parity",
+    "check_container_names",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6199,6 +6200,7 @@ main() {
     check_firstboot_provisioners
     check_schema_consumers
     check_tasks_status_parity
+    check_container_names
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7207,6 +7209,18 @@ check_tasks_status_parity() {
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks-status-parity.py 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_tasks_status_parity: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_container_names() {
+    echo "[98-drift-checks]   check_container_names"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-container-names.py 2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_container_names: $line"
         done <<<"$out"
         return
     fi

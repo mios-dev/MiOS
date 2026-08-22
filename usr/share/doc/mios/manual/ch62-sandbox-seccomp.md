@@ -73,6 +73,30 @@ never to ALLOW. Letting a mismatched personality through is the classic
 32-on-64 seccomp bypass, and the test asserts the jump target directly rather
 than trusting the shape.
 
+#### <a name="62_environment_vs_artifact"></a>62.Environment vs Artifact: What a Test May Skip On
+
+`tests/test-sandbox-seccomp.sh` runs in two tiers because only one of them can
+run everywhere. The generator and refusal tiers are **artifact** checks -- they
+prove the filter builds, names this host's audit arch, has exactly one compare
+per denied syscall, refuses an unsupported architecture, and that the wrapper
+exits 126 rather than running unfiltered. Those need nothing but Python and
+always run.
+
+The live tier needs a kernel willing to let bubblewrap build a sandbox at all.
+A hardened CI runner may refuse outright (`bwrap: setting up uid map:
+Permission denied`), or allow the sandbox but refuse a fresh net namespace
+(`loopback: Failed RTM_NEWADDR`). Both are facts about the **runner**, not
+defects in the sandbox, so the tier skips loudly -- even under
+`MIOS_DRIFT_REQUIRE_TOOLS=1`, which otherwise makes a missing tool fatal.
+
+The rule that decides this is the same one that closed the unimportable-server
+gate: **a gate may skip on the environment, never on the artifact.** The
+discriminator is bubblewrap's own minimal capability -- if `bwrap /bin/true`
+cannot run, nothing in the tier can -- rather than matching error text, and the
+netns fallback is a second probe of the same kind. What is left running on a
+restricted runner still fails when the refusals are removed, which is the
+property that makes the skip safe rather than convenient.
+
 #### <a name="62_two_argv_builders"></a>62.Two Argv Builders, One Executor
 
 `mios_sandbox.build_bwrap_argv` predates the wrapper and describes a *different*

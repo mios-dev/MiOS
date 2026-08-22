@@ -1816,6 +1816,35 @@ test_tasks_status_parity() {
     log "Test_tasks_status_parity negative test passed"
 }
 
+test_container_names() {
+    log "Testing check_container_names"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.cnbak"
+    cp "$toml" "$backup"
+
+    # Drop ONE ContainerName from the SSOT: Quadlet would then name that
+    # container systemd-<unit>, which no `systemctl` name matches.
+    python3 - "$toml" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8").read()
+m = re.search(r'^ContainerName = "[^"]+"\n', s, re.M)
+assert m, "no ContainerName to remove"
+open(p, "w", encoding="utf-8").write(s[:m.start()] + s[m.end():])
+PYEOF
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_container_names >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_container_names passed while a Quadlet declared no ContainerName"
+    fi
+    mv "$backup" "$toml"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_container_names >/dev/null 2>&1 \
+        || die "check_container_names failed after restoration"
+
+    log "Test_container_names negative test passed"
+}
+
 test_firstboot_provisioners() {
     log "Testing check_firstboot_provisioners"
     local unit="${ROOT}/usr/lib/systemd/system/mios-models-firstboot.service"
@@ -2696,6 +2725,7 @@ main() {
     test_firstboot_provisioners
     test_schema_consumers
     test_tasks_status_parity
+    test_container_names
     test_adr_index
     test_vendored_assets_non_stub
     test_resolved_env_lossless

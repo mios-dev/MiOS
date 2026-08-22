@@ -36,6 +36,26 @@ set -e
 [[ ! -s "${TMP}/n.bpf" ]] || die "an unsupported architecture wrote a filter anyway"
 ok "an unsupported architecture is refused, not silently unfiltered ($rc)"
 
+# Artifact assertions that need no bwrap, so the CI path stays a real gate.
+# Manual ch62.
+python3 - "$GEN" "${TMP}/f.bpf" <<'PYEOF' || die "the emitted program does not match its own denylist"
+import os, struct, subprocess, sys, platform
+sys.path.insert(0, os.path.join(os.getcwd(), "usr/lib/mios/agent-pipe"))
+from mios_pipe.access import seccomp as S
+gen, blob_path = sys.argv[1], sys.argv[2]
+blob = open(blob_path, "rb").read()
+ins = [struct.unpack("<HBBI", blob[i:i + 8]) for i in range(0, len(blob), 8)]
+want_arch = S.AUDIT_ARCH[platform.machine()]
+assert ins[1][3] == want_arch, f"arch word {ins[1][3]:#x} != {want_arch:#x}"
+out = subprocess.run([sys.executable, gen, "--describe"], capture_output=True, text=True).stdout
+denied = int([w.split("=")[1] for w in out.split() if w.startswith("denied=")][0])
+assert denied > 0, "the filter denies nothing"
+assert len(ins) == 3 + denied + 2, f"{len(ins)} instructions for {denied} denied"
+assert ins[1][2] == denied + 1, "an arch mismatch does not fall through to deny"
+print(f"  arch={want_arch:#x} denied={denied} insns={len(ins)}")
+PYEOF
+ok "the emitted program names this host's arch and matches its denylist"
+
 desc="$(python3 "$GEN" --describe)"
 for sc in ptrace mount chroot init_module bpf keyctl; do
     grep -q " ${sc}$" <<<"$desc" || die "the baseline floor lost ${sc}"
@@ -57,11 +77,16 @@ grep -q "refusing to run with no syscall filter" "${TMP}/err" \
 ok "with no generator, level=enforce refuses (126) instead of running unfiltered"
 
 # ------------------------------------------------------------------ live tier --
+# A kernel that refuses bwrap is an ENVIRONMENT fact, so the live tier skips
+# loudly even under REQUIRE_TOOLS. Manual ch62.
 if ! command -v bwrap >/dev/null 2>&1; then
-    if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-        die "bwrap absent and MIOS_DRIFT_REQUIRE_TOOLS=1 -- the live tier cannot be skipped"
-    fi
-    log "SKIP live tier: bwrap absent (set MIOS_DRIFT_REQUIRE_TOOLS=1 to make this fatal)"
+    log "SKIP live tier: bwrap absent"
+    log "PASS (generator tier only)"
+    exit 0
+fi
+if ! bwrap --ro-bind / / --die-with-parent /bin/true >/dev/null 2>&1; then
+    log "SKIP live tier: bwrap installed but this kernel/policy refuses it --"
+    log "      $(bwrap --ro-bind / / --die-with-parent /bin/true 2>&1 | head -1)"
     log "PASS (generator tier only)"
     exit 0
 fi
@@ -83,15 +108,10 @@ run_confined() {
     bash "$EXEC" --level enforce "${NET_ARG[@]}" --workspace "$ws" -- /bin/sh -c "$1" 2>&1
 }
 
+# bwrap works (checked above), so a failure HERE is the wrapper's.
 probe="$(run_confined 'echo PROBE=up')" || true
-if ! grep -q "PROBE=up" <<<"$probe"; then
-    if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
-        die "bwrap present but cannot run here, and MIOS_DRIFT_REQUIRE_TOOLS=1: $probe"
-    fi
-    log "SKIP live tier: bwrap present but unusable on this host -- $probe"
-    log "PASS (generator tier only)"
-    exit 0
-fi
+grep -q "PROBE=up" <<<"$probe" \
+    || die "bwrap runs, but the wrapper could not start a confined command: $probe"
 
 out="$(run_confined '
     echo "PID1=$(cat /proc/1/comm)"

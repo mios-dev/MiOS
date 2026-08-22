@@ -223,7 +223,7 @@
 | T-235 | P3 | planned | UI/Architecture | UISHELL-04 -- Cockpit native-vs-web decision  [P3] |
 | T-236 | P2 | planned | SSOT/Identity | NAME2-01 -- Agent-plane user SSOT reconciliation (820/822 → 850) |
 | T-237 | P3 | blocked | Naming | NAME2-02 -- Rename `mios-daemon-agent` agent-id → `daemon-agent` |
-| T-238 | P3 | planned | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
+| T-238 | P3 | in-progress | Naming/Hygiene | NAME2-03 -- Mutable-state casing pass + `ContainerName=` audit   |
 | T-239 | P3 | in-progress | Security/Boot | UKI-01 -- verity-rooted UKI build + fapolicyd enforce-promotion  |
 | T-240 | P2 | in-progress | Data/Migration | A3F-01 -- Central-path legacy-datastore→pg primary flip + un-mirrored w |
 | T-241 | P2 | done | OS-control/Windows | OSCTL2-01 -- hwnd-threaded target-window resolution for `pc_type |
@@ -296,6 +296,7 @@
 | T-308 | P1 | done | Roadmap/Gates | ROADMAP-01 -- TASKS.md summary table and task sections agreed |
 | T-309 | P3 | planned | Security/Sandbox | SBX-01 -- Reconcile the reference bwrap argv with the wrapper |
 | T-310 | P2 | planned | Security/Transport | SEC-TLS-01 -- Five outbound clients disable TLS verification |
+| T-311 | P3 | planned | Naming/Hygiene | NAME2-04 -- Rename the globals that are truly mutated at runtime |
 
 ---
 
@@ -2423,10 +2424,10 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Goal:** E-10 One canonical name -- one spelling rule holds across Python module state and unit identifiers alike.
 **What+How:** Finish the residual pass the naming refactor deferred: rename module-level mutable state (semaphores, caches, registries) in `server.py` and the `mios_*.py` modules to `_lower_snake`, and audit `ContainerName=` on every renamed `.container` unit so the container name matches its unit name. `server.py` Phase-1b renames already landed -- this is the remainder.
 **Where:** `usr/lib/mios/agent-pipe/server.py` and the `mios_*.py` module state; the renamed `.container` units.
-**Done When:** Every module-level mutable global is `_lower_snake`, each `ContainerName=` equals its unit name, and the drift-check is green.
+**Done When:** Every module-level global that is genuinely MUTATED at runtime (caches, registries, pools) is `_lower_snake`; every `ContainerName=` equals its unit name (or, for a template unit, the instantiated `<base>-%i` form); and the drift-check is green. REVISED: the original wording -- "every module-level *mutable* global" -- was measured and does not survive contact. 406 module-level UPPER_SNAKE names are reassigned at runtime via a `global` statement, but the large majority are dependency-INJECTED configuration constants set once by `configure()` (`REFINE_MODEL`, `WEB_RESEARCH_ENABLED`, `KNOWLEDGE_RECALL_K`...). UPPER_SNAKE is correct for those; renaming them would obscure that they are config, and would break every `configure()` call site, `server.py`'s verbatim re-imports (the surface-parity gate) and the AI-hint headers. The rule that actually serves the goal is mutated-at-runtime vs set-once-at-wiring, not the literal word "mutable".
 **Why:** Mixed casing on shared mutable state hides which globals are process-wide, and a `ContainerName=` that disagrees with its unit makes `podman ps` output unmappable to `systemctl` state during an incident.
 **Dep:** After T-236 and T-237.
-**Status:** planned (partial) | **Domain:** Naming/Hygiene | **Who:** naming agent
+**Status:** in-progress -- the `ContainerName=` clause is DONE and gated. The audit found three things: `mios-guacamole` and `mios-pxe-hub` declared no `ContainerName` at all (Quadlet would have named them `systemd-<unit>`, which no `systemctl` name matches -- the exact incident-mapping failure this task names), and `mios-llm-worker@` names `mios-llm-worker-%i`, which is CORRECT for a template unit and is now encoded as a rule rather than read as a defect. Both gaps are fixed in the SSOT and regenerated. `check_container_names` (gate 153 of 168) now checks the SSOT and the rendered units INDEPENDENTLY, so neither can drift alone, honours `[quadlets.enable]` (a gated-off container may render nothing but must still name itself correctly for the day it is switched on), and fails rather than passing vacuously over an empty tree. 14 assertions in `tools/test_check-container-names.py` plus a negative test, proven effective by neutering the gate. The gate ALSO caught a Law-8 violation nobody was looking for: `mios-cockpit-link.container` carried a header saying it was generated from `[containers.mios-cockpit-link]`, and that block did not exist -- the file claimed a provenance it did not have, and a regenerator that cleaned its output directory would have deleted it. The block is reconstructed and PROVEN correct by regenerating byte-identically. The casing clause remains open with a corrected rule (see the revised Done-When); the narrow rename is T-311. | **Domain:** Naming/Hygiene | **Who:** naming agent
 
 ## T-239 -- UKI-01: Ship the verity-rooted UKI build and the fapolicyd enforce promotion  (WS-SEC2 | P3 | L) [VM]
 **Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- boot integrity is measured and executables are trust-gated, closing the chain at the bottom.
@@ -2760,3 +2761,12 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** A liveness probe that cannot tell a real lane from an impostor is a routing decision made by the attacker. It is also the only remaining high-severity class CodeQL reports on this tree.
 **Dep:** none -- independent. Needs a host with the real lane certificates to verify the loosened path still works, which is why it is recorded rather than patched blind.
 **Status:** planned | **Domain:** Security/Transport | **Who:** security agent
+
+## T-311 -- NAME2-04: Rename the globals that are truly MUTATED at runtime  (WS-NAME | P3 | M)
+**Goal:** E-10 One canonical name -- casing tells a reader whether a module-level name is configuration or shared mutable state, without having to trace it.
+**What+How:** T-238 measured 406 module-level UPPER_SNAKE names reassigned through a `global` statement and showed that renaming them wholesale would be wrong: most are dependency-injected configuration constants (`REFINE_MODEL`, `KNOWLEDGE_RECALL_K`) for which UPPER_SNAKE is correct. The residue is the smaller set that is MUTATED IN PLACE at runtime -- caches, registries, pools, locks: `_QUOTA_TRACKERS`, `_CRL_CACHE`, `_KV_LOCKS`, `_NODE_LIVE`, `_WORKER_TOOLS_CACHE`, `_SOURCES_REGISTRY`, `_CHAT_CANCEL`, `_MCP_POOL` and their peers. Build the discriminator first (a name is state if something calls a mutating method on it or subscript-assigns into it, not merely if it is rebound at wiring time), then rename that set to `_lower_snake` and gate the rule so it holds for new code.
+**Where:** `usr/lib/mios/agent-pipe/**` (the identified state globals), `server.py`'s re-export block, and a new drift-check plus its sibling test.
+**Done When:** Every module-level name mutated in place is `_lower_snake`, injected configuration constants are untouched, `check_pipe_extraction_parity` and the route-parity gate stay green, and a new gate fails when a mutated-in-place global is introduced in UPPER_SNAKE.
+**Why:** A reader cannot currently tell `_VERB_CATALOG` (injected once, then read) from `_NODE_LIVE` (written from several coroutines) by looking. The second needs a concurrency argument; the first does not.
+**Dep:** After T-238's measurement. Several of these names are injected BY NAME through `configure()` and re-exported verbatim by `server.py` for the surface-parity gate, so the rename must move all three surfaces together -- which is why it is its own task rather than a sweep.
+**Status:** planned | **Domain:** Naming/Hygiene | **Who:** naming agent
