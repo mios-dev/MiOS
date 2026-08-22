@@ -255,12 +255,17 @@ is generated, its generator is here.
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | !/usr/bin/env python3 Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
 | `tools/check-blade-coverage.py` | !/usr/bin/env python3 Drift gate for the blade ACTIVATION axis. |
+| `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
+| `tools/check-comment-ratchet.py` | Drift check 155 check_comment_ratchet -- asserts measured comment metrics do not exceed ceiling values. |
 | `tools/check-container-names.py` | !/usr/bin/env python3 Drift gate for unmappable container names. |
 | `tools/check-credential-literals.py` | !/usr/bin/env python3 Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | !/usr/bin/env python3 Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
+| `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
 | `tools/check-firstboot-provisioners.py` | !/usr/bin/env python3 Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
+| `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a defect waiting for the operator to add a peer.... |
 | `tools/check-manual-links.py` | !/usr/bin/env python3 Link-integrity gate for the shipped docs. |
 | `tools/check-module-length.py` | !/usr/bin/env python3 Module-size ratchet for the agent-pipe extraction (drift check 149). |
+| `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
 | `tools/check-node-pool.py` | !/usr/bin/env python3 Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
 | `tools/check-port-fallbacks.py` | !/usr/bin/env python3 Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
 | `tools/check-ports-bound.py` | !/usr/bin/env python3 Drift gate for allocated-but-unbound ports. |
@@ -309,6 +314,7 @@ is generated, its generator is here.
 | `tools/test_check-credential-literals.py` | !/usr/bin/env python3 Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
 | `tools/test_check-daemon-governor.py` | !/usr/bin/env python3 Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-firstboot-provisioners.py` | !/usr/bin/env python3 Sibling unit test for tools/check-firstboot-provisioners.py. |
+| `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py. Covers both detectors independently -- k3s multi-server needs BOTH two grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must clear... |
 | `tools/test_check-manual-links.py` | !/usr/bin/env python3 Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
 | `tools/test_check-module-length.py` | !/usr/bin/env python3 Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
 | `tools/test_check-node-pool.py` | !/usr/bin/env python3 Unit tests for tools/check-node-pool.py. |
@@ -330,7 +336,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | !/usr/bin/env python3 Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 78 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 84 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
@@ -622,6 +628,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_dci.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch.py` | Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint). |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch_cmd.py` | !/usr/bin/env python3 Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273). |
+| `usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py` | Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper. The flag-repetition group allowed a flag's ARGUMENT to start with '-', so "-a -b" had two legal parses and the group... |
 | `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + i... |
 | `usr/lib/mios/agent-pipe/test_mios_drift_monitor.py` | Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no ... |
 | `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | !/usr/bin/env python3 Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. |
@@ -738,7 +745,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
 | `usr/lib/mios/test_mios_comments.py` | !/usr/bin/env python3 Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
-<!-- derived from the AI-hint headers of 399 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 400 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
