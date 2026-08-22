@@ -170,7 +170,6 @@ ai.host_thresholds.sys_agent_model  MIOS_AI_HOST_THRESHOLDS_SYS_AGENT_MODEL
 ai.host_thresholds.micro_endpoint  MIOS_AI_HOST_THRESHOLDS_MICRO_ENDPOINT
 ai.host_thresholds.micro_keep_alive_seconds  MIOS_AI_HOST_THRESHOLDS_MICRO_KEEP_ALIVE_SECONDS
 ai.vllm.enable  MIOS_VLLM_ENABLE
-ai.vllm.bake_model  MIOS_VLLM_BAKE_MODEL
 ai.vllm.served_name  MIOS_VLLM_SERVED_NAME
 ai.vllm.gpu_util  MIOS_VLLM_GPU_UTIL
 ai.vllm.max_model_len  MIOS_VLLM_MAX_MODEL_LEN
@@ -185,7 +184,6 @@ ai.sglang.served_name  MIOS_SGLANG_SERVED_NAME
 ai.sglang.mem_fraction  MIOS_SGLANG_MEM_FRACTION
 ai.sglang.tool_parser  MIOS_SGLANG_TOOL_PARSER
 ai.sglang.reasoning_parser  MIOS_SGLANG_REASONING_PARSER
-ai.sglang.max_model_len  MIOS_SGLANG_MAX_MODEL_LEN
 ai.sglang.kv_cache_dtype  MIOS_SGLANG_KV_CACHE_DTYPE
 ai.sglang.hierarchical_cache  MIOS_SGLANG_ENABLE_HIERARCHICAL_CACHE
 ai.sglang.unified_radix_tree  MIOS_SGLANG_ENABLE_UNIFIED_RADIX_TREE

@@ -1,5 +1,5 @@
-/* AI-hint: GENERATED Quadlet container 'mios-webtools-firecrawl-worker' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-worker] in mios.toml. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_containers_systemd_mios_webtools_firecrawl_worker_container.md */
+# AI-hint: GENERATED Quadlet container 'mios-webtools-firecrawl-worker' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-worker] in mios.toml.
+# /usr/share/containers/systemd/mios-webtools-firecrawl-worker.container
 
 [Unit]
 After=mios-webtools-redis.service mios-webtools-firstboot.service

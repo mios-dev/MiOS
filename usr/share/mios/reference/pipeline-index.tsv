@@ -1,73 +1,73 @@
 # NN	kind	name	file	oneline
-01	script	system-files-overlay	automation/01-system-files-overlay.sh	MIOS_APPLY_CLASS=universal
+01	script	system-files-overlay	automation/01-system-files-overlay.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_01_system_files_overlay_sh.md
 02	script	materialize-build-ctx	automation/02-materialize-build-ctx.sh	MIOS_APPLY_CLASS=bake-only
 04	script	local-rpm-mirror	automation/04-local-rpm-mirror.sh	local rpm mirror
 05	script	repos	automation/05-repos.sh	MIOS_APPLY_CLASS=universal
-06	script	enable-external-repos	automation/06-enable-external-repos.sh	MIOS_APPLY_CLASS=universal
+06	script	enable-external-repos	automation/06-enable-external-repos.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_06_enable_external_repos_sh.md
 07	script	kernel	automation/07-kernel.sh	MIOS_APPLY_CLASS=universal
 10	script	locale-theme	automation/10-locale-theme.sh	MIOS_APPLY_CLASS=universal
-11	script	user	automation/11-user.sh	MIOS_APPLY_CLASS=universal
-12	script	hostname	automation/12-hostname.sh	MIOS_APPLY_CLASS=universal
-13	script	accounts-db	automation/13-accounts-db.sh	MIOS_APPLY_CLASS=universal
-14	script	podman-machine-compat	automation/14-podman-machine-compat.sh	MIOS_APPLY_CLASS=dev-only
-15	script	freeipa-client	automation/15-freeipa-client.sh	MIOS_APPLY_CLASS=universal
-20	script	hardware	automation/20-hardware.sh	MIOS_APPLY_CLASS=universal
-21	script	virt	automation/21-virt.sh	MIOS_APPLY_CLASS=universal
-22	script	akmod-guards	automation/22-akmod-guards.sh	MIOS_APPLY_CLASS=universal
-23	script	gpu-passthrough	automation/23-gpu-passthrough.sh	MIOS_APPLY_CLASS=universal
-24	script	gpu-pv-shim	automation/24-gpu-pv-shim.sh	MIOS_APPLY_CLASS=dev-only
-25	script	gpu-cdi-toolkits	automation/25-gpu-cdi-toolkits.sh	MIOS_APPLY_CLASS=universal
-26	script	nvidia-cdi-refresh	automation/26-nvidia-cdi-refresh.sh	MIOS_APPLY_CLASS=universal
-27	script	vm-gating	automation/27-vm-gating.sh	MIOS_APPLY_CLASS=universal
-33	script	generate-quadlets	automation/33-generate-quadlets.sh	MIOS_APPLY_CLASS=universal
-34	script	render-quadlets	automation/34-render-quadlets.sh	MIOS_APPLY_CLASS=universal
+11	script	user	automation/11-user.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_11_user_sh.md
+12	script	hostname	automation/12-hostname.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_12_hostname_sh.md
+13	script	accounts-db	automation/13-accounts-db.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_13_accounts_db_sh.md
+14	script	podman-machine-compat	automation/14-podman-machine-compat.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_14_podman_machine_compat_sh.md
+15	script	freeipa-client	automation/15-freeipa-client.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_15_freeipa_client_sh.md
+20	script	hardware	automation/20-hardware.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_20_hardware_sh.md
+21	script	virt	automation/21-virt.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_21_virt_sh.md
+22	script	akmod-guards	automation/22-akmod-guards.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_22_akmod_guards_sh.md
+23	script	gpu-passthrough	automation/23-gpu-passthrough.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_23_gpu_passthrough_sh.md
+24	script	gpu-pv-shim	automation/24-gpu-pv-shim.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_24_gpu_pv_shim_sh.md
+25	script	gpu-cdi-toolkits	automation/25-gpu-cdi-toolkits.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_25_gpu_cdi_toolkits_sh.md
+26	script	nvidia-cdi-refresh	automation/26-nvidia-cdi-refresh.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_26_nvidia_cdi_refresh_sh.md
+27	script	vm-gating	automation/27-vm-gating.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_27_vm_gating_sh.md
+33	script	generate-quadlets	automation/33-generate-quadlets.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_33_generate_quadlets_sh.md
+34	script	render-quadlets	automation/34-render-quadlets.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_34_render_quadlets_sh.md
 35	script	render-ports	automation/35-render-ports.sh	MIOS_APPLY_CLASS=universal
-36	script	ceph-k3s	automation/36-ceph-k3s.sh	MIOS_APPLY_CLASS=universal
+36	script	ceph-k3s	automation/36-ceph-k3s.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_36_ceph_k3s_sh.md
 37	script	k3s-selinux	automation/37-k3s-selinux.sh	MIOS_APPLY_CLASS=bake-only
 38	script	selinux	automation/38-selinux.sh	MIOS_APPLY_CLASS=universal
-39	script	moby-engine	automation/39-moby-engine.sh	MIOS_APPLY_CLASS=universal
+39	script	moby-engine	automation/39-moby-engine.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_39_moby_engine_sh.md
 40	script	fapolicyd-trust	automation/40-fapolicyd-trust.sh	MIOS_APPLY_CLASS=universal
-41	script	services	automation/41-services.sh	MIOS_APPLY_CLASS=universal
+41	script	services	automation/41-services.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_41_services_sh.md
 42	script	chrony-render	automation/42-chrony-render.sh	MIOS_APPLY_CLASS=universal
 43	script	nut-render	automation/43-nut-render.sh	MIOS_APPLY_CLASS=universal
-44	script	firewall-ports	automation/44-firewall-ports.sh	MIOS_APPLY_CLASS=universal
-45	script	firewall	automation/45-firewall.sh	MIOS_APPLY_CLASS=universal
-46	script	sshd-port	automation/46-sshd-port.sh	MIOS_APPLY_CLASS=universal
-47	script	init-service	automation/47-init-service.sh	MIOS_APPLY_CLASS=universal
+44	script	firewall-ports	automation/44-firewall-ports.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_44_firewall_ports_sh.md
+45	script	firewall	automation/45-firewall.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_45_firewall_sh.md
+46	script	sshd-port	automation/46-sshd-port.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_46_sshd_port_sh.md
+47	script	init-service	automation/47-init-service.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_47_init_service_sh.md
 48	script	mios-dropin-fanout	automation/48-mios-dropin-fanout.sh	MIOS_APPLY_CLASS=universal
 49	script	cosign-policy	automation/49-cosign-policy.sh	MIOS_APPLY_CLASS=universal
-50	script	uupd-installer	automation/50-uupd-installer.sh	MIOS_APPLY_CLASS=universal
-51	script	hardening	automation/51-hardening.sh	MIOS_APPLY_CLASS=universal
-52	script	apply-boot-fixes	automation/52-apply-boot-fixes.sh	MIOS_APPLY_CLASS=universal
-53	script	enable-log-copy-service	automation/53-enable-log-copy-service.sh	MIOS_APPLY_CLASS=bake-only
+50	script	uupd-installer	automation/50-uupd-installer.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_50_uupd_installer_sh.md
+51	script	hardening	automation/51-hardening.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_51_hardening_sh.md
+52	script	apply-boot-fixes	automation/52-apply-boot-fixes.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_52_apply_boot_fixes_sh.md
+53	script	enable-log-copy-service	automation/53-enable-log-copy-service.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_53_enable_log_copy_service_sh.md
 54	script	bake-coderun-sandbox	automation/54-bake-coderun-sandbox.sh	bake coderun sandbox
 55	script	native-build	automation/55-native-build.sh	native build
-56	script	fonts	automation/56-fonts.sh	MIOS_APPLY_CLASS=universal
-57	script	gnome	automation/57-gnome.sh	MIOS_APPLY_CLASS=universal
+56	script	fonts	automation/56-fonts.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_56_fonts_sh.md
+57	script	gnome	automation/57-gnome.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_57_gnome_sh.md
 58	script	gnome-remote-desktop	automation/58-gnome-remote-desktop.sh	MIOS_APPLY_CLASS=universal
-59	script	tools	automation/59-tools.sh	MIOS_APPLY_CLASS=universal
-60	script	flatpak-env	automation/60-flatpak-env.sh	MIOS_APPLY_CLASS=universal
-61	script	flatpak-bake	automation/61-flatpak-bake.sh	MIOS_APPLY_CLASS=universal
-62	script	oh-my-posh	automation/62-oh-my-posh.sh	MIOS_APPLY_CLASS=universal
-65	script	bake-hyprland	automation/65-bake-hyprland.sh	MIOS_APPLY_CLASS=universal
-66	script	bake-quickshell	automation/66-bake-quickshell.sh	MIOS_APPLY_CLASS=bake-only
-67	script	bake-surfer	automation/67-bake-surfer.sh	MIOS_APPLY_CLASS=bake-only
+59	script	tools	automation/59-tools.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_59_tools_sh.md
+60	script	flatpak-env	automation/60-flatpak-env.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_60_flatpak_env_sh.md
+61	script	flatpak-bake	automation/61-flatpak-bake.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_61_flatpak_bake_sh.md
+62	script	oh-my-posh	automation/62-oh-my-posh.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_62_oh_my_posh_sh.md
+65	script	bake-hyprland	automation/65-bake-hyprland.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_65_bake_hyprland_sh.md
+66	script	bake-quickshell	automation/66-bake-quickshell.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_66_bake_quickshell_sh.md
+67	script	bake-surfer	automation/67-bake-surfer.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_67_bake_surfer_sh.md
 68	script	bake-kvmfr	automation/68-bake-kvmfr.sh	MIOS_APPLY_CLASS=bake-only
 69	script	bake-lookingglass-client	automation/69-bake-lookingglass-client.sh	MIOS_APPLY_CLASS=bake-only
-72	script	hermes-agent	automation/72-hermes-agent.sh	MIOS_APPLY_CLASS=universal
-73	script	model-prep	automation/73-model-prep.sh	MIOS_APPLY_CLASS=universal
+72	script	hermes-agent	automation/72-hermes-agent.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_72_hermes_agent_sh.md
+73	script	model-prep	automation/73-model-prep.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
 75	script	kargs-render	automation/75-kargs-render.sh	MIOS_APPLY_CLASS=bake-only
 76	script	uki-render	automation/76-uki-render.sh	MIOS_APPLY_CLASS=bake-only
-77	script	composefs-verity	automation/77-composefs-verity.sh	MIOS_APPLY_CLASS=bake-only
-78	script	greenboot	automation/78-greenboot.sh	MIOS_APPLY_CLASS=bake-only
-79	script	boot-config	automation/79-boot-config.sh	MIOS_APPLY_CLASS=boot-only
+77	script	composefs-verity	automation/77-composefs-verity.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_77_composefs_verity_sh.md
+78	script	greenboot	automation/78-greenboot.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_78_greenboot_sh.md
+79	script	boot-config	automation/79-boot-config.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_79_boot_config_sh.md
 80	script	distribution	automation/80-distribution.sh	distribution
-85	script	bake-plan	automation/85-bake-plan.sh	MIOS_APPLY_CLASS=bake-only
-86	script	oscap-compliance	automation/86-oscap-compliance.sh	MIOS_APPLY_CLASS=bake-only
-88	script	finalize	automation/88-finalize.sh	MIOS_APPLY_CLASS=bake-only
-90	script	generate-sbom	automation/90-generate-sbom.sh	MIOS_APPLY_CLASS=bake-only
+85	script	bake-plan	automation/85-bake-plan.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_85_bake_plan_sh.md
+86	script	oscap-compliance	automation/86-oscap-compliance.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_86_oscap_compliance_sh.md
+88	script	finalize	automation/88-finalize.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_88_finalize_sh.md
+90	script	generate-sbom	automation/90-generate-sbom.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_90_generate_sbom_sh.md
 91	script	strip-build-toolchain	automation/91-strip-build-toolchain.sh	MIOS_APPLY_CLASS=bake-only
 94	script	cleanup	automation/94-cleanup.sh	MIOS_APPLY_CLASS=bake-only
-97	script	ssot-lint	automation/97-ssot-lint.sh	MIOS_APPLY_CLASS=universal
-98	script	drift-checks	automation/98-drift-checks.sh	MIOS_APPLY_CLASS=universal
-99	script	postcheck	automation/99-postcheck.sh	MIOS_APPLY_CLASS=universal
+97	script	ssot-lint	automation/97-ssot-lint.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_97_ssot_lint_sh.md
+98	script	drift-checks	automation/98-drift-checks.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_98_drift_checks_sh.md
+99	script	postcheck	automation/99-postcheck.sh	AI-doc: usr/share/doc/mios/manual/_harvest/automation_99_postcheck_sh.md
