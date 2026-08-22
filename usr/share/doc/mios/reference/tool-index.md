@@ -253,6 +253,7 @@ is generated, its generator is here.
 | `tools/ascii-sweep.py` | A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent rendering across shell scripts, config files, and... |
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emitting the version-literals audit TSV that drives the WS-FLOAT... |
+| `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. Every Quadlet container must either map to a capability in [blade.requires] or sit in the shrink-only [blade].ungated register, so "a seat runs only what it... |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. Quadlet names a container `systemd-<unit>` when the unit does not declare ContainerName, so `podman ps` and `systemctl` disagree about what a thing is... |
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/SECRET/API_KEY=value), distinguishing real credentials from... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon] and [budget] knobs all have real consumers (no... |
@@ -293,6 +294,7 @@ is generated, its generator is here.
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and artifact availability. |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shape the audit TSV is built from. |
+| `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. Cover every way the activation axis can be wrong -- a container classified neither way, one classified both ways, a requires or register entry naming no... |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. Builds throwaway trees and asserts every direction the real audit produced: a matching pair passes, a MISSING ContainerName fails (Quadlet would... |
 | `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered literal, fails a new one, fails a stale grandfathered entry, and does... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate passes a complete governor and fails an ungated autonomous loop, a... |
@@ -311,7 +313,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 60 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 62 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

@@ -95,6 +95,15 @@ main() {
     "$PY" tools/generate-pipeline-index.py >/dev/null
     "$PY" tools/generate-adr-index.py >/dev/null
 
+    step "4c/6 blade projections (drop-ins + the deploy-time karg)"
+    "$PY" tools/generate-blade-dropins.py >/dev/null
+    "$PY" tools/generate-blade-karg.py >/dev/null
+
+    # AFTER the kargs.d producers: the UKI cmdline is derived from every
+    # kargs.d/*.toml, and it was gated without ever being regenerated here.
+    step "4d/6 UKI cmdline (derived from kargs.d)"
+    "$PY" tools/generate-uki-cmdline.py >/dev/null
+
     step "5/6 env-baseline (clean env)"
     if [ -x usr/libexec/mios/mios-env-snapshot ] || [ -r usr/libexec/mios/mios-env-snapshot ]; then
         env -i PATH="$PATH" HOME="${HOME:-/root}" \

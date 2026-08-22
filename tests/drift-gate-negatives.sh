@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,36 @@ test_account_column_parity() {
 }
 
 
+test_blade_karg() {
+    log "Testing check_blade_karg"
+    local karg="${ROOT}/usr/lib/bootc/kargs.d/05-mios-blade.toml"
+    local backup="${karg}.negbak"
+    cp "$karg" "$backup"
+
+    # (1) A hand-edited karg must FAIL -- that is what makes this a projection
+    # rather than a file someone tweaks and nobody notices.
+    sed -i 's/mios\.blade=[a-z-]*/mios.blade=negtesthandedited/' "$karg"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1; then
+        mv "$backup" "$karg"
+        die "check_blade_karg passed on a hand-edited karg"
+    fi
+    cp "$backup" "$karg"
+
+    # (2) A MISSING projection must FAIL rather than being read as "nothing to
+    # check" -- the file's absence is exactly the state this task started in.
+    rm -f "$karg"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1; then
+        mv "$backup" "$karg"
+        die "check_blade_karg passed with the projection absent"
+    fi
+
+    mv "$backup" "$karg"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1 \
+        || die "check_blade_karg failed after restoration"
+
+    log "Test_blade_karg negative test passed"
+}
+
 test_blade_coverage() {
     log "Testing check_blade_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2906,6 +2936,7 @@ main() {
     test_service_urls
     test_ports_bound
     test_blade_coverage
+    test_blade_karg
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
