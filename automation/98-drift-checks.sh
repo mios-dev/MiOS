@@ -4488,6 +4488,7 @@ required_checks = [
     "check_mini_vs_hosted",
     "check_unit_projection",
     "check_ssot_consumer_keys",
+    "check_fleet_safety",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6236,6 +6237,7 @@ main() {
     check_mini_vs_hosted
     check_unit_projection
     check_ssot_consumer_keys
+    check_fleet_safety
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7294,6 +7296,20 @@ check_blade_coverage() {
     echo "[98-drift-checks]   check_blade_coverage"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_fleet_safety() {
+    echo "[98-drift-checks]   check_fleet_safety"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-fleet-safety.py 2>&1)"; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 _violation "$line"

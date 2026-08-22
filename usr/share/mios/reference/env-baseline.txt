@@ -320,6 +320,12 @@ MIOS_BIB_ALPINE_IMAGE=docker.io/library/alpine:latest
 MIOS_BIB_ALPINE_VERSION=latest
 MIOS_BIB_IMAGE=quay.io/centos-bootc/bootc-image-builder:latest
 MIOS_BIND_HOST=
+MIOS_BLADES_HAZARDS_ACCEPTED=k3s-multi-server,pacemaker-unfenced
+MIOS_BLADES_HAZARDS_DOC=A MiOS-Mini fleet is 2-6 boxes (T-331), so a configuration that only works standalone is a defect waiting for the operator to add a peer. Each entry here is a hazard the tree currently carries, accepted deliberately while the fleet design lands (T-333). k3s-multi-server: four archetypes grant what mios-k3s requires and the unit runs `k3s server` with no K3S_URL, so every controller stands up its OWN control plane instead of joining one -- three default `hybrid` Minis would be three clusters sharing one token. pacemaker-unfenced: mios-ha-bootstrap sets stonith-enabled=false, which is correct for the one-node cluster it creates and is how split-brain corrupts data once a peer exists. Retiring an entry means the detector stops reproducing it, not editing this list.
+MIOS_BLADES_HAZARDS_MAX_ACCEPTED=2
+MIOS_BLADES_MAX_NODES=6
+MIOS_BLADES_MIN_NODES=1
+MIOS_BLADES_TYPICAL_NODES=3
 MIOS_BLADE_AI_ENDPOINT=
 MIOS_BLADE_ARCHETYPES_COMPUTE=gpu-serving,service-plane
 MIOS_BLADE_ARCHETYPES_CONTROLLER=controller,service-plane

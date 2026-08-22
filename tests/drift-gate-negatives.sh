@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_unit_projection, test_ssot_consumer_keys, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_unit_projection, test_ssot_consumer_keys, test_fleet_safety, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,56 @@ test_account_column_parity() {
 }
 
 
+test_fleet_safety() {
+    log "Testing check_fleet_safety"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak="${toml}.fsbak"
+    cp "$toml" "$bak"
+
+    _fs_run() {
+        env MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" \
+            MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+            bash "${ROOT}/automation/98-drift-checks.sh" check_fleet_safety \
+            >/dev/null 2>&1
+    }
+    _fs_fail() { cp "$bak" "$toml"; rm -f "$bak"; unset -f _fs_run _fs_fail; die "$1"; }
+
+    # (1) Dropping a hazard that still reproduces must FAIL -- that is how a
+    # fleet-scale defect gets hidden rather than fixed.
+    python3 - "$toml" <<'PYX'
+import io, re, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+start = s.index("[blades.hazards]")
+end = s.index("\n]\n", start) + len("\n]\n")
+block = s[start:end]
+block = re.sub(r'(max_accepted = )(\d+)',
+               lambda m: m.group(1) + str(int(m.group(2)) - 1), block, count=1)
+block, n = re.subn(r'\n  "[^"]+",(?=\n\])', '', block, count=1)
+assert n == 1, "no hazard was removed -- the mutation would prove nothing"
+io.open(p, "w", encoding="utf-8", newline="\n").write(s[:start] + block + s[end:])
+PYX
+    _fs_run && _fs_fail "check_fleet_safety passed with a live hazard dropped from the register"
+    cp "$bak" "$toml"
+
+    # (2) Raising the ceiling to absorb a new hazard must FAIL.
+    sed -i 's/^max_accepted = [0-9]*$/max_accepted = 99/' "$toml"
+    _fs_run && _fs_fail "check_fleet_safety passed with a raised ceiling"
+    cp "$bak" "$toml"
+
+    # (3) Undeclaring the fleet size must FAIL -- a config that only works
+    # standalone is indistinguishable from a broken one without it.
+    sed -i 's/^max_nodes     = [0-9]*$/max_nodes     = 6\nmax_nodes_REMOVED = 1/' "$toml"
+    sed -i '0,/^max_nodes     = 6$/s//max_nodes_GONE = 6/' "$toml"
+    _fs_run && _fs_fail "check_fleet_safety passed with [blades].max_nodes unset"
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _fs_run || { unset -f _fs_run _fs_fail; die "check_fleet_safety failed after restoration"; }
+    unset -f _fs_run _fs_fail
+
+    log "Test_fleet_safety negative test passed"
+}
+
 test_ssot_consumer_keys() {
     log "Testing check_ssot_consumer_keys"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3411,6 +3461,7 @@ main() {
     test_mini_vs_hosted
     test_unit_projection
     test_ssot_consumer_keys
+    test_fleet_safety
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
