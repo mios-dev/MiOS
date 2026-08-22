@@ -683,19 +683,18 @@ def _tracked(root: str, pattern: str = "") -> list[str]:
 
 
 def _tracked_markdown(root: str, extra: tuple = ()) -> list[str]:
-    """Absolute paths of every git-tracked .md file, plus [docs].render_extra."""
-    rels = _tracked(root, "*.md")
-    if not rels:
-        rels = []
-        for dp, dn, fns in os.walk(os.path.join(root, "usr", "share", "doc", "mios")):
+    """Absolute paths of every git-tracked .md file, plus docs under usr/share/doc/mios."""
+    rels = set(_tracked(root, "*.md"))
+    doc_dir = os.path.join(root, "usr", "share", "doc", "mios")
+    if os.path.isdir(doc_dir):
+        for dp, dn, fns in os.walk(doc_dir):
             dn[:] = [d for d in dn if d != ".git"]
-            rels += [os.path.relpath(os.path.join(dp, f), root).replace(os.sep, "/")
-                     for f in fns if f.endswith(".md")]
+            for f in fns:
+                if f.endswith(".md"):
+                    rels.add(os.path.relpath(os.path.join(dp, f), root).replace(os.sep, "/"))
     for e in extra:
-        if e in rels:
-            continue
-        if _tracked(root, e) or os.path.isfile(os.path.join(root, e.replace("/", os.sep))):
-            rels.append(e)
+        if e not in rels and (_tracked(root, e) or os.path.isfile(os.path.join(root, e.replace("/", os.sep)))):
+            rels.add(e)
     return sorted(os.path.join(root, r.replace("/", os.sep)) for r in rels)
 
 
@@ -862,6 +861,38 @@ def _derive_related(ssot: dict, arg: str) -> str:
     return "\n".join(out)
 
 
+def _derive_units(ssot: dict, arg: str) -> str:
+    """The systemd units shipped with MiOS, read directly from unit files."""
+    root = _DERIVE_ROOT[0]
+    unit_dirs = ["usr/lib/systemd/system", "usr/share/containers/systemd", "usr/lib/systemd/user"]
+    units = []
+    for udir in unit_dirs:
+        full_dir = os.path.join(root, udir.replace("/", os.sep))
+        if not os.path.isdir(full_dir):
+            continue
+        for fn in sorted(os.listdir(full_dir)):
+            if fn.endswith((".service", ".timer", ".container", ".socket", ".target", ".path", ".mount", ".automount")):
+                desc = "?"
+                path = os.path.join(full_dir, fn)
+                try:
+                    with open(path, encoding="utf-8", errors="replace") as fh:
+                        for line in fh:
+                            line_s = line.strip()
+                            if line_s.startswith("Description="):
+                                desc = line_s.split("=", 1)[1].strip("'\"")
+                                break
+                except OSError:
+                    pass
+                units.append((fn, udir, desc))
+
+    out = ["| Unit | Directory | Description |", "|---|---|---|"]
+    for fn, udir, desc in sorted(units, key=lambda x: x[0]):
+        out.append(f"| `{fn}` | `{udir}` | {desc} |")
+    out.append("")
+    out.append(f"<!-- derived from tracked unit files ({len(units)} unit(s)) -->")
+    return "\n".join(out)
+
+
 DERIVERS = {
     "ports": _derive_ports,
     "laws": _derive_laws,
@@ -871,6 +902,7 @@ DERIVERS = {
     "boilerplate": _derive_boilerplate,
     "index": _derive_index,
     "related": _derive_related,
+    "units": _derive_units,
 }
 
 

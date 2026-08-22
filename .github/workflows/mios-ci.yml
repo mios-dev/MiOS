@@ -111,8 +111,8 @@ jobs:
 
       # Must precede the negatives: this binary IS check_unit_projection's
       # rendering half. Rationale: commit 8abb1e0f.
-      - name: Build mios-unit-gen (the unit-projection gate's rendering half)
-        run: cd ./tools/native && cargo build -p mios-unit-gen
+      - name: Build the native gates' binaries (unit-projection + resolver parity)
+        run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
 
       - name: Negative tests (drift-gate-negatives.sh)
         run: bash ./tests/drift-gate-negatives.sh

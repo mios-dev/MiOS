@@ -35,7 +35,7 @@ SH_OUT = os.path.join(ROOT, "automation/lib/globals.sh")
 PS_OUT = os.path.join(ROOT, "automation/lib/globals.ps1")
 
 # Emitted in dependency order: a template may only reference a name already set.
-_SECTION_ORDER = ("identity", "services", "image", "ports", "paths", "units", "urls")
+_SECTION_ORDER = ("identity", "services", "versions", "image", "ports", "paths", "units", "urls")
 
 _TEMPLATE_RE = re.compile(r"\$\{(MIOS_[A-Z0-9_]+)\}")
 _UNSAFE_NAME_RE = re.compile(r"[^A-Za-z0-9_]")

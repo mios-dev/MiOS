@@ -22,6 +22,9 @@ if command -v cargo >/dev/null 2>&1; then
             echo "[58-native-build] Installing ${bin} to ${DEST_DIR}..."
             cp "${ROOT_DIR}/tools/native/target/release/${bin}" "${DEST_DIR}/${bin}"
             chmod +x "${DEST_DIR}/${bin}"
+            if [[ "${EUID}" -eq 0 && -d /usr/bin ]]; then
+                ln -sf "${DEST_DIR}/${bin}" "/usr/bin/${bin}"
+            fi
         fi
     done
 else

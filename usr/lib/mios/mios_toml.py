@@ -462,7 +462,7 @@ def get_aliases(dotted_path):
 
     elif dotted_path.startswith("pgvector.") or dotted_path.startswith("pg."):
         prefix_len = len("pgvector.") if dotted_path.startswith("pgvector.") else len("pg.")
-        name = dotted_path[prefix_len:].upper()
+        name = dotted_path[prefix_len:].upper().replace(".", "_").replace("-", "_")
         if name == "DB_BACKEND":
             aliases.append("MIOS_DB_BACKEND")
         elif name == "RLS_ENABLE":
@@ -661,6 +661,22 @@ def get_aliases(dotted_path):
         key = dotted_path[prefix_len:].upper().replace(".", "_").replace("-", "_")
         aliases.append(f"MIOS_FIND_{key}")
 
+    elif dotted_path.startswith("mios."):
+        key = dotted_path[len("mios."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_{key}")
+
+    elif dotted_path.startswith("code_server."):
+        key = dotted_path[len("code_server."):].upper().replace(".", "_").replace("-", "_")
+        aliases.append(f"MIOS_CODE_SERVER_{key}")
+
+    elif dotted_path.startswith("offline.backup_") or dotted_path.startswith("offline.backup."):
+        key = dotted_path.split("backup", 1)[1].lstrip("_.").upper().replace(".", "_").replace("-", "_")
+        aliases.extend([f"MIOS_PG_BACKUP_{key}", f"MIOS_OFFLINE_BACKUP_{key}"])
+
+    elif dotted_path.startswith("postgres.") or dotted_path.startswith("db.") or dotted_path.startswith("pgvector."):
+        key = dotted_path.split(".", 1)[1].upper().replace(".", "_").replace("-", "_")
+        aliases.extend([f"MIOS_DB_{key}", f"MIOS_POSTGRES_{key}", f"MIOS_PG_{key}", f"MIOS_PGVECTOR_{key}"])
+
     return aliases
 
 def _toml_walk_common(d, prefix=""):
@@ -707,3 +723,37 @@ WALK_EMIT_KEEP = {
     "MIOS_SECURITY_PROVENANCE_TAINT",
     "MIOS_HEADLESS", "MIOS_MONITOR_RUNNING", "MIOS_NO_COLOR", "MIOS_NO_MONITOR",
 }
+
+if __name__ == "__main__":
+    import importlib.util
+    import json
+    import shlex
+    import sys
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    sys.modules["mios_toml"] = sys.modules["__main__"]
+    root = os.environ.get("MIOS_ROOT") or os.path.normpath(
+        os.path.join(here, "..", ".."))
+    render_globals_path = os.path.join(root, "tools", "render-globals.py")
+    exports = {}
+    if os.path.isfile(render_globals_path):
+        try:
+            spec = importlib.util.spec_from_file_location("render_globals", render_globals_path)
+            rg = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(rg)
+            exports = rg.build_exports()
+        except Exception as e:
+            sys.stderr.write(f"mios_toml main error: {e}\n")
+
+    fmt = "shell"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--emit="):
+            fmt = arg.split("=", 1)[1]
+
+    if fmt == "json":
+        print(json.dumps(exports, indent=2))
+    else:
+        for k, v in sorted(exports.items()):
+            print(f"export {k}={shlex.quote(str(v))}")
+

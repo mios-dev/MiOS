@@ -13,3 +13,12 @@ says tools are mandatory, an absent binary is a violation rather than
 a footnote (same rule as check_no_silent_tool_skips).
 
 <!-- mios-src:24fe6d8ba72a from tools/check-unit-projection.py:144-150 -->
+
+### Unit test suite for the mios_comments classifier...
+
+Unit test suite for the mios_comments classifier (AGY-1583).
+
+Tests 30 fixture cases covering R0..R7 classification rules,
+including boundary cases such as mios-tailscale-serve.ps1:67 (2 lines, ~28 words, why-signal -> STAY).
+
+<!-- mios-src:dfb3a7090eeb from usr/libexec/mios/test_mios_manual.py:4-8 -->

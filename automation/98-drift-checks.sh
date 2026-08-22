@@ -2669,7 +2669,7 @@ check_var_closure() {
     else
         sed 's/^/    /' "$ROOT/.varclosure.err" >&2 2>/dev/null || true
         rm -f "$ROOT/.varclosure.err" 2>/dev/null || true
-        echo "[98-drift-checks]   SOFT WARNING: var-closure reported an issue" >&2
+        _violation "var-closure reported referenced but NOT emitted variables -- run python automation/lib/mios_var_closure.py"
     fi
 }
 
@@ -6191,6 +6191,7 @@ main() {
     check_ps_encoding_and_bom
     check_unit_dependency_closure
     check_docs_ratchet
+    check_legibility_ratchet
     check_docs_ratchet_monotone
     check_manual_generated
     check_manual_ledger
@@ -6214,6 +6215,7 @@ main() {
     check_guacamole_consistency
     check_no_inert_ssot_tables
     check_doc_refs_resolve
+    check_resolver_differential_parity
     check_v2v_import_ssot
     check_law_enforcers
     check_usr_over_etc
@@ -7570,6 +7572,83 @@ PYEOF
     echo "[98-drift-checks]   $out"
 }
 
+check_resolver_differential_parity() {
+    echo "[98-drift-checks]   check_resolver_differential_parity"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, sys, subprocess
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+resolver_bin = None
+
+for cand in [
+    os.path.join(root, "tools/native/target/release/mios-resolver"),
+    os.path.join(root, "tools/native/target/release/mios-resolver.exe"),
+    "/usr/libexec/mios/mios-resolver",
+    "/usr/bin/mios-resolver",
+]:
+    if os.path.isfile(cand):
+        resolver_bin = cand
+        break
+
+if not resolver_bin:
+    # A silent skip is how a gate stays green while proving nothing. Where the
+    # environment declares tools mandatory, an absent binary is a violation.
+    if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS", "0") == "1":
+        print("    mios-resolver is not built, so the Python/Rust resolvers were "
+              "never compared (MIOS_DRIFT_REQUIRE_TOOLS=1). Build it: "
+              "cd tools/native && cargo build -p mios-resolver", file=sys.stderr)
+        sys.exit(1)
+    print("    mios-resolver binary not built locally -- advisory skip")
+    sys.exit(0)
+
+sys.path.insert(0, os.path.join(root, "tools"))
+import render_globals
+
+py_exports = render_globals.build_exports()
+
+try:
+    res = subprocess.run([resolver_bin, "--emit=json"], capture_output=True, text=True, check=True)
+    import json
+    rs_exports = json.loads(res.stdout)
+except Exception as exc:
+    print(f"    mios-resolver --emit=json execution failed: {exc}", file=sys.stderr)
+    sys.exit(1)
+
+diff_keys = set(py_exports.keys()) ^ set(rs_exports.keys())
+if diff_keys:
+    print(f"    Key mismatch between Python and Rust resolvers ({len(diff_keys)} keys): {sorted(list(diff_keys))[:10]}", file=sys.stderr)
+    sys.exit(1)
+
+mismatches = []
+for k in sorted(py_exports.keys()):
+    v_py = str(py_exports[k])
+    v_rs = str(rs_exports[k])
+    if v_py != v_rs:
+        mismatches.append(f"{k}: py='{v_py}' vs rs='{v_rs}'")
+
+if mismatches:
+    print(f"    Value parity mismatch in {len(mismatches)} key(s):", file=sys.stderr)
+    for m in mismatches[:10]:
+        print(f"      {m}", file=sys.stderr)
+    sys.exit(1)
+
+print("    mios-resolver --emit=json matches Python SSOT render 100%")
+sys.exit(0)
+PYEOF
+    2>&1)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_resolver_differential_parity: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
 check_doc_port_scheme() {
     echo "[98-drift-checks]   check_doc_port_scheme"
     # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
@@ -7683,6 +7762,82 @@ check_bootstrap_sync() {
         return
     fi
     echo "[98-drift-checks]   $out"
+}
+
+
+# The repo is the deliverable; these floors only come down. ROADMAP.md explains why.
+check_legibility_ratchet() {
+    echo "[98-drift-checks]   check_legibility_ratchet"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, subprocess, sys
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    lim = (tomllib.load(fh).get("legibility") or {})
+if not lim:
+    print("mios.toml [legibility] is absent -- the size of the deliverable is "
+          "then bounded by nothing")
+    sys.exit(1)
+
+try:
+    rels = [r for r in subprocess.run(["git", "ls-files", "-z"], cwd=root,
+            capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if r]
+except Exception as exc:
+    sys.stderr.write("[legibility] not a work tree (%s); skipping\n" % exc)
+    sys.exit(0)
+
+def lines(paths):
+    n = 0
+    for rel in paths:
+        try:
+            with open(os.path.join(root, rel.replace("/", os.sep)), "rb") as fh:
+                n += fh.read().count(b"\n")
+        except OSError:
+            pass
+    return n
+
+nbytes = 0
+for rel in rels:
+    try:
+        nbytes += os.path.getsize(os.path.join(root, rel.replace("/", os.sep)))
+    except OSError:
+        pass
+
+measured = {
+    "max_tracked_files": len(rels),
+    "max_tracked_mb": round(nbytes / 1048576),
+    "max_shell_lines": lines([r for r in rels if r.endswith((".sh", ".bash"))]),
+    "max_ps_lines": lines([r for r in rels if r.endswith((".ps1", ".psm1"))]),
+    "max_automation_phases": len([r for r in rels if r.startswith("automation/")
+                                  and r.endswith(".sh") and r[11:13].isdigit()]),
+    "max_libexec_verbs": len([r for r in rels if r.startswith("usr/libexec/mios/")
+                              and r.count("/") == 3]),
+}
+viol = []
+for k, got in sorted(measured.items()):
+    cap = lim.get(k)
+    if cap is None:
+        continue
+    if got > cap:
+        viol.append("%s = %d, over the floor of %d. This ratchet only comes DOWN: "
+                    "fold or delete, do not raise it." % (k.replace("max_", ""), got, cap))
+print("[legibility] " + "  ".join("%s=%d/%s" % (k.replace("max_", ""), v, lim.get(k, "-"))
+                                  for k, v in sorted(measured.items())), file=sys.stderr)
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PYEOF
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_legibility_ratchet: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   legibility floors holding"
 }
 
 main "$@"

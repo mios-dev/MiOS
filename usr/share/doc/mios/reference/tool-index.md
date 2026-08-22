@@ -29,6 +29,7 @@ generators and the agent-facing CLIs.
 <!-- MIOS-GEN:index:usr/libexec/mios/mios-* -->
 | File | What it is |
 |---|---|
+| `usr/libexec/mios/MiOS-Mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-a2a-delegate` | Python shim for mid-run agent-to-agent delegation via the /v1/a2a/dispatch endpoint, allowing agents to offload sub-tasks to peers and inject responses into their reasoning loop as a live bus. |
 | `usr/libexec/mios/mios-a2a-discover` | Scans and validates A2A peer nodes from mios.toml and CIDR ranges to populate /etc/mios/ai/v1/a2a-peers.json, ensuring the agent-pipe has a verified list of live, reachable peers for delegation. |
 | `usr/libexec/mios/mios-a2a-mdns` | SSOT-driven avahi/mDNS side of A2A discovery. Renders the LAN-announce avahi service file from the /usr/lib template (port + service-type substituted from mios.toml, never hardcoded) when... |
@@ -239,7 +240,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)

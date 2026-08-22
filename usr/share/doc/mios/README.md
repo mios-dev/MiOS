@@ -50,6 +50,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/build-network-policy.md` | Technical reference on MiOS build-time network fetch policy, retry requirements, and degrade-open classification rules. |
 | `usr/share/doc/mios/reference/build-pipeline.md` | The numbered build pipeline and the Law-6 root Quadlet exceptions, both derived from mios.toml so they cannot go stale. |
 | `usr/share/doc/mios/reference/build-scripts.md` | Reference snapshot bundling the source and execution order of the scripts that build the MiOS OCI image, so an agent can locate and read specific build logic without crawling the repo. Curated... |
+| `usr/share/doc/mios/reference/cli.md` | Derived reference documentation for the mios CLI verbs and helper backends, derived directly from mios.toml [verbs]. |
 | `usr/share/doc/mios/reference/credits.md` | Attribution registry documenting all upstream projects, dependencies, and components used in MiOS to provide legal and source-of-truth tracking for the system's foundational substrate. |
 | `usr/share/doc/mios/reference/documentation-pipeline.md` | How MiOS documentation is produced -- AI-hints stay in source and are projected forward, comments are scraped, sanitized and distilled into the manual on a daily pass. |
 | `usr/share/doc/mios/reference/drift-gates.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
@@ -58,6 +59,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/heavy-model-selection-2026-07.md` | Heavy-lane model selection for the shared 24GB RTX 4090 (2026-07). Decides MIOS_VLLM_BAKE_MODEL from a 14-candidate research pass. OPERATOR DECISION 2026-07-10:... |
 | `usr/share/doc/mios/reference/hwcaps.md` | Documentation for x86-64 microarchitecture optimization levels (v1-v4) used to determine which glibc-hwcaps packages to include in the build via the [hwcaps] table in mios.toml; explains the... |
 | `usr/share/doc/mios/reference/install-ordering.md` | The WS-DEPLOY workstream -- refactor + reorder the MiOS install/first-boot pipeline into a logical dependency DAG so a "missing dependency / not-ready / not-yet-built" state is structurally... |
+| `usr/share/doc/mios/reference/laws.md` | Architectural Laws and root exception table for MiOS, derived directly from mios.toml [laws] and [security.privileged_quadlets]. |
 | `usr/share/doc/mios/reference/licenses.md` | Documents the legal licensing for MiOS components, including third-party drivers (NVIDIA), middleware (systemd, Mesa), and firmware, providing a reference for compliance and license attribution. |
 | `usr/share/doc/mios/reference/lossless-diff-refactor.md` | Document describing the refactor methodology and invariant enforcement for the Global Unification Plan (GUP) and environment configuration in MiOS. |
 | `usr/share/doc/mios/reference/maturity-and-release-runbook.md` | Standard operating procedure for MiOS R14 maturity review — verifying the sibling unit suites, producing the OCI image + disk artifacts via the Justfile, and the operator-gated signing (cosign/Secure... |
@@ -65,15 +67,18 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/naming-unification.md` | The WS-NAME workflow -- a TRUE GLOBAL minification of MiOS naming: collapse the entire TOML-key/env-var/verb/const surface onto ONE deterministic, capability-matched unified names+keys registry... |
 | `usr/share/doc/mios/reference/nested-podman-caps.md` | Technical reference on nested podman-in-podman container capabilities and security flags. |
 | `usr/share/doc/mios/reference/orchestration.md` | Technical reference for the MiOS agentic routing and orchestration decision seams. |
+| `usr/share/doc/mios/reference/pipeline.md` | Derived reference documentation for the numbered MiOS build pipeline phases, derived directly from mios.toml [build.phases]. |
 | `usr/share/doc/mios/reference/ports-and-laws.md` | Reference page for the port allocation table and the numbered Architectural Laws. The tables between MIOS-GEN markers are DERIVED from mios.toml by `mios-manual render`; the prose around them is... |
+| `usr/share/doc/mios/reference/ports.md` | Machine-generated reference documentation for MiOS host and container port allocations, derived directly from mios.toml [ports] and [ports.categories]. |
 | `usr/share/doc/mios/reference/shim-links.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/reference/sources.md` | Consolidates authoritative documentation links and technical specifications for OpenAI APIs, vector stores, and MiOS-specific knowledge base construction to ensure agent compliance with upstream... |
 | `usr/share/doc/mios/reference/tool-index.md` | Index of every shipped MiOS tool, generated from the AI-hint header each one already carries. |
 | `usr/share/doc/mios/reference/tree.md` | Annotated directory tree of the MiOS source and deployment root, providing a map of file functions, cross-references, and entry points for agents to navigate the filesystem and build pipeline. MiOS... |
+| `usr/share/doc/mios/reference/units.md` | Derived reference documentation for systemd unit files shipped with MiOS. |
 | `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
 | `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
 
-<!-- derived from the AI-hint headers of 38 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- derived from the AI-hint headers of 43 file(s) matching usr/share/doc/mios/reference/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
 
 ## concepts
