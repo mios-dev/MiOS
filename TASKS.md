@@ -316,6 +316,7 @@
 | T-328 | P2 | planned | Topology/SSOT | BLADE-06 -- The seat-floor opt-in, and the OR-gate the activation axis lacks |
 | T-329 | P1 | partial | Topology/SSOT | BLADE-07 -- blade_reachability_critical was emitted, described in docs, and read by nothing |
 | T-330 | P1 | planned | Build/Image | BAKE-01 -- A ~16 GB payload ships for a lane no archetype starts |
+| T-331 | P0 | partial | Topology/SSOT | MINI-03 -- MiOS-Mini is the BOX; the tree said it was the seat, and shipped that |
 
 ---
 
@@ -3121,3 +3122,32 @@ I nearly recorded the opposite. A first grep for `MIOS_VLLM_BAKE_MODEL=` found n
 **Done When:** the decision is made explicitly and recorded in ADR-0016 rather than inherited from a default nobody chose. Either (a) the payload becomes opt-in -- empty by default, baked when the operator sets it, with the heavy lane's first start documented as needing egress; or (b) it stays baked and the ADR says why, with the size stated so it is a chosen cost. **Measure the real bake delta before choosing** -- the ~16 GB figure is the SSOT's prose, not something this session weighed.
 **Why:** the generated comparison now lists what a seat carries and never loads. Three GGUFs are small and defensible. The fourth is not obviously either, and nobody has said which.
 **Dep:** none. | **Domain:** Build/Image | **Who:** build agent
+
+## T-331 -- MINI-03: MiOS-Mini is the BOX, and most of what it is meant to be is unbuilt  (WS-MINI | P0 | XL)
+**Goal:** E-07 The topology's central noun must mean one thing, and the roadmap must state honestly how much of it exists.
+**What+How:** The tree said the wrong thing about its own product. ADR-0016 D3 concluded *"MiOS-Mini is a product name for a role"* -- the thin seat -- and D9 hardened that into *"MiOS-Mini names a `[blade].type`, never an artifact"*, which shipped in the generated comparison. The operator's definition is the opposite: **a hardware appliance** -- *"a hardware host, wifi Access Point(s), VPN/Mesh network, hyper-converged; highly available VMs, containers."*
+
+The evidence was in the tree the whole time. `usr/share/doc/mios/concepts/mios-metal-architecture.md:33` still draws the box as `MiOS-MINI`, running `hostapd · nft inet(+flowtable) · headscale · tailscaled · dnsmasq · libvirt/KVM · driverctl->vfio-pci ALL dGPUs` and owning `NICs·radios·TPM·boot/root NVMe·/var`. D3's rename moved `[mini]`->`[metal]`, eleven `MIOS_MINI_*` keys, two generators and a drift check -- and left the diagram, so the original meaning survived beside the new claim contradicting it. Nobody reconciled the two because nothing compares a diagram to an ADR.
+
+**Corrected, and the correction is now the contract:** MiOS-Mini names the **box**; the archetype names the **mode** it boots into. One Mini boots as a full host (radios, routing, VMs, containers, HA) or as a seat that offloads everything. Same box, same OCI image, different `[blade].type`. `[metal]` keeps its key -- it correctly names the split-plane hypervisor *role* -- so only the naming conclusion is superseded, not the rename.
+
+**How much of the box is real, measured:**
+
+| Capability | Shipped today |
+|---|---|
+| Wi-Fi access point (`hostapd`) | **nothing.** No unit, no Quadlet, no SSOT key anywhere in the tree. |
+| Mesh / VPN (`headscale`, `tailscaled`) | design only; `[metal.mesh].enabled = false`, `headscale_domain`/`vnet_cidr` declared and unconsumed. |
+| Router core (`nftables` inet + flowtable, `dnsmasq`) | design only. |
+| Hypervisor (`libvirt`/KVM, `vfio-pci`) | `[metal].enabled = false`; `[metal.gpu]` declares assignments and arbitration. |
+| Hyper-converged storage | `mios-ceph-bootstrap.service` exists; scope unaudited. |
+| HA / failover | `ha-node` archetype exists; `mios-ha-bootstrap.service` exists; ADR-0017 assigns VMs to Pacemaker and containers to k3s. |
+
+So `mios-metal-architecture.md` is a 138-line design with source URLs for a machine the image cannot currently be. That is a legitimate roadmap position -- it is only a defect when a doc claims otherwise, which D9 did until now.
+
+**Fleet size is 2-3 boxes, maximum 6.** That settles a question ADR-0016 D2 left open and turns one "by design" into a gap: **`[blades]` being empty is wrong.** A registry that derives the local blade from `[identity].hostname` and holds no peers cannot describe a 2-6 node fleet, which is the normal shape, not the exotic one. Two nodes cannot hold quorum alone, so the HA design must state its witness or tie-break rule rather than inherit one from a three-node assumption.
+**Where:** `usr/share/doc/mios/adr/0016-blade-node-topology.md` (D3 corrected, D9 replaced), `tools/generate-mini-vs-hosted.py` + its test, `usr/share/doc/mios/reference/mini-vs-hosted.md`, `usr/share/doc/mios/concepts/mios-metal-architecture.md` (the diagram is now the ACCURATE artifact -- do not "fix" it to say Metal), `usr/share/mios/mios.toml` (`[blades]`, `[metal]`, `[metal.mesh]`, `[metal.gpu]`).
+**Done When:** the naming correction is landed everywhere (**done** in this change); `[blades]` describes a 2-6 node fleet with a stated quorum rule; and each capability above is either implemented behind a capability gate or carries its own task saying it is not. A gate asserting no doc claims a capability the tree lacks would close the class -- that is what let D9 ship a false claim.
+**Status:** partial
+
+Sub-tasks to split out as each is scoped: AP/radio plane · mesh control plane · router core · hypervisor plane · hyper-converged storage · HA/quorum for 2-6 nodes.
+**Why:** every architectural decision on this branch was reasoned from "Mini = seat". The seat archetype is real and the work built on it stands, but the NAME was attached to the wrong half of the system, and a generated document asserted it. A wrong noun in an SSOT-projected doc propagates further than a wrong constant, because nothing regenerates a reader's understanding. | **Domain:** Topology/SSOT | **Who:** architect

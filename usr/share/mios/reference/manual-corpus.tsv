@@ -4444,11 +4444,11 @@ tools/test_generate-mini-vs-hosted.py	4	4	1	6	bcb8c671878c	STAY	local-scoped		0	
 tools/test_generate-mini-vs-hosted.py	17	17	1	3	c4eab4cecb60	STAY	inline-scoped		0				0
 tools/test_generate-mini-vs-hosted.py	18	18	1	2	652a73c43ff5	STAY	inline-scoped		0				0
 tools/test_generate-mini-vs-hosted.py	49	49	1	11	981b51cf77de	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	64	65	2	24	0b1644668964	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	73	74	2	22	2ae1c67cba4c	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	91	92	2	25	d2cf9b4afef4	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	120	120	1	13	e798e5aebc9b	STAY	local-scoped		0				0
-tools/test_generate-mini-vs-hosted.py	145	145	1	12	1acaa45c20e0	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	64	64	1	8	109f349631ab	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	71	72	2	13	75517fa4b0bc	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	95	96	2	25	d2cf9b4afef4	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	124	124	1	13	e798e5aebc9b	STAY	local-scoped		0				0
+tools/test_generate-mini-vs-hosted.py	149	149	1	12	1acaa45c20e0	STAY	local-scoped		0				0
 tools/test_render_globals.py	1	4	4	50	3e8cd568dfcd	STAY	ai-header		0				0
 tools/test_render_globals.py	27	27	1	10	0366619e9244	STAY	local-scoped		0				0
 tools/test_render_globals.py	32	32	1	10	c03816312f08	STAY	local-scoped		0				0
