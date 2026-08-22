@@ -304,6 +304,24 @@ Quadlet named `x` generates `x.service` — into exactly one of gated / seat-sid
 `tests/test-seat-activates-nothing.py` is the executable definition and runs in CI; returning one
 container *or one native unit* to ungated turns it red.
 
+**Hand-classification is not enough, and one derived rule proves it.** A unit that *activates* a
+gated unit must carry that unit's capabilities, or it starts on a blade where its dependency is
+condition-skipped and fails forever. Applied to the tree, that found **11 units nobody had
+classified** — `mios-pgvector-backup`, `mios-embed-backfill`, `mios-skills-miner`,
+`mios-userdb-render`, `mios-sys-env-refresh`, `mios-passport-provision`, the three forge
+provisioners, `mios-k3s-master.target`, and `hermes-worker`. On a seat those timers would fire
+forever against a database the machine does not run.
+
+Two distinctions make the rule correct rather than merely strict. `After=` is ordering and
+activates nothing, so it never propagates a gate. And a *soft* pull on a gated unit is acceptable
+when the puller genuinely degrades — `hermes-worker` `Wants=` both lanes and falls back to the
+light one — so `[blade].soft_ok` records that as a deliberate exemption instead of over-gating it
+off three archetypes where it works today.
+
+This is also why "must be classified" and "may be gated" are different sets: a oneshot needs no
+classification of its own, but may legitimately be gated because of what it activates. Ten units
+are gated for exactly that reason.
+
 A seat therefore costs one archetype plus the overlay from Decision 1. No new Containerfile, no new
 axis, and — measured — **no service.**
 

@@ -123,6 +123,29 @@ class TestShippedTree(unittest.TestCase):
         # A seat with no agent-pipe has no way to reach its blade.
         self.assertIn("mios-agent-pipe", mod.seat_side(self.real))
 
+    def test_no_unit_activates_a_gated_unit_without_its_capability(self):
+        # Derived, not hand-classified: this found 11 units that would start on a
+        # blade where their dependency is condition-skipped and fail forever --
+        # a seat running pgvector backups against a database it does not have.
+        self.assertEqual(mod.dependency_violations(self.real, _ROOT), [])
+
+    def test_after_alone_does_not_propagate_a_gate(self):
+        # After= is ordering only; it activates nothing, so it must not force a
+        # capability onto a unit that merely sequences behind a gated one.
+        pulls = mod.unit_pulls(_ROOT)
+        self.assertNotIn("mios-llm-heavy", pulls.get("mios-gpu-nvidia", set()))
+
+    def test_the_soft_ok_exemption_names_only_real_units(self):
+        self.assertTrue(set(mod.soft_ok(self.real))
+                        <= mod.known_units(self.real, _ROOT))
+
+    def test_oneshots_may_be_gated_but_are_not_required_to_be(self):
+        must = mod.all_units(self.real, _ROOT)
+        known = mod.known_units(self.real, _ROOT)
+        self.assertTrue(must < known)                       # strictly wider
+        self.assertIn("mios-pgvector-backup", set(mod.requires(self.real)))
+        self.assertNotIn("mios-pgvector-backup", must)      # a oneshot
+
     def test_every_long_running_unit_has_exactly_one_classification(self):
         req = set(mod.requires(self.real))
         seat = set(mod.seat_side(self.real))

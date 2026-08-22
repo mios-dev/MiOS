@@ -13083,6 +13083,9 @@ type = "hybrid"
 # SHRINK-ONLY (gate: check_blade_coverage). Drained by T-319; keep it at [].
 ungated = []
 
+# Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
+soft_ok = ["hermes-worker"]
+
 # Units a seat DELIBERATELY runs: the UX and the front door it exists to be.
 # "Offload all services" cannot mean "start nothing" (ADR-0016 D4).
 seat_side = [
@@ -13142,6 +13145,17 @@ mios-finetune-serve            = ["service-plane"]
 mios-mcp                       = ["service-plane"]
 mios-opencode-gateway          = ["service-plane"]
 mios-policy-arbiter            = ["service-plane"]
+# Units that activate a gated unit and cannot work without it. See ADR-0016 D4.
+mios-embed-backfill            = ["service-plane"]
+mios-forge-firstboot           = ["service-plane"]
+mios-forgejo-runner-firstboot  = ["service-plane"]
+mios-git-root-init             = ["service-plane"]
+mios-k3s-master                = ["service-plane"]
+mios-passport-provision        = ["service-plane"]
+mios-pgvector-backup           = ["service-plane"]
+mios-skills-miner              = ["service-plane"]
+mios-sys-env-refresh           = ["service-plane"]
+mios-userdb-render             = ["service-plane"]
 
 # ----------------------------------------------------------------------------
 # Proposed sections for roadmap index validation compatibility (WS-CAT / WS-DOTFILES)
