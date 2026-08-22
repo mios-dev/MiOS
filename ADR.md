@@ -22,6 +22,6 @@
 | 0013 | ["Deploy-surface consolidation behind installation/mios-install"](usr/share/doc/mios/adr/0013-deploy-surface-consolidation.md) | accepted | 2026-07-28 | 1, 7, 8, 9 | `install.target`, `cat.mode` |
 | 0014 | ["The bootc-install bare-metal leg: bootc install to-disk --transport oci"](usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md) | proposed | 2026-07-28 | 3, 4, 12 | `image.sidecars`, `build.bake` |
 | 0015 | ["Unified key library architecture & full de-duplication campaign"](usr/share/doc/mios/adr/0015-unified-key-library-architecture.md) | accepted | 2026-07-31 | 7, 8, 9, 13 | `build.bake`, `colors`, `ai`, `ports` |
-| 0016 | ["Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"](usr/share/doc/mios/adr/0016-blade-node-topology.md) | proposed | 2026-08-22 | 1, 3, 5, 7, 8, 9, 12 | `urls`, `ports`, `blades`, `nodes`, +4 |
+| 0016 | ["Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"](usr/share/doc/mios/adr/0016-blade-node-topology.md) | proposed | 2026-08-22 | 1, 3, 5, 7, 8, 9, 12 | `urls`, `ports`, `blade`, `blade.archetypes`, +7 |
 
 <!-- derived from the front-matter of 16 file(s) under usr/share/doc/mios/adr/ -->

@@ -1,5 +1,5 @@
-<!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-mini-architecture.md, usr/share/mios/mios.toml [urls], [ports], [blades], [nodes], [profile], usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-mini-architecture.md, usr/share/mios/mios.toml [blade], [urls], [ports], [blades], [nodes], [profile], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -8,7 +8,7 @@ date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
 laws: [1, 3, 5, 7, 8, 9, 12]
-ssot_keys: [urls, ports, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
+ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
 related_ws: [WS-BLADE, WS-MIOSSYS, WS-GUARD]
 supersedes: []
 superseded_by: []
@@ -18,9 +18,11 @@ superseded_by: []
 
 ## Status
 
-**Proposed.** Decisions 1, 2 and 4 below are mechanical consequences of what the tree already
-is and are recommended for acceptance as written. **Decision 3 (naming) is deliberately left
-open** — it is the operator's call and every other decision here is independent of it.
+**Proposed.** Decisions 1 and 2 below are mechanical consequences of what the tree already is
+and are recommended for acceptance as written. **Decision 3 (naming) is deliberately left open**
+— it is the operator's call and every other decision here is independent of it. **Decision 4
+records a mechanism that already ships**; what it decides is only the three unfinished pieces
+listed under it.
 
 ## Context
 
@@ -53,12 +55,42 @@ Measured, not assumed:
 | Pods | **All three are `Network=host`.** No container publishes a port |
 | `[urls]` coverage | **9 of 41** addressable ports have a canonical URL; the other **32 are hand-composed** in 1–18 files each |
 | Consumers hand-composing an address | ~125 non-generated, non-doc files |
-| `[blades]` | **Zero keys.** An empty section under a 30-line comment about nodes |
+| `[blade]` **singular** | **Implemented.** `type = "hybrid"`, `[blade.archetypes]`, `[blade.requires]` — the OS-role activation axis |
+| `[blades]` **plural** | **Zero keys.** An empty section under a 30-line comment about nodes — a different axis (see below) |
 | `[admission].multiblade_enable` | `false` |
 | `[nodes.*]` | 6 declared; **5 point at the same endpoint and the same model**; 1 ships empty |
 | `[nodes.local-cpu]` | `lane = "gpu"`, endpoint = the GPU heavy lane. There is no CPU lane |
 | `[greenboot].critical_services` | `agent-pipe`, `llm-light`, `pgvector` |
 | `[quadlets.enable]` gated off | exactly **one** container |
+
+### The role axis is already built — on a different SSOT key
+
+`[blade]` singular and `[blades]` plural are one letter apart and are **not the same axis**:
+
+| Key | Axis | Answers | State |
+|---|---|---|---|
+| `[blade]` (singular) | **OS role** — what *this* machine activates | "am I a gpu-serving box or a controller?" | shipping |
+| `[blades]` (plural) | **Fleet** — which *other* machines serve me | "who else is out there and how big are they?" | empty |
+
+The `[blade]` chain is complete end to end: `[blade.requires]` → `tools/generate-blade-dropins.py`
+→ `usr/share/mios/dropins/blade-<cap>.conf` (each a bare `ConditionPathExists=/etc/mios/blade.d/<cap>`)
+→ `automation/48-mios-dropin-fanout.sh` → `<unit>.service.d/50-blade-<cap>.conf`, with
+`usr/libexec/mios/role-apply` materializing the `/etc/mios/blade.d/*` markers and `/run/mios/blade.env`,
+`mios-{hybrid,compute,endpoint,controller,headless,desktop}.target` present, `usr/libexec/mios/mios-blade`
+present, and `usr/lib/greenboot/check/required.d/10-mios-role.sh` present.
+
+Three things WS-BLADE claims as `done` are **not** in the tree, and each matters to this ADR:
+
+1. **`usr/lib/bootc/kargs.d/05-mios-blade.toml` does not exist.** `role-apply` parses `mios.blade=`
+   and `mios.role=` out of `/proc/cmdline`, so the *reader* ships; the generated karg default does
+   not. Deploy-time role selection therefore works only where the installer sets the karg by hand.
+2. **`role-apply` was never demoted.** BLADE-01 specifies a marker-writing resolver; it still calls
+   `systemctl set-default --no-block` and `systemctl start --no-block` on the resolved target. The
+   declarative half (markers + `Condition*`) and the imperative half both run.
+3. **`[profile]` was never folded into `[blade]`.** `[profile].role = "developer"` is not one of the
+   archetypes `role-apply` accepts (`hybrid|compute|endpoint|controller|headless|desktop|k3s*|ha*`),
+   and `role-apply` never reads `[profile]` at all. Two role systems, no edge between them —
+   `"developer"` would fall through to `*) WARN: unknown role … defaulting to headless`.
 
 `Network=host` is the load-bearing one. It means every service genuinely *is* on the host's
 loopback, so a service's identity is **its port number** and nothing more — `_discover_portal_services()`
@@ -68,6 +100,36 @@ the tree are not sloppiness; they are the architecture stating itself.
 The consequence cuts both ways. Because there is no network namespace to re-plumb, **moving a
 service to another machine is purely an addressing change** — but because service identity *is*
 the port, there is currently nowhere to put the "which machine" half of the answer.
+
+### Addressing is already wrong locally — Hermes as the worked example
+
+Decision 1 is not tidying. Traced end to end, one service disagrees with itself five ways:
+
+| Source | Port | Kind |
+|---|---|---|
+| `[ports].hermes` | 8720 | SSOT |
+| `[ports].hermes_worker` | 8730 | SSOT |
+| `hermes-worker.service` `Environment=API_SERVER_PORT=` | **8643** | literal in the only gateway unit that ships |
+| `mios_pipe/kernel/config.py`, `context/grounding.py` fallbacks | **8642** | literal, and a **retired** port |
+| `mios_pipe/health.py` fallback | 8720 | agrees with the SSOT |
+
+`hermes-worker.service` is the *only* unit in the tree that runs `hermes gateway run`, and it binds
+a port the SSOT assigns to nothing. `hermes.service` and `hermes-agent.service` — named by the
+greenboot probe, by unit comments and by the drift-check's external-unit allowlist — have no unit
+file, so `[ports].hermes = 8720` is addressed by `[urls].hermes` and by agent-pipe's backend while
+**nothing binds it**. The greenboot line `check_service hermes.service "${MIOS_PORT_HERMES:-}" tcp`
+is therefore dead twice over: wrong unit name, and a port with no listener.
+
+The retired-port fallbacks are the general form: **17 executable `os.environ.get("MIOS_PORT_X",
+"<retired>")` defaults across 12 files**, each naming the correct variable and defaulting to a port
+`[docs].retired_ports` says is gone. `check_doc_port_scheme` enforces Law 5 only over
+`[docs].port_clean` — a list of *documents* — so no gate has ever looked at the code. A missing env
+var makes these talk to a dead port quietly instead of failing loudly.
+
+This is the same shape as the empty-set failures elsewhere in the tree: **a gate that reports
+success over a set that excludes the thing it checks.** It is also the strongest argument for
+Decision 1 — "offload is only an addressing change" is a promise the tree cannot keep until one
+service has one address.
 
 ## Decision
 
@@ -101,6 +163,11 @@ the blade-level availability primitive rather than a per-node flag.
 `[blades]` being empty today is not a gap to fill with the current node list; the current node list
 is five aliases for one backend and must collapse before anything is built on it.
 
+`[blades]` plural is the fleet axis and must stay orthogonal to `[blade]` singular, exactly as
+BLADE-01's own acceptance criterion already requires (*"`[blades.*]`/`[nodes.*]` fleet-dispatch
+(Axis B) stays orthogonal to `[blade]` OS-activation (Axis A)"*). The two keys differing by one
+letter is a Law 9 hazard in waiting; if either is renamed, rename it for the axis it names.
+
 ### 3. Naming — OPEN, operator's call
 
 Two coherent resolutions exist and the rest of this ADR holds under either:
@@ -115,11 +182,24 @@ Two coherent resolutions exist and the rest of this ADR holds under either:
 `Containerfile.minimal` is on the **lineage** axis in both cases and should be named for its base,
 not for a role — its own header already calls it *MiOS-Lite*.
 
-### 4. One image, role by flag — on the role axis only
+### 4. One image, role by flag — already the mechanism; finish it on `[blade]`
 
-Role is a **runtime** activation, not a bake-time fork: `[profile].role` selects which units start
-and which addresses resolve locally. This is the WS-BLADE *"one image, role by flag"* position and
-it is what `[quadlets.enable]` and `[profile]` were built for.
+Role is a **runtime** activation, not a bake-time fork, and this is not a proposal: `[blade].type`
+→ capability markers → `ConditionPathExists` drop-ins is the WS-BLADE *"one image, role by flag"*
+position and it ships. A seat is therefore **not a new image** — it is an archetype.
+
+What this ADR decides is the three unfinished pieces, and that they land on `[blade]`, not beside it:
+
+* **`[profile]` retires into `[blade]`.** `[profile].role`/`features` becomes a thin alias for
+  `[blade].type`/capabilities for one release, then goes. Until it does, `[profile].role` is a
+  decorative key that no resolver reads — the worst kind, because it looks authoritative.
+* **`role-apply` becomes marker-writing only.** Ordering, isolation and start-up belong to the
+  targets and the `Condition*` drop-ins; a resolver that also acts is a second, racing scheduler.
+* **`05-mios-blade.toml` gets generated** so the karg the resolver already parses has a producer
+  under Law 8, rather than depending on each installer to type it.
+
+A seat adds one archetype to `[blade.archetypes]` — capabilities it does *not* carry, plus the
+`[urls]` overlay from Decision 1. No new Containerfile, no new axis.
 
 Lineage stays a **bake-time** fork, because it is one — a different `FROM`.
 
@@ -137,10 +217,22 @@ must never imply a role.
 
 **Costs and hazards**
 
-* **`[greenboot].critical_services` will roll a seat back on every boot.** It lists `llm-light` and
-  `pgvector`, which a seat does not run. Greenboot must become role-aware, or a seat's "critical"
-  must be redefined as *can reach my blade* — which makes boot success depend on the network, and
-  that trade must be taken deliberately (Law 12 says degrade open, never block boot).
+* **Greenboot already degrades open, and `[greenboot].critical_services` is why that is luck rather
+  than design.** The shipped check `usr/lib/greenboot/check/required.d/40-mios-ai-plane.sh` opens each
+  probe with `systemctl is-enabled --quiet "$unit" || { log "not enabled on this role"; return 0; }`,
+  so a seat that never enables `mios-llm-light`/`mios-pgvector` passes cleanly — there is no rollback
+  loop. But it passes because the check reads `is-enabled`, **not** because it reads the SSOT: it
+  hardcodes its own four unit/port pairs and never consults `[greenboot].critical_services`.
+  `MIOS_GREENBOOT_CRITICAL_SERVICES` is emitted by both `globals` twins and consumed by no shipped
+  code — the same decorative-key failure as `[profile].role`, and it has already drifted: the SSOT
+  lists three services, the check probes four (it adds `hermes`), and `check_greenboot` in
+  `automation/98-drift-checks.sh` hardcodes the *check's* four rather than the *SSOT's* three, so the
+  script and its gate agree with each other while both ignore the source of truth. The work is
+  therefore not "make greenboot role-aware" — it is *give the existing role-awareness an SSOT*, so a
+  seat's critical set is declared rather than inferred from whatever happens to be enabled.
+* **Whether a seat's "critical" may include reaching its blade is still the real question**, and it
+  is unchanged by the above: answering yes makes boot success network-dependent, which collides with
+  Law 12 (degrade open, never block boot) and must be a recorded choice rather than a side effect.
 * **Law 3 BOUND-IMAGES** symlinks every Quadlet image so it ships *with* the host. A seat that runs
   none of them still carries all of them. Either Law 3 gains a role-aware exception, or a seat is
   not actually smaller — only quieter.
@@ -172,3 +264,9 @@ gate and a register, not an architecture.
 
 Starting from naming would have been the mistake. The naming collision is real but it is
 downstream: every mechanism above is identical whichever image ends up called *mini*.
+
+This ADR's first draft read `[blades]` as empty and concluded the role axis was undecided. That was
+an artifact of reading the plural key and not the singular one. Re-measured against the tree, the
+role axis is the most finished mechanism in scope and the open work on it is subtraction — retire
+`[profile]`, stop `role-apply` acting, generate the karg — not design. The unfinished axis is
+addressing, which is Decision 1.

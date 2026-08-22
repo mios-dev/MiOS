@@ -6,8 +6,8 @@
 
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
-- **Done**: 25
-- **Active**: 2
+- **Done**: 24
+- **Active**: 3
 - **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -18,7 +18,7 @@
 **OS-Image & Build**
 - `WS-TESTDOC` — Test & documentation harness: drift-gate negative self-tests, shellcheck coverage, bake-smoke ✅
 - `WS-BAKEGATE` — Two-gate model: [build.bake] core allow-list + projected bake-plan ✅
-- `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) ✅
+- `WS-BLADE` — Universal-core + blade-type ACTIVATION gate (one image, role by flag) (active)
 - `WS-MIOSSYS` — MiOS-Sys shared-base consolidation of the sidecar fleet ✅
 - `WS-SBOM` — SBOM-not-hardcode: digests/hashes are build-time provenance, never SSOT literals ✅
 - `WS-DOCS` — Planning-docs refactor: ADR system + generated index ✅
@@ -134,7 +134,7 @@ acceptance: |
 id: WS-BLADE
 title: Universal-core + blade-type ACTIVATION gate (one image, role by flag)
 theme: OS-Image & Build
-status: done
+status: active
 priority: P1
 laws: [3, 8]
 ssot_keys: ["blade.type", "blade.archetypes", "blade.requires"]
@@ -150,6 +150,7 @@ acceptance: |
 - **Files:** `usr/share/mios/mios.toml` (`[blade]`/`[blade.archetypes]`/`[blade.requires]`), `usr/libexec/mios/role-apply`, `usr/share/mios/dropins/blade-<cap>.conf` (generated), `automation/41-mios-dropin-fanout.sh`, `usr/lib/bootc/kargs.d/05-mios-blade.toml` (generated), `usr/lib/systemd/system/mios-{compute,endpoint,controller}.target`, `usr/lib/greenboot/check/required.d/10-mios-role.sh`, the `mios blade` verb.
 - **Accept:** one universal image; on a `controller` blade `systemctl status mios-llm-heavy.service` reports condition-skipped with zero VRAM touched, while a `gpu-serving` blade starts it; `mios blade add-capability gpu-serving` lights the unit hot (no reboot); the drop-in generator is drift-gated; `[blades.*]`/`[nodes.*]` fleet-dispatch (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A).
 - **Deps:** none hard; complements WS-BAKEGATE (activation vs bake orthogonality) and WS-MIOSSYS (activation `Condition*` unchanged by consolidation).
+- **Remaining (re-measured against the tree 2026-08-22; this is why the status is `active`, not `done`):** the marker/drop-in/target/verb/greenboot chain all ship and are drift-gated (`check_blade_dropins`), but three named deliverables do not. (1) `usr/lib/bootc/kargs.d/05-mios-blade.toml` does not exist -- `role-apply` parses `mios.blade=`/`mios.role=` from `/proc/cmdline`, so the reader ships without a Law-8 producer. (2) `role-apply` was never demoted to a marker-writing resolver: it still calls `systemctl set-default --no-block` and `systemctl start --no-block`, so the declarative and imperative halves both run. (3) `[profile].role`/`features` was never folded into `[blade]` -- `[profile].role = "developer"` is not one of the archetypes `role-apply` accepts, and `role-apply` never reads `[profile]` at all, so the two role systems share no edge. Tracked as T-315. See ADR-0016.
 
 
 ## WS-MIOSSYS — MiOS-Sys shared-base consolidation of the sidecar fleet

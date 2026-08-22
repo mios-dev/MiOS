@@ -3931,20 +3931,57 @@ check_greenboot() {
         _violation "(54) greenboot required checks directory ($gb_dir) is missing"
         return
     fi
-    local critical_services=("agent-pipe" "llm-light" "pgvector" "hermes")
-    local s script_found
-    for s in "${critical_services[@]}"; do
-        script_found=0
-        for f in "$gb_dir"/*; do
-            if [[ -f "$f" ]] && grep -q "$s" "$f" 2>/dev/null; then
-                script_found=1
-                break
-            fi
-        done
-        if [[ "$script_found" -eq 0 ]]; then
-            _violation "(54) greenboot missing health-check script for critical service: $s"
+    # The critical set is READ FROM THE SSOT, never restated here: a hardcoded copy
+    # agrees with the scripts it checks while both drift away from mios.toml.
+    local gb_out line
+    gb_out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_GB_DIR="$gb_dir" python3 - <<'PY'
+import os, re, sys
+try:
+    import tomllib as _toml
+except ImportError:
+    try:
+        import tomli as _toml  # type: ignore
+    except ImportError:
+        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping greenboot check\n")
+        sys.exit(0)
+
+root = os.environ["MIOS_DRIFT_ROOT"]
+gb_dir = os.environ["MIOS_DRIFT_GB_DIR"]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    data = _toml.load(fh)
+critical = [str(x).strip() for x in
+            ((data.get("greenboot") or {}).get("critical_services") or []) if str(x).strip()]
+if not critical:
+    print("(54) [greenboot].critical_services is empty or absent -- greenboot coverage "
+          "would pass vacuously over an empty set")
+
+# A service counts as covered when a required.d script names its UNIT in executable
+# code; a mention inside a comment must not satisfy the gate.
+probed = set()
+for name in sorted(os.listdir(gb_dir)):
+    fp = os.path.join(gb_dir, name)
+    if not os.path.isfile(fp):
+        continue
+    try:
+        body = open(fp, encoding="utf-8", errors="replace").read()
+    except OSError:
+        continue
+    code = "\n".join(ln for ln in body.splitlines() if not ln.lstrip().startswith("#"))
+    for m in re.finditer(r"\b(?:mios-)?([a-z0-9][a-z0-9_-]*)\.service\b", code):
+        probed.add(m.group(1))
+
+for svc in critical:
+    key = svc[5:] if svc.startswith("mios-") else svc
+    if key not in probed:
+        print("(54) greenboot missing health-check script for critical service: %s "
+              "(no required.d script references %s.service outside comments)" % (svc, svc))
+PY
+)"
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            _violation "$line"
         fi
-    done
+    done <<< "$gb_out"
 }
 
 check_clevis_luks() {

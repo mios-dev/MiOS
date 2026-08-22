@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,53 @@ test_account_column_parity() {
 }
 
 
+test_greenboot() {
+    log "Testing check_greenboot"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    cp "$toml" "$backup"
+
+    # (1) A critical service with no health-check script anywhere must FAIL.
+    # The bogus name is ASSEMBLED so this file never contains the literal --
+    # the gate scans required.d for unit references, and a spelled-out name
+    # here could not reach it, but keeping the idiom keeps the test honest.
+    local bogus="mios-negtest""-absent"
+    python3 - "$toml" "$bogus" <<'PY'
+import io, sys
+p, bogus = sys.argv[1], sys.argv[2]
+s = io.open(p, encoding="utf-8").read()
+old = 'critical_services = ["agent-pipe", "llm-light", "pgvector"]'
+assert s.count(old) == 1, "critical_services anchor moved"
+io.open(p, "w", encoding="utf-8", newline="\n").write(
+    s.replace(old, 'critical_services = ["agent-pipe", "llm-light", "pgvector", "%s"]' % bogus))
+PY
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_greenboot passed despite a critical service with no health-check script"
+    fi
+    cp "$backup" "$toml"
+
+    # (2) An EMPTY critical set must FAIL rather than pass vacuously.
+    python3 - "$toml" <<'PY'
+import io, sys
+p = sys.argv[1]
+s = io.open(p, encoding="utf-8").read()
+old = 'critical_services = ["agent-pipe", "llm-light", "pgvector"]'
+assert s.count(old) == 1, "critical_services anchor moved"
+io.open(p, "w", encoding="utf-8", newline="\n").write(s.replace(old, 'critical_services = []'))
+PY
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_greenboot passed over an EMPTY critical set (vacuous success)"
+    fi
+
+    mv "$backup" "$toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1 \
+        || die "check_greenboot failed after restoration"
+
+    log "Test_greenboot negative test passed"
+}
+
 test_adr_index() {
     log "Testing check_adr_index"
     local idx="${ROOT}/ADR.md"
@@ -2727,6 +2774,7 @@ main() {
     test_tasks_status_parity
     test_container_names
     test_adr_index
+    test_greenboot
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key
