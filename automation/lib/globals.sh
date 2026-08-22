@@ -308,7 +308,8 @@ export MIOS_VERSION
 : "${MIOS_BROWSER_AI_ENABLE:=true}"
 : "${MIOS_BROWSER_AI_PACKAGE:=Zen-Team.Zen-Browser.Twilight}"
 : "${MIOS_BROWSER_AI_PREFS:=browser.ml.enable|bool|true,browser.smartwindow.enabled|bool|true,browser.ml.chat.enabled|bool|true,browser.ml.chat.hideLocalhost|bool|false,browser.ml.chat.shortcuts|bool|true,browser.ml.chat.menu|bool|true,browser.ml.pageAssist.enabled|bool|true,browser.ml.linkPreview.enabled|bool|true}"
-: "${MIOS_BROWSER_AI_PROVIDER_URL:=http://localhost:8200}"
+: "${MIOS_PORT_OPEN_WEBUI:=8200}"
+[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"
 : "${MIOS_BROWSER_FAMILY_CHROMIUM:=chrome,chromium,brave,edge,vivaldi,opera}"
 : "${MIOS_BROWSER_FAMILY_EPIPHANY:=epiphany,gnome.web,gnome.epiphany}"
 : "${MIOS_BROWSER_FAMILY_FIREFOX:=firefox,mozilla,librewolf,waterfox,zen,floorp}"
@@ -495,7 +496,7 @@ export MIOS_VERSION
 : "${MIOS_CONSENSUS_THRESHOLD:=0.5}"
 : "${MIOS_CONSENSUS_TIMEOUT_S:=20.0}"
 : "${MIOS_CONSENSUS_WEIGHT_FLOOR:=0.1}"
-: "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP:=http://localhost:8720/v1}"
+[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
 : "${MIOS_CONVERGE_GATEWAY_MODE:=http}"
 : "${MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE:=64}"
 : "${MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY:=4}"
@@ -1322,7 +1323,6 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OPEN_WEBUI_IMAGE:=ghcr.io/open-webui/open-webui:main}"
 : "${MIOS_OPEN_WEBUI_PORT:=8200}"
 : "${MIOS_OPEN_WEBUI_UID:=817}"
-: "${MIOS_PORT_OPEN_WEBUI:=8200}"
 [ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
 : "${MIOS_OPEN_WEBUI_USER:=mios-open-webui}"
 : "${MIOS_OPEN_WEBUI_VERSION:=ghcr.io/open-webui/open-webui:main}"
@@ -1786,7 +1786,7 @@ to" / "let me know".
 [ -n "${MIOS_SCHEMA_UNCONSUMED+x}" ] || MIOS_SCHEMA_UNCONSUMED='{'"'"'table'"'"': '"'"'mios_security.fido2_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the FIDO2 enrolment path'"'"'},{'"'"'table'"'"': '"'"'mios_security.usb_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the USBGuard rule sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_users'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_preauth_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_acl_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.keepass_vaults'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the vault integration'"'"'},{'"'"'table'"'"': '"'"'mios_identity.account_preferences'"'"', '"'"'reason'"'"': '"'"'T-246: duplicate of the live account_preference; RESOLVE, do not extend'"'"'},{'"'"'table'"'"': '"'"'person_device'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any device-enrolment writer'"'"'},{'"'"'table'"'"': '"'"'person_app_install'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any app-inventory writer'"'"'}'
 : "${MIOS_SEARCH_ANCHOR_STOPWORDS:=the,a,an,of,to,from,and,or,for,in,on,at,by,with,as,is,are,was,were,be,this,that,these,those,it,its,me,my,we,our,you,your,they,them,what,which,who,when,where,why,how,do,does,did,can,could,will,would,should,may,might,near,into,about,than,then,there,here,out,not,no,all,any,some,more,most,find,get,make,show,give,tell,list,need,want,like,use,using,best,cheap,cheapest}"
 : "${MIOS_SEARCH_ENABLE:=true}"
-: "${MIOS_SEARCH_ENDPOINT:=http://localhost:8800/}"
+[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORT_SEARXNG}"'/'
 : "${MIOS_SEARXNG_GID:=818}"
 : "${MIOS_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_SEARXNG_PORT:=8800}"

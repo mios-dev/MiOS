@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the schema validator catches collisions, band overlap, orphans and double membership.
 # AI-related: tools/render-ports.py, usr/share/mios/mios.toml, automation/98-drift-checks.sh
-# AI-functions: load_module, TestDerivePorts, TestFindViolations, TestRenderTable
+# AI-functions: load_module, TestDerivePorts, TestFindViolations, TestRenderTable, TestSweeperSkipsItsOwnEvidence
 
 import importlib.util
 import os
@@ -144,6 +144,29 @@ class TestRenderTable(unittest.TestCase):
         text = "[ports]\nhermes = 1\n\n[other]\nhermes = 1\n"
         out = rp.render_table(text, {"hermes": 8720})
         self.assertEqual(out.count("8720"), 1)
+
+
+class TestSweeperSkipsItsOwnEvidence(unittest.TestCase):
+    """A fixture carrying a deliberately stale literal is how the sweeper is
+    proven; rewriting it turns that proof green over nothing."""
+
+    def test_test_fixtures_are_out_of_the_sweep(self):
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        swept = {os.path.relpath(p, root).replace(os.sep, "/")
+                 for p in rp._sweep_files(root)}
+        offenders = sorted(f for f in swept
+                           if f.startswith("tests/") or f.startswith("tools/test_"))
+        self.assertEqual(offenders, [])
+
+    def test_the_sweep_still_covers_real_source(self):
+        # ...and the skip must not have hollowed the sweep out.
+        import os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        swept = {os.path.relpath(p, root).replace(os.sep, "/")
+                 for p in rp._sweep_files(root)}
+        self.assertIn("usr/libexec/mios/mios-open-url", swept)
+        self.assertGreater(len(swept), 200)
 
 
 if __name__ == "__main__":

@@ -65,11 +65,18 @@ class TestShippedTree(unittest.TestCase):
             on_disk = fh.read()
         self.assertIn("mios.blade=%s" % real["blade"]["type"], on_disk)
 
-    def test_role_apply_parses_the_token_this_file_emits(self):
+    def test_the_reader_parses_the_token_this_file_emits(self):
         # The producer is only useful if the consumer reads the same spelling.
+        # The reader moved into the shared resolver when role-apply and the
+        # `mios blade` verb were made to share one implementation.
+        with open(os.path.join(_ROOT, "usr/lib/mios/blade.sh"),
+                  encoding="utf-8") as fh:
+            lib = fh.read()
+        self.assertIn("_cmdline_tok mios.blade", lib)
+        self.assertIn('"${key}="*)', lib)
         with open(os.path.join(_ROOT, "usr/libexec/mios/role-apply"),
                   encoding="utf-8") as fh:
-            self.assertIn("mios.blade=*)", fh.read())
+            self.assertIn("blade.sh", fh.read())
 
 
 if __name__ == "__main__":

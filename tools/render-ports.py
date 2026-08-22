@@ -177,8 +177,11 @@ _FALLBACK_RE = re.compile(r"\$\{MIOS_PORT_([A-Z0-9_]+):-(\d+)\}")
 _ALIAS = {"GUACAMOLE": "GUACAMOLE_WEB"}
 
 _SWEEP_PATHS = ("automation", "usr", "etc", "tools")
+# A test fixture that deliberately carries a STALE literal is the only way to
+# prove this sweeper works -- rewriting it turns the proof green over nothing.
 _SWEEP_SKIP = ("manifest.json", ".tsv", "/reference/", "/knowledge/",
-               "/target/", "/.git/", "node_modules")
+               "/target/", "/.git/", "node_modules",
+               "/tools/test_", "/tests/")
 
 
 def _sweep_files(root: str):

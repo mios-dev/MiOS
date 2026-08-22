@@ -134,5 +134,49 @@ class TestBrowserOpenable(unittest.TestCase):
             self.assertEqual(mod.browser_openable(tomllib.load(fh)), [])
 
 
+class TestBarePortAddresses(unittest.TestCase):
+    """An address an /etc/mios overlay cannot move is a service that can never
+    be offloaded -- which is the whole of MiOS-Mini."""
+
+    def test_a_bare_port_localhost_url_fails(self):
+        out = mod.bare_port_addresses(
+            {"ports": {"llm_light": 8500},
+             "ai": {"endpoint": "http://localhost:8500/v1"}})
+        self.assertTrue(out)
+        self.assertIn("MIOS_PORT_LLM_LIGHT", out[0])
+
+    def test_the_loopback_spelling_is_caught_too(self):
+        self.assertTrue(mod.bare_port_addresses(
+            {"ports": {"crawl4ai": 8810},
+             "x": {"y": "http://127.0.0.1:8810/crawl"}}))
+
+    def test_a_templated_url_is_clean(self):
+        self.assertEqual(mod.bare_port_addresses(
+            {"ports": {"llm_light": 8500},
+             "ai": {"endpoint": "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"}}), [])
+
+    def test_a_port_that_is_not_ours_is_ignored(self):
+        self.assertEqual(mod.bare_port_addresses(
+            {"ports": {"llm_light": 8500},
+             "x": {"y": "http://localhost:9999/"}}), [])
+
+    def test_rendered_unit_bodies_are_out_of_scope(self):
+        # units/containers carry ${VAR:-N} defaults by design; check_port_fallbacks
+        # owns those, and double-owning would make both registers lie.
+        self.assertEqual(mod.bare_port_addresses(
+            {"ports": {"llm_light": 8500},
+             "units": {"x.service": {"Service": {"Exec": "--listen :8500"}}}}), [])
+
+    def test_a_non_local_host_is_not_this_rule(self):
+        self.assertEqual(mod.bare_port_addresses(
+            {"ports": {"llm_light": 8500},
+             "x": {"y": "http://blade-01:8500/v1"}}), [])
+
+    def test_the_shipped_tree_has_no_unmovable_address(self):
+        import os
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            self.assertEqual(mod.bare_port_addresses(tomllib.load(fh)), [])
+
+
 if __name__ == "__main__":
     unittest.main()

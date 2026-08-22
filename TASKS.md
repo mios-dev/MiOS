@@ -306,6 +306,7 @@
 | T-318 | P1 | done | Naming/Addressing | ADDR-02 -- Seven sidecar ports were allocated but never bound; the collision check guards numbers nothing uses |
 | T-319 | P1 | done | Topology/SSOT | BLADE-05 -- The activation axis gates 3 of 23 services, so a seat still starts the whole service plane |
 | T-320 | P1 | done | Naming/Addressing | ADDR-03 -- The front door bound a retired port: 54 stale literals beside MIOS_PORT_* names |
+| T-321 | P1 | done | Build/SSOT | ADDR-04 -- A generator rewrote the fixtures that prove it works; four addresses could never be offloaded |
 
 ---
 
@@ -2858,6 +2859,20 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 
 **Standing:** 40 ports, **39 bound, 1 registered** (`chrome_cdp_worker`, whose only binder is an `Environment=` literal in a shipped `.service` -- systemd does not expand `${}` there, and the `[units]` placeholder that would render it is inert until T-317). `97-ssot-lint` went 16 -> 19 placeholders, 0 orphans; both `userenv.sh` twins stay byte-identical. Found and fixed en route in `mios-open-url`: `--profile` parsed into a variable nothing read, so the flag silently did nothing; it now says so. | **Domain:** Naming/Addressing | **Who:** architect
 
+
+
+## T-321 -- ADDR-04: A generator rewrote its own evidence  (WS-GUARD | P1 | S)
+**Goal:** E-08 Derived surfaces are generated -- but a generator must not generate the test that proves it.
+**What+How:** MEASURED. `tools/render-ports.py` documents itself as rewriting the flat `[ports]` table; it also runs `sync_fallbacks()`, which treats every `${MIOS_PORT_X:-N}` in `automation/`, `usr/`, `etc/` AND `tools/` as GENERATED and rewrites it to the SSOT value. That is right for source and wrong for a fixture: `tools/test_check-port-fallbacks.py` carries deliberately stale literals, because a fixture holding the CORRECT value produces no finding and its assertion then passes over nothing. Every full `sync-generated.sh` run silently corrected those fixtures and turned three assertions inert. `_SWEEP_SKIP` now excludes `/tools/test_` and `/tests/`, and `tools/test_render_ports.py` guards BOTH directions -- no fixture in the sweep, and the sweep still covering real source (>200 files, `mios-open-url` among them). Proven by sabotage: deleting the skip turns the guard red.
+**Where:** `tools/render-ports.py` (`_SWEEP_SKIP`), `tools/test_render_ports.py`, `tools/test_check-port-fallbacks.py`, `usr/share/mios/mios.toml`, `tools/check-service-urls.py`, `tests/test-offload-overlay.py`.
+**Done When:** No generator rewrites a test fixture; a gate fails on an address an `/etc/mios` overlay cannot move; and the offload proof covers local, localhost AND remote.
+**Why:** Two defects of the same shape met here. A generator that fixes its own tests reports success over nothing -- the family this repo keeps finding. And `check_port_fallbacks` only exists because `sync_fallbacks` sees ONE idiom: it rewrites `${X:-N}` and is blind to `get("X","N")`, `... or N`, `Environment=X=N`, `_MiosPort 'X' N` and the `MIOS_<KEY>_PORT` alias -- which is exactly where all 54 stale literals in T-320 were hiding.
+**Dep:** follows T-320, which produced the fixtures this protects.
+**Status:** done -- and it surfaced a second finding that goes to the heart of MiOS-Mini. **Four addresses in operator-tunable sections hardcoded a bare port**: `[ai.host_thresholds].micro_endpoint` (:8500), `[browser_ai].provider_url` (:8200), `[converge.gateway].fallback_http` (:8720) and `[search].endpoint` (:8800). A bare port cannot be offloaded -- there is no key for an `/etc/mios` overlay to move -- so those four services were pinned to the machine no matter what a seat's overlay said. All four now template their `[ports]` key, and `check_service_urls` gained `bare_port_addresses()`: any `localhost`/`127.0.0.1` URL naming a declared port outside `[units]`/`[containers]` fails. 7 assertions plus a negative case proven by sabotage.
+
+The offload proof was also RED and had to be rebuilt: scoping `[urls]` in T-312 removed the keys it asserted on. It now exercises the canonical keys (`[ai].endpoint`, `[search].endpoint`) plus a surviving tile, pins that the four inter-service keys left `[urls]` and that every remaining value is `http(s)`, and adds the assertion the requirement's own wording demanded -- **`test_local_localhost_and_remote_are_one_mechanism`**, which resolves the SAME overlay against `blade-01.mesh.mios.local`, `localhost` and a LAN IP and asserts all three land. "local, localhost or remote" are three VALUES of one mechanism, not three designs, and that is now executable.
+
+CANDID NOTE for whoever reads this next: the breakage was invisible for a round because the ad-hoc shell loop used to report suite status was itself broken -- `printf '%s %s' "$(basename $t)" "$([[ $? -eq 0 ]] && echo PASS || echo FAIL)"` takes `$?` from `basename`, which always succeeds, so it printed PASS unconditionally. CI was never fooled: `.github/workflows/mios-ci.yml` runs the offload proof and the `tools/` sibling tests explicitly and would have failed. The lesson is the one this whole ledger keeps repeating, applied to the verification itself. | **Domain:** Build/SSOT | **Who:** architect
 
 ## T-320 -- ADDR-03: The front door bound a retired port  (WS-GUARD | P1 | M)
 **Goal:** E-09 One value, one name -- the number a program falls back to is the number the SSOT says, or the SSOT is decoration.

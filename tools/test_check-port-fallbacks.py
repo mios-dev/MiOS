@@ -47,7 +47,10 @@ class TestIdioms(unittest.TestCase):
         self.assertIn("usr/lib/systemd/system/x.service:AGENT_PIPE", f)
 
     def test_a_shell_fallback_is_found(self):
-        self.assertTrue(self._one('P="${MIOS_PORT_LLM_LIGHT:-8500}"\n'))
+        # 8450 is DELIBERATELY wrong -- [ports].llm_light is 8500. A fixture
+        # carrying the CORRECT value produces no finding, so the assertion
+        # would pass over nothing.
+        self.assertTrue(self._one('P="${MIOS_PORT_LLM_LIGHT:-8450}"\n'))
 
     def test_a_python_get_default_is_found(self):
         self.assertTrue(self._one('p = os.environ.get("MIOS_PORT_LLM_LIGHT", "8450")\n'))
@@ -83,13 +86,13 @@ class TestIdioms(unittest.TestCase):
 class TestRegister(unittest.TestCase):
     def test_a_registered_finding_passes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8500}"\n'},
+            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
                      register=["usr/libexec/mios/probe:LLM_LIGHT"])
             self.assertEqual(mod.classify(d, tmp), [])
 
     def test_an_unregistered_finding_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8500}"\n'},
+            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
                      register=[])
             self.assertTrue(mod.classify(d, tmp))
 
@@ -103,7 +106,7 @@ class TestRegister(unittest.TestCase):
 
     def test_a_duplicated_register_entry_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
-            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8500}"\n'},
+            d = tree(tmp, {"usr/libexec/mios/probe": 'x = "${MIOS_PORT_LLM_LIGHT:-8450}"\n'},
                      register=["usr/libexec/mios/probe:LLM_LIGHT"] * 2)
             self.assertTrue(any("twice" in v for v in mod.classify(d, tmp)))
 

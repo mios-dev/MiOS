@@ -2055,6 +2055,22 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
         die "check_service_urls passed with a non-browser scheme in [urls]"
     fi
 
+    cp "$backup" "$toml"
+
+    # An address with a BARE port must FAIL: an /etc/mios overlay cannot move a
+    # baked number, so the service could never be offloaded.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^\[urls\]\n", s, re.M)
+assert m, "[urls] table not found"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "[negtest_bare]\nendpoint = \"http://localhost:8500/v1\"\n\n" + s[m.start():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_service_urls passed with an address an overlay cannot move"
+    fi
+
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 \
         || die "check_service_urls failed after restoration"

@@ -2232,7 +2232,7 @@ bullets = [
 # `web_search` tool target without breaking Architectural Law 5 -- a
 # search proxy is not a model, so no UNIFIED-AI-REDIRECTS exception
 # is required.
-endpoint = "http://localhost:8800/"
+endpoint = "http://localhost:${MIOS_PORT_SEARXNG}/"
 enable   = true
 # Topical-anchor stopwords for mios-web-search query expansion (the structural
 # off-topic screen that requires an expanded sub-query to share >=1 CONTENT token
@@ -8252,7 +8252,7 @@ grounding_model    = "mios-grounding"
 #                      chat-quality needed. Endpoint stays the CPU lane (:11435).
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:8500/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+micro_endpoint           = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -8785,7 +8785,7 @@ verify_probes = [
 [browser_ai]
 enable       = true
 package      = "Zen-Team.Zen-Browser.Twilight"   # Zen Browser - Twilight (winget id)
-provider_url = "http://localhost:8200"            # OWUI front door = the MiOS AI pipeline
+provider_url = "http://localhost:${MIOS_PORT_OPEN_WEBUI}"            # OWUI front door = the MiOS AI pipeline
 # Firefox/Zen prefs as "name|type|value" (type = bool|string|int) so the bootstrap
 # can build policies.json without a full TOML parser. Add Zen-specific zen.* AI
 # flags here as they stabilise -- they flow through unchanged.
@@ -12074,7 +12074,7 @@ automount_idle_timeout_s        = 600    # Unmount idle home dirs after 10 min
 mode            = "http"          # "queue" = in-process; "http" = legacy :8720 (default)
 queue_maxsize   = 64              # max pending requests in the asyncio.Queue
 worker_concurrency = 4            # parallel GatewayWorker coroutines
-fallback_http   = "http://localhost:8720/v1"   # used when mode="http" or worker fails
+fallback_http   = "http://localhost:${MIOS_PORT_HERMES}/v1"   # used when mode="http" or worker fails
 
 [converge.inference]
 heavy_engine_mode = "single"        # "dual" = SGLang + vLLM; "single" = vLLM multi-LoRA
