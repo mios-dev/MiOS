@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,62 @@ test_account_column_parity() {
 }
 
 
+test_node_pool() {
+    log "Testing check_node_pool"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.npbak"
+    cp "$toml" "$backup"
+
+    # (1) An exact alias must FAIL -- four of six shipped nodes were byte-identical
+    # copies of the SGLang endpoint, so the fan-out counted one backend as four.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^\[nodes\.local-sglang\]\n(?:[^\[]*\n)", s, re.M)
+assert m, "node anchor moved"
+blk=m.group(0).replace("local-sglang","local-negtest-alias",1)
+io.open(p,"w",encoding="utf-8",newline="\n").write(s[:m.end()] + blk + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_node_pool passed with two nodes on one (endpoint, model, lane)"
+    fi
+    cp "$backup" "$toml"
+
+    # (2) A lane [dispatch] does not budget must FAIL: the semaphore has no bucket.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^lane        = \"gpu\".*$", s, re.M)
+assert m, "lane anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "lane        = \"negtest-quantum\"" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_node_pool passed with a lane [dispatch].lane_priority does not budget"
+    fi
+    cp "$backup" "$toml"
+
+    # (3) A baked local port must FAIL: no /etc/mios overlay can move it, so the
+    # node could never be offloaded to a blade.
+    python3 -c 'import io,re,sys
+p=sys.argv[1]
+s=io.open(p,encoding="utf-8").read()
+m=re.search(r"^endpoint    = \"http://localhost:\$\{MIOS_PORT_VLLM\}/v1\"$", s, re.M)
+assert m, "endpoint anchor moved"
+io.open(p,"w",encoding="utf-8",newline="\n").write(
+    s[:m.start()] + "endpoint    = \"http://localhost:8520/v1\"" + s[m.end():])' "$toml"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_node_pool passed with an endpoint an overlay cannot move"
+    fi
+
+    mv "$backup" "$toml"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1 \
+        || die "check_node_pool failed after restoration"
+
+    log "Test_node_pool negative test passed"
+}
+
 test_port_fallbacks() {
     log "Testing check_port_fallbacks"
     local probe="${ROOT}/usr/libexec/mios/mios-negtest-port-probe"
@@ -3128,6 +3184,7 @@ main() {
     test_blade_karg
     test_role_ssot
     test_port_fallbacks
+    test_node_pool
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

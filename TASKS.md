@@ -298,7 +298,7 @@
 | T-310 | P2 | done | Security/Transport | SEC-TLS-01 -- Five outbound clients disable TLS verification |
 | T-311 | P3 | planned | Naming/Hygiene | NAME2-04 -- Rename the globals that are truly mutated at runtime |
 | T-312 | P1 | done | Topology/SSOT | BLADE-01 -- Total [urls]: one canonical address per service |
-| T-313 | P2 | planned | Topology/SSOT | BLADE-02 -- [blades] becomes the machine registry; nodes gain a blade |
+| T-313 | P2 | done | Topology/SSOT | BLADE-02 -- [blades] becomes the machine registry; nodes gain a blade |
 | T-314 | P2 | done | Lifecycle/Health | BLADE-03 -- Give greenboot's role-awareness an SSOT it actually reads |
 | T-315 | P2 | done | Topology/SSOT | BLADE-04 -- Finish WS-BLADE: karg producer, role-apply demotion, [profile] fold |
 | T-316 | P1 | done | Naming/Addressing | ADDR-01 -- 17 executable retired-port fallbacks; Hermes binds an unassigned port |
@@ -2799,7 +2799,20 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Done When:** Every `[nodes.*]` entry names a blade that exists; no two node keys are aliases for the same (endpoint, model) unless the SSOT says so explicitly; the VRAM/admission blade machinery reads `[blades]` rather than inferring from endpoints; and a gate fails on an alias pair or an orphan node.
 **Why:** Capacity fan-out currently believes it has five lanes when it has one backend, and the blade code has no SSOT to read. ADR-0016 Decision 2.
 **Dep:** After T-312 (a blade serves addresses; addresses must be canonical first).
-**Status:** planned | **Domain:** Topology/SSOT | **Who:** architect
+**Status:** done -- and this entry's OWN framing needed two corrections, both found by measurement.
+
+**CORRECTION 1: `[blades]` being empty is CORRECT, not the defect.** `mios_pipe/scheduler/blades.py` resolves the local blade's name from `[identity].hostname` (env `MIOS_HOSTNAME` -> `[identity].hostname` -> `socket.gethostname()`), and its own docstring states the contract: *"a config with no `[blades.*]` and no blade fields resolves every endpoint to one local blade at the local budget -- i.e. exactly today"*. Declaring `[blades.mios]` in the vendor file would restate the hostname a second time (Law 9). The vendor `[blades]` table is for REMOTE blades an `/etc/mios` overlay adds; empty is the right vendor default. For the same reason **a node must NOT carry `blade = "local"`** -- omitting it IS the local-blade declaration. This entry's "give each node a `blade` field" is therefore withdrawn.
+
+**CORRECTION 2: the blade machinery IS wired.** This entry says "the blade code has no SSOT to read". `server.py:_rebuild_blade_topology()` calls `local_blade_name()`, `load_blade_pool()` and `endpoint_blade_map()` at import and degrades open on failure; `_BLADE_POOL`/`_ENDPOINT_BLADE`/`_LOCAL_BLADE` are populated. What is off is `[admission].multiblade_enable = false`, which is a deliberate gate, not missing wiring. (My own first pass grepped only for `vram.configure(blade_pool=)` and concluded it was unwired -- wrong, and corrected here rather than acted on.)
+
+**What WAS real, and is fixed.** The pool advertised six lanes over TWO reachable backends:
+* **FOUR nodes were byte-identical** -- `local-dgpu`, `local-cpu`, `local-sglang`, `local-llamaswap` all declared `endpoint = ${MIOS_PORT_SGLANG}/v1`, `model = "mios-heavy"`, `lane = "gpu"`, `api = "openai"`. Behind per-lane and per-endpoint semaphores that is not four lanes, it is one backend counted four times.
+* **`local-cpu` declared `lane = "gpu"` on the GPU endpoint**, so the pool had NO cpu lane at all while `[dispatch]` budgeted one (`lane_priority` `cpu:7`, `lane_concurrency_cpu = 2`). It now points at `mios-cpu-node` (`${MIOS_PORT_CPU_NODE}`, a bare llama.cpp `llama-server` on granite-4.1-8b with `n-gpu-layers 0`) with `lane = "cpu"`, `api = "llamacpp"`.
+* **`local-llamaswap`'s own comment contradicted its fields** -- the prose describes "the llama.cpp multi-model + KV-paging lane (mios-llm-light.container on :11450 ... `api=llamacpp` => the pipe does /slots KV-paging here)" while the fields said SGLang, `api = "openai"`. And `:11450` is in `[docs].retired_ports`. It now points at `${MIOS_PORT_LLM_LIGHT}` with `api = "llamacpp"` and `model = "mios-agent-cpu"`, which the light lane's model map serves as a resident alias.
+* **`local-dgpu` retired** as an exact duplicate of `local-sglang`; the engine names (`local-sglang`/`local-vllm`) are the consistent scheme, and the SSOT's own comment already noted the two are "mutually exclusive (both serve mios-heavy)".
+* `local-igpu` keeps its empty endpoint -- that is a DECLARED-inert placeholder (`_load_node_pool` skips it), and the gate treats it as such rather than as a defect.
+
+Standing: **5 nodes over 4 distinct endpoints, 0 alias pairs, a cpu lane that exists.** `check_node_pool` (gate 174 of 174) fails an exact alias, one endpoint declared as two lanes, a lane `[dispatch].lane_priority` does not budget, a `blade` naming no `[blades]` entry, and an endpoint with a BAKED local port -- that last one because a node whose port is a literal can never be repointed at a blade, which is the offload mechanism itself. Run against the shipped state it reproduced all three aliases. 17 assertions in `tools/test_check-node-pool.py` plus a three-case negative test proven by sabotage. | **Domain:** Topology/SSOT | **Who:** architect
 
 ## T-314 -- BLADE-03: Give greenboot's role-awareness an SSOT it actually reads  (WS-BLADE | P2 | S)
 **Goal:** E-24 Autonomy guardrails -- a machine's critical set is DECLARED, not inferred from whatever happens to be enabled.

@@ -3296,17 +3296,15 @@ enable                    = false
 # models (gemma4:12b + qwen3:1.7b + ...) concurrently, the root cause of the
 # 75s/150s node timeouts on the "global trending tech" research turn. All worker
 # nodes now share the sglang endpoint+model so the fan-out is real concurrency.
-[nodes.local-dgpu]
-endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
-model    = "mios-heavy"        # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
-lane     = "gpu"
-api      = "openai"            # SGLang speaks /v1 + honours tool_choice=required
-health_gate = true
+# Local CPU lane -- mios-cpu-node, a bare llama.cpp llama-server on granite-4.1-8b
+# with n-gpu-layers 0. Was pointed at the SGLang GPU endpoint with lane="gpu", so
+# the name was the only CPU thing about it and the pool had no CPU lane at all
+# while [dispatch] budgeted one (lane_priority cpu:7, lane_concurrency_cpu 2).
 [nodes.local-cpu]
-endpoint = "http://localhost:${MIOS_PORT_SGLANG}/v1"
-model    = "mios-heavy"        # SGLang heavy lane (ALL AGENTS USE SGLANG)
-lane     = "gpu"
-api      = "openai"
+endpoint = "http://localhost:${MIOS_PORT_CPU_NODE}/v1"
+model    = "mios-agent-cpu"    # canonical CPU Modelfile tag, never a raw base
+lane     = "cpu"
+api      = "llamacpp"          # /slots KV-paging, no tool_choice=required
 health_gate = true
 # Local iGPU lane -- ships endpoint EMPTY (privacy: the real iGPU is served
 # NATIVELY on the Windows host via llama.cpp+Vulkan at a tailnet IP, set in the
@@ -3350,11 +3348,11 @@ health_gate = true             # inert until the gated mios-llm-heavy.service is
 # operator bakes GGUFs + enables the lane. api=llamacpp => the pipe does /slots
 # KV-paging here (_kv_paging) + skips tool_choice=required -> fleet-wide KV-cache.
 [nodes.local-llamaswap]
-endpoint    = "http://localhost:${MIOS_PORT_SGLANG}/v1"   # ALL AGENTS USE SGLANG (was mios-llm-light)
-model       = "mios-heavy"     # SGLang heavy lane (Qwen3-8B-AWQ, continuous batching; served-model SSOT = [ai.sglang])
-lane        = "gpu"            # shares the dGPU lane semaphore
-api         = "openai"         # SGLang speaks /v1 natively + honours tool_choice=required
-health_gate = true             # inert until mios-llm-heavy is up + reachable
+endpoint    = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"
+model       = "mios-agent-cpu" # a resident alias of the light lane's model map
+lane        = "cpu"            # llama.cpp serving lane, not the dGPU semaphore
+api         = "llamacpp"       # /slots KV-paging, no tool_choice=required
+health_gate = true             # inert until GGUFs are provisioned + the lane is up
 
 # ─── Inference Lanes (WS-1 / WS-2) ────────────────────────────────────
 [lanes.light]
