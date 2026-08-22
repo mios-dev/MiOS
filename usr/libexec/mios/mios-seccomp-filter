@@ -1,0 +1,92 @@
+#!/usr/bin/env python3
+# AI-hint: Emits the compiled seccomp cBPF program that mios-sandbox-exec hands bwrap on --seccomp FD. Reads the denylist and action from mios.toml [sandbox] through the layered resolver, builds the program with the pure mios_pipe.access.seccomp core, and writes it to --out (or stdout). Exits NON-ZERO on any architecture with no verified syscall table or on a denylist that resolves to nothing, so the caller can refuse to run rather than confining a verb with a filter that denies nothing -- which would read as protection while being none.
+# AI-related: usr/lib/mios/agent-pipe/mios_pipe/access/seccomp.py, /usr/libexec/mios/mios-sandbox-exec, /usr/share/mios/mios.toml, usr/share/doc/mios/manual/ch62-sandbox-seccomp.md
+# AI-functions: _cfg, main
+"""Emit the dispatch sandbox's seccomp filter (T-230)."""
+
+import argparse
+import os
+import platform
+import sys
+
+for _lib in ("/usr/lib/mios/agent-pipe",
+             os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "..", "lib", "mios", "agent-pipe")):
+    _lib = os.path.normpath(_lib)
+    if os.path.isdir(_lib) and _lib not in sys.path:
+        sys.path.insert(0, _lib)
+
+try:
+    from mios_pipe.access import seccomp as S
+except ImportError as exc:      # pragma: no cover -- partial checkout
+    sys.stderr.write(f"mios-seccomp-filter: filter core unavailable: {exc}\n")
+    sys.exit(2)
+
+try:
+    import tomllib
+except ModuleNotFoundError:     # pragma: no cover -- py<3.11
+    import tomli as tomllib     # type: ignore
+
+
+def _cfg() -> dict:
+    """[sandbox] through the layered resolver, falling back to the vendor file."""
+    for lib in ("/usr/lib/mios",
+                os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                             "..", "..", "lib", "mios")):
+        lib = os.path.normpath(lib)
+        if os.path.isdir(lib) and lib not in sys.path:
+            sys.path.insert(0, lib)
+    try:
+        import mios_toml
+        return (mios_toml.load_merged() or {}).get("sandbox") or {}
+    except Exception:
+        pass
+    for path in (os.environ.get("MIOS_VENDOR_TOML"), "/usr/share/mios/mios.toml"):
+        if path and os.path.isfile(path):
+            try:
+                with open(path, "rb") as fh:
+                    return (tomllib.load(fh) or {}).get("sandbox") or {}
+            except Exception:
+                return {}
+    return {}
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser(description="emit the dispatch seccomp filter")
+    ap.add_argument("--out", help="write the program here (default: stdout)")
+    ap.add_argument("--arch", default=platform.machine(),
+                    help="target architecture (default: this host)")
+    ap.add_argument("--describe", action="store_true",
+                    help="print the resolved denylist instead of the program")
+    args = ap.parse_args(argv)
+
+    cfg = _cfg()
+    if str(cfg.get("seccomp_enable", True)).strip().lower() in {"false", "0", "no", "off"}:
+        sys.stderr.write("mios-seccomp-filter: disabled by [sandbox].seccomp_enable\n")
+        return 3
+    try:
+        nrs = S.resolve_denylist(args.arch, cfg.get("seccomp_deny") or ())
+        blob = S.build_filter(args.arch, nrs,
+                              action=str(cfg.get("seccomp_action", "errno")))
+    except S.SeccompUnsupported as exc:
+        sys.stderr.write(f"mios-seccomp-filter: {exc}\n")
+        return 4
+
+    if args.describe:
+        tbl = {v: k for k, v in S.syscall_numbers(args.arch).items()}
+        print(f"arch={args.arch} action={cfg.get('seccomp_action', 'errno')} "
+              f"denied={len(nrs)} bytes={len(blob)}")
+        for nr in nrs:
+            print(f"  {nr:5d}  {tbl.get(nr, '?')}")
+        return 0
+
+    if args.out:
+        with open(args.out, "wb") as fh:
+            fh.write(blob)
+    else:
+        sys.stdout.buffer.write(blob)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

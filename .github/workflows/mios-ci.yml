@@ -64,7 +64,7 @@ jobs:
       - name: Install shellcheck, powershell and .NET SDK
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 || true
+          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap || true
           # pyflakes backs lint-python.sh's undefined-name pass; without it that
           # pass fails closed under MIOS_DRIFT_REQUIRE_TOOLS=1.
           python3 -m pip install --quiet --disable-pip-version-check pyflakes \
@@ -88,6 +88,11 @@ jobs:
 
       - name: PowerShell Pester test suite (run-pester.sh)
         run: bash ./tests/powershell/run-pester.sh
+
+      - name: Dispatch sandbox seccomp filter (test-sandbox-seccomp.sh)
+        # bubblewrap is installed above, so the live tier really runs: it asserts
+        # the confined process loads a filter instead of reporting `Seccomp: 0`.
+        run: bash ./tests/test-sandbox-seccomp.sh
 
       - name: PowerShell object-flattening (test-powershell-flatten.sh)
         # The runner installs powershell above, so the live tier really runs

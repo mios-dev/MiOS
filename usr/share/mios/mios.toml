@@ -2304,6 +2304,13 @@ device = "nvidia.com/gpu=all"
 # once the confinement executor lands + is VM-verified. Env: MIOS_SANDBOX_ENABLE.
 [sandbox]
 enable = false
+# T-230: bwrap already confined the filesystem and the network for an opted-in
+# verb; the confined process still reported `Seccomp: 0`. Manual ch62.
+seccomp_enable = true      # off => bwrap runs with no syscall filter (the old behaviour)
+seccomp_action = "errno"   # errno => the call returns EPERM; kill => the process dies
+# Extends the BASELINE floor in mios_pipe/access/seccomp.py; it cannot shrink it.
+seccomp_deny   = ["swapon", "swapoff", "reboot", "settimeofday", "clock_settime",
+                  "process_vm_readv", "process_vm_writev"]
 
 # ----------------------------------------------------------------------------
 [laws]

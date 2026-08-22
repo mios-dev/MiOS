@@ -1,7 +1,7 @@
 #!/bin/bash
-# AI-hint: Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), and network restrictions based on specified security levels.
-# AI-related: /usr/libexec/mios/mios-sandbox-exec, mios-ai
-# AI-functions: _log, run_bwrap
+# AI-hint: Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), network restrictions and (T-230) a SECCOMP syscall filter based on specified security levels. Before T-230 the confined process reported `Seccomp: 0`: the filesystem and the network were jailed while mount, ptrace, keyctl and bpf were still reachable from inside. At level=enforce the filter is now mandatory -- if it cannot be built the run is REFUSED, the same stance this script already took for a missing bwrap, because confining a verb with no filter reads as protection while being none. Manual ch62.
+# AI-related: /usr/libexec/mios/mios-sandbox-exec, /usr/libexec/mios/mios-seccomp-filter, usr/lib/mios/agent-pipe/mios_pipe/access/seccomp.py, /usr/share/mios/mios.toml, mios-ai
+# AI-functions: _log, _seccomp_arm, run_bwrap
 set -uo pipefail
 
 LEVEL=enforce
@@ -66,6 +66,41 @@ BWRAP_ARGS=(
 BWRAP_ARGS+=( --cap-drop ALL )
 if [ "$LEVEL" = "enforce" ] && [ "$ALLOW_NET" = "0" ]; then
     BWRAP_ARGS+=( --unshare-net )
+fi
+
+# fd 9 keeps the unlinked filter alive across the exec. Manual ch62.
+_seccomp_arm() {
+    local gen f rc
+    gen="$(dirname "$0")/mios-seccomp-filter"
+    [ -x "$gen" ] || gen="/usr/libexec/mios/mios-seccomp-filter"
+    [ -x "$gen" ] || command -v mios-seccomp-filter >/dev/null 2>&1 &&         gen="${gen:-$(command -v mios-seccomp-filter)}"
+    if [ ! -x "$gen" ]; then
+        echo "Mios-sandbox-exec: seccomp filter generator missing;" \
+             "refusing to run with no syscall filter at level=$LEVEL" >&2
+        exit 126
+    fi
+    f="$(mktemp -t mios-seccomp-XXXXXX)"
+    "$gen" --out "$f" 2>/dev/null
+    rc=$?
+    if [ "$rc" -eq 3 ]; then                 # explicitly disabled in the SSOT
+        rm -f "$f"
+        _log "seccomp disabled by [sandbox].seccomp_enable"
+        return 1
+    fi
+    if [ "$rc" -ne 0 ]; then
+        rm -f "$f"
+        echo "Mios-sandbox-exec: could not build a seccomp filter (rc=$rc);" \
+             "refusing to run with no syscall filter at level=$LEVEL" >&2
+        exit 126
+    fi
+    exec 9<"$f"
+    rm -f "$f"
+    BWRAP_ARGS+=( --seccomp 9 )
+    return 0
+}
+
+if [ "$LEVEL" = "enforce" ]; then
+    _seccomp_arm || true
 fi
 
 run_bwrap() { bwrap "${BWRAP_ARGS[@]}" -- timeout "$TIMEOUT" "$@"; }

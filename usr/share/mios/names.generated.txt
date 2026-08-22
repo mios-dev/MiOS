@@ -390,6 +390,9 @@ observability.channels.tool_result  MIOS_OBSERVABILITY_CHANNELS_TOOL_RESULT
 observability.channels.source  MIOS_OBSERVABILITY_CHANNELS_SOURCE
 observability.channels.content  MIOS_OBSERVABILITY_CHANNELS_CONTENT
 sandbox.enable  MIOS_SANDBOX_ENABLE
+sandbox.seccomp_enable  MIOS_SANDBOX_SECCOMP_ENABLE
+sandbox.seccomp_action  MIOS_SANDBOX_SECCOMP_ACTION
+sandbox.seccomp_deny  MIOS_SANDBOX_SECCOMP_DENY
 security.privileged_units.unconfined  MIOS_SECURITY_PRIVILEGED_UNITS_UNCONFINED
 security.enable_units  MIOS_SECURITY_ENABLE_UNITS
 security.composefs_mode  MIOS_SECURITY_COMPOSEFS_MODE

@@ -117,6 +117,8 @@ drift-gate:
     bash ./tests/test-pgvector-major-upgrade.sh
     @echo "[drift-gate] tests/test-powershell-flatten.sh"
     bash ./tests/test-powershell-flatten.sh
+    @echo "[drift-gate] tests/test-sandbox-seccomp.sh"
+    bash ./tests/test-sandbox-seccomp.sh
     @echo "[drift-gate] usr/lib/mios/test_mios_comments.py"
     python3 ./usr/lib/mios/test_mios_comments.py
     @echo "[drift-gate] tests/test-mios-manual-harvest.sh"

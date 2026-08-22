@@ -291,6 +291,11 @@ This manual assembles the 51-chapter documentation suite. Each chapter is an aut
   * [Model-Free On Purpose](manual/ch61-run-template-replay.md#61_model_free): Covers why matching is lexical rather than embedded.
   * [Refuse the Near Miss](manual/ch61-run-template-replay.md#61_refuse_the_near_miss): Details the threshold rule and the empty-set score.
   * [The Stamp](manual/ch61-run-template-replay.md#61_the_stamp): Records the one line without which every stored template is unreplayable.
+* **[Chapter 62: Sandbox Seccomp](manual/ch62-sandbox-seccomp.md)**
+  * [No libseccomp](manual/ch62-sandbox-seccomp.md#62_no_libseccomp): Covers the classic-BPF filter assembled in pure stdlib.
+  * [The Number Table Is ABI, Not Trust](manual/ch62-sandbox-seccomp.md#62_abi_not_trust): Explains why syscall numbers are cross-checked against kernel headers.
+  * [A Filter That Denies Nothing Is Worse Than None](manual/ch62-sandbox-seccomp.md#62_nothing_is_worse): Details the three refusals and the wrapper's exit-126 stance.
+  * [Two Argv Builders, One Executor](manual/ch62-sandbox-seccomp.md#62_two_argv_builders): Records the divergence left for T-309 rather than changed blind.
 
 ---
 
@@ -364,6 +369,7 @@ their AI-hint headers, so a missing or hint-less chapter turns the
 | `usr/share/doc/mios/manual/ch59-request-coalescing.md` | Chapter 59: Request Coalescing. Explains why MiOS deliberately does NOT client-side batch its own inference lanes -- vLLM, SGLang and llama.cpp already run continuous batching, so a second layer only... |
 | `usr/share/doc/mios/manual/ch60-durable-quota.md` | Chapter 60: Durable Quota. Records why a per-principal budget that lives only in memory is not a budget at all -- every restart, including a bootc upgrade, hands an exhausted account a fresh... |
 | `usr/share/doc/mios/manual/ch61-run-template-replay.md` | Chapter 61: Run-Template Replay. Records why the capture half of the run-template feature was write-only for so long: templates were keyed by a hash of the PLAN's shape, which can only be computed... |
+| `usr/share/doc/mios/manual/ch62-sandbox-seccomp.md` | Chapter 62: Sandbox Seccomp. Records what the risk-tier dispatch sandbox actually did before T-230 -- bwrap really was exec'd and really did jail the filesystem and the network, while the confined... |
 
-<!-- derived from the AI-hint headers of 61 file(s) matching usr/share/doc/mios/manual/ch*.md -->
+<!-- derived from the AI-hint headers of 62 file(s) matching usr/share/doc/mios/manual/ch*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/ch*.md -->

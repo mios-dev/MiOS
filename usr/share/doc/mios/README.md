@@ -269,6 +269,7 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/ch59-request-coalescing.md` | Chapter 59: Request Coalescing. Explains why MiOS deliberately does NOT client-side batch its own inference lanes -- vLLM, SGLang and llama.cpp already run continuous batching, so a second layer only... |
 | `usr/share/doc/mios/manual/ch60-durable-quota.md` | Chapter 60: Durable Quota. Records why a per-principal budget that lives only in memory is not a budget at all -- every restart, including a bootc upgrade, hands an exhausted account a fresh... |
 | `usr/share/doc/mios/manual/ch61-run-template-replay.md` | Chapter 61: Run-Template Replay. Records why the capture half of the run-template feature was write-only for so long: templates were keyed by a hash of the PLAN's shape, which can only be computed... |
+| `usr/share/doc/mios/manual/ch62-sandbox-seccomp.md` | Chapter 62: Sandbox Seccomp. Records what the risk-tier dispatch sandbox actually did before T-230 -- bwrap really was exec'd and really did jail the filesystem and the network, while the confined... |
 | `usr/share/doc/mios/manual/cockpit.socket.d.md` | Manual pages distilled from the source comments of cockpit.socket.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/conf.d.md` | Manual pages distilled from the source comments of conf.d, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/containers.md` | Manual pages distilled from the source comments of containers, sanitized, each passage anchored to the comment it came from. |
@@ -311,5 +312,5 @@ passage carries an anchor back to the comment it came from.
 | `usr/share/doc/mios/manual/workflows.md` | Manual pages distilled from the source comments of workflows, sanitized, each passage anchored to the comment it came from. |
 | `usr/share/doc/mios/manual/xdg-desktop-portal.md` | Manual pages distilled from the source comments of xdg-desktop-portal, sanitized, each passage anchored to the comment it came from. |
 
-<!-- derived from the AI-hint headers of 106 file(s) matching usr/share/doc/mios/manual/*.md -->
+<!-- derived from the AI-hint headers of 107 file(s) matching usr/share/doc/mios/manual/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/manual/*.md -->

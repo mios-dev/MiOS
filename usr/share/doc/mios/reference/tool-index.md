@@ -187,9 +187,10 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-remote` | Executes the Claude Code CLI with remote-control mode enabled to allow mobile-to-host session syncing via official Anthropic OAuth polling, providing a persistent mobile-driven development loop for... |
 | `usr/libexec/mios/mios-resolve-latest` | Always-latest container image resolver. Reads the sidecar image refs from the mios.toml [image.sidecars] SSOT (never a hand-mirrored list), resolves each to its registry digest, and appends the... |
 | `usr/libexec/mios/mios-restart` | Executes smart restarts for MiOS services, handling specific logic for Podman Quadlets (systemctl-based), standard systemd units, and hermes-agent soft restarts to clear in-process skill caches. |
-| `usr/libexec/mios/mios-sandbox-exec` | Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), and network restrictions based on specified security levels. |
+| `usr/libexec/mios/mios-sandbox-exec` | Executes agent-generated code within a bubblewrap-based userspace sandbox, enforcing filesystem isolation, resource limits (cgroups), network restrictions and (T-230) a SECCOMP syscall filter based... |
 | `usr/libexec/mios/mios-scheduled-research` | Executes scheduled research tasks by processing prompts through the agent-pipe with a bounded research path to prevent resource exhaustion, then reporting results to Discord via mios-discord-send. |
 | `usr/libexec/mios/mios-screenshot` | A bash wrapper for capturing the primary Windows monitor as a PNG via mios-pc-control, supporting optional --open and --clipboard flags to provide a unified interface for remote screen capture. |
+| `usr/libexec/mios/mios-seccomp-filter` | Emits the compiled seccomp cBPF program that mios-sandbox-exec hands bwrap on --seccomp FD. Reads the denylist and action from mios.toml [sandbox] through the layered resolver, builds the program... |
 | `usr/libexec/mios/mios-shell-session` | SHELL-01 runner for the persistent PTY substrate. Drives tmux with the pure protocol in mios_pipe.routing.pty: `exec` sends one nonce-framed command into the chat's session (creating it under the... |
 | `usr/libexec/mios/mios-show-image` | Executes a SearXNG image search and opens the top result's URL in the system's default browser, optionally moving the resulting window to a specified screen position. |
 | `usr/libexec/mios/mios-shutdown` | Hardens Day-N shutdown loops by detecting dirty working tree edits (+1 compilations), presenting a formatted git diff preview, and offering choices to carry-forward, include in Day-N updates/builds,... |
@@ -238,7 +239,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 208 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -384,6 +385,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/access/quarantine.py` | CaMeL dual-context QUARANTINE boundary -- the deeper half of the F2/T-033 prompt-injection defense (Debenedetti et al., "Defeating Prompt Injections by Design"), composed as a DETERMINISTIC (not... |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/quota.py` | WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-window request-rate cap (RPM) AND a per-window cost budget,... |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/sandbox.py` | WS-A13 risk-tier dispatch-sandbox profile resolver. Pure-stdlib core that maps a verb's permission tier (read|write|interactive) to a SandboxProfile -- the confinement (mechanism + writable workspace... |
+| `usr/lib/mios/agent-pipe/mios_pipe/access/seccomp.py` | T-230 seccomp filter builder for the risk-tier dispatch sandbox. bwrap was already exec'd for opted-in verbs and really did confine the filesystem and the network -- `Seccomp: 0` in the confined... |
 | `usr/lib/mios/agent-pipe/mios_pipe/access/secset.py` | WS-A14 SSOT-derived security sets. Pure-stdlib resolver that derives the agent-pipe's high-privilege verb set (the taint-firewall + HITL gate scope) and the always-taint verb set from the SSOT... |
 | `usr/lib/mios/agent-pipe/mios_pipe/auth.py` | Extracted module for auth.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/context/__init__.py` | context manager package |
@@ -668,6 +670,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_sandbox.py` | Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest. Verifies the tier->profile mapping (read=none, write=workspace,... |
 | `usr/lib/mios/agent-pipe/test_mios_sched.py` | Standalone unit test for mios_sched -- PriorityGate concurrency logic (permit capping, priority reordering, anti-starvation) plus the lane/scheduling/priority decision helpers (_lane_tool_cap,... |
 | `usr/lib/mios/agent-pipe/test_mios_scratchpad.py` | Unit tests for mios_pipe.context.scratchpad. |
+| `usr/lib/mios/agent-pipe/test_mios_seccomp.py` | Standalone assert-script unit test for mios_pipe.access.seccomp (T-230). The load-bearing case is the ABI cross-check: the committed x86_64 syscall-number table is re-derived from the host's own... |
 | `usr/lib/mios/agent-pipe/test_mios_secondary_loop.py` | Stdlib assert-script for mios_secondary_loop (the /v1 sub-agent tool-loop + its |
 | `usr/lib/mios/agent-pipe/test_mios_secset.py` | Standalone assert-script unit test for mios_secset (WS-A14 SSOT-derived security sets). Pure stdlib, no server.py/DB/pytest. Verifies high_privilege_set = curated base UNION SSOT additions (curated... |
 | `usr/lib/mios/agent-pipe/test_mios_selfimprove.py` | Standalone unit test for mios_selfimprove (#64 self-improve analysis): per-tool failure-rate + slow-tool + unreliable-peer findings, min-samples gating, severity ranking, and clean-input -> no... |
@@ -710,7 +713,7 @@ is generated, its generator is here.
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. Collapses the ~13 independently re-rolled `try: import tomllib except: import tomli` +... |
 | `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests for the Python tokenize/ast path and the inline-comment case. |
 
-<!-- derived from the AI-hint headers of 397 file(s) matching usr/lib/mios/*.py -->
+<!-- derived from the AI-hint headers of 399 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->
 
 ## Cross-refs
