@@ -122,8 +122,6 @@ def configure(*, worker_tools_scope=None, child_tool_select=None,
         _tool_embedding = tool_embedding
     if cosine is not None:
         _cosine = cosine
-    if ensure_verb_embeddings is not None:
-        _ensure_verb_embeddings = ensure_verb_embeddings
     if embed_one is not None:
         _embed_one = embed_one
     if code_mode_enable is not None:

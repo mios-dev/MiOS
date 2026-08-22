@@ -8,6 +8,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Wayland
+import Quickshell.Io
 
 PanelWindow {
     id: rail
@@ -19,6 +20,24 @@ PanelWindow {
     property QtObject theme: Theme {}
     property QtObject portalData: PortalData {}
     property int activeWorkspace: 1
+
+    property string fbmProgressText: "..."
+    property bool fbmComplete: false
+    property FileView fbmProgress: FileView {
+        path: "/var/lib/mios/.models-firstboot-progress"
+        watchChanges: true
+        onTextChanged: {
+            let t = text().trim()
+            if (t === "Complete") {
+                rail.fbmComplete = true
+                rail.fbmProgressText = ""
+            } else {
+                let lines = t.split("\n")
+                rail.fbmProgressText = lines[0] // e.g. "0/2"
+                rail.fbmComplete = false
+            }
+        }
+    }
 
     // Live minute clock for footer
     Timer {
@@ -132,6 +151,35 @@ PanelWindow {
                     anchors.fill: parent
                     cursorShape: Qt.PointingHandCursor
                     onClicked: Qt.openUrlExternally("http://localhost:8080")
+                }
+            }
+
+            // ── FBM Status Quick-Tile ─────────────────────────────────────
+            Rectangle {
+                id: fbmTile
+                width: 36; height: 36; radius: theme.radius / 2
+                color: theme.withAlpha(rail.fbmComplete ? theme.success : theme.warning, 0.18)
+                border.width: 1; border.color: theme.withAlpha(rail.fbmComplete ? theme.success : theme.warning, 0.5)
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: !rail.fbmComplete || rail.fbmProgressText !== ""
+
+                Behavior on color { ColorAnimation { duration: 150 } }
+                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                Text {
+                    anchors.centerIn: parent
+                    text: rail.fbmComplete ? "OK" : rail.fbmProgressText
+                    color: rail.fbmComplete ? theme.success : theme.warning
+                    font.family: theme.fontFamily
+                    font.pixelSize: rail.fbmComplete ? 12 : 10
+                    font.bold: true
+                }
+
+                SequentialAnimation on border.color {
+                    running: !rail.fbmComplete && rail.fbmProgressText !== ""
+                    loops: Animation.Infinite
+                    ColorAnimation { to: theme.withAlpha(theme.warning, 1.0); duration: 800; easing.type: Easing.InOutSine }
+                    ColorAnimation { to: theme.withAlpha(theme.warning, 0.4); duration: 800; easing.type: Easing.InOutSine }
                 }
             }
 

@@ -10525,9 +10525,16 @@ not_mirrored = [
 
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
 [legibility]
-max_tracked_files = 3337
-max_tracked_mb    = 199
+max_tracked_files = 3341
+max_tracked_mb    = 201
 max_shell_lines   = 45081  # bash is glue only (Law 14)
 max_ps_lines      = 26985  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 284
+
+# --- Firstboot Models (T-200) ---
+[[ai.firstboot_models]]
+name   = "lfm2-700m.gguf"
+url    = "https://huggingface.co/stelterlab/lfm2-700m-GGUF/resolve/main/lfm2-700m.gguf"
+dest   = "/usr/share/mios/llamacpp/model.gguf"
+sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
