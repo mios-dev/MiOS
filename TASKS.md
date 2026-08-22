@@ -307,6 +307,7 @@
 | T-319 | P1 | done | Topology/SSOT | BLADE-05 -- The activation axis gates 3 of 23 services, so a seat still starts the whole service plane |
 | T-320 | P1 | done | Naming/Addressing | ADDR-03 -- The front door bound a retired port: 54 stale literals beside MIOS_PORT_* names |
 | T-321 | P1 | done | Build/SSOT | ADDR-04 -- A generator rewrote the fixtures that prove it works; four addresses could never be offloaded |
+| T-322 | P1 | done | Docs/SSOT | MINI-01 -- The seat-vs-blade comparison is generated from the SSOT, so it cannot go stale |
 
 ---
 
@@ -2873,6 +2874,22 @@ Standing: **5 nodes over 4 distinct endpoints, 0 alias pairs, a cpu lane that ex
 **Standing:** 40 ports, **39 bound, 1 registered** (`chrome_cdp_worker`, whose only binder is an `Environment=` literal in a shipped `.service` -- systemd does not expand `${}` there, and the `[units]` placeholder that would render it is inert until T-317). `97-ssot-lint` went 16 -> 19 placeholders, 0 orphans; both `userenv.sh` twins stay byte-identical. Found and fixed en route in `mios-open-url`: `--profile` parsed into a variable nothing read, so the flag silently did nothing; it now says so. | **Domain:** Naming/Addressing | **Who:** architect
 
 
+
+
+## T-322 -- MINI-01: What actually differs between MiOS-Mini and a hosted MiOS  (WS-BLADE | P1 | S)
+**Goal:** E-08 Derived surfaces are generated -- including the document that explains the design, because that is the one that rots first.
+**What+How:** The requirement is a COMPARISON, and none existed: the difference between a seat and a fully hosted blade was spread across ADR-0016, `[blade.*]`, `[greenboot]` and half a dozen task entries, with no single place stating it and nothing keeping any of it true. Write it once, as a PROJECTION: `tools/generate-mini-vs-hosted.py` derives every number from `[blade.archetypes]`, `[blade.requires]`, `[blade].seat_side` and `[greenboot]`, emits `usr/share/doc/mios/reference/mini-vs-hosted.md`, and `check_mini_vs_hosted` (gate 175 of 175) regenerates in memory and diffs. A hand-edit fails; the file being absent fails.
+**Where:** `tools/generate-mini-vs-hosted.py`, `tools/test_generate-mini-vs-hosted.py`, `usr/share/doc/mios/reference/mini-vs-hosted.md`, `tools/sync-generated.sh` (step 4a), `automation/98-drift-checks.sh`, `tests/drift-gate-negatives.sh`, `tools/check-manual-links.py`.
+**Done When:** One document states the difference surface by surface; every number in it derives from the SSOT; a gate fails on a hand-edit; and the docs tree has no dangling explicitly-relative link.
+**Why:** A prose comparison is exactly the artefact that goes stale the moment an archetype gains a capability -- and this tree already proved it: `audit-INDEX.md` linked to `audit-mios-mini.md` for the entire period after ADR-0016 Decision 3 reassigned that name to MiOS-Metal, and nothing noticed, because the link gate only ever covered `manual.md -> manual/ch*`.
+**Dep:** after T-312/T-313/T-315/T-319 -- the comparison is only worth generating once the numbers it reads are true.
+**Status:** done -- **the headline: a seat starts 6 units, a fully hosted `hybrid` starts 50, and they are the same image.** No MiOS-Mini Containerfile, no MiOS-Mini tag, no conditional bake; a seat is `[blade].type = "endpoint"` plus an `/etc/mios` overlay, and every difference is a RUNTIME difference. The document also pins the seat's defining constraint, which no prior entry stated: **a seat has zero local inference lanes.** All four -- `mios-llm-light`, `mios-llm-heavy`, `mios-llm-heavy-alt`, `mios-cpu-node` -- are capability-gated off, INCLUDING the lane `mios_pipe/routing/lanes.py` calls "the always-on floor" and forces terminal in every chain. When the blade is unreachable a seat has a front door that can reach nothing, and `[greenboot].blade_reachability_critical = false` means it does not roll back over it -- correct under Law 12, but it means the failure is silent. The model weights are baked regardless (Law 12 BAKE-NOT-FETCH), so a seat carries granite-4.1-8b, lfm2-700m and embeddinggemma and never loads any of them.
+
+Greenboot behaves correctly on a seat and the document proves it: **1 of 4 critical services is probed** (`agent-pipe`, seat-side), the other three are skipped because their capability markers are absent -- the T-314 `_blade_activates` guard working, now visible in a table rather than asserted in a commit message.
+
+**Found while writing it:** the docs tree had 4 dangling EXPLICITLY-relative links, one of which was `audit-INDEX.md -> ./audit-mios-mini.md`. `check_manual_links` now also asserts that every `./x` or `../x` link anywhere under `usr/share/doc/mios` resolves. Deliberately NOT widened to repo-root-relative paths (`usr/share/...`, `CLAUDE.md`): resolving those as file-relative would invent ~190 false findings, and a register that large is a campaign, not a gate. The narrow class is unambiguous and is now at zero. 4 new cases in `tools/test_check-manual-links.py` (9/9), including one asserting a repo-root-relative path stays OUT of scope.
+
+10 assertions in `tools/test_generate-mini-vs-hosted.py`, three of which prove the numbers are DERIVED rather than typed -- add a gated unit and the hosted count moves; add a `seat_side` unit and BOTH totals move, because `seat_side` runs everywhere and is therefore not a difference between them. Two-case negative test proven by sabotage. | **Domain:** Docs/SSOT | **Who:** architect
 
 ## T-321 -- ADDR-04: A generator rewrote its own evidence  (WS-GUARD | P1 | S)
 **Goal:** E-08 Derived surfaces are generated -- but a generator must not generate the test that proves it.

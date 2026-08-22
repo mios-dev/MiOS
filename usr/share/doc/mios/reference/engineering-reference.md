@@ -694,7 +694,7 @@ plane runs unprivileged (LAW 6) inside this stack.
 
 This section is the engineering map of the "agentic AI OS" half. The full
 request/response contract is in [`api.md`](api.md); the agent-facing contract is
-under [`/usr/share/mios/ai/`](../../mios/ai/). The end-to-end shape is:
+under [`/usr/share/mios/ai/`](../../../mios/ai/). The end-to-end shape is:
 
 > **front-end (OWUI / Discord / `mios` CLI) -> agent-pipe (router + fan-out) ->
 > Hermes (tool-loop gateway) -> inference lanes (generation + embeddings) ->

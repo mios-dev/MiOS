@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # AI-hint: Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
 # AI-related: /usr/lib/mios/userenv.sh, /usr/libexec/mios/mios-test-temp-eval, /usr/share/mios/referenced_names.txt, mios-test-temp-eval
-# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
+# AI-functions: log, die, test_greenboot, test_service_urls, test_ports_bound, test_blade_coverage, test_blade_karg, test_role_ssot, test_port_fallbacks, test_node_pool, test_mini_vs_hosted, test_version_ssot, test_resolver_equivalence, test_eval_safety, test_shellcheck_failure, test_names_registry_closure, test_root_toml_subset, main
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -1731,6 +1731,34 @@ test_account_column_parity() {
 }
 
 
+test_mini_vs_hosted() {
+    log "Testing check_mini_vs_hosted"
+    local doc="${ROOT}/usr/share/doc/mios/reference/mini-vs-hosted.md"
+    local bak="${doc}.mvhbak"
+    cp "$doc" "$bak"
+
+    # (1) A hand-edited comparison must FAIL -- the whole point is that the
+    # numbers are projected, so nobody can quietly "correct" them.
+    sed -i 's/| Units started |.*/| Units started | **1** | **1** |/' "$doc"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1; then
+        mv "$bak" "$doc"
+        die "check_mini_vs_hosted passed on a hand-edited comparison"
+    fi
+
+    # (2) A MISSING projection must FAIL rather than read as "nothing to check".
+    rm -f "$doc"
+    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1; then
+        mv "$bak" "$doc"
+        die "check_mini_vs_hosted passed with the comparison absent"
+    fi
+
+    mv "$bak" "$doc"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 \
+        || die "check_mini_vs_hosted failed after restoration"
+
+    log "Test_mini_vs_hosted negative test passed"
+}
+
 test_node_pool() {
     log "Testing check_node_pool"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3185,6 +3213,7 @@ main() {
     test_role_ssot
     test_port_fallbacks
     test_node_pool
+    test_mini_vs_hosted
     test_vendored_assets_non_stub
     test_resolved_env_lossless
     test_no_duplicate_value_key

@@ -4511,6 +4511,7 @@ required_checks = [
     "check_role_ssot",
     "check_port_fallbacks",
     "check_node_pool",
+    "check_mini_vs_hosted",
     "check_adr_index",
     "check_ssot_lint_equivalence",
     "check_oci_archive_path",
@@ -6285,6 +6286,7 @@ main() {
     check_role_ssot
     check_port_fallbacks
     check_node_pool
+    check_mini_vs_hosted
     check_adr_index
     check_vendored_assets_non_stub
     check_resolved_env_lossless
@@ -7343,6 +7345,20 @@ check_blade_coverage() {
     echo "[98-drift-checks]   check_blade_coverage"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
+        while IFS= read -r line; do
+            if [[ -n "$line" ]]; then
+                _violation "$line"
+            fi
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_mini_vs_hosted() {
+    echo "[98-drift-checks]   check_mini_vs_hosted"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/generate-mini-vs-hosted.py --check 2>&1)"; then
         while IFS= read -r line; do
             if [[ -n "$line" ]]; then
                 _violation "$line"

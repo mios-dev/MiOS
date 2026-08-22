@@ -13,10 +13,10 @@
 > conventions of every upstream listed in this file are preserved
 > verbatim; 'MiOS' claims no authorship of any upstream work and no
 > affiliation with any upstream vendor. Runtime agreements are codified
-> in [`AGREEMENTS.md`](./AGREEMENTS.md); invocation of any entry point
+> in [`AGREEMENTS.md`](../../../../../AGREEMENTS.md); invocation of any entry point
 > listed there is treated as acknowledgment of this attribution
 > registry, the Apache-2.0 main license at
-> [`LICENSE`](./LICENSE), and the bundled-component licenses inventoried
+> [`LICENSE`](../../../../../LICENSE), and the bundled-component licenses inventoried
 > in [`usr/share/doc/mios/reference/licenses.md`](usr/share/doc/mios/reference/licenses.md).
 >
 > **Scope of this file:** *attribution* (what we use and where it came

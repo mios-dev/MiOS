@@ -3,7 +3,7 @@
 
 # MiOS-Metal — Concrete Host Definition (refinement audit)
 
-> **Scope.** This audit turns the north-star architecture in [`docs/agy/doc-mios-metal.md`](../doc-mios-metal.md) into a *buildable host definition*: exact image layer, the SSOT surface it projects from, and four drop-in artifacts — the **vfio-pci bind** (SSOT-driven), the **`table inet mios-router` nft ruleset**, the **headscale mesh join** (Quadlet + policy), and the **guest domain XML skeleton** (swtpm vTPM inline). Everything below is grounded in files that exist today; every gap between "what the tree does now" and "what the Mini host needs" is called out with `file:line`. The two required drop-ins — **vfio bind + guest XML** — are embedded verbatim in §4.1 and §4.6.
+> **Scope.** This audit turns the north-star architecture in [`concepts/mios-metal-architecture.md`](../concepts/mios-metal-architecture.md) into a *buildable host definition*: exact image layer, the SSOT surface it projects from, and four drop-in artifacts — the **vfio-pci bind** (SSOT-driven), the **`table inet mios-router` nft ruleset**, the **headscale mesh join** (Quadlet + policy), and the **guest domain XML skeleton** (swtpm vTPM inline). Everything below is grounded in files that exist today; every gap between "what the tree does now" and "what the Mini host needs" is called out with `file:line`. The two required drop-ins — **vfio bind + guest XML** — are embedded verbatim in §4.1 and §4.6.
 >
 > **Status.** Refinement/spec, 2026-07-31. Untestable here (no Linux/KVM host, no dGPU); the artifacts are render-correct and drift-gateable, not VM-verified. Where a claim needs a real box, it is marked **[needs-VM]**.
 
