@@ -1,5 +1,5 @@
 <!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [urls], [ports], [blades], [nodes], [profile], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/mini-vs-hosted.md, tools/generate-mini-vs-hosted.py, usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -8,7 +8,7 @@ date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
 laws: [1, 3, 5, 7, 8, 9, 12]
-ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
+ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
 related_ws: [WS-BLADE, WS-MIOSSYS, WS-GUARD]
 supersedes: []
 superseded_by: []
@@ -595,6 +595,62 @@ The `endpoint` archetype remains real and remains useful — a node granting no 
 * **Hyper-convergence is a union, not a menu.** A service is expected to be simultaneously
   addressable on the mesh, schedulable by Kubernetes, storable on CephFS and HA-managed. Any one of
   those being single-node caps all of them.
+
+### 10. The two products differ by what metal they own, and only an `either` plane can be shed
+
+Decision 9 settled what a MiOS-Mini *is*. It did not settle the comparison the requirement actually
+asks for: **MiOS-Mini against the fully hosted, feature-complete MiOS OCI image(s) it sheds to.**
+Without that line drawn, "offload all services" has no boundary — it reads as though every plane
+were movable, which would make a Mini indistinguishable from a container.
+
+**They are one artifact.** Same image, same tag, same bake — a hosted instance is the identical OCI
+image in a different *position*: a container, a VM, or another machine, local or remote. There is no
+Mini build and no hosted build, and there must never be one; that is Decision 7 applied at the
+product level rather than the archetype level.
+
+**They differ by what they own, not by what they contain.** A Mini owns metal a guest does not
+have: radios, the uplink NIC, the hypervisor itself, a vote in the cluster. `[blade.planes].owner`
+is that line, and it has exactly two values:
+
+| `owner` | Meaning | Can be shed |
+|---|---|---|
+| `mini` | The plane owns metal this box has and a guest does not. | **No** — a hosted image has nothing to shed it *onto*. |
+| `either` | The plane is a workload. A Mini runs it by default and may hand it to any peer. | **Yes** |
+
+**This is the definition of offload, and it is narrower than the requirement sentence suggests.**
+Of the eight declared planes, three are `either` — `ai`, `orchestrator`, `storage`. The other five —
+`ha`, `hypervisor`, `mesh`, `radio`, `router` — are what make the box a Mini, and a Mini that shed
+them would stop being one. So "offload *all* services" is true of services and false of planes:
+every *service* is movable because every service rides `ai`/`orchestrator`/`storage`; the planes
+underneath them are the box.
+
+The alternative — letting a hosted image own a `mini` plane — was rejected because it is not a
+policy choice but a physical one. A container has no radio to serve clients with and no NIC to be
+an uplink on; declaring it eligible would produce a placement the scheduler could satisfy and the
+hardware could not.
+
+**Neither tier is derived from a hand-written verdict.** `markers` names the packages whose presence
+in `[packages]` proves the plane is baked (Law 12), and `wired_by` names the file that activates it;
+`tools/generate-mini-vs-hosted.py` derives both and `--check` gates the result, so the comparison
+cannot go stale and nobody can write "built" into the SSOT (Law 8).
+
+#### What the derivation currently reports
+
+Read narrowly: *baked* means the marker packages ship, and *wired* means the named file exists.
+Neither claims a plane is finished — `router` is baked and forwards, and still has no NAT ruleset or
+client DHCP (T-337).
+
+Two planes fail outright, and **both are `owner = "mini"`**:
+
+* `radio` — `hostapd` and `wpa_supplicant` are absent from `[packages]`, and nothing wires an AP.
+* `mesh` — `tailscale` is absent; only a repo URL ships. Fetching it at first boot would violate
+  Law 12.
+
+That is the finding this decision exists to make visible: **the planes a hosted image was never
+going to provide are precisely the ones the Mini does not have yet.** The gap between the two
+products is not that hosted instances are missing capability — it is that the Mini-only tier is the
+least built tier in the tree, and it is the only tier that cannot be filled by adding a peer.
+
 
 ## Consequences
 

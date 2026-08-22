@@ -13221,6 +13221,64 @@ scratch      = "last-writer-wins"
 config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winner
 
 
+# [blade.planes] -- which planes a Mini owns and which can be shed.
+# Meaning of owner/markers/wired_by: ADR-0016 Decision 10.
+
+# owner: mini = owns metal a guest lacks, never shed. either = a movable workload.
+# markers: packages proving the plane is baked. Empty = payload, not RPM.
+
+# wired_by: the file that activates it. Verdicts are DERIVED, never written here.
+# Generator + gate: tools/generate-mini-vs-hosted.py --check (Law 8).
+
+[blade.planes.hypervisor]
+role     = "runs the VMs and containers every other plane lands in"
+owner    = "mini"
+markers  = ["libvirt", "qemu-kvm"]
+wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
+
+[blade.planes.radio]
+role     = "serves WiFi clients as an access point"
+owner    = "mini"
+markers  = ["hostapd", "wpa_supplicant"]
+wired_by = ""
+
+[blade.planes.router]
+role     = "is the uplink: forwards, NATs and filters for the clients it serves"
+owner    = "mini"
+markers  = ["firewalld", "dnsmasq"]
+wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
+
+[blade.planes.mesh]
+role     = "joins every node and service into one addressable overlay"
+owner    = "mini"
+markers  = ["tailscale"]
+wired_by = ""
+
+[blade.planes.storage]
+role     = "CephFS: the shared filesystem a shed workload keeps its state on"
+owner    = "either"
+markers  = ["ceph-common", "cephadm"]
+wired_by = "usr/share/containers/systemd/mios-ceph.container"
+
+[blade.planes.orchestrator]
+role     = "k3s: places containers across the fleet (ADR-0017 D1)"
+owner    = "either"
+markers  = ["k3s"]
+wired_by = "usr/share/containers/systemd/mios-k3s.container"
+
+[blade.planes.ha]
+role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1)"
+owner    = "mini"
+markers  = ["pacemaker", "corosync"]
+wired_by = "usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh"
+
+[blade.planes.ai]
+role     = "the OpenAI-compatible front door and the lanes behind it"
+owner    = "either"
+markers  = []
+wired_by = "usr/share/containers/systemd/mios-llm-light.container"
+
+
 # An archetype expands to the capabilities its blade activates. An archetype
 # with NO capabilities is a SEAT: it runs the UX and consumes remote addresses.
 [blade.archetypes]

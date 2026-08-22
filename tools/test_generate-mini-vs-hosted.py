@@ -67,21 +67,26 @@ class TestRendering(unittest.TestCase):
         for denial in ("no separate Containerfile", "tag or conditional bake"):
             self.assertIn(denial, text)
 
-    def test_it_disclaims_being_about_mini(self):
-        # ADR-0016 D9. TWO earlier revisions of this document defined MiOS-Mini
-        # and both were wrong -- first as the seat, then as a box whose other
-        # mode is a seat. Mini boots the entire image and runs the AI plane;
-        # "offload" is what it can SHED, not what it lacks. See T-331/T-335.
+    def test_it_states_mini_boots_the_whole_image(self):
+        # Two earlier revisions defined MiOS-Mini and both were wrong.
+        # ADR-0016 D9 holds the history; T-331/T-335 hold the corrections.
         text = mod.render(synthetic())
-        self.assertIn("NOT about MiOS-Mini", text)
+        self.assertIn("boots the **entire** image", text)
         self.assertIn("D9", text)
-        for wrong in ("never an artifact", "MiOS-Mini is the BOX"):
+        for wrong in ("never an artifact", "MiOS-Mini is the BOX",
+                      "NOT about MiOS-Mini"):
             self.assertNotIn(wrong, text)
 
-    def test_it_compares_archetypes_not_products(self):
+    def test_it_keeps_the_two_comparisons_apart(self):
+        # The confusion these two parts exist to prevent is exactly what
+        # produced the wrong revisions: an archetype is a posture, not a
+        # product, so the page must never let one stand in for the other.
         text = mod.render(synthetic())
+        self.assertIn("Part 1 — the two products", text)
+        self.assertIn("Part 2 — the two modes", text)
+        self.assertLess(text.index("Part 1"), text.index("Part 2"))
         self.assertIn("grants nothing", text)
-        self.assertIn("posture any node can take", text)
+        self.assertIn("not a product at all", text)
 
     def test_the_rendered_counts_are_the_derived_ones(self):
         d = synthetic(extra_gated=2)
@@ -155,6 +160,119 @@ class TestRealTree(unittest.TestCase):
                      "mios-cpu-node"):
             self.assertIn(lane, off, lane)
 
+
+
+def with_planes(**over):
+    """A synthetic SSOT that DOES declare planes, plus the packages that would
+    prove them baked."""
+    d = synthetic()
+    d["packages"] = {"base": {"pkgs": ["libvirt"]},
+                     "nested": {"sections": {"deep": {"pkgs": ["ceph-common"]}}}}
+    d["blade"]["planes"] = {
+        "hypervisor": {"role": "metal", "owner": "mini",
+                       "markers": ["libvirt"], "wired_by": "Justfile"},
+        "radio": {"role": "wifi", "owner": "mini",
+                  "markers": ["hostapd"], "wired_by": ""},
+        "storage": {"role": "cephfs", "owner": "either",
+                    "markers": ["ceph-common"], "wired_by": "Justfile"},
+        "ai": {"role": "lanes", "owner": "either",
+               "markers": [], "wired_by": "Justfile"},
+    }
+    d["blade"]["planes"].update(over)
+    return d
+
+
+class TestPlanes(unittest.TestCase):
+    """Part 1's verdicts are derived, so neither column can be faked in the
+    SSOT (Law 8). See ADR-0016 D10."""
+
+    def test_packages_are_collected_at_every_nesting_depth(self):
+        # [packages] mixes flat lists, {pkgs=[...]} tables and nested section
+        # maps. A marker found by only one shape would report a baked plane
+        # as absent.
+        have = mod.all_packages(with_planes())
+        self.assertIn("libvirt", have)
+        self.assertIn("ceph-common", have)
+
+    def test_a_marker_absent_from_packages_reads_not_baked(self):
+        rows = dict((r[0], r) for r in mod.plane_rows(_ROOT, with_planes()))
+        self.assertEqual(rows["radio"][4], ["hostapd"])
+        self.assertEqual(rows["hypervisor"][4], [])
+
+    def test_adding_the_missing_package_flips_the_verdict(self):
+        d = with_planes()
+        d["packages"]["base"]["pkgs"].append("hostapd")
+        rows = dict((r[0], r) for r in mod.plane_rows(_ROOT, d))
+        self.assertEqual(rows["radio"][4], [])
+
+    def test_wiring_is_the_file_existing_not_a_declared_verdict(self):
+        d = with_planes()
+        d["blade"]["planes"]["storage"]["wired_by"] = "no/such/file"
+        rows = dict((r[0], r) for r in mod.plane_rows(_ROOT, d))
+        self.assertFalse(rows["storage"][6])
+        self.assertTrue(rows["hypervisor"][6])
+
+    def test_an_empty_wired_by_is_unwired(self):
+        rows = dict((r[0], r) for r in mod.plane_rows(_ROOT, with_planes()))
+        self.assertFalse(rows["radio"][6])
+
+    def test_owner_alone_decides_what_can_be_shed(self):
+        # This IS the definition of offload (ADR-0016 D10) -- not bakedness,
+        # not wiring. An unbaked `either` plane is still shed-able in principle.
+        movable, fixed = mod.shed_split(mod.plane_rows(_ROOT, with_planes()))
+        self.assertEqual(movable, ["ai", "storage"])
+        self.assertEqual(fixed, ["hypervisor", "radio"])
+
+    def test_flipping_an_owner_moves_the_plane_between_sets(self):
+        d = with_planes()
+        d["blade"]["planes"]["radio"]["owner"] = "either"
+        movable, fixed = mod.shed_split(mod.plane_rows(_ROOT, d))
+        self.assertIn("radio", movable)
+        self.assertNotIn("radio", fixed)
+
+    def test_an_unknown_owner_is_not_shed_able(self):
+        # Fail closed: a typo'd owner must never grant mobility by accident.
+        d = with_planes()
+        d["blade"]["planes"]["storage"]["owner"] = "eithr"
+        movable, fixed = mod.shed_split(mod.plane_rows(_ROOT, d))
+        self.assertNotIn("storage", movable)
+        self.assertIn("storage", fixed)
+
+    def test_the_rendered_shed_count_is_the_derived_one(self):
+        d = with_planes()
+        movable, _ = mod.shed_split(mod.plane_rows(_ROOT, d))
+        text = mod.render(d, _ROOT)
+        self.assertIn("**%d of %d planes**" % (len(movable), 4), text)
+
+    def test_no_markers_means_the_package_test_says_nothing(self):
+        # The AI plane ships as GGUF payloads, not RPMs. Reporting it "baked"
+        # because it declared zero markers would be a vacuous pass.
+        text = mod.render(with_planes(), _ROOT)
+        self.assertIn("n/a — payload, not RPM", text)
+
+    def test_an_unbaked_plane_is_named_in_the_open_items(self):
+        text = mod.render(with_planes(), _ROOT)
+        self.assertIn("`radio` (`mini`) is **not baked**", text)
+        self.assertNotIn("`hypervisor` (`mini`) is **not baked**", text)
+
+    def test_an_empty_planes_table_is_reported_as_a_defect(self):
+        # synthetic() declares no planes at all. Rendering "0 of 0" as though
+        # it were an answer is the failure mode this pins shut.
+        text = mod.render(synthetic(), _ROOT)
+        self.assertIn("`[blade.planes]` is empty", text)
+        self.assertNotIn("**0 of 0 planes**", text)
+
+    def test_the_shipped_planes_match_the_shipped_packages(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            data = tomllib.load(fh)
+        rows = mod.plane_rows(_ROOT, data)
+        self.assertTrue(rows, "[blade.planes] must not be empty")
+        for name, _role, owner, _m, _mi, wired_by, wired in rows:
+            self.assertIn(owner, ("mini", "either"),
+                          "%s declares an owner outside the two tiers" % name)
+            if wired_by:
+                self.assertTrue(wired, "%s points at a file that is gone: %s"
+                                % (name, wired_by))
 
 if __name__ == "__main__":
     unittest.main()

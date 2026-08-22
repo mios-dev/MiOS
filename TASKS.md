@@ -323,6 +323,7 @@
 | T-335 | P0 | partial | Topology/SSOT | MINI-07 -- "Offload" means SHED, not thin; and the live mesh (Tailscale) is not installed |
 | T-336 | P0 | done | Security/Federation | SEC-03 -- A ReDoS on model-controlled input in the dispatch path |
 | T-337 | P1 | planned | Topology/SSOT | MINI-08 -- The router plane is further along than reported; three more decorative key families |
+| T-338 | P0 | partial | Topology/SSOT | MINI-09 -- The two products had no declared boundary, so "offload all services" had none either |
 
 ---
 
@@ -3308,3 +3309,61 @@ Behaviour is byte-identical on every real form, including the flag-with-argument
 **Where:** `automation/45-firewall.sh`, `usr/lib/sysctl.d/99-mios-vmhost.conf`, `usr/share/mios/mios.toml` (`[network]`, `[metal]`), `automation/21-virt.sh`, `usr/share/mios/reference/names.generated.txt`.
 **Done When:** the firewall init script is either invoked or deleted; `[network]` is read by its consumer or retired; `[metal]`'s env files are consumed or the generators stop writing them; the two `MIOS_METAL_*` spellings are reconciled; and `NetworkManager-wifi` moves out of `[packages.gnome]` if a headless Mini is to have a radio.
 **Why:** T-333 said "the router core is absent". Half of it is, and the half that is not was already working. An audit that overstates sends the next person to build something that exists. | **Domain:** Topology/SSOT | **Who:** architect
+
+## T-338 -- MINI-09: the two products had no declared boundary, so "offload" had none either  (WS-MINI | P0 | L)
+
+**What+How:** The requirement is *"MiOS-Mini is the full image meant to offload all services to hosted
+(local, localhost or remote) MiOS OCI image(s)"*. Every prior pass answered what a Mini **is** (T-331,
+T-335, ADR-0016 D9) and none answered what it is **against** -- so "offload all services" had no upper
+bound. Read literally it makes a Mini a container: if every plane can move, nothing distinguishes the
+box from the image running on it.
+
+**The boundary, now declared (ADR-0016 Decision 10):** one artifact, two positions. A hosted MiOS OCI
+image is the same image in a container, a VM, or another machine. They differ by what metal they
+**own**, expressed as `[blade.planes].owner`:
+
+* `mini` -- the plane owns metal a guest does not have (radios, the uplink NIC, the hypervisor, a
+  cluster vote). It cannot be shed, because a hosted image has nothing to shed it onto.
+* `either` -- the plane is a workload; a Mini runs it by default and may hand it to any peer.
+
+**So offload is narrower than the sentence suggests, and that is correct.** 3 of 8 planes are `either`
+(`ai`, `orchestrator`, `storage`); the other 5 (`ha`, `hypervisor`, `mesh`, `radio`, `router`) are the
+box. Every *service* is movable because every service rides the movable three -- the planes underneath
+them are not services.
+
+**What the derivation reports, and why it is the finding:** `markers` (packages that must be in
+`[packages]`) and `wired_by` (the file that activates the plane) are read from the tree by
+`tools/generate-mini-vs-hosted.py`, gated by `--check`, so no verdict can be hand-written (Law 8).
+Two planes fail outright and **both are `owner = "mini"`**: `radio` (no `hostapd`/`wpa_supplicant`,
+nothing wires an AP) and `mesh` (no `tailscale`; only a repo URL, so first boot would have to fetch
+it -- Law 12). **The planes a hosted image was never going to provide are exactly the ones the Mini
+does not have yet, and they are the only ones a peer cannot supply.**
+
+**Where:** `usr/share/mios/mios.toml [blade.planes]`, `usr/share/doc/mios/adr/0016-blade-node-topology.md`
+(D10), `tools/generate-mini-vs-hosted.py`, `tools/test_generate-mini-vs-hosted.py`,
+`usr/share/doc/mios/reference/mini-vs-hosted.md`.
+
+**Done When:** every `owner = "mini"` plane is baked and wired (`radio` and `mesh` are the two open
+ones -- `radio` is T-333/MINI-05a, `mesh` is T-335); a gate proves a `mini` plane can never be
+scheduled onto a hosted instance; and the operator has settled the five axes below, each of which
+changes what gets built rather than how it is described.
+
+**Open, and blocking the fleet design rather than this decision:**
+
+1. **Radio count.** Serving clients *and* being the uplink needs two radios, or a wired WAN plus one.
+   That is a hardware floor on the product. Which is the reference Mini?
+2. **Uplink loss.** When the Mini's WAN dies, the box still serves clients and the mesh still routes.
+   Does a peer with a live uplink become the exit node, or does the site go dark?
+3. **`ha` ownership.** It is declared `mini` because a vote needs a real machine to fence. If a hosted
+   instance may hold a Corosync vote, it moves to `either` -- and `pacemaker-unfenced` stops being a
+   one-node concession.
+4. **Shed state.** `storage` is `either`, so CephFS is what a shed workload keeps state on. If the
+   plane a workload is shed *to* has no CephFS mount, the shed is a cold start. Is CephFS a
+   precondition of accepting work?
+5. **Cluster join.** *"It's all hosted as its own cluster"* -- when peer #2 arrives, does it join the
+   Mini's cluster or federate with it? Joining needs a server/agent election (`k3s-multi-server`);
+   federating needs a second control plane and a policy for which one owns a workload.
+
+**Why:** without the `mini`/`either` line, "offload all services" and "a Mini is a complete cluster"
+are the same sentence read two ways, and the tree cannot tell which one a scheduler should obey.
+| **Domain:** Topology/SSOT | **Who:** architect
