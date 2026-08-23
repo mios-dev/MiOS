@@ -44,17 +44,33 @@ pub struct Block {
 
 fn style_for(path: &str) -> &'static str {
     let lower = path.to_lowercase();
-    if lower.ends_with(".py") || lower.ends_with(".sh") || lower.ends_with(".bash")
-        || lower.ends_with(".toml") || lower.ends_with(".yml") || lower.ends_with(".yaml")
-        || lower.ends_with(".ps1") || lower.ends_with(".psm1") || lower.ends_with(".service")
-        || lower.ends_with(".container") || lower.ends_with(".timer") || lower.ends_with(".socket")
-        || lower.ends_with(".target") || lower.ends_with(".conf") || lower.ends_with(".nft")
+    if lower.ends_with(".py")
+        || lower.ends_with(".sh")
+        || lower.ends_with(".bash")
+        || lower.ends_with(".toml")
+        || lower.ends_with(".yml")
+        || lower.ends_with(".yaml")
+        || lower.ends_with(".ps1")
+        || lower.ends_with(".psm1")
+        || lower.ends_with(".service")
+        || lower.ends_with(".container")
+        || lower.ends_with(".timer")
+        || lower.ends_with(".socket")
+        || lower.ends_with(".target")
+        || lower.ends_with(".conf")
+        || lower.ends_with(".nft")
         || lower.ends_with(".cfg")
     {
         "#"
-    } else if lower.ends_with(".rs") || lower.ends_with(".go") || lower.ends_with(".c")
-        || lower.ends_with(".h") || lower.ends_with(".cs") || lower.ends_with(".ts")
-        || lower.ends_with(".js") || lower.ends_with(".tsx") || lower.ends_with(".mjs")
+    } else if lower.ends_with(".rs")
+        || lower.ends_with(".go")
+        || lower.ends_with(".c")
+        || lower.ends_with(".h")
+        || lower.ends_with(".cs")
+        || lower.ends_with(".ts")
+        || lower.ends_with(".js")
+        || lower.ends_with(".tsx")
+        || lower.ends_with(".mjs")
     {
         "//"
     } else if lower.ends_with(".md") || lower.ends_with(".html") || lower.ends_with(".xml") {
@@ -85,7 +101,10 @@ fn make_block(
 ) -> Block {
     let text = body_lines.join("\n");
     let ws_re = Regex::new(r"\s+").unwrap();
-    let norm = ws_re.replace_all(&text.to_lowercase(), " ").trim().to_string();
+    let norm = ws_re
+        .replace_all(&text.to_lowercase(), " ")
+        .trim()
+        .to_string();
 
     let mut hasher = Sha256::new();
     hasher.update(norm.as_bytes());
@@ -133,7 +152,15 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
             let attach = if start <= 3 { "file-header" } else { "orphan" };
             let in_header = start <= 3 || text.contains("AI-hint");
             out.push(make_block(
-                path, start, end, "blockcomment", style, run, attach, "", in_header,
+                path,
+                start,
+                end,
+                "blockcomment",
+                style,
+                run,
+                attach,
+                "",
+                in_header,
             ));
             run.clear();
         }
@@ -169,7 +196,8 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                 block_lines.push(strip_line(raw));
                 if s.contains("-->") {
                     in_block = false;
-                    let in_hdr = block_start <= 3 || block_lines.iter().any(|x| x.contains("AI-hint"));
+                    let in_hdr =
+                        block_start <= 3 || block_lines.iter().any(|x| x.contains("AI-hint"));
                     out.push(make_block(
                         path,
                         block_start,
@@ -177,7 +205,11 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                         "blockcomment",
                         style,
                         &block_lines,
-                        if block_start <= 3 { "file-header" } else { "orphan" },
+                        if block_start <= 3 {
+                            "file-header"
+                        } else {
+                            "orphan"
+                        },
                         "",
                         in_hdr,
                     ));
@@ -195,7 +227,10 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
             continue;
         }
 
-        if (style == "#" || style == "//") && raw.contains(style) && !raw.trim_start().starts_with(style) {
+        if (style == "#" || style == "//")
+            && raw.contains(style)
+            && !raw.trim_start().starts_with(style)
+        {
             if let Some(pos) = raw.find(style) {
                 if pos > 0 && !raw[..pos].trim().is_empty() {
                     flush(&mut out, &mut run, run_start, i - 1);
