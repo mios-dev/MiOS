@@ -11283,3 +11283,23 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** make the hook advisory. A warning in a hook is read once and then never again.
 **Why:** these three cost a whole session's rework, and every one of them is mechanically detectable before the commit that ships it.
 **Dep:** AGY-1723
+
+## AGY-1727 -- Reconcile the 18 shared files that diverged, and promote them to mirrored  (WS-PROCESS | P1 | L)
+**Goal:** A file tracked in both repositories has one content, not two.
+**What+How:** 35 files are tracked in both `mios.git` and `mios-bootstrap.git`. Since 0d608c84 every one is declared, but 18 sit in `[bootstrap.sync].not_mirrored` because they had already diverged: the agent rule files, `.editorconfig`, `.env.mios`, `.gitattributes`, `etc/mios/ai/config.json`, three `etc/skel` configs, `image-versions.yml`, `installation/README.md`, `installation/mios-install.{ps1,sh}`, `llms.txt`, `system-prompt.md`, `usr/share/mios/profile-headless.toml` and two generated name registries. Take them in three groups. Generated files (`names.generated.txt`, `referenced_names.txt`) each repository renders for itself -- keep them not-mirrored and say so. Pure formatting divergences (`installation/mios-install.ps1` differs ONLY in line endings; `installation/README.md` by a wrapped header) normalise and promote. The rest carry real content differences -- `installation/mios-install.sh` is 403 lines in mios.git and 1713 in bootstrap -- so decide which side is authoritative per file, reconcile, and promote.
+**Where:** `usr/share/mios/mios.toml ([bootstrap.sync]), installation/, tools/sync-bootstrap.py`
+**Done When:** `not_mirrored` holds only files that are per-repository BY DESIGN, each with its reason, and everything else mirrors.
+**Verify:** `python3 tools/sync-bootstrap.py --root . --check` passes with the mirrored count raised, and hand-editing a mirrored file in either repository fails it.
+**Do NOT:** copy one side over the other to make the gate green. `mios-install.sh` differs by 1310 lines; whichever you delete, someone wrote it.
+**Why:** the bootstrap repository is what a new machine installs from; a shared file with two contents means the installed system disagrees with the image depending on which repo you read.
+**Dep:** AGY-1725
+
+## AGY-1728 -- Find every gate that skips where it should fail  (WS-PROCESS | P1 | M)
+**Goal:** No check reports success for work it did not do.
+**What+How:** `check_bootstrap_sync` returned 0 whenever the bootstrap checkout was absent. No runner has one, so the gate that exists to enforce Law 15 had never once compared the two repositories -- and 18 shared files diverged behind that green. The pattern is a guard of the shape "prerequisite missing, print a note, return 0". Enumerate every one in `automation/98-drift-checks.sh` and `tools/`, and for each decide: fail closed under `MIOS_DRIFT_REQUIRE_TOOLS=1`, or provide the prerequisite in CI. Record the decision beside the guard.
+**Where:** `automation/98-drift-checks.sh, tools/check-*.py, tools/*-bootstrap.py, .github/workflows/mios-ci.yml`
+**Done When:** every prerequisite-absent path either fails under REQUIRE_TOOLS or has its prerequisite provisioned, and the list is written down.
+**Verify:** run the full gate with each prerequisite removed in turn under `MIOS_DRIFT_REQUIRE_TOOLS=1`; every removal turns some check RED, and none reports success.
+**Do NOT:** count a printed "skipping" line as a report. Nobody reads a skip in a green run -- that is the whole mechanism.
+**Why:** this is the repository's most expensive recurring defect, and it just cost eighteen files of undetected drift between the two published repositories.
+**Dep:** AGY-1683
