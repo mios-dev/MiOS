@@ -48,6 +48,18 @@ def main(argv):
     var_re = re.compile(r"\$\{([A-Za-z0-9_]+):-([^}]*)\}")
     
     sidecars = (config.get("image") or {}).get("sidecars") or {}
+
+    # Quadlets float their image tags from the SSOT (`ceph:${MIOS_VERSION_CEPH}`)
+    # rather than hardcoding them, so resolving an Image= line needs the same
+    # canonical key map every other consumer uses. Without it a floated tag
+    # stays literal, the quadlet is skipped, and its image then reports as
+    # "not referenced by any Quadlet" -- an error that names the wrong thing.
+    ssot_vars = {}
+    if mios_toml is not None:
+        try:
+            ssot_vars = mios_toml.emit_exports()
+        except Exception:
+            ssot_vars = {}
     
     def _env(var_name):
         v = os.environ.get(var_name)
@@ -62,6 +74,9 @@ def main(argv):
             env_val = _env(var_name)
             if env_val is not None:
                 return env_val
+            ssot_val = ssot_vars.get(var_name)
+            if ssot_val:
+                return ssot_val
             m_s = re.match(r'^MIOS_(.+)_IMAGE$', var_name)
             if m_s:
                 sc_val = sidecars.get(m_s.group(1).lower())
@@ -75,6 +90,9 @@ def main(argv):
             env_val = _env(var_name)
             if env_val is not None:
                 return env_val
+            ssot_val = ssot_vars.get(var_name)
+            if ssot_val:
+                return ssot_val
             m_s = re.match(r'^MIOS_(.+)_IMAGE$', var_name)
             if m_s:
                 sc_val = sidecars.get(m_s.group(1).lower())
@@ -85,6 +103,7 @@ def main(argv):
         return val.strip()
 
     images_to_bake = []
+    unresolved = []
     
     for q in sorted(glob.glob(os.path.join(quadlet_dir, "*.container")) +
                     glob.glob(os.path.join(quadlet_dir, "*.image"))):
@@ -106,7 +125,13 @@ def main(argv):
             continue
             
         resolved_img = resolve_image_val(img)
-        if not resolved_img or "$" in resolved_img:
+        if not resolved_img:
+            continue
+        if "$" in resolved_img:
+            # Dropping this quietly is how a floated tag turned into "core image
+            # is not referenced by any Quadlet" three lines of SSOT away from the
+            # actual cause. Name the variable that did not resolve instead.
+            unresolved.append((os.path.basename(q), img))
             continue
             
         first = resolved_img.split("/", 1)[0]
@@ -134,6 +159,10 @@ def main(argv):
             group_lists[g].append(img)
             
     errors = []
+    for quadlet_name, raw in sorted(unresolved):
+        errors.append(
+            f"Quadlet '{quadlet_name}' has an Image= that does not resolve "
+            f"against the SSOT: {raw}")
     for tok in firstboot_tokens:
         if tok and not any(tok in img for img in core):
             errors.append(f"Firstboot token '{tok}' matches no image in core bake list")

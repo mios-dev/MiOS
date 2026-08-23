@@ -322,7 +322,7 @@ def cmd_distill(args) -> int:
     for b, v in _iter_blocks(root, policy):
         if v.cls != "MIGRATE":
             continue
-        if any(fnmatch.fnmatch(b.path, g) for g in skips):
+        if any(fnmatch.fnmatchcase(b.path, g) for g in skips):
             continue
         row = rows.get(b.sha12)
         if row is None or landed(row, root, policy):
@@ -884,9 +884,18 @@ def _tracked(root: str, pattern: str = "") -> list[str]:
     try:
         out = subprocess.run(args, cwd=root, stdout=subprocess.PIPE,
                              stderr=subprocess.DEVNULL, check=True).stdout.decode("utf-8")
-        return sorted(r for r in out.split("\0") if r)
+        paths = sorted(r for r in out.split("\0") if r)
     except Exception:
         return []
+    if pattern:
+        # Windows checkouts set core.ignorecase=true, so `git ls-files
+        # usr/libexec/mios/mios-*` matches MiOS-Mon.py there and not on Linux.
+        # That made the generated index depend on which machine ran it, and CI
+        # and the contributor took turns reverting each other. Re-filter in
+        # Python, where the comparison is unambiguously byte-exact.
+        import fnmatch
+        paths = [r for r in paths if fnmatch.fnmatchcase(r, pattern)]
+    return paths
 
 
 def _tracked_markdown(root: str, extra: tuple = ()) -> list[str]:
@@ -1010,13 +1019,18 @@ def _hint_index(root: str, pattern: str) -> list[tuple[str, str]]:
     written next to the file and kept honest by check_hint_coverage. Reading it
     back out is how a documentation index stops being a hand-kept list.
     """
+    # fnmatchcase, not fnmatch: fnmatch normalises case on Windows, so
+    # `usr/libexec/mios/mios-*` matched MiOS-Mon.py there and not on Linux.
+    # The index is a committed artifact -- when its content depends on which
+    # machine regenerated it, CI and the contributor take turns reverting each
+    # other and the gate reports a file rather than a cause.
     import fnmatch
     tagmod = mc.load_ai_tag(root)
     if tagmod is None:
         raise DeriverError("index: cannot load mios-ai-tag to read AI-hints")
     out = []
     for rel in _tracked(root):
-        if not fnmatch.fnmatch(rel, pattern):
+        if not fnmatch.fnmatchcase(rel, pattern):
             continue
         full = os.path.join(root, rel.replace("/", os.sep))
         try:

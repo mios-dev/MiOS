@@ -113,7 +113,7 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
             rel = os.path.relpath(path, ROOT).replace("\\", "/")
             if any(rel.endswith(s) for s in EMITTER_SUFFIXES):
                 continue
-            if not any(glob.fnmatch.fnmatch(fn, g) for g in CONSUMER_GLOBS):
+            if not any(glob.fnmatch.fnmatchcase(fn, g) for g in CONSUMER_GLOBS):
                 continue
             try:
                 with open(path, encoding="utf-8", errors="ignore") as fh:

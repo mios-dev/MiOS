@@ -396,15 +396,40 @@ EOF
     if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "Generate-bake-plan.py"
+        die "Generate-bake-plan.py --check passed despite a bogus firstboot token"
     fi
 
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "Generate-bake-plan.py"
+        || die "Generate-bake-plan.py --check failed after restoration"
     log "Test_bake_tokens negative test passed"
 }
+test_bake_unresolved_image() {
+    log "Testing generate-bake-plan.py unresolved-Image detection"
+    local q="${ROOT}/usr/share/containers/systemd/mios-ceph.container"
+    local bak="${q}.bak"
+    cp "$q" "$bak"
+
+    # An Image= whose variable resolves nowhere used to be skipped silently,
+    # which resurfaced as "core image is not referenced by any Quadlet" --
+    # an error naming the wrong file entirely.
+    # The sentinel is deliberately NOT MIOS_-prefixed: generate-names-registry
+    # harvests every MIOS_* token it sees, so a probe named MIOS_* writes itself
+    # into referenced_names.txt and the test starts editing the SSOT it guards.
+    sed -i 's|^Image=.*|Image=quay.io/ceph/ceph:${UNRESOLVABLE_PROBE_TAG}|' "$q"
+
+    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml"         python3 "${ROOT}/tools/generate-bake-plan.py" --check 2>&1         | grep -q "does not resolve against the SSOT"; then
+        cp "$bak" "$q" && rm -f "$bak"
+    else
+        cp "$bak" "$q" && rm -f "$bak"
+        die "generate-bake-plan.py did not report an unresolvable Image="
+    fi
+
+    MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml"         python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1         || die "generate-bake-plan.py --check failed after restoration"
+    log "Test_bake_unresolved_image negative test passed"
+}
+
 test_containerfile_pinned_clones() {
     log "Testing check_containerfile_pinned_clones"
     local temp_containerfile="${ROOT}/usr/share/mios/sys/Containerfile.testtemp"
@@ -3384,6 +3409,7 @@ main() {
     test_council_gate_ssot
     test_agent_pipe_budgets
     test_bake_tokens
+    test_bake_unresolved_image
     test_containerfile_pinned_clones
     test_firstboot_tier
     test_rechunk_budget
