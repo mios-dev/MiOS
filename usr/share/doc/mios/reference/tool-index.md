@@ -281,6 +281,7 @@ is generated, its generator is here.
 | `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
 | `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice, and references AGY-TASKS.md (AGY-1647). |
+| `tools/check-temp-fixture-cleanup.py` | Fails when a test creates a temporary directory without arranging to remove it. |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/ci-suites.py` | Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
@@ -343,6 +344,7 @@ is generated, its generator is here.
 | `tools/test_check-ssot-consumer-keys.py` | Unit tests for tools/check-ssot-consumer-keys.py. |
 | `tools/test_check-task-schema.py` | Sibling unit test for tools/check-task-schema.py (AGY-1646). |
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. |
+| `tools/test_check-temp-fixture-cleanup.py` | Sibling test for tools/check-temp-fixture-cleanup.py; proves it names a test that makes a temp directory and never removes it. |
 | `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
 | `tools/test_ci-suites.py` | Sibling test for tools/ci-suites.py; proves the registry reader fails on the shapes it exists to catch. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
@@ -358,7 +360,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 106 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 108 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

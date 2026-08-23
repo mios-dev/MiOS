@@ -19,9 +19,13 @@ try:
 except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
-# Tasks written before this id predate the schema; they are not retro-fitted
-# here because doing so mechanically would produce Verify lines nobody checked.
-SCHEMA_FROM = 1607
+# The id below which the schema is not yet demanded. It lives in the SSOT as a
+# shrink-only ratchet, not as a constant here, so retro-fitting a batch of older
+# tasks is a measurable step rather than an edit nobody notices. A task marked
+# DONE is exempt whatever its id: it has already been done, so a Verify line
+# added now would be one nobody checked.
+SCHEMA_FROM_DEFAULT = 1607
+DONE_MARKER = "[DONE]"
 
 REQUIRED = ("Goal", "What+How", "Where", "Verify", "Do NOT", "Done When", "Why", "Dep")
 HEAD_RE = re.compile(r"^#{2,3} AGY-(\d+)(?:\.\.(\d+))? ", re.M)
@@ -35,6 +39,18 @@ def main() -> int:
     except OSError as exc:
         print(f"AGY-TASKS.md unreadable: {exc}")
         return 1
+
+    try:
+        with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+            tasks_tbl = (tomllib.load(fh).get("tasks") or {})
+    except OSError:
+        tasks_tbl = {}
+    schema_from = tasks_tbl.get("schema_from")
+    if schema_from is None:
+        print("mios.toml has no [tasks].schema_from -- without it the schema"
+              " floor is a constant nobody can lower on purpose")
+        return 1
+    schema_from = int(schema_from)
 
     blocks = re.split(r"(?=^#{2,3} AGY-\d+(?:\.\.\d+)? )", text, flags=re.M)
     ids, covered, viol = [], set(), []
@@ -51,7 +67,7 @@ def main() -> int:
             covered.update(range(tid, int(m.group(2)) + 1))
             continue
         ids.append(tid)
-        if tid < SCHEMA_FROM:
+        if tid < schema_from or DONE_MARKER in b.split(chr(10))[0]:
             continue
         for field in REQUIRED:
             if f"**{field}:**" not in b:
@@ -60,7 +76,7 @@ def main() -> int:
     known = set(ids) | covered
     for b in blocks:
         m = HEAD_RE.match(b)
-        if not m or m.group(2) or int(m.group(1)) < SCHEMA_FROM:
+        if not m or m.group(2) or int(m.group(1)) < schema_from:
             continue
         dep = re.search(r"^\*\*Dep:\*\*\s*(.+)$", b, re.M)
         if not dep:
@@ -84,7 +100,7 @@ def main() -> int:
 
     print("\n".join(viol))
     if not viol:
-        n = sum(1 for i in ids if i >= SCHEMA_FROM)
+        n = sum(1 for i in ids if i >= schema_from)
         print(f"[check-task-schema] {n} task(s) carry the full schema; "
               f"{len(dupes)}/{ceil} duplicate ids", file=sys.stderr)
     return 1 if viol else 0

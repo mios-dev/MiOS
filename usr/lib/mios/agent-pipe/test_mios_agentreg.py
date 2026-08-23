@@ -9,6 +9,25 @@ import builtins
 
 import mios_agentreg as reg
 
+# A fixture directory that outlives the run shows up as a stray tree in an
+# editor and accumulates one per run. tempfile is imported inside the test
+# here, so the wrapper is installed on the module itself.
+import atexit as _atexit
+import shutil as _shutil
+import tempfile as _tempfile
+
+_mkdtemp_orig = _tempfile.mkdtemp
+
+
+def _mkdtemp_cleaned(*a, **kw):
+    _d = _mkdtemp_orig(*a, **kw)
+    _atexit.register(_shutil.rmtree, _d, True)
+    return _d
+
+
+_tempfile.mkdtemp = _mkdtemp_cleaned
+
+
 _orig_open = builtins.open
 
 def _set_open_mock(exclude_suffixes=None, fail_all_toml=False):

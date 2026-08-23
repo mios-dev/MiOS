@@ -29,9 +29,18 @@ def _load():
 MOD = _load()
 
 
+_MADE = []
+
+
 def _repo(files):
-    """A throwaway git repo tracking `files` (name -> content), with a ceiling of 0."""
-    d = tempfile.mkdtemp()
+    """A throwaway git repo tracking `files` (name -> content), with a ceiling of 0.
+
+    Registered for removal: mkdtemp leaves the directory behind, and a git repo
+    left in the temp directory shows up as a checkout in an editor's source
+    control view. Five of them did.
+    """
+    d = tempfile.mkdtemp(prefix="mios-leakfix-")
+    _MADE.append(d)
     subprocess.run(["git", "init", "-q", d], check=False,
                    capture_output=True)
     os.makedirs(os.path.join(d, "usr", "share", "mios"), exist_ok=True)
@@ -82,6 +91,29 @@ class TestLeakedFixtures(unittest.TestCase):
 
     def test_the_shipped_tree_is_clean(self):
         self.assertEqual(0, _run(_ROOT))
+
+
+def tearDownModule():
+    """Remove every fixture repo, whatever the outcome of the tests.
+
+    git marks its objects read-only, and on Windows a read-only file refuses
+    deletion, so a plain rmtree leaves the repository behind -- five of them
+    turned up in an editor's source control view. rmtree's error hook is not a
+    portable fix either: the onerror parameter was removed in 3.14. Making
+    everything writable first needs no hook at all.
+    """
+    import shutil
+    import stat
+
+    for d in _MADE:
+        for base, dirs, files in os.walk(d):
+            for name in dirs + files:
+                try:
+                    os.chmod(os.path.join(base, name), stat.S_IWRITE | stat.S_IREAD)
+                except OSError:
+                    pass
+        shutil.rmtree(d, ignore_errors=True)
+    _MADE.clear()
 
 
 if __name__ == "__main__":

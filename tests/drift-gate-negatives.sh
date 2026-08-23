@@ -2106,7 +2106,7 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
     python3 -c 'import io,re,sys
 p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-m=re.search(r"^mios-hermes-browser-worker = \[[^\]]*\][^\n]*\n", s, re.M)
+m=re.search(r"^mios-hermes-browser-worker\s*=\s*\[[^\]]*\][^\n]*\n", s, re.M)
 assert m, "worker-browser gate anchor moved"
 s = s[:m.start()] + s[m.end():]
 m2 = re.search(r'"'"'^  "mios-hermes-browser",[^\n]*\n'"'"', s, re.M)
@@ -2868,6 +2868,57 @@ test_leaked_fixtures() {
     log "check_leaked_fixtures negative test passed"
 }
 
+test_manpages() {
+    log "Testing check_manpages"
+    local page="${ROOT}/usr/share/man/man1/mios.1"
+    local bak; bak="$(mktemp)"; cp "$page" "$bak"
+
+    # A page that no longer matches what the SSOT renders answers confidently
+    # and wrongly, which is worse than having no page at all.
+    printf '.PP\nan edit the SSOT does not describe\n' >> "$page"
+
+    _neg_gate check_manpages && {
+        cp "$bak" "$page"; rm -f "$bak"
+        die "check_manpages passed with a page that drifted from the SSOT"
+    }
+
+    cp "$bak" "$page"; rm -f "$bak"
+    _neg_gate check_manpages \
+        || die "check_manpages failed after restoration"
+    log "check_manpages negative test passed"
+}
+
+test_temp_fixture_cleanup() {
+    log "Testing check_temp_fixture_cleanup"
+    local probe="${ROOT}/tools/test_mios-leaky-fixture-probe.py"
+
+    # A test that makes a temporary directory and never removes it leaves one
+    # behind on every run; five turned up in an editor's source control view.
+    {
+        printf '%s\n' '#!/usr/bin/env python3'
+        printf '%s\n' '# AI-hint: probe.'
+        printf '%s\n' 'import tempfile'
+        printf '%s\n' 'd = tempfile.mkdtemp()'
+    } > "$probe"
+
+    # The gate enumerates what git tracks, because an untracked local file is
+    # not shipped. --intent-to-add makes the probe visible to that enumeration
+    # without staging its content.
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1 || true
+
+    _neg_gate check_temp_fixture_cleanup && {
+        git -C "$ROOT" rm -q --cached -- "$probe" >/dev/null 2>&1 || true
+        rm -f "$probe"
+        die "check_temp_fixture_cleanup passed with a fixture nothing removes"
+    }
+
+    git -C "$ROOT" rm -q --cached -- "$probe" >/dev/null 2>&1 || true
+    rm -f "$probe"
+    _neg_gate check_temp_fixture_cleanup \
+        || die "check_temp_fixture_cleanup failed after restoration"
+    log "check_temp_fixture_cleanup negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3419,6 +3470,8 @@ main() {
     _run_test test_task_schema
 _run_test test_ci_suite_coverage
 _run_test test_leaked_fixtures
+_run_test test_manpages
+_run_test test_temp_fixture_cleanup
     _run_test test_fleet_safety
     _run_test test_ai_manifests_fresh
     _run_test test_version_ssot

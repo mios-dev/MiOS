@@ -195,4 +195,5 @@
 194	check_globals_generated	checking generated globals resolvers match SSOT
 195	check_ci_suite_coverage	check_ci_suite_coverage
 196	check_manpages	check_manpages
-197	check_leaked_fixtures	check_leaked_fixtures
+197	check_temp_fixture_cleanup	check_temp_fixture_cleanup
+198	check_leaked_fixtures	check_leaked_fixtures

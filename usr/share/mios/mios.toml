@@ -10204,6 +10204,10 @@ max_value_divergence = 12
 
 [tasks]
 # AGY task hygiene ratchet. Duplicate task IDs make dependencies ambiguous.
+# Shrink-only. The id below which AGY tasks need not carry the full
+# schema; lowering it is how the 482 open older tasks become
+# falsifiable, a batch at a time. A DONE task is exempt by its marker.
+schema_from = 1607
 max_duplicate_ids = 0
 
 [docs]

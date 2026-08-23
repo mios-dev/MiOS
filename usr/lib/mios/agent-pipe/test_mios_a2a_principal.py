@@ -9,8 +9,25 @@ import os
 import sys
 import tempfile
 
-import mios_a2a_principal as ap
+# A fixture directory that outlives the run shows up as a stray tree in an
+# editor and accumulates one per run. Registering the removal at creation works
+# whether the module ends through unittest or its own main().
+import atexit as _atexit
+import shutil as _shutil
 
+_mkdtemp_orig = tempfile.mkdtemp
+
+
+def _mkdtemp_cleaned(*a, **kw):
+    _d = _mkdtemp_orig(*a, **kw)
+    _atexit.register(_shutil.rmtree, _d, True)
+    return _d
+
+
+tempfile.mkdtemp = _mkdtemp_cleaned
+
+
+import mios_a2a_principal as ap
 _fails = 0
 
 

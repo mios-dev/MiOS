@@ -15,6 +15,23 @@ import subprocess
 import sys
 import tempfile
 
+# A fixture directory that outlives the run shows up as a stray tree in an
+# editor and accumulates one per run. Registering the removal at creation works
+# whether the module ends through unittest or its own main().
+import atexit as _atexit
+import shutil as _shutil
+
+_mkdtemp_orig = tempfile.mkdtemp
+
+
+def _mkdtemp_cleaned(*a, **kw):
+    _d = _mkdtemp_orig(*a, **kw)
+    _atexit.register(_shutil.rmtree, _d, True)
+    return _d
+
+
+tempfile.mkdtemp = _mkdtemp_cleaned
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, ".."))
 TOOL = os.path.join(HERE, "check-no-generated-prose-in-resolvers.py")

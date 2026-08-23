@@ -6070,6 +6070,7 @@ main() {
     check_globals_generated
     check_ci_suite_coverage
     check_manpages
+    check_temp_fixture_cleanup
     check_leaked_fixtures
 
     echo "[98-drift-checks]"
@@ -6896,6 +6897,13 @@ check_task_schema() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
+}
+
+check_temp_fixture_cleanup() {
+    echo "[98-drift-checks]   check_temp_fixture_cleanup"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>/dev/null)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
+    echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
 check_manpages() {

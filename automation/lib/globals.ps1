@@ -2114,6 +2114,7 @@ $script:MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE = if ($env:MIOS_STORAGE_CEPH
 $script:MIOS_SYS_IMAGE = if ($env:MIOS_SYS_IMAGE) { $env:MIOS_SYS_IMAGE } else { 'localhost/mios-sys:latest' }
 $script:MIOS_SYS_VERSION = if ($env:MIOS_SYS_VERSION) { $env:MIOS_SYS_VERSION } else { 'localhost/mios-sys:latest' }
 $script:MIOS_TASKS_MAX_DUPLICATE_IDS = if ($env:MIOS_TASKS_MAX_DUPLICATE_IDS) { $env:MIOS_TASKS_MAX_DUPLICATE_IDS } else { 0 }
+$script:MIOS_TASKS_SCHEMA_FROM = if ($env:MIOS_TASKS_SCHEMA_FROM) { $env:MIOS_TASKS_SCHEMA_FROM } else { 1607 }
 $script:MIOS_TEMPLATES_ADR_DEST_DIR = if ($env:MIOS_TEMPLATES_ADR_DEST_DIR) { $env:MIOS_TEMPLATES_ADR_DEST_DIR } else { 'usr/share/doc/mios/adr' }
 $script:MIOS_TEMPLATES_ADR_EMIT = if ($env:MIOS_TEMPLATES_ADR_EMIT) { $env:MIOS_TEMPLATES_ADR_EMIT } else { 'file' }
 $script:MIOS_TEMPLATES_ADR_GENERATED = if ($env:MIOS_TEMPLATES_ADR_GENERATED) { $env:MIOS_TEMPLATES_ADR_GENERATED } else { 'false' }

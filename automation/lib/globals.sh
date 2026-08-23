@@ -2089,6 +2089,7 @@ to" / "let me know".
 : "${MIOS_SYS_IMAGE:=localhost/mios-sys:latest}"
 : "${MIOS_SYS_VERSION:=localhost/mios-sys:latest}"
 : "${MIOS_TASKS_MAX_DUPLICATE_IDS:=0}"
+: "${MIOS_TASKS_SCHEMA_FROM:=1607}"
 : "${MIOS_TEMPLATES_ADR_DEST_DIR:=usr/share/doc/mios/adr}"
 : "${MIOS_TEMPLATES_ADR_EMIT:=file}"
 : "${MIOS_TEMPLATES_ADR_GENERATED:=false}"

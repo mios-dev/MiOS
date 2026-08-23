@@ -5,10 +5,27 @@ import asyncio
 import json
 import os
 import tempfile
+
+# A fixture directory that outlives the run shows up as a stray tree in an
+# editor and accumulates one per run. Registering the removal at creation works
+# whether the module ends through unittest or its own main().
+import atexit as _atexit
+import shutil as _shutil
+
+_mkdtemp_orig = tempfile.mkdtemp
+
+
+def _mkdtemp_cleaned(*a, **kw):
+    _d = _mkdtemp_orig(*a, **kw)
+    _atexit.register(_shutil.rmtree, _d, True)
+    return _d
+
+
+tempfile.mkdtemp = _mkdtemp_cleaned
+
 import unittest
 
 import mios_a2a_client
-
 _ORIG_SELF_PEER_URL = mios_a2a_client._a2a_self_peer_url
 _ORIG_FETCH_CARD = mios_a2a_client._a2a_fetch_card
 

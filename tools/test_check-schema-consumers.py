@@ -27,10 +27,35 @@ def check(name, cond, detail=""):
         print(f"FAIL - {name}" + (f" -- {detail}" if detail else ""))
 
 
+_MADE = []
+
+
+def _cleanup_fixtures():
+    """Remove the fixture repos this module made.
+
+    mkdtemp leaves its directory behind, so every run added one per fixture;
+    forty had accumulated in the temp directory, where an editor lists any of
+    them that contain a repository as a checkout.
+    """
+    import shutil
+    import stat
+
+    for d in _MADE:
+        for base, dirs, files in os.walk(d):
+            for name in dirs + files:
+                try:
+                    os.chmod(os.path.join(base, name), stat.S_IWRITE | stat.S_IREAD)
+                except OSError:
+                    pass
+        shutil.rmtree(d, ignore_errors=True)
+    _MADE.clear()
+
+
 def mkrepo(tables, consumers=None, register=(), doc_mentions=(), toml_mentions=()):
     """tables: names to CREATE. consumers: {table: relpath} code files that
     reference it. register: [(table, reason)]. Returns the repo root."""
     root = tempfile.mkdtemp(prefix="schemacons-")
+    _MADE.append(root)
     os.makedirs(os.path.join(root, "usr/share/mios/postgres"), exist_ok=True)
     os.makedirs(os.path.join(root, "usr/lib/mios"), exist_ok=True)
     os.makedirs(os.path.join(root, "usr/share/doc/mios"), exist_ok=True)
@@ -170,4 +195,10 @@ def main():
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        _rc = main()
+    finally:
+        # main() has its own exit path, so the fixtures are removed here rather
+        # than from a unittest hook this module never reaches.
+        _cleanup_fixtures()
+    sys.exit(_rc)
