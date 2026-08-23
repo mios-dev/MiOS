@@ -255,13 +255,13 @@ is generated, its generator is here.
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
-| `tools/check-comment-ratchet.py` | Drift check 155 check_comment_ratchet -- asserts measured comment metrics do not exceed ceiling values. |
+| `tools/check-comment-ratchet.py` | Developer report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. NOT a registered drift check: enforcement lives in check_docs_ratchet, which the gate... |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
-| `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a defect waiting for the operator to add a peer.... |
+| `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
 | `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
@@ -316,7 +316,7 @@ is generated, its generator is here.
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
 | `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
-| `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py. Covers both detectors independently -- k3s multi-server needs BOTH two grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must clear... |
+| `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring. |
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
 | `tools/test_check-no-generated-prose-in-resolvers.py` | Fixtures for check-no-generated-prose-in-resolvers.py -- proves it flags an AI-hint or a MIOS_UNITS_*_COMMENT payload inside a generated resolver, and passes on a clean one. |
@@ -633,7 +633,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_dci.py` | Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch.py` | Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint). |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch_cmd.py` | Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273). |
-| `usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py` | Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper. The flag-repetition group allowed a flag's ARGUMENT to start with '-', so "-a -b" had two legal parses and the group... |
+| `usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py` | Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper -- pins a wall-clock bound on a pathological input, not a pattern string. |
 | `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + i... |
 | `usr/lib/mios/agent-pipe/test_mios_drift_monitor.py` | Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no ... |
 | `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. |

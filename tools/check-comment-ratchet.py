@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Drift check 155 check_comment_ratchet -- asserts measured comment metrics do not exceed ceiling values.
+# AI-hint: Developer report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. NOT a registered drift check: enforcement lives in check_docs_ratchet, which the gate actually runs.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_comment_ratchet_py.md
 
 import os
@@ -25,10 +25,37 @@ def main() -> int:
     docs = ssot.get("docs", {}) or {}
     ai_tag = ssot.get("ai_tag", {}) or {}
 
-    max_unmigrated = int(os.environ.get("MIOS_MAX_UNMIGRATED_NARRATIVE", docs.get("max_unmigrated_narrative", 999999)))
-    max_stale = int(os.environ.get("MIOS_MAX_STALE_REFS", docs.get("max_stale_refs", 999999)))
-    max_hints = int(os.environ.get("MIOS_MAX_OVERLONG_HINTS", ai_tag.get("max_overlong_hints", docs.get("max_overlong_hints", 999999))))
-    max_undoc = int(os.environ.get("MIOS_MAX_UNDOCUMENTED_COMPONENTS", docs.get("max_undocumented_components", 999999)))
+    missing = []
+
+    def ceiling(env_var, *lookups):
+        """A ratchet ceiling, or a hard failure if the SSOT has stopped carrying it.
+
+        Defaulting an absent ceiling to 999999 makes the check unfailable the
+        moment a key is renamed, and it keeps reporting PASS while doing so --
+        the worst outcome, because it also stops anyone looking. An absent
+        ceiling is a broken gate, not an unlimited one.
+        """
+        env_val = os.environ.get(env_var)
+        if env_val is not None:
+            return int(env_val)
+        for table, key in lookups:
+            if key in table:
+                return int(table[key])
+        missing.append(f"{lookups[0][1]} (env {env_var})")
+        return 0
+
+    max_unmigrated = ceiling("MIOS_MAX_UNMIGRATED_NARRATIVE",
+                             (docs, "max_unmigrated_narrative"))
+    max_stale = ceiling("MIOS_MAX_STALE_REFS", (docs, "max_stale_refs"))
+    max_hints = ceiling("MIOS_MAX_OVERLONG_HINTS",
+                        (ai_tag, "max_overlong_hints"), (docs, "max_overlong_hints"))
+    max_undoc = ceiling("MIOS_MAX_UNDOCUMENTED_COMPONENTS",
+                        (docs, "max_undocumented_components"))
+
+    if missing:
+        for m in missing:
+            print(f"[comment-ratchet] ERROR: no ceiling in SSOT for {m}", file=sys.stderr)
+        return 1
 
     policy = mc.Policy.from_toml(ssot)
 

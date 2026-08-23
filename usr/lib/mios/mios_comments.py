@@ -28,6 +28,7 @@ import ast
 import hashlib
 import io
 import os
+import sys
 import re
 import tokenize
 from dataclasses import dataclass, field
@@ -239,13 +240,84 @@ class RefIndex:
                 rel = os.path.relpath(full, root).replace(os.sep, "/")
                 idx.paths.add(rel)
                 idx.names.add(fn)
+                # A unit is referenced by its name, not its filename: comments
+                # say `mios-ai` and `hermes-agent.service`, and both must
+                # resolve to usr/.../mios-ai.container on disk.
+                stem, _, ext = fn.rpartition(".")
+                if stem and ext in ("container", "service", "timer", "socket",
+                                    "target", "mount", "path", "kube", "pod"):
+                    idx.names.add(stem)
+        idx._add_ssot_names()
         return idx
+
+    # Upstream systemd units MiOS orders against. They are real references that
+    # no file in this repo can satisfy, and flagging them as stale taught
+    # readers to ignore the whole measurement.
+    _SYSTEMD_UNITS = (
+        "multi-user.target", "network-online.target", "timers.target",
+        "basic.target", "sysinit.target", "graphical.target", "default.target",
+        "sockets.target", "local-fs.target", "remote-fs.target",
+        "shutdown.target", "network.target", "network-pre.target",
+        "systemd-networkd.service", "systemd-resolved.service",
+        "dbus.socket", "dbus.service", "systemd-udevd.service",
+        "podman.socket", "podman.service",
+    )
+
+    def _add_ssot_names(self) -> None:
+        """Names the SSOT defines: every MIOS_* key, every unit it declares.
+
+        A comment naming MIOS_AI_ENDPOINT is referencing a key that exists --
+        in mios.toml, not as a file. Without this the staleness rule reported
+        every env var in the tree as a dangling reference, which is why its
+        count was noise rather than a signal.
+        """
+        self.names.update(self._SYSTEMD_UNITS)
+        for unit in self._SYSTEMD_UNITS:
+            stem, _, _ = unit.rpartition(".")
+            if stem:
+                self.names.add(stem)
+        try:
+            import tomllib
+            with open(os.path.join(self.root, "usr/share/mios/mios.toml"), "rb") as fh:
+                data = tomllib.load(fh)
+        except Exception:
+            return
+        for unit_name in (data.get("units") or {}):
+            self.names.add(unit_name)
+            stem, _, _ = unit_name.rpartition(".")
+            if stem:
+                self.names.add(stem)
+        for tbl in ("containers", "quadlets"):
+            for name in (data.get(tbl) or {}):
+                self.names.add(name)
+        try:
+            sys.path.insert(0, os.path.join(self.root, "usr", "lib", "mios"))
+            import mios_toml
+            self.names.update(mios_toml.emit_exports().keys())
+        except Exception:
+            pass
+        reg = os.path.join(self.root, "usr/share/mios/referenced_names.txt")
+        try:
+            with open(reg, encoding="utf-8") as fh:
+                self.names.update(l.strip() for l in fh if l.strip())
+        except OSError:
+            pass
 
     def add_code_identifiers(self, text: str) -> None:
         for m in self._TOKEN.finditer(text):
             self.names.add(m.group(0).lstrip("./"))
 
+    # Absolute paths under these prefixes exist on the RUNNING system, not in
+    # the tree: the repo projects /usr and /etc, but /usr/bin/env comes from the
+    # base image and /run is created at boot. Measuring them against the repo
+    # reported 376 dangling hits for the shebang line alone.
+    _RUNTIME_PREFIXES = ("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/", "/proc/",
+                         "/sys/", "/run/", "/dev/", "/tmp/", "/var/run/",
+                         "/var/lib/", "/var/log/", "/var/tmp/")
+
     def known(self, token: str) -> bool:
+        if token.startswith(self._RUNTIME_PREFIXES):
+            return True
         t = token.lstrip("./")
         if t in self.names or t in self.paths:
             return True
@@ -254,11 +326,18 @@ class RefIndex:
         return any(p.endswith("/" + t) for p in self.paths)
 
     def dangling(self, text: str, allowlist: Iterable[str] = ()) -> list[str]:
-        allow = tuple(allowlist)
+        # The allowlist holds literal reference tokens and globs -- paths like
+        # 'C:\mios-bootstrap\Get-MiOS.ps1', bare tokens like 'ollama' or
+        # '8080', and globs like 'blade-*.conf'. It was matched with re.search,
+        # under which the Windows paths are invalid patterns (bad escape \m)
+        # and 'blade-*.conf' silently matches nothing it was meant to cover.
+        # Match them as what they are written as.
+        import fnmatch
+        allow = tuple(a for a in allowlist if a)
         out = []
         for m in self._TOKEN.finditer(text):
             tok = m.group(0)
-            if any(re.search(a, tok) for a in allow if a):
+            if any(a in tok or fnmatch.fnmatchcase(tok, a) for a in allow):
                 continue
             if not self.known(tok):
                 out.append(tok)
@@ -270,6 +349,40 @@ class RefIndex:
 # --------------------------------------------------------------------------
 # `<<EOF`, `<<-'PY'`, `<<"SQL"` -- captures the terminator so the body can be
 # skipped. Not matched when it is itself inside a comment.
+_AI_HINT_LINE = re.compile(r"\s*#?\s*AI-hint:")
+_AI_KEY_LINE = re.compile(r"\s*#?\s*AI-[a-z]+:")
+
+
+def _hint_prose_len(text: str) -> int:
+    """Characters of AI-hint prose, continuation lines included.
+
+    Counting only the line that starts with `AI-hint:` would mean a hint could
+    clear the cap by being wrapped across several `#` lines -- the gate would
+    then be measuring line length, which nobody cares about, instead of how much
+    prose sits in the header, which is the thing being ratcheted down.
+    """
+    total = 0
+    in_hint = False
+    for line in text.splitlines():
+        if _AI_HINT_LINE.match(line):
+            in_hint = True
+            total += len(line) + 1
+            continue
+        if _AI_KEY_LINE.match(line):
+            in_hint = False
+            continue
+        if in_hint:
+            # Only PROSE continues a hint. Generated quadlet headers put a bare
+            # path banner under the hint ("# /usr/share/containers/systemd/x"),
+            # which is one token and no more prose than the shebang above it.
+            body = line.lstrip().lstrip("#").strip()
+            if len(body.split()) >= 3:
+                total += len(line) + 1
+            else:
+                in_hint = False
+    return total
+
+
 _HEREDOC = re.compile(r"(?<!\S)<<-?\s*(?P<tag>'[A-Za-z_][A-Za-z0-9_]*'"
                       r'|"[A-Za-z_][A-Za-z0-9_]*"'
                       r"|[A-Za-z_][A-Za-z0-9_]*)")
@@ -542,7 +655,15 @@ def classify(block: Block, policy: Policy, refindex: RefIndex | None = None) -> 
 
     # R2 HEADER
     if block.in_header_block:
-        if len(text) > policy.hint_max_chars:
+        # hint_max_chars caps the AI-hint PROSE, not the whole header block.
+        # AI-related/AI-functions/AI-doc are machine-maintained: their length
+        # tracks how many files a module touches and how many functions it
+        # defines, neither of which is a writing-quality signal. Counting them
+        # made the ceiling unreachable -- check-fleet-safety.py carries 357
+        # characters of generated metadata, so it breached a 260 cap even with
+        # an empty hint, and no amount of editing could clear the gate.
+        hint_len = _hint_prose_len(text)
+        if (hint_len or len(text)) > policy.hint_max_chars:
             return Verdict("MIGRATE_HEADER", "overlong-hint", stale)
         return Verdict("STAY", "ai-header", stale)
 

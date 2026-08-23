@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
-# AI-hint: Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper. The flag-repetition group allowed a flag's ARGUMENT to start with '-', so "-a -b" had two legal parses and the group backtracked exponentially (~1.64^n measured) on model-controlled script text. Pins a wall-clock BOUND on a pathological input rather than asserting a pattern string, because the defect is behavioural; and pins that flags-with-arguments still strip correctly, since that is what the narrowed character class could plausibly break.
+# AI-hint: Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper -- pins a wall-clock bound on a pathological input, not a pattern string.
 # AI-related: usr/lib/mios/agent-pipe/mios_pipe/routing/dispatch_cmd.py
-"""Regression: the podman-exec stripper must not backtrack exponentially."""
+"""Regression: the podman-exec stripper must not backtrack exponentially.
+
+The flag-repetition group allowed a flag's ARGUMENT to start with '-', so
+"-a -b" had two legal parses and the group backtracked exponentially (~1.64^n
+measured) on model-controlled script text. The bound pinned here is wall-clock
+on a pathological input rather than an assertion about the pattern string,
+because the defect is behavioural; flags-with-arguments are pinned too, since
+that is what the narrowed character class could plausibly break.
+"""
 
 import os
 import re

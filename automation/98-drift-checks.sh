@@ -7030,7 +7030,11 @@ if ceil_narr is None or ceil_hint is None:
 # Same file set as mios-manual: GIT-TRACKED only. Walking the filesystem made
 # the count depend on a machine's untracked files, so the ceiling was loose in
 # CI and this gate's own negative test could not breach it.
-narr = hints = 0
+# The reference index is built once and passed in: staleness was previously
+# measurable only from tools/check-comment-ratchet.py, which no gate ever ran,
+# so the number moved without anything noticing.
+refindex = mc.RefIndex.build(root)
+narr = hints = stale = 0
 for rel, full in mc.iter_source_files(root):
     try:
         blocks = mc.lex(full)
@@ -7038,11 +7042,13 @@ for rel, full in mc.iter_source_files(root):
         continue
     for b in blocks:
         b = mc.Block(**{**b.__dict__, "path": rel})
-        v = mc.classify(b, pol, None)
+        v = mc.classify(b, pol, refindex)
         if v.cls == "MIGRATE":
             narr += 1
         elif v.cls == "MIGRATE_HEADER":
             hints += 1
+        if v.stale:
+            stale += 1
 
 if narr > ceil_narr:
     viol.append("unmigrated narrative comment blocks %d > ceiling %d --"
@@ -7052,8 +7058,15 @@ if hints > ceil_hint:
     viol.append("over-cap AI-hint headers %d > ceiling %d --"
                 " shorten them, do NOT raise [docs].max_overlong_hints"
                 % (hints, ceil_hint))
-print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d"
-      % (narr, ceil_narr, hints, ceil_hint), file=sys.stderr)
+# stale-refs is REPORTED, not enforced, and says so. Its measurement was
+# broken until now -- the allowlist was matched as regex, where a Windows path
+# is an invalid pattern, so the count crashed rather than counted, and the
+# [docs].max_stale_refs = 0 recorded next to it was never true of anything.
+# The remaining hits still include short names the index cannot resolve, so
+# turning today's number into a ceiling would enshrine noise, which is the same
+# mistake in the other direction. Enforce it once it measures only real refs.
+print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d (reported, not a ceiling)"
+      % (narr, ceil_narr, hints, ceil_hint, stale), file=sys.stderr)
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY

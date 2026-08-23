@@ -113,6 +113,17 @@ def test_classifier(p):
           "inline-scoped")
 
 
+def test_hint_prose_len():
+    """The hint cap must measure prose, and must not be dodged by wrapping."""
+    nl = chr(10)
+    banner = "# AI-hint: short one" + nl + "# /usr/share/mios/x.container" + nl
+    check("hint-banner-excluded", mc._hint_prose_len(banner) < 40, True)
+    wrapped = "# AI-hint: " + "word " * 40 + nl + "# " + "more prose here " * 20 + nl
+    check("hint-wrap-counted", mc._hint_prose_len(wrapped) > 400, True)
+    meta = "# AI-hint: short" + nl + "# AI-related: a, b, c, d, e, f, g, h" + nl
+    check("hint-meta-excluded", mc._hint_prose_len(meta) < 30, True)
+
+
 def test_stale(p):
     root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
     idx = mc.RefIndex.build(root)
@@ -163,6 +174,7 @@ def test_landing_ratio(p: mc.Policy) -> None:
 def main() -> int:
     p = policy()
     test_classifier(p)
+    test_hint_prose_len()
     test_stale(p)
     test_lexer()
     test_landing_ratio(p)

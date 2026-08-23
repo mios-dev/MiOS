@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
-# AI-hint: Drift gate for hazards that are SAFE on one node and dangerous above it. A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a defect waiting for the operator to add a peer. Detects each hazard from the tree rather than from a hand-list -- multiple archetypes able to stand up a k3s control plane with no join path, and Pacemaker with fencing disabled -- and requires every one to sit in the shrink-only [blades.hazards].accepted register with a max_accepted ratchet. A NEW hazard fails; an entry that no longer reproduces fails too, so the register cannot be padded.
+# AI-hint: Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet.
 # AI-related: usr/share/mios/mios.toml, tools/test_check-fleet-safety.py, usr/lib/systemd/system/mios-ha-bootstrap.service, usr/share/containers/systemd/mios-k3s.container, usr/share/doc/mios/adr/0016-blade-node-topology.md
 # AI-functions: fleet_shape, archetypes_granting, k3s_multi_server, pacemaker_unfenced, detect, register, max_accepted, violations, main
-"""Gate: a hazard that only bites above one node is counted, not discovered."""
+"""Gate: a hazard that only bites above one node is counted, not discovered.
+
+A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a
+defect waiting for the operator to add a peer. Each hazard is detected from the
+tree rather than from a hand-list -- multiple archetypes able to stand up a k3s
+control plane with no join path, and Pacemaker with fencing disabled -- and
+every one must sit in the shrink-only [blades.hazards].accepted register under a
+max_accepted ratchet. A NEW hazard fails; an entry that no longer reproduces
+fails too, so the register cannot be padded.
+"""
 
 import os
 import re

@@ -419,7 +419,14 @@ test_bake_unresolved_image() {
     # into referenced_names.txt and the test starts editing the SSOT it guards.
     sed -i 's|^Image=.*|Image=quay.io/ceph/ceph:${UNRESOLVABLE_PROBE_TAG}|' "$q"
 
-    if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml"         python3 "${ROOT}/tools/generate-bake-plan.py" --check 2>&1         | grep -q "does not resolve against the SSOT"; then
+    # Captured, not piped: the suite runs under `set -o pipefail`, and the
+    # generator exits 1 on a validation error, so `... | grep -q` returns the
+    # generator's failure even when grep matched -- the detection was thrown
+    # away by the harness rather than missed by the detector.
+    local out=""
+    out="$(MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml"         python3 "${ROOT}/tools/generate-bake-plan.py" --check 2>&1 || true)"
+
+    if printf '%s' "$out" | grep -q "does not resolve against the SSOT"; then
         cp "$bak" "$q" && rm -f "$bak"
     else
         cp "$bak" "$q" && rm -f "$bak"
