@@ -48,6 +48,9 @@ def all_packages(data: dict) -> set:
 _TRACKED = None
 
 
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def _tracked_set(root: str) -> set:
     """Repo-relative paths git tracks, case-exact.
 
@@ -214,7 +217,12 @@ def baked_payloads(data: dict) -> list:
     return out
 
 
-def render(data: dict, root: str = ".") -> str:
+def render(data: dict, root: str = "") -> str:
+    # Defaulting to "." made the rendered document depend on the directory the
+    # caller happened to be in: run from the repo the planes were wired, run
+    # from anywhere else they were `**missing**`, and the shipped file then
+    # disagreed with its own generator in CI but not locally.
+    root = root or _REPO_ROOT
     rows = archetype_rows(data)
     seat_row = next(r for r in rows if r[0] == SEAT)
     full = max(rows, key=lambda r: r[3])
