@@ -153,7 +153,12 @@ def main(argv: list) -> int:
     if "--check" in argv:
         return cmd_check(root, ci)
     if "--python-packages" in argv:
-        print(" ".join((ci.get("python") or {}).get("packages") or ()))
+        py = ci.get("python") or {}
+        args = []
+        for req in (py.get("requirements") or ()):
+            args += ["-r", req]
+        args += list(py.get("packages") or ())
+        print(" ".join(args))
         return 0
     for i, a in enumerate(argv):
         if a == "--tier" and i + 1 < len(argv):

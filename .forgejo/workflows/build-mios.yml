@@ -46,6 +46,16 @@ jobs:
             exit 1
           fi
 
+      - name: Check out mios-bootstrap for the Law 15 parity gate
+        # Cloned OUTSIDE the workspace so it cannot dirty the generated-artifact
+        # comparison. Without it check_bootstrap_sync skipped and reported the
+        # same green as a run that compared the two repositories, which is how
+        # they drifted: eighteen shared files had diverged unnoticed.
+        run: |
+          git clone --depth 1 https://github.com/mios-dev/mios-bootstrap.git \
+              "${RUNNER_TEMP}/mios-bootstrap"
+          echo "MIOS_BOOTSTRAP_ROOT=${RUNNER_TEMP}/mios-bootstrap" >> "$GITHUB_ENV"
+
       - name: Build the native gate binaries
         run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
 

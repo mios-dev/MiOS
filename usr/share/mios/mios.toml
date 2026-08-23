@@ -10582,6 +10582,7 @@ mirror_files = [
   "installation/mios-common.ps1",
   "etc/skel/.config/mios/system-prompt.md",
   "etc/usbguard/rules.conf",
+  "installation/bin/7z.dll",
 ]
 
 # SSOT tables mirrored into bootstrap's root mios.toml.
@@ -10592,6 +10593,24 @@ not_mirrored = [
   "install.sh", "install.ps1", "bootstrap.sh", "bootstrap.ps1",
   "installation/mios-common.sh", "README.md", "CLAUDE.md", "AGENTS.md",
   "GEMINI.md", ".gitignore", "VERSION",
+  ".clinerules",
+  ".cursorrules",
+  ".editorconfig",
+  ".env.mios",
+  ".gitattributes",
+  "etc/mios/ai/config.json",
+  "etc/skel/.config/aichat/config.yaml",
+  "etc/skel/.config/mios/mios.toml",
+  "etc/skel/.config/mios/profile.toml",
+  "image-versions.yml",
+  "installation/README.md",
+  "installation/mios-install.ps1",
+  "installation/mios-install.sh",
+  "llms.txt",
+  "system-prompt.md",
+  "usr/share/mios/names.generated.txt",
+  "usr/share/mios/profile-headless.toml",
+  "usr/share/mios/referenced_names.txt",
 ]
 
 # [legibility] -- the repo IS the deliverable. Floors fall only. See ROADMAP.md.
@@ -10629,11 +10648,17 @@ runners = ["tests/run-suites.sh"]
 max_leaked_fixtures = 0
 
 [ci.python]
-# Installed on a runner before the unit tier. Not the agent-pipe's full
-# requirements.txt: this is the minimum that makes server.py importable, which
-# is all six of the recovered suites need. The heavy dependencies stay in
-# [ci.globs.agent-pipe].skip, where the suites that need them are listed.
-packages = ["pyflakes", "fastapi", "httpx", "uvicorn", "websockets", "smolagents"]
+# Installed on a runner before the unit tier.
+#
+# A hand-written list was wrong twice in a row: server.py's import chain reaches
+# smolagents through mios_gateway_queue and mcp through the module after that,
+# and each missing name cost a CI round trip to discover. The agent-pipe already
+# declares what it needs, so the runner installs THAT and the list cannot drift
+# from the code again.
+requirements = ["usr/lib/mios/agent-pipe/requirements.txt"]
+# Only what no requirements file claims: pyflakes backs lint-python.sh's
+# undefined-name pass.
+packages = ["pyflakes"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

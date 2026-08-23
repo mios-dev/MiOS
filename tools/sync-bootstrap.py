@@ -119,6 +119,27 @@ def _toml_val(v):
     return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
+def unclassified_shared(root, boot, man):
+    """A file both repos track must be mirrored or explicitly not mirrored.
+
+    Thirty-five files were tracked in both repositories; sixteen were declared
+    and eighteen of the remaining nineteen had already diverged, silently,
+    because nothing required them to be classified at all.
+    """
+    import subprocess
+
+    def tracked(r):
+        out = subprocess.run(["git", "-C", r, "ls-files"],
+                             capture_output=True, text=True, check=False).stdout
+        return {l.strip().replace(os.sep, "/") for l in out.splitlines() if l.strip()}
+
+    declared = set(man.get("mirror_files") or ()) | set(man.get("not_mirrored") or ())
+    shared = tracked(root) & tracked(boot)
+    return [f"{f}: tracked in both repos but declared in neither "
+            f"[bootstrap.sync].mirror_files nor .not_mirrored"
+            for f in sorted(shared - declared)]
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="sync-bootstrap")
     ap.add_argument("--root", default=ROOT)
@@ -135,11 +156,21 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 1
     if not os.path.isdir(args.bootstrap):
-        # Not an error in --check: a contributor need not have both repos.
+        # A contributor need not have both repos, but a runner that skips this
+        # reports the same green as a run that compared them -- and that is
+        # exactly how the two repositories drifted while a sync gate passed.
+        # Under MIOS_DRIFT_REQUIRE_TOOLS the absence is the failure.
+        if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS") == "1":
+            print(f"bootstrap repo absent at {args.bootstrap}: clone "
+                  f"mios-bootstrap beside this checkout, or set "
+                  f"MIOS_BOOTSTRAP_ROOT, so Law 15 is checked rather than assumed",
+                  file=sys.stderr)
+            return 1
         print(f"[sync-bootstrap] bootstrap repo not present at {args.bootstrap}; skipping")
         return 0
 
-    drift = mirror_files(args.root, args.bootstrap, man["mirror_files"], args.apply)
+    drift = unclassified_shared(args.root, args.bootstrap, man) if not args.apply else []
+    drift += mirror_files(args.root, args.bootstrap, man["mirror_files"], args.apply)
     drift += mirror_tables(args.root, args.bootstrap,
                            man.get("mirror_toml_tables") or [], data, args.apply)
 
