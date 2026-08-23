@@ -11262,7 +11262,7 @@ demonstrate. Nothing new starts until they do.
 **Verify:** `python3 tools/check-task-schema.py` passes, and raising `[tasks].schema_from` fails the ratchet-direction check from AGY-1723.
 **Do NOT:** mechanically paste a Verify line onto 482 tasks. A Verify nobody checked is worse than an absent one, because it looks like coverage. Retro-fit in batches you have actually read.
 **Why:** the task list is the plan; a task with no falsifiable Verify is an opinion about what to do next.
-**Dep:** AGY-1723
+**Dep:** AGY-1736
 
 ## AGY-1725 -- Sync mios-bootstrap on every build and gate the shared surfaces  (WS-PROCESS | P1 | M)
 **Goal:** The two repositories never disagree about a surface they share.
@@ -11282,7 +11282,7 @@ demonstrate. Nothing new starts until they do.
 **Verify:** stage a `.bak` file and the hook refuses; stage a probe-named file and it refuses; stage 500 files and it refuses without the override.
 **Do NOT:** make the hook advisory. A warning in a hook is read once and then never again.
 **Why:** these three cost a whole session's rework, and every one of them is mechanically detectable before the commit that ships it.
-**Dep:** AGY-1723
+**Dep:** AGY-1736
 
 ## AGY-1727 -- Reconcile the 18 shared files that diverged, and promote them to mirrored  (WS-PROCESS | P1 | L)
 **Goal:** A file tracked in both repositories has one content, not two.
@@ -11292,7 +11292,7 @@ demonstrate. Nothing new starts until they do.
 **Verify:** `python3 tools/sync-bootstrap.py --root . --check` passes with the mirrored count raised, and hand-editing a mirrored file in either repository fails it.
 **Do NOT:** copy one side over the other to make the gate green. `mios-install.sh` differs by 1310 lines; whichever you delete, someone wrote it.
 **Why:** the bootstrap repository is what a new machine installs from; a shared file with two contents means the installed system disagrees with the image depending on which repo you read.
-**Dep:** AGY-1725
+**Dep:** AGY-1738
 
 ## AGY-1728 -- Find every gate that skips where it should fail  (WS-PROCESS | P1 | M)
 **Goal:** No check reports success for work it did not do.
@@ -11353,3 +11353,63 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** ship a MiOS-specific unit that runs mandb. man-db already provides one; adding a second is a parallel mechanism to keep in step.
 **Why:** a manual that only answers when you already know the page name is half a manual.
 **Dep:** AGY-1731
+
+## AGY-1734 -- Make MiOS-DEV run MiOS itself and record what the cutover needed  (WS-VARIANT | P1 | M)
+**Goal:** The development host runs the system it builds.
+**What+How:** MiOS-DEV is a WSL machine running "Podman Machine OS" (Fedora 44, plain rootfs, no bootc binary, no ostree) with the MiOS image sitting in its container store -- MiOS as a guest of the thing it should be. Export the image filesystem, import it as the distro, and enable systemd so the Quadlets, greenboot checks and firstboot units have a PID 1 that understands them. The image already carries podman 5.8.4, systemd, crun, conmon and the podman socket unit, so it can host itself. Record every gap the cutover exposes rather than patching around it.
+**Where:** `config/artifacts/wsl2.toml, tools/, usr/share/mios/mios.toml ([variants.entries.mios-dev])`
+**Done When:** the distro boots MiOS, systemd reaches a running state, and its Quadlet containers start.
+**Verify:** on the machine, the release name reports MiOS, the init system answers, and at least one MiOS container is running -- and `[variants.entries.mios-dev].status` moves off partial only when all three hold.
+**Do NOT:** replace the working machine before the replacement is shown to boot. The image took ninety minutes to pull and lives inside the machine being replaced.
+**Why:** a development host that cannot run the image it produces cannot tell you the image is broken.
+**Dep:** none
+
+## AGY-1735 -- Give MiOS-Metal a built artifact so it stops being a design  (WS-VARIANT | P2 | L)
+**Goal:** The metal-owning variant exists as something you can boot.
+**What+How:** MiOS-Metal is specified in a doc and configured by `[metal]`, and builds nothing: it is one of two variants still marked design. Produce the artifact its registry entry declares -- an ISO and a BIB recipe -- containing only what a hypervisor-router needs: the vfio bindings derived from `[metal]`, the mesh configuration, no desktop and no AI plane. Then lower `[variants].max_design_variants`.
+**Where:** `config/artifacts/, docs/agy/doc-mios-metal.md, usr/share/mios/mios.toml ([metal], [variants])`
+**Done When:** the artifact builds, boots headless, and binds the declared devices to vfio.
+**Verify:** the built image carries the bootc labels, and a boot shows the GPUs bound to vfio-pci; the design ceiling drops by one in the same commit.
+**Do NOT:** claim GPU fractioning. The doc's own critic pass established it is impossible driver-free -- whole GPU to one guest.
+**Why:** a variant that builds nothing is a document with a table of contents entry.
+**Dep:** AGY-1734
+
+## AGY-1736 -- Prove MiOS-Xbox differs from MiOS in the ways it claims  (WS-VARIANT | P2 | M)
+**Goal:** The gaming edition is a measured difference, not a colour.
+**What+How:** `[editions.mios-xbox]` sets a dev channel, posture C, a gaming debloat profile and its own accent; `tools/configure-xbox-cpu.sh` exists. Nothing asserts the built Xbox artifact actually differs from the base in those four ways. Add a comparison that builds or inspects both editions and asserts each declared difference is present in the output, then move the status.
+**Where:** `usr/share/mios/mios.toml ([editions]), tools/configure-xbox-cpu.sh, tests/`
+**Done When:** a test names each declared difference and fails when the built artifact does not carry it.
+**Verify:** flipping one key in `[editions.mios-xbox]` and rebuilding makes the comparison fail on exactly that key.
+**Do NOT:** compare the SSOT against itself. The claim is about the artifact, and a check that reads only the config passes whatever the build did.
+**Why:** an edition is a promise about output; unverified, it is a promise about intent.
+**Dep:** AGY-1734
+
+## AGY-1737 -- Make MiOS-Cat install MiOS rather than boot beside it  (WS-VARIANT | P1 | L)
+**Goal:** The portable edition deploys the system it carries.
+**What+How:** The Ventoy machinery works and the partitions, models and repository staging are configured under `[cat]` with thirteen gates behind them. What it does not do is install MiOS: the bare-metal leg installs a plain distribution rather than the bootc image. Wire the offline install path so the carried image is what lands, using the transport that needs no network.
+**Where:** `installation/, tools/install.sh, usr/share/mios/mios.toml ([cat])`
+**Done When:** a machine booted from the medium installs the carried MiOS image and reboots into it, with the network physically absent.
+**Verify:** the installed system reports the MiOS release and the bootc labels; pulling the network cable before the install changes nothing about the outcome.
+**Do NOT:** call it done when the medium boots. Booting the medium is the part that already works; installing from it is the task.
+**Why:** the portable edition exists so a machine with no network can become a MiOS machine, and that is the one thing it cannot yet do.
+**Dep:** AGY-1734
+
+## AGY-1738 -- Give MiOS-Xbox-Arm an arm64 build or retire the variant  (WS-VARIANT | P3 | M)
+**Goal:** The second design variant resolves in one direction or the other.
+**What+How:** `[editions.mios-xbox-arm]` declares an arm64 Windows guest and the Xbox posture. No arm64 artifact is produced and the base image is built amd64 only. Either produce an arm64 image and artifact, or remove the edition and its variant entry and say in the commit what it was for. Update `[variants].max_design_variants` either way.
+**Where:** `usr/share/mios/mios.toml ([editions], [variants]), config/artifacts/, Containerfile`
+**Done When:** an arm64 artifact exists and boots, or the variant and its edition are gone.
+**Verify:** either the built image reports arm64 and carries the bootc labels, or no variant and no edition names arm64 and the design ceiling has dropped.
+**Do NOT:** leave it in design while the ceiling stays where it is. That is the state the ceiling exists to make visible.
+**Why:** a declared target nobody builds sets an expectation the project does not meet.
+**Dep:** AGY-1735
+
+## AGY-1739 -- Project the variant registry into the surfaces that name variants  (WS-VARIANT | P2 | M)
+**Goal:** One statement of the product line, read everywhere it is mentioned.
+**What+How:** The registry names six variants and their status, and the manual page renders from it. The installers, the Portal, the README and the roadmap still name variants in prose they maintain by hand, so those can disagree with the registry the moment either changes. Project them: derive each list from the registry and gate the derivation, the way ports and launchers already are.
+**Where:** `tools/render-manpages.py, installation/, README.md, ROADMAP.md, usr/share/doc/mios/`
+**Done When:** every surface that lists variants derives that list, and hand-editing one is caught.
+**Verify:** adding a variant to the registry makes it appear on every listed surface after a regeneration, and editing a projected list by hand fails a gate.
+**Do NOT:** hand-copy the six names into each surface. That is the duplication the registry was created to end.
+**Why:** the registry only settles the naming question if the places people read are the places it reaches.
+**Dep:** AGY-1736
