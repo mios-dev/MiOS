@@ -53,7 +53,7 @@ def load_allowlist():
 def is_exempt(rel_path, exempt_globs):
     norm = rel_path.replace("\\", "/")
     for pattern in exempt_globs:
-        if fnmatch.fnmatch(norm, pattern) or fnmatch.fnmatch(os.path.basename(norm), pattern):
+        if fnmatch.fnmatchcase(norm, pattern) or fnmatch.fnmatchcase(os.path.basename(norm), pattern):
             return True
     return False
 

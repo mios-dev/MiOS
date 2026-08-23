@@ -39,6 +39,13 @@ jobs:
           if [[ -n "$(git status --porcelain)" ]]; then
             echo "ERROR: The following generated artifacts are out of sync with SSOT:" >&2
             git status --porcelain >&2
+            # The filename alone is not actionable: a generator that produces
+            # different bytes here than on a contributor's box has to be
+            # diagnosed from the CONTENT, and this failure has already cost a
+            # round trip that a diff would have ended.
+            echo "--- diff (generated vs committed) ---" >&2
+            git --no-pager diff --stat >&2 || true
+            git --no-pager diff | head -200 >&2 || true
             exit 1
           fi
 

@@ -99,7 +99,7 @@ def generate_referenced_vars(root):
             fn = os.path.basename(path)
             if any(rel.endswith(s) for s in emitter_suffixes):
                 continue
-            if not any(glob.fnmatch.fnmatch(fn, g) for g in consumer_globs):
+            if not any(glob.fnmatch.fnmatchcase(fn, g) for g in consumer_globs):
                 continue
             try:
                 with open(path, encoding="utf-8", errors="ignore") as fh:
@@ -122,7 +122,7 @@ def generate_referenced_vars(root):
                 rel = os.path.relpath(path, root).replace("\\", "/")
                 if any(rel.endswith(s) for s in emitter_suffixes):
                     continue
-                if not any(glob.fnmatch.fnmatch(fn, g) for g in consumer_globs):
+                if not any(glob.fnmatch.fnmatchcase(fn, g) for g in consumer_globs):
                     continue
                 try:
                     with open(path, encoding="utf-8", errors="ignore") as fh:

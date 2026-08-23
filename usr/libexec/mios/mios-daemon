@@ -2323,7 +2323,7 @@ def _match_excludes(name: str, excludes: list) -> bool:
     """Check a basename against the excludes glob list."""
     import fnmatch
     for pat in excludes or []:
-        if fnmatch.fnmatch(name, pat):
+        if fnmatch.fnmatchcase(name, pat):
             return True
     return False
 
