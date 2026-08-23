@@ -45,7 +45,7 @@ def all_packages(data: dict) -> set:
     return out
 
 
-_TRACKED = set()
+_TRACKED = None
 
 
 def _tracked_set(root: str) -> set:
@@ -58,10 +58,16 @@ def _tracked_set(root: str) -> set:
     try:
         out = subprocess.run(["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
                              cwd=root, stdout=subprocess.PIPE,
-                             stderr=subprocess.DEVNULL, check=True).stdout.decode("utf-8")
-        return {r for r in out.split(chr(0)) if r}
-    except Exception:
-        return set()
+                             stderr=subprocess.PIPE, check=True).stdout.decode("utf-8")
+        paths = {r for r in out.split(chr(0)) if r}
+        if paths:
+            return paths
+    except Exception as exc:                      # pragma: no cover
+        sys.stderr.write("[mini-vs-hosted] git listing failed (%s); falling back to the filesystem\n" % exc)
+    # An empty set would mark EVERY plane unwired, which is the most wrong
+    # answer available and exactly what a silent failure produced. Say so and
+    # fall back rather than rendering a document full of false negatives.
+    return None
 
 
 def plane_rows(root: str, data: dict) -> list:
@@ -79,7 +85,8 @@ def plane_rows(root: str, data: dict) -> list:
         markers = [str(m) for m in (spec.get("markers") or [])]
         missing = [m for m in markers if m not in have]
         wired_by = str(spec.get("wired_by") or "").strip()
-        wired = bool(wired_by) and wired_by in _TRACKED
+        wired = bool(wired_by) and (wired_by in _TRACKED if _TRACKED is not None
+                                    else os.path.exists(os.path.join(root, wired_by)))
         rows.append((name, str(spec.get("role") or ""), str(spec.get("owner") or ""),
                      markers, missing, wired_by, wired,
                      spec.get("owner") == "mini" and name not in optional))

@@ -245,8 +245,21 @@ class RefIndex:
                 cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                 check=True).stdout.decode("utf-8")
             tracked = [r for r in listing.split(chr(0)) if r]
-        except Exception:
+        except Exception as exc:
+            sys.stderr.write("[mios_comments] git listing failed (%s); walking the filesystem instead\n" % exc)
             tracked = []
+        if not tracked:
+            # An empty listing would index nothing, so EVERY reference would
+            # read as dangling -- the most wrong answer available from a silent
+            # failure. Walk instead; the count is then machine-dependent, which
+            # is worse than exact and far better than uniformly false.
+            for dp, dn, fns in os.walk(root):
+                dn[:] = [d for d in dn
+                         if d not in {".git", "target", "node_modules",
+                                      "__pycache__", ".venv"}]
+                for fn in fns:
+                    tracked.append(os.path.relpath(os.path.join(dp, fn),
+                                                   root).replace(os.sep, "/"))
         if tracked:
             for rel in tracked:
                 fn = rel.rsplit("/", 1)[-1]
