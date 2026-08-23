@@ -342,9 +342,6 @@ class TestHardwareFloor(unittest.TestCase):
         self.assertFalse(rows["hypervisor"][7])
 
     def test_cephfs_never_travels(self):
-        # ADR-0016 D14: CephFS is a NATIVE service of the Mini platform, on
-        # bare metal. Declaring it `either` would let a scheduler put the
-        # storage plane on a transient OCI image.
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             storage = tomllib.load(fh)["blade"]["planes"]["storage"]
         self.assertEqual(storage["owner"], "mini")

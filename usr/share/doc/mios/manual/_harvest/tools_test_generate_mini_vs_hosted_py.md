@@ -10,3 +10,10 @@ AI-related: tools/generate-mini-vs-hosted.py, usr/share/mios/mios.toml, usr/shar
 
 <!-- mios-src:cc0279a24a41 from tools/test_generate-mini-vs-hosted.py:1-3 -->
 
+### ADR-0016 D14
+
+ADR-0016 D14: CephFS is a NATIVE service of the Mini platform, on
+bare metal. Declaring it `either` would let a scheduler put the
+storage plane on a transient OCI image.
+
+<!-- mios-src:60a4a1ba90ee from tools/test_generate-mini-vs-hosted.py:345-347 -->
