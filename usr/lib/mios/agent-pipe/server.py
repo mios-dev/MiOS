@@ -3243,19 +3243,6 @@ async def v1_drift() -> JSONResponse:
 
 @app.get("/v1/agents")
 async def v1_agents_directory(request: Request) -> JSONResponse:
-    """A2A-discoverable agent directory (roadmap DATA-01 / T-059).
-
-    Returns the roster of every registered ``[agents.*]`` entry as an
-    ``(author, name, version)`` tuple plus its A2A card link, so a discovering
-    peer QUERIES this endpoint instead of reading a static file. Reuses the
-    A2A AgentCard as the SSOT: ``author`` = the card provider organization,
-    node ``version`` = the card version, and each entry links back to the
-    node's well-known AgentCard -- a REMOTE peer (kind in
-    remote-http/a2a/edge/node/mobile) advertises its OWN card + a2a base,
-    while a local sub-agent is a skill of THIS node's single card. Open
-    discovery surface (see _AUTH_OPEN_PATHS). Degrade-open: an unreadable
-    registry or card yields an empty roster, never a 500.
-    """
     try:
         _card = _build_agent_card()
     except Exception:  # noqa: BLE001 -- discovery must never 500 on a card slip

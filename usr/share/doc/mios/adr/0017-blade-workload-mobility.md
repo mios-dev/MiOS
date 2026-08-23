@@ -1,4 +1,5 @@
-<!-- AI-hint: How a workload MOVES across the blade mesh: who schedules containers vs VMs, what a GPU service does on a GPU-less blade, the order a failover tries (local first, then cluster allocation), the anti-flap dwell, and which plane may hold divergent writes. Extends ADR-0016, which settled what a blade/node/seat IS; this settles what happens when one dies. -->
+<!-- AI-hint: Workload mobility across the blade mesh: scheduling, fallbacks, failover, and divergence. -->
+
 <!-- AI-related: usr/share/doc/mios/adr/0016-blade-node-topology.md, usr/share/mios/mios.toml [blade], [blade.archetypes], [blade.requires], [blades], [nodes], usr/libexec/mios/role-apply, tools/generate-blade-dropins.py -->
 ---
 adr: 0017

@@ -14,6 +14,7 @@ log() {
 
 die() {
     echo -e "\033[1;31m[drift-gate-negatives] ERROR:\033[0m $1" >&2
+    [[ -n "${_NEG_GATE_OUT:-}" ]] && printf '%s\n' "$_NEG_GATE_OUT" | tail -20 >&2
     exit 1
 }
 
@@ -2925,10 +2926,12 @@ _neg_gate() {
     # REQUIRE_TOOLS is forwarded deliberately: checks that shell out to a built
     # binary choose between "skip" and "fail" on it, so a test that cannot set
     # it cannot exercise the failing path -- the path that matters.
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+    # Output is kept, not discarded: "failed after restoration" with no reason
+    # has cost two CI round trips, and die() prints this on the way out.
+    _NEG_GATE_OUT="$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
     MIOS_DRIFT_ROOT="$ROOT" \
     MIOS_DRIFT_REQUIRE_TOOLS="${MIOS_DRIFT_REQUIRE_TOOLS:-0}" \
-        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
+        bash "${ROOT}/automation/98-drift-checks.sh" "$1" 2>&1)"
 }
 
 test_fleet_safety() {

@@ -228,6 +228,7 @@ class RefIndex:
         self.root = root
         self.names: set[str] = set()
         self.paths: set[str] = set()
+        self.dirs: set[str] = set()
 
     @classmethod
     def build(cls, root: str, skip_dirs: Iterable[str] = ()) -> "RefIndex":
@@ -240,6 +241,10 @@ class RefIndex:
                 rel = os.path.relpath(full, root).replace(os.sep, "/")
                 idx.paths.add(rel)
                 idx.names.add(fn)
+                d = rel.rsplit("/", 1)[0] if "/" in rel else ""
+                while d:
+                    idx.dirs.add(d)
+                    d = d.rsplit("/", 1)[0] if "/" in d else ""
                 # A unit is referenced by its name, not its filename: comments
                 # say `mios-ai` and `hermes-agent.service`, and both must
                 # resolve to usr/.../mios-ai.container on disk.
@@ -400,8 +405,20 @@ class RefIndex:
             return True
         if t.endswith("_") and any(n.startswith(t) for n in self.names):
             return True
-        if os.path.exists(os.path.join(self.root, t.replace("/", os.sep))):
+        # Directories are references too: a comment naming usr/share/mios or
+        # usr/lib/systemd/system points at something real, and matching only
+        # FILE paths reported every one of them as dangling.
+        if t in self.dirs:
             return True
+        # A token ending in a path separator, or truncated mid-name by the
+        # AI-hint cap (`tools/test_`, `mios-toggle-hea`), is a prefix of
+        # something real rather than a reference to something missing.
+        if any(x.startswith(t) for x in self.dirs) or any(x.startswith(t) for x in self.paths):
+            return True
+        # No os.path.exists fallback: it is case-insensitive on Windows, so a
+        # reference to MIOS-MANUAL resolved here and dangled on Linux, and the
+        # count -- now a ceiling -- differed by machine. self.paths comes from
+        # os.walk and carries the real case, so exact membership is the answer.
         return any(p.endswith("/" + t) for p in self.paths)
 
     def dangling(self, text: str, allowlist: Iterable[str] = ()) -> list[str]:

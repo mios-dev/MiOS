@@ -953,13 +953,7 @@ import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 viol = []
 
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml
-    except ImportError:
-        _toml = None
+import tomllib as _toml
 
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 if _toml is None:
@@ -1157,13 +1151,7 @@ check_container_ports() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 - >"$tmp" 2>&1 <<'PY'
 import os, sys, re
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml
-    except ImportError:
-        sys.exit(0)
+import tomllib as _toml
 
 p = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(p):
@@ -1226,13 +1214,7 @@ check_bootstrap_ports_drift() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml
-    except ImportError:
-        sys.exit(0)
+import tomllib as _toml
 
 main_toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(main_toml_path):
@@ -6689,13 +6671,7 @@ root = sys.argv[1]
 systemd_dir = os.path.join(root, 'usr/lib/systemd/system')
 toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
 
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml
-    except ImportError:
-        _toml = None
+import tomllib as _toml
 
 unconfined_roster = set()
 if _toml and os.path.isfile(toml_path):

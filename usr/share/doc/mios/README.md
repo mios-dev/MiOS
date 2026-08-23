@@ -201,7 +201,7 @@ decision is always a new record, never a rewrite of the old one.
 | `usr/share/doc/mios/adr/0014-bootc-install-bare-metal-leg.md` | Architecture decision defining the three bootc install legs (to-existing-root, to-disk, to-filesystem) and offline OCI tar transport. |
 | `usr/share/doc/mios/adr/0015-unified-key-library-architecture.md` | Unified key library architecture defining single-source rule, derive rules, centralized COMPAT-ALIAS table, and enforcement gates. |
 | `usr/share/doc/mios/adr/0016-blade-node-topology.md` | The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things.... |
-| `usr/share/doc/mios/adr/0017-blade-workload-mobility.md` | How a workload MOVES across the blade mesh: who schedules containers vs VMs, what a GPU service does on a GPU-less blade, the order a failover tries (local first, then cluster allocation), the... |
+| `usr/share/doc/mios/adr/0017-blade-workload-mobility.md` | Workload mobility across the blade mesh: scheduling, fallbacks, failover, and divergence. |
 | `usr/share/doc/mios/adr/README.md` | Index + process spec for MiOS Architecture Decision Records; read this first to learn the ADR format, status lifecycle, and which ADR governs the workstream you are implementing. |
 
 <!-- derived from the AI-hint headers of 18 file(s) matching usr/share/doc/mios/adr/*.md -->
