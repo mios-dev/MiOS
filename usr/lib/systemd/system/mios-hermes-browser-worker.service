@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit for a SECOND headless ChromeDev flatpak providing a dedicated CDP endpoint at 127.0.0.1:9223 (own profile dir profile-w2) for the Hermes WORKER (:8643), so the worker's browser_* tool loop never stomps the primary... */
+# AI-hint: Systemd unit for a SECOND headless ChromeDev flatpak providing a dedicated CDP endpoint at 127.0.0.1:9223 (own profile dir profile-w2) for the Hermes WORKER (:8643), so the worker's browser_* tool loop never stomps the primary...
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 # /usr/lib/systemd/system/mios-hermes-browser-worker.service

@@ -1,4 +1,4 @@
-/* AI-hint: Triggers the mios-wsl-flatpak-heal.service every 5 minutes to keep the flatpak-portal active and prevent it from entering an idle timeout state in WSL environments. */
+# AI-hint: Triggers the mios-wsl-flatpak-heal.service every 5 minutes to keep the flatpak-portal active and prevent it from entering an idle timeout state in WSL environments.
 /* AI-doc: usr/share/doc/mios/manual/user.md */
 
 [Unit]

@@ -1,4 +1,4 @@
-/* AI-hint: The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack. */
+# AI-hint: The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack.
 /* AI-doc: usr/share/doc/mios/manual/llamacpp.md */
 
 models:

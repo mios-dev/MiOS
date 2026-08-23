@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI /v1-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster llama.cpp path. */
+# AI-hint: Systemd unit to host the fine-tuned refiner model as an OpenAI /v1-compatible endpoint on port 11438, allowing the agent-pipe to swap between the high-quality transformer-served adapter and the faster llama.cpp path.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' fine-tune serve (base+adapter refiner backend)

@@ -1,4 +1,4 @@
-/* AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets. */
+# AI-hint: Defines the mios-desktop.target systemd unit to initialize the desktop environment, ensuring required virtualization services (libvirtd, virtnetworkd) are active while preventing concurrent headless or cluster-specific targets.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' Desktop Role

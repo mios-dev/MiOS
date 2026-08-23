@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit that seeds K3s with MiOS-specific manifests by copying files from /usr/share/mios/k3s-manifests to the K3s server datastore during boot. */
+# AI-hint: Systemd unit that seeds K3s with MiOS-specific manifests by copying files from /usr/share/mios/k3s-manifests to the K3s server datastore during boot.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' K3s Manifest Seeder

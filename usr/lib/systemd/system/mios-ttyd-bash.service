@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit file that manages the ttyd service to provide a browser-accessible bash shell via WebSockets, mapping a terminal session to the mios user's environment. */
+# AI-hint: Systemd unit file that manages the ttyd service to provide a browser-accessible bash shell via WebSockets, mapping a terminal session to the mios user's environment.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 
 [Unit]

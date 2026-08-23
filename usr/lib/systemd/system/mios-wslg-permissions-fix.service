@@ -1,4 +1,4 @@
-/* AI-hint: A systemd oneshot service that enforces 0700 permissions on /mnt/wslg/runtime-dir to enable Wayland VAIL mode and replaces the /tmp/.X11-unix symlink with a physical directory to ensure Flatpak/bwrap compatibility. */
+# AI-hint: A systemd oneshot service that enforces 0700 permissions on /mnt/wslg/runtime-dir to enable Wayland VAIL mode and replaces the /tmp/.X11-unix symlink with a physical directory to ensure Flatpak/bwrap compatibility.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR

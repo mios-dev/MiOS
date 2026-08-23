@@ -1,4 +1,4 @@
-/* AI-hint: Initializes the Pacemaker/Corosync high-availability cluster by configuring the 'mios-ha' cluster, authenticating the 'hacluster' user, and starting the cluster service if corosync.conf is missing. */
+# AI-hint: Initializes the Pacemaker/Corosync high-availability cluster by configuring the 'mios-ha' cluster, authenticating the 'hacluster' user, and starting the cluster service if corosync.conf is missing.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' HA Cluster Bootstrap (Pacemaker/Corosync)

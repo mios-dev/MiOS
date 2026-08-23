@@ -1,4 +1,4 @@
-/* AI-hint: Configures AMD GPU hardware acceleration by loading the amdgpu module, generating CDI specifications for containerized ROCm/KFD access, and enforcing 0660 permissions on /dev/kfd for the render group. */
+# AI-hint: Configures AMD GPU hardware acceleration by loading the amdgpu module, generating CDI specifications for containerized ROCm/KFD access, and enforcing 0660 permissions on /dev/kfd for the render group.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' AMD GPU container plumbing (ROCm/KFD + DRI)

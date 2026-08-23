@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit that launches a ttyd-wrapped PowerShell session via WSL interop, providing a browser-accessible interactive pwsh.exe terminal on port 7682 for the operator. */
+# AI-hint: Systemd unit that launches a ttyd-wrapped PowerShell session via WSL interop, providing a browser-accessible interactive pwsh.exe terminal on port 7682 for the operator.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 
 [Unit]

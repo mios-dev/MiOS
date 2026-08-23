@@ -1,4 +1,4 @@
-/* AI-hint: Systemd user unit for the mios-launcher-daemon; acts as a privileged broker that listens on a Unix socket to execute GUI applications with the operator's environment (WSLg/Wayland) for agents lacking execution rights. */
+# AI-hint: Systemd user unit for the mios-launcher-daemon; acts as a privileged broker that listens on a Unix socket to execute GUI applications with the operator's environment (WSLg/Wayland) for agents lacking execution rights.
 /* AI-doc: usr/share/doc/mios/manual/user.md */
 [Unit]
 # /usr/lib/systemd/user/mios-launcher.service

@@ -1,4 +1,4 @@
-/* AI-hint: Disables WINE binfmt_misc handlers for windows/windowsPE to ensure WSL's WSLInterop handles .exe files, preventing Windows binaries from being incorrectly launched via WINE instead of the host OS. */
+# AI-hint: Disables WINE binfmt_misc handlers for windows/windowsPE to ensure WSL's WSLInterop handles .exe files, preventing Windows binaries from being incorrectly launched via WINE instead of the host OS.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS': keep WSL interop primary for Windows .exe (disable WINE binfmt shadowing /mnt/c/*.exe)

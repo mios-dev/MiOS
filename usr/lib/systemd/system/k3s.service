@@ -1,4 +1,4 @@
-/* AI-hint: Systemd unit file defining the K3s Kubernetes server service, managing the lifecycle, resource limits, and startup sequence for the MiOS cluster orchestration layer. */
+# AI-hint: Systemd unit file defining the K3s Kubernetes server service, managing the lifecycle, resource limits, and startup sequence for the MiOS cluster orchestration layer.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description=Lightweight Kubernetes (K3s)

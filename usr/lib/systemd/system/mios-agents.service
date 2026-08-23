@@ -1,4 +1,4 @@
-/* AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container. */
+# AI-hint: Runs the mios-agents A2O super-container (code-server IDE + tmux war room + Claude CLI + agy/Gemini + the mios-a2o muxer) as a systemd-managed container.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' A2O agents super-container (Claude + agy/Gemini + tmux war room + code-server)

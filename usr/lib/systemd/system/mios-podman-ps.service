@@ -1,4 +1,4 @@
-/* AI-hint: Systemd oneshot service that generates a world-readable JSON snapshot of all running podman containers to allow non-root entities (agent-pipe, dashboard, and SSH users) to view container status. */
+# AI-hint: Systemd oneshot service that generates a world-readable JSON snapshot of all running podman containers to allow non-root entities (agent-pipe, dashboard, and SSH users) to view container status.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' rootful podman snapshot for the agent-pipe portal/dashboard

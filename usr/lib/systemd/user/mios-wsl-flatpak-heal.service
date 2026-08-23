@@ -1,4 +1,4 @@
-/* AI-hint: User-level systemd unit that executes a script to restart stalled flatpak portal services in WSL2g environments to prevent sandbox-credential failures during application launches. */
+# AI-hint: User-level systemd unit that executes a script to restart stalled flatpak portal services in WSL2g environments to prevent sandbox-credential failures during application launches.
 /* AI-doc: usr/share/doc/mios/manual/user.md */
 
 [Unit]

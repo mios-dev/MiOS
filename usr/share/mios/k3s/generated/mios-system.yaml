@@ -1,4 +1,4 @@
-/* AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-system pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. */
+# AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-system pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh.
 apiVersion: v1
 kind: Pod
 metadata:

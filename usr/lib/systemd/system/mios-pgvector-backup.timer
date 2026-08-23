@@ -1,4 +1,4 @@
-/* AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot. */
+# AI-hint: Daily systemd timer that fires mios-pgvector-backup.service to snapshot the unified agent-plane Postgres+pgvector datastore, with Persistent=true so a missed run (machine off) executes at next boot.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' daily pgvector datastore backup schedule

@@ -1,4 +1,4 @@
-/* AI-hint: One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/generate-uki-cmdline.py) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors... */
+# AI-hint: One-shot first-boot Machine Owner Key (MOK) enrollment so the baked signed-UKI (rendered by automation/76-uki-render.sh + tools/generate-uki-cmdline.py) verifies under ENFORCING Secure Boot on the INSTALLED disk; mirrors...
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' first-boot MOK enrollment for Secure Boot UKI trust

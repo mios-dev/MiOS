@@ -1,4 +1,4 @@
-/* AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open). Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset. */
+# AI-hint: FBM first-boot bound-image provisioner unit (oneshot, sentinel-guarded, degrade-open). Runs mios-bound-images-firstboot once at first boot to pull [ai].firstboot_bound_images; enabled via 90-mios.preset.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description=First-boot Bound Images Provisioner

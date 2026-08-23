@@ -1,4 +1,4 @@
-/* AI-hint: Executes the forge-firstboot.sh script to bootstrap the Forgejo instance, creating the initial admin user and repository credentials required for the MiOS self-replication and CI runner integration. */
+# AI-hint: Executes the forge-firstboot.sh script to bootstrap the Forgejo instance, creating the initial admin user and repository credentials required for the MiOS self-replication and CI runner integration.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' Forge first-boot admin-bootstrap (Forgejo)

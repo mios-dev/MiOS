@@ -1,4 +1,4 @@
-/* AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state. */
+# AI-hint: SHELL-01 idle reaper for the persistent PTY substrate -- kills tmux sessions idle past [shell_session].idle_s so a long-lived shell plane cannot accumulate unbounded state.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description=Reap idle MiOS shell sessions

@@ -1,4 +1,4 @@
-/* AI-hint: Default configuration for aichat/aichat-ng that redirects OpenAI-compatible requests to the local Agent-Pipe Quadlet at http://localhost:8640/v1, ensuring seamless local LLM integration for all users. */
+# AI-hint: Default configuration for aichat/aichat-ng that redirects OpenAI-compatible requests to the local Agent-Pipe Quadlet at http://localhost:8640/v1, ensuring seamless local LLM integration for all users.
 model: openai:qwen3.5:2b
 temperature: null
 top_p: null

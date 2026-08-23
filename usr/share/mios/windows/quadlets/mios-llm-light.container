@@ -1,4 +1,4 @@
-/* AI-hint: Quadlet configuration for the mios-llm-light container on Windows, providing a GPU-accelerated multi-model inference backend for the MiOS Hermes node via host networking and CDI passthrough on port 11450. */
+# AI-hint: Quadlet configuration for the mios-llm-light container on Windows, providing a GPU-accelerated multi-model inference backend for the MiOS Hermes node via host networking and CDI passthrough on port 11450.
 [Unit]
 Description=MiOS LLM Light Server (Windows AI Node — GPU/CPU lane)
 After=network-online.target

@@ -1,4 +1,4 @@
-/* AI-hint: FBM first-boot large-model provisioner unit (oneshot, sentinel-guarded, degrade-open). Runs mios-models-firstboot once at first boot to fetch [ai].firstboot_models GGUFs; enabled via 90-mios.preset. */
+# AI-hint: FBM first-boot large-model provisioner unit (oneshot, sentinel-guarded, degrade-open). Runs mios-models-firstboot once at first boot to fetch [ai].firstboot_models GGUFs; enabled via 90-mios.preset.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description=First-boot Large-model Provisioner

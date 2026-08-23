@@ -1,4 +1,4 @@
-/* AI-hint: Oneshot that seeds the non-thin Hermes WORKER config (/var/lib/mios/hermes-worker/config.yaml) from the vendor template before hermes-worker.service starts. */
+# AI-hint: Oneshot that seeds the non-thin Hermes WORKER config (/var/lib/mios/hermes-worker/config.yaml) from the vendor template before hermes-worker.service starts.
 /* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' Hermes-Worker first-boot config seed (:8643 non-thin worker)
