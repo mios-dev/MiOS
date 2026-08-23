@@ -268,6 +268,7 @@ is generated, its generator is here.
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
+| `tools/check-negatives-registered.py` | Fails when a negative test is defined in the harness but never invoked by it. |
 | `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
 | `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
@@ -332,6 +333,7 @@ is generated, its generator is here.
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
 | `tools/test_check-mios-toml-integrity.py` | Sibling unit test for tools/check-mios-toml-integrity.py (AGY-1646 / AGY-1682). |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
+| `tools/test_check-negatives-registered.py` | Sibling test for tools/check-negatives-registered.py; proves it names a negative test the harness defines but never invokes. |
 | `tools/test_check-no-generated-prose-in-resolvers.py` | Fixtures for check-no-generated-prose-in-resolvers.py -- proves it flags an AI-hint or a MIOS_UNITS_*_COMMENT payload inside a generated resolver, and passes on a clean one. |
 | `tools/test_check-node-pool.py` | Unit tests for tools/check-node-pool.py. |
 | `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
@@ -360,7 +362,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 108 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 110 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

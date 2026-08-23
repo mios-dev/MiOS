@@ -3553,6 +3553,28 @@ _run_test test_leaked_fixtures
     _run_test test_blade_karg
     _run_test test_role_ssot
     _run_test test_no_generated_prose_in_resolvers
+
+    # Defined but never invoked until now: a negative test that nobody runs
+    # looks exactly like coverage in a file listing and provides none.
+    _run_test test_ssot_consumer_keys
+    _run_test test_unit_projection
+    _run_test test_mini_vs_hosted
+    _run_test test_node_pool
+    _run_test test_port_fallbacks
+    _run_test test_vendored_assets_non_stub
+    _run_test test_resolved_env_lossless
+    _run_test test_no_duplicate_value_key
+    _run_test test_no_hardcoded_ssot_literal
+    _run_test test_pipeline_numbering
+    _run_test test_value_aliases
+    _run_test test_bash_phase_ratchet
+    _run_test test_unpinned_runtime_fetches
+    _run_test test_windows_exe_provenance
+    _run_test test_ps_redirectors
+    _run_test test_cargo_deny
+    _run_test test_powershell_parse
+    _run_test test_ports_category_schema
+    _run_test test_globals_generated
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s
