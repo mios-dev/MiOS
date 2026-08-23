@@ -54,7 +54,7 @@ Missing caps **and** `--network=host` **and** `--retry`. This is the `curl -fsSL
 No caps; correctness depends entirely on the runner Quadlet staying `Privileged=true`. This is an **undefended single point of failure** and a **parity divergence** from GitHub. The drift gate that is supposed to enforce parity (`check_nested_podman_caps`, `98-drift-checks.sh:4216-4249`) only inspects `.github/workflows/mios-ci.yml` and `57-mios-sys-build.sh` — it never looks at the Forgejo workflow, so the divergence ships GREEN.
 
 **A-4 (LOW, robustness) — firstboot builds.**
-`usr/libexec/mios/mios-agents-firstboot.sh:40` and `usr/libexec/mios/mios-webtools-firstboot.sh:47` both run `podman build --network=host` with no caps. They run on the **real host** (rootful) so caps are usually satisfied implicitly, but: (a) `mios-agents-firstboot.sh` has **no retry**; (b) neither carries caps, so both break if ever run inside a constrained guest (the MiOS-Mini NIC-less-guest topology). Adopt the helper for uniformity + retry.
+`usr/libexec/mios/mios-agents-firstboot.sh:40` and `usr/libexec/mios/mios-webtools-firstboot.sh:47` both run `podman build --network=host` with no caps. They run on the **real host** (rootful) so caps are usually satisfied implicitly, but: (a) `mios-agents-firstboot.sh` has **no retry**; (b) neither carries caps, so both break if ever run inside a constrained guest (the MiOS-Metal NIC-less-guest topology). Adopt the helper for uniformity + retry.
 
 ### Sites that are correct (do not touch)
 - `usr/libexec/mios/57-mios-sys-build.sh:78` — caps present (reference).

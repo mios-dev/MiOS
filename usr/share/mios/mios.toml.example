@@ -79,7 +79,7 @@
 # port   = "auto"
 # desc   = "MiOS Uninterruptible Power Supply"
 
-# ---- MiOS-Mini GPU Arbitration / Guest Assignment --------------------------
+# ---- MiOS-Metal GPU Arbitration / Guest Assignment --------------------------
 # GPU arbitration and guest assignment (WS-F5)
 [mini.gpu]
 # assignments = { mios-guest = ["0000:01:00.0"] }

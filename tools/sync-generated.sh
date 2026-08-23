@@ -83,7 +83,7 @@ main() {
     # numbered automation phase left their index stale and the gate red on a
     # tree that otherwise looked synced.
     step "4a/6 seat-vs-blade comparison (derived from [blade.*])"
-    MIOS_ROOT="$ROOT" "$PY" tools/generate-mini-vs-hosted.py >/dev/null
+    MIOS_ROOT="$ROOT" "$PY" tools/generate-metal-vs-hosted.py >/dev/null
 
     step "4b/6 gate + pipeline + ADR indexes"
     "$PY" tools/generate-gate-index.py >/dev/null

@@ -380,7 +380,7 @@ A ratchet ceiling, or a hard failure if the SSOT has stopped carrying it.
 
 Gate: a hazard that only bites above one node is counted, not discovered.
 
-A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a
+A MiOS-Metal fleet is 2-6 boxes, so a config that only works standalone is a
 defect waiting for the operator to add a peer. Each hazard is detected from the
 tree rather than from a hand-list -- multiple archetypes able to stand up a k3s
 control plane with no join path, and Pacemaker with fencing disabled -- and
@@ -495,7 +495,7 @@ ADR-0016 D14: CephFS is a NATIVE service of the Mini platform, on
 bare metal. Declaring it `either` would let a scheduler put the
 storage plane on a transient OCI image.
 
-<!-- mios-src:60a4a1ba90ee from tools/test_generate-mini-vs-hosted.py:345-347 -->
+<!-- mios-src:60a4a1ba90ee from tools/test_generate-metal-vs-hosted.py:345-347 -->
 
 ### One reader for the suite registry, so listing and checking...
 

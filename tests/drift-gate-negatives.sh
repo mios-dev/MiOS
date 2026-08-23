@@ -1848,26 +1848,26 @@ PYX
     log "Test_unit_projection negative test passed"
 }
 
-test_mini_vs_hosted() {
-    log "Testing check_mini_vs_hosted"
-    local doc="${ROOT}/usr/share/doc/mios/reference/mini-vs-hosted.md"
+test_metal_vs_hosted() {
+    log "Testing check_metal_vs_hosted"
+    local doc="${ROOT}/usr/share/doc/mios/reference/metal-vs-hosted.md"
     local bak="${doc}.mvhbak"
     cp "$doc" "$bak"
 
     # (1) A hand-edited comparison must FAIL -- the whole point is that the
     # numbers are projected, so nobody can quietly "correct" them.
     sed -i 's/| Units started |.*/| Units started | **1** | **1** |/' "$doc"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 && die "check_mini_vs_hosted passed on a hand-edited comparison"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vs_hosted >/dev/null 2>&1 && die "check_metal_vs_hosted passed on a hand-edited comparison"
 
     # (2) A MISSING projection must FAIL rather than read as "nothing to check".
     rm -f "$doc"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 && die "check_mini_vs_hosted passed with the comparison absent"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vs_hosted >/dev/null 2>&1 && die "check_metal_vs_hosted passed with the comparison absent"
 
     mv "$bak" "$doc"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 \
-        || die "check_mini_vs_hosted failed after restoration"
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vs_hosted >/dev/null 2>&1 \
+        || die "check_metal_vs_hosted failed after restoration"
 
-    log "Test_mini_vs_hosted negative test passed"
+    log "Test_metal_vs_hosted negative test passed"
 }
 
 test_node_pool() {
@@ -2944,6 +2944,26 @@ test_negatives_registered() {
     log "check_negatives_registered negative test passed"
 }
 
+test_variant_registry() {
+    log "Testing check_variant_registry"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+
+    # Point a variant at an edition that does not exist. A registry naming a
+    # thing the SSOT does not define is a product line nobody can build.
+    sed 's|edition   = "mios-xbox"|edition   = "mios-nosuchedition"|' "$bak" > "$toml"
+
+    _neg_gate check_variant_registry && {
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_variant_registry passed with a variant naming a missing edition"
+    }
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_variant_registry \
+        || die "check_variant_registry failed after restoration"
+    log "check_variant_registry negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3632,7 +3652,7 @@ _run_test test_leaked_fixtures
     # and provides none; check_negatives_registered keeps this list whole.
     _run_test test_ssot_consumer_keys
     _run_test test_unit_projection
-    _run_test test_mini_vs_hosted
+    _run_test test_metal_vs_hosted
     _run_test test_node_pool
     _run_test test_port_fallbacks
     _run_test test_vendored_assets_non_stub
@@ -3649,6 +3669,7 @@ _run_test test_leaked_fixtures
     _run_test test_powershell_parse
     _run_test test_ports_category_schema
     _run_test test_globals_generated
+    _run_test test_variant_registry
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

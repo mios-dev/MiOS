@@ -57,7 +57,7 @@ case("unreachable chapter fails",
 case("link without a fragment resolves",
      "[Ch01](manual/ch01-intro.md)\n", {"ch01-intro.md": CH}, True)
 
-# The class that let audit-INDEX.md point at audit-mios-mini.md for the whole
+# The class that let audit-INDEX.md point at audit-mios-metal.md for the whole
 # time after that name was reassigned to MiOS-Metal.
 case("dangling ./sibling link fails",
      "[Ch01](manual/ch01-intro.md#01_intro)\n", {"ch01-intro.md": CH}, False,

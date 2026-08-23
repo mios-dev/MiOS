@@ -174,7 +174,7 @@
 173	check_role_ssot	check_no_inert_ssot_tables
 174	check_port_fallbacks	check_no_inert_ssot_tables
 175	check_node_pool	check_no_inert_ssot_tables
-176	check_mini_vs_hosted	check_no_inert_ssot_tables
+176	check_metal_vs_hosted	check_no_inert_ssot_tables
 177	check_unit_projection	check_no_inert_ssot_tables
 178	check_ssot_consumer_keys	check_no_inert_ssot_tables
 179	check_fleet_safety	check_no_inert_ssot_tables
@@ -195,6 +195,7 @@
 194	check_globals_generated	checking generated globals resolvers match SSOT
 195	check_ci_suite_coverage	check_ci_suite_coverage
 196	check_manpages	check_manpages
-197	check_temp_fixture_cleanup	check_temp_fixture_cleanup
-198	check_negatives_registered	check_negatives_registered
-199	check_leaked_fixtures	check_leaked_fixtures
+197	check_variant_registry	check_variant_registry
+198	check_temp_fixture_cleanup	check_temp_fixture_cleanup
+199	check_negatives_registered	check_negatives_registered
+200	check_leaked_fixtures	check_leaked_fixtures

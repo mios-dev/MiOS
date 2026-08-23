@@ -1885,7 +1885,7 @@ driver = "usbhid-ups"
 port   = "auto"
 desc   = "MiOS Uninterruptible Power Supply"
 
-# MiOS-Mini GPU arbitration and guest assignment (WS-F5)
+# MiOS-Metal GPU arbitration and guest assignment (WS-F5)
 [metal.gpu]
 # Rule: Each GPU (PCI/IOMMU address) must be assigned to exactly one owner/guest.
 # Forbid assigning the same PCI address to multiple active guests to prevent hardware conflicts.
@@ -2444,7 +2444,7 @@ max_nodes     = 6
 # [blades.hazards] -- SHRINK-ONLY: configs safe on one node, unsafe above it.
 # Detected from the tree, never hand-listed. Gate: check_fleet_safety.
 [blades.hazards]
-doc = "A MiOS-Mini fleet is 2-6 boxes (T-331), so a configuration that only works standalone is a defect waiting for the operator to add a peer. Each entry here is a hazard the tree currently carries, accepted deliberately while the fleet design lands (T-333). k3s-multi-server: four archetypes grant what mios-k3s requires and the unit runs `k3s server` with no K3S_URL, so every controller stands up its OWN control plane instead of joining one -- three default `hybrid` Minis would be three clusters sharing one token. pacemaker-unfenced: mios-ha-bootstrap sets stonith-enabled=false, which is correct for the one-node cluster it creates and is how split-brain corrupts data once a peer exists. Retiring an entry means the detector stops reproducing it, not editing this list."
+doc = "A MiOS-Metal fleet is 2-6 boxes (T-331), so a configuration that only works standalone is a defect waiting for the operator to add a peer. Each entry here is a hazard the tree currently carries, accepted deliberately while the fleet design lands (T-333). k3s-multi-server: four archetypes grant what mios-k3s requires and the unit runs `k3s server` with no K3S_URL, so every controller stands up its OWN control plane instead of joining one -- three default `hybrid` Minis would be three clusters sharing one token. pacemaker-unfenced: mios-ha-bootstrap sets stonith-enabled=false, which is correct for the one-node cluster it creates and is how split-brain corrupts data once a peer exists. Retiring an entry means the detector stops reproducing it, not editing this list."
 max_accepted = 2
 accepted = [
   "k3s-multi-server",
@@ -9344,7 +9344,7 @@ min_ap_capable = 0
 # markers: packages proving the plane is baked. Empty = payload, not RPM.
 
 # wired_by: the file that activates it. Verdicts are DERIVED, never written here.
-# Generator + gate: tools/generate-mini-vs-hosted.py --check (Law 8).
+# Generator + gate: tools/generate-metal-vs-hosted.py --check (Law 8).
 
 [blade.planes.hypervisor]
 role     = "runs the VMs and containers every other plane lands in"
@@ -10661,11 +10661,9 @@ url    = "https://huggingface.co/stelterlab/lfm2-700m-GGUF/resolve/main/lfm2-700
 dest   = "/usr/share/mios/llamacpp/model.gguf"
 sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 
-# [ci] -- the suite registry. Every publisher runs THIS list and only this list,
-# so GitHub and Forgejo cannot drift apart; before it existed they ran different
-# sets and neither knew. tools/ci-suites.py is the only reader, and
-# check_ci_suite_coverage fails when a tracked suite is neither registered in a
-# tier nor exempted below -- which is how thirteen suites sat unrun for months.
+# The suite registry: every publisher runs this list and only this list.
+# Before it existed the two ran different sets and thirteen suites ran
+# nowhere. One reader consumes it; a gate keeps it whole.
 [ci]
 # Shrink-only. An exemption is a suite that cannot currently run, not a suite
 # that need not: each carries the reason it was measured to fail.
@@ -10775,3 +10773,91 @@ tier = "unit"
 "tests/test-expand-from.py" = "the open-url-fallback-chain skill resolves to not_found, so the suite sees 0 steps where it expects 3 -- AGY-1716"
 "tests/test-reflection.py" = "needs a reachable refine backend; every connection attempt fails and reflection returns None -- AGY-1717"
 "tests/test-think-stripper.py" = "the stripper leaves the separator behind, so removing a think block yields a doubled space or blank line -- AGY-1718"
+
+# The MiOS product line, named once. Each variant used to be a different shape:
+# an edition entry, its own table, or only a machine name. status is measured:
+# shipping means built and observed, partial means the machinery runs but not
+# the whole job, design means specified with no artifact.
+[variants]
+# Shrink-only: a variant may not sit in "design" forever without someone
+# noticing. Raising this is how a design doc quietly becomes the deliverable.
+max_design_variants = 2
+
+[variants.naming]
+# The naming convention, enforced by a gate rather than remembered. A variant
+# has one name in two registers: title case for prose and interfaces, lower
+# case for image tags, keys and paths.
+prefix        = "MiOS"
+separator     = "-"
+title_pattern = "MiOS-<Suffix>"
+key_pattern   = "mios-<suffix>"
+key_charset   = "a-z0-9-"
+# The base variant is the one case with no suffix.
+base          = "mios"
+# A suffix names WHAT THE VARIANT IS, never its size or its hardware: Metal owns
+# the metal, Cat travels, Xbox plays, DEV builds. "Mini" was renamed to "Metal"
+# because it described the image's size rather than its job.
+suffix_rule   = "name the job, not the size"
+
+[variants.entries.mios]
+title     = "MiOS"
+summary   = "the base bootc host: the AI plane, the container plane and a Windows guest on one immutable image"
+target    = "bare metal or a virtual machine"
+config    = ["image", "blade", "editions"]
+edition   = "mios"
+archetype = "hybrid"
+artifacts = ["iso", "qcow2", "vhdx", "bib"]
+doc       = "usr/share/doc/mios/manual.md"
+status    = "shipping"
+
+[variants.entries.mios-dev]
+title     = "MiOS-DEV"
+summary   = "the development host: builds, bakes and gates the image, and runs MiOS itself as the container machine"
+target    = "a WSL2 machine on a workstation"
+config    = ["image"]
+archetype = "hybrid"
+artifacts = ["wsl2"]
+doc       = "usr/share/doc/mios/manual.md"
+status    = "partial"
+
+[variants.entries.mios-metal]
+title     = "MiOS-Metal"
+summary   = "the metal-owning firmware: a small headless bootc hypervisor-router that binds the GPUs and NICs and hosts MiOS as a guest"
+target    = "bare metal, headless"
+config    = ["metal"]
+archetype = "headless"
+artifacts = ["iso", "bib"]
+doc       = "docs/agy/doc-mios-metal.md"
+status    = "design"
+
+[variants.entries.mios-xbox]
+title     = "MiOS-Xbox"
+summary   = "the gaming edition: an Xbox-tuned Windows guest, gaming debloat posture and its own branding"
+target    = "bare metal or a virtual machine"
+config    = ["editions"]
+edition   = "mios-xbox"
+archetype = "desktop"
+artifacts = ["iso", "vhdx"]
+doc       = "usr/share/doc/mios/manual.md"
+status    = "partial"
+
+[variants.entries.mios-xbox-arm]
+title     = "MiOS-Xbox-Arm"
+summary   = "the gaming edition for arm64 hardware, sharing the Xbox posture with an arm64 Windows guest"
+target    = "arm64 bare metal"
+config    = ["editions"]
+edition   = "mios-xbox-arm"
+archetype = "desktop"
+artifacts = ["iso"]
+doc       = "usr/share/doc/mios/manual.md"
+status    = "design"
+
+[variants.entries.mios-cat]
+title     = "MiOS-Cat"
+summary   = "the portable edition: a Ventoy USB or NVMe carrying the image, the repository and the models to run, install and deploy with no network"
+target    = "removable USB or NVMe"
+config    = ["cat"]
+archetype = "endpoint"
+artifacts = ["iso", "raw"]
+doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"
+status    = "partial"

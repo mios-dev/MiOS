@@ -642,7 +642,8 @@ function mios-dev {
     # works -- we resolve at call time so the helper survives both modes.
     $_devDistro = $null
     try {
-        $_wsl = (& wsl.exe -l -q 2>$null) -split "?
+        $_wsl = (& wsl.exe -l -q 2>$null) -split "
+?
 " |
             ForEach-Object { ($_ -replace [char]0,'').Trim() } |
             Where-Object { $_ }
@@ -657,7 +658,7 @@ function mios-dev {
     & wsl.exe -d $_devDistro --cd / --user mios @Args
 }
 
-function mios-mini {
+function mios-metal {
     $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
     $mon = @('C:\MiOS\usr\libexec\mios\mios-mon.py','C:\mios-bootstrap\installation\mios-mon.py','C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($mon) {

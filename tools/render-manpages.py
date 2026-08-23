@@ -142,6 +142,37 @@ def pages(root, ssot):
                + "The full distilled manual." + nl)
     con.append(".SH SEE ALSO" + nl + ".BR mios (1)," + nl + ".BR mios.toml (5)" + nl)
     out[MAN + "/man7/mios.7"] = "".join(con)
+
+    var = ssot.get("variants") or {}
+    entries = var.get("entries") or {}
+    if entries:
+        vp = [th("mios-variants", "7", v, "MiOS Variants"),
+              ".SH NAME" + nl + "mios" + DASH + "variants " + DASH
+              + " the MiOS product line" + nl,
+              ".SH DESCRIPTION" + nl,
+              "Every variant below is one entry in the single source of truth."
+              + nl + "The status is measured, not aspirational: shipping means"
+              + nl + "built, published and observed; partial means the machinery"
+              + nl + "runs but does not yet do the whole job; design means"
+              + nl + "specified with no artifact yet." + nl,
+              ".SH VARIANTS" + nl]
+        for k in sorted(entries):
+            e = entries[k] or {}
+            vp.append(".TP" + nl + ".B " + roff(str(e.get("title", k)))
+                      + " (" + roff(str(e.get("status", "?"))) + ")" + nl
+                      + roff(str(e.get("summary", ""))) + nl
+                      + ".br" + nl + "Runs on: " + roff(str(e.get("target", "?")))
+                      + "." + nl)
+        naming = var.get("naming") or {}
+        if naming:
+            vp.append(".SH NAMING" + nl
+                      + "Titles read " + roff(str(naming.get("title_pattern", "")))
+                      + " and keys read " + roff(str(naming.get("key_pattern", "")))
+                      + ": the same name in two registers." + nl
+                      + "A suffix names the job, not the size." + nl)
+        vp.append(".SH SEE ALSO" + nl + ".BR mios (1)," + nl
+                  + ".BR mios.toml (5)," + nl + ".BR mios (7)" + nl)
+        out[MAN + "/man7/mios-variants.7"] = "".join(vp)
     return out
 
 

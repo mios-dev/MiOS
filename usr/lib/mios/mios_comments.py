@@ -391,7 +391,7 @@ class RefIndex:
             "mios-cuda", "mios-cursor", "mios-delegation-prefilter", "mios-drift-runner",
             "mios-flatpaks", "mios-gpu-detected", "mios-ha", "mios-icon-stage", "mios-icons",
             "mios-init", "mios-is", "mios-is-wsl", "mios-kver", "mios-llamacpp", "mios-llm",
-            "mios-mcp-enable-tier0", "mios-mcp-init", "mios-mini", "mios-mon",
+            "mios-mcp-enable-tier0", "mios-mcp-init", "mios-metal", "mios-mon",
             "mios-orchestrator", "mios-pkg", "mios-planner", "mios-quadlet-overlay",
             "mios-root", "mios-serial", "mios-sys-agent", "mios-template-compile",
             "mios-template-conform", "mios-theme", "mios-user", "mios-version-check",

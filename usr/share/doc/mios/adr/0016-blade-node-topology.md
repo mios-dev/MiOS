@@ -1,5 +1,5 @@
-<!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Mini" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
-<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/mini-vs-hosted.md, tools/generate-mini-vs-hosted.py, usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
+<!-- AI-hint: The Blade-Node topology decision: what a blade is, what a node is, how a MiOS addresses a service that lives on another machine, and why "MiOS-Metal" currently names three different things. Establishes that base LINEAGE (which bootc base) and ROLE (what the machine does) are orthogonal axes, that service offload is a [urls] overlay rather than a code change because every pod is Network=host, and that the blade registry must key on something other than the port -- since port is currently the whole of a service's identity. Corrects the assumption that role selection is undecided: [blade] SINGULAR already implements one-image-role-by-flag and is a different axis from [blades] PLURAL. -->
+<!-- AI-related: usr/share/doc/mios/concepts/mios-metal-architecture.md, usr/share/mios/mios.toml [blade], [blade.planes], [urls], [ports], [blades], [nodes], [profile], usr/share/doc/mios/reference/metal-vs-hosted.md, tools/generate-metal-vs-hosted.py, usr/libexec/mios/role-apply, tools/generate-blade-dropins.py, usr/lib/mios/agent-pipe/mios_pipe/routing/agentreg.py, usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py -->
 ---
 adr: 0016
 title: "Blade-Node topology — orthogonal lineage/role axes, and service offload as a URL overlay"
@@ -23,9 +23,9 @@ Hermes port keys **collapse into one**; blade-reachability as a boot-critical co
 **configurable, defaulting to off**; and `Containerfile.minimal` is **deleted**. Decisions 1 and 2
 were already mechanical consequences of what the tree is.
 
-**Decision 3 is settled too, and it was settled by the requirement itself**: *"MiOS-Mini is the
+**Decision 3 is settled too, and it was settled by the requirement itself**: *"MiOS-Metal is the
 full image just meant to offload all services to hosted (local, localhost or remote) MiOS OCI
-image(s)."* That sentence assigns the name. **MiOS-Mini is the seat.** The hypervisor-router is
+image(s)."* That sentence assigns the name. **MiOS-Metal is the seat.** The hypervisor-router is
 renamed **MiOS-Metal** and its SSOT surface moves `[mini]` → `[metal]`.
 
 ## Context
@@ -223,9 +223,9 @@ BLADE-01's own acceptance criterion already requires (*"`[blades.*]`/`[nodes.*]`
 (Axis B) stays orthogonal to `[blade]` OS-activation (Axis A)"*). The two keys differing by one
 letter is a Law 9 hazard in waiting; if either is renamed, rename it for the axis it names.
 
-### 3. Naming — MiOS-Mini is the seat; the hypervisor-router becomes MiOS-Metal
+### 3. Naming — MiOS-Metal is the seat; the hypervisor-router becomes MiOS-Metal
 
-The requirement assigns the name: *MiOS-Mini is the image that offloads its services*. So **mini
+The requirement assigns the name: *MiOS-Metal is the image that offloads its services*. So **mini
 names the seat**, and the hypervisor-router — which does the opposite, owning the metal and
 hosting a full MiOS as a guest — is renamed **MiOS-Metal**.
 
@@ -235,12 +235,12 @@ The word was carrying five meanings, which is why this had to be resolved rather
 |---|---|
 | `[mini]` VFIO hypervisor-router | renamed `[metal]` / MiOS-Metal |
 | `Containerfile.minimal` "MiOS-Lite" | deleted (Decision 4's lineage note) |
-| The operator's offloading seat | **MiOS-Mini** |
+| The operator's offloading seat | **MiOS-Metal** |
 | `MiOS-Mon.py --mini` compact dashboard | unrelated, untouched |
 | `zz-mios-motd.sh` terminal "mini" view | unrelated, untouched |
 
-> **CORRECTED (see Decision 9).** The paragraph below concluded that MiOS-Mini names the *seat*.
-> That is wrong, and the operator has since said so plainly: **MiOS-Mini is the BOX** — a hardware
+> **CORRECTED (see Decision 9).** The paragraph below concluded that MiOS-Metal names the *seat*.
+> That is wrong, and the operator has since said so plainly: **MiOS-Metal is the BOX** — a hardware
 > appliance that owns NICs, radios, TPM and boot storage, and is built to be a Wi-Fi access point,
 > a mesh/VPN router and a hyper-converged HA host for VMs and containers. The archetype names the
 > **mode** that box boots into, seat mode being one of them. The `[mini]` → `[metal]` SSOT rename
@@ -252,7 +252,7 @@ The word was carrying five meanings, which is why this had to be resolved rather
 > owning `NICs·radios·TPM·boot/root NVMe`. The rename updated the keys and filenames and left the
 > diagram, so the original meaning survived intact next to the new claim contradicting it.
 
-~~**MiOS-Mini is a product name for a role, not an image.** A MiOS-Mini is a machine running
+~~**MiOS-Metal is a product name for a role, not an image.** A MiOS-Metal is a machine running
 `[blade].type = "endpoint"` — the seat archetype from Decision 4 — with an `/etc/mios` `[urls]`
 overlay pointing at its blades.~~ It is the *same OCI image* as every other MiOS; nothing about it
 is smaller at bake time (Law 3 BOUND-IMAGES still ships every Quadlet image with the host).
@@ -263,9 +263,9 @@ the Law-9 violation this ADR keeps arguing against. Product name and SSOT key ar
 registers, and only the SSOT key has to be unique.
 
 The rename moved `[mini]`/`[mini.gpu]`/`[mini.mesh]` → `[metal]`, the three `[editions.*].mini.gpu`
-overlays, the eleven `MIOS_MINI_*` resolver keys, `mios-mini-{vfio,mesh}-gen`, drift-check #68
-(`check_mini_vfio` → `check_metal_vfio`) with its negative test, the names registry on both twins,
-and `mios-mini-architecture.md` → `mios-metal-architecture.md`.
+overlays, the eleven `MIOS_METAL_*` resolver keys, `mios-metal-{vfio,mesh}-gen`, drift-check #68
+(`check_metal_vfio` → `check_metal_vfio`) with its negative test, the names registry on both twins,
+and `mios-metal-architecture.md` → `mios-metal-architecture.md`.
 
 The lineage axis now has **one** member — the single root `Containerfile` — so nothing on that
 axis competes for the name. `check_lint_is_final` globs `Containerfile*` rather than naming files,
@@ -545,10 +545,10 @@ blade `bootc upgrade` independently, and a seat two releases ahead of its blade 
 mysteriously. `[blade].min_peer_version`, reported by the reachability probe and **non-fatal**, is
 the smallest thing that makes that legible.
 
-### 9. MiOS-Mini is the full image on a box, and "offload" means SHED, not thin
+### 9. MiOS-Metal is the full image on a box, and "offload" means SHED, not thin
 
 Two earlier revisions of this decision were wrong in opposite directions, and both shipped. The
-first said MiOS-Mini names the thin seat. The second corrected that to "Mini is the box, the
+first said MiOS-Metal names the thin seat. The second corrected that to "Mini is the box, the
 archetype is the mode" — right about the box, still wrong about what Mini *does*. The operator's
 definition, stated directly:
 
@@ -557,7 +557,7 @@ definition, stated directly:
 > across the mesh to other blades and nodes. It boots the entire image. It's all hosted as its own
 > cluster."*
 
-**MiOS-Mini is a complete, self-sufficient node.** It boots the entire image, runs the AI plane
+**MiOS-Metal is a complete, self-sufficient node.** It boots the entire image, runs the AI plane
 itself, and is its own cluster. It is not a client of anything.
 
 **"Offload all services to hosted MiOS OCI image(s)" describes a capability, not a deficit.** A Mini
@@ -581,8 +581,8 @@ reasoned from a thin seat that does not exist as a product.
 | **Cluster** | *"It's all hosted as its own cluster"* — a single Mini is a complete cluster, and peers join it |
 
 The `endpoint` archetype remains real and remains useful — a node granting no capabilities, running
-6 units. But it is a **posture a node can take**, not what MiOS-Mini is. Nothing should call it
-"MiOS-Mini" again.
+6 units. But it is a **posture a node can take**, not what MiOS-Metal is. Nothing should call it
+"MiOS-Metal" again.
 
 #### What this invalidates
 
@@ -598,8 +598,8 @@ The `endpoint` archetype remains real and remains useful — a node granting no 
 
 ### 10. The two products differ by what metal they own, and only an `either` plane can be shed
 
-Decision 9 settled what a MiOS-Mini *is*. It did not settle the comparison the requirement actually
-asks for: **MiOS-Mini against the fully hosted, feature-complete MiOS OCI image(s) it sheds to.**
+Decision 9 settled what a MiOS-Metal *is*. It did not settle the comparison the requirement actually
+asks for: **MiOS-Metal against the fully hosted, feature-complete MiOS OCI image(s) it sheds to.**
 Without that line drawn, "offload all services" has no boundary — it reads as though every plane
 were movable, which would make a Mini indistinguishable from a container.
 
@@ -631,7 +631,7 @@ hardware could not.
 
 **Neither tier is derived from a hand-written verdict.** `markers` names the packages whose presence
 in `[packages]` proves the plane is baked (Law 12), and `wired_by` names the file that activates it;
-`tools/generate-mini-vs-hosted.py` derives both and `--check` gates the result, so the comparison
+`tools/generate-metal-vs-hosted.py` derives both and `--check` gates the result, so the comparison
 cannot go stale and nobody can write "built" into the SSOT (Law 8).
 
 #### What the derivation currently reports
@@ -971,7 +971,7 @@ does is the defect, not the feature.
 operator's later answer — that CephFS and the management services are *native to the platform* —
 pulls Pacemaker/Corosync back to bare metal with it.
 
-**The shed set is now 2 of 8: `ai` and `orchestrator`.** That is the clean statement of what MiOS-Mini
+**The shed set is now 2 of 8: `ai` and `orchestrator`.** That is the clean statement of what MiOS-Metal
 is: **every platform and management plane is bare metal, and only the workload planes move.** The
 earlier sets (4, then 3) were mid-refinement; this one has a principle behind it rather than a
 tally.

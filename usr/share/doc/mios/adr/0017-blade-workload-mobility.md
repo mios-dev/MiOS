@@ -20,7 +20,7 @@ superseded_by: []
 ## Status
 
 **Accepted.** ADR-0016 settled what a blade, a node and a seat *are*, and that
-`MiOS-Mini` is the seat archetype of one image. It did not settle what happens
+`MiOS-Metal` is the seat archetype of one image. It did not settle what happens
 when a blade dies, who places a workload, or what a GPU service does on a
 machine with no GPU. Those are decided here.
 

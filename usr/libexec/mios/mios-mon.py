@@ -240,7 +240,7 @@ def run_fastfetch():
     except Exception:
         return Text("[dim]fastfetch unavailable[/]")
 
-def create_mini_layout():
+def create_metal_layout():
     sys_info = get_sys_info()
     services = get_services()
     up = sum(1 for s in services if s[2])
@@ -871,7 +871,7 @@ def main():
     elif args.dash or "-dash" in [a.lower() for a in unknown]: mode = "dash"
     
     if mode == "mini":
-        console.print(create_mini_layout())
+        console.print(create_metal_layout())
         sys.exit(0)
     elif mode == "dash":
         console.print(create_dash_layout())

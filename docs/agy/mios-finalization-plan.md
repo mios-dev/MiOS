@@ -1,8 +1,8 @@
-<!-- AI-hint: MiOS Finalization Master Plan. Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolver, templates/conformance, registry/CI, verbosity/docs/coordination, MiOS-Mini design, deploy plane). Deduped and reconciled; every row traces to a so
+<!-- AI-hint: MiOS Finalization Master Plan. Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolver, templates/conformance, registry/CI, verbosity/docs/coordination, MiOS-Metal design, deploy plane). Deduped and reconciled; every row traces to a so
      AI-related: usr/share/mios/mios.toml, docs/adr/, AGY-TASKS.md -->
 # MiOS Finalization Master Plan
 
-Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolver, templates/conformance, registry/CI, verbosity/docs/coordination, MiOS-Mini design, deploy plane). Deduped and reconciled; every row traces to a source finding. Owners: **agy** (C:\MiOS), **claude-bootstrap** (C:\mios-bootstrap), **infra** (human/registry/hardware).
+Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolver, templates/conformance, registry/CI, verbosity/docs/coordination, MiOS-Metal design, deploy plane). Deduped and reconciled; every row traces to a source finding. Owners: **agy** (C:\MiOS), **claude-bootstrap** (C:\mios-bootstrap), **infra** (human/registry/hardware).
 
 ---
 
@@ -16,8 +16,8 @@ Synthesized from six domain task-lists (runtime wiring, agent-pipe/config resolv
 - **Image-name resolution never leaks `localhost/mios` into a pull.** `globals.{sh,ps1}` defer to `mios.toml [image]` (AGY-89 clobber fixed, both twins), a twin-parity check guards it, and Day-2 switch targets derive from `MIOS_IMAGE_REF`.
 - **A deployable MiOS-Cat that installs MiOS (not plain Fedora), offline.** Real validated Fedora Server DVD staged; kickstart runs the FHS overlay unattended (Total-Root-Merge auto-proceeds) from USB-staged sources with the NIC off; a from-scratch VM boots to a MiOS server; the immutable `bootc install --transport oci` leg exists from a non-empty USB-staged seed.
 - **The 12 packaged-but-unwired capabilities are resolved.** Each is either SSOT-wired + drift-gated (kargs, TPM/LUKS, chrony, NUT, greenboot gate, quadlet parity) or explicitly removed with a recorded decision (glusterfs, virt-v2v) or scoped-and-annotated (mdevctl: legit mediated-device only, vGPU out of scope).
-- **Docs landed + discoverable.** Four concept docs (`container-os-runtime`, `foss-upstream-map`, `image-resolution`, `mios-mini-architecture`) authored, AI-hint-headed, template-conformant, cross-reffed from ROADMAP/architecture; agent-facing docs carry the four architectural corrections (/var persists, MOK≠UKI, venus≠CUDA, multi-vendor GPU via CDI whole-device).
-- **MiOS-Mini decisions recorded.** Base posture (minimal-surface full type-1 hypervisor), exclusive GPU arbitration (`[mini.gpu]`), console-less LUKS recovery, Tang-location, nftables authority, and the two "impossible/EOL" writeups (mdev vGPU, gluster) are decided, projected from SSOT, and regression-gated.
+- **Docs landed + discoverable.** Four concept docs (`container-os-runtime`, `foss-upstream-map`, `image-resolution`, `mios-metal-architecture`) authored, AI-hint-headed, template-conformant, cross-reffed from ROADMAP/architecture; agent-facing docs carry the four architectural corrections (/var persists, MOK≠UKI, venus≠CUDA, multi-vendor GPU via CDI whole-device).
+- **MiOS-Metal decisions recorded.** Base posture (minimal-surface full type-1 hypervisor), exclusive GPU arbitration (`[mini.gpu]`), console-less LUKS recovery, Tang-location, nftables authority, and the two "impossible/EOL" writeups (mdev vGPU, gluster) are decided, projected from SSOT, and regression-gated.
 
 ---
 
@@ -122,12 +122,12 @@ Phases are **workstreams by theme**; the per-task `[P#]` tag preserves the sourc
 | **[P2]** Add deploy-plane drift-check: assert kickstart exports (`MIOS_FHS_TOTAL_ROOT_MERGE=1`, BOOTSTRAP_REPO/MIOS_REPO offline overrides); Fedora major == base_image major; ventoy.json binds ISO↔kickstart | agy | new check reds on missing exports / diverging majors / missing binding; green post G2/G3/G10 | **new deploy-plane check** | G11 |
 | **[P1]** Full `just drift-gate` green after all verbosity edits + new lints + docs; record applied/skipped tally in commit | agy | gate exits 0 incl. new lints; bash -n clean; tally recorded | checks 30 + 46 + fluff + AppData lints | E14 |
 
-### Phase P3 — MiOS-Mini design + deploy plane (immutable leg) + long-tail
+### Phase P3 — MiOS-Metal design + deploy plane (immutable leg) + long-tail
 
 | task | owner | done-when | drift-impact | source |
 |---|---|---|---|---|
-| **[P1]** Finalize MiOS-Mini split-plane content + base posture (**minimal-surface full type-1 bootc hypervisor**, not "handful of scripts"); enumerate host vs all-GPU-guest package sets; standards matrix; both impossible writeups → `docs/agy/doc-mios-mini.md` | claude-bootstrap | tracked file with Base-posture section, one-line verdict, standards matrix, mdev+gluster writeups; handed to AGY | none | F1 / E10 (deduped) |
-| **[P1]** Author `concepts/mios-mini-architecture.md` from the handoff; AI-hint header; cross-ref ROADMAP/architecture/deploy-model/ADRs | agy | committed; check 46 green; cross-refs resolve | check 46 | F2 / E11 (deduped) |
+| **[P1]** Finalize MiOS-Metal split-plane content + base posture (**minimal-surface full type-1 bootc hypervisor**, not "handful of scripts"); enumerate host vs all-GPU-guest package sets; standards matrix; both impossible writeups → `docs/agy/doc-mios-metal.md` | claude-bootstrap | tracked file with Base-posture section, one-line verdict, standards matrix, mdev+gluster writeups; handed to AGY | none | F1 / E10 (deduped) |
+| **[P1]** Author `concepts/mios-metal-architecture.md` from the handoff; AI-hint header; cross-ref ROADMAP/architecture/deploy-model/ADRs | agy | committed; check 46 green; cross-refs resolve | check 46 | F2 / E11 (deduped) |
 | **[P1]** Write the mdevctl/vGPU **impossible writeup** (vfio-pci XOR mdev; Intel GVT-g removed from mainline; NVIDIA vGPU needs proprietary licensed host driver) — constrain GPU story to CDI/vfio-pci whole-device | agy | "mdevctl vGPU" appears only as a rejected option; container-os-runtime states "whole-device passthrough; mediated vGPU out of scope" | check 46; feeds F11 | F3 |
 | **[P2]** Decide mdevctl fate (**reconciles A10**): keep only for legitimate SR-IOV/mdev inventory (annotate SSOT: NOT a vGPU path, ref F3), or remove from `[packages.virt]`. If kept + hardware-justified, wire `mios-mdev-init` gated on `/sys/class/mdev_bus`, distinct from sriov-init | agy | package annotated-or-removed; if wired, no-op on non-mdev hardware; PACKAGES.md regenerates | check_package_registry / SBOM; check_firstboot_degrade_open (if wired) | F4 + A10 (reconciled) |
 | **[P1]** Add `[mini.gpu]` SSOT: assign each GPU (PCI/IOMMU id) to exactly one owner; arbitration model (static pin or libvirt detach/reattach); forbid two active guests claiming a device | agy | assignment table + rule present; exclusive-ownership documented; operator picks from config surface | new SSOT block; candidate NO-HARDCODE allowlist for PCI ids | F5 |
@@ -158,14 +158,14 @@ Phases are **workstreams by theme**; the per-task `[P#]` tag preserves the sourc
 - **Templates (P1→P2):** match-path fixes (C1, C2), max_unconforming key (C3), rebaseline list (C4), shadowing fix (C5), bash-tool template (C7); then C6, C8, C9, C10, C11, C13.
 - **Runtime wiring (P1→P2):** `[kargs]` SSOT + projector + check (A1, A2, A3); `[security.disk_encryption]` + luks-enroll unit (A4, A5); chrony (A8); NUT (A9); greenboot gate (A13); quadlet parity (A14). Then virt-v2v (A11), mdevctl fate (F4/A10), gluster removal (F10/A12), corrections into agent docs (A15).
 - **Verbosity/docs (P1→P2):** check-30 strings (E4); 25 inaccurate fixes (E2) then 42 remaining (E3); fluff lint (E5); AppData lint (E6); author container-os-runtime (E7), foss-upstream (E8), image-resolution (E9); cross-ref docs (E12); full green gate + tally (E14).
-- **MiOS-Mini (P1→P3):** author mini-architecture doc (F2); mdev vGPU writeup (F3); `[mini.gpu]` arbitration (F5); console-less recovery kargs (F6); Tang decision (F7); nftables authority (F8); super-privileged relabel (F9); impossible/EOL regression check (F11); editions wiring (F12).
+- **MiOS-Metal (P1→P3):** author mini-architecture doc (F2); mdev vGPU writeup (F3); `[mini.gpu]` arbitration (F5); console-less recovery kargs (F6); Tang decision (F7); nftables authority (F8); super-privileged relabel (F9); impossible/EOL regression check (F11); editions wiring (F12).
 - **Deploy (P2):** deploy-plane drift-check (G11).
 
 ### Claude / mios-bootstrap batch (C:\mios-bootstrap)
 
 - **P0:** Fedora ISO acquisition + validity gate (G1); unattended Total-Root-Merge kickstart export (G2).
 - **P1:** relocate scratchpad artifacts → docs/agy/ **(session-bound — do before this session ends)** (E1); offline `BOOTSTRAP_REPO=file://` (G3); integrity validation of staged artifacts (G4); bootstrap installer LUKS2 format + enroll env (A6).
-- **P2:** finalize MiOS-Mini split-plane content → docs/agy/doc-mios-mini.md (F1/E10); Fedora `[cat]` SSOT keys (G10); stage seed oci-archive onto USB (G8); reconcile grub menuentry↔kickstart (G9).
+- **P2:** finalize MiOS-Metal split-plane content → docs/agy/doc-mios-metal.md (F1/E10); Fedora `[cat]` SSOT keys (G10); stage seed oci-archive onto USB (G8); reconcile grub menuentry↔kickstart (G9).
 - **P2/P3:** wire immutable offline bootc-install leg (G7).
 - **P3:** move AGY-TASKS.md out of product tree + update .gitignore/tooling (E13); stale `[cat]` TODO fix + launcher path resolution (G12); installer/env resolver-parity audit (B13).
 
@@ -180,10 +180,10 @@ Phases are **workstreams by theme**; the per-task `[P#]` tag preserves the sourc
 
 ### Dedup / reconciliation notes (nothing dropped)
 
-- **mdevctl** — the runtime-wiring "wire mios-mdev-init" (A10) is **subordinated** to the MiOS-Mini vGPU-impossible decision (F3/F4): mdev is kept only for legitimate SR-IOV/mdev inventory (annotated) or removed; vGPU is out of scope. Merged into one P3 task.
+- **mdevctl** — the runtime-wiring "wire mios-mdev-init" (A10) is **subordinated** to the MiOS-Metal vGPU-impossible decision (F3/F4): mdev is kept only for legitimate SR-IOV/mdev inventory (annotated) or removed; vGPU is out of scope. Merged into one P3 task.
 - **glusterfs** — runtime-wiring "resolve gluster" (A12) and Mini Finding 8 (F10) are the **same removal**; merged (EOL, Ceph is the storage plane).
 - **image-resolution.md** — registry D13 and verbosity E9 are the **same doc**; kept once.
-- **mios-mini docs** — verbosity E10/E11 and Mini F1/F2 are the **same content handoff + authoring pair**; kept once each.
+- **mios-metal docs** — verbosity E10/E11 and Mini F1/F2 are the **same content handoff + authoring pair**; kept once each.
 - **Four architectural corrections** (/var persists, MOK≠UKI, venus≠CUDA, multi-vendor via CDI whole-device) flow into one place — `container-os-runtime.md` (E7) — with A15 propagating them verbatim to AGENTS.md/GEMINI.md and F9 fixing the "super-privileged" inversion.
 - **TPM/LUKS** mechanism (A4/A5/A6) is designed to satisfy the Mini recovery/Tang decisions (F6/F7); `[kargs]` (A1) carries the `video=efifb:off` entry from F6.
 - **MIOS_TOML env schism (B9)** is P0 and must land **before** the B1/B2 consumer migrations, or drift goes red.

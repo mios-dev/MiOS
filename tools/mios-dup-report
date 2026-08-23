@@ -192,7 +192,7 @@ def normalize(key):
         k = "MIOS_PORTS_" + k[len("MIOS_"):-len("_PORT")]
     m = _MINI_RE.match(k)
     if m:
-        k = "MIOS_MINI_" + m.group(1)
+        k = "MIOS_METAL_" + m.group(1)
     if k.endswith("_TIMEOUT_SECONDS"):
         k = k[:-len("_TIMEOUT_SECONDS")] + "_TIMEOUT_S"
     return k
@@ -274,7 +274,7 @@ def family_candidates(family_id, keys_set):
             m = _MINI_RE.match(k)
             if not m:
                 continue
-            canon = "MIOS_MINI_" + m.group(1)
+            canon = "MIOS_METAL_" + m.group(1)
             if canon != k and canon in keys_set:
                 yield (canon, k)
     elif family_id == 12:

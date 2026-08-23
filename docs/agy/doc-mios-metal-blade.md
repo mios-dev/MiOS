@@ -1,10 +1,10 @@
-<!-- AI-hint: MiOS-Mini: Blade Substrate Implementation Design.
+<!-- AI-hint: MiOS-Metal: Blade Substrate Implementation Design.
      AI-related: usr/share/mios/mios.toml, docs/adr/, AGY-TASKS.md -->
-# MiOS-Mini: Blade Substrate Implementation Design
+# MiOS-Metal: Blade Substrate Implementation Design
 
 *Doc-ready synthesis for MiOS DOCS. Every component below is a confirmed-real, upstream RHEL/Fedora or established FOSS project; disposition and verification caveats from source scouting are carried through into §5.*
 
-The MiOS-Mini blade is the **inner rim** of the tire/wheel: a deliberately minimal, immutable substrate/router/AP host that owns hardware and the network layer and passes ~75–80% of compute plus all non-network hardware to the **outer-tread workloads**. Its design principle is *a handful of resilient bash/systemd commands built from as many upstream RHEL/Fedora components as possible*, so the identical blade drops onto bare metal or a VPS.
+The MiOS-Metal blade is the **inner rim** of the tire/wheel: a deliberately minimal, immutable substrate/router/AP host that owns hardware and the network layer and passes ~75–80% of compute plus all non-network hardware to the **outer-tread workloads**. Its design principle is *a handful of resilient bash/systemd commands built from as many upstream RHEL/Fedora components as possible*, so the identical blade drops onto bare metal or a VPS.
 
 ---
 
@@ -138,7 +138,7 @@ tty0 itself becomes the comms layer — no display manager — routed to the mes
 
 ## 4. Decision Table
 
-| Concern | FOSS choice | Why | MiOS-Mini wiring |
+| Concern | FOSS choice | Why | MiOS-Metal wiring |
 |---|---|---|---|
 | Immutable substrate install | **bootc** (`install to-disk`/`to-filesystem`) | Image installs itself as ostree-immutable host; one command, no bespoke installer; immutability = sudo-safe runtime | Single blade bring-up command; `to-filesystem` for VPS blades |
 | Multi-target images | **bootc-image-builder** (osbuild) | One build → qcow2/raw/ami/vhd/iso: traversal RAW, cloud VPS, MiOS-Cat media | Build-time; emits every artifact the topology traverses |

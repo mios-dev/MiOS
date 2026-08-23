@@ -136,7 +136,7 @@ class TestBrowserOpenable(unittest.TestCase):
 
 class TestBarePortAddresses(unittest.TestCase):
     """An address an /etc/mios overlay cannot move is a service that can never
-    be offloaded -- which is the whole of MiOS-Mini."""
+    be offloaded -- which is the whole of MiOS-Metal."""
 
     def test_a_bare_port_localhost_url_fails(self):
         out = mod.bare_port_addresses(

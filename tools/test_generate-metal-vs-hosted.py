@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Sibling unit test for tools/generate-mini-vs-hosted.py.
+# AI-hint: Sibling unit test for tools/generate-metal-vs-hosted.py.
 # AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the seat-vs-blade comparison projector."""
 
@@ -10,7 +10,7 @@ from importlib.machinery import SourceFileLoader
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.dirname(_HERE)
 mod = SourceFileLoader(
-    "gen_mini", os.path.join(_HERE, "generate-mini-vs-hosted.py")).load_module()
+    "gen_mini", os.path.join(_HERE, "generate-metal-vs-hosted.py")).load_module()
 
 try:
     import tomllib
@@ -68,13 +68,13 @@ class TestRendering(unittest.TestCase):
             self.assertIn(denial, text)
 
     def test_it_states_mini_boots_the_whole_image(self):
-        # Two earlier revisions defined MiOS-Mini and both were wrong.
+        # Two earlier revisions defined MiOS-Metal and both were wrong.
         # ADR-0016 D9 holds the history; T-331/T-335 hold the corrections.
         text = mod.render(synthetic())
         self.assertIn("boots the **entire** image", text)
         self.assertIn("D9", text)
-        for wrong in ("never an artifact", "MiOS-Mini is the BOX",
-                      "NOT about MiOS-Mini"):
+        for wrong in ("never an artifact", "MiOS-Metal is the BOX",
+                      "NOT about MiOS-Metal"):
             self.assertNotIn(wrong, text)
 
     def test_it_keeps_the_two_comparisons_apart(self):

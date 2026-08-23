@@ -6088,11 +6088,11 @@ layout) wins.
 
 <!-- mios-src:972afcc29966 from build-mios.ps1:7492-7504 -->
 
-### mios-dash + mios-mini are defined as INLINE FUNCTIONS in...
+### mios-dash + mios-metal are defined as INLINE FUNCTIONS in...
 
-mios-dash + mios-mini are defined as INLINE FUNCTIONS in the
+mios-dash + mios-metal are defined as INLINE FUNCTIONS in the
 Get-MiOS.ps1 profile body above (mios-dash = FULL render with
-ASCII banner + services + sys specs; mios-mini = compact 80x20
+ASCII banner + services + sys specs; mios-metal = compact 80x20
 framed banner + fastfetch). We don't override them with bin-
 script wrappers here because the FULL render needs to query the
 running MiOS-DEV state via wsl.exe -- inlining keeps it co-

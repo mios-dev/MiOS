@@ -4307,7 +4307,7 @@ required_checks = [
     "check_role_ssot",
     "check_port_fallbacks",
     "check_node_pool",
-    "check_mini_vs_hosted",
+    "check_metal_vs_hosted",
     "check_unit_projection",
     "check_ssot_consumer_keys",
     "check_fleet_safety",
@@ -6048,7 +6048,7 @@ main() {
     check_role_ssot
     check_port_fallbacks
     check_node_pool
-    check_mini_vs_hosted
+    check_metal_vs_hosted
     check_unit_projection
     check_ssot_consumer_keys
     check_fleet_safety
@@ -6070,6 +6070,7 @@ main() {
     check_globals_generated
     check_ci_suite_coverage
     check_manpages
+    check_variant_registry
     check_temp_fixture_cleanup
     check_negatives_registered
     check_leaked_fixtures
@@ -6914,6 +6915,13 @@ check_temp_fixture_cleanup() {
     echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
+check_variant_registry() {
+    echo "[98-drift-checks]   check_variant_registry"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-variant-registry.py 2>/dev/null)" || { _violations_from "check_variant_registry: " "$out"; return; }
+    echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
+}
+
 check_manpages() {
     echo "[98-drift-checks]   check_manpages"
     _need_python || return 0
@@ -6983,7 +6991,7 @@ check_blade_coverage() { _run_py_check check_blade_coverage tools/check-blade-co
 check_fleet_safety() { _run_py_check check_fleet_safety tools/check-fleet-safety.py ""; }
 check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys tools/check-ssot-consumer-keys.py ""; }
 check_unit_projection() { _run_py_check check_unit_projection tools/check-unit-projection.py ""; }
-check_mini_vs_hosted() { _run_py_check check_mini_vs_hosted "tools/generate-mini-vs-hosted.py --check" ""; }
+check_metal_vs_hosted() { _run_py_check check_metal_vs_hosted "tools/generate-metal-vs-hosted.py --check" ""; }
 check_node_pool() { _run_py_check check_node_pool tools/check-node-pool.py ""; }
 check_port_fallbacks() { _run_py_check check_port_fallbacks tools/check-port-fallbacks.py ""; }
 check_role_ssot() { _run_py_check check_role_ssot tools/check-role-ssot.py ""; }

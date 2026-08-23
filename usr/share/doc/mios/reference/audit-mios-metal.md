@@ -468,11 +468,11 @@ The renderer (`mios-metal` verb / oneshot) computes `MIOS_GUEST_VCPUS`, `MIOS_GU
 
 New fitness-functions, in the style of `check_kargs_projection` (`98-drift-checks.sh:3220+`) and `check_template_conformance` (`:3195-3213`):
 
-- **`check_mini_vfio_projection`** — re-run `mios-metal-vfio-bind` to a tmp dir; fail on any drift between the rendered `20-mios-metal.conf`/stamped `vfio_ids` and the committed files. Also assert every `[metal.gpu].assignments` BDF appears exactly once (doc: "each GPU → exactly one guest", `mios.toml:323`).
-- **`check_mini_router_table`** — parse `mios-router.nft`; assert `policy drop` on `forward`+`input`, a `masquerade` only on `$WAN`, and no *other* committed nft table installs a conflicting verdict on `$GUEST` (doc §3b-cross).
-- **`check_mini_headscale_failclosed`** — assert `headscale-policy.hujson` has no allow-all ACL and `mios-headscale.container` is in `[security.privileged_quadlets].root` (else `check_quadlet_privilege` already fails).
-- **`check_mini_guest_isolation`** — assert the rendered `mios-guest.xml` has **exactly one** `<interface>`, that its bridge == `[metal].guest_bridge`, that `<vcpupin>` ⊆ `[metal.cpu].isolcpus`, and that the housekeeping slice ≥ its declared floor (doc §2e). Also assert the swtpm `<tpm>` block is present.
-- **`check_mini_no_firewalld`** — assert the Mini host image does not enable `firewalld` (resolves gap #2).
+- **`check_metal_vfio_projection`** — re-run `mios-metal-vfio-bind` to a tmp dir; fail on any drift between the rendered `20-mios-metal.conf`/stamped `vfio_ids` and the committed files. Also assert every `[metal.gpu].assignments` BDF appears exactly once (doc: "each GPU → exactly one guest", `mios.toml:323`).
+- **`check_metal_router_table`** — parse `mios-router.nft`; assert `policy drop` on `forward`+`input`, a `masquerade` only on `$WAN`, and no *other* committed nft table installs a conflicting verdict on `$GUEST` (doc §3b-cross).
+- **`check_metal_headscale_failclosed`** — assert `headscale-policy.hujson` has no allow-all ACL and `mios-headscale.container` is in `[security.privileged_quadlets].root` (else `check_quadlet_privilege` already fails).
+- **`check_metal_guest_isolation`** — assert the rendered `mios-guest.xml` has **exactly one** `<interface>`, that its bridge == `[metal].guest_bridge`, that `<vcpupin>` ⊆ `[metal.cpu].isolcpus`, and that the housekeeping slice ≥ its declared floor (doc §2e). Also assert the swtpm `<tpm>` block is present.
+- **`check_metal_no_firewalld`** — assert the Mini host image does not enable `firewalld` (resolves gap #2).
 
 Note: drift-check **46** (`check_template_conformance`, `98-drift-checks.sh:3195`) gates markdown headers only under `^usr/share/doc/mios/...\.md$|^README\.md$` (`mios.toml:11409-11415`), so this file now lives under usr/share/doc/mios/reference/ so it IS gated — the AI-hint/AI-related headers are carried anyway per the template convention.
 
@@ -483,5 +483,5 @@ Note: drift-check **46** (`check_template_conformance`, `98-drift-checks.sh:3195
 - **[needs-VM] the id-race.** `vfio-pci.ids=` + `rd.driver.pre=vfio-pci` usually wins, but NVIDIA modeset can still grab a card; the driverctl per-BDF override (§4.1) is the belt to that suspenders, verified at boot (step 4). Unprovable without a dGPU box.
 - **BDF→id resolution runs where PCI exists.** The §4.1 id-resolution reads `/sys/bus/pci/...`; at pure build-time (container, no host PCI) it must run at **first-boot** instead, then drift-gate the stamped value — same pattern as `nvidia-ctk cdi generate` (doc §2b, "runs only where devices exist").
 - **The `[metal.*]` surface is proposed, not landed.** `[metal.gpu]` exists (`mios.toml:322`); `[metal]/[metal.cpu]/[metal.mem]/[metal.wifi]/[metal.mesh]` are this audit's extension. Landing them is a `mios.toml` + `mios-sync-toml` change (Law 15: update both repos), not covered here.
-- **firewalld removal is a host-image divergence.** `[network].firewalld_default_zone` (`mios.toml:299`) and `45-firewall.sh` remain correct for the *single-plane* MiOS-on-metal build; the Mini host is the only image that strips firewalld. The build must branch on plane, or the drift-gate `check_mini_no_firewalld` will fight `45-firewall.sh` on a shared tree.
+- **firewalld removal is a host-image divergence.** `[network].firewalld_default_zone` (`mios.toml:299`) and `45-firewall.sh` remain correct for the *single-plane* MiOS-on-metal build; the Mini host is the only image that strips firewalld. The build must branch on plane, or the drift-gate `check_metal_no_firewalld` will fight `45-firewall.sh` on a shared tree.
 - Everything inherited from the north-star doc (R1–R11) still applies; this audit changes none of those verdicts, only makes the host concrete.
