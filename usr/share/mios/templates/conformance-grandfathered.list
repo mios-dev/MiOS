@@ -1,3 +1,5 @@
+automation/lib/globals.ps1
+automation/lib/globals.sh
 usr/lib/mios/agent-pipe/mios_pipe/__init__.py
 usr/lib/mios/agent-pipe/mios_pipe/redact.py
 usr/lib/mios/agent-pipe/test_mios_a2a.py

@@ -1,3 +1,4 @@
+// AI-hint: GUI window watcher module for mios-wallpaperd.
 use std::collections::HashSet;
 use std::time::Duration;
 use windows::core::PWSTR;

@@ -1,3 +1,4 @@
+// AI-hint: Main entry point for mios-wallpaperd wallpaper daemon on Windows.
 #![windows_subsystem = "windows"] // no console window, ever.
 
 mod guiwatch;

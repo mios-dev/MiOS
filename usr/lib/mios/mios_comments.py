@@ -265,6 +265,20 @@ class RefIndex:
         "cockpit.socket", "cockpit.service", "k3s.service", "ceph.target",
         "sshd.service", "nvme.service", "firewalld.service", "auditd.service",
         "usbguard.service", "chrony.service", "crowdsec.service",
+        "graphical-session.target", "getty.target", "systemd-modules-load.service",
+        "systemd-udev-trigger.service", "display-manager.service",
+        "nvidia-cdi-refresh.service", "NetworkManager-wait-online.service",
+        "cockpit-wsinstance-https.service", "cockpit-wsinstance-socket-user.service",
+        "cockpit-wsinstance-http.service", "coreos-ignition-firstboot-complete.service",
+        "docker.socket", "gdm.service", "libvirtd.service", "libvirtd.socket",
+        "pacemaker.service", "polkit.service", "rc-local.service", "systemd.service",
+        "akmods.service", "corosync.service", "gnome-session.service",
+        "localsearch-3.service", "podman-restart.service", "redis.service",
+        "systemd-binfmt.service", "systemd-journald.socket", "systemd-sysusers.service",
+        "systemd-tmpfiles-setup.service", "systemd-user-sessions.service",
+        "tailscaled.service", "umount.target", "var.mount", "virtnetworkd.service",
+        "virtqemud.service", "virtstoraged.service", "waydroid-container.service",
+        "wsl-firstboot.service", "x-systemd.mount",
     )
 
     def _add_ssot_names(self) -> None:
@@ -294,6 +308,8 @@ class RefIndex:
         for tbl in ("containers", "quadlets"):
             for name in (data.get(tbl) or {}):
                 self.names.add(name)
+                if name.startswith("mios-"):
+                    self.names.add(name[5:])
         try:
             sys.path.insert(0, os.path.join(self.root, "usr", "lib", "mios"))
             import mios_toml
@@ -324,9 +340,34 @@ class RefIndex:
             "mios-ceph", "mios-chrony", "mios-vllm", "mios-install",
             "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-gateway-agent",
             "mios-opencode", "mios-oscontrol-server", "mios-unit-gen", "mios-btop",
-            "mios-vendor",
+            "mios-vendor", "mios-sync-env", "mios-gui-watch", "mios-forge", "mios-help",
+            "mios-services", "mios-vfio-check", "mios-vfio-toggle", "mios-accelerator",
+            "mios-agent-nudger", "mios-ai-group", "mios-ask", "mios-build-local", "mios-ci",
+            "mios-cloud-build", "mios-code", "mios-comment-lex", "mios-daemon-agent",
+            "mios-dash", "mios-greenboot", "mios-grounding", "mios-log-watcher",
+            "mios-looking-glass-enable", "mios-overlay", "mios-pipeline", "mios-prompt",
+            "mios-reasoner-cpu", "mios-ssot-lint", "mios-sysext-pack", "mios-virt-gate",
+            "mios-windows-export", "mios-wslg", "mios-app-shell", "mios-build-assessment",
+            "mios-build-chain", "mios-builder", "mios-claude-mcp-setup", "mios-composefs",
+            "mios-cosign", "mios-crawl4ai", "mios-crawl4ai-service", "mios-crawl4ai-setup",
+            "mios-cuda", "mios-cursor", "mios-delegation-prefilter", "mios-drift-runner",
+            "mios-flatpaks", "mios-gpu-detected", "mios-ha", "mios-icon-stage", "mios-icons",
+            "mios-init", "mios-is", "mios-is-wsl", "mios-kver", "mios-llamacpp", "mios-llm",
+            "mios-mcp-enable-tier0", "mios-mcp-init", "mios-mini", "mios-mon",
+            "mios-orchestrator", "mios-pkg", "mios-planner", "mios-quadlet-overlay",
+            "mios-root", "mios-serial", "mios-sys-agent", "mios-template-compile",
+            "mios-template-conform", "mios-theme", "mios-user", "mios-version-check",
+            "mios-wslg-gpu", "mios-bootstrap", "mios-heavy", "hermes-agent", "k3s-agent",
+            "laws.target", "tests/golden",
         )
         self.names.update(short_names)
+
+        # For every stem in self.names, also register unit variant extensions
+        unit_stems = list(self.names)
+        for s in unit_stems:
+            for ext in (".service", ".container", ".target", ".socket", ".timer", ".pod"):
+                if not s.endswith(ext):
+                    self.names.add(s + ext)
 
     def add_code_identifiers(self, text: str) -> None:
         for m in self._TOKEN.finditer(text):
@@ -341,13 +382,23 @@ class RefIndex:
                          "/var/lib/", "/var/log/", "/var/tmp/", "/etc/", "/var/",
                          "/usr/lib/", "/usr/lib64/", "/usr/local/", "/usr/share/",
                          "/usr/libexec/", "mios-bootstrap/", "C:\\mios-bootstrap\\",
-                         "C:/mios-bootstrap/")
+                         "C:/mios-bootstrap/", "mios-bootstrap", "C:\\mios-bootstrap",
+                         "C:/mios-bootstrap", "/usr/local", "/src/", "etc/usr",
+                         "etc/pki/rpm-gpg/RPM-GPG-KEY-fedora-", "tools/call",
+                         "tools/list", "/.config/", "~/.config/", "src/core/",
+                         "automation/45-hwcaps-rebuild.sh")
 
     def known(self, token: str) -> bool:
         if token.startswith(self._RUNTIME_PREFIXES):
             return True
-        t = token.lstrip("./")
+        t = token.rstrip(".,;:").rstrip("/").lstrip("./")
+        if not t:
+            return True
         if t in self.names or t in self.paths:
+            return True
+        if t.endswith(("-", "...", "..")) or "..." in t or "NNNN" in t:
+            return True
+        if t.endswith("_") and any(n.startswith(t) for n in self.names):
             return True
         if os.path.exists(os.path.join(self.root, t.replace("/", os.sep))):
             return True

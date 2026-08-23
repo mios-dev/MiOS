@@ -1,3 +1,4 @@
+// AI-hint: Rust module for merging TOML trees according to MiOS overlay semantics.
 use toml::Value;
 
 /// Recursively merge `src` into `dst` following MiOS overlay semantics:

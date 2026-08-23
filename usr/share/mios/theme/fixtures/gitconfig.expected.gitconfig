@@ -1,7 +1,7 @@
 [user]
 	email = mios@localhost
 	signingkey = ABCD1234DEADBEEF
-	name = MiOS Operator
+	name = MiOS User
 [credential]
 	helper = store
 [commit]

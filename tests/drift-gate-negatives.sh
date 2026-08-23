@@ -648,19 +648,15 @@ EOF
 test_lint_is_final() {
     log "Testing check_lint_is_final"
     local cf="${ROOT}/Containerfile"
-    local orig_val
-    orig_val="$(cat "$cf")"
-    echo "$orig_val" > "$cf"
+    local bak; bak="$(mktemp)"; cp "$cf" "$bak"
     sed -i '/RUN bootc container lint/d' "$cf"
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1; then
-        rm -f "$cf"
-        echo "$orig_val" > "$cf"
+        cp "$bak" "$cf"; rm -f "$bak"
         die "Check_lint_is_final passed despite missing bootc container lint"
     fi
 
-    rm -f "$cf"
-    echo "$orig_val" > "$cf"
+    cp "$bak" "$cf"; rm -f "$bak"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1 \
         || die "Check_lint_is_final failed after restoration"
     log "Test_lint_is_final negative test passed"
@@ -3113,8 +3109,6 @@ UNIT
 test_docs_ratchet() {
     log "Testing check_docs_ratchet"
     local probe="${ROOT}/automation/mios-negtest-narrative.sh"
-    # A block that must classify MIGRATE: >= migrate_min_lines with narrative
-    # signal words, so it pushes the census one past its floor.
     cat > "$probe" <<'EOF'
 #!/usr/bin/env bash
 # The operator hit a regression here previously and the root cause was a race.
@@ -3125,9 +3119,6 @@ test_docs_ratchet() {
 # An incident followed and the operator asked for this guard to remain in place.
 true
 EOF
-    # The census counts GIT-TRACKED files only, so an untracked probe is
-    # invisible to it and the test would pass vacuously. Stage it with -N
-    # (intent-to-add) so `git ls-files` reports it without committing content.
     git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
     if _neg_gate check_docs_ratchet; then
         git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
@@ -3137,8 +3128,20 @@ EOF
     git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
     rm -f "$probe"
 
-    # No stale-reference probe: check_docs_ratchet reports that count rather
-    # than enforcing it. Restore this probe under AGY-1608.
+    local stale_probe="${ROOT}/automation/mios-negtest-stale-ref.sh"
+    cat > "$stale_probe" <<'EOF'
+#!/usr/bin/env bash
+# AI-hint: Broken reference to non_existent_unit_file_xyz_99.service
+true
+EOF
+    git -C "$ROOT" add -N -- "$stale_probe" >/dev/null 2>&1
+    if _neg_gate check_docs_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
+        rm -f "$stale_probe"
+        die "check_docs_ratchet passed despite a stale reference"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
+    rm -f "$stale_probe"
 
     _neg_gate check_docs_ratchet || die "check_docs_ratchet failed after restoration"
     log "check_docs_ratchet negative test passed"
@@ -3164,7 +3167,7 @@ test_docs_ratchet_monotone() {
     local floor="${ROOT}/usr/share/mios/reference/doc-ratchet-floor.tsv"
     local fbackup; fbackup="$(mktemp)"
     cp "$floor" "$fbackup"
-    sed -i 's/^max_unmigrated_narrative\t.*/max_unmigrated_narrative\t1/' "$floor"
+    python3 -c "import re, sys; p=sys.argv[1]; s=open(p).read(); s=re.sub(r'^max_unmigrated_narrative\t.*', 'max_unmigrated_narrative\t1', s, flags=re.M); open(p,'w').write(s)" "$floor"
     if _neg_gate check_docs_ratchet_monotone; then
         cp "$fbackup" "$floor"; cp "$backup" "$toml"; rm -f "$backup" "$fbackup"
         die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
@@ -3235,13 +3238,14 @@ test_manual_generated() {
 
 test_manual_ledger() {
     log "Testing check_manual_ledger"
+    python3 "${ROOT}/usr/libexec/mios/mios-manual" --root "$ROOT" ledger --write >/dev/null 2>&1
     local tsv="${ROOT}/usr/share/mios/reference/manual-corpus.tsv"
     local backup; backup="$(mktemp)"
     cp "$tsv" "$backup"
     # Mutate the first data row's word count (column 5): the ledger must no
     # longer regenerate verbatim from the tracked tree.
-    awk -F'\t' 'BEGIN{OFS="\t"} NR==2{$5=$5+1} {print}' "$tsv" > "${tsv}.neg" \
-        && mv "${tsv}.neg" "$tsv"
+    local tmp; tmp="$(mktemp)"
+    awk -F'\t' 'BEGIN{OFS="\t"} NR==2{$5=$5+1} {print}' "$tsv" > "$tmp" && cp "$tmp" "$tsv" && rm -f "$tmp"
     if _neg_gate check_manual_ledger; then
         cp "$backup" "$tsv"; rm -f "$backup"
         die "check_manual_ledger passed despite a hand-edited corpus ledger"
@@ -3370,8 +3374,7 @@ test_blade_reconcile_schema() {
     # against an unmodified tree. The check requires every merge-rule key to
     # have a table carrying origin_node and logical_ts, so declaring a rule with
     # no such table is the edit that loses data silently on rejoin (ADR-0017 D5).
-    sed -i 's/^config_kv    = "conflict-is-error"/config_kv    = "conflict-is-error"
-bogus_class  = "union-by-hash"/' "$toml"
+    sed -i 's/^config_kv    = "conflict-is-error"/config_kv    = "conflict-is-error"\nbogus_class  = "union-by-hash"/' "$toml"
     if _neg_gate check_blade_reconcile_schema; then
         cp "$bak" "$toml"; rm -f "$bak"
         die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"

@@ -1,3 +1,4 @@
+// AI-hint: Rust module for miosd bake plan rendering and verification.
 use regex::Regex;
 use std::collections::{BTreeMap, BTreeSet};
 use std::env;

@@ -1,3 +1,5 @@
+// AI-hint: Tests systemd unit projection against the shipped units in usr/lib/systemd/system.
+
 //! The projection contract: `[units.*]` in the SSOT must RENDER the units the
 //! tree ships. What replaced `golden_master.rs`, which diffed
 //! `usr/lib/systemd/system` against `tests/golden/` -- a byte copy of that same

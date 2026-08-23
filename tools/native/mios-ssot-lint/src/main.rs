@@ -1,3 +1,4 @@
+// AI-hint: Rust implementation of SSOT lint checks for mios.toml structure and invariants.
 // tools/native/mios-ssot-lint/src/main.rs
 // Rust port of 97-ssot-lint.sh (AGY-150)
 use std::collections::BTreeSet;

@@ -518,7 +518,7 @@ theme: Deployment & Sovereignty
 status: done
 priority: P1
 laws: [8, 12]
-ssot_keys: ["cat.repo_partition", "cat.data_partition", "cat.models", "ai.bake_models", "ai.vllm.bake_model"]
+ssot_keys: ["cat.repo_partition", "cat.data_partition", "cat.models", "ai.bake_models"]
 adr: [8]
 deps: [WS-CAT, WS-BAKEGATE]
 acceptance: |

@@ -1,3 +1,5 @@
+// AI-hint: WorkerW window attach module for embedding wallpaper behind Explorer desktop icons.
+
 // WorkerW attach -- place a window BEHIND the desktop icons (the live-wallpaper layer). Standard
 // Explorer technique: ask Progman (message 0x052C) to spawn the WorkerW sublayer, then find the
 // WorkerW that hosts the wallpaper and SetParent our window onto it. Mirrors the proven C# host.

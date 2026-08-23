@@ -1,10 +1,10 @@
 # AI-hint: Configures the terminal's visual identity by emitting OSC escape sequences to apply the MiOS unified color palette (Hokusai) to interactive shells, ensuring consi...
 # AI-doc: usr/share/doc/mios/manual/profile.d.md
+# shellcheck shell=sh
 
 [ -t 1 ] || return 0
 case "${TERM:-}" in linux|dumb|"") return 0 ;; esac
 [ -n "${MIOS_COLORS_APPLIED:-}" ] && return 0
-
 if [ -r /etc/mios/install.env ]; then
     set -a
     # shellcheck disable=SC1091

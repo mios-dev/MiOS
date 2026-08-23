@@ -1,3 +1,5 @@
+// AI-hint: Wallpaper host window module running WebView behind Windows desktop icons.
+
 // The wallpaper host (runs in the interactive session): a borderless WebView sized to the virtual
 // screen, SetParent'd onto the WorkerW so it renders behind the desktop icons. Reads the SSOT
 // WallpaperUrl from the registry; folds the WSLg gui-watch in as a background thread (no pwsh, no

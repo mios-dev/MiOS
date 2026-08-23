@@ -105,10 +105,12 @@ def hygiene(data: dict, root: str) -> list:
 
 
 def _built(root: str):
-    for rel in ("target/release/mios-unit-gen", "target/debug/mios-unit-gen",
-                "target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe"):
+    rels = ("target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe", "target/release/mios-unit-gen", "target/debug/mios-unit-gen") if sys.platform == "win32" else ("target/release/mios-unit-gen", "target/debug/mios-unit-gen", "target/release/mios-unit-gen.exe", "target/debug/mios-unit-gen.exe")
+    for rel in rels:
         p = os.path.join(root, "tools/native", rel)
         if os.path.isfile(p) and os.access(p, os.X_OK):
+            if sys.platform != "win32" and rel.endswith(".exe"):
+                continue
             return p
     return None
 

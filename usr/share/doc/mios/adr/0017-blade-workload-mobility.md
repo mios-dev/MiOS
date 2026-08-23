@@ -123,6 +123,10 @@ Every row therefore carries an origin node id and a logical timestamp. Without
 those the merge is not implementable, so this is a schema prerequisite and not an
 optimisation: divergence must not be enabled before it lands.
 
+## Rationale
+
+Workloads must move across the blade mesh deterministically while maintaining system stability and data safety. Schedulers are explicitly bounded by workload type to avoid placement conflicts.
+
 ## Consequences
 
 - `[blade.requires]` gains a fallback lane per GPU-gated service; the capability

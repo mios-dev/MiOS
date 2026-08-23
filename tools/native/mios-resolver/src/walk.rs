@@ -1,3 +1,4 @@
+// AI-hint: Rust module for walking TOML value trees and yielding dotted path key-value pairs.
 use toml::Value;
 
 /// Recursively walk a TOML Value tree and yield `(dotted_path, value)` pairs.

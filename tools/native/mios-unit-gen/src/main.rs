@@ -1,3 +1,4 @@
+// AI-hint: CLI driver for mios-unit-gen rendering systemd unit files from SSOT.
 use mios_unit_gen::{drift_register, project, render_units};
 use std::env;
 use std::fs;

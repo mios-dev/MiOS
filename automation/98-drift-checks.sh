@@ -38,6 +38,31 @@ _violation() {
     VIOLATIONS=$((VIOLATIONS + 1))
 }
 
+_need_python() {
+    # Thirty-one checks each spelled out this guard, and every one of them was
+    # invisible to check_no_silent_tool_skips, which only greps the one-line
+    # `command -v ... || return 0` form. Folding them here also lets the skip
+    # become a failure under MIOS_DRIFT_REQUIRE_TOOLS=1, which is the whole
+    # point of that variable.
+    command -v python3 >/dev/null 2>&1 && return 0
+    if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
+        _violation "python3 is required under MIOS_DRIFT_REQUIRE_TOOLS=1 and is not installed"
+    else
+        echo "[98-drift-checks]   WARNING: python3 missing" >&2
+    fi
+    return 1
+}
+
+_violations_from() {
+    # Report each non-empty line of a check's output as a violation. Forty-two
+    # checks each spelled this loop out; one of them is enough.
+    local __prefix="$1" __blob="$2" line
+    while IFS= read -r line; do
+        [[ -n "$line" ]] && _violation "${__prefix}${line}"
+    done <<<"$__blob"
+}
+
+
 _emit_projection_evidence() {
     local pfx='[98-drift-checks][diff]'
     local gen_rel="$1"; shift
@@ -181,22 +206,13 @@ check_retired_models() {
 }
 
 check_structured() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, json
 root = os.environ["MIOS_DRIFT_ROOT"]
 viol = []
 
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        _toml = None
+import tomllib as _toml
 
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 if _toml is None:
@@ -299,10 +315,7 @@ PY
 
 check_hint_coverage() {
     local tool="$ROOT/usr/libexec/mios/mios-ai-hint-coverage"
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   WARNING: mios-ai-hint-coverage not found" >&2
         return 0
@@ -338,20 +351,11 @@ check_module_boundary() {
 }
 
 check_rbac_tiers() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.exit(0)  # no toml parser -> skip (not a violation)
+import tomllib as _toml
 p = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(p):
     sys.exit(0)
@@ -380,20 +384,11 @@ PY
 }
 
 check_agent_schema() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.exit(0)
+import tomllib as _toml
 p = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(p):
     sys.exit(0)
@@ -453,10 +448,7 @@ PY
 }
 
 check_ai_manifest() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, json
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -500,10 +492,7 @@ check_package_registry() {
             echo "[98-drift-checks]   package registry dormant"
             return 0 ;;
     esac
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_AGENT_PIPE_DIR="$ROOT/usr/lib/mios/agent-pipe" \
        MIOS_TOML="$ROOT/usr/share/mios/mios.toml" \
        MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
@@ -650,10 +639,7 @@ check_raw_toml_readers() {
 }
 
 check_capability_manifest() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, json
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -689,10 +675,7 @@ PY
 }
 
 check_surface_parity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, json
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -733,10 +716,7 @@ PY
 }
 
 check_pod_quadlets() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local gen="$ROOT/tools/generate-pod-quadlets.py"
     if [[ ! -f "$gen" ]]; then
         echo "[98-drift-checks]   WARNING: generate-pod-quadlets.py absent" >&2
@@ -752,10 +732,7 @@ check_pod_quadlets() {
 }
 
 check_egress_firewall() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local gen="$ROOT/tools/generate-egress-firewall.py"
     local committed="$ROOT/usr/share/mios/security/egress.nft"
     if [[ ! -f "$gen" || ! -f "$committed" ]]; then
@@ -774,10 +751,7 @@ check_egress_firewall() {
 }
 
 check_blade_dropins() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local gen="$ROOT/tools/generate-blade-dropins.py"
     if [[ ! -f "$gen" ]]; then
         echo "[98-drift-checks]   WARNING: blade dropins generator absent" >&2
@@ -817,10 +791,7 @@ check_blade_dropins() {
 
 
 check_no_hardcode() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-hardcode-lint"
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   WARNING: mios-hardcode-lint not found" >&2
@@ -837,10 +808,7 @@ check_no_hardcode() {
 }
 
 check_no_hardcode_version() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-version-lint"
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   WARNING: mios-version-lint not found" >&2
@@ -857,10 +825,7 @@ check_no_hardcode_version() {
 }
 
 check_unwired_modules() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, ast
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -868,10 +833,7 @@ pipe = os.path.join(root, "usr/lib/mios/agent-pipe")
 if not os.path.isdir(pipe):
     sys.exit(0)  # nothing to check on a bare checkout
 
-try:
-    import tomllib as _toml
-except ImportError:
-    import tomli as _toml
+import tomllib as _toml
 with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
     _data = _toml.load(fh)
 ALLOW = set(_data.get("drift", {}).get("denylist", []))
@@ -985,10 +947,7 @@ PY
 }
 
 check_cephfs_ssot() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -1193,10 +1152,7 @@ check_hummingbird() {
 }
 
 check_container_ports() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tmp; tmp="$(mktemp)"
     if MIOS_DRIFT_ROOT="$ROOT" python3 - >"$tmp" 2>&1 <<'PY'
 import os, sys, re
@@ -1266,10 +1222,7 @@ PY
 }
 
 check_bootstrap_ports_drift() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -1349,15 +1302,10 @@ check_agent_pipe_budgets() {
         fi
     fi
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -1418,9 +1366,7 @@ PY
 }
 
 check_no_bare_port_literals() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, ast
 
@@ -1516,10 +1462,7 @@ PY
 }
 
 check_dotfiles_projection() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-dotfiles-render"
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   WARNING: mios-dotfiles-render not found" >&2
@@ -1549,20 +1492,11 @@ check_userenv_parity() {
 }
 
 check_verb_backends() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.exit(0)
+import tomllib as _toml
 p = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(p):
     sys.exit(0)
@@ -1598,20 +1532,11 @@ check_globals_ports() {
 }
 
 check_globals_image_parity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.exit(0)
+import tomllib as _toml
 toml = os.path.join(root, "usr/share/mios/mios.toml")
 if not os.path.isfile(toml):
     sys.exit(0)
@@ -1693,10 +1618,7 @@ PY
 }
 
 check_dag_integrity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -1747,10 +1669,7 @@ PY
 }
 
 check_names_registry() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if ! git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         echo "[98-drift-checks]   names registry"
         return 0
@@ -1826,10 +1745,7 @@ PY
 }
 
 check_drift_projection() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import sys
 import os
@@ -2154,10 +2070,7 @@ PY
 }
 
 check_canonical_bools() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_TOML="$ROOT/usr/share/mios/mios.toml" MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" python3 - <<'PY'
 import sys
 import os
@@ -2234,10 +2147,7 @@ check_etc_duplicates() {
 }
 
 check_drift_build_catalog() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import sys
 import os
@@ -2742,13 +2652,7 @@ check_vendor_urls() {
     local ep_out
     ep_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'ENDPY'
 import os, re, sys
-try:
-    import tomllib as _t
-except ImportError:
-    try:
-        import tomli as _t  # type: ignore
-    except ImportError:
-        sys.exit(0)
+import tomllib as _t
 root = os.environ["MIOS_DRIFT_ROOT"]
 with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
     data = _t.load(fh)
@@ -2852,10 +2756,7 @@ check_template_conformance() {
 }
 
 check_kargs_projection() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     
     local tmp_dir
     tmp_dir="$(mktemp -d)"
@@ -3319,17 +3220,11 @@ PY
 }
 
 check_root_toml_subset() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local rc=0
     python3 -c "
 import os, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 def get_keys(d, prefix=''):
     keys = set()
@@ -3389,10 +3284,7 @@ sys.exit(0)
 }
 
 check_toml_projection() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/mios-sync-toml"
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   WARNING: mios-sync-toml not found" >&2
@@ -3438,10 +3330,7 @@ check_target_languages() {
 }
 
 check_bake_plan() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if python3 "$ROOT/tools/generate-bake-plan.py" --check; then
         echo "[98-drift-checks]   bake-plan lists in sync with mios.toml [build.bake] SSOT"
     else
@@ -3450,15 +3339,10 @@ check_bake_plan() {
 }
 
 check_bake_plan_integrity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import glob, os, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -3553,10 +3437,7 @@ check_bake_ref_defaults() {
     if command -v python3 >/dev/null 2>&1; then
         if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, subprocess
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -3604,10 +3485,7 @@ PY
 
 
 check_roadmap_index() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if [[ ! -f "$ROOT/ROADMAP.md" ]]; then
         echo "[98-drift-checks]   ROADMAP.md not found"
         return 0
@@ -3620,10 +3498,7 @@ check_roadmap_index() {
 }
 
 check_cli_eval_safety() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   WARNING: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -3877,10 +3752,7 @@ check_bake_budget() {
     local budget=40
     local py_script="
 import os
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = '$ROOT'
 toml_path = os.path.join(root, 'usr/share/mios/mios.toml')
@@ -3927,14 +3799,7 @@ check_greenboot() {
     local gb_out line
     gb_out="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_GB_DIR="$gb_dir" python3 - <<'PY'
 import os, re, sys
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping greenboot check\n")
-        sys.exit(0)
+import tomllib as _toml
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 gb_dir = os.environ["MIOS_DRIFT_GB_DIR"]
@@ -4100,15 +3965,10 @@ PYEOF
 }
 
 check_council_gate_ssot() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -4161,9 +4021,7 @@ PY
 }
 
 check_containerfile_pinned_clones() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 
@@ -4199,15 +4057,10 @@ PY
 }
 
 check_firstboot_tier() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, glob
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -4293,9 +4146,7 @@ check_rechunk_budget() {
 }
 
 check_gate_registry() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import glob, os, sys, re
 
@@ -4392,9 +4243,7 @@ check_python_lint() {
 }
 
 check_test_hermeticity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, glob, re
 
@@ -4454,9 +4303,7 @@ PY
 }
 
 check_negative_test_coverage() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 
@@ -4656,9 +4503,7 @@ check_replaceme_mount_substitution() {
         return 0
     fi
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
@@ -4735,9 +4580,7 @@ check_bib_rootfs_label_policy() {
         return 0
     fi
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
@@ -4891,9 +4734,7 @@ check_bib_single_config_invariant() {
         return 0
     fi
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, glob
@@ -4989,9 +4830,7 @@ check_win11_vm_template_xml() {
         return 0
     fi
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, xml.etree.ElementTree as ET
@@ -5210,15 +5049,10 @@ check_renderer_gate_coverage() {
 }
 
 check_smoke_manifest() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -5254,15 +5088,10 @@ PY
 }
 
 check_negative_coverage() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 checks_sh = os.path.join(root, "automation/98-drift-checks.sh")
@@ -5304,9 +5133,7 @@ PY
 }
 
 check_verb_templates() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if python3 "${ROOT}/tools/verb-template-check.py"; then
         echo "[98-drift-checks]   verb templates compile and validate against SSOT args"
     else
@@ -5315,9 +5142,7 @@ check_verb_templates() {
 }
 
 check_pipe_boundaries() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     local manifest="${ROOT}/usr/share/mios/pipe-boundaries.manifest.json"
     if [ ! -f "$manifest" ]; then
         _violation "pipe-boundaries.manifest.json is missing"
@@ -5351,24 +5176,17 @@ check_guacamole_consistency() {
     echo "[98-drift-checks]   check_guacamole_consistency"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_guacamole_consistency: $line"
-        done <<<"$out"
+        _violations_from "check_guacamole_consistency: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
 }
 
 check_law_enforcers() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -5423,9 +5241,7 @@ PY
 }
 
 check_usr_over_etc() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, subprocess
 
@@ -5473,15 +5289,10 @@ PY
 }
 
 check_projection_registry() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -5519,15 +5330,10 @@ PY
 }
 
 check_db_seed_coverage() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -5566,9 +5372,7 @@ PY
 }
 
 check_account_column_parity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re
 
@@ -5631,15 +5435,10 @@ check_v2v_import_ssot() {
         _violation "usr/libexec/mios/mios-v2v-import failed bash -n syntax check"
         return 1
     fi
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, subprocess
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 wrapper = os.path.join(root, "usr/libexec/mios/mios-v2v-import")
@@ -5680,9 +5479,7 @@ check_module_length() {
     # The former body used find -maxdepth 1 and saw 9 of 112 modules.
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_module_length: $line"
-        done <<<"$out"
+        _violations_from "check_module_length: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -6343,9 +6140,7 @@ main() {
 }
 
 check_template_self_conformance() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, subprocess, tempfile
 
@@ -6383,9 +6178,7 @@ PY
 }
 
 check_templates_bootstrap_sync() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        return 0
-    fi
+    _need_python || return 0
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 
@@ -6396,10 +6189,7 @@ boot_toml = os.path.join(root, "submodules/mios-bootstrap/usr/share/mios/mios.to
 if not os.path.isfile(boot_toml):
     sys.exit(0)
 
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 with open(main_toml, "rb") as f:
     m_data = tomllib.load(f).get("templates", {})
@@ -6694,9 +6484,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   No ad-hoc regex TOML parsers outside the shared resolver"
@@ -6712,13 +6500,7 @@ check_install_uninstall_symmetry() {
     if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        _toml = None
+import tomllib as _toml
 
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
 uninst = os.path.join(root, "Uninstall-MiOS.ps1")
@@ -6775,9 +6557,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every artifact in [windows.owned_artifacts]"
@@ -6793,13 +6573,7 @@ check_ps_port_fallback_ssot() {
     if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib as _toml
-except ImportError:
-    try:
-        import tomli as _toml  # type: ignore
-    except ImportError:
-        _toml = None
+import tomllib as _toml
 
 if _toml is None:
     sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli"
@@ -6841,9 +6615,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
@@ -6895,9 +6667,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
@@ -7064,9 +6834,7 @@ if viol:
     sys.exit(1)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
@@ -7130,26 +6898,20 @@ if hints > ceil_hint:
     viol.append("over-cap AI-hint headers %d > ceiling %d --"
                 " shorten them, do NOT raise [docs].max_overlong_hints"
                 % (hints, ceil_hint))
-# stale-refs is REPORTED, not enforced, and says so. [docs].max_stale_refs = 0
-# was recorded while nothing measured staleness at all -- the allowlist was
-# matched as regex, where a Windows path is an invalid pattern, so the checker
-# crashed rather than counted. Enforcing against that 0 makes the gate red on
-# every commit, and raising the ceiling to today's number breaches the monotone
-# guard AND enshrines the noise still left in the count. Enforce it when the
-# measurement resolves only real references -- that is AGY-1608, and the drop
-# from 446 to 248 is progress toward it.
-print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d (reported, not a ceiling)"
-      % (narr, ceil_narr, hints, ceil_hint, stale), file=sys.stderr)
+if stale > ceil_stale:
+    viol.append("stale references %d > ceiling %d --"
+                " fix or remove stale references, do NOT raise [docs].max_stale_refs"
+                % (stale, ceil_stale))
+print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d/%d"
+      % (narr, ceil_narr, hints, ceil_hint, stale, ceil_stale), file=sys.stderr)
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
-    echo "[98-drift-checks]   documentation ratchet holding (narrative + hint ceilings)"
+    echo "[98-drift-checks]   documentation ratchet holding (narrative + hint + stale-ref ceilings)"
 }
 
 # Ceilings must fall, never rise. Compared against HEAD.
@@ -7157,9 +6919,7 @@ check_docs_ratchet_monotone() {
     echo "[98-drift-checks]   check_docs_ratchet_monotone"
     local out
     if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
@@ -7169,9 +6929,7 @@ check_no_generated_prose_in_resolvers() {
     echo "[98-drift-checks]   check_no_generated_prose_in_resolvers"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7182,9 +6940,7 @@ check_manual_generated() {
     echo "[98-drift-checks]   check_manual_generated"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7195,9 +6951,7 @@ check_comment_landing() {
     echo "[98-drift-checks]   check_comment_landing"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7208,9 +6962,7 @@ check_manual_ledger() {
     echo "[98-drift-checks]   check_manual_ledger"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "$line"
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7220,9 +6972,7 @@ check_credential_literals() {
     echo "[98-drift-checks]   check_credential_literals"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_credential_literals: $line"
-        done <<<"$out"
+        _violations_from "check_credential_literals: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7232,9 +6982,7 @@ check_redact_coverage() {
     echo "[98-drift-checks]   check_redact_coverage"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_redact_coverage: $line"
-        done <<<"$out"
+        _violations_from "check_redact_coverage: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7244,9 +6992,7 @@ check_daemon_governor() {
     echo "[98-drift-checks]   check_daemon_governor"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_daemon_governor: $line"
-        done <<<"$out"
+        _violations_from "check_daemon_governor: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7256,9 +7002,7 @@ check_manual_links() {
     echo "[98-drift-checks]   check_manual_links"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_manual_links: $line"
-        done <<<"$out"
+        _violations_from "check_manual_links: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7268,9 +7012,7 @@ check_adr_index() {
     echo "[98-drift-checks]   check_adr_index"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_adr_index: $line"
-        done <<<"$out"
+        _violations_from "check_adr_index: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7280,9 +7022,7 @@ check_schema_consumers() {
     echo "[98-drift-checks]   check_schema_consumers"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_schema_consumers: $line"
-        done <<<"$out"
+        _violations_from "check_schema_consumers: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7292,9 +7032,7 @@ check_tasks_status_parity() {
     echo "[98-drift-checks]   check_tasks_status_parity"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks-status-parity.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_tasks_status_parity: $line"
-        done <<<"$out"
+        _violations_from "check_tasks_status_parity: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7304,9 +7042,7 @@ check_container_names() {
     echo "[98-drift-checks]   check_container_names"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-container-names.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_container_names: $line"
-        done <<<"$out"
+        _violations_from "check_container_names: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7316,11 +7052,7 @@ check_service_urls() {
     echo "[98-drift-checks]   check_service_urls"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-service-urls.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7330,11 +7062,7 @@ check_ports_bound() {
     echo "[98-drift-checks]   check_ports_bound"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ports-bound.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7344,11 +7072,7 @@ check_blade_coverage() {
     echo "[98-drift-checks]   check_blade_coverage"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7358,11 +7082,7 @@ check_fleet_safety() {
     echo "[98-drift-checks]   check_fleet_safety"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-fleet-safety.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7372,11 +7092,7 @@ check_ssot_consumer_keys() {
     echo "[98-drift-checks]   check_ssot_consumer_keys"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot-consumer-keys.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7386,11 +7102,7 @@ check_unit_projection() {
     echo "[98-drift-checks]   check_unit_projection"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-unit-projection.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7400,11 +7112,7 @@ check_mini_vs_hosted() {
     echo "[98-drift-checks]   check_mini_vs_hosted"
     local out
     if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/generate-mini-vs-hosted.py --check 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7414,11 +7122,7 @@ check_node_pool() {
     echo "[98-drift-checks]   check_node_pool"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-node-pool.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7428,11 +7132,7 @@ check_port_fallbacks() {
     echo "[98-drift-checks]   check_port_fallbacks"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-port-fallbacks.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7442,11 +7142,7 @@ check_role_ssot() {
     echo "[98-drift-checks]   check_role_ssot"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-role-ssot.py 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "$line"
-            fi
-        done <<<"$out"
+        _violations_from "" "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7456,11 +7152,7 @@ check_blade_karg() {
     echo "[98-drift-checks]   check_blade_karg"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-blade-karg.py --check 2>&1)"; then
-        while IFS= read -r line; do
-            if [[ -n "$line" ]]; then
-                _violation "check_blade_karg: $line"
-            fi
-        done <<<"$out"
+        _violations_from "check_blade_karg: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7470,9 +7162,7 @@ check_firstboot_provisioners() {
     echo "[98-drift-checks]   check_firstboot_provisioners"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-firstboot-provisioners.py 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_firstboot_provisioners: $line"
-        done <<<"$out"
+        _violations_from "check_firstboot_provisioners: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7482,9 +7172,7 @@ check_desktop_launchers() {
     echo "[98-drift-checks]   check_desktop_launchers"
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_desktop_launchers: $line"
-        done <<<"$out"
+        _violations_from "check_desktop_launchers: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7495,10 +7183,7 @@ check_no_inert_ssot_tables() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -7538,9 +7223,7 @@ if inert:
 sys.exit(0)
 PYEOF
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_no_inert_ssot_tables: $line"
-        done <<<"$out"
+        _violations_from "check_no_inert_ssot_tables: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7551,10 +7234,7 @@ check_doc_refs_resolve() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, sys, re
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -7565,7 +7245,7 @@ with open(toml_path, "rb") as fh:
     data = tomllib.load(fh)
 
 docs_cfg = data.get("docs") or {}
-max_stale = int(docs_cfg.get("max_stale_refs", 0))
+max_stale = int(docs_cfg.get("max_stale_doc_refs", 0))
 allowlist = set(docs_cfg.get("ref_allowlist") or [])
 
 stale = []
@@ -7626,9 +7306,7 @@ if len(stale) > max_stale:
 sys.exit(0)
 PYEOF
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_doc_refs_resolve: $line"
-        done <<<"$out"
+        _violations_from "check_doc_refs_resolve: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7639,10 +7317,7 @@ check_resolver_differential_parity() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
 import os, sys, subprocess
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 resolver_bin = None
@@ -7703,9 +7378,7 @@ print("    mios-resolver --emit=json matches Python SSOT render 100%")
 sys.exit(0)
 PYEOF
 )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_resolver_differential_parity: $line"
-        done <<<"$out"
+        _violations_from "check_resolver_differential_parity: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7748,9 +7421,7 @@ print("    generator host parity: all generators produce host-independent byte-i
 sys.exit(0)
 PYEOF
 )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_generator_host_parity: $line"
-        done <<<"$out"
+        _violations_from "check_generator_host_parity: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7796,10 +7467,7 @@ check_blade_reconcile_schema() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, re, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 toml_path = os.path.join(root, "usr/share/mios/mios.toml")
@@ -7848,9 +7516,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PYEOF
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_blade_reconcile_schema: $line"
-        done <<<"$out"
+        _violations_from "check_blade_reconcile_schema: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7863,9 +7529,7 @@ check_bootstrap_sync() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
             --root "$ROOT" --check 2>&1)"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_bootstrap_sync: $line"
-        done <<<"$out"
+        _violations_from "check_bootstrap_sync: " "$out"
         return
     fi
     echo "[98-drift-checks]   $out"
@@ -7878,10 +7542,7 @@ check_legibility_ratchet() {
     local out
     if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, subprocess, sys
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib
+import tomllib
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
@@ -7939,9 +7600,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PYEOF
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_legibility_ratchet: $line"
-        done <<<"$out"
+        _violations_from "check_legibility_ratchet: " "$out"
         return
     fi
     echo "[98-drift-checks]   legibility floors holding"
@@ -7997,9 +7656,7 @@ print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PYEOF
     )"; then
-        while IFS= read -r line; do
-            [[ -n "$line" ]] && _violation "check_header_integrity: $line"
-        done <<<"$out"
+        _violations_from "check_header_integrity: " "$out"
         return
     fi
     echo "[98-drift-checks]   no absorbed shebangs or build directives in file headers"

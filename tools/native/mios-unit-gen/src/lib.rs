@@ -1,3 +1,4 @@
+// AI-hint: Systemd unit generator library projecting units from mios.toml SSOT.
 //! MiOS Systemd Unit Generator & Golden Master Deviance Oracle.
 
 use serde::Deserialize;
