@@ -1,4 +1,4 @@
-# AI-hint: Forgejo CI workflow that automates the OCI image build via podman, tags it with version/timestamp/SHA, and triggers the host's bootc switch to stage the new ...
+# AI-hint: Forgejo publisher: runs the SSOT-registered suite tiers, bakes the OCI image, records the tag for the host's next bootc switch, and mirrors to the registry.
 # AI-doc: usr/share/doc/mios/manual/workflows.md
 
 name: build-mios
@@ -16,130 +16,73 @@ jobs:
       GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
       MIOS_VENDOR_TOML: ${{ github.workspace }}/usr/share/mios/mios.toml
     steps:
-      - name: Checkout (live working tree of /)
+      - name: Checkout
+        # The repository is the deployed root. Checkout fetches the pushed
+        # state into the job workspace, and the Containerfile there is what
+        # podman builds.
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          # The repo IS the deployed root; checkout fetches the freshly
-          # pushed state into the runner's job workspace. The
-          # /Containerfile in that workspace is what podman build consumes.
 
-      - name: Enforce generated SSOT synchronization (sync-generated.sh)
+      - name: Provision the analysis toolchain
+        # The package list is [ci.python] in the SSOT, so this runner installs
+        # exactly what the GitHub publisher installs.
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y shellcheck powershell dotnet-sdk-8.0 bubblewrap || true
+          packages="$(python3 ./tools/ci-suites.py --python-packages)"
+          # shellcheck disable=SC2086
+          python3 -m pip install --quiet --disable-pip-version-check $packages \
+            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages $packages \
+            || true
+
+      - name: Generated artifacts match the SSOT
         run: |
           bash ./tools/sync-generated.sh
           if [[ -n "$(git status --porcelain)" ]]; then
-            echo "ERROR: The following generated artifacts are out of sync with SSOT:" >&2
+            echo "ERROR: generated artifacts differ from what the SSOT renders:" >&2
             git status --porcelain >&2
+            git --no-pager diff --stat >&2 || true
             exit 1
           fi
 
-      # WS-0A drift gate: source-tree fitness-functions, run before the bake so
-      # un-wired SSOT keys / broken orchestration leaves fail fast. Mirrors the
-      # post-build sub-phases in automation/build.sh and `just drift-gate`.
-      - name: Install powershell and .NET SDK
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y powershell dotnet-sdk-8.0 || true
-          # pyflakes backs lint-python.sh's undefined-name pass; without it that
-          # pass fails closed under MIOS_DRIFT_REQUIRE_TOOLS=1.
-          python3 -m pip install --quiet --disable-pip-version-check pyflakes \
-            || python3 -m pip install --quiet --disable-pip-version-check --break-system-packages pyflakes \
-            || true
+      - name: Build the native gate binaries
+        run: cd ./tools/native && cargo build -p mios-unit-gen -p mios-resolver
 
-      - name: Python linting (lint-python.sh)
-        run: bash ./automation/lint-python.sh
+      - name: Static analysis tier
+        run: bash ./tests/run-suites.sh lint
 
-      - name: JSON syntax gate (lint-json.sh)
-        run: bash ./automation/lint-json.sh
+      - name: Behavioural suite tier
+        run: bash ./tests/run-suites.sh unit
 
-      - name: PowerShell AST parse-gate (lint-powershell.sh)
-        run: bash ./automation/lint-powershell.sh
+      - name: Drift-gate tier
+        run: bash ./tests/run-suites.sh gate
 
-      - name: PowerShell Pester test suite (run-pester.sh)
-        run: bash ./tests/powershell/run-pester.sh
-
-      - name: Drift gate (SSOT-render lint + agent-pipe unit tests)
-        run: |
-          bash ./automation/97-ssot-lint.sh
-          cd ./usr/lib/mios/agent-pipe
-          SKIP=" test_mios_config_audit.py test_mios_redact.py test_mios_vector.py test_mios_gateway_agent.py test_mios_gateway_queue.py test_mios_admission.py test_mios_mcp_pool.py test_mios_bench_harness.py "
-          fails=0
-          for t in test_mios_*.py; do
-            case "$SKIP" in *" $t "*) echo "  [SKIP] $t (DB/heavy-dep -- runs in build-job venv gate)"; continue;; esac
-            if python3 "$t" >/dev/null 2>&1; then
-              echo "  [ OK ] $t"
-            else
-              echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1))
-            fi
-          done
-          if [ "$fails" -gt 0 ]; then
-            echo "${fails} agent-pipe test script(s) failed" >&2; exit 1
-          fi
-
-      - name: Libexec unit tests (usr/libexec/mios/test_mios_*.py)
-        # Loops the directory so a new libexec test is never silently unrun.
-        run: |
-          cd ./usr/libexec/mios
-          fails=0
-          for t in test_mios_*.py; do
-            if python3 "$t" >/dev/null 2>&1; then
-              echo "  [ OK ] $t"
-            else
-              echo "  [FAIL] $t"; python3 "$t" || true; fails=$((fails + 1))
-            fi
-          done
-          if [ "$fails" -gt 0 ]; then
-            echo "${fails} libexec test(s) failed" >&2; exit 1
-          fi
-      - name: Lint coverage (python + shell file sets)
-        # Assert the linters still SEE every payload area. Enumerating dirs one
-        # at a time is what left usr/share/mios unscanned; the shell twin had
-        # never been wired into any runner at all.
-        run: |
-          bash ./tests/test-lint-python-coverage.sh
-          bash ./tests/test-lint-shell-coverage.sh
-      - name: OWUI pipe endpoint resolution (tests/test-owui-pipe-endpoints.py)
-        # The canonical OWUI entry point must import and resolve its backend from
-        # the SSOT; it did neither. Skips itself if pydantic/aiohttp are absent.
-        run: python3 ./tests/test-owui-pipe-endpoints.py
-      - name: Manuals & docs production evidence (doc-production-evidence.sh)
-        # Prints what the documentation programme produced, then re-runs its read-only gates.
-        run: bash ./tests/doc-production-evidence.sh
-
-      - name: AI-plane source drift checks (98-drift-checks.sh)
-        run: bash ./automation/98-drift-checks.sh
-
-      - name: Negative tests (drift-gate-negatives.sh)
-        run: bash ./tests/drift-gate-negatives.sh
-
-      - name: Resolve image tag from VERSION + commit
+      - name: Resolve the image tag
         id: tag
         run: |
-          VER="$(grep -vE '^[[:space:]]*#' VERSION 2>/dev/null | tr -d '[:space:]' || echo 'v0.0.0')"
-          SHA="$(git rev-parse --short=12 HEAD)"
-          TS="$(date -u +%Y%m%d-%H%M%S)"
-          TAG="${VER#v}-${TS}-${SHA}"
-          echo "image_tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Building tag: ${TAG}"
+          source ./tools/lib/ci-runtime.sh
+          tag="$(mios_ci_image_tag .)"
+          echo "image_tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "Building tag: ${tag}"
 
-      - name: Login to GHCR (raise base-image pull rate limit)
+      - name: Sign in to the base-image registry
+        # Authenticated pulls raise the base-image rate limit.
         if: ${{ secrets.GHCR_TOKEN != '' }}
-        run: |
-          echo "$GHCR_TOKEN" | podman login ghcr.io \
-              -u "$GHCR_USER" --password-stdin
+        run: echo "$GHCR_TOKEN" | podman login ghcr.io -u "$GHCR_USER" --password-stdin
 
-      - name: Build OCI image (localhost/mios:latest + tagged)
+      - name: Build the OCI image
         run: |
           set -euo pipefail
-          # Build args sourced from /etc/mios/install.env if present
-          # (host-mounted by the runner Quadlet for read-only access).
+          # Build arguments come from /etc/mios/install.env, which the runner
+          # Quadlet mounts read-only from the host.
           BUILD_ARGS=()
           if [[ -r /etc/mios/install.env ]]; then
               # shellcheck source=/dev/null
               source /etc/mios/install.env
-              [[ -n "${MIOS_LINUX_USER:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
-              [[ -n "${MIOS_HOSTNAME:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
-              [[ -n "${MIOS_AI_MODEL:-}"   ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
+              [[ -n "${MIOS_LINUX_USER:-}"     ]] && BUILD_ARGS+=(--build-arg "MIOS_USER=${MIOS_LINUX_USER}")
+              [[ -n "${MIOS_HOSTNAME:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_HOSTNAME=${MIOS_HOSTNAME}")
+              [[ -n "${MIOS_AI_MODEL:-}"       ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_MODEL=${MIOS_AI_MODEL}")
               [[ -n "${MIOS_AI_EMBED_MODEL:-}" ]] && BUILD_ARGS+=(--build-arg "MIOS_AI_EMBED_MODEL=${MIOS_AI_EMBED_MODEL}")
           fi
           podman build \
@@ -150,49 +93,30 @@ jobs:
               -t "localhost/mios:${{ steps.tag.outputs.image_tag }}" \
               .
 
-      - name: Verify bootc lint passes (image must be bootc-switchable)
+      - name: Image is bootc-switchable (Architectural Law 4)
         run: |
-          podman image inspect localhost/mios:latest \
-              --format '{{ index .Config.Labels "containers.bootc" }}' \
-              | grep -qx '1' || {
-                  echo "ERROR: built image missing containers.bootc=1 label" >&2
-                  exit 1
-              }
-          podman image inspect localhost/mios:latest \
-              --format '{{ index .Config.Labels "ostree.bootable" }}' \
-              | grep -qx '1' || {
-                  echo "ERROR: built image missing ostree.bootable=1 label" >&2
-                  exit 1
-              }
+          source ./tools/lib/ci-runtime.sh
+          mios_ci_verify_bootc_labels localhost/mios:latest
 
-      - name: Signal host -> bootc switch on next boot
+      - name: Record the tag for the host's next bootc switch
         run: |
           install -d -m 0755 /var/lib/mios/forge-runner
-          printf '%s %s\n' \
-              "$(date -u +%FT%TZ)" \
-              "localhost/mios:latest" \
+          printf '%s %s\n' "$(date -u +%FT%TZ)" "localhost/mios:latest" \
               > /var/lib/mios/forge-runner/last-build.txt
           chmod 0644 /var/lib/mios/forge-runner/last-build.txt
-          echo "Build signaled. Host will stage on next boot."
+          echo "Build recorded. The host stages it on next boot."
           echo "Apply now: sudo bootc upgrade --apply"
 
-      - name: Optional - mirror to GHCR
+      - name: Mirror to the registry
         if: ${{ secrets.GHCR_TOKEN != '' }}
         run: |
           set -euo pipefail
           export GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
-          source ./tools/lib/userenv.sh
-          if [[ -z "${MIOS_IMAGE_NAME:-}" ]]; then
-              echo "ERROR: MIOS_IMAGE_NAME is empty" >&2
-              exit 1
-          fi
-          if [[ "$MIOS_IMAGE_NAME" != */* ]]; then
-              echo "ERROR: MIOS_IMAGE_NAME must contain a registry host (e.g. ghcr.io/...)" >&2
-              exit 1
-          fi
-          REG_HOST="${MIOS_IMAGE_NAME%%/*}"
+          source ./tools/lib/ci-runtime.sh
+          REG_HOST="$(mios_ci_registry_host .)"
           podman login -u "${GHCR_USER}" -p "${GHCR_TOKEN}" "${REG_HOST}"
-          podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:latest"
-          podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:${{ steps.tag.outputs.image_tag }}"
-          podman push "${MIOS_IMAGE_NAME}:latest"
-          podman push "${MIOS_IMAGE_NAME}:${{ steps.tag.outputs.image_tag }}"
+          for tag in latest "${{ steps.tag.outputs.image_tag }}"; do
+              podman tag  localhost/mios:latest "${MIOS_IMAGE_NAME}:${tag}"
+              podman push "${MIOS_IMAGE_NAME}:${tag}"
+              echo "Pushed: ${MIOS_IMAGE_NAME}:${tag}"
+          done

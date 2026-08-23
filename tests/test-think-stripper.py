@@ -7,7 +7,7 @@ sub-agent output before it reaches the operator's chat stream.
 from __future__ import annotations
 import sys
 
-sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+import _agentpipe_path  # noqa: F401  -- repo agent-pipe on sys.path, not the installed copy
 import server
 
 

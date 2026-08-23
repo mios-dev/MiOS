@@ -10609,3 +10609,112 @@ name   = "lfm2-700m.gguf"
 url    = "https://huggingface.co/stelterlab/lfm2-700m-GGUF/resolve/main/lfm2-700m.gguf"
 dest   = "/usr/share/mios/llamacpp/model.gguf"
 sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
+# [ci] -- the suite registry. Every publisher runs THIS list and only this list,
+# so GitHub and Forgejo cannot drift apart; before it existed they ran different
+# sets and neither knew. tools/ci-suites.py is the only reader, and
+# check_ci_suite_coverage fails when a tracked suite is neither registered in a
+# tier nor exempted below -- which is how thirteen suites sat unrun for months.
+[ci]
+# Shrink-only. An exemption is a suite that cannot currently run, not a suite
+# that need not: each carries the reason it was measured to fail.
+max_exempt_suites = 7
+# Harnesses, not suites. They execute the tiers rather than asserting anything
+# themselves, so they are covered without consuming the exemption ratchet.
+runners = ["tests/run-suites.sh"]
+
+[tests]
+# Shrink-only. A negative test that leaves its injected fixture behind ships the
+# mutation; three reached this file in one session and turned five suites red.
+max_leaked_fixtures = 0
+
+[ci.python]
+# Installed on a runner before the unit tier. Not the agent-pipe's full
+# requirements.txt: this is the minimum that makes server.py importable, which
+# is all six of the recovered suites need. The heavy dependencies stay in
+# [ci.globs.agent-pipe].skip, where the suites that need them are listed.
+packages = ["pyflakes", "fastapi", "httpx", "uvicorn", "websockets"]
+
+[ci.tiers]
+# Static analysis. No build, no network, no image.
+lint = [
+    "automation/lint-shell.sh",
+    "automation/lint-python.sh",
+    "automation/lint-json.sh",
+    "automation/lint-powershell.sh",
+    "automation/lint-ps-analyzer.sh",
+    "automation/97-ssot-lint.sh",
+]
+# Behavioural suites. Each asserts something about the tree it ships from.
+unit = [
+    "tests/powershell/run-pester.sh",
+    "tests/test-sandbox-seccomp.sh",
+    "tests/test-powershell-flatten.sh",
+    "tests/test-pgvector-major-upgrade.sh",
+    "tests/test-mios-manual-harvest.sh",
+    "tests/test-offload-overlay.py",
+    "tests/test-blade-reachability.sh",
+    "tests/test-seat-auth-posture.sh",
+    "tests/test-seat-activates-nothing.py",
+    "tests/test-greenboot-blade-guard.sh",
+    "tests/test-greenboot-blade-reachability.sh",
+    "tests/test-lint-python-coverage.sh",
+    "tests/test-lint-shell-coverage.sh",
+    "tests/test-owui-pipe-endpoints.py",
+    "tests/doc-production-evidence.sh",
+    "tests/test-a2o-fallback.sh",
+    "tests/test-bake-group.sh",
+    "tests/test-firstboot-prestage.sh",
+    "tests/test-role-apply-precedence.sh",
+    "tests/test-theme-merge.py",
+    "tests/test-dispatcher-defense.py",
+    "tests/test-ek-smart-extract.py",
+    "tests/test-ek-substitution.py",
+    "tests/test-launch-args.py",
+    "tests/test-refine-guard.py",
+    "tests/test-refine-guards.py",
+]
+# Fitness functions over the whole tree. Slowest, so they run last.
+gate = [
+    "automation/98-drift-checks.sh",
+    "tests/drift-gate-negatives.sh",
+]
+
+# Directories whose suites are discovered rather than listed, so a new sibling
+# test is run the moment it lands instead of waiting to be registered.
+[ci.globs.tools]
+dir  = "tools"
+glob = "test_*.py"
+tier = "unit"
+
+[ci.globs.agent-pipe]
+dir  = "usr/lib/mios/agent-pipe"
+glob = "test_mios_*.py"
+tier = "unit"
+skip = [
+    "test_mios_config_audit.py",
+    "test_mios_redact.py",
+    "test_mios_vector.py",
+    "test_mios_gateway_agent.py",
+    "test_mios_gateway_queue.py",
+    "test_mios_admission.py",
+    "test_mios_mcp_pool.py",
+    "test_mios_bench_harness.py",
+]
+skip_reason = "needs a live database or a heavy dependency; covered by the build job's virtualenv gate"
+
+[ci.globs.libexec]
+dir  = "usr/libexec/mios"
+glob = "test_mios_*.py"
+tier = "unit"
+
+# Suites that are tracked but not run by a tier. Each reason is a measurement,
+# not a judgement; see [ci].max_exempt_suites.
+[ci.exempt]
+"tests/bake-smoke.sh" = "takes an image reference as its argument; the build and smoke jobs invoke it against the image they just produced"
+"tests/drift-gate-readonly.sh" = "a developer convenience wrapper over the gate tier; running it would duplicate that tier"
+"tests/drift-parity.sh" = "compares the bash gate against miosd drift-check --parity and needs the miosd binary built"
+"tests/test-directory-dispatch.sh" = "dispatch returns no hits without a populated directory index, and the suite indexes hits[0] unguarded -- AGY-1715"
+"tests/test-expand-from.py" = "the open-url-fallback-chain skill resolves to not_found, so the suite sees 0 steps where it expects 3 -- AGY-1716"
+"tests/test-reflection.py" = "needs a reachable refine backend; every connection attempt fails and reflection returns None -- AGY-1717"
+"tests/test-think-stripper.py" = "the stripper leaves the separator behind, so removing a think block yields a doubled space or blank line -- AGY-1718"

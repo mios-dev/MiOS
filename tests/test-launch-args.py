@@ -1,7 +1,7 @@
 # AI-hint: A test script for validating the `server._build_dispatch_cmd` logic by iterating through various app launch scenarios to verify that the correct command strings are generated for the agent-pipe.
 # AI-related: /usr/lib/mios/agent-pipe
 import sys, asyncio
-sys.path.insert(0, "/usr/lib/mios/agent-pipe")
+import _agentpipe_path  # noqa: F401  -- repo agent-pipe on sys.path, not the installed copy
 import server
 
 cases = [
