@@ -233,12 +233,23 @@ class RefIndex:
     @classmethod
     def build(cls, root: str, skip_dirs: Iterable[str] = ()) -> "RefIndex":
         idx = cls(root)
-        skip = set(skip_dirs) | {".git", "target", "node_modules", "__pycache__", ".venv"}
-        for dp, dn, fns in os.walk(root):
-            dn[:] = [d for d in dn if d not in skip]
-            for fn in fns:
-                full = os.path.join(dp, fn)
-                rel = os.path.relpath(full, root).replace(os.sep, "/")
+        # GIT-TRACKED, not walked. os.walk sees build output and anything else
+        # ignored, so a reference resolved on a working machine and dangled in a
+        # clean checkout -- the count differed between here and CI by exactly
+        # the debris lying around. The census reads the index for the same
+        # reason; the reference index has to agree with it.
+        import subprocess
+        try:
+            listing = subprocess.run(
+                ["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
+                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                check=True).stdout.decode("utf-8")
+            tracked = [r for r in listing.split(chr(0)) if r]
+        except Exception:
+            tracked = []
+        if tracked:
+            for rel in tracked:
+                fn = rel.rsplit("/", 1)[-1]
                 idx.paths.add(rel)
                 idx.names.add(fn)
                 d = rel.rsplit("/", 1)[0] if "/" in rel else ""

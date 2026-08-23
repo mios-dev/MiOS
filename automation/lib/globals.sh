@@ -894,7 +894,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_DOCS_LINK_BASE:=repo}"
 : "${MIOS_DOCS_LLM_PAYLOAD_GLOBS:=usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**}"
 : "${MIOS_DOCS_MAX_OVERLONG_HINTS:=0}"
-: "${MIOS_DOCS_MAX_STALE_REFS:=29}"
+: "${MIOS_DOCS_MAX_STALE_REFS:=28}"
 : "${MIOS_DOCS_MAX_UNDOCUMENTED_COMPONENTS:=0}"
 : "${MIOS_DOCS_MAX_UNMIGRATED_NARRATIVE:=342}"
 : "${MIOS_DOCS_MIGRATE_MIN_LINES:=6}"

@@ -1,7 +1,7 @@
 # AI-hint: Pure consensus math for multi-judge Definition-of-Done verdicts.
 # AI-doc: usr/share/doc/mios/manual/routing.md
 """Weighted multi-judge consensus (CONS-01). Rationale + the degrade-open
-contract: usr/share/doc/mios/manual/ch52-multi-judge-consensus-and-drift.md"""
+contract: usr/share/doc/mios/manual/ch52-multi-judge-consensus.md"""
 
 from __future__ import annotations
 

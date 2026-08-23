@@ -10183,7 +10183,7 @@ path        = "usr/lib/mios/agent-pipe/mios_pipe/mockname.py"
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
-max_stale_refs              = 29
+max_stale_refs              = 28
 max_undocumented_components = 0
 stay_max_lines              = 2
 stay_max_words         = 25

@@ -6,8 +6,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-export PATH="${ROOT}/.gemini/antigravity-ide/brain/65e96314-c09e-454f-843e-7baf8bdd3df7/scratch:${PATH}"
-
 log() {
     echo -e "\033[1;34m[drift-gate-negatives]\033[0m $1"
 }
@@ -112,7 +110,7 @@ EOF
 
 test_names_registry() {
     log "Testing check_names_registry"
-    local reg_file="${ROOT}/usr/share/mios/referenced_names.txt"
+    local reg_file="${ROOT}/usr/share/mios/names.generated.txt"
     [[ -f "$reg_file" ]] || python3 "$ROOT/tools/generate-names-registry.py" >/dev/null 2>&1 || true
     local bak_file="${reg_file}.bak"
     cp "$reg_file" "$bak_file" 2>/dev/null || true
@@ -3409,7 +3407,7 @@ test_doc_refs_resolve() {
     log "Testing check_doc_refs_resolve"
     local probe="${ROOT}/automation/mios-negtest-docref.sh"
     # An AI-related line naming a file that does not exist is a stale reference.
-    printf '#!/usr/bin/env bash\n# AI-hint: negtest probe.\n# AI-related: automation/this-file-does-not-exist-anywhere.sh\ntrue\n' > "$probe"
+    printf '#!/usr/bin/env bash\n# AI-hint: negtest probe.\n# AI-related: automation/no-such-'"$$"'.sh\ntrue\n' > "$probe"
     git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
     if _neg_gate check_doc_refs_resolve; then
         git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
