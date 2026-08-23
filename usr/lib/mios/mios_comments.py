@@ -422,13 +422,13 @@ class RefIndex:
         if t in self.dirs:
             return True
         # A token ending in a path separator, or truncated mid-name by the
-        # AI-hint cap (`tools/test_`, `mios-toggle-hea`), is a prefix of
+        # AI-hint cap (a name cut short by the cap), is a prefix of
         # something real rather than a reference to something missing.
         if any(x.startswith(t) for x in self.dirs) or any(x.startswith(t) for x in self.paths):
             return True
-        # No os.path.exists fallback: it is case-insensitive on Windows, so a
+        # No filesystem-existence fallback: it is case-insensitive on Windows, so a
         # reference to MIOS-MANUAL resolved here and dangled on Linux, and the
-        # count -- now a ceiling -- differed by machine. self.paths comes from
+        # count -- now a ceiling -- differed by machine. The indexed set comes from
         # os.walk and carries the real case, so exact membership is the answer.
         return any(p.endswith("/" + t) for p in self.paths)
 

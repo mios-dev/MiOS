@@ -10183,7 +10183,7 @@ path        = "usr/lib/mios/agent-pipe/mios_pipe/mockname.py"
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
-max_stale_refs              = 28
+max_stale_refs              = 26
 max_undocumented_components = 0
 stay_max_lines              = 2
 stay_max_words         = 25
@@ -10325,6 +10325,10 @@ llm_payload_globs = [
 # Referenced at runtime but legitimately absent from the source tree, so the
 # staleness axis must not flag them.
 ref_allowlist = [
+  # Untracked files (installation/MiOS-Cat.bat is gitignored, mios-knowledge-graph.json built at runtime).
+  "installation/MiOS-Cat.bat",
+  "usr/share/mios/knowledge/mios-knowledge-graph.json",
+  "mios-knowledge-graph",
   "C:\\mios-bootstrap\\Get-MiOS.ps1",
   "C:\\mios-bootstrap\\bootstrap.ps1",
   "/etc/ceph/ceph.conf", "/etc/cdi/nvidia.yaml", "/var/run/cdi/nvidia.yaml",

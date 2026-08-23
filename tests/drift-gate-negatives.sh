@@ -3048,10 +3048,10 @@ test_ps_encoding_and_bom() {
     # Non-ASCII with no BOM: exactly what PowerShell 5.1 would read as ANSI.
     printf 'Write-Host "run \xE2\x94\x80\xE2\x94\x80 done"\n' > "$probe"
     if _neg_gate check_ps_encoding_and_bom; then
-        rm -f "$probe"
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || true; rm -f "$probe"
         die "check_ps_encoding_and_bom passed despite non-ASCII with no BOM"
     fi
-    rm -f "$probe"
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || true; rm -f "$probe"
     _neg_gate check_ps_encoding_and_bom \
         || die "check_ps_encoding_and_bom failed after restoration"
     log "check_ps_encoding_and_bom negative test passed"
@@ -3062,10 +3062,10 @@ test_secret_handling() {
     local probe="${ROOT}/tests/mios-negtest-secrets.ps1"
     printf '$SecretsFile = Join-Path $env:TEMP "mios-secrets.env"\n' > "$probe"
     if _neg_gate check_secret_handling; then
-        rm -f "$probe"
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || true; rm -f "$probe"
         die "check_secret_handling passed despite a plaintext %TEMP% secrets path"
     fi
-    rm -f "$probe"
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1 || true; rm -f "$probe"
     _neg_gate check_secret_handling \
         || die "check_secret_handling failed after restoration"
     log "check_secret_handling negative test passed"
