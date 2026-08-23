@@ -521,6 +521,7 @@ security.disk_encryption.mode  MIOS_SECURITY_DISK_ENCRYPTION_MODE
 security.disk_encryption.pcrs  MIOS_SECURITY_DISK_ENCRYPTION_PCRS
 security.disk_encryption.recovery  MIOS_SECURITY_DISK_ENCRYPTION_RECOVERY
 security.disk_encryption.backend  MIOS_SECURITY_DISK_ENCRYPTION_BACKEND
+security.disk_encryption.portable_token  MIOS_SECURITY_DISK_ENCRYPTION_PORTABLE_TOKEN
 security.mtls.enable  MIOS_SECURITY_MTLS_ENABLE
 security.mtls.dir  MIOS_SECURITY_MTLS_DIR
 security.mtls.common_name  MIOS_SECURITY_MTLS_COMMON_NAME

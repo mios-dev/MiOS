@@ -2224,9 +2224,15 @@ allow = []
 
 [security.disk_encryption]
 mode     = "tpm2"                          # Encryption mode: "tpm2", "clevis", "none"
-pcrs     = [7]                             # TPM2 PCR registers to measure boot state (7 = Secure Boot)
+pcrs     = [7, 14]                         # 7 = Secure Boot state, 14 = MOK enrolment (akmods-signed NVIDIA modules)
 recovery = true                            # Generate and store a LUKS recovery key
 backend  = "systemd-cryptenroll"           # Enrollment backend: "systemd-cryptenroll", "clevis"
+
+# A TPM2 PCR policy binds to ONE host: PCR 7 is that machine's Secure Boot
+# state, PCR 14 that machine's MOK enrolment. Neither travels on a drive.
+
+# So a portable MiOS-Cat drive enrolls a SECOND token. ADR-0016 D13.1.
+portable_token = "fido2"
 
 [security.mtls]
 enable        = false
@@ -6228,6 +6234,9 @@ pkgs = [
     "policycoreutils-python-utils",
     "audit",
     "tpm2-tools",
+    # The portable-drive unlock a TPM2 PCR policy cannot be (ADR-0016 D13.1).
+    "libfido2",
+    "fido2-tools",
     "clevis",
     "clevis-luks",
     "aide",
@@ -6328,6 +6337,7 @@ pkgs = [
     "dlm",
     "corosync-qdevice",
     "corosync-qnetd",
+    "pcs-web-ui",
     "libqb",
     "libibverbs",
 ]
@@ -6458,6 +6468,11 @@ pkgs = [
     "avahi",
     "avahi-tools",
     "nss-mdns",
+    # The OPTIONAL radio plane (ADR-0016 D13.2/D14.1). hostapd, not
+    # NetworkManager AP mode: 6 GHz REQUIRES WPA3-SAE + MFP.
+    "hostapd",
+    "iw",
+    "wireless-regdb",
 ]
 
 [packages.phosh]
@@ -9201,6 +9216,10 @@ fallback = "headless"
 # SHRINK-ONLY (gate: check_blade_coverage). Drained by T-319; keep it at [].
 ungated = []
 
+# A `mini` plane is REQUIRED unless registered here (ADR-0016 D14.1).
+# A Mini with no radio is still a Mini; one with no hypervisor is not.
+optional_planes = ["radio"]
+
 # Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
 soft_ok = ["hermes-worker"]
 
@@ -9249,6 +9268,15 @@ scratch      = "last-writer-wins"
 config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winner
 
 
+# [blade.mesh] -- LAN first, Tailscale second. ADR-0016 D14.3.
+# The ORDER is [blade.discovery].order; never restate it here (Law 9).
+
+# blocks_boot = false is Law 12: enrolment never gates a boot.
+# federate = "manual": a peer federates itself, then is synced by hand.
+[blade.mesh]
+blocks_boot = false
+federate    = "manual"
+
 # [blade.cluster] -- one control plane, always. ADR-0016 D12.2.
 # Containers keep running when the server is down; scheduling stops.
 
@@ -9257,6 +9285,7 @@ config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winne
 k3s_servers      = 1
 server           = ""
 control_plane_ha = false
+localhost_hosts  = 3
 
 # [blade.fencing] -- self-fence on quorum loss. ADR-0016 D12.1.
 # No member must be reached to be fenced; that is what makes a guest vote safe.
@@ -9275,7 +9304,7 @@ diskless = true
 
 # See ADR-0016 D12.3: whether a remote peer holds the key is UNSETTLED.
 [blade.storage]
-replication = "all"
+replication = "all"        # every data class, Mini-to-Mini only
 at_rest     = "encrypted"
 
 # [blade.uplink] -- `router` is owner=mini and never moves; the DEFAULT ROUTE
@@ -9283,16 +9312,17 @@ at_rest     = "encrypted"
 
 # ADR-0016 D12.4. Tension with ADR-0017 D3 (local-first) is recorded there.
 [blade.uplink]
-failover = "peer"
+failover = ["local", "peer"]
 
-# [blade.hardware] -- the metal floor a Mini must meet. ADR-0016 D11.
-# Serving clients AND being the uplink needs two SEPARATE interfaces.
+# [blade.hardware] -- MiOS boots on ANY hardware. ADR-0016 D14.
+# These gate a PLANE, never the boot: a box that misses one still boots.
 
-# Any mix counts: 1 radio + 1 wired WAN, 2 radios, or more of either.
-# At least min_ap_capable of them must be able to run as an access point.
+# LAN alone is both uplink and downlink, so one interface is the whole floor.
+# A radio is OPTIONAL (0 or 1); an AP is a capability, never a requirement.
 [blade.hardware]
-min_interfaces = 2
-min_ap_capable = 1
+min_interfaces = 1
+max_radios     = 1
+min_ap_capable = 0
 
 # [blade.planes] -- which planes a Mini owns and which can be shed.
 # Meaning of owner/markers/wired_by: ADR-0016 Decision 10.
@@ -9310,13 +9340,13 @@ markers  = ["libvirt", "qemu-kvm"]
 wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
 
 [blade.planes.radio]
-role     = "serves WiFi clients as an access point; needs [blade.hardware].min_ap_capable of the min_interfaces"
+role     = "serves WiFi clients as an access point. OPTIONAL: MiOS boots on hardware with no radio at all"
 owner    = "mini"
-markers  = ["hostapd", "wpa_supplicant"]
+markers  = ["hostapd", "iw", "wireless-regdb"]
 wired_by = ""
 
 [blade.planes.router]
-role     = "is the uplink: forwards, NATs and filters for the clients it serves, on a different interface from the one serving them"
+role     = "the uplink: forwards, NATs and filters. The LAN is both uplink and downlink, so one interface suffices"
 owner    = "mini"
 markers  = ["firewalld", "dnsmasq"]
 wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
@@ -9324,23 +9354,23 @@ wired_by = "usr/lib/sysctl.d/99-mios-vmhost.conf"
 [blade.planes.mesh]
 role     = "joins every node and service into one addressable overlay"
 owner    = "mini"
-markers  = ["tailscale"]
+markers  = ["avahi", "nss-mdns"]
 wired_by = ""
 
 [blade.planes.storage]
-role     = "CephFS, shadow-copied across the mesh (local, localhost, remote) so a shed workload lands on its data rather than cold-starting"
-owner    = "either"
+role     = "CephFS -- a NATIVE service of the Mini platform, on bare metal. Never travels to a transient OCI image"
+owner    = "mini"
 markers  = ["ceph-common", "cephadm"]
 wired_by = "usr/share/containers/systemd/mios-ceph.container"
 
 [blade.planes.orchestrator]
-role     = "k3s: places containers across the fleet (ADR-0017 D1). Peers JOIN one elected server, never stand up their own (ADR-0016 D11)"
+role     = "k3s: places containers. One server per box serving [blade.cluster].localhost_hosts logical hosts; boxes federate over the mesh and sync by hand (ADR-0016 D14)"
 owner    = "either"
 markers  = ["k3s"]
 wired_by = "usr/share/containers/systemd/mios-k3s.container"
 
 [blade.planes.ha]
-role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote (ADR-0016 D11), so fencing one goes via its host"
+role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote; every member self-fences via SBD (ADR-0016 D12.1)"
 owner    = "either"
 markers  = ["pacemaker", "corosync"]
 wired_by = "usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh"

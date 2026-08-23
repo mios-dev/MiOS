@@ -8,7 +8,7 @@ date: 2026-08-22
 deciders: [operator, ai-pair]
 tags: [topology, blades, nodes, mini, offload, addressing, image-variants]
 laws: [1, 3, 5, 7, 8, 9, 12]
-ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blade.hardware, blade.cluster, blade.fencing, blade.storage, blade.uplink, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services]
+ssot_keys: [urls, ports, blade, blade.archetypes, blade.requires, blade.planes, blade.hardware, blade.cluster, blade.fencing, blade.storage, blade.uplink, blade.mesh, blades, nodes, profile, mini, quadlets.enable, greenboot.critical_services, security.disk_encryption, packages.blade-planes]
 related_ws: [WS-BLADE, WS-MIOSSYS, WS-GUARD]
 supersedes: []
 superseded_by: []
@@ -808,6 +808,152 @@ usually pointless. That is T-338 axis 7.
 This also depends on the plane that is not baked: handing a default route to a peer is a mesh
 operation (a Tailscale exit node, in the current implementation), and `mesh` has no package and no
 wiring. Ordering matters — the uplink failover cannot be built before the mesh is.
+
+
+### 13. Research findings that closed two directives
+
+D12 left two axes to research rather than choose. Both had answers upstream constraints *forced*.
+
+#### 13.1 A TPM2 PCR policy cannot travel, so a portable drive enrolls a second token
+
+The operator's constraint: whatever is chosen must run off a **MiOS-Cat** USB/NVMe drive natively,
+under Microsoft Secure Boot, with MOK for NVIDIA and other proprietary drivers.
+
+That constraint *decides* the question rather than narrowing it:
+
+* **PCR 7 measures the host's Secure Boot state.** A different machine has different certificates in
+  its `db`, so PCR 7 differs. Adding PCRs makes it worse — operators report re-prompts after changes
+  as small as a different monitor.
+* **PCR 14 measures MOK enrolment**, which is exactly what `akmods`-built NVIDIA modules need under
+  Secure Boot. MOK lives in *that machine's* UEFI variables, so PCR 14 is per-machine by
+  construction.
+
+**Both PCRs a MiOS-Cat drive would need are host-bound. A TPM2-sealed key cannot travel — that is a
+property of the measurement, not a misconfiguration.**
+
+`[security.disk_encryption].pcrs` moves to `[7, 14]`, which is what a MOK-signing host actually
+requires and which the tree had wrong at `[7]`. The portable case gets a **second enrolled token**
+rather than a different policy: `portable_token = "fido2"`. `systemd-cryptenroll` allows several
+tokens on one LUKS2 volume, so one image is TPM2-unattended on a fixed Mini and FIDO2-unlocked on
+any machine the drive is carried to. FIDO2 over PKCS#11 because the secret never leaves the device
+and no key-provisioning ceremony is needed.
+
+**Consequence for the whole namespace:** `[security].luks` and `[security].disk_encryption` have **no
+consumers in the tree**. The scheme this picks is not "changed", it is unimplemented, and the first
+build step is a consumer rather than a tune.
+
+#### 13.2 hostapd, because 6 GHz is a protocol requirement — and the driver decides more than the daemon
+
+The operator asked for the most compatible and performant option across every MiOS variant. The
+candidates are not equivalent:
+
+* **hostapd** carries 802.11ax since 2.10 and full WPA3-SAE with management-frame protection, which
+  6 GHz **requires** rather than merely supports.
+* **iwd** AP mode is reported to cap at 802.11n and 20 MHz — disqualifying on the "performant" half.
+* **NetworkManager** AP mode does support WPA3-SAE and auto-configures `dnsmasq` for client DHCP/DNS,
+  but has no documented 802.11ax/6 GHz support. It is the convenient path, not the compatible one.
+
+**The caveat matters more than the choice.** Intel's `iwlwifi` has good AP support only on 2.4 GHz —
+5 GHz AP is disabled or crippled — while Atheros (`ath9k`/`ath1xk`) and MediaTek (`mt76`) are the
+capable AP chipsets. **No daemon fixes a chipset that will not beacon.** A chipset floor is therefore
+a separate constraint from the interface floor, and nothing in the tree expresses one yet.
+
+`NetworkManager-wifi` stays where it is: it is the desktop *client*, unrelated to the AP plane.
+
+### 14. The operator's corrections — MiOS runs anywhere, and CephFS never travels
+
+Four of the operator's answers correct decisions taken above. Two reverse them outright, and both
+reversals are right for reasons the earlier decisions had not weighed.
+
+#### 14.1 MiOS boots on ANY hardware; radio count is one or none
+
+> *"Radio count will be one or none. Use LAN as uplink and downlink. MiOS is meant to run on any
+> hardware no matter radio count or otherwise."*
+
+**This reverses D11.1.** That decision read a two-interface answer as a *hardware floor on the
+product*, and a floor is exactly what MiOS must not have — an immutable image whose reason to exist
+is running anywhere cannot refuse to boot for want of a second NIC.
+
+`[blade.hardware]` becomes `min_interfaces = 1`, `max_radios = 1`, `min_ap_capable = 0`. The LAN is
+both uplink and downlink, so one interface is the whole floor. These numbers now gate a **plane**,
+never the boot: a box that misses one still boots and simply does not run that plane, which is
+Law 12's degrade-open applied to hardware.
+
+That makes `radio` the one **optional** `mini` plane, and motivates a third field beside `owner`:
+`required` — *a Mini must run this itself*. A Mini with no radio is still a Mini; one without a
+hypervisor, a router, a mesh or CephFS is not.
+
+#### 14.2 CephFS is a native Mini service on bare metal, and never travels
+
+> *"CephFS stays on the mini bare metal. Never travels to a transient OCI image. CephFS is a native
+> service, part of the mini platform."*
+
+**This reverses D11.4 and most of D12.3.** `[blade.planes.storage].owner` moves `either` → `mini`,
+`required = true`.
+
+The reasoning that made it `either` was that a shed workload needs its data wherever it lands. That
+is true and it is not an argument for making the *filesystem* movable — it is an argument for
+replication, which D11.4 already supplied. Storage was the odd plane in the movable set precisely
+because it is *present on all peers rather than shed to one*; declaring it `mini` names that
+correctly instead of describing it as a movable plane that never moves.
+
+It also **dissolves the open key question of D12.3**. That tension existed only because a shadow copy
+might land on a transient, possibly off-site OCI image whose operator is not the owner. Replication
+is now Mini-to-Mini, between machines the operator owns, so encryption at rest protects a drive
+rather than arbitrating a trust boundary — and the MiOS-Cat answer in D13.1 covers exactly that.
+
+The shed set is therefore **3 of 8**: `ai`, `ha`, `orchestrator`.
+
+#### 14.3 The mesh is the LAN; Tailscale is the fallback and never blocks boot
+
+> *"It'll just use mesh topology. I have a Tailscale account. Use LAN. Tailscale is secondary
+> fallback … at enrolment, without blocking the boot."*
+
+**This supersedes D13.2's WireGuard default.** That decision optimised for "minimal licensed
+dependencies" and reached for kernel WireGuard — correct on licensing, wrong on the simpler fact
+that **a single site needs no overlay at all.** The LAN is the primary transport, and the tree
+already bakes what it needs (`avahi`, `nss-mdns`); Tailscale is the declared fallback for when the
+LAN cannot reach.
+
+This also matches `[blade.discovery].order` — `localhost → mdns → tailnet → remote` — which the tree
+has carried since D1. The mesh decision was already made there; D13.2 introduced a transport neither
+that order nor the operator had asked for.
+
+`[blade.mesh].blocks_boot = false` states Law 12 where it will be read: mesh enrolment never gates a
+boot.
+
+#### 14.4 A Mini is its own cluster by serving itself as three logical hosts
+
+> *"Its own cluster, meaning it can host all its services as if it was three separate individual
+> hosts, all on localhost."*
+
+`[blade.cluster].localhost_hosts = 3`. This is what "a single Mini is a complete cluster" (D9) means
+operationally, and it is a much stronger claim than "it runs everything": the Mini exercises the same
+three-member topology a fleet would, on one box, so quorum, fencing and placement are the *same code
+paths* whether or not a peer exists. A fleet of one is not a special case.
+
+`[blade.mesh].federate = "manual"`: a second Mini builds its own localhost cluster first, federates
+itself over the mesh, and is then synced by hand.
+
+**This is in tension with D11.3**, which settled that peer #2 *joins* one elected k3s server. The two
+can both hold if they describe different layers — k3s joining *within* a box's logical hosts, boxes
+*federating* across the mesh — but which layer owns cross-box container placement is not settled by
+either answer, and is recorded as open rather than guessed (T-338 axis 11).
+
+#### 14.5 Management packages: already baked, bar one
+
+> *"Cockpit high availability should have Cockpit machines, pacemaker, everything … as a package or
+> dependency in the MiOS SSOT packages section."*
+
+Checked rather than assumed: `cockpit-machines`, `cockpit-podman`, `cockpit-ostree`,
+`cockpit-selinux`, `cockpit-storaged`, `cockpit-networkmanager`, `cockpit-files`, `cockpit-sosreport`
+and the full PCP stack are already in `[packages.cockpit]`; `pacemaker`, `corosync`, `pcs`, `sbd`,
+`fence-agents-all`, `fence-virt`, `dlm`, `booth`, `corosync-qdevice` and `corosync-qnetd` are already
+in `[packages.ha]`.
+
+One package was genuinely missing and is added: **`pcs-web-ui`**, the HA cluster web UI Cockpit
+fronts. Without it the HA stack ships with no management surface, which is precisely the gap the
+requirement names.
 
 
 ## Consequences

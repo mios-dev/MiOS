@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/generate-mini-vs-hosted.py.
+#!/usr/bin/env python3
+# AI-hint: Sibling unit test for tools/generate-mini-vs-hosted.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_mini_vs_hosted_py.md
 """Tests for the seat-vs-blade comparison projector."""
 
@@ -178,6 +179,7 @@ def with_planes(**over):
                "markers": [], "wired_by": "Justfile"},
     }
     d["blade"]["planes"].update(over)
+    d["blade"]["optional_planes"] = ["radio"]
     return d
 
 
@@ -266,7 +268,7 @@ class TestPlanes(unittest.TestCase):
             data = tomllib.load(fh)
         rows = mod.plane_rows(_ROOT, data)
         self.assertTrue(rows, "[blade.planes] must not be empty")
-        for name, _role, owner, _m, _mi, wired_by, wired in rows:
+        for name, _role, owner, _m, _mi, wired_by, wired, _rq in rows:
             self.assertIn(owner, ("mini", "either"),
                           "%s declares an owner outside the two tiers" % name)
             if wired_by:
@@ -280,23 +282,90 @@ class TestHardwareFloor(unittest.TestCase):
 
     def test_the_floor_is_rendered_from_the_ssot(self):
         d = with_planes()
-        d["blade"]["hardware"] = {"min_interfaces": 3, "min_ap_capable": 2}
+        d["blade"]["hardware"] = {"min_interfaces": 2, "max_radios": 3,
+                                  "min_ap_capable": 1}
         text = mod.render(d, _ROOT)
-        self.assertIn("**3 separate interfaces**", text)
-        self.assertIn("least **2**", text)
+        self.assertIn("**2 interfaces**", text)
+        self.assertIn("**3**", text)
+        self.assertIn("**1** need", text)
+
+    def test_the_floor_never_reads_as_a_boot_requirement(self):
+        # The whole point of D14: a box below the floor still BOOTS.
+        text = mod.render(with_planes(), _ROOT)
+        d = with_planes(); d["blade"]["hardware"] = {"min_interfaces": 1}
+        text = mod.render(d, _ROOT)
+        self.assertIn("boots on any hardware", text)
+        self.assertIn("still boots", text)
+
+    def test_a_singular_floor_reads_as_one_interface(self):
+        d = with_planes(); d["blade"]["hardware"] = {"min_interfaces": 1}
+        self.assertIn("**1 interface**", mod.render(d, _ROOT))
 
     def test_no_declared_floor_renders_no_claim(self):
         # Better silent than inventing a floor the SSOT never stated.
         text = mod.render(with_planes(), _ROOT)
         self.assertNotIn("separate interfaces", text)
 
-    def test_the_shipped_floor_admits_a_wired_plus_radio_box(self):
+    def test_the_shipped_floor_admits_a_radioless_box(self):
+        # MiOS boots on ANY hardware (ADR-0016 D14): the LAN is uplink AND
+        # downlink, so one interface is the floor and a radio is optional.
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             hw = (tomllib.load(fh)["blade"]).get("hardware") or {}
-        self.assertEqual(hw.get("min_interfaces"), 2)
-        # One AP-capable interface, not two radios -- 1 radio + 1 wired WAN
-        # must satisfy the floor.
-        self.assertEqual(hw.get("min_ap_capable"), 1)
+        self.assertEqual(hw.get("min_interfaces"), 1)
+        self.assertEqual(hw.get("max_radios"), 1)
+        self.assertEqual(hw.get("min_ap_capable"), 0)
+
+    def test_the_radio_plane_is_the_one_optional_mini_plane(self):
+        # A Mini with no radio is still a Mini. One without a hypervisor,
+        # router, mesh or CephFS is not.
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            blade = tomllib.load(fh)["blade"]
+        self.assertEqual(sorted(blade.get("optional_planes") or []), ["radio"])
+        rows = mod.plane_rows(_ROOT, {"blade": blade, "packages": {}})
+        optional = sorted(r[0] for r in rows if r[2] == "mini" and not r[7])
+        self.assertEqual(optional, ["radio"])
+
+    def test_an_either_plane_is_never_required(self):
+        # `required` means "a Mini must run it ITSELF" -- a movable plane
+        # cannot be, whatever the register says.
+        d = with_planes()
+        d["blade"]["optional_planes"] = []
+        rows = {r[0]: r for r in mod.plane_rows(_ROOT, d)}
+        self.assertFalse(rows["ai"][7])
+        self.assertFalse(rows["storage"][7])
+        self.assertTrue(rows["hypervisor"][7])
+
+    def test_registering_a_plane_makes_it_optional(self):
+        d = with_planes()
+        d["blade"]["optional_planes"] = ["hypervisor"]
+        rows = {r[0]: r for r in mod.plane_rows(_ROOT, d)}
+        self.assertFalse(rows["hypervisor"][7])
+
+    def test_cephfs_never_travels(self):
+        # ADR-0016 D14: CephFS is a NATIVE service of the Mini platform, on
+        # bare metal. Declaring it `either` would let a scheduler put the
+        # storage plane on a transient OCI image.
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            storage = tomllib.load(fh)["blade"]["planes"]["storage"]
+        self.assertEqual(storage["owner"], "mini")
+
+    def test_the_mesh_never_blocks_boot_and_does_not_restate_the_order(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            blade = tomllib.load(fh)["blade"]
+        self.assertFalse(blade["mesh"]["blocks_boot"],
+                         "Law 12: enrolment never gates a boot")
+        # Law 9: the LAN-then-tailnet ORDER has exactly one canonical home.
+        self.assertEqual(blade["discovery"]["order"],
+                         ["localhost", "mdns", "tailnet", "remote"])
+        for restated in ("transport", "fallback", "order"):
+            self.assertNotIn(restated, blade["mesh"],
+                             "[blade.mesh].%s double-tracks "
+                             "[blade.discovery].order" % restated)
+
+    def test_the_required_column_reaches_the_page(self):
+        text = open(os.path.join(_ROOT, mod.OUT), encoding="utf-8").read()
+        self.assertIn("A Mini runs it", text)
+        self.assertIn("optional", text)
 
 
 class TestOpenItemsClaim(unittest.TestCase):
@@ -359,8 +428,8 @@ class TestPolicyRows(unittest.TestCase):
         with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
             data = tomllib.load(fh)
         rows = mod.policy_rows(data)
-        self.assertEqual(len(rows), 9, "an axis was added to the SSOT and not "
-                                       "to policy_rows -- it would be decorative")
+        self.assertEqual(len(rows), 13, "an axis was added to the SSOT and not "
+                                        "to policy_rows -- it would be decorative")
         text = open(os.path.join(_ROOT, mod.OUT), encoding="utf-8").read()
         for key, _v, _w in rows:
             self.assertIn("`%s`" % key, text)

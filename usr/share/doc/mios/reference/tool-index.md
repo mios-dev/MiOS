@@ -289,7 +289,7 @@ is generated, its generator is here.
 | `tools/generate-egress-firewall.py` | !/usr/bin/env python3 Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-manual.py` | A generation tool to compile and structure the complete 50-chapter MiOS User Manual into a single All-in-One file, cleaning up modular directories. |
-| `tools/generate-mini-vs-hosted.py` | !/usr/bin/env python3 GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a ... |
+| `tools/generate-mini-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md from mios.toml. |
 | `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
 | `tools/generate-pod-quadlets.py` | !/usr/bin/env python3 Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
@@ -329,7 +329,7 @@ is generated, its generator is here.
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_generate-adr-index.py` | !/usr/bin/env python3 Sibling unit test for tools/generate-adr-index.py (T-265). |
 | `tools/test_generate-blade-karg.py` | !/usr/bin/env python3 Unit tests for tools/generate-blade-karg.py. |
-| `tools/test_generate-mini-vs-hosted.py` | !/usr/bin/env python3 Sibling unit test for tools/generate-mini-vs-hosted.py. |
+| `tools/test_generate-mini-vs-hosted.py` | Sibling unit test for tools/generate-mini-vs-hosted.py. |
 | `tools/test_render_globals.py` | !/usr/bin/env python3 Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
 | `tools/test_render_ports.py` | !/usr/bin/env python3 Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche... |
 | `tools/test_templates_golden.py` | !/usr/bin/env python3 Golden fixture test runner for mios-new template generator across all 20 template types. |

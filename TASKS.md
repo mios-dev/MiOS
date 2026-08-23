@@ -3345,8 +3345,8 @@ does not have yet, and they are the only ones a peer cannot supply.**
 
 **Done When:** every `owner = "mini"` plane is baked and wired (`radio` and `mesh` are the two open
 ones -- `radio` is T-333/MINI-05a, `mesh` is T-335); a gate proves a `mini` plane can never be
-scheduled onto a hosted instance; `[blade.hardware]`'s interface floor is enforced rather than
-documented; and axes 9 and 10 below are settled.
+scheduled onto a hosted instance; `[blade.hardware]`'s plane gates are enforced rather than
+documented; and axes 16 and 17 below are settled.
 
 **Four axes SETTLED by the operator (ADR-0016 D11), each with the work it creates:**
 
@@ -3391,20 +3391,67 @@ documented; and axes 9 and 10 below are settled.
 8. **Encrypt at rest, replicate every class.** `[blade.storage]` `replication = "all"`,
    `at_rest = "encrypted"`. Keeps D11.4's promise for every data class.
 
-**Still open -- both are tensions D12 created with decisions already taken, not new questions:**
+**Both D12 tensions CLOSED, and four decisions CORRECTED by the operator (ADR-0016 D13/D14):**
 
-9. **Who holds the shadow-copy key?** `[security].disk_encryption` is TPM2-sealed to PCR 7 of ONE
-   box, so it cannot travel with a shadow copy. Two mutually exclusive options: every mesh member
-   holds a site key (remote peer CAN read it -- shed stays warm, D11.4 holds, encryption protects
-   against physical theft but not against whoever operates the remote box); or the remote peer does
-   NOT hold it (stores ciphertext it cannot use -- shed there is COLD for stateful workloads, which
-   contradicts D11.4). Picking one silently reverses either D11.4 or the threat model.
-10. **Does uplink failover try local first?** ADR-0017 D3 makes local-first the house ordering, and
-    `[blade.hardware]` guarantees a second interface that might have its own uplink -- yet
-    `failover = "peer"` skips the local step. Either make it `["local", "peer"]` and consistent with
-    D3, or record uplink failover as a deliberate D3 exception because a dead WAN is not a crashed
-    process and retrying in place is pointless. Also ordering: handing a route to a peer is a MESH
-    operation, and `mesh` has no package and no wiring -- this cannot be built before the mesh is.
+9. **The shadow-copy key question dissolved rather than being answered.** It existed only because a
+   replica might land on a transient, possibly off-site OCI image. **CephFS now stays on Mini bare
+   metal and never travels** (D14.2), so replication is Mini-to-Mini between machines the operator
+   owns. What remains is the PORTABLE-DRIVE key, which upstream forces: `[security.disk_encryption]`
+   `pcrs` was WRONG at `[7]` and is now `[7, 14]` (14 = MOK enrolment, which akmods-signed NVIDIA
+   modules need). **PCR 7 and PCR 14 are BOTH host-bound, so a TPM2-sealed key cannot travel on a
+   MiOS-Cat drive** -- a property of the measurement, not a misconfiguration. Hence
+   `portable_token = "fido2"`: a second enrolled token on the same LUKS2 volume.
+10. **Uplink failover tries local first.** `[blade.uplink].failover = ["local", "peer"]`, consistent
+    with ADR-0017 D3. Still ordered behind the mesh, which has no wiring.
+11. **Radio: hostapd**, not NetworkManager AP mode -- 6 GHz REQUIRES WPA3-SAE + MFP and iwd AP mode
+    caps at 802.11n/20 MHz. **Caveat that outweighs the choice:** `iwlwifi` has good AP support only
+    on 2.4 GHz; Atheros and MediaTek are the capable AP chipsets. No daemon fixes a chipset that
+    will not beacon, so a CHIPSET floor is a separate constraint and nothing expresses one yet.
+12. **MiOS boots on ANY hardware** (D14.1, reversing D11.1). `min_interfaces = 1`, `max_radios = 1`,
+    `min_ap_capable = 0`. The LAN is uplink AND downlink. These gate a PLANE, never the boot. New
+    `required` field beside `owner`: `radio` is the one OPTIONAL `mini` plane.
+13. **CephFS is `owner = "mini"`, `required = true`** (D14.2, reversing D11.4/D12.3). Shed set drops
+    to **3 of 8**: `ai`, `ha`, `orchestrator`.
+14. **The mesh is the LAN; Tailscale is the fallback** (D14.3, superseding D13.2's WireGuard). A
+    single site needs no overlay, and this matches `[blade.discovery].order` the tree has carried
+    since D1. `blocks_boot = false` (Law 12).
+15. **A Mini is its own cluster by serving itself as `localhost_hosts = 3`.** Quorum, fencing and
+    placement run the SAME code paths whether or not a peer exists; a fleet of one is not a special
+    case. `pcs-web-ui` added -- the one genuinely missing management package.
+
+**Still open:**
+
+16. **Which layer owns cross-box container placement?** D11.3 settled that peer #2 JOINS one elected
+    k3s server; D14.4 says a peer federates itself and is synced by hand. Both can hold if they
+    describe different layers -- k3s joining WITHIN a box's logical hosts, boxes FEDERATING across
+    the mesh -- but neither answer says which layer places a container that must run on another box.
+17. **A chipset floor.** `[blade.hardware]` counts interfaces and radios; it cannot tell an
+    AP-capable radio from one that will not beacon in AP mode (see item 11).
+
+**A gate defect this change ran into, reported rather than worked around:**
+`check_legibility_ratchet` counts every tracked `.sh`/`.ps1`, **including the GENERATED
+`automation/lib/globals.{sh,ps1}`** -- 8205 of its 45172 shell lines, ~18%. Those files grow by one
+line per SSOT leaf key, so the ratchet penalises Law 7 (NO-HARDCODE: lift operator-tunable values
+into `mios.toml`) directly: complying with Law 7 always trips it. Its own advice, "fold or delete",
+is not actionable on machine output.
+
+`origin/main` already exceeds both floors (26987 > 26985, 45167 > 45081). This change adds **5**
+lines to each generated file, and all 5 are the operator's decisions -- `MIOS_BLADE_CLUSTER_LOCALHOST_HOSTS`,
+`MIOS_BLADE_HARDWARE_MAX_RADIOS`, `MIOS_BLADE_MESH_BLOCKS_BOOT`, `MIOS_BLADE_MESH_FEDERATE`,
+`MIOS_BLADE_OPTIONAL_PLANES`. Deleting any of them deletes an answer, so none were deleted. The
+additions were first trimmed from 16 to 5 by folding 8 per-plane `required` fields into one
+`[blade].optional_planes` register, retiring `[blade.mesh].transport`/`fallback` (they double-tracked
+`[blade.discovery].order` -- Law 9), and dropping the `[packages.blade-planes]` section in favour of
+the existing `network-discovery` and `security` sections.
+
+**Fix:** exclude generated files from the legibility count, so the budget measures what a human
+reads. Not done here -- the gate is shared infrastructure under another agent's active campaign, and
+editing a gate to make one's own change pass is the wrong instinct even when the gate is wrong.
+
+**A repair, not a finding:** commit `5c50533` (single-parent, on top of `a55d3bd`) reverted
+`tools/generate-mini-vs-hosted.py` to a pre-`c9e8cea` revision while keeping its 43-test sibling,
+leaving the pairing broken (23 errors) and the generated page stale. Restored from `a55d3bd`. The
+blade SSOT was untouched -- all 20 `[blade.*]` subtables survived.
 
 **Why:** without the `mini`/`either` line, "offload all services" and "a Mini is a complete cluster"
 are the same sentence read two ways, and the tree cannot tell which one a scheduler should obey.
