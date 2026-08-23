@@ -1,21 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Fails when a negative test's injected fixture, or a backup file it made, is left behind in the tracked tree.
 # AI-related: tests/drift-gate-negatives.sh, usr/share/mios/mios.toml, automation/98-drift-checks.sh
-"""A negative test mutates the tree and is supposed to put it back.
-
-When one does not, the mutation ships. Three reached the SSOT in a single
-session: a capability requirement replaced with an injected name, a port list
-with an entry repeated twice, and a threshold key commented out. Between them
-they turned five suites red, and the failures pointed at the suites rather than
-at the leak, so the cost was paid several times over before anyone looked at the
-SSOT diff.
-
-Backup files count too. Copies with a rescue suffix are how a test preserves
-the original, and a run that dies before restoring leaves one in the tree.
-
-This scans what git tracks, because an untracked leftover is a local mess while
-a tracked one is shipped.
-"""
 import os
 import subprocess
 import sys

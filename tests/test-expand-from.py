@@ -8,7 +8,7 @@ import json
 import sys
 import os
 
-import _agentpipe_path  # noqa: F401  -- repo agent-pipe on sys.path, not the installed copy
+import _agentpipe_path  # noqa: F401
 os.environ.setdefault("MIOS_TOML", "/usr/share/mios/mios.toml")
 import server  # noqa: E402
 

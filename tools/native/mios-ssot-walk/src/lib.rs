@@ -10,6 +10,10 @@ pub const EXCLUDED_SECTIONS: &[&str] = &[
     "theme",
     "install_phases",
     "messages",
+    // Read from the TOML directly by the suite registry reader; projecting
+    // them emitted two dozen constants no consumer reads.
+    "ci",
+    "tests",
 ];
 
 pub const WALK_MOSTLY_DEAD: &[&str] =

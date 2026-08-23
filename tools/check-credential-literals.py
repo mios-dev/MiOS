@@ -22,7 +22,7 @@ def literal_credentials(root: str) -> list:
         for dirpath, _, names in os.walk(full):
             for n in sorted(names):
                 path = os.path.join(dirpath, n)
-                # Forward slashes always: os.path.relpath yields backslashes on
+                # Forward slashes always: the relative-path helper yields backslashes on
                 # Windows, so every entry read as NEW and every grandfathered
                 # entry as removed -- the gate was red on one host and green on
                 # the other while the tree was identical.

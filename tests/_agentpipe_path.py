@@ -1,16 +1,17 @@
-# AI-hint: Puts the repository's agent-pipe on sys.path so a suite tests the tree it ships from, not whatever is installed on the host.
-# AI-related: usr/lib/mios/agent-pipe/server.py, tools/ci-suites.py
+# AI-hint: Makes a suite import the agent pipe from the repository it ships in rather than whatever is installed on the host.
+# AI-related: usr/lib/mios/agent-pipe/server.py
 """Import this before importing `server`.
 
-Nine suites each inserted the INSTALLED agent-pipe directory onto sys.path. A
-CI runner has no such directory, so `import server` raised and every one of
-those suites failed -- which is why none of them was ever wired into a
-workflow. A developer machine that does have MiOS installed ran them against
-the installed copy instead of the working tree, so the change under test was
-not the code being tested.
+Nine suites each pointed the import search at the INSTALLED directory. A CI
+runner has no such directory, so importing the server raised and every one of
+those suites failed -- which is why none was ever wired into a workflow. A
+developer machine that does have MiOS installed ran them against the installed
+copy instead of the working tree, so the change under test was not the code
+being tested.
 
-Resolving from `__file__` fixes both: the repository copy comes first, and the
-installed path stays as a fallback for a suite executed outside a checkout.
+Resolving from this file's own location fixes both: the repository copy comes
+first, and the installed directory stays as a fallback for a suite executed
+outside a checkout.
 """
 import pathlib
 import sys

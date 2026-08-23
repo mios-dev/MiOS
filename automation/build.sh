@@ -545,7 +545,12 @@ fi
 
 $DNF_BIN "${DNF_SETOPT[@]}" clean all 2>/dev/null || true
 rm -rf /var/cache/dnf /var/cache/libdnf5 /tmp/geist-font /tmp/*.tar* /tmp/*.rpm 2>/dev/null || true
-rm -rf /usr/share/doc/* /usr/share/man/* /usr/share/info/* 2>/dev/null || true
+# /usr/share/man is NOT wiped wholesale: MiOS renders its own pages there
+# and `man mios` is meant to work on the installed system. Upstream pages
+# still go; the MiOS ones and the index they need stay.
+rm -rf /usr/share/doc/* /usr/share/info/* 2>/dev/null || true
+find /usr/share/man -type f ! -name 'mios*' -delete 2>/dev/null || true
+find /usr/share/man -type d -empty -delete 2>/dev/null || true
 rm -rf /usr/share/gnome/help/* /usr/share/help/* 2>/dev/null || true
 rm -f /var/log/dnf5.log* /var/log/hawkey.log 2>/dev/null || true
 rm -rf /run/ceph /run/cockpit /run/k3s /tmp/mios-step-*.log 2>/dev/null || true

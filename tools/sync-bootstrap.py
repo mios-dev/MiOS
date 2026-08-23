@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ...
 # AI-doc: usr/share/doc/mios/manual/tools.md
-"""Keep mios-bootstrap.git in step with mios.git (Law 15).
-
-Contract and rationale: installation/UNIFY.md.
-"""
 from __future__ import annotations
 
 import argparse
@@ -120,12 +116,6 @@ def _toml_val(v):
 
 
 def unclassified_shared(root, boot, man):
-    """A file both repos track must be mirrored or explicitly not mirrored.
-
-    Thirty-five files were tracked in both repositories; sixteen were declared
-    and eighteen of the remaining nineteen had already diverged, silently,
-    because nothing required them to be classified at all.
-    """
     import subprocess
 
     def tracked(r):

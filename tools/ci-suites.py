@@ -1,18 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted.
 # AI-related: usr/share/mios/mios.toml, tests/run-suites.sh, automation/98-drift-checks.sh
-"""One reader for the suite registry, so listing and checking cannot disagree.
-
-Both publishers ask this module what to run. Before it existed each workflow
-carried its own hand-written list: GitHub ran fifteen suites, Forgejo ran eight,
-and thirteen tracked suites ran nowhere at all -- including nine that failed
-only because they pointed at the INSTALLED agent-pipe rather than the tree they
-ship from. Nobody noticed, because a suite nobody runs reports nothing.
-
---check is what keeps that from recurring: a tracked suite must be in a tier, be
-matched by a glob entry, or be exempt with a reason. Adding a test file and no
-registration turns the gate red.
-"""
 import fnmatch
 import os
 import sys
@@ -110,9 +98,6 @@ def cmd_check(root: str, ci: dict) -> int:
         if path in reg:
             viol.append(f"{path} is both exempt and registered in {reg[path]}")
 
-    # Publisher parity. Registering a tier nobody invokes is the same as not
-    # having it, and the two workflows previously ran different sets precisely
-    # because each carried its own list.
     tiers = sorted(ci.get("tiers") or {})
     for wf in (".github/workflows/mios-ci.yml", ".forgejo/workflows/build-mios.yml"):
         full = os.path.join(root, wf)

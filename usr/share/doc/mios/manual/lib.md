@@ -158,3 +158,23 @@ AI-functions: _ws7_scalar, _ws7_is_true, ws7_install_fapolicyd_observe, ws7_buil
 
 <!-- mios-src:4f4814ea7fe4 from automation/lib/ws7-uki-fapolicyd-build.sh:1-4 -->
 
+### Configure rootful container storage on a fresh runner. The...
+
+Configure rootful container storage on a fresh runner.
+
+The runner's default graphroot sits on the small root filesystem and its
+overlay defaults enable metacopy, which bootc images cannot use. Both
+publishers need the same layout or a bake succeeds on one and fails on the
+other for reasons unrelated to the change under test.
+
+<!-- mios-src:82d3f33d7e13 from tools/lib/ci-runtime.sh:12-17 -->
+
+### Assert the built image is bootc-switchable (Architectural...
+
+Assert the built image is bootc-switchable (Architectural Law 4).
+
+The Containerfile's final layer already runs `bootc container lint`. This
+re-reads the labels from storage so a lint that ran but did not take effect
+is still caught.
+
+<!-- mios-src:7539e098c573 from tools/lib/ci-runtime.sh:71-75 -->

@@ -9,12 +9,6 @@
 #
 # shellcheck shell=bash
 
-# Configure rootful container storage on a fresh runner.
-#
-# The runner's default graphroot sits on the small root filesystem and its
-# overlay defaults enable metacopy, which bootc images cannot use. Both
-# publishers need the same layout or a bake succeeds on one and fails on the
-# other for reasons unrelated to the change under test.
 mios_ci_prepare_storage() {
     sudo mkdir -p /etc/containers /mnt/tmp
     printf '%s\n' \
@@ -68,11 +62,6 @@ mios_ci_image_tag() {
     printf '%s\n' "${ver#v}-${ts}-${sha}"
 }
 
-# Assert the built image is bootc-switchable (Architectural Law 4).
-#
-# The Containerfile's final layer already runs `bootc container lint`. This
-# re-reads the labels from storage so a lint that ran but did not take effect
-# is still caught.
 mios_ci_verify_bootc_labels() {
     local image="${1:-localhost/mios:latest}" label value
     for label in containers.bootc ostree.bootable; do

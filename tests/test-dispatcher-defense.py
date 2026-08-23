@@ -1,7 +1,7 @@
 # AI-hint: Validates the `server._build_dispatch_cmd` logic to ensure the dispatcher correctly filters and accepts/rejects specific application launch verbs and package names before execution.
 # AI-related: /usr/lib/mios/agent-pipe, mios-apps
 import sys
-import _agentpipe_path  # noqa: F401  -- repo agent-pipe on sys.path, not the installed copy
+import _agentpipe_path  # noqa: F401
 import server
 
 tests = [

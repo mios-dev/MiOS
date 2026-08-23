@@ -5925,6 +5925,9 @@ pkgs = [
     "fapolicyd",
     "usbguard",
     "python3.13",
+    # The manual reader itself: without it the rendered pages are
+    # unreachable on the running system.
+    "man-db",
 ]
 
 [packages.crowdsec]

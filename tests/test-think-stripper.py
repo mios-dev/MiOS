@@ -7,7 +7,7 @@ sub-agent output before it reaches the operator's chat stream.
 from __future__ import annotations
 import sys
 
-import _agentpipe_path  # noqa: F401  -- repo agent-pipe on sys.path, not the installed copy
+import _agentpipe_path  # noqa: F401
 import server
 
 

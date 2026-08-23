@@ -5760,41 +5760,47 @@ PY
 }
 
 check_skip_list_covered() {
-    echo "[98-drift-checks]   checking workflow skip-list coverage and parity"
-    local gh_wf="${ROOT}/.github/workflows/mios-ci.yml"
-    local fj_wf="${ROOT}/.forgejo/workflows/build-mios.yml"
-    [[ -f "$gh_wf" && -f "$fj_wf" ]] || return 0
+    echo "[98-drift-checks]   checking the agent-pipe skip list lives in the SSOT"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+# The list used to be pasted into both workflows and this check compared the
+# two copies. It is one SSOT key now, so parity is structural rather than
+# asserted -- what still needs asserting is that the key exists and that no
+# workflow carries an inline copy, which would silently shadow it.
+import os
+import sys
 
-    if python3 - "$gh_wf" "$fj_wf" <<'PY'
-import sys, re
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
-gh_path, fj_path = sys.argv[1], sys.argv[2]
-with open(gh_path, encoding="utf-8") as f:
-    gh_content = f.read()
-with open(fj_path, encoding="utf-8") as f:
-    fj_content = f.read()
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+viol = []
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    globs = ((tomllib.load(fh).get("ci") or {}).get("globs") or {})
 
-m_gh = re.search(r'SKIP="([^"]+)"', gh_content)
-m_fj = re.search(r'SKIP="([^"]+)"', fj_content)
+spec = globs.get("agent-pipe") or {}
+skip = spec.get("skip") or []
+if not skip:
+    viol.append("[ci.globs.agent-pipe].skip is empty or absent -- the suites that "
+                "need a database would run and fail on every runner")
+if skip and not str(spec.get("skip_reason", "")).strip():
+    viol.append("[ci.globs.agent-pipe].skip carries no skip_reason")
 
-if not m_gh or not m_fj:
-    sys.stderr.write("    [skip-list-covered] SKIP= list missing in workflows\n")
-    sys.exit(1)
+for wf in (".github/workflows/mios-ci.yml", ".forgejo/workflows/build-mios.yml"):
+    path = os.path.join(root, wf)
+    if not os.path.isfile(path):
+        continue
+    if "SKIP=" in open(path, encoding="utf-8", errors="replace").read():
+        viol.append(f"{wf} carries an inline SKIP= list, which shadows "
+                    f"[ci.globs.agent-pipe].skip")
 
-gh_skip = set(m_gh.group(1).split())
-fj_skip = set(m_fj.group(1).split())
-
-if gh_skip != fj_skip:
-    sys.stderr.write(f"    [skip-list-covered] GitHub and Forgejo skip lists diverge: {gh_skip ^ fj_skip}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PY
-    then
-        echo "[98-drift-checks]   workflow skip-list coverage and parity verified"
-    else
-        _violation "workflow skip-list coverage or parity failure"
-    fi
+sys.stdout.write("\n".join(viol))
+sys.exit(1 if viol else 0)
+PYEOF
+    )" || { _violations_from "check_skip_list_covered: " "$out"; return; }
+    echo "[98-drift-checks]   the skip list is SSOT-owned and no workflow shadows it"
 }
 
 # Both renderers resolve mios.toml through the shared layered resolver, which
@@ -6063,6 +6069,7 @@ main() {
     check_ports_category_schema
     check_globals_generated
     check_ci_suite_coverage
+    check_manpages
     check_leaked_fixtures
 
     echo "[98-drift-checks]"
@@ -6386,8 +6393,7 @@ check_wsl_distro_resolution() {
 
 check_adhoc_toml_parsers() {
     echo "[98-drift-checks]   check_adhoc_toml_parsers"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 # mios-common.ps1 is the ONE PowerShell reader allowed to regex-parse mios.toml.
@@ -6419,10 +6425,8 @@ for dirpath, dirnames, filenames in os.walk(root):
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   No ad-hoc regex TOML parsers outside the shared resolver"
 }
 
@@ -6432,8 +6436,7 @@ PY
 # Uninstall-MiOS.ps1 learns to clean it up.
 check_install_uninstall_symmetry() {
     echo "[98-drift-checks]   check_install_uninstall_symmetry"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 import tomllib as _toml
@@ -6492,10 +6495,8 @@ else:
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   Uninstall-MiOS.ps1 removes every artifact in [windows.owned_artifacts]"
 }
 
@@ -6505,8 +6506,7 @@ PY
 # different ports for the same lane (the bug this gate was written for).
 check_ps_port_fallback_ssot() {
     echo "[98-drift-checks]   check_ps_port_fallback_ssot"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, re, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 import tomllib as _toml
@@ -6550,10 +6550,8 @@ for dirpath, dirnames, filenames in os.walk(root):
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell port fallbacks all match mios.toml [ports]"
 }
 
@@ -6572,8 +6570,7 @@ check_github_slug_casing() {
 
 check_ps_encoding_and_bom() {
     echo "[98-drift-checks]   check_ps_encoding_and_bom"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 BOM = b"\xef\xbb\xbf"
@@ -6602,10 +6599,8 @@ for dirpath, dirnames, filenames in os.walk(root):
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   PowerShell BOMs match content: non-ASCII scripts carry one, ASCII scripts do not"
 }
 
@@ -6679,8 +6674,7 @@ check_unit_dependency_closure() {
     fi
     local py_bin="python3"
     command -v python3 >/dev/null 2>&1 || py_bin="python"
-    local out
-    if ! out="$($py_bin - "$ROOT" <<'PY'
+    local out; out="$($py_bin - "$ROOT" <<'PY'
 import os, sys, glob
 
 root = sys.argv[1]
@@ -6763,18 +6757,15 @@ if viol:
     print('\n'.join(viol))
     sys.exit(1)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   All systemd unit and Quadlet dependency references resolved cleanly"
 }
 
 # Documentation ratchet: see docs/agy/doc-generative-documentation.md
 check_docs_ratchet() {
     echo "[98-drift-checks]   check_docs_ratchet"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys
 root = os.environ["MIOS_DRIFT_ROOT"]
 sys.path.insert(0, os.path.join(root, "usr", "lib", "mios"))
@@ -6855,10 +6846,8 @@ print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d/%d undo
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
-    )"; then
-        _violations_from "" "$out"
-        return
-    fi
+    )" || {
+        _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet holding (narrative + hint + stale-ref ceilings)"
 }
 
@@ -6907,6 +6896,13 @@ check_task_schema() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
+}
+
+check_manpages() {
+    echo "[98-drift-checks]   check_manpages"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
+    echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
 }
 
 check_ci_suite_coverage() {
@@ -6981,8 +6977,7 @@ check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-
 
 check_no_inert_ssot_tables() {
     echo "[98-drift-checks]   check_no_inert_ssot_tables"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, sys, re
 import tomllib
 
@@ -7023,173 +7018,30 @@ if inert:
 
 sys.exit(0)
 PYEOF
-    )"; then
-        _violations_from "check_no_inert_ssot_tables: " "$out"
-        return
-    fi
+    )" || {
+        _violations_from "check_no_inert_ssot_tables: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_doc_refs_resolve() {
     echo "[98-drift-checks]   check_doc_refs_resolve"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
-import os, sys, re
-import tomllib
-
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(toml_path):
-    sys.exit(0)
-
-with open(toml_path, "rb") as fh:
-    data = tomllib.load(fh)
-
-docs_cfg = data.get("docs") or {}
-max_stale = int(docs_cfg.get("max_stale_doc_refs", 0))
-allowlist = set(docs_cfg.get("ref_allowlist") or [])
-
-stale = []
-ref_re = re.compile(r'^\s*#\s*AI-(?:related|doc):\s*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->', re.MULTILINE)
-
-for rpath, _, files in os.walk(root):
-    if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output']):
-        continue
-    for fn in files:
-        if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
-            continue
-        if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md', 'drift-gate-negatives.sh'):
-            continue
-        fpath = os.path.join(rpath, fn)
-        dirpath = os.path.dirname(fpath)
-        try:
-            with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
-                text = sfh.read()
-            for m in ref_re.finditer(text):
-                raw_line = m.group(1) or m.group(2) or ''
-                tokens = [t.strip().rstrip(',') for t in raw_line.split(',') if t.strip()]
-                for t in tokens:
-                    t_clean = t.rstrip(',').strip()
-                    t_clean = re.sub(r':\d+.*$', '', t_clean).strip()
-                    t_clean = re.sub(r'\s*\([^)]*\)', '', t_clean).strip()
-                    # "file.toml [section]" is a file + section, not a path.
-                    t_clean = re.sub(r'\s*\[[^\]]*\]\s*$', '', t_clean).strip()
-                    if not t_clean or any(al in t_clean for al in allowlist):
-                        continue
-                    if t_clean.startswith('[') or t_clean.startswith('@@') or t_clean.startswith('<'):
-                        continue
-                    if not ('/' in t_clean or t_clean.endswith(('.sh', '.py', '.toml', '.ps1', '.json', '.yaml', '.yml', '.md'))):
-                        continue
-                    if t_clean.startswith('/etc/') or t_clean.startswith('/var/') or t_clean.startswith('/tmp/') or t_clean.startswith('/proc/') or t_clean.startswith('/sys/') or t_clean.startswith('/run/'):
-                        continue
-                    if t_clean.startswith('http://') or t_clean.startswith('https://') or t_clean.startswith('localhost'):
-                        continue
-
-                    rel = t_clean.lstrip('/')
-                    cands = [
-                        os.path.normpath(os.path.join(dirpath, rel)),
-                        os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
-                        os.path.normpath(os.path.join(os.path.dirname(os.path.dirname(dirpath)), rel)),
-                        os.path.normpath(os.path.join(root, 'usr/lib/mios/agent-pipe', rel)),
-                        os.path.normpath(os.path.join(root, rel)),
-                    ]
-                    if not any(os.path.exists(c) for c in cands):
-                        stale.append(f'{fn}: {t_clean}')
-        except Exception:
-            pass
-
-if len(stale) > max_stale:
-    sys.stdout.write(f"    check_doc_refs_resolve: {len(stale)} stale reference(s) found (max allowed {max_stale}):\n")
-    for s in stale[:10]:
-        sys.stdout.write(f"      {s}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PYEOF
-    )"; then
-        _violations_from "check_doc_refs_resolve: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py doc-refs-resolve
+    )" || {
+        _violations_from "check_doc_refs_resolve: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_resolver_differential_parity() {
     echo "[98-drift-checks]   check_resolver_differential_parity"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
-import os, sys, subprocess
-import tomllib
-
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-_toml_data = tomllib.load(open(os.path.join(root, "usr/share/mios/mios.toml"), "rb"))
-resolver_bin = None
-
-for cand in [os.path.join(root, "tools/native/target", p, "mios-resolver" + x)
-             for p in ("debug", "release") for x in ("", ".exe")] + [
-             "/usr/libexec/mios/mios-resolver", "/usr/bin/mios-resolver"]:
-    if os.path.isfile(cand):
-        resolver_bin = cand
-        break
-
-if not resolver_bin:
-    # A silent skip is how a gate stays green while proving nothing. Where the
-    # environment declares tools mandatory, an absent binary is a violation.
-    if os.environ.get("MIOS_DRIFT_REQUIRE_TOOLS", "0") == "1":
-        print("    mios-resolver is not built, so the Python/Rust resolvers were "
-              "never compared (MIOS_DRIFT_REQUIRE_TOOLS=1). Build it: "
-              "cd tools/native && cargo build -p mios-resolver", file=sys.stderr)
-        sys.exit(1)
-    print("    mios-resolver binary not built locally -- advisory skip")
-    sys.exit(0)
-
-import importlib.util as _ilu  # the file is render-globals.py; the import name never resolved
-_sp = _ilu.spec_from_file_location("rg", os.path.join(root, "tools", "render-globals.py")); render_globals = _ilu.module_from_spec(_sp); _sp.loader.exec_module(render_globals)
-
-py_exports = render_globals.build_exports()
-
-try:
-    res = subprocess.run([resolver_bin, "--emit=json"], capture_output=True, text=True, check=True)
-    import json
-    rs_exports = (_j := json.loads(res.stdout)).get("exports", _j)  # emit_json wraps: {merged, exports}
-except Exception as exc:
-    print(f"    mios-resolver --emit=json execution failed: {exc}", file=sys.stderr)
-    sys.exit(1)
-
-_rc = _toml_data.get("resolver") or {}; ceil_div = _rc.get("max_key_divergence")
-diff_keys = set(py_exports) ^ set(rs_exports)
-if ceil_div is None or len(diff_keys) > int(ceil_div):
-    print(f"    key divergence {len(diff_keys)} vs ceiling {ceil_div}: {sorted(diff_keys)[:10]}", file=sys.stderr)
-    sys.exit(1)
-
-mismatches = []
-for k in sorted(set(py_exports) & set(rs_exports)):
-    v_py = str(py_exports[k])
-    v_rs = str(rs_exports[k])
-    if v_py != v_rs:
-        mismatches.append(f"{k}: py='{v_py}' vs rs='{v_rs}'")
-
-ceil_val = _rc.get("max_value_divergence")
-if ceil_val is None or len(mismatches) > int(ceil_val):
-    print(f"    value divergence {len(mismatches)} vs ceiling {ceil_val}:", file=sys.stderr)
-    for m in mismatches[:10]:
-        print(f"      {m}", file=sys.stderr)
-    sys.exit(1)
-print(f"    resolver divergence: {len(diff_keys)}/{ceil_div} keys, {len(mismatches)}/{ceil_val} values (shrink-only; AGY-1676)", file=sys.stderr)
-
-print("    mios-resolver --emit=json matches Python SSOT render 100%")
-sys.exit(0)
-PYEOF
-)"; then
-        _violations_from "check_resolver_differential_parity: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py resolver-differential-parity 2>&1
+)" || {
+        _violations_from "check_resolver_differential_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_generator_host_parity() {
     echo "[98-drift-checks]   check_generator_host_parity"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
 import os, sys
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -7222,10 +7074,8 @@ if viol:
 print("    generator host parity: all generators produce host-independent byte-identical outputs")
 sys.exit(0)
 PYEOF
-)"; then
-        _violations_from "check_generator_host_parity: " "$out"
-        return
-    fi
+)" || {
+        _violations_from "check_generator_host_parity: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -7266,8 +7116,7 @@ PYEOF
 # ADR-0017 D5 prerequisite: divergence needs per-row provenance to be mergeable.
 check_blade_reconcile_schema() {
     echo "[98-drift-checks]   check_blade_reconcile_schema"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, re, sys
 import tomllib
 
@@ -7317,10 +7166,8 @@ if viol:
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PYEOF
-    )"; then
-        _violations_from "check_blade_reconcile_schema: " "$out"
-        return
-    fi
+    )" || {
+        _violations_from "check_blade_reconcile_schema: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -7328,12 +7175,9 @@ PYEOF
 # Law 15 mirror: mios.toml [bootstrap.sync]. Authority is mios.git.
 check_bootstrap_sync() {
     echo "[98-drift-checks]   check_bootstrap_sync"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
-            --root "$ROOT" --check 2>&1)"; then
-        _violations_from "check_bootstrap_sync: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/sync-bootstrap.py \
+            --root "$ROOT" --check 2>&1)" || {
+        _violations_from "check_bootstrap_sync: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -7341,70 +7185,9 @@ check_bootstrap_sync() {
 # The repo is the deliverable; these floors only come down. ROADMAP.md explains why.
 check_legibility_ratchet() {
     echo "[98-drift-checks]   check_legibility_ratchet"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
-import os, subprocess, sys
-import tomllib
-
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-    lim = (tomllib.load(fh).get("legibility") or {})
-if not lim:
-    print("mios.toml [legibility] is absent -- the size of the deliverable is "
-          "then bounded by nothing")
-    sys.exit(1)
-
-try:
-    rels = [r for r in subprocess.run(["git", "ls-files", "-z"], cwd=root,
-            capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if r]
-except Exception as exc:
-    sys.stderr.write("[legibility] not a work tree (%s); skipping\n" % exc)
-    sys.exit(0)
-
-def lines(paths):
-    n = 0
-    for rel in paths:
-        try:
-            with open(os.path.join(root, rel.replace("/", os.sep)), "rb") as fh:
-                n += fh.read().count(b"\n")
-        except OSError:
-            pass
-    return n
-
-nbytes = 0
-for rel in rels:
-    try:
-        nbytes += os.path.getsize(os.path.join(root, rel.replace("/", os.sep)))
-    except OSError:
-        pass
-
-measured = {
-    "max_tracked_files": len(rels),
-    "max_tracked_mb": round(nbytes / 1048576),
-    "max_shell_lines": lines([r for r in rels if r.endswith((".sh", ".bash"))]),
-    "max_ps_lines": lines([r for r in rels if r.endswith((".ps1", ".psm1"))]),
-    "max_automation_phases": len([r for r in rels if r.startswith("automation/")
-                                  and r.endswith(".sh") and r[11:13].isdigit()]),
-    "max_libexec_verbs": len([r for r in rels if r.startswith("usr/libexec/mios/")
-                              and r.count("/") == 3]),
-}
-viol = []
-for k, got in sorted(measured.items()):
-    cap = lim.get(k)
-    if cap is None:
-        continue
-    if got > cap:
-        viol.append("%s = %d, over the floor of %d. This ratchet only comes DOWN: "
-                    "fold or delete, do not raise it." % (k.replace("max_", ""), got, cap))
-print("[legibility] " + "  ".join("%s=%d/%s" % (k.replace("max_", ""), v, lim.get(k, "-"))
-                                  for k, v in sorted(measured.items())), file=sys.stderr)
-print("\n".join(viol))
-sys.exit(1 if viol else 0)
-PYEOF
-    )"; then
-        _violations_from "check_legibility_ratchet: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py legibility-ratchet
+    )" || {
+        _violations_from "check_legibility_ratchet: " "$out"; return; }
     echo "[98-drift-checks]   legibility floors holding"
 }
 
@@ -7412,8 +7195,7 @@ PYEOF
 # Header integrity: a tagger must never absorb line 1. See AGY-1607.
 check_header_integrity() {
     echo "[98-drift-checks]   check_header_integrity"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
 import os, re, subprocess, sys
 
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
@@ -7457,10 +7239,8 @@ if viol:
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PYEOF
-    )"; then
-        _violations_from "check_header_integrity: " "$out"
-        return
-    fi
+    )" || {
+        _violations_from "check_header_integrity: " "$out"; return; }
     echo "[98-drift-checks]   no absorbed shebangs or build directives in file headers"
 }
 

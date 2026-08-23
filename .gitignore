@@ -27,6 +27,8 @@
 !/images/**
 !/.forgejo/
 !/.forgejo/**
+!/usr/share/man/
+!/usr/share/man/**
 # The block-all `/*` rule never un-ignored tests/. Files already tracked there
 # (drift-gate-negatives.sh) survived only because tracking predates the rule --
 # any NEW test was silently unstageable, which is how tests/powershell/ came to

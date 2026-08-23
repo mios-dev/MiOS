@@ -109,10 +109,7 @@ test_resolver_equivalence() {
 
     echo 'export MIOS_AI_TEST_TEMP="invalid-drift-val"' >> "$userenv_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1; then
-        cp "$bak_file" "$userenv_file" && rm -f "$bak_file"
-        die "Check_resolver_twin_equivalence passed despite mismatch"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 && die "Check_resolver_twin_equivalence passed despite mismatch"
 
     cp "$bak_file" "$userenv_file" && rm -f "$bak_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_twin_equivalence >/dev/null 2>&1 \
@@ -132,10 +129,7 @@ eval "$1"
 EOF
     chmod +x "$temp_verb"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1; then
-        rm -f "$temp_verb"
-        die "Check_cli_eval_safety passed despite eval injection"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 && die "Check_cli_eval_safety passed despite eval injection"
 
     rm -f "$temp_verb"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 \
@@ -159,7 +153,6 @@ EOF
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_shellcheck >/dev/null 2>&1; then
         export PATH="$old_path"
-        rm -rf "$tmp_bin_dir"
         die "Check_shellcheck passed despite shellcheck failure"
     fi
 
@@ -262,10 +255,7 @@ curl https://example.com/unretried_file.tar.gz -o /tmp/file.tar.gz
 EOF
     chmod +x "$temp_script"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_curl_retry >/dev/null 2>&1; then
-        rm -f "$temp_script"
-        die "Check_curl_retry passed despite unretried curl fetch"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_curl_retry >/dev/null 2>&1 && die "Check_curl_retry passed despite unretried curl fetch"
 
     rm -f "$temp_script"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_curl_retry >/dev/null 2>&1 \
@@ -280,10 +270,7 @@ test_resolver_ssot_refs() {
     cp "$target" "$backup"
     printf '    local drifted_ref="docker.io/pgvector/pgvector:pg16"\n' >> "$target"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1; then
-        mv "$backup" "$target"
-        die "check_resolver_ssot_refs passed despite a hardcoded registry image ref"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1 && die "check_resolver_ssot_refs passed despite a hardcoded registry image ref"
 
     mv "$backup" "$target"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolver_ssot_refs >/dev/null 2>&1 \
@@ -348,19 +335,13 @@ test_module_test_coverage() {
     local temp_submodule="${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/temp_untested_mod.py"
     echo "# Temp untested submodule" > "$temp_submodule"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1; then
-        rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
-        die "Check_module_test_coverage passed despite missing submodule sibling test"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 && die "Check_module_test_coverage passed despite missing submodule sibling test"
 
     rm -f "$temp_submodule"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/identity/__pycache__/temp_untested_mod"* 2>/dev/null || true
 
     local temp_tool="${ROOT}/tools/temp_untested_tool_mod.py"
     echo "# Temp untested tool" > "$temp_tool"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1; then
-        rm -f "$temp_tool"
-        die "Check_module_test_coverage passed despite un-grandfathered tools module"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 && die "Check_module_test_coverage passed despite un-grandfathered tools module"
     rm -f "$temp_tool"
 
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_test_coverage >/dev/null 2>&1 \
@@ -374,10 +355,7 @@ test_router_parity() {
     echo 'def _bogus_intent_branch(intent):' > "$temp_mod"
     echo '    if intent == "unmapped_bogus_intent": return True' >> "$temp_mod"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_router_parity >/dev/null 2>&1; then
-        rm -f "$temp_mod"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__/temp_unmapped_router_branch"* 2>/dev/null || true
-        die "Check_router_parity passed despite unmapped intent branch in routing code"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_router_parity >/dev/null 2>&1 && die "Check_router_parity passed despite unmapped intent branch in routing code"
 
     rm -f "$temp_mod"* "${ROOT}/usr/lib/mios/agent-pipe/mios_pipe/routing/__pycache__/temp_unmapped_router_branch"* 2>/dev/null || true
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_router_parity >/dev/null 2>&1 \
@@ -399,11 +377,7 @@ new = t.replace('diversity_threshold         = 0.92', '# diversity_threshold dis
 open(p, "w", encoding="utf-8").write(new)
 EOF
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_council_gate_ssot >/dev/null 2>&1; then
-        cp "$bak_file" "$toml_file"
-        rm -f "$bak_file"
-        die "Check_council_gate_ssot passed despite missing diversity_threshold key in [agent_pipe.council]"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_council_gate_ssot >/dev/null 2>&1 && die "Check_council_gate_ssot passed despite missing diversity_threshold key in [agent_pipe.council]"
 
     cp "$bak_file" "$toml_file"
     rm -f "$bak_file"
@@ -480,15 +454,9 @@ test_bake_unresolved_image() {
     local out=""
     out="$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan 2>&1 || true)"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan >/dev/null 2>&1; then
-        cp "$bak" "$q" && rm -f "$bak"
-        die "check_bake_plan passed despite an Image= that resolves nowhere"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan >/dev/null 2>&1 && die "check_bake_plan passed despite an Image= that resolves nowhere"
 
-    if ! printf '%s' "$out" | grep -q "does not resolve against the SSOT"; then
-        cp "$bak" "$q" && rm -f "$bak"
-        die "check_bake_plan failed without naming the unresolvable Image="
-    fi
+    printf '%s' "$out" | grep -q "does not resolve against the SSOT" || die "check_bake_plan failed without naming the unresolvable Image="
 
     cp "$bak" "$q" && rm -f "$bak"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT"         MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh"         check_bake_plan >/dev/null 2>&1         || die "check_bake_plan failed after restoration"
@@ -504,10 +472,7 @@ FROM alpine
 RUN git clone https://github.com/example/unpinned-repo.git /tmp/unpinned
 EOF
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_containerfile_pinned_clones >/dev/null 2>&1; then
-        rm -f "$temp_containerfile"
-        die "Check_containerfile_pinned_clones passed despite unpinned git clone"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_containerfile_pinned_clones >/dev/null 2>&1 && die "Check_containerfile_pinned_clones passed despite unpinned git clone"
 
     rm -f "$temp_containerfile"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_containerfile_pinned_clones >/dev/null 2>&1 \
@@ -536,10 +501,7 @@ test_firstboot_tier() {
     local toml_bak="${toml}.negbak"
     cp "$toml" "$toml_bak"
     sed -i 's/firstboot_tokens = \[/firstboot_tokens = ["bogustoken", /' "$toml"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
-        cp "$toml_bak" "$toml" && rm -f "$toml_bak"
-        die "Check_firstboot_tier passed despite unjustified firstboot token"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 && die "Check_firstboot_tier passed despite unjustified firstboot token"
     cp "$toml_bak" "$toml" && rm -f "$toml_bak"
 
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
@@ -612,10 +574,7 @@ test_nested_podman_retry() {
     cp "$script" "$bak_file"
 
     sed -i 's/build_image_with_retry/build_image_direct/g' "$script"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
-        cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "test_nested_podman_retry: Check_nested_podman_caps passed despite missing build_image_with_retry"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1 && die "test_nested_podman_retry: Check_nested_podman_caps passed despite missing build_image_with_retry"
 
     cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1 \
@@ -631,26 +590,17 @@ test_gate_registry() {
 
     # Test 1: Duplicate definition
     sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
-        cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "check_gate_registry passed despite duplicate check_dead_lane definition"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite duplicate check_dead_lane definition"
     cp "$bak_file" "$script"
 
     # Test 2: Unregistered definition
     echo 'check_unregistered_dummy() { return 0; }' >> "$script"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
-        cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "check_gate_registry passed despite unregistered function definition"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite unregistered function definition"
     cp "$bak_file" "$script"
 
     # Test 3: Undefined call in main()
     sed -i '/check_dead_lane/a \    check_undefined_dummy' "$script"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
-        cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "check_gate_registry passed despite undefined check function call in main()"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 && die "check_gate_registry passed despite undefined check function call in main()"
 
     cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 \
@@ -668,10 +618,7 @@ def test_live():
     conn = psycopg.connect("dbname=mios user=mios")
 EOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_test_hermeticity >/dev/null 2>&1; then
-        rm -f "$temp_test"
-        die "Check_test_hermeticity passed despite unguarded psycopg.connect call"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_test_hermeticity >/dev/null 2>&1 && die "Check_test_hermeticity passed despite unguarded psycopg.connect call"
 
     rm -f "$temp_test"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_test_hermeticity >/dev/null 2>&1 \
@@ -684,10 +631,7 @@ test_no_mkdir_in_var() {
     local temp_script="${ROOT}/automation/99-fake-var-mkdir.sh"
     echo 'mkdir -p /var/log/fake_test' > "$temp_script"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_mkdir_in_var >/dev/null 2>&1; then
-        rm -f "$temp_script"
-        die "Check_no_mkdir_in_var passed despite imperative /var mkdir"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_mkdir_in_var >/dev/null 2>&1 && die "Check_no_mkdir_in_var passed despite imperative /var mkdir"
 
     rm -f "$temp_script"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_mkdir_in_var >/dev/null 2>&1 \
@@ -707,10 +651,7 @@ Image=docker.io/library/alpine:latest
 User=root
 EOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1; then
-        rm -f "$temp_q"
-        die "Check_quadlet_privilege passed despite un-allowlisted User=root"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 && die "Check_quadlet_privilege passed despite un-allowlisted User=root"
 
     rm -f "$temp_q"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_quadlet_privilege >/dev/null 2>&1 \
@@ -724,10 +665,7 @@ test_lint_is_final() {
     local bak; bak="$(mktemp)"; cp "$cf" "$bak"
     sed -i '/RUN bootc container lint/d' "$cf"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1; then
-        cp "$bak" "$cf"; rm -f "$bak"
-        die "Check_lint_is_final passed despite missing bootc container lint"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1 && die "Check_lint_is_final passed despite missing bootc container lint"
 
     cp "$bak" "$cf"; rm -f "$bak"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_lint_is_final >/dev/null 2>&1 \
@@ -743,10 +681,7 @@ set -e
 echo "No degrade open escape here"
 EOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1; then
-        rm -f "$temp_fb"
-        die "Check_firstboot_degrade_open passed despite set -e without degrade escape"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1 && die "Check_firstboot_degrade_open passed despite set -e without degrade escape"
 
     rm -f "$temp_fb"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_degrade_open >/dev/null 2>&1 \
@@ -759,10 +694,7 @@ test_require_tools() {
     local tmp_bin="${ROOT}/tmp_no_python"
     mkdir -p "$tmp_bin"
 
-    if MIOS_DRIFT_REQUIRE_TOOLS=1 PATH="$tmp_bin" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1; then
-        rm -rf "$tmp_bin"
-        die "Check_cli_eval_safety passed despite missing python3 when MIOS_DRIFT_REQUIRE_TOOLS=1"
-    fi
+    MIOS_DRIFT_REQUIRE_TOOLS=1 PATH="$tmp_bin" bash "${ROOT}/automation/98-drift-checks.sh" check_cli_eval_safety >/dev/null 2>&1 && die "Check_cli_eval_safety passed despite missing python3 when MIOS_DRIFT_REQUIRE_TOOLS=1"
 
     rm -rf "$tmp_bin"
     log "Test_require_tools negative test passed"
@@ -783,10 +715,7 @@ Group=mios
 Delegate=yes
 EOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/97-ssot-lint.sh" >/dev/null 2>&1; then
-        rm -f "$temp_q"
-        die "97-ssot-lint.sh passed despite dead key injection"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/97-ssot-lint.sh" >/dev/null 2>&1 && die "97-ssot-lint.sh passed despite dead key injection"
 
     rm -f "$temp_q"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/97-ssot-lint.sh" >/dev/null 2>&1 \
@@ -1026,10 +955,7 @@ test_chpasswd_plaintext() {
 
     echo 'echo "Root:hardcodedpass" | chpasswd' >> "$autorun_script"
 
-    if python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1; then
-        cp "$bak_file" "$autorun_script" && rm -f "$bak_file"
-        die "Mios-hardcode-lint passed despite plaintext chpasswd injection"
-    fi
+    python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1 && die "Mios-hardcode-lint passed despite plaintext chpasswd injection"
 
     cp "$bak_file" "$autorun_script" && rm -f "$bak_file"
     python3 "${ROOT}/usr/libexec/mios/mios-hardcode-lint" "${ROOT}" >/dev/null 2>&1 \
@@ -1238,10 +1164,7 @@ test_renderer_gate_coverage() {
     echo 'echo "Bogus render"' >> "$bogus_script"
     chmod +x "$bogus_script"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_renderer_gate_coverage >/dev/null 2>&1; then
-        rm -f "$bogus_script"
-        die "Check_renderer_gate_coverage passed despite unmapped 99-bogus-render.sh"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_renderer_gate_coverage >/dev/null 2>&1 && die "Check_renderer_gate_coverage passed despite unmapped 99-bogus-render.sh"
 
     rm -f "$bogus_script"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_renderer_gate_coverage >/dev/null 2>&1 \
@@ -1257,10 +1180,7 @@ test_clevis_luks() {
     printf '#!/bin/sh\necho "CLEVIS_BROKEN=true"\n' > "${tmp_dir}/usr/libexec/mios/mios-clevis-luks-gen"
     chmod +x "${tmp_dir}/usr/libexec/mios/mios-clevis-luks-gen" 2>/dev/null || true
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1; then
-        rm -rf "$tmp_dir"
-        die "Check_clevis_luks passed despite broken generator output"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 && die "Check_clevis_luks passed despite broken generator output"
 
     rm -rf "$tmp_dir"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_clevis_luks >/dev/null 2>&1 \
@@ -1276,10 +1196,7 @@ test_metal_vfio() {
     printf '#!/bin/sh\necho "METAL_BROKEN=true"\n' > "${tmp_dir}/usr/libexec/mios/mios-metal-vfio-gen"
     chmod +x "${tmp_dir}/usr/libexec/mios/mios-metal-vfio-gen" 2>/dev/null || true
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vfio >/dev/null 2>&1; then
-        rm -rf "$tmp_dir"
-        die "Check_metal_vfio passed despite broken generator output"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$tmp_dir" MIOS_DRIFT_CHECK_ROOT="$tmp_dir" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vfio >/dev/null 2>&1 && die "Check_metal_vfio passed despite broken generator output"
 
     rm -rf "$tmp_dir"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_metal_vfio >/dev/null 2>&1 \
@@ -1309,10 +1226,7 @@ with open(p, 'w', encoding='utf-8') as f:
     f.write(val + '\n# INJECTED-DRIFT\n')
 PYEOF
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1; then
-            cp "$bak_file" "$conf_file" && rm -f "$bak_file"
-            die "Check_hyprland_conf_heredoc passed despite injected drift"
-        fi
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 && die "Check_hyprland_conf_heredoc passed despite injected drift"
 
         cp "$bak_file" "$conf_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_hyprland_conf_heredoc >/dev/null 2>&1 \
@@ -1326,10 +1240,7 @@ test_target_languages() {
     local bogus_file="${ROOT}/usr/libexec/mios/bogus_script.cpp"
     echo '// forbidden c++ file' > "$bogus_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1; then
-        rm -f "$bogus_file"
-        die "Check_target_languages passed despite forbidden C++ file"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 && die "Check_target_languages passed despite forbidden C++ file"
 
     rm -f "$bogus_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_target_languages >/dev/null 2>&1 \
@@ -1345,10 +1256,7 @@ test_roadmap_index() {
         cp "$roadmap_file" "$bak_file"
         sed -i 's/\*\*Done\*\*: [0-9]*/\*\*Done\*\*: 99999/g' "$roadmap_file" 2>/dev/null || true
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1; then
-            cp "$bak_file" "$roadmap_file" && rm -f "$bak_file"
-            die "Check_roadmap_index passed despite corrupted rollup"
-        fi
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1 && die "Check_roadmap_index passed despite corrupted rollup"
 
         cp "$bak_file" "$roadmap_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_roadmap_index >/dev/null 2>&1 \
@@ -1365,10 +1273,7 @@ test_templates_compilation() {
         cp "$tmpl_file" "$bak_file"
         echo 'INVALID_SYNTAX_BOGUS {{' >> "$tmpl_file"
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1; then
-            cp "$bak_file" "$tmpl_file" && rm -f "$bak_file"
-            die "Check_templates_compilation passed despite invalid template"
-        fi
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1 && die "Check_templates_compilation passed despite invalid template"
 
         cp "$bak_file" "$tmpl_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_templates_compilation >/dev/null 2>&1 \
@@ -1385,10 +1290,7 @@ test_impossible_eol() {
         cp "$toml_file" "$bak_file"
         echo 'eol_test_pkg = ["tang"]' >> "$toml_file"
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1; then
-            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-            die "Check_impossible_eol_regressions passed despite EOL tang package"
-        fi
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1 && die "Check_impossible_eol_regressions passed despite EOL tang package"
 
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_impossible_eol_regressions >/dev/null 2>&1 \
@@ -1419,10 +1321,7 @@ with open(p, 'w', encoding='utf-8') as f:
     f.write(val + '\n[testing.smoke_components]\nshims = ["usr/libexec/mios/non-existent-bogus-shim"]\n')
 PYEOF
 
-        if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1; then
-            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
-            die "Check_smoke_manifest passed despite missing component path"
-        fi
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 && die "Check_smoke_manifest passed despite missing component path"
 
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_smoke_manifest >/dev/null 2>&1 \
@@ -1477,10 +1376,7 @@ test_vllm_name_canonical() {
     local dummy="${ROOT}/usr/lib/mios/dummy_vllm_negative_test.sh"
     echo 'MIOS_AI_VLLM_SERVED_NAME="test"' > "$dummy"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1; then
-        rm -f "$dummy"
-        die "Check_vllm_name_canonical passed despite legacy long name"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1 && die "Check_vllm_name_canonical passed despite legacy long name"
 
     rm -f "$dummy"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vllm_name_canonical >/dev/null 2>&1 \
@@ -1583,10 +1479,7 @@ test_sbom_metadata() {
     mkdir -p "$dir"
     printf "name\tversion\tsha256\turl\nmodel1\t1.0\tdeadbeef\thttps://example.com\n" > "$sbom_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1; then
-        rm -f "$sbom_file"
-        die "Check_sbom_metadata passed despite invalid sha256"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1 && die "Check_sbom_metadata passed despite invalid sha256"
 
     rm -f "$sbom_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_sbom_metadata >/dev/null 2>&1 \
@@ -1689,10 +1582,7 @@ curl -LO https://example.com/releases/download/v1.2.3/x
 EOF
     chmod +x "$temp_script"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcode_version >/dev/null 2>&1; then
-        rm -f "$temp_script"
-        die "Check_no_hardcode_version passed despite hardcoded version in URL"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcode_version >/dev/null 2>&1 && die "Check_no_hardcode_version passed despite hardcoded version in URL"
 
     rm -f "$temp_script"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcode_version >/dev/null 2>&1 \
@@ -1708,11 +1598,7 @@ test_law_enforcers() {
 
     sed -i 's/check_usr_over_etc/check_nonexistent_bogus_law/' "$toml_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1; then
-        cp "$bak_file" "$toml_file"
-        rm -f "$bak_file"
-        die "Check_law_enforcers passed despite missing law enforcer"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_law_enforcers >/dev/null 2>&1 && die "Check_law_enforcers passed despite missing law enforcer"
 
     cp "$bak_file" "$toml_file"
     rm -f "$bak_file"
@@ -1730,7 +1616,6 @@ test_usr_over_etc() {
 
     if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_usr_over_etc >/dev/null 2>&1; then
         git rm -f "$temp_shadow" >/dev/null 2>&1
-        rm -rf "${ROOT}/etc/fontconfig"
         die "Check_usr_over_etc passed despite /etc file shadowing /usr SSOT file"
     fi
 
@@ -1967,17 +1852,11 @@ test_mini_vs_hosted() {
     # (1) A hand-edited comparison must FAIL -- the whole point is that the
     # numbers are projected, so nobody can quietly "correct" them.
     sed -i 's/| Units started |.*/| Units started | **1** | **1** |/' "$doc"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1; then
-        mv "$bak" "$doc"
-        die "check_mini_vs_hosted passed on a hand-edited comparison"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 && die "check_mini_vs_hosted passed on a hand-edited comparison"
 
     # (2) A MISSING projection must FAIL rather than read as "nothing to check".
     rm -f "$doc"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1; then
-        mv "$bak" "$doc"
-        die "check_mini_vs_hosted passed with the comparison absent"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 && die "check_mini_vs_hosted passed with the comparison absent"
 
     mv "$bak" "$doc"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mini_vs_hosted >/dev/null 2>&1 \
@@ -2001,10 +1880,7 @@ m=re.search(r"^\[nodes\.local-sglang\]\n(?:[^\[]*\n)", s, re.M)
 assert m, "node anchor moved"
 blk=m.group(0).replace("local-sglang","local-negtest-alias",1)
 io.open(p,"w",encoding="utf-8",newline="\n").write(s[:m.end()] + blk + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_node_pool passed with two nodes on one (endpoint, model, lane)"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1 && die "check_node_pool passed with two nodes on one (endpoint, model, lane)"
     cp "$backup" "$toml"
 
     # (2) A lane [dispatch] does not budget must FAIL: the semaphore has no bucket.
@@ -2015,10 +1891,7 @@ m=re.search(r"^lane        = \"gpu\".*$", s, re.M)
 assert m, "lane anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.start()] + "lane        = \"negtest-quantum\"" + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_node_pool passed with a lane [dispatch].lane_priority does not budget"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1 && die "check_node_pool passed with a lane [dispatch].lane_priority does not budget"
     cp "$backup" "$toml"
 
     # (3) A baked local port must FAIL: no /etc/mios overlay can move it, so the
@@ -2030,10 +1903,7 @@ m=re.search(r"^endpoint    = \"http://localhost:\$\{MIOS_PORT_VLLM\}/v1\"$", s, 
 assert m, "endpoint anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.start()] + "endpoint    = \"http://localhost:8520/v1\"" + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_node_pool passed with an endpoint an overlay cannot move"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1 && die "check_node_pool passed with an endpoint an overlay cannot move"
 
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_node_pool >/dev/null 2>&1 \
@@ -2182,19 +2052,13 @@ test_blade_karg() {
     # (1) A hand-edited karg must FAIL -- that is what makes this a projection
     # rather than a file someone tweaks and nobody notices.
     sed -i 's/mios\.blade=[a-z-]*/mios.blade=negtesthandedited/' "$karg"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1; then
-        mv "$backup" "$karg"
-        die "check_blade_karg passed on a hand-edited karg"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1 && die "check_blade_karg passed on a hand-edited karg"
     cp "$backup" "$karg"
 
     # (2) A MISSING projection must FAIL rather than being read as "nothing to
     # check" -- the file's absence is exactly the state this task started in.
     rm -f "$karg"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1; then
-        mv "$backup" "$karg"
-        die "check_blade_karg passed with the projection absent"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1 && die "check_blade_karg passed with the projection absent"
 
     mv "$backup" "$karg"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_karg >/dev/null 2>&1 \
@@ -2219,10 +2083,7 @@ s=io.open(p,encoding="utf-8").read()
 pat=re.compile(r"^mios-searxng\s*=\s*\[[^\]]*\]\n", re.M)
 assert len(pat.findall(s))==1,"blade.requires anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(pat.sub("", s, count=1))' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_blade_coverage passed with a container classified neither way"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 && die "check_blade_coverage passed with a container classified neither way"
     cp "$backup" "$toml"
 
     # (2) A capability no archetype grants must FAIL: nothing could activate it,
@@ -2235,10 +2096,7 @@ pat=re.compile(r"^mios-llm-heavy\s*=\s*\[[^\]]*\]", re.M)
 assert len(pat.findall(s))==1,"requires anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     pat.sub("mios-llm-heavy     = [\"mios-negtest-uncapability\"]", s, count=1))' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_blade_coverage passed with a capability no archetype grants"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 && die "check_blade_coverage passed with a capability no archetype grants"
 
     cp "$backup" "$toml"
 
@@ -2255,10 +2113,7 @@ m2 = re.search(r'"'"'^  "mios-hermes-browser",[^\n]*\n'"'"', s, re.M)
 assert m2, "seat_side anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m2.end()] + "  \"mios-hermes-browser-worker\",\n" + s[m2.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_blade_coverage passed with a seat-side unit only a gated unit dials"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 && die "check_blade_coverage passed with a seat-side unit only a gated unit dials"
 
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_blade_coverage >/dev/null 2>&1 \
@@ -2286,10 +2141,7 @@ m=re.search(r"^\[ports\]\n", s, re.M)
 assert m, "flat [ports] table not found"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.end()] + "negtest_unbound_port = 8599\n" + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_ports_bound passed with an allocated port nothing references"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1 && die "check_ports_bound passed with an allocated port nothing references"
     cp "$backup" "$toml"
 
     # (2) The register must only SHRINK: a port that IS referenced may not sit
@@ -2301,10 +2153,7 @@ m=re.search(r"^unbound = \[", s, re.M)
 assert m, "unbound register not found"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.end()] + "\"guacd\", " + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_ports_bound passed with a REFERENCED port still in the unbound register"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1 && die "check_ports_bound passed with a REFERENCED port still in the unbound register"
 
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_bound >/dev/null 2>&1 \
@@ -2329,10 +2178,7 @@ s=io.open(p,encoding="utf-8").read()
 assert s.count(old)==1,"non_addressable tail anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(s.replace(old,new))' \
         "$toml" "$reg_tail" '"sglang", "ssh", "ttyd_bash", "ttyd_powershell",'
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_service_urls passed with a port in neither [urls] nor the register"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 && die "check_service_urls passed with a port in neither [urls] nor the register"
     cp "$backup" "$toml"
 
     # (2) A register entry naming a port that does not exist must FAIL -- a stale
@@ -2345,10 +2191,7 @@ s=io.open(p,encoding="utf-8").read()
 assert s.count(old)==1,"register head anchor moved"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s.replace(old, old+"\n  \""+ghost+"\","))' "$toml" "$reg_head"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_service_urls passed with a register entry naming no real port"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 && die "check_service_urls passed with a register entry naming no real port"
 
     cp "$backup" "$toml"
 
@@ -2361,10 +2204,7 @@ m=re.search(r"^\[urls\]\n", s, re.M)
 assert m, "[urls] table not found"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.end()] + "negtest_dsn        = \"postgresql://u@localhost:5432/d\"\n" + s[m.end():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_service_urls passed with a non-browser scheme in [urls]"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 && die "check_service_urls passed with a non-browser scheme in [urls]"
 
     cp "$backup" "$toml"
 
@@ -2377,10 +2217,7 @@ m=re.search(r"^\[urls\]\n", s, re.M)
 assert m, "[urls] table not found"
 io.open(p,"w",encoding="utf-8",newline="\n").write(
     s[:m.start()] + "[negtest_bare]\nendpoint = \"http://localhost:8500/v1\"\n\n" + s[m.start():])' "$toml"
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_service_urls passed with an address an overlay cannot move"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 && die "check_service_urls passed with an address an overlay cannot move"
 
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_service_urls >/dev/null 2>&1 \
@@ -2409,10 +2246,7 @@ assert s.count(old) == 1, "critical_services anchor moved"
 io.open(p, "w", encoding="utf-8", newline="\n").write(
     s.replace(old, 'critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes", "%s"]' % bogus))
 PY
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_greenboot passed despite a critical service with no health-check script"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1 && die "check_greenboot passed despite a critical service with no health-check script"
     cp "$backup" "$toml"
 
     # (2) An EMPTY critical set must FAIL rather than pass vacuously.
@@ -2424,10 +2258,7 @@ old = 'critical_services = ["agent-pipe", "llm-light", "pgvector", "hermes"]'
 assert s.count(old) == 1, "critical_services anchor moved"
 io.open(p, "w", encoding="utf-8", newline="\n").write(s.replace(old, 'critical_services = []'))
 PY
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_greenboot passed over an EMPTY critical set (vacuous success)"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1 && die "check_greenboot passed over an EMPTY critical set (vacuous success)"
 
     mv "$backup" "$toml"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_greenboot >/dev/null 2>&1 \
@@ -2444,10 +2275,7 @@ test_adr_index() {
 
     printf '\n| 9999 | hand-edited row | accepted | | | |\n' >> "$idx"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_adr_index >/dev/null 2>&1; then
-        mv "$backup" "$idx"
-        die "check_adr_index passed despite a hand-edited ADR.md"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_adr_index >/dev/null 2>&1 && die "check_adr_index passed despite a hand-edited ADR.md"
 
     mv "$backup" "$idx"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_adr_index >/dev/null 2>&1 \
@@ -2469,10 +2297,7 @@ test_schema_consumers() {
     local orphan="mios_negtest""_orphan_tbl"
     printf '\nCREATE TABLE IF NOT EXISTS %s (id bigint);\n' "$orphan" >> "$sql"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_schema_consumers >/dev/null 2>&1; then
-        mv "$backup" "$sql"
-        die "check_schema_consumers passed despite a table with no reader or writer"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_schema_consumers >/dev/null 2>&1 && die "check_schema_consumers passed despite a table with no reader or writer"
 
     mv "$backup" "$sql"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_schema_consumers >/dev/null 2>&1 \
@@ -2493,26 +2318,17 @@ test_tasks_status_parity() {
     local tid
     tid="$(grep -m1 -oE '^\| T-[0-9]+ \| P[0-9] \| (done|done-by-code|planned|in-progress) \|' "$tasks" \
             | awk '{print $2}')"
-    if [[ -z "$tid" ]]; then
-        mv "$backup" "$tasks"
-        die "test_tasks_status_parity found no resolvable summary row to sabotage"
-    fi
+    [[ -z "$tid" ]] && die "test_tasks_status_parity found no resolvable summary row to sabotage"
     sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P9 | pending |/" "$tasks"
     sed -i "0,/^| ${tid} | P9 | pending |/s/| P9 |/| P1 |/" "$tasks"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1; then
-        mv "$backup" "$tasks"
-        die "check_tasks_status_parity passed while the summary table contradicted ${tid}'s own Status line"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 && die "check_tasks_status_parity passed while the summary table contradicted ${tid}'s own Status line"
     mv "$backup" "$tasks"
 
     # The '?' placeholder must fail too -- it is how the drift hid for 28 rows.
     cp "$tasks" "$backup"
     sed -i "0,/^| ${tid} | P[0-9] | [a-z/-]* |/s//| ${tid} | P1 | ? |/" "$tasks"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1; then
-        mv "$backup" "$tasks"
-        die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 && die "check_tasks_status_parity accepted a '?' placeholder for ${tid}"
     mv "$backup" "$tasks"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_tasks_status_parity >/dev/null 2>&1 \
@@ -2530,19 +2346,13 @@ test_agy_tasks() {
     # Inject duplicate task ID
     echo -e "\n## AGY-1 -- Duplicate header test\n" >> "$agy"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1; then
-        mv "$backup" "$agy"
-        die "check_agy_tasks passed despite duplicate AGY task ID"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 && die "check_agy_tasks passed despite duplicate AGY task ID"
     mv "$backup" "$agy"
 
     # Inject dangling Dep reference
     cp "$agy" "$backup"
     echo -e "\n## AGY-9999 -- Test task\n**Dep:** AGY-999999\n" >> "$agy"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1; then
-        mv "$backup" "$agy"
-        die "check_agy_tasks passed despite dangling Dep reference"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 && die "check_agy_tasks passed despite dangling Dep reference"
     mv "$backup" "$agy"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 \
@@ -2560,10 +2370,7 @@ test_mios_toml_integrity() {
     # Truncate mios.toml
     head -n 50 "$backup" > "$toml"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mios_toml_integrity >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_mios_toml_integrity passed despite truncated mios.toml"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mios_toml_integrity >/dev/null 2>&1 && die "check_mios_toml_integrity passed despite truncated mios.toml"
     mv "$backup" "$toml"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mios_toml_integrity >/dev/null 2>&1 \
@@ -2581,10 +2388,7 @@ test_privileged_quadlets_minimal() {
     # Strip comment from a root entry
     sed -i 's/"mios-ceph.container",.*#.*/"mios-ceph.container",/' "$toml"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_privileged_quadlets_minimal >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_privileged_quadlets_minimal passed despite un-commented root entry"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_privileged_quadlets_minimal >/dev/null 2>&1 && die "check_privileged_quadlets_minimal passed despite un-commented root entry"
     mv "$backup" "$toml"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_privileged_quadlets_minimal >/dev/null 2>&1 \
@@ -2610,10 +2414,7 @@ assert m, "no ContainerName to remove"
 open(p, "w", encoding="utf-8").write(s[:m.start()] + s[m.end():])
 PYEOF
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_container_names >/dev/null 2>&1; then
-        mv "$backup" "$toml"
-        die "check_container_names passed while a Quadlet declared no ContainerName"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_container_names >/dev/null 2>&1 && die "check_container_names passed while a Quadlet declared no ContainerName"
     mv "$backup" "$toml"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_container_names >/dev/null 2>&1 \
@@ -2632,10 +2433,7 @@ test_firstboot_provisioners() {
     # the oneshot would run on every boot forever.
     sed -i 's#^ConditionPathExists=.*#ConditionPathExists=!/var/lib/mios/.not-a-real-sentinel#' "$unit"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_provisioners >/dev/null 2>&1; then
-        mv "$backup" "$unit"
-        die "check_firstboot_provisioners passed despite a sentinel the fetcher never writes"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_provisioners >/dev/null 2>&1 && die "check_firstboot_provisioners passed despite a sentinel the fetcher never writes"
 
     mv "$backup" "$unit"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_provisioners >/dev/null 2>&1 \
@@ -2654,10 +2452,7 @@ test_module_length() {
 
     seq 1 801 > "$dummy_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1; then
-        rm -f "$dummy_file"
-        die "Check_module_length passed despite 801-line file"
-    fi
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1 && die "Check_module_length passed despite 801-line file"
 
     rm -f "$dummy_file"
     MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_module_length >/dev/null 2>&1 \
@@ -2671,10 +2466,7 @@ test_vendored_assets_non_stub() {
     local stub_file="${ROOT}/usr/share/mios/vendored/k3s/fake_stub.tmp"
     echo "Stub" > "$stub_file"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vendored_assets_non_stub >/dev/null 2>&1; then
-        rm -f "$stub_file"
-        die "Check_vendored_assets_non_stub passed despite injected stub file"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vendored_assets_non_stub >/dev/null 2>&1 && die "Check_vendored_assets_non_stub passed despite injected stub file"
 
     rm -f "$stub_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_vendored_assets_non_stub >/dev/null 2>&1 \
@@ -2693,11 +2485,7 @@ test_resolved_env_lossless() {
     cp "$base_file" "$backup_tmp"
     echo "MIOS_INJECTED_DUMMY_KEY=injected_val" >> "$base_file"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless >/dev/null 2>&1; then
-        cp "$backup_tmp" "$base_file"
-        rm -f "$backup_tmp"
-        die "Check_resolved_env_lossless passed despite injected baseline drift"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_resolved_env_lossless >/dev/null 2>&1 && die "Check_resolved_env_lossless passed despite injected baseline drift"
 
     cp "$backup_tmp" "$base_file"
     rm -f "$backup_tmp"
@@ -2722,10 +2510,7 @@ test_no_hardcoded_ssot_literal() {
     log "Testing check_no_hardcoded_ssot_literal"
     local inj_file="${ROOT}/automation/temp_inj_test_hardcode.sh"
     echo 'echo "hardcoded fedora-99"' > "$inj_file"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1; then
-        rm -f "$inj_file"
-        die "check_no_hardcoded_ssot_literal passed despite injected hardcoded fedora-99 literal"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1 && die "check_no_hardcoded_ssot_literal passed despite injected hardcoded fedora-99 literal"
     rm -f "$inj_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_hardcoded_ssot_literal >/dev/null 2>&1 \
         || die "Check_no_hardcoded_ssot_literal failed after restoration"
@@ -2738,10 +2523,7 @@ test_pipeline_numbering() {
     local backup; backup="$(mktemp)"
     cp "$f" "$backup"
     printf '\n# NEG-TEST [98-drift-checks]   (99) injected colliding label\n' >> "$f"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1; then
-        cp "$backup" "$f"; rm -f "$backup"
-        die "Check_pipeline_numbering passed despite an injected check label"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1 && die "Check_pipeline_numbering passed despite an injected check label"
     cp "$backup" "$f"; rm -f "$backup"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$f" check_pipeline_numbering >/dev/null 2>&1 \
         || die "Check_pipeline_numbering failed after restoration"
@@ -2755,10 +2537,7 @@ test_value_aliases() {
     local backup; backup="$(mktemp)"
     cp "$f" "$backup"
     printf 'MIOS_PG_USER\tMIOS_PGVECTOR_USER\tderive\n' >> "$f"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1; then
-        cp "$backup" "$f"; rm -f "$backup"
-        die "Check_value_aliases passed despite a derive-pair with divergent values"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 && die "Check_value_aliases passed despite a derive-pair with divergent values"
     cp "$backup" "$f"; rm -f "$backup"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_value_aliases >/dev/null 2>&1 \
         || die "Check_value_aliases failed after restoration"
@@ -2770,10 +2549,7 @@ test_bash_phase_ratchet() {
     local dummy_script="${ROOT}/automation/99-dummy-test-phase.sh"
     touch "$dummy_script"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1; then
-        rm -f "$dummy_script"
-        die "Check_bash_phase_ratchet passed despite extra bash phase script exceeding ratchet baseline"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 && die "Check_bash_phase_ratchet passed despite extra bash phase script exceeding ratchet baseline"
 
     rm -f "$dummy_script"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bash_phase_ratchet >/dev/null 2>&1 \
@@ -2788,10 +2564,7 @@ test_check_no_silent_tool_skips() {
     echo 'command -v non_existent_tool || return 0' >> "$dummy"
     chmod +x "$dummy"
 
-    if MIOS_DRIFT_REQUIRE_TOOLS=1 bash "$ROOT/automation/98-drift-checks.sh" check_no_silent_tool_skips >/dev/null 2>&1; then
-        rm -f "$dummy"
-        die "check_no_silent_tool_skips failed to detect unhandled silent tool skip"
-    fi
+    MIOS_DRIFT_REQUIRE_TOOLS=1 bash "$ROOT/automation/98-drift-checks.sh" check_no_silent_tool_skips >/dev/null 2>&1 && die "check_no_silent_tool_skips failed to detect unhandled silent tool skip"
     rm -f "$dummy"
     log "check_no_silent_tool_skips correctly caught unhandled silent tool skip"
 }
@@ -2810,10 +2583,7 @@ test_check_negatives_are_effective() {
         echo "}"
     } >> "$neg_sh"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
-        cp "$bak" "$neg_sh"; rm -f "$bak"
-        die "check_negatives_are_effective passed despite logging-only fake negative test"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1 && die "check_negatives_are_effective passed despite logging-only fake negative test"
 
     # Test 2: Inject a function longer than 1500 chars with valid gate call to prove full scanning
     cp "$bak" "$neg_sh"
@@ -2829,15 +2599,10 @@ test_check_negatives_are_effective() {
         echo "}"
     } >> "$neg_sh"
 
-    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
-        cp "$bak" "$neg_sh"; rm -f "$bak"
-        die "check_negatives_are_effective failed on long function with valid gate call (>1500 chars)"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1 || die "check_negatives_are_effective failed on long function with valid gate call (>1500 chars)"
 
     cp "$bak" "$neg_sh"; rm -f "$bak"
-    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
-        die "check_negatives_are_effective failed on HEAD after restoration"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1 || die "check_negatives_are_effective failed on HEAD after restoration"
     log "check_negatives_are_effective negative test passed"
 }
 
@@ -2853,15 +2618,10 @@ test_pipefail_grep_lint() {
         echo "}"
     } >> "$neg_sh"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1; then
-        cp "$bak" "$neg_sh"; rm -f "$bak"
-        die "check_pipefail_grep_lint passed despite injected piped grep reading from non-echo/printf"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1 && die "check_pipefail_grep_lint passed despite injected piped grep reading from non-echo/printf"
 
     cp "$bak" "$neg_sh"; rm -f "$bak"
-    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1; then
-        die "check_pipefail_grep_lint failed on HEAD after restoration"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1 || die "check_pipefail_grep_lint failed on HEAD after restoration"
     log "check_pipefail_grep_lint negative test passed"
 }
 
@@ -2880,10 +2640,7 @@ test_ai_manifests_fresh() {
     local backup; backup="$(mktemp)"
     cp "$mf" "$backup"
     echo '{"drift":"injected"}' > "$mf"
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh >/dev/null 2>&1; then
-        cp "$backup" "$mf"; rm -f "$backup"
-        die "check_ai_manifests_fresh passed despite injected manifest drift"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh >/dev/null 2>&1 && die "check_ai_manifests_fresh passed despite injected manifest drift"
     cp "$backup" "$mf"; rm -f "$backup"
     local restored_out
     if ! restored_out=$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ai_manifests_fresh 2>&1); then
@@ -2899,10 +2656,7 @@ test_unpinned_runtime_fetches() {
     # A runtime download with no SHA-256 verification (ADR-0003).
     printf 'Invoke-WebRequest -Uri "https://example.com/x.zip" -OutFile x.zip\n' > "$probe"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_unpinned_runtime_fetches >/dev/null 2>&1; then
-        rm -f "$probe"
-        die "check_unpinned_runtime_fetches passed despite an unverified download"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_unpinned_runtime_fetches >/dev/null 2>&1 && die "check_unpinned_runtime_fetches passed despite an unverified download"
     rm -f "$probe"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_unpinned_runtime_fetches >/dev/null 2>&1 \
@@ -2916,10 +2670,7 @@ test_windows_exe_provenance() {
     # A shipped .exe with no corresponding .cs source to build it from.
     printf 'MZ-not-a-real-binary\n' > "$probe"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_windows_exe_provenance >/dev/null 2>&1; then
-        rm -f "$probe"
-        die "check_windows_exe_provenance passed despite a source-less .exe"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_windows_exe_provenance >/dev/null 2>&1 && die "check_windows_exe_provenance passed despite a source-less .exe"
     rm -f "$probe"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_windows_exe_provenance >/dev/null 2>&1 \
@@ -2946,10 +2697,7 @@ test_ps_redirectors() {
     # Fatten it well past the line ceiling.
     for _ in $(seq 1 120); do echo "# negative-test filler line" >> "$target"; done
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ps_redirectors >/dev/null 2>&1; then
-        cp "$backup" "$target"; rm -f "$backup"
-        die "check_ps_redirectors passed despite an over-long redirector"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ps_redirectors >/dev/null 2>&1 && die "check_ps_redirectors passed despite an over-long redirector"
     cp "$backup" "$target"; rm -f "$backup"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ps_redirectors >/dev/null 2>&1 \
@@ -2964,10 +2712,7 @@ test_cargo_deny() {
     cp "$policy" "$backup"
     rm -f "$policy"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cargo_deny >/dev/null 2>&1; then
-        cp "$backup" "$policy"; rm -f "$backup"
-        die "check_cargo_deny passed despite a missing supply-chain policy"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cargo_deny >/dev/null 2>&1 && die "check_cargo_deny passed despite a missing supply-chain policy"
     cp "$backup" "$policy"; rm -f "$backup"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_cargo_deny >/dev/null 2>&1 \
@@ -2996,7 +2741,6 @@ test_powershell_parse() {
 
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_powershell_parse >/dev/null 2>&1; then
         git -C "$ROOT" rm --cached -q --force "$bad" >/dev/null 2>&1 || true
-        rm -f "$bad"
         die "check_powershell_parse passed despite an unparseable .ps1"
     fi
     git -C "$ROOT" rm --cached -q --force "$bad" >/dev/null 2>&1 || true
@@ -3028,10 +2772,7 @@ with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(new)
 PY
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_category_schema >/dev/null 2>&1; then
-        cp "$backup" "$toml"; rm -f "$backup"
-        die "check_ports_category_schema passed despite an injected category band collision"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_category_schema >/dev/null 2>&1 && die "check_ports_category_schema passed despite an injected category band collision"
     cp "$backup" "$toml"; rm -f "$backup"
 
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_ports_category_schema >/dev/null 2>&1 \
@@ -3048,10 +2789,7 @@ test_globals_generated() {
     # Hand-edit a generated constant -- exactly what the gate exists to catch.
     printf '\n[ -n "${MIOS_INJECTED_DRIFT+x}" ] || MIOS_INJECTED_DRIFT=1\n' >> "$target"
 
-    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated >/dev/null 2>&1; then
-        cp "$backup" "$target"; rm -f "$backup"
-        die "check_globals_generated passed despite a hand-edited generated resolver"
-    fi
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_globals_generated >/dev/null 2>&1 && die "check_globals_generated passed despite a hand-edited generated resolver"
     cp "$backup" "$target"; rm -f "$backup"
 
     local restored_out
@@ -3105,10 +2843,7 @@ with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(t)
 PYEOF
 
-    if _neg_gate check_fleet_safety; then
-        cp "$bak" "$toml" && rm -f "$bak"
-        die "check_fleet_safety passed with a live hazard missing from the register"
-    fi
+    _neg_gate check_fleet_safety && die "check_fleet_safety passed with a live hazard missing from the register"
 
     cp "$bak" "$toml" && rm -f "$bak"
     _neg_gate check_fleet_safety || die "check_fleet_safety failed after restoration"
@@ -3125,10 +2860,7 @@ test_leaked_fixtures() {
     # version -- the file is chosen for that reason.
     printf '# mios-%stest-leak-probe\n' "neg" >> "$vf"
 
-    _neg_gate check_leaked_fixtures && {
-        cp "$bak" "$vf"; rm -f "$bak"
-        die "check_leaked_fixtures passed with an injected fixture in a tracked file"
-    }
+    _neg_gate check_leaked_fixtures && die "check_leaked_fixtures passed with an injected fixture in a tracked file"
 
     cp "$bak" "$vf"; rm -f "$bak"
     _neg_gate check_leaked_fixtures \
@@ -3145,10 +2877,7 @@ test_ci_suite_coverage() {
     # tracked and running nowhere -- the state thirteen suites were in.
     grep -v 'tests/test-a2o-fallback.sh' "$bak" > "$toml"
 
-    _neg_gate check_ci_suite_coverage && {
-        cp "$bak" "$toml"; rm -f "$bak"
-        die "check_ci_suite_coverage passed with a tracked suite in no tier"
-    }
+    _neg_gate check_ci_suite_coverage && die "check_ci_suite_coverage passed with a tracked suite in no tier"
 
     cp "$bak" "$toml"; rm -f "$bak"
     _neg_gate check_ci_suite_coverage \
@@ -3170,10 +2899,7 @@ test_task_schema() {
 **Why:** x
 **Dep:** AGY-4242
 ' >> "$f"
-    if _neg_gate check_task_schema; then
-        cp "$bak" "$f"; rm -f "$bak"
-        die "check_task_schema passed on a task with no Verify and a dangling Dep"
-    fi
+    _neg_gate check_task_schema && die "check_task_schema passed on a task with no Verify and a dangling Dep"
     cp "$bak" "$f"; rm -f "$bak"
     _neg_gate check_task_schema || die "check_task_schema failed after restoration"
     log "check_task_schema negative test passed"
@@ -3182,9 +2908,7 @@ test_task_schema() {
 test_neg_gate_harness() {
     log "Testing the _neg_gate harness itself"
     _neg_gate check_gate_registry         || die "_neg_gate returned non-zero for a check that passes"
-    if _neg_gate mios_negtest_no_such_check_exists; then
-        die "_neg_gate returned zero for a check that does not exist"
-    fi
+    _neg_gate mios_negtest_no_such_check_exists && die "_neg_gate returned zero for a check that does not exist"
     log "_neg_gate harness verified in both directions"
 }
 
@@ -3196,10 +2920,7 @@ test_adhoc_toml_parsers() {
 $raw = Get-Content -Raw 'mios.toml'
 if ($raw -match '(?s)\[ports\](.*)') { $ports = $Matches[1] }
 PS1
-    if _neg_gate check_adhoc_toml_parsers; then
-        rm -f "$probe"
-        die "check_adhoc_toml_parsers passed despite a hand-rolled TOML parser"
-    fi
+    _neg_gate check_adhoc_toml_parsers && die "check_adhoc_toml_parsers passed despite a hand-rolled TOML parser"
     rm -f "$probe"
     _neg_gate check_adhoc_toml_parsers \
         || die "check_adhoc_toml_parsers failed after restoration"
@@ -3214,10 +2935,7 @@ test_install_uninstall_symmetry() {
     # Delete the scheduled-task sweep while [windows.owned_artifacts].task_names
     # still declares tasks -- the asymmetry the gate exists to catch.
     grep -v 'Unregister-ScheduledTask' "$bak" > "$uninst"
-    if _neg_gate check_install_uninstall_symmetry; then
-        cp "$bak" "$uninst" && rm -f "$bak"
-        die "check_install_uninstall_symmetry passed despite a missing task sweep"
-    fi
+    _neg_gate check_install_uninstall_symmetry && die "check_install_uninstall_symmetry passed despite a missing task sweep"
     cp "$bak" "$uninst" && rm -f "$bak"
     _neg_gate check_install_uninstall_symmetry \
         || die "check_install_uninstall_symmetry failed after restoration"
@@ -3231,10 +2949,7 @@ test_ps_port_fallback_ssot() {
     cp "$f" "$bak"
     # Drift one last-resort literal away from mios.toml [ports].cockpit.
     sed "s/'cockpit' 8110/'cockpit' 9090/" "$bak" > "$f"
-    if _neg_gate check_ps_port_fallback_ssot; then
-        cp "$bak" "$f" && rm -f "$bak"
-        die "check_ps_port_fallback_ssot passed despite a drifted port fallback"
-    fi
+    _neg_gate check_ps_port_fallback_ssot && die "check_ps_port_fallback_ssot passed despite a drifted port fallback"
     cp "$bak" "$f" && rm -f "$bak"
     _neg_gate check_ps_port_fallback_ssot \
         || die "check_ps_port_fallback_ssot failed after restoration"
@@ -3250,10 +2965,7 @@ test_github_slug_casing() {
     local badorg='MiOS'
     badorg="${badorg}-DEV"
     printf 'curl https://%s/%s/mios-bootstrap/main/bootstrap.ps1\n' "$host" "$badorg" > "$probe"
-    if _neg_gate check_github_slug_casing; then
-        rm -f "$probe"
-        die "check_github_slug_casing passed despite a non-canonical org slug"
-    fi
+    _neg_gate check_github_slug_casing && die "check_github_slug_casing passed despite a non-canonical org slug"
     rm -f "$probe"
     _neg_gate check_github_slug_casing \
         || die "check_github_slug_casing failed after restoration"
@@ -3294,10 +3006,7 @@ test_wsl_distro_resolution() {
     # The check only scans usr/share/mios/windows, so the probe must live there.
     local probe="${ROOT}/usr/share/mios/windows/mios-negtest-distro.ps1"
     printf 'wsl.exe -d podman-MiOS-DEV -- true\n' > "$probe"
-    if _neg_gate check_wsl_distro_resolution; then
-        rm -f "$probe"
-        die "check_wsl_distro_resolution passed despite a hardcoded distro literal"
-    fi
+    _neg_gate check_wsl_distro_resolution && die "check_wsl_distro_resolution passed despite a hardcoded distro literal"
     rm -f "$probe"
     _neg_gate check_wsl_distro_resolution \
         || die "check_wsl_distro_resolution failed after restoration"
@@ -3315,10 +3024,7 @@ After=mios-this-unit-does-not-exist.service
 [Service]
 ExecStart=/bin/true
 UNIT
-    if _neg_gate check_unit_dependency_closure; then
-        rm -f "$probe"
-        die "check_unit_dependency_closure passed despite a dangling After= target"
-    fi
+    _neg_gate check_unit_dependency_closure && die "check_unit_dependency_closure passed despite a dangling After= target"
     rm -f "$probe"
     _neg_gate check_unit_dependency_closure \
         || die "check_unit_dependency_closure failed after restoration"
@@ -3341,7 +3047,6 @@ EOF
     git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
     if _neg_gate check_docs_ratchet; then
         git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
-        rm -f "$probe"
         die "check_docs_ratchet passed despite an unharvested narrative block"
     fi
     git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
@@ -3356,7 +3061,6 @@ EOF
     git -C "$ROOT" add -N -- "$stale_probe" >/dev/null 2>&1
     if _neg_gate check_docs_ratchet; then
         git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
-        rm -f "$stale_probe"
         die "check_docs_ratchet passed despite a stale reference"
     fi
     git -C "$ROOT" rm -q --cached --force -- "$stale_probe" >/dev/null 2>&1
@@ -3373,10 +3077,7 @@ test_docs_ratchet_monotone() {
     cp "$toml" "$backup"
     # Raising a ceiling is the loosening move the gate exists to reject.
     sed -i 's/^max_unmigrated_narrative = .*/max_unmigrated_narrative = 99999/' "$toml"
-    if _neg_gate check_docs_ratchet_monotone; then
-        cp "$backup" "$toml"; rm -f "$backup"
-        die "check_docs_ratchet_monotone passed despite a RAISED ceiling"
-    fi
+    _neg_gate check_docs_ratchet_monotone && die "check_docs_ratchet_monotone passed despite a RAISED ceiling"
     cp "$backup" "$toml"
     _neg_gate check_docs_ratchet_monotone \
         || { rm -f "$backup"; die "check_docs_ratchet_monotone failed after restoration"; }
@@ -3387,10 +3088,7 @@ test_docs_ratchet_monotone() {
     local fbackup; fbackup="$(mktemp)"
     cp "$floor" "$fbackup"
     python3 -c "import re, sys; p=sys.argv[1]; s=open(p).read(); s=re.sub(r'^max_unmigrated_narrative\t.*', 'max_unmigrated_narrative\t1', s, flags=re.M); open(p,'w').write(s)" "$floor"
-    if _neg_gate check_docs_ratchet_monotone; then
-        cp "$fbackup" "$floor"; cp "$backup" "$toml"; rm -f "$backup" "$fbackup"
-        die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
-    fi
+    _neg_gate check_docs_ratchet_monotone && die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
     cp "$fbackup" "$floor"; rm -f "$fbackup"
     _neg_gate check_docs_ratchet_monotone \
         || die "check_docs_ratchet_monotone failed after floor restoration"
@@ -3403,10 +3101,7 @@ test_generator_host_parity() {
     local backup; backup="$(mktemp)"
     cp "$script" "$backup"
     sed -i 's/glob\.fnmatch\.fnmatchcase/fnmatch.fnmatch/g' "$script"
-    if _neg_gate check_generator_host_parity; then
-        cp "$backup" "$script"; rm -f "$backup"
-        die "check_generator_host_parity passed despite non-portable fnmatch usage"
-    fi
+    _neg_gate check_generator_host_parity && die "check_generator_host_parity passed despite non-portable fnmatch usage"
     cp "$backup" "$script"; rm -f "$backup"
     _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"
     log "check_generator_host_parity negative test passed"
@@ -3420,10 +3115,7 @@ test_manual_generated() {
     # Corrupt a DERIVED table cell: the gate must notice the doc no longer
     # matches mios.toml.
     sed -i 's/| admin | ssh | [0-9]* |/| admin | ssh | 9999 |/' "$doc"
-    if _neg_gate check_manual_generated; then
-        cp "$backup" "$doc"; rm -f "$backup"
-        die "check_manual_generated passed despite a stale derived section"
-    fi
+    _neg_gate check_manual_generated && die "check_manual_generated passed despite a stale derived section"
     cp "$backup" "$doc"
     _neg_gate check_manual_generated || { rm -f "$backup"; die "check_manual_generated failed after restoration"; }
 
@@ -3431,12 +3123,8 @@ test_manual_generated() {
     # must NOT move the gate. Without this a generator that owns whole files
     # would satisfy the gate -- the exact failure the marker protocol prevents.
     printf '\nAuthored paragraph the generator must never touch.\n' >> "$doc"
-    if ! _neg_gate check_manual_generated; then
-        cp "$backup" "$doc"; rm -f "$backup"
-        die "check_manual_generated went red on prose OUTSIDE a marker"
-    fi
+    _neg_gate check_manual_generated || die "check_manual_generated went red on prose OUTSIDE a marker"
     grep -q "Authored paragraph the generator must never touch" "$doc" || {
-        cp "$backup" "$doc"; rm -f "$backup"
         die "render destroyed authored prose outside a marker"; }
     cp "$backup" "$doc"; rm -f "$backup"
 
@@ -3446,10 +3134,7 @@ test_manual_generated() {
     ch="$(ls "${ROOT}"/usr/share/doc/mios/manual/ch[0-9]*.md | head -1)"
     [ -f "$ch" ] || die "no manual chapter files found to hide"
     mv "$ch" "${ch}.neg-hidden"
-    if _neg_gate check_manual_generated; then
-        mv "${ch}.neg-hidden" "$ch"
-        die "check_manual_generated passed despite a missing chapter file"
-    fi
+    _neg_gate check_manual_generated && die "check_manual_generated passed despite a missing chapter file"
     mv "${ch}.neg-hidden" "$ch"
     _neg_gate check_manual_generated || die "check_manual_generated failed after restoring the chapter"
     log "check_manual_generated negative test passed (all three phases)"
@@ -3465,10 +3150,7 @@ test_manual_ledger() {
     # longer regenerate verbatim from the tracked tree.
     local tmp; tmp="$(mktemp)"
     awk -F'\t' 'BEGIN{OFS="\t"} NR==2{$5=$5+1} {print}' "$tsv" > "$tmp" && cp "$tmp" "$tsv" && rm -f "$tmp"
-    if _neg_gate check_manual_ledger; then
-        cp "$backup" "$tsv"; rm -f "$backup"
-        die "check_manual_ledger passed despite a hand-edited corpus ledger"
-    fi
+    _neg_gate check_manual_ledger && die "check_manual_ledger passed despite a hand-edited corpus ledger"
     cp "$backup" "$tsv"; rm -f "$backup"
     _neg_gate check_manual_ledger || die "check_manual_ledger failed after restoration"
     log "check_manual_ledger negative test passed"
@@ -3480,10 +3162,7 @@ test_credential_literals() {
     local backup; backup="$(mktemp)"
     cp "$unit" "$backup"
     printf 'Environment=NEGATIVE_TEST_SECRET_KEY=hunter2\n' >> "$unit"
-    if _neg_gate check_credential_literals; then
-        cp "$backup" "$unit"; rm -f "$backup"
-        die "check_credential_literals passed despite a new baked-in credential"
-    fi
+    _neg_gate check_credential_literals && die "check_credential_literals passed despite a new baked-in credential"
     cp "$backup" "$unit"
     _neg_gate check_credential_literals || { rm -f "$backup"; die "check_credential_literals failed after restoration"; }
     rm -f "$backup"
@@ -3497,10 +3176,7 @@ test_redact_coverage() {
     cp "$sql" "$backup"
     # A new table that is in neither [security.redact] list.
     printf '\nCREATE TABLE IF NOT EXISTS negative_test_sink (id int);\n' >> "$sql"
-    if _neg_gate check_redact_coverage; then
-        cp "$backup" "$sql"; rm -f "$backup"
-        die "check_redact_coverage passed despite an unclassified table"
-    fi
+    _neg_gate check_redact_coverage && die "check_redact_coverage passed despite an unclassified table"
     cp "$backup" "$sql"
     _neg_gate check_redact_coverage || { rm -f "$backup"; die "check_redact_coverage failed after restoration"; }
     rm -f "$backup"
@@ -3514,10 +3190,7 @@ test_daemon_governor() {
     cp "$d" "$backup"
     # An autonomous loop that never consults the host-pressure gate.
     printf '\n\ndef negative_test_loop() -> None:\n    while not _stop_event.is_set():\n        time.sleep(1)\n' >> "$d"
-    if _neg_gate check_daemon_governor; then
-        cp "$backup" "$d"; rm -f "$backup"
-        die "check_daemon_governor passed despite an ungated autonomous loop"
-    fi
+    _neg_gate check_daemon_governor && die "check_daemon_governor passed despite an ungated autonomous loop"
     cp "$backup" "$d"
     _neg_gate check_daemon_governor || { rm -f "$backup"; die "check_daemon_governor failed after restoration"; }
     rm -f "$backup"
@@ -3531,20 +3204,14 @@ test_manual_links() {
     cp "$doc" "$backup"
     # Point a ToC entry at a chapter that does not exist.
     sed -i '0,/(manual\/ch01-/s//(manual\/ch01-does-not-exist.md#x)(manual\/ch01-/' "$doc"
-    if _neg_gate check_manual_links; then
-        cp "$backup" "$doc"; rm -f "$backup"
-        die "check_manual_links passed despite a dangling ToC link"
-    fi
+    _neg_gate check_manual_links && die "check_manual_links passed despite a dangling ToC link"
     cp "$backup" "$doc"
     _neg_gate check_manual_links || { rm -f "$backup"; die "check_manual_links failed after restoration"; }
 
     # Second phase: a chapter file that the ToC never mentions must also fail.
     local orphan="${ROOT}/usr/share/doc/mios/manual/ch99-orphan-negative-test.md"
     printf '<!-- AI-hint: negative-test orphan chapter. -->\n\n# Chapter 99\n' > "$orphan"
-    if _neg_gate check_manual_links; then
-        rm -f "$orphan" "$backup"
-        die "check_manual_links passed despite an unreachable chapter file"
-    fi
+    _neg_gate check_manual_links && die "check_manual_links passed despite an unreachable chapter file"
     rm -f "$orphan"
     _neg_gate check_manual_links || { rm -f "$backup"; die "check_manual_links failed after orphan removal"; }
     rm -f "$backup"
@@ -3557,10 +3224,7 @@ test_doc_port_scheme() {
     local backup; backup="$(mktemp)"
     cp "$doc" "$backup"
     printf '\nA retired lane on `:11450` sneaks back in.\n' >> "$doc"
-    if _neg_gate check_doc_port_scheme; then
-        cp "$backup" "$doc"; rm -f "$backup"
-        die "check_doc_port_scheme passed despite a retired port literal"
-    fi
+    _neg_gate check_doc_port_scheme && die "check_doc_port_scheme passed despite a retired port literal"
     cp "$backup" "$doc"
     _neg_gate check_doc_port_scheme || { rm -f "$backup"; die "check_doc_port_scheme failed after restoration"; }
     rm -f "$backup"
@@ -3575,10 +3239,7 @@ test_comment_landing() {
     # Claim a block was pruned into a doc that does not carry its anchor: the
     # gate must refuse to accept a deletion whose proof does not resolve.
     printf 'tests/fixture-never-existed.sh\t1\t2\t2\t40\tfeedfacecafe\tMIGRATE\tmidsize-narrative\t\t0\tusr/share/doc/mios/manual.md\tmios-src:feedfacecafe\t40\t1\n' >> "$tsv"
-    if _neg_gate check_comment_landing; then
-        cp "$backup" "$tsv"; rm -f "$backup"
-        die "check_comment_landing passed despite a pruned block with no landing proof"
-    fi
+    _neg_gate check_comment_landing && die "check_comment_landing passed despite a pruned block with no landing proof"
     cp "$backup" "$tsv"; rm -f "$backup"
     _neg_gate check_comment_landing || die "check_comment_landing failed after restoration"
     log "check_comment_landing negative test passed"
@@ -3594,10 +3255,7 @@ test_blade_reconcile_schema() {
     # have a table carrying origin_node and logical_ts, so declaring a rule with
     # no such table is the edit that loses data silently on rejoin (ADR-0017 D5).
     sed -i 's/^config_kv    = "conflict-is-error"/config_kv    = "conflict-is-error"\nbogus_class  = "union-by-hash"/' "$toml"
-    if _neg_gate check_blade_reconcile_schema; then
-        cp "$bak" "$toml"; rm -f "$bak"
-        die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"
-    fi
+    _neg_gate check_blade_reconcile_schema && die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"
     cp "$bak" "$toml"; rm -f "$bak"
     _neg_gate check_blade_reconcile_schema \
         || die "check_blade_reconcile_schema failed after restoration"
@@ -3612,10 +3270,7 @@ test_desktop_launchers() {
     # Mutate a RENDERED field. Adding a stray .desktop proves nothing: the
     # renderer compares only what SSOT declares.
     sed -i 's/^Name=.*/Name=DRIFTED/' "$f"
-    if _neg_gate check_desktop_launchers; then
-        cp "$bak" "$f"; rm -f "$bak"
-        die "check_desktop_launchers passed despite a drifted rendered launcher"
-    fi
+    _neg_gate check_desktop_launchers && die "check_desktop_launchers passed despite a drifted rendered launcher"
     cp "$bak" "$f"; rm -f "$bak"
     _neg_gate check_desktop_launchers || die "check_desktop_launchers failed after restoration"
     log "check_desktop_launchers negative test passed"
@@ -3648,10 +3303,7 @@ test_no_inert_ssot_tables() {
 [%s]
 unused_key = "nothing reads this"
 ' "$tbl" >> "$toml"
-    if _neg_gate check_no_inert_ssot_tables; then
-        cp "$bak" "$toml"; rm -f "$bak"
-        die "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
-    fi
+    _neg_gate check_no_inert_ssot_tables && die "check_no_inert_ssot_tables passed despite an SSOT table with no consumer"
     cp "$bak" "$toml"; rm -f "$bak"
     _neg_gate check_no_inert_ssot_tables || die "check_no_inert_ssot_tables failed after restoration"
     log "check_no_inert_ssot_tables negative test passed"
@@ -3667,10 +3319,7 @@ test_bootstrap_sync() {
     # Drift in a MIRRORED file must fail: mios.git is the authority, and the
     # whole point is that a shared surface cannot change in only one repo.
     printf '\nDRIFT PROBE\n' >> "$f"
-    if _neg_gate check_bootstrap_sync; then
-        cp "$bak" "$f"; rm -f "$bak"
-        die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"
-    fi
+    _neg_gate check_bootstrap_sync && die "check_bootstrap_sync passed despite a mirrored file drifting in bootstrap"
     cp "$bak" "$f"; rm -f "$bak"
     _neg_gate check_bootstrap_sync || die "check_bootstrap_sync failed after restoration"
     log "check_bootstrap_sync negative test passed"
@@ -3727,10 +3376,7 @@ test_no_generated_prose_in_resolvers() {
     local backup; backup="$(mktemp)"
     cp "$sh_file" "$backup"
     echo "# AI-hint: test prose line" >> "$sh_file"
-    if _neg_gate check_no_generated_prose_in_resolvers; then
-        cp "$backup" "$sh_file"; rm -f "$backup"
-        die "check_no_generated_prose_in_resolvers passed despite AI-hint prose line"
-    fi
+    _neg_gate check_no_generated_prose_in_resolvers && die "check_no_generated_prose_in_resolvers passed despite AI-hint prose line"
     cp "$backup" "$sh_file"; rm -f "$backup"
     _neg_gate check_no_generated_prose_in_resolvers || die "check_no_generated_prose_in_resolvers failed after restoration"
     log "check_no_generated_prose_in_resolvers negative test passed"

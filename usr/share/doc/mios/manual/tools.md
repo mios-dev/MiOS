@@ -497,3 +497,76 @@ storage plane on a transient OCI image.
 
 <!-- mios-src:60a4a1ba90ee from tools/test_generate-mini-vs-hosted.py:345-347 -->
 
+### One reader for the suite registry, so listing and checking...
+
+One reader for the suite registry, so listing and checking cannot disagree.
+
+Both publishers ask this module what to run. Before it existed each workflow
+carried its own hand-written list: GitHub ran fifteen suites, Forgejo ran eight,
+and thirteen tracked suites ran nowhere at all -- including nine that failed
+only because they pointed at the INSTALLED agent-pipe rather than the tree they
+ship from. Nobody noticed, because a suite nobody runs reports nothing.
+
+--check is what keeps that from recurring: a tracked suite must be in a tier, be
+matched by a glob entry, or be exempt with a reason. Adding a test file and no
+registration turns the gate red.
+
+<!-- mios-src:a0a753bedbfb from tools/ci-suites.py:4-15 -->
+
+### Publisher parity. Registering a tier nobody invokes is the...
+
+Publisher parity. Registering a tier nobody invokes is the same as not
+having it, and the two workflows previously ran different sets precisely
+because each carried its own list.
+
+<!-- mios-src:9cce0c4717ae from tools/ci-suites.py:113-115 -->
+
+### A file both repos track must be mirrored or explicitly not...
+
+A file both repos track must be mirrored or explicitly not mirrored.
+
+    Thirty-five files were tracked in both repositories; sixteen were declared
+    and eighteen of the remaining nineteen had already diverged, silently,
+    because nothing required them to be classified at all.
+
+<!-- mios-src:0925ddb9cceb from tools/sync-bootstrap.py:123-128 -->
+
+### A negative test mutates the tree and is supposed to put it...
+
+A negative test mutates the tree and is supposed to put it back.
+
+When one does not, the mutation ships. Three reached the SSOT in a single
+session: a capability requirement replaced with an injected name, a port list
+with an entry repeated twice, and a threshold key commented out. Between them
+they turned five suites red, and the failures pointed at the suites rather than
+at the leak, so the cost was paid several times over before anyone looked at the
+SSOT diff.
+
+Backup files count too. Copies with a rescue suffix are how a test preserves
+the original, and a run that dies before restoring leaves one in the tree.
+
+This scans what git tracks, because an untracked leftover is a local mess while
+a tracked one is shipped.
+
+<!-- mios-src:dd8626e7b274 from tools/check-leaked-fixtures.py:4-18 -->
+
+### Native man pages, rendered like every other projection....
+
+Native man pages, rendered like every other projection.
+
+They are ordinary roff files under usr/share/man, so man, apropos and man -k
+work with no MiOS-specific command in the path: the mechanism is the one the
+operating system already has. The content derives from the same SSOT that
+renders ports, globals and launchers, so a verb renamed there renames its page.
+
+No page carries a date. Two builds of one tree must produce identical bytes,
+and the NO-HARDCODE law rejects dates in generated text.
+
+<!-- mios-src:ebc40a5a8371 from tools/render-manpages.py:4-13 -->
+
+### A page for a verb that no longer exists answers confidently...
+
+A page for a verb that no longer exists answers confidently and wrongly,
+so the renderer owns the whole directory rather than only adding to it.
+
+<!-- mios-src:0842226a2209 from tools/render-manpages.py:182-183 -->
