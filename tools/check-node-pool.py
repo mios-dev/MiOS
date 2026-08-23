@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_node_pool_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: every node in the fan-out pool is a distinct, reachable, honest lane."""
 
 import os

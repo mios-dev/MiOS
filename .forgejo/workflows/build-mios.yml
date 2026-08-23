@@ -1,5 +1,5 @@
 # AI-hint: Forgejo CI workflow that automates the OCI image build via podman, tags it with version/timestamp/SHA, and triggers the host's bootc switch to stage the new ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/_forgejo_workflows_build_mios_yml.md
+# AI-doc: usr/share/doc/mios/manual/workflows.md
 
 name: build-mios
 on:

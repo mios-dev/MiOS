@@ -1,5 +1,5 @@
 # AI-hint: Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_dispatch_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib assert-script gates for mios_dispatch -- run: python test_mios_dispatch.py"""
 import asyncio
 import contextvars

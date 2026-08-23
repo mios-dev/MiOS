@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_selfimprove_act (T-062 ACT + T-064 proof-of-utility decision core): structural anti-reward-hacking isolation...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_selfimprove_act_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_selfimprove_act (T-062/T-064 ACT decision core).
 
 Pure stdlib + the sibling modules only -- no server.py / DB / live models. Proves

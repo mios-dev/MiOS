@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/check-container-names.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_container_names_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import importlib.util
 import os

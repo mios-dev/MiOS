@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_surface (refactor WS R0 parity gate + R13 Step 2a whole-package projection). Pur...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_surface_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Unit tests for mios_surface (refactor R0 surface-parity gate)."""
 
 import os

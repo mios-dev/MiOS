@@ -1,5 +1,5 @@
 # AI-hint: Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_wiki_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 import os
 import re
 import json

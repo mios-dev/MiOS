@@ -1,5 +1,5 @@
 # AI-hint: Windows-side execution bridge for MiOS-Agent to perform GUI interactions (click, type, move, resize) and window management via Win32 API calls trigg...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_pc_control_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 
 [CmdletBinding()]
 param(

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Round-trips the documentation harvest loop in a throwaway git fixture -- ledger, harvest, the landed() predicate flipping false to true, p...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_mios_manual_harvest_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

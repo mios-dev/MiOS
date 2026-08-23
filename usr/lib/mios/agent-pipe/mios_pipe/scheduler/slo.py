@@ -1,5 +1,5 @@
 # AI-hint: WS-SCHED-SLO deadline/SLO scheduling core (the PURE half). The MiOS admission gate is capacity-only (VRAM/host-load) and degrades OPEN -- it...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_slo_py.md
+# AI-doc: usr/share/doc/mios/manual/scheduler.md
 from __future__ import annotations
 
 from typing import Optional

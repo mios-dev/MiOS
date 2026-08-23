@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_skills (refactor R7 SKILLS-cluster extraction). Pure stdlib, no server.py/DB/network/pytest.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_skills_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Unit tests for mios_skills (refactor R7)."""
 
 import asyncio

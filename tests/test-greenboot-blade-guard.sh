@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Proves the greenboot AI-plane check skips a unit this blade does not activate.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_greenboot_blade_guard_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -1,5 +1,5 @@
 # AI-hint: The ONE shared outbound httpx.AsyncClient for the whole pipe, extracted verbatim from server.py, plus the WS-A6/T-226 batch-coalescing c...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_httpclient_py.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 """The shared outbound HTTP client + the batch-coalescing request hook."""
 
 from __future__ import annotations

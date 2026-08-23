@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/check-role-ssot.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_role_ssot_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the blade role-SSOT gate."""
 
 import os

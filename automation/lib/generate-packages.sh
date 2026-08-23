@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash WS-A17 build-time materializer for the local package registry.
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_generate_packages_sh.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 set -euo pipefail
 
 _enabled="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"

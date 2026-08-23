@@ -1,5 +1,5 @@
 # AI-hint: GitHub Actions workflow for building, tagging, and pushing MiOS OCI images to ghcr.io using podman to ensure bit-for-bit parity between GitHub and Forgejo build environments.
-# AI-doc: usr/share/doc/mios/manual/_harvest/_github_workflows_mios_ci_yml.md
+# AI-doc: usr/share/doc/mios/manual/workflows.md
 name: mios-ci
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash CI-visible proof that the documentation programme produced its artifacts: counts distilled manual pages, landed comment passages and splice...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_doc_production_evidence_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

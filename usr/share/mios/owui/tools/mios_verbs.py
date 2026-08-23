@@ -1,5 +1,5 @@
 # AI-hint: Provides typed Python tools for the LLM to directly invoke MiOS shell verbs (launch_app, everything_search, mios_apps, mios_find) via a local Unix sock...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_tools_mios_verbs_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """
 title: MiOS Verbs
 author: MiOS

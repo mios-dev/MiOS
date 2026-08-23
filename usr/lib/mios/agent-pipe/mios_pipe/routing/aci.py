@@ -1,5 +1,5 @@
 # AI-hint: Normalizes raw tool/terminal output into a context-safe format by preserving the head and tail while eliding the middle with a specific marker...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_aci_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` li...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_tasks_status_parity_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: TASKS.md summary table agrees with each task's own Status line."""
 
 import os

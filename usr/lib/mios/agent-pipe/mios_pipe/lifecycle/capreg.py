@@ -1,5 +1,5 @@
 # AI-hint: WS-2 unified capability registry projection -- the PURE half: merge the [verbs.*] catalog, the [recipes.*] OS-command templates, AND the ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_lifecycle_capreg_py.md
+# AI-doc: usr/share/doc/mios/manual/lifecycle.md
 
 from __future__ import annotations
 

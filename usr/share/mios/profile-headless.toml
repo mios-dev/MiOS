@@ -1,5 +1,5 @@
 # AI-hint: A server-specific configuration profile for headless/inference nodes that disables GNOME, Guacamole, and remote-desktop services while enabling local AI i...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_profile_headless_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 [identity]
 username  = "mios"

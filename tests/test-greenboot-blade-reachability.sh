@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Proves ADR-0016 D8 -- a seat's blade reachability is RECORDED on every boot and is not critical unless [greenboot].blade_reachabi...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_greenboot_blade_reachability_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

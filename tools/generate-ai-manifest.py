@@ -1,5 +1,5 @@
 # AI-hint: Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_ai_manifest_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 import os
 import json
 import re

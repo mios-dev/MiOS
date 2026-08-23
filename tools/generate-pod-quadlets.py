@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_pod_quadlets_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 from __future__ import annotations
 
 import os

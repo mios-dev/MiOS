@@ -1,5 +1,5 @@
 # AI-hint: Defines pinned SHA256 digests for base images and bootc-image-builder tools, used by Renovate to automate image updates and by build scripts to ensure reproducible MiOS builds.
-# AI-doc: usr/share/doc/mios/manual/_harvest/image_versions_yml.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 
 # ucore-hci:stable-nvidia  Universal Blue CoreOS with pre-signed NVIDIA
 # renovate: datasource=docker depName=ghcr.io/ublue-os/ucore-hci

@@ -1,5 +1,5 @@
 # AI-hint: Configures the MiOS Knowledge Base (KB) by defining LLM endpoints, model identifiers, embedding dimensions, chunking strategies, and vector store connection parameters f...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_mios_kb_conf_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 [runtime]
 # Default to MiOS's own Gateway Agent endpoint. Honors $MIOS_AI_ENDPOINT if set.

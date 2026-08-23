@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Module-size ratchet for the agent-pipe extraction (drift check 149).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_module_length_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Shrink-only module-size ratchet for the agent-pipe extraction (check 149)."""
 
 import os

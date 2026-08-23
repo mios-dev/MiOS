@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_credential_literals_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Assert the unit-credential gate is precise in both directions."""
 import os
 import subprocess

@@ -1,5 +1,5 @@
 # AI-hint: WS-A7 per-verb conflict/parallel-limit serialization for the agent-pipe Tool Manager.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_toolconflict_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

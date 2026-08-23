@@ -1,5 +1,5 @@
 /* AI-hint: User-level systemd unit that executes a script to restart stalled flatpak portal services in WSL2g environments to prevent sandbox-credential failures during application launches. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_user_mios_wsl_flatpak_heal_service.md */
+/* AI-doc: usr/share/doc/mios/manual/user.md */
 
 [Unit]
 Description='MiOS' WSL2g flatpak portal heal -- restart inactive portals

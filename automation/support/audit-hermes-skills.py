@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Audit script to identify and flag non-portable, environment-specific data (hardcoded paths, hostnames, or project-specific jarg...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_audit_hermes_skills_py.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 from __future__ import annotations
 
 import glob

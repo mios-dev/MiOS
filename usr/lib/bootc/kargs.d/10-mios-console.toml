@@ -1,4 +1,4 @@
 # AI-hint: Configures kernel arguments to disable plymouth, ensuring boot messages are visible on framebuffer and serial consoles in Hyper-V/QEMU environments.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_bootc_kargs_d_10_mios_console_toml.md
+# AI-doc: usr/share/doc/mios/manual/kargs.d.md
 match-architectures = ["x86_64"]
 kargs = ["plymouth.enable=0"]

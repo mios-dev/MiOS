@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_ascii_sweep_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 from __future__ import annotations
 

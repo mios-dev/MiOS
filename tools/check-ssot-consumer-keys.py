@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_ssot_consumer_keys_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: every SSOT key a consumer reads is a key the SSOT declares."""
 
 import os

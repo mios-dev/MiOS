@@ -1,5 +1,5 @@
 /* AI-hint: Timer that re-triggers mios-ai-firstboot.service on a cadence until the .ai-firstboot-done sentinel exists, replacing the unit's former Restart=on-failure retry storm so a partial (network-less) AI provision degrades open instead... */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_ai_firstboot_timer.md */
+/* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' AI first-boot provisioning retry (until the sentinel is written)
 Documentation=https://github.com/mios-dev/mios

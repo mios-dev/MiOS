@@ -1,5 +1,5 @@
 # AI-hint: Pure config-constant + SSOT-reader layer extracted from server.py (refactor WS R1).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_config_py.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Proves ADR-0016 D5 -- a seat's front door is off-box by design, so that is where [security].api_require_auth and principal_bind_mode stop being optional.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_seat_auth_posture_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

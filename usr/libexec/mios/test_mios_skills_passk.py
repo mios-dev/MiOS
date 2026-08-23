@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone unit test for the T-049 (GAP-3) hard pass^k skill-promotion gate embedded in the hyphenated `mios-skills` CLI.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_skills_passk_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Unit test: mios-skills pass^k promotion gate (T-049) -- all-k reliability, degrade-open."""
 
 import importlib.machinery

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Guards the object-pipeline flattening in usr/libexec/mios/mios-powershell (OAI-03).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_powershell_flatten_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

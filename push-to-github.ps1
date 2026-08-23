@@ -1,5 +1,5 @@
 # AI-hint: Automates the MiOS release pipeline by cloning the bootstrap repo, overlaying staged changes, bumping the VERSION, updating CHANGELOG.md, and pushing to the main branch via GitHub.
-# AI-doc: usr/share/doc/mios/manual/_harvest/push_to_github_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 
 [CmdletBinding()]
 param(

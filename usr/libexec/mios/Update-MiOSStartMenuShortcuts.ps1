@@ -1,5 +1,5 @@
 # AI-hint: Powershell script that generates native Windows .lnk shortcuts for all .desktop files (including Flatpaks) in the MiOS-DEV WSL distro to ens...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_Update_MiOSStartMenuShortcuts_ps1.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 [CmdletBinding()]
 param(

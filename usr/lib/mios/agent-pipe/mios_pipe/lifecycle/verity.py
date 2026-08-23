@@ -1,5 +1,5 @@
 # AI-hint: Anti-fabrication POLISH/VERITY cluster extracted verbatim from server.py (refactor R6 wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_lifecycle_verity_py.md
+# AI-doc: usr/share/doc/mios/manual/lifecycle.md
 
 from __future__ import annotations
 

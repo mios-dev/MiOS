@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_preempt (WS-A12 RR-preemption state machine + snapshot contract, PLUS the T-019/...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_preempt_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Unit tests for mios_preempt (WS-A12 RR primitives + T-019/SCHED-01 turn seam)."""
 
 import asyncio

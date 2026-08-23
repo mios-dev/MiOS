@@ -1,5 +1,5 @@
 # AI-hint: PowerShell script that displays and enforces legal/policy acknowledgments for interactive users, supporting bypass via MIOS_AGREEMENT_* environment variab...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_agreements_banner_ps1.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 
 function Get-MiOSAgreementSummary {
     @"

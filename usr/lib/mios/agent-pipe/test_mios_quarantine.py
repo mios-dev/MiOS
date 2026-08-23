@@ -1,5 +1,5 @@
 # AI-hint: Offline stdlib-assert test for the F2 CaMeL dual-context QUARANTINE gate (the deeper half of T-033, mios_quarantine).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_quarantine_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib assert-script gates for mios_quarantine + its dispatch wiring -- run: python test_mios_quarantine.py"""
 import asyncio
 import contextlib

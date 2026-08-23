@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash mios-flatpaks CLI: operator-friendly wrapper over `flatpak` for the system-wide Flatpak surface (list/add/remove/update/search/bake-stat...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_flatpaks_manage_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 set -euo pipefail
 
 cmd="${1:-list}"

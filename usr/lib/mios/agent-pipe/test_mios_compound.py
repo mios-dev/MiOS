@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for the #49 read-tool-enrich domain-filter fix: a compound that spans domains must keep verbs refine EXPLICITLY hinted (and,...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_compound_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for the #49 enrich domain-filter contract.
 
 server.py `_read_tool_enrich` restricts AUTO-added enrich verbs to the routed

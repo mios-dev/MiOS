@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for tools/provision-agent-mtls (#54 mTLS PKI): the agent leaf cert is signed by the CA, carries clientAuth+serverAuth EKU, and r...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_mtls_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for the #54 mTLS provisioning tool.
 
 Provisions into a temp dir and verifies the PKI is correct: the agent leaf is

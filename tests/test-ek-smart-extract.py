@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit test script to verify that the ReWOO #E<id> substitution logic correctly extracts specific fields from NDJSON blobs instead of inject...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_ek_smart_extract_py.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 from __future__ import annotations
 import sys
 

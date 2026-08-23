@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_no_generated_prose_in_resolvers_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import os
 import re

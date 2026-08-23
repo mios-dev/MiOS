@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: A diagnostic script that aggregates hardware, kernel, and peripheral data (PCI, USB, GPU, IOMMU) into text and JSON reports to provide a comprehensive hard...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_system_profiler_sh.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 
 set -euo pipefail

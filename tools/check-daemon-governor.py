@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_daemon_governor_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Fail if the daemon governor has a hole: an ungated loop, a dead knob, or a drifted fallback."""
 import os
 import re

@@ -1,5 +1,5 @@
 /* AI-hint: A systemd user service that imports WSLg environment variables (DISPLAY, WAYLAND_DISPLAY, XDG_SESSION_CLASS) into the systemd user-bus and dbus to enable GUI portal functionality and Flatpak integration in WSL. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_user_mios_wsl_env_import_service.md */
+/* AI-doc: usr/share/doc/mios/manual/user.md */
 [Unit]
 Description='MiOS': import WSLg env into systemd user-bus + dbus activation
 Documentation=https://github.com/mios-dev/MiOS

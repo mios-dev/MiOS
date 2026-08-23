@@ -1,5 +1,5 @@
 # AI-hint: The primary OWUI entry point for the MiOS-Agent, managing the proxy-to-hermes stream, real-time event tailing from mios-hermes-tail, and wrapping ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_agent_pipe_py.md
+# AI-doc: usr/share/doc/mios/manual/owui.md
 """
 title: MiOS AI
 author: MiOS

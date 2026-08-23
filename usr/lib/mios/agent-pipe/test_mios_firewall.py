@@ -1,5 +1,5 @@
 # AI-hint: Standalone stdlib assert-script for mios_firewall (the provenance-taint + Semantic Firewall plane).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_firewall_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Assert-script gate for mios_firewall. Run: ``python test_mios_firewall.py``.
 
 Uses the REAL mios_secset set-math to build the high-privilege + always-taint

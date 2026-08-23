@@ -1,5 +1,5 @@
 # AI-hint: Pure PTY-session protocol for the persistent shell substrate (SHELL-01).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_pty_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """Pure protocol for the persistent shell substrate (SHELL-01)."""
 
 from __future__ import annotations

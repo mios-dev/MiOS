@@ -1,5 +1,5 @@
 # AI-hint: Unified inference-lane resolver (WS-1) -- the ONE place the agent-pipe chooses a model lane.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_lanes_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 import time
 
 

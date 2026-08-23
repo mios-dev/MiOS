@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Helper script to parse mios.toml compliance options, dynamically construct an XCCDF tailoring file to skip specified rules, invoke oscap-i...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_oscap_scan_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 import os
 import sys

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone adversarial integration test proving the python memory CLIs (mios-kg, mios-remember) route TAINTED input (argv phr...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_cli_sqlsafety_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Adversarial SQL-injection integration test for the WS-A3 parameterized CLIs."""
 
 import argparse

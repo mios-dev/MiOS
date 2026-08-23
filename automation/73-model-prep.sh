@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot.
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 
 # AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ens...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_73_model_prep_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

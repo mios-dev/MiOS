@@ -1,5 +1,5 @@
 /* AI-hint: Systemd unit that executes the mios-passport provision tool to generate Ed25519 keypairs for all agents in [passport.agents] and sets strict 0600 permissions on private keys before agent services start. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_passport_provision_service.md */
+/* AI-doc: usr/share/doc/mios/manual/system.md */
 
 [Unit]
 Description='MiOS' Phase C.3 agent passport provisioning (Ed25519 keypairs)

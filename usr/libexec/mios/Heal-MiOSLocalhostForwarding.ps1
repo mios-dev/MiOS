@@ -1,5 +1,5 @@
 # AI-hint: Purges stale netsh portproxy entries (0.0.0.0:N to 127.0.0.1:N) that cause Windows to intercept and blackhole local browser requests to MiOS ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_Heal_MiOSLocalhostForwarding_ps1.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 $ErrorActionPreference = 'Stop'
 

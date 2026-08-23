@@ -1,5 +1,5 @@
 # AI-hint: WS-A16 cost/quality SmartRouting core, designed per researched best practice (LiteLLM router + adaptive/cascading routing): LOCAL-FIRST...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_smartroute_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

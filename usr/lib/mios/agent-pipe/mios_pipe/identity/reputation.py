@@ -1,5 +1,5 @@
 # AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation): AI-related: server.py, mios_a2a_principal, mios_lanes AI-func...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_reputation_py.md
+# AI-doc: usr/share/doc/mios/manual/identity.md
 from __future__ import annotations
 
 from typing import Dict, List

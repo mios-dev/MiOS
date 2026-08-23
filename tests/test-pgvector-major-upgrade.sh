@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Verifies mios-pgvector-major-upgrade never destroys an agent datastore -- exercises the no-op, unparseable-tag, downgrade-refusal, miss...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_pgvector_major_upgrade_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 _self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

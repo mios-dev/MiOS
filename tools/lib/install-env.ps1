@@ -1,5 +1,5 @@
 # AI-hint: Powershell helper for MiOS Windows installers that generates the /etc/mios/install.env file in a WSL2 distro to inject the operator's hostname and sha512crypt passwo...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_install_env_ps1.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 
 function Write-MiosInstallEnv {
     [CmdletBinding()]

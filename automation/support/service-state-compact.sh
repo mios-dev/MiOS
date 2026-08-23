@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Summarizes the operational status of core MiOS services, identifies failed systemd units, and audits active network port listeners to pr...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_service_state_compact_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 echo "=== FINAL service state ==="
 for u in mios-agent-pipe mios-daemon mios-pgvector hermes-agent \

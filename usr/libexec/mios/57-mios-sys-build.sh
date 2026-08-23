@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Unified builder script to build localhost/mios-sys and localhost/mios-cuda shared-base images into the additional containers-storage r...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_57_mios_sys_build_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

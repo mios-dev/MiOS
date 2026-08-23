@@ -1,5 +1,5 @@
 # AI-hint: WS-MEM-VALIDATE write-time memory-poisoning guard (OWASP ASI08).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_memguard_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 from __future__ import annotations
 
 import logging

@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Triggers a full re-vectorization of Open WebUI knowledge collections via the /api/v1/knowledge/reindex endpoint to rebuild ChromaDB collecti...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_reindex_knowledge_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'

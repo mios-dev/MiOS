@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Manages libvirt hook scripts to pin VM CPU threads to specific physical cores, optimizing performance for AMD Ryzen, Intel Hybrid, and NUMA architecture...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_vm_cpu_pin_manager_sh.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 set -euo pipefail
 

@@ -1,5 +1,5 @@
 # AI-hint: WEB PORTAL helper logic + PWA asset builders + the swarm-roster probe, extracted VERBATIM from server.py (refactor R10 wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_portal_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

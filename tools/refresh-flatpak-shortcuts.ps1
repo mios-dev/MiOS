@@ -1,5 +1,5 @@
 # AI-hint: Powershell script that manually generates Windows Start Menu .lnk shortcuts for Flatpak applications in the MiOS-DEV distro to bypass WSLg's failure to aut...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_refresh_flatpak_shortcuts_ps1.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 [CmdletBinding()]
 param(

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Shell entrypoint for the A2A federation loopback smoke test (roadmap B5 / T-066).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_tests_test_a2a_loopback_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 if [[ -z "${MIOS_AGENT_PIPE_URL:-}" && -r /etc/mios/install.env ]]; then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Install + configure GNOME Remote Desktop in system/headless mode so AI-related: /usr/libexec/mios/automation/35-xrdp...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_automation_35_xrdp_enhanced_session_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 _log() { printf '[grd-enhanced] %s\n' "$*" >&2; }

@@ -1,5 +1,5 @@
 # AI-hint: Council/swarm fan-out SELECTION (refactor R3 wave; de-hardcoded per operator "the scoring IS a hardcode in and of itself").
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_fanout_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

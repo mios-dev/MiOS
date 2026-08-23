@@ -1,5 +1,5 @@
 # AI-hint: RBAC/PDP/quota + human-in-the-loop POLICY plane extracted verbatim from server.py (refactor R7 security wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_policy_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 # AI-hint: Injects force_delegate=true into the body.mios_flags to trigger the Agent Pipe (port key `agent_pipe`) to execute a concurrent per-agen...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_swarm_delegate_filter_py.md
+# AI-doc: usr/share/doc/mios/manual/owui.md
 """
 title: MiOS Swarm · Delegate
 author: MiOS

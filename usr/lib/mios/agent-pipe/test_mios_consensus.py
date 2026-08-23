@@ -1,5 +1,5 @@
 # AI-hint: Stdlib offline unit tests for mios_pipe.routing.consensus -- the weighted multi-judge Definition-of-Done fold (CONS-01). No network / no DB / no...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_consensus_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib offline unit tests for the weighted multi-judge consensus fold (CONS-01)."""
 
 import sys

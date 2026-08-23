@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Executes the full MiOS system bootstrap to transform a bare Fedora host into a complete MiOS workstation by installing all core components, ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_install_bootstrap_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 DEFAULT_USER="user"

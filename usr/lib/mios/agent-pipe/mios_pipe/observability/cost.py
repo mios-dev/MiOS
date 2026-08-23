@@ -1,5 +1,5 @@
 # AI-hint: WS-RES-GOV cost/energy accounting core (the PURE half, CLASSic "Cost" axis).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_cost_py.md
+# AI-doc: usr/share/doc/mios/manual/observability.md
 from __future__ import annotations
 
 from typing import Dict, Optional

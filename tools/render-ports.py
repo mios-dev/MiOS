@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator reta...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_ports_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 from __future__ import annotations
 
 import os

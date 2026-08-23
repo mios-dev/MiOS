@@ -1,5 +1,5 @@
 # AI-hint: Defines boot-time kernel arguments for the WS-7 immutable-host hardening; currently a no-op drop-in to prevent boot-bricking while providing a locat...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_bootc_kargs_d_32_mios_ws7_uki_toml.md
+# AI-doc: usr/share/doc/mios/manual/kargs.d.md
 
 kargs = [
   # NO active kargs by default (see header). The fapolicyd observe switch is

@@ -1,5 +1,5 @@
 # AI-hint: WS-A8 per-request trace/span observability primitive for the agent-pipe.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_trace_py.md
+# AI-doc: usr/share/doc/mios/manual/observability.md
 
 from __future__ import annotations
 

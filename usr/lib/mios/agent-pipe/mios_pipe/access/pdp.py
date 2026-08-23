@@ -1,5 +1,5 @@
 # AI-hint: WS-A9 Policy Decision Point (PDP) -- the pure capability/risk decision core shared by the agent-pipe's RBAC SURFACE filters (_agent_rbac_filter...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_pdp_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 
 from __future__ import annotations
 

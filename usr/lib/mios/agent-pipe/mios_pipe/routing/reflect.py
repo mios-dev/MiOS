@@ -1,5 +1,5 @@
 # AI-hint: Reflection / self-assessment cluster extracted verbatim from server.py (strangler-fig wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_reflect_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 # AI-hint: WS-A6 batch-coalescing core, designed per 2026 best practice (researched): vLLM/SGLang/llama.cpp already do SERVER-SIDE continuous batchin...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_batch_py.md
+# AI-doc: usr/share/doc/mios/manual/scheduler.md
 
 from __future__ import annotations
 

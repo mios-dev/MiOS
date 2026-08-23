@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Executes MiOS knowledge evaluation tests against OpenAI-compatible endpoints to validate model responses against criter...
-# AI-doc: usr/share/doc/mios/manual/_harvest/var_lib_mios_evals_mios_knowledge_local_runner_py.md
+# AI-doc: usr/share/doc/mios/manual/evals.md
 """
 mios-knowledge.local-runner.py — Run the MiOS Knowledge eval against any
 OpenAI-compatible /v1/chat/completions endpoint.

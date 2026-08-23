@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Smoke-test script for the `_substitute_ek_refs` function in `server` to verify ReWOO #E<id> placeholder substitution logic, including multi...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_ek_substitution_py.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 from __future__ import annotations
 import sys
 

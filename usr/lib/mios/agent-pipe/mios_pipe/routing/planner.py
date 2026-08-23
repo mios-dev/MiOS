@@ -1,5 +1,5 @@
 # AI-hint: Planner / DAG-decomposition layer extracted verbatim from server.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_planner_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

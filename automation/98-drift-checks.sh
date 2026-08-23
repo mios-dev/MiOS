@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Source-tree drift fitness-functions (WS-0A).
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_98_drift_checks_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 PYTHON="python3"
@@ -7568,7 +7568,7 @@ for rpath, _, files in os.walk(root):
     for fn in files:
         if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
             continue
-        if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md'):
+        if fn in ('AGY-TASKS.md', 'TASKS.md', 'doc-generative-documentation.md', 'drift-gate-negatives.sh'):
             continue
         fpath = os.path.join(rpath, fn)
         dirpath = os.path.dirname(fpath)

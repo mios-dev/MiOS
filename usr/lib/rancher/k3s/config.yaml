@@ -1,5 +1,4 @@
 /* AI-hint: Defines the K3s cluster configuration for MiOS, specifying the SQLite storage engine, SELinux status, and disabling default Traefik/ServiceLB components to allow custom ingress/load balancing. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_rancher_k3s_config_yaml.md */
 write-kubeconfig-mode: "0644"
 selinux: true
 disable:

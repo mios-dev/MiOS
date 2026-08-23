@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/check-tasks-status-parity.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_tasks_status_parity_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import importlib.util
 import os

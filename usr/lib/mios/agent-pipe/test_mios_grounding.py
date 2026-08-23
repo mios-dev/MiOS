@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_grounding (refactor R2 leaf extraction of the per-turn ENV-GROUNDING cluster)....
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_grounding_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Unit tests for mios_grounding (refactor R2)."""
 
 import logging

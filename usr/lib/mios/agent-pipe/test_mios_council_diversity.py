@@ -1,5 +1,5 @@
 # AI-hint: Stdlib offline unit tests for mios_council_diversity -- the council input-diversity gate (T-047 RouteMoA GAP-1) + confidence-aware aggre...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_council_diversity_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib offline unit tests for mios_council_diversity (T-047 / T-048)."""
 
 import asyncio

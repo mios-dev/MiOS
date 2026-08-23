@@ -1,6 +1,4 @@
 # AI-hint: Defines the WSL2-specific artifact configuration for the MiOS build system, specifying user account defaults and kernel parameters for the `wsl --import` workflow.
-# AI-doc: usr/share/doc/mios/manual/_harvest/config_artifacts_wsl2_toml.md
-
 [[customizations.user]]
 name     = "mios"
 # No password or SSH key needed for WSL -- Windows auth is used.

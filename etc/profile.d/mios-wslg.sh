@@ -1,5 +1,5 @@
 # AI-hint: Configures Wayland/X11 environment variables (DISPLAY, WAYLAND_DISPLAY, XDG_RUNTIME_DIR) and PulseAudio paths specifically for WSLg integration to ensure GUI applic...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_wslg_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 
 [ -d /mnt/wslg ] || return 0
 

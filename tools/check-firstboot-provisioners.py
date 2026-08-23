@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the first-boot provisioner triples (FBM T-200/T-202).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_firstboot_provisioners_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: every first-boot provisioner triple (fetcher + unit + preset) is whole."""
 
 import os

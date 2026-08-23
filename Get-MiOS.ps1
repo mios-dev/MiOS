@@ -1,5 +1,5 @@
 # AI-hint: Primary entry point for MiOS installation; handles admin elevation, environment validation, and fresh-clone of the bootstrap repo to initiate the preflight, VM setup, and OCI build pipeline.
-# AI-doc: usr/share/doc/mios/manual/_harvest/Get_MiOS_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
     'MiOS' bootstrap -- canonical Windows one-liner entry point.

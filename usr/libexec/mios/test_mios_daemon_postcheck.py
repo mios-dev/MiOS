@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone unit test for the mios-daemon per-verb post-check after the NO-HARDCODE cutover.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_daemon_postcheck_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Unit test: mios-daemon per-verb post-check is SSOT-driven + degrade-open."""
 
 import ctypes

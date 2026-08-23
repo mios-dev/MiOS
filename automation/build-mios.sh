@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: This script is the primary installation and ignition tool for MiOS; an agent uses it to clone the MiOS repository and merge its components into the Fedora ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_build_mios_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 
 set -euo pipefail
 

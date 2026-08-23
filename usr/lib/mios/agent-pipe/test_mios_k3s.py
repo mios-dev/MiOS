@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for the #61 generated k3s manifests: every committed usr/share/mios/k3s/generated/*.yaml parses, declares an apiVersion, carries ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_k3s_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for the #61 pods->k3s generated manifests.
 
 Validates the COMMITTED artifacts (not the generator, which needs live pods +

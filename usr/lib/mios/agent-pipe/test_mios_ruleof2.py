@@ -1,5 +1,5 @@
 # AI-hint: Offline stdlib-assert test for the F2/T-033 Rule-of-Two architectural prompt-injection gate.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_ruleof2_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib assert-script gates for mios_ruleof2 + its dispatch wiring -- run: python test_mios_ruleof2.py"""
 import asyncio
 import contextvars

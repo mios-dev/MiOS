@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Golden fixture test runner for mios-new template generator across all 20 template types.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_templates_golden_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import os
 import sys

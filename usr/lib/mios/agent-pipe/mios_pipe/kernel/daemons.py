@@ -1,5 +1,5 @@
 # AI-hint: BACKGROUND async daemon-loop bodies extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_gossip.py, ./mios_p...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_daemons_py.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 
 from __future__ import annotations
 

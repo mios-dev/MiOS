@@ -1,5 +1,5 @@
 # AI-hint: Provides a PostgreSQL and pgvector client for the agent plane (WS-9), offering a standalone, SQL-injection-safe datastore client using parameter...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_pg_py.md
+# AI-doc: usr/share/doc/mios/manual/memory.md
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 # AI-hint: Reference template for mios-cron-director defining cron rules, shell commands, and LLM-gated logic (qwen3:0.6b) to conditionally execute tasks like cach...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_cron_rules_example_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 # Hourly checkpoint -- always fires.
 [[rule]]

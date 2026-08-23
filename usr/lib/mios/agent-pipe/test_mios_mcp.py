@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_mcp_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Offline unit tests for mios_mcp (no network, no DB, no real subprocess)."""
 
 import asyncio

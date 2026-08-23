@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_schema_consumers_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: no schema table is dead (no reader, no writer, not registered)."""
 
 import os

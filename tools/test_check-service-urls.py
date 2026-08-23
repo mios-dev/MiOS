@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/check-service-urls.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_service_urls_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the one-canonical-address-per-service gate."""
 
 import os

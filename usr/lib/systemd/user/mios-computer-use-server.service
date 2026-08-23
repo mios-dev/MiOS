@@ -1,5 +1,5 @@
 /* AI-hint: Systemd user service providing the dual MCP/A2A and HTTP-executor interface for the local Wayland session, enabling the agent-pipe to consume desktop capabilities like mouse/keyboard control and screen scraping. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_user_mios_computer_use_server_service.md */
+/* AI-doc: usr/share/doc/mios/manual/user.md */
 [Unit]
 # /usr/lib/systemd/user/mios-computer-use-server.service
 #

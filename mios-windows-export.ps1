@@ -1,5 +1,5 @@
 # AI-hint: A Windows-native OCI image exporter that extracts rootfs layers directly from GHCR to create .tar.zst files for WSL or converts existing disk images to .vhdx via qemu-...
-# AI-doc: usr/share/doc/mios/manual/_harvest/mios_windows_export_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
     Windows-native MiOS OCI exporter / converter -- no podman machine required.

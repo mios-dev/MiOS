@@ -1,5 +1,5 @@
 # AI-hint: Initializes the MiOS environment by defining directory structures, handling secure credential input, and managing .env file parsing for the build and deployment pipeline.
-# AI-doc: usr/share/doc/mios/manual/_harvest/config_bootstrap_provision_env_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 
 $ErrorActionPreference = "Stop"
 

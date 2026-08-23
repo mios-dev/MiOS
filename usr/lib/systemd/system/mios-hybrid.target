@@ -1,5 +1,5 @@
 /* AI-hint: Defines the mios-hybrid.target unit to orchestrate the concurrent execution of desktop environments, k3s worker nodes, and Ceph OSD services as the primary system state for hybrid-role nodes. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_hybrid_target.md */
+/* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 Description='MiOS' Hybrid role (desktop + k3s-worker + ceph-osd)
 Requires=graphical.target

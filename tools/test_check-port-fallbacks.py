@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/check-port-fallbacks.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_port_fallbacks_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the port-literal gate."""
 
 import os

@@ -1,5 +1,5 @@
 # AI-hint: Verb -> bash COMMAND BUILDER, extracted VERBATIM from mios_dispatch.py (T-273).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_dispatch_cmd_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """Verb -> bash command builder (extracted from the dispatch chokepoint)."""
 
 from __future__ import annotations

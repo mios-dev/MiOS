@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_codemode logic to verify language normalization, timeout clamping, and session ID generation without requiring the ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_codemode_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_codemode (WS-2 Code Mode pure helpers).
 
 Pure stdlib + the sibling module only -- no server.py / podman / DB import, so it

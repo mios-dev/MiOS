@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the [units] projection debt register.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_unit_projection_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: the [units] projection's debt register is real, sorted and shrinking."""
 
 import os

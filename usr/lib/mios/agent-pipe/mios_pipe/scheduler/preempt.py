@@ -1,5 +1,5 @@
 # AI-hint: WS-A12 round-robin preemption state machine + generation-snapshot contract, PLUS the T-019/SCHED-01 TURN-boundary preemption seam AND th...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_preempt_py.md
+# AI-doc: usr/share/doc/mios/manual/scheduler.md
 
 from __future__ import annotations
 

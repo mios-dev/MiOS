@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: This script is the primary build runner for MiOS, managing the build lifecycle by parsing `mios.toml` configurations, enforcing environment constraints, and ren...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_build_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

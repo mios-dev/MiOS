@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Initializes the MiOS environment by creating directory structures, sourcing build configurations, and prompting for credentials (GitHub PAT, admin cre...
-# AI-doc: usr/share/doc/mios/manual/_harvest/config_bootstrap_bootstrap_sh.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 set -euo pipefail
 
 MIOS_BASE_DIR="$HOME/mios"

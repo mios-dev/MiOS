@@ -1,5 +1,5 @@
 # AI-hint: Pure prompt text-block formatters lifted verbatim from server.py AI-related: server.py, mios_fanout.py, mios_swarm.py, mios_daemons.py A...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_promptfmt_py.md
+# AI-doc: usr/share/doc/mios/manual/context.md
 """Pure, stateless prompt text-block formatters (strangler-fig extraction)."""
 
 from __future__ import annotations

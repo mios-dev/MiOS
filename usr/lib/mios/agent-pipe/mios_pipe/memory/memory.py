@@ -1,5 +1,5 @@
 # AI-hint: WS-A15 pluggable MemoryProvider seam for the agent-pipe. Wraps the pgvector recall/store path behind a small MemoryProvider interface (retri...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_memory_py.md
+# AI-doc: usr/share/doc/mios/manual/memory.md
 
 from __future__ import annotations
 

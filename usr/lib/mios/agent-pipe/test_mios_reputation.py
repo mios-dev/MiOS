@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_reputation (#54 peer reputation): neutral-with-no-history, success-rate scoring, recent-failure penalty, and STAB...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_reputation_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_reputation (WS / #54 zero-trust federation).
 
 Pure stdlib + the sibling module only -- no server.py. Proves the deterministic

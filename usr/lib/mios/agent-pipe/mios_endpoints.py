@@ -1,5 +1,5 @@
 # AI-hint: Pure endpoint capability detection extracted verbatim from server.py (strangler-fig refactor R-wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_endpoints_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 from __future__ import annotations
 

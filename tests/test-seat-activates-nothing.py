@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: The executable definition of MiOS-Mini. A seat is [blade].type = "endpoint", an archetype granting NO capabilities, so it must activ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_seat_activates_nothing_py.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 """Proof: an endpoint blade -- a MiOS-Mini -- activates no service."""
 
 import os

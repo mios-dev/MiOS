@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_pipe.kernel.httpclient -- the ONE shared outbound AsyncClient and the T-226 b...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_httpclient_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 """Unit tests for the shared http client + the T-226 coalescing chokepoint."""
 

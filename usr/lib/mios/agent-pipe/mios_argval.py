@@ -1,5 +1,5 @@
 # AI-hint: Verb argument validation and synonym mapping helper (WS-DEBT / TD-5 / T-273). Extracted from mios_dispatch.py. Pure helper, must NOT import server.py or...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_argval_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 from typing import Optional, Any
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: This script updates the `webui.db` database to link "MiOS Session Memory" and "MiOS Documentation" knowledge IDs to the `mios-agent` model ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_reattach_knowledge_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 python3 - <<'PYEOF'
 import json

@@ -1,5 +1,5 @@
 # AI-hint: Stdlib assert-script for mios_planner. No network: the planner LLM call in decompose_intent is exercised only on the early short-prompt-skip / dis...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_planner_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Offline assert-script for mios_planner. Run: python test_mios_planner.py"""
 
 import asyncio

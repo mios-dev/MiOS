@@ -1,5 +1,4 @@
 /* AI-hint: CrowdSec configuration defining journalctl source filters for specific systemd units (sshd, nginx, k3s, etc.) to identify and log security events for the CrowdSec intrusion detection engine. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_crowdsec_acquis_d_journalctl_yaml.md */
 source: journalctl
 journalctl_filter:
   - "_SYSTEMD_UNIT=sshd.service"

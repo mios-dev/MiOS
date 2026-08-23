@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Configures the `prepare-root.conf` file by reading the `[security].composefs_mode` setting from `mios.toml` to ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_77_composefs_verity_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

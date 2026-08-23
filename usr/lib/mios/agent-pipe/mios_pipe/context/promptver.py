@@ -1,5 +1,5 @@
 # AI-hint: WS-LIFECYCLE-VER prompt-version registry (the PURE half). The ~12 agent-pipe hop prompts (router/refine/synthesis/polish/swarm/native-lo...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_promptver_py.md
+# AI-doc: usr/share/doc/mios/manual/context.md
 from __future__ import annotations
 
 import hashlib

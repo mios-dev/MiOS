@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for mios_toolsearch -- the embedding tool/app semantic-search core extracted from server.py (refactor R10).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_toolsearch_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Offline unit tests for mios_toolsearch (no network, no DB, no subprocess)."""
 
 import asyncio

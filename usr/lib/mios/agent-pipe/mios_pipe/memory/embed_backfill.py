@@ -1,5 +1,5 @@
 # AI-hint: WS-A2 embedding-version hygiene -- the pure decision core for an off-hot-path re-embed (backfill) job.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_embed_backfill_py.md
+# AI-doc: usr/share/doc/mios/manual/memory.md
 
 from __future__ import annotations
 

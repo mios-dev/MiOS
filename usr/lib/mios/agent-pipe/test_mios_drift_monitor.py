@@ -1,5 +1,5 @@
 # AI-hint: Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_drift_monitor_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib offline unit tests for the Jensen-Shannon drift monitor (CONS-02)."""
 
 import sys

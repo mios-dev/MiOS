@@ -1,7 +1,7 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Installs operator-selected Flatpaks into the system image during the build process to ensure the final deployment (ISO, VHD...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_61_flatpak_bake_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

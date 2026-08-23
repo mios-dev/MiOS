@@ -1,5 +1,5 @@
 # AI-hint: CaMeL dual-context QUARANTINE boundary -- the deeper half of the F2/T-033 prompt-injection defense (Debenedetti et al., "Defeating Promp...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_quarantine_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_egress_firewall_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 from __future__ import annotations
 
 import os

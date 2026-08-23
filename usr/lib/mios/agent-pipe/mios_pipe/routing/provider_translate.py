@@ -1,5 +1,5 @@
 # AI-hint: Pure cross-provider wire-format adapter extracted from server.py (refactor WS R2 leaf wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_provider_translate_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """OpenAI <-> Anthropic/Gemini wire-format translation (model-adapter gateway).
 
 Extracted verbatim from ``server.py`` (model-adapter gateway, item #1 slice 4).

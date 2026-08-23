@@ -1,5 +1,5 @@
 # AI-hint: The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_mios_toml_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Shared layered mios.toml resolver (vendor < host < user) + canonical palette defaults."""
 
 from __future__ import annotations

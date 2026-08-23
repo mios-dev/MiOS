@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Removes pre-LLM RAG knowledge attachments from Open WebUI models in the database to disable automatic search-query decomposition, ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_detach_knowledge_from_model_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 python3 - <<'PYEOF'
 import json

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/generate-mini-vs-hosted.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_mini_vs_hosted_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the seat-vs-blade comparison projector."""
 
 import os

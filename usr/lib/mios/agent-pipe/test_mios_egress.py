@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for tools/generate-egress-firewall (#54 egress firewall): build_ruleset emits a uid-scoped nftables ruleset with the always-al...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_egress_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for the #54 egress-firewall generator.
 
 Pure: asserts the structure of build_ruleset's output (uid scoping, always-allowed

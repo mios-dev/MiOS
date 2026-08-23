@@ -1,5 +1,5 @@
 # AI-hint: Registers a Windows Scheduled Task to run a hidden PowerShell process that maintains a persistent WSL session via `sleep infinity`, preventing th...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_wsl_keepalive_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 
 [CmdletBinding()]
 param(

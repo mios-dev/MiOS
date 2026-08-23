@@ -1,5 +1,5 @@
 /* AI-hint: Runtime port allocator -- derives every [ports] value from the [ports.categories] schema (base + index*stride) after layer merging, so operator/OEM overrides re-derive live. Mirrors mios_toml.derive_ports. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/tools_native_mios_resolver_src_ports_rs.md */
+/* AI-doc: usr/share/doc/mios/manual/src.md */
 use toml::Value;
 
 pub fn derive_ports(merged: &mut Value) {

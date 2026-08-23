@@ -1,5 +1,5 @@
 # AI-hint: Configures Windows Firewall and netsh portproxy rules to map physical NIC ports to local WSL containers, enabling LAN-wide access to MiOS services ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_Setup_MiOSLanPortProxy_ps1.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'

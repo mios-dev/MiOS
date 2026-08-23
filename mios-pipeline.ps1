@@ -1,5 +1,5 @@
 # AI-hint: The primary entry point for Windows hosts to execute the 11-phase MiOS build/install pipeline, orchestrating the transition from interactive configuration to Podman-WSL2 env...
-# AI-doc: usr/share/doc/mios/manual/_harvest/mios_pipeline_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
     MiOS canonical end-to-end pipeline orchestrator (Windows host).

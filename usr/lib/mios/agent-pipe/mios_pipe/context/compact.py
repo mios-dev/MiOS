@@ -1,5 +1,5 @@
 # AI-hint: WS-A5 rolling-summary compaction planner for the agent-pipe. When a conversation's message history exceeds a token budget, plan_compaction...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_compact_py.md
+# AI-doc: usr/share/doc/mios/manual/context.md
 
 from __future__ import annotations
 

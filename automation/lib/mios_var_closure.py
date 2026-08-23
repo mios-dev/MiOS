@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: SSOT var-closure fitness function (drift-check 37). Proves R ⊆ E -- referenced MIOS_* variables are emitted by SSOT (AGY-1574).
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_mios_var_closure_py.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 """MIOS_* consumer-closure gate: assert referenced ⊆ emitted."""
 from __future__ import annotations
 import glob

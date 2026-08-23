@@ -1,5 +1,5 @@
 # AI-hint: Configures Claude Desktop and Claude Code to connect to the MiOS MCP server by dynamically resolving WSL distro names and ports to enable remo...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_claude_mcp_setup_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 <#
   mios-claude-mcp-setup.ps1 -- wire the MiOS MCP server (remote control +
   dispatch: the full MiOS verb catalog -> agent-pipe /v1/dispatch) into BOTH

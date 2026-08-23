@@ -1,5 +1,5 @@
 # AI-hint: Pure A2A signed-delegation-principal helpers (#60 WS-6). Builds + verifies.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_principal_py.md
+# AI-doc: usr/share/doc/mios/manual/identity.md
 from __future__ import annotations
 
 import base64

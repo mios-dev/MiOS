@@ -1,5 +1,5 @@
 # AI-hint: Pure self-improvement ACT-half decision core (T-062 ACT + T-064 proof-of-utility).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_lifecycle_selfimprove_act_py.md
+# AI-doc: usr/share/doc/mios/manual/lifecycle.md
 
 from __future__ import annotations
 

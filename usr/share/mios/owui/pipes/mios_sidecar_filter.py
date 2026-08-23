@@ -1,5 +1,5 @@
 # AI-hint: Injects sibling-agent activities (Sys-Agent, nudger, log-watcher, cron-director) into the OWUI chat stream by polling state files and emitting...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_sidecar_filter_py.md
+# AI-doc: usr/share/doc/mios/manual/owui.md
 """
 title: MiOS Agents Sidecar
 author: MiOS

@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # AI-hint: Verifies the booted kernel enforces the lockdown mode the image kargs declare (`lockdown=integrity` in usr/lib/bootc/karg...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_greenboot_check_wanted_d_31_kernel_lockdown_sh.md
+# AI-doc: usr/share/doc/mios/manual/system.md
 set -euo pipefail
 LOCKDOWN_FILE=/sys/kernel/security/lockdown
 if [[ -r "${LOCKDOWN_FILE}" ]]; then

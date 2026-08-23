@@ -1,6 +1,6 @@
 #!/bin/sh
 # AI-hint: Configures shell environment for MiOS agents by injecting @-prefix command dispatching, setting MIOS_AGENT_DEFAULT, and providing the mios_repo_use helper...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_agent_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 
 case ":${PATH}:" in
     *":/usr/bin:"*) ;;

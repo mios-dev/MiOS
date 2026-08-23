@@ -1,5 +1,5 @@
 # AI-hint: User-specific configuration file for MiOS providing overrides for identity, locale, AI endpoints, and desktop themes, initialized from system defaults and u...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_skel__config_mios_profile_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 [identity]
 # `username` is fixed (it's your own login). Override fullname only.

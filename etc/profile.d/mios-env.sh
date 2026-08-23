@@ -1,5 +1,5 @@
 # AI-hint: Resolves and exports MiOS environment variables (MIOS_*) by merging layered TOML configs and .env files to provide a unified configuration for CLI tools, agents, and...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_env_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 
 case "$-" in
     *i*) ;;

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_globals_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 from __future__ import annotations
 
 import os

@@ -1,5 +1,5 @@
 # AI-hint: Processes the OWUI output stream to wrap meta-narrative and reasoning lines in <think> tags for collapsible UI rendering while stripping hard...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_antimeta_filter_py.md
+# AI-doc: usr/share/doc/mios/manual/owui.md
 """
 title: MiOS Anti-Meta Filter
 author: MiOS

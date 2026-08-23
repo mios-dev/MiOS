@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Near-runtime import gate for the agent-pipe strangler-fig refactor (WS R0+).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_server_import_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stub-and-import gate: prove server.py imports cleanly with all DI wired (refactor R0+)."""
 
 import os

@@ -1,5 +1,5 @@
 # AI-hint: Tiered local web-EXTRACT `WebSearchProvider` for Hermes-Agent: fast offline urllib+regex strip first, escalating JS-heavy/dynamic/thin ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_hermes_plugins_web_miosfetch_provider_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """MiOS tiered web-EXTRACT provider for Hermes-Agent.
 
 Why this exists (operator-confirmed): hermes's bundled `firecrawl`

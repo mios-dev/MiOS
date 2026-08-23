@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 # AI-hint: Shared blade-resolution library. ONE implementation of the archetype ladder, the capability set and the alias table, sourced by usr/libexec/mios/role-appl...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_blade_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 : "${ROLE_CONF:=${MIOS_ETC_DIR:-/etc/mios}/role.conf}"
 : "${BLADE_D:=${MIOS_ETC_DIR:-/etc/mios}/blade.d}"

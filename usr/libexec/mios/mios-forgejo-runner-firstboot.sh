@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Run `forgejo-runner register` once so /srv/mios/forge-runner/.runner AI-related: /usr/libexec/mios/mios-forgejo-runner-fir...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_forgejo_runner_firstboot_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 set -euo pipefail
 
 SENTINEL=/srv/mios/forge-runner/.runner

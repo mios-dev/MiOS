@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line ha...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_97_ssot_lint_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 # --- Resolve the repo/system root (repo root IS system root). -----------------

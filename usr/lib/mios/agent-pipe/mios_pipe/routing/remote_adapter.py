@@ -1,5 +1,5 @@
 # AI-hint: Remote multi-provider adapter module. Normalizes OpenAI Chat Completions requests for remote [nodes.*] bindings declaring api='anth...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_remote_adapter_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """Remote provider adapter for cross-provider node escalation (OpenAI <-> Anthropic / Gemini)."""
 
 from __future__ import annotations

@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for mios_verbcatalog -- the verb/recipe catalog loader + 3-projection SSOT source.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_verbcatalog_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Offline unit tests for ``mios_verbcatalog`` (no network, no DB)."""
 
 import os

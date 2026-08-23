@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_blade_dropins_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 import os
 import sys
 

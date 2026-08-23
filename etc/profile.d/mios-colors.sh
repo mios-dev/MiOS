@@ -1,5 +1,5 @@
 # AI-hint: Configures the terminal's visual identity by emitting OSC escape sequences to apply the MiOS unified color palette (Hokusai) to interactive shells, ensuring consi...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_colors_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 
 [ -t 1 ] || return 0
 case "${TERM:-}" in linux|dumb|"") return 0 ;; esac

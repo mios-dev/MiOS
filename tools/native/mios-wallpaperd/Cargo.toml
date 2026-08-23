@@ -1,5 +1,4 @@
 # AI-hint: MiOS wallpaper daemon manifest. mios-wallpaperd -- MiOS living-wallpaper + desktop-services daemon. Law 14 / ADR-0011 (WS-LANG): the Rust native tier.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_native_mios_wallpaperd_Cargo_toml.md
 [package]
 name = "mios-wallpaperd"
 version.workspace = true

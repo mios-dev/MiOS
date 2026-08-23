@@ -1,7 +1,7 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=bake-only
 # AI-hint: Runs Syft to generate CycloneDX + SPDX SBOM manifests into ${MIOS_USR_DIR}/artifacts/sbom.
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_90_generate_sbom_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -uo pipefail   # deliberately NOT -e
 
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

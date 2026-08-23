@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_blade_karg_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Project [blade].type into a bootc kargs.d drop-in."""
 
 import os

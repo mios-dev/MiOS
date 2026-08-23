@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for the v3 extended-query wire builders in mios-pg-query (WS-A3 parameterized --exec-json path). ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_pgwire_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Unit tests for the mios-pg-query extended-protocol wire builders (WS-A3)."""
 
 import importlib.machinery

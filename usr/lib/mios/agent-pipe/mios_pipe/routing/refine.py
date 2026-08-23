@@ -1,5 +1,5 @@
 # AI-hint: REFINE intent-classifier extracted verbatim from server.py (refactor R5/mios_refine wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_refine_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 import asyncio
 import json

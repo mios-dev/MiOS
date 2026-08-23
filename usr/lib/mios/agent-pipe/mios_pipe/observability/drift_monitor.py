@@ -1,5 +1,5 @@
 # AI-hint: Pure Jensen-Shannon divergence monitor over agent-plane verdict/intent/score histograms (CONS-02).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_drift_monitor_py.md
+# AI-doc: usr/share/doc/mios/manual/observability.md
 """Jensen-Shannon drift monitor (CONS-02). Bounded 0..1 divergence against a
 frozen baseline; rationale in usr/share/doc/mios/manual/ch53-drift-monitoring.md"""
 

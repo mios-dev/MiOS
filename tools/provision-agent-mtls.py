@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_provision_agent_mtls_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 from __future__ import annotations
 
 import datetime

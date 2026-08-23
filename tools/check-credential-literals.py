@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_credential_literals_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Fail if a unit gains a new baked-in credential. Law 11 scans only .env files."""
 import os
 import re

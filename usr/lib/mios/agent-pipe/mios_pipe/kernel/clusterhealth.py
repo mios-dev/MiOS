@@ -1,5 +1,5 @@
 # AI-hint: CLUSTER/SCHEDULER/HEALTH route-handler LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_clusterhealth_py.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 
 from __future__ import annotations
 

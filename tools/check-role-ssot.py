@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_role_ssot_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: the blade role is stated once, legally, and in one place."""
 
 import os

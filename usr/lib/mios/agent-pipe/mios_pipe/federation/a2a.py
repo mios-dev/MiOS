@@ -1,5 +1,5 @@
 # AI-hint: A2A FEDERATION publish/server surface extracted VERBATIM from server.py (refactor R11 federation wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_federation_a2a_py.md
+# AI-doc: usr/share/doc/mios/manual/federation.md
 
 from __future__ import annotations
 

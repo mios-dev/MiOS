@@ -1,5 +1,5 @@
 # AI-hint: Powershell script to pull the MiOS OCI image from GHCR and use bootc-image-builder (BIB) via Podman to generate multi-format deployment artifacts (qcow2, raw, vhdx, wsl, ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/mios_cloud_build_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 <#
 .SYNOPSIS
     Pull the MiOS OCI image from GHCR and convert it to every deployable target.

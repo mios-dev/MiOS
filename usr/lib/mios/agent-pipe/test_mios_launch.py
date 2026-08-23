@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for the deterministic_action_route logic to ensure "open/launch" commands correctly strip filler phrases and map to open_app(n...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_launch_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for the deterministic launch-target extraction
 (server.py `_deterministic_action_route`: SSOT trailing-filler strip + word-count
 + compound-connective guard that binds an unambiguous 'open/launch <app>' to

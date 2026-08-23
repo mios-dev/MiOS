@@ -1,5 +1,5 @@
 # AI-hint: Configures a local Podman machine as a MiOS AI node by installing NVIDIA container toolkits, deploying mios-llm-light Quadlets on port 11450, opening T...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_ai_node_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 <#
   mios-ai-node.ps1 -- MiOS Windows AI Node setup
 

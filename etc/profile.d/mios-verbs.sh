@@ -1,5 +1,5 @@
 # AI-hint: Defines the `mios()` shell function to intercept and route canonical verbs (mini, dash, build, config, etc.) to specific `/usr/libexec/mios/` helpers while allowin...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_verbs_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 [ -n "${PS1:-}" ] || return 0
 
 mios() {

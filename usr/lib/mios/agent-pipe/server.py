@@ -1,5 +1,5 @@
 # AI-hint: FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_server_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 from __future__ import annotations
 
 import asyncio

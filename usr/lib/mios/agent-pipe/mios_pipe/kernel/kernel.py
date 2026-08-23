@@ -1,5 +1,5 @@
 # AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1b: the pure Kernel facade.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_kernel_py.md
+# AI-doc: usr/share/doc/mios/manual/kernel.md
 
 from __future__ import annotations
 

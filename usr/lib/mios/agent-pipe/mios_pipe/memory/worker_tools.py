@@ -1,5 +1,5 @@
 # AI-hint: BM25/RRF/MMR tool reranker + tool-priority ranking helpers extracted verbatim from server.py (refactor R4 worker-tools wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_worker_tools_py.md
+# AI-doc: usr/share/doc/mios/manual/memory.md
 
 from __future__ import annotations
 

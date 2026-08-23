@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Offline stdlib test for mios_oscontrol (refactor R9): stubs every sibling (fastapi.responses + mios_sse/mios_jsonsalvage/m...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_oscontrol_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stub-and-import test for the OS-control window verify + anti-fabrication verdict."""
 
 import sys

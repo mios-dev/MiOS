@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios-docgen (WS-4 P0 doc-gen). Pure stdlib; imports the CLI module by path (it has no .py extension, matching the libexec...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_office_convert_py.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 """Standalone unit test for mios-docgen (WS-4 P0 doc-gen).
 
 Pure stdlib; imports the CLI module by path (it has no .py extension, matching

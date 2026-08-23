@@ -1,7 +1,7 @@
 #!/bin/bash
 # MIOS_APPLY_CLASS=universal
 # AI-hint: Installs the unified Hermes-Agent and opencode components into the MiOS agent plane, configuring the shared Python venv, sy...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_72_hermes_agent_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done
 

@@ -1,5 +1,5 @@
 # AI-hint: Provides shell functions to initialize, prepend, or append paths to AWK environment variables (AWKPATH and AWKLIBPATH) to ensure correct script execution and library linking.
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_gawk_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 gawkpath_default () {
 	unset AWKPATH
 	export AWKPATH=`gawk 'BEGIN {print ENVIRON["AWKPATH"]}'`

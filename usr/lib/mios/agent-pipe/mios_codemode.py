@@ -1,5 +1,5 @@
 # AI-hint: Provides pure, side-effect-free logic for WS-2 Code Mode, including session ID derivation, podman exec argument construction, and tool-call normalizat...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_codemode_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 from __future__ import annotations
 

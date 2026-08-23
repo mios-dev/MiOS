@@ -1,5 +1,5 @@
 # AI-hint: OAI-04/T-225 run-template REPLAY matcher -- the reuse half of the WS-6 capture path.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_replay_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """Intent-keyed run-template matching (T-225)."""
 
 from __future__ import annotations

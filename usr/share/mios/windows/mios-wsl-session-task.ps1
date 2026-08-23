@@ -1,5 +1,5 @@
 # AI-hint: Registers a scheduled task to boot the podman-MiOS-DEV WSL distro at interactive logon, ensuring WSLg/msrdc binds Linux GUI windows to the use...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_wsl_session_task_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 
 param(
     [string]$Distro   = '',

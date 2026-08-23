@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149).
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_module_length_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Unit tests for the agent-pipe module-size ratchet (check 149)."""
 
 import importlib.util

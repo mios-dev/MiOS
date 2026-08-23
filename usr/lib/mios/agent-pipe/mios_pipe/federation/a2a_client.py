@@ -1,5 +1,5 @@
 # AI-hint: A2A PEER-CLIENT consumer half extracted VERBATIM from server.py (refactor R11 federation follow-up).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_federation_a2a_client_py.md
+# AI-doc: usr/share/doc/mios/manual/federation.md
 
 from __future__ import annotations
 

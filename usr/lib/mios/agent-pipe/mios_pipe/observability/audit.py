@@ -1,5 +1,5 @@
 # AI-hint: SEC-03 tamper-evident SHA-256 hash chain over the agent-plane `event` stream.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_audit_py.md
+# AI-doc: usr/share/doc/mios/manual/observability.md
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Executes a sequential chain of diagnostic scripts (quick-summary, iommu-visualizer, system-profiler) to generate a comprehensive system performance and h...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_run_all_profilers_sh.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 set -euo pipefail
 
 readonly RED='\033[0;31m'

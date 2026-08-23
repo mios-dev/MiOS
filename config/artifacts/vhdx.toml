@@ -1,6 +1,4 @@
 # AI-hint: Defines the VHDX disk image configuration for Hyper-V targets, specifying user credentials, kernel boot parameters (iommu/nouveau), and filesystem partition sizes f...
-# AI-doc: usr/share/doc/mios/manual/_harvest/config_artifacts_vhdx_toml.md
-
 [[customizations.user]]
 name     = "mios"
 # Replace with: openssl passwd -6 'your-password'

@@ -1,5 +1,5 @@
 # AI-hint: Hermetic endpoint-resolution tests for the OWUI entry-point pipe.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_owui_pipe_endpoints_py.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 
 import importlib.util
 import os

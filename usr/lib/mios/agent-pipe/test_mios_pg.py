@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert g...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_pg_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 import asyncio
 import os

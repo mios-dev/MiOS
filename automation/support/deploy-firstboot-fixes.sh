@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Automates the deployment of firstboot binaries and systemd drop-in configurations, then triggers and validates the mios-hermes-firstboo...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_deploy_firstboot_fixes_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 
 echo "=== copying fixed files ==="

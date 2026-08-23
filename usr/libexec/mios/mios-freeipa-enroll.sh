@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Bash oneshot run by mios-freeipa-enroll.service that joins the host to a FreeIPA domain via ipa-client-install; gated on /etc/mios/i...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_freeipa_enroll_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 set -euo pipefail
 source /usr/lib/mios/paths.sh
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Standalone assert-script unit test for mios_pipe.access.seccomp (T-230).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_seccomp_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 """Unit tests for the dispatch sandbox's seccomp filter (T-230)."""
 

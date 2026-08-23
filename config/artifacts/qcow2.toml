@@ -1,6 +1,4 @@
 # AI-hint: Defines the bootc-image-builder configuration for generating QCOW2 disk images, specifying user credentials, kernel boot parameters, and filesystem partition sizes...
-# AI-doc: usr/share/doc/mios/manual/_harvest/config_artifacts_qcow2_toml.md
-
 [[customizations.user]]
 name     = "mios"
 # Replace with: openssl passwd -6 'your-password'

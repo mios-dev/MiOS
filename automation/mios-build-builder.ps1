@@ -1,5 +1,5 @@
 # AI-hint: Idempotent PowerShell script to provision a rootful Podman machine named 'mios-builder' with full host CPU/RAM/GPU passthrough and nvidia-container-toolkit s...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_mios_build_builder_ps1.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 <#
 .SYNOPSIS
   'MiOS' builder - idempotent Podman machine provisioner for Windows.

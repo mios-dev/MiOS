@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_render_ports_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import importlib.util
 import os

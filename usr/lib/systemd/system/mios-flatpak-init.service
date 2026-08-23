@@ -1,5 +1,5 @@
 /* AI-hint: Systemd unit that executes mios-flatpak-init to apply global XDG directory permissions for flatpaks, ensuring all apps have read/write access to user folders like Documents and Pictures. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_flatpak_init_service.md */
+/* AI-doc: usr/share/doc/mios/manual/system.md */
 [Unit]
 # /usr/lib/systemd/system/mios-flatpak-init.service
 #

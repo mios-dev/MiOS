@@ -1,5 +1,5 @@
 # AI-hint: Pure, DB-free scoring core for the MiOS agentic-capability benchmark harness.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_bench_py.md
+# AI-doc: usr/share/doc/mios/manual/scheduler.md
 
 from __future__ import annotations
 

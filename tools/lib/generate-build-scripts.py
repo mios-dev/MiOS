@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, i...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_generate_build_scripts_py.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 
 import os
 from pathlib import Path

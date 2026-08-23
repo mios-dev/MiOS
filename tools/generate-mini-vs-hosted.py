@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md from mios.toml.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_mini_vs_hosted_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Project the product and mode comparisons out of the SSOT."""
 
 import os

@@ -1,5 +1,5 @@
 # AI-hint: WS-A13 risk-tier dispatch-sandbox profile resolver. Pure-stdlib core that maps a verb's permission tier (read|write|interactive) to a Sandb...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_sandbox_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 
 from __future__ import annotations
 

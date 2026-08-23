@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Restarts core MiOS agent and daemon services to clear stale state and regenerate day-0 credentials/keys after a system wipe or configuration reset.
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_day0_restart_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 systemctl restart mios-agent-pipe.service mios-daemon.service 2>&1
 sleep 2

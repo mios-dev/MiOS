@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_bootstrap_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Keep mios-bootstrap.git in step with mios.git (Law 15).
 
 Contract and rationale: installation/UNIFY.md.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_daemon_governor_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Assert the governor-coverage gate fails for each defect class it guards."""
 import os
 import subprocess

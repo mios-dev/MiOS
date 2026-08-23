@@ -1,5 +1,5 @@
 # AI-hint: NATIVE single-agent tool-loop responders extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_turn.py, ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_native_loop_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 
 from __future__ import annotations
 

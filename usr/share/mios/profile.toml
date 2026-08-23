@@ -1,5 +1,5 @@
 # AI-hint: Immutable vendor-default configuration for MiOS system identity, locale, network, and AI agent parameters (Hermes-Agent) used as the base layer for the three-tier ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_profile_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 [identity]
 username  = "mios"

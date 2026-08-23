@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_render_globals_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import importlib.util
 import os

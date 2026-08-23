@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_sched -- PriorityGate concurrency logic (permit capping, priority reordering, anti-starvation) plus the lane/schedulin...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_sched_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_sched.PriorityGate (WS-1).
 
 Pure stdlib + the sibling module only -- no server.py import, so it runs on any

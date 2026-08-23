@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_stress logic to verify percentile calculations, request aggregation, throttling logic, and concurrency ramping algori...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_stress_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_stress pure helpers (T20).
 
 Pure stdlib + the sibling module only -- no httpx, no live agent-pipe (the live

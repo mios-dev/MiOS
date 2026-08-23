@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Local report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. Enforcement lives in check_docs_ratchet, which the gate runs; nothing dispatches this file.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_comment_ratchet_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import os
 import sys

@@ -1,5 +1,5 @@
 # AI-hint: Provides Open WebUI tools for direct desktop interaction (vision, AT-SPI grounding, input actions) and document generation via the mios-lau...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_openwebui_tools_mios_computer_use_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """
 title: MiOS Computer Use
 author: MiOS

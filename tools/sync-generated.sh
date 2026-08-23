@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash One entry point that regenerates EVERY SSOT projection in dependency order (ports -> globals -> quadlets -> names -> env-baseline -> AI manifests), ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_sync_generated_sh.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 set -euo pipefail
 
 ROOT="${MIOS_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"

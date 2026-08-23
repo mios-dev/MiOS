@@ -1,5 +1,5 @@
 /* AI-hint: Systemd unit that triggers bootc switch via /usr/libexec/mios/bootc-switch-from-build.sh when a build sentinel in /var/lib/mios/forge-runner/last-build.txt is updated, automating the transition to a new image. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_systemd_system_mios_bootc_switch_service.md */
+/* AI-doc: usr/share/doc/mios/manual/system.md */
 
 [Unit]
 Description='MiOS' bootc-switch from local build sentinel

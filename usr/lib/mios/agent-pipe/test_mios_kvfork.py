@@ -1,5 +1,5 @@
 # AI-hint: Standalone unit test for mios_kvfork to verify KV-cache fork primitives, ensuring filename sanitization, length capping, and fork validation logic ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_kvfork_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Standalone unit test for mios_kvfork (WS-8 KV-cache fork primitives).
 
 Pure stdlib + the sibling module only -- no server.py import, so it runs on any

@@ -1,5 +1,5 @@
 # AI-hint: PowerShell entry point for MiOS installation that configures the MiOS-DEV podman-machine, handles initial licensing, and manages the SSH handoff to the Linux-side build driver ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/build_mios_ps1.md
+# AI-doc: usr/share/doc/mios/manual/root.md
 
 param(
     [switch]$BootstrapOnly,

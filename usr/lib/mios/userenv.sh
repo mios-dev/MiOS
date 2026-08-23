@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Parses layered TOML configuration files (vendor, host, and user) to export unified MIOS_ environment variables for identity, locale, network, AI, an...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_userenv_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 MIOS_VENDOR_TOML="${MIOS_VENDOR_TOML:-/usr/share/mios/mios.toml}"
 MIOS_HOST_TOML="${MIOS_HOST_TOML:-/etc/mios/mios.toml}"

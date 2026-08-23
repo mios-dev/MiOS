@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Universal CPU Core Isolation Configurator AI-functions: log_info, log_success, log_warning, log_error, log_header, check_root, detect_cpu_topol...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_tune_performance_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 set -euo pipefail
 

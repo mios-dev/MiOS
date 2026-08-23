@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Force-reindexes all files in every OWUI knowledge collection by cycling through /api/v1/knowledge/{id}/file/add endpoints to bypass metadata...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_force_revectorize_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 
 TOKEN=$(python3 - <<'PYEOF'

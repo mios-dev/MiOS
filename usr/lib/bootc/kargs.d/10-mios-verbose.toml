@@ -1,4 +1,4 @@
 # AI-hint: Configures kernel arguments to force verbose systemd status and logging to the console, ensuring boot progress is visible during the boot process an...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_bootc_kargs_d_10_mios_verbose_toml.md
+# AI-doc: usr/share/doc/mios/manual/kargs.d.md
 kargs = ["systemd.show-status=true", "systemd.log_level=info", "console=tty0", "console=ttyS0,115200n8"]
 match-architectures = ["x86_64"]

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Executes `bootc switch` to update the active system partition to a local image (e.g., `localhost/mios:latest`) by parsing the `l...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_bootc_switch_from_build_sh.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 set -euo pipefail
 
 SENTINEL=/var/lib/mios/forge-runner/last-build.txt

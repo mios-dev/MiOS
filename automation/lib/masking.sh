@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Provides helper functions for identifying, registering, and masking sensitive credentials (like GH_TOKEN or MIOS_PASSWORD) in logs and stdout, and...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lib_masking_sh.md
+# AI-doc: usr/share/doc/mios/manual/lib.md
 
 declare -ga MASK_LIST=()
 

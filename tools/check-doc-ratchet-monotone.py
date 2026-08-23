@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_doc_ratchet_monotone_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 
 import os
 import sys

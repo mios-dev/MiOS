@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Drift gate for allocated-but-unbound ports.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_ports_bound_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Gate: an allocated port is bound by something, or registered as not yet wired."""
 
 import os

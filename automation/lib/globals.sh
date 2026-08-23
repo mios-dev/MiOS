@@ -351,7 +351,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_ROLE_ALIASES_HA:=ha-node}"
 : "${MIOS_BLADE_ROLE_ALIASES_K3S:=k3s-master}"
 : "${MIOS_BLADE_SEAT_SIDE:=mios-agent-pipe,hermes-dashboard,mios-hermes-browser,mios-hermes-tail,mios-ttyd-bash,mios-ttyd-powershell}"
-: "${MIOS_BLADE_SOFT_OK:=hermes-worker}"
+: "${MIOS_BLADE_SOFT_OK:=hermes-worker,mios-hermes-browser}"
 : "${MIOS_BLADE_STORAGE_AT_REST:=dmcrypt}"
 : "${MIOS_BLADE_STORAGE_REPLICATION:=all}"
 : "${MIOS_BLADE_TYPE:=hybrid}"
@@ -453,6 +453,8 @@ export MIOS_VERSION
 : "${MIOS_CEPH_USER:=mios-ceph}"
 [ -n "${MIOS_CEPH_VERSION+x}" ] || MIOS_CEPH_VERSION='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH}"
 : "${MIOS_CHROME_CDP_PORT:=9222}"
+: "${MIOS_PORT_CHROME_CDP:=9222}"
+[ -n "${MIOS_CHROME_CDP_URL+x}" ] || MIOS_CHROME_CDP_URL='http://localhost:'"${MIOS_PORT_CHROME_CDP}"'/'
 : "${MIOS_CHROME_CDP_WORKER_PORT:=9223}"
 : "${MIOS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
 : "${MIOS_COCKPIT_ALLOW_UNENCRYPTED:=true}"
@@ -603,7 +605,6 @@ export MIOS_VERSION
 : "${MIOS_CPU_NODE_THREADS:=14}"
 : "${MIOS_CRAWL4AI_PORT:=8810}"
 : "${MIOS_CRAWL_CAMOUFOX:=true}"
-: "${MIOS_PORT_CHROME_CDP:=9222}"
 [ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP}"
 : "${MIOS_CRAWL_MIN_CHARS:=200}"
 : "${MIOS_CROWDSEC_IMAGE:=docker.io/crowdsecurity/crowdsec:latest}"
@@ -1423,7 +1424,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
-: "${MIOS_NON_ADDRESSABLE_URL:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
+: "${MIOS_NON_ADDRESSABLE_URL:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 : "${MIOS_OBSERVABILITY_CHANNELS_CONTENT:=content}"
 : "${MIOS_OBSERVABILITY_CHANNELS_PLAN:=reasoning}"
 : "${MIOS_OBSERVABILITY_CHANNELS_SOURCE:=source}"
@@ -3995,11 +3996,12 @@ to" / "let me know".
 : "${MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION:=RPC Pipe File System}"
 : "${MIOS_UNIT_WSL_FIRSTBOOT:=mios-wsl-firstboot.service}"
 : "${MIOS_URLS_BOOTSTRAP_REPO:=https://github.com/mios-dev/mios-bootstrap.git}"
+[ -n "${MIOS_URLS_CHROME_CDP+x}" ] || MIOS_URLS_CHROME_CDP='http://localhost:'"${MIOS_PORT_CHROME_CDP}"'/'
 [ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORT_COCKPIT}"
 [ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER}"'/'
 [ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"
 [ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"'/mios/mios.git'
-: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
+: "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
 [ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
 [ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"

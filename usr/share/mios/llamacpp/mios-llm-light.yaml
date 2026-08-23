@@ -1,5 +1,5 @@
 /* AI-hint: The mios-llm-light model map -- maps OpenAI /v1-compatible model tags to llama-server configs, enabling multi-model auto-swapping, KV-cache paging via slot-save-paths, and embeddings for the MiOS agent stack. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_llamacpp_mios_llm_light_yaml.md */
+/* AI-doc: usr/share/doc/mios/manual/llamacpp.md */
 
 models:
   # ── chat / reasoning models (KV-pageable; --parallel 1 = one resident slot) ──

@@ -1,3 +1,3 @@
 # AI-hint: Stub script for keyring initialization that informs agents that interactive unlocking is handled by mios-keyring-autounlock.service and configuration is man...
-# AI-doc: usr/share/doc/mios/manual/_harvest/etc_profile_d_mios_keyring_init_sh.md
+# AI-doc: usr/share/doc/mios/manual/profile.d.md
 return 0

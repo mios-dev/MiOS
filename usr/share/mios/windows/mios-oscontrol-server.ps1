@@ -1,5 +1,5 @@
 # AI-hint: Windows-specific HTTP listener for the MiOS OS-control system that executes Win32 commands, manages window states (move/resize/focus), and pro...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_windows_mios_oscontrol_server_ps1.md
+# AI-doc: usr/share/doc/mios/manual/windows.md
 <#
   mios-oscontrol-server.ps1  --  MiOS OS-control executor (Windows node)
 

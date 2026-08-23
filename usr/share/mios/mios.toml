@@ -1,5 +1,5 @@
 # AI-hint: The primary configuration file defining the MiOS user profile, providing the base defaults for identity, system environment, and service configurations used by tools ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_mios_toml.md
+# AI-doc: usr/share/doc/mios/manual/mios.md
 
 # ----------------------------------------------------------------------------
 # [migration] -- Per-surface native Rust vs legacy resolver selection toggles.
@@ -1701,6 +1701,7 @@ exempt = [
     "debloat_profile",
     "domain_verb",
     "drift_snapshot",
+    "embeddings",
     "feature_removal",
     "feature_set",
     "mios_identity",
@@ -6752,6 +6753,7 @@ searxng            = "http://localhost:${MIOS_PORT_SEARXNG}"
 open_webui         = "http://localhost:${MIOS_PORT_OPEN_WEBUI}/"
 code_server        = "http://localhost:${MIOS_PORT_CODE_SERVER}/"
 otelcol_ui         = "http://localhost:${MIOS_PORT_OTELCOL_UI}/"
+chrome_cdp         = "http://localhost:${MIOS_PORT_CHROME_CDP}/"
 local_forge_repo   = "http://localhost:${MIOS_PORT_FORGE_HTTP}/mios/mios.git"
 repo               = "https://github.com/mios-dev/MiOS.git"
 bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
@@ -6764,7 +6766,7 @@ bootstrap_repo     = "https://github.com/mios-dev/mios-bootstrap.git"
 non_addressable = [
   "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",
   "crawl4ai", "hermes", "llm_light", "pgvector",
-  "chrome_cdp", "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
+  "chrome_cdp_worker", "cockpit_link", "cpu_node", "daemon_agent",
   "firecrawl",
   "forge_ssh", "guacamole_web", "guacd", "hermes_dashboard",
   "k3s_api", "mcp", "model_router", "opencode_gateway", "oscontrol",
@@ -9221,7 +9223,7 @@ ungated = []
 optional_planes = ["radio"]
 
 # Soft pull on a gated unit, degrades without it. Reasons: ADR-0016 D4.
-soft_ok = ["hermes-worker"]
+soft_ok = ["hermes-worker", "mios-hermes-browser"]
 
 # Units a seat DELIBERATELY runs: what the PERSON touches. A blade runs what
 # the WORK needs. See ADR-0016 D4.

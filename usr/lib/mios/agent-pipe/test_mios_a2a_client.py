@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for the extracted A2A peer-client consumer half (mios_a2a_client).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_a2a_client_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Unit tests for mios_a2a_client (A2A peer-client consumer half). Pure stdlib + stubs."""
 import asyncio
 import json

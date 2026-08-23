@@ -1,5 +1,5 @@
 # AI-hint: SKILLS execution cluster extracted verbatim from server.py (refactor R7/mios_skills wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_skills_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 
 from __future__ import annotations
 

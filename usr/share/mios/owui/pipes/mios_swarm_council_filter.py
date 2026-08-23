@@ -1,5 +1,5 @@
 # AI-hint: Injects the force_council flag into the request body to bypass relevance gating and force concurrent execution of all MiOS sub-agents (H...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_pipes_mios_swarm_council_filter_py.md
+# AI-doc: usr/share/doc/mios/manual/owui.md
 """
 title: MiOS Swarm · Council
 author: MiOS

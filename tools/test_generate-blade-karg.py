@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/generate-blade-karg.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_blade_karg_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the deploy-time blade karg projection."""
 
 import os

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/check-node-pool.py.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_node_pool_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """Tests for the fan-out pool gate."""
 
 import os

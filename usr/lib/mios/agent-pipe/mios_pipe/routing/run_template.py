@@ -1,5 +1,5 @@
 # AI-hint: WS-6 run-template CAPTURE + the T-225 replay source, extracted out of dag_exec so the two halves of one feature live together.
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_run_template_py.md
+# AI-doc: usr/share/doc/mios/manual/routing.md
 """Run-template capture + the replay read side (WS-6 / T-225)."""
 
 from __future__ import annotations

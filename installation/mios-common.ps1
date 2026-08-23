@@ -1,5 +1,5 @@
 # AI-hint: Shared library for the mios-install unified dispatcher and its wrapped entrypoints. Contains: 1. Enable-MiosVt / Get-MiosPalette / C / B / Rule / Write-MiosLine /...
-# AI-doc: usr/share/doc/mios/manual/_harvest/installation_mios_common_ps1.md
+# AI-doc: usr/share/doc/mios/manual/installation.md
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'

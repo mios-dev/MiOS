@@ -1,5 +1,5 @@
 # AI-hint: WS-A10 certificate/token revocation list (CRL). Pure-stdlib revocation set: load revoked token-ids / principal-ids from a list (or a caller-t...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_crl_py.md
+# AI-doc: usr/share/doc/mios/manual/identity.md
 
 from __future__ import annotations
 

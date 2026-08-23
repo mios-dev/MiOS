@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Negative-test harness for the new drift gates. Inject violations, assert they fail, restore, and assert pass.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tests_drift_gate_negatives_sh.md
+# AI-doc: usr/share/doc/mios/manual/tests.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for mios_http_caps -- the advertised-surface / capability route LOGIC extracted from server.py (refactor R-CAPS).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_http_caps_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib unit tests for mios_http_caps (refactor R-CAPS) -- stubbed, no I/O."""
 
 import asyncio

@@ -1,5 +1,5 @@
 # AI-hint: Python script for rendering interactive generative UI components (charts, forms, tables) in chat by injecting theme-aware scripts and handling iframe commu...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_owui_tools_openui_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """
 title: OpenUI - Generative UI
 author: thesysdev/vishxrad

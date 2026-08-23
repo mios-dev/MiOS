@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate.
-# AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_desktop_py.md
+# AI-doc: usr/share/doc/mios/manual/tools.md
 """render-desktop.py -- render all .desktop launchers from mios.toml SSOT.
 
 Usage:

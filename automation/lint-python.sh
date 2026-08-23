@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # AI-hint: bash Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; ...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_lint_python_sh.md
+# AI-doc: usr/share/doc/mios/manual/automation.md
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

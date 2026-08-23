@@ -1,5 +1,5 @@
 # AI-hint: WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-win...
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_quota_py.md
+# AI-doc: usr/share/doc/mios/manual/access.md
 
 from __future__ import annotations
 

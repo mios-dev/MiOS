@@ -1,5 +1,4 @@
 /* AI-hint: GENERATED k3s/k8s manifest for the MiOS mios-webtools pod (pods-as-SSOT, WS-7). DO NOT EDIT -- regenerate via tools/generate-k3s-manifests.sh. */
-/* AI-doc: usr/share/doc/mios/manual/_harvest/usr_share_mios_k3s_generated_mios_webtools_yaml.md */
 apiVersion: v1
 kind: Pod
 metadata:

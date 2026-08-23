@@ -1,6 +1,6 @@
 #!/bin/bash
 # AI-hint: Executes targeted Day-0 cleanup of PostgreSQL/pgvector tables, daemon states, skills catalogs, agent passports, and audit logs to purge persistent...
-# AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_day0_extras_sh.md
+# AI-doc: usr/share/doc/mios/manual/support.md
 set -euo pipefail
 SECTION="${1:-all}"
 

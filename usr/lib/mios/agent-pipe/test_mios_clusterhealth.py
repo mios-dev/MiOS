@@ -1,5 +1,5 @@
 # AI-hint: Stdlib unit test for mios_clusterhealth -- the cluster/scheduler/health route LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave).
-# AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_clusterhealth_py.md
+# AI-doc: usr/share/doc/mios/manual/agent-pipe.md
 """Stdlib unit tests for mios_clusterhealth (refactor ROUTE-SURFACE) -- stubbed, no I/O."""
 
 import asyncio
