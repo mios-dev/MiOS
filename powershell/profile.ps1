@@ -1,4 +1,4 @@
-
+﻿
 if ($Global:MiosProfileLoaded) { return }
 $Global:MiosProfileLoaded = $true
 

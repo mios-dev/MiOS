@@ -27,7 +27,7 @@ test_version_ssot() {
     rm -f "$version_file"
     echo "9.9.9" > "$version_file"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1; then
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1; then
         rm -f "$version_file"
         echo "$orig_val" > "$version_file"
         die "Check_version_ssot passed despite version drift violation"
@@ -35,7 +35,7 @@ test_version_ssot() {
 
     rm -f "$version_file"
     echo "$orig_val" > "$version_file"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1 \
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_version_ssot >/dev/null 2>&1 \
         || die "Check_version_ssot failed after restoration"
     log "Check_version_ssot negative test passed"
 }
@@ -96,7 +96,7 @@ EOF
     local old_path="$PATH"
     export PATH="${tmp_bin_dir}:${PATH}"
 
-    if MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_shellcheck >/dev/null 2>&1; then
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_shellcheck >/dev/null 2>&1; then
         export PATH="$old_path"
         rm -rf "$tmp_bin_dir"
         die "Check_shellcheck passed despite shellcheck failure"
@@ -104,7 +104,7 @@ EOF
 
     export PATH="$old_path"
     rm -rf "$tmp_bin_dir"
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_shellcheck >/dev/null 2>&1 \
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_shellcheck >/dev/null 2>&1 \
         || die "Check_shellcheck failed after restoration"
     log "Check_shellcheck negative test passed"
 }
@@ -503,7 +503,22 @@ test_bake_core_reconcile() {
     local bak_file="${toml_file}.bcrbak"
     cp "$toml_file" "$bak_file"
 
-    sed -i 's/core_image = ".*"/core_image = "unreferenced-image-xyz999"/' "$toml_file"
+    # `core_image` is not a key in mios.toml and never has been, so this sed
+    # was a no-op: the test mutated nothing, --check correctly passed, and the
+    # test then reported the checker as broken. The real structure is the
+    # [build.bake].core LIST, and the reconcile being tested is that every core
+    # image is referenced by some Quadlet.
+    python3 - "$toml_file" <<'PYEOF'
+import re, sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    t = fh.read()
+t, n = re.subn(r'(core\s*=\s*\[\s*\r?\n)', r'\1  "docker.io/library/unreferenced-image-xyz999:latest",\n', t, count=1)
+if n != 1:
+    sys.exit("test_bake_core_reconcile injection failed")
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(t)
+PYEOF
     if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
@@ -1701,8 +1716,13 @@ test_bake_plan_integrity() {
 
 test_bake_ref_parity() {
     log "Testing check_bake_ref_defaults"
-    local script_file="${ROOT}/automation/55-bake-quickshell.sh"
-    if [[ -f "$script_file" ]]; then
+    # 55-bake-quickshell.sh was renumbered to 66-. The whole body used to sit
+    # inside `if [[ -f ]]`, so once the file moved the test skipped everything
+    # and logged "passed" -- a test that reports success precisely when its
+    # subject is gone. A missing target is now a failure.
+    local script_file="${ROOT}/automation/66-bake-quickshell.sh"
+    [[ -f "$script_file" ]] || die "test_bake_ref_parity: $script_file is missing -- the test would otherwise skip silently"
+    if true; then
         local orig_val
         orig_val="$(cat "$script_file")"
 
@@ -3357,9 +3377,13 @@ test_blade_reconcile_schema() {
     log "Testing check_blade_reconcile_schema"
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local bak; bak="$(mktemp)"; cp "$toml" "$bak"
-    # Enabling divergence before origin_node/logical_ts exist is exactly the edit
-    # that loses data silently on rejoin (ADR-0017 D5).
-    sed -i 's/^enabled      = false.*$/enabled      = true/' "$toml"
+    # The previous probe flipped `enabled` from false to true, but the key has
+    # been true for some time, so the sed matched nothing and the test asserted
+    # against an unmodified tree. The check requires every merge-rule key to
+    # have a table carrying origin_node and logical_ts, so declaring a rule with
+    # no such table is the edit that loses data silently on rejoin (ADR-0017 D5).
+    sed -i 's/^config_kv    = "conflict-is-error"/config_kv    = "conflict-is-error"
+bogus_class  = "union-by-hash"/' "$toml"
     if _neg_gate check_blade_reconcile_schema; then
         cp "$bak" "$toml"; rm -f "$bak"
         die "check_blade_reconcile_schema passed with divergence enabled and no provenance columns"

@@ -3323,6 +3323,7 @@ check_root_toml_subset() {
         echo "[98-drift-checks]   WARNING: python3 missing" >&2
         return 0
     fi
+    local rc=0
     python3 -c "
 import os, sys
 try:
@@ -3344,7 +3345,10 @@ root_toml = os.path.join(root, 'mios.toml')
 canonical = os.path.join(root, 'usr/share/mios/mios.toml')
 
 if not os.path.isfile(root_toml):
-    sys.exit(0)
+    # Say so. Exiting 0 here made the gate print 'root mios.toml schema is
+    # subset of canonical SSOT' -- a claim about a comparison it never ran, and
+    # the reader has no way to tell that from a real pass.
+    sys.exit(2)
 
 with open(root_toml, 'rb') as f:
     r_data = tomllib.load(f)
@@ -3371,8 +3375,13 @@ if diff:
         sys.stderr.write(f'      {k}\\n')
     sys.exit(1)
 sys.exit(0)
-"
-    if [[ $? -eq 0 ]]; then
+    " || rc=$?
+    if [[ $rc -eq 2 ]]; then
+        # 2 means there is no root mios.toml. Printing the success line here
+        # claimed a comparison that never ran, and a reader could not tell that
+        # from a real pass.
+        echo "[98-drift-checks]   no root mios.toml -- subset check not applicable"
+    elif [[ $rc -eq 0 ]]; then
         echo "[98-drift-checks]   root mios.toml schema is subset of canonical SSOT"
     else
         _violation "root mios.toml schema has keys not in canonical SSOT"

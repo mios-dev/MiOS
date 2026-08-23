@@ -60,7 +60,7 @@
 59	check_impossible_eol_regressions	impossible/EOL regression checks passed
 60	check_deploy_plane	deploy-plane checks passed
 61	check_version_ssot	VERSION + Containerfile ARG MIOS_VERSION == mios.toml [meta].mios_version
-62	check_root_toml_subset	root mios.toml schema is subset of canonical SSOT
+62	check_root_toml_subset	no root mios.toml -- subset check not applicable
 63	check_toml_projection	mios.toml derived copies project verbatim from the canonical SSOT
 64	check_bake_plan	bake-plan lists in sync with mios.toml [build.bake] SSOT
 65	check_bake_plan_integrity	bake-plan integrity gate verified clean

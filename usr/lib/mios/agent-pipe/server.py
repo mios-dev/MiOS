@@ -1408,19 +1408,6 @@ _rebuild_blade_topology()
 
 
 def _load_dispatch_cfg() -> dict:
-    """[dispatch] -- multi-agent concurrent fan-out config (SSOT in
-    mios.toml; env override).
-
- mode (supersedes the earlier 'a couple, not all'):
-      * 'council'   -- EQUAL WEIGHTING: every chat-eligible agent (every
-                       [agents.*] without fanout=false, minus the primary)
-                       is dispatched CONCURRENTLY each turn, up to
-                       fanout_max, regardless of tag relevance. Lane-diverse
-                       ordering runs CPU + GPU agents in parallel. This is
-                       what stops the Hermes monopoly.
-      * 'relevance' -- legacy: score the OTHER agents by skill-tag overlap
-                       with the refined plan, engage only the top matches.
-    fanout_max<=1 restores exact single-agent behaviour (zero fan-out)."""
     cfg = {"enable": True, "fanout_min": 1, "fanout_max": 2,
            "mode": "relevance"}
     try:
