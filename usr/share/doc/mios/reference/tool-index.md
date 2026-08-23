@@ -264,6 +264,7 @@ is generated, its generator is here.
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
+| `tools/check-leaked-fixtures.py` | Fails when a negative test's injected fixture, or a backup file it made, is left behind in the tracked tree. |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
@@ -281,6 +282,7 @@ is generated, its generator is here.
 | `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice, and references AGY-TASKS.md (AGY-1647). |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
+| `tools/ci-suites.py` | Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
 | `tools/gen-pipe-boundary-manifest.py` | Generates a machine-readable module-boundary manifest for the agent-pipe DI contract. |
@@ -350,7 +352,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 98 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 100 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

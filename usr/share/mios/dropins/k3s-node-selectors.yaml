@@ -141,13 +141,6 @@ services:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"
-  mios-hermes-browser-worker:
-    nodeSelector:
-      mios.capability/service-plane: "true"
-    tolerations:
-      - key: "mios.capability/service-plane"
-        operator: "Exists"
-        effect: "NoSchedule"
   mios-k3s:
     nodeSelector:
       mios.capability/controller: "true"
@@ -270,13 +263,6 @@ services:
       - key: "mios.capability/controller"
         operator: "Exists"
         effect: "NoSchedule"
-      - key: "mios.capability/service-plane"
-        operator: "Exists"
-        effect: "NoSchedule"
-  mios-searxng:
-    nodeSelector:
-      mios.capability/service-plane: "true"
-    tolerations:
       - key: "mios.capability/service-plane"
         operator: "Exists"
         effect: "NoSchedule"

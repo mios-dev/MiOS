@@ -73,7 +73,7 @@
 > now snapshots every path it can reach and restores anything a dying test left behind, and
 > `check_leaked_fixtures` fails on a tracked fixture or backup file.
 >
-> **W7 — You stage probe files and backups.** `automation/mios-negtest-narrative.sh` reached the
+> **W7 — You stage probe files and backups.** a probe script under `automation/` reached the
 > index and `mios-tailscale-serve.ps1.negbak` was tracked. **Rule:** stage explicit paths. Never
 > `git add -A` in this tree.
 >

@@ -657,4 +657,3 @@ metal.mesh.enabled  MIOS_METAL_MESH_ENABLED
 metal.mesh.headscale_domain  MIOS_METAL_MESH_HEADSCALE_DOMAIN
 metal.mesh.vnet_cidr  MIOS_METAL_MESH_VNET_CIDR
 metal.mesh.swtpm_vtpm  MIOS_METAL_MESH_SWTPM_VTPM
-                                                            

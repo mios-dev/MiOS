@@ -193,3 +193,5 @@
 192	check_ai_manifests_fresh	checking AI manifest freshness
 193	check_ports_category_schema	checking port category schema (allocation + collisions)
 194	check_globals_generated	checking generated globals resolvers match SSOT
+195	check_ci_suite_coverage	check_ci_suite_coverage
+196	check_leaked_fixtures	check_leaked_fixtures
