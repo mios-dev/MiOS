@@ -1444,4 +1444,3 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS mios_negtest_orphan_tbl (id bigint);
