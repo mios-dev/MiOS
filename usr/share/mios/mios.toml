@@ -9238,7 +9238,6 @@ seat_side = [
   "mios-agent-pipe",            # the local front door; MIOS_AI_ENDPOINT points it at a blade
   "hermes-dashboard",           # browser UI
   "mios-hermes-browser",        # CDP browser the agent tools drive
-  "mios-hermes-browser-worker",
   "mios-hermes-tail",           # journal tail into the UI
   "mios-ttyd-bash",             # browser pty
   "mios-ttyd-powershell",       # browser pty
@@ -9444,6 +9443,8 @@ mios-webtools-firecrawl-worker = ["service-plane"]
 mios-webtools-redis            = ["service-plane"]
 # Native (non-Quadlet) long-running units. Same rule: a seat offloads them.
 hermes-worker                  = ["service-plane"]
+mios-searxng                   = ["service-plane"]
+mios-hermes-browser-worker     = ["service-plane"]
 k3s                            = ["service-plane"]
 mios-account-sync              = ["service-plane"]
 mios-agents                    = ["service-plane"]
@@ -10632,7 +10633,7 @@ max_leaked_fixtures = 0
 # requirements.txt: this is the minimum that makes server.py importable, which
 # is all six of the recovered suites need. The heavy dependencies stay in
 # [ci.globs.agent-pipe].skip, where the suites that need them are listed.
-packages = ["pyflakes", "fastapi", "httpx", "uvicorn", "websockets"]
+packages = ["pyflakes", "fastapi", "httpx", "uvicorn", "websockets", "smolagents"]
 
 [ci.tiers]
 # Static analysis. No build, no network, no image.

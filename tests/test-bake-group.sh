@@ -11,6 +11,12 @@ die() { printf '[test-bake-group] ERROR: %s\n' "$*" >&2; exit 1; }
 tmp_dir="$(mktemp -d /tmp/bake-group-test.XXXXXX)"
 trap 'rm -rf "$tmp_dir"' EXIT
 
+# mios-bake-group defaults STORE to /usr/lib/containers/storage, which a
+# runner cannot create. The tool already honours an override, so point it
+# at the fixture directory rather than requiring root.
+export STORE="${tmp_dir}/containers/storage"
+mkdir -p "$STORE"
+
 stub_bin="${tmp_dir}/bin"
 mkdir -p "$stub_bin"
 pull_log="${tmp_dir}/pulls.log"
