@@ -3251,9 +3251,10 @@ tools/native/mios-resolver/src/emit.rs	1	2	2	18	b393dc7113d0	STAY	ai-header		0		
 tools/native/mios-resolver/src/emit.rs	14	17	4	34	5bd38177826d	STAY	midsize-why		0				0
 tools/native/mios-resolver/src/emit.rs	36	36	1	9	5364c0c5adfd	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/emit.rs	55	55	1	3	e9e371bfdd54	STAY	local-scoped		0				0
-tools/native/mios-resolver/src/emit.rs	86	86	1	1	04ab30d91100	STAY	inline-scoped		0				0
-tools/native/mios-resolver/src/emit.rs	93	93	1	2	62670c137a54	DROP	banner		0				0
-tools/native/mios-resolver/src/emit.rs	94	94	1	1	6c7cbc301f91	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/emit.rs	60	62	3	30	7444a545a70a	STAY	midsize-why		0				0
+tools/native/mios-resolver/src/emit.rs	80	80	1	1	04ab30d91100	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/emit.rs	87	87	1	2	62670c137a54	DROP	banner		0				0
+tools/native/mios-resolver/src/emit.rs	88	88	1	1	6c7cbc301f91	STAY	inline-scoped		0				0
 tools/native/mios-resolver/src/emit_install_env.rs	1	2	2	17	7471c6293f7a	STAY	ai-header		0				0
 tools/native/mios-resolver/src/emit_json.rs	1	2	2	22	0754d09b01b2	STAY	ai-header		0				0
 tools/native/mios-resolver/src/emit_ps.rs	1	2	2	18	b0843734fb7a	STAY	ai-header		0				0
@@ -3278,9 +3279,10 @@ tools/native/mios-resolver/src/walk.rs	1	1	1	14	06ed046e1d35	STAY	ai-header		0		
 tools/native/mios-resolver/src/walk.rs	4	5	2	17	6ca62c4a714b	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/walk.rs	37	38	2	15	cce3545f2820	STAY	local-scoped		0				0
 tools/native/mios-resolver/src/walk.rs	56	60	5	27	5aba529b80e3	STAY	midsize-why		0				0
-tools/native/mios-resolver/src/walk.rs	115	118	4	31	8964f725599e	STAY	midsize-why		0				0
-tools/native/mios-resolver/src/walk.rs	163	163	1	2	6f22bfeea3ba	STAY	inline-scoped		0				0
-tools/native/mios-resolver/src/walk.rs	164	164	1	2	9bf9d98fda0f	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	92	93	2	16	894ba563aacd	STAY	local-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	124	127	4	31	8964f725599e	STAY	midsize-why		0				0
+tools/native/mios-resolver/src/walk.rs	172	172	1	2	6f22bfeea3ba	STAY	inline-scoped		0				0
+tools/native/mios-resolver/src/walk.rs	173	173	1	2	9bf9d98fda0f	STAY	inline-scoped		0				0
 tools/native/mios-resolver/tests/cli.rs	1	2	2	12	dd5c0db7aeaa	STAY	ai-header		0				0
 tools/native/mios-resolver/tests/cli.rs	16	19	4	31	ffc4b049346d	STAY	midsize-why		0				0
 tools/native/mios-resolver/tests/differential.rs	1	2	2	19	96b9467900a5	STAY	ai-header		0				0

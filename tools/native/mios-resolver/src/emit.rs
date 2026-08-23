@@ -57,17 +57,11 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
             exports.insert(canonical, val_processed.clone());
         }
 
+        // An alias carries the same value as its canonical key. Splitting the
+        // tag out of image.sidecars.* for *_VERSION made MIOS_ADGUARD_VERSION
+        // "latest" where globals.sh, generated from Python, has the full ref.
         for leg in get_aliases(&path) {
-            if leg.ends_with("_VERSION") && path.starts_with("image.sidecars.") {
-                let ver = if let Some((_, tag)) = val_processed.rsplit_once(':') {
-                    tag.to_string()
-                } else {
-                    "latest".to_string()
-                };
-                exports.insert(leg, ver);
-            } else {
-                exports.insert(leg, val_processed.clone());
-            }
+            exports.insert(leg, val_processed.clone());
         }
     }
 

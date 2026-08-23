@@ -89,7 +89,16 @@ pub fn process_val(dotted: &str, val: &Value, stack_offset: i64) -> String {
             }
             s.clone()
         }
-        Value::Float(f) => f.to_string(),
+        // Python renders 0.0 as "0.0"; Rust's to_string() gives "0", and
+        // globals.sh carries the Python form.
+        Value::Float(f) => {
+            let t = f.to_string();
+            if t.contains('.') || t.contains('e') || t.contains("inf") || t.contains("NaN") {
+                t
+            } else {
+                format!("{t}.0")
+            }
+        }
         Value::Datetime(dt) => dt.to_string(),
         Value::Table(_) => String::new(),
     }
