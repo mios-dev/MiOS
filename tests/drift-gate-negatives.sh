@@ -37,7 +37,7 @@ _neg_snapshot_take() {
         elif [[ ! -e "$src" ]]; then
             # Genuinely absent, so anything appearing at this path afterwards is
             # a probe. A target that EXISTS but is not a regular file -- a
-            # directory such as etc/containers/systemd -- is neither a snapshot
+            # directory, and the Quadlet directory is one -- is neither a snapshot
             # nor a probe, and recording it here made the restore try to
             # unlink a directory, which killed the whole suite.
             printf '%s\n' "$rel" >> "$_NEG_ABSENT"

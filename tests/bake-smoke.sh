@@ -43,7 +43,19 @@ PY_ENTRIES=$(_ssot_list python_entries)
 N_SHIMS=$(printf '%s\n' ${SHIMS} | grep -c .)
 N_UNITS=$(printf '%s\n' ${UNITS} | grep -c .)
 N_PY=$(printf '%s\n' ${PY_ENTRIES} | grep -c .)
-echo "[bake-smoke] SSOT components: ${N_PY} python, ${N_SHIMS} shims, ${N_UNITS} units"
+# Grow-only. The manifest once asserted six things about a 49 GB image; a
+# manifest that may shrink is one that can quietly stop checking, and the
+# report reads the same either way.
+_SMOKE_FLOOR=$(python3 -c "
+import tomllib
+print((tomllib.load(open('${TOML_PATH}','rb')).get('testing') or {}).get('min_smoke_components', 0))
+" 2>/dev/null || echo 0)
+_SMOKE_TOTAL=$(( N_PY + N_SHIMS + N_UNITS ))
+if [ "${_SMOKE_FLOOR}" -gt 0 ] && [ "${_SMOKE_TOTAL}" -lt "${_SMOKE_FLOOR}" ]; then
+    echo "ERROR: smoke manifest lists ${_SMOKE_TOTAL} component(s), below the floor of"          "${_SMOKE_FLOOR} in [testing].min_smoke_components -- it only grows" >&2
+    exit 1
+fi
+echo "[bake-smoke] SSOT components: ${N_PY} python, ${N_SHIMS} shims, ${N_UNITS} units (floor ${_SMOKE_FLOOR})"
 
 # errexit would abort ON this pipeline, so the FAIL branches below could never report.
 set +e

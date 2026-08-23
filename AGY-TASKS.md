@@ -11303,3 +11303,53 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** count a printed "skipping" line as a report. Nobody reads a skip in a green run -- that is the whole mechanism.
 **Why:** this is the repository's most expensive recurring defect, and it just cost eighteen files of undetected drift between the two published repositories.
 **Dep:** AGY-1683
+
+## AGY-1729 -- Prove each of the nineteen re-registered negative tests actually breaches its gate  (WS-GATES | P1 | M)
+**Goal:** A registered test that never turns its gate red is still not coverage.
+**What+How:** Nineteen negative tests were defined and never invoked; they are registered now, but registration only proves they RUN. For each -- `test_cargo_deny`, `test_unit_projection`, `test_port_fallbacks`, `test_globals_generated`, `test_node_pool`, `test_pipeline_numbering`, `test_ports_category_schema`, `test_powershell_parse`, `test_ps_redirectors`, `test_resolved_env_lossless`, `test_ssot_consumer_keys`, `test_unpinned_runtime_fetches`, `test_value_aliases`, `test_vendored_assets_non_stub`, `test_windows_exe_provenance`, `test_bash_phase_ratchet`, `test_mini_vs_hosted`, `test_no_duplicate_value_key`, `test_no_hardcoded_ssot_literal` -- confirm the mutation it injects makes its gate exit non-zero, and record the mutation in the test body. Where a test passes without ever breaching, repair the mutation.
+**Where:** `tests/drift-gate-negatives.sh, automation/98-drift-checks.sh`
+**Done When:** every one of the nineteen is shown red under its own mutation and green after restoration.
+**Verify:** temporarily invert each gate's exit and confirm its negative test then FAILS; a test that still passes is not exercising its gate.
+**Do NOT:** count a green suite as evidence. These nineteen were green for months by never running at all.
+**Why:** they were written as coverage and delivered none; running them is necessary but does not by itself make them effective.
+**Dep:** AGY-1671
+
+## AGY-1730 -- Make every counting gate count the thing it claims  (WS-GATES | P1 | M)
+**Goal:** A measurement that cannot distinguish the healthy case from the broken one is not a measurement.
+**What+How:** `check_negative_coverage` counted the negative tests that EXIST, so nineteen that were never invoked satisfied it completely. Audit every gate whose evidence is a count -- coverage counts, registry counts, tagged/untagged ratios, "N of M" summaries -- and ask of each what state it would report as healthy while the property is broken. Convert each to measure the property directly (invoked, not defined; executed, not present; asserted, not listed).
+**Where:** `automation/98-drift-checks.sh, tools/check-*.py`
+**Done When:** each counting gate is either measuring the property or replaced by one that does, with the audit recorded.
+**Verify:** for each converted gate, construct the state it previously reported healthy and show it now fails.
+**Do NOT:** raise a count ceiling to make a gate pass. The count was never the property.
+**Why:** this is the repository's most expensive recurring defect, and a count is its most common disguise.
+**Dep:** AGY-1729
+
+## AGY-1731 -- Validate the pulled image end to end on MiOS-DEV  (WS-DEPLOY | P1 | M)
+**Goal:** The image that publishes is shown to boot and serve, not merely to build.
+**What+How:** `ghcr.io/mios-dev/mios:latest` now exists locally: 49 GB, 79 layers, carrying `containers.bootc=1` and `ostree.bootable=1`. Run `tests/bake-smoke.sh` against it, then take the further step the smoke test cannot: `bootc switch` a VM onto it, boot, and record which units reached active, which failed, and what greenboot decided. Write the result into ROADMAP.md's state table as an observation with its date.
+**Where:** `tests/bake-smoke.sh, ROADMAP.md, docs/agy/`
+**Done When:** a boot from this image is recorded, including every unit that did not start.
+**Verify:** the recorded run names the image digest, the units that failed, and greenboot's verdict; a run with no failures listed must say so explicitly.
+**Do NOT:** treat a passing smoke test as a boot. The smoke test runs the image as a container; it never exercises the boot path, the units, or rollback.
+**Why:** every deployment claim in the documentation is still a design claim; this is the first chance to make one an observation.
+**Dep:** AGY-1669
+
+## AGY-1732 -- Stop concurrent writers silently reverting committed work  (WS-PROCESS | P1 | M)
+**Goal:** Work that was verified and committed stays in the tree.
+**What+How:** Two registered gates and three negative tests were written, proven red against a planted violation, committed, and later found absent -- their tool files left in `tools/` with nothing calling them. The cause is two agents writing one working tree, where a whole-file rewrite by one drops the other's edits. Decide the mechanism: a lock, separate worktrees per writer, or a pre-commit assertion that every `tools/check-*.py` is referenced and every defined check is registered. Then make the loss detectable at commit time rather than three commits later.
+**Where:** `.githooks/, automation/98-drift-checks.sh, tools/check-negatives-registered.py`
+**Done When:** a rewrite that drops a registration fails before it can be committed.
+**Verify:** delete one check registration, attempt a commit, and confirm it is refused naming the check.
+**Do NOT:** rely on noticing it in review. It was missed three times in one session, each time costing a red CI run.
+**Why:** the repository's guarantees are only as good as the edits that survive; a silent revert of a gate removes a guarantee without removing its record.
+**Dep:** AGY-1607
+
+## AGY-1733 -- Give the man pages the reader the operating system indexes  (WS-DOCS | P2 | S)
+**Goal:** `apropos mios` and `man -k` answer, not just `man mios`.
+**What+How:** 135 roff pages now render into `usr/share/man` and `man-db` is installed, so `man mios` resolves by filename. `apropos` and `man -k` need the index man-db builds, which lives under `/var/cache/man` and therefore is not part of the image. Establish which of Fedora's man-db units the image should enable so the index is built once after first boot, confirm the timer or path unit is present, and record what a fresh boot has to do before `apropos mios` answers.
+**Where:** `usr/share/mios/mios.toml ([packages.base]), usr/lib/systemd/system-preset/, usr/share/doc/mios/`
+**Done When:** `apropos mios` returns the verb pages on a booted system, and the mechanism that builds the index is named.
+**Verify:** on a freshly booted image, `apropos mios` lists more than one page; before the index exists it must fail visibly rather than silently returning nothing.
+**Do NOT:** ship a MiOS-specific unit that runs mandb. man-db already provides one; adding a second is a parallel mechanism to keep in step.
+**Why:** a manual that only answers when you already know the page name is half a manual.
+**Dep:** AGY-1731

@@ -9965,18 +9965,43 @@ nohz_full      = ""                        # CPUs for adaptive-ticks (empty to d
 rcu_nocbs      = ""                        # CPUs to offload RCU callbacks (empty to disable)
 THP            = ""                        # Transparent Huge Pages configuration: "always", "madvise", "never" or empty
 
+
+[testing]
+# Grow-only, the inverse of the other ratchets: the smoke test asserted six
+# things about a 49 GB image with 79 layers, and a manifest that can shrink
+# is one that quietly stops checking.
+min_smoke_components = 24
+
 [testing.smoke_components]
 shims = [
-  "usr/libexec/mios/flatpak-launch",
-  "usr/libexec/mios/mios-pc-control",
-  "usr/libexec/mios/mios-launcher-daemon",
-  "usr/libexec/mios/mios-flatpak-icon-sanitize"
+    "usr/libexec/mios/flatpak-launch",
+    "usr/libexec/mios/mios-pc-control",
+    "usr/libexec/mios/mios-launcher-daemon",
+    "usr/libexec/mios/mios-flatpak-icon-sanitize",
+    "usr/bin/mios",
+    "usr/bin/mios-build",
+    "usr/bin/mios-update",
+    "usr/bin/mios-pull",
+    "usr/bin/mios-deploy",
+    "usr/libexec/mios/mios-doctor",
+    "usr/libexec/mios/mios-manual",
+    "usr/libexec/mios/mios-theme-render",
 ]
 units = [
-  "usr/lib/systemd/system/mios-wsl-interop-priority.service"
+    "usr/lib/systemd/system/mios-wsl-interop-priority.service",
+    "usr/lib/systemd/system/mios-agent-pipe.service",
+    "usr/lib/systemd/system/mios-hermes-browser.service",
+    "usr/lib/systemd/system/mios-hermes-firstboot.service",
+    "usr/lib/systemd/system/mios-dashboard-issue.service",
+    "usr/lib/systemd/system/mios-firstboot.target",
 ]
 python_entries = [
-  "usr/lib/mios/agent-pipe/server.py"
+    "usr/lib/mios/agent-pipe/server.py",
+    "usr/lib/mios/agent-pipe/mios_dispatcher.py",
+    "usr/lib/mios/agent-pipe/mios_router.py",
+    "usr/lib/mios/agent-pipe/mios_kernel.py",
+    "usr/lib/mios/agent-pipe/mios_sandbox.py",
+    "usr/lib/mios/agent-pipe/mios_capreg.py",
 ]
 
 [testing.negative_coverage_exempt]
@@ -10204,6 +10229,10 @@ max_value_divergence = 12
 
 [tasks]
 # AGY task hygiene ratchet. Duplicate task IDs make dependencies ambiguous.
+# Shrink-only. The id below which AGY tasks need not carry the full
+# schema; lowering it is how the 482 open older tasks become
+# falsifiable, a batch at a time. A DONE task is exempt by its marker.
+schema_from = 1607
 max_duplicate_ids = 0
 
 [docs]
