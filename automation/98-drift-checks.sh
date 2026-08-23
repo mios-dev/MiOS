@@ -6193,6 +6193,7 @@ main() {
     check_header_integrity
     check_legibility_ratchet
     check_docs_ratchet_monotone
+    check_comment_lex_equivalence
     check_no_generated_prose_in_resolvers
     check_manual_generated
     check_manual_ledger
