@@ -1,21 +1,5 @@
 # AI-hint: VISION + CLIENT-TOOLS responders extracted VERBATIM from server.py (refactor R9 wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_vision_py.md
-"""VISION + CLIENT-TOOLS responders (refactor R9).
-
-Extracted VERBATIM from ``server.py`` -- the two image-/tool-bearing fast-path
-branches of ``/v1/chat/completions`` that bypass refine/council/polish. The
-VISION branch (``_vision_complete`` + the inline-remote-image pre-step + the
-honest-error gate) proxies an image turn to the local VLM and never fabricates a
-description. The CLIENT-TOOLS hybrid loop (``_client_tools_complete`` and its
-cluster) runs an OpenAI client-tools turn where MiOS asserts its identity, merges
-its verb surface server-side, executes MiOS verbs via the broker, and rides only
-the caller's own tool_calls back. Both clusters moved byte-identically.
-
-Sibling helpers are imported directly; every server-side symbol is injected via
-:func:`configure` (one-way boundary -- this module never imports ``server``).
-``server.py`` re-imports every moved name under its original alias so the
-importable surface is byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -176,14 +160,6 @@ def _resolve_media_url_from_html(html: str) -> Optional[str]:
 
 
 async def _vision_inline_remote_images(messages: list) -> bool:
-    """Rewrite remote image_url URLs in `messages` to INLINED base64 data URLs the
-    local llama.cpp VLM can actually see (it doesn't fetch URLs + rejects page URLs).
-    Per image: fetch the URL; if it's a PAGE (text/html, e.g. a Tenor GIF page),
-    resolve to its real media via HTML metadata then fetch that; for an animated
-    GIF/WEBP extract a middle frame (Pillow); re-encode to PNG; inline. Mutates
-    `messages` in place. Returns False if a REMOTE image could NOT be inlined, so the
-    caller returns an honest 'couldn't fetch' turn instead of letting the VLM guess.
-    Already-inlined data: URLs (OWUI) and non-image parts are untouched (no regress)."""
     import io as _io
     ok = True
     client = await _get_client()
@@ -357,16 +333,6 @@ def _client_tools_mios_surface() -> list:
 
 
 def _client_tools_is_mios(name: str, client_names: set) -> bool:
-    """A returned tool_call is MiOS-executable SERVER-SIDE when it resolves to a real
-    MiOS verb -- EVEN IF the client also shipped it. The Hermes desktop app ships the
-    WHOLE MiOS MCP surface (launch_windows_app, windows_desktop_type_text, ...) as its
-    own tools; relaying those back for it to self-execute via MCP was the failure path
-    ('open notepad and type hello' mis-fired -- malformed/parallel calls, nothing ran,
-). Running MiOS verbs HERE via the proven broker (dispatch_mios_
-    verb) is reliable, ORDER-preserving, and does NOT double-execute (the loop appends
-    the RESULT, not the tool_call, so nothing rides back for the client to re-run).
-    Only genuinely non-MiOS client tools (browser_*, terminal, IDE ops) -- which the
-    server CANNOT run -- ride back to the caller."""
     if not name:
         return False
     try:
@@ -376,11 +342,6 @@ def _client_tools_is_mios(name: str, client_names: set) -> bool:
 
 
 def _client_tools_inject_identity(messages: list) -> list:
-    """Prepend the FULL MiOS root contract (/MiOS.md via _agent_contract) PLUS the
-    client-tools addendum to the caller's leading system message (or add one).
-    WS-B: the Zen path now gets the SAME root-MD grounding every other MiOS agent
-    gets, instead of drifting on a bespoke identity string. Server-side only -- the
-    client never sees it, so it can't accumulate across the multi-request loop."""
     _contract = _agent_contract()
     lead = (_contract + "\n\n" + _CLIENT_TOOLS_IDENTITY) if _contract else _CLIENT_TOOLS_IDENTITY
     msgs = [dict(m) for m in messages if isinstance(m, dict)]
@@ -392,14 +353,6 @@ def _client_tools_inject_identity(messages: list) -> list:
 
 
 async def _client_tools_backend(req: dict) -> dict:
-    """One non-stream POST to the tool backend, with heavy->light FALLBACK on any
-    non-200 + diagnostic logging. The heavy lane (SGLang) can 400 a tool surface it
- rejects (the Hermes REPL got 'No reply' because the loop
-    treated a heavy-lane 400 as an empty completion). On a non-200 we LOG the body +
-    a request summary (so the cause is finally visible) and retry the always-on light
-    lane (a different engine often accepts what the heavy lane rejected). Returns {}
-    (never raises) when neither lane yields a 200, so the loop's synthesis / never-
-    empty fallback engages instead of the whole turn erroring out."""
     try:
         _ctx = int(os.environ.get("MIOS_AGENT_PIPE_TOOL_CTX", "65536") or 65536)
         _in_tokens = mios_tokenize.count_text(
@@ -617,12 +570,6 @@ def _name_is_verb(name) -> bool:
 
 
 async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> Any:
-    """STREAM the backend response verbatim for a full-agent client that carries its
-    OWN MiOS tools (Hermes desktop app): inject MiOS identity, enable thinking, forward
-    the client's tools, and relay the SSE byte-for-byte so content / reasoning /
-    tool_calls stream LIVE -- no compute-then-burst dead wait. The client executes its
-    own tool_calls in its own loop (it has the tools), so no server-side merge is
-    needed; that merge is only for tool-less clients (Zen) via the hybrid loop."""
     _url, _mdl = await _pick_tool_backend()
     tbody = dict(body)
     tbody["model"] = _mdl
@@ -659,12 +606,6 @@ async def _client_tools_stream_relay(body: dict, chat_id: str, model: str) -> An
 
 async def _client_tools_complete(body: dict, streaming: bool, chat_id: str,
                                  model: str) -> Any:
-    """OpenAI client-tool turn (Zen smart-window et al.) as a HYBRID loop: MiOS
-    asserts its own identity, the MiOS verb surface is merged alongside the
-    caller's browser tools, MiOS verbs execute server-side (so 'open notepad'
-    actually launches), and only the caller's own tool_calls ride back to it.
-    Falls back to a verbatim relay if the loop errors so browsing never regresses.
-    NEVER runs refine/council/polish. Twin of _vision_complete."""
     client_names: set = set()
     for _t in (body.get("tools") or []):
         try:

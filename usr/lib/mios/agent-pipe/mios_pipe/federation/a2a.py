@@ -1,25 +1,5 @@
 # AI-hint: A2A FEDERATION publish/server surface extracted VERBATIM from server.py (refactor R11 federation wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_federation_a2a_py.md
-"""A2A federation publish/server surface for the agent-pipe (refactor R11).
-
-Extracted VERBATIM from ``server.py`` -- the agent-card / passport / AGNTCY-OASF
-discovery BUILDERS, the A2A JSON-RPC 2.0 task lifecycle (message/send, tasks/*,
-pushNotificationConfig/*, message/stream over SSE), the shared inter-agent
-context projection, and the signed-delegation principal helpers (send-side
-metadata + receive-side verify with the CRL). Every name is moved
-byte-identically and re-imported by ``server.py``; the @app A2A routes stay there
-as thin wrappers, so the module's public + HTTP surface is unchanged.
-
-``PORT`` / ``MCP_SERVER_PORT`` / ``_toml_section`` import from :mod:`mios_config`;
-the interop projectors (:mod:`mios_capreg`, :mod:`mios_interop`, :mod:`mios_crl`,
-:mod:`mios_a2a_principal`) import directly. Every server-resident dependency --
-the FastAPI ``app`` (for description/version), the agent registry / verb catalog
-/ scratchpad blackboard, the agent-lane / skill-tag / capability-skill / user-cfg
-helpers, the passport key-load / sign / verify primitives and ``PASSPORT_*``
-scalars, the HTTP client factory, the auth-gate flag + the per-request env
-contextvar -- is injected via :func:`configure` (one-way boundary: this module
-never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -539,12 +519,6 @@ async def a2a_skill_directory_logic() -> JSONResponse:
 
 
 def _a2a_messages_for(key: str) -> list:
-    """The chat's shared-context checkpoints rendered as A2A v1.0 Message objects:
-    role=ROLE_AGENT, one text Part per checkpoint, grouped by contextId=key. This is
-    the SAME blackboard _scratchpad_note writes + _scratchpad_render injects --
-    exposed in the open A2A/ACP shape so context is SHARED between agents over the
-    standard, not only via the bespoke prose injection ('context should be shared
-    inter agents -- A2A/ACP'). v1.0 Message{role,parts[],contextId} (no `kind` tag)."""
     dq = _SCRATCHPADS.get(key)
     if not dq:
         return []
@@ -580,20 +554,6 @@ def _a2a_context(ctx_id: str) -> dict:
 
 
 def _principal_mode() -> str:
-    """FED-G6: the A2A signed-delegation principal posture, read from SSOT
-    ([agent_passport].principal_mode; env MIOS_A2A_PRINCIPAL_MODE wins). Tri-state:
-
-      off     -- degrade-open default: verify-and-attribute only; a bad/absent
-                 principal is logged at most, never blocks (today's behaviour).
-      verify  -- run the SAME check enforce does, but on a failed/absent principal
-                 emit a STRUCTURED audit record and ALLOW the request through. A
-                 non-blocking observability tier: watch what enforce WOULD reject
-                 before flipping the gate.
-      enforce -- reject an unsigned / forged / absent principal.
-
-    Legacy truthy synonyms (require/1/true/yes) map to enforce so an existing
-    deployment keeps its posture; any unrecognised value -> off (degrade-open).
-    The tokens are an enum read from SSOT, not a content/keyword decision gate."""
     raw = str(os.environ.get(
         "MIOS_A2A_PRINCIPAL_MODE",
         str((_toml_section("agent_passport") or {}).get("principal_mode", "off")))
@@ -707,11 +667,6 @@ def _crl_persist_revoke(ids) -> int:
 
 
 def _caller_key_revoked(token, entry=None) -> bool:
-    """True if this caller key is on the CRL -- matched by the bearer token's
-    FINGERPRINT or by the entry's stored id/kid/fingerprint/principal. server.py's
-    _check_inbound_principal consults this so POST /v1/admin/keys/revoke takes effect at
-    the inbound gate immediately (the CRL is hot-reloaded on revoke). Degrade-open: any
-    CRL fault -> not revoked, so a revocation error never locks out a valid caller."""
     try:
         crl = _load_crl()
         if len(crl) == 0:                 # inert default -> nothing revoked, fast path
@@ -749,12 +704,6 @@ def _revoke_ids_from_body(body) -> list:
 
 
 async def caller_key_revoke_logic(request) -> JSONResponse:
-    """FED-G8 logic for POST /v1/admin/keys/revoke (server.py keeps the thin route on
-    a2a_router). Appends the named caller key to the CRL + hot-reloads it so the
-    credential is refused on the very next check, no restart. ADMIN: credential-gated
-    by the inbound-principal resolver -- a control-plane mutation, always-on
-    independent of the global api_require_auth flag, matching the peers/reload route.
-    Body names the key by token | id | fingerprint | kid | principal."""
     _tok = (request.headers.get("authorization") or "").removeprefix("Bearer ").strip()
     if _check_inbound_principal is None or _check_inbound_principal(_tok) is None:
         return JSONResponse(
@@ -779,13 +728,6 @@ async def caller_key_revoke_logic(request) -> JSONResponse:
 
 
 def _a2a_verify_principal(in_msg: dict) -> "tuple[Optional[bool], str, dict]":
-    """Receive-side check (thin wrapper over mios_a2a_principal.verify): binds the
-    delivered text + routes to the passport verifier. (verdict, reason, claims);
-    verdict None = no principal block (legacy / non-MiOS peer).
-
-    WS-A10: a validly-SIGNED principal is still REJECTED if its principal/agent id
-    is on the CRL (mios_crl) -- revocation overrides a good signature. Inert when
-    no CRL file exists (empty CRL); degrade-open."""
     md = in_msg.get("metadata") if isinstance(in_msg, dict) else None
     verdict, reason, claims = _a2a_pp.verify(
         md, _a2a_text_from_message(in_msg), _passport_verify)
@@ -927,12 +869,6 @@ async def _a2a_fire_push_notifications(task: dict) -> None:
 
 
 async def _a2a_dispatch_send(task: dict) -> dict:
-    """Synchronously run a freshly-created Task through the agent-pipe's own
-    /v1/chat/completions, marshal the answer back as an Artifact + an
-    agent-role Message in history, and advance state to completed/failed.
-    Internal localhost POST: zero new code paths -- the task gets the same
-    refine/swarm/council/polish treatment as any OWUI chat, and threads on the
-    same scratchpad via metadata.chat_id=contextId."""
     text = _a2a_text_from_message((task.get("history") or [{}])[0])
     task["status"] = {"state": _TS_WORKING, "timestamp": _a2a_now()}
     await _a2a_task_record(task)
@@ -1199,13 +1135,6 @@ def _a2a_sse(mid, result=None, error=None) -> bytes:
 
 
 async def _a2a_stream_response(msg: dict) -> StreamingResponse:
-    """P2: bridge an A2A SendStreamingMessage onto SSE -- emit a `working` Task
-    frame, run the same dispatch path SendMessage uses, then the final
-    `completed`/`failed` Task frame. Honest, non-incremental streaming (no live
-    token bus). Each SSE result is a v1.0 StreamResponse payload (a Task wrapped
-    under "task"); v1.0 dropped the `final` flag -- the stream simply closes after
-    the terminal frame. Fields captured into locals BEFORE the generator (the
-    request body is consumed once). MIOS_A2A_STREAM=0 reverts."""
     mid = msg.get("id")
     params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
     in_msg = params.get("message") if isinstance(params.get("message"), dict) else None
@@ -1374,27 +1303,11 @@ a2a_router = APIRouter()
 
 @a2a_router.get("/a2a/skills")
 async def a2a_skill_directory(request: Request) -> JSONResponse:
-    """WS-11 passport-gated A2A capability DIRECTORY: EVERY MiOS capability
-    (verb/recipe/skill) projected into the A2A AgentCard skill shape via
-    mios_interop -- the THIRD interop projection alongside the MCP tool + OpenAI
-    function surfaces this server already emits, so an A2A peer can discover the
-    full surface in the open standard, not only via MCP/OpenAI. RBAC-filtered by
-    the caller's permission ceiling (the SAME mios_capreg lattice as
-    /v1/capabilities -> a matched [users.*].max_permission), so a peer is shown
-    only what it may invoke -- the 'passport-gated directory'. The AgentCard
-    itself stays lean (the agent PEERS); this is the capability crawl. Read-only,
-    degrade-open."""
     return await a2a_skill_directory_logic()
 
 
 @a2a_router.get("/a2a/contexts/{context_id}")
 async def a2a_context_get(context_id: str) -> JSONResponse:
-    """A2A/ACP shared inter-agent context: the conversation's blackboard
- rendered as A2A Message history grouped by contextId (
-    "context should be shared inter agents -- A2A/ACP"). Any A2A/ACP-aware
-    agent or client reads the shared context by contextId here, in the open
-    standard shape, instead of relying only on the bespoke prose injection.
-    LOCAL-ONLY, like the rest of the A2A surface."""
     return JSONResponse(_a2a_context(context_id))
 
 

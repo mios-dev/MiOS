@@ -1,21 +1,5 @@
 # AI-hint: VERB/RECIPE CATALOG loader + 3-projection SSOT source, extracted verbatim from server.py (refactor R2 leaf wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_verbcatalog_py.md
-"""Verb/recipe catalog loader + the three-projection SSOT source.
-
-Extracted verbatim from ``server.py``. Parses the ``mios.toml`` ``[verbs.*]`` and
-``[recipes.*]`` sections into the canonical catalogs and projects them into the
-planner prose block, the OpenAI/MCP function-tool schemas, and the model_name /
-hidden_alias reverse map. Every function is moved byte-for-byte; ``server.py``
-re-imports each under its original ``_``-prefixed name so the importable surface
-is unchanged.
-
-The HOT globals ``_VERB_CATALOG`` and ``_MODEL_NAME_TO_VERB`` are OWNED by
-``server.py`` (it runs the assignments by calling the re-imported builders) and
-injected here via :func:`configure` AFTER they are built, so the catalog readers
-(``_resolve_verb_key``, ``_identity_answer``, ``_load_verb_arg_synonyms``) see the
-live catalog. ``CATALOG_FAIL_MODE`` is injected before the first catalog build.
-One-way module boundary: this module never imports ``server``.
-"""
 
 from __future__ import annotations
 
@@ -487,14 +471,6 @@ def _render_verb_catalog(cat: dict, include_rare: bool = True) -> str:
 
 
 def _identity_answer() -> str:
-    """Deterministic reply to "who are you / what can you do", built from the LIVE
- capability catalog + a generic persona intro (the 14B
-    confabulated its identity from the literal model name -- "Zabbix agent",
-    "Mio's Pizza" -- and varied wildly run to run, because a small model cannot be
-    trusted to self-describe). Composed deterministically, like the `remember`
-    handler. All specifics come from _VERB_CATALOG (the mios.toml [verbs.*] SSOT),
-    so the reply is accurate AND baked: a freshly-imaged Day-0 agent describes
-    itself correctly with zero chat history. Returns '' if no catalog is loaded."""
     cap = _capability_grounding(_VERB_CATALOG)
     if not cap:
         return ""
@@ -516,12 +492,6 @@ def _load_verb_arg_synonyms() -> dict:
 
 
 def _build_model_name_map(cat: dict) -> dict:
-    """P1 PA-Tool reverse map {model_name -> canonical verb key} for every verb that
-    declares a model_name alias. The model emits tool_calls under the alias; dispatch +
-    the permission gate + the tier/selection lookups resolve it back to the key. A
-    collision (alias == a real verb key, or two verbs claim the same alias) is logged and
-    the offending alias dropped -- real keys always win, so a bad alias degrades to the
-    key being shown, never to a mis-dispatch."""
     rev: dict = {}
     keys = set(cat.keys())
     collisions: list[str] = []
@@ -581,12 +551,6 @@ def _resolve_verb_key(name: str) -> str:
 
 
 def _load_recipe_catalog() -> dict:
-    """Parse mios.toml [recipes.*] -> {name: {description, args, permission}}.
-    SSOT for the os_recipe verb. Rendered into the planner prompt so EVERY
-    recipe is natively discoverable by every agent -- no recipe names baked
- in code ("ALL agents know to use these functions";
-    "no hardcodes unless modelfile/docs"). Add a [recipes.*] block in TOML
-    and it appears here + in every consumer automatically (self-iterating)."""
     out: dict = {}
     try:
         import mios_toml
@@ -621,17 +585,6 @@ def _render_recipe_catalog(rec: dict) -> str:
 
 
 def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
-    """Render one [recipes.*] entry as an OpenAI function-tool schema --
-    the SAME `{type:function, function:{name,description,parameters}}` shape
-    as _verb_to_openai_tool / _skill_to_openai_tool. The function name is
-    mangled to `mios_recipe__<name>` so a relay (mios-mcp-server) can route a
-    returned tool_call back through the opaque `os_recipe` verb -- strip the
-    prefix, then POST /v1/dispatch {tool:'os_recipe', args:{name, params}}.
-    Recipe args are free-form per [recipes.*].args (SSOT in mios.toml); every
-    arg is exposed as a string property, plus an optional `os` selector (some
-    recipes branch on the target OS). No arg is marked required -- recipes
-    fill sensible defaults, and the os_recipe verb tolerates a partial
-    params map. Discover here, execute via os_recipe at /v1/dispatch."""
     args_raw = cfg.get("args") or []
     props: dict = {}
     if isinstance(args_raw, dict):
@@ -681,13 +634,6 @@ def _recipe_to_openai_tool(name: str, cfg: dict) -> dict:
 
 
 def _verb_to_openai_tool(vname: str, vcfg: dict) -> dict:
-    """Render one [verbs.*] entry as an OpenAI function-tool schema --
-    the SAME `{type:function, function:{name,description,parameters}}`
-    shape Hermes/OpenCode already consume from /skills/openai-tools (see
-    _skill_to_openai_tool). Tool name == the bare verb name, so a returned
-    tool_call executes verbatim via POST /v1/dispatch {tool, args} (the
-    launcher-broker path the MCP server also uses). No name mangling ->
-    discover here, execute there, one contract."""
     props: dict = {}
     required: list[str] = []
     for argname, argcfg in (vcfg.get("params") or {}).items():

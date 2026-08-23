@@ -1,27 +1,5 @@
 # AI-hint: A2A PEER-CLIENT consumer half extracted VERBATIM from server.py (refactor R11 federation follow-up).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_federation_a2a_client_py.md
-"""A2A peer-client consumer half for the agent-pipe (refactor R11 follow-up).
-
-Extracted VERBATIM from ``server.py`` -- the consumer half of the A2A
-federation: the layered peer-registry read, the per-peer agent-card probe +
-skill indexing, the optional tailnet auto-discovery, the startup fan-out, the
-JSON-RPC ``message/send`` delegation to a chosen peer (with peer-reputation
-recording), and the A2A Task-envelope text extractor. Every name is moved
-byte-identically and re-imported by ``server.py``; the @app /v1/a2a/dispatch
-route and the peer-discovery startup on_event stay there as thin wrappers, so
-the module's public + HTTP surface is unchanged.
-
-``_a2a_principal_metadata`` imports from :mod:`mios_a2a`,
-``_mcp_render_headers`` from :mod:`mios_mcp` and ``loads_lenient`` from
-:mod:`mios_jsonsalvage` directly. The self-peer-loop guard / agent-card fetch /
-tailnet candidate discovery helpers live HERE (``_a2a_self_peer_url`` /
-``_a2a_fetch_card`` / ``_a2a_tailnet_candidates``). Every remaining
-server-resident dependency -- the live ``_A2A_PEERS`` / ``_A2A_PEER_SKILLS``
-registries + lock, the outbound ``_A2A_REPUTATION``, the ``_AGENT_REGISTRY``,
-the peer-registry paths + ``A2A_COUNCIL`` / ``A2A_SELF_ID`` scalars, the HTTP
-client factory, and the worker-tool-surface cache invalidator -- is injected via
-:func:`configure` (one-way boundary: this module never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -94,14 +72,6 @@ def configure(*, a2a_peers=None, a2a_peer_skills=None, a2a_peers_lock=None,
 
 
 def _a2a_self_peer_url(url: str) -> bool:
-    """True if a peer URL is THIS orchestrator (loopback :8640). Delegating or
-    fanning out to it re-enters the pipe and recurses UNBOUNDED -- the per-request
-    recursion bound is process-local and does NOT cross the a2a HTTP hop (operator
- dGPU runaway: ~35 native-loop turns/sec pegged the GPU). The
-    A2A_SELF_ID guard missed it because mios-a2a-discover registers the self as
-    "mios-local" while A2A_SELF_ID defaults to "local-mios" -- an id mismatch. So
-    exclude by URL (id-agnostic). Only LOOPBACK :8640 is self; a remote node on
-    :8640 (real host/tailnet IP) is a legitimate peer and is NOT excluded."""
     _self_port = str(os.environ.get("MIOS_PORT_AGENT_PIPE", "8700")).strip()
     u = (url or "").lower()
     return (f":{_self_port}" in u) and (
@@ -220,12 +190,6 @@ async def _a2a_fetch_models_card(url: str, headers: dict, timeout_s: float = 10.
 
 
 async def _a2a_tailnet_candidates() -> list:
-    """Candidate base-URLs to probe for an A2A agent-card: every ONLINE tailnet
-    peer at the agent-pipe port (`tailscale status --json`) + any explicit
-    MIOS_A2A_DISCOVER_URLS. Best-effort -- if the tailscale CLI is unreachable
-    from the agent uid, only the explicit list is used. SSOT: the mios.toml
-    [a2a] block feeds MIOS_A2A_DISCOVER_PORT / MIOS_A2A_DISCOVER_URLS via the
-    userenv slot (no hardcoded node IPs in code)."""
     try:
         port = int(os.environ.get("MIOS_A2A_DISCOVER_PORT") or (_toml_section("a2a") or {}).get("discover_port") or 8640)
     except ValueError:
@@ -363,12 +327,6 @@ async def _a2a_probe_peer(cfg: dict) -> None:
 
 
 async def _a2a_autodiscover_peers(known_urls: set) -> list:
-    """Probe tailnet/explicit candidate URLs for an A2A agent-card; return peer
-    cfgs for responders (skip URLs already in the registry, skip non-cards). So
-    a NEW MiOS agent-pipe node auto-joins the mesh with zero registry editing
-. OFF unless MIOS_A2A_TAILNET_DISCOVER is truthy; never
-    raises; fast-fails on the compute-only nodes (e.g. oscontrol) that 404 the
-    card."""
     if os.environ.get("MIOS_A2A_TAILNET_DISCOVER", "").strip().lower() \
             not in {"1", "true", "yes"}:
         return []

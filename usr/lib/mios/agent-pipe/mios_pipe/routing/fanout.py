@@ -1,22 +1,5 @@
 # AI-hint: Council/swarm fan-out SELECTION (refactor R3 wave; de-hardcoded per operator "the scoring IS a hardcode in and of itself").
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_fanout_py.md
-"""Council/swarm fan-out agent SELECTION -- model-driven relevance, no hardcoded scorer.
-
-Extracted from ``server.py`` (R3) and de-hardcoded. ``_pick_fanout_agents``
-returns the secondary ``(name, cfg)`` agents to dispatch concurrently with the primary.
-
-Three paths, NONE of which uses a hand-coded relevance heuristic:
-  * ``force_council`` -- engage every eligible non-primary live agent (explicit swarm).
-  * ``mode == "council"`` -- equal-weight: every eligible agent, sub-lane-diverse, capped.
-  * default -- **model-driven**: the micro-model picks the relevant specialists from the
-    refined plan + each eligible agent's published card. Degrades open to council-equal-weight.
-
-The module is pure of ``server.py`` (one-way boundary). The live registry, dispatch
-config, and the depth/lane/dedup/admission helpers are injected via :func:`configure`;
-the relevance model-call is the module's own ``httpx`` POST to the SSOT micro endpoint
-(same pattern as ``mios_refine``/``mios_dci``). ``server.py`` re-imports
-``_pick_fanout_agents`` under its original alias and ``await``\\s it (surface byte-identical).
-"""
 
 from __future__ import annotations
 
@@ -57,13 +40,6 @@ def configure(*, agent_registry=None, dispatch_cfg=None, depth_exhausted=None,
               max_dispatch_depth=None, council_max_default=None,
               admit_enable=None, route_on_card_skills=None,
               db_create=None, db_post=None, db_fire=None) -> None:
-    """Inject the server.py registry/config + helpers/constants the selector uses.
-
-    Unchanged signature from the pre-de-hardcode version -- the model-driven
-    relevance call uses the module's own httpx to the SSOT micro endpoint
-    (mios_config._MICRO_MODEL/_MICRO_ENDPOINT) + the injected ``dispatch_cfg``
-    for the mode + timeout, so no new injected dependency is required.
-    """
     global _AGENT_REGISTRY, _DISPATCH_CFG, _depth_exhausted, _dispatch_depth
     global _lane_sem_key, _dedup_pool_by_target, _over_global_ceiling
     global _agent_lane, _agent_skill_tags, MAX_DISPATCH_DEPTH
@@ -112,12 +88,6 @@ def _opted_out(c: dict) -> bool:
 
 def _eligible_candidates(primary_name: str, live_agents: Optional[set],
                          include_research: bool) -> list:
-    """The eligible secondary pool: every registered agent except the primary that
-    is not opted-out, is live (OUTAGE prune), and is research-OK. NO relevance
-    scoring -- this is the deterministic membership filter only. ``research_only``
- agents/nodes join ONLY on a research/deep turn (runaway fix:
-    keep the research workers OUT of an everyday turn so a trivial prompt
-    doesn't cold-load the whole pool at once)."""
     out = []
     for name, cfg in _AGENT_REGISTRY.items():
         if name == primary_name or _opted_out(cfg):
@@ -131,12 +101,6 @@ def _eligible_candidates(primary_name: str, live_agents: Optional[set],
 
 
 def _council_fallback(primary_name: str, candidates: list, want: int) -> list:
-    """Equal-weight council selection over the eligible pool: sub-lane-diverse
-    first (a CPU agent parallelises a GPU primary at zero dGPU cost -- a hardware
-    concurrency concern, NOT a relevance heuristic), endpoint/model-deduped, capped
-    at ``want``. This is the degrade-open path when model selection is off/unreachable
-    and the body of council mode -- it engages secondaries (never primary-only) while
-    the cap bounds width. No hand-coded relevance scoring."""
     primary_lane = _lane_sem_key(_AGENT_REGISTRY.get(primary_name) or {})
     pool = sorted(candidates, key=lambda nc: (
         0 if _lane_sem_key(nc[1]) != primary_lane else 1, nc[0]))
@@ -146,13 +110,6 @@ def _council_fallback(primary_name: str, candidates: list, want: int) -> list:
 
 
 def _published_skill_lines(cfg: dict) -> list:
-    """A federated peer's FULL published AgentCard ``skills[]`` rendered as compact
-    capability lines -- each skill's own ``name`` + ``description`` + ``tags``. This
-    is the RICH advertised surface an A2A peer publishes (stored on the synthetic
-    peer registry entry as ``card_skills``), NOT the collapsed strength-token id list
-    the peer registration also keeps; routing on it lets the model reason over what
-    the peer actually claims to do. Empty for a local ``[agents.*]`` agent (no
-    published card_skills) -- purely additive to the existing card corpus."""
     out: list = []
     skills = cfg.get("card_skills")
     if not isinstance(skills, (list, tuple)):
@@ -178,15 +135,6 @@ def _published_skill_lines(cfg: dict) -> list:
 
 
 def _agent_card(name: str, cfg: dict) -> str:
-    """A compact, SSOT-sourced card for the relevance model: the agent's OWN
-    declared role / strengths / A2A skill-tags ([agents.*] in mios.toml + the
-    AgentCard the peer publishes). No hardcoded topic text -- the card IS the
-    capability surface the model reasons over.
-
-    FED-G7 (T-051, flag-gated): when ROUTE_ON_CARD_SKILLS is set, a federated peer's
-    FULL published skills[] (name/description/tags) are folded in alongside the
-    strength tokens so the model routes on the advertised skill, not just the token
-    proximity. OFF -> byte-identical to the strength-token-only card."""
     role = str(cfg.get("role") or cfg.get("job") or "").strip()
     strengths = cfg.get("strengths")
     if isinstance(strengths, (list, tuple)):
@@ -225,12 +173,6 @@ def _emit_route_event(primary_name: str, secondaries: list) -> None:
 
 
 async def _model_select(corpus: str, candidates: list, want: int) -> Optional[list]:
-    """MODEL-DRIVEN relevance: ask the micro-model which of the eligible agents are
-    worth engaging concurrently for this plan. Returns the chosen candidate names
-    (subset, capped), or ``None`` to signal degrade-open (selection off, no candidates,
-    timeout, unparseable). Pure generative selection -- no scoring, no keyword map.
-    The model sees the refined plan + each agent's own card and returns a JSON name
-    array; we validate the names against the candidate set."""
     mode = str(_DISPATCH_CFG.get("fanout_select_mode", "model")).strip().lower()
     if mode != "model" or not candidates or not corpus.strip():
         return None
@@ -292,20 +234,6 @@ async def _pick_fanout_agents(primary_name: str,
                               *, force_council: bool = False,
                               live_agents: Optional[set] = None,
                               include_research: bool = False) -> list:
-    """Pick SECONDARY (name, cfg) agents to run CONCURRENTLY alongside the chosen
- primary -- 'a couple at a time' + 'self-delegate to CPU
-    concurrently' + 'make sure hermes isn't always the only dispatched agent'.
-
- Relevance is MODEL-DRIVEN (the old role/strengths-token
-    overlap scoring + magic CPU-lane bonus + ASCII tokenizer was itself a hardcode):
-    the micro-model picks the relevant specialists from the refined plan + each
-    eligible agent's own card. NO hand-coded scoring/weight/topic map. Degrades open
-    to council-equal-weight (all eligible, lane-diverse, deduped, capped) when model
-    selection is off/unreachable -- never primary-only, never an unbounded runaway.
-    Returns [] when fan-out is disabled / capped at 1 / nothing relevant.
-
- force_council (SWARM toggle): engage EVERY eligible agent
-    this turn, bypassing enable/fanout_max/relevance -- the manual 'full swarm'."""
 
     if _depth_exhausted():
         log.info("fanout: dispatch depth %d >= %d -> single-agent (degrade-closed)",

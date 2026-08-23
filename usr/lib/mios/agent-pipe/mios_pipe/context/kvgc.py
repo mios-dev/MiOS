@@ -1,14 +1,5 @@
 # AI-hint: WS-A4 KV-cache file garbage-collection PLANNER. Pure-stdlib decision core for reclaiming the on-disk KV slot-save files the agent-pipe writes...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_kvgc_py.md
-"""mios_kvgc -- KV slot-file GC planning (WS-A4, the AIOS Context-Manager KV
-lifecycle layer).
-
-Pure stdlib. The agent-pipe pages each conversation's KV to disk and (WS-8) can
-FORK a parent's KV into child files for a swarm fan-out. Without a GC those
-files accumulate. plan_gc() is the deterministic decision: given the current
-slot files (path/mtime/size), a TTL and a total-size cap, and a protected set
-(the active slot / current conversation), return which to evict. The caller
-deletes them (or relies on the tmpfiles age-out backstop)."""
 
 from __future__ import annotations
 
@@ -37,15 +28,6 @@ class GcPlan:
 
 def plan_gc(files: Iterable[dict], *, ttl_s: float, max_bytes: int,
             now: float, protect: Optional[Iterable[str]] = None) -> GcPlan:
-    """Decide which KV files to evict.
-
-    files: iterable of {"path": str, "mtime": float, "size": int}.
-    ttl_s: evict any non-protected file older than this (0 -> no TTL pass).
-    max_bytes: after the TTL pass, if the surviving total still exceeds this,
-               evict oldest-first until it fits (0 -> no size cap).
-    now: current epoch seconds (passed in -> pure/deterministic).
-    protect: paths that are NEVER evicted (the active slot / live conversation).
-    """
     prot = {str(p) for p in (protect or [])}
     items = []
     for f in files or []:

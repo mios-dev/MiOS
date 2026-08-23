@@ -400,3 +400,77 @@ host crowdsec agent for ~6 days. Retired; the host agent provides the IPS.
 Full rationale in mios.toml [quadlets.enable] + memory mios_crowdsec_recovery.
 
 <!-- mios-src:31fd4e869038 from usr/share/mios/profile.toml:98-103 -->
+### Names the SSOT defines
+
+Names the SSOT defines: every MIOS_* key, every unit it declares.
+
+        A comment naming MIOS_AI_ENDPOINT is referencing a key that exists --
+        in mios.toml, not as a file. Without this the staleness rule reported
+        every env var in the tree as a dangling reference, which is why its
+        count was noise rather than a signal.
+
+<!-- mios-src:4ed8af1db3c0 from usr/lib/mios/mios_comments.py:271-277 -->
+
+### The allowlist holds literal reference tokens and globs --...
+
+The allowlist holds literal reference tokens and globs -- paths like
+'C:\mios-bootstrap\Get-MiOS.ps1', bare tokens like 'ollama' or
+'8080', and globs like 'blade-*.conf'. It was matched with re.search,
+under which the Windows paths are invalid patterns (bad escape \m)
+and 'blade-*.conf' silently matches nothing it was meant to cover.
+Match them as what they are written as.
+
+<!-- mios-src:be7e0f6ee742 from usr/lib/mios/mios_comments.py:352-357 -->
+
+### Characters of AI-hint prose, continuation lines included....
+
+Characters of AI-hint prose, continuation lines included.
+
+    Counting only the line that starts with `AI-hint:` would mean a hint could
+    clear the cap by being wrapped across several `#` lines -- the gate would
+    then be measuring line length, which nobody cares about, instead of how much
+    prose sits in the header, which is the thing being ratcheted down.
+
+<!-- mios-src:2c1e4d0345bf from usr/lib/mios/mios_comments.py:380-386 -->
+
+### hint_max_chars caps the AI-hint PROSE, not the whole header...
+
+hint_max_chars caps the AI-hint PROSE, not the whole header block.
+AI-related/AI-functions/AI-doc are machine-maintained: their length
+tracks how many files a module touches and how many functions it
+defines, neither of which is a writing-quality signal. Counting them
+made the ceiling unreachable -- check-fleet-safety.py carries 357
+characters of generated metadata, so it breached a 260 cap even with
+an empty hint, and no amount of editing could clear the gate.
+
+<!-- mios-src:91b1f37a187d from usr/lib/mios/mios_comments.py:681-687 -->
+
+### reconcile-blade.py -- Per-class database reconciliation for...
+
+reconcile-blade.py -- Per-class database reconciliation for multi-blade partition rejoin.
+
+Merge rules (ADR-0017 D5):
+  1. union-by-hash   (knowledge, embeddings): merge rows by unique hash/id key;
+  2. append-ordered  (agent_memory, event): merge rows ordered by logical_ts;
+  3. last-writer-wins(session, scratch): pick row with highest logical_ts per primary key;
+  4. conflict-is-error(config_kv): raise explicit conflict if key values diverge.
+
+<!-- mios-src:1f760e9abf57 from usr/libexec/mios/reconcile-blade.py:5-12 -->
+
+### Standalone unit test for mios-docgen (WS-4 P0 doc-gen)....
+
+Standalone unit test for mios-docgen (WS-4 P0 doc-gen).
+
+Pure stdlib; imports the CLI module by path (it has no .py extension, matching
+the libexec convention) and exercises the DB/binary-free logic: format
+resolution, the master gate, degrade-open emission, and the routing decision
+table. The two backend converters (Pandoc / LibreOffice) are NOT invoked --
+that needs the binaries + a graphical-free office runtime and is covered by the
+operator's live check; here we prove the pure decision layer.
+
+Mirrors the test_mios_sched.py / test_mios_evict.py pattern: explicit asserts,
+PASS/FAIL summary, non-zero exit on any failure.
+
+Run:  python test_mios_office_convert.py
+
+<!-- mios-src:714187361e14 from usr/libexec/mios/test_mios_office_convert.py:3-16 -->

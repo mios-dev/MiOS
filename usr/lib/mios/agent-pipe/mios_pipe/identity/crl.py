@@ -1,11 +1,5 @@
 # AI-hint: WS-A10 certificate/token revocation list (CRL). Pure-stdlib revocation set: load revoked token-ids / principal-ids from a list (or a caller-t...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_crl_py.md
-"""mios_crl -- token/cert revocation list (WS-A10, the AIOS edge revocation layer).
-
-Pure stdlib. A small, explicit revocation set the principal verifier consults so
-a credential can be killed BEFORE it expires (a compromised token, a retired
-peer). The operator/SSOT owns the source list; this holds it + answers
-is_revoked. Membership is O(1); empty CRL == nothing revoked (the no-op default)."""
 
 from __future__ import annotations
 

@@ -1,43 +1,5 @@
 # AI-hint: WS-A9 Policy Decision Point (PDP) -- the pure capability/risk decision core shared by the agent-pipe's RBAC SURFACE filters (_agent_rbac_filter...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_pdp_py.md
-"""mios_pdp -- the MiOS agent-pipe Policy Decision Point (WS-A9, the AIOS
-Access-Manager capability gate).
-
-Pure stdlib so it unit-tests in isolation, in the sibling-module style of
-mios_sched / mios_toolconflict / mios_trace. server.py owns the wiring (the
-dispatching-agent + request-user contextvars, the audit-event emit, and the
-SSOT [agents.<name>] / [users.<name>] policy keys); this module owns only the
-DECISION: given a verb + a caller's policy, allow or deny.
-
-The bypass it closes
-====================
-Before WS-A9 the per-agent and per-user RBAC ran ONLY at surface-build time
-(pruning the model-facing tool list). The dispatch chokepoint did taint-firewall
-+ HITL + enum validation but NO capability check -- so a verb absent from the
-filtered surface (a stale tool_call, a direct/MCP/A2A caller, a model that
-fabricated a name) would still dispatch. WS-A9 routes BOTH the surface filters
-AND the dispatch gate through THIS one decide(), so surface and dispatch can
-never diverge.
-
-The fail-OPEN defect it fixes
-=============================
-The old filters computed `max_rank = rank(mp) if mp in TIERS else None`, i.e. a
-max_permission naming an UNKNOWN tier (a config typo) collapsed to None == "no
-ceiling" -> the caller silently kept the FULL surface. That is fail-OPEN on the
-security axis. resolve_ceiling() now returns rank 0 (the safest tier only) for a
-non-empty-but-unknown ceiling -> FAIL CLOSED. (An empty/absent max_permission is
-still "no ceiling", the genuine no-op default.)
-
-Decision semantics (decide)
-===========================
-  * `name` in denied_verbs            -> DENY  (applies to verbs AND non-verbs).
-  * not a catalog verb (recipe/skill/MCP/client tool) -> ALLOW (only denied applies).
-  * allowed_verbs set and `name` not in it            -> DENY.
-  * max_permission ceiling set and the verb's tier outranks it -> DENY.
-  * otherwise ALLOW.
-An empty policy (no denied/allowed/ceiling) trivially allows everything -> the
-ZERO-behaviour-change default for single-user MiOS.
-"""
 
 from __future__ import annotations
 
@@ -76,14 +38,6 @@ def permission_rank(perm: str, tiers: Iterable[str]) -> int:
 
 
 def resolve_ceiling(max_perm: str, tiers: Iterable[str]) -> Optional[int]:
-    """Ceiling rank for a configured max_permission.
-
-      ""  / absent      -> None  (no ceiling -- the genuine no-op default)
-      a KNOWN tier       -> its rank
-      a NON-EMPTY UNKNOWN tier -> 0  (FAIL CLOSED: only the safest tier passes)
-
-    The last case is the WS-A9 fix for the old fail-OPEN behaviour (unknown ->
-    None -> no ceiling -> full surface granted on a config typo)."""
     mp = str(max_perm or "").strip().lower()
     if not mp:
         return None

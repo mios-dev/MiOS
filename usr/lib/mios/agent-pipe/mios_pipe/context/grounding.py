@@ -1,17 +1,5 @@
 # AI-hint: Per-turn ENV-GROUNDING subsystem extracted verbatim from server.py (refactor R2 leaf wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_grounding_py.md
-"""Per-turn environment-grounding block builders (native <env> system block).
-
-Extracted verbatim from ``server.py``. Assembles the system-role grounding block
-from host facts + config + the forwarded client/invocation environment. Every
-function is moved byte-for-byte; ``server.py`` re-imports each under its original
-``_``-prefixed name so the module's importable surface is unchanged.
-
-Config constants come from ``mios_config``; the per-request ``_client_env_var``
-ContextVar and the ``_current_date_str`` helper (both stay in ``server.py``) are
-injected via :func:`configure` (one-way module boundary -- this module never
-imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -60,13 +48,6 @@ NATIVE_LOOP_CAPABILITY_PER_SECTION = int(
 
 
 def _capability_grounding(cat: dict) -> str:
-    """A COMPACT live capability summary for identity grounding: one line per
-    catalog section listing the real verb names (from _VERB_CATALOG, i.e. the
-    mios.toml [verbs.*] SSOT). The model then answers "what can you do?" from its
-    ACTUAL tool surface instead of inventing capabilities. Names only + capped
-    per section to keep the system block (and the RadixAttention stable prefix)
-    short. Rare-tier verbs are omitted -- still dispatchable, just not advertised.
-    No hardcoded English: re-derived from the catalog on every load."""
     if not cat:
         return ""
     sections: "dict[str, list[str]]" = {}
@@ -100,22 +81,6 @@ def _capability_grounding(cat: dict) -> str:
 
 
 def _temporal_grounding() -> str:
-    """One system-message block giving the agents the current date/time.
-
-    The micros have no clock. Without this, relative dates ("tomorrow",
-    "this weekend") were resolved by guessing off whatever dates appeared
-    in retrieved text -- operator-flagged: "what's tomorrow at Tech Con"
-    came back as TODAY's date and three other dates across one answer.
-    This grounds the orchestrator's OWN system prompts (refine / polish /
-    dispatch); it is NOT a pre_llm_call env-inject into the user message.
-
-    Timezone/date/time come from the USER's Open WebUI client context when
-    the pipe forwarded it (metadata.variables: CURRENT_TIMEZONE / CURRENT_DATE
-    / CURRENT_TIME / CURRENT_WEEKDAY), so "today"/"tomorrow" match the
-    OPERATOR's wall clock, not the server's (the VM is often UTC). Falls back
-    to the process-local clock when no client context is present (Discord, raw
- API). "use detected environment details -- locations,
-    timezones, locale, time"."""
     env = _get_client_env()
     tz_name = (env.get("timezone") or "").strip()
     now_dt = None
@@ -230,12 +195,6 @@ _HOST_TZ: "Optional[str]" = None
 
 
 def _host_timezone() -> str:
-    """The host's IANA timezone (e.g. 'America/New_York') -- a REAL, always-
-    available env detail (read once from /etc/localtime). Used as the coarse
-    locale-of-last-resort for 'local' / 'near me' asks when no precise user
-    location was forwarded or configured, so the agent grounds to the right
- REGION instead of fabricating unrelated cities (OWUI on
-    phone answered 'local weather' for five random US cities, observing no env)."""
     global _HOST_TZ
     if _HOST_TZ is not None:
         return _HOST_TZ
@@ -253,14 +212,6 @@ def _host_timezone() -> str:
 
 
 def _client_grounding() -> str:
-    """Client/session grounding -- the user's REAL location + locale forwarded
-    by the OWUI pipe (metadata.variables: USER_LOCATION / USER_LANGUAGE /
-    USER_NAME). Like _temporal_grounding it grounds the orchestrator's OWN
-    system prompts (refine / swarm / council / polish); NOT a pre_llm_call
-    user-message inject. Returns '' when the client sent nothing (Discord, raw
- API, location-sharing off) so nothing is fabricated.
-    "OWUI provides entire environment details ... USE them in the pipeline";
-    the location is what lets 'near me' resolve instead of a placeholder."""
     env = _get_client_env()
     loc = (env.get("location") or "").strip()
     lang = (env.get("language") or "").strip()
@@ -348,16 +299,6 @@ def _client_grounding() -> str:
 
 
 def _identity_guard() -> str:
-    """Non-negotiable identity grounding injected into EVERY orchestrator prompt
-    (refine / synthesis / polish / council / native-loop) via _env_grounding.
-
-    The local backend models (granite/qwen) confabulate a cloud identity when
-    asked "who are you / what model are you" -- a small model fills the gap with
-    its training prior and claimed to "provide access to Claude (Fable 5 / Mythos
- 5) with Constitutional AI" (operator-caught fabrication). MiOS is
-    local-only; the /MiOS.md guard only reaches the native-loop path, so the
-    verb-DAG synthesis/polish path needed its own copy. Kept terse + forceful;
-    leads with the prohibition so it survives a long prompt."""
     _mios_cfg = _toml_section("mios") or {}
     _ai_name = str(_mios_cfg.get("name") or "MiOS AI").strip()
     _ai_role = str(_mios_cfg.get("role") or "the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)").strip()
@@ -429,15 +370,6 @@ def _arch_grounding() -> str:
 
 
 def _env_block() -> str:
-    """A fixed-shape, parseable <env> block of the LIVE per-turn environment
- (research a small ~8B model reads structured key:value far more
-    reliably than the prose helpers, which it routinely overrides). This is the
-    CANONICAL 'every prompt env-grounded natively' mechanism -- a SYSTEM-role block
-    refreshed each turn, NOT a pre_llm_call user-message inject (that is the banned
-    hack). Values are LIVE this turn from the forwarded invocation env + host facts;
-    an undetermined key is OMITTED (never fabricated). cwd/surface/location come
-    ONLY from this turn's context, never recall. Reuses the SAME getters +
-    location-chain as _client_grounding so the structured + prose views agree."""
     env = _get_client_env()
     rows: list = []
     _date = _current_date_str() if _current_date_str else time.strftime("%Y-%m-%d")
@@ -519,13 +451,6 @@ def _env_grounding_dynamic() -> str:
 
 
 def _env_grounding() -> str:
-    """Identity guard + self-architecture + temporal + client-environment grounding
-    for the orchestrator's OWN system prompts (refine / synthesis / polish / swarm /
-    council / native-loop). Single helper so every grounded prompt site threads the
-    identity + arch + forwarded OWUI environment (time, timezone, location, locale,
-    name) in one place. Leads with a STRUCTURED <env> block (research
-    parseable key:value for small models) followed by the detailed prose guidance +
-    anti-fabrication rules -- the prose is kept so nothing regresses."""
     return _env_grounding_static() + "\n" + _env_grounding_dynamic()
 
 
@@ -555,13 +480,6 @@ def _principal_bind_mode() -> str:
 
 
 def _bound_account(headers: Optional[Any]) -> "Optional[str]":
-    """Resolve THIS request's bearer token to the account/owner identity BOUND to its
-    caller-key, or None when there is no token / no mapping / the resolver was not
-    injected (degrade-open). The canonical shared + ingress keys resolve to the
-    full-trust operator principal, which carries NO bound account -> None here, so a
-    trusted gateway (OWUI) keeps speaking for its forwarded per-user identity. The
-    per-key binding is the optional `account` (alias `owner`) field on the caller-key
-    entry (see mios.toml [security].principal_bind_mode)."""
     try:
         if not (_check_inbound_principal and headers is not None
                 and hasattr(headers, "get")):
@@ -579,14 +497,6 @@ def _bound_account(headers: Optional[Any]) -> "Optional[str]":
 
 
 def _client_env(body: dict, headers: Optional[Any] = None) -> dict:
-    """Normalise the per-request client/session context the OWUI pipe forwards.
-
-    Primary source is metadata.variables (OWUI's own convention; keys carry
-    the {{ }} braces, e.g. "{{USER_LOCATION}}"). We also accept a top-level
-    `variables` dict and directly-placed known keys (non-OWUI callers), plus
-    the standard OpenAI `user` field as a last-resort display name. Returns a
-    flat dict {location, timezone, date, time, datetime, weekday, language,
-    user_name, user_email} with empty strings for anything not provided."""
     if not isinstance(body, dict):
         return {}
     meta = body.get("metadata") if isinstance(body.get("metadata"), dict) else {}

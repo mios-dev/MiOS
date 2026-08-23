@@ -1,23 +1,5 @@
 # AI-hint: WS-A2 embedding-version hygiene -- the pure decision core for an off-hot-path re-embed (backfill) job.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_embed_backfill_py.md
-"""mios_embed_backfill -- embedding-version hygiene for the MiOS agent-pipe
-(WS-A2, the AIOS Memory-Manager embedding-identity layer).
-
-Pure stdlib so it unit-tests in isolation, in the sibling-module style of
-mios_sched / mios_pdp. server.py (or a maintenance CLI) owns the DB I/O and the
-embedding call; this module owns only the DECISIONS: is a row's vector stale,
-which rows are candidates, and how to batch the work so a backfill never
-stampedes the embedder or the DB.
-
-Why versioning
-==============
-Every embedded row carries emb_model + emb_version. The embedding space is only
-comparable WITHIN one identity: if the model (or its dimensionality) changes,
-old vectors are meaningless under the new model, so cosine recall silently
-returns garbage neighbours. Tagging each row lets a backfill find + re-embed the
-stale rows off the hot path, and lets recall optionally restrict to the current
-identity until the backfill catches up.
-"""
 
 from __future__ import annotations
 

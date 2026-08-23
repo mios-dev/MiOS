@@ -1,20 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator reta...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_ports_py.md
-"""render-ports.py -- project [ports.categories] onto the flat [ports] table.
-
-The categories table is the numbering SSOT: each category owns a `base`, a
-`stride` and an ORDERED `members` list, and a member's port is
-
-    base + index_in_members * stride
-
-`pinned` entries (DNS/53) are protocol contracts and are emitted verbatim.
-
-Usage:
-    tools/render-ports.py            # rewrite the flat [ports] table in place
-    tools/render-ports.py --check    # exit 1 if the flat table has drifted
-    tools/render-ports.py --print    # print the derived name=port map
-"""
 from __future__ import annotations
 
 import os
@@ -36,12 +22,6 @@ def _categories(data: dict) -> dict:
 
 
 def derive_ports(data: dict) -> dict:
-    """Return {port_name: value} derived from [ports.categories].
-
-    Pinned ports are emitted at their literal value; derived ports are
-    base + index*stride. stack_id is applied later by the resolver's
-    process_val(), not here, so this stays the pre-offset SSOT.
-    """
     out: dict[str, int] = {}
     for cat, cfg in sorted(_categories(data).items()):
         if not isinstance(cfg, dict):

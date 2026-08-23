@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_provision_agent_mtls_py.md
-"""Provision the MiOS agent mTLS keypair + CA (#54).
-
-Zero-trust federation needs peers to mutually authenticate. The ed25519 *message*
-principal (#60) signs delegations; mTLS authenticates the *transport*. This mints
-the PKI for that: a self-signed local CA + an agent leaf certificate (clientAuth +
-serverAuth) signed by it. Peers trust each other by exchanging CA certs.
-
-Trust model: self-signed local CA per node is the standard self-hosted default
-(point [security.mtls] at an existing org CA to override). The enforcing half --
-making the A2A endpoint REQUIRE client certs -- is reverse-proxy deployment
-(MiOS terminates TLS at the proxy), documented in security/README.md; this tool
-only provisions the credentials.
-
-Idempotent: an existing CA is reused (so peer trust survives re-runs); the agent
-leaf is re-issued. Requires `cryptography`. Run where the certs should live.
-"""
 from __future__ import annotations
 
 import datetime

@@ -1,20 +1,5 @@
 # AI-hint: WEB-RESEARCH enrichment subsystem extracted verbatim from server.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_web_research_py.md
-"""Pipeline-side WEB-RESEARCH enrichment: search -> multi-engine fetch -> judge.
-
-Extracted verbatim from ``server.py``. ``_web_research_enrich`` runs the FULL
-web toolchain itself (SearXNG metasearch with fan-out, concurrent web_extract +
-crawl4ai + Firecrawl fetch race, a 2-hop article-link drill) under a
-MODEL-driven satisfaction gate (``_judge_satisfied``) that is the load-bearing
-anti-fabrication Definition-of-Done -- it decides when enough REAL evidence was
-gathered instead of letting the swarm fabricate. The functions are unchanged;
-``server.py`` re-imports every name under its original alias so the public
-surface is byte-identical. Every server-side runtime helper, request contextvar
-and ``WEB_RESEARCH_*``/``_JUDGE_*`` config constant the moved code reads is
-dependency-injected via :func:`configure` (one-way module boundary -- this
-module never imports ``server``); ``_loads_lenient`` is imported directly from
-``mios_jsonsalvage``.
-"""
 
 from __future__ import annotations
 
@@ -271,12 +256,6 @@ def _link_rank_cfg() -> dict:
 
 def _rank_links_by_structure(cands: list, src_url: str, anchor: set,
                              cfg: Optional[dict] = None) -> list:
-    """Structural 'real-headline' ranker (link_rank_mode='heuristic', the default).
-    Scores each (anchor_text, url) candidate by URL STRUCTURE ONLY -- path depth, a
-    long hyphenated headline slug, a date/id digit, and a long anchor -- with NO
-    hardcoded domain/keyword/topic list. Every weight/threshold/cutoff/top-N comes
-    from `cfg` (SSOT via _link_rank_cfg); the default `cfg` reproduces today's ranking
-    byte-for-byte. Returns the top-N article URLs, score-descending."""
     if cfg is None:
         cfg = _link_rank_cfg()
     scored: list = []
@@ -311,13 +290,6 @@ def _rank_links_by_structure(cands: list, src_url: str, anchor: set,
 
 
 def _rank_links_embed(cands: list, src_url: str, anchor: set, cfg: dict):
-    """OPT-IN embedding-cosine link ranker (link_rank_mode='embed'). STUB: no
-    embeddings client is reachable from THIS module today (the embeddings lane lives
-    behind the agent-pipe broker, not imported here), so this returns None to
-    DEGRADE-OPEN to the structural ranker. The hook exists so enabling model ranking
-    is an SSOT flip + a wired embed client -- never a fabricated/invented path. A real
-    impl would cosine each candidate's anchor/url text against the turn's topical
-    `anchor` (or query) embedding and return the top-N URLs."""
     return None
 
 
@@ -354,15 +326,6 @@ def _is_port_open(port: int, host: str = "127.0.0.1") -> bool:
 
 async def _web_research_enrich(query: str, refined: Optional[dict],
                                emit=None, quick: bool = False) -> str:
-    """Pipeline-side WEB-RESEARCH loop ("the MiOS pipeline
-    ITSELF loops for web use and web tools"). For a web-needing turn the PIPELINE
-    runs the web toolchain itself: SearXNG web_search WITH FAN-OUT (multiple
-    diverse sub-queries) then web_extract the top result pages for their REAL
-    text, over WEB_RESEARCH_PASSES drill passes. The fetched content is injected
-    as grounding for EVERY agent (primary + reasoning-only secondaries), so the
-    swarm answers from actual stories instead of shallow homepage snippets,
-    regardless of any single agent's tool-loop depth. Best-effort + bounded;
-    '' when disabled / not a web turn / nothing fetched."""
     if not WEB_RESEARCH_ENABLED or not query or not query.strip():
         return ""
     if (refined or {}).get("intent") == "chat":
@@ -901,12 +864,6 @@ def _sources_metadata(refs: list) -> list:
 
 
 def _sources_annotations(refs: list, text: str) -> list:
-    """OpenAI url_citation annotations (Chat/Responses parity): one
-    {type:'url_citation', url, title, start_index, end_index} per cited source.
-    start/end are char offsets into `text` where the URL appears inline (so a UI
-    renders a clickable cite); 0/0 when the source is a turn-source not inlined.
-    This is OpenAI's canonical citation contract -- attaching it lets MiOS clients
- render web citations the same way ChatGPT does. web-tools hardening."""
     out: list = []
     _txt = text or ""
     for _ref in (refs or []):
@@ -928,13 +885,6 @@ def _sources_annotations(refs: list, text: str) -> list:
 
 
 def _filter_relevant_sources(refs: list, *texts: str) -> list:
-    """OpenAI grounding rule: 'include only search results/citations that support
-    the cited response text -- irrelevant sources permanently degrade user trust.'
-    Keep a source only when its title shares a content word (>=4 chars) with the
-    answer/query, OR its registrable-domain stem appears in them. DEGRADE-OPEN: if
-    the filter would drop EVERYTHING (the answer echoed no source token), return the
-    originals -- never strip citations to empty. Kills the off-topic-source bleed
- (a Fedora answer citing 'Shaolin monks'). web-tools hardening."""
     if not refs:
         return refs
     _blob = " ".join(t for t in texts if t).lower()

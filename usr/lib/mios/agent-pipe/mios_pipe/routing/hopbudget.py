@@ -1,16 +1,5 @@
 # AI-hint: WS-4 orchestrator-worker hop-budget + effort-scaling pure core.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_hopbudget_py.md
-"""mios_hopbudget -- hop-budget recursion guard + effort scaling (WS-4, the AIOS
-orchestrator-worker structural-guard layer).
-
-Pure stdlib. The agent-pipe's fan-out can re-enter the gateway over HTTP (a
-thin-gateway-as-worker, an A2A peer); a process-local depth counter resets to 0
-across that hop -> unbounded recursion. The guard carries the depth + an
-agent-id Via chain as headers (RFC 9110 Max-Forwards + Via) and kills a loop the
-moment a self-id reappears. These functions are the pure decisions behind that
-guard, plus the effort->width scaling that makes orchestration intensity a
-first-class function of query complexity rather than a fixed cap.
-"""
 
 from __future__ import annotations
 

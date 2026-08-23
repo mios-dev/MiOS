@@ -1,16 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring.
 # AI-related: tools/check-fleet-safety.py, usr/share/mios/mios.toml, tests/drift-gate-negatives.sh
-"""Tests for the above-one-node hazard gate.
-
-Both detectors are covered independently: k3s multi-server needs BOTH two
-grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must
-clear it, and pacemaker fencing must be read from code and not from comments.
-Then every way the register stops measuring -- unsorted, duplicated, an unknown
-id that can never retire, an entry that no longer reproduces, a missing ceiling,
-a raised ceiling, a ceiling left high. Declaring max_nodes = 1 disarms the
-hazards, because standalone is a real deployment and not a loophole.
-"""
 
 import os
 import shutil

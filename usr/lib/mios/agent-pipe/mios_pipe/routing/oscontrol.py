@@ -1,22 +1,5 @@
 # AI-hint: OS-CONTROL fast-path responder + window enum/verify helpers extracted VERBATIM from server.py (refactor R9 wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_oscontrol_py.md
-"""OS-control fast-path responder + window enum/verify helpers (refactor R9).
-
-Extracted VERBATIM from ``server.py`` -- the deterministic one-verb OS-control
-action path (``_respond_os_control``) and the window-enumeration / before-after
-diff / launch-verification / anti-fabrication-verdict helpers it owns. Every
-function is moved byte-identically (LIVE hot path: computer-use / launch /
-window-op); their consolidation is NOT in scope. ``server.py`` re-imports every
-name under its original alias so the module's public surface is byte-identical.
-
-Sibling functions (the ``_sse_*`` emitters, the broker ``dispatch_mios_verb``,
-``polish_response``, ``_store_knowledge``, ``loads_lenient``, the DCI critic) are
-imported directly; every server-side symbol the path touches (the ``OS_CONTROL_*``
-config scalars, the ``_OS_CONTROL_ACTION_VERBS`` / ``_LAUNCH_VERBS`` verb sets, the
-conv-key ContextVar, ``_get_client``, ``_scratchpad_note``, the ``_db_*`` helpers,
-``_inline_satisfaction_check``, ``_strip_think_tags``) is injected via
-:func:`configure` (one-way boundary -- this module never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -74,13 +57,6 @@ def configure(*, os_control_launch_verify_s=None, os_control_launch_poll_s=None,
               db_fire=None, db_post=None, db_create=None,
               inline_satisfaction_check=None, strip_think_tags=None,
               fastpath_verbs=None, verb_catalog=None) -> None:
-    """Inject server.py's OS-control config scalars, the verb sets, the conv-key
-    ContextVar and the runtime helpers the fast-path calls back into.
-
-    Callable more than once with a partial set (mios_sched-style): server.py
-    injects ``fastpath_verbs`` / ``verb_catalog`` EARLY (the import-time stage --
-    ``_render_os_control_verbs`` is called at server import) and the remaining
-    runtime deps LATE, once they are all defined."""
     g = globals()
     if os_control_launch_verify_s is not None:
         g["OS_CONTROL_LAUNCH_VERIFY_S"] = os_control_launch_verify_s
@@ -128,12 +104,6 @@ _OSCONTROL_ENDPOINTS_CACHE: Optional[list] = None
 
 
 def _load_oscontrol_endpoints() -> list:
-    """Resolve the cross-desktop window-probe endpoints from the SSOT
-    (vendor /usr/share + /etc/mios + ~/.config). Returns a list of
-    {"label","url"} dicts -- the local-host executor (when set) plus every
-    [os_control.nodes.<name>].endpoint declared with a non-empty URL.
-    Cached once per process; the lazy-load means a build without ANY
-    overlay incurs zero work (returns [])."""
     global _OSCONTROL_ENDPOINTS_CACHE
     if _OSCONTROL_ENDPOINTS_CACHE is not None:
         return _OSCONTROL_ENDPOINTS_CACHE
@@ -202,13 +172,6 @@ async def _remote_enumerate_windows_one(ep: dict,
 
 
 async def _enumerate_windows() -> dict:
-    """Snapshot all open top-level windows. Calls the WSL-side list_windows verb
-    AND every configured cross-desktop executor in parallel ([os_control].
-    executor_endpoint + every [os_control.nodes.*].endpoint), merging the
-    results. Without remote endpoints this collapses to the original WSL-only
-    behavior (vendor empty = no overhead). Returns {"ok", "count", "windows":[...]}
-    with each window carrying a `_source` tag so the diff can attribute opens to
-    a specific desktop. Never raises."""
     async def _local() -> list:
         try:
             res = await dispatch_mios_verb("list_windows", {})
@@ -341,16 +304,6 @@ def _win_hay(w: dict) -> str:
 
 
 async def _center_windows(wins: list) -> list:
-    """Center the given window(s) on their desktop (operator binding
-    'launches are ALWAYS centered -- that should be the default MiOS AI opening
-    pattern'). WSLg / flatpak windows IGNORE Win32 launch-time placement, so we
-    center AFTER the window maps. Picks the LARGEST window per owning executor
-    (the MAIN app window -- a launch also spawns ~11 tiny PopupHost/tooltip
-    windows) and POSTs /window/center to the Windows-native executor that owns
-    it (only executor-sourced windows have movable Win32 hwnds; the WSL
-    list_windows hwnds are a different namespace). The executor's center is a
-    non-blocking async SetWindowPos, so this never stalls the turn. Best-effort;
-    returns the list of centered window titles. Never raises."""
     eps = {e.get("label"): e.get("url")
            for e in _load_oscontrol_endpoints() if e.get("url")}
     if not eps:
@@ -388,14 +341,6 @@ async def _center_windows(wins: list) -> list:
 
 
 def _launch_proc_patterns(args: dict, result: dict) -> list:
-    """Process-name patterns to pgrep for to confirm a launch ACTUALLY started
- ('should JUST search for PIDs globally for
-    verifications'). The robust signal is the PROCESS existing -- WSLg windows
-    carry content titles + proc=msrdc, never the app name, so title/count are
-    unreliable. The launcher echoes the resolved ref ('launching <id>' /
-    'fired <id>' / 'run <id>'); take both the reverse-DNS id AND its lowercased
-    leaf (the bwrap binary, e.g. org.gnome.Epiphany -> 'epiphany'), plus the
-    bare target name as a last-resort weak pattern."""
     pats: list = []
     blob = str(result.get("output") or "") + " " + str(result.get("stderr") or "")
     for m in re.finditer(r'(?:launching|fired|run|exec)\s+([A-Za-z][A-Za-z0-9._+-]{2,})', blob):
@@ -510,17 +455,6 @@ async def _respond_os_control(
     session_id: Optional[str], last_user_text: str,
     persona_system: str = "", emit=None,
 ) -> Any:
-    """OS-control action fast-path. A single concrete
-    app/window/URL action is a DETERMINISTIC one-verb action: fire that ONE
-    verb through the broker, report the REAL verdict, and STOP. NO council
-    fan-out, NO web_search, NO synthesis of fabricated detail -- the failure
-    mode that ran a 4-agent web-search swarm for "Launch Forza" (inventing
-    window coordinates, never stopping after the launch had already
-    succeeded) and narrated a fake tool call for "Close Forza".
-
-    The polish prompt forbids claiming a success the verb's own output does
-    not show (anti-fabrication; mirrors the launch_verified / verify_launch
-    'presented, not merely process-alive' Definition-of-Done rule in SOUL)."""
     _args = args if isinstance(args, dict) else {}
 
     if streaming:

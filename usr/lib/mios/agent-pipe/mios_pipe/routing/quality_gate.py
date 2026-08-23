@@ -53,13 +53,6 @@ def _load_quality_config() -> Dict[str, Any]:
 
 
 def evaluate_quality(output: str, config: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
-    """Evaluate output quality against deterministic rules.
-
-    Returns:
-        (quality_ok: bool, reason: str)
-        If quality_ok is False, smartroute.should_escalate() will trigger escalation.
-        Degrades open (returns True, "degrade_open") on unexpected exceptions.
-    """
     try:
         cfg = config if config is not None else _load_quality_config()
         min_length = int(cfg.get("min_length", _DEFAULT_MIN_LENGTH))

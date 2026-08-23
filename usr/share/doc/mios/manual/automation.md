@@ -121,3 +121,580 @@ Schema rules (bootc-dev/bootc authoritative):
 Exit codes: 0 = pass, 1 = validation failure(s), 2 = usage error.
 
 <!-- mios-src:ad7c112407e8 from automation/validate-kargs.py:4-20 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Overlay...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/local to /var/usrlocal symlink logic and syncing the system version file.
+AI-related: /usr/share/mios/VERSION, /usr/libexec/mios/motd, /usr/libexec/mios/mios-dashboard.sh, /usr/share/mios/mios.toml, mios-dashboard, mios-infra, mios-bootstrap, wsl-init.service
+
+<!-- mios-src:6ab528c3ee27 from automation/01-system-files-overlay.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Enables external DNF repositories (Terra, Kubernetes, ublue-os COPR) for MiOS by fetching .repo files into /etc/yum.repos.d; use this to ensure availability of non-standard packages like kubectl and uupd.
+AI-functions: try_fetch
+
+<!-- mios-src:fd2da0114e6c from automation/06-enable-external-repos.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures PAM via authselect, creates the primary system user with fixed UID 1000, and assigns group memberships (wheel, libvirt, docker) to ensure proper session permissions and container access.
+AI-related: mios-custom, mios-home, mios-wheel, mios-nfs
+
+<!-- mios-src:249acad8a0b5 from automation/11-user.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Sets the...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable mios-XXXXX identifier is generated during the first boot.
+AI-related: mios-XXXXX, mios-init, mios-a3f9c, mios-ws-83427
+
+<!-- mios-src:8a64ccc13d61 from automation/12-hostname.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures the dynamic PostgreSQL-to-OS user account sync service, enabling live account mappings without the packaging-restricted NSS/PAM pgsql modules.
+AI-related: 11-user.sh, schema-init.sql, mios-account-sync.service
+
+<!-- mios-src:1938f88a845f from automation/13-accounts-db.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=dev-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=dev-only
+AI-hint: Configures Podman machine backend compatibility by ensuring the 'core' user exists via sysusers and symlinking essential systemd units like podman.socket and qemu-guest-agent.service for container runtime support.
+AI-related: podman.socket, qemu-guest-agent.service, sshd.service, cloud-init.service, cloud-final.service, multi-user.target
+
+<!-- mios-src:ccf74554c3ad from automation/14-podman-machine-compat.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs FreeIPA and SSSD packages and enables the mios-freeipa-enroll.service; use this script to provision identity management and verify SSSD file capabilities for zero-touch enrollment.
+AI-related: /etc/mios/ipa-enroll.env, mios-freeipa-enroll, mios-freeipa-enroll.service
+
+<!-- mios-src:798634f33f67 from automation/15-freeipa-client.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures GPU drivers by installing Mesa, AMD ROCm, and Intel compute runtimes, while performing a multi-stage check and fallback logic for NVIDIA kernel modules based on the current kernel version.
+AI-related: mios-kver
+
+<!-- mios-src:34a502301b52 from automation/20-hardware.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs and...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs and configures virtualization (KVM/QEMU/Libvirt), container runtimes (Podman/Buildah), Cockpit management, and CrowdSec security tools to establish the core virtualization and containerization stack.
+AI-related: mios-kver, mios-virtio
+
+<!-- mios-src:014912250cf7 from automation/21-virt.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs systemd drop-in files for NVIDIA services to implement ExecCondition guards, ensuring units skip execution if the kernel's nvidia module is not yet registered by akmods/depmod.
+AI-related: mios-akmod-guard, systemd.service
+
+<!-- mios-src:47bd81d6c74a from automation/22-akmod-guards.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures GPU passthrough by symlinking systemd unit files for NVIDIA/AMD/Intel drivers into the multi-user.target.wants directory and enabling the container_use_devices SELinux boolean.
+AI-related: mios-gpu-status, mios-gpu-nvidia, mios-gpu-amd, mios-gpu-intel, multi-user.target, mios-gpu-status.service, mios-gpu-nvidia.service, mios-gpu-amd.service, mios-gpu-intel.service
+
+<!-- mios-src:44c7907f57aa from automation/23-gpu-passthrough.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=dev-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=dev-only
+AI-hint: Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to detect and bridge host-side GPU drivers for Mesa D3D12 and NVIDIA CUDA.
+AI-related: mios-gpu-pv, mios-gpu-pv-detect, mios-gpu-pv-detect.service, display-manager.service, local-fs.target, multi-user.target
+AI-functions: log
+
+<!-- mios-src:62c44b589edb from automation/24-gpu-pv-shim.sh:1-5 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs AMD...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs AMD and Intel vendor-specific CDI (Container Device Interface) generator tools (amd-ctk and intel-cdi-specs-generator) to enable multi-vendor GPU passthrough for container runtimes.
+AI-related: /usr/libexec/mios/intel-cdi-specs-generator, mios-cdi-detect
+
+<!-- mios-src:61ab07be6bdf from automation/25-gpu-cdi-toolkits.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures and enables systemd units for NVIDIA CDI (Container Device Interface) auto-refresh, removes legacy oci-nvidia-hook.json to prevent conflicts, and ensures the GPU runtime environment is correctly wired for container orchestration.
+AI-related: mios-gpu, mios-nvidia-cdi, nvidia-cdi-refresh.service, nvidia-persistenced.service, multi-user.target
+
+<!-- mios-src:7082ca180466 from automation/26-nvidia-cdi-refresh.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures Hyper-V Enhanced Session support by enabling hv_sock, configuring gnome-remote-desktop for Wayland-native RDP via vsock, and gating services like nvidia-powerd and waydroid for VM environments.
+AI-related: mios-container, mios-hyperv-enhanced, mios-grd-setup, mios-no-audit, polkit.service, cockpit.socket, mios-hyperv-enhanced.service, dbus-broker.service, systemd-machined.service, dev-binderfs.mount
+
+<!-- mios-src:6162b1732f52 from automation/27-vm-gating.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Automatically generates Quadlet configuration files (.pod, .container, .network) from the mios.toml SSOT at image build time.
+AI-related: tools/generate-pod-quadlets.py, usr/share/mios/mios.toml, usr/share/containers/systemd/
+
+<!-- mios-src:9dc9177fe79f from automation/33-generate-quadlets.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst, ensuring systemd-compatible container definitions are baked with correct host-specific UIDs, GIDs, and network configs.
+AI-related: /usr/share/mios/kb
+AI-functions: _render_with_envsubst, _render_with_bash
+
+<!-- mios-src:69517bcb5de2 from automation/34-render-quadlets.sh:1-5 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs Ceph client tools and the K3s Kubernetes orchestrator, handling version resolution and offline vendoring to provision the storage and container orchestration layer of the MiOS cluster.
+AI-related: /usr/share/mios/k3s-manifests/, /usr/share/mios/vendored/k3s, /usr/share/mios/vendored/k3s-install.sh, /usr/share/mios/vendored/sha256sum-amd64.txt, /usr/libexec/mios/ceph-bootstrap.sh, mios-ceph-bootstrap, ceph-bootstrap.service, mios-ceph-bootstrap.service, k3s.service, var-home.mount
+
+<!-- mios-src:7087454e58a6 from automation/36-ceph-k3s.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs and enables the moby-engine (Docker) package and its systemd socket to provide container runtime capabilities alongside Podman, resolving package conflicts via the defined moby configuration.
+AI-related: docker.socket
+
+<!-- mios-src:73831ce0344b from automation/39-moby-engine.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures systemd services, enforces cgroup v2 compliance, fixes unit file permissions, and applies environment-specific gating for bare-metal, VM, and WSL2 deployments.
+AI-related: mios-role, bootloader-update.service, podman-auto-update.timer, mios-ceph-bootstrap.service, cockpit.socket, mios-role.service, var-home.mount, var-lib-containers.mount
+
+<!-- mios-src:1886e470b5a4 from automation/41-services.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures firewalld rules via firewall-offline-cmd to open specific TCP ports for MiOS services (Hermes, Open WebUI, Code Server, etc.) based on environment-derived port variables.
+AI-related: mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link, mios-adguard, mios-pxe
+
+<!-- mios-src:e22c1962e7c7 from automation/44-firewall-ports.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures the system firewall by generating a persistent firewalld init script that maps resolved environment ports (SSH, RDP, K3s, Hermes, Open-WebUI) to the firewall's allowed rules.
+AI-related: mios-firewall-init, mios-firewall, mios-hermes, mios-open-webui, mios-code-server, mios-guacamole, mios-forge, mios-cockpit-link
+
+<!-- mios-src:97451191b1b9 from automation/45-firewall.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Configures the host's admin sshd to bind to the SSOT port defined in mios.toml by creating a drop-in config in /etc/ssh/sshd_config.d/ to avoid port conflicts with Forgejo's git-ssh.
+AI-related: mios-forge, mios-ssh-port, mios-forge.container
+
+<!-- mios-src:7bd4f590f328 from automation/46-sshd-port.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Enables core MiOS systemd units (mios-role.service and mios-podman-gc.timer) by creating symlinks in multi-user.target.wants to ensure the Unified Role Engine and podman garbage collection are active.
+AI-related: /usr/libexec/mios/role-apply, mios-role, mios-podman-gc, mios-role.service, mios-podman-gc.timer, multi-user.target
+
+<!-- mios-src:8b902d31f9af from automation/47-init-service.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs the uupd and greenboot packages, enables the uupd.timer, and disables superseded update timers (bootc-fetch-apply-updates and rpm-ostreed-automatic) to configure the system's update mechanism.
+AI-related: uupd.timer, bootc-fetch-apply-updates.timer, rpm-ostreed-automatic.timer, multi-user.target
+
+<!-- mios-src:e9a507001f55 from automation/50-uupd-installer.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Enables and symlinks security services (usbguard, auditd, fapolicyd) into the multi-user.target.wants directory and pre-generates fapolicyd trust databases to harden the system during the build/provisioning phase.
+AI-related: mios-hardening, multi-user.target, usbguard.service, auditd.service, fapolicyd.service
+
+<!-- mios-src:153168e72d02 from automation/51-hardening.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Fixes boot-time failures by restoring execution bits on MiOS binaries, correcting USBGuard permissions, resolving systemd-resolved user mappings, and resolving ordering cycles for GPU passthrough.
+AI-related: mios-role, mios-cdi-detect, mios-gpu-nvidia, mios-role.service, mios-cdi-detect.service, systemd-resolved.service, docker.socket, mios-gpu-nvidia.service, sockets.target, basic.target
+
+<!-- mios-src:36e65d1db3c4 from automation/52-apply-boot-fixes.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Enables the mios-copy-build-log.service systemd unit by creating a symbolic link in multi-user.target.wants to ensure build logs are automatically copied during system startup.
+AI-related: mios-copy-build-log, mios-copy-build-log.service, multi-user.target
+
+<!-- mios-src:b44595063196 from automation/53-enable-log-copy-service.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs Geist and Symbols-Only Nerd Fonts to ensure the MiOS dashboard, oh-my-posh prompt, and TTY surfaces render icons and monospace text correctly across both GUI and headless environments.
+AI-related: /usr/share/mios/vendored/geist-font.zip, /usr/share/mios/vendored/geist-font, /usr/share/mios/vendored/NerdFontsSymbolsOnly.zip, /usr/share/mios/vendored/nerd-symbols.zip, mios-geist, mios-fontconfig
+
+<!-- mios-src:6e3f7f64c911 from automation/56-fonts.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs the...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs the core GNOME 50 desktop environment, including GDM, Wayland portals, and theme consistency for GTK/Qt, while configuring dconf profiles and disabling tracker indexing.
+AI-related: mios-qt-adwaita, mios-cursor-ensure, mios-flatpak-install, mios-flatpak-install.service
+
+<!-- mios-src:7dc75be07690 from automation/57-gnome.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Sets...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Sets executable permissions for the core mios- suite of CLI tools in /usr/bin/ and installs auxiliary scripts like mios-toggle-headless and mios-test to establish the primary MiOS command interface.
+AI-related: /usr/libexec/mios/mios-dashboard.sh, /usr/lib/mios/userenv.sh., /usr/lib/mios/userenv.sh, mios-toggle-headless, mios-test, mios-dashboard, mios-dash, mios-env, mios-sync-env, mios-update
+
+<!-- mios-src:b5779d7e1967 from automation/59-tools.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Captures the...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to be consumed by the mios-flatpak-install tool during boot-time setup.
+AI-related: /usr/lib/mios/env.d, mios-flatpak-install
+
+<!-- mios-src:c18f7d4f3d5f from automation/60-flatpak-env.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs operator-selected Flatpaks into the system image during the build process to ensure the final deployment (ISO, VHDX, etc.) contains the user's chosen desktop applications without requiring a network connection on first boot.
+AI-related: 57-gnome.sh, /usr/share/mios/flatpak-list, /usr/share/mios/vendored/, /usr/lib/mios/state, /usr/lib/mios/state/flatpak-bake.env, mios-flatpak-install
+
+<!-- mios-src:eef939ff9fa7 from automation/61-flatpak-bake.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs the...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs the Oh-My-Posh shell prompt customizer by fetching the latest Go binary from GitHub, placing it in /usr/bin/oh-my-posh for system-wide use by mios-prompt.sh.
+AI-related: mios-prompt.sh, /usr/libexec/mios/oh-my-posh/, mios-prompt
+
+<!-- mios-src:04f27106bae5 from automation/62-oh-my-posh.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs Hyprland tiling compositor, XWayland, window routing helpers, and constructs the base layout configuration inside /usr/share/mios/hyprland/hyprland.conf.
+AI-related: /usr/share/mios/hyprland/hyprland.conf, /usr/bin/hyprland
+
+<!-- mios-src:e6c9ebae303b from automation/65-bake-hyprland.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=bake-only AI-hint: Installs Qt6...
+
+!/bin/bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Installs Qt6 build-time tools, clones the quickshell repository, compiles it, and deploys the default declarative QML panels in /usr/share/mios/quickshell/.
+AI-related: /usr/bin/quickshell, /usr/share/mios/quickshell/Config.qml
+
+<!-- mios-src:912ff3bb34b1 from automation/66-bake-quickshell.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=bake-only AI-hint: Node builder...
+
+!/bin/bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Node builder script to pull the zen-browser surfer repository, download the upstream Firefox codebase, apply structural three-pane browser UI patches, and run native mach compilations.
+AI-related: /usr/bin/mios-webshell, /usr/lib/mios/webshell/, usr/share/mios/mios.toml [colors], usr/share/mios/mios.toml [browser_ai], usr/share/mios/mios.toml [ports]
+
+<!-- mios-src:cad73f3e2437 from automation/67-bake-surfer.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=universal AI-hint: Installs the...
+
+!/bin/bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Installs the unified Hermes-Agent and opencode components into the MiOS agent plane, configuring the shared Python venv, systemd services, and core binaries for direct host-level agent operations.
+AI-related: build.sh, /usr/lib/mios/agents/, /usr/lib/mios/agents/.venv, /usr/lib/mios/agents, /usr/share/mios/vendored/hermes-agent, /usr/share/mios/vendored/hermes-agent.zip, /usr/share/mios/vendored/hermes_agent.whl, /usr/share/mios/vendored/, /usr/share/mios/vendored, /usr/share/mios/hermes/plugins/web/miosfetch
+AI-functions: _BUILD_SPA
+
+<!-- mios-src:744fd1199c21 from automation/72-hermes-agent.sh:1-5 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint: MiOS...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: MiOS AI model-weight bake for BOTH local /v1 lanes -- llama.cpp GGUFs and the vLLM snapshot. Folded from 38-llamacpp-prep + 38-vllm-prep; each block is independently env-gated (MIOS_LLAMACPP_BAKE_MODELS / MIOS_VLLM_BAKE_MODEL), writes a disjoint SEED_DIR, and only appends to sbom/models.tsv.
+AI-functions: (see blocks below)
+
+<!-- mios-src:7fc6bf04d3ec from automation/73-model-prep.sh:1-4 -->
+
+### AI-hint
+
+AI-hint: Bakes GGUF weights into /usr/share/mios/llamacpp/models based on MIOS_LLAMACPP_BAKE_MODELS config to enable the offline mios-llm-light lane; agents use this to ensure local model availability.
+AI-related: /usr/share/mios/llamacpp/models, mios-llm-light, mios-llm-light.container
+
+<!-- mios-src:ee4421af5bf0 from automation/73-model-prep.sh:6-7 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Configures the `prepare-root.conf` file by reading the `[security].composefs_mode` setting from `mios.toml` to enable/disable fs-verity or standard composefs for the root filesystem.
+AI-related: systemd-remount-fs.service
+AI-functions: _read_mios_scalar
+
+<!-- mios-src:045a91dfb64b from automation/77-composefs-verity.sh:1-5 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Enables and symlinks core greenboot systemd services (health checks, grub2 status, and auto-reboot) and sets execution bits on greenboot check scripts to ensure system health monitoring is active.
+AI-related: greenboot-healthcheck.service, greenboot-rpm-ostree-grub2-check-fallback.service, greenboot-grub2-set-counter.service, greenboot-grub2-set-success.service, greenboot-status.service, redboot-auto-reboot.service, multi-user.target
+
+<!-- mios-src:24a3e8afd23f from automation/78-greenboot.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=boot-only AI-hint: Configures...
+
+!/bin/bash
+MIOS_APPLY_CLASS=boot-only
+AI-hint: Configures boot-time console behavior by enabling getty@tty1, serial-getty@ttyS0, and emergency/rescue shells to ensure accessible text consoles and serial access for remote debugging.
+AI-related: mios-console, mios-verbose, tty1.service, emergency.service, rescue.service, ttyS0.service
+
+<!-- mios-src:0a29e4d247a6 from automation/79-boot-config.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Projects the sharded bake-plan files (.list) under /usr/lib/mios/bake/plan.d/
+AI-related: usr/share/mios/mios.toml, tools/generate-bake-plan.py, usr/libexec/mios/mios-bake-group, automation/98-drift-checks.sh
+
+<!-- mios-src:ce75a92321b3 from automation/85-bake-plan.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: BOOT-02 OpenSCAP scan-only build gate. Reads [compliance] from mios.toml; when enabled=true it runs `oscap xccdf eval` against an SSG datastream (explicit [compliance].datastream, else ssg-<os-release ID>-ds.xml located from the installed scap-security-guide RPM) under the configured profile, bakes the ARF + HTML reports into [compliance].report_path (in /usr, not /var), then defers the pass/fail verdict to mios-oscap-gate (counts FAILED rules at/above [compliance].severity_gate). DEFAULT OFF + degrade-open: disabled => exits 0 (complete no-op). Scan-only -- openscap-scanner + scap-security-guide are already in [packages.security]; remediation (oscap-im) is intentionally NOT wired. Runs in build.sh numeric order, before the Containerfile's final `bootc container lint`.
+AI-related: ../usr/libexec/mios/mios-oscap-gate, lib/packages.sh, lib/common.sh, ../usr/share/mios/mios.toml, build.sh, oscap
+
+<!-- mios-src:bd0fff0b1115 from automation/86-oscap-compliance.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=bake-only AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Finalizes the build by applying systemd presets, setting the default boot target, scrubbing credential leaks, purging DNF caches, and generating the MiOS version metadata files in /usr/lib/mios/.
+AI-related: /usr/lib/mios/., /etc/mios/role.conf, /etc/mios/version, mios-version, graphical.target, multi-user.target
+
+<!-- mios-src:df75ba429858 from automation/88-finalize.sh:1-4 -->
+
+### !/bin/bash MIOS_APPLY_CLASS=bake-only AI-hint: Runs Syft to...
+
+!/bin/bash
+MIOS_APPLY_CLASS=bake-only
+AI-hint: Runs Syft to generate CycloneDX + SPDX SBOM manifests into ${MIOS_USR_DIR}/artifacts/sbom. DEGRADE-OPEN: SBOM is build PROVENANCE, never a build-critical gate -- this script must NEVER fail the image build (always exits 0).
+AI-related: mios-sbom, usr/libexec/mios/mios-bake-group (records bound-image digests -> the SBOM provenance), ADR-0003 (SBOM-not-hardcode)
+
+<!-- mios-src:66712f57ae16 from automation/90-generate-sbom.sh:1-4 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: SSOT-render conformance lint -- asserts every ${MIOS_*} placeholder referenced in a Quadlet Exec=/Environment= line has BOTH a typed export/mapping in tools/lib/userenv.sh AND an allowlist entry in automation/34-render-quadlets.sh, so no placeholder silently relies only on its inline shell default (a dead key). Runs standalone or as a build sub-phase; pure bash + grep, no python deps.
+AI-related: ./tools/lib/userenv.sh, ./automation/34-render-quadlets.sh, ./usr/share/containers/systemd, /usr/share/mios/mios.toml
+AI-functions: _norm_refs, _in_userenv, _in_render, main
+automation/97-ssot-lint.sh
+----------------------------------------------------------------------------
+THE META-FIX (W0-T1). The render pipeline (34-render-quadlets.sh) bakes
+${MIOS_*:-default} placeholders in the Quadlet *.container files with the
+values resolved from mios.toml by userenv.sh. For that flow to actually
+carry an operator's mios.toml value through to a running container, a
+placeholder MUST be wired on BOTH ends:
+
+  (a) tools/lib/userenv.sh         -- a typed slot ("section.field","MIOS_X")
+                                      (or an explicit export) that EMITS the
+                                      MIOS_X env var from mios.toml; AND
+  (b) automation/34-render-quadlets.sh -- an allowlist entry (the envsubst
+                                      '${MIOS_X}' list AND/OR the bash-
+                                      fallback `for var in ...` list) so the
+                                      renderer actually substitutes MIOS_X.
+
+A placeholder wired on neither (or only one) end is a DEAD KEY: at render
+time it silently collapses to its inline `:-default`, so editing mios.toml
+does nothing and the value is un-tunable. This lint walks every Quadlet
+Exec=/Environment= line, pulls each referenced ${MIOS_*}, and asserts the
+two-sided wiring. It retroactively catches the known dead keys
+(MIOS_SGLANG_TOOL_PARSER, MIOS_PORT_CPU_NODE, MIOS_CPU_NODE_THREADS, ...).
+
+Default behaviour: emit a per-key error for every orphan and exit 1 if any
+orphan is found (so it can fail a CI/build step). It NEVER mutates anything
+-- read-only static analysis. Set MIOS_SSOT_LINT_SOFT=1 to report orphans
+but still exit 0 (advisory mode, e.g. while a fix is staged).
+
+Usage:
+  automation/97-ssot-lint.sh              # lint, exit 1 on any orphan
+  MIOS_SSOT_LINT_SOFT=1 automation/97-ssot-lint.sh   # advisory (exit 0)
+  MIOS_SSOT_LINT_ROOT=/path automation/97-ssot-lint.sh  # override repo root
+
+User-agnostic: no User=/uid assumptions, no network, no python.
+----------------------------------------------------------------------------
+
+<!-- mios-src:9754d3acf372 from automation/97-ssot-lint.sh:1-40 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Source-tree drift fitness-functions (WS-0A). Read-only static analysis over the repo (== system root) that FAILS on AI-plane SSOT drift no other gate catches: a retired local Ollama lane in active config, a retired model-id (gemma4 / qwen3:1.7b) hardcoded in a
+AI-related: 99-postcheck.sh, build.sh, /usr/libexec/mios/mios-ai-hint-coverage, /usr/share/mios/mios.toml, /usr/share/mios/ai/v1, /usr/share/mios/ai, /etc/mios/ai, /usr/lib/mios/agent-pipe, /usr/share/mios/ai/v1/packages, /usr/libexec/mios/mios-registry
+AI-functions: python3, _violation, check_dead_lane, check_retired_models, check_structured, check_hint_coverage, check_module_boundary, check_rbac_tiers, check_agent_schema, check_ai_manifest, check_package_registry, check_cli_sql_safety
+MIOS_DRIFT_CHECK_SOFT=1 to report but exit 0 (advisory, while a fix is staged).
+
+<!-- mios-src:afe8cb3c5178 from automation/98-drift-checks.sh:1-6 -->
+
+### !/usr/bin/env bash MIOS_APPLY_CLASS=universal AI-hint...
+
+!/usr/bin/env bash
+MIOS_APPLY_CLASS=universal
+AI-hint: Final build-time validation script that enforces mandatory security invariants, such as OpenSSH version minimums and Cockpit configuration checks, to abort the build if the image is insecure or non-compliant.
+AI-related: /usr/share/mios/ai, /etc/mios/ai, mios-ceph, mios-k3s, wsl-init.service
+AI-functions: _sysusers_effective, _gid_in_etc_group
+
+<!-- mios-src:845010814b0e from automation/99-postcheck.sh:1-5 -->
+
+### !/bin/bash AI-hint: Initializes the MiOS build environment...
+
+!/bin/bash
+AI-hint: Initializes the MiOS build environment by prompting for/loading configuration variables, GitHub PATs, and admin credentials to prepare the local environment for the installation and staging phases.
+AI-related: mios-pipeline, mios-build, mios-install-XXXXXX
+
+<!-- mios-src:cb645fc17b62 from automation/bootstrap.sh:1-3 -->
+
+### !/bin/bash AI-hint: This script is the primary installation...
+
+!/bin/bash
+AI-hint: This script is the primary installation and ignition tool for MiOS; an agent uses it to clone the MiOS repository and merge its components into the Fedora Server root filesystem.
+AI-related: /usr/share/mios/mios.toml.example., /etc/mios/install.env, mios-ignition, localhost:8080
+AI-functions: log, log_warn, log_error, log_info, show_banner, collect_user_config, check_prerequisites, install_dependencies, fetch_mios_repo, queue_environment_files, merge_mios_structure, create_user_account
+
+<!-- mios-src:04791f399af5 from automation/build-mios.sh:1-4 -->
+
+### !/bin/bash AI-hint: This script is the primary build runner...
+
+!/bin/bash
+AI-hint: This script is the primary build runner for MiOS, managing the build lifecycle by parsing `mios.toml` configurations, enforcing environment constraints, and rendering a TTY-safe ASCII progress UI for the build process.
+AI-related: /etc/mios/mios.toml, /usr/share/mios/mios.toml, mios-bootstrap, mios-build, mios-step, packagekit.service
+AI-functions: _pad, _hline, _row, _progress_bar, _step_header, _step_result, _section_header, _progress_frame, _fail_report, _warn_report, _final_summary
+
+<!-- mios-src:3a7c439788e2 from automation/build.sh:1-4 -->
+
+### !/usr/bin/env bash AI-hint: Executes the full MiOS system...
+
+!/usr/bin/env bash
+AI-hint: Executes the full MiOS system bootstrap to transform a bare Fedora host into a complete MiOS workstation by installing all core components, configuring FHS paths, and setting up the environment.
+AI-related: packages.sh, /usr/share/mios/mios.toml, mios-dev, mios-stage-XXXXXX
+AI-functions: log_info, log_ok, log_warn, log_err, log_phase, require_root, detect_host_kind, check_network, prompt_default, prompt_password, prompt_yesno, main
+
+<!-- mios-src:4ebf3210e5a8 from automation/install-bootstrap.sh:1-4 -->
+
+### !/usr/bin/env bash...
+
+!/usr/bin/env bash
+MIOS_INSTALLER_ROLE=fhs-overlay-installer
+AI-hint: Installs the MiOS FHS overlay onto non-bootc Fedora hosts by syncing usr/etc/var/srv directories, materializing /v1 symlinks, and initializing systemd users, tmpfiles, and services.
+AI-related: install.sh
+
+<!-- mios-src:9423ab4cd7be from automation/install-fhs.sh:1-4 -->
+
+### !/usr/bin/env bash...
+
+!/usr/bin/env bash
+MIOS_INSTALLER_ROLE=container-build-installer
+AI-hint: Thin redirector to install-fhs.sh -- the single FHS-overlay installer for non-bootc Fedora hosts (rsyncs usr/etc/var/srv onto /, materializes /v1, runs sysusers/tmpfiles, reloads systemd). install.sh and install-fhs.sh were byte-identical; deduped to ONE implementation. Superseded by `mios-apply fhs-host` once the unified git=$ROOT engine lands.
+
+<!-- mios-src:3b89614343c1 from automation/install.sh:1-3 -->
+
+### !/usr/bin/env bash AI-hint: Python py_compile +...
+
+!/usr/bin/env bash
+AI-hint: Python py_compile + undefined-name gate over EVERY tracked Python file in the repo (git ls-files, plus extensionless python-shebang entry points; rendered templates excluded). Directory-by-directory enumeration is what let the canonical OWUI pipe sit outside the gate while it did not import at all.
+
+<!-- mios-src:e1f1e6bbbcc4 from automation/lint-python.sh:1-2 -->
+
+### AI-hint
+
+AI-hint: Idempotent PowerShell script to provision a rootful Podman machine named 'mios-builder' with full host CPU/RAM/GPU passthrough and nvidia-container-toolkit setup for Windows-based MiOS builds.
+AI-related: mios-builder, mios-bootstrap, mios-dev, mios-build-builder
+AI-functions: Log, Warn, Die, Invoke-MachineSSH
+Requires -Version 7.1
+
+<!-- mios-src:1c20ee661e49 from automation/mios-build-builder.ps1:1-4 -->
+
+### !/usr/bin/env bash AI-hint: Configures the MiOS-DEV podman...
+
+!/usr/bin/env bash
+AI-hint: Configures the MiOS-DEV podman machine by syncing system files, creating service users, setting up tmpfiles, and configuring subuid/subgid to mirror a production MiOS environment for hosting Quadlets.
+AI-related: /usr/lib/mios/logs, mios-forge, mios-guacamole, mios-pxe-hub, mios-crowdsec, mios-guacd, mios-postgres, mios-virt, mios-tmpfiles-prereq
+AI-functions: _rsync_in
+
+<!-- mios-src:55c281841172 from automation/overlay-builder.sh:1-4 -->
+
+### !/usr/bin/env python3 AI-hint: Validates .toml files in...
+
+!/usr/bin/env python3
+AI-hint: Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture matching, and no forbidden table headers.
+AI-functions: _github_error, _github_warning, validate_file, _emit, collect_files, main
+
+<!-- mios-src:eb7085e80097 from automation/validate-kargs.py:1-3 -->
+

@@ -1,21 +1,5 @@
 # AI-hint: WS-A5 rolling-summary compaction planner for the agent-pipe. When a conversation's message history exceeds a token budget, plan_compaction...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_compact_py.md
-"""mios_compact -- rolling-summary compaction planning (WS-A5, the AIOS
-Context-Manager history-compaction layer).
-
-Pure stdlib (measures tokens via mios_tokenize). server.py owns the actual
-summary generation (an LLM call) + applying the plan; this module owns the
-deterministic decision: given a history + a token budget, keep the most recent
-messages (and pinned system messages) verbatim, and mark the oldest overflow for
-summarization so the prompt fits.
-
-Why keep-recent-verbatim
-========================
-Recent turns carry the live task state; summarizing them loses fidelity. Older
-turns compress well into a rolling summary. So compaction always preserves the
-last `keep_recent` non-system messages + every system message, and only the
-OLDEST messages beyond the budget are folded.
-"""
 
 from __future__ import annotations
 
@@ -47,14 +31,6 @@ class CompactionPlan:
 
 def plan_compaction(messages: List[dict], budget: int, *,
                     keep_recent: int = 4, keep_system: bool = True) -> CompactionPlan:
-    """Decide the compaction split for `messages` under `budget` tokens.
-
-    - System messages are kept verbatim when keep_system (they carry the
-      contract/grounding).
-    - The last `keep_recent` non-system messages are always kept (live state).
-    - Older non-system messages are kept only while the running total fits the
-      budget; the rest (OLDEST first) are marked to_summarize.
-    needed=False (no-op) when the whole history already fits the budget."""
     msgs = [m for m in (messages or []) if isinstance(m, dict)]
     total = mios_tokenize.count_messages(msgs)
     if total <= max(0, int(budget)):

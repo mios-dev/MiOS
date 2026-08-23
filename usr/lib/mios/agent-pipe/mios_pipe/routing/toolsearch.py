@@ -1,25 +1,5 @@
 # AI-hint: Embedding TOOL/APP semantic-search core extracted verbatim from server.py (refactor R10 toolsearch wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_toolsearch_py.md
-"""Embedding-backed tool/app semantic search for the agent-pipe surface.
-
-Extracted verbatim from ``server.py`` (refactor R10). Holds the cosine retrieval
-core for ``GET /v1/tool-search`` (native verbs + external MCP tools, RAG-MCP
-progressive disclosure) and ``GET /v1/app-search`` (the installed-app inventory):
-the lazy, fingerprint-keyed verb-embedding cache and its disk persistence, the
-per-MCP-tool embedder, and the app-inventory refresh/embed loop. Both routes stay
-in ``server.py`` as thin wrappers calling :func:`tool_search_logic` /
-:func:`app_search_logic` here.
-
-The cosine metric (``_cosine``) and the verb embed-text / fingerprint helpers are
-owned here now (maximally cohesive with the verb-embedding cache). Only the
-per-vector embedder ``_embed_one`` stays server-resident -- it drives the HTTP
-embed lane via the injected client -- and is injected via :func:`configure`,
-together with the HTTP client factory, the verb catalog, the MCP-client registry +
-lock, and the lenient JSON loader. This module never imports ``server`` (one-way
-boundary, 98-drift-checks check 6); ``server.py`` re-imports every moved name under
-its original alias (and re-injects the cosine / verb-embed helpers into the other
-planes that depend on them) so the importable surface is byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -495,12 +475,6 @@ toolsearch_router = APIRouter()
 @toolsearch_router.get("/v1/tool-search")
 async def tool_search(query: str = "", limit: int = 5, namespace: str = "",
                       tier: str = "", detail_level: str = "full") -> JSONResponse:
-    """Find verbs + external MCP tools by natural-language query (cosine over the verb
-    and MCP embeddings; substring fallback when embeddings are down). P3 progressive
-    disclosure: optional `namespace` (e.g. browser_/duckdb_/pg_) and `tier`
-    (core/common/rare) FILTERS to scope a large catalog, and `detail_level` --
-    full (name+sig+desc+tier+namespace, the back-compat default) | brief (name+desc+tier)
-    | names (name only) -- to trade tokens for breadth. Embeddings cached after first use."""
     return await tool_search_logic(
         query=query, limit=limit, namespace=namespace, tier=tier,
         detail_level=detail_level)

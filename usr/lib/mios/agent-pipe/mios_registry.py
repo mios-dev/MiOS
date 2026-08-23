@@ -1,20 +1,5 @@
 # AI-hint: WS-A17 versioned agent/tool package format + local registry projection.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_registry_py.md
-"""mios_registry -- versioned package + local registry projection (WS-A17, the
-AIOS agent/tool packaging layer).
-
-Pure stdlib. A "package" is a versioned, self-describing wrapper around ONE
-capability the live SSOT already defines -- a verb/tool, an agent, or a recipe.
-The registry INDEX is a flat catalogue of those packages keyed by
-author/name/version. Both are deterministic projections of the live catalogs
-(the same ones WS-A1 projects), so the whole thing is a materialized SSOT
-mirror, gated behind [ai].package_registry (ships inert -> nothing emitted, the
-drift gate is a trivial pass).
-
-Path layout (when materialized):
-    ai/v1/packages/<author>/<name>/<version>/mios-pkg.toml   (per-package manifest)
-    ai/v1/packages/registry.json                              (the index)
-"""
 
 from __future__ import annotations
 

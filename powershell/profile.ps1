@@ -1,20 +1,4 @@
-﻿# MiOS PowerShell profile -- PSReadLine reload + fastfetch MOTD +
-# oh-my-posh init.
-# Source of truth: this file lives on M:\ and is dot-sourced from
-# $PROFILE.CurrentUserAllHosts AND from the WT MiOS profile's
-# explicit -Command preamble (so it ALWAYS runs in MiOS terminals,
-# even when the operator's C:\Users\mios\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1 has its own broken oh-my-posh
-# init that would otherwise override ours).
-# Self-heals every artifact (mios.omp.json, fastfetch config.jsonc,
-# mios.txt ASCII logo) from embedded base64 blobs if the canonical
-# disk copy is missing.
 
-# ONCE-PER-SESSION GUARD. This script is dot-sourced from BOTH
-# (a) the redirector in $PROFILE.CurrentUserAllHosts AND
-# (b) the WT MiOS profile's -Command preamble.
-# Without this guard, both pathways fire Show-MiosDashboard +
-# oh-my-posh init -- the operator sees TWO stacked framed
-# dashboards. Session-scoped flag short-circuits subsequent calls.
 if ($Global:MiosProfileLoaded) { return }
 $Global:MiosProfileLoaded = $true
 
@@ -25,35 +9,11 @@ if ($env:Path -notlike "*C:\Program Files\WinGet\Links*") {
     $env:Path += ";C:\Program Files\WinGet\Links"
 }
 
-# -- UTF-8 codepage + Console encoding ------------------------------
-# Operator-reported regression: powerline glyphs (U+E0B4 etc.) rendered
-# as 'î' mojibake -- WT was decoding the UTF-8 bytes as cp1252 because
-# this profile body wasn't setting chcp 65001 / Console.OutputEncoding.
-# Setting both ensures every glyph oh-my-posh emits to stdout renders
-# as the correct PUA cap, not the cp1252-mangled multi-char sequence.
 try { & chcp.com 65001 *> $null } catch {}
 try { [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
 try { [Console]::InputEncoding  = [System.Text.UTF8Encoding]::new($false) } catch {}
 try { $OutputEncoding = [System.Text.UTF8Encoding]::new($false) } catch {}
 
-# -- Window resize + center (every MiOS pwsh) --------------------
-# Dimensions sourced from mios.toml [terminal] (cols/rows/
-# scrollback_rows). Per feedback_mios_terminal_dimensions every
-# MiOS-spawned window opens at the configured size centered on
-# the active monitor. Apply BEFORE any output paints so the
-# operator never sees a default-sized window briefly before the
-# resize. Idempotent -- a second pass via the inner script
-# (Pass-2 elevation) is a no-op.
-#
-# IMPORTANT GATE: only resize when we're actually in the MiOS APP
-# context (i.e. the WT MiOS profile launched us). Otherwise -- if a
-# child pwsh during BOOTSTRAP/INSTALL accidentally loads this profile
-# via $PROFILE.CurrentUserAllHosts redirector -- the resize shrinks
-# the operator's 80x40 install conhost down to the 80x20 MiOS-app
-# size mid-install. Operator-reported regression: "window changes to
-# the MiOS Global sizes of 80x20 somewhere in the middle of the
-# installations". $env:MIOS_APP_CONTEXT is set ONLY by the WT MiOS
-# profile commandline (see Install-MiOSTerminalProfile in Get-MiOS.ps1).
 if ($env:MIOS_APP_CONTEXT) {
     try {
         $_curW = [Console]::WindowWidth
@@ -91,35 +51,14 @@ if ($env:MIOS_APP_CONTEXT) {
     } catch {}
 }
 
-# NO TERMINAL-TYPE GATE. Always run the PSReadLine reload + oh-my-
-# posh init. The WT_SESSION gate on the previous version was
-# silently skipping the init when WT didn't set the env var early
-# enough -- producing the "theme works in normal terminal but not
-# MiOS Terminal" symptom. fastfetch is gated separately below
-# since its ASCII rendering only makes sense in a real terminal.
 if ($true) {
 
-    # -- Import terminal completion modules ------------------------
-    # Silent best-effort: each module is imported if installed,
-    # skipped if not. Operator gets icon-aware ls (Terminal-Icons),
-    # git tab-completion (posh-git), AI-style prediction
-    # (CompletionPredictor), and command-not-found suggestions
-    # (Microsoft.WinGet.CommandNotFound).
     foreach ($mod in @('Terminal-Icons','posh-git','CompletionPredictor','Microsoft.WinGet.CommandNotFound')) {
         if (Get-Module -ListAvailable -Name $mod -ErrorAction SilentlyContinue) {
             try { Import-Module $mod -ErrorAction SilentlyContinue } catch {}
         }
     }
 
-    # -- PSReadLine reload -----------------------------------------
-    # PowerShell 7.x ships with an in-box PSReadLine that's too old
-    # for oh-my-posh init's Get-PSReadLineKeyHandler -Chord syntax.
-    # Updating PSReadLine on disk (Install-Module) doesn't help the
-    # CURRENT session because PSReadLine is autoloaded BEFORE the
-    # profile runs. Force-import the newest installed version here
-    # so oh-my-posh init's PSReadLine integration doesn't throw
-    # "A positional parameter cannot be found that accepts argument
-    # 'Spacebar'/'Enter'/'Ctrl+c'".
     try {
         $latestPSRL = Get-Module -ListAvailable -Name PSReadLine |
                        Sort-Object Version -Descending | Select-Object -First 1
@@ -128,13 +67,6 @@ if ($true) {
         }
     } catch {}
 
-    # -- Resolve / self-heal MiOS artifact paths -------------------
-    # M:\-everywhere invariant (operator: "irm|iex sets up M:\
-    # disk/partition installs EVERYTHING to M:\ EVERYTHING").
-    # M:\ is created at install time and never removed at runtime;
-    # if it's missing, the install never completed and the operator
-    # needs to re-run irm|iex.  The profile body falls back to a
-    # warn rather than silently splitting state across drives.
     $miosArtifactRoot = 'M:\MiOS'
     if (-not (Test-Path -LiteralPath $miosArtifactRoot)) {
         Write-Host "  [!] M:\MiOS not found -- re-run the irm|iex bootstrap to provision M:\." -ForegroundColor Yellow
@@ -173,18 +105,6 @@ if ($true) {
     # properly in WT (conhost / VS Code embedded shell mangles it).
     function Show-MiosDashboard {
         param([string]$ConfigPath, [string]$LogoPath, [switch]$Full)
-        # Width adapts to LIVE terminal width every render so the dashboard
-        # always renders edge-to-edge. "dashboards
-        # should be edge to edge globally!! 80x20 window is the Global
-        # benchmark!" + "opening MiOS app and using things like fastfetch
-        # and btop--things that clear the screen; ends up fitting the
-        # dashboards in the same original window and tab--eventually".
-        #
-        # First-render timing: at session start, WT hasn't settled the
-        # cell count yet. Solution: poll WindowWidth up to 5x with a
-        # 50ms gap until it stabilizes (two consecutive reads agree),
-        # then use the stable value. After fastfetch/btop run, WT has
-        # fully settled and subsequent renders read correctly.
         $_widthA = 0; $_widthB = 0
         for ($_i = 0; $_i -lt 5; $_i++) {
             $_widthB = $_widthA
@@ -199,18 +119,6 @@ if ($true) {
         }
         $_winWNow = if ($_widthA -gt 0) { $_widthA } else { 80 }
         $WIDTH = $_winWNow - 0
-        # Cap to mios.toml [terminal].frame_width (SSOT). WT's
-        # WindowWidth poll is unreliable during the first ~200ms after
-        # spawn -- it can return a value 4-8 cells wider than the
-        # final viewport (focus-mode + acrylic backdrop allocation
-        # haven't settled). Without this cap, host_os/CPU/font lines
-        # render at the inflated WIDTH, then WT re-sizes the buffer
-        # narrower, and every overflowing line wraps -- pushing the
-        # top frame off-viewport. Capping to the toml value (the
-        # operator-declared "this is what 80x20 means") guarantees
-        # the dashboard never renders wider than the declared frame.
-        # Operator-flagged "ie..." / "on..." wraps in
-        # MiOS-WIN dashboard with top frame clipped off-screen.
         if (80 -gt 0 -and $WIDTH -gt 80) {
             $WIDTH = 80
         }
@@ -223,19 +131,6 @@ if ($true) {
         # fastfetch `mios dash` view showed). String repeat gives the border.
         $TL=[char]0x256d; $TR=[char]0x256e; $BL=[char]0x2570; $BR=[char]0x256f; $LT=[char]0x251c; $RT=[char]0x2524; $V=[char]0x2502; $H=[string][char]0x2500
 
-        # Uniform frame color -- per "make the
-        # entire frame 1 uniform colour--make it a complimenting colour
-        # to the windows colour that's sourced from the toml fields that
-        # are relevant to MiOS's color palette colours". MiOS canonical
-        # accent (mios.toml [colors].accent + [branding.dashboard].frame_color)
-        # is operator-blue (#1A407F = ANSI 34 = [ConsoleColor]::Blue).
-        # Embed ANSI 34 around every $V border so the per-content rows
-        # render their borders in the SAME color as the standalone
-        # top/divider/bottom Write-Host calls (which use
-        # -ForegroundColor Blue). Without this, _Frame/_Center returned
-        # a plain string that Write-Host emitted in the inherited
-        # foreground (often cream from the MiOS scheme), making per-row
-        # borders visually different from top/divider/bottom borders.
         $_esc      = [char]27
         $_FrameC   = "$_esc[34m"
         $_FrameR   = "$_esc[0m"
@@ -261,22 +156,6 @@ if ($true) {
             "$_FrameC$V$_FrameR $lpad$Line$rpad$_FrameC $V$_FrameR"
         }
 
-        # Total budget: frame_height rows total. Layout:
-        #   1 top frame
-        #   logo block       (compact: 0-1 row -- title only;
-        #                     full:    N-row ASCII when budget allows)
-        #   1 divider
-        #   fastfetch block  (paired -- two modules per row)
-        #   1 divider
-        #   hints block      (compact: 1 line; full: 1-line-per-verb)
-        #   1 bottom frame
-        # Per operator: dashboard MUST fit in 80x20 (= frame_height 19).
-        # Compact mode kicks in when frame_height < 25.
-        # -Full (the `mios dash` view) forces the banner/logo full layout to
-        # match the Linux `mios dash`. Otherwise compact when the window is too
-        # short to fit the logo + every section (the 80x20 `mios mini`). The
-        # previous `19 -lt 25` was a hardcoded literal that was ALWAYS true, so
-        # the full framed view was unreachable -- read the live window height.
         $_winH = try { [Console]::WindowHeight } catch { 0 }
         if ($_winH -le 0) { $_winH = try { $Host.UI.RawUI.WindowSize.Height } catch { 0 } }
         $_compact = if ($Full) { $false } elseif ($_winH -gt 0) { $_winH -lt 25 } else { $true }
@@ -306,12 +185,6 @@ if ($true) {
         # Top frame.
         Write-Host ($TL + ($H * ($WIDTH - 2)) + $TR) -ForegroundColor Blue
         if ($_compact) {
-            # 1-line title band -- resolves through mios.toml [dashboard].title
-            # at runtime so the configurator HTML edits flow through to the
-            # next render.  Vendor default is the technical descriptor
-            # ("MiOS  --  Immutable Fedora AI Workstation"); operators who
-            # want the friendly "My Personal Operating System" face on the
-            # dashboard subtitle override [dashboard].title via mios.html.
             $title = 'MiOS  --  My Personal Operating System'
             if ($_dashTomlText) {
                 $_titleM = [regex]::Match($_dashTomlText, '(?ms)^\[dashboard\]\s*\r?\n.*?^\s*title\s*=\s*"([^"]+)"')
@@ -320,12 +193,6 @@ if ($true) {
             Write-Host (_Center $title) -ForegroundColor Blue
         }
         elseif ($LogoPath -and (Test-Path -LiteralPath $LogoPath)) {
-            # Centered ASCII logo (operator-blue). Center the BLOCK (not
-            # each line individually) -- the logo's internal alignment
-            # depends on each line's leading whitespace.
-            # Skip the AI-tagging `#` header lines the logo file carries (the
-            # Linux dashboard skips ^# too) so the banner -- not a comment --
-            # renders.
             $logoLines = @(Get-Content -LiteralPath $LogoPath) | Where-Object { $_ -ne $null -and $_ -notmatch '^\s*#' }
             # The full view (mios dash) shows the whole banner to match the
             # Linux dash; only the compact window path caps to the frame_height.
@@ -347,21 +214,6 @@ if ($true) {
         # Divider.
         Write-Host ($LT + ($H * ($WIDTH - 2)) + $RT) -ForegroundColor Blue
 
-        # -- Compact metric rows ---------------------------------
-        # Driven by mios.toml [dashboard].rows -- side-by-side fields
-        # per row keep the dashboard at ~5 metric rows so 80x20 leaves
-        # ample room for the prompt and command output.  Per operator
-        # "the dash is set GLOBALLY to Windows and Linux
-        # dashboards!! same settings!!! ... smaller metric can be
-        # side-by-side in the dash; freeing up more room for the
-        # prompt field."  The Linux-side mios-dashboard.sh reads the
-        # same [dashboard] section.
-        #
-        # Field renderers fetch values via Get-CimInstance (single-
-        # cached) / Get-Volume / $PSVersionTable.  They each return a
-        # short labeled string ("CPU AMD Ryzen 9 9950X3D 5.75GHz (32c)").
-        # Unknown field-keys are silently skipped so the dashboard
-        # is forward-compatible with future mios.toml additions.
         $_dashCache = @{}
         $_DashGetField = {
             param([string]$_k, [string]$_fontFam, [int]$_fontSz)
@@ -371,13 +223,6 @@ if ($true) {
                         $_dashCache['_os'] = try { Get-CimInstance Win32_OperatingSystem -ErrorAction Stop } catch { $null }
                     }
                     $_o = $_dashCache['_os']
-                    # Compact OS caption: strip Microsoft prefix, the
-                    # "for Workstations" SKU suffix, "Insider Preview"
-                    # marketing, "(64-bit)" arch (it's redundant -- the
-                    # arch line covers it), and trailing whitespace.
-                    # Operator-flagged "Windows 11 Pro for
-                    # Workstations Insider Preview" overflowed the 80x20
-                    # frame and wrapped, pushing the top frame off-screen.
                     $_cap = if ($_o -and $_o.Caption) { (((((($_o.Caption -replace 'Microsoft\s*','') -replace '\s+for\s+Workstations','') -replace '\s+Insider\s+Preview','') -replace '\s*\(64-?bit\)','') -replace '\s*N\s+Edition','')).Trim() } else { 'Windows' }
                     return "$env:USERNAME@$env:COMPUTERNAME -- $_cap".Trim()
                 }
@@ -434,12 +279,6 @@ if ($true) {
                     return "Swap ${_use} / ${_tot}GiB (${_pct}%)"
                 }
                 {$_ -match '^disk_([a-zA-Z])$'} {
-                    # PowerShell switch with regex condition matches but
-                    # does NOT reliably populate $Matches in the action
-                    # block scope -- saw disk_c : err
-                    # in the dashboard because $Matches[1] was \ and
-                    # $_dl came back empty.  Parse the letter from $_
-                    # directly via Substring instead.
                     $_dl = $_.Substring(5,1).ToUpper()
                     $_v  = try { Get-Volume -DriveLetter $_dl -ErrorAction Stop } catch { $null }
                     if (-not $_v) { return "${_dl}: --" }
@@ -515,12 +354,6 @@ if ($true) {
             if ($_colW -lt 8) { $_colW = 8 }
             $_cells = @()
             foreach ($_fk in $_row) {
-                # Try/catch per-field so a single broken renderer
-                # (e.g. Get-Volume not available, lspci missing) doesn't
-                # kill the whole loop -- saw the
-                # dashboard render only the first 3 rows and bail because
-                # the disk_c renderer's Get-Volume call raised in a
-                # context where the Storage module wasn't loaded.
                 $_val = ''
                 try {
                     $_val = & $_DashGetField $_fk $_dashFontF $_dashFontS
@@ -542,13 +375,6 @@ if ($true) {
                 Write-Host (_Frame "  [dashboard row render failed]")
             }
         }
-        # -- MiOS services block ----------------------------------
-        # Resolve the dev distro ONCE, and only if it is ALREADY RUNNING, via a
-        # fast `wsl --list --running` check (WSL_UTF8 so the names aren't UTF-16
-        # with embedded NULs). This never cold-boots a stopped distro -- the
-        # service + dev-shell bridges below reuse $_devDistro, so on every
-        # terminal spawn a stopped/absent MiOS-DEV degrades open INSTANTLY
-        # instead of blocking the prompt on a login-shell that triggers a boot.
         $_devDistro = $null
         if (Get-Command wsl.exe -ErrorAction SilentlyContinue) {
             try {
@@ -562,12 +388,6 @@ if ($true) {
             } catch {}
         }
 
-        # Live UNIFIED service table -- bridged from the ONE Linux renderer
-        # (mios-dashboard.sh --table-only/--endpoints-only) via wsl, so BOTH
-        # dashboards show the SAME live services (pods/containers/host units +
-        # SSOT ports) from a single source: no hardcoded service/port list, no
-        # drift. Full `mios dash` -> fuller UNIFIED table; compact `mios mini`
-        # (80x20) -> compact endpoint table, exactly as the Linux dash vs mini.
         Write-Host ($LT + ($H * ($WIDTH - 2)) + $RT) -ForegroundColor Blue
         $_svcMode = if ($Full) { '--table-only' } else { '--endpoints-only' }
         $_svcLines = $null
@@ -583,12 +403,6 @@ if ($true) {
             Write-Host (_Frame "  $_esc[90m[services: MiOS-DEV distro not running -- start with: mios dev]$_esc[0m") -ForegroundColor Blue
         }
 
-        # -- Command hints rows -----------------------------------
-        # Verb list resolves through mios.toml [verbs] at RUNTIME (SSOT).
-        # The dashboard re-reads on every render so an operator edit via
-        # mios.html flows mios.toml -> dashboard immediately. No hard-
-        # coding here. Vendor fallback only if every TOML candidate is
-        # missing (cold first-run before M:\ overlay is staged).
         $_verbDefs = @(
             @{ name='build';  desc='open mios.html, save, then build the OCI image' },
             @{ name='config'; desc='edit mios.toml in the HTML configurator (no build)' },
@@ -635,13 +449,6 @@ if ($true) {
         # Bottom frame.
         Write-Host ($BL + ($H * ($WIDTH - 2)) + $BR) -ForegroundColor Blue
 
-        # LIVE, copy-pasteable "SSH from this Windows host into the code-server
-        # dev container at the MiOS root tree". Sourced from the SAME SSOT
-        # helper the Linux dashboard uses (mios-ssh-dev-cmd), run inside the dev
-        # distro via a LOGIN shell so it sees the rootful podman -- so the two
-        # dashboards never drift. Printed UNFRAMED below the box so the long
-        # command is never truncated and stays copyable in full. The distro is
-        # probed from the same candidate list the rest of this profile uses.
         try {
             $_devCmd = $null
             if ($_devDistro) {
@@ -654,27 +461,7 @@ if ($true) {
         } catch {}
     }
 
-    # NO inline-render here. The profile body is a thin function-
-    # definition layer; the "what shows up on terminal spawn" is
-    # whatever verb mios.toml [terminal.startup].windows points at.
-    # The dispatch fires AT THE END of this profile (after the mios
-    # verb function is defined). See the [terminal.startup] block
-    # below the function definitions.
-    # "have the bash and pwsh/WT environment/
-    # dotfile(s) automatically run mios dash on open/launch--NOT
-    # PRINT ON LAUNCH!!! THE ACTUAL ENV/DOTFILE(S) SHOULD DICTATE THE
-    # COMMANDS/VERBS AND WHATS RUN ON CONSOLE SPAWN(ALL PLATFORMS
-    # GLOBALLY)--ALL SOURCED FROM THE MIOS.TOML"
 
-    # -- oh-my-posh init -------------------------------------------
-    # Capture the init script output, then regex-patch the broken
-    # positional Get-PSReadLineKeyHandler calls. Older oh-my-posh
-    # versions emit Get-PSReadLineKeyHandler Spacebar etc. -- which
-    # NO PSReadLine version accepts (the cmdlet's parameter binder
-    # has no positional [string]). Latest oh-my-posh emits -Chord
-    # <key>. We inject -Chord even when running latest, since it's
-    # idempotent (latest already has it). This makes oh-my-posh's
-    # PSReadLine integration work regardless of installed version.
     if (Get-Command oh-my-posh -ErrorAction SilentlyContinue) {
         # Shell-aware: oh-my-posh init pwsh emits PS 7+ syntax that
         # FAILS silently in Windows PowerShell 5.1, leaving the
@@ -694,34 +481,12 @@ if ($true) {
     }
 }
 
-# -- MiOS commands ---------------------------------------------------
-# Defined in EVERY pwsh session (not gated on WT_SESSION) so the
-# operator can run mios-build / mios-update / mios-help from any shell.
-# Each command fetches its target script fresh from
-# raw.githubusercontent.com so the operator doesn't have to manually
-# pull the mios-bootstrap repo. Cache-busting via ?cb=<unix-time>
-# defeats Fastly's 5-minute max-age.
 
 $Script:MiosBootstrapRaw = 'https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main'
 
 function mios-build {
     [CmdletBinding()]
     param([Parameter(ValueFromRemainingArguments)]$Args)
-    # New flow (per operator: "mios build should queue the build, launch
-    # the html file in the local windows browser window, fetch the newly
-    # minted html/toml files to the overlay >> start the build with new
-    # key steps implemented"):
-    #
-    #   1. Open mios-config.html in the default Windows browser so the
-    #      operator can edit theming / functionality / package lists.
-    #   2. Wait for the operator to save + close the configurator (or
-    #      hit Enter to skip the edit pass).
-    #   3. mios-pull to sync M:\ overlay to origin/main + apply user edits.
-    #   4. Run build-mios.ps1 -BuildOnly so it skips the bootstrap phase
-    #      and goes straight into the OCI build inside MiOS-DEV.
-    #
-    # Bypass the configurator pass with: mios build -SkipConfig
-    # Bypass the pull pass        with: mios build -SkipPull
     $skipConfig = $Args -contains '-SkipConfig'
     $skipPull   = $Args -contains '-SkipPull'
     $forwardArgs = @($Args | Where-Object { $_ -notin @('-SkipConfig','-SkipPull') })
@@ -753,13 +518,6 @@ function mios-build {
             Write-Host '      Run mios pull first to seed the overlay.' -ForegroundColor DarkGray
         }
 
-        # -- Step 2: promote downloaded mios.toml from Downloads ----
-        # The browser saves to %USERPROFILE%\Downloads (file:// URLs
-        # can't write back to source). Scan for any mios*.toml /
-        # *mios*.html newer than the in-place overlay copies and
-        # PROMOTE them to M:\etc\mios\ + M:\usr\share\mios\configurator\.
-        # Also archive the imported source so we don't double-promote
-        # on the next mios-build run.
         Write-Host ''
         Write-Host '  [2/4] Scanning Downloads for edited config files...' -ForegroundColor Cyan
         $dlDir = Join-Path $env:USERPROFILE 'Downloads'
@@ -901,7 +659,7 @@ function mios-dev {
 
 function mios-mini {
     $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
-    $mon = @('C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $mon = @('C:\MiOS\usr\libexec\mios\mios-mon.py','C:\mios-bootstrap\installation\mios-mon.py','C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($mon) {
         & $py $mon --mini
     } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
@@ -915,7 +673,7 @@ function mios-mini {
 
 function mios-dash {
     $py = if (Get-Command python.exe -ErrorAction SilentlyContinue) { 'python.exe' } else { 'python3' }
-    $mon = @('C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
+    $mon = @('C:\MiOS\usr\libexec\mios\mios-mon.py','C:\mios-bootstrap\installation\mios-mon.py','C:\mios-bootstrap\installation\MiOS-Mon.py','C:\MiOS\usr\libexec\mios\MiOS-Mon.py') | Where-Object { Test-Path $_ } | Select-Object -First 1
     if ($mon) {
         & $py $mon --dash
     } elseif (Get-Command Show-MiosDashboard -ErrorAction SilentlyContinue) {
@@ -949,14 +707,6 @@ function mios-help {
     Write-Host ''
 }
 
-# Unified mios <verb> dispatcher. Operator types mios build or
-# mios b<TAB> (PSReadLine + the ArgumentCompleter below complete to
-# mios build). Falls through to mios-<verb> so the same wrappers
-# back both call shapes.
-# Known verbs dispatch to mios-<verb>.ps1 wrappers in $Global:MiosBin.
-# Anything that isn't a known verb is routed to Hermes-Agent at
-# MIOS_AI_ENDPOINT as a chat completion, so mios how do I bootc switch
-# works from any PowerShell terminal without a separate sk verb.
 $Script:MiosKnownVerbs = @('build','update','pull','config','ai','dev','dash','mini','help','code','xbox','virt','vfio','tune','summary','profile','assess','iommu','theme','user')
 
 function mios {
@@ -1001,28 +751,6 @@ Register-ArgumentCompleter -CommandName mios -ParameterName Verb -ScriptBlock {
         ForEach-Object { [System.Management.Automation.CompletionResult]::new($_, $_, 'ParameterValue', $_) }
 }
 
-# -- Interactive-shell startup verb (SSOT: mios.toml [terminal.startup]) --
-# The profile body above is JUST function definitions. What runs on
-# terminal spawn is the verb declared in mios.toml -- read fresh
-# every shell launch so HTML configurator edits flow through with
-# zero re-bake. Vendor default is "dash" but the operator can flip
-# to any other verb (or "" for a silent shell).
-#
-# Per-platform key precedence: [terminal.startup].windows wins over
-# [terminal.startup].verb (the cross-platform default). The Linux
-# bash side reads the same TOML keys (.linux > .verb).
-#
-# Guards:
-#   - $env:MIOS_SKIP_MOTD = "1"      -> no startup verb fires.
-#   - non-interactive host           -> no fire (background scripts,
-#                                       VS Code's PowerShell extension
-#                                       integrated terminal, etc.).
-#   - $Global:MiosStartupVerbFired   -> idempotent across re-sources
-#                                       (mios.ps1 dot-sources this
-#                                       profile to load functions, we
-#                                       don't want a recursive verb
-#                                       call inside an already-running
-#                                       verb).
 function _MiosResolveStartupVerb {
     $_cands = @(
         (Join-Path $env:USERPROFILE '.config\mios\mios.toml'),
@@ -1058,12 +786,6 @@ if (-not $Global:MiosStartupVerbFired -and $Host.UI.RawUI -and (-not $env:MIOS_S
         try { mios $_startupVerb } catch {}
     }
 }
-# -- MiOS WindowWidth diagnostic (auto-appended by Install-MiOSPowerShellProfile) --
-# Every MiOS pwsh launch appends one line to M:\MiOS\diagnostics\window-width.txt
-# capturing [Console]::WindowWidth + BufferWidth + WT_SESSION + timestamp.
-# This is the SOURCE OF TRUTH for the actual visible cell count on the
-# operator's hardware -- if WindowWidth != mios.toml [terminal].cols, the
-# delta is the WT chrome budget that right_margin must absorb.
 try {
     $_diagDir = 'M:\MiOS\diagnostics'
     if (-not (Test-Path -LiteralPath $_diagDir)) { New-Item -ItemType Directory -Path $_diagDir -Force | Out-Null }

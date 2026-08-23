@@ -43,12 +43,6 @@ def test_runs_on_real_tree():
 
 
 def test_exit_code_carries_information():
-    """Only assert the env-ceiling path for tools that actually READ those vars.
-
-    Asserting it generically made the fixture fail on tools that never consume
-    them -- a test failing for a reason unrelated to the behaviour it names is
-    worse than no test, because it trains people to ignore it.
-    """
     src = open(TOOL, encoding="utf-8", errors="replace").read()
     reads_env = "MIOS_MAX_" in src
     baseline = run()

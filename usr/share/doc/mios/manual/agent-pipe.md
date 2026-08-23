@@ -1249,3 +1249,15 @@ Point MIOS_TOML at the repo's vendor mios.toml if present (repo root = 4
     the REAL config parse on any host. Harmless if absent (readers degrade).
 
 <!-- mios-src:1cb3f968e343 from usr/lib/mios/agent-pipe/test_server_import.py:23-25 -->
+### Regression
+
+Regression: the podman-exec stripper must not backtrack exponentially.
+
+The flag-repetition group allowed a flag's ARGUMENT to start with '-', so
+"-a -b" had two legal parses and the group backtracked exponentially (~1.64^n
+measured) on model-controlled script text. The bound pinned here is wall-clock
+on a pathological input rather than an assertion about the pattern string,
+because the defect is behavioural; flags-with-arguments are pinned too, since
+that is what the narrowed character class could plausibly break.
+
+<!-- mios-src:7b5bbd956f27 from usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py:4-12 -->

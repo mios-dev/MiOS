@@ -1,29 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Stress test harness for the agent-pipe that validates the /v1/chat/completions path under load-aware concurrency, e...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_stress_py.md
-"""mios_stress -- end-to-end direct-chat stress harness for the MiOS agent-pipe.
-
-Drives the OpenAI /v1/chat/completions path under BOUNDED, load-aware concurrency
-and reports latency / throughput / error-rate + a pass/fail verdict. Built for
-the full-conversion validation goal (llama.cpp + KV-paging primary, pgvector
-backend, all features on).
-
-SAFETY -- the operator's hard-won lessons baked in:
-  * COMPLETES every turn (awaits to done) -- NEVER orphans a request. The server
-    historically has a request-cancellation gap; abandoning turns (the classic
-    bounded-curl mistake) leaves the DAG+deepen churning for minutes -> loadavg
-    spikes -> wedge (the documented loadavg-361 incident). This harness never
-    abandons a turn.
-  * LOAD-AWARE circuit breaker: polls /v1/scheduler between waves; over the load
-    ceiling it stops RAMPING and backs off (AIMD) -- "saturate the backlog,
-    never the cores."
-  * RAMPED concurrency: starts low, climbs toward the target only while healthy.
-
-The pure helpers (percentile/aggregate/ramp/throttle/scenarios/verdict) are
-stdlib-only + unit-tested (test_mios_stress.py); the async runner uses httpx
-(already an agent-pipe dep) and is exercised live by the operator via
-`mios-stresstest`.
-"""
 from __future__ import annotations
 
 import argparse

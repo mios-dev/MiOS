@@ -7541,3 +7541,55 @@ operator has access to via gh auth would work if you swap this for a
 PAT-derived token -- left out of scope for the public-image use case.
 
 <!-- mios-src:fd5d006cadcb from mios-windows-export.ps1:385-387 -->
+
+### AI-hint
+
+AI-hint: Primary entry point for MiOS installation; handles admin elevation, environment validation, and fresh-clone of the bootstrap repo to initiate the preflight, VM setup, and OCI build pipeline.
+AI-related: /usr/share/mios/mios.toml, /etc/mios/mios.toml, /etc/mios/., /usr/share/mios/branding/mios.txt, /usr/share/mios/branding/mios, mios-dev, mios-bootstrap, mios-pull, mios-launch, mios-install
+AI-functions: Disable-ConsoleQuickEdit, Resolve-MiosTomlText, Get-MiosTomlValue, Show-MiOSBanner, Show-MiOSAgreement, Invoke-MiOSAgreementGate, _Center-MiOSGateConsole, Get-MiosPalette, _hex, Test-MiOSFontInstalled, Wait-MiOSWindowsTerminalReady, Ensure-MiOSWinget
+
+<!-- mios-src:6cb747722e65 from Get-MiOS.ps1:1-3 -->
+
+### AI-hint
+
+AI-hint: PowerShell entry point for MiOS installation that configures the MiOS-DEV podman-machine, handles initial licensing, and manages the SSH handoff to the Linux-side build driver for generating OCI images and disk formats.
+AI-related: 37-ollama-prep.sh, mios-btop.sh, /usr/libexec/mios/mios-build-driver, /usr/share/mios/mios.toml, /usr/libexec/mios/mios-build-driver., /etc/mios/mios.toml, /usr/share/mios/configurator/mios.html, /usr/libexec/mios/flatpak-launch, /etc/mios/hermes/config.yaml, /etc/mios/hermes/config.local.yaml
+AI-functions: parse_sections_from_toml, get_pkgs, install_section, parse_pkgs, Disable-ConsoleQuickEdit, Resolve-MiosTomlText, Get-MiosTomlValue, Resolve-MiosInstallRoot, Update-MiosInstallPaths, Invoke-MigrateLegacyInstallRoot, Invoke-DataDiskBootstrap, Test-DashboardCanRedraw
+Requires -Version 5.1
+'MiOS' Unified Installer & Builder -- Windows 11 / PowerShell
+
+  irm https://raw.githubusercontent.com/mios-dev/mios-bootstrap/main/install.ps1 | iex
+
+Flags:
+  -BuildOnly    Pull latest + build only (skip first-time setup)
+  -Unattended   Accept all defaults, no prompts
+
+── ARCHITECTURE: Day-0 self-replication contract ────────────────────────────
+Per the MiOS self-replication architecture (project memory:
+project_mios_self_replication_vision.md), the Windows side of the bootstrap
+is STRICTLY an entry point with a narrow scope:
+
+  1. Acknowledgements (AGREEMENTS.md / LICENSES.md)
+  2. MiOS-DEV podman-machine setup (Phases 0-5 + 8 of this script)
+  3. SSH handoff into MiOS-DEV
+
+After step 3, EVERYTHING else runs INSIDE MiOS-DEV: local fetch + overlay,
+identity prompts, and the FULL build pipeline producing every output
+format MiOS targets (OCI bootc image, WSL2/g .tar/.vhdx, Hyper-V .vhdx,
+QEMU qcow2, Live-CD/USB ISO, USB installer, RAW dd image). The build
+dashboard renders on the MiOS-DEV tty inside the SSH-hosted Windows
+Terminal -- it is NOT streamed back across the WSL/Windows boundary.
+
+Show-PostBootstrapMenu's "Continue to build" choice IS the SSH handoff:
+it spawns a new Windows Terminal tab running `wsl.exe -d MiOS-DEV` which
+in turn invokes /usr/libexec/mios/mios-build-driver inside the dev distro.
+
+Migration status : Phase 6+ legacy code (identity, OCI build,
+disk image generation, Hyper-V VM deploy) still lives in this script as
+the -FullBuild / -BuildOnly path. The new SSH-handoff flow runs alongside
+it via the menu. Subsequent migration chunks move identity prompts and
+the full output-format matrix into the Linux-side driver, then trim this
+Windows-side tail entirely.
+
+<!-- mios-src:0acbcca01ab2 from build-mios.ps1:1-38 -->
+

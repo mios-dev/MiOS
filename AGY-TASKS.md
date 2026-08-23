@@ -10314,7 +10314,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** two implementations of one measurement disagree eventually, and the one nobody runs is the one that rots.
 **Dep:** AGY-1608
 
-## AGY-1615 -- Drive the narrative ratchet down by harvesting, not by raising  (WS-MANUAL | P1 | L)
+## AGY-1615 -- Drive the narrative ratchet down by harvesting, not by raising  (WS-MANUAL | P1 | L) **[DONE]**
 **Goal:** 692 unmigrated narrative blocks becomes materially fewer, with nothing lost.
 **What+How:** Use the harvest -> landing -> prune flow, which now works end to end: `mios-manual harvest --path X --to Y --apply`, confirm with `mios-manual landing`, then `mios-manual prune --path X --block SHA --only-landed --apply`. Work in batches by subsystem so each commit is reviewable. Harvest refuses generated destinations now (a header saying GENERATED or DO NOT EDIT), because harvesting into `usr/share/doc/mios/reference/mini-vs-hosted.md` put prose in a file its generator overwrites and broke that document's round-trip test. Tighten `[docs].max_unmigrated_narrative` after each batch; it is monotone, so it can only go down.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/manual/, usr/share/mios/mios.toml [docs]`
@@ -10322,7 +10322,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the comments hold the reasoning; the manual is where a reader looks for it. Migration is the point, deletion is not.
 **Dep:** none
 
-## AGY-1616 -- Give the manual a landing page a person actually reads  (WS-MANUAL | P1 | M)
+## AGY-1616 -- Give the manual a landing page a person actually reads  (WS-MANUAL | P1 | M) **[DONE]**
 **Goal:** The harvested corpus becomes a document, not a pile.
 **What+How:** `usr/share/doc/mios/manual/_harvest/` accumulates one file per source file, which is a staging area and not a manual. Use `mios-manual distill` to organise harvested passages by subsystem, and `mios-manual landing` to prove nothing is lost in the move. The corpus ledger keys by content hash, so passages can be reorganised freely as long as anchors survive.
 **Where:** `usr/libexec/mios/mios-manual (distill, landing), usr/share/doc/mios/manual/`

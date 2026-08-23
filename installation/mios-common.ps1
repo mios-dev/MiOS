@@ -234,7 +234,10 @@ function Ensure-MiosRepo {
 }
 
 function Resolve-MiosMonitorScript {
-    @((Join-Path (Split-Path $script:Root -Parent) 'MiOS\usr\libexec\mios\MiOS-Mon.py'), 'C:\MiOS\usr\libexec\mios\MiOS-Mon.py') |
+    # mios-mon.py first, MiOS-Mon.py second: this repo renamed it, the
+    # bootstrap repo has not yet, and the resolver must work in both.
+    @((Join-Path (Split-Path $script:Root -Parent) 'MiOS\usr\libexec\mios\mios-mon.py'), 'C:\MiOS\usr\libexec\mios\mios-mon.py',
+      (Join-Path (Split-Path $script:Root -Parent) 'MiOS\usr\libexec\mios\MiOS-Mon.py'), 'C:\MiOS\usr\libexec\mios\MiOS-Mon.py') |
         Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 }
 

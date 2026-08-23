@@ -1,23 +1,5 @@
 # AI-hint: SKILLS execution cluster extracted verbatim from server.py (refactor R7/mios_skills wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_skills_py.md
-"""SKILLS execution cluster -- skill readers, the step engine, and the
-OpenAI function-tool projectors.
-
-Extracted verbatim from ``server.py``. ``_skill_fetch`` / ``_skill_list``
-read promoted-skill rows (pg-native when pgvector is primary);
-``execute_skill`` maps a skill body's steps 1:1 onto ``dispatch_mios_verb``
-calls (sequence / try-each modes, ``expand_from`` fan-out, invocation
-open/close + tool_call attribution); ``_skill_to_openai_tool`` /
-``_mcp_tool_to_openai_tool`` / ``_make_schema_strict`` project skills and
-external MCP tools into OpenAI strict function-tool schemas consumed
-verbatim by Hermes + OpenCode. ``server.py`` re-imports every name under
-its original alias so the module's public surface is byte-identical.
-
-The server-side DB-event helpers, the verb dispatcher, the
-invocation/attribution helpers, the arg renderer, the ``$``-token regex
-and the ``SKILLS_ENABLED`` flag are injected via :func:`configure`
-(one-way module boundary -- this module never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -50,14 +32,6 @@ _SKILLS_EPISODIC_ENABLED = None
 def configure(*, db_read=None, db_post=None, db_update=None, db_write=None,
               pg_mirror=None, dispatch_verb=None, skills_enabled=None,
               skills_episodic_dir=None, skills_episodic_enabled=None) -> None:
-    """Inject the server.py runtime helpers the skills engine calls back into.
-
-    The invocation/attribution lifecycle, the arg renderer and the $-token regex
-    now LIVE in this module (no longer injected); only the DB-event helpers, the
-    verb dispatcher, the pg outcome mirror and the SKILLS_ENABLED flag are
-    server-owned. _passport_sign is imported directly from mios_a2a_principal.
-    The episodic SKILL.md mirror's target dir + enable flag are server-owned SSOT
-    (env-read) and injected here; _a2a_now is imported directly from mios_a2a."""
     global _db_read, _db_post, _db_update, _db_write, _pg_mirror
     global dispatch_mios_verb, SKILLS_ENABLED
     global _SKILLS_EPISODIC_DIR, _SKILLS_EPISODIC_ENABLED
@@ -131,17 +105,6 @@ async def _skill_list(*, status: str = "promoted",
 
 async def execute_skill(name: str, params: dict, *,
                         session_id: Optional[str] = None) -> dict:
-    """Run a skill by name. Returns the same envelope shape an
-    execute_dag run returns -- success, steps[], failures[],
-    aborted -- so every gateway in the stack consumes skill output
-    with identical code.
-
-    The skill body steps are mapped 1:1 to dispatch_mios_verb calls;
-    each tool_call row produced is attributed to the skill via
-    RELATE skill_invocation->emitted->tool_call. The Phase B.3
-    firewall, Phase A.3 taint chain, and Phase A.1 reflexion cap
-    all apply unchanged because we route through the same
-    dispatch_mios_verb the planner uses."""
     if not SKILLS_ENABLED:
         return {"success": False,
                 "skill": name,
@@ -426,13 +389,6 @@ _PARAM_TOKEN_RE = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)")
 
 
 def _skill_render_args(args: dict, params: dict) -> dict:
-    """Substitute $-tokens in skill step args using the params map.
-    Pure helper -- the skill body holds the template, the params
-    dict holds the concrete operator-supplied values.
-
-    Operator-supplied params override mined defaults. Missing
-    params leave the $-token literal (so the dispatch errors
-    visibly instead of silently swallowing the gap)."""
     out: dict = {}
     for k, v in (args or {}).items():
         if isinstance(v, str):
@@ -518,15 +474,6 @@ async def _pg_attribute_tool_call(row_id: int, tool_call_id, step_index) -> None
 async def _skill_invocation_open(skill_id: str,
                                  params: dict,
                                  session_id: Optional[str]) -> Optional[str]:
-    """Open a skill_invocation row; returns the new row id (or
-    None if the DB write failed). The caller closes the row via
-    _skill_invocation_close with ended_at + success.
-
-    Hand-built CREATE -- _db_create json.dumps-quotes every value,
-    but the legacy backend requires record<...> references UNQUOTED
-    (`skill = skill:abc123`, not `skill = "skill:abc123"`). The
-    quoted form produces a coerce error response that the caller
-    can't interpret as success."""
     parts = [
         "started_at = time::now()",
         f"skill = {skill_id}",

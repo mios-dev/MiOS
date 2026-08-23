@@ -1,24 +1,5 @@
 # AI-hint: Unified inference-lane resolver (WS-1) -- the ONE place the agent-pipe chooses a model lane.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_lanes_py.md
-"""mios_lanes -- unified inference-lane resolver for the MiOS agent-pipe (WS-1, the
-AIOS lane-selection layer).
-
-A LANE is a single inference endpoint: ``(id, url, model)``. The resolver is given a
-map of lanes and, per ROLE, an ordered PREFERENCE CHAIN of lane ids; ``pick(role)``
-returns the first REACHABLE lane in the chain. Health is probed via an INJECTED async
-callable and cached for ``ttl`` seconds; a lane that fails a probe is parked on
-``cooldown`` so it is skipped (not re-probed) until it expires -- so a dead heavy lane
-fails straight over to the next lane instead of 404ing every request, and recovers
-automatically once the cooldown lapses and a probe succeeds. The terminal (light)
-lane is returned as the floor even if its own probe is failing, so a turn degrades
-rather than dead-ends.
-
-Pure stdlib (only ``time``) in the sibling-module style of mios_sched / mios_owui:
-NO server.py import, NO globals. server.py owns the wiring -- it constructs the lane
-map from its already-resolved endpoint constants + the [ai].heavy_engine SSOT, injects
-an httpx probe, and exposes the module-level instance. test_mios_lanes.py drives this
-module with a fake clock + fake probe, no agent-pipe runtime deps.
-"""
 import time
 
 
@@ -41,18 +22,6 @@ class Lane:
 
 
 def build_chain(heavy_engine, available) -> list:
-    """Ordered preference chain of lane ids from the [ai].heavy_engine selector.
-
-    ``available`` -- iterable of the lane ids the resolver was given (e.g.
-    ``{'sglang','vllm','light'}``).
-    ``heavy_engine`` -- either a single preferred engine (``'sglang'`` | ``'vllm'`` |
-    ``'light'``) OR an explicit comma-list (``'sglang,vllm,light'``, honoured
-    verbatim). Empty/None defaults to ``'sglang'`` (the SSOT default).
-
-    Rules: drop ids that are not available; dedupe preserving order; keep the
-    ``light`` terminal lane LAST when it is present (the always-on floor) but never
-    add it if an explicit comma-chain omitted it (respect the operator's choice).
-    ``'light'`` as a single engine forces a light-only chain (no heavy)."""
     avail_set = set(available)
     he = (heavy_engine or "sglang").strip().lower()
     if "," in he:
@@ -74,16 +43,6 @@ def build_chain(heavy_engine, available) -> list:
 
 
 class LaneResolver:
-    """Health-aware lane picker. Construct with::
-
-        LaneResolver(lanes, chains, probe, ttl=30.0, cooldown=60.0)
-
-    ``lanes``    -- {id: Lane}.
-    ``chains``   -- {role: [lane_id, ...]} ordered preference per role.
-    ``probe``    -- async callable ``probe(url) -> bool`` (True == lane serving).
-    ``ttl``      -- seconds a health result is cached (probe at most once / window).
-    ``cooldown`` -- seconds a FAILED lane is skipped before it is re-probed.
-    ``clock``    -- injectable monotonic clock (tests pass a fake)."""
 
     def __init__(self, lanes, chains, probe, *, ttl: float = 30.0,
                  cooldown: float = 60.0, clock=time.monotonic):

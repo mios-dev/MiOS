@@ -1,18 +1,5 @@
 # AI-hint: PER-TURN message-prep + agent-selection helpers extracted VERBATIM from AI-related: ./server.py, ./mios_config.py, ./test_mios_turn.py AI-fun...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_turn_py.md
-"""PER-TURN message-prep + agent-selection helpers (strangler-fig refactor).
-
-Extracted VERBATIM from ``server.py``. These are the small cohesive turn-prep
-helpers the chat router + responders call each turn: last-user-text extraction,
-role-based sub-agent selection (with degrade-open on a dead gated node), the
-generic agent surface label, the per-turn live-agent roster (health-probed +
-TTL-cached), and the <think>-tag reasoning/answer split. Every server-resident
-symbol -- the live agent registry, the node-liveness cache, the health-probe +
-probe-auth helpers, the liveness TTL/connect scalars, and the think-tag regexes
--- is injected via :func:`configure` (one-way boundary -- this module never
-imports ``server``). ``server.py`` re-imports each name under its original alias
-so the importable surface stays byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -45,12 +32,6 @@ _INJECTED = frozenset((
 
 
 def configure(**deps) -> None:
-    """Inject server-side deps under their EXACT original names (one-way boundary).
-
-    Called from ``server.py`` after every injected symbol is defined, and again
-    from ``_reload_membership`` to re-bind ``_AGENT_REGISTRY`` after a live add/drop.
-    Each keyword equals the module global it sets.
-    """
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:
@@ -58,15 +39,6 @@ def configure(**deps) -> None:
 
 
 async def _live_agent_names() -> set:
-    """Set of agent names currently USABLE for dispatch (
-    "iGPU is down"). Non-health_gate agents are ALWAYS live -- they are local
-    lanes whose failure is a separate, louder problem and probing them every
-    turn only adds latency. Only health_gate client/Tailscale nodes (the iGPU,
-    a phone) -- the ones that legitimately come and go -- are connect-probed,
-    TTL-cached in _NODE_LIVE so an OUTAGE drops the node from the swarm roster
-    WITHOUT re-probing every turn (it rejoins within the TTL once back up).
-    Used to prune dead nodes before the planner/DAG assigns them a facet, so the
-    freed concurrent lane re-routes to live compute instead of vanishing."""
     live: set = set()
     to_probe: list = []
     now = time.time()
@@ -111,18 +83,6 @@ async def _live_agent_names() -> set:
 
 
 def _pick_agent(role: str) -> tuple[str, dict]:
-    """Pick a sub-agent by role match. Order: exact-role -> default
-    -> first registered. Returns (name, cfg).
-
- Degrade-open (install-robustness): if the chosen agent is a
-    health_gate (come-and-go) node -- e.g. the :8643 hermes-worker bound to the
-    heavy GPU lane, which is gated off by default -- that the liveness cache does
-    NOT confirm reachable, blank its endpoint so the caller's `endpoint or
-    BACKEND` falls back to the always-on local lane. Without this the PRIMARY
-    dispatch went to a dead gated worker -> httpx "All connection attempts
-    failed" -> 502 on EVERY turn on any host where that lane is down (a fresh
-    dev VM, a CPU host). The worker is still used the moment the probe confirms
-    it live (heavy lane enabled)."""
     role = (role or "").lower().strip()
     chosen = None
     if role:
@@ -148,16 +108,6 @@ def _pick_agent(role: str) -> tuple[str, dict]:
 
 
 def _split_think_tags(text: str) -> tuple[str, str]:
-    """Split model output into (reasoning, answer).
-
- 'there SHOULD be thinking -- as a dropdown' AND
-    'thinking bleeding into the final response makes it look like it
-    answered twice'. The fix is to CAPTURE the <think>-family reasoning
-    (so it can go in a collapsed dropdown) instead of discarding it, and
-    return the answer with the reasoning removed (clean main reply).
-    Handles closed + unclosed + orphan tags across the qwen3 <think> and
-    <thinking>/<thought>/<reasoning>/<reflection>/<scratchpad> variants.
-    Tag-based only -- structural, no English content matching."""
     if not text:
         return "", text
     low = text.lower()
@@ -185,12 +135,6 @@ def _strip_think_tags(text: str) -> str:
 
 
 def _casual_agent_label(target_name: str) -> str:
-    """Map registered sub-agent name -> casual MiOS-convention label
-    for SSE status emission + dropdown summaries. Operator binding:
-    surface labels stay generic ('sub-agent' / role), the specific
-    daemon name lives in event payloads + journal, not in the chat
-    UI. Same agent can be renamed via mios.toml [agents.*] without
-    leaking the old name to the operator's screen."""
     cfg = _AGENT_REGISTRY.get(target_name) or {}
     role = str(cfg.get("role") or "").strip().lower()
     if role:

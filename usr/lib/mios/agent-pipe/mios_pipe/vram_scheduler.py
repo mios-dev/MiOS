@@ -115,13 +115,6 @@ def _endpoint_sem(ep: str) -> asyncio.Semaphore:
 
 async def _admit(ep: str, model: str, lane: str, priority: float = 5.0,
                  est_mb: int = 0, *, foreground: bool = True) -> None:
-    """Capacity-aware admission gate, run BEFORE the endpoint/lane semaphores.
-    No-op unless ADMIT_ENABLE. DEGRADE-OPEN: any error -> return (admit). Bounds
-    every wait by ADMIT_MAX_WAIT then admits anyway -> never deadlocks a turn.
-    Gates: (1) global host-load/mem ceiling; (2) a COLD model on an at-VRAM-
-    ceiling endpoint waits briefly so cold loads serialize. Warm/under-ceiling
-    dispatch returns immediately. (_host_stats_cached/_resident_cached/
-    _over_global_ceiling/_is_warm are defined below near _engine_resident.)"""
     if SLO_SHED_ENABLE:
         _slo = mios_slo.classify(foreground=foreground)
         if mios_slo.should_shed(_slo, over_ceiling=_over_global_ceiling()):

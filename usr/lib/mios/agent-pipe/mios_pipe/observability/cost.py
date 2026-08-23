@@ -1,23 +1,5 @@
 # AI-hint: WS-RES-GOV cost/energy accounting core (the PURE half, CLASSic "Cost" axis).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_observability_cost_py.md
-"""mios_cost -- cost/energy accounting for the agent plane (WS-RES-GOV).
-
-The gap audit + completeness critic: MiOS's _budget_admit is a token-count
-rolling-window TRIPWIRE; there is no $-cost and no energy/kWh/VRAM-hour
-accounting -- but CLASSic's Cost axis and modern local-GPU serving treat
-energy-per-token + $-per-task as first-class signals (on a fully-local GPU OS the
-power/thermal envelope is the real constraint, not an API bill).
-
-This module is the PURE accounting:
-  * CostModel.estimate() -- one dispatch -> {energy_wh, usd, tokens, lane}. Local
-    GPU lane: energy = gpu_watts * elapsed_s; $ = energy * usd_per_kwh. Remote
-    lane: $ = tokens * usd_per_mtok (energy attributed to the provider, 0 local).
-  * CostLedger -- accumulate total + per-lane energy/$/tokens for budget checks
-    (remaining() against a $ ceiling) + /v1/scheduler observability.
-
-server.py owns recording each real dispatch (tokens from usage / tokenizer,
-elapsed from the call timing) + the SSOT rates; this is the deterministic core.
-"""
 from __future__ import annotations
 
 from typing import Dict, Optional

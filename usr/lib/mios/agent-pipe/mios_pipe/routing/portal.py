@@ -1,17 +1,5 @@
 # AI-hint: WEB PORTAL helper logic + PWA asset builders + the swarm-roster probe, extracted VERBATIM from server.py (refactor R10 wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_portal_py.md
-"""Web portal helpers + PWA asset builders + the swarm-roster probe (refactor R10).
-
-Extracted VERBATIM from ``server.py`` -- the portal config/auth SSOT, the Quadlet
-service auto-discovery + host/container telemetry, the dashboard/login/PWA asset
-strings, and the per-agent reachability probe. Every name is moved byte-identically
-and re-imported by ``server.py``; the @app portal routes stay there as thin
-wrappers, so the module's public + HTTP surface is unchanged.
-
-``loads_lenient`` is imported directly; the two server helpers the swarm probe
-calls (``_probe_auth_headers``, ``_agent_lane``) are injected via :func:`configure`
-(one-way boundary -- this module never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -49,13 +37,6 @@ websockets = None
 def configure(*, probe_auth_headers=None, agent_lane=None,
               agent_registry=None, sanitize_tool_text=None,
               websockets=None) -> None:
-    """Inject server.py's runtime deps under their original module-level names.
-    _probe_auth_headers + _agent_lane back the swarm probe; _AGENT_REGISTRY backs
-    the swarm-roster route (injected by reference -> server must re-configure on a
-    membership reload); _sanitize_tool_text scrubs the service-detail logs; the
-    ``websockets`` client module backs the terminal WS bridge. A None arg is
-    skipped so server may call with a partial set (e.g. only the registry on a
-    reload)."""
     g = globals()
     if probe_auth_headers is not None:
         g["_probe_auth_headers"] = probe_auth_headers
@@ -138,15 +119,6 @@ def _portal_token_ok(tok: Optional[str]) -> bool:
 
 
 def _portal_authed(request: Request) -> bool:
-    """True when login is disabled or the request carries a valid session --
-    either the browser's httponly cookie, OR an 'Authorization: Bearer
-    <token>' header. Same signed token either way (_portal_token_ok); the
-    header form exists for NATIVE (non-browser) local clients -- e.g. the
-    Quickshell PortalData.qml widget (design spec: mios-app-browser-portal-
-    dashboard-design-*.md, native-unification roadmap addendum) --
-    that call portal_login_logic once and reuse a Bearer token instead of
-    implementing cookie-jar + redirect handling for a login flow that was
-    designed for browsers."""
     if not PORTAL_REQUIRE_LOGIN:
         return True
     if _portal_token_ok(request.cookies.get(PORTAL_COOKIE)):
@@ -158,15 +130,6 @@ def _portal_authed(request: Request) -> bool:
 
 
 def _portal_unit_hidden(quadlet_file: str) -> bool:
-    """True if a Quadlet's generated unit is MASKED or was skipped by a FAILED
-    start condition (ConditionResult=no) -- i.e. retired (a legacy lane -> mios-llm-light)
-    or gated OFF (vllm/guacamole: model not provisioned / wrong virtualization).
-    Such a unit can only ever show as a phantom 'down' in the portal, so drop it.
-    A unit that is MEANT to run but crashed keeps ConditionResult=yes and stays
-    visible -> genuine outages are still surfaced. The unit's own systemd state
- is the SSOT -- no service-name list. Fail-OPEN: any
-    query error returns False (visible), so a probe glitch never hides a real
-    service."""
     base = os.path.basename(quadlet_file)
     if not base.endswith(".container"):
         return False
@@ -281,16 +244,6 @@ _PODMAN_PS_SNAPSHOT = os.environ.get(
 
 
 async def _podman_ps() -> dict:
-    """Best-effort host-port -> {container,state,image} map from podman.
-    Returns {} on any failure (podman absent / no perms) so the portal
-    degrades to health-only without erroring.
-
-    PREFERS the root-written snapshot at MIOS_PODMAN_PS_SNAPSHOT: this service
-    runs hardened + non-root and CANNOT reach the rootful /run/podman socket
-    (/run/podman is 0700 root:root), so a direct `podman ps` here sees an empty
- rootless context -> "podman present but no containers".
-    mios-podman-ps.timer refreshes the snapshot every ~15s. Falls back to a
-    direct `podman ps` for unrestricted/rootless-visible deployments."""
     data = None
     try:
         with open(_PODMAN_PS_SNAPSHOT, "rb") as _f:
@@ -903,12 +856,6 @@ tick();arm();tickConfig();
 
 
 def _portal_theme_css() -> str:
-    """Build a :root override from mios.toml [colors] (SSOT) so the portal
-    tracks the operator's palette. Maps the MiOS color ROLES to the portal's
-    CSS vars; derived surfaces (--card/--line) recompute via color-mix in the
-    page CSS. Returns '' on any failure -> the static MiOS-default :root
-    stands. Per the no-hardcode rule: the toml is the source, the static
-    block is just the documented fallback."""
     try:
         import mios_toml
         c = mios_toml.colors()
@@ -1609,12 +1556,6 @@ def _portal_theme_check() -> dict:
 
 
 def _portal_config_status() -> dict:
-    """READ-ONLY summary for the dashboard's System Config card: the resolved
-    identity user + deploy version, the top-level section count, whether a
-    user-layer override is present, and the theme-projection state. Reuses the
-    Portal's layered tomllib load (the mios_toml vendor<host<user overlay,
-    falling back to the single-file read) -- no new deps, NO writes anywhere.
-    Degrade-open throughout: any probe failure yields a safe placeholder."""
     merged: dict = {}
     try:
         import sys as _sys
@@ -1645,12 +1586,6 @@ def _portal_config_status() -> dict:
 
 @portal_router.get("/portal/config/status")
 async def get_portal_config_status(request: Request):
-    """GET /portal/config/status -> small READ-ONLY JSON summary of live config
-    health (resolved user/version, top-level section count, user-override
-    presence, theme-projection PASS/FAIL) for the dashboard's System Config
-    card. Auth-gated; NEVER writes; degrade-open (a probe failure yields a
-    placeholder, not an error). The blocking reads + subprocess run off the
-    event loop via asyncio.to_thread."""
     if not _portal_authed(request):
         return JSONResponse({"error": "auth required"}, status_code=401)
     try:

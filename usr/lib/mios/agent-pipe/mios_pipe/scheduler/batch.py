@@ -1,21 +1,5 @@
 # AI-hint: WS-A6 batch-coalescing core, designed per 2026 best practice (researched): vLLM/SGLang/llama.cpp already do SERVER-SIDE continuous batchin...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_batch_py.md
-"""mios_batch -- batch-interval coalescing for the MiOS agent-pipe (WS-A6, the
-AIOS scheduler call-coalescing layer).
-
-Pure stdlib. RESEARCH NOTE (the proper solution): the modern inference engines
-MiOS runs locally -- vLLM (PagedAttention), SGLang (RadixAttention), and
-llama.cpp -- all implement CONTINUOUS BATCHING: the engine's own scheduler forms
-a rolling batch from concurrent requests with no fixed timer/count, which is
-strictly better than any client-side grouping. So coalescing must NOT touch
-those lanes (double-batching only adds head-of-line latency). It applies ONLY to
-endpoints WITHOUT native continuous batching -- a rate-limited remote API where
-grouping calls in a short window genuinely reduces request count. Hence the core
-here is: bypass native lanes; window-bound the rest.
-
-Sources: vLLM continuous batching (docs.vllm.ai), SGLang OpenAI-compatible
-serving, BentoML "Static, dynamic and continuous batching" (LLM Inference Handbook).
-"""
 
 from __future__ import annotations
 

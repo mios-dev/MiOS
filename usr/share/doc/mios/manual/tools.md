@@ -365,3 +365,135 @@ Convert an EXISTING file to another format (e.g. .docx -> .pdf,
             {ok:false, error}.
 
 <!-- mios-src:c6b5be3acfdb from usr/share/mios/openwebui/tools/mios_computer_use.py:336-344 -->
+### A ratchet ceiling, or a hard failure if the SSOT has...
+
+A ratchet ceiling, or a hard failure if the SSOT has stopped carrying it.
+
+        Defaulting an absent ceiling to 999999 makes the check unfailable the
+        moment a key is renamed, and it keeps reporting PASS while doing so --
+        the worst outcome, because it also stops anyone looking. An absent
+        ceiling is a broken gate, not an unlimited one.
+
+<!-- mios-src:6052f6ace2c5 from tools/check-comment-ratchet.py:31-37 -->
+
+### Gate
+
+Gate: a hazard that only bites above one node is counted, not discovered.
+
+A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a
+defect waiting for the operator to add a peer. Each hazard is detected from the
+tree rather than from a hand-list -- multiple archetypes able to stand up a k3s
+control plane with no join path, and Pacemaker with fencing disabled -- and
+every one must sit in the shrink-only [blades.hazards].accepted register under a
+max_accepted ratchet. A NEW hazard fails; an entry that no longer reproduces
+fails too, so the register cannot be padded.
+
+<!-- mios-src:601cb0c605d3 from tools/check-fleet-safety.py:5-14 -->
+
+### Keep mios-bootstrap.git in step with mios.git (Law 15)....
+
+Keep mios-bootstrap.git in step with mios.git (Law 15).
+
+Contract and rationale: installation/UNIFY.md.
+
+<!-- mios-src:2d659e36d796 from tools/sync-bootstrap.py:4-7 -->
+
+### A checker whose exit code never varies is not a check....
+
+A checker whose exit code never varies is not a check.
+
+These fixtures assert the tool runs against the real tree and returns an exit
+code, then assert the specific invariant it exists to defend.
+
+<!-- mios-src:385add9fd404 from tools/test_check-comment-lex-equivalence.py:5-9 -->
+
+### Only assert the env-ceiling path for tools that actually...
+
+Only assert the env-ceiling path for tools that actually READ those vars.
+
+    Asserting it generically made the fixture fail on tools that never consume
+    them -- a test failing for a reason unrelated to the behaviour it names is
+    worse than no test, because it trains people to ignore it.
+
+<!-- mios-src:2a391675b742 from tools/test_check-comment-lex-equivalence.py:46-51 -->
+
+### A checker whose exit code never varies is not a check....
+
+A checker whose exit code never varies is not a check.
+
+These fixtures assert the tool runs against the real tree and returns an exit
+code, then assert the specific invariant it exists to defend.
+
+<!-- mios-src:385add9fd404 from tools/test_check-comment-ratchet.py:5-9 -->
+
+### Only assert the env-ceiling path for tools that actually...
+
+Only assert the env-ceiling path for tools that actually READ those vars.
+
+    Asserting it generically made the fixture fail on tools that never consume
+    them -- a test failing for a reason unrelated to the behaviour it names is
+    worse than no test, because it trains people to ignore it.
+
+<!-- mios-src:2a391675b742 from tools/test_check-comment-ratchet.py:46-51 -->
+
+### A checker whose exit code never varies is not a check....
+
+A checker whose exit code never varies is not a check.
+
+These fixtures assert the tool runs against the real tree and returns an exit
+code, then assert the specific invariant it exists to defend.
+
+<!-- mios-src:385add9fd404 from tools/test_check-doc-ratchet-monotone.py:5-9 -->
+
+### Only assert the env-ceiling path for tools that actually...
+
+Only assert the env-ceiling path for tools that actually READ those vars.
+
+    Asserting it generically made the fixture fail on tools that never consume
+    them -- a test failing for a reason unrelated to the behaviour it names is
+    worse than no test, because it trains people to ignore it.
+
+<!-- mios-src:2a391675b742 from tools/test_check-doc-ratchet-monotone.py:46-51 -->
+
+### Tests for the above-one-node hazard gate. Both detectors...
+
+Tests for the above-one-node hazard gate.
+
+Both detectors are covered independently: k3s multi-server needs BOTH two
+grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must
+clear it, and pacemaker fencing must be read from code and not from comments.
+Then every way the register stops measuring -- unsorted, duplicated, an unknown
+id that can never retire, an entry that no longer reproduces, a missing ceiling,
+a raised ceiling, a ceiling left high. Declaring max_nodes = 1 disarms the
+hazards, because standalone is a real deployment and not a loophole.
+
+<!-- mios-src:fc98532d7a4d from tools/test_check-fleet-safety.py:4-13 -->
+
+### The three behaviours the drift gate depends on. An empty...
+
+The three behaviours the drift gate depends on.
+
+An empty launcher table used to render nothing, compare nothing, and report
+success while 9 launchers shipped ungoverned -- so "refuses an empty table" is
+the fixture that matters most here.
+
+<!-- mios-src:a44982b23533 from tools/test_render-desktop.py:5-10 -->
+
+### What the mirror must not get wrong. Two failure modes are...
+
+What the mirror must not get wrong.
+
+Two failure modes are specific and expensive: silently WRITING when only asked
+to report, and appending a duplicate table instead of rewriting one -- the
+duplicate-table bug that has made mios.toml unparseable twice in this repo.
+
+<!-- mios-src:54cdb331075a from tools/test_sync-bootstrap.py:5-10 -->
+
+### ADR-0016 D14
+
+ADR-0016 D14: CephFS is a NATIVE service of the Mini platform, on
+bare metal. Declaring it `either` would let a scheduler put the
+storage plane on a transient OCI image.
+
+<!-- mios-src:60a4a1ba90ee from tools/test_generate-mini-vs-hosted.py:345-347 -->
+

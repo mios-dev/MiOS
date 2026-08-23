@@ -1,12 +1,5 @@
 # AI-hint: Pure config-constant + SSOT-reader layer extracted from server.py (refactor WS R1).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_config_py.md
-"""Pure config constants + SSOT mios.toml readers (extracted from server.py).
-
-Moved verbatim from ``server.py`` (refactor R1); the module is pure (stdlib only
--- ``os`` / ``logging`` / lazily-imported ``tomllib``) and ``server.py`` re-imports
-every name so its importable surface is unchanged. ``mios_config`` MUST NOT import
-``server`` (the one-way boundary enforced by ``98-drift-checks.sh`` check 6).
-"""
 
 from __future__ import annotations
 
@@ -412,19 +405,6 @@ _VALIDATE_CRITICAL_SECTIONS = ("identity", "ports")
 
 
 def validate_config(toml_text: str, live_config: dict = None):
-    """SAFETY-validate a posted mios.toml replacement.
-
-    Args:
-        toml_text: the raw replacement TOML text (already parse-checked by the
-            caller, but re-parsed here so this helper is standalone/testable).
-        live_config: the current live merged config dict (used ONLY to detect a
-            DROPPED critical section). Omit / pass None to skip the drop check
-            (degrade-open: if the live config can't be read we don't block).
-
-    Returns:
-        (ok: bool, errors: list[str]). ``ok`` is True with an empty ``errors``
-        list when the config is safe to write.
-    """
     errors: list = []
 
     try:

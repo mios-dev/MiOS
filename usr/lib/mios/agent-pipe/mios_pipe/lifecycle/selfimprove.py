@@ -1,15 +1,6 @@
 # AI-hint: Pure self-improvement ANALYZER (#64) -- improvement signals from local outcome data.
 # AI-related: server.py, mios_pg, mios_reputation
 # AI-functions: aggregate, analyze
-"""Self-improvement analysis for #64 (federation + self-improve loop).
-
-The risky part of "self-improvement" is an agent modifying itself; the safe,
-high-value part is HONESTLY SEEING what is going wrong. This module is that safe
-part: given the local outcome record (tool_call successes/latencies + peer
-reputation), it surfaces concrete, ranked findings ("tool X fails 40% of the
-time", "peer Y is unreliable") that a human -- or, later, a gated closed loop --
-can act on. Pure functions over plain dicts: no DB, no server import, no I/O.
-"""
 from __future__ import annotations
 
 from typing import Dict, List, Optional

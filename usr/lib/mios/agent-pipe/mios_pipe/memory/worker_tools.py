@@ -1,19 +1,5 @@
 # AI-hint: BM25/RRF/MMR tool reranker + tool-priority ranking helpers extracted verbatim from server.py (refactor R4 worker-tools wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_memory_worker_tools_py.md
-"""Tool-surface reranker: BM25 lexical arm + RRF fusion + greedy-MMR diversify.
-
-Extracted verbatim from ``server.py`` (refactor R4). Holds the pure, deterministic
-ranking core used to choose a sub-agent's intent-relevant tool subset: the
-weak-lane tool-priority helpers, the lazy in-process BM25 lexicon over the verb
-embed-text corpus, and the stage-2 retrieve->rerank (RRF-fuse cosine with BM25,
-then greedy MMR), all degrade-open to plain cosine.
-
-The worker-surface builders/selectors stay in ``server.py`` (their memo caches are
-rebound at external invalidation sites). Server-side functions/catalog and the
-rerank flags are injected via :func:`configure` -- this module never imports
-``server`` (one-way boundary, 98-drift-checks check 6). ``server.py`` re-imports
-every name under its original alias so the importable surface is byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -90,17 +76,6 @@ _VERB_LEXICON_LOCK = asyncio.Lock()
 
 
 def _tool_priority(t: dict) -> int:
-    """Rank a tool for the CAPPED surface a weak lane (iGPU/mobile) gets: the
-    read/discovery tools a reasoning node actually needs come FIRST, so a small cap
-    still yields a USEFUL toolset (every agent MUST get tools -- a weak device gets a
-    CAPPED surface, never none). Lower = kept first.
-
-    NO English name substrings: rank is driven by the verb's PERMISSION + the
-    reranker's own core-tier signal (the RadixAttention stable-prefix set the module
-    already classifies), both read from the verb catalog. rank-0 = the curated
-    high-frequency READ verbs (perm=read AND tier=core) -- the SSOT replacement for
-    the old keyword set. Degrade-open: when the core-tier signal is off/absent the
-    read verbs fall to rank 1 (permission order alone), never a lexical gate."""
     fn = (t.get("function") or {})
     name = str(fn.get("name") or "")
     if name.startswith(("mios_recipe__", "mios_skill__")):
@@ -131,15 +106,6 @@ def _priority_fallback_score(t: dict) -> float:
     return s[r] if 0 <= r < len(s) else s[-1]
 
 def _is_core_tool(t: dict) -> bool:
-    """STABLE-PREFIX membership: a tool belongs in the byte-identical core block iff
-    its base verb is tier `core`. Intent-FREE + deterministic -> the core block never
-    changes turn-to-turn (RadixAttention caches it). The `core` tier is the curated
-    high-frequency set (~23: the *_search/web_* tools, system_status, mios_apps,
-    launch/open, schedule, discord_send, tool_search). `common`/`rare` verbs, recipes,
-    skills and MCP tools are NOT core -- they reach the model via the small per-turn
- cosine TAIL or tool_search (tier core+common == 69 tools drowned
-    the 8B + regressed apps/recall selection; core-only == 23 keeps ~33 visible, near the
-    working legacy 36). Reuses the existing `tier` field (no new catalog field)."""
     fn = (t.get("function") or {})
     name = str(fn.get("name") or "")
     if name.startswith(("mios_recipe__", "mios_skill__", "mcp.", "a2a")):

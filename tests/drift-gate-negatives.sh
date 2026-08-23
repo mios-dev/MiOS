@@ -411,12 +411,6 @@ test_bake_unresolved_image() {
     local bak="${q}.bak"
     cp "$q" "$bak"
 
-    # An Image= whose variable resolves nowhere used to be skipped silently,
-    # which resurfaced as "core image is not referenced by any Quadlet" --
-    # an error naming a different file entirely. The probe tag is deliberately
-    # not MIOS_-prefixed: generate-names-registry harvests every MIOS_* token it
-    # sees, so a MIOS_-named probe writes itself into referenced_names.txt and
-    # the test starts editing the SSOT it guards.
     sed -i 's|^Image=.*|Image=quay.io/ceph/ceph:${UNRESOLVABLE_PROBE_TAG}|' "$q"
 
     # Captured, not piped: the suite runs under `set -o pipefail`, so
@@ -2935,8 +2929,7 @@ import sys
 p = sys.argv[1]
 with open(p, "r", encoding="utf-8", newline="") as fh:
     t = fh.read()
-t = t.replace('  "pacemaker-unfenced",
-', "", 1)
+t = t.replace('  "pacemaker-unfenced",\n', "", 1)
 with open(p, "w", encoding="utf-8", newline="") as fh:
     fh.write(t)
 PYEOF
@@ -2953,12 +2946,6 @@ PYEOF
 
 test_neg_gate_harness() {
     log "Testing the _neg_gate harness itself"
-    # _neg_gate once contained a literal backslash-n instead of line
-    # continuations, so the command word became `n` and it returned 127 every
-    # time. Under that, all 61 tests that call it could never detect anything --
-    # `if _neg_gate X; then die` simply never fired -- while their restoration
-    # arms died unconditionally. A helper 61 tests depend on has to be proven
-    # before it is trusted, and proven in BOTH directions.
     _neg_gate check_gate_registry         || die "_neg_gate returned non-zero for a check that passes"
     if _neg_gate mios_negtest_no_such_check_exists; then
         die "_neg_gate returned zero for a check that does not exist"

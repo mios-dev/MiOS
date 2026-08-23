@@ -824,3 +824,20 @@ Operator-hit 2026-06-06: com.google.ChromeDev shipped a PNG named
 com.google.ChromeDev.svg on WSL 2.7.7.0. See the helper's header.
 
 <!-- mios-src:8577afbd08c5 from usr/lib/systemd/system/mios-wslg-permissions-fix.service:54-59 -->
+### usr/lib/systemd/system/hermes-worker.service The MiOS...
+
+/usr/lib/systemd/system/hermes-worker.service
+
+The MiOS Hermes gateway. It is the DISPATCH target of [agents.hermes].endpoint
+and does its own heavy-lane inference, so it never relays back to agent-pipe.
+  * API_SERVER_PORT is the LOAD-BEARING bind var; PORT is inert in this Hermes
+    build (no PORT->API_SERVER_PORT bridge). Both carry the `hermes` port key.
+  * SEPARATE HERMES_HOME=/var/lib/mios/hermes-worker => its own gateway.pid /
+    gateway.lock / gateway_state.json / state.db / kanban.db / config.yaml.
+  * NO discord.env / NO DISCORD_BOT_TOKEN => the Discord adapter never calls
+    _acquire_platform_lock('discord-bot-token', ...), so no host-global lock
+    is contended and no SIGTERM flap can follow.
+  * NO --replace: the HERMES_HOME-scoped pidfile is its own, and the eviction
+    scan is profile-scoped (only --all crosses profiles, which is not used).
+
+<!-- mios-src:7e38508e9639 from usr/lib/systemd/system/hermes-worker.service:4-16 -->

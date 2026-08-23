@@ -22,18 +22,6 @@ COMPLETE = "complete"   # the slice hit a stop/EOS -> the generation is done
 
 def decide(*, finished: bool, quantum_expired: bool,
            higher_priority_waiting: bool, can_suspend: bool) -> str:
-    """Pure per-slice-boundary decision for an interruptible generation.
-
-    - finished -> COMPLETE (the decode loop saw a stop/EOS within the slice).
-    - a higher-priority waiter IS queued AND this run has spent its quantum AND
-      we can bound the suspension (a free snapshot slot exists) -> PREEMPT.
-    - otherwise CONTINUE (run another slice).
-
-    Bounded-suspension safety: when no snapshot slot is free (`can_suspend` is
-    False) we NEVER preempt -- the task runs to completion instead -- so the set
-    of suspended generations can never exceed the cap and a preempted task is
-    never dropped on the floor. A generation is only ever preempted at a slice
-    boundary, so its partial output up to that boundary is always captured."""
     if finished:
         return COMPLETE
     if quantum_expired and higher_priority_waiting and can_suspend:
@@ -128,12 +116,6 @@ class PreemptScheduler:
         return snap
 
     def discharge(self, task_id: str) -> Optional[Snapshot]:
-        """Remove a SPECIFIC suspended task and free its slot, returning its
-        Snapshot (None if it was not suspended). This is the self-resume path for
-        the gate-driven driver: a preempted generation re-acquires the lane via
-        the priority gate (which already orders waiters by priority), so it
-        discharges ITS OWN snapshot rather than popping the global highest via
-        resume() -- that would let one coroutine steal another's saved state."""
         snap = self._suspended.pop(str(task_id), None)
         if snap is not None:
             self.release_slot(snap.slot)
@@ -152,22 +134,6 @@ class PreemptScheduler:
 
 
 class TokenSliceQueue:
-    """Token-time-sliced priority queue (T-020 / SCHED-02) -- the queueing POLICY on
-    top of the T-019 turn-boundary mechanism. It orders ready turns by priority and,
-    for a dispatched turn, accounts the tokens it generates against a per-turn SLICE
-    BUDGET (a token-time quantum -- N tokens, NOT wall-clock). When a turn crosses its
-    slice budget the scheduler re-evaluates (the caller drives that via slice_boundary
-    -> turn_boundary): a higher-priority waiter may preempt it, else it continues.
-
-    Pure bookkeeping (deterministic; token counts are passed IN) so it unit-tests in
-    isolation, like PreemptScheduler. Single-threaded asyncio: every method is
-    allocation-light and lock-free (no await between a check and its mutation). The
-    queue is BOUNDED (max_turns) and evicts only STALE ready entries, so its advisory
-    bookkeeping can never grow without limit even if a caller misses a remove(); a
-    turn's coroutine is never affected by eviction (degrade-open). The live token feed
-    + the precise gate-relative enqueue/dispatch placement are operator-live-validated;
-    this class owns the MLFQ ordering (LRU eviction + contention-gated priority decay)
-    + slice accounting."""
 
     __slots__ = ("_default_slice", "_cap", "_turns", "_seq")
 
@@ -383,13 +349,6 @@ _CFG_ALIAS = {
 
 
 def configure(**deps) -> None:
-    """Override the turn-boundary wiring under exact names (one-way boundary).
-
-    server.py calls this to inject the live PriorityGate head-priority probe
-    (``head_priority=``) so the seam can tell when a higher-priority turn waits;
-    tests inject a spy ``turn_scheduler=`` / ``clock=`` / ``preempt_enable=``.
-    Friendly aliases (head_priority/turn_scheduler/clock/quantum_s/...) map to the
-    module globals. Unknown keys are ignored (partial-injection safe)."""
     g = globals()
     for k, v in deps.items():
         key = _CFG_ALIAS.get(k, k)
@@ -399,12 +358,6 @@ def configure(**deps) -> None:
 
 def _higher_priority_waiting(priority: float,
                              task_id: "Optional[str]" = None) -> bool:
-    """True iff a higher-priority turn is waiting. Two OR-combined signals: the
-    injected gate head-priority probe (T-019) and -- ONLY when the token-time-sliced
-    queue is enabled ([scheduler].queue_enable, T-020) -- the queue's highest-priority
-    READY waiter (excluding this turn). False when unwired or on any probe error -- no
-    signal => no preemption (degrade-open). With queue_enable OFF this is byte-
-    identical to the prior probe-only behaviour."""
     best = None
     probe = _HEAD_PRIORITY
     if probe is not None:
@@ -426,27 +379,6 @@ def _higher_priority_waiting(priority: float,
 
 async def turn_boundary(*, task_id: str, priority: float = 5.0,
                         now: "Optional[float]" = None) -> bool:
-    """Turn-boundary preemption seam (T-019 / SCHED-01). The dispatch turn loop
-    calls this AFTER a turn's AIOS priority is known -- the clean point at which a
-    scheduler decides whether to preempt. Returns True iff this turn was preempted
-    (snapshotted + yielded + resumed), else False.
-
-    DEFAULT-OFF ([scheduler].preempt_enable=false): returns False IMMEDIATELY --
-    the PreemptScheduler is NOT consulted, so the turn runs byte-identically.
-
-    ENABLED: consults the turn-boundary PreemptScheduler via the pure decide()
-    primitive (at a boundary the prior slice is spent, so quantum_expired=True ->
-    preempt iff a higher-priority turn waits AND a snapshot slot is free, else run
-    to completion -- bounded suspension). On PREEMPT it SNAPSHOTS this turn into a
-    slot, cooperatively YIELDS the event loop (bounded by max_preempt_depth ticks
-    AND the quantum, so a turn is never starved or busy-waited), then RESUMES by
-    discharging ITS OWN snapshot -- the snapshot/resume round-trip per the
-    PreemptScheduler API. The richer cross-turn blocking policy that later
-    schedulers (T-020/T-058) layer on this seam is operator-live-validated.
-
-    DEGRADE-OPEN: ANY scheduler error -> returns False and the turn proceeds
-    normally; a best-effort discharge prevents a leaked snapshot. Preemption NEVER
-    drops or corrupts a turn."""
     if not PREEMPT_ENABLE or _TURN_SCHEDULER is None:
         return False
     sched = _TURN_SCHEDULER
@@ -486,28 +418,6 @@ async def turn_boundary(*, task_id: str, priority: float = 5.0,
 async def slice_boundary(*, task_id: str, priority: float = 5.0,
                          tokens: int = 0, text: "Optional[str]" = None,
                          now: "Optional[float]" = None) -> bool:
-    """Token-time-slice boundary hook (T-020 / SCHED-02) -- the queueing POLICY on
-    top of the T-019 turn_boundary mechanism. The generation loop calls this as a
-    dispatched turn produces output: it ACCOUNTS the tokens generated this step
-    against the turn's SLICE BUDGET (a token-time quantum -- SLICE_TOKENS tokens, NOT
-    wall-clock) and, ONLY when the budget is crossed (a slice boundary), RE-EVALUATES
-    via turn_boundary -- snapshot + yield to a higher-priority waiter, or continue.
-    Returns True iff the turn was preempted at this boundary.
-
-    Token-time accounting: `tokens` is a count the caller already measured through the
-    mios_tokenize seam; alternatively pass `text` and it is counted HERE through the
-    SAME seam (never a re-derived chars//N).
-
-    DEFAULT-OFF ([scheduler].queue_enable=false): returns False IMMEDIATELY -- the
-    queue is NOT consulted, so the turn runs byte-identically (no interposition).
-
-    ENABLED: accounts the tokens; a slice boundary delegates to turn_boundary (itself
-    gated on preempt_enable + a higher-priority waiter -- the queue head is one such
-    signal, see _higher_priority_waiting). On a real preempt the turn is REQUEUED
-    (ready) so the next dispatch() re-orders it by priority.
-
-    DEGRADE-OPEN: ANY queue/scheduler error -> returns False and the turn runs
-    normally; a turn is never dropped or stalled."""
     if not QUEUE_ENABLE or _TURN_QUEUE is None:
         return False
     try:

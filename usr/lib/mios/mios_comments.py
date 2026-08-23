@@ -306,20 +306,25 @@ class RefIndex:
                 self.names.update(l.strip() for l in fh if l.strip())
         except OSError:
             pass
-        # Short pod names and service aliases
+        # Short pod names and service aliases, restricted to names the tree
+        # actually carries. A hand-list is the wrong shape here -- 26 of the
+        # original 59 named nothing that exists, including mios-ollama, which
+        # was purged from MiOS entirely, and vector stores it never shipped.
+        # Allowlisting a name that does not exist blinds the staleness
+        # measurement to precisely the references it exists to find, which
+        # lowers the count without making anything truer. Names that are
+        # legitimate but unresolvable belong in [docs].ref_allowlist with a
+        # recorded reason (AGY-1608), not hardcoded here.
         short_names = (
-            "mios-hermes", "mios-gpu", "mios-heavy", "mios-resolver", "mios-igpu-server",
-            "mios-reasoner-cpu", "mios-codemode", "mios-oscontrol", "mios-common", "mios-dev",
-            "mios-sys", "mios-agent", "mios-help", "mios-knowledge", "mios-llm-worker",
-            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-sync-env",
-            "mios-pgvector", "mios-searxng", "mios-openwebui", "mios-forgejo", "mios-guacamole",
-            "mios-k3s", "mios-ceph", "mios-nut", "mios-chrony", "mios-minio", "mios-litellm",
-            "mios-ollama", "mios-sglang", "mios-vllm", "mios-tgi", "mios-triton", "mios-qdrant",
-            "mios-weaviate", "mios-milvus", "mios-redis", "mios-vault", "mios-consul",
-            "mios-install", "mios-gui-watch", "mios-bootstrap", "mios-kver", "mios-cosign",
-            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-init",
-            "mios-gateway-agent", "mios-opencode", "mios-daemon-agent", "mios-oscontrol-server",
-            "mios-sys-agent", "mios-unit-gen", "mios-btop", "mios-grounding", "mios-vendor"
+            "mios-hermes", "mios-gpu", "mios-resolver", "mios-igpu-server",
+            "mios-codemode", "mios-oscontrol", "mios-common", "mios-dev",
+            "mios-sys", "mios-agent", "mios-knowledge", "mios-llm-worker",
+            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-pgvector",
+            "mios-searxng", "mios-forgejo", "mios-guacamole", "mios-k3s",
+            "mios-ceph", "mios-chrony", "mios-vllm", "mios-install",
+            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-gateway-agent",
+            "mios-opencode", "mios-oscontrol-server", "mios-unit-gen", "mios-btop",
+            "mios-vendor",
         )
         self.names.update(short_names)
 

@@ -1,22 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_render_globals_py.md
-"""render-globals.py -- generate BOTH globals resolvers from the SSOT.
-
-automation/lib/globals.sh and globals.ps1 used to be two divergent hand-typed
-registries (~200 literals each) kept in step with mios.toml only by drift
-checks. They are now generated in full, directly, under their original names --
-every consumer that sources/dot-sources them is untouched, and there is no
-`.generated` sidecar and no shim layer.
-
-Only ONE thing cannot be a constant: the version, which is read from a file at
-run time. That logic is emitted as a preamble from this generator, so it still
-lives in exactly one place.
-
-Usage:
-    tools/render-globals.py           # write both resolvers
-    tools/render-globals.py --check   # exit 1 if either has drifted
-"""
 from __future__ import annotations
 
 import os
@@ -232,14 +216,6 @@ def _sh_squote(text: str) -> str:
 
 
 def _sh_assign(name: str, value: str) -> str:
-    """Assign-if-unset.
-
-    Prefer the idiomatic `: "${VAR:=value}"` -- several drift checks parse that
-    exact shape out of this file. It is unusable when the value contains `}`
-    (message templates carry `{placeholder}`), which would close the expansion
-    early and make the file a syntax error; those fall back to
-    `[ -n "${VAR+x}" ] ||`, which has identical already-set-wins semantics.
-    """
     parts = _TEMPLATE_RE.split(value)
     # The word in `"${VAR:=word}"` is still quote-processed, so a lone ' or "
     # inside it (e.g. "the operator's phone") starts an unterminated quote.

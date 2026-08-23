@@ -8,13 +8,6 @@ import json
 
 
 def _council_role_lens(name: str, cfg: dict) -> str:
-    """P2.1 ("council not fan-out"): per-secondary role
-    lens prompt so a council DOES NOT send the same prompt to N models. Each
-    secondary gets a small system message identifying its angle (its role +
-    declared strengths from mios.toml [agents.*]) so the council answers from
-    DIVERSE perspectives instead of duplicating one answer N times. SSOT-
-    derived (no hardcoded per-agent text); empty when the agent has neither
-    a role nor strengths -- harmless fall-back to identical-prompt mode."""
     role = str(cfg.get("role", "")).strip().lower()
     strengths = [str(s).strip() for s in (cfg.get("strengths") or [])
                  if str(s).strip()]
@@ -92,16 +85,6 @@ def _format_tool_history(rows: list[dict]) -> str:
 
 
 def _build_agent_hint(refined: dict, target_name: str) -> str:
-    """Render a compact system-message prefix from a refined plan.
-    Injected at the head of `messages` when proxying to a sub-
-    agent so the agent receives MiOS-Agent's intent + suggested
-    tools/skills/outcome -- NOT as free-form prose, but as a
-    structured marker block the agent's own system prompt can
-    parse.
-
-    Format kept tight (~150-250 tokens) so even a 4K-context
-    micro-model has plenty of room for the conversation itself.
-    """
     intent = str(refined.get("intent") or "").strip()
     outcome = str(refined.get("intended_outcome") or "").strip()
     refined_text = str(refined.get("refined_text") or "").strip()

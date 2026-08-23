@@ -1,22 +1,5 @@
 # AI-hint: Tool-call EXECUTION primitive extracted verbatim from server.py (refactor R4 wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_toolexec_py.md
-"""Tool-call execution primitive + narrated-tool-call rescue corpus.
-
-Extracted verbatim from ``server.py``. Holds the universal pipe-side tool
-executor (``_exec_tool_calls``), the hard-won narrated-tool-call salvage
-(``_rescue_tool_calls`` / ``_norm_tool_call`` + the ``_RESCUE_*`` regexes), the
-ACI result capping (``_cap_verb_result`` / ``_verb_result_cap``) and the broker
-error shaper (``_format_tool_error``). ``server.py`` re-imports every name under
-its original alias so the module's public surface is byte-identical.
-
-The moved bodies are unchanged. ``_loads_lenient`` (mios_jsonsalvage),
-``_aci_normalize`` (mios_aci) and ``execute_skill`` (mios_skills) are imported
-directly from their sibling modules; every other server-side symbol they touch
-(the verb/recipe/security catalogs, the orchestrator-context ContextVar, the
-config scalars and the DB / dispatch / swarm helpers) is injected via
-:func:`configure` (one-way module boundary -- this module never imports
-``server``).
-"""
 
 from __future__ import annotations
 
@@ -207,12 +190,6 @@ def _allowed_tool_names(tools: "Optional[list]") -> set:
 
 
 def _rescue_tool_calls(content: str, tools: "Optional[list]" = None) -> list:
-    """Promote a NARRATED tool call in `content` into OpenAI tool_calls[].
-    Parses (a) Qwen <function=NAME><parameter=K>V</parameter></function> XML,
-    and (b) JSON objects -- bare or in a ```fence -- of shape
-    {"name","arguments"|"args"|"parameters"}, OpenAI {"function":{"name",
-    "arguments"}}, or {"tool","args"}. Returns [] when nothing matches a known
-    tool. GUARD: only names in _allowed_tool_names are promoted."""
     text = content or ""
     if "{" not in text and "<function=" not in text:
         return []
@@ -267,15 +244,6 @@ def _verb_result_cap(verb: str) -> int:
 
 
 def _cap_verb_result(verb: str, out: str) -> str:
-    """Cap a verb result to its char budget, FLAGGING truncation loudly.
-
-    A bare mid-record slice (the old `out[:cap]`) invites the model to FABRICATE
- the omitted tail -- "what's open" invented window PIDs/
-    titles + a whole process list PAST a cut-off list_windows/process_list,
-    because the slice looked like a complete (just short) list. This marker +
-    the grounding instruction make the model report ONLY the complete entries
-    shown and say the list continues, instead of completing it from imagination.
-    Returns `out` unchanged when within budget."""
     cap = _verb_result_cap(verb)
     return _aci_normalize(out, max_chars=cap, max_lines=ACI_MAX_LINES,
                           head_frac=ACI_HEAD_FRAC, label=verb)
@@ -328,18 +296,6 @@ def _tool_span(vname: str, session_id: str):
 
 
 async def _exec_tool_calls(tcs: list, push, allow_write: bool = False) -> tuple:
-    """Execute the verbs in an OpenAI tool_calls[] list via the broker and return
-    (tool_result_messages, ran_any). Shared by every pipe-side sub-agent tool-loop
- (every sub-agent lane, all /v1) so the OpenAI loop is ONE mechanism ('full
-    loop ... to OpenAI Standards'). tool_call_id is preserved for OpenAI-spec
-    linkage; the result is also keyed by `name` (some models match by name).
-
-    allow_write: when False (the PRIMARY's pipe-side pre-resolution) only
-    permission=read verbs auto-execute -- the primary's OWN loop performs writes.
-    When True (a WORKER/agent loop) write/launch verbs execute too: the MiOS
-    agents ACT -- the no-live-launch binding is CLAUDE's alone, not the agents'
-. The broker's conversation-scoped single-flight dedup
-    collapses duplicate actions across the parallel swarm, so a write fires once."""
     from mios_pipe.routing.chat import _record_active, _replay_active, _replay_tool_queue, _conv_key_var, _in_exec_tool_calls
     
     _sess = (_orch_ctx_var.get() or {}).get("session_id")

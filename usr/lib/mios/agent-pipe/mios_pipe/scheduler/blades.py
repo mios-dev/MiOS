@@ -1,20 +1,5 @@
 # AI-hint: Pure-stdlib BLADE/topology model for the agent-pipe (V4 + V5 multi-blade AI-related: ./mios_config.py, ./mios_agentreg.py, ./server.py, ....
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_scheduler_blades_py.md
-"""mios_blades -- blade (machine) topology + per-blade capacity model.
-
-V4 makes "nodes X, Y, Z are one machine" EXPRESSIBLE: each [nodes.*] may carry an
-optional `blade` (which physical machine it lives on), and [blades.<name>] declares
-that machine's capacity. V5 gives the model a real consumer: the admission gate
-compares a node's residents against ITS blade's VRAM budget instead of the single
-LOCAL scalar (the "remote residents vs one local VRAM scalar" bug).
-
-DEFAULT-PRESERVING by construction: a node with no `blade` belongs to the LOCAL blade
-(name from the [identity] hostname SSOT), whose capacity defaults to the caller's
-existing VRAM_BUDGET_MB. So a config with no [blades.*] and no blade fields resolves
-every endpoint to one local blade at the local budget -- i.e. exactly today. Every
-lookup degrades OPEN (unknown blade/capacity -> the local scalar) so admission can
-never wedge on a missing blade.
-"""
 
 from __future__ import annotations
 
@@ -40,13 +25,6 @@ def _as_int(v, default: int = 0) -> int:
 
 
 def local_blade_name() -> str:
-    """Resolve THIS machine's blade name from SSOT, NOT a baked literal.
-
-    Precedence: env ``MIOS_HOSTNAME`` (the install.env bridge derived from
-    [identity].hostname) -> [identity].hostname -> the OS hostname
-    (``socket.gethostname()``) as the degrade-open fallback. Always returns a
-    non-empty name when the OS can report one; only a total failure yields ''.
-    """
     try:
         h = str(os.environ.get("MIOS_HOSTNAME") or "").strip()
         if not h:
@@ -63,16 +41,6 @@ def local_blade_name() -> str:
 
 def load_blade_pool(local_blade: str, local_vram_budget_mb,
                     local_load_ceil: Optional[float] = None) -> dict:
-    """Build ``{blade_name: {"vram_budget_mb": int, "load_ceil": float|None}}``.
-
-    The LOCAL blade is ALWAYS present and defaults to the caller's existing
-    VRAM_BUDGET_MB scalar (and optional local load ceiling), so a config with NO
-    [blades.*] section reproduces today's single-blade capacity byte-for-byte. A
-    declared [blades.<local>] may OVERRIDE the local capacity; remote blades carry
-    their own. A declared blade that omits ``vram_budget_mb`` degrades OPEN to the
-    local scalar (unknown capacity is never a wedge). Degrade-open: a malformed or
-    absent section -> just the local blade at the local scalar.
-    """
     _local_vram = _as_int(local_vram_budget_mb)
     _local_ceil = None
     if local_load_ceil is not None:
@@ -109,13 +77,6 @@ def load_blade_pool(local_blade: str, local_vram_budget_mb,
 
 def endpoint_blade_map(registry: dict, endpoint_key: Callable[[str], str],
                        local_blade: str) -> dict:
-    """Map each registry endpoint (``host:port`` via ``endpoint_key``) to its blade.
-
-    A [nodes.*]/[agents.*] entry with an explicit ``blade`` carries it; one WITHOUT a
-    blade belongs to the LOCAL blade -- so a config with no blade fields makes every
-    endpoint local (today). Returns ``{endpoint_key: blade_name}``. Endpoints absent
-    from this map resolve to the local blade at lookup time (see blade_for_endpoint).
-    """
     out: dict = {}
     if not isinstance(registry, dict):
         return out

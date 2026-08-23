@@ -1,24 +1,5 @@
 # AI-hint: Sub-agent TOOL LOOP for the OpenAI /v1 surface (MiOS is /v1-only), extracted verbatim from server.py (refactor R4 + a later move-home wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_secondary_loop_py.md
-"""Sub-agent /v1 tool-loop + its anti-disclaimer / closed-loop guards.
-
-Extracted verbatim from ``server.py``. Holds ``_v1_secondary_tool_loop`` (the
-universal pipe-side OpenAI tool-loop every /v1 sub-agent runs through -- MiOS is
-/v1-only, so this is the single tool-loop mechanism), plus the load-bearing loop
-guards it relies on: the anti-disclaimer ``_TOOL_NUDGE`` +
-``_looks_like_disclaimer``, the no-progress signature ``_tool_call_sig``, the
-failure verdict ``_tmsgs_indicate_failure``, the closed-loop ``_REPLAN_NUDGE``
-and the ``_daemon_diagnose`` monitor pass. ``server.py`` re-imports every name
-under its original alias so the module's public surface is byte-identical.
-
-The moved bodies are unchanged. ``_exec_tool_calls`` / ``_rescue_tool_calls``
-(mios_toolexec) and ``loads_lenient`` (mios_jsonsalvage) are imported directly
-from those siblings; the remaining server-side symbols the loops touch (the
-config scalars, the ``_DAEMON_DIAGNOSE_*`` constants and the helpers
-``_apply_outbound_auth`` / ``_endpoint_supports_parallel_tools``) are injected
-via :func:`configure` (one-way module boundary -- this module never imports
-``server``).
-"""
 
 from __future__ import annotations
 
@@ -213,18 +194,6 @@ async def _v1_secondary_tool_loop(client, ep: str, model: str, headers: dict,
                                   messages: list, tools: list, timeout,
                                   push, allow_write: bool = False, tool_choice=None,
                                   session_id: Optional[str] = None) -> list:
-    """Pipe-side READ-ONLY OpenAI tool-loop for a /v1 sub-agent (opencode :8633,
-    hermes, daemon-agent, any node bound to a /v1 endpoint -- MiOS is /v1-only, so
-    this is the single tool-loop mechanism for the /chat/completions shape): POST
-    (non-streaming) -> read message.tool_calls (RESCUING a narrated call from
-    content when the field is empty -- the opencode ```json webfetch``` lie) ->
-    execute the read verbs via the broker -> append role:tool -> re-call, up to
-    SECONDARY_TOOL_MAX_ITERS or until the agent stops calling tools (SATISFIED).
-    A self-looping agent returns no tool_calls -> ONE pass, no-op. Returns the
-    augmented messages ready for the final (streamed or complete) answer.
-    Endpoint-agnostic: `ep` comes from the agent's binding map, no port literals
- here ('any agent/model on any node/endpoint, no
-    hardcodes')."""
     import sys
     import time
     msgs = list(messages)

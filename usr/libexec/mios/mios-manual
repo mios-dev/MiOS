@@ -405,7 +405,7 @@ def cmd_distill(args) -> int:
             fh.write("\n".join(chunks))
         for b in blocks:
             row = rows.get(b.sha12)
-            if row is None or f"mios-src:{b.sha12}" in existing:
+            if row is None:
                 continue
             row["landed_doc"] = dest_rel
             row["landed_anchor"] = f"mios-src:{b.sha12}"
@@ -941,7 +941,8 @@ def _tracked(root: str, pattern: str = "") -> list[str]:
         return []
     if pattern:
         # Windows checkouts set core.ignorecase=true, so `git ls-files
-        # usr/libexec/mios/mios-*` matches MiOS-Mon.py there and not on Linux.
+        # usr/libexec/mios/mios-*` matched the then-CamelCase monitor there and
+        # not on Linux (since renamed to mios-mon.py).
         # That made the generated index depend on which machine ran it, and CI
         # and the contributor took turns reverting each other. Re-filter in
         # Python, where the comparison is unambiguously byte-exact.
@@ -1072,7 +1073,8 @@ def _hint_index(root: str, pattern: str) -> list[tuple[str, str]]:
     back out is how a documentation index stops being a hand-kept list.
     """
     # fnmatchcase, not fnmatch: fnmatch normalises case on Windows, so
-    # `usr/libexec/mios/mios-*` matched MiOS-Mon.py there and not on Linux.
+    # `usr/libexec/mios/mios-*` matched the then-CamelCase monitor there and
+    # not on Linux (since renamed to mios-mon.py).
     # The index is a committed artifact -- when its content depends on which
     # machine regenerated it, CI and the contributor take turns reverting each
     # other and the gate reports a file rather than a cause.

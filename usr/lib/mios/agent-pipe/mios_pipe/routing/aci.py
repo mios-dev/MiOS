@@ -1,20 +1,5 @@
 # AI-hint: Normalizes raw tool/terminal output into a context-safe format by preserving the head and tail while eliding the middle with a specific marker...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_aci_py.md
-"""mios_aci -- pure Agent-Computer Interface output normalizer (WS-5).
-
-DB-free + stdlib-only so the truncation logic unit-tests in isolation
-(sibling-module pattern, like mios_sched / mios_evict / mios_hitl).
-
-The problem: feeding raw tool/terminal output back to a model either saturates
-the context window or, with a naive head-only slice (`out[:N]`), DROPS THE TAIL
--- which for command/terminal output is exactly where the error, exit code, or
-final result lands. The ACI pattern keeps the most informative ENDS (head AND
-tail) and elides the middle with an explicit, anti-fabrication marker, bounding
-both line count and char count.
-
-server.py owns the knobs + where this is applied; this module owns the pure
-transform.
-"""
 
 from __future__ import annotations
 
@@ -29,13 +14,6 @@ def _omit_marker(kind: str, n: int, label: str) -> str:
 
 def normalize_output(text, *, max_chars: int, max_lines: int = 0,
                      head_frac: float = 0.6, label: str = "") -> str:
-    """Bound `text` to a context budget by keeping the head AND the tail and
-    eliding the middle with a marker. Applies an optional line cap first, then a
-    char cap. Returns `text` unchanged when already within budget.
-
-    head_frac in (0,1) splits the kept budget between head and tail; the default
-    keeps slightly more head (early context) while preserving the tail (the
-    result/error). Degrade-open: any error returns a plain head slice."""
     try:
         text = text if isinstance(text, str) else str(text)
         hf = min(0.95, max(0.05, float(head_frac)))

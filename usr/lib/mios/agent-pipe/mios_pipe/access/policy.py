@@ -1,24 +1,5 @@
 # AI-hint: RBAC/PDP/quota + human-in-the-loop POLICY plane extracted verbatim from server.py (refactor R7 security wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_policy_py.md
-"""RBAC / PDP / quota + human-in-the-loop policy decision plane.
-
-Extracted verbatim from ``server.py``. Holds the least-privilege capability
-gate (the #55 risk lattice + per-agent/per-user surface filters routed through
-the shared :mod:`mios_pdp` core), the #62 human-in-the-loop block-reason + the
-out-of-process policy arbiter, the WS-6 per-user quota gate, and the WS-A9
-dispatch-time Policy Decision Point.
-
-SECURITY-CRITICAL: the gates are NAME-KEYED on verb keys and permission tiers.
-The moved bodies are byte-identical to the originals -- no verb key, gate name,
-permission tier, or set-membership test was renamed or rewritten. ``mios_pdp``
-(aliased ``_pdp``) and ``mios_quota`` are imported directly; ``_toml_section``
-comes from :mod:`mios_config`; every other server-side symbol these helpers
-touch (the verb / recipe catalogs, the agent registry, the HITL / client /
-dispatch ContextVars, ``_pending_hash``, ``_get_client`` and the DB-event
-helpers) is injected via :func:`configure` (one-way module boundary -- this
-module never imports ``server``). ``server.py`` re-imports every name under its
-original alias so the module's public surface is byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -116,13 +97,6 @@ _HITL_THRESHOLD = str((_toml_section("ai") or {}).get("hitl_threshold")
 
 
 def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
-    """The permission tier that actually governs THIS call. Umbrella verbs that
-    dispatch to a NAMED sub-action with its own permission (os_recipe -> a named
-    [recipes.*]) must be gated by the RECIPE's tier, not the umbrella verb's
-    worst-case 'interactive' -- otherwise HITL block-mode neutralizes even the
-    read-only recipes (service-status / show-network / disk-usage / os-control-
-    health) the agent needs for routine OS introspection. Falls back to the
-    verb's own permission. Degrade-open: any lookup miss -> the verb tier."""
     vperm = str((_VERB_CATALOG.get(tool) or {}).get("permission", "read")).lower()
     try:
         if tool == "os_recipe" and args:
@@ -136,14 +110,6 @@ def _effective_perm(tool: str, args: "Optional[dict]" = None) -> str:
 
 
 def _hitl_block_reason(tool: str, args: "Optional[dict]" = None) -> "Optional[str]":
-    """#62: the [ai] RISK-TIER half of the HITL decision. In BLOCK mode return a
-    human-readable refusal reason if `tool`'s effective tier is at/above
-    [ai].hitl_threshold; AUDIT logs + proceeds (None); OFF is inert (None). The
-    block/observe verdict is computed by the SINGLE shared resolver
-    (``mios_hitl.decide``) that the [hitl] verb-scope gate also routes through, so the
-    two HITL gates can no longer disagree (the stricter-wins / fail-safe combine lives
-    in the resolver). Degrade-open: never raises, never gates on error. For os_recipe
-    the effective tier is the NAMED recipe's, not the umbrella verb's."""
     if _HITL_MODE not in ("audit", "block"):
         return None
     try:
@@ -215,15 +181,6 @@ async def _hitl_arbiter_verdict(tool: str, args: dict) -> "Optional[str]":
 
 
 def _agent_rbac_filter(aname: str, tools: list) -> list:
-    """WS-2 per-agent RBAC + #55 capability/risk gate: restrict a dispatched
-    agent's tool surface to what its role is permitted. SSOT:
-    [agents.<name>].denied_verbs / .allowed_verbs / .max_permission in mios.toml
-    (layered vendor<etc<user, surfaced via _AGENT_REGISTRY). No-op when none is
-    set -> ZERO behaviour change. Only gates BARE VERBS (names in _VERB_CATALOG):
-    names in denied_verbs are dropped; if allowed_verbs is set, any verb NOT in it
-    is dropped; if max_permission is set, any verb whose permission tier outranks
-    it is dropped. Non-verb tools (recipes/skills/MCP/client tools) pass through
-    untouched unless explicitly named in denied_verbs."""
     if not aname or not tools:
         return tools
     cfg = _AGENT_REGISTRY.get(aname) or {}
@@ -273,18 +230,6 @@ def _match_user_cfg() -> tuple:
 
 
 def _user_rbac_filter(tools: list) -> list:
-    """#60 WS-6 per-USER authz: restrict the dispatched tool surface by WHO the
-    request is from -- the per-USER axis, complementing _agent_rbac_filter's
-    per-AGENT axis. SSOT: [users.<name>].denied_verbs / .allowed_verbs /
-    .max_permission in mios.toml, matched to the principal the chat surface
-    forwarded (_client_env user_name / user_email). No-op when no [users.*] entry
-    matches the current user -> ZERO behaviour change (default; single-user MiOS is
-    unaffected). Same verb-gating semantics + risk lattice as #55.
-
-    SCOPE NOTE: this keys on the surface-CLAIMED identity. Cryptographic
-    SIGNED-principal verification (the 'signed principal' half of #60) is a further
-    step -- until then this is policy over a TRUSTED-surface identity, not an auth
-    boundary against a forged caller."""
     if not tools:
         return tools
     label, cfg = _match_user_cfg()
@@ -429,14 +374,6 @@ def _dispatch_quota_reason(verb: str) -> "Optional[str]":
 
 
 def _dispatch_pdp_reason(verb: str) -> "Optional[str]":
-    """WS-A9 dispatch-time Policy Decision Point. Re-checks the per-AGENT
-    (_dispatch_agent_var) and per-USER (_match_user_cfg) capability policy for
-    `verb` at the SINGLE dispatch chokepoint, through the SAME mios_pdp core the
-    surface filters use -- so a verb pruned from the model surface (or named by a
-    stale/MCP/A2A/fabricated call) can NOT still dispatch (the RBAC bypass WS-A9
-    closes). Returns a refusal reason on DENY, else None. Degrade-open: an
-    unexpected error proceeds (a PDP bug must never block real work); an EXPLICIT
-    policy deny always blocks."""
     try:
         in_cat = verb in _VERB_CATALOG
         vperm = str((_VERB_CATALOG.get(verb) or {}).get("permission", "read")).lower()

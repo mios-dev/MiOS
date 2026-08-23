@@ -1,21 +1,5 @@
 # AI-hint: CLUSTER/SCHEDULER/HEALTH route-handler LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_clusterhealth_py.md
-"""Cluster / scheduler / health route-handler logic (refactor ROUTE-SURFACE wave).
-
-Extracted VERBATIM from ``server.py``: the bodies behind the three deferred
-liveness/observability endpoints -- ``/v1/cluster/health`` (per-agent + per-
-endpoint probe), ``/v1/scheduler`` (AIOS-style per-lane concurrency + priority
-posture), and ``/health`` (capability/health rollup). Each body is moved byte-
-identically into a ``*_logic`` function; the ``@app`` routes stay in ``server.py``
-as thin wrappers calling these through ``sys.modules`` so the HTTP + importable
-surface is unchanged.
-
-The live lane resolver is read through ``mios_lanes_resolver._lane_resolver_current()``
-(via ``sys.modules``) inside ``cluster_health_logic`` -- the runtime-reassigned
-singleton is never captured by value. Static config / DCI / SLO / secset symbols are
-imported directly; every server-resident runtime dependency is injected via
-:func:`configure` (one-way boundary -- this module never imports ``server``).
-"""
 
 from __future__ import annotations
 
@@ -269,13 +253,6 @@ def _kernel_managers_detail() -> dict:
 
 
 def _resolve_failover_chain(name: str) -> list:
-    """Expand an agent name into the FULL failover chain (
-    'remove SPOFs'): self -> declared failover_agents (mios.toml) -> self's
-    cpu_endpoint as a last-resort virtual agent. Each entry is {name, endpoint,
-    model, kind in {primary,failover,cpu-twin}}. Names already visited in the
-    chain are skipped so a config loop can't recurse. Reads the injected-by-
-    reference _AGENT_REGISTRY (the only server-side dep), so the move is
-    behaviour-identical; the sole caller is cluster_health_logic below."""
     out: list = []
     seen: set = set()
     cfg = _AGENT_REGISTRY.get(name)

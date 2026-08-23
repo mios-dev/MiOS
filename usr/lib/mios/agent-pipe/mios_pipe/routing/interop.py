@@ -1,16 +1,5 @@
 # AI-hint: WS-11 layered-interop 3-projection core. Pure-stdlib projector that renders ONE MiOS capability (a verb, a recipe, or a promoted skill) in...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_interop_py.md
-"""mios_interop -- 3-projection interop for the MiOS agent-pipe (WS-11).
-
-Pure stdlib. A capability (verb/recipe/skill) is advertised three ways: the MCP
-`tools/list` shape, the OpenAI function shape (both already projected in
-server.py), and -- the missing third -- the A2A AgentCard `skills[]` shape so a
-federated peer discovers MiOS capabilities over the open A2A standard. This
-module renders that A2A shape + a parity view of all three, deterministically.
-
-A2A skill entry (AgentCard.skills[], stable across A2A 0.3/1.0):
-  {id, name, description, tags[]}  -- id is the canonical capability key.
-"""
 
 from __future__ import annotations
 

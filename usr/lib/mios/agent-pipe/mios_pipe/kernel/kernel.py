@@ -1,20 +1,5 @@
 # AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1b: the pure Kernel facade.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_kernel_kernel_py.md
-"""mios_kernel -- the MiOS agent-pipe Kernel facade (WS-A11/WS-3, Stage 1b).
-
-A thin composition that gives the decomposed agent-pipe ONE object holding the
-Router (decide), the Dispatcher (run), and the five AIOS manager seams. The
-managers + dispatcher are INJECTED by server.py (concrete adapters over the
-existing scheduler/memory/context/tool/access code paths) so this module imports
-NOTHING from server.py and is fully testable with fakes. Stage 2 builds the
-KERNEL once and rewires chat_completions to `KERNEL.handle(refined, ...)`,
-replacing the inline intent cascade.
-
-Contract:
-    decision = kernel.router.route(refined)        # pure (mios_router)
-    result   = await kernel.dispatcher.run(decision, refined=refined, **ctx)
-The Dispatcher is duck-typed: any object exposing `async run(decision, **ctx)`.
-"""
 
 from __future__ import annotations
 

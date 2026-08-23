@@ -1,18 +1,5 @@
 # AI-hint: Pure A2A signed-delegation-principal helpers (#60 WS-6). Builds + verifies.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_principal_py.md
-"""Pure helpers for the #60 WS-6 signed delegation principal (A2A).
-
-Why a sibling module: the crypto primitives (Ed25519 sign/verify) and the request
-principal live in server.py, but the CLAIM SHAPE + the text-binding + the
-metadata routing are deterministic logic that should be tested without importing
-the orchestrator. The caller injects sign_fn(table, fields)->envelope|None and
-verify_fn(envelope, (table, fields))->(ok, reason); this module supplies the
-contract those two sides must agree on.
-
-Rides A2A's message.metadata extension point under the key "mios_principal", so a
-non-MiOS peer simply ignores it. Degrade-open: with no key the claims still ride
-along but unsigned (passport=None), and the verifier reports "unsigned".
-"""
 from __future__ import annotations
 
 import base64
@@ -59,12 +46,6 @@ def build_metadata(agent, principal, peer_id, context_id, text,
 def verify(metadata: Optional[dict], delivered_text,
            verify_fn: Callable[[dict, Tuple[str, dict]], Tuple[bool, str]]
            ) -> "Tuple[Optional[bool], str, dict]":
-    """Receive-side check. Returns (verdict, reason, claims):
-      verdict None  -> no principal block present (legacy / non-MiOS peer)
-      verdict False -> tampered text, unsigned, or bad signature
-      verdict True  -> signature valid AND the delivered text matches the claim
-    The text-digest check runs BEFORE signature verification, so a swapped
-    instruction fails even when carrying an otherwise-valid envelope."""
     block = (metadata or {}).get(METADATA_KEY) if isinstance(metadata, dict) else None
     if not isinstance(block, dict):
         return None, "absent", {}

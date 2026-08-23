@@ -1,16 +1,5 @@
 # AI-hint: WS-A14 SSOT-derived security sets. Pure-stdlib resolver that derives the agent-pipe's high-privilege verb set (the taint-firewall + HITL gat...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_secset_py.md
-"""mios_secset -- SSOT-derived security verb sets (WS-A14, the AIOS Access-Manager
-firewall/HITL scope layer).
-
-Pure stdlib. The taint firewall + the HITL block gate key off a "high-privilege"
-verb set; before WS-A14 that set was a hardcoded Python literal that could drift
-from the SSOT [security].firewall_high_privilege_verbs list (which existed but
-was never consumed). This module derives the EFFECTIVE set as
-curated_base ∪ SSOT_list -- the curated base is the never-removed floor (a verb
-the code knows is dangerous can't be dropped by an SSOT edit), and the SSOT can
-ADD verbs without a code change. Same pattern for the always-taint verb set.
-"""
 
 from __future__ import annotations
 

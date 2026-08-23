@@ -1,19 +1,5 @@
 # AI-hint: INFERENCE LANE-RESOLVER cluster extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_lanes.py, ./tes...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_lanes_resolver_py.md
-"""INFERENCE lane-resolver cluster (strangler-fig refactor).
-
-Extracted VERBATIM from ``server.py``. ``_lane_resolver`` lazily builds the WS-1
-unified :class:`mios_lanes.LaneResolver` from SSOT and caches it in the
-module-owned ``_LANE_RESOLVER`` singleton (rebound at runtime); ``_pick_tool_backend``
-returns the ``(url, model)`` for the client-tools loop via that resolver with a
-legacy heavy/light-probe fallback; ``_heavy_lane_up`` is the cached SGLang-heavy
-reachability probe. The config scalars are imported from :mod:`mios_config`;
-``mios_lanes`` is imported directly; every server-resident symbol (``_get_client``,
-``_is_remote_endpoint``) is injected via :func:`configure` (one-way boundary -- this
-module never imports ``server``). server.py re-imports the moved names under their
-original aliases, and reads the live ``_LANE_RESOLVER`` through
-:func:`_lane_resolver_current` so the importable surface stays byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -82,11 +68,6 @@ _LANE_RESOLVER = None
 
 
 def _lane_resolver():
-    """WS-1 unified lane resolver (mios_lanes), built LAZILY from SSOT so _toml_section
-    / _get_client are defined, then cached. ONE place a model lane is chosen: the
-    [ai].heavy_engine-preferred heavy lane, then the other heavy lane, then the always-on
-    light lane, with a per-lane cooldown so a dead lane fails over (never 404s). Collapses
-    the two 'mios-heavy' lanes (SGLang :11441 + vLLM :11440) behind one selector."""
     global _LANE_RESOLVER
     if _LANE_RESOLVER is not None:
         return _LANE_RESOLVER

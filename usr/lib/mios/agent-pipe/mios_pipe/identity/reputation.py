@@ -1,16 +1,5 @@
 # AI-hint: Pure in-memory per-peer reliability tracker (#54 zero-trust federation): AI-related: server.py, mios_a2a_principal, mios_lanes AI-func...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_identity_reputation_py.md
-"""Peer reputation for zero-trust A2A federation (#54).
-
-Tracks how reliably each A2A peer has handled delegations and ranks candidates so
-a reliable peer is chosen over a flaky one. In-memory + per-process (like the
-_A2A_PEERS registry it complements -- both rebuild on restart); persistence is a
-later concern. Pure logic, no I/O, no server import.
-
-Scoring is Laplace-smoothed success rate: (ok + 1) / (ok + bad + 2). No history ->
-0.5 (neutral). A recent-failure penalty (consecutive_bad) lets a peer that just
-started failing drop quickly without waiting for its long-run average to move.
-"""
 from __future__ import annotations
 
 from typing import Dict, List

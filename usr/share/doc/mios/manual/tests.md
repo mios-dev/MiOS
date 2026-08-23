@@ -107,3 +107,34 @@ Live test -- hits the actual refine endpoint -- so it's slow
 (15-30s on CPU) but exercises the real path.
 
 <!-- mios-src:d63f63fff4d6 from tests/test-reflection.py:5-13 -->
+### An Image= whose variable resolves nowhere used to be...
+
+An Image= whose variable resolves nowhere used to be skipped silently,
+which resurfaced as "core image is not referenced by any Quadlet" --
+an error naming a different file entirely. The probe tag is deliberately
+not MIOS_-prefixed: generate-names-registry harvests every MIOS_* token it
+sees, so a MIOS_-named probe writes itself into referenced_names.txt and
+the test starts editing the SSOT it guards.
+
+<!-- mios-src:7140d10222ad from tests/drift-gate-negatives.sh:414-419 -->
+
+### neg_gate once contained a literal backslash-n instead of...
+
+_neg_gate once contained a literal backslash-n instead of line
+continuations, so the command word became `n` and it returned 127 every
+time. Under that, all 61 tests that call it could never detect anything --
+`if _neg_gate X; then die` simply never fired -- while their restoration
+arms died unconditionally. A helper 61 tests depend on has to be proven
+before it is trusted, and proven in BOTH directions.
+
+<!-- mios-src:631badca875f from tests/drift-gate-negatives.sh:2956-2961 -->
+
+### !/usr/bin/env bash AI-hint: Self-contained test harness for...
+
+!/usr/bin/env bash
+AI-hint: Self-contained test harness for automation/97-ssot-lint.sh -- builds throwaway fixture trees (a fully-wired key, a both-sides orphan, a userenv-only and a render-only half-orphan) to assert the lint's PASS/FAIL exit codes and orphan detection, then asserts it flags the real known dead key (MIOS_SGLANG_TOOL_PARSER) in the live repo tree.
+AI-related: ../97-ssot-lint.sh, ../34-render-quadlets.sh, ../../tools/lib/userenv.sh, ../../usr/share/containers/systemd
+AI-functions: _mk_fixture, _expect, main
+
+<!-- mios-src:a64282216d09 from automation/tests/test-97-ssot-lint.sh:1-4 -->
+

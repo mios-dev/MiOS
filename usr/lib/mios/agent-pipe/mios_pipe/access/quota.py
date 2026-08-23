@@ -1,19 +1,5 @@
 # AI-hint: WS-6 per-user quota + rate-limit core. Pure-stdlib tracker modelled on the LiteLLM per-key budget + RPM pattern: each user gets a sliding-win...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_access_quota_py.md
-"""mios_quota -- per-user quota + rate limiting (WS-6, the AIOS multi-tenant
-fairness layer).
-
-Pure stdlib. RESEARCH NOTE: the production pattern for an LLM gateway (LiteLLM
-per-key budgets + RPM/TPM limits) is a PER-PRINCIPAL request-rate cap plus a
-spend budget over a rolling window. This is that tracker: a sliding-window RPM
-limiter + a per-window cost budget, per user. server.py keys it on the verified
-principal (WS-A10) and persists the spend; this owns the deterministic decision.
-
-limits <= 0 disable that dimension -> a user with no [users.*] quota (the
-single-user default) is unlimited, so this is a zero-behaviour-change default.
-
-Sources: LiteLLM per-key budgets + rate limiting / cost tracking (docs.litellm.ai).
-"""
 
 from __future__ import annotations
 

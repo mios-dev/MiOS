@@ -27,12 +27,6 @@ async def call_remote(
     oai_request: dict[str, Any],
     transport: Callable[[dict[str, Any], dict[str, Any]], Awaitable[dict[str, Any]]]
 ) -> dict[str, Any]:
-    """Adapt and issue a chat completion request to a remote node endpoint.
-
-    If node_cfg['api'] is 'anthropic' or 'gemini', translates request format and
-    translates provider response back to OpenAI Chat Completion format.
-    Otherwise (openai / unset / unknown), passes the request through directly.
-    """
     api = str((node_cfg or {}).get("api") or "openai").strip().lower()
 
     if api == "anthropic":

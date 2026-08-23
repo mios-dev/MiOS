@@ -1,14 +1,5 @@
 # AI-hint: WS-A11/WS-3 server.py decomposition -- Stage 1c: the pure Dispatcher.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_dispatcher_py.md
-"""mios_dispatcher -- the pure mode Dispatcher (WS-A11/WS-3, Stage 1c).
-
-The "run" half of the AIOS Router/Dispatcher split. mios_router classifies a
-refined plan into a RouteDecision(mode, ...); this Dispatcher routes that mode to
-a registered async handler. Handlers are injected by server.py (the concrete
-chat / dispatch / multi_task / dag / agent execution paths, lifted from the
-current inline cascade), so the routing table is pure + testable while the heavy
-bodies stay where they are until Stage 2 rewires them behind this seam.
-"""
 
 from __future__ import annotations
 

@@ -28,13 +28,6 @@ def main() -> int:
     missing = []
 
     def ceiling(env_var, *lookups):
-        """A ratchet ceiling, or a hard failure if the SSOT has stopped carrying it.
-
-        Defaulting an absent ceiling to 999999 makes the check unfailable the
-        moment a key is renamed, and it keeps reporting PASS while doing so --
-        the worst outcome, because it also stops anyone looking. An absent
-        ceiling is a broken gate, not an unlimited one.
-        """
         env_val = os.environ.get(env_var)
         if env_val is not None:
             return int(env_val)

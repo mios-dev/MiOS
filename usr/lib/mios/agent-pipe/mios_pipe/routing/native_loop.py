@@ -1,16 +1,5 @@
 # AI-hint: NATIVE single-agent tool-loop responders extracted VERBATIM from server.py AI-related: ./server.py, ./mios_config.py, ./mios_turn.py, ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_native_loop_py.md
-"""NATIVE single-agent tool-loop responders (strangler-fig refactor).
-
-Extracted VERBATIM from ``server.py``. ``_respond_native_loop_direct`` runs the
-mios-heavy + full-tool-surface agentic loop (prefetch grounding -> secondary tool
-loop -> failover -> polish -> relay ladder -> sources); ``_respond_local_state`` is
-the deterministic local-READ fast-path. Both keep every heuristic/guard/comment
-byte-identical. Sibling leaf helpers are imported directly; every server-side symbol
-is injected via :func:`configure` (one-way boundary -- this module never imports
-``server``). ``server.py`` re-imports both responders under their original aliases so
-the importable surface stays byte-identical.
-"""
 
 from __future__ import annotations
 
@@ -171,12 +160,6 @@ def _entity_tokens(text: str) -> set:
 
 
 def _ground_sections(ans, corpus, min_entities, ground_min):
-    """FAB-02 per-SECTION grounding. Split the answer structurally (blank lines +
-    markdown heading boundaries) and drop ONLY a section that carries at least
-    `min_entities` candidate entities AND whose grounded fraction (entities whose
-    normalized form is a substring of the normalized fetched `corpus`) is below
-    `ground_min`. A section with too few entities is always kept (degrade-open,
-    covers caseless scripts). Returns (kept_text, stripped_any)."""
     _nc = _norm(corpus)
     if not _nc.strip():
         return ans, False                       # no ground truth -> cannot verify
@@ -313,12 +296,6 @@ _INJECTED = frozenset((
 
 
 def configure(**deps) -> None:
-    """Inject server-side deps under their EXACT original names (one-way boundary).
-
-    Called once from ``server.py`` after every injected symbol is defined. Each
-    keyword equals the module global it sets; ``_worker_tools_core_cache`` is a live
-    zero-arg getter for server's rebindable ``_WORKER_TOOLS_CORE_CACHE`` cache.
-    """
     g = globals()
     for _k, _v in deps.items():
         if _k in _INJECTED:

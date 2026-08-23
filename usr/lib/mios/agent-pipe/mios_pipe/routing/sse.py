@@ -1,12 +1,5 @@
 # AI-hint: OpenAI streaming SSE chunk + status-emit primitives extracted from server.py (refactor WS R2 leaf wave).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_routing_sse_py.md
-"""OpenAI-streaming SSE chunk + status-emit primitives (extracted from server.py).
-
-Every builder returns ``bytes`` ready to write to the SSE response stream, or (for
-``_stream_answer``) async-yields them. Moved verbatim from ``server.py``; the
-module is pure (stdlib + ``json`` only) and ``server.py`` re-imports every name so
-its public surface is unchanged.
-"""
 
 from __future__ import annotations
 
@@ -30,13 +23,6 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
                finish_reason: Optional[str] = None,
                mios_status: Optional[dict] = None,
                reasoning: Optional[str] = None) -> bytes:
-    """Build an OpenAI-streaming SSE chunk. `reasoning` populates the
-    standard `delta.reasoning_content` field (OpenAI/OpenRouter/DeepSeek
-    convention) -- OWUI renders it as a native Thinking dropdown and
-    strict clients (Firefox Smart Window) ignore it, showing only the
-    clean `content` answer. Optional `mios_status` carries pipe-internal
-    phase emits (👂 prompt, 🧭 route, 🛠️ tool, ✅) that translator gateways
-    lift into their native status surfaces; stock clients ignore it."""
     delta: dict[str, Any] = {}
     if role:
         delta["role"] = role
@@ -63,25 +49,6 @@ def _sse_chunk(content: Optional[str], *, chat_id: str, model: str,
 
 def _sse_reasoning(text: str, *, chat_id: str, model: str,
                    reasoning_ok: Optional[bool] = None) -> bytes:
-    """Stream a reasoning/trace delta on the correct channel for the surface.
-
-    ``reasoning_ok`` carries the consuming surface's capability (set per-request
-    from the ``x-mios-reasoning-ok`` hint the OWUI pipe advertises; ``None`` when
-    unknown):
-
-    * ``True``  -- reasoning-aware surface (OWUI / Hermes desktop): pin the trace
-      to ``delta.reasoning_content`` REGARDLESS of ``[observability].debug`` so it
-      renders live in the native Thinking pane and never pollutes the answer
-      ``content`` (final answer stays the only thing in ``content`` -- KV-safe,
-      OWUI #21815). Full visibility, replay-safe.
-    * ``False`` -- a surface that DECLARED itself content-only: fold the trace
-      inline as ``content`` so strict clients (which ignore ``reasoning_content``)
-      still render it. Visibility preserved; MiOS owns the replay-strip.
-    * ``None``  -- unknown surface: legacy routing, ``[observability].debug``
-      decides (byte-identical to before the hint existed -- degrade-open).
-
-    The mandate is full visibility on EVERY surface; this only routes WHICH
-    channel carries the trace, never suppresses it."""
     if reasoning_ok is True:
         return _sse_chunk(None, chat_id=chat_id, model=model, reasoning=text)
     if reasoning_ok is False:
@@ -92,12 +59,6 @@ def _sse_reasoning(text: str, *, chat_id: str, model: str,
 
 
 def _load_status_labels() -> dict:
-    """Phase -> (emoji, label) for the SSE status strip. Personable
-    defaults here; each phase is OVERRIDABLE from mios.toml
-    [owui.status_phases.<phase>] = { emoji = "..", label = ".." } so the
-    operator tunes MiOS-Agent's voice without touching code (SSOT; no
- hardcoded UI strings locked in the hot path).
-    'better emitters / more detailed and personable'."""
     return {
         "prompt":         ("👂", ""),
         "refine":         ("✨", ""),
@@ -122,12 +83,6 @@ _HUMAN_LABELS = _load_status_labels()
 def _sse_status_phase(*, chat_id: str, model: str, phase: str,
                       done: bool = False,
                       detail: Optional[str] = None) -> bytes:
-    """Humanistic-label variant of _sse_status. Looks up the phase
-    in _HUMAN_LABELS, emits the casual label + emoji. `detail` is
-    optional and should ALSO be human-facing prose (e.g. "for 22
-    seconds", "almost there") -- NOT a model id / args JSON /
-    intent token. If you find yourself wanting to thread technical
-    info through here, log it to the event table instead."""
     emoji, label = _HUMAN_LABELS.get(phase, ("·", phase))
     return _sse_status(chat_id=chat_id, model=model, emoji=emoji,
                        label=label, done=done, detail=detail)
@@ -135,16 +90,6 @@ def _sse_status_phase(*, chat_id: str, model: str, phase: str,
 
 def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
                 done: bool = False, detail: Optional[str] = None) -> bytes:
-    """Emit a content-empty SSE chunk whose only purpose is the
-    `mios_status` field. Standard OpenAI clients see a no-op delta
-    + ignore the extra field. Translator gateways pull the phase
-    info from `mios_status` and surface it natively (OWUI's
-    event_emitter status, Hermes Discord's reactions, etc.).
-
-    Prefer _sse_status_phase() for new emit sites -- it picks the
-    canonical humanistic label from _HUMAN_LABELS. This raw form
-    stays available for one-off cases where the phase mapping
-    doesn't fit."""
     payload = {"emoji": emoji, "label": label, "done": done}
     _desc = f"{emoji} {label}".strip()
     if detail:
@@ -169,12 +114,6 @@ def _sse_status(*, chat_id: str, model: str, emoji: str, label: str,
 
 
 def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
-    """Yield ONE _sse_status per recorded enrich STEP ("need
-    emitters for every step end-to-end" -- not one whole-loop summary). Covers
-    the web steps (search / each page read / each deep-crawl / each drill pass,
-    recorded by _web_research_enrich) and the READ-only tool runs (recorded by
-    _read_tool_enrich). Each emit also persists in the reasoning log via
-    _sse_status. Yields nothing when no steps ran."""
     if not isinstance(refined, dict):
         return
     steps = ((refined.get("_web_steps") or [])
@@ -190,12 +129,6 @@ def _enrich_step_emits(refined: Optional[dict], *, chat_id: str, model: str):
 
 
 def _node_context(node: dict) -> str:
-    """SHORT, operator-facing description of what a DAG node is DOING -- the
- active step's CONTEXT ("emits should show actual steps
-    relevant to the current active step's context"). Derived from the node's
-    OWN data -- an agent node's sub-task, or a verb node's key arg -- NOT the
-    internal model/endpoint (which read as a leak). No LLM call, no hardcoded
-    topic text: it's the step's literal intent."""
     if not isinstance(node, dict):
         return ""
     if node.get("agent"):
@@ -216,20 +149,6 @@ def _node_context(node: dict) -> str:
 
 def _node_status(*, chat_id: str, model: str, name: str, cfg: dict,
                  state: str, context: str = "") -> bytes:
-    """Per-endpoint live emitter ("endpoint emitters for
-    each ai endpoint/node"). One status event naming an AI node as the chain
- ENGAGES it / it RESPONDS / goes silent. `context` is
-    a short description of the node's CURRENT STEP -- its sub-task or the verb
-    arg -- so the emit reflects the active step's context, not just a glyph.
-    The lane/model/endpoint internals stay OUT (they read as a leak); context
-    is the WHAT (operator-facing), not the HOW (plumbing).
-
- the LABEL must be GENERATIVE -- indicative of the
-    FUNCTION being performed, NOT the internal agent/function name (research-
-    dgpu-1, hermes, opencode, ...). So the label = the node's actual sub-task
-    (`context`), falling back to its semantic ROLE as a plain word (research /
-    reasoning / coding -- a capability descriptor, not a node name) and never
-    the registry key. The internal name is dropped entirely from the emit."""
     emoji = {"engage": "🤖", "ok": "✅", "down": "💤"}.get(state, "🤖")
     _ctx = str(context or "").strip()
     _role = str((cfg or {}).get("role") or "").strip()
@@ -275,13 +194,6 @@ _HERMES_TAIL_PATH = os.environ.get(
 
 
 def _frontier_stream_events(seen_ts: float) -> list:
-    """Best-effort read of the war-room activity sink (F-011): a JSONL sibling of
-    the hermes-tail state file into which mios-a2o appends per-task start/finish
-    transitions when `[frontier].stream_to_reasoning` is on. Returns event dicts
-    newer than seen_ts (may be empty). Degrade-open: when the flag is off the file
-    is never created, so this returns [] and `_tail_latest_status` is byte-
-    identical to before. Path from MIOS_A2O_STREAM_PATH (SSOT), else derived as a
-    sibling of the hermes-tail path so no transport constant is restated."""
     path = os.environ.get("MIOS_A2O_STREAM_PATH") or os.path.join(
         os.path.dirname(_HERMES_TAIL_PATH), "frontier.jsonl")
     out: list = []

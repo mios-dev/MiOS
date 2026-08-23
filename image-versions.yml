@@ -8,13 +8,6 @@
 # with: skopeo inspect --format '{{.Digest}}' docker://ghcr.io/ublue-os/ucore-hci:stable-nvidia
 ucore_hci_stable_nvidia_digest: sha256:9f59db30208d0d8284242a99fe14b7cd32966d038d374c8330dcd3b51bbad476
 
-# bootc-image-builder  OCI to disk image converter
-# NOTE: the upstream bootc-image-builder repo merged into osbuild/image-builder
-# and is archived (read-only). The quay.io/centos-bootc/bootc-image-builder image
-# stays the canonical pull per the osbuild bootc docs; re-point depName only if
-# upstream relocates the published image.
-# renovate: datasource=docker depName=quay.io/centos-bootc/bootc-image-builder
-# bib_digest: sha256:<populated by Renovate>
 
 rechunk:
   # bootc-base-imagectl  image rechunking for efficient Day-2 updates

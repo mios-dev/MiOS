@@ -1,51 +1,5 @@
 # AI-hint: FastAPI gateway service on the `agent_pipe` port that routes, dispatches, and proxies chat/embedding requests from external interfaces (Discord, Slack) to th...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_server_py.md
-"""'MiOS' Agent Pipe -- standalone FastAPI service.
-
-Step 2 of the migration: ports the router + dispatch + agent-plane DB
-writes from the OWUI Pipe class into this gateway-agnostic service.
-
-Operator directive "mios discord chats not going through
-MiOS-Agent(OWUI) paths when contacting through discord (uses only
-MiOS-Hermes and doesn't have the same tool understanding and
-environments details now!!!!)"
-
-Architecture:
-
-  OWUI                     ──┐
-  Hermes Discord gateway   ──┼──> :8640 (this service)
-  future Slack/Telegram    ──┘        │
-                                       ▼
-                              :8642 (hermes-agent)
-                                       │
-                                       ▼
-                       mios-llm-light :8450 (raw /v1 inference)
-
-Endpoints:
-  GET  /health                  -> {status, version, backend, port}
-  POST /v1/chat/completions     -> Router-classified chain:
-                                     action=dispatch -> verb via broker
-                                                       -> tool_call envelope
-                                     action=chat    -> short-reply
-                                     action=agent   -> proxy to backend
-                                     (no verdict)   -> proxy to backend
-  GET  /v1/models               -> proxy to MIOS_AGENT_PIPE_BACKEND
-  POST /v1/embeddings           -> proxy to MIOS_AGENT_PIPE_BACKEND
-
-Per the SSOT chain: every operator-tunable constant sources from
-mios.toml -> userenv.sh -> MIOS_* env -> os.environ.get() with
-sensible fallbacks. No hardcoded literals.
-
-Skipped vs. the OWUI Pipe (deliberate for this commit; can be Step
-2b if Discord needs them):
-  * REFINE pass (CPU-LLM rewrite of the user message before forward)
-  * CRITIC pass (post-backend verification + re-compose loop)
-  * POLISH pass (final-answer cleanup)
-  * NARRATION COLLAPSE (OWUI <think> wrapping)
-These are quality-bonus features that add latency without changing
-the tool-understanding parity Discord needs. They can be ported in
-follow-up commits guided by operator feedback.
-"""
 from __future__ import annotations
 
 import asyncio
@@ -440,12 +394,6 @@ def _is_remote_endpoint(ep: str) -> bool:
 
 
 def _should_health_probe(cfg: dict) -> bool:
-    """Liveness-probe + circuit-break an agent/node when it declares health_gate
- OR lives on a REMOTE endpoint (dead-node circuit-breaker:
-    ai-local the phone had no explicit health_gate -> was dispatched while off ->
-    'All connection attempts failed' retry storm that helped wedge the box). LOCAL
-    lanes are never probed -- their failure is a separate, louder problem and
-    probing only adds latency."""
     if cfg.get("health_gate"):
         return True
     return _is_remote_endpoint(cfg.get("endpoint", ""))
@@ -1268,18 +1216,6 @@ _CPU_LANE_MICRO_MODEL = (os.environ.get("MIOS_CPU_LANE_MICRO_MODEL")
 
 
 def _cap_cpu_lane_model(ep: str, model: str) -> str:
-    """Force the micro model on a LOCAL light-lane (CPU/iGPU) endpoint -- a big
-    model can never cold-load multi-GB weights on a CPU-only daemon MiOS itself
- controls (runaway fix). No-op for non-light endpoints AND for
-    REMOTE nodes: a remote node serves its OWN model catalog (a tailnet node
-    whose port happens to be 11435/11436 need not serve the LOCAL micro tag), so
-    it KEEPS its declared model -- exactly this function's long-standing intent
-    ('remote keep their model'), which the bare port-substring match wrongly
-    violated for any remote node on a CPU-hint port (the remote-cpu node, the
-    iGPU/potato examples). LOCAL == localhost/127.0.0.1 (mirrors _load_node_pool's
-    _is_local). The slow-lane num_predict cap (_is_slow_lane_ep) stays port-based
-    and DOES still apply to a remote CPU -- a remote CPU is genuinely slow, so its
-    output is still capped; only the wrong-model substitution is local-scoped."""
     _local = ("localhost" in (ep or "")) or ("127.0.0.1" in (ep or ""))
     if (_local and _CPU_LANE_MICRO_MODEL
             and any(h and h in (ep or "") for h in _CPU_LANE_HINTS)):

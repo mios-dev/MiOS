@@ -1,20 +1,5 @@
 # AI-hint: WS-A5 priority token-budget context packer for the agent-pipe.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_mios_pipe_context_ctxpack_py.md
-"""mios_ctxpack -- priority token-budget context packing (WS-A5, the AIOS
-Context-Manager assembly layer).
-
-Pure stdlib (measures tokens via mios_tokenize). server.py owns WHAT the items
-are (recalled knowledge, scratchpad checkpoints, tool previews, history) and the
-budget; this module owns the SELECTION: keep the most important items that fit,
-drop the rest, never exceed the budget.
-
-Algorithm
-=========
-Stable greedy by priority: sort candidates by (priority desc, original-index
-asc), admit each whose token cost still fits the remaining budget (skipping --
-not stopping at -- an item too big to fit, so a smaller lower-priority item can
-still be admitted), then re-emit the admitted set in ORIGINAL order. O(n log n).
-"""
 
 from __future__ import annotations
 
@@ -47,12 +32,6 @@ def pack(items: List, budget: int, *,
          text_of: Optional[Callable] = None,
          priority_of: Optional[Callable] = None,
          reserve: int = 0) -> PackResult:
-    """Select the highest-priority `items` whose total token cost fits
-    `budget - reserve`, returned in ORIGINAL order.
-
-    text_of(item) -> str  (default: item["text"] for dicts, else str(item))
-    priority_of(item) -> number, higher = keep first (default: item["priority"], else 0)
-    reserve: tokens to hold back from the budget (e.g. for a system prompt)."""
     text_of = text_of or _default_text
     priority_of = priority_of or _default_priority
     avail = max(0, int(budget) - max(0, int(reserve)))
