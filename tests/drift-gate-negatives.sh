@@ -6,6 +6,68 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
+# The suite mutates tracked files and is supposed to put them back. A test that
+# dies between the two leaks its fixture into the tree. Five reached the working
+# tree in one session -- an injected table in the shipped SQL schema, a root
+# password in a Ventoy firstboot script, a rewritten cockpit port, a capability
+# requirement replaced by an injected name, a port entry repeated twice -- and
+# each one surfaced as some unrelated suite failing, so the cost was paid several
+# times before anyone read the diff.
+#
+# Snapshot everything the suite can reach before running, and put back whatever a
+# test failed to restore. The target list is derived from this file's own source,
+# so a test that starts touching a new path is covered without anyone updating a
+# list.
+_NEG_SNAP="$(mktemp -d)"
+_NEG_ABSENT="${_NEG_SNAP}.absent"
+
+_neg_targets() {
+    grep -oE '\$\{ROOT\}/[A-Za-z0-9._/-]+' "${BASH_SOURCE[0]}" \
+        | sed 's|^\${ROOT}/||' | sort -u
+}
+
+_neg_snapshot_take() {
+    local rel src
+    : > "$_NEG_ABSENT"
+    while IFS= read -r rel; do
+        src="${ROOT}/${rel}"
+        if [[ -f "$src" ]]; then
+            mkdir -p "${_NEG_SNAP}/$(dirname "$rel")"
+            cp -p "$src" "${_NEG_SNAP}/${rel}"
+        else
+            printf '%s\n' "$rel" >> "$_NEG_ABSENT"
+        fi
+    done < <(_neg_targets)
+}
+
+_neg_snapshot_restore() {
+    local rel src leaked=0
+    while IFS= read -r rel; do
+        src="${ROOT}/${rel}"
+        [[ -f "${_NEG_SNAP}/${rel}" ]] || continue
+        cmp -s "${_NEG_SNAP}/${rel}" "$src" 2>/dev/null && continue
+        cp -p "${_NEG_SNAP}/${rel}" "$src"
+        echo "[drift-gate-negatives] RESTORED a mutation left behind: ${rel}" >&2
+        leaked=$((leaked + 1))
+    done < <(cd "$_NEG_SNAP" 2>/dev/null && find . -type f | sed 's|^\./||')
+
+    # A probe the suite created and did not delete is the same leak in the other
+    # direction: it reaches the index the next time anyone stages broadly.
+    while IFS= read -r rel; do
+        [[ -n "$rel" && -e "${ROOT}/${rel}" ]] || continue
+        rm -f "${ROOT}/${rel}"
+        echo "[drift-gate-negatives] REMOVED a probe left behind: ${rel}" >&2
+        leaked=$((leaked + 1))
+    done < "$_NEG_ABSENT"
+
+    rm -rf "$_NEG_SNAP" "$_NEG_ABSENT"
+    [[ "$leaked" -eq 0 ]] || \
+        echo "[drift-gate-negatives] ${leaked} artefact(s) were left behind by a test that did not clean up" >&2
+}
+
+trap _neg_snapshot_restore EXIT
+_neg_snapshot_take
+
 log() {
     echo -e "\033[1;34m[drift-gate-negatives]\033[0m $1"
 }

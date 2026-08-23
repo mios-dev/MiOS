@@ -23,11 +23,25 @@ def repo_root():
 def bootstrap_repo(root, canon_text):
     """Resolve the bootstrap repo the same way drift-gate 22 does: [bootstrap].bootstrap_repo,
     remapped C:/x -> /mnt/c/x off-Windows, with a ../mios-bootstrap sibling fallback."""
-    m = re.search(r'(?m)^\s*bootstrap_repo\s*=\s*"([^"]*)"', canon_text)
-    raw = m.group(1) if m else "C:/mios-bootstrap"
+    # [bootstrap].bootstrap_repo, NOT the first textual match: [urls] declares a
+    # key of the same name holding the clone URL, and it appears earlier in the
+    # file. Matching on text alone resolved the URL, os.path.isfile said no, and
+    # the projection reported "bootstrap repo not found" and skipped -- which is
+    # why the two repositories drifted while a sync tool appeared to run.
+    raw = ""
+    m = re.search(r'(?ms)^\[bootstrap\]\s*$(.*?)(?=^\[|\Z)', canon_text)
+    if m:
+        km = re.search(r'(?m)^\s*bootstrap_repo\s*=\s*"([^"]*)"', m.group(1))
+        if km:
+            raw = km.group(1)
+    if not raw:
+        raw = "C:/mios-bootstrap"
     cands = []
     if os.name == "nt":
         cands.append(raw)
+        # The sibling fallback belongs on both platforms; without it a Windows
+        # checkout with a differently-named parent had no second chance.
+        cands.append(os.path.join(os.path.dirname(root), "mios-bootstrap"))
     else:
         mm = re.match(r'^([A-Za-z]):/(.*)$', raw)
         if mm:

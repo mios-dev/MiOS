@@ -6639,7 +6639,7 @@ stale_fallbacks = []
 # `Environment=` literal in a shipped .service -- systemd does not expand ${} in
 # Environment=, and the [units] block that WOULD render the placeholder is inert
 # until T-317 makes mios-unit-gen faithful.
-unbound = ["guacd", "chrome_cdp_worker"]
+unbound = ["chrome_cdp_worker"]
 
 [ports.categories.edge]
 base    = 8050
@@ -9238,6 +9238,7 @@ seat_side = [
   "mios-agent-pipe",            # the local front door; MIOS_AI_ENDPOINT points it at a blade
   "hermes-dashboard",           # browser UI
   "mios-hermes-browser",        # CDP browser the agent tools drive
+  "mios-hermes-browser-worker",
   "mios-hermes-tail",           # journal tail into the UI
   "mios-ttyd-bash",             # browser pty
   "mios-ttyd-powershell",       # browser pty
@@ -9437,8 +9438,6 @@ mios-open-webui                = ["service-plane"]
 mios-otelcol                   = ["service-plane"]
 mios-pgvector                  = ["service-plane"]
 mios-pxe-hub       = ["controller", "service-plane"]
-mios-hermes-browser-worker = ["service-plane"]   # the WORKER's browser, gated with hermes-worker
-mios-searxng                   = ["service-plane"]
 mios-webtools-crawl4ai         = ["service-plane"]
 mios-webtools-firecrawl-api    = ["service-plane"]
 mios-webtools-firecrawl-worker = ["service-plane"]

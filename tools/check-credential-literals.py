@@ -22,7 +22,11 @@ def literal_credentials(root: str) -> list:
         for dirpath, _, names in os.walk(full):
             for n in sorted(names):
                 path = os.path.join(dirpath, n)
-                rel = os.path.relpath(path, root)
+                # Forward slashes always: os.path.relpath yields backslashes on
+                # Windows, so every entry read as NEW and every grandfathered
+                # entry as removed -- the gate was red on one host and green on
+                # the other while the tree was identical.
+                rel = os.path.relpath(path, root).replace(os.sep, "/")
                 try:
                     lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
                 except OSError:

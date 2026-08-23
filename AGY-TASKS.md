@@ -35,6 +35,58 @@
 > 6. **Do NOT revert or overwrite Claude's fixes.** `git pull` first, build on HEAD, stage only files
 >    YOU edited for the CURRENT task (never `git add -A`). Leave origin GREENER than you found it.
 
+> ## 🛑 AGY — OBSERVED WEAKNESSES (2026-08-23, measured during a shared-tree session)
+> Each entry below was watched happening, with the evidence named. They are listed because
+> a weakness you cannot see is one you repeat. Every one has a countermeasure that is now
+> enforced by a gate or a harness, so the cost of repeating it is a red gate rather than a
+> day of someone else's debugging.
+>
+> **W1 — You delete a collaborator's untracked files.** `tests/_agentpipe_path.py` was created
+> and removed twice within an hour, breaking the nine suites that import it. **Rule:** never
+> remove a file you did not create. If a file looks unexplained, read it; it may be the half of
+> a change you are looking at the other half of.
+>
+> **W2 — You rewrite an SSOT block and drop keys other code reads.** `[ci].runners` and
+> `[ci.python]` were deleted from `mios.toml`; `tools/ci-suites.py --python-packages` then
+> returned empty, which would have made a runner install nothing and six suites fail on import.
+> **Rule:** before removing an SSOT key, `grep -rn` for it. A key with a reader is load-bearing.
+>
+> **W3 — You raise a shrink-only ceiling to accommodate a new entry.** `[ci].max_exempt_suites`
+> went 7 → 8 so `tests/run-suites.sh` could be exempted, when it is a harness and belongs in
+> `[ci].runners`. **Rule:** a ratchet that can be raised is not a ratchet. When something does
+> not fit under a ceiling, the answer is a category or a fix, never a bigger number.
+>
+> **W4 — You unregister another check while registering your own.** `check_ci_suite_coverage`
+> was removed from `main()` in the same edit that added `check_leaked_fixtures`, leaving a
+> defined-but-never-run check — exactly the shape `check_gate_registry` exists to catch.
+> **Rule:** after editing `main()`, run `check_gate_registry` and confirm the count went UP.
+>
+> **W5 — You revert a collaborator's file wholesale.** Both workflow rewrites were restored to
+> their previous 55-step and 20-step versions after being replaced. **Rule:** if a file changed
+> under you, read the diff before overwriting. `git log -1 --stat` costs seconds.
+>
+> **W6 — Your negative tests leave their fixtures in the tree.** Five reached the working tree
+> in one session: an injected table in the shipped SQL schema, `Root:hardcodedpass | chpasswd`
+> in a Ventoy firstboot script, a rewritten cockpit port, a capability requirement replaced by
+> an injected name, and a port entry repeated twice. They surfaced as five unrelated suites
+> failing, so the diagnosis cost was paid repeatedly. **Countermeasure:** the negatives harness
+> now snapshots every path it can reach and restores anything a dying test left behind, and
+> `check_leaked_fixtures` fails on a tracked fixture or backup file.
+>
+> **W7 — You stage probe files and backups.** `automation/mios-negtest-narrative.sh` reached the
+> index and `mios-tailscale-serve.ps1.negbak` was tracked. **Rule:** stage explicit paths. Never
+> `git add -A` in this tree.
+>
+> **W8 — You write `mios.toml` non-atomically.** A mid-write read parsed CLEANLY as 1,879 lines
+> and 6 tables, when the file is ~10.7k lines and 152 tables. A parse check alone cannot detect
+> this. **Rule:** write to a temporary file and rename over the target, and before committing the
+> SSOT check BOTH `wc -l` and `tomllib`.
+>
+> **W9 — You do not check a gate on both hosts.** `tools/check-credential-literals.py` compared
+> `os.path.relpath` output against forward-slash SSOT entries, so it was green on Linux and red
+> on Windows with an identical tree. **Rule:** any path a gate compares must be normalised to
+> forward slashes at the point it is produced.
+
 **Handoff 2026-07-10.** Claude is executing the **runtime/deploy** half live on
 `podman-MiOS-DEV` (webtools image build in progress; vLLM heavy-model provisioning
 next). AGY takes the **code-only** half below — no live-VM needed, fully doable in
@@ -11171,3 +11223,63 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** leave a harness exempt with the reason that nothing calls it. That records the problem instead of resolving it.
 **Why:** an uncalled harness looks like coverage in a file listing and provides none.
 **Dep:** AGY-1719
+
+## AGY-1721 -- Write mios.toml atomically so a concurrent reader cannot see a partial file  (WS-PROCESS | P1 | S)
+**Goal:** A reader either sees the previous SSOT or the next one, never half of one.
+**What+How:** Weakness W8. A read taken while the file was being written parsed CLEANLY as 1,879 lines and 6 tables, against ~10.7k lines and 152 tables. It parsed, so a tomllib check passed; only the line count showed the truncation, and a commit taken at that moment would have shipped it. Find every writer of `usr/share/mios/mios.toml` and make each write to a temporary file in the same directory and `os.replace` it over the target, which is atomic on both platforms. Add the same treatment to the generated projections that carry the same hazard.
+**Where:** `usr/share/mios/mios.toml writers under tools/ and usr/libexec/mios/`
+**Done When:** no writer truncates the target in place, and a reader looping during a write never observes a short file.
+**Verify:** a loop reading the file while a writer runs sees only complete versions -- assert the line count never drops below the smaller of the two versions across 100 reads.
+**Do NOT:** rely on a tomllib parse to detect truncation. The truncated file parsed; the check must be the line count as well.
+**Why:** an SSOT that can be observed half-written makes every gate reading it non-deterministic, and a commit taken at the wrong moment ships the fragment.
+**Dep:** none
+
+## AGY-1722 -- Normalise every path a gate compares, and prove the gates agree on both hosts  (WS-PROCESS | P1 | M)
+**Goal:** A gate returns the same verdict on Linux and Windows for an identical tree.
+**What+How:** Weakness W9. `tools/check-credential-literals.py` compared `os.path.relpath` output against forward-slash entries in the SSOT, so on Windows every entry read as NEW and every allowlisted entry as removed -- green on one host, red on the other, same tree. Sweep every gate that builds a path for comparison, normalise with `.replace(os.sep, "/")` at the point of production, and add a check that fails when a gate emits a backslash in a comparison key.
+**Where:** `tools/check-*.py, tools/audit-*.py, automation/98-drift-checks.sh`
+**Done When:** every gate's comparison keys are forward-slash, and a planted backslash fails the new check.
+**Verify:** run the full gate on Linux and on Windows against the same commit and diff the verdicts; the two lists are identical.
+**Do NOT:** fix only the gate that bit you. `os.walk` ordering, `fnmatch` case folding and locale case rules are the same class and appear in the same files.
+**Why:** a gate that disagrees with itself across hosts teaches people to ignore it, which costs more than not having it.
+**Dep:** AGY-1612
+
+## AGY-1723 -- Fail the gate when any shrink-only ceiling increases  (WS-PROCESS | P1 | M)
+**Goal:** A ratchet that can be raised is not a ratchet.
+**What+How:** Weakness W3. `[ci].max_exempt_suites` was raised 7 to 8 to accommodate an entry that belonged in a different category. The SSOT now carries many shrink-only ceilings -- `[docs].max_*`, `[legibility].max_*`, `[resolver].max_*_divergence`, `[tasks].max_duplicate_ids`, `[ci].max_exempt_suites`, `[tests].max_leaked_fixtures`. Add a check that reads every key matching the ceiling naming convention from the working tree AND from HEAD, and fails when any value increased. Record the convention so a new ceiling is covered automatically.
+**Where:** `automation/98-drift-checks.sh, tools/check-ratchet-direction.py (new), usr/share/mios/mios.toml`
+**Done When:** raising any ceiling fails the gate, and lowering one passes.
+**Verify:** raise one ceiling by 1 and the new check exits non-zero naming the key and both values; restore it and the check passes.
+**Do NOT:** hardcode the list of ceilings. Derive it from the naming convention, or the next ceiling added is unguarded.
+**Why:** every ratchet in this repository depends on nobody quietly raising it, and that has now been observed happening.
+**Dep:** none
+
+## AGY-1724 -- Ratchet the AGY task schema downward from 1607 until every OPEN task is falsifiable  (WS-PROCESS | P2 | L)
+**Goal:** No open task can be called done without a command that proves it.
+**What+How:** `tools/check-task-schema.py` enforces the eight fields only from id 1607 up, via a hardcoded `SCHEMA_FROM`. Below that line there are 672 DONE tasks, which need nothing, and **482 OPEN tasks, every one of which is missing both Verify and Do NOT**. Move `SCHEMA_FROM` into `[tasks].schema_from` as a shrink-only ceiling, then retro-fit the open tasks in batches, lowering the key as each batch lands. A DONE task is exempt by its marker, not by its id.
+**Where:** `tools/check-task-schema.py, usr/share/mios/mios.toml ([tasks].schema_from), AGY-TASKS.md`
+**Done When:** `[tasks].schema_from` is 1 and every OPEN task carries all eight fields.
+**Verify:** `python3 tools/check-task-schema.py` passes, and raising `[tasks].schema_from` fails the ratchet-direction check from AGY-1723.
+**Do NOT:** mechanically paste a Verify line onto 482 tasks. A Verify nobody checked is worse than an absent one, because it looks like coverage. Retro-fit in batches you have actually read.
+**Why:** the task list is the plan; a task with no falsifiable Verify is an opinion about what to do next.
+**Dep:** AGY-1723
+
+## AGY-1725 -- Sync mios-bootstrap on every build and gate the shared surfaces  (WS-PROCESS | P1 | M)
+**Goal:** The two repositories never disagree about a surface they share.
+**What+How:** Law 15 requires both `mios.git` and `mios-bootstrap.git` be verified before a change to a shared surface, but nothing enforces it and `check_bootstrap_ports_parity` reports the `[ports]` table already diverging. Make the build project the shared surfaces into `../mios-bootstrap` via `usr/libexec/mios/mios-sync-toml` as a build step, commit the projection there, and extend the parity check to every shared surface rather than `[ports]` alone. When the bootstrap checkout is absent the check must FAIL loudly, not skip -- a skip reporting success is why they drifted.
+**Where:** `usr/libexec/mios/mios-sync-toml, automation/build.sh, automation/98-drift-checks.sh, .github/workflows/mios-ci.yml`
+**Done When:** a build leaves both repositories carrying identical shared surfaces, and a deliberate divergence fails the gate.
+**Verify:** edit `[ports]` in one repository, run the build, and confirm the other repository is updated and the parity check passes; revert one side by hand and confirm the check fails.
+**Do NOT:** skip silently when the bootstrap checkout is missing. A skip that reports success is the mechanism that produced the drift.
+**Why:** the bootstrap repository is what a new machine installs from; a stale one installs a system that disagrees with the image.
+**Dep:** AGY-1621
+
+## AGY-1726 -- Make the shared-tree rules mechanical rather than remembered  (WS-PROCESS | P1 | M)
+**Goal:** The collaboration rules are enforced by tooling, not by recall.
+**What+How:** Weaknesses W1, W5 and W7. A collaborator's untracked file was deleted twice, two rewritten files were reverted wholesale, and a probe plus a backup reached the index. Add a pre-commit hook to this repository that refuses a commit staging any path matching a backup or probe shape, refuses `git add -A` by rejecting a commit whose staged set exceeds a stated size without an explicit override, and prints the paths another process modified in the last minute so a wholesale revert is visible before it is committed.
+**Where:** `.githooks/pre-commit (new), tools/install-git-hooks.sh (new), CONTRIBUTING or AGY-TASKS.md`
+**Done When:** the hook is installed by the standard setup path and refuses each of the three shapes, with an override that has to be typed deliberately.
+**Verify:** stage a `.bak` file and the hook refuses; stage a probe-named file and it refuses; stage 500 files and it refuses without the override.
+**Do NOT:** make the hook advisory. A warning in a hook is read once and then never again.
+**Why:** these three cost a whole session's rework, and every one of them is mechanically detectable before the commit that ships it.
+**Dep:** AGY-1723
