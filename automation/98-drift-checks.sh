@@ -7318,8 +7318,8 @@ if not resolver_bin:
     print("    mios-resolver binary not built locally -- advisory skip")
     sys.exit(0)
 
-sys.path.insert(0, os.path.join(root, "tools"))
-import render_globals
+import importlib.util as _ilu  # the file is render-globals.py; the import name never resolved
+_sp = _ilu.spec_from_file_location("rg", os.path.join(root, "tools", "render-globals.py")); render_globals = _ilu.module_from_spec(_sp); _sp.loader.exec_module(render_globals)
 
 py_exports = render_globals.build_exports()
 
