@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-webtools-firecrawl-api' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-api] in mios.toml.
+# AI-hint: MiOS mios-webtools-firecrawl-api container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-firecrawl-api] in mios.toml.
 # /usr/share/containers/systemd/mios-webtools-firecrawl-api.container
 
 [Unit]

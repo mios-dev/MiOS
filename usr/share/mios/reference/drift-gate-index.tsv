@@ -42,13 +42,13 @@
 41	check_no_mkdir_in_var	no imperative /var mkdir in numbered automation/Containerfiles
 42	check_quadlet_privilege	mios.toml absent
 43	check_unit_security	check_unit_security
-44	check_var_closure	SOFT: python3 missing
+44	check_var_closure	SOFT: mios_var_closure.py absent
 45	check_lint_is_final	all $n root Containerfile(s) end with 'RUN bootc container lint'
 46	check_firstboot_degrade_open	every *firstboot* script degrades open
 47	check_vendor_urls	no vendor cloud URL in active config
-48	check_resolver_twin_parity	SOFT: python3 missing
-49	check_resolver_twin_equivalence	SOFT: python3 missing
-50	check_template_conformance	SOFT: python3 missing
+48	check_resolver_twin_parity	SOFT: a resolver is absent
+49	check_resolver_twin_equivalence	resolver twin equivalence: userenv.sh and mios_toml.py are equivalent
+50	check_template_conformance	SOFT: check-template-conformance not found
 51	check_kargs_projection	kargs.d matches mios.toml [kargs] projection
 52	check_greenboot_enablement	greenboot services and scripts are correctly configured
 53	check_greenboot	greenboot health-coverage check
@@ -145,8 +145,8 @@
 144	check_verb_templates	verb templates compile and validate against SSOT args
 145	check_pipe_boundaries	pipe-boundaries.manifest.json is up-to-date
 146	check_vllm_name_canonical	vLLM / SGLang canonical names reconciled to short consumer form
-147	check_pipe_extraction_parity	python3 absent
-148	check_desktop_launchers	check_desktop_launchers
+147	check_pipe_extraction_parity	extraction surface parity + one-way imports clean
+148	check_desktop_launchers	check_no_inert_ssot_tables
 149	check_guacamole_consistency	check_guacamole_consistency
 150	check_no_inert_ssot_tables	check_no_inert_ssot_tables
 151	check_doc_refs_resolve	check_doc_refs_resolve
@@ -159,34 +159,37 @@
 158	check_db_seed_coverage	DB seed coverage gate verified clean
 159	check_account_column_parity	account column parity gate verified clean
 160	check_module_length	check_module_length
-161	check_firstboot_provisioners	check_firstboot_provisioners
+161	check_firstboot_provisioners	check_no_inert_ssot_tables
 162	check_schema_consumers	check_schema_consumers
-163	check_tasks_status_parity	check_tasks_status_parity
-164	check_container_names	check_container_names
-165	check_service_urls	check_service_urls
-166	check_ports_bound	check_ports_bound
-167	check_blade_coverage	check_blade_coverage
-168	check_blade_karg	check_blade_karg
-169	check_blade_reconcile_schema	check_blade_reconcile_schema
-170	check_role_ssot	check_role_ssot
-171	check_port_fallbacks	check_port_fallbacks
-172	check_node_pool	check_node_pool
-173	check_mini_vs_hosted	check_mini_vs_hosted
-174	check_unit_projection	check_unit_projection
-175	check_ssot_consumer_keys	check_ssot_consumer_keys
-176	check_fleet_safety	check_fleet_safety
-177	check_adr_index	check_adr_index
-178	check_vendored_assets_non_stub	vendored assets dir absent
-179	check_resolved_env_lossless	resolved environment is lossless
-180	check_no_duplicate_value_key	check_no_duplicate_value_key passed
-181	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
-182	check_value_aliases	value-alias consistency verified
-183	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
-184	check_bash_phase_ratchet	bash phase script count ratchet check
-185	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
-186	check_negatives_are_effective	negative-test effectiveness check
-187	check_pipefail_grep_lint	pipefail grep lint check
-188	check_skip_list_covered	checking workflow skip-list coverage and parity
-189	check_ai_manifests_fresh	checking AI manifest freshness
-190	check_ports_category_schema	checking port category schema (allocation + collisions)
-191	check_globals_generated	checking generated globals resolvers match SSOT
+163	check_tasks_status_parity	check_no_inert_ssot_tables
+164	check_agy_tasks	check_no_inert_ssot_tables
+165	check_mios_toml_integrity	check_no_inert_ssot_tables
+166	check_privileged_quadlets_minimal	check_no_inert_ssot_tables
+167	check_container_names	check_no_inert_ssot_tables
+168	check_service_urls	check_no_inert_ssot_tables
+169	check_ports_bound	check_no_inert_ssot_tables
+170	check_blade_coverage	check_no_inert_ssot_tables
+171	check_blade_karg	check_no_inert_ssot_tables
+172	check_blade_reconcile_schema	check_blade_reconcile_schema
+173	check_role_ssot	check_no_inert_ssot_tables
+174	check_port_fallbacks	check_no_inert_ssot_tables
+175	check_node_pool	check_no_inert_ssot_tables
+176	check_mini_vs_hosted	check_no_inert_ssot_tables
+177	check_unit_projection	check_no_inert_ssot_tables
+178	check_ssot_consumer_keys	check_no_inert_ssot_tables
+179	check_fleet_safety	check_no_inert_ssot_tables
+180	check_adr_index	check_adr_index
+181	check_vendored_assets_non_stub	vendored assets dir absent
+182	check_resolved_env_lossless	resolved environment is lossless
+183	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+184	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
+185	check_value_aliases	value-alias consistency verified
+186	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
+187	check_bash_phase_ratchet	bash phase script count ratchet check
+188	check_no_silent_tool_skips	no silent tool skips found (MIOS_DRIFT_REQUIRE_TOOLS compliance clean)
+189	check_negatives_are_effective	negative-test effectiveness check
+190	check_pipefail_grep_lint	pipefail grep lint check
+191	check_skip_list_covered	checking workflow skip-list coverage and parity
+192	check_ai_manifests_fresh	checking AI manifest freshness
+193	check_ports_category_schema	checking port category schema (allocation + collisions)
+194	check_globals_generated	checking generated globals resolvers match SSOT

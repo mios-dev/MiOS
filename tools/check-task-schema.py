@@ -24,7 +24,7 @@ except ModuleNotFoundError:  # pragma: no cover
 SCHEMA_FROM = 1607
 
 REQUIRED = ("Goal", "What+How", "Where", "Verify", "Do NOT", "Done When", "Why", "Dep")
-HEAD_RE = re.compile(r"^#{2,3} AGY-(\d+) ", re.M)
+HEAD_RE = re.compile(r"^#{2,3} AGY-(\d+)(?:\.\.(\d+))? ", re.M)
 
 
 def main() -> int:
@@ -36,13 +36,20 @@ def main() -> int:
         print(f"AGY-TASKS.md unreadable: {exc}")
         return 1
 
-    blocks = re.split(r"(?=^#{2,3} AGY-\d+ )", text, flags=re.M)
-    ids, viol = [], []
+    blocks = re.split(r"(?=^#{2,3} AGY-\d+(?:\.\.\d+)? )", text, flags=re.M)
+    ids, covered, viol = [], set(), []
     for b in blocks:
         m = HEAD_RE.match(b)
         if not m:
             continue
         tid = int(m.group(1))
+        # `## AGY-106..122 -- Campaign banner` covers every id in the range, so
+        # a Dep naming one of them names a task that exists -- but the banner
+        # plus its individual children is the NORMAL shape, not a collision, so
+        # only individual headings count toward the duplicate ceiling.
+        if m.group(2):
+            covered.update(range(tid, int(m.group(2)) + 1))
+            continue
         ids.append(tid)
         if tid < SCHEMA_FROM:
             continue
@@ -50,10 +57,10 @@ def main() -> int:
             if f"**{field}:**" not in b:
                 viol.append(f"AGY-{tid}: missing **{field}:**")
 
-    known = set(ids)
+    known = set(ids) | covered
     for b in blocks:
         m = HEAD_RE.match(b)
-        if not m or int(m.group(1)) < SCHEMA_FROM:
+        if not m or m.group(2) or int(m.group(1)) < SCHEMA_FROM:
             continue
         dep = re.search(r"^\*\*Dep:\*\*\s*(.+)$", b, re.M)
         if not dep:

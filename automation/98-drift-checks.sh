@@ -2523,10 +2523,7 @@ check_quadlet_privilege() {
 
 check_var_closure() {
     local tool="$ROOT/automation/lib/mios_var_closure.py"
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   SOFT: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   SOFT: mios_var_closure.py absent" >&2
         return 0
@@ -2634,10 +2631,7 @@ ENDPY
 }
 
 check_resolver_twin_parity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   SOFT: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local ue="$ROOT/usr/lib/mios/userenv.sh" mt="$ROOT/usr/lib/mios/mios_toml.py"
     if [[ ! -f "$ue" || ! -f "$mt" ]]; then
         echo "[98-drift-checks]   SOFT: a resolver is absent" >&2
@@ -2682,10 +2676,7 @@ for k in sorted(ai):
 }
 
 check_resolver_twin_equivalence() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   SOFT: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local mismatches
     # MIOS_VERSION_MANIFEST (and other build-time MIOS_* vars) into this gate's env, and
     if ! mismatches=$(env -i PATH="$PATH" MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-resolver-twin.py" 2>&1); then
@@ -2697,10 +2688,7 @@ check_resolver_twin_equivalence() {
 }
 
 check_template_conformance() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   SOFT: python3 missing" >&2
-        return 0
-    fi
+    _need_python || return 0
     local tool="$ROOT/usr/libexec/mios/check-template-conformance"
     if [[ ! -f "$tool" ]]; then
         echo "[98-drift-checks]   SOFT: check-template-conformance not found" >&2
@@ -4038,6 +4026,11 @@ firstboot_tokens = data.get("build", {}).get("bake", {}).get("firstboot_tokens",
 if not firstboot_tokens:
     sys.exit(0)
 
+fb_just = data.get("build", {}).get("bake", {}).get("firstboot_justifications", {})
+for tok in firstboot_tokens:
+    if tok not in fb_just or not fb_just[tok]:
+        bad.append(f"firstboot token '{tok}' has no justification in [build.bake.firstboot_justifications]")
+
 bad = []
 with open(fb_list, "r", encoding="utf-8") as fh:
     for line in fh:
@@ -4303,6 +4296,9 @@ required_checks = [
     "check_firstboot_provisioners",
     "check_schema_consumers",
     "check_tasks_status_parity",
+    "check_agy_tasks",
+    "check_mios_toml_integrity",
+    "check_privileged_quadlets_minimal",
     "check_container_names",
     "check_service_urls",
     "check_ports_bound",
@@ -5108,10 +5104,7 @@ check_vllm_name_canonical() {
 }
 
 check_pipe_extraction_parity() {
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "[98-drift-checks]   python3 absent"
-        return 0
-    fi
+    _need_python || return 0
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/pipe-parity-check.py" >/dev/null 2>&1; then
         echo "[98-drift-checks]   extraction surface parity + one-way imports clean"
@@ -5122,11 +5115,7 @@ check_pipe_extraction_parity() {
 
 check_guacamole_consistency() {
     echo "[98-drift-checks]   check_guacamole_consistency"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
-        _violations_from "check_guacamole_consistency: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)" || { _violations_from "check_guacamole_consistency: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -5425,11 +5414,7 @@ check_module_length() {
     echo "[98-drift-checks]   check_module_length"
     # Walks the package RECURSIVELY against the [refactor] shrink-only register.
     # The former body used find -maxdepth 1 and saw 9 of 112 modules.
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)"; then
-        _violations_from "check_module_length: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-module-length.py 2>&1)" || { _violations_from "check_module_length: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -6045,6 +6030,9 @@ main() {
     check_firstboot_provisioners
     check_schema_consumers
     check_tasks_status_parity
+    check_agy_tasks
+    check_mios_toml_integrity
+    check_privileged_quadlets_minimal
     check_container_names
     check_service_urls
     check_ports_bound
@@ -6803,9 +6791,10 @@ pol = mc.Policy.from_toml(data)
 ceil_narr = docs.get("max_unmigrated_narrative")
 ceil_hint = docs.get("max_overlong_hints")
 ceil_stale = docs.get("max_stale_refs", 0)
+ceil_undoc = docs.get("max_undocumented_components", 16)
 viol = []
-if ceil_narr is None or ceil_hint is None or ceil_stale is None:
-    viol.append("mios.toml [docs] is missing max_unmigrated_narrative/max_overlong_hints/max_stale_refs"
+if ceil_narr is None or ceil_hint is None or ceil_stale is None or ceil_undoc is None:
+    viol.append("mios.toml [docs] is missing max_unmigrated_narrative/max_overlong_hints/max_stale_refs/max_undocumented_components"
                 " -- the ratchet has no floor and would pass vacuously")
     print("\n".join(viol)); sys.exit(1)
 
@@ -6830,6 +6819,19 @@ for rel, full in mc.iter_source_files(root):
         if v.stale:
             stale += 1
 
+import glob
+comp_files = glob.glob(os.path.join(root, "usr/libexec/mios/*")) + glob.glob(os.path.join(root, "automation/*.sh")) + glob.glob(os.path.join(root, "tools/*.py"))
+undoc = 0
+for f in comp_files:
+    if not os.path.isfile(f): continue
+    try:
+        with open(f, "r", encoding="utf-8", errors="ignore") as fh:
+            text = fh.read()
+            if "AI-doc:" not in text and "AI-hint:" not in text:
+                undoc += 1
+    except OSError:
+        pass
+
 if narr > ceil_narr:
     viol.append("unmigrated narrative comment blocks %d > ceiling %d --"
                 " harvest them into docs, do NOT raise [docs].max_unmigrated_narrative"
@@ -6842,8 +6844,12 @@ if stale > ceil_stale:
     viol.append("stale references %d > ceiling %d --"
                 " fix or remove stale references, do NOT raise [docs].max_stale_refs"
                 % (stale, ceil_stale))
-print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d/%d"
-      % (narr, ceil_narr, hints, ceil_hint, stale, ceil_stale), file=sys.stderr)
+if undoc > ceil_undoc:
+    viol.append("undocumented components %d > ceiling %d --"
+                " add AI-doc or AI-hint headers, do NOT raise [docs].max_undocumented_components"
+                % (undoc, ceil_undoc))
+print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d/%d undoc-comp=%d/%d"
+      % (narr, ceil_narr, hints, ceil_hint, stale, ceil_stale, undoc, ceil_undoc), file=sys.stderr)
 print("\n".join(viol))
 sys.exit(1 if viol else 0)
 PY
@@ -6857,64 +6863,40 @@ PY
 # Ceilings must fall, never rise. Compared against HEAD.
 check_docs_ratchet_monotone() {
     echo "[98-drift-checks]   check_docs_ratchet_monotone"
-    local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
+    local out; out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   documentation ratchet ceilings did not rise"
 }
 
 check_no_generated_prose_in_resolvers() {
     echo "[98-drift-checks]   check_no_generated_prose_in_resolvers"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-no-generated-prose-in-resolvers.py 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # Derived doc sections must match SSOT: see docs/agy/doc-generative-documentation.md
 check_manual_generated() {
     echo "[98-drift-checks]   check_manual_generated"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual             --root "$ROOT" render --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- every pruned comment still lands in a doc ---
 check_comment_landing() {
     echo "[98-drift-checks]   check_comment_landing"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" landing --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 # --- the corpus ledger regenerates verbatim from the tracked tree ---
 check_manual_ledger() {
     echo "[98-drift-checks]   check_manual_ledger"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 usr/libexec/mios/mios-manual --root "$ROOT" ledger --check 2>&1)" || { _violations_from "" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_credential_literals() {
     echo "[98-drift-checks]   check_credential_literals"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)"; then
-        _violations_from "check_credential_literals: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-credential-literals.py 2>&1)" || { _violations_from "check_credential_literals: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
@@ -6927,203 +6909,59 @@ check_task_schema() {
 
 check_redact_coverage() {
     echo "[98-drift-checks]   check_redact_coverage"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)"; then
-        _violations_from "check_redact_coverage: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-redact-coverage.py 2>&1)" || { _violations_from "check_redact_coverage: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_daemon_governor() {
     echo "[98-drift-checks]   check_daemon_governor"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)"; then
-        _violations_from "check_daemon_governor: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-daemon-governor.py 2>&1)" || { _violations_from "check_daemon_governor: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_manual_links() {
     echo "[98-drift-checks]   check_manual_links"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)"; then
-        _violations_from "check_manual_links: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/check-manual-links.py 2>&1)" || { _violations_from "check_manual_links: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_adr_index() {
     echo "[98-drift-checks]   check_adr_index"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)"; then
-        _violations_from "check_adr_index: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-adr-index.py --check 2>&1)" || { _violations_from "check_adr_index: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
 check_schema_consumers() {
     echo "[98-drift-checks]   check_schema_consumers"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)"; then
-        _violations_from "check_schema_consumers: " "$out"
-        return
-    fi
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-schema-consumers.py 2>&1)" || { _violations_from "check_schema_consumers: " "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
-check_tasks_status_parity() {
-    echo "[98-drift-checks]   check_tasks_status_parity"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-tasks-status-parity.py 2>&1)"; then
-        _violations_from "check_tasks_status_parity: " "$out"
-        return
-    fi
+_run_py_check() {
+    local name="$1" script="$2" pfx="${3:-$1: }" out
+    echo "[98-drift-checks]   $name"
+    out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 $script 2>&1)" || { _violations_from "$pfx" "$out"; return; }
     echo "[98-drift-checks]   $out"
 }
 
-check_container_names() {
-    echo "[98-drift-checks]   check_container_names"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-container-names.py 2>&1)"; then
-        _violations_from "check_container_names: " "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_service_urls() {
-    echo "[98-drift-checks]   check_service_urls"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-service-urls.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_ports_bound() {
-    echo "[98-drift-checks]   check_ports_bound"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ports-bound.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_blade_coverage() {
-    echo "[98-drift-checks]   check_blade_coverage"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-blade-coverage.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_fleet_safety() {
-    echo "[98-drift-checks]   check_fleet_safety"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-fleet-safety.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_ssot_consumer_keys() {
-    echo "[98-drift-checks]   check_ssot_consumer_keys"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-ssot-consumer-keys.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_unit_projection() {
-    echo "[98-drift-checks]   check_unit_projection"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-unit-projection.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_mini_vs_hosted() {
-    echo "[98-drift-checks]   check_mini_vs_hosted"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_ROOT="$ROOT" python3 tools/generate-mini-vs-hosted.py --check 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_node_pool() {
-    echo "[98-drift-checks]   check_node_pool"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-node-pool.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_port_fallbacks() {
-    echo "[98-drift-checks]   check_port_fallbacks"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-port-fallbacks.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_role_ssot() {
-    echo "[98-drift-checks]   check_role_ssot"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-role-ssot.py 2>&1)"; then
-        _violations_from "" "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_blade_karg() {
-    echo "[98-drift-checks]   check_blade_karg"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/generate-blade-karg.py --check 2>&1)"; then
-        _violations_from "check_blade_karg: " "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_firstboot_provisioners() {
-    echo "[98-drift-checks]   check_firstboot_provisioners"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-firstboot-provisioners.py 2>&1)"; then
-        _violations_from "check_firstboot_provisioners: " "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
-
-check_desktop_launchers() {
-    echo "[98-drift-checks]   check_desktop_launchers"
-    local out
-    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-desktop.py --check 2>&1)"; then
-        _violations_from "check_desktop_launchers: " "$out"
-        return
-    fi
-    echo "[98-drift-checks]   $out"
-}
+check_tasks_status_parity() { _run_py_check check_tasks_status_parity tools/check-tasks-status-parity.py; }
+check_agy_tasks() { _run_py_check check_agy_tasks tools/check-agy-tasks.py; }
+check_mios_toml_integrity() { _run_py_check check_mios_toml_integrity tools/check-mios-toml-integrity.py; }
+check_privileged_quadlets_minimal() { _run_py_check check_privileged_quadlets_minimal tools/check-privileged-quadlets.py; }
+check_container_names() { _run_py_check check_container_names tools/check-container-names.py; }
+check_service_urls() { _run_py_check check_service_urls tools/check-service-urls.py ""; }
+check_ports_bound() { _run_py_check check_ports_bound tools/check-ports-bound.py ""; }
+check_blade_coverage() { _run_py_check check_blade_coverage tools/check-blade-coverage.py ""; }
+check_fleet_safety() { _run_py_check check_fleet_safety tools/check-fleet-safety.py ""; }
+check_ssot_consumer_keys() { _run_py_check check_ssot_consumer_keys tools/check-ssot-consumer-keys.py ""; }
+check_unit_projection() { _run_py_check check_unit_projection tools/check-unit-projection.py ""; }
+check_mini_vs_hosted() { _run_py_check check_mini_vs_hosted "tools/generate-mini-vs-hosted.py --check" ""; }
+check_node_pool() { _run_py_check check_node_pool tools/check-node-pool.py ""; }
+check_port_fallbacks() { _run_py_check check_port_fallbacks tools/check-port-fallbacks.py ""; }
+check_role_ssot() { _run_py_check check_role_ssot tools/check-role-ssot.py ""; }
+check_blade_karg() { _run_py_check check_blade_karg "tools/generate-blade-karg.py --check"; }
+check_firstboot_provisioners() { _run_py_check check_firstboot_provisioners tools/check-firstboot-provisioners.py; }
+check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-desktop.py --check"; }
 
 check_no_inert_ssot_tables() {
     echo "[98-drift-checks]   check_no_inert_ssot_tables"
@@ -7164,7 +7002,7 @@ for section in data.keys():
         inert.append(section)
 
 if inert:
-    sys.stdout.write(f"    Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
+    sys.stdout.write(f"Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
     sys.exit(1)
 
 sys.exit(0)

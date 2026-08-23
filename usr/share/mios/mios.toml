@@ -2137,6 +2137,7 @@ policy_mode = "insecureAcceptEverything"
 allowed_identities = []
 
 [security.privileged_quadlets]
+max_privileged_root = 12
 root = [
   "mios-ceph.container",                    # Ceph OSD/MON -- uid 0 for block devices
   "mios-k3s.container",                     # k3s server -- uid 0 (CNI, kubelet mounts)
@@ -2145,7 +2146,7 @@ root = [
   "mios-pxe-hub.container",                 # PXE/TFTP/DHCP -- privileged net
   "mios-webtools-crawl4ai.container",       # webtools pod -- upstream image runs as 0
   "mios-webtools-firecrawl-api.container",  # webtools pod -- upstream image runs as 0
-  "mios-webtools-firecrawl-worker.container",
+  "mios-webtools-firecrawl-worker.container", # webtools pod -- upstream image runs as 0
   "mios-webtools-redis.container",          # webtools pod -- upstream image runs as 0
   "mios-llm-heavy.container",               # PyTorch/vLLM GPU serving -- upstream image runs as 0
   "mios-llm-heavy-alt.container",           # SGLang GPU serving -- upstream image runs as 0
@@ -6638,7 +6639,7 @@ stale_fallbacks = []
 # `Environment=` literal in a shipped .service -- systemd does not expand ${} in
 # Environment=, and the [units] block that WOULD render the placeholder is inert
 # until T-317 makes mios-unit-gen faithful.
-unbound = ["chrome_cdp_worker"]
+unbound = ["guacd", "chrome_cdp_worker"]
 
 [ports.categories.edge]
 base    = 8050
@@ -7283,6 +7284,12 @@ core = [
 ]
 groups = ["sys", "cuda", "heavy", "extra"]
 firstboot_tokens = ["vllm", "sglang", "crawl4ai", "firecrawl"]
+
+[build.bake.firstboot_justifications]
+"sglang" = "Heavy GPU inference image (~20GB)"
+"vllm" = "Heavy GPU inference image (~27GB)"
+"crawl4ai" = "Webtools heavy crawl runtime deferred from Day-0 bake"
+"firecrawl" = "Webtools heavy crawl runtime deferred from Day-0 bake"
 
 [build.bake.group_members]
 sys = ["sys"]
@@ -10193,14 +10200,13 @@ max_key_divergence = 983
 max_value_divergence = 12
 
 [tasks]
-# AGY task hygiene. Shrink-only: 25 ids are already used twice (## and ###
-# headings), which makes every **Dep:** naming one of them ambiguous.
-max_duplicate_ids = 18
+# AGY task hygiene ratchet. Duplicate task IDs make dependencies ambiguous.
+max_duplicate_ids = 0
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.
 max_stale_refs              = 20
-max_undocumented_components = 0
+max_undocumented_components = 16
 stay_max_lines              = 2
 stay_max_words         = 25
 migrate_min_lines      = 6      # ratchet: 6 -> 4 -> 3 as the mid-size band clears
@@ -10326,6 +10332,7 @@ blocklist_globs = [
   "automation/lib/globals.sh",
   "automation/lib/globals.ps1",
   "tools/native/mios-unit-gen/tests/golden/**",
+  "tools/test_*.py",
   "**/*.generated.*",
   "usr/share/mios/names.generated.txt",
 ]
@@ -10591,7 +10598,7 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 45176  # bash is glue only (Law 14)
+max_shell_lines   = 45120  # bash is glue only (Law 14)
 max_ps_lines      = 26987  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285

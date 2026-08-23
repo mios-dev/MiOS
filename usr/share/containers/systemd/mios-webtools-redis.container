@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-webtools-redis' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-redis] in mios.toml.
+# AI-hint: MiOS mios-webtools-redis container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-webtools-redis] in mios.toml.
 # /usr/share/containers/systemd/mios-webtools-redis.container
 
 [Unit]

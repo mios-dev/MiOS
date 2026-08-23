@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-llm-light' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-llm-light] in mios.toml.
+# AI-hint: MiOS mios-llm-light container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-llm-light] in mios.toml.
 # /usr/share/containers/systemd/mios-llm-light.container
 
 [Unit]

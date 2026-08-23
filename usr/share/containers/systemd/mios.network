@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet network 'mios' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [networks.mios] in mios.toml.
+# AI-hint: MiOS mios network. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [networks.mios] in mios.toml.
 # /usr/share/containers/systemd/mios.network
 
 [Network]

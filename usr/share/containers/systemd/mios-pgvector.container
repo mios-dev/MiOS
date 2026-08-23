@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-pgvector' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-pgvector] in mios.toml.
+# AI-hint: MiOS mios-pgvector container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-pgvector] in mios.toml.
 # /usr/share/containers/systemd/mios-pgvector.container
 
 [Unit]

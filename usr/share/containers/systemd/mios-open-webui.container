@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-open-webui' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-open-webui] in mios.toml.
+# AI-hint: MiOS mios-open-webui container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-open-webui] in mios.toml.
 # /usr/share/containers/systemd/mios-open-webui.container
 
 [Unit]

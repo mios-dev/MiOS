@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-guacd' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-guacd] in mios.toml.
+# AI-hint: MiOS mios-guacd container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-guacd] in mios.toml.
 # /usr/share/containers/systemd/mios-guacd.container
 
 [Unit]

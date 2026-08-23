@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-cockpit-link' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-cockpit-link] in mios.toml.
+# AI-hint: MiOS mios-cockpit-link container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-cockpit-link] in mios.toml.
 # /usr/share/containers/systemd/mios-cockpit-link.container
 
 [Unit]

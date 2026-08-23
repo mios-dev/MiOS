@@ -508,6 +508,7 @@ security.powershell_signing.signing_cert  MIOS_SECURITY_POWERSHELL_SIGNING_SIGNI
 security.sigstore.cosign_major  MIOS_SECURITY_SIGSTORE_COSIGN_MAJOR
 security.sigstore.policy_mode  MIOS_SECURITY_SIGSTORE_POLICY_MODE
 security.sigstore.allowed_identities  MIOS_SECURITY_SIGSTORE_ALLOWED_IDENTITIES
+security.privileged_quadlets.max_privileged_root  MIOS_SECURITY_PRIVILEGED_QUADLETS_MAX_PRIVILEGED_ROOT
 security.privileged_quadlets.root  MIOS_SECURITY_PRIVILEGED_QUADLETS_ROOT
 security.privileged_quadlets.no_group_delegate  MIOS_SECURITY_PRIVILEGED_QUADLETS_NO_GROUP_DELEGATE
 security.nohc_allowlist.exempt_files  MIOS_SECURITY_NOHC_ALLOWLIST_EXEMPT_FILES
@@ -656,3 +657,4 @@ metal.mesh.enabled  MIOS_METAL_MESH_ENABLED
 metal.mesh.headscale_domain  MIOS_METAL_MESH_HEADSCALE_DOMAIN
 metal.mesh.vnet_cidr  MIOS_METAL_MESH_VNET_CIDR
 metal.mesh.swtpm_vtpm  MIOS_METAL_MESH_SWTPM_VTPM
+                                                            

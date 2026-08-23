@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-k3s' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-k3s] in mios.toml.
+# AI-hint: MiOS mios-k3s container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-k3s] in mios.toml.
 # /usr/share/containers/systemd/mios-k3s.container
 
 [Unit]

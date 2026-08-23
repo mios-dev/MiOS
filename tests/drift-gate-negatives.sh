@@ -468,6 +468,18 @@ test_firstboot_tier() {
     fi
 
     cp "$bak_file" "$fb_list" && rm -f "$bak_file"
+
+    # Test unjustified token in mios.toml
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local toml_bak="${toml}.negbak"
+    cp "$toml" "$toml_bak"
+    sed -i 's/firstboot_tokens = \[/firstboot_tokens = ["bogustoken", /' "$toml"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1; then
+        cp "$toml_bak" "$toml" && rm -f "$toml_bak"
+        die "Check_firstboot_tier passed despite unjustified firstboot token"
+    fi
+    cp "$toml_bak" "$toml" && rm -f "$toml_bak"
+
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "$ROOT/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_firstboot_tier >/dev/null 2>&1 \
         || die "Check_firstboot_tier failed after restoration"
@@ -2447,6 +2459,78 @@ test_tasks_status_parity() {
     log "Test_tasks_status_parity negative test passed"
 }
 
+test_agy_tasks() {
+    log "Testing check_agy_tasks"
+    local agy="${ROOT}/AGY-TASKS.md"
+    local backup="${agy}.negbak"
+    cp "$agy" "$backup"
+
+    # Inject duplicate task ID
+    echo -e "\n## AGY-1 -- Duplicate header test\n" >> "$agy"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1; then
+        mv "$backup" "$agy"
+        die "check_agy_tasks passed despite duplicate AGY task ID"
+    fi
+    mv "$backup" "$agy"
+
+    # Inject dangling Dep reference
+    cp "$agy" "$backup"
+    echo -e "\n## AGY-9999 -- Test task\n**Dep:** AGY-999999\n" >> "$agy"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1; then
+        mv "$backup" "$agy"
+        die "check_agy_tasks passed despite dangling Dep reference"
+    fi
+    mv "$backup" "$agy"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agy_tasks >/dev/null 2>&1 \
+        || die "check_agy_tasks failed after restoration"
+
+    log "check_agy_tasks negative test passed"
+}
+
+test_mios_toml_integrity() {
+    log "Testing check_mios_toml_integrity"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    cp "$toml" "$backup"
+
+    # Truncate mios.toml
+    head -n 50 "$backup" > "$toml"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mios_toml_integrity >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_mios_toml_integrity passed despite truncated mios.toml"
+    fi
+    mv "$backup" "$toml"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_mios_toml_integrity >/dev/null 2>&1 \
+        || die "check_mios_toml_integrity failed after restoration"
+
+    log "check_mios_toml_integrity negative test passed"
+}
+
+test_privileged_quadlets_minimal() {
+    log "Testing check_privileged_quadlets_minimal"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local backup="${toml}.negbak"
+    cp "$toml" "$backup"
+
+    # Strip comment from a root entry
+    sed -i 's/"mios-ceph.container",.*#.*/"mios-ceph.container",/' "$toml"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_privileged_quadlets_minimal >/dev/null 2>&1; then
+        mv "$backup" "$toml"
+        die "check_privileged_quadlets_minimal passed despite un-commented root entry"
+    fi
+    mv "$backup" "$toml"
+
+    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_privileged_quadlets_minimal >/dev/null 2>&1 \
+        || die "check_privileged_quadlets_minimal failed after restoration"
+
+    log "check_privileged_quadlets_minimal negative test passed"
+}
+
 test_container_names() {
     log "Testing check_container_names"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -2918,6 +3002,14 @@ test_globals_generated() {
         die "check_globals_generated failed after restoration"
     fi
     log "test_globals_generated passed"
+}
+
+_FAILED=()
+_run_test() {
+    # Subshell: die() exits the test, not the suite. One CI run then reports
+    # every failure instead of the first, which is what turned a queue of
+    # latent breakages into one round trip each.
+    if ( "$1" ); then :; else _FAILED+=("$1"); fi
 }
 
 _neg_gate() {
@@ -3574,134 +3666,144 @@ main() {
         fi
     fi
     log "Starting negative-test suite"
-    test_neg_gate_harness
-    test_task_schema
-    test_fleet_safety
-    test_ai_manifests_fresh
-    test_version_ssot
-    test_check_no_silent_tool_skips
-    test_check_negatives_are_effective
-    test_pipefail_grep_lint
-    test_check_skip_list_covered
-    test_resolver_equivalence
-    test_eval_safety
-    test_shellcheck_failure
-    test_names_registry
-    test_root_toml_subset
-    test_toml_projection
-    test_curl_retry
-    test_resolver_ssot_refs
-    test_nested_podman_caps
-    test_bake_budget
-    test_module_test_coverage
-    test_router_parity
-    test_council_gate_ssot
-    test_agent_pipe_budgets
-    test_bake_tokens
-    test_bake_unresolved_image
-    test_containerfile_pinned_clones
-    test_firstboot_tier
-    test_rechunk_budget
-    test_bake_core_reconcile
-    test_nested_podman_retry
-    test_gate_registry
-    test_adhoc_toml_parsers
-    test_install_uninstall_symmetry
-    test_ps_port_fallback_ssot
-    test_github_slug_casing
-    test_ps_encoding_and_bom
-    test_secret_handling
-    test_wsl_distro_resolution
-    test_docs_ratchet
-    test_header_integrity
-    test_resolver_differential_parity
-    test_generator_host_parity
-    test_legibility_ratchet
-    test_bootstrap_sync
-    test_no_inert_ssot_tables
-    test_doc_refs_resolve
-    test_desktop_launchers
-    test_blade_reconcile_schema
-    test_docs_ratchet_monotone
-    test_manual_generated
-    test_manual_ledger
-    test_comment_landing
-    test_credential_literals
-    test_redact_coverage
-    test_daemon_governor
-    test_manual_links
-    test_doc_port_scheme
-    test_unit_dependency_closure
-    test_unit_dependency_closure
-    test_test_hermeticity
-    test_no_mkdir_in_var
-    test_quadlet_privilege
-    test_lint_is_final
-    test_firstboot_degrade_open
-    test_require_tools
-    test_ssot_lint_deadkey
-    test_soft_mode_not_committed
-    test_oci_archive_path
-    test_replaceme_mount_substitution
-    test_kickstart_shell_syntax
-    test_offline_install_invariant
-    test_installer_family_roles
-    test_bib_configs_projection
-    test_ssot_lint_equivalence
-    test_repo_partition_label_ssot
-    test_bib_single_config_invariant
-    test_chpasswd_plaintext
-    test_build_artifacts_output_dir
-    test_win11_vm_template_xml
-    test_ipa_enroll_projection
-    test_uki_cmdline_projection
-    test_composefs_projection
-    test_cockpit_projection
-    test_chrony_ptp_dropin
-    test_chrony_projection
-    test_nut_projection
-    test_renderer_gate_coverage
-    test_bake_plan
-    test_bake_ref_defaults
-    test_deploy_plane
-    test_sbom_metadata
-    test_clevis_luks
-    test_metal_vfio
-    test_hyprland_heredoc
-    test_target_languages
-    test_roadmap_index
-    test_templates_compilation
-    test_impossible_eol
-    test_smoke_manifest
-    test_negative_coverage
-    test_verb_templates
-    test_pipe_boundaries
-    test_vllm_name_canonical
-    test_pipe_extraction_parity
-    test_guacamole_consistency
-    test_cephfs_ssot
-    test_v2v_import_ssot
-    test_no_hardcode_version
-    test_law_enforcers
-    test_usr_over_etc
-    test_projection_registry
-    test_bake_plan_integrity
-    test_bake_ref_parity
-    test_db_seed_coverage
-    test_account_column_parity
-    test_module_length
-    test_firstboot_provisioners
-    test_schema_consumers
-    test_tasks_status_parity
-    test_container_names
-    test_adr_index
-    test_greenboot
-    test_service_urls
-    test_ports_bound
-    test_blade_coverage
-    test_blade_karg
-    test_role_ssot
-    test_no_generated_prose_in_resolvers
+    _run_test test_neg_gate_harness
+    _run_test test_task_schema
+    _run_test test_fleet_safety
+    _run_test test_ai_manifests_fresh
+    _run_test test_version_ssot
+    _run_test test_check_no_silent_tool_skips
+    _run_test test_check_negatives_are_effective
+    _run_test test_pipefail_grep_lint
+    _run_test test_check_skip_list_covered
+    _run_test test_resolver_equivalence
+    _run_test test_eval_safety
+    _run_test test_shellcheck_failure
+    _run_test test_names_registry
+    _run_test test_root_toml_subset
+    _run_test test_toml_projection
+    _run_test test_curl_retry
+    _run_test test_resolver_ssot_refs
+    _run_test test_nested_podman_caps
+    _run_test test_bake_budget
+    _run_test test_module_test_coverage
+    _run_test test_router_parity
+    _run_test test_council_gate_ssot
+    _run_test test_agent_pipe_budgets
+    _run_test test_bake_tokens
+    _run_test test_bake_unresolved_image
+    _run_test test_containerfile_pinned_clones
+    _run_test test_firstboot_tier
+    _run_test test_rechunk_budget
+    _run_test test_bake_core_reconcile
+    _run_test test_nested_podman_retry
+    _run_test test_gate_registry
+    _run_test test_adhoc_toml_parsers
+    _run_test test_install_uninstall_symmetry
+    _run_test test_ps_port_fallback_ssot
+    _run_test test_github_slug_casing
+    _run_test test_ps_encoding_and_bom
+    _run_test test_secret_handling
+    _run_test test_wsl_distro_resolution
+    _run_test test_docs_ratchet
+    _run_test test_header_integrity
+    _run_test test_resolver_differential_parity
+    _run_test test_generator_host_parity
+    _run_test test_legibility_ratchet
+    _run_test test_bootstrap_sync
+    _run_test test_no_inert_ssot_tables
+    _run_test test_doc_refs_resolve
+    _run_test test_desktop_launchers
+    _run_test test_blade_reconcile_schema
+    _run_test test_docs_ratchet_monotone
+    _run_test test_manual_generated
+    _run_test test_manual_ledger
+    _run_test test_comment_landing
+    _run_test test_credential_literals
+    _run_test test_redact_coverage
+    _run_test test_daemon_governor
+    _run_test test_manual_links
+    _run_test test_doc_port_scheme
+    _run_test test_unit_dependency_closure
+    _run_test test_unit_dependency_closure
+    _run_test test_test_hermeticity
+    _run_test test_no_mkdir_in_var
+    _run_test test_quadlet_privilege
+    _run_test test_lint_is_final
+    _run_test test_firstboot_degrade_open
+    _run_test test_require_tools
+    _run_test test_ssot_lint_deadkey
+    _run_test test_soft_mode_not_committed
+    _run_test test_oci_archive_path
+    _run_test test_replaceme_mount_substitution
+    _run_test test_kickstart_shell_syntax
+    _run_test test_offline_install_invariant
+    _run_test test_installer_family_roles
+    _run_test test_bib_configs_projection
+    _run_test test_ssot_lint_equivalence
+    _run_test test_repo_partition_label_ssot
+    _run_test test_bib_single_config_invariant
+    _run_test test_chpasswd_plaintext
+    _run_test test_build_artifacts_output_dir
+    _run_test test_win11_vm_template_xml
+    _run_test test_ipa_enroll_projection
+    _run_test test_uki_cmdline_projection
+    _run_test test_composefs_projection
+    _run_test test_cockpit_projection
+    _run_test test_chrony_ptp_dropin
+    _run_test test_chrony_projection
+    _run_test test_nut_projection
+    _run_test test_renderer_gate_coverage
+    _run_test test_bake_plan
+    _run_test test_bake_ref_defaults
+    _run_test test_deploy_plane
+    _run_test test_sbom_metadata
+    _run_test test_clevis_luks
+    _run_test test_metal_vfio
+    _run_test test_hyprland_heredoc
+    _run_test test_target_languages
+    _run_test test_roadmap_index
+    _run_test test_templates_compilation
+    _run_test test_impossible_eol
+    _run_test test_smoke_manifest
+    _run_test test_negative_coverage
+    _run_test test_verb_templates
+    _run_test test_pipe_boundaries
+    _run_test test_vllm_name_canonical
+    _run_test test_pipe_extraction_parity
+    _run_test test_guacamole_consistency
+    _run_test test_cephfs_ssot
+    _run_test test_v2v_import_ssot
+    _run_test test_no_hardcode_version
+    _run_test test_law_enforcers
+    _run_test test_usr_over_etc
+    _run_test test_projection_registry
+    _run_test test_bake_plan_integrity
+    _run_test test_bake_ref_parity
+    _run_test test_db_seed_coverage
+    _run_test test_account_column_parity
+    _run_test test_module_length
+    _run_test test_firstboot_provisioners
+    _run_test test_schema_consumers
+    _run_test test_tasks_status_parity
+    _run_test test_agy_tasks
+    _run_test test_mios_toml_integrity
+    _run_test test_privileged_quadlets_minimal
+    _run_test test_container_names
+    _run_test test_adr_index
+    _run_test test_greenboot
+    _run_test test_service_urls
+    _run_test test_ports_bound
+    _run_test test_blade_coverage
+    _run_test test_blade_karg
+    _run_test test_role_ssot
+    _run_test test_no_generated_prose_in_resolvers
+    if (( ${#_FAILED[@]} )); then
+        echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
+        printf '  %s
+' "${_FAILED[@]}" >&2
+        echo "  (a later failure may be a consequence of an earlier one)" >&2
+        exit 1
+    fi
     log "All negative tests completed successfully"
 }
 

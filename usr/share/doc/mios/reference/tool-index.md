@@ -254,6 +254,7 @@ is generated, its generator is here.
 | `tools/ascii-sweep.py` | A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent... |
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
+| `tools/check-agy-tasks.py` | Drift gate for AGY task unique IDs and dependency resolution (AGY-1687). |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-comment-ratchet.py` | Local report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. Enforcement lives in check_docs_ratchet, which the gate runs; nothing dispatches this file. |
@@ -264,11 +265,13 @@ is generated, its generator is here.
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
+| `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
 | `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
 | `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
 | `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
 | `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
 | `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. |
+| `tools/check-privileged-quadlets.py` | Drift gate for privileged Quadlets register, justification, and ratchet ceiling (AGY-1651). |
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
@@ -276,7 +279,7 @@ is generated, its generator is here.
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
 | `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
 | `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
-| `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` li... |
+| `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice, and references AGY-TASKS.md (AGY-1647). |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
@@ -310,6 +313,7 @@ is generated, its generator is here.
 | `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
 | `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
+| `tools/test_check-agy-tasks.py` | Sibling unit test for tools/check-agy-tasks.py (AGY-1646 / AGY-1687). |
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
 | `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-comment-ratchet.py` | Fixtures for check-comment-ratchet.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
@@ -320,16 +324,19 @@ is generated, its generator is here.
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
 | `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring. |
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
+| `tools/test_check-mios-toml-integrity.py` | Sibling unit test for tools/check-mios-toml-integrity.py (AGY-1646 / AGY-1682). |
 | `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
 | `tools/test_check-no-generated-prose-in-resolvers.py` | Fixtures for check-no-generated-prose-in-resolvers.py -- proves it flags an AI-hint or a MIOS_UNITS_*_COMMENT payload inside a generated resolver, and passes on a clean one. |
 | `tools/test_check-node-pool.py` | Unit tests for tools/check-node-pool.py. |
 | `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
 | `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. |
+| `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
 | `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. |
 | `tools/test_check-ssot-consumer-keys.py` | Unit tests for tools/check-ssot-consumer-keys.py. |
+| `tools/test_check-task-schema.py` | Sibling unit test for tools/check-task-schema.py (AGY-1646). |
 | `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. |
 | `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
@@ -343,7 +350,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 91 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 98 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-forge' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-forge] in mios.toml.
+# AI-hint: MiOS mios-forge container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-forge] in mios.toml.
 # /usr/share/containers/systemd/mios-forge.container
 
 [Unit]

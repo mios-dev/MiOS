@@ -1,4 +1,5 @@
-# AI-hint: GENERATED Quadlet container 'mios-forgejo-runner' (WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-forgejo-runner] in mios.toml.
+# AI-hint: MiOS mios-forgejo-runner container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-forgejo-runner] in mios.toml.
 # /usr/share/containers/systemd/mios-forgejo-runner.container
 
 [Unit]

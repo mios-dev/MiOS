@@ -220,9 +220,10 @@ def load_enabled_quadlets(toml_path: str) -> dict:
 
 def render_nested_quadlet(name: str, spec: dict, unit_type: str) -> str:
     lines: list[str] = []
+    desc = str(spec.get("description") or f"MiOS {name} {unit_type}")
+    lines.append(f"# AI-hint: {desc}. (WS-7 pods-as-SSOT).")
     lines.append(
-        f"# AI-hint: GENERATED Quadlet {unit_type} '{name}' "
-        f"(WS-7 pods-as-SSOT). DO NOT EDIT -- regenerate via "
+        f"# DO NOT EDIT -- regenerate via "
         f"tools/generate-pod-quadlets.py from [{unit_type}s.{name}] in mios.toml."
     )
     lines.append(f"# /usr/share/containers/systemd/{name}.{unit_type}")
