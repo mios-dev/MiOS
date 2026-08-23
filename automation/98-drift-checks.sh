@@ -42,7 +42,7 @@ _violation() {
 _need_python() {
     # Thirty-one checks each spelled out this guard, and every one of them was
     # invisible to check_no_silent_tool_skips, which only greps the one-line
-    # `command -v ... || return 0` form. Folding them here also lets the skip
+    # single-line short-circuit form. Folding them here also lets the skip
     # become a failure under MIOS_DRIFT_REQUIRE_TOOLS=1, which is the whole
     # point of that variable.
     command -v python3 >/dev/null 2>&1 && return 0

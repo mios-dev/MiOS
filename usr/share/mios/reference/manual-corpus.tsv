@@ -793,7 +793,7 @@ automation/97-ssot-lint.sh	98	104	7	62	8abe5835330f	MIGRATE	narrative-rationale	
 automation/97-ssot-lint.sh	119	119	1	3	d21581f66297	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	1	4	4	11	d8dcd38de8b2	STAY	ai-header		0				0
 automation/98-drift-checks.sh	1	6	6	80	afe8cb3c5178	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:afe8cb3c5178	80	1
-automation/98-drift-checks.sh	43	47	5	47	fbbf7a79e567	STAY	midsize-why		0				0
+automation/98-drift-checks.sh	43	47	5	45	f9a4c0170e34	STAY	midsize-why		0				0
 automation/98-drift-checks.sh	58	59	2	24	9a2dc05042b1	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	170	170	1	2	032136219875	DROP	banner		0				0
 automation/98-drift-checks.sh	193	193	1	2	032136219875	DROP	banner		0				0
