@@ -6070,6 +6070,7 @@ main() {
     check_globals_generated
     check_ci_suite_coverage
     check_manpages
+    check_temp_fixture_cleanup
     check_negatives_registered
     check_leaked_fixtures
 
@@ -6904,6 +6905,13 @@ check_negatives_registered() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-negatives-registered.py 2>/dev/null)" || { _violations_from "check_negatives_registered: " "$out"; return; }
     echo "[98-drift-checks]   every negative test the harness defines is invoked by it"
+}
+
+check_temp_fixture_cleanup() {
+    echo "[98-drift-checks]   check_temp_fixture_cleanup"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-temp-fixture-cleanup.py 2>/dev/null)" || { _violations_from "check_temp_fixture_cleanup: " "$out"; return; }
+    echo "[98-drift-checks]   every temp-dir fixture is removed by the test that made it"
 }
 
 check_manpages() {

@@ -2873,6 +2873,77 @@ test_leaked_fixtures() {
     log "check_leaked_fixtures negative test passed"
 }
 
+test_manpages() {
+    log "Testing check_manpages"
+    local page="${ROOT}/usr/share/man/man1/mios.1"
+    local bak; bak="$(mktemp)"; cp "$page" "$bak"
+
+    # A page that no longer matches what the SSOT renders answers confidently
+    # and wrongly, which is worse than having no page at all.
+    printf '.PP\nan edit the SSOT does not describe\n' >> "$page"
+
+    _neg_gate check_manpages && {
+        cp "$bak" "$page"; rm -f "$bak"
+        die "check_manpages passed with a page that drifted from the SSOT"
+    }
+
+    cp "$bak" "$page"; rm -f "$bak"
+    _neg_gate check_manpages \
+        || die "check_manpages failed after restoration"
+    log "check_manpages negative test passed"
+}
+
+test_temp_fixture_cleanup() {
+    log "Testing check_temp_fixture_cleanup"
+    local probe="${ROOT}/tools/test_mios-leaky-fixture-probe.py"
+
+    # A test that makes a temporary directory and never removes it leaves one
+    # behind on every run; five turned up in an editor's source control view.
+    {
+        printf '%s\n' '#!/usr/bin/env python3'
+        printf '%s\n' '# AI-hint: probe.'
+        printf '%s\n' 'import tempfile'
+        printf '%s\n' 'd = tempfile.mkdtemp()'
+    } > "$probe"
+
+    # The gate enumerates what git tracks, because an untracked local file is
+    # not shipped. --intent-to-add makes the probe visible to that enumeration
+    # without staging its content.
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1 || true
+
+    _neg_gate check_temp_fixture_cleanup && {
+        git -C "$ROOT" rm -q --cached -- "$probe" >/dev/null 2>&1 || true
+        rm -f "$probe"
+        die "check_temp_fixture_cleanup passed with a fixture nothing removes"
+    }
+
+    git -C "$ROOT" rm -q --cached -- "$probe" >/dev/null 2>&1 || true
+    rm -f "$probe"
+    _neg_gate check_temp_fixture_cleanup \
+        || die "check_temp_fixture_cleanup failed after restoration"
+    log "check_temp_fixture_cleanup negative test passed"
+}
+
+test_negatives_registered() {
+    log "Testing check_negatives_registered"
+    local harness="${ROOT}/tests/drift-gate-negatives.sh"
+    local bak; bak="$(mktemp)"; cp "$harness" "$bak"
+
+    # Define a test and never invoke it. Nineteen were in exactly this state:
+    # written, committed, and proving nothing because nothing called them.
+    printf '\ntest_mios_unreachable_probe() {\n    log "unreachable"\n}\n' >> "$harness"
+
+    _neg_gate check_negatives_registered && {
+        cp "$bak" "$harness"; rm -f "$bak"
+        die "check_negatives_registered passed with a test nothing invokes"
+    }
+
+    cp "$bak" "$harness"; rm -f "$bak"
+    _neg_gate check_negatives_registered \
+        || die "check_negatives_registered failed after restoration"
+    log "check_negatives_registered negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3553,9 +3624,12 @@ _run_test test_leaked_fixtures
     _run_test test_blade_karg
     _run_test test_role_ssot
     _run_test test_no_generated_prose_in_resolvers
+    _run_test test_manpages
+    _run_test test_temp_fixture_cleanup
+    _run_test test_negatives_registered
 
-    # Defined but never invoked until now: a negative test that nobody runs
-    # looks exactly like coverage in a file listing and provides none.
+    # A negative test nobody invokes looks like coverage in a file listing
+    # and provides none; check_negatives_registered keeps this list whole.
     _run_test test_ssot_consumer_keys
     _run_test test_unit_projection
     _run_test test_mini_vs_hosted

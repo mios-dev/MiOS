@@ -257,7 +257,6 @@ is generated, its generator is here.
 | `tools/check-agy-tasks.py` | Drift gate for AGY task unique IDs and dependency resolution (AGY-1687). |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
-| `tools/check-comment-ratchet.py` | Local report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. Enforcement lives in check_docs_ratchet, which the gate runs; nothing dispatches this file. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
@@ -322,7 +321,6 @@ is generated, its generator is here.
 | `tools/test_check-agy-tasks.py` | Sibling unit test for tools/check-agy-tasks.py (AGY-1646 / AGY-1687). |
 | `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
 | `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
-| `tools/test_check-comment-ratchet.py` | Fixtures for check-comment-ratchet.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
 | `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
@@ -362,7 +360,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 110 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 108 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
