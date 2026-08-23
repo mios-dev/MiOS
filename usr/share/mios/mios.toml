@@ -2663,7 +2663,7 @@ oversize = [
     # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
     # own remainder and mios_dispatch.py is T-273's named target.
     { path = "mios_dispatch.py",                   lines =  816 },
-    { path = "server.py",                          lines = 4874 },
+    { path = "server.py",                          lines = 4866 },
 ]
 
 # ----------------------------------------------------------------------------
@@ -10191,6 +10191,11 @@ max_key_divergence = 983
 # Python's repr of nested arrays/tables, which needs preserve_order on
 # the toml crate to match -- AGY-1676, with a toolchain that can link.
 max_value_divergence = 12
+
+[tasks]
+# AGY task hygiene. Shrink-only: 25 ids are already used twice (## and ###
+# headings), which makes every **Dep:** naming one of them ambiguous.
+max_duplicate_ids = 18
 
 [docs]
 # Measured floor; 0 was never enforced. Ratchet DOWN only. AGY-1601.

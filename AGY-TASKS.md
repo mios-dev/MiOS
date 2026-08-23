@@ -10255,6 +10255,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_comment_lex_equivalence` sat defined in `98-drift-checks.sh` and absent from `main()`, so it never executed; `check_gate_registry` caught it only after it had been dormant. Run the registry check FIRST in CI rather than mid-suite, and extend it to the inverse direction: a name listed in `main()` with no function definition currently fails at runtime instead of at registry time. Also cover the tools tier -- `tools/check-*.py` files whose AI-hint claims a drift-check identity while no gate invokes them (`tools/check-comment-ratchet.py` claimed "Drift check 155" and was wired nowhere).
 **Where:** `automation/98-drift-checks.sh (check_gate_registry, main), tools/check-*.py`
 **Done When:** every `check_*` function is registered or deleted, every `tools/check-*.py` is invoked by a registered gate or renamed to say it is a report, and a negative test proves the registry check fails when a definition is unregistered AND when a registration is undefined.
+**Verify:** `bash automation/98-drift-checks.sh check_gate_registry` passes, AND `grep -c '^check_' automation/98-drift-checks.sh` equals the count registered in main(), AND a deliberately unregistered stub function makes it red.
+**Do NOT:** count the checks and call it proof. The gate must go RED under a planted unregistered function -- an unrun check is exactly what this task exists to find.
 **Why:** an unregistered gate is worse than no gate: it reads as coverage and delivers none.
 **Dep:** none
 
@@ -10263,6 +10265,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The measurement was broken outright -- the allowlist was matched with `re.search`, where `C:\mios-bootstrap\Get-MiOS.ps1` is an invalid pattern (bad escape `\m`), so the checker crashed rather than counted. Repaired, it reported 1101, of which 376 hits were `/usr/bin/env` from shebang lines. `RefIndex` now knows runtime path prefixes, units and containers declared in mios.toml, `emit_exports()` keys and `referenced_names.txt`, leaving 446. Drive that to a number that is entirely real: resolve pod/short names (`mios-hermes`, `mios-gpu`, `mios-heavy`, `mios-resolver`), decide whether `/etc/mios/*` runtime-created paths are references or state, and treat `mios-bootstrap` as the sibling repo it is. THEN set the ceiling and remove the "(reported, not a ceiling)" qualifier.
 **Where:** `usr/lib/mios/mios_comments.py (RefIndex), automation/98-drift-checks.sh (check_docs_ratchet), usr/share/mios/mios.toml [docs].max_stale_refs`
 **Done When:** every remaining dangling token is a genuine broken reference, the ceiling equals that count, a negative test breaches it, and `check_docs_ratchet` fails when the count rises.
+**Verify:** `bash automation/98-drift-checks.sh check_docs_ratchet` reports `stale-refs=N/N` with the ceiling equal to the measurement, AND adding an `# AI-related: automation/no-such-file.sh` line to a tracked file turns it red.
+**Do NOT:** raise [docs].max_stale_refs to whatever the count happens to be without first making every remaining hit a genuine broken reference. A ceiling over noise measures nothing.
 **Why:** a ceiling of 0 sat in the SSOT next to a measurement that had never once completed. Both a fake zero and an enshrined 446 of noise are the same defect.
 **Dep:** none
 
@@ -10271,6 +10275,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** It currently reads the first 1500 characters of each `test_*` function and requires the substring `die`/`return 1`/`FAIL`/`exit 1` AND one of `98-drift-checks.sh`/`97-ssot-lint.sh`/`check_`. A test satisfies it by MENTIONING a check name in a log line while never invoking one, and a test longer than 1500 characters can hide its assertion past the window. Replace with a structural check: parse each function, require at least one invocation of a gate entry point, and require that invocation to appear in a condition whose failure branch calls `die`.
 **Where:** `automation/98-drift-checks.sh (check_negatives_are_effective), tests/drift-gate-negatives.sh`
 **Done When:** a test that only logs a check name, and a test whose assertion sits beyond 1500 characters, are both reported; the existing suite still passes.
+**Verify:** a test that only mentions a check name in a `log` line, and a test whose assertion sits beyond 1500 characters, are BOTH reported by `bash automation/98-drift-checks.sh check_negatives_are_effective`.
+**Do NOT:** keep substring matching. A test satisfied by spelling `check_x` in a log line is the defect, not the fix.
 **Why:** this is the gate guarding every other gate's evidence. Substring matching makes it the easiest one in the tree to satisfy without meaning it.
 **Dep:** AGY-1607
 
@@ -10279,6 +10285,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `tests/drift-gate-negatives.sh` runs under `set -euo pipefail`. `generator | grep -q "msg"` returns the GENERATOR's exit status when it exits non-zero -- which a validation failure always does -- so a matched grep is thrown away and the test dies reporting the opposite of what happened. This cost a CI round trip on `test_bake_unresolved_image`. Add a lint that flags any `| grep` in the suite whose left side is not `echo`/`printf`, and require the captured-variable form.
 **Where:** `tests/drift-gate-negatives.sh, automation/98-drift-checks.sh`
 **Done When:** the lint is a registered gate with a negative test, and every piped grep in the suite either reads from `echo`/`printf` or is converted to capture-then-match.
+**Verify:** `bash automation/98-drift-checks.sh check_pipefail_grep_lint` goes red when a `somecmd | grep -q x` is added to tests/drift-gate-negatives.sh, and green when removed.
+**Do NOT:** exempt the suite's own `echo ... | grep` lines by name. Match on the LEFT side being echo/printf, so a new piped grep is caught automatically.
 **Why:** the harness silently inverting a result is indistinguishable from a broken detector, and sends the reader to the wrong file.
 **Dep:** none
 
@@ -10287,6 +10295,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `mios-manual`'s `_read_ledger` keyed rows by `sha12`; identical comment text is common, so reading `manual-corpus.tsv` into that dict and writing `list(rows.values())` back turned 9669 rows into 8564. A harvest followed by a commit without `sync-generated` would have deleted 1105 census rows. Fixed by a `Ledger` type that keeps every row. Now sweep: any place a generated artifact is read into a dict keyed by hash, name, or path-stem and written back. Check `tools/generate-names-registry.py`, `automation/lib/mios_var_closure.py`, `tools/generate-pod-quadlets.py`, `tools/generate-bake-plan.py` and the manifest writers.
 **Where:** `usr/libexec/mios/mios-manual, tools/generate-*.py, automation/lib/*.py`
 **Done When:** each round trip either preserves row count or asserts it, and a test writes a fixture containing duplicates and proves nothing is lost.
+**Verify:** a fixture containing duplicate rows survives a read-write round trip: row count in equals row count out, asserted by a test.
+**Do NOT:** eyeball the row count once. mios-manual's ledger lost 1105 of 9669 rows silently and the file still parsed -- only an asserted count catches it.
 **Why:** the loss is invisible: the file still parses, the gate still passes, and a ninth of the evidence is gone.
 **Dep:** none
 
@@ -10295,6 +10305,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `usr/share/doc/mios/reference/tool-index.md` was reported out of sync by CI while clean locally, through several rounds of guessing. `fnmatch.fnmatch` normalises case on Windows, so `usr/libexec/mios/mios-*` matched `MiOS-Mon.py` there and not on Linux, and each side reverted the other. Seven call sites are now `fnmatchcase`. Sweep the remaining host-dependent inputs: `os.walk` ordering, `sorted()` on paths without an explicit key, locale-dependent case folding, `os.sep` leaking into content, line endings written by generators, and any use of the filesystem where `git ls-files` is meant. Then add a gate that regenerates under a forced-case-insensitive and a forced-case-sensitive configuration and requires identical bytes.
 **Where:** `usr/libexec/mios/mios-manual, usr/libexec/mios/mios-daemon, usr/libexec/mios/mios-version-lint, tools/generate-names-registry.py, automation/lib/mios_var_closure.py, tools/*.py`
 **Done When:** the differential gate is registered with a negative test, and every generator produces byte-identical output under both configurations.
+**Verify:** `bash automation/98-drift-checks.sh check_generator_host_parity` goes red when any `fnmatchcase` is reverted to `fnmatch`, and every generator emits byte-identical output under forced case-sensitive and case-insensitive git config.
+**Do NOT:** fix only the fnmatch instances. os.walk ordering, bare sorted(), locale case-folding, os.sep leaking into content and filesystem-vs-git-tracked are the same class.
 **Why:** an artifact whose content depends on the host cannot be gated at all -- CI and the contributor take turns reverting each other and neither is wrong.
 **Dep:** none
 
@@ -10303,6 +10315,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The sync step printed `M usr/share/doc/mios/reference/tool-index.md` and nothing else, which is not actionable when the generator behaves differently in CI; it now prints `git diff --stat` and 200 lines of diff. Apply the same standard everywhere a gate reports a name: `check_bake_plan` said "core image is not referenced by any Quadlet" while pointing three lines of SSOT away from the actual cause (an Image= that resolved nowhere and was skipped by a bare `continue`). Audit every `_violation` message for whether it names the thing a reader must change. Both arms of `test_bake_tokens` used the identical message `die "Generate-bake-plan.py"`, so the log could not say which fired.
 **Where:** `.github/workflows/mios-ci.yml, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/generate-*.py`
 **Done When:** no two `die` calls in the suite share a message, and every `_violation` names a file AND the change required.
+**Verify:** no two `die` calls in tests/drift-gate-negatives.sh share a message: `grep -oE 'die "[^"]+"' tests/drift-gate-negatives.sh | sort | uniq -d` prints nothing.
+**Do NOT:** improve only the message that bit you last. `die "Generate-bake-plan.py"` appeared twice and the log could not say which arm fired.
 **Why:** a message that names the symptom sends the reader to the wrong file; that is worse than silence because it looks like information.
 **Dep:** none
 
@@ -10311,6 +10325,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Its header claimed "Drift check 155 check_comment_ratchet" while no gate invoked it; the hint now says it is a developer report. Its unique measurements -- stale refs and undocumented components -- have moved into `check_docs_ratchet`, which the gate runs. Decide: fold `max_undocumented_components` in too and delete the tool with its test, or keep it as an explicitly-labelled local report. Do not leave a third path that computes the same numbers differently -- its ceilings defaulted to 999999, so a renamed SSOT key would have made it silently unfailable.
 **Where:** `tools/check-comment-ratchet.py, tools/test_check-comment-ratchet.py, automation/98-drift-checks.sh (check_docs_ratchet)`
 **Done When:** exactly one code path computes each comment metric, and no ceiling anywhere defaults to a value that cannot fail.
+**Verify:** exactly one code path computes each comment metric: `grep -rl 'max_unmigrated_narrative' --include='*.py' --include='*.sh' .` names one enforcement site.
+**Do NOT:** leave a second implementation as a 'developer report'. Two implementations of one measurement disagree, and the unrun one rots.
 **Why:** two implementations of one measurement disagree eventually, and the one nobody runs is the one that rots.
 **Dep:** AGY-1608
 
@@ -10319,6 +10335,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Use the harvest -> landing -> prune flow, which now works end to end: `mios-manual harvest --path X --to Y --apply`, confirm with `mios-manual landing`, then `mios-manual prune --path X --block SHA --only-landed --apply`. Work in batches by subsystem so each commit is reviewable. Harvest refuses generated destinations now (a header saying GENERATED or DO NOT EDIT), because harvesting into `usr/share/doc/mios/reference/mini-vs-hosted.md` put prose in a file its generator overwrites and broke that document's round-trip test. Tighten `[docs].max_unmigrated_narrative` after each batch; it is monotone, so it can only go down.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/manual/, usr/share/mios/mios.toml [docs]`
 **Done When:** the count is below 400, `mios-manual landing` reports every pruned block still documented, and no harvested prose landed in a generated file.
+**Verify:** `bash automation/98-drift-checks.sh check_docs_ratchet` shows narrative below 400, AND `python3 usr/libexec/mios/mios-manual landing` reports every pruned block still documented.
+**Do NOT:** prune without harvesting. `--only-landed` exists so a block is deleted ONLY after its prose is provably in a doc.
 **Why:** the comments hold the reasoning; the manual is where a reader looks for it. Migration is the point, deletion is not.
 **Dep:** none
 
@@ -10327,6 +10345,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `usr/share/doc/mios/manual/_harvest/` accumulates one file per source file, which is a staging area and not a manual. Use `mios-manual distill` to organise harvested passages by subsystem, and `mios-manual landing` to prove nothing is lost in the move. The corpus ledger keys by content hash, so passages can be reorganised freely as long as anchors survive.
 **Where:** `usr/libexec/mios/mios-manual (distill, landing), usr/share/doc/mios/manual/`
 **Done When:** the manual has a table of contents derived from the SSOT, every `_harvest` passage is either placed or explicitly deferred, and `landing` stays green.
+**Verify:** `ls usr/share/doc/mios/manual/_harvest/*.md | wc -l` is 0 or explicitly registered, and `mios-manual landing` stays green across the move.
+**Do NOT:** harvest into a generated document. mini-vs-hosted.md is rendered by its own generator and the added section broke its round-trip test.
 **Why:** the deliverable is a repository small enough to read; a staging directory of 300 files is not that.
 **Dep:** AGY-1615
 
@@ -10335,6 +10355,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `usr/libexec/mios/MiOS-Mon.py` does not match the index glob `usr/libexec/mios/mios-*` under case-exact matching, so it is absent from `tool-index.md` while being a real shipped surface. Decide: rename it to `mios-mon.py` for consistency with the other 209 tools (and update every reference), or add a second index marker that covers it. Do not "fix" it by making the glob case-insensitive again -- that is what made the artifact host-dependent.
 **Where:** `usr/libexec/mios/MiOS-Mon.py, usr/share/doc/mios/reference/tool-index.md, usr/libexec/mios/mios-manual`
 **Done When:** the tool appears in the index under a deliberate rule, and `check_manual_generated` is byte-stable on Linux and Windows.
+**Verify:** `bash automation/98-drift-checks.sh check_manual_generated` passes on Linux AND Windows with byte-identical tool-index.md.
+**Do NOT:** make the index glob case-insensitive again. That is what made the artifact depend on which machine regenerated it.
 **Why:** a shipped surface missing from the generated index makes the index a partial truth, which is the hardest kind to notice.
 **Dep:** AGY-1612
 
@@ -10343,6 +10365,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `--check` used to render units in memory and print PASS without comparing; repaired, it reported 66 rendered / 66 drifted / 0 matching. Work the remainder down unit by unit: for each, decide whether the SSOT or the shipped file is right, fix the losing side, and re-run. Do not regenerate wholesale -- some shipped units carry hand-edits that encode real behaviour and must move into `[units]` first.
 **Where:** `tools/native/mios-unit-gen/, usr/lib/systemd/system/, usr/share/mios/mios.toml [units]`
 **Done When:** `mios-unit-gen --check` reports zero drifted units, a negative test proves it fails when one unit is edited, and the gate runs in CI.
+**Verify:** `cargo run -p mios-unit-gen -- --check` reports zero drifted units, and editing one shipped unit makes it non-zero.
+**Do NOT:** regenerate wholesale. Some shipped units carry hand-edits that encode real behaviour; those must move into [units] first.
 **Why:** a projection that does not match its output is not a projection; it is two hand-maintained copies with extra steps.
 **Dep:** none
 
@@ -10351,6 +10375,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Known instances: `check_desktop_launchers` passed because `[desktop.launchers]` was absent, leaving 9 shipped launchers ungoverned; `check_no_inert_ssot_tables` and `check_doc_refs_resolve` wrote violations to stderr while the wrapper read stdout, so `_violation` was never called; `check_resolver_differential_parity` skipped silently when a tool was missing; bake-smoke prints OK on empty lists. Systematically: for each registered check, construct the empty-input case and confirm it FAILS rather than passes. Where a skip is legitimate, it must be loud and gated by `MIOS_DRIFT_REQUIRE_TOOLS`.
 **Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh`
 **Done When:** every check has a documented empty-input behaviour, and `check_negative_coverage` requires a negative test for each.
+**Verify:** for every registered check, the empty-input case is constructed and shown to FAIL, recorded in tests/drift-gate-negatives.sh.
+**Do NOT:** accept a check that passes when it finds nothing to look at. That is the repository's most expensive recurring defect.
 **Why:** this is the repository's most expensive recurring defect: a check that cannot fail also stops anyone looking.
 **Dep:** AGY-1609
 
@@ -10359,6 +10385,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Local Windows runs cannot validate checks that shell out to Python with MSYS paths -- `automation/**/*.sh` globbed zero files under `/tmp/...`, so `check_curl_retry` reported a false failure that had nothing to do with the change under test. Document and script the clean-worktree Linux procedure, including the environment variables the negatives suite forwards (`MIOS_DRIFT_ROOT`, `MIOS_DRIFT_REQUIRE_TOOLS`) and the fact that a stale installed MiOS on the dev VM fakes SSOT-projection drift.
 **Where:** `tests/drift-gate-negatives.sh, automation/98-drift-checks.sh, docs, .devcontainer/`
 **Done When:** one documented command runs the full gate and negatives on a clean checkout and matches CI's result.
+**Verify:** one documented command runs the full gate plus negatives on a clean Linux checkout and matches CI's result exactly.
+**Do NOT:** trust a Windows run. `automation/**/*.sh` globs zero files under an MSYS path, so check_curl_retry reports a failure that has nothing to do with the change.
 **Why:** every unreproducible failure is paid for in CI round trips, and the log alone is rarely enough.
 **Dep:** none
 
@@ -10367,6 +10395,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `tools/sync-bootstrap.py` exists; wire it into the main CI pipeline so a successful build pushes the shared files to the bootstrap repo. Law 15 requires both repos be verified before any change to a shared surface. Shared today: `installation/mios-common.{ps1,sh}`, port definitions, theme surfaces. Note `installation/mios-common.sh` is deliberately NOT synced -- the bootstrap copy is richer and its comments were never harvested; resolve that asymmetry rather than papering over it.
 **Where:** `tools/sync-bootstrap.py, .github/workflows/mios-ci.yml, installation/`
 **Done When:** a build publishes the synced files, a gate fails when a shared surface differs between repos, and the `mios-common.sh` asymmetry is resolved in one direction with the reason recorded.
+**Verify:** a build publishes the synced files, and a gate fails when a shared surface differs between mios.git and mios-bootstrap.git.
+**Do NOT:** skip silently when the bootstrap repo is absent. A skip that reports success is why these two repos drifted in the first place.
 **Why:** Law 15 exists because these two repos have drifted before, and the drift is invisible from either side alone.
 **Dep:** none
 
@@ -10375,6 +10405,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The Ventoy/MediCat USB machinery works but installs plain Fedora, not bootc: `tools/install.sh` is absent and the correct bootc-image-builder installer is disconnected and unbuilt. Use `bootc install --transport oci` for the offline path. This is the least-complete area of the roadmap at roughly 15-25%.
 **Where:** `cat/, tools/install.sh, usr/share/mios/sys/Containerfile*, automation/build/`
 **Done When:** a USB built by the documented flow installs a bootc MiOS system that boots to the expected archetype, verified on real hardware or a VM with the same firmware path.
+**Verify:** a USB built by the documented flow installs a bootc MiOS system that boots to the expected archetype, on real hardware or a VM with the same firmware path.
+**Do NOT:** call it done when the USB boots. It currently installs plain Fedora -- the test is that the installed system is bootc MiOS.
 **Why:** every other plane assumes a deployed system; without this the project runs only where someone has already hand-built it.
 **Dep:** none
 
@@ -10383,6 +10415,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Bare metal is untried, and blade/mesh/vfio work is design rather than observation. Pick the smallest real target, install from the artifact the build publishes, and record what actually happened -- including what failed. Do not extend the design further until one non-VM install is observed.
 **Where:** `docs/agy/, ROADMAP.md, cat/`
 **Done When:** one non-VM install is recorded with its failures, and the roadmap's honest-state table is updated from observation rather than intent.
+**Verify:** one non-VM install is recorded, including what failed, and ROADMAP.md's state table is updated from that observation.
+**Do NOT:** extend the blade/mesh design further first. Every unobserved deployment target is a claim with no evidence behind it.
 **Why:** the thesis is a claim about a deployable system. Every unobserved deployment target is a claim with no evidence behind it.
 **Dep:** AGY-1622
 
@@ -10391,6 +10425,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** k3s owns containers, Pacemaker owns VMs; GPU-gated services degrade to a CPU lane on non-GPU blades; failover tries local, then localhost, then cluster; anti-flap dwell is asymmetric; only blades diverge, with per-class merge rules (`union-by-hash`, `append-ordered`, `last-writer-wins`, and `conflict-is-error` for config_kv). `[blade.placement]`, `[blade.collapse]`, `[blade.discovery]` and `[blade.reconcile]` are declared in the SSOT; `usr/libexec/mios/reconcile-blade` and its test exist. Wire the reconciler to real cluster state.
 **Where:** `usr/share/doc/mios/adr/0017-blade-workload-mobility.md, usr/libexec/mios/reconcile-blade, usr/share/mios/mios.toml [blade.*]`
 **Done When:** a two-node fleet demonstrates a container failing over under k3s and a VM under Pacemaker, with the dwell behaviour observed and the merge rules exercised including a `conflict-is-error` case.
+**Verify:** a two-node fleet shows a container failing over under k3s and a VM under Pacemaker, with the dwell behaviour observed and a `conflict-is-error` case exercised.
+**Do NOT:** implement the happy path only. The merge classes are only tested when a case would produce the WRONG result under a neighbouring rule.
 **Why:** `[blade.*]` currently declares behaviour nothing implements, which `check_no_inert_ssot_tables` should be catching.
 **Dep:** AGY-1623
 
@@ -10399,6 +10435,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_no_inert_ssot_tables` was silently broken -- violations went to stderr while the wrapper read stdout, so it never fired. With it repaired, audit the result: `[accounts].db_backed` ships inert by design and is documented; `[blade.*]` is partly inert pending AGY-1624. Each inert table must be either wired, removed, or listed in an explicit register with the reason and a ratchet that only shrinks.
 **Where:** `automation/98-drift-checks.sh (check_no_inert_ssot_tables), usr/share/mios/mios.toml`
 **Done When:** the inert register is explicit and shrinking, and the check fails when a new unconsumed table appears.
+**Verify:** `bash automation/98-drift-checks.sh check_no_inert_ssot_tables` goes red when a new unconsumed table is added, and the inert register only shrinks.
+**Do NOT:** trust the check because it passes. It wrote violations to stderr while the wrapper read stdout, so `_violation` was never called.
 **Why:** the SSOT is the whole claim. A table nothing reads is a promise the system does not keep.
 **Dep:** none
 
@@ -10407,6 +10445,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** 33,168 lines of PowerShell against 9,011 of Rust while Law 14 makes Rust the native tier. Classify every PowerShell file as glue (invokes things, stays) or program (parses, decides, transforms -- moves). Port programs to Rust with tests, keeping the shim name stable so callers do not change. Do this in small, independently reviewable steps; each port must land with a test that fails against the old behaviour if the port is wrong.
 **Where:** `usr/share/mios/windows/, tools/native/, src/mios-rs/`
 **Done When:** the ratio has inverted for the program tier, every port has tests, and `[legibility]` PowerShell line count is materially lower.
+**Verify:** `[legibility].max_ps_lines` is materially lower and every ported program has a test that fails against the pre-port behaviour.
+**Do NOT:** port glue. Classify each file as glue (invokes things, stays) or program (parses, decides, transforms -- moves).
 **Why:** minimal static binaries and few shell scripts is the stated architecture; the measured tree currently says the opposite.
 **Dep:** none
 
@@ -10415,6 +10455,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Heavy duplication across `usr/libexec/mios/` verbs and `automation/` phases. Identify clusters that share a resolver, an argument shape, or a projection target and fold them into one component with subcommands. Do not blind-delete: several verbs previously judged "legacy" turned out to be load-bearing, and doc bundles and entry points reference files that look dead.
 **Where:** `usr/libexec/mios/, automation/, usr/share/mios/mios.toml [legibility]`
 **Done When:** verb and phase counts are materially lower with no capability lost, each fold is covered by a test, and the legibility floors are tightened to the new measurement.
+**Verify:** verb and phase counts in `[legibility]` are materially lower with no capability lost, each fold covered by a test.
+**Do NOT:** blind-delete anything called legacy. Several such verbs turned out to be load-bearing, and doc bundles reference files that look dead.
 **Why:** the deliverable is a repository a person can read; 282 verbs is not readable regardless of how good each one is.
 **Dep:** none
 
@@ -10423,6 +10465,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Roughly 202 MB today, most of it two vendored assets. Decide per asset: fetch at build time with a checksum recorded in the SBOM, move to a release artifact, or drop. Per ADR-0003, digests and checksums are SBOM data resolved at build, never hand-pinned in the SSOT, so a build-time fetch is consistent with the architecture.
 **Where:** `usr/share/mios/vllm/, vendored assets, automation/build/, usr/share/mios/mios.toml [legibility]`
 **Done When:** the pushed state is under 100 MB, every removed asset is reproducibly fetchable at build with its checksum recorded, and the size floor is tightened.
+**Verify:** the pushed state is under 100 MB and every removed asset is reproducibly fetchable at build with its checksum in the SBOM.
+**Do NOT:** hand-pin a digest in the SSOT. ADR-0003: digests are SBOM data resolved at build.
 **Why:** size is a correctness property here: the repository is the artifact being read.
 **Dep:** none
 
@@ -10431,6 +10475,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Credits and licences still name ollama, which was removed entirely when the AI plane became OpenAI `/v1`-only. Legitimate surviving "ollama" tokens exist in enforcement, cleanup, upstream-compat and history and must NOT be re-flagged. Sweep READMEs, docs and credits for anything describing a removed subsystem, and add a gate that fails when a doc names a component the SSOT no longer declares.
 **Where:** `README.md, docs/, usr/share/doc/mios/, credits and licence files`
 **Done When:** no reading material describes a removed subsystem, the legitimate tokens are allowlisted with reasons, and the gate has a negative test.
+**Verify:** no reading material names a removed subsystem, and a gate fails when a doc names a component the SSOT no longer declares.
+**Do NOT:** mass-delete every 'ollama' token. Enforcement, cleanup, upstream-compat and history references are legitimate and must be allowlisted with reasons.
 **Why:** documentation that names a removed component teaches a reader something false on their first contact with the project.
 **Dep:** none
 
@@ -10439,6 +10485,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** ADRs are immutable once accepted (`usr/share/doc/mios/adr/README.md:23`) -- supersede, never rewrite. ADR-0017 extends ADR-0016 for exactly that reason. Ensure `ADR.md` is generated from the ADR directory, that supersession chains are explicit and rendered, and that `check_adr_index` fails when an ADR is added without an index entry.
 **Where:** `ADR.md, usr/share/doc/mios/adr/, automation/98-drift-checks.sh (check_adr_index)`
 **Done When:** the index is generated, supersession is visible, and a new ADR without an entry fails the gate.
+**Verify:** `bash automation/98-drift-checks.sh check_adr_index` goes red when an ADR is added without an index entry, and supersession chains render.
+**Do NOT:** edit an accepted ADR. usr/share/doc/mios/adr/README.md:23 -- supersede, never rewrite.
 **Why:** decision records are the reasoning trail; an unnavigable trail is not one.
 **Dep:** none
 
@@ -10447,6 +10495,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Only `usr/lib/mios` and systemd literals are gate-red; the rest is hygiene. Fix the `mios-hardcode-lint` unanchored-allowlist bug that spuriously exempts `:8080`, `:8033` and others. Do batches 1A/1B mechanically, then 1C/1D behind the gate, then generate from SSOT, adding the new `[network]` and `[ports.*_internal]` keys. Never float the false friends: `MIOS_PORT_GUACAMOLE` does not exist -- it is `MIOS_PORT_GUACAMOLE_WEB`. Note that ports are ALLOCATED from `[ports.categories]` by base plus stride, not hand-assigned, so sed over old values is unsafe where old and new alias.
 **Where:** `usr/lib/mios/, usr/lib/systemd/system/, tools/render-ports.py, usr/share/mios/mios.toml [ports.*]`
 **Done When:** the hardcode lint has no allowlist entries that are unanchored, the gate-red literals are zero, and a negative test proves a reintroduced literal fails.
+**Verify:** `mios-hardcode-lint` has no unanchored allowlist entries, gate-red literals are zero, and a reintroduced literal fails a negative test.
+**Do NOT:** sed old port values to new. Ports are ALLOCATED from [ports.categories] by base+stride and old/new values alias.
 **Why:** a value defined twice is a value that will disagree, and the SSOT stops being single.
 **Dep:** none
 
@@ -10455,6 +10505,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The four webtools and llm-heavy-alt containers carry hints that are mostly boilerplate about regeneration, close to the 260-character prose cap. Since they are generated by `tools/generate-pod-quadlets.py` from `[containers.*]`, improve the TEMPLATE: emit a short purpose line derived from the SSOT's own description field, and keep the DO-NOT-EDIT notice on a separate non-prose line so it does not consume the hint budget.
 **Where:** `tools/generate-pod-quadlets.py, usr/share/containers/systemd/*.container, usr/share/mios/mios.toml [containers.*]`
 **Done When:** every generated quadlet's hint describes its service in under the cap, and the regeneration notice is outside the prose measurement.
+**Verify:** every generated quadlet's AI-hint prose is under the cap and describes its service, with the DO-NOT-EDIT notice outside the prose measurement.
+**Do NOT:** wrap the hint across lines. The cap counts prose continuation, so wrapping moves the metric without changing what a reader sees.
 **Why:** the hint is what the index and the manual read; boilerplate there produces an index that says nothing.
 **Dep:** none
 
@@ -10463,6 +10515,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** It exists in `[docs]` but its only consumer was the unwired report, whose ceilings defaulted to 999999. Define precisely what a component is (a libexec verb, an automation phase, a tools entry point, a Rust binary), measure how many lack a doc, set the ceiling at the measurement and enforce it in `check_docs_ratchet`.
 **Where:** `usr/share/mios/mios.toml [docs], automation/98-drift-checks.sh (check_docs_ratchet), usr/lib/mios/mios_comments.py`
 **Done When:** the definition is written down, the ceiling equals the measurement, a negative test breaches it, and it only decreases.
+**Verify:** the component definition is written down, the ceiling equals the measurement, and a negative test breaches it.
+**Do NOT:** leave the ceiling defaulting to 999999. That is a check that cannot fail dressed as a ratchet.
 **Why:** a ceiling with no measurement behind it is decoration, and this one defaulted to a value nothing could exceed.
 **Dep:** AGY-1608
 
@@ -10471,6 +10525,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The roadmap carries a measured honest-state table. Generate its numbers from the gates that produce them -- legibility floors, ratchet counts, unit drift, deploy-plane completeness -- so it cannot quietly go stale. Where a number has no gate behind it, say so in the table rather than estimating.
 **Where:** `ROADMAP.md, automation/98-drift-checks.sh, usr/libexec/mios/mios-manual (render)`
 **Done When:** every number in the table is either derived from a gate or explicitly marked as unmeasured, and the table regenerates in `sync-generated`.
+**Verify:** every number in ROADMAP.md's state table is derived from a gate or explicitly marked unmeasured, and the table regenerates in sync-generated.
+**Do NOT:** hand-maintain the numbers. They drift exactly like hand-maintained config.
 **Why:** the roadmap is the project's own account of itself; hand-maintained numbers in it drift exactly like hand-maintained config.
 **Dep:** none
 
@@ -10479,6 +10535,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** ADR-0017 defines `union-by-hash`, `append-ordered`, `last-writer-wins` and `conflict-is-error` for config_kv. `usr/libexec/mios/test_reconcile-blade.py` exists; extend it so each rule has a case that would produce the WRONG result under a neighbouring rule, and so `conflict-is-error` genuinely raises rather than resolving. Include clock-skew and simultaneous-write cases for `last-writer-wins`.
 **Where:** `usr/libexec/mios/reconcile-blade, usr/libexec/mios/test_reconcile-blade.py`
 **Done When:** each merge class has a discriminating test, `conflict-is-error` is proven to raise, and the tests fail if two classes are swapped.
+**Verify:** each merge class has a test that would produce the wrong result under a neighbouring rule, and `conflict-is-error` is proven to raise.
+**Do NOT:** test only on agreeing inputs. Merge rules tested on agreement are untested.
 **Why:** merge rules that are only tested on agreeing inputs are untested.
 **Dep:** AGY-1624
 
@@ -10487,6 +10545,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The tier exists so the vLLM and SGLang images (~47 GB) leave the bake and it fits a standard runner. `check_firstboot_tier` and `generate-bake-plan.py` validate token matching, but nothing proves the tier's membership is minimal -- an image could sit there without needing to. Add a check that each firstboot entry exceeds a size threshold declared in the SSOT, or is justified in an explicit register.
 **Where:** `usr/lib/mios/bake/plan.d/firstboot.list, tools/generate-bake-plan.py, usr/share/mios/mios.toml [build.bake]`
 **Done When:** every firstboot entry is justified by a declared rule, and a negative test proves an unjustified entry fails.
+**Verify:** every firstboot.list entry is justified by a declared rule, and an unjustified entry fails a negative test.
+**Do NOT:** let the tier become where things are put to avoid thinking about them. It exists for images the bake cannot hold.
 **Why:** the tier is a capacity workaround; without a rule it becomes a place things are put to avoid thinking about them.
 **Dep:** none
 
@@ -10495,6 +10555,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `generate-bake-plan.py --check` now validates that every core image is referenced by a quadlet and that every Image= resolves against the SSOT. It does not validate that the resolved reference EXISTS. Add an opt-in gate (network-gated, skipped loudly without credentials) that resolves each reference to a digest and records it in the SBOM, per ADR-0003 -- resolved at build, never hand-pinned.
 **Where:** `tools/generate-bake-plan.py, automation/build/, usr/share/mios/mios.toml [build.bake]`
 **Done When:** a build resolves every image to a digest, records them in the SBOM, and fails loudly rather than silently when the network is absent under `MIOS_DRIFT_REQUIRE_TOOLS`.
+**Verify:** a build resolves every core image to a digest and records it in the SBOM, failing loudly without network under MIOS_DRIFT_REQUIRE_TOOLS=1.
+**Do NOT:** skip silently when the network is absent. A silent skip reports the same green as a pass.
 **Why:** a plan listing an image that cannot be pulled fails at bake time, which is the most expensive place to find out.
 **Dep:** none
 
@@ -10503,6 +10565,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_docs_ratchet` now builds a `RefIndex` by walking the tree and lexes every tracked source file; several other checks re-lex the same files independently. Build the census once per invocation and share it. Measure before and after -- do not assume.
 **Where:** `automation/98-drift-checks.sh, usr/lib/mios/mios_comments.py, usr/libexec/mios/mios-manual`
 **Done When:** the full gate's wall-clock is measured, the census is computed once, and the improvement is recorded.
+**Verify:** the full gate's wall-clock is measured before and after, the census is computed once, and the improvement is recorded.
+**Do NOT:** assume it is faster. Measure both sides.
 **Why:** a gate too slow to run locally becomes a gate that only CI runs, which pushes every failure into a round trip.
 **Dep:** none
 
@@ -10511,6 +10575,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_desktop_launchers` passed vacuously because the table was absent, leaving 9 shipped launchers ungoverned; the table now exists with entries derived from the shipped files. Verify each entry matches its file, add the missing fields, and make the negative test mutate a RENDERED FIELD rather than adding a stray `.desktop` -- adding a file proves nothing about projection.
 **Where:** `usr/share/mios/mios.toml [desktop.launchers], tools/render-desktop.py, usr/share/applications/`
 **Done When:** every shipped launcher is declared, a mutated rendered field fails the gate, and `tools/test_render-desktop.py` covers the empty-table case.
+**Verify:** mutating a RENDERED field in a .desktop file makes `check_desktop_launchers` red; adding a stray .desktop file is not the test.
+**Do NOT:** add a file as the probe. That proves nothing about projection -- the check passed vacuously for exactly this reason.
 **Why:** the table was added to close a vacuous gate; if its contents are not verified the gate is still vacuous, just quieter.
 **Dep:** none
 
@@ -10519,6 +10585,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The Day-0 build reached green once. Re-establish it from a clean clone with no local state: document every prerequisite, make missing ones fail loudly with the install command, and record the wall-clock and disk cost. Note that `/` is now a self-updating git work tree after Phase 1, which changes what a "clean" build means.
 **Where:** `automation/build/, build-mios.sh, docs, .devcontainer/`
 **Done When:** a clean clone builds to a bootc-lint-green image with one documented command, and the prerequisites fail loudly rather than silently degrading.
+**Verify:** a clean clone builds to a bootc-lint-green image with one documented command, and a missing prerequisite fails loudly with the install command.
+**Do NOT:** test on a machine that has already built it. `/` is now a self-updating git work tree, which changes what clean means.
 **Why:** a build that only works on machines that have already built it is not reproducible, and reproducibility is half the thesis.
 **Dep:** none
 
@@ -10527,6 +10595,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `.ps1` is canonical on Windows, `.bat` a name-stable thin shim, `.sh` a fresh Linux canonical. `Get-MiOS` via `irm | iex` orphans MiOS-Cat and needs a handoff. Pins must stay byte-identical across the three. The port is untestable from here, so land it incrementally with each step verified on the platform it targets.
 **Where:** `cat/, installation/, Get-MiOS.ps1`
 **Done When:** one canonical implementation per platform, shims that only delegate, byte-identical pins, and the `Get-MiOS` handoff closed.
+**Verify:** one canonical implementation per platform, shims that only delegate, byte-identical pins, and the Get-MiOS handoff closed.
+**Do NOT:** assume the .bat ships from the repo. installation/*.bat is gitignored (40a3566a) -- edits there do not reach CI or a user.
 **Why:** three launchers that drift produce three different installs from the same instructions.
 **Dep:** AGY-1621
 
@@ -10535,6 +10605,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The two `build-mios.sh` files diverge in functionality and there is a loop hazard between the shims. The chosen direction is a full fold of `mios-install.sh` and `cat/MiOS-Cat.sh` into one `build-mios.sh`. The "dead legacy" files are doc-bundled entry points and are NOT blind-deletable. This needs a bake-green baseline and a Linux environment first.
 **Where:** `build-mios.sh, cat/MiOS-Cat.sh, installation/mios-install.sh`
 **Done When:** one entry point exists, the loop hazard is gone, every doc reference resolves, and the fold is verified on Linux.
+**Verify:** one build entry point exists, the loop hazard is gone, every doc reference resolves, and the fold is verified on Linux.
+**Do NOT:** delete the 'dead legacy' files. They are doc-bundled entry points.
 **Why:** two entry points that diverge means the instructions are right for one of them and nobody knows which.
 **Dep:** AGY-1640
 
@@ -10543,6 +10615,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `mios-theme-render` plus drift-check 25 make this a projection, and `mios-sync-theme` is the one global refresh. Extend the proof to the dotfiles registry generalisation (ADR-0010): btop is the landed example on both platforms. Add a second surface end to end, and make the negative test mutate a rendered value rather than adding a file.
 **Where:** `usr/libexec/mios/mios-theme-render, usr/share/mios/mios.toml [colors] [dotfiles.registry.*]`
 **Done When:** a second surface is projected and drift-gated on both platforms, with a negative test that mutates rendered output.
+**Verify:** a second theme surface is projected and drift-gated on both platforms, with a negative test that mutates rendered output.
+**Do NOT:** count one worked example as a projection. One is a demo; two sharing a mechanism is a projection.
 **Why:** one worked example is a demo; two with a shared mechanism is a projection.
 **Dep:** none
 
@@ -10551,6 +10625,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The thesis has four parts that stand or fall together: one file defines the OS, agents operate it natively, projection is what makes it agent-operable, and it is one reproducible artifact. The third is the least evidenced. Build a demonstration in which an agent changes `mios.toml`, the projection propagates, the gates confirm consistency, and the running system reflects it -- recorded as a transcript with the failures included.
 **Where:** `usr/lib/mios/agent-pipe/, usr/libexec/mios/, docs/agy/, ROADMAP.md`
 **Done When:** a recorded end-to-end run exists showing an agent making a change through the SSOT and the system converging, with what did not work stated plainly.
+**Verify:** a recorded end-to-end run shows an agent changing mios.toml, the projection propagating, the gates confirming, and the system converging -- failures included.
+**Do NOT:** argue it from architecture. The claim is about observation.
 **Why:** the claim that projection is what makes the system agent-operable currently rests on architecture rather than observation.
 **Dep:** AGY-1618
 
@@ -10559,6 +10635,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** A tagger commit absorbed shebangs and build directives into headers across 216 files, repaired against git history, with `check_header_integrity` added. Extend it to the cases the repair surfaced: BOM handling (an orphan-header heuristic reported 34 false positives, then 20, and was judged unreliable), files whose first line must stay first, and generated headers. Prove it fails on a file whose shebang has been absorbed.
 **Where:** `automation/98-drift-checks.sh (check_header_integrity), usr/libexec/mios/mios-ai-tag`
 **Done When:** the check covers shebangs, build directives and BOMs, with a negative test per case.
+**Verify:** check_header_integrity covers shebangs, build directives and BOMs, with a negative test per case, and goes red on a file whose shebang was absorbed.
+**Do NOT:** trust a heuristic that reported 34 false positives then 20. Verify against git history before editing any file.
 **Why:** the tagger writes to every file in the tree; a defect there is a defect everywhere at once.
 **Dep:** none
 
@@ -10567,6 +10645,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Several `tools/test_*.py` exist and pass. For each, confirm it fails when the tool is broken -- mutate the tool, run the test, and require red. A test that passes against a deliberately broken tool is the same defect class as a gate that cannot fail, and this repository has a documented history of both.
 **Where:** `tools/test_*.py, usr/lib/mios/test_*.py, usr/libexec/mios/test_*.py`
 **Done When:** every test is proven to fail against at least one deliberate mutation of its subject, recorded in the test's docstring.
+**Verify:** every tools/test_*.py is proven to fail against at least one deliberate mutation of its subject, recorded in the test's docstring.
+**Do NOT:** count a green suite as evidence. A test that passes against a deliberately broken tool is the same defect as an unfailable gate.
 **Why:** a green test suite is evidence only if the tests can go red.
 **Dep:** AGY-1619
 
@@ -10575,6 +10655,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** 1222 AGY tasks and a separate global TASKS.md whose 251 `T-` entries were rewritten alongside them. Make one the source and derive the other, or make the split explicit with a stated rule for which work goes where. `check_tasks_status_parity` exists -- ensure it actually compares the two rather than passing vacuously.
 **Where:** `AGY-TASKS.md, TASKS.md, automation/98-drift-checks.sh (check_tasks_status_parity)`
 **Done When:** the relationship is stated and gated, and the parity check fails when a task exists in one file and not the other under the stated rule.
+**Verify:** `check_tasks_status_parity` goes red when a task exists in one file and not the other under the stated rule.
+**Do NOT:** leave the relationship implicit. Both files are edited constantly and disagree the moment either is.
 **Why:** two task lists disagree the moment either is edited, and both are edited constantly.
 **Dep:** none
 
@@ -10583,6 +10665,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Sixteen files breached the hint cap; twelve breached it only because `AI-related`/`AI-functions` were counted, and four carried genuine paragraphs. The cap now measures hint prose with wrapped continuation lines included, so wrapping cannot dodge it. Teach the tagger the same rule: emit hints under the cap, put detail in the docstring, and never wrap a hint to fit.
 **Where:** `usr/libexec/mios/mios-ai-tag, usr/lib/mios/mios_comments.py`
 **Done When:** the tagger cannot emit an over-cap hint, and a test proves it truncates into the docstring rather than wrapping.
+**Verify:** the tagger cannot emit an over-cap hint, and a test proves it truncates into the docstring rather than wrapping.
+**Do NOT:** let the tagger keep producing violations the ratchet then cleans up. That makes the ratchet a treadmill.
 **Why:** a generator that produces violations the ratchet must clean up makes the ratchet a treadmill.
 **Dep:** none
 
@@ -10591,6 +10675,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `MIOS_AI_ENDPOINT` is Hermes on `:8642`, not the retired `:8080`. The NO-HARDCODE lint allowlists canonical ports in `[security.nohc_allowlist]`, and certain `:8080` references are intentionally kept. Verify each remaining reference is one of the intentional ones, and record why in the allowlist rather than in a commit message.
 **Where:** `usr/share/mios/mios.toml [security.nohc_allowlist], usr/lib/mios/, usr/libexec/mios/`
 **Done When:** every retained `:8080` reference carries a recorded reason, and an unexplained one fails the lint.
+**Verify:** every retained `:8080` reference carries a recorded reason in [security.nohc_allowlist], and an unexplained one fails the lint.
+**Do NOT:** leave the allowlist without reasons. It becomes a list nobody dares to shrink.
 **Why:** an allowlist without reasons becomes a list nobody dares to shrink.
 **Dep:** AGY-1631
 
@@ -10599,6 +10685,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The deliverable is the repository, small enough to read. Write the entry document that states the four-part thesis, points at the one file that defines the OS, shows one projection end to end, names what is observed versus designed, and links the ADRs in reading order. Derive its numbers from the gates so it cannot go stale.
 **Where:** `README.md, ROADMAP.md, usr/share/doc/mios/manual/`
 **Done When:** a reader unfamiliar with the project can follow it to a working mental model in one sitting, and every claim in it is either gate-backed or marked as design.
+**Verify:** a reader unfamiliar with the project reaches a working mental model in one sitting, and every claim is gate-backed or marked as design.
+**Do NOT:** describe intent as if it were observation. The gap between scope and observation is the point.
 **Why:** the project is a proof of an idea; if the idea is not legible on arrival, the proof has no audience.
 **Dep:** AGY-1616, AGY-1634
 
@@ -10607,6 +10695,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `[security.privileged_quadlets].root` names the units allowed to run privileged. Nothing currently proves the list is MINIMAL -- a unit could sit there having outgrown the need. For each entry, determine the specific capability it requires, record it beside the entry, and demonstrate the unit fails without it. Add a ratchet so the list can only shrink, and a check that a newly privileged unit not in the register fails.
 **Where:** `usr/share/mios/mios.toml [security.privileged_quadlets], usr/share/containers/systemd/, automation/98-drift-checks.sh`
 **Done When:** every entry names the capability it needs, the count only decreases, and an unregistered privileged unit fails the gate with a negative test proving it.
+**Verify:** every entry in [security.privileged_quadlets].root names the capability it needs, the count only decreases, and an unregistered privileged unit fails a negative test.
+**Do NOT:** record the list without per-entry justification. A register with no reasons only ever grows.
 **Why:** a privilege register with no justification per entry becomes a list that only grows, which is the opposite of what a register is for.
 **Dep:** none
 
@@ -10615,6 +10705,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Add a gate that scans the tracked tree and the built image for credential shapes -- tokens, private keys, connection strings with passwords -- with an allowlist of test fixtures that must be explicitly marked. Extend it to the bake: a secret reaching a layer is not removable by a later layer. Cover the paths where secrets legitimately live at runtime (clevis, the credential store) and prove those are never in the image.
 **Where:** `automation/98-drift-checks.sh, automation/build/, usr/share/mios/sys/Containerfile*, usr/lib/mios/`
 **Done When:** the gate has a negative test that plants a credential shape and fails, image layers are scanned, and every legitimate fixture is allowlisted with a reason.
+**Verify:** a planted credential shape in the tracked tree AND in a built image layer both make the gate red, and every legitimate fixture is allowlisted with a reason.
+**Do NOT:** scan the tree only. A secret reaching a layer is not removable by a later layer.
 **Why:** a credential in a committed layer is permanent regardless of what a later commit does.
 **Dep:** none
 
@@ -10623,6 +10715,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** MiOS ships greenboot but the rollback has not been demonstrated. Write a health check that fails deliberately on a test deployment, boot it, and confirm the system rolls back to the previous image. Record what the failure looked like from the console, because that is what an operator will see.
 **Where:** `usr/lib/mios/greenboot/, usr/lib/systemd/system/, docs/agy/`
 **Done When:** a deliberate health-check failure is shown to roll back on a real boot, with the console output recorded.
+**Verify:** a deliberate health-check failure is shown rolling back on a real boot, with the console output recorded.
+**Do NOT:** assert it from the unit files. Rollback is the property that makes immutable updates safe; untested it is a hope.
 **Why:** rollback is the safety property that makes an immutable image safe to update; untested, it is a hope.
 **Dep:** AGY-1622
 
@@ -10631,6 +10725,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The container-runtime map records components shipped and unwired: clevis, chrony, ROCm, ceph, mdevctl, freeipa, nut, guacamole, virt-v2v. For each, decide wire-or-remove, and record the decision. Wiring means an SSOT table, a unit, and a check that it is reachable; removing means deleting the payload and reclaiming the size, which also serves the sub-100 MB goal.
 **Where:** `usr/share/mios/mios.toml, usr/share/containers/systemd/, usr/lib/systemd/system/, usr/share/mios/sys/Containerfile*`
 **Done When:** every component in the list is wired with a check or removed with its payload, and none remains in the ambiguous middle.
+**Verify:** every component in the shipped-but-unwired list is either wired with a reachability check or removed with its payload -- none left ambiguous.
+**Do NOT:** leave one in the middle. Shipped-but-unwired costs image size, review attention and reader confusion and delivers nothing.
 **Why:** shipped-but-unwired is the most expensive state: it costs image size, review attention and reader confusion, and delivers nothing.
 **Dep:** AGY-1625
 
@@ -10639,6 +10735,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The AI plane is OpenAI `/v1`-only with Hermes at `:8642` as `MIOS_AI_ENDPOINT`. Define a health contract each backend must satisfy -- a `/v1/models` response shape, a latency bound, a token that proves the model is loaded rather than the server merely listening -- and a verb that checks it. Distinguish "process running" from "model serving", because those fail independently.
 **Where:** `usr/libexec/mios/, usr/share/containers/systemd/mios-llm-*.container, usr/share/mios/mios.toml [ai]`
 **Done When:** one verb reports per-backend health against the contract, and a listening-but-not-serving backend is reported as unhealthy.
+**Verify:** one verb reports per-backend health against the contract, and a listening-but-not-serving backend is reported UNHEALTHY.
+**Do NOT:** check that the socket is open. That reports green through the most common failure mode.
 **Why:** a health check that only proves a socket is open reports green through the most common failure mode.
 **Dep:** none
 
@@ -10647,6 +10745,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** ADR-0017 decides that GPU-gated services degrade to a CPU lane rather than failing. Implement the gate that selects the lane from detected hardware, and prove both directions: on a GPU host the GPU lane is chosen, on a GPU-less host the CPU lane starts and serves. Remember that GPU fractioning is impossible driver-free, so the model is whole-GPU-to-one-guest.
 **Where:** `usr/share/containers/systemd/mios-llm-*.container, usr/libexec/mios/, usr/share/mios/mios.toml [blade.planes]`
 **Done When:** both lanes are demonstrated on the appropriate hardware, and the selection is derived from detection rather than configuration.
+**Verify:** both lanes are demonstrated on the appropriate hardware and the selection is derived from detection, not configuration.
+**Do NOT:** assume a GPU. A 2-6 box fleet is not uniformly equipped, and GPU fractioning is impossible driver-free.
 **Why:** a fleet of 2-6 boxes will not be uniformly equipped; a service that only starts with a GPU is a service that will not start.
 **Dep:** AGY-1624
 
@@ -10655,6 +10755,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The agent pipe had a use-before-definition NameError that only surfaced as a broken publish bake, and a ReDoS in the podman-exec shell-stripper found by wall-clock regression rather than by review. Add structured error reporting: every failure path names what it was doing, and the AST-checker and venv-import method that found the NameError becomes a registered gate rather than a one-off.
 **Where:** `usr/lib/mios/agent-pipe/, automation/98-drift-checks.sh`
 **Done When:** the AST/import check is a registered gate with a negative test, and every agent-pipe failure path emits a named reason.
+**Verify:** the AST/import check is a registered gate with a negative test, and every agent-pipe failure path emits a named reason.
+**Do NOT:** leave it as a one-off script. A NameError that surfaces two systems away as a failed bake costs hours.
 **Why:** a NameError that shows up two systems away as a failed bake costs hours to trace back.
 **Dep:** AGY-1607
 
@@ -10663,6 +10765,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The dispatch_cmd stripper allowed a flag's argument to start with `-`, giving `-a -b` two legal parses and ~1.64^n backtracking on model-controlled script text. Audit every regex that touches model output, agent input, or comment text for ambiguity, and pin wall-clock bounds on pathological inputs rather than asserting pattern strings -- the defect is behavioural.
 **Where:** `usr/lib/mios/agent-pipe/, usr/lib/mios/mios_comments.py, usr/libexec/mios/`
 **Done When:** each such regex has a timing test on a pathological input, and the suite fails if any exceeds its bound.
+**Verify:** each model-facing regex has a wall-clock timing test on a pathological input, and the suite fails if any exceeds its bound.
+**Do NOT:** assert the pattern string. The defect is behavioural -- ~1.64^n was measured, not read.
 **Why:** input the model controls is input an adversary can shape, and a hang is as effective as a crash.
 **Dep:** none
 
@@ -10671,6 +10775,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The north star is that everything is defined from `mios.toml` by the deploying operator through the Portal configurator at `:8640/`, projected to every surface and drift-gated. Establish what the configurator can actually edit today versus what still requires hand-editing the file, close the gap for the highest-traffic tables first, and make every edit go through the same validation the gates use so the Portal cannot write a file the gate rejects.
 **Where:** `usr/share/mios/portal/, usr/libexec/mios/, usr/share/mios/mios.toml`
 **Done When:** the highest-traffic tables are editable through the Portal, every write is validated by the gate's own rules, and the unreachable remainder is listed.
+**Verify:** the highest-traffic tables are editable through the Portal, every write passes the gate's own validation, and the unreachable remainder is listed.
+**Do NOT:** let the Portal write a file the gate would reject. That turns an operator typo into a system that will not boot.
 **Why:** an SSOT only an expert can edit by hand is not the operator-defined system the architecture claims.
 **Dep:** none
 
@@ -10679,6 +10785,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The DB-driven cross-platform account model is assembled from FOSS bricks: systemd userdb JSON projection on Linux, lldap over Postgres as the cross-platform SSOT face, SCIM as a pattern, and autounattend plus `New-LocalUser` as the Windows baseline since Windows has no NSS/PAM. It ships inert. Pick the smallest end-to-end slice -- one account defined in the SSOT appearing on both platforms -- and build that, or remove the table and the doc claim.
 **Where:** `usr/share/mios/mios.toml [accounts], usr/lib/mios/mios_accounts.py, usr/share/mios/windows/, docs/agy/doc-postgresos-accounts.md`
 **Done When:** one account defined in the SSOT is demonstrated on Linux and Windows, or the table is removed and the doc says so.
+**Verify:** one account defined in the SSOT is demonstrated on Linux AND Windows, or [accounts] is removed and the doc says so.
+**Do NOT:** leave it shipping inert. An inert table makes an idea look implemented when it is not.
 **Why:** "PostgresOS" is the operator's coinage for a real idea; an inert table makes it look implemented when it is not.
 **Dep:** none
 
@@ -10687,6 +10795,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** MiOS projects dotfiles and theme surfaces cross-platform (btop is the landed proof on both). Take the next Windows surface end to end on a real host, not WSL: apply from the SSOT, confirm the live HOME reflects it, and confirm the drift gate detects a hand-edit. Record what differs from the Linux path.
 **Where:** `usr/share/mios/windows/, installation/mios-common.ps1, usr/share/mios/mios.toml [dotfiles.registry.*]`
 **Done When:** one further Windows surface is applied, drift-gated and observed on a real Windows host, with the divergences recorded.
+**Verify:** one further Windows surface is applied, drift-gated and observed on a real Windows host, with divergences recorded.
+**Do NOT:** test on WSL and call it Windows. Cross-platform claims tested only where the developer sits are half-claims.
 **Why:** cross-platform claims tested only on the platform the developer uses are half-claims.
 **Dep:** AGY-1643
 
@@ -10695,6 +10805,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Define the minimum an operator needs -- which services are up, which are degraded, which projection is stale, what the last build was -- and make one surface answer all of it. `MiOS-Mon.py` is the cross-platform TUI; make it read from the same measurements the gates use so the two cannot disagree.
 **Where:** `usr/libexec/mios/MiOS-Mon.py, usr/libexec/mios/mios-daemon, automation/98-drift-checks.sh`
 **Done When:** one surface answers the four questions from gate-derived data, and its numbers match the gate's on a deliberately drifted tree.
+**Verify:** one surface answers up/degraded/stale-projection/last-build from gate-derived data, and its numbers match the gate's on a deliberately drifted tree.
+**Do NOT:** compute the numbers separately. Two sources for 'is this healthy' diverge and the operator believes the friendlier one.
 **Why:** two sources for "is this healthy" always diverge, and the operator believes the friendlier one.
 **Dep:** AGY-1617
 
@@ -10703,6 +10815,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** GitHub and Forgejo are equal publishers; the build is local-first and the registry defaults to ghcr with credentials, else local/Forgejo. GitHub's bake is capacity-gated behind `PUBLISH` until the bake shrinks. Prove the outputs are identical: same digest from either path, or an explicit account of why not.
 **Where:** `.github/workflows/mios-ci.yml, .forgejo/workflows/build-mios.yml, automation/build/`
 **Done When:** both publishers produce the same digest for the same input, or the difference is recorded with its cause.
+**Verify:** both publishers produce the same digest for the same input, or the difference is recorded with its cause.
+**Do NOT:** assert parity. Nobody compares digests until a deployment misbehaves.
 **Why:** "equal publishers" is a claim that fails quietly -- nobody compares digests until a deployment misbehaves.
 **Dep:** AGY-1640
 
@@ -10711,6 +10825,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The firstboot tier exists because vLLM and SGLang (~47 GB) do not fit a standard runner. Reduce the bake itself: audit layer composition, apply the rechunk budget, remove images no quadlet references (the gate now proves that set is empty), and evaluate distroless convergence -- noting Hummingbird is a question, not a drop-in.
 **Where:** `usr/share/mios/sys/Containerfile*, automation/build/rechunk.sh, usr/lib/mios/bake/plan.d/`
 **Done When:** the bake fits a standard runner without the firstboot workaround for at least the core tier, and the capacity gate is removed or narrowed.
+**Verify:** the core tier fits a standard runner without the firstboot workaround, and the capacity gate is removed or narrowed.
+**Do NOT:** treat Hummingbird as a drop-in. It is a question, not a swap.
 **Why:** a publish path gated on capacity is a publish path that will be skipped under pressure.
 **Dep:** AGY-1636
 
@@ -10719,6 +10835,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** ADR-0016 D14 makes CephFS a native service on bare metal, never travelling to a transient OCI image. Demonstrate it: a two-node fleet, a file written, one node lost, the file still readable. Record the recovery time. Gluster is being sunset, so do not build on it.
 **Where:** `usr/share/containers/systemd/mios-ceph.container, usr/share/mios/mios.toml [blade.planes].storage`
 **Done When:** node loss is demonstrated with data intact, and the recovery time is recorded.
+**Verify:** node loss is demonstrated with data intact and the recovery time recorded.
+**Do NOT:** build on gluster. It is being sunset.
 **Why:** the storage plane is the one whose failure is not recoverable by restarting something.
 **Dep:** AGY-1623
 
@@ -10727,6 +10845,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Law 12 is that enrolment never gates a boot; peers join natively over headscale. Prove a boot completes with the mesh unreachable, and give the operator a way to see enrolment state and why a join failed. There is no firewalld -- the rules are nft.
 **Where:** `usr/share/mios/mios.toml [blade.discovery], usr/libexec/mios/, usr/lib/systemd/system/`
 **Done When:** a boot with no mesh reachability completes, enrolment state is reportable, and a failed join names its reason.
+**Verify:** a boot with no mesh reachability completes, enrolment state is reportable, and a failed join names its reason.
+**Do NOT:** gate boot on enrolment. Law 12 -- and a boot that hangs on the network makes remote hardware unrecoverable.
 **Why:** a boot that hangs waiting for a network is the failure mode that makes remote hardware unrecoverable.
 **Dep:** AGY-1624
 
@@ -10735,6 +10855,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The runtime architecture is bootc plus Podman/Quadlet plus libvirt with a signed UKI and greenboot; MOK is not the UKI, and swtpm provides a vTPM for guests. Demonstrate a signed-UKI boot end to end, and a guest with a working vTPM. Record which firmware paths were tried, because this is where hardware differences bite.
 **Where:** `automation/build/, usr/lib/bootc/, usr/share/mios/sys/`
 **Done When:** a signed-UKI boot and a vTPM-backed guest are both observed, with the firmware paths recorded.
+**Verify:** a signed-UKI boot and a vTPM-backed guest are both observed, with the firmware paths recorded.
+**Do NOT:** conflate MOK with the UKI. They are different, and this is where hardware differences bite.
 **Why:** secure boot claims that have not been observed on real firmware are the ones that fail at the customer.
 **Dep:** AGY-1622
 
@@ -10743,6 +10865,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `/var` persists across image updates and holds everything stateful. Define what must survive a rebuild, implement a backup path that captures it, and prove a restore onto a freshly installed system. An untested restore is not a backup.
 **Where:** `usr/libexec/mios/, usr/share/mios/mios.toml, docs/agy/`
 **Done When:** a restore onto a fresh install is demonstrated and the recovery procedure is written from the observed run.
+**Verify:** a restore onto a freshly installed system is demonstrated and the procedure written from that run.
+**Do NOT:** call an untested backup a backup. /var is the only thing that cannot be rebuilt from the SSOT.
 **Why:** the immutable-image model makes `/var` the only thing that cannot be rebuilt from the SSOT.
 **Dep:** AGY-1622
 
@@ -10751,6 +10875,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `bootc install --transport oci` fills the bare-metal leg from a local image. Build a USB carrying the OCI artifact and demonstrate an install on a machine with the network physically absent, not merely unconfigured. Record how the firstboot tier behaves when it cannot pull.
 **Where:** `cat/, tools/install.sh, automation/build/`
 **Done When:** an install completes with no network, and the firstboot tier's degraded behaviour is recorded.
+**Verify:** an install completes with the network physically absent, and the firstboot tier's degraded behaviour is recorded.
+**Do NOT:** test with the network merely unconfigured. Offline is the case the deploy plane exists for.
 **Why:** offline is the case the deploy plane exists for; if it only works online it is a slower `curl | bash`.
 **Dep:** AGY-1622
 
@@ -10759,6 +10885,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `usr/share/mios/reference/drift-gate-index.tsv` maps names to descriptions, and several entries simply repeat the function name (`check_manual_generated | check_manual_generated`). Replace each with a sentence stating what a reader learns when it passes. A gate that cannot be described that way is one to examine for vacuity.
 **Where:** `usr/share/mios/reference/drift-gate-index.tsv, automation/98-drift-checks.sh`
 **Done When:** no index entry restates its own name, and every entry says what passing proves.
+**Verify:** no entry in drift-gate-index.tsv restates its own name, and every entry says what passing proves.
+**Do NOT:** leave `check_x | check_x`. The index is the closest thing to a summary of what the project has established.
 **Why:** the index is the closest thing to a summary of what the project has actually established.
 **Dep:** AGY-1619
 
@@ -10767,6 +10895,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The check currently requires that a negative test EXISTS for each gate. Strengthen it to require the test to have been observed failing the gate: record, per gate, the mutation used and assert the gate is red under it. This is the machinery that would have caught the tests that mutated the wrong thing -- adding a stray `.desktop` file rather than a rendered field.
 **Where:** `automation/98-drift-checks.sh (check_negative_coverage), tests/drift-gate-negatives.sh`
 **Done When:** every gate's negative test records its mutation and is proven to turn the gate red.
+**Verify:** every gate's negative test records the mutation it uses and is proven to turn that gate RED under it.
+**Do NOT:** require only that a negative test exists. One that never breaches its gate looks exactly like coverage.
 **Why:** a negative test that never breaches its gate is indistinguishable from no negative test, and looks like coverage.
 **Dep:** AGY-1609
 
@@ -10775,6 +10905,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Three instances so far: a slug test that spelled the bad org literally, an inert-table test naming its table inside a scanned `.sh`, and a probe named `MIOS_NO_SUCH_VARIABLE` that wrote itself into `referenced_names.txt`. Establish one convention -- probe values assembled at runtime, never written as literals in a scanned file -- and add a lint that flags a literal in a test matching a pattern its own gate scans for.
 **Where:** `tests/drift-gate-negatives.sh, tools/test_*.py, automation/98-drift-checks.sh`
 **Done When:** the convention is documented, the lint is registered with a negative test, and every existing probe conforms.
+**Verify:** the convention is documented, a lint flags a literal in a test matching a pattern its own gate scans for, and every existing probe conforms.
+**Do NOT:** spell the probe's token literally. It has caught this suite four times -- the slug test, the inert-table test, MIOS_NO_SUCH_VARIABLE, and a comment quoting the pattern its own check greps.
 **Why:** a probe that trips its own gate produces a failure that looks real, in a file the reader will not suspect.
 **Dep:** AGY-1610
 
@@ -10783,6 +10915,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The negatives suite runs before the main gate deliberately, but within the suite a single early failure hides everything after it: fixing `test_bake_tokens` immediately surfaced the next latent failure, then the next. Make the suite report ALL failures rather than dying on the first, so one CI run yields the full list instead of one per round trip.
 **Where:** `tests/drift-gate-negatives.sh, .github/workflows/mios-ci.yml`
 **Done When:** the suite runs every test and reports all failures together, while still exiting non-zero.
+**Verify:** one CI run reports ALL negative-test failures together while still exiting non-zero.
+**Do NOT:** let the suite die on the first failure. Three sequential single-failure runs cost three round trips to learn what one could have said.
 **Why:** three sequential single-failure runs cost three round trips to learn what one run could have said.
 **Dep:** AGY-1620
 
@@ -10791,6 +10925,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Three `mios.toml` files once carried conflicting versions (0.3.0 against 0.2.4), and 79 version-duplicate pairs were catalogued by the Global Unification Plan. `check_version_ssot` exists; extend it to every surface that states a version -- docs, image labels, unit files, the Portal, the installers -- and prove it fails when any one disagrees.
 **Where:** `usr/share/mios/mios.toml [versions], automation/98-drift-checks.sh (check_version_ssot), installation/`
 **Done When:** every version-bearing surface derives from `[versions]`, and a single disagreement fails the gate.
+**Verify:** every version-bearing surface derives from [versions], and a single disagreement fails the gate.
+**Do NOT:** check the SSOT alone. Docs, image labels, unit files, the Portal and the installers all state versions.
 **Why:** a version that disagrees between the image and its documentation makes every bug report ambiguous.
 **Dep:** AGY-1631
 
@@ -10799,6 +10935,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** The GUP is a lossless-diff-gated six-phase refactor; the env snapshot must normalise root paths or the gate fails in CI. The canonical walk emits `MIOS_AI_VLLM_*` while consumers use the short `MIOS_VLLM_*` -- that mismatch is the thing to unify. Continue phase by phase, with the lossless diff green at each step.
 **Where:** `usr/lib/mios/mios_toml.py, automation/lib/globals.sh, automation/lib/globals.ps1, usr/share/mios/reference/env-baseline.txt`
 **Done When:** each phase lands with a green lossless diff, the canonical and consumed key names agree, and the key count is materially lower.
+**Verify:** each GUP phase lands with a green lossless diff, canonical and consumed key names agree, and the key count is materially lower.
+**Do NOT:** let the env snapshot compare unnormalised root paths. That fails in CI for a reason that has nothing to do with the refactor.
 **Why:** the namespace is the interface every consumer sees; duplicates in it are duplicated truth.
 **Dep:** AGY-1674
 
@@ -10807,6 +10945,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_resolver_twin_equivalence` and `check_resolver_differential_parity` compare implementations, and the latter was silently skipping when a tool was absent. Rather than comparing three implementations forever, make the native resolver authoritative and the others thin callers, keeping the differential check as a regression guard during the transition. Note the wiring asymmetry: `globals.sh` is generated first, `globals.ps1` last.
 **Where:** `usr/lib/mios/mios_toml.py, automation/lib/globals.{sh,ps1}, src/mios-rs/, tools/native/`
 **Done When:** one implementation resolves and the others delegate, with the differential check green throughout.
+**Verify:** [resolver].max_key_divergence and max_value_divergence both reach 0, one implementation is authoritative and the others delegate.
+**Do NOT:** reconcile by loosening the comparison. The remaining gap is Python's repr of nested values and table ordering -- it needs preserve_order and a toolchain that can link.
 **Why:** three implementations of one resolver is three chances to disagree about what the SSOT says.
 **Dep:** AGY-1675
 
@@ -10815,6 +10955,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Nine of twelve `miosd` targets pointed at things that did not exist, and `Skip` was being counted as pass. Audit every target in the justfile and equivalent entry points: run each on a clean tree and record the result. A target that cannot run is worse than an absent one because it is in the documentation.
 **Where:** `justfile, tools/, automation/`
 **Done When:** every target runs on a clean tree or is removed, and a gate fails when a target references a missing path.
+**Verify:** every justfile target runs on a clean tree or is removed, and a gate fails when a target references a missing path.
+**Do NOT:** count Skip as pass. Nine of twelve miosd targets pointed at things that did not exist.
 **Why:** the task runner is the project's public interface for contributors; broken targets there are the first thing a newcomer hits.
 **Dep:** none
 
@@ -10823,6 +10965,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** A golden-master test was found diffing the tree against a copy of itself, which passes unconditionally. Audit every golden/snapshot test: confirm the expected output is stored independently of the generated output, and that corrupting the generator turns the test red. This is the same family as the unit-gen `--check` that printed PASS without comparing.
 **Where:** `tools/native/mios-unit-gen/tests/golden/, tools/test_*.py, src/mios-rs/`
 **Done When:** every golden test is proven red under a deliberate generator mutation.
+**Verify:** every golden/snapshot test is proven RED under a deliberate mutation of its generator.
+**Do NOT:** diff a tree against a copy of itself. That is the purest form of a check that cannot fail.
 **Why:** a snapshot test comparing an output to itself is the purest form of a check that cannot fail.
 **Dep:** AGY-1646
 
@@ -10831,6 +10975,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** A broad `git add` repeatedly strips `@sha256` pins from generated Quadlets, turning the pod-quadlets gate red; the fix is to regenerate and stage explicit paths, never `git add -A`, because AGY shares the tree. Per ADR-0003 digests are SBOM data resolved at build rather than hand-pinned, so reconcile the two: decide where the pin lives and make the gate enforce that decision rather than the current ambiguity.
 **Where:** `usr/share/containers/systemd/, tools/generate-pod-quadlets.py, automation/98-drift-checks.sh`
 **Done When:** the convention is written down, the gate enforces it, and the failure mode cannot be reintroduced by a staging mistake.
+**Verify:** the pin convention is written down, the gate enforces it, and a staging mistake cannot reintroduce the failure.
+**Do NOT:** use `git add -A`. That is exactly how the @sha256 pins get stripped, and how six test fixtures reached HEAD this session.
 **Why:** a defect that recurs on a workflow habit will recur until the habit is impossible.
 **Dep:** AGY-1637
 
@@ -10839,6 +10985,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `check_install_uninstall_symmetry` is now SSOT-driven. Prove it behaviourally: install on a clean system, snapshot, uninstall, and diff. Anything left behind is either a deliberate exception recorded in the SSOT or a defect.
 **Where:** `installation/, usr/libexec/mios/, automation/98-drift-checks.sh`
 **Done When:** an install-uninstall cycle leaves only recorded exceptions, verified by snapshot diff.
+**Verify:** an install-uninstall cycle leaves only recorded exceptions, verified by snapshot diff.
+**Do NOT:** compare the file lists by eye. An uninstall that leaves state makes the next install non-reproducible.
 **Why:** an uninstall that leaves state makes the next install non-reproducible, which undermines the whole immutable claim.
 **Dep:** AGY-1622
 
@@ -10847,6 +10995,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** Every configurator write must pass the same validation the drift gate applies. Test with adversarial input: values out of range, tables removed, types swapped, duplicate table headers -- the last being how `mios.toml` was rendered unparseable twice by duplicate `[units."...timer".*]` blocks. The Portal must refuse rather than write.
 **Where:** `usr/share/mios/portal/, usr/lib/mios/mios_toml.py, automation/98-drift-checks.sh`
 **Done When:** each adversarial case is refused with a message naming the problem, and a fuzz pass finds no write that the gate then rejects.
+**Verify:** each adversarial input is refused with a message naming the problem, and a fuzz pass finds no write the gate then rejects.
+**Do NOT:** forget duplicate table headers. mios.toml was rendered unparseable twice that way.
 **Why:** a config surface that can write an invalid SSOT converts an operator's typo into a system that will not boot.
 **Dep:** AGY-1659
 
@@ -10855,6 +11005,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** A truncated `mios.toml` was committed once and broke CI, and an earlier commit landed a 2870-line truncation that needed a restore commit. Add a pre-commit or CI-first check: `tomllib` parses, line count is within a declared band of HEAD, and every top-level table present at HEAD is still present. Reject rather than warn.
 **Where:** `usr/share/mios/mios.toml, .githooks/, .github/workflows/mios-ci.yml, automation/98-drift-checks.sh`
 **Done When:** a deliberately truncated SSOT is rejected before it can be pushed, proven by a negative test.
+**Verify:** a deliberately truncated mios.toml is REJECTED before it can be pushed, proven by a negative test.
+**Do NOT:** warn instead of reject. A truncation there takes every projection with it, and it has happened twice.
 **Why:** the SSOT is the single point of definition; a truncation there takes every projection with it.
 **Dep:** none
 
@@ -10863,6 +11015,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `MIOS_DRIFT_REQUIRE_TOOLS=1` forbids silent skips in CI, and `check_no_silent_tool_skips` guards it. Extend the guarantee to the tools tier: `tools/*.py` that shell out must declare their requirements and fail closed under the same variable. Document which tools each check needs so a local run can install them up front rather than discovering them one failure at a time.
 **Where:** `automation/98-drift-checks.sh, tools/*.py, .devcontainer/, docs`
 **Done When:** every check declares its tool requirements, all fail closed under `MIOS_DRIFT_REQUIRE_TOOLS`, and the list is documented in one place.
+**Verify:** every check declares its tool requirements, all fail closed under MIOS_DRIFT_REQUIRE_TOOLS=1, and the list is documented in one place.
+**Do NOT:** let a check skip silently. It reports the same green as a pass -- and check_resolver_differential_parity hid three separate defects behind exactly that.
 **Why:** a check that skips silently reports the same green as a check that passed.
 **Dep:** AGY-1620
 
@@ -10871,6 +11025,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `landed()` requires a `mios-src:<sha12>` anchor and at least 90% word retention, and the ledger keys by content hash so passages can move freely. Document the anchor scheme, and add a check that an anchor is never edited or duplicated -- a duplicated anchor makes two passages claim the same source and the landing proof becomes ambiguous.
 **Where:** `usr/libexec/mios/mios-manual, usr/share/doc/mios/manual/, usr/share/mios/reference/manual-corpus.tsv`
 **Done When:** the scheme is documented, duplicate anchors fail a gate, and `landing` distinguishes moved from lost.
+**Verify:** duplicate anchors fail a gate, and `mios-manual landing` distinguishes moved from lost.
+**Do NOT:** let two passages claim the same source. The anchors are what make prune safe.
 **Why:** the anchors are what make the prune step safe; ambiguity there makes deletion unverifiable.
 **Dep:** AGY-1616
 
@@ -10879,6 +11035,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** `usr/share/doc/mios/manual/_harvest/` will hold hundreds of files by the time the narrative ratchet is driven down. Decide its end state: emptied into the distilled manual with the ledger retaining provenance, or retained as an appendix. Either way, add a ratchet so it cannot grow indefinitely while the narrative count falls -- otherwise the prose has moved, not migrated.
 **Where:** `usr/share/doc/mios/manual/_harvest/, usr/libexec/mios/mios-manual (distill), usr/share/mios/mios.toml [docs]`
 **Done When:** the end state is decided and gated, with a ratchet that prevents the staging area growing while the narrative count falls.
+**Verify:** the _harvest end state is decided and gated, with a ratchet preventing it growing while the narrative count falls.
+**Do NOT:** move prose into a directory nobody reads and call it documentation. That is relocation.
 **Why:** moving prose from comments into a directory nobody reads is not documentation, it is relocation.
 **Dep:** AGY-1616
 
@@ -10887,6 +11045,8 @@ demonstrate. Nothing new starts until they do.
 **What+How:** MiOS is a research vehicle and a proof of an idea, not a product. Its thesis has four parts that stand or fall together, its deliverable is the repository itself, its deployment scope is universal -- blades, mesh, bare metal, VM, WSL, cloud -- and today it is observed only on a dev VM and WSL. Write that down plainly, including the gap between scope and observation, and link it from the README as the first thing a reader meets.
 **Where:** `README.md, ROADMAP.md, usr/share/doc/mios/manual/`
 **Done When:** the statement exists, distinguishes observed from designed, and is the first link in the README.
+**Verify:** the statement exists, distinguishes observed from designed, and is the first link in README.md.
+**Do NOT:** describe the deployment scope as if it were observed. It runs on a dev VM and WSL; bare metal is untried.
 **Why:** a reader who thinks this is a product judges it as a broken product; a reader who knows it is a proof judges the proof.
 **Dep:** none
 
@@ -10895,5 +11055,7 @@ demonstrate. Nothing new starts until they do.
 **What+How:** 25 ids are used twice in AGY-TASKS.md, at different heading levels -- `## AGY-106` is a `build-mios.sh` fold and `### AGY-106` is a different task about redoing that fold in the right repo. Anything referring to "AGY-106" is therefore ambiguous, including dependency fields in other tasks. Renumber the later occurrence of each collision into the free range, update every `**Dep:**` that pointed at it, and add a gate that fails when an id appears twice or when a `**Dep:**` names an id that does not exist.
 **Where:** `AGY-TASKS.md, automation/98-drift-checks.sh (check_tasks_status_parity)`
 **Done When:** every id is unique, every dependency resolves to exactly one task, and a negative test proves the gate fails on a duplicated id and on a dangling dependency.
+**Verify:** every AGY id is unique, every **Dep:** resolves to exactly one task, and a gate fails on a duplicated id AND on a dangling dependency.
+**Do NOT:** renumber without fixing the **Dep:** fields that point at the collided id.
 **Why:** dependency fields are the only ordering the task list has; ambiguous ids make that ordering unusable.
 **Dep:** AGY-1647

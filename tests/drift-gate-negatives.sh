@@ -2961,6 +2961,29 @@ PYEOF
     log "check_fleet_safety negative test passed"
 }
 
+test_task_schema() {
+    log "Testing check_task_schema"
+    local f="${ROOT}/AGY-TASKS.md" bak; bak="$(mktemp)"; cp "$f" "$bak"
+    # A task with no Verify line is a task anyone can declare done, and a Dep
+    # naming a missing id is an ordering nobody can follow.
+    printf '
+## AGY-9999 -- schema probe  (WS-PROCESS | P2 | S)
+**Goal:** x
+**What+How:** x
+**Where:** x
+**Done When:** x
+**Why:** x
+**Dep:** AGY-4242
+' >> "$f"
+    if _neg_gate check_task_schema; then
+        cp "$bak" "$f"; rm -f "$bak"
+        die "check_task_schema passed on a task with no Verify and a dangling Dep"
+    fi
+    cp "$bak" "$f"; rm -f "$bak"
+    _neg_gate check_task_schema || die "check_task_schema failed after restoration"
+    log "check_task_schema negative test passed"
+}
+
 test_neg_gate_harness() {
     log "Testing the _neg_gate harness itself"
     _neg_gate check_gate_registry         || die "_neg_gate returned non-zero for a check that passes"
@@ -3552,6 +3575,7 @@ main() {
     fi
     log "Starting negative-test suite"
     test_neg_gate_harness
+    test_task_schema
     test_fleet_safety
     test_ai_manifests_fresh
     test_version_ssot

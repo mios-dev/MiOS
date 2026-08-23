@@ -1843,7 +1843,7 @@ to" / "let me know".
 : "${MIOS_RECHUNK_MAX_LAYERS:=67}"
 : "${MIOS_REDIS_PORT:=8565}"
 : "${MIOS_REFACTOR_MAX_LINES:=800}"
-[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{'"'"'path'"'"': '"'"'mios_pipe/federation/a2a.py'"'"', '"'"'lines'"'"': 1457},{'"'"'path'"'"': '"'"'mios_pipe/federation/http_caps.py'"'"', '"'"'lines'"'"': 742},{'"'"'path'"'"': '"'"'mios_pipe/memory/knowledge.py'"'"', '"'"'lines'"'"': 889},{'"'"'path'"'"': '"'"'mios_pipe/routing/agent_call.py'"'"', '"'"'lines'"'"': 1080},{'"'"'path'"'"': '"'"'mios_pipe/routing/chat.py'"'"', '"'"'lines'"'"': 1704},{'"'"'path'"'"': '"'"'mios_pipe/routing/dag_exec.py'"'"', '"'"'lines'"'"': 1145},{'"'"'path'"'"': '"'"'mios_pipe/routing/native_loop.py'"'"', '"'"'lines'"'"': 1166},{'"'"'path'"'"': '"'"'mios_pipe/routing/portal.py'"'"', '"'"'lines'"'"': 1609},{'"'"'path'"'"': '"'"'mios_pipe/routing/refine.py'"'"', '"'"'lines'"'"': 1066},{'"'"'path'"'"': '"'"'mios_pipe/routing/swarm.py'"'"', '"'"'lines'"'"': 993},{'"'"'path'"'"': '"'"'mios_pipe/routing/web_research.py'"'"', '"'"'lines'"'"': 936},{'"'"'path'"'"': '"'"'mios_dispatch.py'"'"', '"'"'lines'"'"': 816},{'"'"'path'"'"': '"'"'server.py'"'"', '"'"'lines'"'"': 4874}'
+[ -n "${MIOS_REFACTOR_OVERSIZE+x}" ] || MIOS_REFACTOR_OVERSIZE='{'"'"'path'"'"': '"'"'mios_pipe/federation/a2a.py'"'"', '"'"'lines'"'"': 1457},{'"'"'path'"'"': '"'"'mios_pipe/federation/http_caps.py'"'"', '"'"'lines'"'"': 742},{'"'"'path'"'"': '"'"'mios_pipe/memory/knowledge.py'"'"', '"'"'lines'"'"': 889},{'"'"'path'"'"': '"'"'mios_pipe/routing/agent_call.py'"'"', '"'"'lines'"'"': 1080},{'"'"'path'"'"': '"'"'mios_pipe/routing/chat.py'"'"', '"'"'lines'"'"': 1704},{'"'"'path'"'"': '"'"'mios_pipe/routing/dag_exec.py'"'"', '"'"'lines'"'"': 1145},{'"'"'path'"'"': '"'"'mios_pipe/routing/native_loop.py'"'"', '"'"'lines'"'"': 1166},{'"'"'path'"'"': '"'"'mios_pipe/routing/portal.py'"'"', '"'"'lines'"'"': 1609},{'"'"'path'"'"': '"'"'mios_pipe/routing/refine.py'"'"', '"'"'lines'"'"': 1066},{'"'"'path'"'"': '"'"'mios_pipe/routing/swarm.py'"'"', '"'"'lines'"'"': 993},{'"'"'path'"'"': '"'"'mios_pipe/routing/web_research.py'"'"', '"'"'lines'"'"': 936},{'"'"'path'"'"': '"'"'mios_dispatch.py'"'"', '"'"'lines'"'"': 816},{'"'"'path'"'"': '"'"'server.py'"'"', '"'"'lines'"'"': 4866}'
 : "${MIOS_REFINE_BYPASS_CHARS:=24}"
 : "${MIOS_REFINE_CHAT_CHARS:=40}"
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
@@ -2084,6 +2084,7 @@ to" / "let me know".
 [ -n "${MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE+x}" ] || MIOS_STORAGE_CEPHFS_XDG_CACHE_HOME_OVERRIDE='/run/user/{uid}/.cache'
 : "${MIOS_SYS_IMAGE:=localhost/mios-sys:latest}"
 : "${MIOS_SYS_VERSION:=localhost/mios-sys:latest}"
+: "${MIOS_TASKS_MAX_DUPLICATE_IDS:=18}"
 : "${MIOS_TEMPLATES_ADR_DEST_DIR:=usr/share/doc/mios/adr}"
 : "${MIOS_TEMPLATES_ADR_EMIT:=file}"
 : "${MIOS_TEMPLATES_ADR_GENERATED:=false}"

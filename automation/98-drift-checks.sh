@@ -1911,13 +1911,7 @@ def check_roundtrip(root):
 
     materialized_toml_str = stdout_capture.getvalue()
 
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            sys.exit(0)
+    import tomllib
 
     with open(os.environ["MIOS_TOML"], "rb") as f:
         orig_data = tomllib.load(f)
@@ -2053,13 +2047,7 @@ check_canonical_bools() {
 import sys
 import os
 
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        sys.exit(0)
+import tomllib
 
 with open(os.environ["MIOS_TOML"], "rb") as f:
     data = tomllib.load(f)
@@ -2349,13 +2337,7 @@ def check_roundtrip(root):
             print(f"Materialize script exited with code {e.code}")
             sys.exit(1)
 
-    try:
-        import tomllib
-    except ImportError:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            sys.exit(0)
+    import tomllib
 
     with open(os.environ["MIOS_TOML"], "rb") as f:
         toml_data = tomllib.load(f)
@@ -4716,13 +4698,7 @@ check_bib_single_config_invariant() {
 
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, re, glob
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        tomllib = None
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 justfile = os.path.join(root, "Justfile")
@@ -4813,13 +4789,7 @@ check_win11_vm_template_xml() {
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
 import os, sys, xml.etree.ElementTree as ET
 
-try:
-    import tomllib
-except ImportError:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        tomllib = None
+import tomllib
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 xml_path = os.path.join(root, "tools/win11-secureboot-template.xml")
@@ -6045,6 +6015,7 @@ main() {
     check_comment_landing
     check_credential_literals
     check_redact_coverage
+    check_task_schema
     check_daemon_governor
     check_manual_links
     check_doc_port_scheme
@@ -6332,10 +6303,7 @@ check_windows_exe_provenance() {
     local _WIN_EXE_SOURCE_EXEMPT
     _WIN_EXE_SOURCE_EXEMPT="$(MIOS_DRIFT_ROOT="$ROOT" python3 -c "
 import os, sys
-try:
-    import tomllib
-except ImportError:
-    sys.exit(0)
+import tomllib
 p = os.path.join(os.environ['MIOS_DRIFT_ROOT'], 'usr/share/mios/mios.toml')
 try:
     with open(p, 'rb') as fh:
@@ -6948,6 +6916,13 @@ check_credential_literals() {
         return
     fi
     echo "[98-drift-checks]   $out"
+}
+
+check_task_schema() {
+    echo "[98-drift-checks]   check_task_schema"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
+    echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
 }
 
 check_redact_coverage() {

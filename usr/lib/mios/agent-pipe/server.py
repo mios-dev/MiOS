@@ -1894,14 +1894,6 @@ _client_env_var: "contextvars.ContextVar" = contextvars.ContextVar(
 
 
 def _turn_tenant() -> "Optional[str]":
-    """The verified owner/tenant for THIS turn's dispatch, or None. Reuses the V2
-    principal-binding owner: under [security].principal_bind_mode=enforce the
-    _client_env owner is already RECONCILED to the token-bound account (the spoofable
-    claim overridden), so this returns the verified tenant; otherwise the forwarded
-    owner. None (a system/daemon/seeding dispatch with no forwarded principal) -> the
-    per-tenant gate never caps it. Consulted ONLY when TENANT_QUOTA_ENABLE; degrade-
-    open: any error -> None (no per-tenant cap). Mirrors mios_knowledge._request_
-    principal so the tenant key agrees with owner_user row-scoping."""
     try:
         env = _client_env_var.get()
         env = env if isinstance(env, dict) else {}

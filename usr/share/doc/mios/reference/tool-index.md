@@ -275,6 +275,7 @@ is generated, its generator is here.
 | `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
 | `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
+| `tools/check-task-schema.py` | Fails when an AGY task omits a required field, names a dependency that does not exist, or reuses an id beyond the shrink-only ceiling. |
 | `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` li... |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
@@ -342,7 +343,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 90 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 91 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
