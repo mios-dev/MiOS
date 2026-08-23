@@ -3053,6 +3053,47 @@ PYEOF
     log "check_fleet_safety negative test passed"
 }
 
+test_leaked_fixtures() {
+    log "Testing check_leaked_fixtures"
+    local vf="${ROOT}/VERSION"
+    local bak; bak="$(mktemp)"; cp "$vf" "$bak"
+
+    # Append a marker of the shape a negative test injects. VERSION strips
+    # comment lines, so even a failed restore cannot change the resolved
+    # version -- the file is chosen for that reason.
+    printf '# mios-%stest-leak-probe\n' "neg" >> "$vf"
+
+    _neg_gate check_leaked_fixtures && {
+        cp "$bak" "$vf"; rm -f "$bak"
+        die "check_leaked_fixtures passed with an injected fixture in a tracked file"
+    }
+
+    cp "$bak" "$vf"; rm -f "$bak"
+    _neg_gate check_leaked_fixtures \
+        || die "check_leaked_fixtures failed after restoration"
+    log "check_leaked_fixtures negative test passed"
+}
+
+test_ci_suite_coverage() {
+    log "Testing check_ci_suite_coverage"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+
+    # Unregister one suite the registry lists. The gate must notice it is
+    # tracked and running nowhere -- the state thirteen suites were in.
+    grep -v 'tests/test-a2o-fallback.sh' "$bak" > "$toml"
+
+    _neg_gate check_ci_suite_coverage && {
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_ci_suite_coverage passed with a tracked suite in no tier"
+    }
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_ci_suite_coverage \
+        || die "check_ci_suite_coverage failed after restoration"
+    log "check_ci_suite_coverage negative test passed"
+}
+
 test_task_schema() {
     log "Testing check_task_schema"
     local f="${ROOT}/AGY-TASKS.md" bak; bak="$(mktemp)"; cp "$f" "$bak"
@@ -3668,6 +3709,8 @@ main() {
     log "Starting negative-test suite"
     _run_test test_neg_gate_harness
     _run_test test_task_schema
+_run_test test_ci_suite_coverage
+_run_test test_leaked_fixtures
     _run_test test_fleet_safety
     _run_test test_ai_manifests_fresh
     _run_test test_version_ssot

@@ -1,4 +1,4 @@
-# AI-hint: Scheduled build URL liveness probe workflow for GitHub Actions.
+# AI-hint: Weekly liveness probe over the build-time asset URLs; a dead URL fails the run so it is seen before a bake needs the asset.
 name: url-probe
 
 on:
@@ -11,7 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Build URL Probe
-        run: |
-          chmod +x tools/check-build-urls.sh 2>/dev/null || true
-          bash tools/check-build-urls.sh || true
+      - name: Build-time asset URLs resolve
+        # The probe exits non-zero when a URL returns a non-2xx/3xx status.
+        # That exit code is the whole point of running it: discarding it left a
+        # scheduled job that reported success every week without asserting
+        # anything. It gates nothing on merge, so a failure here is a signal.
+        run: bash tools/check-build-urls.sh

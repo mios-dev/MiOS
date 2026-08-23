@@ -6062,6 +6062,8 @@ main() {
     check_ai_manifests_fresh
     check_ports_category_schema
     check_globals_generated
+    check_ci_suite_coverage
+    check_leaked_fixtures
 
     echo "[98-drift-checks]"
     if [[ "$VIOLATIONS" -eq 0 ]]; then
@@ -6905,6 +6907,20 @@ check_task_schema() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-task-schema.py 2>/dev/null)" || { _violations_from "check_task_schema: " "$out"; return; }
     echo "[98-drift-checks]   every AGY task carries Verify/Do-NOT and resolvable deps"
+}
+
+check_ci_suite_coverage() {
+    echo "[98-drift-checks]   check_ci_suite_coverage"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/ci-suites.py --check 2>&1)" || { _violations_from "check_ci_suite_coverage: " "$out"; return; }
+    echo "[98-drift-checks]   every tracked CI suite is registered or exempt"
+}
+
+check_leaked_fixtures() {
+    echo "[98-drift-checks]   check_leaked_fixtures"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-leaked-fixtures.py 2>&1)" || { _violations_from "check_leaked_fixtures: " "$out"; return; }
+    echo "[98-drift-checks]   $out"
 }
 
 check_redact_coverage() {

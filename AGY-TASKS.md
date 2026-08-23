@@ -11111,3 +11111,63 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** renumber without fixing the **Dep:** fields that point at the collided id.
 **Why:** dependency fields are the only ordering the task list has; ambiguous ids make that ordering unusable.
 **Dep:** AGY-1647
+
+## AGY-1715 -- Make tests/test-directory-dispatch.sh assert instead of indexing an empty result  (WS-CI | P2 | S)
+**Goal:** A suite that finds nothing must say so, not crash.
+**What+How:** The suite pipes dispatch output into a Python one-liner that reads element zero of the hits list with no guard. With no populated directory index the dispatch returns zero hits, the index raises, and the suite dies mid-run printing `hits=0 root=` -- which reads as a broken test rather than as an absent fixture. Guard the index, assert a non-empty hit set with a message naming what was missing, and either build the fixture the suite needs or state in the failure that the index must be populated first. Then move it from `[ci.exempt]` into the `unit` tier and lower `[ci].max_exempt_suites`.
+**Where:** `tests/test-directory-dispatch.sh, usr/share/mios/mios.toml`
+**Done When:** the suite runs in the `unit` tier and its failure message names the missing fixture.
+**Verify:** `bash tests/run-suites.sh unit` includes the suite, and running it without the index fails with a message naming the index rather than a Python IndexError.
+**Do NOT:** make it exit 0 when there are no hits. A suite that passes on an empty result is the defect class this registry exists to find.
+**Why:** it was one of thirteen suites no workflow ran; the reason it could not be wired in was a crash, not a real assertion.
+**Dep:** AGY-1619
+
+## AGY-1716 -- Resolve the open-url-fallback-chain skill so tests/test-expand-from.py sees its three steps  (WS-CI | P2 | M)
+**Goal:** Expansion emits the steps the skill declares.
+**What+How:** The suite expects three steps naming three browsers; the dispatcher returns a not_found error for skill `open-url-fallback-chain` and zero steps, so the bound browser list is empty. Establish which is wrong -- the skill is absent from where the resolver looks, the resolver looks in an installed path rather than the tree, or the expansion no longer emits bound steps -- and fix that, not the assertion. Then move it into the `unit` tier and lower the exemption ceiling.
+**Where:** `tests/test-expand-from.py, usr/lib/mios/agent-pipe/, usr/share/mios/mios.toml`
+**Done When:** the suite passes in the `unit` tier against the repository tree with no MiOS installed.
+**Verify:** the suite emits 3 steps with the 3 browser names, and `[ci.exempt]` no longer lists it.
+**Do NOT:** relax the assertion to accept 0 steps. The not_found error is the finding.
+**Why:** the fallback chain is what makes a URL open when the first browser is absent; nothing has tested it.
+**Dep:** AGY-1715
+
+## AGY-1717 -- Make tests/test-reflection.py skip deliberately when no refine backend is reachable  (WS-CI | P2 | S)
+**Goal:** An absent backend is a skip that says so, not a failure and not a silent pass.
+**What+How:** The suite calls reflection, every connection attempt fails, the correction comes back empty, and the suite fails. A runner has no model backend, so this can never pass there. Follow the pattern `tests/test-owui-pipe-endpoints.py` already uses: detect the backend, and when it is absent print a skip naming the endpoint it tried and exit 0; when it IS present, assert the correction. Then move it into the `unit` tier.
+**Where:** `tests/test-reflection.py, usr/share/mios/mios.toml`
+**Done When:** the suite skips with a named reason on a backend-less runner and asserts the correction where a backend answers.
+**Verify:** running it with no backend exits 0 printing the endpoint it tried; running it against a reachable endpoint asserts a non-empty correction.
+**Do NOT:** exit 0 unconditionally. A skip that cannot tell itself apart from a pass is the same defect as a gate that cannot fail.
+**Why:** reflection is on the path every refined answer takes, and no CI has ever exercised it.
+**Dep:** AGY-1715
+
+## AGY-1718 -- Collapse the separator the think-stripper leaves behind  (WS-CI | P1 | S)
+**Goal:** Removing a think block leaves the text as it would have been written.
+**What+How:** `tests/test-think-stripper.py` measured two failures: an inline block yields a doubled space where it was removed, and a block on its own line yields a blank line between the surrounding paragraphs. The stripper removes the block but not the whitespace that surrounded it. Decide the rule -- collapse the run of whitespace the removal joins, preserving a single space inside a line and a single newline between lines -- implement it once where the stripping happens, and keep the existing cases green. Then move the suite into the `unit` tier.
+**Where:** `usr/lib/mios/agent-pipe/, tests/test-think-stripper.py, usr/share/mios/mios.toml`
+**Done When:** all the suite's cases pass and the suite runs in the `unit` tier.
+**Verify:** `python3 tests/test-think-stripper.py` reports no FAIL lines, including the inline and multi-line cases.
+**Do NOT:** change the test expectations to match the current output. The doubled separator reaches the operator.
+**Why:** the stripper output is what a person reads; it has been inserting stray whitespace with no test running to notice.
+**Dep:** AGY-1715
+
+## AGY-1719 -- Re-run the exempted suites and lower [ci].max_exempt_suites to what remains  (WS-CI | P2 | S)
+**Goal:** The exemption list shrinks as the reasons are removed.
+**What+How:** `[ci.exempt]` carries seven entries, four of them measured failures with a task id each (AGY-1715 through AGY-1718) and three of them harnesses that take arguments or need a binary. As each of the four lands, delete its entry and lower `[ci].max_exempt_suites` in the same commit, so the ceiling always equals the count. When only the three structural entries remain, record in `[ci]` why each is structural rather than pending.
+**Where:** `usr/share/mios/mios.toml`
+**Done When:** the ceiling equals the number of exemptions and every remaining entry states why it can never join a tier.
+**Verify:** `python3 tools/ci-suites.py --check` passes with the ceiling equal to the exemption count, and adding an exemption without raising the ceiling fails.
+**Do NOT:** raise the ceiling to accommodate a new exemption. It is shrink-only; a suite that cannot run is a task, not a setting.
+**Why:** an exemption list with a ceiling above its count is a list that can grow quietly, which is how thirteen suites went unrun.
+**Dep:** AGY-1718
+
+## AGY-1720 -- Give tests/drift-parity.sh and tests/drift-gate-readonly.sh a caller or delete them  (WS-CI | P2 | S)
+**Goal:** No harness in the tree that nothing invokes.
+**What+How:** Both are tracked and neither is invoked by any workflow, justfile target or script. `drift-parity.sh` compares the bash gate against the miosd parity subcommand and needs that binary; `drift-gate-readonly.sh` duplicates the gate tier. Decide each: wire it to a tier or a documented command with the prerequisite it needs, or delete it and say in the commit what it used to prove. Update `[ci.exempt]` and the ceiling either way.
+**Where:** `tests/drift-parity.sh, tests/drift-gate-readonly.sh, usr/share/mios/mios.toml, justfile`
+**Done When:** each has a caller or is gone, and `[ci.exempt]` reflects the outcome.
+**Verify:** a caller exists for every remaining harness in tests/, and `python3 tools/ci-suites.py --check` passes.
+**Do NOT:** leave a harness exempt with the reason that nothing calls it. That records the problem instead of resolving it.
+**Why:** an uncalled harness looks like coverage in a file listing and provides none.
+**Dep:** AGY-1719
