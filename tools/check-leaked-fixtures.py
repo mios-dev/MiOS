@@ -29,7 +29,10 @@ except ModuleNotFoundError:  # pragma: no cover
 # first violation, which is how four probes in this repository have been found
 # to trip the very check that scans for them.
 MARKER = "neg" + "test"
-BACKUP_SUFFIXES = (".bak", ".negbak", ".orig", ".rej", ".softtest.bak")
+# A test that hides a file renames it aside; that suffix is a leak too, and
+# a hidden file reads as a deletion rather than as an artefact.
+BACKUP_SUFFIXES = (".bak", ".negbak", ".orig", ".rej", ".softtest.bak",
+                   ".neg-hidden", ".neg-bak", ".negtmp")
 
 # The harness is allowed to name its own fixtures; that is where they belong.
 ALLOWED_PATHS = frozenset({
