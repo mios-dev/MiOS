@@ -25,17 +25,17 @@ _mios_load_unified() {
 
     # 1. Native compiled resolver binary (primary tier)
     if [[ "$_use_rust" -eq 1 ]]; then
-        if command -v mios-resolver >/dev/null 2>&1; then
-            local _native_exports=""
-            if _native_exports=$(mios-resolver --emit=shell 2>/dev/null | tr -d '\r') && [[ -n "$_native_exports" ]]; then
-                eval "$_native_exports" && return 0
-            fi
-        elif [[ -x "/usr/libexec/mios/mios-resolver" ]]; then
-            local _native_exports=""
-            if _native_exports=$(/usr/libexec/mios/mios-resolver --emit=shell 2>/dev/null | tr -d '\r') && [[ -n "$_native_exports" ]]; then
-                eval "$_native_exports" && return 0
-            fi
+        # xtrace off: the ~200KB export block truncates the image build log.
+        local _xt=""; case "$-" in *x*) _xt=1; set +x ;; esac
+        local _r="" _native_exports=""
+        command -v mios-resolver >/dev/null 2>&1 && _r=mios-resolver
+        [[ -z "$_r" && -x /usr/libexec/mios/mios-resolver ]] && _r=/usr/libexec/mios/mios-resolver
+        if [[ -n "$_r" ]] && _native_exports=$("$_r" --emit=shell 2>/dev/null | tr -d '\r') \
+            && [[ -n "$_native_exports" ]] && eval "$_native_exports"; then
+            [[ -z "$_xt" ]] || set -x
+            return 0
         fi
+        [[ -z "$_xt" ]] || set -x
     fi
 
     # 2. Daemon resolver fallback
