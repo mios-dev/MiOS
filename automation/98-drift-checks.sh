@@ -40,8 +40,7 @@ _violation() {
 }
 
 _need_python() {
-    # Folded from 56 copies; also makes the skip a failure under
-    # MIOS_DRIFT_REQUIRE_TOOLS=1, which is what that variable is for.
+    # Folded from 56 copies; fails, not skips, under MIOS_DRIFT_REQUIRE_TOOLS=1.
     command -v python3 >/dev/null 2>&1 && return 0
     if [[ "${MIOS_DRIFT_REQUIRE_TOOLS:-0}" == "1" ]]; then
         _violation "python3 is required under MIOS_DRIFT_REQUIRE_TOOLS=1 and is not installed"
@@ -7327,13 +7326,11 @@ except Exception as exc:
     print(f"    mios-resolver --emit=json execution failed: {exc}", file=sys.stderr)
     sys.exit(1)
 
-# Shrink-only; an absent ceiling is a broken gate, not an open one. AGY-1676.
-ceil_div = (_toml_data.get("resolver") or {}).get("max_key_divergence")
+_rc = _toml_data.get("resolver") or {}; ceil_div = _rc.get("max_key_divergence")
 diff_keys = set(py_exports) ^ set(rs_exports)
 if ceil_div is None or len(diff_keys) > int(ceil_div):
     print(f"    key divergence {len(diff_keys)} vs ceiling {ceil_div}: {sorted(diff_keys)[:10]}", file=sys.stderr)
     sys.exit(1)
-print(f"    resolver key divergence {len(diff_keys)}/{ceil_div} (shrink-only; AGY-1676)", file=sys.stderr)
 
 mismatches = []
 for k in sorted(set(py_exports) & set(rs_exports)):
@@ -7342,11 +7339,13 @@ for k in sorted(set(py_exports) & set(rs_exports)):
     if v_py != v_rs:
         mismatches.append(f"{k}: py='{v_py}' vs rs='{v_rs}'")
 
-if mismatches:
-    print(f"    Value parity mismatch in {len(mismatches)} key(s):", file=sys.stderr)
+ceil_val = _rc.get("max_value_divergence")
+if ceil_val is None or len(mismatches) > int(ceil_val):
+    print(f"    value divergence {len(mismatches)} vs ceiling {ceil_val}:", file=sys.stderr)
     for m in mismatches[:10]:
         print(f"      {m}", file=sys.stderr)
     sys.exit(1)
+print(f"    resolver divergence: {len(diff_keys)}/{ceil_div} keys, {len(mismatches)}/{ceil_val} values (shrink-only; AGY-1676)", file=sys.stderr)
 
 print("    mios-resolver --emit=json matches Python SSOT render 100%")
 sys.exit(0)

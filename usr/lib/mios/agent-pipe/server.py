@@ -2580,14 +2580,6 @@ def _is_action_domain(domain: Optional[str]) -> bool:
 
 
 async def _needs_compute(user_text: str) -> bool:
-    """Generative compute-need judge ("MATH(AND OTHER PYTHON
-    CAPABILITIES) ... natural language!!! not verbs/keywords"). Decide, BY MEANING not
-    keywords, whether fully + CORRECTLY answering needs a calculation a language model
-    cannot do reliably in its head -- multi-digit/exact arithmetic, statistics, unit/
-    currency conversion, counting, or a date/time difference. A small model both
-    mis-computes in-head AND won't reliably call the (now ambient) sandbox tool, so the
-    PIPE runs the math itself (mirrors the web prefetch). True only on a confident yes;
-    degrade-CLOSED (error/None -> False = no compute prefetch, unchanged behaviour)."""
     if not (user_text or "").strip():
         return False
     sys = (
