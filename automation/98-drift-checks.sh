@@ -7326,7 +7326,7 @@ py_exports = render_globals.build_exports()
 try:
     res = subprocess.run([resolver_bin, "--emit=json"], capture_output=True, text=True, check=True)
     import json
-    rs_exports = json.loads(res.stdout)
+    rs_exports = (_j := json.loads(res.stdout)).get("exports", _j)  # emit_json wraps: {merged, exports}
 except Exception as exc:
     print(f"    mios-resolver --emit=json execution failed: {exc}", file=sys.stderr)
     sys.exit(1)
