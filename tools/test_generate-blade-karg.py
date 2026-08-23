@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit tests for tools/generate-blade-karg.py.
+#!/usr/bin/env python3
+# AI-hint: Unit tests for tools/generate-blade-karg.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_blade_karg_py.md
 """Tests for the deploy-time blade karg projection."""
 

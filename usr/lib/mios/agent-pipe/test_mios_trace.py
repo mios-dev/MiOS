@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_trace (WS-A8 trace/span observability).
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_trace (WS-A8 trace/span observability).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_trace_py.md
 """Unit tests for mios_trace (WS-A8)."""
 

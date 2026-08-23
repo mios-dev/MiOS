@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Integration test script to verify that the `refine` post-parse logic correctly demotes long, multi-step prompts to `agent` intent while prese...
+#!/usr/bin/env python3
+# AI-hint: Integration test script to verify that the `refine` post-parse logic correctly demotes long, multi-step prompts to `agent` intent while prese...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_refine_guards_py.md
 from __future__ import annotations
 import asyncio

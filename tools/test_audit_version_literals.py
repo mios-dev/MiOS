@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap...
+#!/usr/bin/env python3
+# AI-hint: Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_audit_version_literals_py.md
 
 import unittest

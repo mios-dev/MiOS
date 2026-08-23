@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comp...
+#!/usr/bin/env python3
+# AI-hint: Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comp...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_generate_sbom_py.md
 
 import re

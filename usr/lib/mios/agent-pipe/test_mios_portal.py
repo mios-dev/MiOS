@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB.
+#!/usr/bin/env python3
+# AI-hint: Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_portal_py.md
 """Unit test for mios_portal: auth round-trip + stats/asset shapes + swarm probe."""
 

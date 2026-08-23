@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network.
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_crl_py.md
 """Unit tests for mios_crl (WS-A10 token/cert revocation list)."""
 

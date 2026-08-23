@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=universal Configures the host's admin sshd to bind to the SSOT port defined in mios.toml by creating a drop-in config in /etc/ss...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Configures the host's admin sshd to bind to the SSOT port defined in mios.toml by creating a drop-in config in /etc/ss...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_46_sshd_port_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

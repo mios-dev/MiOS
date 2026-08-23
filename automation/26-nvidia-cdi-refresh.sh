@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=universal Configures and enables systemd units for NVIDIA CDI (Container Device Interface) auto-refresh, removes legacy...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Configures and enables systemd units for NVIDIA CDI (Container Device Interface) auto-refresh, removes legacy...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_26_nvidia_cdi_refresh_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone unit test for the mios-daemon escalation governor (GUARD-01): loads the hyphenated CLI by path with its side-e...
+#!/usr/bin/env python3
+# AI-hint: Standalone unit test for the mios-daemon escalation governor (GUARD-01): loads the hyphenated CLI by path with its side-e...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_daemon_escalation_py.md
 """Assert the daemon's repeat-escalation gate honours its two SSOT knobs."""
 from __future__ import annotations

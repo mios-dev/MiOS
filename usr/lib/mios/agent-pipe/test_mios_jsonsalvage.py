@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model outp...
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model outp...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_jsonsalvage_py.md
 """Unit tests for mios_jsonsalvage.loads_lenient (lenient JSON salvage)."""
 

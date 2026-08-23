@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=universal Installs Geist and Symbols-Only Nerd Fonts to ensure the MiOS dashboard, oh-my-posh prompt, and TTY surfaces render icons and mono...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Installs Geist and Symbols-Only Nerd Fonts to ensure the MiOS dashboard, oh-my-posh prompt, and TTY surfaces render icons and mono...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_56_fonts_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

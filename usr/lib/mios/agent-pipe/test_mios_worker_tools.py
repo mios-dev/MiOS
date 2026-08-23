@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_worker_tools (refactor R4 worker-tools reranker extraction). Pure stdlib, n...
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_worker_tools (refactor R4 worker-tools reranker extraction). Pure stdlib, n...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_worker_tools_py.md
 """Unit tests for mios_worker_tools (refactor R4)."""
 

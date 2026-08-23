@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>.
+#!/usr/bin/env python3
+# AI-hint: Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_port_fallbacks_py.md
 """Gate: a literal beside a MIOS_PORT_ name must be that port's value."""
 

@@ -3333,6 +3333,27 @@ test_no_generated_prose_in_resolvers() {
     log "check_no_generated_prose_in_resolvers negative test passed"
 }
 
+test_header_integrity() {
+    log "Testing check_header_integrity"
+    local probe="${ROOT}/automation/mios-negtest-header.sh"
+    # Exactly the damage found on main: the '#' reused as the hint's marker with
+    # the interpreter left as hint TEXT, so the file has no shebang at all.
+    printf '# AI-hint: !/usr/bin/env bash A probe with its shebang absorbed.\ntrue\n' > "$probe"
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    if _neg_gate check_header_integrity; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+        die "check_header_integrity passed despite an absorbed shebang"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1; rm -f "$probe"
+    if ! _neg_gate check_header_integrity; then
+        # Show WHY rather than only that it failed: a restoration failure means
+        # the gate is flagging something the probe did not create.
+        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT"         MIOS_DRIFT_ROOT="$ROOT"             bash "${ROOT}/automation/98-drift-checks.sh" check_header_integrity 2>&1             | grep -i 'violation' | head -5 >&2
+        die "check_header_integrity failed after restoration"
+    fi
+    log "check_header_integrity negative test passed"
+}
+
 main() {
     if [[ $# -eq 1 && -n "$1" ]]; then
         if declare -f "$1" >/dev/null; then
@@ -3377,6 +3398,7 @@ main() {
     test_secret_handling
     test_wsl_distro_resolution
     test_docs_ratchet
+    test_header_integrity
     test_resolver_differential_parity
     test_legibility_ratchet
     test_bootstrap_sync

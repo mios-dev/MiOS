@@ -1,3 +1,4 @@
+# AI-hint: Generated baseline of python modules that predate the sibling-test rule; check_module_test_coverage fails on any NEW untested module not listed here.
 # Untested python modules grandfathered baseline (ratchet moves down only)
 tools/ascii-sweep.py
 tools/audit-image-provisioning.py

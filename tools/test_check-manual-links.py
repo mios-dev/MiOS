@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T...
+#!/usr/bin/env python3
+# AI-hint: Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_manual_links_py.md
 """Fixture-driven checks that the manual link gate fails for the right reasons."""
 import os

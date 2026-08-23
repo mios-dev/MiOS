@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin...
+#!/usr/bin/env python3
+# AI-hint: Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_audit_version_literals_py.md
 
 import os

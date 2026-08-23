@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=universal Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Captures the MIOS_FLATPAKS build-time variable into a system-level environment file at ${MIOS_USR_DIR}/env.d/flatpaks.env to...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_60_flatpak_env_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

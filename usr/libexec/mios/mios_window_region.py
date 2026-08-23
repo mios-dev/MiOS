@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Pure geometry helper for named window-snap regions.
+#!/usr/bin/env python3
+# AI-hint: Pure geometry helper for named window-snap regions.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_mios_window_region_py.md
 """Named window-snap region geometry (pure, no side effects).
 

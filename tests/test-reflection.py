@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Smoke-test script for the `reflect_on_step_failure` logic; use to verify that the refine model correctly identifies and corrects malformed tool ...
+#!/usr/bin/env python3
+# AI-hint: Smoke-test script for the `reflect_on_step_failure` logic; use to verify that the refine model correctly identifies and corrects malformed tool ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_reflection_py.md
 """Smoke-test reflect_on_step_failure.
 

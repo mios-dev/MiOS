@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=universal Configures Hyper-V Enhanced Session support by enabling hv_sock, configuring gnome-remote-desktop for Wayland-native RDP via v...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Configures Hyper-V Enhanced Session support by enabling hv_sock, configuring gnome-remote-desktop for Wayland-native RDP via v...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_27_vm_gating_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

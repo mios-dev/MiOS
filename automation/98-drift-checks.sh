@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=universal Source-tree drift fitness-functions (WS-0A).
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Source-tree drift fitness-functions (WS-0A).
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_98_drift_checks_sh.md
 set -euo pipefail
 
@@ -6189,6 +6190,7 @@ main() {
     check_ps_encoding_and_bom
     check_unit_dependency_closure
     check_docs_ratchet
+    check_header_integrity
     check_legibility_ratchet
     check_docs_ratchet_monotone
     check_no_generated_prose_in_resolvers
@@ -7871,6 +7873,64 @@ PYEOF
         return
     fi
     echo "[98-drift-checks]   legibility floors holding"
+}
+
+
+# Header integrity: a tagger must never absorb line 1. See AGY-1607.
+check_header_integrity() {
+    echo "[98-drift-checks]   check_header_integrity"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
+import os, re, subprocess, sys
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+try:
+    rels = [p for p in subprocess.run(["git", "ls-files", "-z"], cwd=root,
+            capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if p]
+except Exception:
+    sys.exit(0)
+
+ABSORBED_SHEBANG = re.compile(r"AI-hint:\s*!")
+ABSORBED_DIRECTIVE = re.compile(r"AI-hint:\s*(?:bash|sh|python3?|pwsh|zsh)?\s*MIOS_[A-Z_]+=")
+NUL = b"\x00"
+viol = []
+for rel in rels:
+    p = os.path.join(root, rel.replace("/", os.sep))
+    if not os.path.isfile(p):
+        continue
+    try:
+        with open(p, "rb") as fh:
+            raw = fh.read(4096)
+    except OSError:
+        continue
+    if NUL in raw:
+        continue
+    try:
+        head = raw.decode("utf-8").splitlines()[:5]
+    except UnicodeDecodeError:
+        continue
+    for ln in head:
+        if ABSORBED_SHEBANG.search(ln):
+            viol.append("%s: the shebang was absorbed into the AI-hint -- the file "
+                        "has no interpreter line any more" % rel)
+            break
+        if ABSORBED_DIRECTIVE.search(ln):
+            viol.append("%s: a MIOS_* build directive was folded into the AI-hint "
+                        "instead of standing on its own line" % rel)
+            break
+if viol:
+    viol.append("A header tagger must never consume line 1. Restore the shebang "
+                "and the directive, then re-tag.")
+print("\n".join(viol))
+sys.exit(1 if viol else 0)
+PYEOF
+    )"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_header_integrity: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   no absorbed shebangs or build directives in file headers"
 }
 
 main "$@"

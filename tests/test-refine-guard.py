@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Smoke-test script to verify that the `refine_intent` logic correctly overrides "chat" classifications for actionable commands (like URLs or sh...
+#!/usr/bin/env python3
+# AI-hint: Smoke-test script to verify that the `refine_intent` logic correctly overrides "chat" classifications for actionable commands (like URLs or sh...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_refine_guard_py.md
 from __future__ import annotations
 import asyncio

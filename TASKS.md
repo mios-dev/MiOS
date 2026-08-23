@@ -3435,8 +3435,10 @@ line per SSOT leaf key, so the ratchet penalises Law 7 (NO-HARDCODE: lift operat
 into `mios.toml`) directly: complying with Law 7 always trips it. Its own advice, "fold or delete",
 is not actionable on machine output.
 
-`origin/main` already exceeds both floors (26987 > 26985, 45167 > 45081). This change adds **5**
-lines to each generated file, and all 5 are the operator's decisions -- `MIOS_BLADE_CLUSTER_LOCALHOST_HOSTS`,
+The floors were just re-set to `origin/main`'s exact counts (26987, 45300), which makes the defect
+sharper rather than milder: with zero headroom, **the next SSOT key anyone adds trips this gate**,
+whoever adds it. This change adds **5** lines to each generated file, and all 5 are the operator's
+decisions -- `MIOS_BLADE_CLUSTER_LOCALHOST_HOSTS`,
 `MIOS_BLADE_HARDWARE_MAX_RADIOS`, `MIOS_BLADE_MESH_BLOCKS_BOOT`, `MIOS_BLADE_MESH_FEDERATE`,
 `MIOS_BLADE_OPTIONAL_PLANES`. Deleting any of them deletes an answer, so none were deleted. The
 additions were first trimmed from 16 to 5 by folding 8 per-plane `required` fields into one

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Drift gate for unmappable container names.
+#!/usr/bin/env python3
+# AI-hint: Drift gate for unmappable container names.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_container_names_py.md
 """Gate: every Quadlet declares a ContainerName that matches its unit."""
 

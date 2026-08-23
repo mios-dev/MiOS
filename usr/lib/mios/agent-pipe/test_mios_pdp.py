@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate).
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_pdp_py.md
 """Unit tests for mios_pdp (WS-A9)."""
 

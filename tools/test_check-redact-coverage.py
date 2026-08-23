@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl...
+#!/usr/bin/env python3
+# AI-hint: Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_redact_coverage_py.md
 """Assert the persist-redaction coverage gate fails for each defect class."""
 import os

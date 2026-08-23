@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=universal Enables external DNF repositories (Terra, Kubernetes, ublue-os COPR) for MiOS by fetching .repo files into...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Enables external DNF repositories (Terra, Kubernetes, ublue-os COPR) for MiOS by fetching .repo files into...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_06_enable_external_repos_sh.md
 set -euo pipefail
 

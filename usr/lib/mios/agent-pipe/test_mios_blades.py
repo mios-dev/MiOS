@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_blades (V4/V5 blade topology + AI-related: ./mios_blades.py, ./mios_config.py, ./...
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_blades (V4/V5 blade topology + AI-related: ./mios_blades.py, ./mios_config.py, ./...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_blades_py.md
 """Unit tests for mios_blades (V4 blade model + V5 per-blade admission capacity)."""
 

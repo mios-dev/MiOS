@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7).
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_toolconflict_py.md
 """Unit tests for mios_toolconflict (WS-A7 per-verb dispatch serialization)."""
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Refactors hardcoded MiOS system paths into environment variable constants (e.g., ${MIOS_LOG_DIR}) in configuration files while preserving comm...
+#!/usr/bin/env python3
+# AI-hint: Refactors hardcoded MiOS system paths into environment variable constants (e.g., ${MIOS_LOG_DIR}) in configuration files while preserving comm...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_lib_path_refactor_py.md
 
 import re, sys

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture match...
+#!/usr/bin/env python3
+# AI-hint: Validates .toml files in kargs.d/ and usr/lib/bootc/kargs.d/ against bootc schema rules, ensuring correct key structures, architecture match...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_validate_kargs_py.md
 from __future__ import annotations
 

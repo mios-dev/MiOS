@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-ssot-consumer-keys.py.
+#!/usr/bin/env python3
+# AI-hint: Unit tests for tools/check-ssot-consumer-keys.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_ssot_consumer_keys_py.md
 """Tests for the SSOT<->consumer key-contract gate."""
 

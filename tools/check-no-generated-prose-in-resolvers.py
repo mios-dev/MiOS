@@ -7,7 +7,10 @@ import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.abspath(os.path.join(_HERE, ".."))
+# Honour the root the caller names, as every sibling checker does. Hardcoding it
+# to this file's location made the tool impossible to aim at a fixture or at the
+# bootstrap repo, so it could only ever be exercised against the live tree.
+ROOT = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT")     or os.path.abspath(os.path.join(_HERE, ".."))
 
 TARGETS = [
     os.path.join(ROOT, "automation", "lib", "globals.sh"),

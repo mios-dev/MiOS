@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=universal Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/lo...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Overlay script that maps the /ctx/ source directory onto the rootfs during build, specifically handling the /usr/lo...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_01_system_files_overlay_sh.md
 set -euo pipefail
 

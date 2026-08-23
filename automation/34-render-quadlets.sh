@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=universal Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst,...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Processes Quadlet container files by replacing ${MIOS_*} placeholders with values from mios.toml using envsubst,...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_34_render_quadlets_sh.md
 set -euo pipefail
 

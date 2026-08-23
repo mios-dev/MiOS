@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=dev-only Configures Podman machine backend compatibility by ensuring the 'core' user exists via sysusers and symlink...
+# MIOS_APPLY_CLASS=dev-only
+# AI-hint: Configures Podman machine backend compatibility by ensuring the 'core' user exists via sysusers and symlink...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_14_podman_machine_compat_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

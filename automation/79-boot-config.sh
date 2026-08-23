@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=boot-only Configures boot-time console behavior by enabling getty@tty1, serial-getty@ttyS0, and emergency/rescue shells to ensure acce...
+# MIOS_APPLY_CLASS=boot-only
+# AI-hint: Configures boot-time console behavior by enabling getty@tty1, serial-getty@ttyS0, and emergency/rescue shells to ensure acce...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_79_boot_config_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

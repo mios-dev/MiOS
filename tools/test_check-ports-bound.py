@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-ports-bound.py.
+#!/usr/bin/env python3
+# AI-hint: Unit tests for tools/check-ports-bound.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_ports_bound_py.md
 """Tests for the allocated-but-unbound port gate."""
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp...
+#!/usr/bin/env python3
+# AI-hint: Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_service_urls_py.md
 """Gate: one canonical address per service, or a registered reason there is none."""
 

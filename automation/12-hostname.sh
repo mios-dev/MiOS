@@ -1,5 +1,6 @@
 #!/bin/bash
-# AI-hint: MIOS_APPLY_CLASS=universal Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable...
+# MIOS_APPLY_CLASS=universal
+# AI-hint: Sets the initial hostname template in /usr/lib/hostname.default based on the MIOS_HOSTNAME build-arg to ensure a unique, stable...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_12_hostname_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

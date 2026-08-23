@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# AI-hint: bash MIOS_APPLY_CLASS=dev-only Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to de...
+# MIOS_APPLY_CLASS=dev-only
+# AI-hint: Configures Hyper-V GPU-PV (dxgkrnl) support by creating mount points, ld.so.conf entries, and a systemd service to de...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_24_gpu_pv_shim_sh.md
 set -euo pipefail
 for _mlog in "$(dirname "${BASH_SOURCE[0]}")/../usr/lib/mios/log.sh" /usr/lib/mios/log.sh; do [ -r "$_mlog" ] && . "$_mlog" && break; done

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Standalone assert-script unit test for the T-225 run-template REPLAY path -- the pure matcher (mios_pipe.routing.replay), the...
+#!/usr/bin/env python3
+# AI-hint: Standalone assert-script unit test for the T-225 run-template REPLAY path -- the pure matcher (mios_pipe.routing.replay), the...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_replay_py.md
 
 """Unit tests for intent-keyed run-template replay (T-225)."""

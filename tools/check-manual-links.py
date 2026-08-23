@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Link-integrity gate for the shipped docs.
+#!/usr/bin/env python3
+# AI-hint: Link-integrity gate for the shipped docs.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_manual_links_py.md
 """Fail if the manual's ToC points at a chapter file or anchor that is not there."""
 import os

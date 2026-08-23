@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/generate-adr-index.py (T-265).
+#!/usr/bin/env python3
+# AI-hint: Sibling unit test for tools/generate-adr-index.py (T-265).
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_generate_adr_index_py.md
 
 import importlib.util
