@@ -3408,12 +3408,13 @@ tools/render-globals.py	198	199	2	19	64f276799ead	STAY	local-scoped		0				0
 tools/render-globals.py	214	214	1	8	560ab7525bb0	STAY	local-scoped		0				0
 tools/render-globals.py	220	222	3	36	ea6d3604444b	MIGRATE	midsize-narrative		0	usr/share/doc/mios/manual/tools.md	mios-src:ea6d3604444b	36	0
 tools/render-globals.py	228	228	1	11	5de0b9e74430	STAY	local-scoped		0				0
+tools/render-globals.py	232	234	3	24	ce076d3dfb18	STAY	midsize-why		0				0
 tools/render-globals.py	235	242	8	53	e7e3421e3913	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:e7e3421e3913	53	1
-tools/render-globals.py	242	243	2	19	f792e9391825	STAY	local-scoped		0				0
-tools/render-globals.py	248	251	4	38	e2afa2eb3d30	STAY	midsize-why		0				0
-tools/render-globals.py	265	265	1	8	f94c46776fc9	STAY	local-scoped		0				0
-tools/render-globals.py	307	310	4	41	30bfd8d8dd9b	STAY	midsize-why		0				0
-tools/render-globals.py	314	314	1	2	1ba300c69641	STAY	inline-scoped		0				0
+tools/render-globals.py	245	246	2	19	f792e9391825	STAY	local-scoped		0				0
+tools/render-globals.py	251	254	4	38	e2afa2eb3d30	STAY	midsize-why		0				0
+tools/render-globals.py	268	268	1	8	f94c46776fc9	STAY	local-scoped		0				0
+tools/render-globals.py	310	313	4	41	30bfd8d8dd9b	STAY	midsize-why		0				0
+tools/render-globals.py	317	317	1	2	1ba300c69641	STAY	inline-scoped		0				0
 tools/render-ports.py	1	3	3	27	01206e1b7448	STAY	ai-header		0				0
 tools/render-ports.py	4	17	13	73	11affdf550ad	MIGRATE	narrative-rationale		0	usr/share/doc/mios/manual/tools.md	mios-src:11affdf550ad	73	1
 tools/render-ports.py	12	12	1	2	23c73b0535ee	STAY	inline-scoped		0				0
@@ -3658,9 +3659,10 @@ tools/test_render_globals.py	1	3	3	24	54c2258162f0	STAY	ai-header		0				0
 tools/test_render_globals.py	26	26	1	10	0366619e9244	STAY	local-scoped		0				0
 tools/test_render_globals.py	31	31	1	10	c03816312f08	STAY	local-scoped		0				0
 tools/test_render_globals.py	37	37	1	9	163a3ab38515	STAY	local-scoped		0				0
-tools/test_render_globals.py	55	55	1	5	ef2c01b8ffa9	STAY	local-scoped		0				0
-tools/test_render_globals.py	83	84	2	16	8a75dc5bf963	STAY	local-scoped		0				0
-tools/test_render_globals.py	113	115	3	24	1fd0c107e2a9	STAY	midsize-why		0				0
+tools/test_render_globals.py	45	46	2	22	427d40ce693c	STAY	local-scoped		0				0
+tools/test_render_globals.py	57	57	1	5	ef2c01b8ffa9	STAY	local-scoped		0				0
+tools/test_render_globals.py	85	86	2	16	8a75dc5bf963	STAY	local-scoped		0				0
+tools/test_render_globals.py	115	117	3	24	1fd0c107e2a9	STAY	midsize-why		0				0
 tools/test_render_ports.py	1	3	3	24	4ab525359510	STAY	ai-header		0				0
 tools/test_render_ports.py	67	67	1	6	69e1ea5d2954	STAY	local-scoped		0				0
 tools/test_render_ports.py	149	150	2	21	97a015958c60	STAY	local-scoped		0				0

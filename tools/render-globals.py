@@ -229,7 +229,10 @@ def _sh_assign(name: str, value: str) -> str:
         chunks = []
         for i, part in enumerate(parts):
             if i % 2:
-                chunks.append('"${%s}"' % part)
+                # `:-` because build_exports drops empty values: a key like
+                # [a2o].agy_effort_flag = "" is never exported, and a bare ${X}
+                # under `set -u` aborts whoever sourced globals.sh.
+                chunks.append('"${%s:-}"' % part)
             elif part:
                 chunks.append(_sh_squote(part))
         rendered = "".join(chunks) or "''"

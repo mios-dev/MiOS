@@ -81,11 +81,11 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_AI_LOCAL_ROLE:=mobile}"
 : "${MIOS_AGENTS_AI_LOCAL_STRENGTHS:=mobile_local_model,on_device,offline_edge}"
 : "${MIOS_PORT_SGLANG:=8530}"
-[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
+[ -n "${MIOS_AGENTS_HERMES_CPU_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
 : "${MIOS_AGENTS_HERMES_CPU_MODEL:=mios-heavy}"
 : "${MIOS_AGENTS_HERMES_DEFAULT:=false}"
 : "${MIOS_PORT_HERMES:=8720}"
-[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
+[ -n "${MIOS_AGENTS_HERMES_ENDPOINT+x}" ] || MIOS_AGENTS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
 : "${MIOS_AGENTS_HERMES_FANOUT:=false}"
 : "${MIOS_AGENTS_HERMES_HEALTH_GATE:=true}"
 : "${MIOS_AGENTS_HERMES_JOB:=General orchestration of multi-step, tool-driven tasks -- decide local-vs-web, search, inspect and operate the system, launch apps, then fan out and synthesise.}"
@@ -95,7 +95,7 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_HERMES_ROLE:=general}"
 : "${MIOS_AGENTS_HERMES_STRENGTHS:=kanban,web_search,skill_invocation,multi_step_reasoning,tool_use}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_DEFAULT:=false}"
-[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
+[ -n "${MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT+x}" ] || MIOS_AGENTS_MIOS_DAEMON_AGENT_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FAILOVER_AGENTS:=hermes}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_FANOUT:=true}"
 : "${MIOS_AGENTS_MIOS_DAEMON_AGENT_HEALTH_GATE:=true}"
@@ -107,7 +107,7 @@ export MIOS_VERSION
 : "${MIOS_AGENTS_OPENCODE_DEFAULT:=false}"
 : "${MIOS_AGENTS_OPENCODE_ENABLED:=true}"
 : "${MIOS_PORT_OPENCODE_GATEWAY:=8780}"
-[ -n "${MIOS_AGENTS_OPENCODE_ENDPOINT+x}" ] || MIOS_AGENTS_OPENCODE_ENDPOINT='http://localhost:'"${MIOS_PORT_OPENCODE_GATEWAY}"'/v1'
+[ -n "${MIOS_AGENTS_OPENCODE_ENDPOINT+x}" ] || MIOS_AGENTS_OPENCODE_ENDPOINT='http://localhost:'"${MIOS_PORT_OPENCODE_GATEWAY:-}"'/v1'
 : "${MIOS_AGENTS_OPENCODE_FAILOVER_AGENTS:=hermes}"
 : "${MIOS_AGENTS_OPENCODE_FANOUT:=true}"
 : "${MIOS_AGENTS_OPENCODE_HEALTH_GATE:=true}"
@@ -134,7 +134,7 @@ export MIOS_VERSION
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MIN_REPUTATION:=0.0}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_MTLS:=false}"
 : "${MIOS_AGENTS__DEFAULTS_TRUST_REQUIRE_SIGNED_PRINCIPAL:=false}"
-[ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
+[ -n "${MIOS_AGENT_PIPE_BACKEND+x}" ] || MIOS_AGENT_PIPE_BACKEND='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
 : "${MIOS_AGENT_PIPE_BACKEND_MODEL:=hermes-agent}"
 : "${MIOS_AGENT_PIPE_CLIENT_TOOLS_PASSTHROUGH:=true}"
 : "${MIOS_AGENT_PIPE_COUNCIL_AGGREGATOR_BYPASS:=false}"
@@ -143,7 +143,7 @@ export MIOS_VERSION
 : "${MIOS_AGENT_PIPE_COUNCIL_DIVERSITY_THRESHOLD:=0.92}"
 : "${MIOS_AGENT_PIPE_ENABLE:=true}"
 : "${MIOS_PORT_AGENT_PIPE:=8700}"
-[ -n "${MIOS_AGENT_PIPE_ENDPOINT+x}" ] || MIOS_AGENT_PIPE_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
+[ -n "${MIOS_AGENT_PIPE_ENDPOINT+x}" ] || MIOS_AGENT_PIPE_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
 : "${MIOS_AGENT_PIPE_GID:=822}"
 : "${MIOS_AGENT_PIPE_MAX_CONSECUTIVE_FAILURES:=3}"
 : "${MIOS_AGENT_PIPE_NO_PROGRESS_WINDOW:=2}"
@@ -156,7 +156,7 @@ export MIOS_VERSION
 : "${MIOS_AGENT_PIPE_REFLEXION_LIMIT:=2}"
 : "${MIOS_AGENT_PIPE_REPLAN_MAX:=5}"
 : "${MIOS_PORT_LLM_LIGHT:=8500}"
-[ -n "${MIOS_AGENT_PIPE_TOOL_BACKEND+x}" ] || MIOS_AGENT_PIPE_TOOL_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"'/v1'
+[ -n "${MIOS_AGENT_PIPE_TOOL_BACKEND+x}" ] || MIOS_AGENT_PIPE_TOOL_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
 : "${MIOS_AGENT_PIPE_TOOL_BACKEND_MODEL:=granite4.1:8b}"
 : "${MIOS_AGENT_PIPE_TOOL_LOOP_LIMIT:=20}"
 : "${MIOS_AGENT_PIPE_TOOL_MAX_ITERS:=15}"
@@ -166,7 +166,7 @@ export MIOS_VERSION
 : "${MIOS_AI_BAKE_MODELS:=granite4.1:8b,lfm2:700m,nomic-embed-text,mios-agent,mios-agent-cpu,mios-hermes,mios-hermes-cpu,mios-opencode,mios-sys-agent}"
 : "${MIOS_AI_DIR:=/usr/share/mios/ai}"
 : "${MIOS_AI_EMBED_MODEL:=nomic-embed-text}"
-[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
+[ -n "${MIOS_AI_ENDPOINT+x}" ] || MIOS_AI_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
 : "${MIOS_AI_JOURNAL:=/var/lib/mios/ai/journal.md}"
 : "${MIOS_AI_MCP_DIR:=/srv/ai/mcp}"
 : "${MIOS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
@@ -175,8 +175,8 @@ export MIOS_VERSION
 : "${MIOS_AI_RAM_FLOOR_GB:=12}"
 : "${MIOS_AI_SCRATCH_DIR:=/var/lib/mios/ai/scratch}"
 : "${MIOS_SHARE_DIR:=/usr/share/mios}"
-[ -n "${MIOS_SHARE_AI_DIR+x}" ] || MIOS_SHARE_AI_DIR="${MIOS_SHARE_DIR}"'/ai'
-[ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR}"'/system.md'
+[ -n "${MIOS_SHARE_AI_DIR+x}" ] || MIOS_SHARE_AI_DIR="${MIOS_SHARE_DIR:-}"'/ai'
+[ -n "${MIOS_AI_SYSTEM_PROMPT+x}" ] || MIOS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR:-}"'/system.md'
 : "${MIOS_AI_TAG_HINT_MAX_CHARS:=260}"
 : "${MIOS_AI_TAG_MAX_UNCONFORMING:=0}"
 : "${MIOS_AI_TAG_MAX_UNTAGGED:=120}"
@@ -379,7 +379,7 @@ export MIOS_VERSION
 : "${MIOS_BROWSER_AI_PACKAGE:=Zen-Team.Zen-Browser.Twilight}"
 : "${MIOS_BROWSER_AI_PREFS:=browser.ml.enable|bool|true,browser.smartwindow.enabled|bool|true,browser.ml.chat.enabled|bool|true,browser.ml.chat.hideLocalhost|bool|false,browser.ml.chat.shortcuts|bool|true,browser.ml.chat.menu|bool|true,browser.ml.pageAssist.enabled|bool|true,browser.ml.linkPreview.enabled|bool|true}"
 : "${MIOS_PORT_OPEN_WEBUI:=8200}"
-[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"
+[ -n "${MIOS_BROWSER_AI_PROVIDER_URL+x}" ] || MIOS_BROWSER_AI_PROVIDER_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"
 : "${MIOS_BROWSER_FAMILY_CHROMIUM:=chrome,chromium,brave,edge,vivaldi,opera}"
 : "${MIOS_BROWSER_FAMILY_EPIPHANY:=epiphany,gnome.web,gnome.epiphany}"
 : "${MIOS_BROWSER_FAMILY_FIREFOX:=firefox,mozilla,librewolf,waterfox,zen,floorp}"
@@ -448,13 +448,13 @@ export MIOS_VERSION
 : "${MIOS_CEPH_DASHBOARD_PORT:=8460}"
 : "${MIOS_CEPH_GID:=819}"
 : "${MIOS_VERSION_CEPH:=v19}"
-[ -n "${MIOS_CEPH_IMAGE+x}" ] || MIOS_CEPH_IMAGE='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH}"
+[ -n "${MIOS_CEPH_IMAGE+x}" ] || MIOS_CEPH_IMAGE='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH:-}"
 : "${MIOS_CEPH_UID:=819}"
 : "${MIOS_CEPH_USER:=mios-ceph}"
-[ -n "${MIOS_CEPH_VERSION+x}" ] || MIOS_CEPH_VERSION='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH}"
+[ -n "${MIOS_CEPH_VERSION+x}" ] || MIOS_CEPH_VERSION='quay.io/ceph/ceph:'"${MIOS_VERSION_CEPH:-}"
 : "${MIOS_CHROME_CDP_PORT:=9222}"
 : "${MIOS_PORT_CHROME_CDP:=9222}"
-[ -n "${MIOS_CHROME_CDP_URL+x}" ] || MIOS_CHROME_CDP_URL='http://localhost:'"${MIOS_PORT_CHROME_CDP}"'/'
+[ -n "${MIOS_CHROME_CDP_URL+x}" ] || MIOS_CHROME_CDP_URL='http://localhost:'"${MIOS_PORT_CHROME_CDP:-}"'/'
 : "${MIOS_CHROME_CDP_WORKER_PORT:=9223}"
 : "${MIOS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
 : "${MIOS_COCKPIT_ALLOW_UNENCRYPTED:=true}"
@@ -463,7 +463,7 @@ export MIOS_VERSION
 : "${MIOS_COCKPIT_LOGIN_TO:=false}"
 : "${MIOS_COCKPIT_PORT:=8110}"
 : "${MIOS_PORT_COCKPIT:=8110}"
-[ -n "${MIOS_COCKPIT_URL+x}" ] || MIOS_COCKPIT_URL='https://localhost:'"${MIOS_PORT_COCKPIT}"
+[ -n "${MIOS_COCKPIT_URL+x}" ] || MIOS_COCKPIT_URL='https://localhost:'"${MIOS_PORT_COCKPIT:-}"
 : "${MIOS_CODEMODE_ALLOW_NET:=false}"
 : "${MIOS_CODEMODE_ENABLE:=true}"
 : "${MIOS_CODEMODE_GID:=828}"
@@ -482,7 +482,7 @@ export MIOS_VERSION
 : "${MIOS_CODE_SERVER_IMAGE:=ghcr.io/coder/code-server:latest}"
 : "${MIOS_CODE_SERVER_PORT:=8900}"
 : "${MIOS_PORT_CODE_SERVER:=8900}"
-[ -n "${MIOS_CODE_SERVER_URL+x}" ] || MIOS_CODE_SERVER_URL='http://localhost:'"${MIOS_PORT_CODE_SERVER}"'/'
+[ -n "${MIOS_CODE_SERVER_URL+x}" ] || MIOS_CODE_SERVER_URL='http://localhost:'"${MIOS_PORT_CODE_SERVER:-}"'/'
 : "${MIOS_CODE_SERVER_VERSION:=ghcr.io/coder/code-server:latest}"
 : "${MIOS_COLORS_ACCENT:=#1A407F}"
 : "${MIOS_COLORS_ANSI_0_BLACK:=#282262}"
@@ -569,7 +569,7 @@ export MIOS_VERSION
 : "${MIOS_CONSENSUS_THRESHOLD:=0.5}"
 : "${MIOS_CONSENSUS_TIMEOUT_S:=20.0}"
 : "${MIOS_CONSENSUS_WEIGHT_FLOOR:=0.1}"
-[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
+[ -n "${MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP+x}" ] || MIOS_CONVERGE_GATEWAY_FALLBACK_HTTP='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
 : "${MIOS_CONVERGE_GATEWAY_MODE:=http}"
 : "${MIOS_CONVERGE_GATEWAY_QUEUE_MAXSIZE:=64}"
 : "${MIOS_CONVERGE_GATEWAY_WORKER_CONCURRENCY:=4}"
@@ -605,7 +605,7 @@ export MIOS_VERSION
 : "${MIOS_CPU_NODE_THREADS:=14}"
 : "${MIOS_CRAWL4AI_PORT:=8810}"
 : "${MIOS_CRAWL_CAMOUFOX:=true}"
-[ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP}"
+[ -n "${MIOS_CRAWL_CDP_URL+x}" ] || MIOS_CRAWL_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP:-}"
 : "${MIOS_CRAWL_MIN_CHARS:=200}"
 : "${MIOS_CROWDSEC_IMAGE:=docker.io/crowdsecurity/crowdsec:latest}"
 : "${MIOS_CROWDSEC_VERSION:=docker.io/crowdsecurity/crowdsec:latest}"
@@ -945,7 +945,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_EDITIONS_MIOS_XBOX_COLORS_ACCENT:=#282262}"
 : "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ARBITRATION:=static}"
 : "${MIOS_EDITIONS_MIOS_XBOX_METAL_GPU_ASSIGNMENTS_MIOS_GUEST:=0000:01:00.0}"
-[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
+[ -n "${MIOS_ENDPOINT+x}" ] || MIOS_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
 : "${MIOS_ENHANCED_SESSION_ENABLED:=true}"
 : "${MIOS_ENHANCED_SESSION_PORT:=13389}"
 : "${MIOS_ENHANCED_SESSION_RESOLUTION:=auto}"
@@ -957,9 +957,9 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_ENV_MIOS_URL_TERRA_REPO:=https://github.com/terrapkg/subatomic-repos/raw/main/terra.repo}"
 [ -n "${MIOS_ENV_MIOS_URL_UBLUE_REPO+x}" ] || MIOS_ENV_MIOS_URL_UBLUE_REPO='https://copr.fedorainfracloud.org/coprs/ublue-os/packages/repo/fedora-${FEDORA_VERSION}/ublue-os-packages-fedora-${FEDORA_VERSION}.repo'
 : "${MIOS_ETC_DIR:=/etc/mios}"
-[ -n "${MIOS_ETC_AI_DIR+x}" ] || MIOS_ETC_AI_DIR="${MIOS_ETC_DIR}"'/ai'
-[ -n "${MIOS_ETC_ENVD_DIR+x}" ] || MIOS_ETC_ENVD_DIR="${MIOS_ETC_DIR}"'/env.d'
-[ -n "${MIOS_ETC_FORGE_DIR+x}" ] || MIOS_ETC_FORGE_DIR="${MIOS_ETC_DIR}"'/forge'
+[ -n "${MIOS_ETC_AI_DIR+x}" ] || MIOS_ETC_AI_DIR="${MIOS_ETC_DIR:-}"'/ai'
+[ -n "${MIOS_ETC_ENVD_DIR+x}" ] || MIOS_ETC_ENVD_DIR="${MIOS_ETC_DIR:-}"'/env.d'
+[ -n "${MIOS_ETC_FORGE_DIR+x}" ] || MIOS_ETC_FORGE_DIR="${MIOS_ETC_DIR:-}"'/forge'
 : "${MIOS_EVERYTHING_CLI:=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe}"
 : "${MIOS_EVERYTHING_CLI_VERSION:=1.1.0.37}"
 : "${MIOS_FAPOLICYD_OBSERVE_ENABLE:=false}"
@@ -1058,13 +1058,13 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_FINETUNE_MAX_SEQ_LEN:=2048}"
 : "${MIOS_FINETUNE_MIN_EXAMPLES:=24}"
 : "${MIOS_FINETUNE_OUTPUT_TAG:=mios-sys-agent-ft}"
-[ -n "${MIOS_FINETUNE_PIPE_URL+x}" ] || MIOS_FINETUNE_PIPE_URL='http://127.0.0.1:'"${MIOS_PORT_AGENT_PIPE}"
+[ -n "${MIOS_FINETUNE_PIPE_URL+x}" ] || MIOS_FINETUNE_PIPE_URL='http://127.0.0.1:'"${MIOS_PORT_AGENT_PIPE:-}"
 : "${MIOS_FINETUNE_PREFER_UNSLOTH:=true}"
 : "${MIOS_FINETUNE_SEEDS_PER_CAPABILITY:=4}"
 : "${MIOS_FINETUNE_SERVE_PORT:=11438}"
 : "${MIOS_FINETUNE_TARGET_MODULES:=auto}"
 : "${MIOS_FINETUNE_TARGET_ROLE:=refiner}"
-[ -n "${MIOS_FINETUNE_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
+[ -n "${MIOS_FINETUNE_TEACHER_ENDPOINT+x}" ] || MIOS_FINETUNE_TEACHER_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
 : "${MIOS_FINETUNE_WARMUP_RATIO:=0.03}"
 : "${MIOS_FINETUNE_WORK_DIR:=/var/lib/mios/finetune}"
 : "${MIOS_FIRECRAWL_BULL_KEY:=mios}"
@@ -1074,7 +1074,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_FIREWALLD_ZONE:=drop}"
 : "${MIOS_FIREWALL_OPEN_PORTS:=forge_http,open_webui,code_server,hermes,searxng,cockpit,hermes_dashboard,llm_light,pgvector,cockpit_link,adguard_ui,ssh,forge_ssh,vllm,sglang,cpu_node}"
 : "${MIOS_VAR_DIR:=/var/lib/mios}"
-[ -n "${MIOS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR}"'/.wsl-firstboot-done'
+[ -n "${MIOS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR:-}"'/.wsl-firstboot-done'
 : "${MIOS_FLATPAKS:=org.gtk.Gtk3theme.adw-gtk3-dark,org.gtk.Gtk3theme.adw-gtk3,app.devsuite.Ptyxis,gnome-nightly:org.gnome.Nautilus.Devel,fedora:org.gnome.Epiphany,com.github.tchx84.Flatseal,com.mattjakeman.ExtensionManager,com.google.ChromeDev}"
 : "${MIOS_FLATPAK_DEFAULT_REMOTE:=flathub}"
 : "${MIOS_FLATPAK_DEFAULT_SCOPE:=system}"
@@ -1083,15 +1083,15 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_FORGE_GID:=816}"
 : "${MIOS_FORGE_HTTP_PORT:=8400}"
 : "${MIOS_VERSION_FORGEJO:=12}"
-[ -n "${MIOS_FORGE_IMAGE+x}" ] || MIOS_FORGE_IMAGE='codeberg.org/forgejo/forgejo:'"${MIOS_VERSION_FORGEJO}"
+[ -n "${MIOS_FORGE_IMAGE+x}" ] || MIOS_FORGE_IMAGE='codeberg.org/forgejo/forgejo:'"${MIOS_VERSION_FORGEJO:-}"
 : "${MIOS_FORGE_RUNNER_IMAGE:=code.forgejo.org/forgejo/runner:7}"
 : "${MIOS_FORGE_RUNNER_VERSION:=code.forgejo.org/forgejo/runner:7}"
 : "${MIOS_FORGE_SSH_PORT:=8410}"
 : "${MIOS_FORGE_UID:=816}"
 : "${MIOS_PORT_FORGE_HTTP:=8400}"
-[ -n "${MIOS_FORGE_URL+x}" ] || MIOS_FORGE_URL='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"
+[ -n "${MIOS_FORGE_URL+x}" ] || MIOS_FORGE_URL='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"
 : "${MIOS_FORGE_USER:=mios-forge}"
-[ -n "${MIOS_FORGE_VERSION+x}" ] || MIOS_FORGE_VERSION='codeberg.org/forgejo/forgejo:'"${MIOS_VERSION_FORGEJO}"
+[ -n "${MIOS_FORGE_VERSION+x}" ] || MIOS_FORGE_VERSION='codeberg.org/forgejo/forgejo:'"${MIOS_VERSION_FORGEJO:-}"
 [ -n "${MIOS_FRONTIER_CLAUDE_EFFORT_FLAG+x}" ] || MIOS_FRONTIER_CLAUDE_EFFORT_FLAG='--effort {e}'
 : "${MIOS_FRONTIER_LANE_A_EFFORT:=xhigh}"
 : "${MIOS_FRONTIER_LANE_A_ENGINE:=claude}"
@@ -1155,12 +1155,12 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_GUACD_VERSION:=docker.io/guacamole/guacd:latest}"
 : "${MIOS_HERMES_AGENT_REF:=main}"
 : "${MIOS_HERMES_AGENT_REPO:=https://github.com/NousResearch/hermes-agent.git}"
-[ -n "${MIOS_HERMES_BACKEND+x}" ] || MIOS_HERMES_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
-[ -n "${MIOS_HERMES_BACKEND_URL+x}" ] || MIOS_HERMES_BACKEND_URL='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"'/v1'
+[ -n "${MIOS_HERMES_BACKEND+x}" ] || MIOS_HERMES_BACKEND='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
+[ -n "${MIOS_HERMES_BACKEND_URL+x}" ] || MIOS_HERMES_BACKEND_URL='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
 : "${MIOS_HERMES_DASHBOARD_PORT:=8210}"
 : "${MIOS_HERMES_DIR:=/usr/lib/mios/agents/hermes-agent}"
 : "${MIOS_HERMES_ENABLE:=true}"
-[ -n "${MIOS_HERMES_ENDPOINT+x}" ] || MIOS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE}"'/v1'
+[ -n "${MIOS_HERMES_ENDPOINT+x}" ] || MIOS_HERMES_ENDPOINT='http://localhost:'"${MIOS_PORT_AGENT_PIPE:-}"'/v1'
 : "${MIOS_HERMES_GID:=820}"
 : "${MIOS_HERMES_IMAGE:=docker.io/nousresearch/hermes-agent:latest}"
 : "${MIOS_HERMES_MODEL:=granite4.1:8b}"
@@ -1169,7 +1169,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_HERMES_USER:=mios-hermes}"
 : "${MIOS_HERMES_VENV:=/usr/lib/mios/agents/.venv}"
 : "${MIOS_HERMES_VERSION:=docker.io/nousresearch/hermes-agent:latest}"
-[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES}"'/v1'
+[ -n "${MIOS_HERMES_WORKER_ENDPOINT+x}" ] || MIOS_HERMES_WORKER_ENDPOINT='http://localhost:'"${MIOS_PORT_HERMES:-}"'/v1'
 : "${MIOS_HITL_ENABLE:=true}"
 : "${MIOS_HITL_MODE:=log}"
 : "${MIOS_HOSTNAME:=mios}"
@@ -1197,8 +1197,8 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_INTEGER_PARAM_KEYWORDS:=limit,count,timeout,port,every,concurrency,maxsize}"
 : "${MIOS_K3S_API_PORT:=8450}"
 : "${MIOS_VERSION_K3S:=v1.36.3-k3s1}"
-[ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S}"
-[ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S}"
+[ -n "${MIOS_K3S_IMAGE+x}" ] || MIOS_K3S_IMAGE='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S:-}"
+[ -n "${MIOS_K3S_VERSION+x}" ] || MIOS_K3S_VERSION='docker.io/rancher/k3s:'"${MIOS_VERSION_K3S:-}"
 : "${MIOS_KARGS_IOMMU:=on}"
 : "${MIOS_KEYBOARD:=us}"
 : "${MIOS_KNOWLEDGE_EVICT_BATCH:=500}"
@@ -1261,7 +1261,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LOCALE_KEYBOARD_LAYOUT:=us}"
 : "${MIOS_LOCALE_LANGUAGE:=en_US.UTF-8}"
 : "${MIOS_LOCALE_TIMEZONE:=UTC}"
-[ -n "${MIOS_LOCAL_FORGE_REPO+x}" ] || MIOS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"'/mios/mios.git'
+[ -n "${MIOS_LOCAL_FORGE_REPO+x}" ] || MIOS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"'/mios/mios.git'
 : "${MIOS_LOCAL_TAG:=localhost/mios:latest}"
 : "${MIOS_LOCATION_SENSITIVE_PHRASES:=weather,forecast,near me,nearby,near here,around here,local news,local,my area,things to do,restaurants,closest,directions to}"
 : "${MIOS_LSFS_EMBED_MODEL:=nomic-embed-text}"
@@ -1270,7 +1270,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_LSFS_ROOT_DIR:=/var/lib/mios/lsfs}"
 : "${MIOS_MCP_PORT:=8770}"
 : "${MIOS_MCP_PROTOCOL_VERSION:=2025-11-25}"
-[ -n "${MIOS_MCP_REGISTRY+x}" ] || MIOS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR}"'/v1/mcp.json'
+[ -n "${MIOS_MCP_REGISTRY+x}" ] || MIOS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR:-}"'/v1/mcp.json'
 : "${MIOS_MEMORY_COMPACTION_INTERVAL:=20}"
 : "${MIOS_MEMORY_COMPACTION_THRESHOLD_PCT:=80}"
 : "${MIOS_MEMORY_CONSOLIDATE:=true}"
@@ -1401,7 +1401,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NETWORK_RETRY_TOTAL_TIMEOUT_SEC:=120}"
 : "${MIOS_NODES_LOCAL_CPU_API:=llamacpp}"
 : "${MIOS_PORT_CPU_NODE:=8510}"
-[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_CPU_NODE}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_CPU_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_CPU_ENDPOINT='http://localhost:'"${MIOS_PORT_CPU_NODE:-}"'/v1'
 : "${MIOS_NODES_LOCAL_CPU_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_CPU_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_CPU_MODEL:=mios-agent-cpu}"
@@ -1409,18 +1409,18 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_NODES_LOCAL_IGPU_LANE:=igpu}"
 : "${MIOS_NODES_LOCAL_IGPU_MODEL:=mios-igpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_API:=llamacpp}"
-[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_LLAMASWAP_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"'/v1'
 : "${MIOS_NODES_LOCAL_LLAMASWAP_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_LANE:=cpu}"
 : "${MIOS_NODES_LOCAL_LLAMASWAP_MODEL:=mios-agent-cpu}"
 : "${MIOS_NODES_LOCAL_SGLANG_API:=openai}"
-[ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_SGLANG_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_SGLANG_ENDPOINT='http://localhost:'"${MIOS_PORT_SGLANG:-}"'/v1'
 : "${MIOS_NODES_LOCAL_SGLANG_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_SGLANG_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_SGLANG_MODEL:=mios-heavy}"
 : "${MIOS_NODES_LOCAL_VLLM_API:=openai}"
 : "${MIOS_PORT_VLLM:=8520}"
-[ -n "${MIOS_NODES_LOCAL_VLLM_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_VLLM_ENDPOINT='http://localhost:'"${MIOS_PORT_VLLM}"'/v1'
+[ -n "${MIOS_NODES_LOCAL_VLLM_ENDPOINT+x}" ] || MIOS_NODES_LOCAL_VLLM_ENDPOINT='http://localhost:'"${MIOS_PORT_VLLM:-}"'/v1'
 : "${MIOS_NODES_LOCAL_VLLM_HEALTH_GATE:=true}"
 : "${MIOS_NODES_LOCAL_VLLM_LANE:=gpu}"
 : "${MIOS_NODES_LOCAL_VLLM_MODEL:=mios-heavy}"
@@ -1434,7 +1434,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OBSERVABILITY_DEBUG:=true}"
 : "${MIOS_OBSERVABILITY_OTEL_ENABLE:=false}"
 : "${MIOS_PORT_OTELCOL_OTLP:=8575}"
-[ -n "${MIOS_OBSERVABILITY_OTEL_ENDPOINT+x}" ] || MIOS_OBSERVABILITY_OTEL_ENDPOINT='http://localhost:'"${MIOS_PORT_OTELCOL_OTLP}"
+[ -n "${MIOS_OBSERVABILITY_OTEL_ENDPOINT+x}" ] || MIOS_OBSERVABILITY_OTEL_ENDPOINT='http://localhost:'"${MIOS_PORT_OTELCOL_OTLP:-}"
 : "${MIOS_OBSERVABILITY_RECORD_MODE:=false}"
 : "${MIOS_OBSERVABILITY_REPLAY_MODE:=false}"
 : "${MIOS_OBSERVABILITY_SURFACE_DEFAULT:=clean}"
@@ -1472,7 +1472,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OPEN_WEBUI_IMAGE:=ghcr.io/open-webui/open-webui:main}"
 : "${MIOS_OPEN_WEBUI_PORT:=8200}"
 : "${MIOS_OPEN_WEBUI_UID:=817}"
-[ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
+[ -n "${MIOS_OPEN_WEBUI_URL+x}" ] || MIOS_OPEN_WEBUI_URL='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"'/'
 : "${MIOS_OPEN_WEBUI_USER:=mios-open-webui}"
 : "${MIOS_OPEN_WEBUI_VERSION:=ghcr.io/open-webui/open-webui:main}"
 : "${MIOS_OSCONTROL_PORT:=8950}"
@@ -1489,7 +1489,7 @@ is *also* a local, self-hosted, agentic AI operating system.
 : "${MIOS_OTELCOL_OTLP_PORT:=8575}"
 : "${MIOS_OTELCOL_UI_PORT:=8580}"
 : "${MIOS_PORT_OTELCOL_UI:=8580}"
-[ -n "${MIOS_OTELCOL_UI_URL+x}" ] || MIOS_OTELCOL_UI_URL='http://localhost:'"${MIOS_PORT_OTELCOL_UI}"'/'
+[ -n "${MIOS_OTELCOL_UI_URL+x}" ] || MIOS_OTELCOL_UI_URL='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
 : "${MIOS_OTELCOL_VERSION:=docker.io/jaegertracing/all-in-one:1.76.0}"
 [ -n "${MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE+x}" ] || MIOS_OWUI_SYSTEM_PROMPT_TEMPLATE='# MiOS AI
 Front door of MiOS, a local-first agentic OS. You refine intent, plan,
@@ -1548,48 +1548,48 @@ to" / "let me know".
 : "${MIOS_PATHS_AI_MEMORY_DIR:=/var/lib/mios/ai/memory}"
 : "${MIOS_PATHS_AI_MODELS_DIR:=/srv/ai/models}"
 : "${MIOS_PATHS_AI_SCRATCH_DIR:=/var/lib/mios/ai/scratch}"
-[ -n "${MIOS_PATHS_AI_SYSTEM_PROMPT+x}" ] || MIOS_PATHS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR}"'/system.md'
+[ -n "${MIOS_PATHS_AI_SYSTEM_PROMPT+x}" ] || MIOS_PATHS_AI_SYSTEM_PROMPT="${MIOS_SHARE_AI_DIR:-}"'/system.md'
 : "${MIOS_PATHS_CMD_EXE:=/mnt/c/Windows/System32/cmd.exe}"
 : "${MIOS_PATHS_CODEMODE_WORKSPACE_ROOT:=/var/lib/mios/codemode}"
 : "${MIOS_PATHS_CODERUN_SNAPSHOTS_ROOT:=/var/home/mios/.coderun-snapshots}"
 : "${MIOS_PATHS_CODERUN_WORKSPACE_ROOT:=/var/home/mios/coderuns}"
-[ -n "${MIOS_PATHS_ETC_AI_DIR+x}" ] || MIOS_PATHS_ETC_AI_DIR="${MIOS_ETC_DIR}"'/ai'
+[ -n "${MIOS_PATHS_ETC_AI_DIR+x}" ] || MIOS_PATHS_ETC_AI_DIR="${MIOS_ETC_DIR:-}"'/ai'
 : "${MIOS_PATHS_ETC_DIR:=/etc/mios}"
-[ -n "${MIOS_PATHS_ETC_ENVD_DIR+x}" ] || MIOS_PATHS_ETC_ENVD_DIR="${MIOS_ETC_DIR}"'/env.d'
-[ -n "${MIOS_PATHS_ETC_FORGE_DIR+x}" ] || MIOS_PATHS_ETC_FORGE_DIR="${MIOS_ETC_DIR}"'/forge'
+[ -n "${MIOS_PATHS_ETC_ENVD_DIR+x}" ] || MIOS_PATHS_ETC_ENVD_DIR="${MIOS_ETC_DIR:-}"'/env.d'
+[ -n "${MIOS_PATHS_ETC_FORGE_DIR+x}" ] || MIOS_PATHS_ETC_FORGE_DIR="${MIOS_ETC_DIR:-}"'/forge'
 : "${MIOS_PATHS_EVERYTHING_CLI:=/mnt/m/Programs/Everything/es.exe,/mnt/c/Program Files/Everything/es.exe,/mnt/c/Program Files (x86)/Everything/es.exe,/mnt/c/Tools/Everything/es.exe,/mnt/c/Users/mios/AppData/Local/Programs/Everything/es.exe}"
 : "${MIOS_PATHS_EVERYTHING_CLI_VERSION:=1.1.0.37}"
-[ -n "${MIOS_PATHS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_PATHS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR}"'/.wsl-firstboot-done'
+[ -n "${MIOS_PATHS_FIRSTBOOT_SENTINEL+x}" ] || MIOS_PATHS_FIRSTBOOT_SENTINEL="${MIOS_VAR_DIR:-}"'/.wsl-firstboot-done'
 : "${MIOS_PATHS_INSTALL_ENV:=/etc/mios/install.env}"
 : "${MIOS_PATHS_LAUNCHER_SOCKET:=/run/mios-launcher/launcher.sock}"
 : "${MIOS_PATHS_LIBEXEC_DIR:=/usr/libexec/mios}"
-[ -n "${MIOS_PATHS_MCP_REGISTRY+x}" ] || MIOS_PATHS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR}"'/v1/mcp.json'
+[ -n "${MIOS_PATHS_MCP_REGISTRY+x}" ] || MIOS_PATHS_MCP_REGISTRY="${MIOS_SHARE_AI_DIR:-}"'/v1/mcp.json'
 : "${MIOS_PATHS_MIOS_TOML:=/usr/share/mios/mios.toml}"
 : "${MIOS_PATHS_POWERSHELL_EXE:=/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe}"
 : "${MIOS_PATHS_PROFILE_TOML_HOST:=/etc/mios/profile.toml}"
 : "${MIOS_PATHS_PROFILE_TOML_VENDOR:=/usr/share/mios/profile.toml}"
-[ -n "${MIOS_PATHS_SHARE_AI_DIR+x}" ] || MIOS_PATHS_SHARE_AI_DIR="${MIOS_SHARE_DIR}"'/ai'
-[ -n "${MIOS_PATHS_SHARE_BRANDING_DIR+x}" ] || MIOS_PATHS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR}"'/branding'
-[ -n "${MIOS_PATHS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_PATHS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR}"'/configurator'
+[ -n "${MIOS_PATHS_SHARE_AI_DIR+x}" ] || MIOS_PATHS_SHARE_AI_DIR="${MIOS_SHARE_DIR:-}"'/ai'
+[ -n "${MIOS_PATHS_SHARE_BRANDING_DIR+x}" ] || MIOS_PATHS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR:-}"'/branding'
+[ -n "${MIOS_PATHS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_PATHS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR:-}"'/configurator'
 : "${MIOS_PATHS_SHARE_DIR:=/usr/share/mios}"
-[ -n "${MIOS_PATHS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_PATHS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR}"'/distrobox'
-[ -n "${MIOS_PATHS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_PATHS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR}"'/fastfetch'
-[ -n "${MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR}"'/k3s-manifests'
-[ -n "${MIOS_PATHS_SHARE_KB_DIR+x}" ] || MIOS_PATHS_SHARE_KB_DIR="${MIOS_SHARE_DIR}"'/kb'
+[ -n "${MIOS_PATHS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_PATHS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR:-}"'/distrobox'
+[ -n "${MIOS_PATHS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_PATHS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR:-}"'/fastfetch'
+[ -n "${MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_PATHS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR:-}"'/k3s-manifests'
+[ -n "${MIOS_PATHS_SHARE_KB_DIR+x}" ] || MIOS_PATHS_SHARE_KB_DIR="${MIOS_SHARE_DIR:-}"'/kb'
 : "${MIOS_SRV_AI_DIR:=/srv/ai}"
-[ -n "${MIOS_PATHS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_PATHS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR}"'/collections'
+[ -n "${MIOS_PATHS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_PATHS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR:-}"'/collections'
 : "${MIOS_PATHS_SRV_AI_DIR:=/srv/ai}"
-[ -n "${MIOS_PATHS_SRV_AI_MCP_DIR+x}" ] || MIOS_PATHS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR}"'/mcp'
-[ -n "${MIOS_PATHS_SRV_AI_MODELS_DIR+x}" ] || MIOS_PATHS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR}"'/models'
-[ -n "${MIOS_PATHS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_PATHS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR}"'/outputs'
-[ -n "${MIOS_PATHS_TOML_HOST+x}" ] || MIOS_PATHS_TOML_HOST="${MIOS_ETC_DIR}"'/mios.toml'
-[ -n "${MIOS_PATHS_TOML_VENDOR+x}" ] || MIOS_PATHS_TOML_VENDOR="${MIOS_SHARE_DIR}"'/mios.toml'
+[ -n "${MIOS_PATHS_SRV_AI_MCP_DIR+x}" ] || MIOS_PATHS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR:-}"'/mcp'
+[ -n "${MIOS_PATHS_SRV_AI_MODELS_DIR+x}" ] || MIOS_PATHS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR:-}"'/models'
+[ -n "${MIOS_PATHS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_PATHS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR:-}"'/outputs'
+[ -n "${MIOS_PATHS_TOML_HOST+x}" ] || MIOS_PATHS_TOML_HOST="${MIOS_ETC_DIR:-}"'/mios.toml'
+[ -n "${MIOS_PATHS_TOML_VENDOR+x}" ] || MIOS_PATHS_TOML_VENDOR="${MIOS_SHARE_DIR:-}"'/mios.toml'
 : "${MIOS_PATHS_USR_DIR:=/usr/lib/mios}"
-[ -n "${MIOS_PATHS_VAR_AI_DIR+x}" ] || MIOS_PATHS_VAR_AI_DIR="${MIOS_VAR_DIR}"'/ai'
-[ -n "${MIOS_PATHS_VAR_BACKUPS_DIR+x}" ] || MIOS_PATHS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR}"'/backups'
-[ -n "${MIOS_PATHS_VAR_CACHE_DIR+x}" ] || MIOS_PATHS_VAR_CACHE_DIR="${MIOS_VAR_DIR}"'/cache'
+[ -n "${MIOS_PATHS_VAR_AI_DIR+x}" ] || MIOS_PATHS_VAR_AI_DIR="${MIOS_VAR_DIR:-}"'/ai'
+[ -n "${MIOS_PATHS_VAR_BACKUPS_DIR+x}" ] || MIOS_PATHS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR:-}"'/backups'
+[ -n "${MIOS_PATHS_VAR_CACHE_DIR+x}" ] || MIOS_PATHS_VAR_CACHE_DIR="${MIOS_VAR_DIR:-}"'/cache'
 : "${MIOS_PATHS_VAR_DIR:=/var/lib/mios}"
-[ -n "${MIOS_PATHS_VAR_MCP_DIR+x}" ] || MIOS_PATHS_VAR_MCP_DIR="${MIOS_VAR_DIR}"'/mcp'
+[ -n "${MIOS_PATHS_VAR_MCP_DIR+x}" ] || MIOS_PATHS_VAR_MCP_DIR="${MIOS_VAR_DIR:-}"'/mcp'
 : "${MIOS_PATHS_WSL_FIRSTBOOT_DONE:=/var/lib/mios/.wsl-firstboot-done}"
 : "${MIOS_PGVECTOR_DATA_DIR:=/var/lib/mios/pgvector}"
 : "${MIOS_PGVECTOR_DB:=mios}"
@@ -1669,7 +1669,7 @@ to" / "let me know".
 : "${MIOS_PODS_MIOS_WEBTOOLS_WANTED_BY:=multi-user.target,default.target}"
 : "${MIOS_PODS_MIOS_WEBTOOLS_WANTS:=network-online.target,mios-hermes-browser.service,mios-webtools-firstboot.service}"
 : "${MIOS_POLISH_ENABLE:=true}"
-[ -n "${MIOS_POLISH_ENDPOINT+x}" ] || MIOS_POLISH_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
+[ -n "${MIOS_POLISH_ENDPOINT+x}" ] || MIOS_POLISH_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
 : "${MIOS_POLISH_MAX_TOKENS:=800}"
 : "${MIOS_POLISH_MODEL:=mios-agent}"
 : "${MIOS_POLISH_TIMEOUT_S:=45}"
@@ -1849,7 +1849,7 @@ to" / "let me know".
 : "${MIOS_REFINE_DISPATCH_ARG_MAX_WORDS:=3}"
 : "${MIOS_REFINE_DISPATCH_CHARS:=60}"
 : "${MIOS_REFINE_ENABLE:=true}"
-[ -n "${MIOS_REFINE_ENDPOINT+x}" ] || MIOS_REFINE_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT}"
+[ -n "${MIOS_REFINE_ENDPOINT+x}" ] || MIOS_REFINE_ENDPOINT='http://localhost:'"${MIOS_PORT_LLM_LIGHT:-}"
 : "${MIOS_REFINE_MAX_TOKENS:=1200}"
 : "${MIOS_REFINE_MODEL:=mios-agent}"
 : "${MIOS_REFINE_PROMOTE_CHARS:=100}"
@@ -1940,12 +1940,12 @@ to" / "let me know".
 [ -n "${MIOS_SCHEMA_UNCONSUMED+x}" ] || MIOS_SCHEMA_UNCONSUMED='{'"'"'table'"'"': '"'"'mios_security.fido2_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the FIDO2 enrolment path'"'"'},{'"'"'table'"'"': '"'"'mios_security.usb_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the USBGuard rule sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_users'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_preauth_keys'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.headscale_acl_rules'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the headscale control-plane sync'"'"'},{'"'"'table'"'"': '"'"'mios_security.keepass_vaults'"'"', '"'"'reason'"'"': '"'"'T-151 WS-SEC: declared ahead of the vault integration'"'"'},{'"'"'table'"'"': '"'"'mios_identity.account_preferences'"'"', '"'"'reason'"'"': '"'"'T-246: duplicate of the live account_preference; RESOLVE, do not extend'"'"'},{'"'"'table'"'"': '"'"'person_device'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any device-enrolment writer'"'"'},{'"'"'table'"'"': '"'"'person_app_install'"'"', '"'"'reason'"'"': '"'"'person graph: declared ahead of any app-inventory writer'"'"'}'
 : "${MIOS_SEARCH_ANCHOR_STOPWORDS:=the,a,an,of,to,from,and,or,for,in,on,at,by,with,as,is,are,was,were,be,this,that,these,those,it,its,me,my,we,our,you,your,they,them,what,which,who,when,where,why,how,do,does,did,can,could,will,would,should,may,might,near,into,about,than,then,there,here,out,not,no,all,any,some,more,most,find,get,make,show,give,tell,list,need,want,like,use,using,best,cheap,cheapest}"
 : "${MIOS_SEARCH_ENABLE:=true}"
-[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORT_SEARXNG}"'/'
+[ -n "${MIOS_SEARCH_ENDPOINT+x}" ] || MIOS_SEARCH_ENDPOINT='http://localhost:'"${MIOS_PORT_SEARXNG:-}"'/'
 : "${MIOS_SEARXNG_GID:=818}"
 : "${MIOS_SEARXNG_IMAGE:=docker.io/searxng/searxng:latest}"
 : "${MIOS_SEARXNG_PORT:=8800}"
 : "${MIOS_SEARXNG_UID:=818}"
-[ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL='http://localhost:'"${MIOS_PORT_SEARXNG}"
+[ -n "${MIOS_SEARXNG_URL+x}" ] || MIOS_SEARXNG_URL='http://localhost:'"${MIOS_PORT_SEARXNG:-}"
 : "${MIOS_SEARXNG_USER:=mios-searxng}"
 : "${MIOS_SEARXNG_VERSION:=docker.io/searxng/searxng:latest}"
 : "${MIOS_SECURITY_ALLOWLIST_HOSTS:=localhost,127.0.0.1,::1,host.containers.internal,mios-llm-light,mios-open-webui,mios-hermes,mios-pgvector,mios-forge,mios-searxng,mios-crawl4ai,mios-code-server}"
@@ -1995,7 +1995,7 @@ to" / "let me know".
 : "${MIOS_SERVICES_SEARXNG_UID:=818}"
 : "${MIOS_SERVICES_SEARXNG_USER:=mios-searxng}"
 : "${MIOS_SERVICES_WEBTOOLS_CAMOUFOX:=true}"
-[ -n "${MIOS_SERVICES_WEBTOOLS_CDP_URL+x}" ] || MIOS_SERVICES_WEBTOOLS_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP}"
+[ -n "${MIOS_SERVICES_WEBTOOLS_CDP_URL+x}" ] || MIOS_SERVICES_WEBTOOLS_CDP_URL='http://127.0.0.1:'"${MIOS_PORT_CHROME_CDP:-}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_BULL_KEY:=mios}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_LOG_LEVEL:=INFO}"
 : "${MIOS_SERVICES_WEBTOOLS_FIRECRAWL_WORKERS:=2}"
@@ -2014,12 +2014,12 @@ to" / "let me know".
 : "${MIOS_SGLANG_SERVED_NAME:=mios-heavy}"
 : "${MIOS_SGLANG_TOOL_PARSER:=qwen25}"
 : "${MIOS_SGLANG_VERSION:=docker.io/lmsysorg/sglang:latest}"
-[ -n "${MIOS_SHARE_BRANDING_DIR+x}" ] || MIOS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR}"'/branding'
-[ -n "${MIOS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR}"'/configurator'
-[ -n "${MIOS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR}"'/distrobox'
-[ -n "${MIOS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR}"'/fastfetch'
-[ -n "${MIOS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR}"'/k3s-manifests'
-[ -n "${MIOS_SHARE_KB_DIR+x}" ] || MIOS_SHARE_KB_DIR="${MIOS_SHARE_DIR}"'/kb'
+[ -n "${MIOS_SHARE_BRANDING_DIR+x}" ] || MIOS_SHARE_BRANDING_DIR="${MIOS_SHARE_DIR:-}"'/branding'
+[ -n "${MIOS_SHARE_CONFIGURATOR_DIR+x}" ] || MIOS_SHARE_CONFIGURATOR_DIR="${MIOS_SHARE_DIR:-}"'/configurator'
+[ -n "${MIOS_SHARE_DISTROBOX_DIR+x}" ] || MIOS_SHARE_DISTROBOX_DIR="${MIOS_SHARE_DIR:-}"'/distrobox'
+[ -n "${MIOS_SHARE_FASTFETCH_DIR+x}" ] || MIOS_SHARE_FASTFETCH_DIR="${MIOS_SHARE_DIR:-}"'/fastfetch'
+[ -n "${MIOS_SHARE_K3S_MANIFESTS_DIR+x}" ] || MIOS_SHARE_K3S_MANIFESTS_DIR="${MIOS_SHARE_DIR:-}"'/k3s-manifests'
+[ -n "${MIOS_SHARE_KB_DIR+x}" ] || MIOS_SHARE_KB_DIR="${MIOS_SHARE_DIR:-}"'/kb'
 : "${MIOS_SHELL_ALIAS_GP:=git push}"
 : "${MIOS_SHELL_ALIAS_GS:=git status}"
 : "${MIOS_SHELL_ALIAS_LL:=ls -la}"
@@ -2048,10 +2048,10 @@ to" / "let me know".
 : "${MIOS_SLO_DEFAULT_PRIORITY:=7.0}"
 : "${MIOS_SLO_INTERACTIVE_BUDGET_S:=8.0}"
 : "${MIOS_SLO_INTERACTIVE_PRIORITY:=7.0}"
-[ -n "${MIOS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR}"'/collections'
-[ -n "${MIOS_SRV_AI_MCP_DIR+x}" ] || MIOS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR}"'/mcp'
-[ -n "${MIOS_SRV_AI_MODELS_DIR+x}" ] || MIOS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR}"'/models'
-[ -n "${MIOS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR}"'/outputs'
+[ -n "${MIOS_SRV_AI_COLLECTIONS_DIR+x}" ] || MIOS_SRV_AI_COLLECTIONS_DIR="${MIOS_SRV_AI_DIR:-}"'/collections'
+[ -n "${MIOS_SRV_AI_MCP_DIR+x}" ] || MIOS_SRV_AI_MCP_DIR="${MIOS_SRV_AI_DIR:-}"'/mcp'
+[ -n "${MIOS_SRV_AI_MODELS_DIR+x}" ] || MIOS_SRV_AI_MODELS_DIR="${MIOS_SRV_AI_DIR:-}"'/models'
+[ -n "${MIOS_SRV_AI_OUTPUTS_DIR+x}" ] || MIOS_SRV_AI_OUTPUTS_DIR="${MIOS_SRV_AI_DIR:-}"'/outputs'
 : "${MIOS_SSH_HOST:=mios-*}"
 : "${MIOS_SSH_IDENTITY_FILE:=~/.ssh/agent_ssh_key}"
 : "${MIOS_SSH_KEY_ACTION:=generate}"
@@ -2330,8 +2330,8 @@ to" / "let me know".
 : "${MIOS_TOKENIZER_CACHE_DIR:=/usr/share/mios/tiktoken}"
 : "${MIOS_TOKENIZER_ENCODING:=cl100k_base}"
 : "${MIOS_TOML:=/usr/share/mios/mios.toml}"
-[ -n "${MIOS_TOML_HOST+x}" ] || MIOS_TOML_HOST="${MIOS_ETC_DIR}"'/mios.toml'
-[ -n "${MIOS_TOML_VENDOR+x}" ] || MIOS_TOML_VENDOR="${MIOS_SHARE_DIR}"'/mios.toml'
+[ -n "${MIOS_TOML_HOST+x}" ] || MIOS_TOML_HOST="${MIOS_ETC_DIR:-}"'/mios.toml'
+[ -n "${MIOS_TOML_VENDOR+x}" ] || MIOS_TOML_VENDOR="${MIOS_SHARE_DIR:-}"'/mios.toml'
 : "${MIOS_TTYD_BASH_PORT:=8310}"
 : "${MIOS_TTYD_BIND:=127.0.0.1}"
 : "${MIOS_TTYD_ENABLE:=true}"
@@ -2369,7 +2369,7 @@ to" / "let me know".
 [ -n "${MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for the Hermes venv -> (re)start hermes-worker'
 : "${MIOS_UNITS_HERMES_WORKER_PATH_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/hermes-worker.service}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
-[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG:-}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI:-}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL:-}"',PORT='"${MIOS_PORT_HERMES:-}"',API_SERVER_PORT='"${MIOS_PORT_HERMES:-}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM:-}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNITS_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
@@ -2428,7 +2428,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_COMMENT2:=# Build the local super-container image on first deploy (idempotent no-op after).}"
 [ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900},MIOS_DEFAULT_PASSWORD=mios'
 : "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
-[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
+[ -n "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD:-}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE:-}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL:-}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT:-}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE:-}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL:-}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT:-}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE:-}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL:-}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT:-}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG:-}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG:-}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
 : "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mios-agents-firstboot.sh}"
 : "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_EXECSTOP:=/usr/sbin/podman stop -t 10 mios-agents}"
 : "${MIOS_UNITS_MIOS_AGENTS_SERVICE_SERVICE_RESTART:=on-failure}"
@@ -2542,7 +2542,7 @@ to" / "let me know".
 : "${MIOS_UNITS_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS:=network-online.target podman.socket}"
 : "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY:=sockets.target}"
 : "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY:=both}"
-[ -n "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM+x}" ] || MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM='0.0.0.0:'"${MIOS_PORT_COCKPIT_LINK}"
+[ -n "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM+x}" ] || MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM='0.0.0.0:'"${MIOS_PORT_COCKPIT_LINK:-}"
 : "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION:=!container}"
 [ -n "${MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNITS_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNITS_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
@@ -3134,7 +3134,7 @@ to" / "let me know".
 : "${MIOS_UNITS_OPEN_WEBUI:=mios-open-webui.service}"
 : "${MIOS_UNITS_PGVECTOR:=mios-pgvector.service}"
 : "${MIOS_UNITS_SEARXNG:=mios-searxng.service}"
-[ -n "${MIOS_UNITS_USER_SESSION+x}" ] || MIOS_UNITS_USER_SESSION='user@'"${MIOS_UID}"'.service'
+[ -n "${MIOS_UNITS_USER_SESSION+x}" ] || MIOS_UNITS_USER_SESSION='user@'"${MIOS_UID:-}"'.service'
 : "${MIOS_UNITS_VAR_HOME_MOUNT_INSTALL_WANTEDBY:=remote-fs.target}"
 : "${MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_OPTIONS:=secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30}"
 : "${MIOS_UNITS_VAR_HOME_MOUNT_MOUNT_TYPE:=ceph}"
@@ -3194,7 +3194,7 @@ to" / "let me know".
 [ -n "${MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DESCRIPTION=''"'"'MiOS'"'"' watch for the Hermes venv -> (re)start hermes-worker'
 : "${MIOS_UNIT_HERMES_WORKER_PATH_UNIT_DOCUMENTATION:=file:///usr/lib/systemd/system/hermes-worker.service}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_INSTALL_WANTEDBY:=multi-user.target}"
-[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL}"',PORT='"${MIOS_PORT_HERMES}"',API_SERVER_PORT='"${MIOS_PORT_HERMES}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
+[ -n "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENT='HOME=/var/lib/mios/hermes-worker,HERMES_HOME=/var/lib/mios/hermes-worker,SEARXNG_URL=http://localhost:'"${MIOS_PORT_SEARXNG:-}"',MIOS_CRAWL_SERVICE_URL=http://127.0.0.1:'"${MIOS_PORT_CRAWL4AI:-}"',FIRECRAWL_API_URL=http://127.0.0.1:'"${MIOS_PORT_FIRECRAWL:-}"',PORT='"${MIOS_PORT_HERMES:-}"',API_SERVER_PORT='"${MIOS_PORT_HERMES:-}"',HERMES_BACKEND_BASE_URL=http://localhost:'"${MIOS_PORT_VLLM:-}"',HERMES_MAX_TOKENS=8192,BROWSER_CDP_URL=http://localhost:${MIOS_PORT_CHROME_CDP_WORKER:-9223}'
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env,-/etc/mios/hermes/api.env}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTART:=/usr/lib/mios/agents/.venv/bin/hermes gateway run}"
 : "${MIOS_UNIT_HERMES_WORKER_SERVICE_SERVICE_EXECSTARTPRE:=+/usr/bin/install -d -o mios-ai -g mios-ai -m 0700 /var/lib/mios/hermes-worker,-/usr/bin/python3 /usr/libexec/mios/mios-hermes-discord-reactions-patch /usr/lib/mios/agents/.venv/lib/python3.14/site-packages/gateway/platforms/discord.py,-+/usr/libexec/mios/mios-hermes-dashboard-auth-stub}"
@@ -3253,7 +3253,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_COMMENT2:=# Build the local super-container image on first deploy (idempotent no-op after).}"
 [ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENT='MIOS_PORT_CODE_SERVER=${MIOS_PORT_CODE_SERVER:-8900},MIOS_DEFAULT_PASSWORD=mios'
 : "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_ENVIRONMENTFILE:=-/etc/mios/install.env}"
-[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
+[ -n "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART+x}" ] || MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTART='/usr/sbin/podman run --replace --name mios-agents --network=host --env PASSWORD='"${MIOS_DEFAULT_PASSWORD:-}"' --env MIOS_A2O_ENGINE=agy --env MIOS_A2O_WORK=/mnt/mios-root --env MIOS_A2O_ORCH_ENGINE='"${MIOS_A2O_ORCH_ENGINE:-}"' --env MIOS_A2O_ORCH_MODEL='"${MIOS_A2O_ORCH_MODEL:-}"' --env MIOS_A2O_ORCH_EFFORT='"${MIOS_A2O_ORCH_EFFORT:-}"' --env MIOS_A2O_LANE_A_ENGINE='"${MIOS_A2O_LANE_A_ENGINE:-}"' --env MIOS_A2O_LANE_A_MODEL='"${MIOS_A2O_LANE_A_MODEL:-}"' --env MIOS_A2O_LANE_A_EFFORT='"${MIOS_A2O_LANE_A_EFFORT:-}"' --env MIOS_A2O_LANE_B_ENGINE='"${MIOS_A2O_LANE_B_ENGINE:-}"' --env MIOS_A2O_LANE_B_MODEL='"${MIOS_A2O_LANE_B_MODEL:-}"' --env MIOS_A2O_LANE_B_EFFORT='"${MIOS_A2O_LANE_B_EFFORT:-}"' --env MIOS_A2O_CLAUDE_EFFORT_FLAG='"${MIOS_A2O_CLAUDE_EFFORT_FLAG:-}"' --env MIOS_A2O_AGY_EFFORT_FLAG='"${MIOS_A2O_AGY_EFFORT_FLAG:-}"' --env MIOS_A2O_GEMINI_EFFORT_FLAG='"${MIOS_A2O_GEMINI_EFFORT_FLAG:-}"' --volume /:/mnt/mios-root:rw,rslave --volume /var/lib/mios/agents:/home/coder:rw localhost/mios-agents:latest --bind-addr 0.0.0.0:8800 /mnt/mios-root'
 : "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTARTPRE:=/usr/libexec/mios/mios-agents-firstboot.sh}"
 : "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_EXECSTOP:=/usr/sbin/podman stop -t 10 mios-agents}"
 : "${MIOS_UNIT_MIOS_AGENTS_SERVICE_SERVICE_RESTART:=on-failure}"
@@ -3367,7 +3367,7 @@ to" / "let me know".
 : "${MIOS_UNIT_MIOS_CEPH_BOOTSTRAP_SERVICE_UNIT_WANTS:=network-online.target podman.socket}"
 : "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_INSTALL_WANTEDBY:=sockets.target}"
 : "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_BINDIPV6ONLY:=both}"
-[ -n "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM+x}" ] || MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM='0.0.0.0:'"${MIOS_PORT_COCKPIT_LINK}"
+[ -n "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM+x}" ] || MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_SOCKET_LISTENSTREAM='0.0.0.0:'"${MIOS_PORT_COCKPIT_LINK:-}"
 : "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_CONDITIONVIRTUALIZATION:=!container}"
 [ -n "${MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION+x}" ] || MIOS_UNIT_MIOS_COCKPIT_LINK_SOCKET_UNIT_DESCRIPTION=''"'"'MiOS'"'"' Cockpit Link Proxy Socket'
 : "${MIOS_UNIT_MIOS_COMPUTE_TARGET_INSTALL_WANTEDBY:=multi-user.target}"
@@ -3962,7 +3962,7 @@ to" / "let me know".
 : "${MIOS_UNIT_PROJECTION_DRIFT:=hermes-worker-firstboot.service,hermes-worker.path,hermes-worker.service,mios-account-sync.service,mios-additionalimagestores-perms.path,mios-adguard-firstboot.service,mios-agent-pipe.service,mios-agents.service,mios-ai-firstboot.service,mios-ai-firstboot.timer,mios-aios-refresh.timer,mios-bound-images-firstboot.service,mios-ceph-bootstrap.service,mios-daemon.service,mios-dashboard-issue.timer,mios-desktop.target,mios-embed-backfill.service,mios-embed-backfill.timer,mios-finetune-serve.service,mios-firewall-ports.service,mios-firstboot.target,mios-forge-firstboot.service,mios-forgejo-runner-firstboot.service,mios-gpu-amd.service,mios-gpu-detect.service,mios-gpu-intel.service,mios-gpu-nvidia.service,mios-gpu-nvidia.service.d/10-cycle-fix.conf,mios-gpu-pv-detect.service,mios-gpu-status.service,mios-ha-node.target,mios-headless.target,mios-hermes-browser-worker.service,mios-hermes-browser.service,mios-hermes-firstboot.service,mios-hybrid.target,mios-k3s-master.target,mios-k3s-worker.target,mios-libexec-perms.path,mios-mcp.service,mios-models-firstboot.service,mios-opencode-gateway.service,mios-pgvector-backup.service,mios-pgvector-backup.timer,mios-podman-gc.service,mios-policy-arbiter.service,mios-shell-session-gc.service,mios-skills-miner.timer,mios-suggestion-refresh.timer,mios-swarm-pack-firstboot.service,mios-sys-env-refresh.timer,mios-userdb-render.service,mios-webtools-firstboot.service,mios-wsl-firstboot.service,mios-wsl-flatpak-export-sync.path}"
 : "${MIOS_UNIT_PROJECTION_MAX_DRIFT:=55}"
 : "${MIOS_UNIT_SEARXNG:=mios-searxng.service}"
-[ -n "${MIOS_UNIT_USER_SESSION+x}" ] || MIOS_UNIT_USER_SESSION='user@'"${MIOS_UID}"'.service'
+[ -n "${MIOS_UNIT_USER_SESSION+x}" ] || MIOS_UNIT_USER_SESSION='user@'"${MIOS_UID:-}"'.service'
 : "${MIOS_UNIT_VAR_HOME_MOUNT_INSTALL_WANTEDBY:=remote-fs.target}"
 : "${MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_OPTIONS:=secretfile=/etc/ceph/mios.secret,noatime,_netdev,nofail,x-systemd.device-timeout=30,x-systemd.mount-timeout=30}"
 : "${MIOS_UNIT_VAR_HOME_MOUNT_MOUNT_TYPE:=ceph}"
@@ -3998,16 +3998,16 @@ to" / "let me know".
 : "${MIOS_UNIT_VAR_LIB_NFS_RPC_PIPEFS_MOUNT_UNIT_DESCRIPTION:=RPC Pipe File System}"
 : "${MIOS_UNIT_WSL_FIRSTBOOT:=mios-wsl-firstboot.service}"
 : "${MIOS_URLS_BOOTSTRAP_REPO:=https://github.com/mios-dev/mios-bootstrap.git}"
-[ -n "${MIOS_URLS_CHROME_CDP+x}" ] || MIOS_URLS_CHROME_CDP='http://localhost:'"${MIOS_PORT_CHROME_CDP}"'/'
-[ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORT_COCKPIT}"
-[ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER}"'/'
-[ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"
-[ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP}"'/mios/mios.git'
+[ -n "${MIOS_URLS_CHROME_CDP+x}" ] || MIOS_URLS_CHROME_CDP='http://localhost:'"${MIOS_PORT_CHROME_CDP:-}"'/'
+[ -n "${MIOS_URLS_COCKPIT+x}" ] || MIOS_URLS_COCKPIT='https://localhost:'"${MIOS_PORT_COCKPIT:-}"
+[ -n "${MIOS_URLS_CODE_SERVER+x}" ] || MIOS_URLS_CODE_SERVER='http://localhost:'"${MIOS_PORT_CODE_SERVER:-}"'/'
+[ -n "${MIOS_URLS_FORGE+x}" ] || MIOS_URLS_FORGE='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"
+[ -n "${MIOS_URLS_LOCAL_FORGE_REPO+x}" ] || MIOS_URLS_LOCAL_FORGE_REPO='http://localhost:'"${MIOS_PORT_FORGE_HTTP:-}"'/mios/mios.git'
 : "${MIOS_URLS_NON_ADDRESSABLE:=adguard_dns,adguard_ui,agent_pipe,arbiter,ceph_dashboard,crawl4ai,hermes,llm_light,pgvector,chrome_cdp_worker,cockpit_link,cpu_node,daemon_agent,firecrawl,forge_ssh,guacamole_web,guacd,hermes_dashboard,k3s_api,mcp,model_router,opencode_gateway,oscontrol,otelcol_otlp,prefilter,pxe_hub_api,rdp,redis,sglang,ssh,ttyd_bash,ttyd_powershell,vllm}"
-[ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI}"'/'
-[ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI}"'/'
+[ -n "${MIOS_URLS_OPEN_WEBUI+x}" ] || MIOS_URLS_OPEN_WEBUI='http://localhost:'"${MIOS_PORT_OPEN_WEBUI:-}"'/'
+[ -n "${MIOS_URLS_OTELCOL_UI+x}" ] || MIOS_URLS_OTELCOL_UI='http://localhost:'"${MIOS_PORT_OTELCOL_UI:-}"'/'
 : "${MIOS_URLS_REPO:=https://github.com/mios-dev/MiOS.git}"
-[ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORT_SEARXNG}"
+[ -n "${MIOS_URLS_SEARXNG+x}" ] || MIOS_URLS_SEARXNG='http://localhost:'"${MIOS_PORT_SEARXNG:-}"
 : "${MIOS_USER:=mios}"
 : "${MIOS_USER_FULLNAME:=MiOS Operator}"
 : "${MIOS_USER_GROUPS:=wheel,libvirt,kvm,video,render,input,dialout,docker}"
@@ -4015,10 +4015,10 @@ to" / "let me know".
 : "${MIOS_USR_DIR:=/usr/lib/mios}"
 : "${MIOS_VALKEY_IMAGE:=docker.io/valkey/valkey:latest}"
 : "${MIOS_VALKEY_VERSION:=docker.io/valkey/valkey:latest}"
-[ -n "${MIOS_VAR_AI_DIR+x}" ] || MIOS_VAR_AI_DIR="${MIOS_VAR_DIR}"'/ai'
-[ -n "${MIOS_VAR_BACKUPS_DIR+x}" ] || MIOS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR}"'/backups'
-[ -n "${MIOS_VAR_CACHE_DIR+x}" ] || MIOS_VAR_CACHE_DIR="${MIOS_VAR_DIR}"'/cache'
-[ -n "${MIOS_VAR_MCP_DIR+x}" ] || MIOS_VAR_MCP_DIR="${MIOS_VAR_DIR}"'/mcp'
+[ -n "${MIOS_VAR_AI_DIR+x}" ] || MIOS_VAR_AI_DIR="${MIOS_VAR_DIR:-}"'/ai'
+[ -n "${MIOS_VAR_BACKUPS_DIR+x}" ] || MIOS_VAR_BACKUPS_DIR="${MIOS_VAR_DIR:-}"'/backups'
+[ -n "${MIOS_VAR_CACHE_DIR+x}" ] || MIOS_VAR_CACHE_DIR="${MIOS_VAR_DIR:-}"'/cache'
+[ -n "${MIOS_VAR_MCP_DIR+x}" ] || MIOS_VAR_MCP_DIR="${MIOS_VAR_DIR:-}"'/mcp'
 : "${MIOS_VERB_EMBED_MODEL:=nomic-embed-text}"
 : "${MIOS_VERITY_ANTIFAB_ENABLE:=true}"
 : "${MIOS_VERITY_ANTIFAB_GROUND_MIN:=0.34}"

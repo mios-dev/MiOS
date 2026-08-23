@@ -42,7 +42,9 @@ class TestShAssign(unittest.TestCase):
     def test_template_stays_live(self):
         out = rg._sh_assign("MIOS_FORGE_URL",
                             "http://localhost:${MIOS_PORT_FORGE_HTTP}")
-        self.assertIn('"${MIOS_PORT_FORGE_HTTP}"', out)
+        # `:-` is deliberate: an SSOT key with an empty value is never
+        # exported, and a bare ${X} under `set -u` aborts the caller.
+        self.assertIn('"${MIOS_PORT_FORGE_HTTP:-}"', out)
 
     def test_assignment_is_conditional_so_env_wins(self):
         for value in ("8100", "has }brace", "has 'quote"):
