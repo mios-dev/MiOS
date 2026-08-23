@@ -274,6 +274,7 @@ class RefIndex:
                     # never be a file here. The directory's own existence is the
                     # evidence that the unit it names is real.
                     base = d.rsplit("/", 1)[-1]
+                    idx.names.add(base)  # components are named by their directory
                     if base.endswith(".d") and "." in base[:-2]:
                         idx.names.add(base[:-2])
                     d = d.rsplit("/", 1)[0] if "/" in d else ""
