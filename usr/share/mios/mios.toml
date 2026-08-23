@@ -2663,7 +2663,7 @@ oversize = [
     # gate (maxdepth 1, then mios_pipe/ only) -- server.py is the extraction's
     # own remainder and mios_dispatch.py is T-273's named target.
     { path = "mios_dispatch.py",                   lines =  816 },
-    { path = "server.py",                          lines = 4882 },
+    { path = "server.py",                          lines = 4874 },
 ]
 
 # ----------------------------------------------------------------------------
