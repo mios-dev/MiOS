@@ -1,19 +1,5 @@
 # AI-hint: Standalone unit test for mios_selfimprove_act (T-062 ACT + T-064 proof-of-utility decision core): structural anti-reward-hacking isolation...
 # AI-doc: usr/share/doc/mios/manual/agent-pipe.md
-"""Standalone unit test for mios_selfimprove_act (T-062/T-064 ACT decision core).
-
-Pure stdlib + the sibling modules only -- no server.py / DB / live models. Proves
-the ACT half (a) STRUCTURALLY isolates the evaluator/eval/lane-config from a
-proposal (anti-reward-hacking), (b) curates eval tasks by the solver-gap, and
-(c) accepts a proposal ONLY when it does not regress the baseline (pass^k), with
-isolation enforced before any score is consulted.
-
-Synthetic, non-dictionary surface/id tokens throughout: the improvable/protected
-sets are made-up kinds the test supplies, so a PASS proves structural set
-membership rather than any baked-in English vocabulary.
-
-Run:  python test_mios_selfimprove_act.py
-"""
 
 import sys
 

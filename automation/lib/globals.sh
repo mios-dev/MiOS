@@ -1887,6 +1887,7 @@ to" / "let me know".
 : "${MIOS_REPOS_FEDORA_UPDATES_SKIP_IF_UNAVAILABLE:=true}"
 : "${MIOS_REPOS_FEDORA_UPDATES_TIMEOUT:=10}"
 : "${MIOS_REPO_URL:=C:/MiOS}"
+: "${MIOS_RESOLVER_MAX_KEY_DIVERGENCE:=983}"
 [ -n "${MIOS_ROLE+x}" ] || MIOS_ROLE='the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)'
 : "${MIOS_ROUTER_ENABLE:=true}"
 : "${MIOS_ROUTING_BOOLEAN_PARAM_KEYWORDS:=enable,force,success,active,dryrun}"

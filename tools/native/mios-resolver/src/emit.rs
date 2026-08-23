@@ -33,9 +33,7 @@ pub fn build_exports_map(merged: &Value, stack_offset: i64) -> BTreeMap<String, 
             continue;
         }
 
-        // [btop], [theme], [containers] and the rest are projected by their own
-        // renderers, not exported as variables. mios-ssot-walk has always
-        // declared them; this builder never asked.
+        // Projected by their own renderers, not exported as variables.
         if is_excluded_section(path.split('.').next().unwrap_or(&path)) {
             continue;
         }
