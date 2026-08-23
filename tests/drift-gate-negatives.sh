@@ -504,29 +504,22 @@ test_rechunk_budget() {
 }
 
 test_bake_core_reconcile() {
-    log "Testing core bake reconciliation"
+    log "Testing test_bake_core_reconcile"
     local toml_file="${ROOT}/usr/share/mios/mios.toml"
-    local bak_file="${toml_file}.bak"
+    local bak_file="${toml_file}.bcrbak"
     cp "$toml_file" "$bak_file"
 
-    python3 - "$toml_file" << 'EOF'
-import sys
-p = sys.argv[1]
-t = open(p, encoding="utf-8").read()
-new = t.replace('"quay.io/poseidon/matchbox:latest"', '"quay.io/poseidon/matchbox:latest",\n  "docker.io/phantom/phantom-image:latest"', 1)
-open(p, "w", encoding="utf-8").write(new)
-EOF
-
+    sed -i 's/core_image = ".*"/core_image = "unreferenced-image-xyz999"/' "$toml_file"
     if MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1; then
         cp "$bak_file" "$toml_file" && rm -f "$bak_file"
         MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
-        die "Generate-bake-plan.py"
+        die "test_bake_core_reconcile: generate-bake-plan.py --check passed despite missing core image reconcile"
     fi
 
     cp "$bak_file" "$toml_file" && rm -f "$bak_file"
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" >/dev/null 2>&1 || true
     MIOS_ROOT="$ROOT" MIOS_TOML="$ROOT/usr/share/mios/mios.toml" python3 "${ROOT}/tools/generate-bake-plan.py" --check >/dev/null 2>&1 \
-        || die "Generate-bake-plan.py"
+        || die "test_bake_core_reconcile: generate-bake-plan.py --check failed after core image reconcile restoration"
     log "Test_bake_core_reconcile negative test passed"
 }
 
@@ -535,16 +528,16 @@ test_nested_podman_retry() {
     local script="${ROOT}/usr/libexec/mios/57-mios-sys-build.sh"
     local bak_file="${script}.bak"
     cp "$script" "$bak_file"
-    sed -i 's/build_image_with_retry/build_image_no_retry/g' "$script"
 
+    sed -i 's/build_image_with_retry/build_image_direct/g' "$script"
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1; then
         cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "Check_nested_podman_caps passed despite missing build_image_with_retry"
+        die "test_nested_podman_retry: Check_nested_podman_caps passed despite missing build_image_with_retry"
     fi
 
     cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_nested_podman_caps >/dev/null 2>&1 \
-        || die "Check_nested_podman_caps failed after restoration"
+        || die "test_nested_podman_retry: check_nested_podman_caps failed after retry script restoration"
     log "Test_nested_podman_retry negative test passed"
 }
 
@@ -554,17 +547,33 @@ test_gate_registry() {
     local bak_file="${script}.bak"
     cp "$script" "$bak_file"
 
+    # Test 1: Duplicate definition
     sed -i '/check_dead_lane() {/i check_dead_lane() { return 0; }\n' "$script"
-
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
         cp "$bak_file" "$script" && rm -f "$bak_file"
-        die "Check_gate_registry passed despite duplicate check_dead_lane definition"
+        die "check_gate_registry passed despite duplicate check_dead_lane definition"
+    fi
+    cp "$bak_file" "$script"
+
+    # Test 2: Unregistered definition
+    echo 'check_unregistered_dummy() { return 0; }' >> "$script"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
+        cp "$bak_file" "$script" && rm -f "$bak_file"
+        die "check_gate_registry passed despite unregistered function definition"
+    fi
+    cp "$bak_file" "$script"
+
+    # Test 3: Undefined call in main()
+    sed -i '/check_dead_lane/a \    check_undefined_dummy' "$script"
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1; then
+        cp "$bak_file" "$script" && rm -f "$bak_file"
+        die "check_gate_registry passed despite undefined check function call in main()"
     fi
 
     cp "$bak_file" "$script" && rm -f "$bak_file"
     MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "$script" check_gate_registry >/dev/null 2>&1 \
-        || die "Check_gate_registry failed after restoration"
-    log "Test_gate_registry negative test passed"
+        || die "check_gate_registry failed after restoration"
+    log "test_gate_registry negative test passed"
 }
 
 test_test_hermeticity() {
@@ -1712,7 +1721,7 @@ test_bake_ref_parity() {
 
         echo "$orig_val" > "$script_file"
         MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_bake_ref_defaults >/dev/null 2>&1 \
-            || die "Check_bake_ref_defaults failed after restoration"
+            || die "test_bake_ref_parity: check_bake_ref_defaults failed after restoration"
     fi
     log "Test_bake_ref_parity negative test passed"
 }
@@ -2634,11 +2643,71 @@ test_check_no_silent_tool_skips() {
 
 test_check_negatives_are_effective() {
     log "Testing check_negatives_are_effective..."
+    local neg_sh="${ROOT}/tests/drift-gate-negatives.sh"
+    local bak; bak="$(mktemp)"
+    cp "$neg_sh" "$bak"
+
+    # Test 1: Inject a function that only logs a check name (no gate call execution)
+    {
+        echo "test_fake_ineffective_log_only() {"
+        echo "    log \"Testing check_version_ssot\""
+        echo "    die \"Fake failure assertion\""
+        echo "}"
+    } >> "$neg_sh"
+
     if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
-        log "check_negatives_are_effective passed on HEAD"
-    else
-        die "check_negatives_are_effective failed on HEAD"
+        cp "$bak" "$neg_sh"; rm -f "$bak"
+        die "check_negatives_are_effective passed despite logging-only fake negative test"
     fi
+
+    # Test 2: Inject a function longer than 1500 chars with valid gate call to prove full scanning
+    cp "$bak" "$neg_sh"
+    {
+        echo "test_fake_long_effective() {"
+        echo "    log \"Testing check_version_ssot...\""
+        for _ in {1..50}; do
+            echo "    # Padding line to ensure function body exceeds 1500 characters in length"
+        done
+        echo "    if ! _neg_gate check_version_ssot; then"
+        echo "        die \"check_version_ssot failed\""
+        echo "    fi"
+        echo "}"
+    } >> "$neg_sh"
+
+    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
+        cp "$bak" "$neg_sh"; rm -f "$bak"
+        die "check_negatives_are_effective failed on long function with valid gate call (>1500 chars)"
+    fi
+
+    cp "$bak" "$neg_sh"; rm -f "$bak"
+    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_negatives_are_effective >/dev/null 2>&1; then
+        die "check_negatives_are_effective failed on HEAD after restoration"
+    fi
+    log "check_negatives_are_effective negative test passed"
+}
+
+test_pipefail_grep_lint() {
+    log "Testing check_pipefail_grep_lint..."
+    local neg_sh="${ROOT}/tests/drift-gate-negatives.sh"
+    local bak; bak="$(mktemp)"
+    cp "$neg_sh" "$bak"
+
+    {
+        echo "test_fake_pipefail_grep() {"
+        echo "    cat /dev/null | grep -q \"foo\" || die \"failed\""
+        echo "}"
+    } >> "$neg_sh"
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1; then
+        cp "$bak" "$neg_sh"; rm -f "$bak"
+        die "check_pipefail_grep_lint passed despite injected piped grep reading from non-echo/printf"
+    fi
+
+    cp "$bak" "$neg_sh"; rm -f "$bak"
+    if ! MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_pipefail_grep_lint >/dev/null 2>&1; then
+        die "check_pipefail_grep_lint failed on HEAD after restoration"
+    fi
+    log "check_pipefail_grep_lint negative test passed"
 }
 
 test_check_skip_list_covered() {
@@ -2846,7 +2915,55 @@ _neg_gate() {
     # REQUIRE_TOOLS is forwarded deliberately: checks that shell out to a built
     # binary choose between "skip" and "fail" on it, so a test that cannot set
     # it cannot exercise the failing path -- the path that matters.
-    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \n    MIOS_DRIFT_ROOT="$ROOT" \n    MIOS_DRIFT_REQUIRE_TOOLS="${MIOS_DRIFT_REQUIRE_TOOLS:-0}" \n        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
+    MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" \
+    MIOS_DRIFT_ROOT="$ROOT" \
+    MIOS_DRIFT_REQUIRE_TOOLS="${MIOS_DRIFT_REQUIRE_TOOLS:-0}" \
+        bash "${ROOT}/automation/98-drift-checks.sh" "$1" >/dev/null 2>&1
+}
+
+test_fleet_safety() {
+    log "Testing check_fleet_safety"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak="${toml}.fleetbak"
+    cp "$toml" "$bak"
+
+    # Drop an accepted hazard the detector still reproduces. The register is
+    # shrink-only by RETIREMENT -- the detector stops finding it -- not by
+    # editing the list, so removing a live entry must fail.
+    python3 - "$toml" <<'PYEOF'
+import sys
+p = sys.argv[1]
+with open(p, "r", encoding="utf-8", newline="") as fh:
+    t = fh.read()
+t = t.replace('  "pacemaker-unfenced",
+', "", 1)
+with open(p, "w", encoding="utf-8", newline="") as fh:
+    fh.write(t)
+PYEOF
+
+    if _neg_gate check_fleet_safety; then
+        cp "$bak" "$toml" && rm -f "$bak"
+        die "check_fleet_safety passed with a live hazard missing from the register"
+    fi
+
+    cp "$bak" "$toml" && rm -f "$bak"
+    _neg_gate check_fleet_safety || die "check_fleet_safety failed after restoration"
+    log "check_fleet_safety negative test passed"
+}
+
+test_neg_gate_harness() {
+    log "Testing the _neg_gate harness itself"
+    # _neg_gate once contained a literal backslash-n instead of line
+    # continuations, so the command word became `n` and it returned 127 every
+    # time. Under that, all 61 tests that call it could never detect anything --
+    # `if _neg_gate X; then die` simply never fired -- while their restoration
+    # arms died unconditionally. A helper 61 tests depend on has to be proven
+    # before it is trusted, and proven in BOTH directions.
+    _neg_gate check_gate_registry         || die "_neg_gate returned non-zero for a check that passes"
+    if _neg_gate mios_negtest_no_such_check_exists; then
+        die "_neg_gate returned zero for a check that does not exist"
+    fi
+    log "_neg_gate harness verified in both directions"
 }
 
 test_adhoc_toml_parsers() {
@@ -3012,6 +3129,22 @@ EOF
     fi
     git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
     rm -f "$probe"
+
+    # Test stale references breach
+    cat > "$probe" <<'EOF'
+#!/usr/bin/env bash
+# AI-related: non_existent_dangling_reference_xyz99.sh
+true
+EOF
+    git -C "$ROOT" add -N -- "$probe" >/dev/null 2>&1
+    if _neg_gate check_docs_ratchet; then
+        git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
+        rm -f "$probe"
+        die "check_docs_ratchet passed despite a dangling reference"
+    fi
+    git -C "$ROOT" rm -q --cached --force -- "$probe" >/dev/null 2>&1
+    rm -f "$probe"
+
     _neg_gate check_docs_ratchet || die "check_docs_ratchet failed after restoration"
     log "check_docs_ratchet negative test passed"
 }
@@ -3042,10 +3175,24 @@ test_docs_ratchet_monotone() {
         die "check_docs_ratchet_monotone passed despite a ceiling above the recorded floor"
     fi
     cp "$fbackup" "$floor"; rm -f "$fbackup"
-    cp "$backup" "$toml"; rm -f "$backup"
     _neg_gate check_docs_ratchet_monotone \
         || die "check_docs_ratchet_monotone failed after floor restoration"
     log "check_docs_ratchet_monotone negative test passed (HEAD + durable floor)"
+}
+
+test_generator_host_parity() {
+    log "Testing check_generator_host_parity"
+    local script="${ROOT}/tools/generate-names-registry.py"
+    local backup; backup="$(mktemp)"
+    cp "$script" "$backup"
+    sed -i 's/glob\.fnmatch\.fnmatchcase/fnmatch.fnmatch/g' "$script"
+    if _neg_gate check_generator_host_parity; then
+        cp "$backup" "$script"; rm -f "$backup"
+        die "check_generator_host_parity passed despite non-portable fnmatch usage"
+    fi
+    cp "$backup" "$script"; rm -f "$backup"
+    _neg_gate check_generator_host_parity || die "check_generator_host_parity failed after restoration"
+    log "check_generator_host_parity negative test passed"
 }
 
 test_manual_generated() {
@@ -3383,7 +3530,9 @@ test_header_integrity() {
     if ! _neg_gate check_header_integrity; then
         # Show WHY rather than only that it failed: a restoration failure means
         # the gate is flagging something the probe did not create.
-        MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT"         MIOS_DRIFT_ROOT="$ROOT"             bash "${ROOT}/automation/98-drift-checks.sh" check_header_integrity 2>&1             | grep -i 'violation' | head -5 >&2
+        local violog
+        violog=$(MIOS_THEME_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" MIOS_DRIFT_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_header_integrity 2>&1 || true)
+        echo "$violog" | grep -i 'violation' | head -5 >&2
         die "check_header_integrity failed after restoration"
     fi
     log "check_header_integrity negative test passed"
@@ -3399,10 +3548,13 @@ main() {
         fi
     fi
     log "Starting negative-test suite"
+    test_neg_gate_harness
+    test_fleet_safety
     test_ai_manifests_fresh
     test_version_ssot
     test_check_no_silent_tool_skips
     test_check_negatives_are_effective
+    test_pipefail_grep_lint
     test_check_skip_list_covered
     test_resolver_equivalence
     test_eval_safety
@@ -3436,6 +3588,7 @@ main() {
     test_docs_ratchet
     test_header_integrity
     test_resolver_differential_parity
+    test_generator_host_parity
     test_legibility_ratchet
     test_bootstrap_sync
     test_no_inert_ssot_tables

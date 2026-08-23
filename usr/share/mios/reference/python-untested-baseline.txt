@@ -30,7 +30,7 @@ tools/roadmap-index.py
 tools/standardize-docs.py
 tools/sync-wiki.py
 tools/verb-template-check.py
-usr/libexec/mios/MiOS-Mon.py
+usr/libexec/mios/mios-mon.py
 usr/libexec/mios/config-history.py
 usr/libexec/mios/materialize-build-catalog.py
 usr/libexec/mios/materialize-build-ctx.py

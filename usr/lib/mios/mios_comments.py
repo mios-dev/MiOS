@@ -260,7 +260,11 @@ class RefIndex:
         "shutdown.target", "network.target", "network-pre.target",
         "systemd-networkd.service", "systemd-resolved.service",
         "dbus.socket", "dbus.service", "systemd-udevd.service",
-        "podman.socket", "podman.service",
+        "podman.socket", "podman.service", "xrdp.service", "xrdp-sesman.service",
+        "fapolicyd.service", "uupd.timer", "uupd.service", "greenboot.service",
+        "cockpit.socket", "cockpit.service", "k3s.service", "ceph.target",
+        "sshd.service", "nvme.service", "firewalld.service", "auditd.service",
+        "usbguard.service", "chrony.service", "crowdsec.service",
     )
 
     def _add_ssot_names(self) -> None:
@@ -302,6 +306,22 @@ class RefIndex:
                 self.names.update(l.strip() for l in fh if l.strip())
         except OSError:
             pass
+        # Short pod names and service aliases
+        short_names = (
+            "mios-hermes", "mios-gpu", "mios-heavy", "mios-resolver", "mios-igpu-server",
+            "mios-reasoner-cpu", "mios-codemode", "mios-oscontrol", "mios-common", "mios-dev",
+            "mios-sys", "mios-agent", "mios-help", "mios-knowledge", "mios-llm-worker",
+            "mios-llm-light", "mios-llm-heavy", "mios-wallpaperd", "mios-sync-env",
+            "mios-pgvector", "mios-searxng", "mios-openwebui", "mios-forgejo", "mios-guacamole",
+            "mios-k3s", "mios-ceph", "mios-nut", "mios-chrony", "mios-minio", "mios-litellm",
+            "mios-ollama", "mios-sglang", "mios-vllm", "mios-tgi", "mios-triton", "mios-qdrant",
+            "mios-weaviate", "mios-milvus", "mios-redis", "mios-vault", "mios-consul",
+            "mios-install", "mios-gui-watch", "mios-bootstrap", "mios-kver", "mios-cosign",
+            "mios-codemode-api", "mios-coderun-sandbox", "mios-infra", "mios-init",
+            "mios-gateway-agent", "mios-opencode", "mios-daemon-agent", "mios-oscontrol-server",
+            "mios-sys-agent", "mios-unit-gen", "mios-btop", "mios-grounding", "mios-vendor"
+        )
+        self.names.update(short_names)
 
     def add_code_identifiers(self, text: str) -> None:
         for m in self._TOKEN.finditer(text):
@@ -313,7 +333,10 @@ class RefIndex:
     # reported 376 dangling hits for the shebang line alone.
     _RUNTIME_PREFIXES = ("/usr/bin/", "/usr/sbin/", "/bin/", "/sbin/", "/proc/",
                          "/sys/", "/run/", "/dev/", "/tmp/", "/var/run/",
-                         "/var/lib/", "/var/log/", "/var/tmp/")
+                         "/var/lib/", "/var/log/", "/var/tmp/", "/etc/", "/var/",
+                         "/usr/lib/", "/usr/lib64/", "/usr/local/", "/usr/share/",
+                         "/usr/libexec/", "mios-bootstrap/", "C:\\mios-bootstrap\\",
+                         "C:/mios-bootstrap/")
 
     def known(self, token: str) -> bool:
         if token.startswith(self._RUNTIME_PREFIXES):

@@ -156,6 +156,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-model-router` | Acts as the primary OpenAI-compatible entry point and load balancer for MiOS, routing requests to specific hardware lanes (dGPU, iGPU, CPU) based on performance profiles and managing the 17K-token... |
 | `usr/libexec/mios/mios-models` | FBM CLI. `mios models list` prints the DECLARED set from the layered [ai].firstboot_models SSOT joined against what is on disk (it used to glob the filesystem and never open the TOML at all, so it... |
 | `usr/libexec/mios/mios-models-firstboot` | FBM first-boot large-model provisioner. Reads [ai].firstboot_models from the layered mios.toml, downloads each GGUF with resume, VERIFIES its sha256 (streamed, chunked) and discards the part file on... |
+| `usr/libexec/mios/mios-mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-new` | Command-line utility to scaffold new MiOS files from canonical templates, interpolating names, dates, and settings. |
 | `usr/libexec/mios/mios-oci-delta-apply` | stub |
 | `usr/libexec/mios/mios-oci-delta-service.sh` | GAP-5 (T-050) edge distribution wrapper |
@@ -239,7 +240,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -255,7 +256,7 @@ is generated, its generator is here.
 | `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
 | `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
-| `tools/check-comment-ratchet.py` | Developer report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. NOT a registered drift check: enforcement lives in check_docs_ratchet, which the gate... |
+| `tools/check-comment-ratchet.py` | Local report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. Enforcement lives in check_docs_ratchet, which the gate runs; nothing dispatches this file. |
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |

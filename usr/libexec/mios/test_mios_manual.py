@@ -128,6 +128,24 @@ class TestMiosManualComments(unittest.TestCase):
                 self.assertIsNotNone(v.cls)
                 self.assertIn(v.cls, ("STAY", "MIGRATE", "DROP", "READONLY", "MIGRATE_HEADER"))
 
+    def test_10_ledger_duplicate_preservation(self):
+        """Prove that Ledger preserves all duplicate rows with identical sha12 hashes (AGY-1611)."""
+        import importlib.util
+        import importlib.machinery
+        manual_script = os.path.join(ROOT, "usr", "libexec", "mios", "mios-manual")
+        loader = importlib.machinery.SourceFileLoader("mios_manual", manual_script)
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        mm = importlib.util.module_from_spec(spec)
+        loader.exec_module(mm)
+
+        ledger = mm.Ledger()
+        hash_val = "abc123def456"
+        for i in range(5):
+            row = {"path": f"file{i}.py", "sha12": hash_val, "landed_doc": "", "landed_anchor": "", "landed_words": "", "pruned": ""}
+            ledger.add(row)
+
+        self.assertEqual(len(ledger.values()), 5, "Ledger must preserve all 5 duplicate rows without silent row loss")
+
 
 if __name__ == "__main__":
     unittest.main()

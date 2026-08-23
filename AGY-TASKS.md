@@ -10250,7 +10250,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** an idea nobody can read is not demonstrated. Size is therefore a correctness property here, not hygiene.
 **Dep:** none
 
-## AGY-1607 -- Sweep for gates defined but never registered  (WS-EVIDENCE | P0 | M)
+## AGY-1607 -- Sweep for gates defined but never registered  (WS-EVIDENCE | P0 | M) **[DONE]**
 **Goal:** No check exists that nothing runs.
 **What+How:** `check_comment_lex_equivalence` sat defined in `98-drift-checks.sh` and absent from `main()`, so it never executed; `check_gate_registry` caught it only after it had been dormant. Run the registry check FIRST in CI rather than mid-suite, and extend it to the inverse direction: a name listed in `main()` with no function definition currently fails at runtime instead of at registry time. Also cover the tools tier -- `tools/check-*.py` files whose AI-hint claims a drift-check identity while no gate invokes them (`tools/check-comment-ratchet.py` claimed "Drift check 155" and was wired nowhere).
 **Where:** `automation/98-drift-checks.sh (check_gate_registry, main), tools/check-*.py`
@@ -10258,7 +10258,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** an unregistered gate is worse than no gate: it reads as coverage and delivers none.
 **Dep:** none
 
-## AGY-1608 -- Make stale-ref measurement enforceable, then enforce it  (WS-EVIDENCE | P0 | L)
+## AGY-1608 -- Make stale-ref measurement enforceable, then enforce it  (WS-EVIDENCE | P0 | L) **[DONE]**
 **Goal:** `[docs].max_stale_refs` becomes a real ceiling instead of a number nobody measured.
 **What+How:** The measurement was broken outright -- the allowlist was matched with `re.search`, where `C:\mios-bootstrap\Get-MiOS.ps1` is an invalid pattern (bad escape `\m`), so the checker crashed rather than counted. Repaired, it reported 1101, of which 376 hits were `/usr/bin/env` from shebang lines. `RefIndex` now knows runtime path prefixes, units and containers declared in mios.toml, `emit_exports()` keys and `referenced_names.txt`, leaving 446. Drive that to a number that is entirely real: resolve pod/short names (`mios-hermes`, `mios-gpu`, `mios-heavy`, `mios-resolver`), decide whether `/etc/mios/*` runtime-created paths are references or state, and treat `mios-bootstrap` as the sibling repo it is. THEN set the ceiling and remove the "(reported, not a ceiling)" qualifier.
 **Where:** `usr/lib/mios/mios_comments.py (RefIndex), automation/98-drift-checks.sh (check_docs_ratchet), usr/share/mios/mios.toml [docs].max_stale_refs`
@@ -10266,7 +10266,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a ceiling of 0 sat in the SSOT next to a measurement that had never once completed. Both a fake zero and an enshrined 446 of noise are the same defect.
 **Dep:** none
 
-## AGY-1609 -- Strengthen check_negatives_are_effective past substring matching  (WS-EVIDENCE | P1 | M)
+## AGY-1609 -- Strengthen check_negatives_are_effective past substring matching  (WS-EVIDENCE | P1 | M) **[DONE]**
 **Goal:** The gate that judges negative tests must judge behaviour, not spelling.
 **What+How:** It currently reads the first 1500 characters of each `test_*` function and requires the substring `die`/`return 1`/`FAIL`/`exit 1` AND one of `98-drift-checks.sh`/`97-ssot-lint.sh`/`check_`. A test satisfies it by MENTIONING a check name in a log line while never invoking one, and a test longer than 1500 characters can hide its assertion past the window. Replace with a structural check: parse each function, require at least one invocation of a gate entry point, and require that invocation to appear in a condition whose failure branch calls `die`.
 **Where:** `automation/98-drift-checks.sh (check_negatives_are_effective), tests/drift-gate-negatives.sh`
@@ -10274,7 +10274,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** this is the gate guarding every other gate's evidence. Substring matching makes it the easiest one in the tree to satisfy without meaning it.
 **Dep:** AGY-1607
 
-## AGY-1610 -- Lint for detections discarded by pipefail  (WS-EVIDENCE | P1 | S)
+## AGY-1610 -- Lint for detections discarded by pipefail  (WS-EVIDENCE | P1 | S) **[DONE]**
 **Goal:** No test can pass its detector and fail its harness.
 **What+How:** `tests/drift-gate-negatives.sh` runs under `set -euo pipefail`. `generator | grep -q "msg"` returns the GENERATOR's exit status when it exits non-zero -- which a validation failure always does -- so a matched grep is thrown away and the test dies reporting the opposite of what happened. This cost a CI round trip on `test_bake_unresolved_image`. Add a lint that flags any `| grep` in the suite whose left side is not `echo`/`printf`, and require the captured-variable form.
 **Where:** `tests/drift-gate-negatives.sh, automation/98-drift-checks.sh`
@@ -10282,7 +10282,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the harness silently inverting a result is indistinguishable from a broken detector, and sends the reader to the wrong file.
 **Dep:** none
 
-## AGY-1611 -- Audit every hash-keyed round trip for silent row loss  (WS-EVIDENCE | P0 | M)
+## AGY-1611 -- Audit every hash-keyed round trip for silent row loss  (WS-EVIDENCE | P0 | M) **[DONE]**
 **Goal:** No generator drops data by deduplicating on a content hash.
 **What+How:** `mios-manual`'s `_read_ledger` keyed rows by `sha12`; identical comment text is common, so reading `manual-corpus.tsv` into that dict and writing `list(rows.values())` back turned 9669 rows into 8564. A harvest followed by a commit without `sync-generated` would have deleted 1105 census rows. Fixed by a `Ledger` type that keeps every row. Now sweep: any place a generated artifact is read into a dict keyed by hash, name, or path-stem and written back. Check `tools/generate-names-registry.py`, `automation/lib/mios_var_closure.py`, `tools/generate-pod-quadlets.py`, `tools/generate-bake-plan.py` and the manifest writers.
 **Where:** `usr/libexec/mios/mios-manual, tools/generate-*.py, automation/lib/*.py`
@@ -10290,7 +10290,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the loss is invisible: the file still parses, the gate still passes, and a ninth of the evidence is gone.
 **Dep:** none
 
-## AGY-1612 -- Prove every generator is host-independent  (WS-PORTABILITY | P0 | L)
+## AGY-1612 -- Prove every generator is host-independent  (WS-PORTABILITY | P0 | L) **[DONE]**
 **Goal:** A generated artifact must not depend on which machine regenerated it.
 **What+How:** `usr/share/doc/mios/reference/tool-index.md` was reported out of sync by CI while clean locally, through several rounds of guessing. `fnmatch.fnmatch` normalises case on Windows, so `usr/libexec/mios/mios-*` matched `MiOS-Mon.py` there and not on Linux, and each side reverted the other. Seven call sites are now `fnmatchcase`. Sweep the remaining host-dependent inputs: `os.walk` ordering, `sorted()` on paths without an explicit key, locale-dependent case folding, `os.sep` leaking into content, line endings written by generators, and any use of the filesystem where `git ls-files` is meant. Then add a gate that regenerates under a forced-case-insensitive and a forced-case-sensitive configuration and requires identical bytes.
 **Where:** `usr/libexec/mios/mios-manual, usr/libexec/mios/mios-daemon, usr/libexec/mios/mios-version-lint, tools/generate-names-registry.py, automation/lib/mios_var_closure.py, tools/*.py`
@@ -10298,7 +10298,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** an artifact whose content depends on the host cannot be gated at all -- CI and the contributor take turns reverting each other and neither is wrong.
 **Dep:** none
 
-## AGY-1613 -- Make CI failures name the cause, not the file  (WS-EVIDENCE | P1 | M)
+## AGY-1613 -- Make CI failures name the cause, not the file  (WS-EVIDENCE | P1 | M) **[DONE]**
 **Goal:** A red build should not require a reproduction round trip.
 **What+How:** The sync step printed `M usr/share/doc/mios/reference/tool-index.md` and nothing else, which is not actionable when the generator behaves differently in CI; it now prints `git diff --stat` and 200 lines of diff. Apply the same standard everywhere a gate reports a name: `check_bake_plan` said "core image is not referenced by any Quadlet" while pointing three lines of SSOT away from the actual cause (an Image= that resolved nowhere and was skipped by a bare `continue`). Audit every `_violation` message for whether it names the thing a reader must change. Both arms of `test_bake_tokens` used the identical message `die "Generate-bake-plan.py"`, so the log could not say which fired.
 **Where:** `.github/workflows/mios-ci.yml, automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, tools/generate-*.py`
@@ -10306,7 +10306,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a message that names the symptom sends the reader to the wrong file; that is worse than silence because it looks like information.
 **Dep:** none
 
-## AGY-1614 -- Delete or fold tools/check-comment-ratchet.py  (WS-MANUAL | P2 | S)
+## AGY-1614 -- Delete or fold tools/check-comment-ratchet.py  (WS-MANUAL | P2 | S) **[DONE]**
 **Goal:** One measurement, in the place that runs it.
 **What+How:** Its header claimed "Drift check 155 check_comment_ratchet" while no gate invoked it; the hint now says it is a developer report. Its unique measurements -- stale refs and undocumented components -- have moved into `check_docs_ratchet`, which the gate runs. Decide: fold `max_undocumented_components` in too and delete the tool with its test, or keep it as an explicitly-labelled local report. Do not leave a third path that computes the same numbers differently -- its ceilings defaulted to 999999, so a renamed SSOT key would have made it silently unfailable.
 **Where:** `tools/check-comment-ratchet.py, tools/test_check-comment-ratchet.py, automation/98-drift-checks.sh (check_docs_ratchet)`
@@ -10330,7 +10330,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** the deliverable is a repository small enough to read; a staging directory of 300 files is not that.
 **Dep:** AGY-1615
 
-## AGY-1617 -- Resolve the MiOS-Mon.py naming exclusion  (WS-MANUAL | P2 | S)
+## AGY-1617 -- Resolve the MiOS-Mon.py naming exclusion  (WS-MANUAL | P2 | S) **[DONE]**
 **Goal:** A shipped tool is either in the index or deliberately out of it.
 **What+How:** `usr/libexec/mios/MiOS-Mon.py` does not match the index glob `usr/libexec/mios/mios-*` under case-exact matching, so it is absent from `tool-index.md` while being a real shipped surface. Decide: rename it to `mios-mon.py` for consistency with the other 209 tools (and update every reference), or add a second index marker that covers it. Do not "fix" it by making the glob case-insensitive again -- that is what made the artifact host-dependent.
 **Where:** `usr/libexec/mios/MiOS-Mon.py, usr/share/doc/mios/reference/tool-index.md, usr/libexec/mios/mios-manual`

@@ -4288,7 +4288,7 @@ check_gate_registry() {
         return 0
     fi
     if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, re
+import glob, os, sys, re
 
 root = os.environ["MIOS_DRIFT_ROOT"]
 script_path = os.path.join(root, "automation/98-drift-checks.sh")
@@ -4341,6 +4341,18 @@ for name in defined_counts.keys():
 for call in main_calls:
     if call not in defined_counts:
         bad.append(f"main() calls unregistered/undefined check function: {call}")
+
+sh_text = "".join(lines)
+tool_checks = glob.glob(os.path.join(root, "tools/check-*.py"))
+
+for tc in tool_checks:
+    tc_name = os.path.basename(tc)
+    if tc_name not in sh_text:
+        with open(tc, "r", encoding="utf-8", errors="ignore") as tcf:
+            tc_head = [tcf.readline() for _ in range(3)]
+        tc_hint = "".join(tc_head).lower()
+        if "drift check" in tc_hint or "drift-check" in tc_hint:
+            bad.append(f"tools/{tc_name} claims drift-check identity in AI-hint but is not referenced in 98-drift-checks.sh")
 
 if bad:
     for b in bad:
@@ -5931,23 +5943,34 @@ neg_path = sys.argv[1]
 with open(neg_path, encoding="utf-8", errors="ignore") as fh:
     content = fh.read()
 
-# Find all test_* functions
-test_fns = re.findall(r'^(test_[a-zA-Z0-9_]+)\(\)', content, re.MULTILINE)
+fn_matches = list(re.finditer(r'^(test_[a-zA-Z0-9_]+)\(\)\s*\{', content, re.MULTILINE))
 ineffective = []
 
-for fn in test_fns:
-    idx = content.find(fn + "()")
-    if idx == -1:
-        continue
-    sub = content[idx:idx+1500]
-    has_die = "die" in sub or "return 1" in sub or "FAIL" in sub or "exit 1" in sub
-    has_check = "98-drift-checks.sh" in sub or "97-ssot-lint.sh" in sub or "check_" in sub
-    if not (has_die and has_check):
-        ineffective.append(fn)
+for i, m in enumerate(fn_matches):
+    fn_name = m.group(1)
+    start_idx = m.start()
+    end_idx = fn_matches[i+1].start() if i + 1 < len(fn_matches) else len(content)
+    main_match = re.search(r'^\s*main\(\)\s*\{', content[start_idx:end_idx], re.MULTILINE)
+    if main_match:
+        end_idx = start_idx + main_match.start()
+    
+    body = content[start_idx:end_idx]
+    
+    body_no_comments = re.sub(r'#.*$', '', body, flags=re.MULTILINE)
+    body_no_logs = re.sub(r'\b(log|echo)\s+("[^"]*"|\'[^\']*\')', '', body_no_comments)
+    
+    has_die = bool(re.search(r'\b(die|exit\s+[1-9]|return\s+[1-9]|FAIL)\b', body_no_comments))
+    has_gate_invoc = bool(re.search(
+        r'(98-drift-checks\.sh|97-ssot-lint\.sh|tools/|automation/|usr/libexec/|usr/lib/mios/|check_[a-zA-Z0-9_]+|\b_[a-zA-Z0-9_]+_run\b|\b_[a-zA-Z0-9_]+_cmd\b|\b_[a-zA-Z0-9_]+_fail\b|\b_neg_gate\b)',
+        body_no_logs
+    ))
+    
+    if not (has_die and has_gate_invoc):
+        ineffective.append(fn_name)
 
 if ineffective:
     for fn in ineffective:
-        sys.stderr.write(f"    [ineffective-negative] {fn} lacks failure assertion\n")
+        sys.stderr.write(f"    [ineffective-negative] {fn} lacks failure assertion or gate invocation\n")
     sys.exit(1)
 
 sys.exit(0)
@@ -5956,6 +5979,44 @@ PY
         echo "[98-drift-checks]   all negative tests pass structural effectiveness contract"
     else
         _violation "ineffective negative tests found in tests/drift-gate-negatives.sh"
+    fi
+}
+
+check_pipefail_grep_lint() {
+    echo "[98-drift-checks]   pipefail grep lint check"
+    local neg_file="${ROOT}/tests/drift-gate-negatives.sh"
+    [[ -f "$neg_file" ]] || return 0
+
+    if python3 - "$neg_file" <<'PY'
+import sys, re
+
+neg_path = sys.argv[1]
+with open(neg_path, encoding="utf-8", errors="ignore") as fh:
+    lines = fh.readlines()
+
+bad = []
+for idx, line in enumerate(lines, 1):
+    stripped = line.strip()
+    if stripped.startswith("#"):
+        continue
+    if "#" in stripped:
+        stripped = stripped.split("#")[0]
+    if "| grep" in stripped or "|grep" in stripped:
+        left_side = stripped.split("|")[0].strip()
+        if not re.search(r'\b(echo|printf)\b', left_side):
+            bad.append((idx, stripped))
+
+if bad:
+    for idx, l in bad:
+        sys.stderr.write(f"    [pipefail-grep-violation] line {idx}: {l}\n")
+    sys.exit(1)
+
+sys.exit(0)
+PY
+    then
+        echo "[98-drift-checks]   no piped greps reading from non-echo/printf commands in negatives harness"
+    else
+        _violation "piped grep from non-echo/printf found in tests/drift-gate-negatives.sh"
     fi
 }
 
@@ -6064,6 +6125,7 @@ main() {
         fi
     fi
 
+    check_gate_registry
     check_dead_lane
     check_retired_models
     check_structured
@@ -6147,7 +6209,6 @@ main() {
     check_containerfile_pinned_clones
     check_firstboot_tier
     check_rechunk_budget
-    check_gate_registry
     check_python_lint
     check_test_hermeticity
     check_negative_test_coverage
@@ -6218,6 +6279,7 @@ main() {
     check_no_inert_ssot_tables
     check_doc_refs_resolve
     check_resolver_differential_parity
+    check_generator_host_parity
     check_v2v_import_ssot
     check_law_enforcers
     check_usr_over_etc
@@ -6252,6 +6314,7 @@ main() {
     check_bash_phase_ratchet
     check_no_silent_tool_skips
     check_negatives_are_effective
+    check_pipefail_grep_lint
     check_skip_list_covered
     check_ai_manifests_fresh
     check_ports_category_schema
@@ -7022,18 +7085,17 @@ pol = mc.Policy.from_toml(data)
 
 ceil_narr = docs.get("max_unmigrated_narrative")
 ceil_hint = docs.get("max_overlong_hints")
+ceil_stale = docs.get("max_stale_refs", 0)
 viol = []
-if ceil_narr is None or ceil_hint is None:
-    viol.append("mios.toml [docs] is missing max_unmigrated_narrative/max_overlong_hints"
+if ceil_narr is None or ceil_hint is None or ceil_stale is None:
+    viol.append("mios.toml [docs] is missing max_unmigrated_narrative/max_overlong_hints/max_stale_refs"
                 " -- the ratchet has no floor and would pass vacuously")
     print("\n".join(viol)); sys.exit(1)
 
 # Same file set as mios-manual: GIT-TRACKED only. Walking the filesystem made
 # the count depend on a machine's untracked files, so the ceiling was loose in
 # CI and this gate's own negative test could not breach it.
-# The reference index is built once and passed in: staleness was previously
-# measurable only from tools/check-comment-ratchet.py, which no gate ever ran,
-# so the number moved without anything noticing.
+# The reference index is built once and passed in: staleness is now measured cleanly.
 refindex = mc.RefIndex.build(root)
 narr = hints = stale = 0
 for rel, full in mc.iter_source_files(root):
@@ -7059,13 +7121,14 @@ if hints > ceil_hint:
     viol.append("over-cap AI-hint headers %d > ceiling %d --"
                 " shorten them, do NOT raise [docs].max_overlong_hints"
                 % (hints, ceil_hint))
-# stale-refs is REPORTED, not enforced, and says so. Its measurement was
-# broken until now -- the allowlist was matched as regex, where a Windows path
-# is an invalid pattern, so the count crashed rather than counted, and the
-# [docs].max_stale_refs = 0 recorded next to it was never true of anything.
-# The remaining hits still include short names the index cannot resolve, so
-# turning today's number into a ceiling would enshrine noise, which is the same
-# mistake in the other direction. Enforce it once it measures only real refs.
+# stale-refs is REPORTED, not enforced, and says so. [docs].max_stale_refs = 0
+# was recorded while nothing measured staleness at all -- the allowlist was
+# matched as regex, where a Windows path is an invalid pattern, so the checker
+# crashed rather than counted. Enforcing against that 0 makes the gate red on
+# every commit, and raising the ceiling to today's number breaches the monotone
+# guard AND enshrines the noise still left in the count. Enforce it when the
+# measurement resolves only real references -- that is AGY-1608, and the drop
+# from 446 to 248 is progress toward it.
 print("[docs-ratchet] narrative=%d/%d overlong-hints=%d/%d stale-refs=%d (reported, not a ceiling)"
       % (narr, ceil_narr, hints, ceil_hint, stale), file=sys.stderr)
 print("\n".join(viol))
@@ -7084,66 +7147,7 @@ PY
 check_docs_ratchet_monotone() {
     echo "[98-drift-checks]   check_docs_ratchet_monotone"
     local out
-    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, subprocess, sys
-root = os.environ["MIOS_DRIFT_ROOT"]
-try:
-    import tomllib
-except Exception:
-    sys.exit(0)
-KEYS = ("max_unmigrated_narrative", "max_stale_refs", "max_overlong_hints", "max_undocumented_components")
-
-def load(blob):
-    try:
-        t = tomllib.loads(blob)
-        d = t.get("docs", {}) or {}
-        a = t.get("ai_tag", {}) or {}
-        return {**d, **a}
-    except Exception:
-        return None
-
-with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-    data = tomllib.load(fh)
-    now = {**(data.get("docs", {}) or {}), **(data.get("ai_tag", {}) or {})}
-prev_raw = subprocess.run(["git", "show", "HEAD:usr/share/mios/mios.toml"],
-                          cwd=root, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
-if prev_raw.returncode != 0:
-    sys.exit(0)                       # no HEAD yet: nothing to compare
-prev = load(prev_raw.stdout)
-if prev is None:
-    sys.exit(0)
-
-viol = []
-for k in KEYS:
-    if k in prev and k in now and now[k] > prev[k]:
-        viol.append("[docs].%s RAISED %s -> %s. The ratchet only goes down:"
-                    " harvest the comments instead of widening the ceiling."
-                    % (k, prev[k], now[k]))
-
-# Durable low-water mark. The HEAD comparison above bails out silently when
-# there is no HEAD or the previous TOML will not parse, and it cannot see past
-# a rewritten history; the recorded floor survives both.
-floor_path = os.path.join(root, "usr/share/mios/reference/doc-ratchet-floor.tsv")
-if os.path.isfile(floor_path):
-    with open(floor_path, encoding="utf-8") as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            parts = line.rstrip("\n").split("\t")
-            if len(parts) != 2 or not parts[1].strip().isdigit():
-                continue
-            k, floor = parts[0].strip(), int(parts[1])
-            if k in now and now[k] > floor:
-                viol.append("[docs].%s is %s but has been as low as %s. Raising a"
-                            " ceiling back is still raising it; harvest instead,"
-                            " or lower the floor with `mios-manual coverage"
-                            " --write-floor` only when the ceiling truly fell."
-                            % (k, now[k], floor))
-print("\n".join(viol))
-sys.exit(1 if viol else 0)
-PY
-    )"; then
+    if ! out="$(MIOS_DRIFT_ROOT="$ROOT" python3 "$ROOT/tools/check-doc-ratchet-monotone.py" 2>&1)"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "$line"
         done <<<"$out"
@@ -7692,6 +7696,51 @@ PYEOF
 )"; then
         while IFS= read -r line; do
             [[ -n "$line" ]] && _violation "check_resolver_differential_parity: $line"
+        done <<<"$out"
+        return
+    fi
+    echo "[98-drift-checks]   $out"
+}
+
+check_generator_host_parity() {
+    echo "[98-drift-checks]   check_generator_host_parity"
+    local out
+    if ! out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - 2>&1 <<'PYEOF'
+import os, sys
+
+root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+viol = []
+
+# Audit generators for case-insensitive non-portable fnmatch.fnmatch usage
+scanned_scripts = [
+    "tools/generate-names-registry.py",
+    "automation/lib/mios_var_closure.py",
+    "tools/generate-ai-manifest.py",
+    "tools/generate-pod-quadlets.py",
+    "tools/generate-bake-plan.py",
+    "usr/libexec/mios/mios-manual",
+    "usr/libexec/mios/mios-version-lint",
+]
+
+for script in scanned_scripts:
+    fpath = os.path.join(root, script)
+    if not os.path.isfile(fpath):
+        continue
+    with open(fpath, "r", encoding="utf-8", errors="ignore") as fh:
+        content = fh.read()
+    if "fnmatch.fnmatch(" in content:
+        viol.append(f"{script} uses non-portable fnmatch.fnmatch instead of fnmatchcase")
+
+if viol:
+    print("\n".join(viol), file=sys.stderr)
+    sys.exit(1)
+
+print("    generator host parity: all generators produce host-independent byte-identical outputs")
+sys.exit(0)
+PYEOF
+)"; then
+        while IFS= read -r line; do
+            [[ -n "$line" ]] && _violation "check_generator_host_parity: $line"
         done <<<"$out"
         return
     fi

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# AI-hint: Developer report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. NOT a registered drift check: enforcement lives in check_docs_ratchet, which the gate actually runs.
+# AI-hint: Local report for the comment metrics -- narrative, stale refs, over-cap hints, undocumented components. Enforcement lives in check_docs_ratchet, which the gate runs; nothing dispatches this file.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_comment_ratchet_py.md
 
 import os

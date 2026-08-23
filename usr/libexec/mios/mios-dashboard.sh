@@ -6,4 +6,4 @@ if ! python3 -c "import rich, textual, psutil" 2>/dev/null; then
 fi
 export PYTHONIOENCODING=utf-8
 export LANG=C.UTF-8
-exec python3 /usr/libexec/mios/MiOS-Mon.py "$@"
+exec python3 /usr/libexec/mios/mios-mon.py "$@"
