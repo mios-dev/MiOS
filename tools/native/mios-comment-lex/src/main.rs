@@ -4,7 +4,6 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::Path;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about = "Native comment lexer for MiOS", long_about = None)]
@@ -88,10 +87,16 @@ fn strip_line(line: &str) -> String {
     s2.trim_end().to_string()
 }
 
-fn make_block(
-    path: &str,
+/// Where a block sits: grouped so make_block stays inside clippy's
+/// seven-argument limit without suppressing the lint.
+struct Span<'a> {
+    path: &'a str,
     start: usize,
     end: usize,
+}
+
+fn make_block(
+    at: Span<'_>,
     kind: &str,
     style: &str,
     body_lines: &[String],
@@ -115,9 +120,9 @@ fn make_block(
     let words = word_re.find_iter(&text).count();
 
     Block {
-        path: path.to_string(),
-        start_line: start,
-        end_line: end,
+        path: at.path.to_string(),
+        start_line: at.start,
+        end_line: at.end,
         kind: kind.to_string(),
         style: style.to_string(),
         text,
@@ -152,9 +157,7 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
             let attach = if start <= 3 { "file-header" } else { "orphan" };
             let in_header = start <= 3 || text.contains("AI-hint");
             out.push(make_block(
-                path,
-                start,
-                end,
+                Span { path, start, end },
                 "blockcomment",
                 style,
                 run,
@@ -179,9 +182,11 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                     in_block = false;
                     let in_hdr = i <= 3 || raw.contains("AI-hint");
                     out.push(make_block(
-                        path,
-                        block_start,
-                        i,
+                        Span {
+                            path,
+                            start: block_start,
+                            end: i,
+                        },
                         "blockcomment",
                         style,
                         &block_lines,
@@ -199,9 +204,11 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                     let in_hdr =
                         block_start <= 3 || block_lines.iter().any(|x| x.contains("AI-hint"));
                     out.push(make_block(
-                        path,
-                        block_start,
-                        i,
+                        Span {
+                            path,
+                            start: block_start,
+                            end: i,
+                        },
                         "blockcomment",
                         style,
                         &block_lines,
@@ -235,9 +242,11 @@ fn lex_generic(path: &str, src: &str, style: &str) -> Vec<Block> {
                 if pos > 0 && !raw[..pos].trim().is_empty() {
                     flush(&mut out, &mut run, run_start, i - 1);
                     out.push(make_block(
-                        path,
-                        i,
-                        i,
+                        Span {
+                            path,
+                            start: i,
+                            end: i,
+                        },
                         "inline",
                         style,
                         &[strip_line(&raw[pos..])],
