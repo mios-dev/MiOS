@@ -2111,7 +2111,7 @@ io.open(p,"w",encoding="utf-8",newline="\n").write(
     python3 -c 'import io,re,sys
 p=sys.argv[1]
 s=io.open(p,encoding="utf-8").read()
-m=re.search(r"^mios-hermes-browser-worker = \[[^\]]*\][^\n]*\n", s, re.M)
+m=re.search(r"^mios-hermes-browser-worker\s*=\s*\[[^\]]*\][^\n]*\n", s, re.M)
 assert m, "worker-browser gate anchor moved"
 s = s[:m.start()] + s[m.end():]
 m2 = re.search(r'"'"'^  "mios-hermes-browser",[^\n]*\n'"'"', s, re.M)
