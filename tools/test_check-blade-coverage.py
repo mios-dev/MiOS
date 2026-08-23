@@ -21,12 +21,17 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
 
-def data(conts=(), archetypes=None, req=None, ungated=None):
+def data(conts=(), archetypes=None, req=None, ungated=None, fallbacks=None):
     blade = {"archetypes": dict(archetypes or {"hybrid": ["gpu-serving"]})}
     if req is not None:
         blade["requires"] = dict(req)
     if ungated is not None:
         blade["ungated"] = list(ungated)
+    # ADR-0017 D2: a gpu-serving unit must name a CPU lane to degrade to. The
+    # fixtures below opt in explicitly so that rule is exercised by its own
+    # test rather than firing as a side effect of every other one.
+    if fallbacks is not None:
+        blade["cpu_fallbacks"] = dict(fallbacks)
     return {"containers": {c: {} for c in conts}, "blade": blade}
 
 
@@ -42,13 +47,22 @@ class TestReaders(unittest.TestCase):
 
 class TestClassify(unittest.TestCase):
     def test_fully_classified_is_clean(self):
-        d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=["b"])
+        d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=["b"],
+                 fallbacks={"a": ["cpu"]})
         self.assertEqual(mod.classify(d, _NOROOT), [])
 
     def test_unclassified_container_fails(self):
-        d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=[])
+        d = data(["a", "b"], req={"a": ["gpu-serving"]}, ungated=[],
+                 fallbacks={"a": ["cpu"]})
         self.assertEqual(len(mod.classify(d, _NOROOT)), 1)
         self.assertIn("'b'", mod.classify(d, _NOROOT)[0])
+
+    def test_gpu_unit_without_a_cpu_fallback_fails(self):
+        """ADR-0017 D2: GPU-gated work degrades to a CPU lane, it does not vanish."""
+        d = data(["a"], req={"a": ["gpu-serving"]}, ungated=[], fallbacks={})
+        self.assertTrue(any("cpu_fallbacks" in v for v in mod.classify(d, _NOROOT)))
+        ok = data(["a"], req={"a": ["gpu-serving"]}, ungated=[], fallbacks={"a": ["cpu"]})
+        self.assertFalse(any("cpu_fallbacks" in v for v in mod.classify(ok, _NOROOT)))
 
     def test_classified_both_ways_fails(self):
         d = data(["a"], req={"a": ["gpu-serving"]}, ungated=["a"])
