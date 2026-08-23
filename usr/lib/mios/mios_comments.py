@@ -268,6 +268,14 @@ class RefIndex:
                 d = rel.rsplit("/", 1)[0] if "/" in rel else ""
                 while d:
                     idx.dirs.add(d)
+                    # A drop-in directory names the unit it extends:
+                    # cloud-final.service.d/ is a reference to
+                    # cloud-final.service, which is upstream systemd's and will
+                    # never be a file here. The directory's own existence is the
+                    # evidence that the unit it names is real.
+                    base = d.rsplit("/", 1)[-1]
+                    if base.endswith(".d") and "." in base[:-2]:
+                        idx.names.add(base[:-2])
                     d = d.rsplit("/", 1)[0] if "/" in d else ""
                 # A unit is referenced by its name, not its filename: comments
                 # say `mios-ai` and `hermes-agent.service`, and both must
@@ -496,6 +504,12 @@ def _hint_prose_len(text: str) -> int:
             # path banner under the hint ("# /usr/share/containers/systemd/x"),
             # which is one token and no more prose than the shebang above it.
             body = line.lstrip().lstrip("#").strip()
+            # A banner ends the hint. `# --- Section ---` is a divider, not a
+            # continuation, and counting it swallowed every note beneath it --
+            # a 89-character hint measured as 377.
+            if body.startswith(("---", "===", "***")) or set(body) <= set("-=*_ "):
+                in_hint = False
+                continue
             if len(body.split()) >= 3:
                 total += len(line) + 1
             else:
