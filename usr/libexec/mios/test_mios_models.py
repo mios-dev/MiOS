@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Stdlib offline tests for the FBM model plane (T-201).
+#!/usr/bin/env python3
+# AI-hint: Stdlib offline tests for the FBM model plane (T-201).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_libexec_mios_test_mios_models_py.md
 
 import hashlib

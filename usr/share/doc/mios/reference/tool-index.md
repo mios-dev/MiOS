@@ -29,6 +29,7 @@ generators and the agent-facing CLIs.
 <!-- MIOS-GEN:index:usr/libexec/mios/mios-* -->
 | File | What it is |
 |---|---|
+| `usr/libexec/mios/MiOS-Mon.py` | MiOS Unified TUI App -- The single cross-platform shared surface. |
 | `usr/libexec/mios/mios-a2a-delegate` | Python shim for mid-run agent-to-agent delegation via the /v1/a2a/dispatch endpoint, allowing agents to offload sub-tasks to peers and inject responses into their reasoning loop as a live bus. |
 | `usr/libexec/mios/mios-a2a-discover` | Scans and validates A2A peer nodes from mios.toml and CIDR ranges to populate /etc/mios/ai/v1/a2a-peers.json, ensuring the agent-pipe has a verified list of live, reachable peers for delegation. |
 | `usr/libexec/mios/mios-a2a-mdns` | SSOT-driven avahi/mDNS side of A2A discovery. Renders the LAN-announce avahi service file from the /usr/lib template (port + service-type substituted from mios.toml, never hardcoded) when... |
@@ -239,7 +240,7 @@ generators and the agent-facing CLIs.
 | `usr/libexec/mios/mios-wsl-flatpak-heal` | Ensures the flatpak-portal and xdg-desktop-portal services are active and responsive on the user bus to prevent sandbox credential failures in WSL2 environments. |
 | `usr/libexec/mios/mios-wslg-env-import` | Injects WSLg display, Wayland, and PulseAudio environment variables into the systemd --user manager and D-Bus activation environment to ensure GUI applications and Flatpaks can reach the WSLg... |
 
-<!-- derived from the AI-hint headers of 209 file(s) matching usr/libexec/mios/mios-* -->
+<!-- derived from the AI-hint headers of 210 file(s) matching usr/libexec/mios/mios-* -->
 <!-- /MIOS-GEN:index:usr/libexec/mios/mios-* -->
 
 ## Generators and repo tooling (`tools/`)
@@ -250,92 +251,98 @@ is generated, its generator is here.
 <!-- MIOS-GEN:index:tools/*.py -->
 | File | What it is |
 |---|---|
-| `tools/ascii-sweep.py` | !/usr/bin/env python3 A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent... |
+| `tools/ascii-sweep.py` | A one-shot utility to normalize MiOS-owned text by replacing non-ASCII typographic characters and emojis with ASCII equivalents to ensure consistent... |
 | `tools/audit-image-provisioning.py` | Post-build image-audit validator asserting provisioning status (AGY / T-286). |
-| `tools/audit-version-literals.py` | !/usr/bin/env python3 Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
-| `tools/check-blade-coverage.py` | !/usr/bin/env python3 Drift gate for the blade ACTIVATION axis. |
+| `tools/audit-version-literals.py` | Inventories every version token in the repo and classifies it as SSOT-definition, SSOT-derived placeholder, or hardcoded literal, emittin... |
+| `tools/check-blade-coverage.py` | Drift gate for the blade ACTIVATION axis. |
 | `tools/check-comment-lex-equivalence.py` | Differential parity check asserting native mios-comment-lex binary and Python lexer produce identical sha12 sets. |
 | `tools/check-comment-ratchet.py` | Drift check 155 check_comment_ratchet -- asserts measured comment metrics do not exceed ceiling values. |
-| `tools/check-container-names.py` | !/usr/bin/env python3 Drift gate for unmappable container names. |
-| `tools/check-credential-literals.py` | !/usr/bin/env python3 Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
-| `tools/check-daemon-governor.py` | !/usr/bin/env python3 Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
+| `tools/check-container-names.py` | Drift gate for unmappable container names. |
+| `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
+| `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
-| `tools/check-firstboot-provisioners.py` | !/usr/bin/env python3 Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
+| `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. A MiOS-Mini fleet is 2-6 boxes, so a config that only works standalone is a defect waiting for the operator to add a peer.... |
-| `tools/check-manual-links.py` | !/usr/bin/env python3 Link-integrity gate for the shipped docs. |
-| `tools/check-module-length.py` | !/usr/bin/env python3 Module-size ratchet for the agent-pipe extraction (drift check 149). |
+| `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
+| `tools/check-module-length.py` | Module-size ratchet for the agent-pipe extraction (drift check 149). |
 | `tools/check-no-generated-prose-in-resolvers.py` | Drift check 157 check_no_generated_prose_in_resolvers -- asserts zero AI-hint: and zero MIOS_UNITS_*_COMMENT= in globals.sh/ps1. |
-| `tools/check-node-pool.py` | !/usr/bin/env python3 Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
-| `tools/check-port-fallbacks.py` | !/usr/bin/env python3 Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
-| `tools/check-ports-bound.py` | !/usr/bin/env python3 Drift gate for allocated-but-unbound ports. |
-| `tools/check-redact-coverage.py` | !/usr/bin/env python3 DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
+| `tools/check-node-pool.py` | Drift gate for the fan-out pool. [nodes.*] is dispatched by capacity behind per-lane and per-endpoint semaphores, so a node that repeats another... |
+| `tools/check-port-fallbacks.py` | Drift gate for Law 7 at the point it actually bites -- a MIOS_PORT_<KEY> paired with a literal that disagrees with [ports].<key>. |
+| `tools/check-ports-bound.py` | Drift gate for allocated-but-unbound ports. |
+| `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
-| `tools/check-role-ssot.py` | !/usr/bin/env python3 Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
-| `tools/check-schema-consumers.py` | !/usr/bin/env python3 Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
-| `tools/check-service-urls.py` | !/usr/bin/env python3 Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
-| `tools/check-ssot-consumer-keys.py` | !/usr/bin/env python3 Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
-| `tools/check-tasks-status-parity.py` | !/usr/bin/env python3 Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` li... |
-| `tools/check-unit-projection.py` | !/usr/bin/env python3 Drift gate for the [units] projection debt register. |
+| `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
+| `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
+| `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
+| `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
+| `tools/check-tasks-status-parity.py` | Drift gate for a lying roadmap. TASKS.md carries every task twice -- once as a row in the summary table and once as a `**Status:**` li... |
+| `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
 | `tools/gen-pipe-boundary-manifest.py` | Generates a machine-readable module-boundary manifest for the agent-pipe DI contract. |
-| `tools/generate-adr-index.py` | !/usr/bin/env python3 Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265). |
+| `tools/generate-adr-index.py` | Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265). |
 | `tools/generate-ai-manifest.py` | Parses Markdown files and metadata blocks to generate a JSON manifest of the project structure, providing agents with a searchable index of documentation, knowle... |
-| `tools/generate-blade-dropins.py` | !/usr/bin/env python3 Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595). |
-| `tools/generate-blade-karg.py` | !/usr/bin/env python3 Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr... |
+| `tools/generate-blade-dropins.py` | Generate systemd capability drop-in files, k3s nodeSelectors, and Pacemaker location rules from the mios.toml [blade.requires] SSOT (AGY-1595). |
+| `tools/generate-blade-karg.py` | Generate usr/lib/bootc/kargs.d/05-mios-blade.toml from the mios.toml [blade].type SSOT, so the karg role-apply already parses has a Law-8 pr... |
 | `tools/generate-cargo-manifests.py` | Generator that projects tools/native/Cargo.toml from mios.toml [meta].mios_version SSOT. |
 | `tools/generate-cockpit-conf.py` | Renders etc/cockpit/cockpit.conf from usr/share/mios/mios.toml SSOT |
 | `tools/generate-cosign-policy.py` | Renders usr/lib/containers/policy.json from usr/share/mios/mios.toml [security.sigstore] SSOT |
-| `tools/generate-egress-firewall.py` | !/usr/bin/env python3 Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
+| `tools/generate-egress-firewall.py` | Generate the agent OUTBOUND egress nftables ruleset (#54 zero-trust federation). |
 | `tools/generate-ipa-enroll-env.py` | Renders etc/mios/ipa-enroll.env from usr/share/mios/mios.toml [identity.ipa] SSOT |
 | `tools/generate-manual.py` | A generation tool to compile and structure the complete 50-chapter MiOS User Manual into a single All-in-One file, cleaning up modular directories. |
-| `tools/generate-mini-vs-hosted.py` | !/usr/bin/env python3 GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a ... |
+| `tools/generate-mini-vs-hosted.py` | GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a ... |
 | `tools/generate-pipeline-index.py` | ) or line_str.startswith("# AI-related:"): continue if line_str.startswith("#") and not line_str.startswith("#!"): |
-| `tools/generate-pod-quadlets.py` | !/usr/bin/env python3 Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
+| `tools/generate-pod-quadlets.py` | Generate .pod Quadlets from the mios.toml [pods.*] co-resident groups (WS-7 pods-as-SSOT). |
 | `tools/generate-uki-cmdline.py` | Flattens usr/lib/bootc/kargs.d/*.toml drop-ins into usr/lib/kernel/cmdline SSOT |
 | `tools/journal-sync.py` | Parses legacy Markdown-based memory logs and synchronizes them into structured JSONL format for the MiOS memory system, extracting timestamps, agent IDs, thoughts, and actions. |
-| `tools/lib/generate-build-scripts.py` | !/usr/bin/env python3 Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, i... |
-| `tools/lib/generate-sbom.py` | !/usr/bin/env python3 Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comp... |
-| `tools/lib/path-refactor.py` | !/usr/bin/env python3 Refactors hardcoded MiOS system paths into environment variable constants (e.g., ${MIOS_LOG_DIR}) in configuration files while preserving comm... |
-| `tools/lib/quote-mios.py` | !/usr/bin/env python3 A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution co... |
+| `tools/lib/generate-build-scripts.py` | Generates a consolidated markdown reference of all build scripts in execution order, used by agents to map the MiOS build pipeline, i... |
+| `tools/lib/generate-sbom.py` | Parses mios.toml to generate MiOS-SBOM.csv, aggregating package metadata, Quadlet image references, and environment defaults to provide a comp... |
+| `tools/lib/path-refactor.py` | Refactors hardcoded MiOS system paths into environment variable constants (e.g., ${MIOS_LOG_DIR}) in configuration files while preserving comm... |
+| `tools/lib/quote-mios.py` | A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution co... |
 | `tools/pipe-parity-check.py` | Drift check helper for verifying surface parity and one-way imports. |
-| `tools/provision-agent-mtls.py` | !/usr/bin/env python3 Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key. |
+| `tools/provision-agent-mtls.py` | Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key. |
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
-| `tools/render-desktop.py` | !/usr/bin/env python3 Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate. |
-| `tools/render-globals.py` | !/usr/bin/env python3 Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ... |
-| `tools/render-ports.py` | !/usr/bin/env python3 Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator reta... |
+| `tools/render-desktop.py` | Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate. |
+| `tools/render-globals.py` | Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ... |
+| `tools/render-ports.py` | Renders the flat [ports] projection from the [ports.categories] numbering SSOT -- every port is derived as base + index*stride, so an operator reta... |
 | `tools/standardize-docs.py` | A maintenance script that enforces uniform legal headers and footers across all .md files in the specs/ directories to ensure consistent ownership metadata and documentation links. |
-| `tools/sync-bootstrap.py` | !/usr/bin/env python3 Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
+| `tools/sync-bootstrap.py` | Law 15 repo sync. Mirrors the surfaces mios.toml [bootstrap.sync] declares from mios.git into mios-bootstrap.git, and mirrors the SSOT tables it ... |
 | `tools/sync-wiki.py` | Updates metadata in wiki markdown files by injecting current version and RAG sync timestamps into JSON blocks to ensure documentation reflects the latest system state and a... |
-| `tools/test_audit_version_literals.py` | !/usr/bin/env python3 Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
-| `tools/test_check-blade-coverage.py` | !/usr/bin/env python3 Unit tests for tools/check-blade-coverage.py. |
-| `tools/test_check-container-names.py` | !/usr/bin/env python3 Sibling unit test for tools/check-container-names.py. |
-| `tools/test_check-credential-literals.py` | !/usr/bin/env python3 Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
-| `tools/test_check-daemon-governor.py` | !/usr/bin/env python3 Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
-| `tools/test_check-firstboot-provisioners.py` | !/usr/bin/env python3 Sibling unit test for tools/check-firstboot-provisioners.py. |
+| `tools/test_audit_version_literals.py` | Unit test for audit-version-literals.py -- asserts the repo-wide version-literal scanner runs and returns the (results, counts) shap... |
+| `tools/test_check-blade-coverage.py` | Unit tests for tools/check-blade-coverage.py. |
+| `tools/test_check-comment-lex-equivalence.py` | Fixtures for check-comment-lex-equivalence.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
+| `tools/test_check-comment-ratchet.py` | Fixtures for check-comment-ratchet.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
+| `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
+| `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
+| `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
+| `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
+| `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
 | `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py. Covers both detectors independently -- k3s multi-server needs BOTH two grantors and a join-less `k3s server`, so a K3S_URL or a single grantor must clear... |
-| `tools/test_check-manual-links.py` | !/usr/bin/env python3 Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
-| `tools/test_check-module-length.py` | !/usr/bin/env python3 Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
-| `tools/test_check-node-pool.py` | !/usr/bin/env python3 Unit tests for tools/check-node-pool.py. |
-| `tools/test_check-port-fallbacks.py` | !/usr/bin/env python3 Unit tests for tools/check-port-fallbacks.py. |
-| `tools/test_check-ports-bound.py` | !/usr/bin/env python3 Unit tests for tools/check-ports-bound.py. |
-| `tools/test_check-redact-coverage.py` | !/usr/bin/env python3 Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
-| `tools/test_check-role-ssot.py` | !/usr/bin/env python3 Unit tests for tools/check-role-ssot.py. |
-| `tools/test_check-schema-consumers.py` | !/usr/bin/env python3 Sibling unit test for tools/check-schema-consumers.py. |
-| `tools/test_check-service-urls.py` | !/usr/bin/env python3 Unit tests for tools/check-service-urls.py. |
-| `tools/test_check-ssot-consumer-keys.py` | !/usr/bin/env python3 Unit tests for tools/check-ssot-consumer-keys.py. |
-| `tools/test_check-tasks-status-parity.py` | !/usr/bin/env python3 Sibling unit test for tools/check-tasks-status-parity.py. |
-| `tools/test_check-unit-projection.py` | !/usr/bin/env python3 Unit tests for tools/check-unit-projection.py. |
+| `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
+| `tools/test_check-module-length.py` | Sibling unit test for tools/check-module-length.py -- the agent-pipe module-size ratchet (check 149). |
+| `tools/test_check-no-generated-prose-in-resolvers.py` | Fixtures for check-no-generated-prose-in-resolvers.py -- proves it flags an AI-hint or a MIOS_UNITS_*_COMMENT payload inside a generated resolver, and passes on a clean one. |
+| `tools/test_check-node-pool.py` | Unit tests for tools/check-node-pool.py. |
+| `tools/test_check-port-fallbacks.py` | Unit tests for tools/check-port-fallbacks.py. |
+| `tools/test_check-ports-bound.py` | Unit tests for tools/check-ports-bound.py. |
+| `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
+| `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
+| `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
+| `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. |
+| `tools/test_check-ssot-consumer-keys.py` | Unit tests for tools/check-ssot-consumer-keys.py. |
+| `tools/test_check-tasks-status-parity.py` | Sibling unit test for tools/check-tasks-status-parity.py. |
+| `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
-| `tools/test_generate-adr-index.py` | !/usr/bin/env python3 Sibling unit test for tools/generate-adr-index.py (T-265). |
-| `tools/test_generate-blade-karg.py` | !/usr/bin/env python3 Unit tests for tools/generate-blade-karg.py. |
-| `tools/test_generate-mini-vs-hosted.py` | !/usr/bin/env python3 Sibling unit test for tools/generate-mini-vs-hosted.py. |
-| `tools/test_render_globals.py` | !/usr/bin/env python3 Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
-| `tools/test_render_ports.py` | !/usr/bin/env python3 Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche... |
-| `tools/test_templates_golden.py` | !/usr/bin/env python3 Golden fixture test runner for mios-new template generator across all 20 template types. |
+| `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). |
+| `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. |
+| `tools/test_generate-mini-vs-hosted.py` | Sibling unit test for tools/generate-mini-vs-hosted.py. |
+| `tools/test_render-desktop.py` | Fixtures for render-desktop.py -- proves the launcher renderer derives its port from SSOT, refuses an empty launcher table, and flags a .desktop file no [desktop.launchers] entry declares. |
+| `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
+| `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche... |
+| `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
+| `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 84 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 90 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
@@ -526,7 +533,7 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/preempt.py` | WS-A12 round-robin preemption state machine + generation-snapshot contract, PLUS the T-019/SCHED-01 TURN-boundary preemption seam AND th... |
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/sched.py` | The MiOS agent-pipe scheduler module. Provides (1) PriorityGate, the WS-1 AI-related: server.py, mios_config.py, test_mios_sched.py AI-fun... |
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/slo.py` | WS-SCHED-SLO deadline/SLO scheduling core (the PURE half). The MiOS admission gate is capacity-only (VRAM/host-load) and degrades OPEN -- it... |
-| `usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py` | !/usr/bin/env python3 Stress test harness for the agent-pipe that validates the /v1/chat/completions path under load-aware concurrency, e... |
+| `usr/lib/mios/agent-pipe/mios_pipe/scheduler/stress.py` | Stress test harness for the agent-pipe that validates the /v1/chat/completions path under load-aware concurrency, e... |
 | `usr/lib/mios/agent-pipe/mios_pipe/scheduler/vram.py` | VRAM and model-residency manager extracted from server.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/streaming.py` | Extracted module for streaming.py. |
 | `usr/lib/mios/agent-pipe/mios_pipe/vram_scheduler.py` | Extracted module for vram_scheduler.py. |
@@ -576,47 +583,47 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_lora_endpoints.py` | Standalone assert-script unit test for LoRA list/load endpoints (CONV-06). |
 | `usr/lib/mios/agent-pipe/test_mios_a2a.py` | Stdlib unit test for the extracted A2A federation publish surface (mios_a2a). |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_client.py` | Stdlib unit test for the extracted A2A peer-client consumer half (mios_a2a_client). |
-| `usr/lib/mios/agent-pipe/test_mios_a2a_loopback.py` | !/usr/bin/env python3 Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extr... |
+| `usr/lib/mios/agent-pipe/test_mios_a2a_loopback.py` | Offline unit test for the mios-a2a-test loopback smoke-test helper -- exercises the pure message-builder, artifact extr... |
 | `usr/lib/mios/agent-pipe/test_mios_a2a_passport.py` | Standalone unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal): claim shape, text-binding digest, and the send->verif... |
-| `usr/lib/mios/agent-pipe/test_mios_a2a_principal.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal). Pure stdlib, no ... |
+| `usr/lib/mios/agent-pipe/test_mios_a2a_principal.py` | Standalone assert-script unit test for mios_a2a_principal (#60 WS-6 signed A2A delegation principal). Pure stdlib, no ... |
 | `usr/lib/mios/agent-pipe/test_mios_account_sync.py` | stdlib unit test for mios-account-sync daemon. |
 | `usr/lib/mios/agent-pipe/test_mios_aci.py` | Standalone unit test for the mios_aci.normalize_output function to verify that ACI output truncation, labeling, and head/tail preservation logic corre... |
 | `usr/lib/mios/agent-pipe/test_mios_admission.py` | Unit tests for mios_pipe.scheduler.admission. |
 | `usr/lib/mios/agent-pipe/test_mios_agent_call.py` | Stdlib assert-script for mios_agent_call. Stubs every injected dep (no |
 | `usr/lib/mios/agent-pipe/test_mios_agentcard_sign.py` | Unit test suite for mios_pipe.federation.agentcard_sign module. |
-| `usr/lib/mios/agent-pipe/test_mios_agentreg.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_agentreg (R3 agent/node registry builders). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_ai_manifest.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_agentreg.py` | Standalone assert-script unit test for mios_agentreg (R3 agent/node registry builders). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_ai_manifest.py` | Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog manifest projection). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_antifab.py` | Standalone assert-script unit test for the anti-fabrication guard AI-related: ./mios_pipe/routing/chat.py, ./mios_chat.py, ./test_mios_chat.py AI-... |
-| `usr/lib/mios/agent-pipe/test_mios_approutes.py` | !/usr/bin/env python3 Runtime route-parity gate for the agent-pipe strangler-fig refactor (WS R13 Step 2b) -- the LIVE-FastAPI complement to the... |
-| `usr/lib/mios/agent-pipe/test_mios_arbiter.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_arbiter (WS-9 out-of-process policy-arbiter decision core). Pure stdlib, no serv... |
+| `usr/lib/mios/agent-pipe/test_mios_approutes.py` | Runtime route-parity gate for the agent-pipe strangler-fig refactor (WS R13 Step 2b) -- the LIVE-FastAPI complement to the... |
+| `usr/lib/mios/agent-pipe/test_mios_arbiter.py` | Standalone assert-script unit test for mios_arbiter (WS-9 out-of-process policy-arbiter decision core). Pure stdlib, no serv... |
 | `usr/lib/mios/agent-pipe/test_mios_argval.py` | Sibling unit test for the mios_argval python module, ensuring compliance with drift-check 11. |
-| `usr/lib/mios/agent-pipe/test_mios_audit.py` | !/usr/bin/env python3 Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain. |
+| `usr/lib/mios/agent-pipe/test_mios_audit.py` | Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain. |
 | `usr/lib/mios/agent-pipe/test_mios_auth.py` | Placeholder test for mios_auth.py. |
 | `usr/lib/mios/agent-pipe/test_mios_authn.py` | Unit tests for mios_pipe.access.authn. |
-| `usr/lib/mios/agent-pipe/test_mios_batch.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Stdlib + asyncio, no DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_bench.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_bench (agentic-capability benchmark scoring core). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_bench_harness.py` | !/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3 Verification test suite for mios-bench harness CLI option parsing, metrics reporting, a... |
-| `usr/lib/mios/agent-pipe/test_mios_blades.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_blades (V4/V5 blade topology + AI-related: ./mios_blades.py, ./mios_config.py, ./... |
+| `usr/lib/mios/agent-pipe/test_mios_batch.py` | Standalone assert-script unit test for mios_batch (WS-A6 batch coalescing). Stdlib + asyncio, no DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_bench.py` | Standalone assert-script unit test for mios_bench (agentic-capability benchmark scoring core). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_bench_harness.py` | Verification test suite for mios-bench harness CLI option parsing, metrics reporting, a... |
+| `usr/lib/mios/agent-pipe/test_mios_blades.py` | Standalone assert-script unit test for mios_blades (V4/V5 blade topology + AI-related: ./mios_blades.py, ./mios_config.py, ./... |
 | `usr/lib/mios/agent-pipe/test_mios_budget.py` | stdlib unit test for mios_agent_call budget and depth limits. |
-| `usr/lib/mios/agent-pipe/test_mios_capreg.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_capreg (WS-2 unified RBAC-filtered capability manifest). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_capreg.py` | Standalone assert-script unit test for mios_capreg (WS-2 unified RBAC-filtered capability manifest). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_chat.py` | Routing-PRECEDENCE gate for the extracted chat-completions router-brain |
 | `usr/lib/mios/agent-pipe/test_mios_classify.py` | Stdlib unit tests for mios_classify (layer-1 micro-LLM classifiers). |
 | `usr/lib/mios/agent-pipe/test_mios_clusterhealth.py` | Stdlib unit test for mios_clusterhealth -- the cluster/scheduler/health route LOGIC extracted VERBATIM from server.py (refactor ROUTE-SURFACE wave). |
 | `usr/lib/mios/agent-pipe/test_mios_codemode.py` | Standalone unit test for mios_codemode logic to verify language normalization, timeout clamping, and session ID generation without requiring the ... |
 | `usr/lib/mios/agent-pipe/test_mios_cold_evict.py` | Standalone assert-script unit test for mios_cold_evict (CONV-09). |
-| `usr/lib/mios/agent-pipe/test_mios_compact.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_compact (WS-A5 rolling-summary compaction planner). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_compact.py` | Standalone assert-script unit test for mios_compact (WS-A5 rolling-summary compaction planner). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_compound.py` | Standalone unit test for the #49 read-tool-enrich domain-filter fix: a compound that spans domains must keep verbs refine EXPLICITLY hinted (and,... |
 | `usr/lib/mios/agent-pipe/test_mios_conductor.py` | stub |
-| `usr/lib/mios/agent-pipe/test_mios_config.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_config (refactor WS R1 config-constants extraction). Pure stdlib, no server.py/DB... |
+| `usr/lib/mios/agent-pipe/test_mios_config.py` | Standalone assert-script unit test for mios_config (refactor WS R1 config-constants extraction). Pure stdlib, no server.py/DB... |
 | `usr/lib/mios/agent-pipe/test_mios_config_validate.py` | Hermetic unit tests for the WS-CONFIG server-side SAFETY validator |
 | `usr/lib/mios/agent-pipe/test_mios_config_write.py` | Standalone unit test for the /portal/config read/write routes to ensure correct auth, TOML parsing, and background DB re-seeding. |
 | `usr/lib/mios/agent-pipe/test_mios_consensus.py` | Stdlib offline unit tests for mios_pipe.routing.consensus -- the weighted multi-judge Definition-of-Done fold (CONS-01). No network / no DB / no... |
-| `usr/lib/mios/agent-pipe/test_mios_cost.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_cost (WS-RES-GOV cost/energy accounting, CLASSic Cost axis). Pure stdlib, no server.py/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_cost.py` | Standalone assert-script unit test for mios_cost (WS-RES-GOV cost/energy accounting, CLASSic Cost axis). Pure stdlib, no server.py/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_council_diversity.py` | Stdlib offline unit tests for mios_council_diversity -- the council input-diversity gate (T-047 RouteMoA GAP-1) + confidence-aware aggre... |
-| `usr/lib/mios/agent-pipe/test_mios_crl.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network. |
-| `usr/lib/mios/agent-pipe/test_mios_ctxpack.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_ctxpack (WS-A5 priority token-budget packer). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_cua.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_cua (WS-8 perceive->act->verify computer-use loop core). Pure stdlib, no server.py/VLM/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_cua_hierarchy.py` | !/usr/bin/env /usr/lib/mios/agents/.venv/bin/python3 Verification test suite for mios_cua hierarchy routing, verify-after-action, and coordinate scaling. |
+| `usr/lib/mios/agent-pipe/test_mios_crl.py` | Standalone assert-script unit test for mios_crl (WS-A10 cert/token revocation list). Pure stdlib, no server.py/DB/pytest/network. |
+| `usr/lib/mios/agent-pipe/test_mios_ctxpack.py` | Standalone assert-script unit test for mios_ctxpack (WS-A5 priority token-budget packer). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_cua.py` | Standalone assert-script unit test for mios_cua (WS-8 perceive->act->verify computer-use loop core). Pure stdlib, no server.py/VLM/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_cua_hierarchy.py` | Verification test suite for mios_cua hierarchy routing, verify-after-action, and coordinate scaling. |
 | `usr/lib/mios/agent-pipe/test_mios_daemon.py` | stdlib unit test for mios_agent_call daemon runaway controls. |
 | `usr/lib/mios/agent-pipe/test_mios_daemons.py` | stdlib unit test for mios_daemons -- single-iteration behaviour of the |
 | `usr/lib/mios/agent-pipe/test_mios_dag_exec.py` | Stdlib assert-test for mios_dag_exec (refactor R8 DAG execution wave). |
@@ -624,125 +631,125 @@ is generated, its generator is here.
 | `usr/lib/mios/agent-pipe/test_mios_db.py` | Placeholder test for mios_db.py. |
 | `usr/lib/mios/agent-pipe/test_mios_db_config.py` | stdlib unit test for mios_db_config resolver. |
 | `usr/lib/mios/agent-pipe/test_mios_dbwrite.py` | Unit tests for mios_pipe.dbwrite. |
-| `usr/lib/mios/agent-pipe/test_mios_dci.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_dci.py` | Standalone assert-script unit test for mios_dci (refactor R6 DCI extraction). Pure stdlib, no server.py/DB/httpx-network/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch.py` | Offline stdlib-assert test for mios_dispatch (the verb->bash dispatch chokepoint). |
-| `usr/lib/mios/agent-pipe/test_mios_dispatch_cmd.py` | !/usr/bin/env python3 Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273). |
+| `usr/lib/mios/agent-pipe/test_mios_dispatch_cmd.py` | Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273). |
 | `usr/lib/mios/agent-pipe/test_mios_dispatch_redos.py` | Regression test for the ReDoS in dispatch_cmd's podman-exec shell-stripper. The flag-repetition group allowed a flag's ARGUMENT to start with '-', so "-a -b" had two legal parses and the group... |
-| `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + i... |
+| `usr/lib/mios/agent-pipe/test_mios_dispatcher.py` | Standalone assert-script unit test for mios_dispatcher (WS-A11/WS-3 decomposition Stage 1c: the pure mode Dispatcher) + i... |
 | `usr/lib/mios/agent-pipe/test_mios_drift_monitor.py` | Stdlib offline unit tests for mios_pipe.observability.drift_monitor -- the Jensen-Shannon Goodhart alarm (CONS-02). No network / no DB / no ... |
-| `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | !/usr/bin/env python3 Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. |
+| `usr/lib/mios/agent-pipe/test_mios_dual_ledger.py` | Standalone assert-script unit test for T-030 (Dual-Ledger + Typed-Output Synthesis). Pure stdlib + asyncio, no server.py/DB/network. |
 | `usr/lib/mios/agent-pipe/test_mios_egress.py` | Standalone unit test for tools/generate-egress-firewall (#54 egress firewall): build_ruleset emits a uid-scoped nftables ruleset with the always-al... |
-| `usr/lib/mios/agent-pipe/test_mios_embed_backfill.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_embed_backfill (WS-A2 embedding-version hygiene). |
-| `usr/lib/mios/agent-pipe/test_mios_endpoints.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_endpoints (refactor R-wave leaf extraction). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_embed_backfill.py` | Standalone assert-script unit test for mios_embed_backfill (WS-A2 embedding-version hygiene). |
+| `usr/lib/mios/agent-pipe/test_mios_endpoints.py` | Standalone assert-script unit test for mios_endpoints (refactor R-wave leaf extraction). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_env.py` | Unit test for empty MIOS_* env contract. |
-| `usr/lib/mios/agent-pipe/test_mios_evict.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_fanout.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_fanout (council/swarm fan-out SELECTION; de-hardcoded to model-driven relevance).... |
+| `usr/lib/mios/agent-pipe/test_mios_evict.py` | Standalone assert-script unit test for mios_evict (WS-A3 parameterized-pg eviction). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_fanout.py` | Standalone assert-script unit test for mios_fanout (council/swarm fan-out SELECTION; de-hardcoded to model-driven relevance).... |
 | `usr/lib/mios/agent-pipe/test_mios_firewall.py` | Standalone stdlib assert-script for mios_firewall (the provenance-taint + Semantic Firewall plane). |
 | `usr/lib/mios/agent-pipe/test_mios_gateway_queue.py` | Standalone assert-script unit test for mios_gateway_queue (CONV-03). |
-| `usr/lib/mios/agent-pipe/test_mios_gossip.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_gossip (WS-A18 epidemic-gossip + SWIM anti-entropy discovery core). Pure stdlib, ... |
-| `usr/lib/mios/agent-pipe/test_mios_grounding.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_grounding (refactor R2 leaf extraction of the per-turn ENV-GROUNDING cluster).... |
+| `usr/lib/mios/agent-pipe/test_mios_gossip.py` | Standalone assert-script unit test for mios_gossip (WS-A18 epidemic-gossip + SWIM anti-entropy discovery core). Pure stdlib, ... |
+| `usr/lib/mios/agent-pipe/test_mios_grounding.py` | Standalone assert-script unit test for mios_grounding (refactor R2 leaf extraction of the per-turn ENV-GROUNDING cluster).... |
 | `usr/lib/mios/agent-pipe/test_mios_health.py` | Unit test suite for mios_pipe.health module. |
 | `usr/lib/mios/agent-pipe/test_mios_hitl.py` | Standalone unit test for mios_hitl to verify deterministic logic for Human-In-The-Loop (HITL) decision gating, scope parsing, and action blocking wit... |
 | `usr/lib/mios/agent-pipe/test_mios_hitlflow.py` | Stdlib assert-script for mios_hitlflow (R7 security wave) -- the HITL |
-| `usr/lib/mios/agent-pipe/test_mios_hopbudget.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_hopbudget (WS-4 hop-budget guard + effort scaling). Pure stdlib, no server.py/... |
+| `usr/lib/mios/agent-pipe/test_mios_hopbudget.py` | Standalone assert-script unit test for mios_hopbudget (WS-4 hop-budget guard + effort scaling). Pure stdlib, no server.py/... |
 | `usr/lib/mios/agent-pipe/test_mios_http_caps.py` | Stdlib unit test for mios_http_caps -- the advertised-surface / capability route LOGIC extracted from server.py (refactor R-CAPS). |
-| `usr/lib/mios/agent-pipe/test_mios_httpclient.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_pipe.kernel.httpclient -- the ONE shared outbound AsyncClient and the T-226 b... |
-| `usr/lib/mios/agent-pipe/test_mios_interop.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_interop (WS-11 3-projection: the A2A skill shape). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_jsonsalvage.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model outp... |
+| `usr/lib/mios/agent-pipe/test_mios_httpclient.py` | Standalone assert-script unit test for mios_pipe.kernel.httpclient -- the ONE shared outbound AsyncClient and the T-226 b... |
+| `usr/lib/mios/agent-pipe/test_mios_interop.py` | Standalone assert-script unit test for mios_interop (WS-11 3-projection: the A2A skill shape). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_jsonsalvage.py` | Standalone assert-script unit test for mios_jsonsalvage.loads_lenient (lenient JSON-grammar salvage for small-model outp... |
 | `usr/lib/mios/agent-pipe/test_mios_k3s.py` | Standalone unit test for the #61 generated k3s manifests: every committed usr/share/mios/k3s/generated/*.yaml parses, declares an apiVersion, carries ... |
-| `usr/lib/mios/agent-pipe/test_mios_kernel.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_kernel (WS-A11/WS-3 decomposition Stage 1b: the pure Kernel facade). Pure stdlib ... |
-| `usr/lib/mios/agent-pipe/test_mios_knowledge.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_knowledge (refactor R6 KNOWLEDGE-cluster extraction). Pure stdlib, no server.p... |
+| `usr/lib/mios/agent-pipe/test_mios_kernel.py` | Standalone assert-script unit test for mios_kernel (WS-A11/WS-3 decomposition Stage 1b: the pure Kernel facade). Pure stdlib ... |
+| `usr/lib/mios/agent-pipe/test_mios_knowledge.py` | Standalone assert-script unit test for mios_knowledge (refactor R6 KNOWLEDGE-cluster extraction). Pure stdlib, no server.p... |
 | `usr/lib/mios/agent-pipe/test_mios_kvfork.py` | Standalone unit test for mios_kvfork to verify KV-cache fork primitives, ensuring filename sanitization, length capping, and fork validation logic ... |
-| `usr/lib/mios/agent-pipe/test_mios_kvgc.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_kvgc (WS-A4 KV-file GC planner). Pure stdlib, no server.py/DB/podman/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_kvgc.py` | Standalone assert-script unit test for mios_kvgc (WS-A4 KV-file GC planner). Pure stdlib, no server.py/DB/podman/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_lanes.py` | Standalone unit test for mios_lanes (WS-1 unified lane resolver) -- verifies build_chain ordering, health-cached pick, per-lane cooldown failover, t... |
 | `usr/lib/mios/agent-pipe/test_mios_lanes_resolver.py` | Stdlib unit tests for mios_lanes_resolver (strangler-fig lane-resolver |
 | `usr/lib/mios/agent-pipe/test_mios_launch.py` | Standalone unit test for the deterministic_action_route logic to ensure "open/launch" commands correctly strip filler phrases and map to open_app(n... |
 | `usr/lib/mios/agent-pipe/test_mios_letta.py` | Standalone unit test suite for LettaMemoryClient and letta_dispatch_handler (T-077). |
 | `usr/lib/mios/agent-pipe/test_mios_list_dir.py` | Sibling unit test for mios-text-edit view directory depth logic (T-112). |
-| `usr/lib/mios/agent-pipe/test_mios_manifest.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog -> ai/v1 manifest projection; drift-check 8 depend... |
+| `usr/lib/mios/agent-pipe/test_mios_manifest.py` | Standalone assert-script unit test for mios_manifest (WS-A1 verb-catalog -> ai/v1 manifest projection; drift-check 8 depend... |
 | `usr/lib/mios/agent-pipe/test_mios_mcp.py` | Stdlib unit test for mios_mcp -- the external-MCP CONSUME client extracted from server.py (refactor R-MCP). |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_dispatch.py` | Unit test suite for mios_pipe.mcp_dispatch module. |
 | `usr/lib/mios/agent-pipe/test_mios_mcp_pool.py` | Standalone assert-script unit test for MCPClientPool (CONV-13). |
-| `usr/lib/mios/agent-pipe/test_mios_mcp_sandbox.py` | !/usr/bin/env python3 Standalone assert-script unit test for T-032 (SEC-01 Hermetic MCP Sandboxing). Pure stdlib + asyncio, no server.py/DB/network. |
-| `usr/lib/mios/agent-pipe/test_mios_memguard.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_memguard (WS-MEM-VALIDATE / OWASP ASI08 write-time memory-poisoning guard, de-h... |
-| `usr/lib/mios/agent-pipe/test_mios_memory.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_memory (WS-A15 MemoryProvider seam). |
+| `usr/lib/mios/agent-pipe/test_mios_mcp_sandbox.py` | Standalone assert-script unit test for T-032 (SEC-01 Hermetic MCP Sandboxing). Pure stdlib + asyncio, no server.py/DB/network. |
+| `usr/lib/mios/agent-pipe/test_mios_memguard.py` | Standalone assert-script unit test for mios_memguard (WS-MEM-VALIDATE / OWASP ASI08 write-time memory-poisoning guard, de-h... |
+| `usr/lib/mios/agent-pipe/test_mios_memory.py` | Standalone assert-script unit test for mios_memory (WS-A15 MemoryProvider seam). |
 | `usr/lib/mios/agent-pipe/test_mios_mtls.py` | Standalone unit test for tools/provision-agent-mtls (#54 mTLS PKI): the agent leaf cert is signed by the CA, carries clientAuth+serverAuth EKU, and r... |
 | `usr/lib/mios/agent-pipe/test_mios_native_loop.py` | stdlib assert-script for mios_native_loop -- exercises the NATIVE |
-| `usr/lib/mios/agent-pipe/test_mios_oscontrol.py` | !/usr/bin/env python3 Offline stdlib test for mios_oscontrol (refactor R9): stubs every sibling (fastapi.responses + mios_sse/mios_jsonsalvage/m... |
-| `usr/lib/mios/agent-pipe/test_mios_owui.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_owui (OWUI RAG/task-template scaffold stripper). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_pdp.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate). |
+| `usr/lib/mios/agent-pipe/test_mios_oscontrol.py` | Offline stdlib test for mios_oscontrol (refactor R9): stubs every sibling (fastapi.responses + mios_sse/mios_jsonsalvage/m... |
+| `usr/lib/mios/agent-pipe/test_mios_owui.py` | Standalone assert-script unit test for mios_owui (OWUI RAG/task-template scaffold stripper). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_pdp.py` | Standalone assert-script unit test for mios_pdp (WS-A9 PDP capability gate). |
 | `usr/lib/mios/agent-pipe/test_mios_pg.py` | Standalone unit test for mios_pg to verify pure-python PostgreSQL helper logic, including DSN construction, vector literal formatting, and SQL insert g... |
 | `usr/lib/mios/agent-pipe/test_mios_planner.py` | Stdlib assert-script for mios_planner. No network: the planner LLM call in decompose_intent is exercised only on the early short-prompt-skip / dis... |
 | `usr/lib/mios/agent-pipe/test_mios_policy.py` | Stdlib assert-script for mios_policy (R7 security wave). Proves the |
-| `usr/lib/mios/agent-pipe/test_mios_portal.py` | !/usr/bin/env python3 Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB. |
-| `usr/lib/mios/agent-pipe/test_mios_preempt.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_preempt (WS-A12 RR-preemption state machine + snapshot contract, PLUS the T-019/... |
+| `usr/lib/mios/agent-pipe/test_mios_portal.py` | Standalone unit test for mios_portal (refactor R10) -- proves the moved portal logic works with stubs and no network/DB. |
+| `usr/lib/mios/agent-pipe/test_mios_preempt.py` | Standalone assert-script unit test for mios_preempt (WS-A12 RR-preemption state machine + snapshot contract, PLUS the T-019/... |
 | `usr/lib/mios/agent-pipe/test_mios_principal.py` | Unit test suite for mios_pipe.identity.principal module (signed A2A delegation principal). |
 | `usr/lib/mios/agent-pipe/test_mios_promptfmt.py` | Stdlib unit tests for mios_promptfmt (pure prompt text-block |
-| `usr/lib/mios/agent-pipe/test_mios_promptver.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_promptver (WS-LIFECYCLE-VER prompt-version registry). Pure stdlib, no server.py/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_provider_translate.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_provider_translate (refactor WS R2 leaf extraction). Pure stdlib, no ... |
-| `usr/lib/mios/agent-pipe/test_mios_pty.py` | !/usr/bin/env python3 Stdlib offline tests for mios_pipe.routing.pty -- the persistent shell substrate's pure protocol (SHELL-01). No tmux, no subproc... |
+| `usr/lib/mios/agent-pipe/test_mios_promptver.py` | Standalone assert-script unit test for mios_promptver (WS-LIFECYCLE-VER prompt-version registry). Pure stdlib, no server.py/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_provider_translate.py` | Standalone assert-script unit test for mios_provider_translate (refactor WS R2 leaf extraction). Pure stdlib, no ... |
+| `usr/lib/mios/agent-pipe/test_mios_pty.py` | Stdlib offline tests for mios_pipe.routing.pty -- the persistent shell substrate's pure protocol (SHELL-01). No tmux, no subproc... |
 | `usr/lib/mios/agent-pipe/test_mios_quality_gate.py` | Unit test suite for quality_gate.py and smartroute escalation integration. |
 | `usr/lib/mios/agent-pipe/test_mios_quarantine.py` | Offline stdlib-assert test for the F2 CaMeL dual-context QUARANTINE gate (the deeper half of T-033, mios_quarantine). |
-| `usr/lib/mios/agent-pipe/test_mios_quota.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_quota (WS-6 per-user quota + rate limit). Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_react_reflexion.py` | !/usr/bin/env python3 Standalone assert-script unit test for T-031 (ReAct+Reflexion Durable Loop + Checkpoint-per-Superstep). Pure stdlib ... |
+| `usr/lib/mios/agent-pipe/test_mios_quota.py` | Standalone assert-script unit test for mios_quota (WS-6 per-user quota + rate limit). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_react_reflexion.py` | Standalone assert-script unit test for T-031 (ReAct+Reflexion Durable Loop + Checkpoint-per-Superstep). Pure stdlib ... |
 | `usr/lib/mios/agent-pipe/test_mios_record_replay.py` | Unit tests for T-040 (OBS-03 record-and-replay determinism + session hash chaining). |
 | `usr/lib/mios/agent-pipe/test_mios_redact.py` | stdlib unit test for secrets and PII redaction. |
-| `usr/lib/mios/agent-pipe/test_mios_refine.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_refine (refactor R5 REFINE-classifier extraction). Pure stdlib, no server.py/DB/network/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_reflect.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_reflect (strangler-fig extraction). Pure stdlib, no server.py/DB/network/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_registry.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_registry (WS-A17 versioned package + registry projection). Pure stdlib, no serv... |
+| `usr/lib/mios/agent-pipe/test_mios_refine.py` | Standalone assert-script unit test for mios_refine (refactor R5 REFINE-classifier extraction). Pure stdlib, no server.py/DB/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_reflect.py` | Standalone assert-script unit test for mios_reflect (strangler-fig extraction). Pure stdlib, no server.py/DB/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_registry.py` | Standalone assert-script unit test for mios_registry (WS-A17 versioned package + registry projection). Pure stdlib, no serv... |
 | `usr/lib/mios/agent-pipe/test_mios_remote_adapter.py` | Unit test for mios_pipe.routing.remote_adapter. Validates Anthropic, Gemini, and OpenAI remote calls. |
-| `usr/lib/mios/agent-pipe/test_mios_replay.py` | !/usr/bin/env python3 Standalone assert-script unit test for the T-225 run-template REPLAY path -- the pure matcher (mios_pipe.routing.replay), the... |
+| `usr/lib/mios/agent-pipe/test_mios_replay.py` | Standalone assert-script unit test for the T-225 run-template REPLAY path -- the pure matcher (mios_pipe.routing.replay), the... |
 | `usr/lib/mios/agent-pipe/test_mios_reputation.py` | Standalone unit test for mios_reputation (#54 peer reputation): neutral-with-no-history, success-rate scoring, recent-failure penalty, and STAB... |
-| `usr/lib/mios/agent-pipe/test_mios_router.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_router (WS-A11/WS-3 decomposition Stage 1: the pure Router). Pure stdlib, no serv... |
-| `usr/lib/mios/agent-pipe/test_mios_router_parity.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_router Stage-2 parity. Pure stdlib, no server.py/DB/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_routing.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_routing (refactor R2 ROUTING-layer extraction). Pure stdlib, no server.py/DB/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_router.py` | Standalone assert-script unit test for mios_router (WS-A11/WS-3 decomposition Stage 1: the pure Router). Pure stdlib, no serv... |
+| `usr/lib/mios/agent-pipe/test_mios_router_parity.py` | Standalone assert-script unit test for mios_router Stage-2 parity. Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_routing.py` | Standalone assert-script unit test for mios_routing (refactor R2 ROUTING-layer extraction). Pure stdlib, no server.py/DB/network/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_ruleof2.py` | Offline stdlib-assert test for the F2/T-033 Rule-of-Two architectural prompt-injection gate. |
-| `usr/lib/mios/agent-pipe/test_mios_run_template.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_pipe.routing.run_template -- the WS-6 capture half plus the T-225 replay re... |
-| `usr/lib/mios/agent-pipe/test_mios_sandbox.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_run_template.py` | Standalone assert-script unit test for mios_pipe.routing.run_template -- the WS-6 capture half plus the T-225 replay re... |
+| `usr/lib/mios/agent-pipe/test_mios_sandbox.py` | Standalone assert-script unit test for mios_sandbox (WS-A13 risk-tier dispatch sandbox). Pure stdlib, no server.py/bwrap/podman/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_sched.py` | Standalone unit test for mios_sched -- PriorityGate concurrency logic (permit capping, priority reordering, anti-starvation) plus the lane/schedulin... |
 | `usr/lib/mios/agent-pipe/test_mios_scratchpad.py` | Unit tests for mios_pipe.context.scratchpad. |
-| `usr/lib/mios/agent-pipe/test_mios_seccomp.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_pipe.access.seccomp (T-230). |
+| `usr/lib/mios/agent-pipe/test_mios_seccomp.py` | Standalone assert-script unit test for mios_pipe.access.seccomp (T-230). |
 | `usr/lib/mios/agent-pipe/test_mios_secondary_loop.py` | Stdlib assert-script for mios_secondary_loop (the /v1 sub-agent tool-loop + its |
-| `usr/lib/mios/agent-pipe/test_mios_secset.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_secset (WS-A14 SSOT-derived security sets). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_secset.py` | Standalone assert-script unit test for mios_secset (WS-A14 SSOT-derived security sets). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_selfimprove.py` | Standalone unit test for mios_selfimprove (#64 self-improve analysis): per-tool failure-rate + slow-tool + unreliable-peer findings, min-sampl... |
 | `usr/lib/mios/agent-pipe/test_mios_selfimprove_act.py` | Standalone unit test for mios_selfimprove_act (T-062 ACT + T-064 proof-of-utility decision core): structural anti-reward-hacking isolation... |
 | `usr/lib/mios/agent-pipe/test_mios_session_events.py` | Unit tests for mios_pipe.observability.session_events. |
-| `usr/lib/mios/agent-pipe/test_mios_skills.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_skills (refactor R7 SKILLS-cluster extraction). Pure stdlib, no server.py/DB/network/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_slo.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_slo (WS-SCHED-SLO deadline/SLO scheduling core). Pure stdlib, no server.py/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_smartroute.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_smartroute (WS-A16 cost/quality SmartRouting). Pure stdlib, no server.py/network/pytest. |
-| `usr/lib/mios/agent-pipe/test_mios_sse.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_sse (refactor WS R2 leaf extraction). Pure stdlib, no server.py/DB/pytest/FastAPI. |
+| `usr/lib/mios/agent-pipe/test_mios_skills.py` | Standalone assert-script unit test for mios_skills (refactor R7 SKILLS-cluster extraction). Pure stdlib, no server.py/DB/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_slo.py` | Standalone assert-script unit test for mios_slo (WS-SCHED-SLO deadline/SLO scheduling core). Pure stdlib, no server.py/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_smartroute.py` | Standalone assert-script unit test for mios_smartroute (WS-A16 cost/quality SmartRouting). Pure stdlib, no server.py/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_sse.py` | Standalone assert-script unit test for mios_sse (refactor WS R2 leaf extraction). Pure stdlib, no server.py/DB/pytest/FastAPI. |
 | `usr/lib/mios/agent-pipe/test_mios_streaming.py` | Placeholder test for mios_streaming.py. |
 | `usr/lib/mios/agent-pipe/test_mios_stress.py` | Standalone unit test for mios_stress logic to verify percentile calculations, request aggregation, throttling logic, and concurrency ramping algori... |
-| `usr/lib/mios/agent-pipe/test_mios_surface.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_surface (refactor WS R0 parity gate + R13 Step 2a whole-package projection). Pur... |
+| `usr/lib/mios/agent-pipe/test_mios_surface.py` | Standalone assert-script unit test for mios_surface (refactor WS R0 parity gate + R13 Step 2a whole-package projection). Pur... |
 | `usr/lib/mios/agent-pipe/test_mios_swarm.py` | stdlib assert-script gate for mios_swarm (the SWARM brain). Drives the |
 | `usr/lib/mios/agent-pipe/test_mios_template.py` | stdlib unit test for mios_template. |
 | `usr/lib/mios/agent-pipe/test_mios_tiered_memory.py` | Standalone assert-script unit test for MEM-02 (tiered memory / context warning and eviction logic). Pure stdlib + asyncio, no live Letta server required. Runs as `python3 test_mios_tiered_memory.py`... |
-| `usr/lib/mios/agent-pipe/test_mios_tokenize.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_tokenize (WS-A5 tokenizer seam). Pure stdlib, no server.py/DB/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_tokenize.py` | Standalone assert-script unit test for mios_tokenize (WS-A5 tokenizer seam). Pure stdlib, no server.py/DB/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_toml.py` | Standalone unit test for mios_toml.py overlay and DB authoritative fallbacks. |
-| `usr/lib/mios/agent-pipe/test_mios_toolconflict.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7). |
+| `usr/lib/mios/agent-pipe/test_mios_toolconflict.py` | Standalone assert-script unit test for mios_toolconflict.ConflictGate (WS-A7). |
 | `usr/lib/mios/agent-pipe/test_mios_toolexec.py` | Stdlib assert-script for mios_toolexec. Stubs every injected dep (no |
 | `usr/lib/mios/agent-pipe/test_mios_toolsearch.py` | Stdlib unit test for mios_toolsearch -- the embedding tool/app semantic-search core extracted from server.py (refactor R10). |
 | `usr/lib/mios/agent-pipe/test_mios_toolsurface.py` | Unit tests for mios_pipe.routing.toolsurface. |
-| `usr/lib/mios/agent-pipe/test_mios_trace.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_trace (WS-A8 trace/span observability). |
+| `usr/lib/mios/agent-pipe/test_mios_trace.py` | Standalone assert-script unit test for mios_trace (WS-A8 trace/span observability). |
 | `usr/lib/mios/agent-pipe/test_mios_turn.py` | Stdlib unit tests for mios_turn (per-turn message-prep + agent-selection |
 | `usr/lib/mios/agent-pipe/test_mios_vector.py` | stdlib unit test for pgvector schema and cosine similarity matching. |
 | `usr/lib/mios/agent-pipe/test_mios_verbcatalog.py` | Stdlib unit test for mios_verbcatalog -- the verb/recipe catalog loader + 3-projection SSOT source. |
-| `usr/lib/mios/agent-pipe/test_mios_verity.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_verity (refactor R6 extraction). Pure stdlib, no server.py/DB/network/pytest. |
+| `usr/lib/mios/agent-pipe/test_mios_verity.py` | Standalone assert-script unit test for mios_verity (refactor R6 extraction). Pure stdlib, no server.py/DB/network/pytest. |
 | `usr/lib/mios/agent-pipe/test_mios_vision.py` | Stdlib assert-script for mios_vision (refactor R9). Covers the two |
 | `usr/lib/mios/agent-pipe/test_mios_vram.py` | Unit tests for mios_pipe.scheduler.vram. |
 | `usr/lib/mios/agent-pipe/test_mios_vram_scheduler.py` | Placeholder test for mios_vram_scheduler.py. |
 | `usr/lib/mios/agent-pipe/test_mios_web_research.py` | Stdlib assert-script for mios_web_research. No network. Drives |
-| `usr/lib/mios/agent-pipe/test_mios_worker_tools.py` | !/usr/bin/env python3 Standalone assert-script unit test for mios_worker_tools (refactor R4 worker-tools reranker extraction). Pure stdlib, n... |
-| `usr/lib/mios/agent-pipe/test_server_import.py` | !/usr/bin/env python3 Near-runtime import gate for the agent-pipe strangler-fig refactor (WS R0+). |
+| `usr/lib/mios/agent-pipe/test_mios_worker_tools.py` | Standalone assert-script unit test for mios_worker_tools (refactor R4 worker-tools reranker extraction). Pure stdlib, n... |
+| `usr/lib/mios/agent-pipe/test_server_import.py` | Near-runtime import gate for the agent-pipe strangler-fig refactor (WS R0+). |
 | `usr/lib/mios/agent-pipe/tests/test_mios_health.py` | Unit test for mios_pipe.health module. |
 | `usr/lib/mios/agent-pipe/tests/test_mios_mcp_dispatch.py` | Unit test for mios_pipe.mcp_dispatch module. |
-| `usr/lib/mios/agents/opencode-gateway/server.py` | !/usr/bin/env python3 Provides an OpenAI-compatible HTTP shim for the opencode CLI, exposing /v1/models and /v1/chat/completions endpoints to in... |
-| `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | !/usr/bin/env python3 FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
-| `usr/lib/mios/mios_comments.py` | !/usr/bin/env python3 The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
+| `usr/lib/mios/agents/opencode-gateway/server.py` | Provides an OpenAI-compatible HTTP shim for the opencode CLI, exposing /v1/models and /v1/chat/completions endpoints to in... |
+| `usr/lib/mios/crawl4ai/mios-crawl4ai-service.py` | FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w... |
+| `usr/lib/mios/mios_comments.py` | The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST... |
 | `usr/lib/mios/mios_db_config.py` | Peer of mios_toml.py resolving configuration settings from PostgreSQL config tables (WS-VECTOR V1 / T-243). |
 | `usr/lib/mios/mios_env.py` | Shared environment helper for stripping empty MIOS_* environment variables. |
 | `usr/lib/mios/mios_toml.py` | The single shared Python resolver for the layered mios.toml SSOT -- the Python peer of tools/lib/userenv.sh. |
-| `usr/lib/mios/test_mios_comments.py` | !/usr/bin/env python3 Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
+| `usr/lib/mios/test_mios_comments.py` | Unit tests for the comment lexer and classifier -- one fixture per classifier rule so every rule is proven to fire, plus lexer tests f... |
 
 <!-- derived from the AI-hint headers of 400 file(s) matching usr/lib/mios/*.py -->
 <!-- /MIOS-GEN:index:usr/lib/mios/*.py -->

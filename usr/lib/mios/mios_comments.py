@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST...
+#!/usr/bin/env python3
+# AI-hint: The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_mios_comments_py.md
 """Comment lexer + classifier for the generative documentation system.
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Patch script for gateway/platforms/discord.py that injects a background asyncio task to cycle Discord reactions (📡, ...
+#!/usr/bin/env python3
+# AI-hint: Patch script for gateway/platforms/discord.py that injects a background asyncio task to cycle Discord reactions (📡, ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_hermes_discord_reactions_patch_py.md
 from __future__ import annotations
 import sys

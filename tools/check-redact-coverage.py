@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]...
+#!/usr/bin/env python3
+# AI-hint: DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_redact_coverage_py.md
 """Fail if a pgvector table is neither redacted nor explicitly exempt on persist."""
 import os

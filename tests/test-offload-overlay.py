@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Executable proof of ADR-0016's central claim -- that offloading a service to another machine is purely an addressing change, achieved by an...
+#!/usr/bin/env python3
+# AI-hint: Executable proof of ADR-0016's central claim -- that offloading a service to another machine is purely an addressing change, achieved by an...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_offload_overlay_py.md
 """Proof: a seat offloads its services by an /etc/mios overlay alone."""
 

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Drift gate for the blade ACTIVATION axis.
+#!/usr/bin/env python3
+# AI-hint: Drift gate for the blade ACTIVATION axis.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_check_blade_coverage_py.md
 """Gate: every service is capability-gated, or registered as ungated core."""
 

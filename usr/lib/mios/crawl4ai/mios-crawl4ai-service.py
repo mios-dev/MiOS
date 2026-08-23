@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w...
+#!/usr/bin/env python3
+# AI-hint: FastAPI service providing a persistent crawl4ai/camoufox backend that converts URLs to LLM-ready markdown by maintaining w...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_crawl4ai_mios_crawl4ai_service_py.md
 """mios-crawl4ai-service -- slim persistent crawl service (loopback FastAPI).
 

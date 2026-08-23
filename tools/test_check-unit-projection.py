@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit tests for tools/check-unit-projection.py.
+#!/usr/bin/env python3
+# AI-hint: Unit tests for tools/check-unit-projection.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_unit_projection_py.md
 """Tests for the [units] projection debt-register gate."""
 

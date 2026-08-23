@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273).
+#!/usr/bin/env python3
+# AI-hint: Isolation tests for mios_pipe.routing.dispatch_cmd -- the verb->bash command BUILDER extracted from the dispatch chokepoint (T-273).
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_dispatch_cmd_py.md
 
 import sys

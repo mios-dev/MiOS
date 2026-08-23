@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain.
+#!/usr/bin/env python3
+# AI-hint: Unit tests for mios_audit, the SEC-03 SHA-256 tamper-evident event-bus hash chain.
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_audit_py.md
 """Unit tests for the SEC-03 event-bus hash chain (mios_audit)."""
 

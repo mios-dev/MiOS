@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Sibling unit test for tools/check-firstboot-provisioners.py.
+#!/usr/bin/env python3
+# AI-hint: Sibling unit test for tools/check-firstboot-provisioners.py.
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_test_check_firstboot_provisioners_py.md
 
 import importlib.util

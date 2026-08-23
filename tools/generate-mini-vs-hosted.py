@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a ...
+#!/usr/bin/env python3
+# AI-hint: GENERATES usr/share/doc/mios/reference/mini-vs-hosted.md -- the systematic, surface-by-surface comparison of a MiOS-Mini seat against a ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_mini_vs_hosted_py.md
 """Project the seat-vs-blade comparison out of the SSOT."""
 

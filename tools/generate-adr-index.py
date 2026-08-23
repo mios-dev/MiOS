@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265).
+#!/usr/bin/env python3
+# AI-hint: Generates the repo-root ADR.md breadcrumb from the front-matter of usr/share/doc/mios/adr/NNNN-*.md (T-265).
 # AI-doc: usr/share/doc/mios/manual/_harvest/tools_generate_adr_index_py.md
 """Generate the repo-root ADR.md breadcrumb from the baked ADR front-matter."""
 

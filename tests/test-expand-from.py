@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Smoke-test script to verify the skill engine's expand_from logic by validating that a single step with multiple browser targets correctly fans ...
+#!/usr/bin/env python3
+# AI-hint: Smoke-test script to verify the skill engine's expand_from logic by validating that a single step with multiple browser targets correctly fans ...
 # AI-doc: usr/share/doc/mios/manual/_harvest/tests_test_expand_from_py.md
 from __future__ import annotations
 

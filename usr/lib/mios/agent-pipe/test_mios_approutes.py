@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Runtime route-parity gate for the agent-pipe strangler-fig refactor (WS R13 Step 2b) -- the LIVE-FastAPI complement to the...
+#!/usr/bin/env python3
+# AI-hint: Runtime route-parity gate for the agent-pipe strangler-fig refactor (WS R13 Step 2b) -- the LIVE-FastAPI complement to the...
 # AI-doc: usr/share/doc/mios/manual/_harvest/usr_lib_mios_agent_pipe_test_mios_approutes_py.md
 """Live-app route-parity gate: the REAL FastAPI app server.py builds must serve
 EXACTLY the MiOS routes the committed surface golden promises (refactor R13 Step 2b)."""

@@ -1,4 +1,5 @@
-# AI-hint: !/usr/bin/env python3 Post-build build script that enforces Architectural Law 7 (OFFLINE-FIRST) by scanning the Hermes dashboard web dis...
+#!/usr/bin/env python3
+# AI-hint: Post-build build script that enforces Architectural Law 7 (OFFLINE-FIRST) by scanning the Hermes dashboard web dis...
 # AI-doc: usr/share/doc/mios/manual/_harvest/automation_support_hermes_dashboard_strip_externals_py.md
 from __future__ import annotations
 import re
