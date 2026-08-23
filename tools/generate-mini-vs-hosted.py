@@ -45,10 +45,31 @@ def all_packages(data: dict) -> set:
     return out
 
 
+_TRACKED = set()
+
+
+def _tracked_set(root: str) -> set:
+    """Repo-relative paths git tracks, case-exact.
+
+    A filesystem existence test is case-insensitive on Windows, so the shipped
+    document disagreed with its own generator by machine.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
+                             cwd=root, stdout=subprocess.PIPE,
+                             stderr=subprocess.DEVNULL, check=True).stdout.decode("utf-8")
+        return {r for r in out.split(chr(0)) if r}
+    except Exception:
+        return set()
+
+
 def plane_rows(root: str, data: dict) -> list:
     """(plane, role, owner, markers, missing, wired_by, wired, required).
     `required` = a `mini` plane not in [blade].optional_planes. ADR-0016 D14."""
     have = all_packages(data)
+    global _TRACKED
+    _TRACKED = _tracked_set(root)
     blade = data.get("blade") or {}
     planes = blade.get("planes") or {}
     optional = set(blade.get("optional_planes") or [])
@@ -58,7 +79,7 @@ def plane_rows(root: str, data: dict) -> list:
         markers = [str(m) for m in (spec.get("markers") or [])]
         missing = [m for m in markers if m not in have]
         wired_by = str(spec.get("wired_by") or "").strip()
-        wired = bool(wired_by) and os.path.exists(os.path.join(root, wired_by))
+        wired = bool(wired_by) and wired_by in _TRACKED
         rows.append((name, str(spec.get("role") or ""), str(spec.get("owner") or ""),
                      markers, missing, wired_by, wired,
                      spec.get("owner") == "mini" and name not in optional))
