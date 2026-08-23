@@ -956,6 +956,72 @@ fronts. Without it the HA stack ships with no management surface, which is preci
 requirement names.
 
 
+### 15. Native patterns everywhere — and the reconciliation that makes a fleet of one ordinary
+
+> *"Automatic syncing and native patterns for high availabilities and Kubernetes."*
+> *"Native patterns for this; research thoroughly."*
+
+The governing rule these three answers share: **every cross-box mechanism is the upstream project's
+own, never a MiOS invention.** A hand-rolled equivalent of something k3s, Corosync or Ceph already
+does is the defect, not the feature.
+
+#### 15.1 `ha` is a native platform service, like CephFS
+
+`[blade.planes.ha].owner` moves `either` → `mini`. D11.2 had allowed a guest to hold a vote; the
+operator's later answer — that CephFS and the management services are *native to the platform* —
+pulls Pacemaker/Corosync back to bare metal with it.
+
+**The shed set is now 2 of 8: `ai` and `orchestrator`.** That is the clean statement of what MiOS-Mini
+is: **every platform and management plane is bare metal, and only the workload planes move.** The
+earlier sets (4, then 3) were mid-refinement; this one has a principle behind it rather than a
+tally.
+
+D12.1's SBD self-fencing is unaffected and remains right for a different reason than it was chosen:
+it was picked to make a *guest* vote safe, and it survives because self-fencing is the native
+Corosync answer regardless of what a member runs on.
+
+#### 15.2 k3s-native HA is three servers — and a Mini already has three hosts
+
+`[blade.cluster]`: `k3s_servers = 3`, `control_plane_ha = true`.
+
+**This supersedes D12.2's "one control plane, always."** The native k3s HA pattern is three servers
+on embedded etcd, tolerating one loss; "native patterns for Kubernetes" names that directly, and a
+single server has no cross-box HA story at all.
+
+**The reconciliation is the interesting part.** D14.4 set `localhost_hosts = 3` — a Mini serves
+itself as three logical hosts. Those three hosts **are** the three etcd members. So the native
+three-server quorum runs *on one box*, which is what makes D9's claim ("a single Mini is a complete
+cluster") literally true rather than aspirational: quorum, fencing and placement are not simulated
+on a lone Mini, they are the real thing at minimum size. A fleet of one stops being a special case,
+and additional Minis are additive rather than transformative.
+
+That also retires the "which layer places a cross-box container" question of D14.4 without needing a
+new arbiter: `[blade.placement]` already says containers → k3s and VMs → Pacemaker, and both now
+span boxes by their own membership mechanisms. `[blade.mesh].federate = "native"` records that peers
+join through those mechanisms automatically — **not** the manual sync D14.4 provisionally assumed.
+
+#### 15.3 Ceph's own encryption, which is a different mechanism from the drive's
+
+`[blade.storage].at_rest = "dmcrypt"`.
+
+Ceph encrypts OSDs with dm-crypt, generating the key at OSD creation and storing it in the
+**monitor config-key store**; the OSD retrieves it from the MONs at startup. That is a complete,
+native key-management story with no external key manager, and it is what "native patterns for this"
+selects.
+
+Two consequences worth stating before anyone builds on it:
+
+* **Ceph uses LUKS1, not LUKS2**, for breadth of distro support. `systemd-cryptenroll` — the whole
+  FIDO2/TPM2 mechanism of D13.1 — requires **LUKS2**. So the OSD-encryption path and the MiOS-Cat
+  portable-drive path are *different mechanisms that cannot share a token or a key*. Treating
+  `[blade.storage].at_rest` and `[security.disk_encryption]` as one surface would be a category
+  error.
+* **Encryption must be enabled when an OSD is created.** An existing unencrypted OSD cannot be
+  encrypted in place — the only path is adding encrypted OSDs and rebalancing. This is therefore a
+  **day-0 decision for every Mini**, and shipping a Mini with unencrypted OSDs commits its operator
+  to a data migration later.
+
+
 ## Consequences
 
 **Enabling**

@@ -16,12 +16,12 @@ A **MiOS-Mini** is a box. A **hosted MiOS OCI image** is the same image in a dif
 - **`mini`** — the plane is bound to metal this box has and a guest does not: radios, the uplink NIC, the hypervisor itself, the bare-metal filesystem. It **cannot be shed**, because a hosted image has nothing to shed it onto.
 - **`either`** — the plane is a workload. A Mini runs it by default and may hand it to any peer; a hosted image can accept it.
 
-So "offload all services to hosted MiOS OCI image(s)" means exactly **3 of 8 planes**: `ai`, `ha`, `orchestrator`. The other 5 (`hypervisor`, `mesh`, `radio`, `router`, `storage`) are what make the box a Mini, and a Mini that shed them would stop being one.
+So "offload all services to hosted MiOS OCI image(s)" means exactly **2 of 8 planes**: `ai`, `orchestrator`. The other 6 (`ha`, `hypervisor`, `mesh`, `radio`, `router`, `storage`) are what make the box a Mini, and a Mini that shed them would stop being one.
 
 | Plane | Owner | Can be shed | A Mini runs it | Baked | Wired |
 |---|---|---|---|---|---|
 | `ai` | `either` | yes | by default | n/a — payload, not RPM | `usr/share/containers/systemd/mios-llm-light.container` |
-| `ha` | `either` | yes | by default | yes — `pacemaker`, `corosync` | `usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh` |
+| `ha` | `mini` | **no** | **always** | yes — `pacemaker`, `corosync` | `usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh` |
 | `hypervisor` | `mini` | **no** | **always** | yes — `libvirt`, `qemu-kvm` | `usr/lib/sysctl.d/99-mios-vmhost.conf` |
 | `mesh` | `mini` | **no** | **always** | yes — `avahi`, `nss-mdns` | **nothing declared** |
 | `orchestrator` | `either` | yes | by default | yes — `k3s` | `usr/share/containers/systemd/mios-k3s.container` |
@@ -32,7 +32,7 @@ So "offload all services to hosted MiOS OCI image(s)" means exactly **3 of 8 pla
 | Plane | What it does |
 |---|---|
 | `ai` | the OpenAI-compatible front door and the lanes behind it |
-| `ha` | Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote; every member self-fences via SBD (ADR-0016 D12.1) |
+| `ha` | Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A NATIVE platform service on bare metal; every member self-fences via SBD |
 | `hypervisor` | runs the VMs and containers every other plane lands in |
 | `mesh` | joins every node and service into one addressable overlay |
 | `orchestrator` | k3s: places containers. One server per box serving [blade.cluster].localhost_hosts logical hosts; boxes federate over the mesh and sync by hand (ADR-0016 D14) |
@@ -50,16 +50,16 @@ The axes the operator settled, as the SSOT now carries them (ADR-0016 D11 and D1
 |---|---|---|
 | `[blade.hardware].min_interfaces` | `1` | the whole floor -- the LAN is uplink AND downlink |
 | `[blade.hardware].min_ap_capable` | `0` | AP-capable interfaces required; 0 means an AP is optional |
-| `[blade.cluster].k3s_servers` | `1` | control planes in the whole fleet, at any node count |
-| `[blade.cluster].control_plane_ha` | `false` | promotion threshold: containers keep running, scheduling stops |
+| `[blade.cluster].k3s_servers` | `3` | k3s-native HA: 3 servers on embedded etcd, one per localhost host |
+| `[blade.cluster].control_plane_ha` | `true` | quorum tolerates one member loss -- and works on a single box |
 | `[blade.fencing].method` | `sbd` | how a member is fenced -- self-fence, so none must be reached |
 | `[blade.fencing].diskless` | `true` | watchdog driven by quorum, no shared block device |
 | `[blade.storage].replication` | `all` | data classes that shadow-copy Mini-to-Mini |
-| `[blade.storage].at_rest` | `encrypted` | how a shadow copy is protected on the peer |
+| `[blade.storage].at_rest` | `dmcrypt` | Ceph-native: dm-crypt OSDs, key in the MON config-key store |
 | `[blade.uplink].failover` | `['local', 'peer']` | where the DEFAULT ROUTE goes when the WAN dies (the plane stays) |
 | `[blade.cluster].localhost_hosts` | `3` | logical hosts one Mini serves itself as -- "its own cluster" |
 | `[blade.mesh].blocks_boot` | `false` | Law 12 -- enrolment never gates a boot |
-| `[blade.mesh].federate` | `manual` | how a peer arrives: it federates itself, then is synced |
+| `[blade.mesh].federate` | `native` | peers join by each system's OWN mechanism, never by hand |
 | `[blade.hardware].max_radios` | `1` | radios a Mini uses; 0 is a supported build |
 
 **Read the two right-hand columns narrowly.** *Baked* means every marker package is in `[packages]` — Law 12 satisfied, nothing to fetch at boot. *Wired* means the named file exists in the tree. Neither claims the plane is finished: `router` is baked and its forwarding sysctl is applied, and it still has no NAT ruleset or client DHCP (T-337). A plane is only complete when a gate proves it end to end.

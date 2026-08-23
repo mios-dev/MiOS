@@ -9272,19 +9272,20 @@ config_kv    = "conflict-is-error"   # config is intent; never auto-pick a winne
 # The ORDER is [blade.discovery].order; never restate it here (Law 9).
 
 # blocks_boot = false is Law 12: enrolment never gates a boot.
-# federate = "manual": a peer federates itself, then is synced by hand.
+# federate = "native": peers join via each system's OWN mechanism -- k3s
+# server/agent join, corosync membership -- automatically, never by hand.
 [blade.mesh]
 blocks_boot = false
-federate    = "manual"
+federate    = "native"
 
-# [blade.cluster] -- one control plane, always. ADR-0016 D12.2.
-# Containers keep running when the server is down; scheduling stops.
+# [blade.cluster] -- k3s-NATIVE HA: 3 servers on embedded etcd. ADR-0016 D15.
+# The 3 localhost_hosts ARE the 3 etcd members, so quorum works on ONE box.
 
 # server: empty = the first Mini installed. Set it to pin a specific box.
 [blade.cluster]
-k3s_servers      = 1
+k3s_servers      = 3
 server           = ""
-control_plane_ha = false
+control_plane_ha = true
 localhost_hosts  = 3
 
 # [blade.fencing] -- self-fence on quorum loss. ADR-0016 D12.1.
@@ -9305,7 +9306,7 @@ diskless = true
 # See ADR-0016 D12.3: whether a remote peer holds the key is UNSETTLED.
 [blade.storage]
 replication = "all"        # every data class, Mini-to-Mini only
-at_rest     = "encrypted"
+at_rest     = "dmcrypt"   # ceph-volume --dmcrypt; key in the MON config-key store
 
 # [blade.uplink] -- `router` is owner=mini and never moves; the DEFAULT ROUTE
 # does. NOT [security].egress, which is an allowlist rather than a failover.
@@ -9370,8 +9371,8 @@ markers  = ["k3s"]
 wired_by = "usr/share/containers/systemd/mios-k3s.container"
 
 [blade.planes.ha]
-role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A guest may hold a vote; every member self-fences via SBD (ADR-0016 D12.1)"
-owner    = "either"
+role     = "Pacemaker/Corosync: places and live-migrates VMs (ADR-0017 D1). A NATIVE platform service on bare metal; every member self-fences via SBD"
+owner    = "mini"
 markers  = ["pacemaker", "corosync"]
 wired_by = "usr/lib/greenboot/check/wanted.d/50-mios-ha-cluster.sh"
 

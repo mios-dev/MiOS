@@ -72,16 +72,16 @@ def policy_rows(data: dict) -> list:
     spec = [
         ("blade.hardware", "min_interfaces", "the whole floor -- the LAN is uplink AND downlink"),
         ("blade.hardware", "min_ap_capable", "AP-capable interfaces required; 0 means an AP is optional"),
-        ("blade.cluster", "k3s_servers", "control planes in the whole fleet, at any node count"),
-        ("blade.cluster", "control_plane_ha", "promotion threshold: containers keep running, scheduling stops"),
+        ("blade.cluster", "k3s_servers", "k3s-native HA: 3 servers on embedded etcd, one per localhost host"),
+        ("blade.cluster", "control_plane_ha", "quorum tolerates one member loss -- and works on a single box"),
         ("blade.fencing", "method", "how a member is fenced -- self-fence, so none must be reached"),
         ("blade.fencing", "diskless", "watchdog driven by quorum, no shared block device"),
         ("blade.storage", "replication", "data classes that shadow-copy Mini-to-Mini"),
-        ("blade.storage", "at_rest", "how a shadow copy is protected on the peer"),
+        ("blade.storage", "at_rest", "Ceph-native: dm-crypt OSDs, key in the MON config-key store"),
         ("blade.uplink", "failover", "where the DEFAULT ROUTE goes when the WAN dies (the plane stays)"),
         ("blade.cluster", "localhost_hosts", "logical hosts one Mini serves itself as -- \"its own cluster\""),
         ("blade.mesh", "blocks_boot", "Law 12 -- enrolment never gates a boot"),
-        ("blade.mesh", "federate", "how a peer arrives: it federates itself, then is synced"),
+        ("blade.mesh", "federate", "peers join by each system's OWN mechanism, never by hand"),
         ("blade.hardware", "max_radios", "radios a Mini uses; 0 is a supported build"),
     ]
     out = []

@@ -434,5 +434,44 @@ class TestPolicyRows(unittest.TestCase):
         for key, _v, _w in rows:
             self.assertIn("`%s`" % key, text)
 
+
+class TestNativePatterns(unittest.TestCase):
+    """ADR-0016 D15: every cross-box mechanism is the upstream project's OWN,
+    never a MiOS invention. A hand-rolled equivalent is the defect."""
+
+    def _blade(self):
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            return tomllib.load(fh)["blade"]
+
+    def test_k3s_ha_is_the_native_three_server_quorum(self):
+        c = self._blade()["cluster"]
+        self.assertTrue(c["control_plane_ha"])
+        self.assertEqual(c["k3s_servers"], 3)
+
+    def test_quorum_works_on_a_single_box(self):
+        # The reconciliation: the 3 localhost hosts ARE the 3 etcd members,
+        # so a fleet of one is not a special case.
+        c = self._blade()["cluster"]
+        self.assertEqual(c["k3s_servers"], c["localhost_hosts"])
+
+    def test_peers_join_natively_not_by_hand(self):
+        self.assertEqual(self._blade()["mesh"]["federate"], "native")
+
+    def test_at_rest_names_the_ceph_native_mechanism(self):
+        # Ceph encrypts OSDs with dm-crypt (LUKS1) and keeps the key in the
+        # MON config-key store. That is a DIFFERENT mechanism from the
+        # portable-drive path, which needs LUKS2 for systemd-cryptenroll.
+        self.assertEqual(self._blade()["storage"]["at_rest"], "dmcrypt")
+        with open(os.path.join(_ROOT, "usr/share/mios/mios.toml"), "rb") as fh:
+            enc = tomllib.load(fh)["security"]["disk_encryption"]
+        self.assertEqual(enc["portable_token"], "fido2")
+
+    def test_every_management_plane_is_bare_metal(self):
+        # D15.1: `ha` joined CephFS as a native platform service. Only the
+        # workload planes remain movable.
+        b = self._blade()
+        movable = sorted(k for k, v in b["planes"].items() if v["owner"] == "either")
+        self.assertEqual(movable, ["ai", "orchestrator"])
+
 if __name__ == "__main__":
     unittest.main()

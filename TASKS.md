@@ -3346,7 +3346,7 @@ does not have yet, and they are the only ones a peer cannot supply.**
 **Done When:** every `owner = "mini"` plane is baked and wired (`radio` and `mesh` are the two open
 ones -- `radio` is T-333/MINI-05a, `mesh` is T-335); a gate proves a `mini` plane can never be
 scheduled onto a hosted instance; `[blade.hardware]`'s plane gates are enforced rather than
-documented; and axes 16 and 17 below are settled.
+documented; and axes 19 and 20 below are settled.
 
 **Four axes SETTLED by the operator (ADR-0016 D11), each with the work it creates:**
 
@@ -3419,14 +3419,38 @@ documented; and axes 16 and 17 below are settled.
     placement run the SAME code paths whether or not a peer exists; a fleet of one is not a special
     case. `pcs-web-ui` added -- the one genuinely missing management package.
 
+**Three more settled by "native patterns everywhere" (ADR-0016 D15):**
+
+16. **`ha` is `owner = "mini"`** (D15.1), joining CephFS as a native platform service. **Shed set is
+    now 2 of 8: `ai` and `orchestrator`** -- every PLATFORM and MANAGEMENT plane is bare metal, only
+    WORKLOAD planes move. That is a principle rather than a tally; the earlier sets (4, then 3) were
+    mid-refinement. SBD self-fencing survives for a better reason than it was chosen: it is the
+    native Corosync answer regardless of what a member runs on.
+17. **k3s-native HA: 3 servers on embedded etcd** (D15.2), superseding D12.2's "one control plane,
+    always" -- a single server has no cross-box HA story, and "native patterns for Kubernetes" names
+    the three-server quorum directly. **The reconciliation:** `localhost_hosts = 3` means the three
+    logical hosts ARE the three etcd members, so native quorum runs ON ONE BOX. D9's "a single Mini
+    is a complete cluster" becomes literally true -- quorum, fencing and placement are the real
+    thing at minimum size, not simulated. This also RETIRES the cross-box-placement question without
+    a new arbiter: `[blade.placement]` already says containers -> k3s, VMs -> Pacemaker, and both
+    now span boxes by their own membership. `[blade.mesh].federate = "native"`, not manual.
+18. **`[blade.storage].at_rest = "dmcrypt"`** (D15.3) -- Ceph's own OSD encryption, key generated at
+    OSD creation and held in the MON config-key store; no external key manager. **Two facts to build
+    on, not around:** (a) Ceph uses **LUKS1**, `systemd-cryptenroll` requires **LUKS2**, so the OSD
+    path and the MiOS-Cat portable-drive path (D13.1) are DIFFERENT mechanisms that cannot share a
+    token -- treating them as one surface is a category error; (b) **encryption must be enabled at
+    OSD CREATION**, an unencrypted OSD cannot be encrypted in place, so this is a **day-0 decision
+    for every Mini** and shipping one unencrypted commits its operator to a later data migration.
+
 **Still open:**
 
-16. **Which layer owns cross-box container placement?** D11.3 settled that peer #2 JOINS one elected
-    k3s server; D14.4 says a peer federates itself and is synced by hand. Both can hold if they
-    describe different layers -- k3s joining WITHIN a box's logical hosts, boxes FEDERATING across
-    the mesh -- but neither answer says which layer places a container that must run on another box.
-17. **A chipset floor.** `[blade.hardware]` counts interfaces and radios; it cannot tell an
-    AP-capable radio from one that will not beacon in AP mode (see item 11).
+19. **A chipset floor.** `[blade.hardware]` counts interfaces and radios; it cannot tell an
+    AP-capable radio from one that will not beacon in AP mode. `iwlwifi` does AP only on 2.4 GHz;
+    Atheros and MediaTek are the capable chipsets. No daemon fixes a chipset that will not beacon.
+20. **Nothing enforces any of it.** `[blade.hardware]`, `[blade.cluster]`, `[blade.fencing]`,
+    `[blade.storage]` and `[blade.mesh]` are read by `tools/generate-mini-vs-hosted.py` and by
+    nothing that runs on a host. The two unwired `mini` planes (`radio`, `mesh`) and the day-0 OSD
+    decision are the first places that gap becomes visible to an operator.
 
 **A gate defect this change ran into, reported rather than worked around:**
 `check_legibility_ratchet` counts every tracked `.sh`/`.ps1`, **including the GENERATED
