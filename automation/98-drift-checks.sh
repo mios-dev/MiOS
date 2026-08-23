@@ -7299,12 +7299,10 @@ import tomllib
 root = os.environ.get("MIOS_DRIFT_ROOT", ".")
 resolver_bin = None
 
-for cand in [
-    os.path.join(root, "tools/native/target/release/mios-resolver"),
-    os.path.join(root, "tools/native/target/release/mios-resolver.exe"),
-    "/usr/libexec/mios/mios-resolver",
-    "/usr/bin/mios-resolver",
-]:
+# debug first: CI builds without --release, so release/ alone found nothing.
+for cand in [os.path.join(root, "tools/native/target", p, "mios-resolver" + x)
+             for p in ("debug", "release") for x in ("", ".exe")] + [
+             "/usr/libexec/mios/mios-resolver", "/usr/bin/mios-resolver"]:
     if os.path.isfile(cand):
         resolver_bin = cand
         break

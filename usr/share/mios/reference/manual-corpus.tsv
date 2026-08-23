@@ -855,12 +855,12 @@ automation/98-drift-checks.sh	6894	6894	1	8	e4bacea04137	STAY	local-scoped		0			
 automation/98-drift-checks.sh	6915	6915	1	8	bdfe851692a3	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	6926	6926	1	8	accc477b4682	STAY	local-scoped		0				0
 automation/98-drift-checks.sh	6937	6937	1	9	6d45b0c3821a	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7409	7409	1	13	3f7bba27b294	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7435	7435	1	1	d7b3a261b719	DROP	banner		0				0
-automation/98-drift-checks.sh	7441	7441	1	10	f63267e0ec99	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7503	7503	1	8	03252a4bab69	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7516	7516	1	13	913819be87d2	STAY	local-scoped		0				0
-automation/98-drift-checks.sh	7587	7587	1	11	b7a6d3967e32	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7407	7407	1	13	3f7bba27b294	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7433	7433	1	1	d7b3a261b719	DROP	banner		0				0
+automation/98-drift-checks.sh	7439	7439	1	10	f63267e0ec99	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7501	7501	1	8	03252a4bab69	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7514	7514	1	13	913819be87d2	STAY	local-scoped		0				0
+automation/98-drift-checks.sh	7585	7585	1	11	b7a6d3967e32	STAY	local-scoped		0				0
 automation/99-postcheck.sh	1	4	4	23	8d9c9bd58dd3	STAY	ai-header		0				0
 automation/99-postcheck.sh	1	5	5	43	845010814b0e	STAY	ai-header		0	usr/share/doc/mios/manual/automation.md	mios-src:845010814b0e	43	1
 automation/99-postcheck.sh	195	195	1	2	bd3a3e388485	STAY	inline-scoped		0				0
