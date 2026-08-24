@@ -98,6 +98,7 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-mcp.service` | `usr/lib/systemd/system` | MiOS' Agent Context Service (MCP) |
 | `mios-models-firstboot.service` | `usr/lib/systemd/system` | First-boot Large-model Provisioner |
 | `mios-mok-enroll.service` | `usr/lib/systemd/system` | MiOS' first-boot MOK enrollment for Secure Boot UKI trust |
+| `mios-node.container` | `usr/share/containers/systemd` | MiOS Distributed Edge Micro-Node Quadlet Container |
 | `mios-oci-delta-apply.service` | `usr/lib/systemd/system` | MiOS OCI Delta Apply Service (GAP-5) |
 | `mios-open-webui.container` | `usr/share/containers/systemd` | MiOS' Open WebUI |
 | `mios-opencode-gateway.service` | `usr/lib/systemd/system` | MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI) |
@@ -158,5 +159,5 @@ This document is derived directly from the systemd unit files in the repository.
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (150 unit(s)) -->
+<!-- derived from tracked unit files (151 unit(s)) -->
 <!-- /MIOS-GEN:units -->

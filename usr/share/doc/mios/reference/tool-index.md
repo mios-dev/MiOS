@@ -286,6 +286,7 @@ is generated, its generator is here.
 | `tools/check-temp-fixture-cleanup.py` | Fails when a test creates a temporary directory without arranging to remove it. |
 | `tools/check-unit-projection.py` | Drift gate for the [units] projection debt register. |
 | `tools/check-variant-registry.py` | Fails when a MiOS variant names a config table, edition, archetype, artifact or document that does not exist, or breaks the naming convention. |
+| `tools/check-verify-images.py` | Drives tools/verify-images.py against fixture build trees and fails unless an empty tree, a partial tree and a corrupt artifact are each rejected by name. |
 | `tools/ci-suites.py` | Resolves the [ci] suite registry for the runners and fails when a tracked suite is neither registered in a tier nor exempted. |
 | `tools/compile-dashboard-binary.py` | MiOS dashboard binary compiler |
 | `tools/compile-templates.py` | Golden round-trip compiler for templates -- verifies all templates parse cleanly. |
@@ -367,8 +368,9 @@ is generated, its generator is here.
 | `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
+| `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 116 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 118 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
