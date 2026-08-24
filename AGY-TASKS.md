@@ -11717,7 +11717,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a unit outside the generator's set is a unit the SSOT does not describe, and the gate reporting "all 26 match" says nothing about the ones it never looked at.
 **Dep:** none
 
-## AGY-1782 -- Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007]
+## AGY-1782 -- Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007]  DONE
 **Goal:** A malformed agent block cannot merge.
 **What+How:** T-007 is marked done-by-code and `check_agent_schema` reports the contract satisfied. That is the same shape as three gates already found this session that were green while the property they named was violated. Establish which it is: remove `health_gate` from one `[agents.*]` block, run the check, and record the exit code. Do the same for each field the schema claims to require, and for an agent block that is empty. Every omission the task named must produce a non-zero exit; repair the check for any that does not, and add the missing negative test.
 **Where:** `automation/98-drift-checks.sh (check_agent_schema), tests/drift-gate-negatives.sh, usr/share/mios/mios.toml ([agents])`

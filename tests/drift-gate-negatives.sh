@@ -3812,6 +3812,31 @@ _run_test test_leaked_fixtures
     _run_test test_variant_registry
     _run_test test_deploy_formats
     _run_test test_verify_images
+test_agent_schema() {
+    log "Testing check_agent_schema"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local orig_val
+    orig_val="$(cat "$toml_file")"
+
+    cat <<'EOF' >> "$toml_file"
+
+[agents.bad_test_agent]
+kind = "local-http"
+endpoint = "http://localhost:9999/v1"
+role = "testing"
+enabled = true
+EOF
+
+    if MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_agent_schema >/dev/null 2>&1; then
+        echo "$orig_val" > "$toml_file"
+        _fail "check_agent_schema passed on [agents.bad_test_agent] missing health_gate"
+        return 1
+    fi
+    echo "$orig_val" > "$toml_file"
+    log "check_agent_schema negative test passed"
+}
+
+    _run_test test_agent_schema
     _run_test test_header_comment_syntax
     _run_test test_repo_partition_label_ssot
     if (( ${#_FAILED[@]} )); then

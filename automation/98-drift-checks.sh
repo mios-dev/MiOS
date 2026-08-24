@@ -401,14 +401,25 @@ def _local(ep):
     h = re.sub(r'^[a-z]+://', '', str(ep)).split('/')[0].rsplit(':', 1)[0]
     return h in ("localhost", "127.0.0.1", "::1", "0.0.0.0", "")
 bad, warn, ndefault = [], [], 0
+VALID_KINDS = {"local-http", "remote-http", "cli", "node", "edge", "mobile", "sub-agent", "a2a"}
 for name, cfg in ag.items():
     if name.startswith("_") or not isinstance(cfg, dict):
         continue
     m = {**defs, **cfg}
     kind = str(m.get("kind", "")).strip().lower()
     ep = str(m.get("endpoint", "")).strip()
+    role = str(m.get("role", "")).strip()
     enabled = bool(m.get("enabled", True))
     hg = bool(m.get("health_gate", False))
+
+    if enabled:
+        if not kind or kind not in VALID_KINDS:
+            bad.append(f"    [agents.{name}] enabled agent missing valid kind (got {kind!r}, must be one of {sorted(VALID_KINDS)})")
+        if not role:
+            bad.append(f"    [agents.{name}] enabled agent missing required 'role'")
+        if kind not in ("cli", "mobile") and not ep:
+            bad.append(f"    [agents.{name}] enabled agent missing required 'endpoint'")
+
     if bool(m.get("default", False)):
         ndefault += 1
     loc = _local(ep)
@@ -421,9 +432,9 @@ for name, cfg in ag.items():
             bad.append(f"    [agents.{name}] kind=cli must set timeout_s>0 (fail-fast budget)")
     if kind == "node" and not (str(m.get("api", "")).strip() and str(m.get("lane", "")).strip()):
         bad.append(f"    [agents.{name}] kind=node must set api + lane")
-    if kind in ("remote-http", "edge", "mobile") and not hg:
+    if kind in ("remote-http", "edge", "mobile", "node") and not hg:
         bad.append(f"    [agents.{name}] kind={kind} must set health_gate=true")
-    if re.search(r':\d{2,5}(/|$)', ep) and "${MIOS_PORT" not in ep:
+    if ep and re.search(r':\d{2,5}(/|$)', ep) and "${MIOS_PORT" not in ep:
         warn.append(f"    [agents.{name}].endpoint bare :PORT literal (use ${{MIOS_PORT_*}}): {ep}")
     for k in cfg:
         if k not in CANON:

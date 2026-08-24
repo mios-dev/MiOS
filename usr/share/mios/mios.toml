@@ -2407,6 +2407,7 @@ failover_agents = ["hermes"]
 
 
 [agents.ai-local]
+kind        = "mobile"
 endpoint    = ""
 model       = "qwen2.5-3b-instruct-4bit"
 role        = "mobile"
