@@ -2433,10 +2433,12 @@ src/mios-rs/mios-node/src/main.rs	1	1	1	8	02ca5acd9e08	STAY	local-scoped		0				0
 src/mios-rs/mios-node/src/main.rs	28	28	1	6	66ba26b70bd0	STAY	local-scoped		0				0
 src/mios-rs/mios-node/src/main.rs	39	39	1	11	53de7120bd14	STAY	local-scoped		0				0
 src/mios-rs/mios-node/src/main.rs	53	53	1	6	6bbe167c40ab	STAY	local-scoped		0				0
-src/mios-rs/mios-node/src/main.rs	58	58	1	7	682fc44012d8	STAY	local-scoped		0				0
-src/mios-rs/mios-node/src/main.rs	64	64	1	7	d11f119f988e	STAY	local-scoped		0				0
-src/mios-rs/mios-node/src/main.rs	66	66	1	7	ba09cc9d0e82	STAY	local-scoped		0				0
-src/mios-rs/mios-node/src/main.rs	68	68	1	6	716b21e1b733	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	58	58	1	9	cc2ed8892328	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	60	60	1	7	682fc44012d8	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	66	66	1	7	d11f119f988e	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	68	68	1	7	ba09cc9d0e82	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	70	70	1	6	716b21e1b733	STAY	local-scoped		0				0
+src/mios-rs/mios-node/src/main.rs	164	164	1	1	cc4c9bb6231a	DROP	commented-out-code		0				0
 src/mios-rs/mios-node/src/node.rs	1	1	1	6	767e2dd6f2be	STAY	local-scoped		0				0
 src/mios-rs/mios-node/src/node.rs	60	60	1	5	288d3a049215	STAY	local-scoped		0				0
 src/mios-rs/mios-node/src/node.rs	84	84	1	8	6d1177a23d9a	STAY	local-scoped		0				0
@@ -3803,6 +3805,8 @@ tools/test_check-unit-projection.py	97	99	3	29	91cb4102f81b	DROP	generated-artif
 tools/test_check-unit-projection.py	129	129	1	11	76e76796b5c2	DROP	generated-artifact		0				0
 tools/test_check-variant-registry.py	1	3	3	24	6ce66c4337dd	DROP	generated-artifact		0				0
 tools/test_check-variant-registry.py	56	56	1	12	cdce8ced48f8	DROP	generated-artifact		0				0
+tools/test_check-verify-images.py	1	3	3	23	69857de1521e	DROP	generated-artifact		0				0
+tools/test_check-verify-images.py	31	31	1	12	decb07a97248	DROP	generated-artifact		0				0
 tools/test_ci-suites.py	1	3	3	22	5d76bb6db8d3	DROP	generated-artifact		0				0
 tools/test_ci-suites.py	4	8	4	37	1ef485d2f6e1	DROP	generated-artifact		0				0
 tools/test_conformance_golden.py	1	4	4	19	1fd4806c1331	DROP	generated-artifact		0				0
@@ -3891,6 +3895,9 @@ tools/test_sync-bootstrap.py	64	64	1	11	bf9eb82b8ebc	DROP	generated-artifact		0	
 tools/test_sync-bootstrap.py	75	75	1	11	a0fd4cee8ea1	DROP	generated-artifact		0				0
 tools/test_templates_golden.py	1	3	3	18	121fadce1888	DROP	generated-artifact		0				0
 tools/test_templates_golden.py	16	16	1	4	eb1bb3e47b59	DROP	generated-artifact		0				0
+tools/test_verify-images.py	1	3	3	22	b92e1e65adc4	DROP	generated-artifact		0				0
+tools/test_verify-images.py	4	9	5	52	de8ff23a5f8a	DROP	generated-artifact		0				0
+tools/test_verify-images.py	47	51	5	35	02b89006fabb	DROP	generated-artifact		0				0
 tools/verb-template-check.py	1	2	2	16	da4c4200d0a1	STAY	ai-header		0				0
 tools/verify-images.py	1	3	3	33	d9621ea98810	STAY	ai-header		0				0
 tools/verify-images.py	4	12	8	93	78492b2882e5	MIGRATE	narrative-rationale		0				0

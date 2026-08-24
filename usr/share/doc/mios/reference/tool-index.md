@@ -354,6 +354,7 @@ is generated, its generator is here.
 | `tools/test_check-temp-fixture-cleanup.py` | Sibling test for tools/check-temp-fixture-cleanup.py; proves it names a test that makes a temp directory and never removes it. |
 | `tools/test_check-unit-projection.py` | Unit tests for tools/check-unit-projection.py. |
 | `tools/test_check-variant-registry.py` | Sibling test for tools/check-variant-registry.py; proves it rejects a dangling edition, archetype, artifact, doc and a name off convention. |
+| `tools/test_check-verify-images.py` | Sibling test for tools/check-verify-images.py; asserts the gate drives the real verifier rather than restating its result. |
 | `tools/test_ci-suites.py` | Sibling test for tools/ci-suites.py; proves the registry reader fails on the shapes it exists to catch. |
 | `tools/test_conformance_golden.py` | Golden CLI fixture test runner for check-template-conformance CLI output and behavior. |
 | `tools/test_drift-checks.py` | Sibling test for tools/drift-checks.py; asserts each extracted check is importable, dispatchable and agrees with the shell gate. |
@@ -367,10 +368,11 @@ is generated, its generator is here.
 | `tools/test_render_ports.py` | Unit tests for render-ports.py -- proves the [ports.categories] allocator derives base + index*stride, honours pinned ports, and that the sche... |
 | `tools/test_sync-bootstrap.py` | Fixtures for sync-bootstrap.py -- the Law 15 mirror. Proves it reports drift without --apply, that a table mirror rewrites values rather than appending duplicates, and that it never touches a surface... |
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
+| `tools/test_verify-images.py` | Sibling test for tools/verify-images.py; proves an empty build tree and a zero-filled artifact are both rejected. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 118 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 120 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)
