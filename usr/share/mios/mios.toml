@@ -2416,6 +2416,21 @@ lane        = "mobile"
 health_gate = true
 strengths   = ["mobile_local_model", "on_device", "offline_edge"]
 
+[agents.mios-node]
+kind            = "node"
+endpoint        = "http://localhost:${MIOS_PORT_NODE}/v1"
+model           = "mios-node:latest"
+role            = "edge_execution"
+job             = "Distributed edge micro-node task execution, Wasm sandboxing, Ed25519 signature checks, and CRDT lock-free state synchronization."
+default         = false
+fanout          = true
+health_gate     = true
+lane            = "edge"
+api             = "http"
+strengths       = ["wasm_sandboxing", "crdt_state_sync", "peer_discovery", "task_offloading", "ed25519_verification"]
+
+
+
 [gateway]
 # Native Gateway Sovereign Migration Configuration (T-078)
 model                     = "granite4.1:8b"
