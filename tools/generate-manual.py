@@ -6,12 +6,66 @@ import argparse
 import shutil
 import subprocess
 
+import sys
+
+
+def verify_manual_coverage(repo_root, manual_path) -> list[str]:
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib  # type: ignore
+
+    ssot_path = os.path.join(repo_root, "usr", "share", "mios", "mios.toml")
+    if not os.path.isfile(ssot_path):
+        return ["usr/share/mios/mios.toml is missing"]
+
+    with open(ssot_path, "rb") as fh:
+        ssot = tomllib.load(fh)
+
+    docs = ssot.get("docs", {}) or {}
+    min_verbs = int(docs.get("manual_min_verbs", 132))
+
+    verbs = ssot.get("verbs", {}) or {}
+    live_verbs = set(verbs.keys())
+
+    doc_dir = os.path.join(repo_root, "usr", "share", "doc", "mios")
+    if not os.path.isdir(doc_dir):
+        return [f"{doc_dir} does not exist"]
+
+    doc_text = ""
+    for dp, _, fns in os.walk(doc_dir):
+        for fn in fns:
+            if fn.endswith(".md"):
+                try:
+                    with open(os.path.join(dp, fn), "r", encoding="utf-8", errors="ignore") as fh:
+                        doc_text += fh.read() + "\n"
+                except OSError:
+                    pass
+
+    missing_verbs = [v for v in sorted(live_verbs) if v not in doc_text]
+
+    violations = []
+    if missing_verbs:
+        violations.append(f"{len(missing_verbs)} live verb(s) missing from usr/share/doc/mios/: {', '.join(missing_verbs[:10])}")
+
+    covered_count = len(live_verbs) - len(missing_verbs)
+    if covered_count < min_verbs:
+        violations.append(f"verb manual coverage count {covered_count} < declared floor {min_verbs} in mios.toml [docs].manual_min_verbs")
+
+    return violations
+
+
 def main():
     parser = argparse.ArgumentParser(description="MiOS User Manual Generator")
     parser.add_argument(
         "--output",
         default=None,
         help="Target output file (defaults to usr/share/doc/mios/manual.md relative to repo root)"
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Assert that every live verb in mios.toml has a manual entry and coverage meets floor"
     )
     args = parser.parse_args()
 
@@ -22,6 +76,16 @@ def main():
         manual_path = os.path.abspath(args.output)
     else:
         manual_path = os.path.join(repo_root, "usr", "share", "doc", "mios", "manual.md")
+
+    if args.check:
+        viols = verify_manual_coverage(repo_root, manual_path)
+        if viols:
+            print("[generate-manual] Coverage assertion FAILED:")
+            for v in viols:
+                print("  " + v)
+            sys.exit(1)
+        print(f"[generate-manual] Coverage assertion OK ({manual_path} covers all live SSOT verbs)")
+        sys.exit(0)
 
     print(f"Target manual file: {manual_path}")
 
