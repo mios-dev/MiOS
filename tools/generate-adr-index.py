@@ -102,6 +102,41 @@ def render(rows: list) -> str:
     return "\n".join(out) + "\n"
 
 
+def validate_adr_ssot_consistency(root: str) -> list[str]:
+    """Verify that claims made by accepted ADRs match the current SSOT configuration."""
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        import tomli as tomllib  # type: ignore
+
+    ssot_path = os.path.join(root, "usr", "share", "mios", "mios.toml")
+    if not os.path.isfile(ssot_path):
+        return ["usr/share/mios/mios.toml is missing (ADR-0009 violation)"]
+
+    try:
+        with open(ssot_path, "rb") as fh:
+            ssot = tomllib.load(fh)
+    except Exception as exc:
+        return [f"failed to parse mios.toml: {exc}"]
+
+    violations = []
+    # ADR-0009: single SSOT config surface
+    if "meta" not in ssot or "mios_version" not in ssot.get("meta", {}):
+        violations.append("ADR-0009: mios.toml missing [meta].mios_version SSOT declaration")
+
+    # ADR-0010: SSOT as system dotfiles registry
+    if "dotfiles" not in ssot:
+        violations.append("ADR-0010: mios.toml missing [dotfiles] table registry")
+
+    # ADR-0003: SBOM image references integrity
+    images = ssot.get("image") or {}
+    for k, v in images.items():
+        if isinstance(v, str) and "@sha256:0000000000000000000000000000000000000000000000000000000000000000" in v:
+            violations.append(f"ADR-0003: dummy sha256 digest found in [image].{k}")
+
+    return violations
+
+
 def main() -> int:
     root = os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT") or "."
     check = "--check" in sys.argv
@@ -121,7 +156,13 @@ def main() -> int:
         if current != body:
             print(f"{OUT} is stale -- run tools/generate-adr-index.py")
             return 1
-        print(f"{OUT} matches the {len(rows)} baked ADR(s)")
+        adr_viols = validate_adr_ssot_consistency(root)
+        if adr_viols:
+            print("ADR SSOT consistency check failed:")
+            for v in adr_viols:
+                print("  " + v)
+            return 1
+        print(f"{OUT} matches the {len(rows)} baked ADR(s) and SSOT consistency checks pass")
         return 0
     with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(body)

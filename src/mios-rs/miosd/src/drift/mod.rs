@@ -261,6 +261,12 @@ pub struct Registry {
     pub checks: Vec<Box<dyn Check>>,
 }
 
+impl Default for Registry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Registry {
     pub fn new() -> Self {
         let checks: Vec<Box<dyn Check>> = vec![
