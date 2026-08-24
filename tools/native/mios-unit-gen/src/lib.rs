@@ -55,10 +55,21 @@ pub fn render_units(ssot_toml: &str) -> Result<BTreeMap<String, String>, UnitGen
                         out.push('\n');
                     }
                 }
-                for (sec_name, sec_kv) in sections {
+                fn section_rank(sec: &str) -> (usize, &str) {
+                    match sec.to_lowercase().as_str() {
+                        "unit" => (0, sec),
+                        "service" | "path" | "timer" | "socket" | "mount" => (1, sec),
+                        "install" => (2, sec),
+                        _ => (3, sec),
+                    }
+                }
+                let mut sec_keys: Vec<&String> = sections.keys().collect();
+                sec_keys.sort_by_key(|k| section_rank(k));
+                for sec_name in sec_keys {
                     if sec_name == "comment" {
                         continue;
                     }
+                    let sec_kv = &sections[sec_name];
                     if let Some(table) = sec_kv.as_table() {
                         // Blank line before each header, above the comment
                         // block: the tree separates sections 208:16 and glues

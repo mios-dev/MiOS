@@ -741,6 +741,42 @@ StandardError = "journal"
 [units."mios-gpu-status.service".Install]
 WantedBy = "multi-user.target"
 
+[units."mios-node.service".Unit]
+Description = "MiOS ('My OS') Distributed Edge Micro-Node Runtime Daemon"
+Documentation = "man:mios-node(1) file:///usr/share/mios/docs/mios_engineering_master_docs.md"
+After = "network-online.target mios-pgvector.service"
+Wants = "network-online.target"
+
+[units."mios-node.service".Service]
+Type = "simple"
+ExecStart = "/usr/bin/mios-node 101 8650"
+Restart = "always"
+RestartSec = "5s"
+Environment = ["MIOS_AI_ENDPOINT=http://127.0.0.1:8640", "MIOS_LOG_LEVEL=info"]
+LimitNOFILE = "65536"
+
+[units."mios-node.service".Install]
+WantedBy = "multi-user.target"
+
+[units."mios-xdg-userdir-init.service".Unit]
+comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]\n\n"
+Description = "MiOS XDG User Directories Initialization"
+ConditionPathIsMountPoint = "%h"
+
+[units."mios-xdg-userdir-init.service".Service]
+Type = "oneshot"
+ExecStart = "/usr/bin/xdg-user-dirs-update --force"
+RemainAfterExit = "yes"
+
+[units."mios-xdg-userdir-init.service".Install]
+WantedBy = "default.target"
+
+
+
+
+
+
+
 
 [units."mios-ai-firstboot.service".Unit]
 comment = "# AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.\n# AI-related: 72-hermes-agent.sh, /usr/libexec/mios/mios-ai-firstboot, mios-ai-firstboot, mios-dev, mios-llm-light.service, network-online.target\n# Completes the build-time AI setup on deployments that didn't bake it (the\n# overlay-provisioned dev VM, WSL imports, etc.). 72-hermes-agent.sh's header\n# explicitly anticipates this: \"a firstboot retry can complete it later\".\n# Needs network (pip + model pull); GGUF blobs come from Hugging Face."
@@ -11011,3 +11047,4 @@ status  = "partial"
 # and none of those is as small as four mebibytes, so a file under this floor
 # is a truncated or empty write rather than a smaller build.
 min_bytes = 4194304
+

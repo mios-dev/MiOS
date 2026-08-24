@@ -1,0 +1,14 @@
+# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.
+# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]
+
+[Unit]
+Description=MiOS XDG User Directories Initialization
+ConditionPathIsMountPoint=%h
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/xdg-user-dirs-update --force
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
