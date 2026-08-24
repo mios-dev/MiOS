@@ -376,6 +376,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** After a `bootc upgrade` that breaks the agent-pipe or the primary inference lane there is no automatic detection and no automatic rollback -- the machine boots "green" into an OS whose entire reason for existing (NS-2) is dead, and an operator has to notice by hand.
 **Dep:** none
 **Status:** done-by-code | **Domain:** Boot/Image | **Who:** Part 1 S2
+**Converted:** AGY-1780 carries this forward with a Verify line that fails when the
+behaviour is absent. This entry's done-by-code status was not demonstrated.
 
 ## T-003 -- BOOT-02: fail the image build on HIGH/CRITICAL OpenSCAP findings (`oscap-im`)  (WS-SEC | P1 | M)
 **Goal:** E-15 SBOM and supply-chain hardening as compiled, gated policy -- compliance becomes a build-time fitness function instead of an after-the-fact audit.
@@ -403,6 +405,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** Quadlets edited by hand drift from `[pods.*]`/`[containers.*]` with nothing to catch it -- this is the exact recurring class where a broad `git add` strips or reverts generated unit content and the divergence is only discovered when a pod fails to start on a real host.
 **Dep:** none
 **Status:** done-by-code | **Domain:** Boot/Ops | **Who:** Part 1 S5
+**Converted:** AGY-1781 carries this forward with a Verify line that fails when the
+behaviour is absent. This entry's done-by-code status was not demonstrated.
 
 ## T-006 -- A1: one `[agents.*]` schema with `_defaults` inheritance, ending silent single-agent degradation  (WS-A1 | P1 | M)
 **Goal:** E-09 One value, one name -- per-agent config collapses to thin overrides over a single declared default block instead of N ad-hoc copies.
@@ -421,6 +425,8 @@ MiOS is an **immutable bootc/OCI Fedora workstation** that is *also* a **local, 
 **Why:** Nothing stops the T-006 regression class from reappearing -- one merged agent block missing `health_gate` silently returns the orchestrator to single-agent mode, and a hardcoded `:PORT` in an agent block reintroduces the NO-HARDCODE violations that E-12/E-13 exist to remove.
 **Dep:** T-006 (A1)
 **Status:** done-by-code | **Domain:** Orchestration/CI | **Who:** WS-A2
+**Converted:** AGY-1782 carries this forward with a Verify line that fails when the
+behaviour is absent. This entry's done-by-code status was not demonstrated.
 
 ## T-008 -- A3: make the opencode gateway a real council peer on `:8633` instead of a hang  (WS-A3 | P1 | M)
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- a gateway MiOS already ships either works and is SSOT-enabled, or its claim is withdrawn.

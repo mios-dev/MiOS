@@ -5,6 +5,7 @@ members = [
     "miosd",
     "mios-build",
     "mios-config",
+    "mios-node",
 ]
 resolver = "2"
 

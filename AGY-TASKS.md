@@ -11696,3 +11696,53 @@ demonstrate. Nothing new starts until they do.
 **Two sequencing constraints, both load-bearing.** The `[cat]` tables have already diverged between the repositories and the two `MiOS-Cat.bat` copies are 51 lines apart and untracked â reconciling that is a prerequisite (AGY-1774), not a side effect. And `check_repo_partition_label_ssot` must be repaired first (AGY-1766): its `|| echo "MiOS-Repo"` fallback under `set -euo pipefail` was reproduced on a shadow root reporting *"repo partition label consumers match"* with zero occurrences of `[cat.repo_partition]` left in the file. It will certify the entire rename as clean while it is half done.
 
 **Untestable from here, stated as such:** whether a stick relabelled `MIOS-FIELD` still boots. That needs a real USB, `blkid -L` on the target, and a UEFI machine confirming the Ventoy `loopback.cfg` and `inst.ks=hd:LABEL=â¦` paths still resolve. The label-length results above *were* measured (`mkfs.vfat -F 32 -n` and `mkfs.exfat -n` against a 64 MiB image, with 12-character labels returning REJECT), so the cap is evidence; the boot is not.
+
+## AGY-1780 -- Watch greenboot roll a deliberately broken AI plane back  (WS-RUNTIME | P1 | M) [from T-002]
+**Goal:** A bad upgrade rolls itself back, observed rather than configured.
+**What+How:** T-002 is marked done-by-code: the required-check scripts exist and `check_greenboot` passes. Neither fact establishes that a rollback happens, and the deploy audit found no evidence anyone has watched one. Boot a machine or VM on a known-good deployment, `bootc upgrade` to an image whose `mios-agent-pipe.service` is deliberately broken (a bad ExecStart is enough), reboot, and record the console and `journalctl -b -1 -u greenboot-healthcheck` output showing the health check failing and the previous deployment being restored. Then record the same for a HEALTHY boot, so the check is shown to distinguish the two. Land both transcripts under `usr/share/doc/mios/reference/`.
+**Where:** `etc/greenboot/check/required.d/, usr/share/doc/mios/reference/, automation/98-drift-checks.sh (check_greenboot)`
+**Done When:** two recorded boots exist -- one rolled back, one not -- from the same check set.
+**Verify:** the transcript shows greenboot marking the boot failed and bootc reverting to the prior deployment, and `bootc status` after reboot names the OLD image digest; the healthy transcript from the same checks shows neither.
+**Do NOT:** assert it from the unit files, from `check_greenboot` passing, or from a check script exiting non-zero in isolation. The claim is that the SYSTEM rolls back, and only a boot demonstrates that. Do not write the check scripts to always exit 0 to make the healthy case pass.
+**Why:** rollback is the property that makes immutable updates safe to take automatically; untested it is a hope, and every deployed machine is one bad upgrade from being unreachable.
+**Dep:** none
+
+## AGY-1781 -- Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005]
+**Goal:** No container unit is hand-maintained, and the gate proves it.
+**What+How:** T-005 is marked done-by-code and `check_pod_quadlets` reports all 26 units matching the SSOT. Establish whether that covers every shipped `.container`/`.pod`/`.network`/`.volume` unit or only the 26 the generator knows: list every such file under `usr/share/containers/systemd/`, diff that set against what `tools/generate-pod-quadlets.py` emits, and account for every file in neither set. For any unit carrying a hand-edit that encodes real behaviour, move that behaviour into `[units]`/`[containers.*]` in the SSOT before the file is regenerated -- do not delete the edit.
+**Where:** `tools/generate-pod-quadlets.py, usr/share/containers/systemd/, usr/share/mios/mios.toml, automation/98-drift-checks.sh`
+**Done When:** the generated set and the shipped set are identical, with no file in one and not the other.
+**Verify:** `diff <(ls usr/share/containers/systemd/) <(python3 tools/generate-pod-quadlets.py --list)` is empty, and hand-editing any one shipped unit makes `check_pod_quadlets` exit non-zero.
+**Do NOT:** regenerate wholesale and call the diff clean. Some shipped units carry hand-edits that encode behaviour nobody wrote down; regenerating over them loses it silently, and the gate will then be green on a system that no longer works.
+**Why:** a unit outside the generator's set is a unit the SSOT does not describe, and the gate reporting "all 26 match" says nothing about the ones it never looked at.
+**Dep:** none
+
+## AGY-1782 -- Make check_agent_schema fail on the omission it was written for  (WS-A2 | P1 | S) [from T-007]
+**Goal:** A malformed agent block cannot merge.
+**What+How:** T-007 is marked done-by-code and `check_agent_schema` reports the contract satisfied. That is the same shape as three gates already found this session that were green while the property they named was violated. Establish which it is: remove `health_gate` from one `[agents.*]` block, run the check, and record the exit code. Do the same for each field the schema claims to require, and for an agent block that is empty. Every omission the task named must produce a non-zero exit; repair the check for any that does not, and add the missing negative test.
+**Where:** `automation/98-drift-checks.sh (check_agent_schema), tests/drift-gate-negatives.sh, usr/share/mios/mios.toml ([agents])`
+**Done When:** every field the schema requires has been shown to fail the gate by its absence.
+**Verify:** for each required field, deleting it from one agent block makes `bash automation/98-drift-checks.sh check_agent_schema` exit non-zero, and restoring it returns exit 0; a registered negative test performs at least one of these.
+**Do NOT:** conclude the gate works because it is green, and do not test it by breaking the TOML syntax -- an unparseable file fails for a reason that has nothing to do with the schema, which is how a schema check gets mistaken for working.
+**Why:** one merged agent block missing a gate field silently returns the orchestrator to single-agent behaviour, and the check exists precisely so that cannot happen quietly.
+**Dep:** none
+
+## AGY-1783 -- Give every T- task marked done-by-code a command that demonstrates it  (WS-PROCESS | P1 | L)
+**Goal:** "done-by-code" means someone can re-run the proof.
+**What+How:** TASKS.md carries 282 open T- entries, many marked `Status: done-by-code` with no reproducible demonstration attached. Three checked this session did not hold up: greenboot rollback was never observed, and two gates were green over violated properties. Sweep the done-by-code set, and for each attach either a command whose output demonstrates the claim or a downgrade to open with the reason. Convert the ones that fail into AGY tasks carrying a Verify line. Work in batches and record the count moved in each direction, so the sweep itself is measurable.
+**Where:** `TASKS.md, AGY-TASKS.md, automation/98-drift-checks.sh (check_tasks_status_parity)`
+**Done When:** no entry claims done-by-code without either a demonstration command or an explicit statement that it is unproven.
+**Verify:** a scan of TASKS.md finds zero entries with `Status: done-by-code` and no demonstration line, and `check_tasks_status_parity` stays green throughout.
+**Do NOT:** mark entries proven by re-reading the code that implements them. The claim is that the behaviour is present, and reading the implementation is how all three of this session's false claims were originally accepted.
+**Why:** a task list where "done" is unverifiable is a list that reports progress it has not made, and every plan built on it inherits the error.
+**Dep:** AGY-1780
+
+## AGY-1784 -- Fail the build on any verb whose backend is a stub  (WS-CI | P0 | M)
+**Goal:** A shipped command either works or the build stops.
+**What+How:** `resolve_install_core` was `CMD=(echo "MiOS installer core executed in ${mode} mode")` -- it printed a phase banner, logged preflight success, exited 0 and installed nothing, in the path that installs the operating system. `[verbs.update]` has no `cmd` at all. Add a gate that fails when a verb's backend is a stub: an entry point whose entire body is echoes, `true`, or a comment; a declared verb with no `cmd`; a `cmd` naming a path that does not exist. Run it over `usr/libexec/mios/`, `installation/` and `[verbs.*]`, and register the stubs that are deliberate with a reason and a shrink-only ceiling.
+**Where:** `automation/98-drift-checks.sh, tools/, usr/share/mios/mios.toml, usr/libexec/mios/, installation/`
+**Done When:** a newly introduced echo-only backend fails the build.
+**Verify:** replacing any verb backend's body with `echo "done"` makes the gate exit non-zero and name that file; restoring it returns exit 0; the ceiling equals the count of registered deliberate stubs.
+**Do NOT:** match on the word TODO or FIXME. The installer stub contained neither -- it read as a working implementation, logged success, and returned 0. Match on a body that produces no effect.
+**Why:** a stub that reports success is indistinguishable from a working command to an operator and to every test, and this repository has shipped at least one in its install path.
+**Dep:** none
