@@ -51,12 +51,11 @@ open_ports = [
 # the SSOT does not declare at that path.
 # ----------------------------------------------------------------------------
 [ssot_consumers]
-doc = "Shipped Python reads config as _toml_section(\"<table>\").get(\"<key>\"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys."
-max_unresolved = 3
+doc = "Shipped Python reads config as _toml_section(\"<table>\").get(\"<key>\"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way (and one of the nine entries, the memory guard, was itself such a control) under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys."
+max_unresolved = 2
 unresolved = [
   "a2a.security",                      # MISPLACED -> packages.security/security
   "ai.micro_model",                    # MISPLACED -> ai.host_thresholds.micro_model
-  "pgvector.memory_guard_mode",        # MISPLACED -> offline.memory_guard_mode
 ]
 
 # ----------------------------------------------------------------------------
@@ -5380,6 +5379,7 @@ ingress_key              = ""
 # unification.md). Read by mios_pg / `mios-db --pg` + the quadlet (MIOS_PG_* via
 # userenv.sh). Port from [ports].pgvector. Local-only defaults.
 [pgvector]
+memory_guard_mode = "log"
 memory_provider = "pgvector"
 memguard_judge_mode = "model"
 host        = "127.0.0.1"
@@ -5418,7 +5418,7 @@ hnsw_max_scan_tuples     = 20000
 # work_mem (consulted only under relaxed_order; inert under strict_order).
 # pgvector default. Env: MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER.
 hnsw_scan_mem_multiplier = 1
-memory_guard_mode = "log"
+
 
 emb_model       = "nomic-embed-text"
 emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
