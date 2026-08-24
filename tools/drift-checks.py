@@ -257,8 +257,17 @@ def check_no_duplicate_value_key() -> int:
     could import or lint, where a syntax error surfaced only when the
     check ran.
     """
+    import os as _os
     import sys as _sys
-    _sys.argv = [__file__] + _sys.argv[2:]
+    # Callable with no arguments: a caller that omits them gets the shipped
+    # paths rather than an IndexError, which is what a bare invocation raised.
+    _rest = _sys.argv[2:]
+    if len(_rest) < 2:
+        _root = (_os.environ.get("MIOS_DRIFT_ROOT")
+                 or _os.environ.get("MIOS_ROOT") or _os.getcwd())
+        _rest = [_os.path.join(_root, "usr/libexec/mios/mios-env-snapshot"),
+                 _os.path.join(_root, "usr/share/mios/reference/value-dup-baseline.tsv")]
+    _sys.argv = [__file__] + _rest
     import os
     import subprocess
     import sys
