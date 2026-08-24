@@ -15,6 +15,6 @@ This document defines the roles and scope of each `install.sh` script in the MiO
 
 ## Invariant enforcement
 
-The drift check `check_installer_family_roles` in `automation/38-drift-checks.sh` enforces that:
+The drift check `check_installer_family_roles` in `automation/98-drift-checks.sh` enforces that:
 1. Every `*install*.sh` script declares a valid `# MIOS_INSTALLER_ROLE=<role>` marker.
 2. All declared roles across the repo are unique (zero collisions).

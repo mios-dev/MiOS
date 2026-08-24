@@ -47,7 +47,7 @@ There are **three** separately-coded "apply MiOS to `/`" mechanisms doing the sa
 - `tools/install.sh` (MiOS only) = offline `bootc install to-disk` from OCI archive.
 - `cat/MiOS-Cat.sh` = vendored MediCat (Ventoy+USB), zero MiOS logic.
 - `build-mios.ps1` = Windows host provisioning + (today) the dev-VM seeds. **Two copies diverge** (Law-15 violation).
-- Enforcement precedent: every installer carries `# MIOS_INSTALLER_ROLE=`; `38-drift-checks.sh:4918-4923` fails the build on missing/duplicate. **This is the hook to extend.**
+- Enforcement precedent: every installer carries `# MIOS_INSTALLER_ROLE=`; `automation/98-drift-checks.sh:3770-3783` fails the build on missing/duplicate. **This is the hook to extend.**
 
 ## Target architecture
 
@@ -91,7 +91,7 @@ The dnf-vs-rpm-ostree choice moves into `lib/packages.sh` behind `case "$MIOS_SU
 
 **Phase 1 — classification + enforcement (no behavior change)**
 3. Add `# MIOS_APPLY_CLASS=` header to every `automation/[0-9][0-9]-*.sh` per the table. Pure comments.
-4. Extend `38-drift-checks.sh` (clone the `MIOS_INSTALLER_ROLE` check): "every numbered stage declares exactly one MIOS_APPLY_CLASS" + a `tests/drift-gate-negatives.sh` case. Invariant lands **before** code depends on it.
+4. Extend `automation/98-drift-checks.sh` (clone the `MIOS_INSTALLER_ROLE` check): "every numbered stage declares exactly one MIOS_APPLY_CLASS" + a `tests/drift-gate-negatives.sh` case. Invariant lands **before** code depends on it.
 
 **Phase 2 — shared engine (behind the wrapper; bake unchanged)**
 5. Extract `lib/stage-runner.sh` from `build.sh:204-329`; `build.sh` sources + `run_stages`. Byte-diff the summary vs Phase 0.
@@ -113,7 +113,7 @@ The dnf-vs-rpm-ostree choice moves into `lib/packages.sh` behind `case "$MIOS_SU
 17. Collapse `Invoke-MiosQuadletOverlay` (`:3479-4600`) → ensure git tree at `/` (root-merge.sh) then `wsl … sudo env MIOS_SUBSTRATE=wsl-dev mios-apply`. After this **no MiOS-mutation bash lives in PowerShell**. Re-run `Reinstall-MiOSDEV.ps1 -Go` + dashboard smoke after each fold.
 
 **Phase 5 — lock the unification**
-18. `38-drift-checks.sh` no-reimplementation gate: fail if `build-mios.ps1` has MiOS-mutation markers (`rpm-ostree install`/`dconf update`/`Bibata`/`chpasswd`/`flatpak install`) outside a provisioning allowlist.
+18. `automation/98-drift-checks.sh` no-reimplementation gate: fail if `build-mios.ps1` has MiOS-mutation markers (`rpm-ostree install`/`dconf update`/`Bibata`/`chpasswd`/`flatpak install`) outside a provisioning allowlist.
 19. Parity check: `mios-apply --list-stages` per substrate diffed in drift-gate — `universal` set identical across substrates.
 20. SSOT: record the 4 substrates + class table in `mios.toml` so the configurator surfaces them.
 

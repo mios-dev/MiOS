@@ -3002,7 +3002,10 @@ check_router_parity() {
         return 1
     fi
 
-    local py_res=$(python3 - "$corpus_file" "$ROOT" << 'PYEOF'
+    # `local x=$(cmd)` returns the status of `local`, not of cmd, so the
+    # scan below was unconditionally treated as passing. Declared separately.
+    local py_res
+    py_res=$(python3 - "$corpus_file" "$ROOT" << 'PYEOF'
 import sys, json, re, glob, os
 
 corpus_file = sys.argv[1]
