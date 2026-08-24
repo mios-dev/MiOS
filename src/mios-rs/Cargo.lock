@@ -798,6 +798,7 @@ dependencies = [
  "byteorder",
  "bytes",
  "chrono",
+ "clap",
  "crc32fast",
  "ed25519-dalek",
  "serde",

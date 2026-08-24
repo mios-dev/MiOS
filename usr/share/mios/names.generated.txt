@@ -530,6 +530,8 @@ security.mtls.validity_days  MIOS_SECURITY_MTLS_VALIDITY_DAYS
 security.luks.enabled  MIOS_SECURITY_LUKS_ENABLED
 security.luks.pin  MIOS_SECURITY_LUKS_PIN
 security.luks.pcrs  MIOS_SECURITY_LUKS_PCRS
+code_mode.socket  MIOS_CODE_MODE_SOCKET
+code_mode.call_timeout_s  MIOS_CODE_MODE_CALL_TIMEOUT_S
 code_mode.enable  MIOS_CODE_MODE_ENABLE
 code_mode.heavy_lane_only  MIOS_CODE_MODE_HEAVY_LANE_ONLY
 code_mode.allow_net  MIOS_CODE_MODE_ALLOW_NET

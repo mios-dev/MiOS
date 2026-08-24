@@ -125,6 +125,23 @@
           "satisfaction verdicts (event.type=user_query_satisfied)"
         ]
       }
+    },
+    {
+      "id": "mios-node:latest",
+      "object": "model",
+      "created": 1747000000,
+      "owned_by": "mios-agents",
+      "permission": [],
+      "root": "mios-node:latest",
+      "parent": null,
+      "x-mios": {
+        "role": "distributed-edge-micro-node-runner",
+        "served_by": "mios-node.service",
+        "endpoint": "http://localhost:8650/v1",
+        "registered_as_sub_agent_of": "mios-agent-pipe",
+        "registry": "/usr/share/mios/ai/v1/agents.json",
+        "wire_protocol": "16B Binary Frame + CRC32"
+      }
     }
   ],
   "x-mios": {

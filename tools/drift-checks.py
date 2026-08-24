@@ -352,9 +352,19 @@ def check_no_duplicate_value_key() -> int:
     for key, val in env.items():
         by_value.setdefault(val, []).append(key)
 
+    # Two spellings of ONE key are not two keys. The resolver emits an aliased
+    # name beside the walked name -- MIOS_CODEMODE_SOCKET and
+    # MIOS_CODE_MODE_SOCKET are one declaration -- so counting them as a
+    # collision made every new key in an aliased table breach the ratchet, which
+    # would have forced the ceiling up for a duplicate that is not one.
+    def _shape(name):
+        return name.replace("_", "")
+
     live = {}
     for val, keys in by_value.items():
-        if len(keys) > 1 and val not in EXEMPT_VALUES:
+        if val in EXEMPT_VALUES:
+            continue
+        if len({_shape(k) for k in keys}) > 1:
             live[val] = sorted(keys)
 
     # --- regeneration -----------------------------------------------------------

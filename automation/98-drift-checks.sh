@@ -480,8 +480,7 @@ PY
 }
 
 check_package_registry() {
-    local _en
-    _en="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"
+    local _en="$(printf '%s' "${MIOS_PACKAGE_REGISTRY:-false}" | tr '[:upper:]' '[:lower:]')"
     case "$_en" in
         1|true|yes|on) : ;;
         *)
@@ -988,8 +987,7 @@ check_hummingbird() {
 
     if [[ -f "$containerfile" ]]; then
         local mios_toml="usr/share/mios/mios.toml"
-        local expected_base
-        expected_base=$(grep -E '^\s*distroless_base\s*=' "$mios_toml" | head -n 1 | cut -d'"' -f2 || echo "Gcr.io/distroless/python3-debian13")
+        local expected_base=$(grep -E '^\s*distroless_base\s*=' "$mios_toml" | head -n 1 | cut -d'"' -f2 || echo "Gcr.io/distroless/python3-debian13")
         if [[ -z "$expected_base" ]]; then
             expected_base="gcr.io/distroless/python3-debian13"
         fi
@@ -1000,8 +998,7 @@ check_hummingbird() {
             return 1
         fi
 
-        local final_stage
-        final_stage=$(awk '/^FROM/ { stage="" } { stage=stage "\n" $0 } END { print stage }' "$containerfile")
+        local final_stage=$(awk '/^FROM/ { stage="" } { stage=stage "\n" $0 } END { print stage }' "$containerfile")
 
         if echo "$final_stage" | grep -F "/bin/bash" >/dev/null; then
             echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage contains /bin/bash" >&2
@@ -1009,8 +1006,7 @@ check_hummingbird() {
             return 1
         fi
 
-        local user_line
-        user_line=$(echo "$final_stage" | grep -E '^\s*USER\s+' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        local user_line=$(echo "$final_stage" | grep -E '^\s*USER\s+' | tail -n 1 | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
         if [[ "$user_line" != "USER 65534" && "$user_line" != "USER 65534:65534" ]]; then
             echo "[98-drift-checks] VIOLATION: Containerfile.hummingbird final stage USER is not 65534 or 65534:65534" >&2
             VIOLATIONS=$((VIOLATIONS + 1))
@@ -1986,8 +1982,7 @@ check_etc_duplicates() {
     local hits=""
     if [[ -d "$etc_dir" ]]; then
         while IFS= read -r -d '' f; do
-            local base
-            base="$(basename "$f")"
+            local base="$(basename "$f")"
             if [[ -f "$usr_dir/$base" ]]; then
                 hits+="    $f (shadows $usr_dir/$base)"$'\n'
             fi
@@ -2494,8 +2489,7 @@ check_vendor_urls() {
 
     # ADR-0016 D5: the VENDOR endpoint stays local; only an /etc overlay
     # may point it off-box.
-    local ep_out
-    ep_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'ENDPY'
+    local ep_out="$(MIOS_DRIFT_ROOT="$ROOT" python3 - <<'ENDPY'
 import os, re, sys
 import tomllib as _t
 root = os.environ["MIOS_DRIFT_ROOT"]
@@ -2525,8 +2519,7 @@ check_resolver_twin_parity() {
         echo "[98-drift-checks]   SOFT: a resolver is absent" >&2
         return 0
     fi
-    local fix
-    fix="$(mktemp -d 2>/dev/null)" || { echo "[98-drift-checks]   SOFT: mktemp failed" >&2; return 0; }
+    local fix="$(mktemp -d 2>/dev/null)" || { echo "[98-drift-checks]   SOFT: mktemp failed" >&2; return 0; }
     mkdir -p "$fix/vendor.d" "$fix/.config/mios"
     printf '[ai]\nendpoint = "http://vendor:1000"\nmodel = "vendor-model"\nembed_model = "vendor-embed"\n' > "$fix/vendor.toml"
     printf '[ai]\nendpoint = "http://vendor-frag:1050"\n'                                                 > "$fix/vendor.d/50-frag.toml"
@@ -2594,8 +2587,7 @@ check_template_conformance() {
 check_kargs_projection() {
     _need_python || return 0
     
-    local tmp_dir
-    tmp_dir="$(mktemp -d)"
+    local tmp_dir="$(mktemp -d)"
     
     mkdir -p "$tmp_dir"
     cp -r "$ROOT/usr/lib/bootc/kargs.d/"* "$tmp_dir/"
@@ -2649,8 +2641,7 @@ check_greenboot_enablement() {
     if [[ -d "$ROOT/etc/greenboot" ]]; then
         while read -r f; do
             [[ -f "$f" ]] || continue
-            local relpath
-            relpath="$(realpath --relative-to="$ROOT" "$f")"
+            local relpath="$(realpath --relative-to="$ROOT" "$f")"
             local mode=""
             if command -v git >/dev/null 2>&1 && git -C "$ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
                 mode="$(git -C "$ROOT" ls-files -s "$relpath" 2>/dev/null | awk '{print $1}')"
@@ -2670,8 +2661,7 @@ check_greenboot_enablement() {
 }
 
 check_chrony_projection() {
-    local tmp_file
-    tmp_file="$(mktemp)"
+    local tmp_file="$(mktemp)"
     
     MIOS_TOML="$ROOT/usr/share/mios/mios.toml" CHRONY_CONF="$tmp_file" bash "$ROOT/automation/42-chrony-render.sh" >/dev/null 2>&1
     
@@ -2692,8 +2682,7 @@ check_chrony_projection() {
 }
 
 check_nut_projection() {
-    local tmp_dir
-    tmp_dir="$(mktemp -d)"
+    local tmp_dir="$(mktemp -d)"
     
     MIOS_TOML="$ROOT/usr/share/mios/mios.toml" UPS_CONF_DIR="$tmp_dir" bash "$ROOT/automation/43-nut-render.sh" >/dev/null 2>&1
     
@@ -2740,8 +2729,7 @@ check_fluff_tokens() {
     
     while read -r f; do
         [[ -f "$f" ]] || continue
-        local bname
-        bname="$(basename "$f")"
+        local bname="$(basename "$f")"
         if [[ "$bname" == "98-drift-checks.sh" || "$bname" == "build-mios.sh" || "$bname" == "99-postcheck.sh" || "$f" =~ /firstboot/ ]]; then
             continue
         fi
@@ -2900,15 +2888,13 @@ check_deploy_plane() {
 
     local toml="$ROOT/usr/share/mios/mios.toml"
     local base_image_version
-    local base_image
-    base_image=$(grep -E '^[[:space:]]*base_image[[:space:]]*=' "$toml" | head -n1 | cut -d'"' -f2)
+    local base_image=$(grep -E '^[[:space:]]*base_image[[:space:]]*=' "$toml" | head -n1 | cut -d'"' -f2)
     if [[ -n "$base_image" ]]; then
         base_image_version=$(echo "$base_image" | grep -oE '[0-9]+$')
         if [[ -n "$base_image_version" ]]; then
             if [[ -f "$ks_file" ]]; then
                 if grep -oE 'Fedora-Server-[0-9]+' "$ks_file" | grep -qv "Fedora-Server-${base_image_version}" &>/dev/null; then
-                    local mismatched_version
-                    mismatched_version=$(grep -oE 'Fedora-Server-[0-9]+' "$ks_file" | head -n1)
+                    local mismatched_version=$(grep -oE 'Fedora-Server-[0-9]+' "$ks_file" | head -n1)
                     bad+="    kickstart/base_image: version mismatch (${mismatched_version} vs Fedora ${base_image_version})"$'\n'
                 fi
             fi
@@ -3264,8 +3250,7 @@ check_bake_ref_defaults() {
         echo "[98-drift-checks]   all baker scripts have non-empty defaults for their bake-refs"
         return 0
     fi
-    local empty_refs
-    empty_refs="$(git grep -E 'MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-\}' automation/ 2>/dev/null || true)"
+    local empty_refs="$(git grep -E 'MIOS_BUILD_BAKE_REFS_[A-Z0-9_]+:-\}' automation/ 2>/dev/null || true)"
     if [[ -n "$empty_refs" ]]; then
         _violation "found empty defaults for bake-refs in automation scripts:"$'\n'"${empty_refs}"
         return 1
@@ -3493,8 +3478,7 @@ for path in files:
 for u in unretried:
     print(u)
 "
-    local res
-    res="$(python3 -c "$py_script" 2>/dev/null || true)"
+    local res="$(python3 -c "$py_script" 2>/dev/null || true)"
     if [[ -z "$res" ]]; then
         echo "[98-drift-checks]   curl/wget build network fetches carry"
     else
@@ -3520,8 +3504,7 @@ check_resolver_ssot_refs() {
         return 0
     fi
     _require_python3 || return 0
-    local res
-    res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 - <<'PY' 2>/dev/null || true
+    local res="$(MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_REL="$rel" python3 - <<'PY' 2>/dev/null || true
 import os
 import re
 
@@ -3757,8 +3740,7 @@ check_router_parity() {
         return 1
     fi
 
-    local py_res
-    py_res=$(python3 - "$corpus_file" "$ROOT" << 'PYEOF'
+    local py_res=$(python3 - "$corpus_file" "$ROOT" << 'PYEOF'
 import sys, json, re, glob, os
 
 corpus_file = sys.argv[1]
@@ -4410,8 +4392,7 @@ check_kickstart_shell_syntax() {
 
     for f in "$cfg" "$iso_toml"; do
         [[ -f "$f" ]] || continue
-        local post_sh
-        post_sh="$(sed -n '/%post/,/%end/p' "$f" | sed 's/.*%post.*//; s/.*%end.*//')"
+        local post_sh="$(sed -n '/%post/,/%end/p' "$f" | sed 's/.*%post.*//; s/.*%end.*//')"
         if [[ -n "$post_sh" ]]; then
             if ! printf '%s\n' "$post_sh" | bash -n 2>/dev/null; then
                 bad_ks+="    ${f#"$ROOT"/}: embedded %post shell failed bash -n syntax check"$'\n'
@@ -4499,8 +4480,7 @@ check_offline_install_invariant() {
         return 0
     fi
 
-    local net_token
-    net_token="$(grep -nE '(http://|https://|git clone|podman pull|skopeo copy docker://)' "$install_script" | grep -v '^\s*#' || true)"
+    local net_token="$(grep -nE '(http://|https://|git clone|podman pull|skopeo copy docker://)' "$install_script" | grep -v '^\s*#' || true)"
     if [[ -n "$net_token" ]]; then
         echo "$net_token" >&2
         _violation "tools/install.sh contains forbidden network pull token violating zero-network offline-install contract"
@@ -4519,8 +4499,7 @@ check_installer_family_roles() {
         if [[ ! -f "$s" ]]; then
             continue
         fi
-        local role
-        role="$(grep -oE '^# MIOS_INSTALLER_ROLE=[a-zA-Z0-9_-]+' "$s" | cut -d= -f2 || true)"
+        local role="$(grep -oE '^# MIOS_INSTALLER_ROLE=[a-zA-Z0-9_-]+' "$s" | cut -d= -f2 || true)"
         if [[ -z "$role" ]]; then
             bad_installers+="    ${s#"$ROOT"/}: missing # MIOS_INSTALLER_ROLE header marker"$'\n'
         else
@@ -4654,8 +4633,7 @@ check_build_artifacts_output_dir() {
         return 0
     fi
 
-    local output_dir
-    output_dir="$(grep -A 3 '\[build\.artifacts\]' "$ssot" | grep 'output_dir' | head -1 | cut -d'"' -f2 || echo "Build")"
+    local output_dir="$(grep -A 3 '\[build\.artifacts\]' "$ssot" | grep 'output_dir' | head -1 | cut -d'"' -f2 || echo "Build")"
 
     local bad_out=""
     if grep -qE "(mkdir -p output|output/|-v \./output|>\s*output/)" "$justfile"; then
@@ -4860,8 +4838,7 @@ check_renderer_gate_coverage() {
     local render_scripts=()
     while IFS= read -r f; do
         [[ -f "$f" ]] || continue
-        local base
-        base="$(basename "$f")"
+        local base="$(basename "$f")"
         local allowed=0
         for item in "${allowlist[@]}"; do
             if [[ "$base" == "$item" ]]; then
@@ -4877,8 +4854,7 @@ check_renderer_gate_coverage() {
     local unmapped=()
     local script
     for script in "${render_scripts[@]}"; do
-        local stem
-        stem="$(echo "$script" | sed -E 's/^[0-9]+-//; s/-render.*//; s/\.sh$//')"
+        local stem="$(echo "$script" | sed -E 's/^[0-9]+-//; s/-render.*//; s/\.sh$//')"
         if ! grep -qE "check_.*${stem}.*projection|check_.*${stem}" "$drift_file"; then
             unmapped+=("$script")
         fi
@@ -5377,10 +5353,8 @@ check_resolved_env_lossless() {
 }
 
 check_no_duplicate_value_key() {
-    # One value, one name, ratcheted against reference/value-dup-baseline.tsv,
-    # whose header carries the rationale and the regeneration recipe. A missing
-    # resolver or a missing ledger is the WORST state, not a reason to be green:
-    # deleting the resolver used to leave this gate passing over 816 duplicates.
+    # One value, one name, ratcheted against reference/value-dup-baseline.tsv.
+    # A missing resolver or ledger is the WORST state, not a reason to be green.
     _need_python || return 0
     local snap_tool="${ROOT}/usr/libexec/mios/mios-env-snapshot"
     local baseline="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
@@ -5410,8 +5384,7 @@ check_pipeline_numbering() {
     fi
     local idx="$ROOT/usr/share/mios/reference/drift-gate-index.tsv"
     if [[ -f "$idx" ]]; then
-        local dense
-        dense=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {n++; if($1!=n){print "gap-at-"$1; exit}} END{if(n==0)print "empty"}' "$idx")
+        local dense=$(awk -F'\t' 'NR>1 && $1 ~ /^[0-9]+$/ {n++; if($1!=n){print "gap-at-"$1; exit}} END{if(n==0)print "empty"}' "$idx")
         if [[ -n "$dense" ]]; then
             echo "  [pipeline-numbering-drift] drift-gate-index.tsv ordinals not dense 1..N" >&2
             is_bad=1
@@ -5498,8 +5471,7 @@ check_no_hardcoded_ssot_literal() {
     hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/configurator/" | grep -v "/\.claude/" || true)
     
     if [[ -n "$hardcodes" ]]; then
-        local violations
-        violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
+        local violations=$(echo "$hardcodes" | grep -vE "(fedora-\\\$|fedora-%|\\\$MIOS_|\\\$FEDORA_|mios\.toml)")
         if [[ -n "$violations" ]]; then
             _violation "Hardcoded version literals found in SSOT (use \${FEDORA_VERSION} / \${MIOS_K3S_VERSION} instead):"
             echo "$violations" | head -n 10 >&2
@@ -5509,10 +5481,8 @@ check_no_hardcoded_ssot_literal() {
 
 check_bash_phase_ratchet() {
     echo "[98-drift-checks]   bash phase script count ratchet check"
-    local count
-    count="$(find "$ROOT/automation" -maxdepth 1 -name "[0-9][0-9]-*.sh" | wc -l)"
-    local max_allowed
-    max_allowed="$(python3 -c "import tomllib; f=open('${ROOT}/usr/share/mios/mios.toml','rb'); d=tomllib.load(f); print(d.get('build',{}).get('ratchet',{}).get('max_phase_scripts', 71))" 2>/dev/null || echo "71")"
+    local count="$(find "$ROOT/automation" -maxdepth 1 -name "[0-9][0-9]-*.sh" | wc -l)"
+    local max_allowed="$(python3 -c "import tomllib; f=open('${ROOT}/usr/share/mios/mios.toml','rb'); d=tomllib.load(f); print(d.get('build',{}).get('ratchet',{}).get('max_phase_scripts', 71))" 2>/dev/null || echo "71")"
     if [[ "$count" -gt "$max_allowed" ]]; then
         _violation "bash phase script count ($count) exceeds ratchet baseline ($max_allowed)"
     fi
@@ -5525,8 +5495,7 @@ check_no_silent_tool_skips() {
 
     for f in "$ROOT/automation/98-drift-checks.sh" "$ROOT"/automation/lint-*.sh; do
         [[ -f "$f" ]] || continue
-        local hits
-        hits=$(grep -nE 'command -v.*\|\|[[:space:]]*(return 0|exit 0)' "$f" | grep -v 'MIOS_DRIFT_REQUIRE_TOOLS' || true)
+        local hits=$(grep -nE 'command -v.*\|\|[[:space:]]*(return 0|exit 0)' "$f" | grep -v 'MIOS_DRIFT_REQUIRE_TOOLS' || true)
         if [[ -n "$hits" ]]; then
             bad_skips+=("$f:" "$hits")
         fi
@@ -6436,8 +6405,7 @@ PY
 
 check_github_slug_casing() {
     echo "[98-drift-checks]   check_github_slug_casing"
-    local bad_files
-    bad_files="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard | xargs -0 grep -HnI "raw.githubusercontent.com/MiOS-DEV" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
+    local bad_files="$(cd "$ROOT" && git ls-files -z -c -o --exclude-standard | xargs -0 grep -HnI "raw.githubusercontent.com/MiOS-DEV" 2>/dev/null | grep -v "usr/share/doc/mios/knowledge" || true)"
     if [[ -n "$bad_files" ]]; then
         while IFS= read -r line; do
             _violation "Non-canonical GitHub raw URL slug casing found: $line"

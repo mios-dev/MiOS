@@ -104,7 +104,7 @@ logging:
 # overrides on later reloads to pick up newly-promoted skills.
 mios_skill_catalog:
   enable: true
-  http_url: http://localhost:8640/skills/openai-tools
+  http_url: http://localhost:8700/skills/openai-tools
   static_path: /var/lib/mios/skills/catalog.json
   # Refresh cadence (seconds). Hermes re-pulls the catalog at this
   # interval so a configurator-driven promote becomes visible
@@ -124,7 +124,7 @@ mcp_servers:
     command: /usr/libexec/mios/mios-mcp-server
     args: []
     env:
-      MIOS_AGENT_PIPE_URL: http://localhost:8640
+      MIOS_AGENT_PIPE_URL: http://localhost:8700
     timeout: 120
     connect_timeout: 30
     supports_parallel_tool_calls: true

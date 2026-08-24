@@ -1,0 +1,19 @@
+[Unit]
+Description=MiOS Distributed Edge Micro-Node Quadlet Container
+After=network-online.target
+
+[Container]
+Image=ghcr.io/mios-dev/mios-node:latest
+ContainerName=mios-node
+Network=mios.network
+PublishPort=8650:8650/udp
+PublishPort=8650:8650/tcp
+Volume=/var/lib/mios:/var/lib/mios
+Environment=MIOS_NODE_ID=101
+Environment=MIOS_PORT=8650
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

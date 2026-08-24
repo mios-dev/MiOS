@@ -1,4 +1,4 @@
-# AI-hint: Default configuration for aichat/aichat-ng that redirects OpenAI-compatible requests to the local Agent-Pipe Quadlet at http://localhost:8640/v1, ensuring seamless local LLM integration for all users.
+# AI-hint: Default configuration for aichat/aichat-ng that redirects OpenAI-compatible requests to the local Agent-Pipe Quadlet at http://localhost:8700/v1, ensuring seamless local LLM integration for all users.
 model: openai:qwen3.5:2b
 temperature: null
 top_p: null
@@ -17,7 +17,7 @@ clients:
   # Canonical 'MiOS' OpenAI-compatible endpoint (Agent-Pipe Quadlet).
   - type: openai-compatible
     name: mios-ai
-    api_base: http://localhost:8640/v1
+    api_base: http://localhost:8700/v1
     api_key: ""
     models:
       - name: MiOS AI

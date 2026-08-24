@@ -17,9 +17,9 @@
 # lock held by the :8642 gateway).
 #
 # LOOP-SAFETY: this worker hits the REAL :11441 model lane for inference, so it
-# never relays back to :8640. mcp_servers.mios stays DISABLED here (the relay's
-# MIOS_AGENT_PIPE_URL=:8640 would let a worker re-enter the orchestrator ->
-# :8640 -> council -> worker cycle). The worker's native toolsets already give
+# never relays back to :8700. mcp_servers.mios stays DISABLED here (the relay's
+# MIOS_AGENT_PIPE_URL=:8700 would let a worker re-enter the orchestrator ->
+# :8700 -> council -> worker cycle). The worker's native toolsets already give
 # it terminal/file/web/browser/skills without the MCP relay. The P0 hop-budget/
 # Via guard (_HOP_HEADER/_VIA_HEADER, server.py) is the backstop either way.
 _config_version: 1
@@ -27,7 +27,7 @@ _config_version: 1
 # Primary model = the SGLang heavy lane on :11441 (served-name "mios-heavy").
 # MUST be a mapping (not a bare string) so resolve_requested_provider() sees
 # provider=. provider "custom:mios-heavy" resolves against the custom_providers
-# entry below. base_url :11441/v1 = the model lane DIRECTLY (NOT :8640, NOT :8642).
+# entry below. base_url :11441/v1 = the model lane DIRECTLY (NOT :8700, NOT :8642).
 model:
   provider: custom:mios-heavy
   default: mios-heavy
@@ -225,17 +225,17 @@ agent:
   max_turns: 100
 
 # MCP CLIENT: DISABLED on the worker (loop-safety). The relay's
-# MIOS_AGENT_PIPE_URL=:8640 would let this worker re-enter the orchestrator ->
+# MIOS_AGENT_PIPE_URL=:8700 would let this worker re-enter the orchestrator ->
 # council -> worker cycle. The worker's native toolsets already give it the
 # terminal/file/web/browser/skills surface; it does its OWN inference on :11441
-# and never needs to relay to :8640. Re-enable ONLY with a non-:8640 relay.
+# and never needs to relay to :8700. Re-enable ONLY with a non-:8700 relay.
 mcp_servers:
   mios:
     enabled: false
     command: /usr/libexec/mios/mios-mcp-server
     args: []
     env:
-      MIOS_AGENT_PIPE_URL: http://localhost:8640
+      MIOS_AGENT_PIPE_URL: http://localhost:8700
     timeout: 120
     connect_timeout: 30
     supports_parallel_tool_calls: true

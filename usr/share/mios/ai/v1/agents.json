@@ -47,6 +47,26 @@
           "/var/lib/mios/daemon/launch_failures.json"
         ]
       }
+    },
+    {
+      "name": "mios-node",
+      "endpoint": "http://localhost:8650/v1",
+      "model": "mios-node:latest",
+      "role": "edge_execution",
+      "default": false,
+      "strengths": [
+        "wasm_sandboxing",
+        "crdt_state_sync",
+        "peer_discovery",
+        "task_offloading",
+        "ed25519_verification"
+      ],
+      "x-mios": {
+        "always_on": true,
+        "hosted_by": "mios-node.service",
+        "wire_protocol": "16B Binary Frame + CRC32",
+        "port": 8650
+      }
     }
   ],
   "x-mios": {

@@ -99,6 +99,42 @@ pub struct BuildConfig {
     pub ratchet: BuildRatchet,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct NodeConfig {
+    #[serde(default = "default_node_id")]
+    pub node_id: u32,
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default = "default_db_path")]
+    pub db_path: String,
+    #[serde(default = "default_true")]
+    pub discovery_enabled: bool,
+}
+
+impl Default for NodeConfig {
+    fn default() -> Self {
+        Self {
+            node_id: default_node_id(),
+            port: default_port(),
+            db_path: default_db_path(),
+            discovery_enabled: default_true(),
+        }
+    }
+}
+
+fn default_node_id() -> u32 {
+    101
+}
+fn default_port() -> u16 {
+    8650
+}
+fn default_db_path() -> String {
+    "/var/lib/mios/state.json".into()
+}
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct MiosConfig {
     #[serde(default)]
@@ -107,6 +143,8 @@ pub struct MiosConfig {
     pub identity: IdentityConfig,
     #[serde(default)]
     pub build: BuildConfig,
+    #[serde(default)]
+    pub node: NodeConfig,
 
     /// Raw TOML table capturing all dynamic/operator-defined sections (e.g. packages, repos, security, network, power, compliance, etc.)
     #[serde(flatten)]
@@ -134,12 +172,10 @@ impl MiosConfig {
         }
     }
 
-    /// Retrieve a generic section from the raw config table by section name.
     pub fn section(&self, name: &str) -> Option<&toml::Value> {
         self.raw.get(name)
     }
 
-    /// Retrieve a value via a dotted-path lookup (e.g. "packages.core.enable" or "security.enable_units").
     pub fn get_value(&self, key: &str) -> Option<&toml::Value> {
         let parts: Vec<&str> = key.split('.').collect();
         if parts.is_empty() {
@@ -157,18 +193,15 @@ impl MiosConfig {
         Some(val)
     }
 
-    /// Helper to get a string value from a dotted path key.
     pub fn get_string(&self, key: &str) -> Option<String> {
         self.get_value(key)
             .and_then(|v| v.as_str().map(|s| s.to_string()))
     }
 
-    /// Helper to get a boolean value from a dotted path key.
     pub fn get_bool(&self, key: &str) -> Option<bool> {
         self.get_value(key).and_then(|v| v.as_bool())
     }
 
-    /// Helper to get an integer value from a dotted path key.
     pub fn get_i64(&self, key: &str) -> Option<i64> {
         self.get_value(key).and_then(|v| v.as_integer())
     }
@@ -183,14 +216,10 @@ mod tests {
         let config = MiosConfig::load_from_path("../../../usr/share/mios/mios.toml")
             .expect("should deserialize real mios.toml");
         assert_eq!(config.identity.username, "mios");
-        // Assert it DESERIALIZES, not that it equals a magic number. Pinning
-        // the literal here meant every legitimate ratchet bump in mios.toml
-        // (this test said 71; adding 55-native-build.sh moved SSOT to 72)
-        // broke a test whose stated purpose is "deserialize real mios.toml".
         assert!(config.build.ratchet.max_phase_scripts > 0);
         assert!(!config.build.phases.list.is_empty());
+        assert_eq!(config.node.port, 8650);
 
-        // Verify generic section access on complex tables without rigid structs
         assert!(config.section("packages").is_some());
         assert!(config.get_value("security.cosign.policy_mode").is_some());
     }
@@ -200,6 +229,10 @@ mod tests {
         let sample_toml = r#"
 [meta]
 mios_version = "0.3.0"
+
+[node]
+node_id = 202
+port = 8655
 
 [foo.bar]
 custom_setting = "test_value"
@@ -211,6 +244,8 @@ flag = true
             .extract()
             .expect("should parse arbitrary custom sections generically");
 
+        assert_eq!(config.node.node_id, 202);
+        assert_eq!(config.node.port, 8655);
         assert_eq!(
             config.get_string("foo.bar.custom_setting").as_deref(),
             Some("test_value")

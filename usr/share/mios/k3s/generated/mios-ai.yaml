@@ -42,7 +42,7 @@ spec:
     - name: RAG_RELEVANCE_THRESHOLD
       value: "0.5"
     - name: OPENAI_API_BASE_URL
-      value: http://host.containers.internal:8640/v1
+      value: http://host.containers.internal:8700/v1
     - name: DEFAULT_USER_ROLE
       value: admin
     - name: ENABLE_RAG_HYBRID_SEARCH
