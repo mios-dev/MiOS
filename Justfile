@@ -177,12 +177,12 @@ build-verbose: artifact
 
 embed-log:
     @echo "[START] Finding most recent build log"
-    @LOG_FILE=$(ls -t logs/build-*.log 2>/dev/null | head -n 1)
-    @if [ -z "${LOG_FILE}" ]; then \
+    @LOG_FILE=$$(ls -t logs/build-*.log 2>/dev/null | head -n 1)
+    @if [ -z "$${LOG_FILE}" ]; then \
         echo "[FAIL] No build logs found in logs/. Run 'just build-logged' first"; \
         exit 1; \
     fi
-    @echo "  Found: ${LOG_FILE}"
+    @echo "  Found: $${LOG_FILE}"
     @echo "[START] Creating temporary Containerfile to embed log"
     @echo "FROM {{LOCAL}}" > /tmp/Containerfile.embed
     @echo "COPY" >> /tmp/Containerfile.embed
@@ -236,14 +236,14 @@ iso: build
     @TMPTOML="$(mktemp /tmp/mios-iso-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH:-}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/iso.toml > "$TMPTOML" && \
+            ./config/artifacts/iso.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \
             --security-opt label=type:unconfined_t \
             -v ./build/iso:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$TMPTOML":/config.toml:ro \
+            -v "$$TMPTOML":/config.toml:ro \
             {{BIB}} build --type iso --rootfs ext4 {{LOCAL}}; \
-        rm -f "$TMPTOML"
+        rm -f "$$TMPTOML"
     @echo "[OK] ISO image in build/iso"
 
 qcow2: build
@@ -252,14 +252,14 @@ qcow2: build
     @TMPTOML="$(mktemp /tmp/mios-qcow2-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/qcow2.toml > "$TMPTOML" && \
+            ./config/artifacts/qcow2.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \
             --security-opt label=type:unconfined_t \
             -v ./build/qcow2:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$TMPTOML":/config.toml:ro \
+            -v "$$TMPTOML":/config.toml:ro \
             {{BIB}} build --type qcow2 --rootfs ext4 {{LOCAL}}; \
-        rm -f "$TMPTOML"
+        rm -f "$$TMPTOML"
     @echo "[OK] QCOW2 image in build/qcow2"
 
 vhdx: build
@@ -268,18 +268,18 @@ vhdx: build
     @TMPTOML="$(mktemp /tmp/mios-vhdx-XXXXXX.toml)" && \
         sed -e "s|\$6\$REPLACEME_WITH_SHA512_HASH\$REPLACEME|${MIOS_USER_PASSWORD_HASH}|g" \
             -e "s|AAAA_REPLACE_WITH_REAL_PUBKEY|${MIOS_SSH_PUBKEY:-}|g" \
-            ./config/artifacts/vhdx.toml > "$TMPTOML" && \
+            ./config/artifacts/vhdx.toml > "$$TMPTOML" && \
         sudo podman run --rm -it --privileged \
             --security-opt label=type:unconfined_t \
             -v ./build/vhdx:/output \
             -v /var/lib/containers/storage:/var/lib/containers/storage \
-            -v "$TMPTOML":/config.toml:ro \
+            -v "$$TMPTOML":/config.toml:ro \
             {{BIB}} build --type vhd --rootfs ext4 {{LOCAL}}; \
-        rm -f "$TMPTOML"
+        rm -f "$$TMPTOML"
     @if command -v qemu-img >/dev/null 2>&1 && ls build/vhdx/*.vhd >/dev/null 2>&1; then \
         for vhd in build/vhdx/*.vhd; do \
-            vhdx="${vhd%.vhd}.vhdx"; \
-            qemu-img convert -f vpc -O vhdx "$vhd" "$vhdx" && rm -f "$vhd" && echo "[OK] Converted: $vhdx"; \
+            vhdx="$${vhd%.vhd}.vhdx"; \
+            qemu-img convert -f vpc -O vhdx "$$vhd" "$$vhdx" && rm -f "$$vhd" && echo "[OK] Converted: $$vhdx"; \
         done; \
     else \
         echo "[WARN] qemu-img not found or no .vhd produced"; \
@@ -310,15 +310,15 @@ all: build oci-archive raw iso usb-installer qcow2 vhdx wsl2
 
 usb-installer: iso
     @mkdir -p build/usb-installer
-    @isos=$(ls build/*.iso build/bootiso/*.iso 2>/dev/null); \
-    if [ -n "$isos" ]; then \
-        for src in $isos; do \
-            [ -f "$src" ] || continue; \
-            base=$(basename "$src" .iso); \
-            dst="build/usb-installer/${base}-usb.iso"; \
-            [ -f "$dst" ] || cp -p "$src" "$dst"; \
-            sz=$(stat -c%s "$dst" 2>/dev/null || stat -f%z "$dst"); \
-            echo "[OK] USB installer: $dst"; \
+    @isos=$$(ls build/*.iso build/bootiso/*.iso 2>/dev/null); \
+    if [ -n "$$isos" ]; then \
+        for src in $$isos; do \
+            [ -f "$$src" ] || continue; \
+            base=$$(basename "$$src" .iso); \
+            dst="build/usb-installer/$${base}-usb.iso"; \
+            [ -f "$$dst" ] || cp -p "$$src" "$$dst"; \
+            sz=$$(stat -c%s "$$dst" 2>/dev/null || stat -f%z "$$dst"); \
+            echo "[OK] USB installer: $$dst"; \
         done; \
     else \
         echo "[FAIL] no .iso in build/ or build/bootiso/ — run 'just iso' first"; exit 1; \
