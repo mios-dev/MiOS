@@ -1,0 +1,21 @@
+[package]
+name = "mios-node"
+version.workspace = true
+edition.workspace = true
+authors = ["MiOS Core Team <dev@mios.org>"]
+description = "MiOS ('My OS') Distributed Edge Micro-Node Runtime with custom 16B wire protocol, dual-tier task execution, and CRDT state sync."
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+bytes = "1.6"
+byteorder = "1.5"
+crc32fast = "1.4"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+ed25519-dalek = "2.1"
+clap = { version = "4.6", features = ["derive"] }
+
+[dev-dependencies]
+tempfile = "3.10"
