@@ -11054,10 +11054,9 @@ min_bytes = 4194304
 # below is in that state. The ceiling is shrink-only: write a test, remove the
 # entry, lower the number.
 [rust]
-max_untested_crates = 11
+max_untested_crates = 10
 
 [rust.untested_crates]
-"src/mios-rs/miosd" = "3550 lines, the largest crate in the repository, and the drift-check daemon -- AGY-1800"
 "tools/native/generate-names-registry" = "generates the names registry; a golden-output test is the obvious shape -- AGY-1801"
 "tools/native/mios-bake-plan" = "454 lines deciding what the bake pulls; wrong output costs a whole build -- AGY-1801"
 "tools/native/mios-comment-lex" = "the comment lexer the docs ratchets measure with -- AGY-1801"

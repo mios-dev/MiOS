@@ -2470,7 +2470,10 @@ src/mios-rs/miosd/src/drift/governance.rs	1	2	2	13	2e19828f2267	STAY	ai-header		
 src/mios-rs/miosd/src/drift/hardcode.rs	1	2	2	13	07d8249fa991	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/laws.rs	1	2	2	14	44d8afc1dc85	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/mod.rs	1	2	2	14	a42e6aa660c2	STAY	ai-header		0				0
-src/mios-rs/miosd/src/drift/mod.rs	408	408	1	13	95b58ea21053	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/drift/mod.rs	417	417	1	13	95b58ea21053	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/drift/mod.rs	538	538	1	4	d1f5d26b7791	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/drift/mod.rs	541	541	1	4	209d9f193fc2	STAY	local-scoped		0				0
+src/mios-rs/miosd/src/drift/mod.rs	545	545	1	4	acdb3f5c7dbb	STAY	local-scoped		0				0
 src/mios-rs/miosd/src/drift/modules.rs	1	2	2	16	13b823a8e1ac	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/names.rs	1	2	2	11	1e1a6f22a50f	STAY	ai-header		0				0
 src/mios-rs/miosd/src/drift/numbering.rs	1	2	2	15	92cd668254bc	STAY	ai-header		0				0

@@ -258,7 +258,7 @@ use templates::{TemplateConformanceCheck, VerbBackendsCheck, VerbTemplatesCheck}
 use version::{RootTomlSubsetCheck, VersionSSOTCheck};
 
 pub struct Registry {
-    checks: Vec<Box<dyn Check>>,
+    pub checks: Vec<Box<dyn Check>>,
 }
 
 impl Registry {
@@ -357,6 +357,7 @@ impl Registry {
         let mut failed = 0;
         let mut passed = 0;
         let mut skipped = 0;
+        let mut executed = 0;
 
         for check in &self.checks {
             if let Some(f) = filter {
@@ -364,6 +365,7 @@ impl Registry {
                     continue;
                 }
             }
+            executed += 1;
 
             let verdict = check.run(ctx);
             match &verdict {
@@ -379,6 +381,13 @@ impl Registry {
                     println!("[miosd:drift] [SKIP] {}: {}", check.id(), msg);
                     skipped += 1;
                 }
+            }
+        }
+
+        if let Some(f) = filter {
+            if executed == 0 {
+                eprintln!("[miosd:drift] [FAIL] Filter '{}' matched 0 registered checks", f);
+                return false;
             }
         }
 
@@ -417,3 +426,125 @@ pub fn run_checks_cli(root: &str, soft: bool, list: bool, only: Option<&str>, pa
         std::process::exit(1);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    struct DummyPassCheck;
+    impl Check for DummyPassCheck {
+        fn id(&self) -> &'static str {
+            "dummy_pass"
+        }
+        fn describe(&self) -> &'static str {
+            "Dummy passing check for unit tests"
+        }
+        fn run(&self, _ctx: &DriftCtx) -> Verdict {
+            Verdict::Pass("OK".into())
+        }
+    }
+
+    struct DummyFailCheck;
+    impl Check for DummyFailCheck {
+        fn id(&self) -> &'static str {
+            "dummy_fail"
+        }
+        fn describe(&self) -> &'static str {
+            "Dummy failing check for unit tests"
+        }
+        fn run(&self, _ctx: &DriftCtx) -> Verdict {
+            Verdict::Fail("Simulated error".into())
+        }
+    }
+
+    #[test]
+    fn test_verdict_display() {
+        assert_eq!(format!("{}", Verdict::Pass("all good".into())), "[PASS] all good");
+        assert_eq!(format!("{}", Verdict::Fail("broken".into())), "[FAIL] broken");
+        assert_eq!(format!("{}", Verdict::Skip("skipped".into())), "[SKIP] skipped");
+    }
+
+    #[test]
+    fn test_drift_ctx_new() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        assert_eq!(ctx.root, temp.path());
+        assert!(!ctx.soft);
+    }
+
+    #[test]
+    fn test_registry_run_all_success() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        let reg = Registry {
+            checks: vec![Box::new(DummyPassCheck)],
+        };
+        assert!(reg.run_all(&ctx, None));
+    }
+
+    #[test]
+    fn test_registry_run_all_failure() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        let reg = Registry {
+            checks: vec![Box::new(DummyPassCheck), Box::new(DummyFailCheck)],
+        };
+        assert!(!reg.run_all(&ctx, None));
+    }
+
+    #[test]
+    fn test_registry_soft_mode_returns_true_on_failure() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), true);
+        let reg = Registry {
+            checks: vec![Box::new(DummyFailCheck)],
+        };
+        assert!(reg.run_all(&ctx, None));
+    }
+
+    #[test]
+    fn test_registry_unmatched_filter_returns_false() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        let reg = Registry {
+            checks: vec![Box::new(DummyPassCheck)],
+        };
+        assert!(!reg.run_all(&ctx, Some("nonexistent_check_id_12345")));
+    }
+
+    #[test]
+    fn test_registry_matched_filter() {
+        let temp = TempDir::new().unwrap();
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        let reg = Registry {
+            checks: vec![Box::new(DummyPassCheck), Box::new(DummyFailCheck)],
+        };
+        assert!(reg.run_all(&ctx, Some("dummy_pass")));
+        assert!(!reg.run_all(&ctx, Some("dummy_fail")));
+    }
+
+    #[test]
+    fn test_ssot_parse_check_with_hermetic_tempdir() {
+        let temp = TempDir::new().unwrap();
+        let mios_dir = temp.path().join("usr/share/mios");
+        fs::create_dir_all(&mios_dir).unwrap();
+        let mios_toml = mios_dir.join("mios.toml");
+
+        let ctx = DriftCtx::new(temp.path().to_path_buf(), false);
+        let check = SSOTParseCheck;
+
+        // Failing case: file missing
+        assert!(matches!(check.run(&ctx), Verdict::Fail(_)));
+
+        // Passing case: valid TOML
+        fs::write(&mios_toml, "[meta]\nmios_version = \"0.3.0\"\n").unwrap();
+        assert!(matches!(check.run(&ctx), Verdict::Pass(_)));
+
+        // Failing case: invalid TOML
+        fs::write(&mios_toml, "invalid_toml = [[[").unwrap();
+        assert!(matches!(check.run(&ctx), Verdict::Fail(_)));
+    }
+}
+

@@ -205,3 +205,51 @@ fn diff_tree(committed: &Path, rendered: &Path) -> Vec<String> {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_diff_tree_single_file_identical() {
+        let temp = TempDir::new().unwrap();
+        let file_a = temp.path().join("a.txt");
+        let file_b = temp.path().join("b.txt");
+        fs::write(&file_a, "line 1\r\nline 2\n").unwrap();
+        fs::write(&file_b, "line 1\nline 2\n").unwrap();
+
+        let diffs = diff_tree(&file_a, &file_b);
+        assert!(diffs.is_empty(), "CRLF normalized diff should be empty");
+    }
+
+    #[test]
+    fn test_diff_tree_single_file_drifted() {
+        let temp = TempDir::new().unwrap();
+        let file_a = temp.path().join("a.txt");
+        let file_b = temp.path().join("b.txt");
+        fs::write(&file_a, "line 1\nline 2\n").unwrap();
+        fs::write(&file_b, "line 1\nline DIFFERENT\n").unwrap();
+
+        let diffs = diff_tree(&file_a, &file_b);
+        assert_eq!(diffs, vec!["a.txt"]);
+    }
+
+    #[test]
+    fn test_diff_tree_directory_comparison() {
+        let temp = TempDir::new().unwrap();
+        let dir_a = temp.path().join("dir_a");
+        let dir_b = temp.path().join("dir_b");
+        fs::create_dir_all(&dir_a).unwrap();
+        fs::create_dir_all(&dir_b).unwrap();
+
+        fs::write(dir_a.join("unit.service"), "ExecStart=/bin/true").unwrap();
+        fs::write(dir_b.join("unit.service"), "ExecStart=/bin/true").unwrap();
+        fs::write(dir_a.join("other.conf"), "a=1").unwrap();
+        fs::write(dir_b.join("other.conf"), "a=2").unwrap();
+
+        let diffs = diff_tree(&dir_a, &dir_b);
+        assert_eq!(diffs, vec!["other.conf"]);
+    }
+}
+

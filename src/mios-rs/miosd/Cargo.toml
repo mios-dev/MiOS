@@ -12,3 +12,7 @@ serde = { version = "1.0", features = ["derive"] }
 regex = "1.10"
 mios-build = { path = "../mios-build" }
 mios-config = { path = "../mios-config" }
+
+[dev-dependencies]
+tempfile = "3.8"
+
