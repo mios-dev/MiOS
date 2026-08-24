@@ -181,7 +181,7 @@
 180	check_adr_index	check_adr_index
 181	check_vendored_assets_non_stub	vendored assets dir absent
 182	check_resolved_env_lossless	resolved environment is lossless
-183	check_no_duplicate_value_key	check_no_duplicate_value_key passed
+183	check_no_duplicate_value_key	value-duplication within the recorded ratchet ceiling
 184	check_pipeline_numbering	pipeline numbering: labels deleted, single progress count, dense SSOT check ordinals, stage index in sync
 185	check_value_aliases	value-alias consistency verified
 186	check_no_hardcoded_ssot_literal	checking for hardcoded fedora-XX / version literals
