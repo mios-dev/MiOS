@@ -312,6 +312,7 @@ is generated, its generator is here.
 | `tools/lib/quote-mios.py` | A utility script that uses regex to wrap the "MiOS" proper noun in single quotes in documentation and config files to ensure legal-attribution co... |
 | `tools/pipe-parity-check.py` | Drift check helper for verifying surface parity and one-way imports. |
 | `tools/provision-agent-mtls.py` | Provision the MiOS agent mTLS PKI (#54 zero-trust federation): self-signed CA + agent cert/key. |
+| `tools/read-ssot-key.py` | Prints one dotted SSOT key, exiting non-zero when it is absent so a shell caller cannot silently default it. |
 | `tools/refresh-env.py` | Syncs .ai-environment.json with .vscode/settings.json to synchronize editor font preferences and update the environment's last_refresh timestamp for consistent UI/UX across tools. |
 | `tools/render-desktop.py` | Generates usr/share/applications/*.desktop files from SSOT ports and [desktop.launchers] table. Zero hardcoded port literals; --check is the drift gate. |
 | `tools/render-globals.py` | Generates automation/lib/globals.sh and globals.ps1 IN FULL from mios.toml -- they are 100% generated artefacts with zero hand-written constants ... |
@@ -358,6 +359,7 @@ is generated, its generator is here.
 | `tools/test_generate-adr-index.py` | Sibling unit test for tools/generate-adr-index.py (T-265). |
 | `tools/test_generate-blade-karg.py` | Unit tests for tools/generate-blade-karg.py. |
 | `tools/test_generate-metal-vs-hosted.py` | Sibling unit test for tools/generate-metal-vs-hosted.py. |
+| `tools/test_read-ssot-key.py` | Sibling test for tools/read-ssot-key.py; proves an absent key exits non-zero instead of printing a default. |
 | `tools/test_render-desktop.py` | Fixtures for render-desktop.py -- proves the launcher renderer derives its port from SSOT, refuses an empty launcher table, and flags a .desktop file no [desktop.launchers] entry declares. |
 | `tools/test_render-manpages.py` | Sibling test for tools/render-manpages.py; asserts the emitted roff is well-formed and that every declared verb gets a page. |
 | `tools/test_render_globals.py` | Unit tests for render-globals.py -- proves shell and PowerShell constants are escaped so the generated resolvers always parse, that ${MIOS_X... |
@@ -366,7 +368,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 114 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 116 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

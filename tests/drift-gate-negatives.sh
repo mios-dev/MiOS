@@ -3062,6 +3062,26 @@ test_header_comment_syntax() {
     log "check_header_comment_syntax negative test passed"
 }
 
+test_repo_partition_label_ssot() {
+    log "Testing check_repo_partition_label_ssot"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+
+    # Rename the table the label lives in. The old gate defaulted to the literal
+    # "MiOS-Repo" when the anchor vanished, so it passed on exactly this change.
+    sed 's|\[cat\.repo_partition\]|[mios_negtest_gone.repo_partition]|' "$bak" > "$toml"
+
+    _neg_gate check_repo_partition_label_ssot && {
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_repo_partition_label_ssot passed with [cat.repo_partition] renamed away"
+    }
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_repo_partition_label_ssot \
+        || die "check_repo_partition_label_ssot failed after restoration"
+    log "check_repo_partition_label_ssot negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3771,6 +3791,7 @@ _run_test test_leaked_fixtures
     _run_test test_variant_registry
     _run_test test_deploy_formats
     _run_test test_header_comment_syntax
+    _run_test test_repo_partition_label_ssot
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

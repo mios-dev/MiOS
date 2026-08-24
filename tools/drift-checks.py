@@ -480,7 +480,126 @@ def check_no_duplicate_value_key() -> int:
     sys.stdout.write("%d groups at ceiling %d\n" % (len(live), ceiling))
     sys.exit(0)
 
+def check_unwired_modules() -> int:
+    """An agent-pipe module imported but never called by a non-test caller.
+
+    Lifted out of its shell heredoc so it can be imported, linted and tested;
+    inside one, a syntax error surfaces only when the check runs.
+    """
+    import os, sys, ast
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    pipe = os.path.join(root, "usr/lib/mios/agent-pipe")
+    if not os.path.isdir(pipe):
+        sys.exit(0)  # nothing to check on a bare checkout
+
+    import tomllib as _toml
+    with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+        _data = _toml.load(fh)
+    ALLOW = set(_data.get("drift", {}).get("denylist", []))
+
+    def is_test(path):
+        b = os.path.basename(path)
+        if b.startswith("test_") or b.endswith("_test.py"):
+            return True
+        segs = path.replace("\\", "/").split("/")
+        return "tests" in segs or "test" in segs
+
+    pipe_py = []
+    for dp, _dn, files in os.walk(pipe):
+        for f in files:
+            if f.endswith(".py") and not is_test(os.path.join(dp, f)):
+                pipe_py.append(os.path.join(dp, f))
+    ref_py = list(pipe_py)
+    for sub in ("usr/libexec/mios", "tools"):
+        base = os.path.join(root, sub)
+        if not os.path.isdir(base):
+            continue
+        for dp, _dn, files in os.walk(base):
+            for f in files:
+                if f.endswith(".py") and not is_test(os.path.join(dp, f)):
+                    ref_py.append(os.path.join(dp, f))
+
+    modules = sorted(f[:-3] for f in os.listdir(pipe)
+                     if f.startswith("mios_") and f.endswith(".py")
+                     and not is_test(os.path.join(pipe, f)))
+
+    def parse(p):
+        try:
+            return ast.parse(open(p, encoding="utf-8").read())
+        except Exception:
+            return None
+
+    pipe_trees = {p: parse(p) for p in pipe_py}
+    ref_trees = {p: parse(p) for p in ref_py}
+
+    def binds(tree, mod):
+        """Names this tree binds for `mod`: (import-aliases, from-names, star?)."""
+        al, fr, star = set(), set(), False
+        if tree is None:
+            return al, fr, star
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Import):
+                for a in n.names:
+                    if a.name == mod:
+                        al.add(a.asname or a.name)
+            elif isinstance(n, ast.ImportFrom):
+                if n.module == mod and (n.level or 0) == 0:
+                    for a in n.names:
+                        if a.name == "*":
+                            star = True
+                        else:
+                            fr.add(a.asname or a.name)
+        return al, fr, star
+
+    def uses(tree, names):
+        """True if tree references a bound name. Imports bind via alias nodes, not
+        ast.Name, so any ast.Name match is a genuine (non-import) reference."""
+        if tree is None or not names:
+            return False
+        for n in ast.walk(tree):
+            if isinstance(n, ast.Name) and n.id in names:
+                return True
+        return False
+
+    dead = set()
+    for mod in modules:
+        mf = os.path.abspath(os.path.join(pipe, mod + ".py"))
+        imported = False
+        for p, t in pipe_trees.items():
+            if os.path.abspath(p) == mf:
+                continue
+            al, fr, star = binds(t, mod)
+            if al or fr or star:
+                imported = True
+                break
+        if not imported:
+            continue  # never imported by the core -> not the imported-but-dead class
+        wired = False
+        for p, t in ref_trees.items():
+            if os.path.abspath(p) == mf:
+                continue
+            al, fr, star = binds(t, mod)
+            if star:
+                wired = True
+                break
+            if (al or fr) and uses(t, al | fr):
+                wired = True
+                break
+        if not wired:
+            dead.add(mod)
+
+    new_dead = sorted(dead - ALLOW)   # NEW imported-but-dead module -> fail
+    stale = sorted(ALLOW - dead)      # allowlisted but now wired/removed -> fail
+    for m in new_dead:
+        sys.stderr.write(f"    {m}: imported by agent-pipe but no real (non-test) call site "
+                         "-- wire it (give it a caller) or add it to _UNWIRED_ALLOW with a register note\n")
+    for m in stale:
+        sys.stderr.write(f"    {m}: listed in _UNWIRED_ALLOW but now WIRED or removed "
+                         "-- delete it from the allowlist (A1 register self-cleans)\n")
+    sys.exit(1 if (new_dead or stale) else 0)
+
 SUBCOMMANDS = {
+    "unwired-modules": check_unwired_modules,
     "no-duplicate-value-key": check_no_duplicate_value_key,
     "no-inert-ssot-tables": check_no_inert_ssot_tables,
     "doc-refs-resolve": check_doc_refs_resolve,

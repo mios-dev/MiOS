@@ -822,119 +822,7 @@ check_no_hardcode_version() {
 
 check_unwired_modules() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, ast
-root = os.environ["MIOS_DRIFT_ROOT"]
-pipe = os.path.join(root, "usr/lib/mios/agent-pipe")
-if not os.path.isdir(pipe):
-    sys.exit(0)  # nothing to check on a bare checkout
-
-import tomllib as _toml
-with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
-    _data = _toml.load(fh)
-ALLOW = set(_data.get("drift", {}).get("denylist", []))
-
-def is_test(path):
-    b = os.path.basename(path)
-    if b.startswith("test_") or b.endswith("_test.py"):
-        return True
-    segs = path.replace("\\", "/").split("/")
-    return "tests" in segs or "test" in segs
-
-pipe_py = []
-for dp, _dn, files in os.walk(pipe):
-    for f in files:
-        if f.endswith(".py") and not is_test(os.path.join(dp, f)):
-            pipe_py.append(os.path.join(dp, f))
-ref_py = list(pipe_py)
-for sub in ("usr/libexec/mios", "tools"):
-    base = os.path.join(root, sub)
-    if not os.path.isdir(base):
-        continue
-    for dp, _dn, files in os.walk(base):
-        for f in files:
-            if f.endswith(".py") and not is_test(os.path.join(dp, f)):
-                ref_py.append(os.path.join(dp, f))
-
-modules = sorted(f[:-3] for f in os.listdir(pipe)
-                 if f.startswith("mios_") and f.endswith(".py")
-                 and not is_test(os.path.join(pipe, f)))
-
-def parse(p):
-    try:
-        return ast.parse(open(p, encoding="utf-8").read())
-    except Exception:
-        return None
-
-pipe_trees = {p: parse(p) for p in pipe_py}
-ref_trees = {p: parse(p) for p in ref_py}
-
-def binds(tree, mod):
-    """Names this tree binds for `mod`: (import-aliases, from-names, star?)."""
-    al, fr, star = set(), set(), False
-    if tree is None:
-        return al, fr, star
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Import):
-            for a in n.names:
-                if a.name == mod:
-                    al.add(a.asname or a.name)
-        elif isinstance(n, ast.ImportFrom):
-            if n.module == mod and (n.level or 0) == 0:
-                for a in n.names:
-                    if a.name == "*":
-                        star = True
-                    else:
-                        fr.add(a.asname or a.name)
-    return al, fr, star
-
-def uses(tree, names):
-    """True if tree references a bound name. Imports bind via alias nodes, not
-    ast.Name, so any ast.Name match is a genuine (non-import) reference."""
-    if tree is None or not names:
-        return False
-    for n in ast.walk(tree):
-        if isinstance(n, ast.Name) and n.id in names:
-            return True
-    return False
-
-dead = set()
-for mod in modules:
-    mf = os.path.abspath(os.path.join(pipe, mod + ".py"))
-    imported = False
-    for p, t in pipe_trees.items():
-        if os.path.abspath(p) == mf:
-            continue
-        al, fr, star = binds(t, mod)
-        if al or fr or star:
-            imported = True
-            break
-    if not imported:
-        continue  # never imported by the core -> not the imported-but-dead class
-    wired = False
-    for p, t in ref_trees.items():
-        if os.path.abspath(p) == mf:
-            continue
-        al, fr, star = binds(t, mod)
-        if star:
-            wired = True
-            break
-        if (al or fr) and uses(t, al | fr):
-            wired = True
-            break
-    if not wired:
-        dead.add(mod)
-
-new_dead = sorted(dead - ALLOW)   # NEW imported-but-dead module -> fail
-stale = sorted(ALLOW - dead)      # allowlisted but now wired/removed -> fail
-for m in new_dead:
-    sys.stderr.write(f"    {m}: imported by agent-pipe but no real (non-test) call site "
-                     "-- wire it (give it a caller) or add it to _UNWIRED_ALLOW with a register note\n")
-for m in stale:
-    sys.stderr.write(f"    {m}: listed in _UNWIRED_ALLOW but now WIRED or removed "
-                     "-- delete it from the allowlist (A1 register self-cleans)\n")
-sys.exit(1 if (new_dead or stale) else 0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py unwired-modules
     then
         echo "[98-drift-checks]   no imported-but-dead agent-pipe module"
     else
@@ -4665,28 +4553,29 @@ check_bib_configs_projection() {
 }
 
 check_repo_partition_label_ssot() {
-    local ssot="$ROOT/usr/share/mios/mios.toml"
+    # The label is READ from the SSOT, never defaulted. This used to end in
+    # `| cut -d'"' -f2 || echo "MiOS-Repo"`, and under set -euo pipefail a
+    # missing [cat.repo_partition] made grep exit 1, pipefail propagate it, and
+    # the fallback supply the very value the gate claims to verify. Renaming the
+    # table away and changing the label both stayed green.
+    _need_python || return 0
+    local ssot="$ROOT/usr/share/mios/mios.toml" ssot_label f
     local install_sh="$ROOT/tools/install.sh"
     local cfg="$ROOT/usr/share/mios/ventoy/mios-kickstart.cfg"
-
-    if [[ ! -f "$ssot" || ! -f "$install_sh" || ! -f "$cfg" ]]; then
-        echo "[98-drift-checks]   repo partition consumers absent"
-        return 0
-    fi
-
-    local ssot_label
-    ssot_label="$(grep -A 5 '\[cat\.repo_partition\]' "$ssot" | grep 'label' | head -1 | cut -d'"' -f2 || echo "MiOS-Repo")"
-
-    local bad_lbl=""
-    if ! grep -q "blkid -L \"$ssot_label\"" "$install_sh"; then
-        bad_lbl+="    tools/install.sh does not reference SSOT repo partition label '$ssot_label'"$'\n'
-    fi
-    if ! grep -q "blkid -L \"$ssot_label\"" "$cfg"; then
-        bad_lbl+="    usr/share/mios/ventoy/mios-kickstart.cfg does not reference SSOT repo partition label '$ssot_label'"$'\n'
-    fi
-
-    if [[ -n "$bad_lbl" ]]; then
-        printf '%s' "$bad_lbl" >&2
+    # A consumer that has gone missing is a violation: the label it tracked is
+    # now enforced nowhere, which is exactly when this gate should speak.
+    for f in "$ssot" "$install_sh" "$cfg"; do
+        [[ -f "$f" ]] || { _violation "repo partition label consumer is absent: ${f#"$ROOT"/}"; return; }
+    done
+    ssot_label="$(python3 "$ROOT/tools/read-ssot-key.py" cat.repo_partition.label)" \
+        || { _violation "[cat.repo_partition].label is absent from the SSOT -- the label its consumers track is undefined"; return; }
+    local bad=""
+    grep -q "blkid -L \"$ssot_label\"" "$install_sh" \
+        || bad+="    tools/install.sh does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+    grep -q "blkid -L \"$ssot_label\"" "$cfg" \
+        || bad+="    usr/share/mios/ventoy/mios-kickstart.cfg does not reference [cat.repo_partition].label '$ssot_label'"$'\n'
+    if [[ -n "$bad" ]]; then
+        printf '%s' "$bad" >&2
         _violation "repo partition label mismatch against [cat.repo_partition].label SSOT"
     else
         echo "[98-drift-checks]   repo partition label consumers match [cat.repo_partition].label SSOT"
