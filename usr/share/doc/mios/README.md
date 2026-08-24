@@ -52,6 +52,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/build-scripts.md` | Reference snapshot bundling the source and execution order of the scripts that build the MiOS OCI image, so an agent can locate and read specific build logic without crawling the repo. Curated... |
 | `usr/share/doc/mios/reference/cli.md` | Derived reference documentation for the mios CLI verbs and helper backends, derived directly from mios.toml [verbs]. |
 | `usr/share/doc/mios/reference/credits.md` | Attribution registry documenting all upstream projects, dependencies, and components used in MiOS to provide legal and source-of-truth tracking for the system's foundational substrate. |
+| `usr/share/doc/mios/reference/deploy-plane-state.md` | The measured state of the MiOS deploy plane: what installs, what does not, and the root causes behind each. |
 | `usr/share/doc/mios/reference/documentation-pipeline.md` | How MiOS documentation is produced -- AI-hints stay in source and are projected forward, comments are scraped, sanitized and distilled into the manual on a daily pass. |
 | `usr/share/doc/mios/reference/drift-gates.md` | Prose harvested out of source comments by `mios-manual harvest`; each passage carries the mios-src anchor that proves which comment it came from. |
 | `usr/share/doc/mios/reference/engineering-reference.md` | Comprehensive architectural reference for MiOS as a whole system -- an immutable bootc/OCI Fedora workstation that is also a local, self-replicating agentic AI OS. Maps the build pipeline, repository... |
@@ -80,7 +81,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/reference/upstream-gaps-2026-07.md` | Prioritized upstream-vs-MiOS gap report (2026-07). Grounded in a 44-item research pass across 7 subsystems (inference lanes, pgvector-RAG, agent orchestration/MCP, bootc-OCI, embeddings,... |
 | `usr/share/doc/mios/reference/upstream-gaps-2026-08.md` | Verified upstream-vs-MiOS report (2026-08) for the AI-lane container images and their CVE exposure. Continues upstream-gaps-2026-07.md. Every claim below was checked against a primary source (NVD,... |
 
-<!-- derived from the AI-hint headers of 45 file(s) matching usr/share/doc/mios/reference/*.md -->
+<!-- derived from the AI-hint headers of 46 file(s) matching usr/share/doc/mios/reference/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/reference/*.md -->
 
 ## concepts

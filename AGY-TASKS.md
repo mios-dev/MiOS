@@ -11413,3 +11413,286 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** hand-copy the six names into each surface. That is the duplication the registry was created to end.
 **Why:** the registry only settles the naming question if the places people read are the places it reaches.
 **Dep:** AGY-1736
+
+## AGY-1750 -- Give mios.git an installer core that installs  (WS-DEPLOY | P0 | L)
+**Goal:** The guided installer in this repository installs MiOS.
+**What+How:** `resolve_install_core` now fails loudly (24217fb1) but still installs nothing; the real body is `do_install_core` at `mios-bootstrap/installation/mios-install.sh:1548` -- host detection, overlay merge, package phase, configurator, user profile. Either port it here, or delete this repository's copy and exec the bootstrap one. Then remove `installation/mios-install.sh` and `installation/mios-install.ps1` from `[bootstrap.sync].not_mirrored` so the two copies are compared from now on.
+**Where:** `installation/mios-install.sh, installation/mios-install.ps1, usr/share/mios/mios.toml ([bootstrap.sync])`
+**Done When:** `_install_core fhs` changes a scratch host and `_install_core bootc` produces a bootc deployment, and the two copies can no longer diverge unnoticed.
+**Verify:** on a scratch Fedora host, run `_install_core fhs` then `ls /usr/share/mios/mios.toml && systemctl cat mios-ai-firstboot.timer`; both resolve only if the overlay landed. Re-run against a machine where the SSOT is absent and observe a non-zero exit.
+**Do NOT:** accept a `--dry-run` that resolves a command string as proof. A resolved plan is not an install; that is the exact defect 24217fb1 removed.
+**Why:** an operator following `installation/README.md` currently reaches a hard failure or, upstream, the wrong mode -- there is no path in this repository that installs the system it describes.
+**Dep:** none
+
+## AGY-1751 -- Stop mios-bootstrap swallowing the install mode  (WS-DEPLOY | P0 | S)
+**Goal:** `_install_core bootc` runs bootc.
+**What+How:** `TYPE=""` at :118, the lenient `*)` branch at :134-144 pushes a positional `bootc` into `PASSTHROUGH` and breaks, and :1605 dispatches `do_install_core "${TYPE:-fhs}"`. Every positional mode therefore degrades to fhs. Read the mode from the positional tail the way mios.git now does, and reject a mode that is neither `fhs` nor `bootc` instead of silently defaulting.
+**Where:** `C:\mios-bootstrap\installation\mios-install.sh (:118, :134-144, :1605)`
+**Done When:** the requested mode is the mode that runs, and an unknown mode is an error.
+**Verify:** `bash installation/mios-install.sh _install_core bootc --dry-run` and `... _install_core fhs --dry-run` print different plans; `... _install_core banana` exits non-zero. Failure of the first is the proof the bug is still there.
+**Do NOT:** verify with `--type bootc` only. The broken form is the positional one, and it is the form :218 generates.
+**Why:** the offline kickstart path routes through this file, so an operator asking for the immutable install currently gets the mutable one and is told it succeeded.
+**Dep:** none
+
+## AGY-1752 -- One build output directory, derived, read by every consumer  (WS-DEPLOY | P0 | M)
+**Goal:** Artifacts land where the things that consume them look.
+**What+How:** Four consumers disagree: `iso:` writes `build/iso`, `usb-installer:` globs `build/*.iso build/bootiso/*.iso`, `verify-images` globs a third set, `stage-mios-repo.sh:167` a fourth -- and all four are wrong under bootc-image-builder's per-type layout. Declare the output root and the per-type subdirectory in the SSOT and project it into every consumer, the way ports already are.
+**Where:** `Justfile, installation/stage-mios-repo.sh, build-mios.ps1, usr/share/mios/mios.toml ([deploy])`
+**Done When:** one declared path, and changing it in the SSOT moves every consumer.
+**Verify:** build one ISO, then `just usb-installer` and `just verify-images` both find it and `installation/stage-mios-repo.sh` stages it. Change the SSOT path, regenerate, and confirm all four moved together; hand-editing one back fails a gate.
+**Do NOT:** add `build/iso/*.iso` to each glob by hand. Four hand-maintained copies of one fact is the defect, not the fix.
+**Why:** `just all` currently dies at `usb-installer` after hours of building, because the recipe cannot see the ISO its own dependency produced.
+**Dep:** none
+
+## AGY-1753 -- Make verify-images fail when there is nothing to verify  (WS-DEPLOY | P1 | S)
+**Goal:** The gate `just publish` depends on cannot pass over an empty set.
+**What+How:** `verify-images` ends `[ "$fail" -eq 0 ]`, which is true when the loop matched nothing; run against an empty `build/` it prints `0 artifact passed, 0 failed` and returns 0, and `publish: all verify-images` proceeds. Require a minimum artifact set derived from the SSOT deploy formats, and fail when any declared format produced nothing.
+**Where:** `Justfile (verify-images, publish), usr/share/mios/mios.toml ([deploy.formats])`
+**Done When:** an empty or partial build cannot reach `podman push`.
+**Verify:** `rm -rf build && just verify-images` exits non-zero naming the missing formats. If it exits 0, the gate is still the one that shipped.
+**Do NOT:** count files without checking them against the declared format list -- a stale qcow2 from a previous run would satisfy a bare count.
+**Why:** the only thing standing between an empty build tree and a publish is a test that returns success over zero files.
+**Dep:** AGY-1752
+
+## AGY-1754 -- Stage the Path-B payload where its own boot entry points  (WS-DEPLOY | P0 | M)
+**Goal:** The kickstart and the image archive are on the stick, at the paths the boot entry names.
+**What+How:** `stage-mios-repo.sh` creates `$REPO_MP/ventoy/` and writes only `mios-loopback.cfg`; nothing anywhere copies `usr/share/mios/ventoy/mios-oci-install.ks`, which the menu boots as `inst.ks=hd:LABEL=<repo>:/ventoy/mios-oci-install.ks`. Copy it. Stage the oci-archive to the `/mnt/mios-repo/mios-latest.tar` path `tools/install.sh:12` defaults to. And make the stager exit non-zero when a required payload is absent instead of warning and printing DONE.
+**Where:** `installation/stage-mios-repo.sh, usr/share/mios/ventoy/mios-oci-install.ks, tools/install.sh`
+**Done When:** a staged stick carries the kickstart and the archive, and a stager run that cannot stage them fails.
+**Verify:** run the stager against empty mount points and capture `$?` -- it must be non-zero. Run it with both artifacts present and assert `find $REPO_MP -type f` lists `ventoy/mios-oci-install.ks` and `mios-latest.tar`. Today the first case exits 0 after two WARNs.
+**Do NOT:** count the copy buried in the `git archive HEAD` dump under `repos/MiOS/usr/share/mios/ventoy/`. Anaconda fetches from the path in the boot argument and will not find it there.
+**Why:** the immutable install is fully written and has never had its inputs delivered to the medium.
+**Dep:** AGY-1752
+
+## AGY-1755 -- Put the immutable-install entry in the menu Ventoy actually loads  (WS-DEPLOY | P0 | M)
+**Goal:** The operator can select the bootc install from the boot menu.
+**What+How:** `mios-loopback.cfg` is rendered onto the MiOS-Repo partition under a name Ventoy does not read, and `cat/resources/ventoy/ventoy_grub.cfg` -- the menu that is copied onto the Ventoy partition and is loaded -- chainloads Fedora-Server, MiOS-Xbox, MiOS_PE and SystemRescue with no MiOS entry at all. Emit one menu, from the SSOT labels, onto the Ventoy partition, containing the immutable entry.
+**Where:** `installation/stage-mios-repo.sh, C:\mios-bootstrap\cat\resources\ventoy\ventoy_grub.cfg, C:\mios-bootstrap\installation\MiOS-Cat.bat`
+**Done When:** booting the medium shows an "Install MiOS (Immutable bootc)" entry that loads.
+**Verify:** build a Ventoy-formatted disk image, boot it under QEMU/OVMF, and observe the entry under F6 and its kickstart being fetched. This needs a VM; nothing short of a boot is evidence.
+**Do NOT:** assert the file exists at the expected path and call it reachable. `ventoy_grub.cfg` exists, is copied to the right partition, and still offers no way to install MiOS.
+**Why:** two locks on one door -- the payload is missing and the menu that would open it is not the menu that loads.
+**Dep:** AGY-1754
+
+## AGY-1756 -- Collapse the two hand-maintained boot menus into one generator  (WS-DEPLOY | P2 | S)
+**Goal:** One boot menu, generated, with no dead twin.
+**What+How:** `cat/loopback.cfg` (35 lines, `@@REPO_LABEL@@` placeholders) has no reader; `stage-mios-repo.sh:72-96` carries an independent inline copy of the same three menuentries, and the AI-hint on the dead file instructs maintainers to edit the dead one. Render from the SSOT labels, delete the copy that loses.
+**Where:** `cat/loopback.cfg, installation/stage-mios-repo.sh (render_loopback)`
+**Done When:** one source produces the menu and no unreferenced menu template remains.
+**Verify:** `grep -rn loopback.cfg` finds a generator and its output, not two templates; changing `[cat.repo_partition].label` changes the rendered menu.
+**Do NOT:** keep the file "for reference". An unreferenced template that instructs editors to edit it is how the two drifted apart.
+**Why:** whichever of the two a maintainer edits, there is a coin-flip chance it is the one nothing reads.
+**Dep:** AGY-1755
+
+## AGY-1757 -- Join MiOS-Cat's stage verb to the archive chain that exists  (WS-DEPLOY | P0 | M)
+**Goal:** `stage` produces the archive it claims to produce.
+**What+How:** `cat/lib/cat.sh:68-69` is `echo "Saving localhost/mios:latest..."` above a commented-out `podman save`; :71-72 echo model and mirror work that has no body; `MiOS-Cat.psm1:78-79` is the byte-twin. The real producer is `Justfile:299-302`. Call it, and write to the MiOS-Repo path the installer reads. Also read the disk threshold from `[cat.data_partition].min_disk_gb` rather than the hardcoded 128.
+**Where:** `C:\mios-bootstrap\cat\lib\cat.sh, C:\mios-bootstrap\cat\lib\MiOS-Cat.psm1, Justfile (oci-archive)`
+**Done When:** running `stage` leaves a byte-identical archive on the stick at the path `tools/install.sh` opens.
+**Verify:** `sha256sum` of the staged file equals `sha256sum build/oci-archive/mios-<version>.tar`. If `stage` prints "Saving..." and no file appears, it is unchanged.
+**Do NOT:** uncomment the `podman save` line and stop. It writes to `MiOS-Data/images/`, while `tools/install.sh:12` reads `/mnt/mios-repo/mios-latest.tar` -- the archive would be present and still invisible to the installer.
+**Why:** the verb whose entire job is producing the offline payload currently prints that it did.
+**Dep:** AGY-1752
+
+## AGY-1758 -- Install MiOS from the medium onto bare metal with the network absent  (WS-DEPLOY | P0 | L)
+**Goal:** One observed end-to-end offline install.
+**What+How:** With the payload staged and the menu reachable, boot the medium on a machine with no network interface attached, select the immutable install, and let `tools/install.sh` run `bootc install to-disk` from the staged archive. Record what was needed.
+**Where:** `usr/share/mios/ventoy/mios-oci-install.ks, tools/install.sh, installation/stage-mios-repo.sh`
+**Done When:** a machine that had no MiOS boots into the carried image.
+**Verify:** after reboot, `bootc status` names the MiOS image and `cat /etc/os-release` reports the MiOS release. Physically detach the NIC (or attach none to the VM) before starting; if the install needs it, it fails and that is the finding.
+**Do NOT:** call a booted medium an install, and do not test with a NIC present but unconfigured -- `mios-kickstart.cfg:97` falls back to `git clone https://github.com/mios-dev/mios-bootstrap.git`, which an unconfigured-but-present interface can still satisfy on some networks.
+**Why:** the portable edition exists so a disconnected machine can become a MiOS machine, and that has never once been observed.
+**Dep:** AGY-1755
+
+## AGY-1759 -- Resolve the root redirector that points at nothing  (WS-DEPLOY | P2 | S)
+**Goal:** The documented curl-pipe entry point either works or is gone.
+**What+How:** `install.sh` execs `build-mios.sh` alongside it. `ls build-mios.*` at the root returns only `build-mios.ps1`, and no `build-mios.sh` exists in either repository's root -- mios-bootstrap's own `install.sh` runs `cat/MiOS-Cat.sh` instead, and its `build-mios.sh` is now a 21-line redirector into `installation/mios-install.sh`. `UNIFY.md:130-133` describes a shape neither repo has. Point it at a real target or delete it and update the docs and the role-marker gate.
+**Where:** `install.sh, installation/UNIFY.md, automation/98-drift-checks.sh (check_installer_family_roles)`
+**Done When:** every documented entry point resolves, or is no longer documented.
+**Verify:** `bash install.sh --help` exits 0 having reached a real installer, or the file and every reference to it are gone and `check_installer_family_roles` still passes. Today it exits 1 with "build-mios.sh not found alongside this redirector".
+**Do NOT:** fix the error message. The file is a redirector to a target that exists nowhere; a clearer failure is still a failure.
+**Why:** it carries an installer role marker and a curl-pipe docstring, so it reads as a supported way in.
+**Dep:** none
+
+## AGY-1760 -- Make the FHS installer find the tree it is supposed to install  (WS-DEPLOY | P1 | S)
+**Goal:** The overlay installer applies an overlay.
+**What+How:** `automation/install-fhs.sh:19` sets `REPO_ROOT` to its own directory, `automation/`, where `usr etc var srv` do not exist -- so the loop at :23-30 never runs and the script prints `[ OK ] MiOS system installer complete`. Resolve the repository root, and fail when none of the overlay directories are found. Fix the GHCR reference at :10, which prints `ghcr.io/MiOS-DEV/mios:latest` where GHCR paths must be lowercase and the SSOT says `ghcr.io/mios-dev/mios:latest`.
+**Where:** `automation/install-fhs.sh, automation/install.sh`
+**Done When:** running it either syncs the overlay or exits non-zero saying it found nothing to sync.
+**Verify:** run it as root with rsync stubbed on PATH and count the stub invocations -- it must be non-zero, and must be zero-with-exit-1 when run from a directory with no overlay. Today it makes zero rsync calls and exits 0.
+**Do NOT:** treat "nothing in the tree calls it" as a reason to skip. It carries `MIOS_INSTALLER_ROLE=fhs-overlay-installer` and is documented as the FHS installer, so it will be reached eventually.
+**Why:** it is the second installer in this repository that reports completion having done nothing.
+**Dep:** none
+
+## AGY-1761 -- Ship an image that can update itself  (WS-DEPLOY | P0 | M)
+**Goal:** The published image has exactly one working OS update mechanism.
+**What+How:** `automation/50-uupd-installer.sh` disables `bootc-fetch-apply-updates.timer` and `rpm-ostreed-automatic.timer` unconditionally, then only warns when `uupd.timer` is missing. Four layers swallow the failure: a skip-if-unavailable repo, `install_packages_strict` also passing `--skip-unavailable` (`automation/lib/packages.sh:181-190`), the warn, and `mios.toml:10159` `fatal = false`. In `ghcr.io/mios-dev/mios:latest` the audit found no uupd package, no uupd units, and the bootc timer disabled. Do not disable the fallback until the replacement is verified present; make the phase fatal; add a gate over the built image.
+**Where:** `automation/50-uupd-installer.sh, automation/lib/packages.sh, usr/share/mios/mios.toml ([pipeline], [packages.updater]), automation/98-drift-checks.sh`
+**Done When:** every published image has an enabled OS update timer, and a build that would ship without one fails.
+**Verify:** `podman run --rm <image> systemctl is-enabled uupd.timer` returns `enabled` (or the bootc timer does). Remove `uupd` from `[packages.updater]` and confirm the build turns red -- if it still goes green, the fatal flag is not doing its job.
+**Do NOT:** assert that `[packages.updater]` lists uupd. The SSOT says that today and the package is not in the image; asserting the config instead of the artifact is what let this ship.
+**Why:** every machine installed from this image is frozen at install time and nothing anywhere says so.
+**Dep:** none
+
+## AGY-1762 -- Make `mios update` reach bootc on every surface  (WS-DEPLOY | P1 | S)
+**Goal:** The update verb updates the operating system.
+**What+How:** `[verbs.update]` has a description, a `surface`, and no `cmd`. Interactively, `etc/profile.d/mios-verbs.sh:95-101` routes it to `mios pull`, a `git reset --hard` of a Windows drive. Non-interactively `mios-verbs.sh:3` returns early and `/usr/bin/mios` handles it -- and `KNOWN_VERBS` at :317-348 has no `update`, so the string is sent to the Hermes agent as a prompt. `usr/bin/mios-update` is a correct bootc wrapper nothing calls. Give the verb a `cmd`, add it to `KNOWN_VERBS`, and make `check_verb_backends` treat a `cmd`-less verb as a violation instead of skipping it.
+**Where:** `usr/share/mios/mios.toml ([verbs.update]), etc/profile.d/mios-verbs.sh, usr/bin/mios, automation/98-drift-checks.sh (check_verb_backends)`
+**Done When:** `mios update` reaches `bootc` from an interactive shell, a script, and an ssh command.
+**Verify:** `sh -c 'mios update --check'` reaches `bootc upgrade --check`; deleting the `cmd` key turns `check_verb_backends` red. If the gate stays green with the key gone, the skip is still there.
+**Do NOT:** test only in an interactive shell. That is the one context where the shell function exists, and it is not the one that sends the verb to an LLM.
+**Why:** the documented way to update MiOS currently pulls a git repository or asks a language model about the word "update".
+**Dep:** AGY-1761
+
+## AGY-1763 -- Make the required health checks capable of failing  (WS-DEPLOY | P0 | M)
+**Goal:** A required greenboot check that detects a fault reports one.
+**What+How:** `15-composefs-verity.sh` prints `ERROR: composefs requested but not active` and falls through to `exit 0`; `/usr/lib/ostree/prepare-root.conf` is present with `enabled = verity` in the published image, so this branch is live. `50-mios-core.sh` is `command -v miosd || exit 0`, and miosd ships only at `/usr/libexec/mios/miosd`, off PATH, with no `greenboot` subcommand among its 19. Make the composefs failure exit 1. For the core check, either give miosd a real greenboot subcommand and an absolute path, or remove the file -- a required check that no-ops is worse than none.
+**Where:** `usr/lib/greenboot/check/required.d/15-composefs-verity.sh, etc/greenboot/check/required.d/50-mios-core.sh, src/mios-rs/miosd/`
+**Done When:** each required check fails on the fault it names and passes only on a healthy system.
+**Verify:** in a container with a stub `fsverity` on PATH and no composefs mount, `bash 15-composefs-verity.sh` must exit 1 -- it exits 0 today, which is the reproduction. `50-mios-core.sh` must either run a real check or not be in `required.d`.
+**Do NOT:** add `exit 1` and verify only that a healthy host still passes. The healthy path was never in question; the fault path is.
+**Why:** the checks that gate a rollback currently pass over the exact conditions they were written to catch.
+**Dep:** none
+
+## AGY-1764 -- Watch a greenboot rollback happen once  (WS-DEPLOY | P1 | M)
+**Goal:** The automatic rollback is observed, not inferred.
+**What+How:** greenboot 0.16.3, bootc 1.16.7 and `08_greenboot.cfg` are all present and correct, `greenboot-set-rollback-trigger.service` is enabled, and no rollback has ever been seen: in a container `greenboot health-check` prints "Container environment detected; skipping reboot and rollback handling", `/boot/grub2/grubenv` does not exist, and `grep -rn rollback tests/` returns zero. Deploy an image with a deliberately failing required check on real hardware or a UEFI VM and let the boot counter run out. Note the ordering hazard: `required.d` runs lexically and greenboot stops at the first failure, so `10-mios-composefs.sh` failing means `15-` and `50-` never execute.
+**Where:** `usr/lib/greenboot/, etc/greenboot/, tests/`
+**Done When:** a bad deployment rolls back by itself and the previous deployment boots.
+**Verify:** after the third failed boot, `bootc status` names the previous image and the journal records the rollback. A run in a container proves nothing -- greenboot skips rollback handling there by design.
+**Do NOT:** count `systemctl is-enabled greenboot-healthcheck.service` as evidence. Enablement is configuration; the rollback is the behaviour.
+**Why:** rollback is the safety net under every future update, and nobody has seen it catch anything.
+**Dep:** AGY-1763
+
+## AGY-1765 -- Guard the ISO credential the way the sibling recipes do  (WS-DEPLOY | P1 | S)
+**Goal:** The installer medium cannot ship an empty password.
+**What+How:** `Justfile:251` and `:267` guard `MIOS_USER_PASSWORD_HASH` for qcow2 and vhdx; the `iso` recipe at :234-247 does not, and its sed at :237 uses the `:-` empty default. Run unset, it produces `user --name=mios --groups=wheel,render,video --iscrypted --password=` and a malformed sshkey line. Add the same guard, and make `check_replaceme_mount_substitution` assert the substituted value is non-empty rather than asserting the recipe contains `sed`.
+**Where:** `Justfile (iso), config/artifacts/iso.toml, automation/98-drift-checks.sh (check_replaceme_mount_substitution)`
+**Done When:** an ISO cannot be built without a real hash, and the gate notices when the guard is removed.
+**Verify:** `MIOS_USER_PASSWORD_HASH= just iso` exits non-zero before invoking the builder; delete the guard and the gate must turn red. The gate passes today regardless, because the recipe contains `sed -e`.
+**Do NOT:** check that the placeholder string is gone from the rendered config. An empty substitution also removes the placeholder.
+**Why:** it is a wheel-group account with an empty crypted password field on an installer medium.
+**Dep:** AGY-1752
+
+## AGY-1766 -- Stop the partition-label gate substituting a literal for the SSOT  (WS-GATES | P0 | S)
+**Goal:** The label gate reads the SSOT or fails.
+**What+How:** `98-drift-checks.sh:4668` resolves the label as `grep -A 5 '\[cat\.repo_partition\]' â¦ | â¦ || echo "MiOS-Repo"` under `set -euo pipefail`. When the table is missing, grep returns 1, pipefail propagates, the fallback fires, and the gate compares consumers against a hardcoded literal. Parse with `tomllib` as `tools/check-variant-registry.py` does, treat a missing key as a violation, and extend the consumer set to `usr/share/mios/ventoy/mios-oci-install.ks` and `cat/loopback.cfg`, which also carry the label.
+**Where:** `automation/98-drift-checks.sh (check_repo_partition_label_ssot), tests/drift-gate-negatives.sh`
+**Done When:** removing or renaming `[cat.repo_partition]` turns the gate red.
+**Verify:** four exit codes with `$?` captured directly -- clean-before 0, rename the table and run the un-repaired gate (0, the reproduction), clean-after 0, rename again after repair (1). Land a negative test and confirm it fails against the pre-repair gate.
+**Do NOT:** keep the `|| echo "MiOS-Repo"` as a "safe default". A default is what makes it unfailable; a gate with no data must go red.
+**Why:** it will report green through the entire variant rename it exists to police.
+**Dep:** none
+
+## AGY-1767 -- Stop a comment satisfying the offline-install gate  (WS-GATES | P0 | S)
+**Goal:** The offline-install invariant is asserted against executable code.
+**What+How:** `:4599` runs `grep -q '\--transport oci-archive' tools/install.sh` with no comment filter, and that string occurs only on line 3, inside the AI-hint. The real command at :77 carries no `--transport` flag at all. `:4589` returns 0 when the file is absent. The sibling network-token filter at :4605 applies `grep -v '^\s*#'` to `grep -n` output whose lines start with `NN:`, so it never excludes anything. Strip comments before asserting, make an absent file a violation, fix the filter, and extend the scope to `usr/share/mios/ventoy/mios-kickstart.cfg`, whose :97 `git clone https://github.com/mios-dev/mios-bootstrap.git` is the actual network call in the offline path.
+**Where:** `automation/98-drift-checks.sh (check_offline_install_invariant), tools/install.sh, usr/share/mios/ventoy/mios-kickstart.cfg, tests/drift-gate-negatives.sh`
+**Done When:** gutting the installer body turns the gate red, and a network call anywhere in the offline path is a violation.
+**Verify:** replace `tools/install.sh`'s body with `echo "I install nothing"; exit 0`, keeping line 3, and capture `$?` -- it must be 1. It is 0 today. Then delete the file and confirm 1 as well.
+**Do NOT:** satisfy the repaired gate by adding `--transport oci-archive` to the comment or to a dry-run echo. The assertion must land on the line that runs.
+**Why:** this is the gate the entire offline claim rests on, and it currently reads a docstring.
+**Dep:** none
+
+## AGY-1768 -- Replace six hardcoded Rust passes and the parity harness that hides them  (WS-GATES | P0 | M)
+**Goal:** The native runner does not certify the deploy plane it never inspects.
+**What+How:** `src/mios-rs/miosd/src/drift/deploy.rs` is 82 lines and all six `run(&self, _ctx)` bodies are a single `Verdict::Pass(...)`, registered at `mod.rs:297-302` and counted into the summary. `Verdict::Skip` exists and is unused. Implement them against the bash equivalents, or return `Skip` and stop counting them as passes. Then make `tests/drift-parity.sh` compare: it currently runs both sides with `|| true`, greps the Rust log, deletes both logs and prints "Parity check completed successfully" without ever comparing them.
+**Where:** `src/mios-rs/miosd/src/drift/deploy.rs, src/mios-rs/miosd/src/drift/mod.rs, tests/drift-parity.sh`
+**Done When:** each native check either inspects the tree or declares itself skipped, and a disagreement between the two runners is an error.
+**Verify:** break one deploy input (delete `tools/install.sh`) and confirm bash goes red and the native runner agrees; make them disagree deliberately and confirm `drift-parity.sh` exits non-zero. It exits 0 on every input today.
+**Do NOT:** implement the six and leave the parity harness printing success. An uncompared parity check is how six hardcoded passes survived registration.
+**Why:** six checks named after the deploy plane's most broken surfaces return a literal string.
+**Dep:** AGY-1767
+
+## AGY-1769 -- Make the bake-budget gate measure size  (WS-GATES | P0 | M)
+**Goal:** The gate compares projected image size to the SSOT budget it names.
+**What+How:** `budget` is parsed from `[build.bake].runner_disk_budget_gb` and then appears only inside the failure message; the sole live assertion is a hardcoded `[[ "$count" -gt 30 ]]` over TSV row count. Twelve mutations -- budget 1, 0, -5, a string, key deleted, 321 images, a 20.7 TB TSV, an empty TSV, a deleted TSV, malformed SSOT, absent SSOT, broken python3 -- all returned 0. The clean tree already violates the stated property: `bound-images.tsv` lines 13-14 are the ~20 GB sglang and ~27 GB vllm images against a 40 GB budget. Record real sizes at SBOM time, sum the Day-0 tier, compare to the budget, and make every missing input a violation.
+**Where:** `automation/98-drift-checks.sh (check_bake_budget), usr/share/mios/artifacts/sbom/bound-images.tsv, usr/share/mios/mios.toml ([build.bake]), tests/drift-gate-negatives.sh`
+**Done When:** lowering the SSOT budget below the measured total turns the gate red, and raising it above turns it green.
+**Verify:** set `runner_disk_budget_gb = 1` and capture `$?` -- it must be 1. It is 0 today. Also confirm the gate goes red on the current tree until the firstboot tier is excluded, because the Day-0 set already exceeds 40 GB.
+**Do NOT:** keep the row-count proxy and add the budget to the message. A row count is not a size, it includes the header line, and it is blind to `[build.bake].core` entirely.
+**Why:** it advertises a guard over the exact publish-capacity failure that has already blocked this project, while the operator-facing knob is decorative.
+**Dep:** none
+
+## AGY-1770 -- Wire the package-registry switch to the gate that reads it  (WS-GATES | P2 | S)
+**Goal:** Turning the feature on in the SSOT arms its gate.
+**What+How:** `98-drift-checks.sh:482-487` gates on `${MIOS_PACKAGE_REGISTRY:-false}`. Nothing writes that variable: it appears only in this check, `automation/lib/generate-packages.sh:6` and `usr/libexec/mios/mios-registry`, all readers; it is in no globals resolver and in no env-snapshot output. Flipping `mios.toml:5545 package_registry = true` with no `registry.json` anywhere returns 0 and prints "package registry dormant". Resolve the flag from `[ai].package_registry` through the shared resolver, keep the env var as an override, apply the same fix to the generator, and make the disabled branch assert the dormant invariant rather than returning 0.
+**Where:** `automation/98-drift-checks.sh (check_package_registry), automation/lib/generate-packages.sh, usr/share/mios/mios.toml ([ai].package_registry, [testing].negative_coverage_exempt)`
+**Done When:** flipping the SSOT key alone changes the gate's behaviour.
+**Verify:** set `[ai].package_registry = true` with no registry present and capture `$?` -- it must be 1. It is 0 today with the key flipped, and 1 only when the env var is also set by hand.
+**Do NOT:** leave it on the negative-coverage exemption list. The exemption is why nobody noticed the key was disconnected.
+**Why:** the gate will stay silently off on the day someone turns the feature on, which is the only day it matters.
+**Dep:** none
+
+## AGY-1771 -- Make the DB seed gate measure coverage, and stop its test faking the proof  (WS-GATES | P0 | M)
+**Goal:** A new unseeded SSOT section is caught.
+**What+How:** `98-drift-checks.sh:5294` reads `if "kv_sections = [k for k in data.keys()" not in seed_code and sec_name not in seed_code:`. `seed-db-config.py:82` contains that literal, so the first conjunct is False for every section and `and` short-circuits -- `uncovered` is unconditionally empty. Adding new top-level tables, narrowing the seeder to an allowlist, or emptying its loop while keeping the line as a comment all pass; deleting either audited file passes via the `isfile` guard at :5279. Factor the seeder's selection into a callable, import it, and diff the selected set against the SSOT keys. Make the missing-file guard a violation. And delete `tests/drift-gate-negatives.sh:1715` -- the `sed` that sabotages the seeder is the only reason the negative test passes; without it the test dies with "Check_db_seed_coverage passed despite unseeded section in mios.toml".
+**Where:** `automation/98-drift-checks.sh (check_db_seed_coverage), usr/libexec/mios/seed-db-config.py, tests/drift-gate-negatives.sh`
+**Done When:** appending a new top-level table to the SSOT turns the gate red without touching the seeder.
+**Verify:** append `[zzz_probe]\nfoo = "bar"` to `usr/share/mios/mios.toml` and capture `$?` -- it must be 1. It is 0 today. Expect the repair to surface roughly a dozen genuinely unreachable sections needing triage.
+**Do NOT:** mutate the seeder to make the test pass. That is precisely the dodge the existing negative test performs, and it is why this survived.
+**Why:** it is the sole guard on the SSOT-to-config path the operator-defined model rests on, and its negative test manufactures the evidence that it works.
+**Dep:** none
+
+## AGY-1772 -- Adjudicate the 66 inconclusive gates and the nine unrefuted claims  (WS-GATES | P0 | L)
+**Goal:** Every registered gate has a recorded, reproducible verdict.
+**What+How:** The gate audit covered 202 checks and reached 120 effective, 16 claimed unable to fail, 66 inconclusive. Four claims were adjudicated (two repaired, two open: `check_bake_budget`, `check_package_registry`), three were overturned, and **nine were never refuted** because two refutation agents died -- of those only `check_no_hardcode` and `check_unit_security` are still named in the artifact. The identities of the 66 inconclusive gates were lost with the synthesis agent and must be re-derived. For each gate: mutate its own declared input, record clean-before / mutated-before / clean-after / mutated-after with `$?` captured directly, and land a negative test proven to fail against the un-repaired gate.
+**Where:** `automation/98-drift-checks.sh, tests/drift-gate-negatives.sh, usr/share/mios/reference/drift-gate-index.tsv`
+**Done When:** the 202-row index carries a verdict per gate, each backed by a mutation whose exit codes are recorded.
+**Verify:** for every gate re-verified, `mutated-before = 0` and `mutated-after = 1`. A gate with no recorded mutation is inconclusive, not effective, and must be listed as such.
+**Do NOT:** count "the gate ran and printed passed" as effective, and do not capture the exit code through a pipe -- that returns the last command's status and turns this task into another check that cannot fail.
+**Why:** the deploy audit's worst findings all sat behind gates the suite reported green, and two thirds of the suite is still unmeasured.
+**Dep:** AGY-1730
+
+## AGY-1773 -- Empty or justify the negative-coverage exemption list  (WS-GATES | P1 | M)
+**Goal:** No gate is excused from proving it can fail.
+**What+How:** `[testing].negative_coverage_exempt.exempt` holds 55 entries, and it contains exactly the gates most suspected of being unfailable -- `check_no_hardcode`, `check_unit_security`, `check_package_registry`, `check_hummingbird`, `check_greenboot`, `check_greenboot_enablement`. 157 test functions cover 202 gates. Write a negative test for each exempt gate, or record in the SSOT a reason a reader can check, and delete the rest.
+**Where:** `usr/share/mios/mios.toml ([testing].negative_coverage_exempt), tests/drift-gate-negatives.sh, automation/98-drift-checks.sh (check_negative_test_coverage)`
+**Done When:** the exemption list is empty, or every remaining entry names a specific technical reason.
+**Verify:** for each removed exemption, the new test fails when run against the un-repaired gate. Count of tests is not evidence; the failure against the broken gate is.
+**Do NOT:** add a test that runs the gate and dies only if the gate fails. That is a rubber stamp, and `test_no_duplicate_value_key` and `test_db_seed_coverage` were both exactly that.
+**Why:** the exemption list is the mechanism by which unfailable gates stay unfailable and read as covered.
+**Dep:** AGY-1772
+
+## AGY-1774 -- Reconcile the two [cat] tables and the two MiOS-Cat.bat copies  (WS-DEPLOY | P1 | M)
+**Goal:** One statement of the portable edition's configuration across both repositories.
+**What+How:** `usr/share/mios/mios.toml:9478` `[cat]` has seven keys; `C:\mios-bootstrap\mios.toml:1624` `[cat]` has fourteen, including `monitor_enabled`, `filesystem`, `partition_scheme`, `secure_boot`, `build_xbox`, `gaming_optimize`, `build_driver` and `log_path`, which mios.git does not have -- plus `[cat.live_chat]` and `[cat.sysrescue]`, and `ar_source_label = "MiOS-Cat"` at :1678. The two `installation/MiOS-Cat.bat` copies are untracked (`.gitignore:63`) and 51 lines apart. `cat/resources/ventoy/Render-Sysrescue.ps1:18` defaults `$PartitionLabel` from `[cat].partition_label`, a key that exists in neither file. Decide which repository owns which key, mirror deliberately, and delete the dangling reference.
+**Where:** `usr/share/mios/mios.toml ([cat]), C:\mios-bootstrap\mios.toml ([cat]), installation/MiOS-Cat.bat (both copies), C:\mios-bootstrap\cat\resources\ventoy\Render-Sysrescue.ps1`
+**Done When:** one owner per key, the two `.bat` files are one file or one is gone, and no consumer reads a key that does not exist.
+**Verify:** a script that parses both files with `tomllib` and diffs the `[cat]` key sets reports no unexplained difference; `grep -rn 'partition_label'` finds no reader without a definition.
+**Do NOT:** mirror the tables wholesale to make a diff clean. Some of those keys are Windows-launcher-only by design; the task is deciding ownership, not making the files identical.
+**Why:** Law 15 requires both repositories to agree on shared SSOT surfaces, and a rename across a divergence produces two half-renamed trees.
+**Dep:** AGY-1766
+
+## AGY-1775 -- Rename the portable variant from Cat to Field  (WS-VARIANT | P2 | L)
+**Goal:** The portable edition has a name that is not a coreutils command or someone else's project.
+**What+How:** Rename `mios-cat`/`MiOS-Cat` to `mios-field`/`MiOS-Field` across `[variants.entries]`, the `[cat]` config tables in both repositories, the partition and volume labels, the launchers, the gates, the generated env surfaces and the docs, and rename `cat/` to `field/` in mios-bootstrap. `MIOS-FIELD` is 10 characters, inside the 11-character FAT32/exFAT volume-label cap that disqualifies Courier and Outpost. Regenerate `globals.sh`/`globals.ps1`, `env-baseline.txt`, `manifest.json` and the man pages rather than hand-editing them.
+**Where:** `usr/share/mios/mios.toml ([cat], [variants]), C:\mios-bootstrap\mios.toml, installation/, cat/, C:\mios-bootstrap\cat\, automation/98-drift-checks.sh, tools/render-manpages.py, usr/share/doc/mios/`
+**Done When:** no surface names the old variant, and the volume label the autorun scanner mounts is the new one.
+**Verify:** `tools/check-variant-registry.py` exits 0 after the rename and exits 1 on either half alone -- proven: renaming the key but not the title gives "title 'MiOS-Cat' and key 'mios-field' are not the same name in two registers"; renaming the title but not the config table gives "config names [field], which the SSOT does not define". Then flash a stick and confirm `blkid -L "MiOS-Field"` resolves on the target and the loopback and kickstart label paths still find the payload.
+**Do NOT:** run a blind `sed s/cat/field/`. It breaks `MIOS_CATALOG_FAIL_MODE`, `check_drift_build_catalog`, `project_verb_catalog`, the `viking_cat` verb, `test_mios_build_catalog.py`, and every literal `cat` shell invocation. And do not rename before AGY-1766 lands -- `check_repo_partition_label_ssot` substitutes a hardcoded `MiOS-Repo` for a missing SSOT key and will report green through the entire operation.
+**Why:** `dnf repoquery --file /usr/bin/cat` returns coreutils, the SSOT's own suffix rule says name the job not the medium, and the name is attached to a tool that downloads and repackages a 23 GB third-party MediCat archive.
+**Dep:** AGY-1774
+
+## AGY-1776 -- Carry the models, or stop claiming the medium does  (WS-DEPLOY | P2 | M)
+**Goal:** The offline medium carries the weights it promises, or the promise is withdrawn.
+**What+How:** `automation/73-model-prep.sh` is 152 lines with a top-level `exit 0` at :81; lines 83-152 are a second script with its own `set -euo pipefail` and `source lib/common.sh` that never runs, and there is no `74-*.sh` alternative. Neither stager carries weights: `grep -in model` returns nothing in `installation/stage-mios-repo.sh` and nothing in `mios-bootstrap/installation/MiOS-Cat.bat`. `[cat].models` is the prose string "see [ai].bake_models + [ai.vllm].bake_model", and `[ai.vllm]` has no `bake_model` key -- so the dead half would bake nothing if revived. Separately, `mios-llm-heavy-alt.container` gates on `/var/lib/mios/vllm/model/config.json`, so the copy target the launchers use would not feed the heavy lane anyway.
+**Where:** `automation/73-model-prep.sh, installation/stage-mios-repo.sh, usr/share/mios/mios.toml ([cat].models, [ai.vllm]), usr/share/containers/systemd/mios-llm-heavy-alt.container`
+**Done When:** a staged medium either contains the declared weights at a path the heavy lane reads, or the SSOT stops declaring them.
+**Verify:** stage a stick and confirm the model files are present and that `mios-llm-heavy-alt.container`'s `ConditionPathExists` is satisfied after install. If the SSOT is instead corrected, `[cat].models` must name no model.
+**Do NOT:** delete the `exit 0` at :81 and call it fixed. The revived half takes the empty-MODEL branch and bakes nothing, because the key it reads does not exist.
+**Why:** an unreachable second half of a build script is dead code that reads as coverage, and the medium's stated purpose includes the weights.
+**Dep:** AGY-1752
+```
+
+---
+
+## 5. Naming
+
+**Adopt `MiOS-Field` / `mios-field`.** It is the only candidate that survives all three hard constraints at once â `MIOS-FIELD` is 10 characters against the measured 11-character FAT32/exFAT volume-label cap (which rejects `MIOS-COURIER` and `MIOS-OUTPOST`), no Fedora package provides a `/usr/bin/field`, and "field service" names the whole job (install + deploy + update + repair, on site, offline) rather than one fifth of it or a property of the medium, which is the documented reason Mini became Metal. Runner-up `MiOS-Depot` loses on the same category error plus `depot build` sitting in the same terminal as MiOS's own `buildx bake`. `Cat` goes for three independently sufficient reasons: `dnf repoquery --file /usr/bin/cat` returns coreutils; "travels" is a property, not a job; and the tool downloads and repackages Jayro Jones's MediCat archive, which makes a confusingly similar name a redistribution exposure rather than an homage.
+
+**Blast radius** (measured in the research): **392 occurrences across 50 files in `C:\MiOS`, 305 across 44 files in `C:\mios-bootstrap`.** The SSOT sides are `mios.toml:9478 [cat]` (7 keys) plus `[cat.repo_partition]`/`[cat.data_partition]` and `[variants.entries.mios-cat]` at `:10855`, against a *different, larger* `[cat]` at `mios-bootstrap/mios.toml:1624` (14 keys, plus `[cat.live_chat]`, `[cat.sysrescue]`, `ar_source_label` at `:1678`). The name is carried on real filesystem labels in `MiOS-Cat.bat:142/161/515` (both divergent copies), `Render-Sysrescue.ps1:18` and `mios-stage-icons.ps1:137`. Gates touched: `check_repo_partition_label_ssot` (body at `:4657-4683`, registry at `:4322`, call at `:5970`), the bootstrap path-candidate lists at `:2968-2973` and `:2993-2998`, the `medicat_stage` skip token at `:3104` and `tools/generate-names-registry.py:91`, and `conformance-grandfathered.list:410`. Generated surfaces to regenerate rather than edit: `globals.sh:426-433` and `:4086-4093`, `globals.ps1:451-458` and `:4111-4118`, `manifest.json:608/614`, `env-baseline.txt:391-398`/`:3911-3918`, `value-dup-report.tsv`, `referenced_names.txt:228`, and `usr/share/man/man7/mios-variants.7`. Docs: ADR-0008 (28 internal hits, plus five files that reference its filename), `TASKS.md` (29), `AGY-TASKS.md` (22), `ROADMAP.md` (18), `installation/README.md` (25). `MiOS-Repo` and `MiOS-Data` do not carry the variant name and must not change.
+
+**Two sequencing constraints, both load-bearing.** The `[cat]` tables have already diverged between the repositories and the two `MiOS-Cat.bat` copies are 51 lines apart and untracked â reconciling that is a prerequisite (AGY-1774), not a side effect. And `check_repo_partition_label_ssot` must be repaired first (AGY-1766): its `|| echo "MiOS-Repo"` fallback under `set -euo pipefail` was reproduced on a shadow root reporting *"repo partition label consumers match"* with zero occurrences of `[cat.repo_partition]` left in the file. It will certify the entire rename as clean while it is half done.
+
+**Untestable from here, stated as such:** whether a stick relabelled `MIOS-FIELD` still boots. That needs a real USB, `blkid -L` on the target, and a UEFI machine confirming the Ventoy `loopback.cfg` and `inst.ks=hd:LABEL=â¦` paths still resolve. The label-length results above *were* measured (`mkfs.vfat -F 32 -n` and `mkfs.exfat -n` against a 64 MiB image, with 12-character labels returning REJECT), so the cap is evidence; the boot is not.
