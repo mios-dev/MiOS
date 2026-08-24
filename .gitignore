@@ -221,6 +221,7 @@ etc/dconf/profile/*
 etc/mios/*
 !/etc/mios/kb.conf.toml
 !/etc/mios/eval-criteria.json
+!/etc/mios/clevis-luks.env
 !/etc/mios/system-prompts/
 !/etc/mios/system-prompts/**
 !/etc/mios/ai/

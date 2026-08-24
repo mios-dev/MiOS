@@ -1,27 +1,6 @@
 #!/usr/bin/env python3
 # AI-hint: The MiOS comment lexer and classifier -- extracts comment blocks from any source file and decides, deterministically, whether each block ST...
 # AI-doc: usr/share/doc/mios/manual/mios.md
-"""Comment lexer + classifier for the generative documentation system.
-
-Spec: docs/agy/doc-generative-documentation.md sections 1.2 and 2.
-
-Two jobs, kept apart on purpose:
-
-  lex(path)      -> the comment blocks in a file, with enough context
-                    (attachment, anchor code, hashes) to place and track them.
-  classify(b, ..) -> exactly one verdict per block, from an ordered first-match
-                    rule set, so every decision is explainable by one rule id.
-
-The classifier holds NO thresholds of its own. Every number arrives in a
-`Policy` built from mios.toml `[docs]`, because a rule change must be an
-operator edit to SSOT rather than a code edit (Law 7 NO-HARDCODE, Law 8
-SSOT-PROJECTION).
-
-Taggability and comment syntax are NOT redefined here. They are loaded from
-usr/libexec/mios/mios-ai-tag through the same SourceFileLoader shim
-mios-ai-hint-coverage uses, so "which files carry documentation" has exactly one
-definition across all consumers.
-"""
 from __future__ import annotations
 
 import ast
@@ -46,15 +25,6 @@ _SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv"}
 
 
 def iter_source_files(root: str):
-    """The files the census covers: GIT-TRACKED only, sorted.
-
-    Walking the filesystem instead made the count depend on whatever untracked
-    or ignored files a particular machine happened to have -- vendored trees,
-    scratch dirs, staging dumps. The number then differed between a contributor
-    box and CI, which silently loosened the ratchet ceiling in CI to the point
-    that its negative test could not breach it. Tracked files are the same set
-    everywhere.
-    """
     import subprocess
     try:
         out = subprocess.run(["git", "ls-files", "-z"], cwd=root,
@@ -82,11 +52,6 @@ _REPO_ROOT = os.path.abspath(os.path.join(_HERE, "..", "..", ".."))
 # mios-ai-tag interop -- the single definition of taggability + comment style
 # --------------------------------------------------------------------------
 def load_ai_tag(root: str | None = None):
-    """Import usr/libexec/mios/mios-ai-tag (no .py suffix) as a module.
-
-    Same SourceFileLoader approach mios-ai-hint-coverage already uses. Returns
-    None when it cannot be found, so callers can degrade rather than crash.
-    """
     base = root or _REPO_ROOT
     path = os.path.join(base, "usr", "libexec", "mios", "mios-ai-tag")
     if not os.path.isfile(path):
@@ -209,13 +174,6 @@ class Policy:
 
 
 class RefIndex:
-    """Every name a comment could legitimately reference.
-
-    A reference counts as dangling only when it is absent from here AND absent
-    from the tree AND not allowlisted. Without this filter the staleness rule
-    drowns in false positives -- the survey needed it to get from 353 raw hits
-    down to ~70 real ones.
-    """
 
     _TOKEN = re.compile(
         r"(?:[A-Za-z0-9_./-]+\.(?:service|container|timer|socket|target|mount|path))"
@@ -320,13 +278,6 @@ class RefIndex:
     )
 
     def _add_ssot_names(self) -> None:
-        """Names the SSOT defines: every MIOS_* key, every unit it declares.
-
-        A comment naming MIOS_AI_ENDPOINT is referencing a key that exists --
-        in mios.toml, not as a file. Without this the staleness rule reported
-        every env var in the tree as a dangling reference, which is why its
-        count was noise rather than a signal.
-        """
         self.names.update(self._SYSTEMD_UNITS)
         for unit in self._SYSTEMD_UNITS:
             stem, _, _ = unit.rpartition(".")
@@ -360,15 +311,6 @@ class RefIndex:
                 self.names.update(l.strip() for l in fh if l.strip())
         except OSError:
             pass
-        # Short pod names and service aliases, restricted to names the tree
-        # actually carries. A hand-list is the wrong shape here -- 26 of the
-        # original 59 named nothing that exists, including mios-ollama, which
-        # was purged from MiOS entirely, and vector stores it never shipped.
-        # Allowlisting a name that does not exist blinds the staleness
-        # measurement to precisely the references it exists to find, which
-        # lowers the count without making anything truer. Names that are
-        # legitimate but unresolvable belong in [docs].ref_allowlist with a
-        # recorded reason (AGY-1608), not hardcoded here.
         short_names = (
             "mios-hermes", "mios-gpu", "mios-resolver", "mios-igpu-server",
             "mios-codemode", "mios-oscontrol", "mios-common", "mios-dev",
@@ -455,12 +397,6 @@ class RefIndex:
         return any(p.endswith("/" + t) for p in self.paths)
 
     def dangling(self, text: str, allowlist: Iterable[str] = ()) -> list[str]:
-        # The allowlist holds literal reference tokens and globs -- paths like
-        # 'C:\mios-bootstrap\Get-MiOS.ps1', bare tokens like 'ollama' or
-        # '8080', and globs like 'blade-*.conf'. It was matched with re.search,
-        # under which the Windows paths are invalid patterns (bad escape \m)
-        # and 'blade-*.conf' silently matches nothing it was meant to cover.
-        # Match them as what they are written as.
         import fnmatch
         allow = tuple(a for a in allowlist if a)
         out = []
@@ -483,13 +419,6 @@ _AI_KEY_LINE = re.compile(r"\s*#?\s*AI-[a-z]+:")
 
 
 def _hint_prose_len(text: str) -> int:
-    """Characters of AI-hint prose, continuation lines included.
-
-    Counting only the line that starts with `AI-hint:` would mean a hint could
-    clear the cap by being wrapped across several `#` lines -- the gate would
-    then be measuring line length, which nobody cares about, instead of how much
-    prose sits in the header, which is the thing being ratcheted down.
-    """
     total = 0
     in_hint = False
     for line in text.splitlines():
@@ -575,12 +504,6 @@ DEGRADED: list[str] = []
 
 
 def _lex_python(path: str, src: str) -> list[Block]:
-    """Python uses tokenize + ast, never regex.
-
-    Regex miscounts multi-line data strings as prose -- the survey proved it on
-    the AI-plane files, where a system-prompt literal reads exactly like a
-    narrative comment block.
-    """
     out: list[Block] = []
     lines = src.splitlines()
     try:
@@ -790,13 +713,6 @@ def classify(block: Block, policy: Policy, refindex: RefIndex | None = None) -> 
 
     # R2 HEADER
     if block.in_header_block:
-        # hint_max_chars caps the AI-hint PROSE, not the whole header block.
-        # AI-related/AI-functions/AI-doc are machine-maintained: their length
-        # tracks how many files a module touches and how many functions it
-        # defines, neither of which is a writing-quality signal. Counting them
-        # made the ceiling unreachable -- check-fleet-safety.py carries 357
-        # characters of generated metadata, so it breached a 260 cap even with
-        # an empty hint, and no amount of editing could clear the gate.
         hint_len = _hint_prose_len(text)
         if (hint_len or len(text)) > policy.hint_max_chars:
             return Verdict("MIGRATE_HEADER", "overlong-hint", stale)
@@ -808,15 +724,6 @@ def classify(block: Block, policy: Policy, refindex: RefIndex | None = None) -> 
         if codey * 2 >= len(stripped) and (W / max(L, 1)) < 4:
             return Verdict("DROP", "commented-out-code", stale)
 
-    # R4 BANNER
-    #
-    # DELIBERATE NARROWING of the spec's second clause. As written it is
-    # "<= 8 words AND no sentence-final punctuation AND not WHY -> DROP", which
-    # also swallows ordinary short comments ("bump the retry count",
-    # "guard against zero") -- and DROP is a class that `prune` may delete.
-    # Information safety is absolute here, so a short block must additionally
-    # LOOK like a label -- ALL-CAPS, Title Case, or a trailing colon -- before it
-    # can be treated as a divider. Pure divider runs are unaffected.
     why = policy.matches("why", text)
     flat = " ".join(stripped).strip()
     looks_like_label = bool(

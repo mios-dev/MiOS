@@ -178,3 +178,144 @@ re-reads the labels from storage so a lint that ran but did not take effect
 is still caught.
 
 <!-- mios-src:7539e098c573 from tools/lib/ci-runtime.sh:71-75 -->
+
+### Comment lexer + classifier for the generative documentation...
+
+Comment lexer + classifier for the generative documentation system.
+
+Spec: docs/agy/doc-generative-documentation.md sections 1.2 and 2.
+
+Two jobs, kept apart on purpose:
+
+  lex(path)      -> the comment blocks in a file, with enough context
+                    (attachment, anchor code, hashes) to place and track them.
+  classify(b, ..) -> exactly one verdict per block, from an ordered first-match
+                    rule set, so every decision is explainable by one rule id.
+
+The classifier holds NO thresholds of its own. Every number arrives in a
+`Policy` built from mios.toml `[docs]`, because a rule change must be an
+operator edit to SSOT rather than a code edit (Law 7 NO-HARDCODE, Law 8
+SSOT-PROJECTION).
+
+Taggability and comment syntax are NOT redefined here. They are loaded from
+usr/libexec/mios/mios-ai-tag through the same SourceFileLoader shim
+mios-ai-hint-coverage uses, so "which files carry documentation" has exactly one
+definition across all consumers.
+
+<!-- mios-src:f6c3310f2a36 from usr/lib/mios/mios_comments.py:4-24 -->
+
+### The files the census covers
+
+The files the census covers: GIT-TRACKED only, sorted.
+
+    Walking the filesystem instead made the count depend on whatever untracked
+    or ignored files a particular machine happened to have -- vendored trees,
+    scratch dirs, staging dumps. The number then differed between a contributor
+    box and CI, which silently loosened the ratchet ceiling in CI to the point
+    that its negative test could not breach it. Tracked files are the same set
+    everywhere.
+
+<!-- mios-src:4f4415e5d651 from usr/lib/mios/mios_comments.py:49-57 -->
+
+### Import usr/libexec/mios/mios-ai-tag (no .py suffix) as a...
+
+Import usr/libexec/mios/mios-ai-tag (no .py suffix) as a module.
+
+    Same SourceFileLoader approach mios-ai-hint-coverage already uses. Returns
+    None when it cannot be found, so callers can degrade rather than crash.
+
+<!-- mios-src:28a9e30776f6 from usr/lib/mios/mios_comments.py:85-89 -->
+
+### Every name a comment could legitimately reference. A...
+
+Every name a comment could legitimately reference.
+
+    A reference counts as dangling only when it is absent from here AND absent
+    from the tree AND not allowlisted. Without this filter the staleness rule
+    drowns in false positives -- the survey needed it to get from 353 raw hits
+    down to ~70 real ones.
+
+<!-- mios-src:6fc7fcbe217c from usr/lib/mios/mios_comments.py:212-218 -->
+
+### Names the SSOT defines
+
+Names the SSOT defines: every MIOS_* key, every unit it declares.
+
+        A comment naming MIOS_AI_ENDPOINT is referencing a key that exists --
+        in mios.toml, not as a file. Without this the staleness rule reported
+        every env var in the tree as a dangling reference, which is why its
+        count was noise rather than a signal.
+
+<!-- mios-src:4ed8af1db3c0 from usr/lib/mios/mios_comments.py:323-329 -->
+
+### Short pod names and service aliases, restricted to names...
+
+Short pod names and service aliases, restricted to names the tree
+actually carries. A hand-list is the wrong shape here -- 26 of the
+original 59 named nothing that exists, including mios-ollama, which
+was purged from MiOS entirely, and vector stores it never shipped.
+Allowlisting a name that does not exist blinds the staleness
+measurement to precisely the references it exists to find, which
+lowers the count without making anything truer. Names that are
+legitimate but unresolvable belong in [docs].ref_allowlist with a
+recorded reason (AGY-1608), not hardcoded here.
+
+<!-- mios-src:89c739e01b60 from usr/lib/mios/mios_comments.py:363-371 -->
+
+### The allowlist holds literal reference tokens and globs --...
+
+The allowlist holds literal reference tokens and globs -- paths like
+'C:\mios-bootstrap\Get-MiOS.ps1', bare tokens like 'ollama' or
+'8080', and globs like 'blade-*.conf'. It was matched with re.search,
+under which the Windows paths are invalid patterns (bad escape \m)
+and 'blade-*.conf' silently matches nothing it was meant to cover.
+Match them as what they are written as.
+
+<!-- mios-src:be7e0f6ee742 from usr/lib/mios/mios_comments.py:458-463 -->
+
+### Characters of AI-hint prose, continuation lines included....
+
+Characters of AI-hint prose, continuation lines included.
+
+    Counting only the line that starts with `AI-hint:` would mean a hint could
+    clear the cap by being wrapped across several `#` lines -- the gate would
+    then be measuring line length, which nobody cares about, instead of how much
+    prose sits in the header, which is the thing being ratcheted down.
+
+<!-- mios-src:2c1e4d0345bf from usr/lib/mios/mios_comments.py:486-492 -->
+
+### Python uses tokenize + ast, never regex. Regex miscounts...
+
+Python uses tokenize + ast, never regex.
+
+    Regex miscounts multi-line data strings as prose -- the survey proved it on
+    the AI-plane files, where a system-prompt literal reads exactly like a
+    narrative comment block.
+
+<!-- mios-src:1fe018524038 from usr/lib/mios/mios_comments.py:578-583 -->
+
+### hint_max_chars caps the AI-hint PROSE, not the whole header...
+
+hint_max_chars caps the AI-hint PROSE, not the whole header block.
+AI-related/AI-functions/AI-doc are machine-maintained: their length
+tracks how many files a module touches and how many functions it
+defines, neither of which is a writing-quality signal. Counting them
+made the ceiling unreachable -- check-fleet-safety.py carries 357
+characters of generated metadata, so it breached a 260 cap even with
+an empty hint, and no amount of editing could clear the gate.
+
+<!-- mios-src:91b1f37a187d from usr/lib/mios/mios_comments.py:793-799 -->
+
+### R4 BANNER DELIBERATE NARROWING of the spec's second clause....
+
+R4 BANNER
+
+DELIBERATE NARROWING of the spec's second clause. As written it is
+"<= 8 words AND no sentence-final punctuation AND not WHY -> DROP", which
+also swallows ordinary short comments ("bump the retry count",
+"guard against zero") -- and DROP is a class that `prune` may delete.
+Information safety is absolute here, so a short block must additionally
+LOOK like a label -- ALL-CAPS, Title Case, or a trailing colon -- before it
+can be treated as a divider. Pure divider runs are unaffected.
+
+<!-- mios-src:f3e774fcaabb from usr/lib/mios/mios_comments.py:811-819 -->
