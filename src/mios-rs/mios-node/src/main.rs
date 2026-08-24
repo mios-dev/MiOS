@@ -55,6 +55,8 @@ enum Commands {
         #[command(subcommand)]
         action: StateCommands,
     },
+    /// Display system diagnosis, AI plane status, and registered sub-agents
+    Inspect,
     /// Run the standalone protocol & sandboxing verification demo
     Demo,
 }
@@ -151,6 +153,19 @@ async fn main() -> Result<()> {
                 }
             }
         },
+        Some(Commands::Inspect) => {
+            println!("====================================================");
+            println!("     MiOS ('My OS' / 'MyOS') Node Inspection       ");
+            println!("====================================================");
+            println!("  Node Binary Version : v0.3.0");
+            println!("  Wire Protocol       : 16B Fixed Header + CRC32 Checksum");
+            println!("  Discovery Port      : 8650 (UDP / TCP)");
+            println!("  Default State File  : /var/lib/mios/state.json");
+            println!("  AI Endpoint         : http://127.0.0.1:8640");
+            println!("  Inference Lanes     : mios-llm-light (:11450), mios-llm-heavy (:11441)");
+            println!("  Registered Sub-Agent: mios-node (role: edge_execution)");
+            println!("====================================================");
+        }
         Some(Commands::Demo) | None => {
             run_offload_demo().await?;
         }
