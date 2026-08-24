@@ -332,29 +332,7 @@ usb-installer: iso
     @echo "WARNING: dd will destroy ALL data on the target device — verify the device first"
 
 verify-images:
-    @echo "[verify] Walking build/ for MiOS deployable artifacts"
-    @ok=0; fail=0; \
-    for f in build/*.raw build/image/*.raw build/*.iso build/bootiso/*.iso build/qcow2/*.qcow2 build/vhd*/*.vhd* build/wsl2/*.wsl2 build/wsl2/*.tar.gz; do \
-        [ -f "$$f" ] || continue; \
-        sz=$$(stat -c%s "$$f" 2>/dev/null || stat -f%z "$$f"); \
-        if [ "$${sz:-0}" -lt 1048576 ]; then \
-            echo "  [FAIL] $$f"; \
-            fail=$$((fail+1)); continue; \
-        fi; \
-        case "$$f" in \
-            *.raw)              hdr=$$(head -c8 "$$f" | xxd -p 2>/dev/null) ;; \
-            *.iso)              hdr=$$(dd if="$$f" bs=1 skip=32769 count=5 2>/dev/null | tr -d '\0') ;; \
-            *.qcow2)            hdr=$$(head -c4 "$$f" | xxd -p 2>/dev/null) ;; \
-            *.vhd|*.vhdx)       hdr=$$(head -c8 "$$f" | xxd -p 2>/dev/null) ;; \
-            *.wsl2|*.tar.gz)    hdr=$$(head -c2 "$$f" | xxd -p 2>/dev/null) ;; \
-            *)                  hdr="?" ;; \
-        esac; \
-        printf "  [OK] %-50s %15d bytes  magic=%s\n" "$$f" "$$sz" "$$hdr"; \
-        ok=$$((ok+1)); \
-    done; \
-    echo ""; \
-    echo "[verify] $$ok artifact passed, $$fail failed"; \
-    [ "$$fail" -eq 0 ]
+    @python3 ./tools/verify-images.py
 
 publish: all verify-images
     @echo "[publish] Pushing OCI image"

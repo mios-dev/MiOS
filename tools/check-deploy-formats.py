@@ -11,7 +11,12 @@ except ModuleNotFoundError:  # pragma: no cover
     import tomli as tomllib  # type: ignore
 
 STATUSES = ("shipping", "partial", "design")
-REQUIRED = ("title", "summary", "target", "recipe", "medium", "gui", "status")
+# "artifacts" is the glob list the verifier requires a match for. A format
+# without one is a format the publish gate cannot notice the absence of, which
+# is how an empty build tree came to satisfy it; only the registry format,
+# which writes no file, is allowed an empty list.
+REQUIRED = ("title", "summary", "target", "recipe", "medium", "gui", "status",
+            "artifacts")
 # Targets in the Justfile that orchestrate or post-process rather than produce a
 # deployable artifact. Listed so that a NEW artifact target cannot hide here.
 NOT_A_FORMAT = frozenset({
@@ -49,6 +54,10 @@ def main() -> int:
         for field in REQUIRED:
             if field not in spec:
                 viol.append("%s is missing %s" % (where, field))
+        if not spec.get("artifacts") and spec.get("medium") != "container registry":
+            viol.append("%s declares no artifacts globs, so a build that produces"
+                        " no %s file passes verify-images unnoticed"
+                        % (where, name))
         if spec.get("status") not in STATUSES:
             viol.append("%s status %r is not one of %s"
                         % (where, spec.get("status"), list(STATUSES)))
