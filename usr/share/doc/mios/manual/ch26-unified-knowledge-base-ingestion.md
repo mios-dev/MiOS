@@ -17,7 +17,7 @@ Ingested documents are parsed and vectorized to build the knowledge base.
 ## Flow
 - **Parser**: Converts PDFs, text, and code files.
 - **Embedding**: Generates vectors using the light embedding lane.
-- **Utility**: Run [generate-unified-knowledge.py](tools/generate-unified-knowledge.py).
+- **Utility**: Run [generate-manual.py](tools/generate-manual.py).
 
 #### System References
 

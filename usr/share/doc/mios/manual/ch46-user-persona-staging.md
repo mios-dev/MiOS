@@ -16,7 +16,7 @@ Sets up user accounts and home layouts.
 
 ## Configurations
 - **Creation**: Executed via sysusers configs.
-- **Script**: Handled by [31-user.sh](automation/31-user.sh).
+- **Script**: Handled by [11-user.sh](automation/11-user.sh).
 - **Rights**: Adds user accounts to virtual and container groups.
 
 #### System References

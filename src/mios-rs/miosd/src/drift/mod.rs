@@ -386,7 +386,10 @@ impl Registry {
 
         if let Some(f) = filter {
             if executed == 0 {
-                eprintln!("[miosd:drift] [FAIL] Filter '{}' matched 0 registered checks", f);
+                eprintln!(
+                    "[miosd:drift] [FAIL] Filter '{}' matched 0 registered checks",
+                    f
+                );
                 return false;
             }
         }
@@ -461,9 +464,18 @@ mod tests {
 
     #[test]
     fn test_verdict_display() {
-        assert_eq!(format!("{}", Verdict::Pass("all good".into())), "[PASS] all good");
-        assert_eq!(format!("{}", Verdict::Fail("broken".into())), "[FAIL] broken");
-        assert_eq!(format!("{}", Verdict::Skip("skipped".into())), "[SKIP] skipped");
+        assert_eq!(
+            format!("{}", Verdict::Pass("all good".into())),
+            "[PASS] all good"
+        );
+        assert_eq!(
+            format!("{}", Verdict::Fail("broken".into())),
+            "[FAIL] broken"
+        );
+        assert_eq!(
+            format!("{}", Verdict::Skip("skipped".into())),
+            "[SKIP] skipped"
+        );
     }
 
     #[test]
@@ -547,4 +559,3 @@ mod tests {
         assert!(matches!(check.run(&ctx), Verdict::Fail(_)));
     }
 }
-

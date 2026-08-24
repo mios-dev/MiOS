@@ -41,7 +41,7 @@ Copies system journals to bootstrap drives for offline diagnostics.
 Configures background daemons to aggregate container logs.
 
 ## Setup
-- **Unit**: Configured in [50-enable-log-copy-service.sh](automation/50-enable-log-copy-service.sh).
+- **Unit**: Configured in [53-enable-log-copy-service.sh](automation/53-enable-log-copy-service.sh).
 - **Service**: Runs system log synchronization helpers.
 - **Storage**: Mapped inside `/var/log/mios/`.
 

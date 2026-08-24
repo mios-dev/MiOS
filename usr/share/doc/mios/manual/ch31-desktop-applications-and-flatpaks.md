@@ -16,7 +16,7 @@ Flatpaks are defined in system configs and pre-downloaded to reduce setup times.
 
 ## Setup
 - **Declarations**: Listed in `mios.toml` under `[flatpaks]`.
-- **Bake Script**: Configured in [40-flatpak-bake.sh](automation/40-flatpak-bake.sh).
+- **Bake Script**: Configured in [61-flatpak-bake.sh](automation/61-flatpak-bake.sh).
 - **Details**: Pre-downloads application runtimes into the image storage.
 
 #### System References

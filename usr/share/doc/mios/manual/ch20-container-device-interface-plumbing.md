@@ -16,7 +16,7 @@ NVIDIA CDI specs enable CUDA applications inside rootless containers.
 
 ## Setup
 - **CDI Specs**: Generated automatically under `/var/run/cdi/`.
-- **Refresh**: Refreshed via [45-nvidia-cdi-refresh.sh](automation/45-nvidia-cdi-refresh.sh).
+- **Refresh**: Refreshed via [26-nvidia-cdi-refresh.sh](automation/26-nvidia-cdi-refresh.sh).
 - **Quadlets**: Containers request graphics resources via `CDIDevices=` entries.
 
 #### System References
@@ -42,7 +42,7 @@ AMD CDI profiles map compute hardware to container environments.
 
 ## Operations
 - **Mappings**: Maps `/dev/kfd` and AMD compute files.
-- **Settings**: Configured in [41-gpu-cdi-toolkits.sh](automation/41-gpu-cdi-toolkits.sh).
+- **Settings**: Configured in [25-gpu-cdi-toolkits.sh](automation/25-gpu-cdi-toolkits.sh).
 - **Verification**: Validates GPU compute access inside containers.
 
 #### System References

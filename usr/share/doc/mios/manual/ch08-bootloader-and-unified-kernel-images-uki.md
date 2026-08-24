@@ -16,7 +16,7 @@ Unified Kernel Images (UKIs) combine the Linux kernel, initramfs, and kernel com
 
 ## Implementation Details
 - **Build tool**: Compiled via `systemd-ukify` during the OCI build.
-- **Baking script**: Executed by [23-uki-render.sh](automation/23-uki-render.sh).
+- **Baking script**: Executed by [76-uki-render.sh](automation/76-uki-render.sh).
 - **Output**: The output `.efi` image is placed directly in the EFI system partition under `/boot/EFI/Linux/`.
 - **Validation**: Verified by `validate-kargs.py` to ensure core arguments are baked into the UKI.
 

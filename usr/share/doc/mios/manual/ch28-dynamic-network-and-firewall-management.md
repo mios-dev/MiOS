@@ -41,7 +41,7 @@ Firewall rules isolate host services and control outbound networks.
 Ports are allocated dynamically during build and boot phases.
 
 ## Allocation
-- **Script**: Handled by [16-render-ports.sh](automation/16-render-ports.sh).
+- **Script**: Handled by [35-render-ports.sh](automation/35-render-ports.sh).
 - **Mappings**: Maps host interfaces to container ports.
 - **Validation**: Enforces unique allocations to prevent startup collisions.
 

@@ -41,7 +41,7 @@ Upgrading host kernels relies on stable LTS packages.
 Guards compilation tasks to prevent boot failures from driver updates.
 
 ## Details
-- **Guards**: Enabled via [36-akmod-guards.sh](automation/36-akmod-guards.sh).
+- **Guards**: Enabled via [22-akmod-guards.sh](automation/22-akmod-guards.sh).
 - **Validation**: Enforces driver binary compilation checks.
 - **Actions**: Restores previous functional configurations on failure.
 

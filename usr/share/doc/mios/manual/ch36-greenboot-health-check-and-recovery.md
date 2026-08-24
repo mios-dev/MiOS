@@ -15,7 +15,7 @@ This chapter covers the documentation for **Greenboot Health Check and Recovery*
 Greenboot verifies service status after system upgrades.
 
 ## Flow
-- **Script**: Checked in [46-greenboot.sh](automation/46-greenboot.sh).
+- **Script**: Checked in [78-greenboot.sh](automation/78-greenboot.sh).
 - **Actions**: Checks core components (systemd, drivers, AI gateways).
 - **Timing**: Enforces timeout limits for checks.
 

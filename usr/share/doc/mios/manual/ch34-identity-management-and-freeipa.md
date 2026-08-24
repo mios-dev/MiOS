@@ -15,7 +15,7 @@ This chapter covers the documentation for **Identity Management and FreeIPA** un
 Resolves host client authentication with central FreeIPA domains.
 
 ## Details
-- **Script**: Staged via [22-freeipa-client.sh](automation/22-freeipa-client.sh).
+- **Script**: Staged via [15-freeipa-client.sh](automation/15-freeipa-client.sh).
 - **Client**: Integrates SSSD services inside Fedora core layers.
 - **Policies**: Handles identity resolving and domain settings.
 

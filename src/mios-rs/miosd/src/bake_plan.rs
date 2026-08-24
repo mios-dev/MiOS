@@ -88,14 +88,24 @@ pub fn run(check: bool) -> Result<(), Box<dyn std::error::Error>> {
     let content = match fs::read_to_string(&toml_path) {
         Ok(c) => c,
         Err(e) => {
-            return Err(format!("[bake-plan-gen] ERROR: cannot read {}: {}", toml_path.display(), e).into());
+            return Err(format!(
+                "[bake-plan-gen] ERROR: cannot read {}: {}",
+                toml_path.display(),
+                e
+            )
+            .into());
         }
     };
 
     let parsed: Value = match content.parse() {
         Ok(v) => v,
         Err(e) => {
-            return Err(format!("[bake-plan-gen] ERROR: cannot parse {}: {}", toml_path.display(), e).into());
+            return Err(format!(
+                "[bake-plan-gen] ERROR: cannot parse {}: {}",
+                toml_path.display(),
+                e
+            )
+            .into());
         }
     };
 

@@ -60,7 +60,7 @@ Once the OCI image is generated and written, the system boots into the First Boo
 
 The first-boot sequence processes:
 1. **Container Device Interface (CDI)**: Probes physical graphics adapters and renders CDI schemas under `/var/run/cdi/`.
-2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [31-user.sh](automation/31-user.sh).
+2. **Account Staging**: Staged accounts defined under `/usr/lib/sysusers.d/` are initialized with home directory paths by [11-user.sh](automation/11-user.sh).
 3. **Libvirt & Virtualization**: The virtual networking layers, VM templates, and CPU affinity shims are initialized.
 4. **AI Services Plane**: The PostgreSQL database and the llama-swap proxy are initialized.
 

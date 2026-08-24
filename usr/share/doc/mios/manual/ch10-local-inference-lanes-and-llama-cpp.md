@@ -42,7 +42,7 @@ The llama-swap proxy manages model requests on the `llm_light` port, serving as 
 Embedded inference on MiOS uses optimized GGUF format weights to enable local execution on GPU or CPU.
 
 ## Setup Details
-- **Context Size**: Standardized context boundaries are mapped dynamically in [38-llamacpp-prep.sh](automation/38-llamacpp-prep.sh).
+- **Context Size**: Standardized context boundaries are mapped dynamically in [73-model-prep.sh](automation/73-model-prep.sh).
 - **Embeddings**: An embedding-configured llama-server runs in parallel to handle vector queries.
 - **Safety**: Uses static model limits and resource controls to prevent container memory limit crashes.
 

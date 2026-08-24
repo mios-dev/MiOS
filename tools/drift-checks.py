@@ -28,9 +28,10 @@ def check_doc_refs_resolve() -> int:
 
     stale = []
     ref_re = re.compile(r'^\s*#\s*AI-(?:related|doc):\s*(.+)$|<!--\s*AI-(?:related|doc):\s*(.*?)\s*-->', re.MULTILINE)
+    md_link_re = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
     for rpath, _, files in os.walk(root):
-        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output']):
+        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored', 'output', '.rustup', '.cargo']):
             continue
         for fn in files:
             if not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
@@ -72,6 +73,21 @@ def check_doc_refs_resolve() -> int:
                         ]
                         if not any(os.path.exists(c) for c in cands):
                             stale.append(f'{fn}: {t_clean}')
+                if fn.endswith('.md'):
+                    for m in md_link_re.finditer(text):
+                        target = m.group(2).split('#')[0].strip()
+                        if not target or target.startswith(('http://', 'https://', 'mailto:', '#', 'file://')):
+                            continue
+                        if not (target.endswith(('.md', '.sh', '.py', '.toml', '.json', '.txt', '.png', '.svg', '.jpg')) or '/' in target):
+                            continue
+                        rel = target.lstrip('/')
+                        cands = [
+                            os.path.normpath(os.path.join(dirpath, rel)),
+                            os.path.normpath(os.path.join(os.path.dirname(dirpath), rel)),
+                            os.path.normpath(os.path.join(root, rel)),
+                        ]
+                        if not any(os.path.exists(c) for c in cands):
+                            stale.append(f'{fn}: {target}')
             except Exception:
                 pass
 

@@ -15,8 +15,8 @@ This chapter covers the documentation for **GPU Capability Detection and Passthr
 Refreshes CDI specs automatically when graphics adapters change.
 
 ## Setup
-- **Checks**: Scans physical devices on boot using [34-gpu-detect.sh](automation/34-gpu-detect.sh).
-- **Utility**: Invokes [45-nvidia-cdi-refresh.sh](automation/45-nvidia-cdi-refresh.sh).
+- **Checks**: Scans physical devices on boot using [20-hardware.sh](automation/20-hardware.sh).
+- **Utility**: Invokes [26-nvidia-cdi-refresh.sh](automation/26-nvidia-cdi-refresh.sh).
 - **Execution**: Updates container CDI files in `/var/run/cdi/`.
 
 #### System References
@@ -41,7 +41,7 @@ Refreshes CDI specs automatically when graphics adapters change.
 Gating mechanisms control GPU resource allocations between containers and hypervisors.
 
 ## Gating
-- **Shim**: Implemented via [35-gpu-pv-shim.sh](automation/35-gpu-pv-shim.sh).
+- **Shim**: Implemented via [24-gpu-pv-shim.sh](automation/24-gpu-pv-shim.sh).
 - **Locking**: Locks device files to prevent parallel utilization conflicts.
 - **Policies**: Shunts GPU compute priorities to virtual guests.
 

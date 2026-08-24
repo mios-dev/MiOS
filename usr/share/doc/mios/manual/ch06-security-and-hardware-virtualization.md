@@ -77,7 +77,7 @@ To secure the OCI software supply chain, all MiOS OCI images must be cryptograph
 
 - **Verification Tools**: Integrated via **Sigstore** and **cosign**.
 - **Keyless Signature**: In CI/CD pipelines, images are signed using OIDC tokens, verifying that the build originated from the official pipeline.
-- **Verification Rule**: The host's container policy config ([42-cosign-policy.sh](automation/42-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images.
+- **Verification Rule**: The host's container policy config ([49-cosign-policy.sh](automation/49-cosign-policy.sh)) enforces validation check rules, blocking container pulls of unsigned or unrecognized images.
 
 #### Citation & Attribution References
 

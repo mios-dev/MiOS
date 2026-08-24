@@ -15,7 +15,7 @@ This chapter covers the documentation for **Remote Desktop and GNOME GRD** under
 Enables GUI remote management when running headless.
 
 ## Details
-- **Script**: Configured via [26-gnome-remote-desktop.sh](automation/26-gnome-remote-desktop.sh).
+- **Script**: Configured via [58-gnome-remote-desktop.sh](automation/58-gnome-remote-desktop.sh).
 - **Engine**: Integrates with GNOME Remote Desktop.
 - **Bridges**: Exposes Wayland displays on ports.
 

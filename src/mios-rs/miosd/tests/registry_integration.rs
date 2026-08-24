@@ -1,14 +1,17 @@
 // AI-hint: Integration test suite for miosd drift check registry
 // AI-related: src/mios-rs/miosd/src/drift/mod.rs
 
-use miosd::drift::{DriftCtx, Registry, Verdict, SSOTParseCheck, Check};
+use miosd::drift::{Check, DriftCtx, Registry, SSOTParseCheck, Verdict};
 use std::path::PathBuf;
 
 #[test]
 fn test_full_registry_instantiation() {
     let reg = Registry::new();
     // Registry should have 41 checks registered
-    assert!(!reg.checks.is_empty(), "Registry must contain registered checks");
+    assert!(
+        !reg.checks.is_empty(),
+        "Registry must contain registered checks"
+    );
 }
 
 #[test]

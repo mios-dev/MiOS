@@ -15,7 +15,7 @@ This chapter covers the documentation for **Looking Glass B7 and KVMFR** under M
 Looking Glass requires the KVM Framebuffer (KVMFR) driver to share screen memory.
 
 ## Build
-- **Compilation**: Compiled from source during [52-bake-kvmfr.sh](automation/52-bake-kvmfr.sh).
+- **Compilation**: Compiled from source during [68-bake-kvmfr.sh](automation/68-bake-kvmfr.sh).
 - **Signing**: Signed automatically with the host's MOK.
 - **Verification**: Loaded on boot to expose the virtual memory channel.
 
@@ -67,7 +67,7 @@ Looking Glass uses host shared memory to pass frames.
 The host client renders guest framebuffers on the Wayland display.
 
 ## Execution
-- **Client**: Shipped inside [53-bake-lookingglass-client.sh](automation/53-bake-lookingglass-client.sh).
+- **Client**: Shipped inside [69-bake-lookingglass-client.sh](automation/69-bake-lookingglass-client.sh).
 - **Command**: Launches the Wayland-native client to display virtual displays.
 - **Tuning**: Configured for mouse and audio integration.
 

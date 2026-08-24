@@ -1,5 +1,5 @@
 <!-- AI-hint: Per-tool entry stub for the Gemini CLI on the mios-bootstrap repo (the user-facing installer + user-editable layer of MiOS). Defers all agent identity to the canonical agent prompt (AGENTS.md -> /usr/share/mios/ai/system.md) and records only the Gemini-CLI delta: layered prompt loading order and the binding to the single OpenAI-compatible AI endpoint (MIOS_AI_ENDPOINT) per Architectural Law 5. The endpoint fronts the local mios-llm-light inference lane, the agent-pipe/MiOS-Hermes orchestration, and PostgreSQL+pgvector memory.
-     AI-related: AGENTS.md, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, ~/.config/mios/system-prompt.md, MIOS_AI_ENDPOINT, usr/share/mios/llamacpp/llama-swap.yaml, mios-llm-light, mios-agent-pipe, mios-pgvector -->
+     AI-related: AGENTS.md, /usr/share/mios/ai/system.md, /etc/mios/ai/system-prompt.md, ~/.config/mios/system-prompt.md, MIOS_AI_ENDPOINT, usr/share/mios/llamacpp/mios-llm-light.yaml, mios-llm-light, mios-agent-pipe, mios-pgvector -->
 # GEMINI.md
 
 > _`GEMINI.md` — per-tool stub for the **Gemini CLI** on `mios-bootstrap.git`.
@@ -76,7 +76,7 @@ a cloud:
   endpoint, KV-pages each conversation, serves embeddings (`nomic-embed-text` via
   OpenAI-compatible `/v1/embeddings`), and hosts the `mios-opencode` coder model —
   config in
-  [`usr/share/mios/llamacpp/llama-swap.yaml`](usr/share/mios/llamacpp/llama-swap.yaml).
+  [`usr/share/mios/llamacpp/mios-llm-light.yaml`](usr/share/mios/llamacpp/mios-llm-light.yaml).
   Heavy work, when enabled, falls to the GPU lanes **`mios-llm-heavy`** (vLLM,
   port key `vllm`) and **`mios-llm-heavy-alt`** (SGLang, port key `sglang`), both gated/off-by-default on
   VRAM. These speak the OpenAI/Ollama-compatible API, so any OpenAI-API client

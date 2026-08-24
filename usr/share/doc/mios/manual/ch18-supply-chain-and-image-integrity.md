@@ -16,7 +16,7 @@ Sigstore policies ensure only trusted images can be executed.
 
 ## Enforcements
 - **Signature Check**: Validates signatures on container pulls.
-- **Policy Config**: Configured in [42-cosign-policy.sh](automation/42-cosign-policy.sh).
+- **Policy Config**: Configured in [49-cosign-policy.sh](automation/49-cosign-policy.sh).
 - **Rules**: Rejects unsigned images or those with invalid certs.
 
 #### System References

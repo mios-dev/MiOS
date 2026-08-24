@@ -16,7 +16,7 @@ MiOS uses unprivileged systemd user services to run AI components safely within 
 
 ## Architecture
 - **User Unit Path**: `/usr/lib/systemd/user/` or `~/.config/systemd/user/`.
-- **System-User Map**: Enforced via systemd sysusers templates in [31-user.sh](automation/31-user.sh).
+- **System-User Map**: Enforced via systemd sysusers templates in [11-user.sh](automation/11-user.sh).
 - **Execution Limits**: Systemd user instances map execution boundaries using user namespaces, isolating processes from direct host root access.
 
 #### System References

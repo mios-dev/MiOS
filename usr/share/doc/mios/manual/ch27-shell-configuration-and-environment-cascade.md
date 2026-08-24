@@ -44,7 +44,7 @@ Use `mios-env --explain` to trace key resolution layers.
 The system shell uses Oh My Posh themes to show system status.
 
 ## Themes
-- **Prompt**: Configured in [38-oh-my-posh.sh](automation/38-oh-my-posh.sh).
+- **Prompt**: Configured in [62-oh-my-posh.sh](automation/62-oh-my-posh.sh).
 - **Icons**: Displays git status, active model, and CPU usage.
 - **Themes File**: Stored inside `/usr/share/mios/shell/`.
 
@@ -71,7 +71,7 @@ Standard locale and time formats are staging targets during deployment.
 
 ## Settings
 - **Locale**: Sets UTF-8 encoding.
-- **Timezone**: Set in [30-locale-theme.sh](automation/30-locale-theme.sh).
+- **Timezone**: Set in [10-locale-theme.sh](automation/10-locale-theme.sh).
 - **Customizations**: Customized in `mios.toml`.
 
 #### System References
