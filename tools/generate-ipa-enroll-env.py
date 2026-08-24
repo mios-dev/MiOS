@@ -63,7 +63,7 @@ MIOS_IPA_OTP="{otp}"
         sys.exit(0)
 
     os.makedirs(os.path.dirname(target_path), exist_ok=True)
-    with open(target_path, "w", encoding="utf-8") as f:
+    with open(target_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(rendered)
     print(f"Generated {target_path}")
 

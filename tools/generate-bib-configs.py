@@ -45,45 +45,48 @@ def main():
         if m2:
             iso_size = m2.group(1)
 
-    bib_ok = True
-    if os.path.isfile(bib_path):
-        with open(bib_path, "r", encoding="utf-8") as f:
-            bib_txt = f.read()
-        bib_match = re.search(r'minsize\s*=\s*"([^"]+)"', bib_txt)
-        if not bib_match or bib_match.group(1) != raw_size:
-            bib_ok = False
+    def _rendered(path, size):
+        r"""Return (current, what-write-mode-would-produce) for path.
 
-    iso_ok = True
-    if os.path.isfile(iso_path):
-        with open(iso_path, "r", encoding="utf-8") as f:
-            iso_txt = f.read()
-        iso_match = re.search(r'minsize\s*=\s*"([^"]+)"', iso_txt)
-        if not iso_match or iso_match.group(1) != iso_size:
-            iso_ok = False
+        check-mode used to compare only the VALUE, via a tolerant
+        minsize\s*=\s*"..." regex, while write-mode ALSO normalised the
+        spacing. So a file carrying aligned padding passed --check and was
+        still rewritten by the generator: the gate reported in-sync on a file
+        the generator would change. A check that does not compare what the
+        writer produces cannot detect the drift the writer creates, so both
+        modes now derive from this one rendering.
+        """
+        if not os.path.isfile(path):
+            return None, None
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            current = f.read()
+        return current, re.sub(r'minsize\s*=\s*"[^"]+"',
+                               'minsize = "%s"' % size, current)
 
-    check_mode = "--check" in sys.argv
-    if check_mode:
-        if not bib_ok or not iso_ok:
-            sys.stderr.write(f"ERROR: BIB artifact configs out of sync with mios.toml [deploy.artifacts] (raw={raw_size}, iso={iso_size}). Run python3 tools/generate-bib-configs.py\n")
+    bib_cur, bib_new = _rendered(bib_path, raw_size)
+    iso_cur, iso_new = _rendered(iso_path, iso_size)
+
+    if "--check" in sys.argv:
+        stale = [rel for rel, cur, new in (
+                     ("config/artifacts/bib.toml", bib_cur, bib_new),
+                     ("config/artifacts/iso.toml", iso_cur, iso_new))
+                 if cur is not None and cur != new]
+        if stale:
+            sys.stderr.write(
+                "ERROR: BIB artifact configs out of sync with mios.toml "
+                "[deploy.artifacts] (raw=%s, iso=%s): %s\n"
+                % (raw_size, iso_size, ", ".join(stale)))
             sys.exit(1)
         print("PASS: BIB artifact configs in sync with mios.toml SSOT.")
         sys.exit(0)
 
-    if os.path.isfile(bib_path):
-        with open(bib_path, "r", encoding="utf-8") as f:
-            bib_txt = f.read()
-        bib_new = re.sub(r'minsize\s*=\s*"[^"]+"', f'minsize = "{raw_size}"', bib_txt)
-        with open(bib_path, "w", encoding="utf-8") as f:
-            f.write(bib_new)
+    for path, new in ((bib_path, bib_new), (iso_path, iso_new)):
+        if new is not None:
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
+                f.write(new)
 
-    if os.path.isfile(iso_path):
-        with open(iso_path, "r", encoding="utf-8") as f:
-            iso_txt = f.read()
-        iso_new = re.sub(r'minsize\s*=\s*"[^"]+"', f'minsize = "{iso_size}"', iso_txt)
-        with open(iso_path, "w", encoding="utf-8") as f:
-            f.write(iso_new)
-
-    print(f"Updated BIB configs with SSOT sizes: raw={raw_size}, iso={iso_size}.")
+    print("Updated BIB configs with SSOT sizes: raw=%s, iso=%s."
+          % (raw_size, iso_size))
 
 if __name__ == "__main__":
     main()

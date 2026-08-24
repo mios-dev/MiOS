@@ -62,12 +62,23 @@ class TestExtractedChecks(unittest.TestCase):
             # made the test depend on the host: mios-env-snapshot's shebang
             # does not resolve on Windows, so the check correctly reports a
             # missing input there while passing on Linux.
+            # Non-zero has two legitimate causes and one illegitimate one.
+            # Legitimate: the check found a real violation, or its input tool
+            # cannot execute on THIS host (mios-env-snapshot's shebang does not
+            # resolve on Windows) -- both are the check REPORTING. Illegitimate:
+            # it crashed, or it exited non-zero saying nothing at all, which is
+            # indistinguishable from a pass to anyone reading the log.
+            #
+            # Requiring a specific phrase here was wrong: it made a check that
+            # correctly reported a real legibility violation look like a broken
+            # check, because the violation text does not say "missing".
             out = (r.stdout or "") + (r.stderr or "")
-            self.assertRegex(
-                out, "(?i)absent|missing|no environment|not found",
-                "%s exited %d without naming a missing input" % (name, r.returncode))
             self.assertNotIn("Traceback", out,
                              "%s crashed instead of reporting" % name)
+            self.assertTrue(
+                out.strip(),
+                "%s exited %d silently -- a non-zero exit with no diagnostic "
+                "cannot be acted on" % (name, r.returncode))
 
     def test_the_shell_gate_calls_the_module_not_a_heredoc(self):
         gate = open(os.path.join(_ROOT, "automation/98-drift-checks.sh"),

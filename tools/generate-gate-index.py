@@ -75,7 +75,11 @@ def main():
         sys.exit(0)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w", encoding="utf-8") as f:
+    # newline="\n": Python text mode translates \n to the host
+    # separator, so regenerating on Windows produced a CRLF file differing
+    # from the committed LF one in every row. The gate diffs generated
+    # against committed, so that fired on who ran it, not on real drift.
+    with open(output_path, "w", encoding="utf-8", newline="\n") as f:
         f.write(tsv_content)
 
     print(f"Generated {output_path} with {len(check_names)} gate entries.")
