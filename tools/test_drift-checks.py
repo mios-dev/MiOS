@@ -32,7 +32,10 @@ class TestExtractedChecks(unittest.TestCase):
         self.assertTrue(callable(MOD.check_doc_refs_resolve))
 
     def test_every_subcommand_maps_to_a_callable(self):
-        self.assertEqual(3, len(MOD.SUBCOMMANDS))
+        # Not a fixed count: the module grows as more checks leave their
+        # heredocs, and asserting the number only breaks the test when the
+        # extraction it exists to encourage actually happens.
+        self.assertGreaterEqual(len(MOD.SUBCOMMANDS), 3)
         for name, fn in MOD.SUBCOMMANDS.items():
             self.assertTrue(callable(fn), name)
             self.assertNotIn("_", name, "subcommands are hyphenated: %s" % name)
