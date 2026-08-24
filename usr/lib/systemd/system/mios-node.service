@@ -1,5 +1,5 @@
 # AI-hint: Systemd service unit executing the mios-node distributed edge micro-node daemon.
-# AI-related: usr/bin/mios-node, usr/share/containers/systemd/mios-node.container
+# AI-related: usr/share/containers/systemd/mios-node.container, automation/55-native-build.sh
 
 [Unit]
 Description=MiOS ('My OS') Distributed Edge Micro-Node Runtime Daemon

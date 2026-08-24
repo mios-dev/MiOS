@@ -1,5 +1,5 @@
 # AI-hint: Cargo package specification for the mios-node edge micro-node daemon.
-# AI-related: src/mios-rs/mios-node/src/main.rs, usr/bin/mios-node
+# AI-related: src/mios-rs/mios-node/src/main.rs, automation/55-native-build.sh
 
 [package]
 name = "mios-node"
