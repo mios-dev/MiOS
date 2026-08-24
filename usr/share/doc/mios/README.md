@@ -111,6 +111,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/oscontrol-envgrounding-gaps-2026-06-20.md` | Upstream-gap research (2026-06-20, multi-agent) + ordered fix plan for reliable AIOS Windows OS-control (UIA-targeted type/verify) and native per-turn env grounding. Records the root cause of the... |
 | `usr/share/doc/mios/concepts/pod-architecture-2026-06-22.md` | Concept documentation explaining the MiOS 3-pod architecture, port-minimization strategy, host services constraint, and SSOT-driven generation lifecycle. |
 | `usr/share/doc/mios/concepts/postgres-pgvector-unification.md` | Concept brief on why and how MiOS unified its agent-plane datastore onto PostgreSQL + pgvector (the FOSS "back to SQL" agent-memory stack), defining the standard schema, the shared mios-pg-query... |
+| `usr/share/doc/mios/concepts/remediation-report-reconciliation-2026-08-24.md` | Reconciles an external "MiOS remediation roadmap" report against the shipped tree: its subjects are name collisions, its four phases already ship here; the audit found two real gaps -- the unwired... |
 | `usr/share/doc/mios/concepts/roadmap-snapshot-decomposition-2026-06-22.md` | Research-backed decomposition of a historical MiOS roadmap snapshot into a minified executive summary and detailed current-architecture documentation. Reconciles the snapshot against current MiOS... |
 | `usr/share/doc/mios/concepts/uia-ai-integration-2026-06-22.md` | Concept documentation detailing the research and architecture for integrating native Windows UI Automation (UIA) into the MiOS AI agent ecosystem. |
 | `usr/share/doc/mios/concepts/unified-ai-pipeline-2026-06-16.md` | Reference for the UNIFIED MiOS AI pipeline — how every front-end is a thin client to the agent-pipe orchestrator (port key `agent_pipe`), the route-by-source anti-fabrication grounding strategy,... |
@@ -124,7 +125,7 @@ they are correct by construction rather than by maintenance.
 | `usr/share/doc/mios/concepts/ws-subsystems-activation-2026-06-20.md` | Operator activation playbook for the default-off WS-* subsystems shipped 2026-06-20 (RLS, A2A signed principal, peer reputation, egress firewall, mTLS PKI, self-improve loop) -- what each does, its... |
 | `usr/share/doc/mios/concepts/ws7-uki-fapolicyd.md` | Documentation of the WS-7 security architecture defining the transition from permissive fapolicyd observation to enforced execution whitelisting and verity-rooted UKI builds via mios.toml... |
 
-<!-- derived from the AI-hint headers of 34 file(s) matching usr/share/doc/mios/concepts/*.md -->
+<!-- derived from the AI-hint headers of 35 file(s) matching usr/share/doc/mios/concepts/*.md -->
 <!-- /MIOS-GEN:index:usr/share/doc/mios/concepts/*.md -->
 
 ## guides
