@@ -11776,3 +11776,1265 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** write the steps from memory of this session. Run them on a machine that does not already have the toolchain, because the failure being documented is precisely that the obvious path does not work.
 **Why:** a layer nobody can test is a layer whose tests nobody notices are failing -- which is what had happened.
 **Dep:** none
+
+
+# Batch: the four open campaigns, measured 2026-08-24
+
+Grounded in measurements taken against this tree rather than restated from
+the roadmap: 122 shipped units of which 70 are declared and 15 render
+faithfully; 204 drift checks against a roadmap that says 181; 2,597 tracked
+files against a roadmap that says 2,383; 109 host-dependent text writes
+across 82 files; 53 Python heredocs totalling 2,340 lines inside the shell
+gate; three live ports with no key in [ports]. Where a figure here differs
+from ROADMAP.md, the figure here is the one that was measured -- AGY-1880
+makes that table generated so the two cannot diverge again.
+
+## AGY-1810 -- check_shellcheck warns instead of violating when shellcheck is absent  (WS-GATE | P1 | S)
+**Goal:** The shell linter cannot pass by not being installed.
+**What+How:** `automation/98-drift-checks.sh` `check_shellcheck()` treats `lint-shell.sh` exit 2 as `WARNING: shellcheck absent` and returns without calling `_violation`. Every other tool-dependent check routes through `_need_python`, which fails rather than warns when `MIOS_DRIFT_REQUIRE_TOOLS=1`. CI sets that variable. Give `check_shellcheck` the same two-mode behaviour: warn when the variable is unset, `_violation` when it is 1.
+**Where:** `automation/98-drift-checks.sh`, `automation/lint-shell.sh`, `tests/drift-gate-negatives.sh`
+**Done When:** with shellcheck removed from PATH and `MIOS_DRIFT_REQUIRE_TOOLS=1`, the gate reports a violation; with the variable unset it still warns and passes.
+**Verify:** run the gate twice in a PATH without shellcheck, once with the variable and once without, and show the two differ. Then restore shellcheck and show a script with a real error-level finding still fails.
+**Do NOT:** satisfy this by installing shellcheck in CI and declaring it fixed. The defect is that the check has a silent pass mode, not that a runner lacked a binary.
+**Why:** a linter that reports success when it did not run is the defect class the first open campaign exists to close.
+**Dep:** none
+
+## AGY-1811 -- check_structured passes against a tree with no SSOT at all  (WS-GATE | P1 | S)
+**Goal:** A missing mios.toml is a failure, not a skip.
+**What+How:** `tools/drift-checks.py structured` exits 0 when run against a directory containing no `usr/share/mios/mios.toml` -- measured by running it with `MIOS_DRIFT_ROOT` pointed at an empty directory. The early return exists so a bare checkout does not fail, but it also means the check cannot distinguish "nothing to check" from "the file that defines the OS is gone". Separate the two: absent tree is a skip, absent SSOT inside a populated tree is a violation.
+**Where:** `tools/drift-checks.py`, `tools/test_drift-checks.py`
+**Done When:** an empty directory still skips, and a directory that has `usr/` but no `mios.toml` reports a violation.
+**Verify:** build both fixtures in a temp dir and assert the two exit codes differ. Add the case to `tools/test_drift-checks.py`.
+**Do NOT:** remove the skip entirely. It is what lets the module be imported and unit-tested off a real tree; deleting it trades one broken behaviour for another.
+**Why:** the same early-return shape is repeated across the folded checks, so fixing it once establishes the pattern for the rest.
+**Dep:** none
+
+## AGY-1812 -- Audit the 53 remaining gate heredocs for a possible red  (WS-GATE | P1 | L)
+**Goal:** Every check in 98-drift-checks.sh has a known edit that makes it fail.
+**What+How:** 53 Python heredocs remain in the gate, 2340 lines total. For each, write down the concrete edit that should turn it red, then make that edit in a scratch copy of the tree and confirm the check reports a violation. Record the result per check in a table: RED-CONFIRMED, or the reason it could not be made to fail. The ones that cannot be made to fail are the deliverable.
+**Where:** `automation/98-drift-checks.sh`, `docs/agy/audits/`
+**Done When:** every one of the 53 has a recorded verdict and the un-failable ones have follow-up task ids.
+**Verify:** for a random sample of 10 confirmed-red checks, re-apply the recorded edit and show the violation text.
+**Do NOT:** count "I read it and it looks correct" as a verdict. The audit is only worth the tree-edits actually performed; reading is what let these through the first time.
+**Why:** the roadmap calls this campaign 1 and says a hollow gate falsifies the thesis directly.
+**Dep:** none
+
+## AGY-1813 -- Negative tests exist for gates that never had one  (WS-GATE | P1 | L)
+**Goal:** `tests/drift-gate-negatives.sh` covers every check, not a subset.
+**What+How:** `check_negative_test_coverage` already measures which checks have a negative test. Read its output, then write the missing ones. Each negative test injects one defect, asserts the specific check reports it, and restores the tree. Follow the existing file's conventions for snapshot and restore -- and note the recorded hazard that a trap which removes a path recorded as absent will delete a directory if the path is a directory.
+**Where:** `tests/drift-gate-negatives.sh`, `automation/98-drift-checks.sh`
+**Done When:** `check_negative_test_coverage` reports full coverage and the suite passes.
+**Verify:** run the negatives suite twice in a row and show `git status` is clean after each; a negative test that leaves the tree dirty has corrupted the run that follows it.
+**Do NOT:** register a test that asserts only "the gate ran". The assertion must be that this specific check reported this specific injected defect.
+**Why:** a gate with no negative test is a gate nobody has ever seen fail.
+**Dep:** AGY-1812
+
+## AGY-1814 -- Resolve the 66 gates the falsifiability audit left inconclusive  (WS-GATE | P1 | L)
+**Goal:** No check remains in the unknown bucket.
+**What+How:** A prior 202-check audit finished with 66 checks neither confirmed-failable nor confirmed-hollow. Take them in batches of ten, apply the AGY-1812 method, and give each a verdict. Where a check turns out to be hollow, fix it in the same batch rather than filing it onward.
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `docs/agy/audits/`
+**Done When:** all 66 have a verdict and every hollow one has been repaired or has an open task id.
+**Verify:** the audit table shows 0 inconclusive; spot-check five repaired checks by re-injecting their defect.
+**Do NOT:** mark a check conclusive because it produced output. Output is not a verdict -- several of the hollow checks printed a confident PASS line.
+**Why:** an audit that ends with a third of its subjects unresolved has not measured what it claims.
+**Dep:** AGY-1812
+
+## AGY-1815 -- A check that exits non-zero with no diagnostic must fail the suite  (WS-GATE | P2 | S)
+**Goal:** Silent failures are impossible to act on, so make them impossible to ship.
+**What+How:** `tools/test_drift-checks.py` now asserts each subcommand either exits 0 or prints something. Lift that rule to the gate itself: the check wrappers should treat an empty diagnostic from a failing check as its own violation, naming the check.
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`
+**Done When:** a check stubbed to exit 1 with no output produces a violation that names it.
+**Verify:** stub one check that way in a scratch copy and show the gate names it.
+**Do NOT:** implement this by requiring specific wording. The rule is that something actionable was printed, not that it matched a phrase -- an over-specific assertion is what made the sibling test reject a correct violation report.
+**Why:** in a log, a non-zero exit with no message is indistinguishable from a pass.
+**Dep:** none
+
+## AGY-1816 -- The gate index is generated but its ordinals are never checked against the runner  (WS-GATE | P2 | M)
+**Goal:** `drift-gate-index.tsv` describes the gate that actually runs.
+**What+How:** `tools/generate-gate-index.py` derives ordinal, function name and description from `main()` in the gate. Nothing asserts that the ordinal a check reports at runtime matches its ordinal in the index, so a reordering renumbers the index silently and old references point at the wrong check. Emit the ordinal from the runner and compare.
+**Where:** `tools/generate-gate-index.py`, `automation/98-drift-checks.sh`, `usr/share/mios/reference/drift-gate-index.tsv`
+**Done When:** reordering two checks in `main()` without regenerating the index fails a check.
+**Verify:** swap two adjacent check calls in a scratch copy and show the failure; regenerate and show it clears.
+**Do NOT:** rely on the file's line count or row count as the comparison. Two checks swapping places leaves both unchanged.
+**Why:** every doc and task that cites "check 31" is citing this file.
+**Dep:** none
+
+## AGY-1817 -- Gate ordinals cited in prose are not verified to exist  (WS-GATE | P2 | M)
+**Goal:** A doc that cites a gate number cites a real one.
+**What+How:** Comments and docs across the tree cite checks by ordinal. `check_doc_refs_resolve` resolves path references but not ordinal references. Extend it: parse those citations out of tracked markdown and comments, and resolve each against `drift-gate-index.tsv`.
+**Where:** `tools/drift-checks.py`, `usr/share/doc/mios/`, `docs/`
+**Done When:** a citation of a nonexistent ordinal fails the check.
+**Verify:** add a citation of a nonexistent ordinal to a scratch doc and show the violation naming file and line.
+**Do NOT:** auto-rewrite the citations found. Renumbering prose to match code hides that the prose was describing something else.
+**Why:** the roadmap's third campaign counts 150 stale references; ordinals are a category of them nothing currently catches.
+**Dep:** AGY-1816
+
+## AGY-1818 -- `_need_python` reports a warning CI cannot distinguish from a pass  (WS-GATE | P2 | S)
+**Goal:** A skipped check is visible in the summary, not only in stderr.
+**What+How:** When `MIOS_DRIFT_REQUIRE_TOOLS` is unset and python3 is missing, `_need_python` warns and the check returns 0. The run summary then reports the same all-passed line as a run where everything executed. Count skips, print them in the summary by name, and make the exit path distinguish passed from passed-with-skips.
+**Where:** `automation/98-drift-checks.sh`
+**Done When:** a run with skips prints the skip count and the skipped check names.
+**Verify:** run the gate with python3 removed from PATH and show the summary names the skipped checks.
+**Do NOT:** turn every skip into a failure. That is AGY-1810's job for tools CI genuinely requires; this task is about visibility.
+**Why:** the recorded failure mode is a whole suite skipping and reading as green.
+**Dep:** none
+
+## AGY-1819 -- Prove the drift-gate negatives suite restores the tree it perturbs  (WS-GATE | P1 | M)
+**Goal:** A negative test cannot corrupt the run that follows it.
+**What+How:** The suite injects defects and restores them. A recorded incident had a restore step delete a directory because the path had been recorded as absent and the trap removed it unconditionally. Add an assertion at the end of each negative case that `git status --porcelain` is byte-identical to what it was at case start, and fail the case if not.
+**Where:** `tests/drift-gate-negatives.sh`
+**Done When:** each case self-verifies its own restore, and a deliberately broken restore fails that case rather than the next one.
+**Verify:** break one case's restore on purpose and show that case fails, and that the following case still passes.
+**Do NOT:** compare only file existence. The recorded bug replaced a directory with nothing, and a bare existence test would have been satisfied by recreating an empty one.
+**Why:** a corrupting test suite produces failures in unrelated checks, which is the hardest kind of red to diagnose.
+**Dep:** none
+
+## AGY-1820 -- The gate's own runner has no test  (WS-GATE | P2 | M)
+**Goal:** The dispatch in `main()` is covered like the checks it calls.
+**What+How:** Nothing tests that every `check_*` function defined in the gate is actually called from `main()`. A function that is defined but never invoked is a check that does not run, and it would still appear in the index. Write a test that parses defined `check_*` functions and asserts each appears in `main()`.
+**Where:** `automation/98-drift-checks.sh`, `tools/`
+**Done When:** adding a `check_*` function without wiring it into `main()` fails.
+**Verify:** add an unwired stub in a scratch copy and show the failure; wire it and show it clears.
+**Do NOT:** assert the two counts are equal. Equal counts are satisfied by one function being unwired while an unrelated name is called twice.
+**Why:** the tree already contained a module subcommand that nothing called; this is the same shape one level up.
+**Dep:** none
+
+## AGY-1821 -- A generator's --check mode must compare what its write mode produces  (WS-GATE | P1 | M)
+**Goal:** No other generator can repeat the bib-configs defect.
+**What+How:** `generate-bib-configs.py --check` compared only the value it projects, via a tolerant regex, while write mode also normalised whitespace -- so it reported in-sync on a file it would rewrite on sight. That one is fixed and `tools/test_generator_check_agrees_with_write.py` locks the invariant for gate-diffed generators. Extend the same audit to every tool with a `--check` flag, not only the five the gate diffs: for each, run write mode and confirm `--check` refuses any tree write mode would change.
+**Where:** `tools/`, `usr/libexec/mios/`, `tools/test_generator_check_agrees_with_write.py`
+**Done When:** every `--check` implementation derives its comparison from the same rendering its writer uses.
+**Verify:** for each generator, perturb its output file, assert `--check` exits non-zero, regenerate, assert it exits 0.
+**Do NOT:** assume a generator is fine because its `--check` currently passes. That is precisely the symptom -- the broken one passed too.
+**Why:** a check that does not compare what the writer produces cannot detect the drift the writer creates.
+**Dep:** none
+
+## AGY-1822 -- Ratchet ceilings are read from the SSOT but never asserted to exist  (WS-GATE | P2 | S)
+**Goal:** A missing ceiling fails loudly instead of disabling its ratchet.
+**What+How:** `check_legibility_ratchet` and the docs/CI/rust ratchets read their ceilings from `mios.toml`. If a key is absent the check has nothing to compare against. Assert that every ratchet the code knows about has a ceiling present, and fail naming the missing key.
+**Where:** `tools/drift-checks.py`, `usr/share/mios/mios.toml`
+**Done When:** deleting any ratchet ceiling from the SSOT fails a check that names the key.
+**Verify:** delete one ceiling in a scratch copy and show the failure; restore and show it clears.
+**Do NOT:** default a missing ceiling to the current measurement. That silently re-baselines the ratchet at whatever the tree happens to be, which is the failure this prevents.
+**Why:** an absent ceiling is a broken gate that looks like a passing one.
+**Dep:** none
+
+## AGY-1823 -- Ratchets can only be lowered, and nothing enforces it  (WS-GATE | P1 | M)
+**Goal:** Raising a shrink-only floor fails CI.
+**What+How:** The ratchets are documented shrink-only, but the rule lives in prose. A recorded incident had a settle loop write the current measurement back as the floor, raising it. Add a check that compares each ratchet ceiling against the value at merge-base and fails if any increased.
+**Where:** `tools/drift-checks.py`, `usr/share/mios/mios.toml`, `.github/workflows/mios-ci.yml`
+**Done When:** a commit that raises any ratchet ceiling fails, and one that lowers it passes.
+**Verify:** in a scratch branch raise one ceiling by 1 and show the failure; lower it by 1 and show it passes.
+**Do NOT:** compare against the previous commit only. A two-commit sequence that raises then partially lowers must still fail against merge-base.
+**Why:** every ratchet in the tree is enforced by discipline alone, and discipline has already failed once.
+**Dep:** AGY-1822
+
+## AGY-1824 -- Suites that run nowhere cannot be detected after the fact  (WS-GATE | P2 | M)
+**Goal:** A test file that no tier runs is a failure at the moment it is added.
+**What+How:** `[ci]` in `mios.toml` declares tiers by directory and glob; `tools/ci-suites.py --check` asserts both workflows invoke every tier. A file that matches no glob still runs nowhere and nothing notices -- 13 such suites were found once already. Add a check that every tracked test file is claimed by exactly one tier or listed in the exempt table with a reason.
+**Where:** `tools/ci-suites.py`, `usr/share/mios/mios.toml`
+**Done When:** adding a test file outside every glob fails until it is claimed or exempted.
+**Verify:** add a test file to a directory no glob covers and show the failure; add the glob and show it clears.
+**Do NOT:** widen a glob to make the check pass without reading what the newly-matched files do. A glob that suddenly matches 40 files has changed what CI runs.
+**Why:** an unrun suite is worse than no suite: it reports coverage that does not exist.
+**Dep:** none
+
+## AGY-1825 -- The exempt-suite table has a ceiling but no expiry  (WS-GATE | P3 | S)
+**Goal:** An exemption is temporary by construction.
+**What+How:** `[ci].max_exempt_suites` caps how many suites may be exempt (currently 7/7, at the cap). Nothing records why each is exempt or when it should return. Add a required reason and an owning task id per exemption, and fail if either is missing.
+**Where:** `usr/share/mios/mios.toml`, `tools/ci-suites.py`
+**Done When:** an exemption without a reason and a task id fails the check.
+**Verify:** drop the reason from one entry and show the failure.
+**Do NOT:** raise the ceiling to add an exemption. It is at its cap because that is the point; a new exemption should require retiring an old one.
+**Why:** exemptions without expiry become permanent, and the cap then measures nothing.
+**Dep:** none
+
+## AGY-1826 -- Bake-smoke prints OK for an empty list  (WS-GATE | P1 | M)
+**Goal:** A smoke test with nothing to check fails instead of passing.
+**What+How:** `tests/bake-smoke.sh` iterates a list and reports success when the loop body never executes. That is the recorded shape where empty input reads as a pass. Assert the list is non-empty before iterating, and fail naming what produced the empty list.
+**Where:** `tests/bake-smoke.sh`
+**Done When:** an empty input list fails the suite with a message naming its source.
+**Verify:** force the list empty in a scratch copy and show the failure.
+**Do NOT:** fix only the one loop. Audit every loop in the file for the same shape -- the pattern repeats.
+**Why:** this suite is on the exempt list, so it currently reports nothing to anyone; making it honest is a precondition for un-exempting it.
+**Dep:** AGY-1825
+
+## AGY-1827 -- miosd targets that do not exist are reported as skipped, not missing  (WS-GATE | P1 | M)
+**Goal:** A target that is not there is a failure.
+**What+How:** A recorded audit found 9 of 12 `miosd` targets nonexistent, with the runner treating them as Skip. Skip is not pass. Make a nonexistent target a failure naming the target, and keep Skip only for targets that exist but are not applicable to this host.
+**Where:** `usr/libexec/mios/`, `tools/`, `tests/`
+**Done When:** a nonexistent target fails; an existing but inapplicable one skips and says why.
+**Verify:** rename one real target in a scratch copy and show it fails rather than skips.
+**Do NOT:** create empty stubs for the missing targets to make the check pass. That converts a visible gap into a hidden one.
+**Why:** three quarters of a suite silently not running is the defect class the first campaign is about.
+**Dep:** none
+
+## AGY-1828 -- The golden-master conformance test diffed the tree against a copy of itself  (WS-GATE | P1 | M)
+**Goal:** The conformance check compares against a fixed baseline.
+**What+How:** A recorded audit found the golden-master test comparing the tree to a copy made from the same tree, which cannot fail. Rebuild it against committed golden files under `tests/templates/golden/`, and assert the baseline is not regenerated as part of the run.
+**Where:** `tools/test_conformance_golden.py`, `tests/templates/golden/`
+**Done When:** changing a templated file without updating its golden fails.
+**Verify:** edit one templated output in a scratch copy and show the failure; update the golden and show it clears.
+**Do NOT:** add a refresh-goldens step to the test run. A test that regenerates its own baseline is the defect being fixed.
+**Why:** it is the clearest instance of a check structurally incapable of failing.
+**Dep:** none
+
+## AGY-1829 -- Nothing asserts a drift-check subcommand is reachable from the shell gate  (WS-GATE | P2 | S)
+**Goal:** A subcommand in the module is invoked by the gate.
+**What+How:** `tools/drift-checks.py` grew a `drift-projection` subcommand that the gate never called, because the extraction added the module half and left the shell half on its old heredoc. `tools/test_drift-checks.py` now asserts every subcommand appears in the gate; harden it so a subcommand invoked in a comment or a disabled branch does not satisfy it.
+**Where:** `tools/test_drift-checks.py`, `automation/98-drift-checks.sh`
+**Done When:** a subcommand mentioned only in a comment fails the assertion.
+**Verify:** comment out one real invocation, leaving the name in the comment, and show the test fails.
+**Do NOT:** match on the bare subcommand name. That is what a comment satisfies; match on the invocation form.
+**Why:** the duplicate-logic hazard it prevents is one the tree already had.
+**Dep:** none
+
+## AGY-1830 -- 52 shipped units are not declared in `[units.*]` at all  (WS-UNITS | P1 | L)
+**Goal:** Every unit the image ships is declared in the SSOT.
+**What+How:** `cargo run -p mios-unit-gen -- --check` reports "declares 70 of 122 shipped units ... 52 undeclared". Get the list with `--list`, then declare them in batches of eight. For each: transcribe the shipped unit into `[units."<name>".<Section>]`, render it with `--render <name>`, and diff against the file on disk until they match byte for byte. Repeated directives become TOML arrays; the file-level comment goes in the section's `comment` key.
+**Where:** `usr/share/mios/mios.toml`, `usr/lib/systemd/system/`, `tools/native/mios-unit-gen/`
+**Done When:** undeclared reaches 0 and `--check` exits 0.
+**Verify:** after each batch, `--check` must show declared rising by the batch size and undeclared falling by it. Re-run `tools/sync-generated.sh` and confirm the tree is clean afterwards.
+**Do NOT:** rewrite a unit's content while declaring it. The projection must reproduce the unit, not edit it in passing -- transcribe the comment the file already carries rather than composing a better one.
+**Why:** the roadmap names unit projection the largest single gap in "one file defines the OS".
+**Dep:** none
+
+## AGY-1831 -- 55 declared units are registered as drifting from their projection  (WS-UNITS | P1 | L)
+**Goal:** The drift register empties.
+**What+How:** `--check` reports 15 faithful and 55 drifted against a register of 55 in `[unit_projection].drift`. Each registered unit renders differently from the file that ships. Take them in batches: run `--render <name>`, diff against the shipped file, and either correct the declaration so it reproduces the file or correct the file if the declaration is right. Remove each from the register as it becomes faithful.
+**Where:** `usr/share/mios/mios.toml`, `usr/lib/systemd/system/`, `tools/native/mios-unit-gen/`
+**Done When:** the register is empty and faithful equals declared.
+**Verify:** the register only shrinks -- `test_the_register_only_shrinks` already asserts this, so run it after each batch.
+**Do NOT:** remove a unit from the register without making it render faithfully. The register is what keeps known drift visible; emptying it by deletion hides the gap the roadmap is measuring.
+**Why:** 55 units that do not regenerate is the concrete form of part 1 of the thesis being unproven.
+**Dep:** AGY-1830
+
+## AGY-1832 -- Two copies of every unit exist and only one is compared  (WS-UNITS | P1 | M)
+**Goal:** One location holds each unit, or both are provably identical.
+**What+How:** `mios-node.service` and `mios-xdg-userdir-init.service` each existed in both `usr/share/mios/systemd/` and `usr/lib/systemd/system/`, with different content, and the generator compares only the latter. Determine which directory is authoritative, then either collapse to one or add a check asserting the two copies are byte-identical.
+**Where:** `usr/share/mios/systemd/`, `usr/lib/systemd/system/`, `automation/`
+**Done When:** a divergence between two copies of the same unit fails a check.
+**Verify:** change one copy in a scratch tree and show the failure.
+**Do NOT:** delete either directory before tracing what installs from it. `automation/` and the bake reference both; deleting the unread one is how a working install breaks silently.
+**Why:** the generator reported a unit faithful while a second, different copy shipped alongside it.
+**Dep:** none
+
+## AGY-1833 -- The unit drift register has a count but no per-entry reason  (WS-UNITS | P2 | S)
+**Goal:** Each registered drift says why it drifts.
+**What+How:** `[unit_projection].drift` lists 55 unit names. Nothing records what about each one does not project -- a directive the renderer cannot emit, a value that is not in the SSOT, or a hand-edit. Add a reason per entry and require it.
+**Where:** `usr/share/mios/mios.toml`, `tools/native/mios-unit-gen/`
+**Done When:** an entry without a reason fails.
+**Verify:** drop a reason in a scratch copy and show the failure.
+**Do NOT:** write "drifts" as the reason. The reason must name the directive or value that cannot be projected, because that is what the fixing task needs.
+**Why:** 55 opaque names is a backlog nobody can plan; 55 named causes is a work-list.
+**Dep:** AGY-1831
+
+## AGY-1834 -- The renderer cannot express directives some units need  (WS-UNITS | P2 | M)
+**Goal:** The projection can represent every directive that ships.
+**What+How:** Once AGY-1833 gives per-entry reasons, group them. Some will be renderer gaps -- a directive form the TOML schema cannot express, or ordering the renderer does not preserve. Extend the renderer for each gap, with a unit test per directive form, following the existing `test_arrays_repeat_the_key` and `test_booleans_render_as_yes_no` tests.
+**Where:** `tools/native/mios-unit-gen/src/`, `tools/native/mios-unit-gen/tests/`
+**Done When:** no registered drift reason is "the renderer cannot express this".
+**Verify:** each new directive form has a test asserting its rendered output.
+**Do NOT:** special-case a unit by name in the renderer. A projection with per-unit exceptions is a hand-maintained file with extra steps.
+**Why:** the renderer is the mechanism the whole SSOT claim rests on; its gaps set the ceiling on the campaign.
+**Dep:** AGY-1833
+
+## AGY-1835 -- Quadlet container files are projected but not covered by the unit gate  (WS-UNITS | P2 | M)
+**Goal:** Container units are held to the same standard as service units.
+**What+How:** `[containers.*]` projects Quadlet files under `usr/share/containers/systemd/`. `mios-unit-gen` counts systemd units; the Quadlets are checked separately, and the recorded failure mode is a broad `git add` stripping digest pins from generated Quadlets. Bring them under one reporting surface so faithful/drifted/undeclared is stated for Quadlets too.
+**Where:** `usr/share/containers/systemd/`, `tools/native/mios-unit-gen/`, `automation/98-drift-checks.sh`
+**Done When:** one command reports projection status for both systemd units and Quadlets.
+**Verify:** hand-edit one generated Quadlet and show it is reported as drifted.
+**Do NOT:** merge the two registers into one number that hides which surface is behind. The roadmap tracks them as separate floors deliberately.
+**Why:** Quadlets are the larger surface in the image and are currently measured less rigorously than units.
+**Dep:** AGY-1831
+
+## AGY-1836 -- A unit can be declared, faithful, and still not installed  (WS-UNITS | P2 | M)
+**Goal:** Declared units reach the image.
+**What+How:** `--check` reports "0 missing on disk", which asserts the declared unit exists in the source tree -- not that the bake installs it or that anything enables it. Cross-check `[units.*]` against what the built image actually contains, and against the enablement the SSOT declares.
+**Where:** `automation/build.sh`, `usr/share/mios/mios.toml`, `tests/bake-smoke.sh`
+**Done When:** a unit declared in the SSOT but absent from the built image fails.
+**Verify:** remove one unit from the install step in a scratch copy and show the failure.
+**Do NOT:** infer installation from the source tree. Presence in `usr/lib/systemd/system/` in git is not presence in the image; that inference is what makes this check worth writing.
+**Why:** the thesis is about the OS the image is, not the files the repo holds.
+**Dep:** AGY-1830
+
+## AGY-1837 -- Enablement is declared in two places for some units  (WS-UNITS | P2 | M)
+**Goal:** One declaration decides whether a unit is enabled.
+**What+How:** Units carry `[Install] WantedBy` in their projection, and the bake separately runs enable steps. Where both exist they can disagree. Determine which is authoritative, project the other from it, and gate the pair.
+**Where:** `usr/share/mios/mios.toml`, `automation/`, `usr/lib/systemd/system/`
+**Done When:** changing enablement in one place without the other fails a check.
+**Verify:** change a WantedBy in a scratch copy without touching the bake and show the failure.
+**Do NOT:** resolve a disagreement by picking whichever is currently true in the image. Read why each was written; one of them is likely load-bearing for firstboot ordering.
+**Why:** two sources for one fact is the condition the SSOT thesis exists to remove.
+**Dep:** AGY-1836
+
+## AGY-1838 -- Template units are shipped but not projected  (WS-UNITS | P2 | M)
+**Goal:** `.tmpl` units are declared like the rest.
+**What+How:** `usr/share/mios/systemd/` ships `home-@.automount.tmpl` and `home-@.mount.tmpl`. They are templates expanded at install time and are not counted by the projection at all. Decide whether they are projected from `[units.*]` with a template marker, or explicitly declared authored, and record which.
+**Where:** `usr/share/mios/systemd/`, `usr/share/mios/mios.toml`, `tools/native/mios-unit-gen/`
+**Done When:** every file in the unit directories is either projected or explicitly declared authored.
+**Verify:** add an undeclared file to the directory and show it is reported.
+**Do NOT:** exclude `.tmpl` by extension without recording the decision. Silent exclusions are how the 52 undeclared units accumulated.
+**Why:** the fourth open campaign requires every file to be generated-and-gated or explicitly authored.
+**Dep:** AGY-1830
+
+## AGY-1839 -- The unit gate reports its own coverage as a count, not a list  (WS-UNITS | P3 | S)
+**Goal:** The summary line is actionable without a second command.
+**What+How:** `--check` prints counts and then the drifted names, but undeclared names appear only under `--list`. Print undeclared names in `--check` too, capped with an explicit "and N more" rather than truncated silently.
+**Where:** `tools/native/mios-unit-gen/src/main.rs`
+**Done When:** `--check` names what is undeclared, and says how many it did not name.
+**Verify:** run with more undeclared units than the cap and confirm the count of omitted names is stated.
+**Do NOT:** print an unbounded list. A 52-line failure in CI buries the summary; the cap plus an explicit remainder is the point.
+**Why:** a silent truncation reads as complete coverage, which is a recorded defect class here.
+**Dep:** none
+
+## AGY-1840 -- `[units.*]` values are literals where SSOT keys exist  (WS-UNITS | P2 | L)
+**Goal:** A declared unit references SSOT keys rather than repeating their values.
+**What+How:** Declaring a unit moves its content into the SSOT but does not make its values derive. `mios-node.service` now carries `ExecStart = "/usr/bin/mios-node 101 8650"` and an endpoint literal. Where a value already has a key in `[ports]` or elsewhere, use the systemd `${VAR:-default}` form with the corresponding `EnvironmentFile`, as `mios-userdb-render.service` does for the pgvector port.
+**Where:** `usr/share/mios/mios.toml`, `etc/mios/install.env`
+**Done When:** no `[units.*]` value repeats a number that has an SSOT key.
+**Verify:** change a port in `[ports]`, regenerate, and confirm the rendered unit changes with it.
+**Do NOT:** substitute a variable whose key does not exist yet. That renders an empty value into a live unit; allocate the key first.
+**Why:** a literal inside the SSOT is still a hardcode, just relocated.
+**Dep:** AGY-1865
+
+## AGY-1841 -- Unit ordering constraints are not verified against the units that exist  (WS-UNITS | P2 | M)
+**Goal:** `After=` and `Requires=` name units that are shipped.
+**What+How:** `check_unit_dependency_closure` exists as an 82-line heredoc. Confirm it resolves every `After`, `Before`, `Requires`, `Wants` and `BindsTo` target against the set of units the image actually installs, including targets provided by the base OS, and fails on a dangling reference.
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`
+**Done When:** a reference to a nonexistent unit fails, and a reference to a base-OS unit does not.
+**Verify:** add `After=nonexistent.service` in a scratch copy and show the violation; add `After=network-online.target` and show it passes.
+**Do NOT:** allowlist every unresolved name to make the check pass. Each unresolved name is either a base-OS unit, which belongs in a documented list, or a real dangling reference.
+**Why:** a dangling ordering constraint is silently ignored by systemd at boot, so nothing else will report it.
+**Dep:** AGY-1812
+
+## AGY-1842 -- Privileged units are declared in the SSOT but the list is not derived  (WS-UNITS | P1 | M)
+**Goal:** The privileged-unit roster is computed from the units, not maintained beside them.
+**What+How:** `[security.privileged_quadlets].root` lists 10 units by name. A unit that gains privilege without being added to the list defeats the check. Derive the roster from the unit definitions themselves and compare against the declared list, so adding privilege to an unlisted unit fails.
+**Where:** `usr/share/mios/mios.toml`, `automation/98-drift-checks.sh`
+**Done When:** granting privilege to an unlisted unit fails a check.
+**Verify:** add a privileged directive to an unlisted unit in a scratch copy and show the violation.
+**Do NOT:** update the list to match the tree as the fix. The list is the security assertion; the tree is what must conform to it.
+**Why:** a hand-maintained security roster drifts silently, and its drift is the failure it exists to prevent.
+**Dep:** none
+
+## AGY-1843 -- Units reference binaries that may not be installed  (WS-UNITS | P2 | M)
+**Goal:** Every `ExecStart` path exists in the image.
+**What+How:** `mios-node.service` runs `/usr/bin/mios-node`, built by the native build. Nothing asserts the binary is present in the built image. Resolve every `ExecStart`, `ExecStartPre`, `ExecStop` and `ExecReload` path against what the bake installs.
+**Where:** `usr/share/mios/mios.toml`, `automation/build.sh`, `tests/bake-smoke.sh`
+**Done When:** a unit whose binary the image does not contain fails.
+**Verify:** drop one binary from the install step in a scratch copy and show the failure.
+**Do NOT:** check the source tree for the path. The binary is built during the bake; its presence in git proves nothing.
+**Why:** a unit that cannot start is a unit that fails at first boot, on the operator's machine rather than in CI.
+**Dep:** AGY-1836
+
+## AGY-1844 -- Drop-in directories are projected inconsistently  (WS-UNITS | P2 | S)
+**Goal:** Drop-ins are declared the same way units are.
+**What+How:** `[units."mios-gpu-nvidia.service.d/10-cycle-fix.conf"]` shows drop-ins declared as units with a path-like name. Confirm that form is intentional and used consistently, and that the renderer writes drop-ins to the right directory rather than a file with a slash in its name.
+**Where:** `usr/share/mios/mios.toml`, `tools/native/mios-unit-gen/`
+**Done When:** every drop-in in the tree is declared in the same form and renders to the right path.
+**Verify:** render one drop-in and confirm the output path is the `.d` directory.
+**Do NOT:** rename the existing entries before checking what reads them. The gpu drop-in is referenced by the GPU detection path.
+**Why:** an inconsistent declaration form is a gap in a projection that claims to be total.
+**Dep:** AGY-1830
+
+## AGY-1845 -- User units and system units share one table with no distinction  (WS-UNITS | P2 | S)
+**Goal:** A user unit is declared as a user unit.
+**What+How:** `mios-xdg-userdir-init.service` is documented as a systemd user unit whose install target is `default.target`, yet it is declared in the same `[units.*]` table as system units and ships under the system directory. Add an explicit scope to the declaration and render user units to the user unit path.
+**Where:** `usr/share/mios/mios.toml`, `tools/native/mios-unit-gen/`, `usr/lib/systemd/`
+**Done When:** a user unit renders to the user unit directory and a system unit to the system one.
+**Verify:** render both kinds and confirm the two paths differ.
+**Do NOT:** infer scope from `WantedBy=default.target`. Some system units legitimately use that target; scope must be declared, not guessed.
+**Why:** a user unit installed as a system unit either fails to start or starts in the wrong session.
+**Dep:** AGY-1830
+
+## AGY-1846 -- Nothing checks that a declared unit parses as a systemd unit  (WS-UNITS | P2 | M)
+**Goal:** The projection cannot emit a file systemd would reject.
+**What+How:** The renderer emits INI-shaped text from TOML. Nothing validates the result against systemd's own parser. Run `systemd-analyze verify` over the rendered units in CI, where systemd is available, and report per-unit results.
+**Where:** `.github/workflows/mios-ci.yml`, `tools/native/mios-unit-gen/`, `tests/`
+**Done When:** a unit that systemd rejects fails CI.
+**Verify:** introduce an invalid directive in a scratch copy and show `systemd-analyze verify` catches it.
+**Do NOT:** treat every `systemd-analyze` warning as a failure on first pass. Record the existing warning set, fail on new ones, and drive the baseline down as a ratchet.
+**Why:** a projection validated only against itself proves the renderer is self-consistent, not that it is correct.
+**Dep:** AGY-1831
+
+## AGY-1847 -- The unit count in the roadmap contradicts the generator  (WS-UNITS | P1 | S)
+**Goal:** The published number matches the measured one.
+**What+How:** `ROADMAP.md` states "Units reproducing from SSOT | 27 of 66" with 39 registered as drifting. The generator reports 15 faithful of 122 shipped, 70 declared, 55 registered. Both cannot be true. Determine which denominator each is counting, then make the roadmap's figure come from the generator rather than from prose.
+**Where:** `ROADMAP.md`, `tools/native/mios-unit-gen/`, `tools/roadmap-index.py`
+**Done When:** the roadmap's unit figure is generated and matches `--check`.
+**Verify:** declare one more unit and confirm the roadmap figure changes on regeneration.
+**Do NOT:** edit the number in the prose. That is what produced a stale figure in a table headed "measured rather than asserted".
+**Why:** a roadmap that misstates its own central metric cannot be used to decide what to work on.
+**Dep:** AGY-1880
+
+## AGY-1848 -- Firstboot units have no ordering test  (WS-UNITS | P2 | M)
+**Goal:** Firstboot ordering is asserted, not assumed.
+**What+How:** A dozen `*-firstboot.service` units and `mios-firstboot.target` coordinate first-boot work. Their relative order is expressed only through `After`/`Wants` in individual units. Derive the resulting order and assert the invariants that matter -- that the AI plane starts after pgvector, that enrolment never gates boot per Law 12.
+**Where:** `usr/share/mios/mios.toml`, `tests/`, `usr/lib/systemd/system/`
+**Done When:** an ordering change that would let enrolment gate boot fails a check.
+**Verify:** add a `Requires=` from a boot-critical unit to the enrolment unit in a scratch copy and show the violation.
+**Do NOT:** assert an exact total order. Systemd is free to parallelise; assert the specific pairwise constraints the laws require.
+**Why:** Law 12 is a boot-time property, and boot is the surface with the least test coverage.
+**Dep:** AGY-1841
+
+## AGY-1849 -- `--render` output is not covered by the LF discipline  (WS-UNITS | P2 | S)
+**Goal:** Rendered units are byte-identical on every host.
+**What+How:** Seven Python generators were pinned to LF after regenerating on Windows produced CRLF and a phantom diff in every row. `mios-unit-gen` is Rust and writes through a different path; confirm it emits LF regardless of host, and add the assertion to its tests alongside the existing normalisation test.
+**Where:** `tools/native/mios-unit-gen/src/`, `tools/native/mios-unit-gen/tests/`
+**Done When:** a test asserts rendered output contains no carriage returns.
+**Verify:** run the test on Windows and on Linux and confirm both pass.
+**Do NOT:** rely on `test_normalize_forgives_only_eol_and_trailing_blanks`. Forgiving end-of-line differences in the comparison is exactly what would hide the generator emitting the wrong ones.
+**Why:** the same defect in the Python generators made a whole class of checks fire on who ran them rather than on drift.
+**Dep:** none
+
+## AGY-1850 -- 109 text-mode writes across 82 files translate newlines to the host separator  (WS-HOSTDEP | P1 | L)
+**Goal:** A generated file is byte-identical regardless of which OS produced it.
+**What+How:** A scan of `tools/*.py`, `usr/libexec/mios/*` and `usr/lib/mios/*.py` found 109 `open(..., "w")` calls without an explicit `newline=`. Python text mode translates line endings to the host separator, so the same generator emits CRLF on Windows and LF on Linux. Seven were fixed after regenerating `drift-gate-index.tsv` on Windows produced 205 carriage returns and a phantom diff in every row. Work the remaining ones in batches of ten, prioritising anything whose output is tracked in git.
+**Where:** `tools/`, `usr/libexec/mios/`, `usr/lib/mios/`
+**Done When:** every text-mode write to a tracked path pins `newline`.
+**Verify:** run each fixed generator on Windows and confirm `git status` is clean; count carriage returns in its output and assert zero.
+**Do NOT:** convert them to binary mode wholesale. Several write text assembled with `%s` formatting where binary mode changes the call signature; pin the newline instead of changing the mode.
+**Why:** a gate that diffs generated against committed fires on who ran it rather than on drift, which trains everyone to ignore it.
+**Dep:** none
+
+## AGY-1851 -- Nothing prevents a new unpinned text write from being added  (WS-HOSTDEP | P1 | M)
+**Goal:** The 109 cannot become 110.
+**What+How:** Add a check that scans tracked Python for `open(...)` in text write mode without `newline=`, and fails naming file and line. Allow an explicit opt-out comment for the cases where host-native endings are genuinely wanted, and require a reason on the opt-out.
+**Where:** `tools/`, `automation/98-drift-checks.sh`
+**Done When:** adding an unpinned text write fails the gate.
+**Verify:** add one in a scratch copy and show the violation; add the opt-out with a reason and show it clears.
+**Do NOT:** ship the check before AGY-1850 has cleared the backlog, or the gate lands red and gets disabled. Land it behind the cleanup, or ratchet it with a declining ceiling.
+**Why:** a cleanup with no gate behind it regrows.
+**Dep:** AGY-1850
+
+## AGY-1852 -- Python text reads are equally host-dependent and unaudited  (WS-HOSTDEP | P2 | M)
+**Goal:** Reading a file cannot change what it contains.
+**What+How:** The write side is now understood. The read side has the mirror hazard: text-mode reads translate CRLF to LF silently, so a comparison between a file read in text mode and bytes produced elsewhere can pass while the files differ. Audit reads that feed comparisons, hashes or manifests and pin them.
+**Where:** `tools/`, `usr/libexec/mios/`, `usr/lib/mios/`
+**Done When:** every read whose result is compared or hashed is explicit about newline handling.
+**Verify:** for each fixed site, construct a CRLF and an LF input and assert the comparison distinguishes them when it should.
+**Do NOT:** pin every read. Reads that only parse content are correct in text mode; changing them adds churn without removing a hazard.
+**Why:** a checker that normalises its input cannot detect the difference it normalises away.
+**Dep:** AGY-1850
+
+## AGY-1853 -- Shebang resolution differs by host and is not stated  (WS-HOSTDEP | P2 | M)
+**Goal:** A check that cannot run on a host says so instead of passing.
+**What+How:** `mios-env-snapshot`'s shebang does not resolve on Windows, so checks that invoke it report a missing input there and pass on Linux. That is currently handled per-check. Centralise it: one helper that resolves an interpreter and reports unavailability in one recognisable form, so the gate summary can distinguish "ran and passed" from "could not run here".
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `usr/libexec/mios/`
+**Done When:** every tool-invoking check reports unavailability through the one helper.
+**Verify:** run the full gate on Windows and on Linux and diff the summaries; the difference should be exactly the set of host-unavailable checks.
+**Do NOT:** make Windows unavailability silent. The point is that the difference between the two hosts is legible, not hidden.
+**Why:** the tree is developed on Windows and gated on Linux, so this difference is permanent and needs to be stated.
+**Dep:** AGY-1818
+
+## AGY-1854 -- `fnmatch` is case-insensitive on Windows and case-sensitive on Linux  (WS-HOSTDEP | P2 | M)
+**Goal:** Glob matching gives the same answer on both hosts.
+**What+How:** `fnmatch.fnmatch` normalises case per host; `fnmatchcase` does not. Any check using the former to match tracked paths can accept a differently-cased path on Windows and reject it in CI. Audit glob use across the CI suite registry and the drift checks, and switch path matching to the case-sensitive form.
+**Where:** `tools/ci-suites.py`, `tools/drift-checks.py`, `tools/`
+**Done When:** path globbing behaves identically on both hosts.
+**Verify:** construct a path differing only in case and assert both hosts agree on whether it matches.
+**Do NOT:** switch every `fnmatch` call. Matching against user input or display strings may want host conventions; only path matching against git contents must be exact.
+**Why:** git is case-sensitive, so a case-insensitive match against tracked paths is wrong on both hosts -- it just only fails on one.
+**Dep:** none
+
+## AGY-1855 -- `git ls-files` and `os.walk` disagree and both are used  (WS-HOSTDEP | P2 | M)
+**Goal:** One definition of "the files in this tree".
+**What+How:** Some checks enumerate with `git ls-files`, others walk the filesystem. The two differ by untracked files, ignored files and the vendored toolchain directory the tree now contains. A check that walks will count files a check that lists will not. Standardise on the git index for anything measuring the tracked surface, and state explicitly where a filesystem walk is intended.
+**Where:** `tools/drift-checks.py`, `tools/`, `automation/98-drift-checks.sh`
+**Done When:** each enumeration states which definition it uses and why.
+**Verify:** add an untracked file matching a checked pattern and confirm only the walk-based checks see it, as documented.
+**Do NOT:** convert every walk to the index. Checks that verify the built image or an install tree must walk, because those files are not in git.
+**Why:** a ratchet that counts differently depending on what is lying around the working directory is not a measurement.
+**Dep:** none
+
+## AGY-1856 -- The legibility ratchet counts generated shell against a "bash is glue" limit  (WS-HOSTDEP | P2 | M)
+**Goal:** The metric measures authored shell, not SSOT size.
+**What+How:** `max_shell_lines` counts every tracked `.sh`, including generated `automation/lib/globals.sh` (4285 lines). Declaring two units in the SSOT grew that file by 34 lines and pushed the ratchet over its floor -- so projecting more of the OS from `mios.toml`, which is the second open campaign, mechanically registers as shell sprawl. Split the measurement: authored shell and generated shell, each with its own floor.
+**Where:** `usr/share/mios/mios.toml`, `tools/drift-checks.py`
+**Done When:** both figures are reported and ratcheted separately, and declaring a unit moves only the generated one.
+**Verify:** declare one unit and confirm the authored figure is unchanged.
+**Do NOT:** implement this while the ratchet is red, and do not use it to grant headroom. Split the metric first, set each floor at its measured value, and let the campaign earn them down.
+**Why:** a metric that penalises the roadmap's own goal will eventually be raised or ignored, and both outcomes lose the ratchet.
+**Dep:** AGY-1823
+
+## AGY-1857 -- Pipefail masking hides the status of the command that mattered  (WS-HOSTDEP | P2 | M)
+**Goal:** A failing command in a pipeline is not reported as success.
+**What+How:** `cmd | grep` returns grep's status, so a failing `cmd` reads as success whenever grep matches. Audit pipelines in `automation/` and `tests/` for this shape, and capture the status of the interesting command directly with `PIPESTATUS` or by splitting the pipeline.
+**Where:** `automation/`, `tests/`, `tools/`
+**Done When:** no pipeline discards the status of a command whose failure should fail the script.
+**Verify:** for each fixed site, make the upstream command fail and confirm the script now fails.
+**Do NOT:** add `set -o pipefail` globally as the fix without re-running the suites. It changes the status of every existing pipeline, including ones that legitimately tolerate a non-zero producer.
+**Why:** this is how a check reports success while doing nothing, which is the tree's most common defect.
+**Dep:** none
+
+## AGY-1858 -- `$` in the Justfile is a Make-ism that reaches sh as a PID  (WS-HOSTDEP | P3 | S)
+**Goal:** No recipe silently does the wrong thing.
+**What+How:** 23 lines of Make-style `$` were corrected to the `just` form. Two recipes failed loudly and three failed silently -- the worse case, since a silent failure looks like a passing recipe. Audit the remaining recipes for shell constructs that `just` interprets before `sh` sees them, and add a test that runs each recipe's dry form.
+**Where:** `Justfile`, `tests/`
+**Done When:** every recipe either runs or fails loudly; none silently no-ops.
+**Verify:** run each recipe with a dry-run or a no-op target and assert a non-zero status where the recipe is broken.
+**Do NOT:** assume a recipe is fine because it exits 0. Three of the five broken ones did exactly that.
+**Why:** a build recipe that silently does nothing produces an image missing whatever it was meant to add.
+**Dep:** none
+
+## AGY-1859 -- The env baseline is captured from a clean env but not proven clean  (WS-HOSTDEP | P2 | M)
+**Goal:** `env-baseline.txt` reflects the SSOT, not the capturing shell.
+**What+How:** `sync-generated.sh` regenerates the baseline "clean env". If any `MIOS_*` variable is set in the capturing shell, it can leak into the recorded baseline, and the recorded incident is that root-path differences make the snapshot fail in CI. Assert the capture environment contains no `MIOS_*` variables before capturing, and normalise root paths.
+**Where:** `tools/sync-generated.sh`, `usr/libexec/mios/mios-env-snapshot`, `usr/share/mios/reference/env-baseline.txt`
+**Done When:** capturing with `MIOS_*` set in the shell fails rather than recording them.
+**Verify:** export a `MIOS_*` variable, run the capture, and show it refuses.
+**Do NOT:** filter the offending variables out silently. A capture that quietly discards part of its input cannot be trusted to have captured the rest.
+**Why:** the baseline is the comparison every env drift-check depends on.
+**Dep:** none
+
+## AGY-1860 -- A concurrent agent shares this tree and races the verification  (WS-HOSTDEP | P2 | M)
+**Goal:** A measurement is taken against a tree that is not moving.
+**What+How:** AGY writes to the same checkout. A verification run can measure a tree mid-edit and report a failure that is neither reproducible nor real; the recorded incidents include a ratchet reading over its floor because a generated file had just changed, and a commit finding nothing staged because the other agent had committed it. Provide a way to take a consistent snapshot -- a scratch worktree at a named commit -- and use it for any measurement that will be reported.
+**Where:** `tools/`, `tests/`, `docs/agy/`
+**Done When:** a documented command produces an isolated tree at a given commit for verification runs.
+**Verify:** run the same measurement twice against the snapshot while editing the main tree, and show the two agree.
+**Do NOT:** solve this with a lock on the working tree. Both agents are meant to work; the fix is isolation for measurement, not exclusion.
+**Why:** several red readings this session were races, and a false red costs as much investigation as a true one.
+**Dep:** none
+
+## AGY-1861 -- Running the gate as root produces different results  (WS-HOSTDEP | P2 | M)
+**Goal:** A check gives the same verdict regardless of the invoking user.
+**What+How:** `check_docs_ratchet` read red under a sweep that ran with `--user root` and green when run directly, twice. Whatever the cause -- permissions, HOME, or a path resolved relative to the user -- a check whose verdict depends on the invoking user cannot be trusted in either mode. Find the dependence and remove it.
+**Where:** `tools/drift-checks.py`, `automation/98-drift-checks.sh`
+**Done When:** the full gate gives identical results as root and as an unprivileged user.
+**Verify:** run the gate both ways on the same commit and diff the outputs.
+**Do NOT:** standardise on running as root to make the difference go away. The image runs services as several users; a check that only works as root will not survive being reused.
+**Why:** two of this session's red readings were harness artefacts, which is a measurement problem, not a code problem.
+**Dep:** AGY-1860
+
+## AGY-1862 -- Temp fixtures are left behind by failing tests  (WS-HOSTDEP | P3 | S)
+**Goal:** A failing test cleans up as reliably as a passing one.
+**What+How:** `tools/check-temp-fixture-cleanup.py` and `check-leaked-fixtures.py` exist. Extend the coverage to assert cleanup happens on the failure path too, by running each suite with an induced failure and checking for leftovers.
+**Where:** `tools/check-temp-fixture-cleanup.py`, `tools/check-leaked-fixtures.py`, `tests/`
+**Done When:** a suite that leaks a fixture only when failing is caught.
+**Verify:** induce a failure in a suite that cleans up in a `finally` and one that does not, and show only the latter is reported.
+**Do NOT:** check only the happy path. Five leaked fixtures were found once already, and a leak on the failure path is the harder one to notice.
+**Why:** a leaked fixture pollutes the next run, producing failures in unrelated checks.
+**Dep:** none
+
+## AGY-1863 -- Windows cannot build the Rust workspace at all  (WS-HOSTDEP | P2 | M)
+**Goal:** The development host can verify the layer it edits.
+**What+How:** `cargo test --workspace` on Windows fails with "error calling dlltool 'dlltool.exe': program not found" while compiling `windows-version`, `webview2-com-sys` and `windows-service`. The per-crate tests run; the workspace build does not. Either document the toolchain that makes it work, or gate the desktop-only crates behind a feature so the workspace builds without them.
+**Where:** `tools/native/Cargo.toml`, `src/mios-rs/`, `docs/`
+**Done When:** `cargo test --workspace` completes on a documented Windows setup, or the desktop crates are excluded with the exclusion stated.
+**Verify:** follow the written steps on a machine without the toolchain and reach a passing workspace test.
+**Do NOT:** claim the workspace is verified because individual crates pass. They are a subset, and the subset is the part that happens to build.
+**Why:** the Rust layer went unverified for a whole session because no available toolchain worked.
+**Dep:** AGY-1802
+
+## AGY-1864 -- Line-indexed artefacts churn whenever a line is added anywhere  (WS-HOSTDEP | P3 | M)
+**Goal:** A generated census does not produce a 130-line diff for a 1-line change.
+**What+How:** `manual-corpus.tsv` records line numbers, so folding a heredoc shifted every entry after it and produced a 72-add/64-remove diff for one refactor. That is correct behaviour but it makes review of the real change harder. Consider anchoring entries by a stable identity rather than absolute line, or excluding line numbers from the committed form and computing them on read.
+**Where:** `usr/share/mios/reference/manual-corpus.tsv`, `tools/`
+**Done When:** moving code without changing it produces no corpus churn.
+**Verify:** move a function within a file and confirm the corpus is unchanged.
+**Do NOT:** stop recording position. The corpus is used to locate comments; losing position makes it useless.
+**Why:** review fatigue from mechanical churn is how real changes get waved through.
+**Dep:** none
+
+## AGY-1865 -- Three live ports have no key in `[ports]`  (WS-SSOT | P1 | M)
+**Goal:** Every port the system uses is allocated from the SSOT.
+**What+How:** Ports 8650, 8640 and 8642 appear in live configuration and none has a key in `[ports]` -- confirmed by resolving each value against the flattened table. Ports are allocated from `[ports.categories]` by base and stride rather than hand-assigned, so add these to the right category in member order and let the renderer derive them.
+**Where:** `usr/share/mios/mios.toml`, `tools/render-ports.py`, `automation/lib/globals.sh`
+**Done When:** all three resolve to keys and the rendered value equals the current live value.
+**Verify:** render and confirm each key produces the number that is in use today; changing the category base moves all three together.
+**Do NOT:** hand-assign the numbers as literal keys. That reproduces the hardcode inside the SSOT, which is the thing `[ports.categories]` exists to prevent.
+**Why:** the endpoint literal is already recorded as canonical in one place and different in another, which is what an unallocated port produces.
+**Dep:** none
+
+## AGY-1866 -- `MIOS_AI_ENDPOINT` points at two different ports in two places  (WS-SSOT | P1 | S)
+**Goal:** One endpoint value, derived once.
+**What+How:** The canonical AI endpoint is recorded as Hermes on 8642, while `mios-node.service` sets `MIOS_AI_ENDPOINT=http://127.0.0.1:8640`. One is wrong. Determine which, then derive the unit's value from the same key every other consumer reads.
+**Where:** `usr/share/mios/mios.toml`, `usr/lib/systemd/system/mios-node.service`, `etc/mios/install.env`
+**Done When:** every consumer of the endpoint reads one key, and no literal endpoint remains.
+**Verify:** change the key and confirm every consumer changes, including the rendered unit.
+**Do NOT:** resolve the disagreement by matching whichever value currently works. Trace which service actually answers; the wrong one may be answering because a fallback is masking it.
+**Why:** two values for one endpoint means one caller is talking to the wrong service or to nothing.
+**Dep:** AGY-1865
+
+## AGY-1867 -- The hardcode lint's allowlist is unanchored and exempts more than intended  (WS-SSOT | P1 | M)
+**Goal:** An allowlisted port exempts that port, not every value containing it.
+**What+How:** `mios-hardcode-lint` matches allowlist entries unanchored, so an entry spuriously exempts other literals that contain it as a substring. Anchor the match, then re-run the lint and expect new findings -- those are real hardcodes the bug was hiding.
+**Where:** `usr/libexec/mios/`, `usr/share/mios/mios.toml`
+**Done When:** the allowlist matches whole values only, and every newly-surfaced finding is fixed or explicitly allowlisted.
+**Verify:** add an allowlist entry and confirm a different literal containing it is still reported.
+**Do NOT:** allowlist the new findings to restore a green lint. They are the reason to fix the matcher.
+**Why:** an allowlist that over-matches turns a lint into a formality.
+**Dep:** none
+
+## AGY-1868 -- Seven components had no SSOT port key and the list was never closed out  (WS-SSOT | P2 | M)
+**Goal:** No component allocates its own port.
+**What+How:** A prior sweep identified seven components with no SSOT port key. Re-run that identification against the current tree -- the set has moved -- and allocate a key for each from the appropriate category.
+**Where:** `usr/share/mios/mios.toml`, `tools/render-ports.py`
+**Done When:** every listening port in the tree resolves to a `[ports]` key.
+**Verify:** enumerate listening ports from the unit and container definitions and resolve each against the table; the unresolved set must be empty.
+**Do NOT:** trust the earlier list of seven. Names have changed since, and one recorded false friend is a key that does not exist under the name it was looked up by.
+**Why:** an unallocated port collides silently, and collisions surface as an intermittent service failure at boot.
+**Dep:** AGY-1865
+
+## AGY-1869 -- Port keys are rendered into globals with different wiring per platform  (WS-SSOT | P2 | M)
+**Goal:** The two globals files are produced by the same path.
+**What+How:** A recorded asymmetry has `globals.sh` wired first and `globals.ps1` last, so a change can land in one and not the other. Both are generated from the same SSOT; make them a single generation step producing both, and assert parity.
+**Where:** `tools/render-globals.py`, `automation/lib/globals.sh`, `automation/lib/globals.ps1`
+**Done When:** every key present in one file is present in the other with the same value.
+**Verify:** add a key and confirm both files gain it in one run; delete one from a scratch copy and show the parity check fails.
+**Do NOT:** compare the two files line by line. They have different syntax; compare the key/value sets they define.
+**Why:** the artefacts step already failed once because one of the two was regenerated and the other was not.
+**Dep:** none
+
+## AGY-1880 -- The roadmap's "measured rather than asserted" table is asserted  (WS-DOCS | P1 | M)
+**Goal:** The headline metrics are generated from the tree they describe.
+**What+How:** `ROADMAP.md` carries a table headed "Honest state, measured rather than asserted". Every figure in it is stale: tracked files 2,383 against 2,597 measured; drift checks 181 against 204 rows in the generated index; units 27 of 66 against 15 faithful of 122 shipped. The table is hand-maintained. Generate it, the way the rollup and workstream index between the existing marker comments already are.
+**Where:** `ROADMAP.md`, `tools/roadmap-index.py`, `tools/sync-generated.sh`
+**Done When:** the table regenerates from live measurements and a stale figure is impossible.
+**Verify:** add a tracked file, regenerate, and confirm the count changes; confirm `sync-generated.sh` leaves the tree clean on a second run.
+**Do NOT:** update the numbers by hand as the fix. A hand-corrected table is stale again on the next commit, which is how it reached this state.
+**Why:** a document that claims measurement and delivers assertion is worse than one that admits it is a summary.
+**Dep:** none
+
+## AGY-1881 -- Six documents reference a gate file that has been renamed  (WS-DOCS | P1 | S)
+**Goal:** Doc references resolve to files that exist.
+**What+How:** `38-drift-checks.sh` is referenced by `AGY-TASKS.md`, `docs/agy/doc-git-root-unification.md`, `docs/agy/doc-install-family.md`, `docs/agy/impl-db-accounts.md`, `docs/agy/mios-finalization-plan.md` and `docs/agy/verbosity-changelist.md`; the finalization plan alone cites it four times, including specific line numbers. The gate is now `automation/98-drift-checks.sh` and those line numbers no longer point at what the prose describes. Update the references and re-derive the line citations against the current file.
+**Where:** `docs/agy/`, `AGY-TASKS.md`
+**Done When:** no tracked document references the old path, and every line citation resolves to the construct it describes.
+**Verify:** `check_doc_refs_resolve` passes, and each updated line citation is opened and read to confirm it points at the right code.
+**Do NOT:** rewrite the paths with a blind substitution. The line numbers must be re-derived; a corrected path with a stale line number is a reference that looks right and is not.
+**Why:** the finalization plan is the document the whole P0 spine is read from.
+**Dep:** none
+
+## AGY-1882 -- 1,724 narrative comments are unharvested  (WS-DOCS | P2 | L)
+**Goal:** The generated manual reflects what the code says about itself.
+**What+How:** The roadmap's third campaign counts 1,724 narrative comments not yet harvested into the generated documentation. `manual-corpus.tsv` already censuses them with a STAY/DROP classification. Work the STAY set in batches, harvesting each into the manual surface its file maps to, and drive the unharvested count down as a ratchet.
+**Where:** `usr/share/mios/reference/manual-corpus.tsv`, `usr/share/doc/mios/`, `tools/generate-manual.py`
+**Done When:** the unharvested count reaches its declared floor and the floor is 0.
+**Verify:** after each batch, the corpus census shows the count falling; the manual builds and its links resolve.
+**Do NOT:** harvest by moving the comment out of the code. The comment stays where it explains the code; harvesting copies it into the manual.
+**Why:** legibility is the stated deliverable, so this is the product, not tidying.
+**Dep:** none
+
+## AGY-1883 -- 150 stale references are counted but not enumerated  (WS-DOCS | P2 | M)
+**Goal:** The stale-reference count is a work-list.
+**What+How:** The roadmap states 150 stale references. Produce the enumerated list with file, line and target, classify each as renamed, deleted or never-existed, and fix them by class. The renamed ones are mechanical; the never-existed ones are the interesting finding.
+**Where:** `tools/drift-checks.py`, `docs/`, `usr/share/doc/mios/`
+**Done When:** the list is empty and `check_doc_refs_resolve` covers the reference forms that produced it.
+**Verify:** re-run the enumeration after each class is cleared and confirm the count falls by the size of that class.
+**Do NOT:** delete a reference to clear it without reading what it was pointing at. A reference to something that never existed usually means the thing was planned and not built, which is a finding worth keeping.
+**Why:** a count with no list cannot be worked or verified.
+**Dep:** AGY-1881
+
+## AGY-1884 -- Man pages are generated but not verified to be readable by man  (WS-DOCS | P2 | M)
+**Goal:** `man mios` works in the built image.
+**What+How:** `tools/render-manpages.py` renders 136 pages as native roff and the bake keeps `mios*` pages while stripping the rest. Nothing asserts the installed pages are found and formatted by `man(1)` in the image. Add a bake-time check that runs `man` against a sample of pages and asserts non-empty, correctly-sectioned output.
+**Where:** `tools/render-manpages.py`, `automation/build.sh`, `tests/bake-smoke.sh`
+**Done When:** a malformed page fails the bake.
+**Verify:** corrupt one page in a scratch build and show the failure; confirm `man mios-variants` returns section 7.
+**Do NOT:** test by grepping the roff source. The question is whether `man` can render it, which only `man` answers.
+**Why:** the pages are the user-facing documentation surface and are currently verified only by the generator that wrote them.
+**Dep:** none
+
+## AGY-1885 -- The docs ratchet gives different verdicts under different invocations  (WS-DOCS | P1 | S)
+**Goal:** `check_docs_ratchet` is deterministic.
+**What+How:** The check read red in a sweep and exited 0 when run directly, twice in the same session. Until that is explained, no docs measurement can be believed. Reproduce both invocations, find the input that differs, and remove the dependence.
+**Where:** `tools/drift-checks.py`, `automation/98-drift-checks.sh`
+**Done When:** the check gives one verdict for one tree state regardless of how it is invoked.
+**Verify:** run it under both invocations on the same commit and show identical output.
+**Do NOT:** close this by observing that it passes when run directly. It also failed when run another way, and both were the same tree.
+**Why:** the docs campaign is measured by this check, so a nondeterministic verdict makes the campaign unmeasurable.
+**Dep:** AGY-1861
+
+## AGY-1886 -- The generated documentation has no test that it is complete  (WS-DOCS | P2 | M)
+**Goal:** A documented surface that loses its documentation fails.
+**What+How:** `generate-manual.py` builds the manual from sources. Nothing asserts every verb, unit and SSOT table has a corresponding entry. Add a coverage assertion with a declared floor, so removing a doc source is caught.
+**Where:** `tools/generate-manual.py`, `usr/share/doc/mios/`, `usr/share/mios/mios.toml`
+**Done When:** deleting a doc source for a live verb fails.
+**Verify:** delete one in a scratch copy and show the failure.
+**Do NOT:** assert only that the manual is non-empty or above a page count. Both are satisfied while the specific thing you care about is missing.
+**Why:** the fourth campaign requires every surface to be covered or explicitly declared uncovered.
+**Dep:** AGY-1882
+
+## AGY-1887 -- ADR index is generated but ADR content is not checked for consistency  (WS-DOCS | P3 | M)
+**Goal:** An ADR that contradicts the SSOT is caught.
+**What+How:** `generate-adr-index.py` builds `ADR.md` from the ADR set. Several ADRs make claims the SSOT can confirm or refute -- ADR-0003 on SBOM-not-hardcode, ADR-0009 on the one config surface, ADR-0010 on the dotfiles registry. Add checks that the assertions each ADR makes still hold.
+**Where:** `usr/share/doc/mios/adr/`, `tools/generate-adr-index.py`, `automation/98-drift-checks.sh`
+**Done When:** an ADR whose decision the tree no longer follows is reported.
+**Verify:** re-introduce a hand-pinned digest in the SSOT and show the ADR-0003 check fails.
+**Do NOT:** check ADR formatting only. Structure conformance is not what an ADR is for.
+**Why:** an architecture decision record that no longer describes the architecture is a false statement in the most authoritative document.
+**Dep:** none
+
+## AGY-1888 -- Documentation for the deploy plane overstates what works  (WS-DOCS | P1 | M)
+**Goal:** The deploy docs say what actually happens.
+**What+How:** The USB and Ventoy machinery works but does not install MiOS: the bare-metal leg is broken, `tools/install.sh` is absent, and what runs installs plain Fedora rather than a bootc image. The correct installer is disconnected and unbuilt. Any document describing deployment must state that, so nobody plans against a capability that does not exist.
+**Where:** `docs/agy/impl-mios-cat-live-boot.md`, `docs/agy/doc-install-family.md`, `usr/share/doc/mios/`
+**Done When:** each deploy document states its capability's real status, with the untested parts named.
+**Verify:** follow one document's instructions end to end and record where it diverges from the text.
+**Do NOT:** describe the intended design in the present tense. The recorded gap between the deploy documentation and the deploy reality is the reason this task exists.
+**Why:** the deploy plane is the least-complete area and the most confidently documented, which is the worst combination.
+**Dep:** none
+
+## AGY-1889 -- Documents describe checks by ordinal in prose that the index renumbers  (WS-DOCS | P2 | S)
+**Goal:** Prose survives a gate reordering.
+**What+How:** Once ordinals are verified to exist (AGY-1817), the remaining hazard is that they are stable identifiers only until a check is inserted. Prefer the function name in prose, with the ordinal as supplementary, and update the existing citations.
+**Where:** `docs/`, `usr/share/doc/mios/`, `AGY-TASKS.md`
+**Done When:** every citation names the check function, not only its number.
+**Verify:** insert a check early in `main()`, regenerate the index, and confirm no document needs editing.
+**Do NOT:** remove the ordinals. They are what the gate output prints, so a reader needs both.
+**Why:** the tree already carries citations whose numbers no longer match, and renumbering is silent.
+**Dep:** AGY-1817
+
+## AGY-1890 -- The finalization plan's P0 items have no completion evidence  (WS-DOCS | P1 | M)
+**Goal:** The critical path states which blockers are actually cleared.
+**What+How:** `docs/agy/mios-finalization-plan.md` lists ten ordered P0/P1 blockers. Several reference constructs that have since changed. For each, determine whether it is done, and record the evidence -- a commit, a passing check, a measurement -- rather than a status word.
+**Where:** `docs/agy/mios-finalization-plan.md`
+**Done When:** every spine item carries either evidence of completion or a current task id.
+**Verify:** for each item marked done, re-run its stated evidence and confirm it still holds.
+**Do NOT:** mark an item done because a related commit exists. The recorded pattern is work that landed adjacent to a blocker without clearing it.
+**Why:** the plan says nothing new starts until the spine closes, so an inaccurate spine mis-sequences everything after it.
+**Dep:** AGY-1881
+
+## AGY-1891 -- 53 Python heredocs remain embedded in the shell gate  (WS-LANG | P2 | L)
+**Goal:** Gate logic lives where it can be imported, linted and tested.
+**What+How:** 2,340 lines of Python remain inside `98-drift-checks.sh` as heredocs. Inside one, a syntax error surfaces only when the check runs, and nothing can unit-test the logic. Extract them into `tools/drift-checks.py` subcommands, largest first, following the established procedure: copy the body verbatim, register the subcommand, prove the extracted body parses, splice the shell to call it, then prove old and new give the same verdict on both a clean tree and a broken one.
+**Where:** `automation/98-drift-checks.sh`, `tools/drift-checks.py`, `tools/test_drift-checks.py`
+**Done When:** no Python heredocs remain in the gate.
+**Verify:** for each extraction, source the original function and the folded one side by side and compare verdicts on at least two tree states -- and confirm the interpreter actually resolves in the comparison shell, because a comparison where both sides fail to find python3 agrees for the wrong reason.
+**Do NOT:** extract more than one check per commit. A batched extraction makes a behavioural difference impossible to attribute.
+**Why:** Law 14 makes bash thin glue, and a check that cannot be tested is a check nobody has verified.
+**Dep:** none
+
+## AGY-1892 -- Eleven Rust crates assert nothing while cargo reports ok  (WS-LANG | P1 | L)
+**Goal:** A crate's passing test run means something was checked.
+**What+How:** `[rust.untested_crates]` records the crates with no meaningful assertions; `cargo test` reports ok for each because a suite with no tests passes. Write tests for the behaviour that matters in each, starting with the crates whose failure is most costly rather than the smallest ones.
+**Where:** `tools/native/`, `src/mios-rs/`, `usr/share/mios/mios.toml`
+**Done When:** the untested-crate register is empty and each crate's tests fail when its behaviour is broken.
+**Verify:** for each crate, break one behaviour and confirm its own suite goes red.
+**Do NOT:** add an assert-true test per crate to clear the register. That turns the gate green while the crates still assert nothing, and the register would then be lying with a gate behind it.
+**Why:** a green test run over empty suites is the most convincing possible false signal.
+**Dep:** AGY-1800
+
+## AGY-1893 -- The Rust coverage gate counts crates, not assertions  (WS-LANG | P2 | M)
+**Goal:** The gate measures whether tests can fail.
+**What+How:** `tools/check-rust-test-coverage.py` checks crates against the untested register. A crate can leave the register with one trivial test. Strengthen it: require each crate's suite to contain at least one assertion against the crate's own public surface, and consider a mutation spot-check for the load-bearing crates.
+**Where:** `tools/check-rust-test-coverage.py`, `tools/native/`, `src/mios-rs/`
+**Done When:** a crate whose only test asserts a constant does not satisfy the gate.
+**Verify:** add such a test in a scratch copy and show the gate still reports the crate untested.
+**Do NOT:** count test functions. The count is what a trivial test satisfies.
+**Why:** the register exists because counting was already shown to be insufficient here.
+**Dep:** AGY-1892
+
+## AGY-1894 -- Nine verbs evaluate agent-supplied arguments  (WS-LANG | P1 | L)
+**Goal:** No verb passes agent input to a shell evaluator.
+**What+How:** The debt register records nine verbs using `eval` on arguments that can originate from an agent; ten files under `usr/libexec/mios/` currently use `eval`. Rewrite each to dispatch on an explicit allowlist of actions with arguments passed as array elements, never re-parsed.
+**Where:** `usr/libexec/mios/`, `usr/lib/mios/`
+**Done When:** no verb reachable from agent input reaches `eval`, and a check enforces it.
+**Verify:** for each rewritten verb, pass an argument containing shell metacharacters and confirm it is treated as data.
+**Do NOT:** quote the existing `eval` calls more carefully and call it fixed. The requirement is that the evaluator is not reached, not that the current inputs happen to be safe.
+**Why:** the agent plane is reachable over the network, which makes this the tree's highest-severity debt item.
+**Dep:** none
+
+## AGY-1895 -- The bare-metal install leg does not install MiOS  (WS-DEPLOY | P1 | L)
+**Goal:** A bare-metal install produces a bootc MiOS system.
+**What+How:** The USB and Ventoy machinery boots, but the install path runs a plain Fedora installation rather than deploying the MiOS bootc image, and `tools/install.sh` referenced by that path is absent. The correct BIB-produced installer exists in design but is disconnected and unbuilt. Wire the built installer into the boot path so the installed system is the OCI image, and make the absent script either exist or stop being referenced.
+**Where:** `installation/`, `cat/`, `config/artifacts/`, `automation/`
+**Done When:** a USB boot installs a system that reports the MiOS image as its bootc source.
+**Verify:** install to a VM disk from the produced media and run `bootc status` on the result; it must name the MiOS image, not a Fedora base.
+**Do NOT:** verify by confirming the installer runs without error. Plain Fedora installs without error too -- that is the defect.
+**Why:** the deploy plane is the least-complete area of the roadmap and this is its central claim.
+**Dep:** none
+
+## AGY-1896 -- `installation/mios-install.sh` swallows the install mode  (WS-DEPLOY | P1 | S)
+**Goal:** A positional install type selects that type.
+**What+How:** The mirrored bug fixed in the main repo remains in `mios-bootstrap`: `TYPE` initialises empty, the permissive final branch pushes a positional argument such as `bootc` into the passthrough array instead of setting `TYPE`, and the dispatch then falls back to the default. The generator earlier in the same file emits exactly that positional form. Mirror the fix.
+**Where:** `mios-bootstrap/installation/mios-install.sh`
+**Done When:** the positional form selects the requested type.
+**Verify:** compare the dry-run output of the core install for two different positional types and confirm they differ.
+**Do NOT:** verify with the flag form only. The broken form is the positional one, and it is the form the script itself generates.
+**Why:** Law 15 requires the mirrored surface to match, and an installer that silently installs the wrong type is the worst kind of quiet failure.
+**Dep:** none
+
+## AGY-1897 -- The image cannot update itself  (WS-DEPLOY | P1 | M)
+**Goal:** A running MiOS can move to a newer image.
+**What+How:** The self-update path is unproven end to end. Establish what `bootc switch` and the update verb do on a live system, fix what is broken, and prove a running instance can reach a newer image and roll back.
+**Where:** `usr/libexec/mios/`, `usr/share/mios/mios.toml`, `installation/`
+**Done When:** a running instance updates to a newer image and rolls back to the previous one.
+**Verify:** perform both directions on a VM and record the boot entries at each step.
+**Do NOT:** test only the happy path. Rollback after a failed boot is the property that makes updating safe, and greenboot is what should trigger it.
+**Why:** an OS that cannot update itself is a one-shot install.
+**Dep:** AGY-1895
+
+## AGY-1898 -- Offline dependencies are not staged or verified  (WS-DEPLOY | P1 | L)
+**Goal:** An install works with no network.
+**What+How:** The offline bootstrap needs a local source, integrity verification and a real seed. `bootc install --transport oci` can install from a local OCI archive, which fills the bare-metal leg without a registry. Stage the required artefacts onto the media, verify them by digest at install time, and prove the whole path with the network disconnected.
+**Where:** `installation/`, `cat/`, `automation/`, `config/artifacts/`
+**Done When:** an install completes on a machine with no route to a registry.
+**Verify:** disconnect the network on the installing VM and complete an install; a pull attempt during it is a failure of this task.
+**Do NOT:** treat a cached registry as offline. The test is no route, not a warm cache.
+**Why:** sovereignty over the deploy path is the stated purpose of the portable media.
+**Dep:** AGY-1895
+
+## AGY-1899 -- The two build entry points diverge in functionality  (WS-DEPLOY | P1 | M)
+**Goal:** One build script, one behaviour.
+**What+How:** Two `build-mios.sh` exist with different capabilities, and the deploy fold intends to collapse the installer and the portable-media launcher into one. They diverge today, and one path can loop into the other. Determine the union of behaviour, implement it once, and make the other a thin shim that forwards.
+**Where:** `installation/`, `cat/`, `automation/`
+**Done When:** one implementation carries the behaviour and the shim only forwards.
+**Verify:** run the same command through both entry points and compare the resulting artefacts byte for byte.
+**Do NOT:** delete the apparently-dead files without tracing what references them. The recorded finding is that several are documentation-bundled or serve as entry points, so blind deletion orphans a working path.
+**Why:** two implementations of the build guarantee that one is untested.
+**Dep:** none
+
+## AGY-1900 -- The portable-media working name collides with a coreutils command  (WS-DEPLOY | P3 | S)
+**Goal:** The product name does not shadow a standard command.
+**What+How:** The portable USB and Ventoy edition is called MiOS-Cat as a working title, and `cat` collides with a coreutils command in documentation, shell completion and search. Research produced `MiOS-Field` as the recommendation with `MiOS-Depot` as runner-up. This is a product decision for the operator; prepare the rename so it is one commit once decided, and list every surface it touches.
+**Where:** `cat/`, `installation/`, `docs/`, `usr/share/mios/mios.toml`
+**Done When:** the surface list is complete and a rename can be executed mechanically.
+**Verify:** the list is produced by searching the tree, not from memory, and includes the variants registry and the launcher filenames.
+**Do NOT:** perform the rename before the operator chooses. Naming is theirs; preparing it is not.
+**Why:** the name appears in the variants registry, so it is load-bearing rather than cosmetic.
+**Dep:** none
+
+## AGY-1901 -- The three launchers are not proven byte-identical where they must be  (WS-DEPLOY | P2 | M)
+**Goal:** The pinned content in each launcher matches.
+**What+How:** The launcher family is a canonical PowerShell script, a name-stable batch shim and a Linux shell script. Their pins must stay byte-identical, and the web-door install path can orphan the portable launcher unless it hands off. Add a check comparing the pinned regions across all three.
+**Where:** `installation/`, `cat/`, `tools/`
+**Done When:** a pin changed in one launcher and not the others fails a check.
+**Verify:** change one pin in a scratch copy and show the failure.
+**Do NOT:** compare whole files. They are different languages; compare the declared pinned regions.
+**Why:** a launcher family that drifts installs different things depending on which door was used.
+**Dep:** AGY-1899
+
+## AGY-1902 -- Deployment formats are declared but not all exercised  (WS-DEPLOY | P2 | L)
+**Goal:** Every declared deployment format is proven to work.
+**What+How:** `[deploy.formats]` declares the supported formats, including the WSL and WSLg paths, and `tools/check-deploy-formats.py` checks the declaration. Nothing exercises each format end to end. Build a matrix job that produces and boots each declared format, and record which are proven versus declared.
+**Where:** `usr/share/mios/mios.toml`, `tools/check-deploy-formats.py`, `.github/workflows/`
+**Done When:** each format is either exercised in CI or explicitly marked unexercised with a reason.
+**Verify:** the matrix output lists every declared format with a result; a format with no result fails.
+**Do NOT:** mark a format supported because its build step succeeds. Producing an artefact is not booting it.
+**Why:** a declared format nobody has booted is a promise, not a capability.
+**Dep:** none
+
+## AGY-1903 -- Repair tooling exists but has no failure fixtures  (WS-DEPLOY | P2 | M)
+**Goal:** The repair path is tested against real breakage.
+**What+How:** The deploy plane includes repair tooling. It is exercised only against healthy systems. Build fixtures for the failures it claims to repair -- a failed boot entry, a corrupt overlay, a half-applied update -- and assert the tooling recovers each.
+**Where:** `usr/libexec/mios/`, `tests/`, `installation/`
+**Done When:** each repair capability has a fixture that reproduces the failure it fixes.
+**Verify:** run each repair against its fixture and confirm the system reaches a known-good state.
+**Do NOT:** assert only that the repair command exits 0 on a healthy system. That is the case where repair has nothing to do.
+**Why:** repair tooling is used exactly once, under pressure, on a system that is already broken.
+**Dep:** AGY-1897
+
+## AGY-1904 -- Ventoy media layout is not verified after build  (WS-DEPLOY | P2 | M)
+**Goal:** Produced media has the layout the boot path expects.
+**What+How:** The media build assembles a layout the bootloader and install path depend on. Nothing verifies the produced image contains the expected paths, or that the config the loader reads matches what was intended. Add a post-build verification that mounts the artefact and asserts its structure.
+**Where:** `cat/`, `automation/`, `tests/`
+**Done When:** a media build missing a required path fails before it is written to a device.
+**Verify:** remove one required file from the staging tree and confirm the build fails naming it.
+**Do NOT:** verify by file count or total size. A missing loader config leaves both plausible.
+**Why:** the failure otherwise appears as an unbootable USB stick on someone's desk.
+**Dep:** AGY-1895
+
+## AGY-1905 -- Installed systems are not checked against the image they claim to be  (WS-DEPLOY | P2 | M)
+**Goal:** An installed system can prove which image it is.
+**What+How:** After install, the system should be able to state its image digest and have that match the media it came from. Record the source digest at install time and add a verb that compares the running system against it.
+**Where:** `usr/libexec/mios/`, `installation/`, `usr/share/mios/artifacts/sbom/`
+**Done When:** a system installed from known media reports a digest matching that media.
+**Verify:** install from a built artefact and compare the reported digest to the artefact's recorded digest.
+**Do NOT:** record the digest from the registry at install time. If the media is offline, the registry is not the source, and the point is provenance of what was actually installed.
+**Why:** provenance is what makes the SBOM claim meaningful on a deployed machine rather than in the build log.
+**Dep:** AGY-1898
+
+## AGY-1906 -- Kickstart runs attended and blocks unattended install  (WS-DEPLOY | P1 | M)
+**Goal:** The install completes without a human at the console.
+**What+How:** The finalization spine records that the kickstart total-root-merge does not run unattended. Find what prompts, supply it from the declared configuration, and prove a full unattended run.
+**Where:** `installation/`, `config/artifacts/`
+**Done When:** an install completes with no console interaction.
+**Verify:** run the install with the console detached and confirm it completes.
+**Do NOT:** suppress prompts by answering them with defaults blindly. Each prompt is a decision; source each answer from the SSOT so it is declared rather than defaulted.
+**Why:** an attended installer cannot be used for fleet deployment, which is the stated purpose.
+**Dep:** AGY-1895
+
+## AGY-1907 -- The Fedora ISO source is a 404 stub with no validity gate  (WS-DEPLOY | P1 | S)
+**Goal:** A broken upstream source fails at build time, not at boot time.
+**What+How:** The spine records a Fedora ISO 404 stub and a missing validity gate. Fetch failures currently produce an artefact that fails later. Verify the source resolves and its checksum matches before it is used, and fail the build if not.
+**Where:** `installation/`, `automation/`, `config/artifacts/`
+**Done When:** an unreachable or mismatched source fails the build naming the URL and expected digest.
+**Verify:** point the source at a nonexistent URL and confirm the build fails immediately.
+**Do NOT:** fall back to a cached copy on fetch failure without saying so loudly. A silent fallback is how a stale base image ships.
+**Why:** the failure currently surfaces as an unbootable artefact, far from its cause.
+**Dep:** none
+
+## AGY-1908 -- The variants registry is declared but variants are not built  (WS-DEPLOY | P2 | L)
+**Goal:** Each declared edition is produced and testable.
+**What+How:** `[variants]` declares the product line including the Metal edition, and `tools/check-variant-registry.py` validates the registry. No pipeline produces a per-variant artefact. Define what differs per variant, project it, and build each.
+**Where:** `usr/share/mios/mios.toml`, `tools/check-variant-registry.py`, `automation/`
+**Done When:** each declared variant has a produced artefact and a statement of what makes it that variant.
+**Verify:** build two variants and diff their manifests; the difference must match the declared difference.
+**Do NOT:** produce variants by post-processing one image without declaring the difference in the SSOT. That reintroduces per-variant hand-maintenance.
+**Why:** a registry of editions that all resolve to the same image is a naming scheme, not a product line.
+**Dep:** AGY-1902
+
+## AGY-1909 -- Firstboot tier evicts large images and the split is undocumented  (WS-DEPLOY | P2 | M)
+**Goal:** The publish path's tier split is explicit and checked.
+**What+How:** Publishing works by evicting the largest inference sidecars from the bake into a firstboot tier so the build fits a standard runner. Which images are in which tier is a capacity decision that currently lives in the build logic. Declare the split in the SSOT, project it, and check that the bake's total stays within the runner's capacity.
+**Where:** `usr/share/mios/mios.toml`, `automation/build.sh`, `.github/workflows/mios-ci.yml`
+**Done When:** the tier assignment is declared and a bake that would exceed capacity fails before it runs.
+**Verify:** move an image between tiers in the SSOT and confirm the bake plan changes accordingly.
+**Do NOT:** hardcode the capacity threshold in the workflow. It is a property of the runner and belongs with the other declared limits.
+**Why:** the publish path has failed on capacity before, and the recovery was a manual tier decision nobody recorded.
+**Dep:** none
+
+## AGY-1910 -- Every file in the image must be generated-and-gated or declared authored  (WS-PROJ | P1 | L)
+**Goal:** No file exists in the image that the thesis does not account for.
+**What+How:** The fourth open campaign requires each file to be either projected from the SSOT and gated, or explicitly declared as authored. Produce the census: walk the built image, classify each path, and record the unclassified set. That set is the campaign's work-list.
+**Where:** `automation/build.sh`, `usr/share/mios/mios.toml`, `tools/`
+**Done When:** the unclassified set is empty and a new unclassified file fails a check.
+**Verify:** add an unclassified file to the image in a scratch build and show the failure.
+**Do NOT:** classify by directory. The recorded pattern is that generated and authored files share directories, so a directory rule mislabels both.
+**Why:** the surfaces nobody has classified are exactly where hand-maintained configuration survives.
+**Dep:** none
+
+## AGY-1911 -- Authored files have no declared owner or reason  (WS-PROJ | P2 | M)
+**Goal:** An authored file says why it is not projected.
+**What+How:** Once AGY-1910 produces the classification, each authored file needs a reason: it is vendored, it is a template consumed at install time, or it is not yet projected. The third category is a backlog; the first two are permanent and should say so.
+**Where:** `usr/share/mios/mios.toml`, `tools/`
+**Done When:** every authored file carries a reason and the not-yet-projected count is a declining ratchet.
+**Verify:** add an authored file without a reason and show the failure.
+**Do NOT:** default the reason to vendored. That is the category that exempts a file permanently, so it must be chosen deliberately.
+**Why:** without reasons, the authored set becomes the place things go to stop being questioned.
+**Dep:** AGY-1910
+
+## AGY-1912 -- Vendored assets are two thirds of the tracked size and unaudited  (WS-PROJ | P3 | M)
+**Goal:** Vendored content is identified, versioned and justified.
+**What+How:** The roadmap notes two vendored assets are most of the 198 MB tracked size, and the tree vendors an upstream install script. Record for each what it is, where it came from, its upstream version, and what would replace it.
+**Where:** `usr/share/mios/vendored/`, `usr/share/mios/mios.toml`
+**Done When:** every vendored asset has provenance recorded and a check asserts it.
+**Verify:** add a vendored file without provenance and show the failure.
+**Do NOT:** replace a vendored script with a network fetch as the fix. Vendoring is what makes the offline install possible.
+**Why:** vendored code is code the project ships and does not review.
+**Dep:** AGY-1911
+
+## AGY-1913 -- The SSOT has tables nothing reads  (WS-PROJ | P2 | M)
+**Goal:** Every declared table has a consumer.
+**What+How:** `check_no_inert_ssot_tables` exists to catch tables nothing reads, and `[accounts].db_backed` is a recorded case of a key that ships inert deliberately. Confirm the check covers nested tables, and require an inert table to declare itself inert with a reason.
+**Where:** `tools/drift-checks.py`, `usr/share/mios/mios.toml`
+**Done When:** a new table with no consumer fails unless declared inert with a reason.
+**Verify:** add an unread table and show the failure; declare it inert and show it clears.
+**Do NOT:** delete inert tables to clear the check. Some are declared ahead of the code that will read them, which is legitimate when stated.
+**Why:** a config key nobody reads is a promise to the operator that nothing keeps.
+**Dep:** none
+
+## AGY-1914 -- Generated artefacts are not all covered by the artefacts step  (WS-PROJ | P1 | M)
+**Goal:** Every generated file is regenerated and diffed in CI.
+**What+How:** The artefacts step runs `sync-generated.sh` and fails if the tree changes. That only covers what the script regenerates. Cross-check the set of files any generator writes against the set the script refreshes, and close the gap.
+**Where:** `tools/sync-generated.sh`, `tools/`, `.github/workflows/mios-ci.yml`
+**Done When:** every generator's output is refreshed by the sync step.
+**Verify:** hand-edit each generated file in turn and confirm the artefacts step reports it.
+**Do NOT:** add generators to the sync script without checking their ordering. One generator's output is another's input, and the recorded ordering asymmetry produced a file refreshed in one run and not the next.
+**Why:** a generated file outside the sync step drifts permanently and silently.
+**Dep:** none
+
+## AGY-1870 -- `[ports]` fallbacks can mask a missing key  (WS-SSOT | P2 | M)
+**Goal:** A missing port key fails instead of silently defaulting.
+**What+How:** Units and scripts read ports as `${MIOS_PORT_X:-NNNN}`. If the key is never rendered, the literal fallback is used and everything appears to work until the SSOT value changes and nothing moves. `tools/check-port-fallbacks.py` exists; confirm it asserts every fallback's key is actually rendered into globals, and that the fallback equals the rendered value.
+**Where:** `tools/check-port-fallbacks.py`, `automation/lib/globals.sh`, `usr/share/mios/mios.toml`
+**Done When:** a fallback whose key is not rendered fails, and a fallback that disagrees with its key fails.
+**Verify:** change one rendered port without changing its fallback and show the violation.
+**Do NOT:** delete the fallbacks. They are what keeps a unit startable when the environment file is missing; the requirement is that they agree, not that they vanish.
+**Why:** a fallback that silently disagrees with the SSOT is a hardcode with a plausible disguise.
+**Dep:** AGY-1865
+
+## AGY-1871 -- Version is declared in three places at conflicting values  (WS-SSOT | P1 | M)
+**Goal:** One version value, derived everywhere.
+**What+How:** The debt register records three `mios.toml` copies at conflicting versions. Establish which is authoritative, project the others from it, and add a check that all reported versions agree -- including what the built image reports.
+**Where:** `usr/share/mios/mios.toml`, `tools/`, `automation/`
+**Done When:** every version string in the tree and the image derives from one key.
+**Verify:** bump the key and confirm every reported version moves together, including `mios --version` in the image.
+**Do NOT:** reconcile by editing the other two to match. That is the state this task exists to make impossible.
+**Why:** version disagreement makes provenance claims unverifiable.
+**Dep:** none
+
+## AGY-1872 -- 79 version-duplicate pairs remain in the key namespace  (WS-SSOT | P2 | L)
+**Goal:** One key per value across the namespace.
+**What+How:** The global unification plan records 79 pairs of keys carrying the same value under different names, within a 2,523-key `MIOS_*` namespace. Collapse each pair to one derived value, using the plan's lossless-diff gate: capture the environment before and after and require the difference to be exactly the intended one.
+**Where:** `usr/share/mios/mios.toml`, `automation/lib/globals.sh`, `tools/render-globals.py`
+**Done When:** the duplicate-pair count reaches zero.
+**Verify:** the env snapshot before and after each batch differs only in the keys intended, with root paths normalised so the comparison works in CI.
+**Do NOT:** rename keys with a text substitution. The recorded hazard is that old and new values alias each other, which makes a blind substitution silently wrong.
+**Why:** duplicate keys are how two consumers end up configured differently while appearing to read the same setting.
+**Dep:** AGY-1871
+
+## AGY-1873 -- The SSOT resolver has two implementations that can disagree  (WS-SSOT | P1 | M)
+**Goal:** One resolver answers every SSOT question.
+**What+How:** `check_resolver_differential_parity` exists to compare resolver implementations. Confirm it covers every entry point that reads `mios.toml` -- the shared Python resolver, the shell path, and any Rust reader -- and that it compares resolved values rather than just parse success.
+**Where:** `usr/lib/mios/mios_toml.py`, `tools/drift-checks.py`, `tools/native/`
+**Done When:** a divergence in any resolver's answer for any key fails.
+**Verify:** make one resolver return a different default in a scratch copy and show the parity check fails.
+**Do NOT:** compare only keys both resolvers know. A key one resolver cannot see is the most important disagreement.
+**Why:** the SSOT is only single if every reader reads it the same way.
+**Dep:** none
+
+## AGY-1874 -- Theme surfaces are projected but new surfaces are not required to be  (WS-SSOT | P2 | M)
+**Goal:** A new themed surface must derive from `[colors]`.
+**What+How:** The theme engine projects every surface from the SSOT colours and a drift-check enforces it. Nothing requires a newly-added surface to join the registry, so a new config file with hardcoded colours passes. Add a check that scans for colour literals outside the registry.
+**Where:** `usr/libexec/mios/mios-theme-render`, `usr/share/mios/mios.toml`, `automation/98-drift-checks.sh`
+**Done When:** a colour literal in an unregistered surface fails.
+**Verify:** add a hex colour to an unregistered config in a scratch copy and show the violation.
+**Do NOT:** flag colour literals inside the theme engine itself or the palette definition. Those are the source.
+**Why:** the projection is only complete if joining it is mandatory.
+**Dep:** none
+
+## AGY-1875 -- The dotfiles registry has one proven surface  (WS-SSOT | P2 | L)
+**Goal:** The cross-platform dotfiles claim is proven on more than one application.
+**What+How:** `[dotfiles.registry.*]` generalises the theme projection to arbitrary settings surfaces, with one application as the landed proof on both platforms. Add the next surfaces, each with a settings projection, an apply-to-live-home path, and a drift gate.
+**Where:** `usr/share/mios/mios.toml`, `usr/libexec/mios/`, `tools/`
+**Done When:** at least three surfaces project settings on both platforms and are gated.
+**Verify:** change a setting in the SSOT and confirm each surface's live config changes on both platforms.
+**Do NOT:** project only the colours for the new surfaces. The registry's claim is settings, and colours are the part already proven.
+**Why:** one proof point does not establish a cross-platform mechanism.
+**Dep:** AGY-1874
+
+## AGY-1876 -- `[code_mode]` and `[pgvector]` keys were moved to reachable tables without consumer tests  (WS-SSOT | P2 | S)
+**Goal:** A relocated key is proven to still be read.
+**What+How:** Several keys were moved into reachable tables to satisfy the inert-table check. Moving a key changes its resolved name; if a consumer was reading the old path, it now silently gets a default. For each relocated key, assert the consumer resolves the new location.
+**Where:** `usr/share/mios/mios.toml`, `usr/lib/mios/`, `usr/libexec/mios/`
+**Done When:** every relocated key has a test asserting its consumer reads the current location.
+**Verify:** change each key's value and confirm the consumer's behaviour changes.
+**Do NOT:** assume the consumer follows because the check passes. The inert-table check asserts something reads the table, not that this consumer reads this key.
+**Why:** satisfying a structural check by moving a key is exactly the kind of edit that quietly disconnects a setting.
+**Dep:** AGY-1913
+
+## AGY-1877 -- The memory-poisoning scan is disabled while the SSOT says it runs  (WS-SEC | P1 | S)
+**Goal:** A declared security control is actually enabled.
+**What+How:** The scan was found disabled in code while the SSOT declared its mode as active. Re-enable it, then add a check that compares declared security controls against their runtime state so the pair cannot diverge again.
+**Where:** `usr/lib/mios/agent-pipe/`, `usr/share/mios/mios.toml`
+**Done When:** the scan runs in the mode the SSOT declares, and a disagreement fails a check.
+**Verify:** disable it in a scratch copy without changing the SSOT and show the violation.
+**Do NOT:** align the SSOT to the code. The declaration is the intent; the code is what failed to implement it.
+**Why:** a security control that is declared and not running is worse than one that is honestly absent.
+**Dep:** none
+
+## AGY-1878 -- Privileged Quadlets are enumerated but their privilege is not justified  (WS-SEC | P2 | M)
+**Goal:** Each privileged unit records why it needs privilege.
+**What+How:** Ten units are declared root-privileged. Record for each the specific capability it needs and why, then check that no unit holds privilege beyond its recorded justification.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/containers/systemd/`
+**Done When:** every privileged unit has a recorded justification and no unit exceeds it.
+**Verify:** add a capability to a unit beyond its justification and show the violation.
+**Do NOT:** justify privilege as required by the application without naming the operation. A justification that cannot be checked is a comment.
+**Why:** privilege granted without a recorded reason is never revoked, because nobody knows what would break.
+**Dep:** AGY-1842
+
+## AGY-1879 -- Secrets handling has no test that a secret cannot reach a log  (WS-SEC | P1 | M)
+**Goal:** A credential never appears in output.
+**What+How:** The agent plane, the registry client and the install path all handle credentials. Add tests that pass a recognisable sentinel value as each credential and assert it appears in no log, no error message and no generated artefact.
+**Where:** `usr/lib/mios/agent-pipe/`, `usr/libexec/mios/`, `installation/`
+**Done When:** a sentinel credential is provably absent from all output on both the success and failure paths.
+**Verify:** run each path with the sentinel and grep every produced artefact and log for it.
+**Do NOT:** test only the success path. Error paths print more, and are where credentials usually escape.
+**Why:** a leaked credential in a build log is published the moment the log is.
+**Dep:** none
+
+## AGY-1915 -- The agent-pipe server has no boundary test for use-before-definition  (WS-AI | P1 | M)
+**Goal:** A relocation cannot reintroduce a name error at import time.
+**What+How:** A function relocation once produced a use-before-definition error that only surfaced at runtime and blocked the publish bake. The AST-plus-virtualenv-import method that found it should be a check: parse each module, assert every module-level name is defined before use, and import each in a clean environment.
+**Where:** `usr/lib/mios/agent-pipe/`, `tools/`
+**Done When:** a use-before-definition anywhere in the agent-pipe fails a check.
+**Verify:** move a function below its first use in a scratch copy and show the failure.
+**Do NOT:** rely on importing alone. Some paths are conditional and import cleanly while still being wrong; the AST pass is what catches those.
+**Why:** this class of error blocked a publish once and is invisible to every syntax check.
+**Dep:** none
+
+## AGY-1916 -- The AI plane is /v1-only but legacy tokens survive in live paths  (WS-AI | P2 | M)
+**Goal:** No live code path references a retired backend.
+**What+How:** The retired local-inference backends were removed and the plane is OpenAI-compatible only. Surviving mentions fall into legitimate categories -- enforcement rules, cleanup code, upstream compatibility and history -- and those must not be re-flagged. Enumerate the remaining references, classify each, and gate the live-path ones.
+**Where:** `usr/lib/mios/`, `usr/libexec/mios/`, `usr/share/mios/mios.toml`
+**Done When:** every surviving reference is classified and no live path reaches a retired backend.
+**Verify:** the classification is produced by reading each site, and the gate flags a newly-added live reference.
+**Do NOT:** flag the enforcement and cleanup references. They mention the retired names by necessity, and re-flagging them is how a previous sweep wasted effort.
+**Why:** a retired lane that is still reachable is a service that answers when it should not exist.
+**Dep:** none
+
+## AGY-1917 -- 16 references to dead ports were found once and the class is not gated  (WS-AI | P2 | M)
+**Goal:** A reference to a retired port fails.
+**What+How:** Sixteen live references to dead ports were found and fixed. Nothing prevents the next one. Derive the retired-port set from the SSOT's own history of allocations and flag references to it.
+**Where:** `usr/share/mios/mios.toml`, `automation/98-drift-checks.sh`
+**Done When:** a reference to a retired port fails, naming the port and its replacement.
+**Verify:** add a reference to a retired port in a scratch copy and show the violation.
+**Do NOT:** hardcode the retired list in the check. It belongs in the SSOT alongside the allocations, or it becomes another hand-maintained list.
+**Why:** the recorded fix was manual, so the same drift will recur.
+**Dep:** AGY-1865
+
+## AGY-1918 -- The CRDT convergence fix has no multi-peer test  (WS-AI | P1 | M)
+**Goal:** Deletes replicate, provably, across more than two peers.
+**What+How:** The state store previously replicated only live elements, so tombstones never reached peers and a delete on one node was resurrected by another. The fix replicates all elements including tombstones. Add a test with three or more peers, partitions and reordered delivery, asserting convergence.
+**Where:** `src/mios-rs/mios-node/src/state_sync.rs`, `src/mios-rs/mios-node/src/node.rs`
+**Done When:** a multi-peer test with partition and reorder converges, and reverting the fix makes it fail.
+**Verify:** revert to replicating only live elements and confirm the test goes red.
+**Do NOT:** test with two peers and immediate delivery. That configuration passes with the bug present, which is why it survived.
+**Why:** an eventually-consistent store that resurrects deleted records corrupts state silently and permanently.
+**Dep:** AGY-1892
+
+## AGY-1919 -- MiOS is meant to be the podman machine and is not  (WS-HOST | P2 | L)
+**Goal:** The development host runs MiOS as its container host.
+**What+How:** MiOS is both the hosted image and the host. The rootfs export for the development machine reached 44 GB but the cutover was never performed, and the machine must live on the larger volume because the system drive cannot hold the image; junctions break the machine initialisation, so the supported move mechanism must be used. Complete the cutover and document it.
+**Where:** `docs/`, `installation/`, `automation/`
+**Done When:** the development podman machine runs MiOS and builds the image.
+**Verify:** run a build inside the MiOS-hosted machine and confirm the artefact matches one built elsewhere.
+**Do NOT:** place the machine on the system drive. It has been measured as too small for the image, and the failure appears mid-build.
+**Why:** the self-hosting claim is untested until the host is MiOS.
+**Dep:** AGY-1863
+
+## AGY-1920 -- WSL units ship but the WSL host path is unproven  (WS-HOST | P2 | M)
+**Goal:** MiOS runs as a WSL distribution with its declared units active.
+**What+How:** The image ships WSL-specific units and a build target for them. Prove the path: import the image as a WSL distribution, confirm the WSL firstboot unit runs, and confirm the graphical path works where declared.
+**Where:** `usr/lib/systemd/system/`, `Justfile`, `usr/share/mios/mios.toml`
+**Done When:** a documented command produces a working WSL distribution running the declared units.
+**Verify:** import, boot, and list the active MiOS units inside it.
+**Do NOT:** count a shell prompt as success. The units are the deliverable; a distribution that boots without them is a Fedora shell.
+**Why:** WSL is one of the declared deployment formats and is currently declared rather than demonstrated.
+**Dep:** AGY-1902
+
+## AGY-1921 -- Database-backed accounts ship inert with no path to active  (WS-ACCT | P2 | L)
+**Goal:** The account model has a working first implementation.
+**What+How:** The cross-platform account design assembles from existing components: a userdb JSON projection on Linux, a directory service over the database as the cross-platform face, and the Windows baseline which has no equivalent name-service integration. The key that would enable it ships inert. Implement the Linux leg first, since it is the one with a native integration point.
+**Where:** `usr/libexec/mios/mios-userdb-render`, `usr/share/mios/mios.toml`, `docs/agy/doc-postgresos-accounts.md`
+**Done When:** an account declared in the database resolves through the system name service on Linux.
+**Verify:** declare an account, render, and resolve it with a standard user lookup.
+**Do NOT:** design for Windows parity in this task. Windows has no name-service integration point, so the two legs are different mechanisms and conflating them stalls both.
+**Why:** an inert key is a promise; the Linux leg is the part that can be made real now.
+**Dep:** none
+
+## AGY-1922 -- The template system has golden files but no coverage requirement  (WS-TEMPLATE | P2 | M)
+**Goal:** Every file type that has a template is produced by it.
+**What+How:** The compiled template system defines one template per file type with a golden comparison. Nothing requires a new file of a templated type to be produced from the template. Add a check that files matching a templated type conform to their template.
+**Where:** `usr/share/mios/templates/`, `tests/templates/golden/`, `tools/`
+**Done When:** a hand-written file of a templated type fails until it conforms.
+**Verify:** add a non-conforming file of a templated type and show the violation.
+**Do NOT:** enforce conformance on vendored or generated files. They have other owners, and flagging them trains people to ignore the check.
+**Why:** a template nothing must use is a suggestion.
+**Dep:** AGY-1828
+
+## AGY-1923 -- The CI suite registry's tier assignment is not validated against runtime  (WS-CI | P2 | M)
+**Goal:** A suite runs in the tier it is declared in.
+**What+How:** `[ci.tiers]` assigns suites to lint, unit and gate tiers, and `tests/run-suites.sh` runs a tier to completion reporting every failure. Nothing asserts a suite declared in one tier actually ran in that tier. Have the runner emit what it ran and compare against the declaration.
+**Where:** `tools/ci-suites.py`, `tests/run-suites.sh`, `usr/share/mios/mios.toml`
+**Done When:** a suite that did not run in its declared tier fails.
+**Verify:** make one suite exit before running in a scratch copy and confirm the mismatch is reported.
+**Do NOT:** compare counts. A suite that silently skipped and one that ran and passed produce the same count.
+**Why:** the registry is the single list both publishers run from, so its accuracy is the whole point.
+**Dep:** AGY-1824
+
+## AGY-1924 -- Both publishers must produce bit-for-bit identical images and it is unverified  (WS-CI | P1 | L)
+**Goal:** The two publishers are provably equal.
+**What+How:** The two forges are declared equal publishers. Nothing compares their outputs. Build the same commit on both and compare the resulting image digests and manifests, then investigate every difference until the only remaining ones are declared and justified.
+**Where:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, `automation/build.sh`
+**Done When:** the same commit produces the same image digest on both, or every difference is declared.
+**Verify:** build one commit on both and diff the manifests.
+**Do NOT:** compare only the tags. Two images can carry the same tag and different content, which is exactly what this checks for.
+**Why:** equal publishers that produce different images means the provenance of a deployed system depends on which forge built it.
+**Dep:** AGY-1909
+
+## AGY-1925 -- Greenboot is shipped but no failure is proven to roll back  (WS-RUNTIME | P1 | M)
+**Goal:** A failed boot returns to the previous image automatically.
+**What+How:** The runtime stack ships greenboot but its health checks and rollback have not been exercised. Define the health checks that represent a working MiOS, then prove that a deliberately broken image rolls back.
+**Where:** `usr/lib/systemd/system/`, `usr/libexec/mios/`, `usr/share/mios/mios.toml`
+**Done When:** an image that fails its health check rolls back to the previous deployment unattended.
+**Verify:** deploy a deliberately broken image to a VM and confirm it returns to the previous one without intervention.
+**Do NOT:** define the health check as the system booted. That is satisfied by a system with every service failing.
+**Why:** rollback is the property that makes an immutable OS safe to update automatically.
+**Dep:** AGY-1897
+
+## AGY-1926 -- Shipped runtime components are unwired  (WS-RUNTIME | P2 | L)
+**Goal:** A component that ships is either wired or declared unwired.
+**What+How:** The image ships several capability components -- boot integrity, time sync, GPU compute, clustered storage, device mediation, directory services, power management, remote access and virtual-machine conversion -- that are present but not wired into the SSOT or any unit. For each, either wire it with a declared configuration or record it as shipped-unwired with a reason.
+**Where:** `usr/share/mios/mios.toml`, `usr/lib/systemd/system/`, `automation/build.sh`
+**Done When:** every shipped component is wired or declared, and a newly-shipped unwired component fails.
+**Verify:** add a package to the image without wiring or declaring it and show the failure.
+**Do NOT:** wire a component without a test that it works. An unwired component is honest; a wired one that fails silently is worse.
+**Why:** the image's size and attack surface are paid for whether or not the components are used.
+**Dep:** AGY-1910
+
+## AGY-1927 -- `/var` persistence assumptions are undocumented and untested  (WS-RUNTIME | P2 | M)
+**Goal:** What survives an update is stated and verified.
+**What+How:** In this runtime model `/var` persists across updates while the rest of the image is replaced. Any state written outside `/var` is lost on update. Enumerate what the system writes at runtime, confirm each location's persistence expectation, and test it across an update.
+**Where:** `usr/lib/systemd/system/`, `usr/libexec/mios/`, `usr/share/doc/mios/`
+**Done When:** every runtime write location has a stated persistence expectation, verified across an update.
+**Verify:** write a marker to each location, update the image, and confirm which markers survive matches the documentation.
+**Do NOT:** assume a service's default state directory is correct. The recorded hazard is exactly that a default lands outside the persisted tree.
+**Why:** state loss on update is discovered by the operator, after the update.
+**Dep:** AGY-1897
+
+## AGY-1928 -- The desktop shell effects are hardcoded rather than projected  (WS-DESKTOP | P2 | M)
+**Goal:** The compositor configuration derives from the SSOT.
+**What+How:** The desktop shell direction is a layered-glass aesthetic built on the compositor and shell toolkit the image already carries. The compositor's effects and animation settings should be projected from `mios.toml` like every other surface, not hand-written.
+**Where:** `usr/share/mios/mios.toml`, `usr/libexec/mios/mios-theme-render`, the compositor configuration
+**Done When:** changing an effect value in the SSOT changes the live compositor configuration.
+**Verify:** change one value, re-render, and confirm the compositor config changes.
+**Do NOT:** project only the colours. Colours are already projected; the effects and animation parameters are the gap.
+**Why:** a hand-written compositor config is a hand-maintained surface in the most visible part of the product.
+**Dep:** AGY-1874
+
+## AGY-1929 -- The split-plane host design has no executable proof  (WS-METAL | P2 | L)
+**Goal:** The hypervisor-host design is demonstrated at the smallest useful scale.
+**What+How:** The Metal direction is a small bootc host that binds discrete GPUs to passthrough and owns the physical devices, hosting the full image as a privileged guest with no network interface of its own, routed over the mesh. Critic review established that GPU fractioning without vendor drivers is not possible, so a GPU goes wholly to one guest, and the host floor is around a gigabyte rather than negligible. Build the smallest configuration that demonstrates it.
+**Where:** `docs/agy/doc-mios-metal.md`, `automation/`, `usr/share/mios/mios.toml`
+**Done When:** a host boots, passes a GPU through to a guest running the image, and the guest reaches the network over the mesh.
+**Verify:** run a GPU workload inside the guest and confirm the host has no direct route.
+**Do NOT:** plan for GPU fractioning. It was established as impossible without vendor drivers, and designing around it invalidates the topology.
+**Why:** the design is currently observation-free, and the roadmap says blade and mesh behaviour is design rather than observation.
+**Dep:** AGY-1902
+
+## AGY-1930 -- Bare metal is untried  (WS-METAL | P1 | L)
+**Goal:** MiOS has run on physical hardware.
+**What+How:** The roadmap records that MiOS runs on a virtual machine and under the Windows subsystem, and that bare metal is untried. Install to physical hardware, record what fails, and fix the blocking issues.
+**Where:** `installation/`, `automation/`, `docs/`
+**Done When:** a physical machine boots MiOS from installed media and reaches its declared targets.
+**Verify:** record the boot on hardware, list active units, and confirm the GPU and network devices are the physical ones.
+**Do NOT:** substitute nested virtualisation. Every property this is meant to test -- firmware, secure boot, real device binding -- is exactly what virtualisation abstracts away.
+**Why:** every hardware-facing claim in the tree is currently unobserved.
+**Dep:** AGY-1895
+
+## AGY-1931 -- Signed boot artefacts are described but not verified end to end  (WS-SEC | P1 | M)
+**Goal:** A signed kernel image is verified by firmware at boot.
+**What+How:** The runtime design uses a signed unified kernel image with enrolled keys, and the recorded correction is that the enrolled machine-owner key is not the same thing as the unified image itself. Prove the chain: build a signed image, enrol the key, boot with secure boot enabled, and confirm verification occurred.
+**Where:** `automation/build.sh`, `usr/lib/kernel/`, `installation/`
+**Done When:** a machine with secure boot enabled boots the signed image and reports verification.
+**Verify:** boot with secure boot on, then attempt an unsigned image and confirm it is refused.
+**Do NOT:** verify by checking the signature file exists. The question is whether firmware accepted it.
+**Why:** an unverified boot chain makes every downstream integrity claim decorative.
+**Dep:** AGY-1930
+
+## AGY-1932 -- SBOM records exist but are not verified against the image  (WS-SBOM | P2 | M)
+**Goal:** The SBOM describes the image it ships with.
+**What+How:** Digests and versions are resolved at build time and recorded rather than hand-pinned, with reproducibility resting on the SBOM plus the baked manifest. Nothing verifies the recorded SBOM matches the image's actual contents. Compare them after the bake.
+**Where:** `usr/share/mios/artifacts/sbom/`, `automation/build.sh`, `tools/verify-images.py`
+**Done When:** an SBOM that disagrees with the image fails the build.
+**Verify:** add a package to the image without regenerating the SBOM and show the failure.
+**Do NOT:** regenerate the SBOM from the image as the fix and call it verified. The SBOM must be produced from the build inputs and then compared with the output; deriving it from the output makes the comparison vacuous.
+**Why:** an SBOM that is generated from what shipped can never disagree with what shipped.
+**Dep:** AGY-1914
+
+## AGY-1933 -- Image references carry latest intent with no staleness check  (WS-SBOM | P2 | S)
+**Goal:** A floating reference is resolved and recorded at build time.
+**What+How:** Image references carry floating-tag intent deliberately, with the digest resolved and recorded at build. Add a check that every floating reference resolved to a digest during the build and that the digest was recorded, so a fetch failure that silently reused a cached layer is caught.
+**Where:** `usr/share/mios/mios.toml`, `automation/build.sh`, `usr/share/mios/artifacts/sbom/`
+**Done When:** a floating reference with no recorded resolution fails the build.
+**Verify:** block resolution for one reference and confirm the build fails rather than proceeding from cache.
+**Do NOT:** pin the references in the SSOT as the fix. That reverses the recorded architecture decision; the point is resolution at build with provenance recorded.
+**Why:** an unresolved floating reference means the image contains something nobody recorded.
+**Dep:** AGY-1932
+
+## AGY-1934 -- The finalization plan and this register are not cross-linked  (WS-DOCS | P3 | S)
+**Goal:** Each spine item names the tasks that clear it.
+**What+How:** The finalization plan lists ten ordered blockers; this register now holds tasks that address several. Link them in both directions so the plan says which tasks clear each item and each task names the spine item it serves.
+**Where:** `docs/agy/mios-finalization-plan.md`, `AGY-TASKS.md`
+**Done When:** every spine item names its tasks and every task addressing a spine item says so.
+**Verify:** the references resolve in both directions; a task id cited in the plan must exist in the register.
+**Do NOT:** link by workstream label. Workstreams are broad, and the plan needs the specific tasks that close each blocker.
+**Why:** a plan and a task register that do not reference each other diverge, and the recorded state is that both already describe the same work differently.
+**Dep:** AGY-1890
