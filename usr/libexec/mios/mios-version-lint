@@ -91,7 +91,7 @@ def main():
     all_violations = []
 
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in (".git", ".gemini", "node_modules", "venv", "__pycache__", ".tox", "target", "build")]
+        dirnames[:] = [d for d in dirnames if d not in (".git", ".gemini", ".claude", ".agents", ".system_generated", "node_modules", "venv", "__pycache__", ".tox", "target", "build")]
 
         for filename in filenames:
             ext = os.path.splitext(filename)[1].lower()

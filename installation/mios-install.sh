@@ -295,9 +295,23 @@ resolve_config() {
 
 resolve_install_core() {
     local mode="${1:-fhs}"
-    log_phase "Executing MiOS installer core (${mode} mode)"
-    log_ok "Preflight checks passed for ${mode} installation."
-    CMD=(echo "MiOS installer core executed in ${mode} mode")
+    # This is NOT the installer. The core -- host detection, the overlay merge,
+    # the package phase, the user profile -- lives in mios-bootstrap's
+    # do_install_core, and installation/mios-install.sh is in
+    # [bootstrap.sync].not_mirrored so this copy never received it.
+    #
+    # It used to read:  CMD=(echo "MiOS installer core executed in ${mode} mode")
+    # which printed a phase banner, an "[ OK ] Preflight checks passed" line and
+    # exited 0 having installed nothing. An operator could not tell that apart
+    # from a successful install, and neither could a test.
+    #
+    # Failing is the honest behaviour until the core is ported here.
+    log_err "The installer core is not implemented in this repository."
+    log_err "It lives in mios-bootstrap: installation/mios-install.sh do_install_core."
+    log_err "Requested mode: ${mode}. Run the installer from mios-bootstrap, or"
+    log_err "port do_install_core here -- see AGY-1750."
+    CMD=(false)
+    return 1
 }
 
 case "$TARGET" in
@@ -311,7 +325,9 @@ case "$TARGET" in
     build)  resolve_build ;;
     update) resolve_update ;;
     config|configure) resolve_config ;;
-    _install_core) resolve_install_core "${TYPE:-fhs}" ;;
+    # ${PASSTHROUGH[0]} carries the positional mode from the internal re-entry
+    # above; --type still wins when a caller sets it explicitly.
+    _install_core) resolve_install_core "${TYPE:-${PASSTHROUGH[0]:-fhs}}" ;;
     default|Default|offlinesync|OfflineSync|buildxboxiso|BuildXboxISO|flashusb|FlashUSB)
         die "'${TARGET}' is a Get-MiOS.ps1 -Action value, not a mios-install target. mios-install only runs AFTER Get-MiOS.ps1 has already cloned this repo locally" ;;
     *)
