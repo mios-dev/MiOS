@@ -5621,7 +5621,7 @@ check_no_hardcoded_ssot_literal() {
     # Keep usr/share/containers in scope: the Quadlets are exactly where a
     # baked fedora-NN would land (they carry ${FEDORA_VERSION} placeholders,
     # which the fedora-\$ filter below exempts).
-    hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/knowledge/" | grep -v "/configurator/" || true)
+    hardcodes=$(grep -rE "(fedora-[0-9]{2}|stable:/v[0-9]+\.[0-9]+)" "$ROOT/automation" "$ROOT/usr/share/mios" "$ROOT/usr/share/containers" 2>/dev/null | grep -v "98-drift-checks.sh" | grep -v "\.repo" | grep -v "version-literals-audit.tsv" | grep -v "/reference/" | grep -v "/artifacts/" | grep -v "/configurator/" | grep -v "/\.claude/" || true)
     
     if [[ -n "$hardcodes" ]]; then
         local violations

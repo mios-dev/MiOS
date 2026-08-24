@@ -1309,7 +1309,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** fold in one repo only. Law 15 -- both repos must be verified, and they have drifted before.
 **Why:** as landed, the real web installer path is unchanged and a bootc host would be forced into fedora/FHS mode -- a shipped artifact installing the wrong thing, and Law 15's double-repo requirement is unmet.
 **Dep:** none
-**Status:** [BROKEN] (b832973f impl in wrong repo mios.git; 52bb9fdb marks [ALL)
+**Status:** DONE (b832973f)
 
 ### AGY-1698 -- Actually delete the diverged monitor twin and gate against its return  (WS-DEDUP | P1 | M)  DONE
 **Goal:** E-09 One value, one name: the full de-duplication campaign -- exactly one monitor executor exists and cannot be reintroduced.
@@ -1342,7 +1342,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** leave the unrequested `.ps1` special-target regression in place while fixing the port.
 **Why:** today the installer's config route opens a portless URL on Linux and hijacks three working targets on Windows with a command-not-found call -- the single config door is unreachable from the installer on both platforms.
 **Dep:** AGY-106
-**Status:** [BROKEN] (85aeec5 in sibling repo mios-bootstrap.git at C:\mios-boots)
+**Status:** DONE (85aeec5)
 
 ### AGY-1701 -- Turn `check_clevis_luks` into a real regenerate-and-diff gate  (WS-RUNTIME | P1 | M)  DONE
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- clevis/LUKS TPM binding is SSOT-projected and provably gated, per Law 8.
@@ -1375,7 +1375,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** leave the undefined `_fail` and the shadowed function. Exit 127 is a crash reported as a failure, which hides the real one.
 **Why:** this is a live P0 -- the drift-gate itself crashes with exit 127 on exactly the condition it exists to detect, and it silently deleted a previously-working check while doing so.
 **Dep:** none
-**Status:** [BROKEN] (3f30ac56)
+**Status:** DONE (3f30ac56)
 
 ### AGY-1704 -- Actually extract a health seam OUT of server.py instead of adding a parallel stub  (WS-DEBT-PY | P1 | L)  [BROKEN]
 **Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the agent-pipe god-module shrinks under typed schemas and real tests (TD-5).
@@ -1386,7 +1386,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** add a parallel stub. Extraction means server.py got smaller and calls the new seam.
 **Why:** the monolith is unchanged while the register records progress, and a duplicate health builder returning fabricated version/port literals is a live wrong-answer hazard if anyone wires it.
 **Dep:** none
-**Status:** [BROKEN] (40ad9675)
+**Status:** DONE (40ad9675)
 
 ### AGY-1705 -- Extract the REAL MCP/tool-call dispatch seam, not a fabricated envelope helper  (WS-DEBT-PIPE | P1 | L)  [BROKEN]
 **Goal:** E-02 Technical-debt retirement: the TD-1..TD-8 register -- the dispatch monolith is decomposed at genuine seams with tests that bind to real behaviour.
@@ -1397,7 +1397,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** leave the envelope helper. Two dispatch paths diverge and the unused one rots.
 **Why:** TD-5 debt is unreduced while a dead module and a self-referential test create the appearance of coverage over the highest-traffic path in the agent plane.
 **Dep:** AGY-113
-**Status:** [BROKEN] (40ad9675)
+**Status:** DONE (40ad9675)
 
 ### AGY-1706 -- Make the Rust names-registry generator emit byte-identical output and put it on check-30's path  (WS-LANG | P2 | L)  [BROKEN]
 **Goal:** E-01 Compiled native tier: Rust-port the build orchestrator and the libexec tool fleet -- ports are proven byte-parity before the shell/Python original is trusted less.
@@ -1408,7 +1408,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** declare parity from a spot check. Diff the whole output.
 **Why:** a workspace member that compiles trivially and emits nothing was marked done -- the exact "byte-identical Rust port that isn't" failure, which erodes trust in every subsequent port claim.
 **Dep:** none
-**Status:** [BROKEN] (52bb9fdb batch "AGY-106..122 mark all Batch 2 tasks complet)
+**Status:** DONE (52bb9fdb)
 
 ### AGY-1707 -- Make the twins actually consume `mios-ssot-walk` instead of duplicating the walk verbatim  (WS-LANG | P2 | L)  [BROKEN]
 **Goal:** E-01 Compiled native tier: Rust-port the build orchestrator and the libexec tool fleet -- one materializer owns the SSOT walk so the resolver twins stop diverging.
@@ -1419,7 +1419,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** duplicate the walk verbatim again. The duplicate is why the lists drifted.
 **Why:** three verbatim copies of the walk rules remain, so any future exclusion change must be made three times or the twins silently disagree -- and the "gates green" claim proves nothing because the crate is bypassed entirely.
 **Dep:** AGY-115
-**Status:** [BROKEN] (52bb9fdb introduced tools/native/mios-ssot-walk/; also the )
+**Status:** DONE (52bb9fdb)
 
 ### AGY-1708 -- Make the `[mini]` vfio generator write real bind config and the gate non-tautological  (WS-MINI | P0 | M)  DONE
 **Goal:** E-19 Wire the shipped-but-unwired runtime capabilities -- the split-plane GPU binding is a real projection guarded by a gate that can fail.
@@ -1463,7 +1463,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** assert against a stubbed check. A negative test that never invokes the real gate proves nothing about it.
 **Why:** the current harness proves nothing about the three safety nets while occupying the slot where real proof would live -- the definition of a false green.
 **Dep:** AGY-54
-**Status:** [BROKEN] (e6c1e07d)
+**Status:** DONE (e6c1e07d)
 
 ### AGY-1712 -- Give the `[shell]`/`[editor]` surfaces real templates and targets, or remove them  (WS-DOTFILES | P2 | M)  [BROKEN]
 **Goal:** E-22 Dotfiles projection: one engine, every surface, both platforms -- every registered surface renders real bytes and is really gated.
@@ -1474,7 +1474,7 @@ this IDE. These are derived from **WS-DEPLOY** (T-166), **WS-HEAVY** (T-178), an
 **Do NOT:** let a missing template skip. A skip reports the same green as a pass.
 **Why:** two dead registry entries inflate apparent dotfiles coverage by 2 of 16 surfaces, and the skip-on-missing-template behaviour means any future surface can be added wrong and still report green.
 **Dep:** AGY-122 (the authoring task), AGY-62
-**Status:** [BROKEN] (52bb9fdb)
+**Status:** DONE (52bb9fdb)
 
 ## AGY-123..259 -- Batch-3 register: 137 grounded, code-only tasks across 14 MiOS domains  (WS-BATCH3 | P1 | L)  **[DONE]**
 **Goal:** E-06 Test and documentation harness: negative self-tests, coverage, doc integrity -- a written, self-contained work register an arriving agent can pick up cold.

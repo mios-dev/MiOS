@@ -107,6 +107,8 @@ ai.agent_model  MIOS_AI_AGENT_MODEL
 ai.available_models  MIOS_AI_AVAILABLE_MODELS
 ai.hitl_mode  MIOS_AI_HITL_MODE
 ai.hitl_threshold  MIOS_AI_HITL_THRESHOLD
+ai.micro_endpoint  MIOS_AI_MICRO_ENDPOINT
+ai.permission_tiers  MIOS_AI_PERMISSION_TIERS
 ai.ask_to_run  MIOS_AI_ASK_TO_RUN
 ai.ask_to_run_ttl_s  MIOS_AI_ASK_TO_RUN_TTL_S
 ai.ask_clarify  MIOS_AI_ASK_CLARIFY
@@ -167,7 +169,6 @@ ai.host_thresholds.grounding_endpoint  MIOS_AI_HOST_THRESHOLDS_GROUNDING_ENDPOIN
 ai.host_thresholds.grounding_model  MIOS_AI_HOST_THRESHOLDS_GROUNDING_MODEL
 ai.host_thresholds.micro_model  MIOS_AI_HOST_THRESHOLDS_MICRO_MODEL
 ai.host_thresholds.sys_agent_model  MIOS_AI_HOST_THRESHOLDS_SYS_AGENT_MODEL
-ai.host_thresholds.micro_endpoint  MIOS_AI_HOST_THRESHOLDS_MICRO_ENDPOINT
 ai.host_thresholds.micro_keep_alive_seconds  MIOS_AI_HOST_THRESHOLDS_MICRO_KEEP_ALIVE_SECONDS
 ai.vllm.enable  MIOS_VLLM_ENABLE
 ai.vllm.served_name  MIOS_VLLM_SERVED_NAME
@@ -493,7 +494,6 @@ security.arbiter_deny  MIOS_SECURITY_ARBITER_DENY
 security.arbiter_allow  MIOS_SECURITY_ARBITER_ALLOW
 security.arbiter_block_tier  MIOS_SECURITY_ARBITER_BLOCK_TIER
 security.arbiter_port  MIOS_SECURITY_ARBITER_PORT
-security.principal_mode  MIOS_SECURITY_PRINCIPAL_MODE
 security.token_ttl_s  MIOS_SECURITY_TOKEN_TTL_S
 security.allowlist_hosts  MIOS_SECURITY_ALLOWLIST_HOSTS
 security.provenance_taint  MIOS_SECURITY_PROVENANCE_TAINT

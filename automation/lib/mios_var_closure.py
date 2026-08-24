@@ -100,7 +100,7 @@ def referenced_set(emitted: set[str] | None = None) -> dict[str, str]:
 
     for dirpath, _dirs, files in os.walk(ROOT):
         norm_dir = dirpath.replace("\\", "/")
-        if any(sk in norm_dir for sk in ("/.git", "/.venv", "/node_modules", "/target")):
+        if any(sk in norm_dir for sk in ("/.git", "/.venv", "/node_modules", "/target", "/.claude", "/.agents", "/.gemini", "/.system_generated")):
             continue
         reldir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
         if reldir.startswith("docs/") and "_design.md" in files:

@@ -52,17 +52,11 @@ open_ports = [
 # ----------------------------------------------------------------------------
 [ssot_consumers]
 doc = "Shipped Python reads config as _toml_section(\"<table>\").get(\"<key>\"). When <table>.<key> does not exist the consumer silently takes its compiled default -- the SSOT and the code disagree with nobody told, and every test that stubs the value still passes. Nine security controls sat unreachable this way under an unclosed [security.nohc_allowlist] header (T-325). MISPLACED means the key name is declared elsewhere in the SSOT, so one side has the wrong path; UNDECLARED means it exists nowhere, so it is an optional escape hatch or a dead read. Draining an entry: decide which side is right, move the key or fix the consumer, then lower max_unresolved. Gate: check_ssot_consumer_keys."
-max_unresolved = 9
+max_unresolved = 3
 unresolved = [
   "a2a.security",                      # MISPLACED -> packages.security/security
-  "agent_passport.principal_mode",     # MISPLACED -> agents._defaults.auth.principal_mode/security.principal_mode
-  "ai.micro_endpoint",                 # MISPLACED -> ai.host_thresholds.micro_endpoint
   "ai.micro_model",                    # MISPLACED -> ai.host_thresholds.micro_model
-  "ai.permission_tiers",               # UNDECLARED
-  "computer_use.hidpi_scale_factor",   # UNDECLARED
-  "pgvector.memguard_judge_mode",      # MISPLACED -> offline.memguard_judge_mode
   "pgvector.memory_guard_mode",        # MISPLACED -> offline.memory_guard_mode
-  "pgvector.memory_provider",          # MISPLACED -> offline.memory_provider
 ]
 
 # ----------------------------------------------------------------------------
@@ -1553,6 +1547,9 @@ name = "MiOS AI"
 role = "the ONE name you go by on EVERY surface (the `@`/`mios` CLI, OWUI, Discord, the desktop app, the API)"
 developer = "MiOS"
 [agent_passport]
+# Read by federation/a2a.py; the shipped manual documents this path. The
+# copy under [security] was inert: emitted by no resolver, read by nothing.
+principal_mode = "off"
 # domain          = "mios.example.ts.net"   # public host; defaults to localhost
 # legal_name      = "MiOS"
 # display_name    = "MiOS AI"
@@ -1633,7 +1630,7 @@ arbiter_deny       = []        # verbs the arbiter ALWAYS refuses (hard floor)
 arbiter_allow      = ""        # exclusive allow-list when non-empty (CSV); "" = no allow-list
 arbiter_block_tier = ""        # refuse verbs at/above this risk tier (read|write|interactive); "" = no tier ceiling
 arbiter_port       = 8760      # loopback port mios-policy-arbiter listens on
-principal_mode     = "off"
+
 token_ttl_s        = 3600
 allowlist_hosts = [
     "localhost",
@@ -3201,6 +3198,9 @@ verify_after_act = true
 executor_endpoint  = ""          # e.g. in /etc/mios: "http://100.x.y.z:11438"
 input_backend      = "auto"      # auto | portal (GNOME/KDE, sandboxable) | uinput (compositor-agnostic)
 capture_backend    = "auto"      # auto | portal | grim | gnome | spectacle
+# Multiply grounded coordinates by this on a HiDPI seat (1.0 = no scaling).
+# Declared as a float so the float() on the consumer side is a no-op.
+hidpi_scale_factor = 1.0
 restore_token_path = ""          # default: $XDG_STATE_HOME/mios/cu-restore-token (skips the portal consent dialog on re-use)
 grounding_model    = ""          # vision grounding tag; empty => mios-pc-vision default (qwen3-vl:4b on mios-llm-light) or the vLLM mios-grounding lane
 require_approval   = true        # write-class ops (click/type/key) go through the DoD/approval gate; read-class (screenshot/window-list/ground) auto
@@ -5380,6 +5380,8 @@ ingress_key              = ""
 # unification.md). Read by mios_pg / `mios-db --pg` + the quadlet (MIOS_PG_* via
 # userenv.sh). Port from [ports].pgvector. Local-only defaults.
 [pgvector]
+memory_provider = "pgvector"
+memguard_judge_mode = "model"
 host        = "127.0.0.1"
 user        = "mios"
 pass        = "mios"
@@ -5417,7 +5419,7 @@ hnsw_max_scan_tuples     = 20000
 # pgvector default. Env: MIOS_PG_HNSW_SCAN_MEM_MULTIPLIER.
 hnsw_scan_mem_multiplier = 1
 memory_guard_mode = "log"
-memguard_judge_mode = "model"
+
 emb_model       = "nomic-embed-text"
 emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-embeds
 # WS-A15: pluggable agent-memory backend. The recall path routes through the
@@ -5425,7 +5427,7 @@ emb_version     = "nomic-768-v1"   # bump on a model/dim change -> backfill re-e
 # pass-through to the mios_pg client. A future backend registers under a new
 # name; an UNKNOWN name fails closed (factory raises) -> the pipe logs + falls
 # back to pgvector at startup. Env override: MIOS_MEMORY_PROVIDER.
-memory_provider = "pgvector"
+
 scratch_persist = true             # durable per-chat working memory (survives restart)
 backfill_batch  = 50               # re-embed batch size (mios_embed_backfill.plan_batches)
 backup_enable  = true
@@ -5494,6 +5496,12 @@ agent_model         = "MiOS AI"
 available_models    = ["granite4.1:3b", "granite4.1:30b", "gpt-oss:20b", "nomic-embed-text"]
 hitl_mode           = "block"   # WS-A14 (operator steer "full capabilities"): GATE high-risk verbs (perm tier >= hitl_threshold) pending approval. Was "off"; tune to "audit" (log+proceed) or "off" to dial back.
 hitl_threshold      = "interactive"
+micro_endpoint           = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+# The risk lattice, safest first. A permission a verb names that is not
+# listed ranks ABOVE the top tier, so an unknown permission fails closed.
+# Read by access/policy.py and by check_rbac_tiers, which until now told
+# operators to edit a key the SSOT never declared.
+permission_tiers    = ["read", "write", "interactive"]
 ask_to_run          = true
 ask_to_run_ttl_s    = 1800
 # GLOBAL ASK-USER for CLARIFICATIONS ("ask user... for questions and
@@ -5633,7 +5641,7 @@ grounding_model    = "mios-grounding"
 
 micro_model              = "lfm2:700m"   # Liquid AI LFM2-700M (dense 'lfm2' arch merged mainline llama.cpp; ~0.7-1.0GB resident, ~2x faster CPU decode than Qwen; beats Qwen3-0.6B on MMLU/GSM8K/IFEval). Family-diversity off Qwen. Background classify/expand/gate only (Pythonic tool-call format, not JSON-tool agent). Served by mios-llm-light :11450; the qwen3:1.7b alias still resolves.
 sys_agent_model          = "mios-sys-agent"
-micro_endpoint           = "http://localhost:${MIOS_PORT_LLM_LIGHT}/v1"   # mios-llm-light (ALL llama.cpp, OpenAI /v1)
+
 micro_keep_alive_seconds = -1
 
 # ----------------------------------------------------------------------------
@@ -7350,14 +7358,6 @@ swtpm_vtpm = true
 nvidia = true
 amd    = true
 intel  = true
-
-[dotfiles.registry.shell]
-template = "usr/share/mios/theme/templates/oh-my-posh.omp.json.tmpl"
-target = "usr/share/mios/theme/oh-my-posh.omp.json"
-
-[dotfiles.registry.editor]
-template = "usr/share/mios/theme/templates/vscode-colorCustomizations.json.tmpl"
-target = "usr/share/mios/theme/vscode-colorCustomizations.json"
 
 [security.luks]
 enabled = false
