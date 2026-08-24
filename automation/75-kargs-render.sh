@@ -81,7 +81,7 @@ if os.path.exists(vfio_toml_path):
         lines[-1] = lines[-1][:-1]
     lines.append("]")
     
-    with open(vfio_toml_path, "w", encoding="utf-8") as f:
+    with open(vfio_toml_path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
     print(f"Updated {vfio_toml_path}")
 
@@ -119,7 +119,7 @@ if custom_kargs:
         lines[-1] = lines[-1][:-1]
     lines.append("]")
     
-    with open(custom_toml_path, "w", encoding="utf-8") as f:
+    with open(custom_toml_path, "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
     print(f"Generated {custom_toml_path}")
 else:

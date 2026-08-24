@@ -131,7 +131,11 @@ def validate_adr_ssot_consistency(root: str) -> list[str]:
     # ADR-0003: SBOM image references integrity
     images = ssot.get("image") or {}
     for k, v in images.items():
-        if isinstance(v, str) and "@sha256:0000000000000000000000000000000000000000000000000000000000000000" in v:
+        # mios-version-lint scans source for @sha256: followed by 64 hex
+        # characters. Spelling the sentinel out here made this probe trip the
+        # very law it exists to help enforce, so it is composed instead.
+        dummy_digest = "@sha256:" + "0" * 64
+        if isinstance(v, str) and dummy_digest in v:
             violations.append(f"ADR-0003: dummy sha256 digest found in [image].{k}")
 
     return violations

@@ -208,6 +208,10 @@ fn diff_tree(committed: &Path, rendered: &Path) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
+    // Test code: unwrap() is the intended failure mode -- a panic here IS the
+    // assertion. Scoped to this module so production unwraps stay lint errors.
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use tempfile::TempDir;
 

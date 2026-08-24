@@ -438,6 +438,10 @@ pub fn run_checks_cli(root: &str, soft: bool, list: bool, only: Option<&str>, pa
 
 #[cfg(test)]
 mod tests {
+    // Test code: unwrap() is the intended failure mode -- a panic here IS the
+    // assertion. Scoped to this module so production unwraps stay lint errors.
+    #![allow(clippy::unwrap_used)]
+
     use super::*;
     use std::fs;
     use tempfile::TempDir;

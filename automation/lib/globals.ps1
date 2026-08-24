@@ -1001,6 +1001,7 @@ $script:MIOS_DOCS_DISTILL_SKIP_GLOBS = if ($env:MIOS_DOCS_DISTILL_SKIP_GLOBS) { 
 $script:MIOS_DOCS_LANDING_MIN_WORD_RATIO = if ($env:MIOS_DOCS_LANDING_MIN_WORD_RATIO) { $env:MIOS_DOCS_LANDING_MIN_WORD_RATIO } else { '0.9' }
 $script:MIOS_DOCS_LINK_BASE = if ($env:MIOS_DOCS_LINK_BASE) { $env:MIOS_DOCS_LINK_BASE } else { 'repo' }
 $script:MIOS_DOCS_LLM_PAYLOAD_GLOBS = if ($env:MIOS_DOCS_LLM_PAYLOAD_GLOBS) { $env:MIOS_DOCS_LLM_PAYLOAD_GLOBS } else { 'usr/share/mios/owui/**,usr/share/mios/hermes/**,usr/share/mios/prompts/**,usr/share/mios/ai/**,etc/mios/system-prompts/**,usr/share/mios/agents/**,usr/share/mios/cookbooks/**,etc/skel/.config/mios/**' }
+$script:MIOS_DOCS_MANUAL_MIN_VERBS = if ($env:MIOS_DOCS_MANUAL_MIN_VERBS) { $env:MIOS_DOCS_MANUAL_MIN_VERBS } else { 132 }
 $script:MIOS_DOCS_MAX_OVERLONG_HINTS = if ($env:MIOS_DOCS_MAX_OVERLONG_HINTS) { $env:MIOS_DOCS_MAX_OVERLONG_HINTS } else { 0 }
 $script:MIOS_DOCS_MAX_STALE_REFS = if ($env:MIOS_DOCS_MAX_STALE_REFS) { $env:MIOS_DOCS_MAX_STALE_REFS } else { 20 }
 $script:MIOS_DOCS_MAX_UNDOCUMENTED_COMPONENTS = if ($env:MIOS_DOCS_MAX_UNDOCUMENTED_COMPONENTS) { $env:MIOS_DOCS_MAX_UNDOCUMENTED_COMPONENTS } else { 16 }
