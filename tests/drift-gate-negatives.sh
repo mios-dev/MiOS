@@ -2505,10 +2505,49 @@ test_resolved_env_lossless() {
 }
 
 test_no_duplicate_value_key() {
+    # Was a rubber stamp: it ran the gate and died only if the gate FAILED.
+    # Both cases below are SSOT-side, not a broken tool.
     log "Testing check_no_duplicate_value_key"
-    MIOS_DRIFT_ROOT="$ROOT" MIOS_DRIFT_CHECK_ROOT="$ROOT" bash "${ROOT}/automation/98-drift-checks.sh" check_no_duplicate_value_key >/dev/null 2>&1 \
-        || die "Check_no_duplicate_value_key failed"
-    log "Test_no_duplicate_value_key passed"
+    local toml_file="${ROOT}/usr/share/mios/mios.toml"
+    local ledger="${ROOT}/usr/share/mios/reference/value-dup-baseline.tsv"
+    [[ -f "$toml_file" && -f "$ledger" ]] || { log "Test_no_duplicate_value_key skipped (SSOT or ledger absent)"; return 0; }
+
+    _neg_gate check_no_duplicate_value_key \
+        || die "check_no_duplicate_value_key failed on the unmutated tree: ${_NEG_GATE_OUT}"
+
+    local bak_file="${toml_file}.bak"
+    cp "$toml_file" "$bak_file"
+
+    # Case 1 -- a brand-new group: two SSOT keys given one novel value. The
+    # group count rises above the ratchet ceiling AND the value is unlisted.
+    printf '\n[negtest_value_dup]\nalpha = "ZZNEGDUPVALUE4271"\nbeta = "ZZNEGDUPVALUE4271"\n' >> "$toml_file"
+    if _neg_gate check_no_duplicate_value_key; then
+        cp "$bak_file" "$toml_file" && rm -f "$bak_file"
+        die "check_no_duplicate_value_key passed despite two SSOT keys resolving to one unlisted value"
+    fi
+    cp "$bak_file" "$toml_file"
+
+    # Case 2 -- the harder one: a single new key joining a value group the
+    # ledger ALREADY tolerates. The group count is unchanged, so only the
+    # per-group key-set comparison can catch it. The value is read out of the
+    # ledger itself so the test never hardcodes an SSOT fact.
+    local dup_value
+    dup_value="$(awk -F'\t' 'substr($0,1,1) != "#" && NF == 3 && $1 ~ /^[A-Za-z0-9._-]+$/ { print $1; exit }' "$ledger")"
+    if [[ -n "$dup_value" ]]; then
+        printf '\n[negtest_value_grow]\njoiner = "%s"\n' "$dup_value" >> "$toml_file"
+        if _neg_gate check_no_duplicate_value_key; then
+            cp "$bak_file" "$toml_file" && rm -f "$bak_file"
+            die "check_no_duplicate_value_key passed despite a new SSOT key joining the already-listed value group '${dup_value}'"
+        fi
+        cp "$bak_file" "$toml_file"
+    else
+        die "value-dup-baseline.tsv yielded no usable group value -- the ledger the gate ratchets against is empty or malformed"
+    fi
+
+    rm -f "$bak_file"
+    _neg_gate check_no_duplicate_value_key \
+        || die "check_no_duplicate_value_key failed after restoration: ${_NEG_GATE_OUT}"
+    log "Test_no_duplicate_value_key negative test passed"
 }
 
 test_no_hardcoded_ssot_literal() {
