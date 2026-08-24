@@ -98,7 +98,8 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-mcp.service` | `usr/lib/systemd/system` | MiOS' Agent Context Service (MCP) |
 | `mios-models-firstboot.service` | `usr/lib/systemd/system` | First-boot Large-model Provisioner |
 | `mios-mok-enroll.service` | `usr/lib/systemd/system` | MiOS' first-boot MOK enrollment for Secure Boot UKI trust |
-| `mios-node.container` | `usr/share/containers/systemd` | MiOS Distributed Edge Micro-Node Quadlet Container |
+| `mios-node.container` | `usr/share/containers/systemd` | MiOS' Distributed Edge Micro-Node Quadlet Service |
+| `mios-node.service` | `usr/lib/systemd/system` | MiOS ('My OS') Distributed Edge Micro-Node Runtime Daemon |
 | `mios-oci-delta-apply.service` | `usr/lib/systemd/system` | MiOS OCI Delta Apply Service (GAP-5) |
 | `mios-open-webui.container` | `usr/share/containers/systemd` | MiOS' Open WebUI |
 | `mios-opencode-gateway.service` | `usr/lib/systemd/system` | MiOS' OpenCode /v1 gateway (OpenAI adapter fronting the opencode CLI) |
@@ -154,10 +155,11 @@ This document is derived directly from the systemd unit files in the repository.
 | `mios-wsl-theme-bridge.service` | `usr/lib/systemd/user` | MiOS' WSL theme bridge (Windows light/dark -> GNOME color-scheme) |
 | `mios-wslg-env.service` | `usr/lib/systemd/user` | Import WSLg display environment into the systemd --user manager |
 | `mios-wslg-permissions-fix.service` | `usr/lib/systemd/system` | MiOS': chmod /mnt/wslg/runtime-dir to 0700 so weston accepts it as XDG_RUNTIME_DIR |
+| `mios-xdg-userdir-init.service` | `usr/lib/systemd/system` | MiOS XDG User Directories Initialization |
 | `var-home.mount` | `usr/lib/systemd/system` | CephFS mount for user home directories |
 | `var-lib-containers.mount` | `usr/lib/systemd/system` | CephFS mount for Podman container storage |
 | `var-lib-machines.mount` | `usr/lib/systemd/system` | Virtual Machine and Container Storage (Compatibility) |
 | `var-lib-nfs-rpc_pipefs.mount` | `usr/lib/systemd/system` | RPC Pipe File System |
 
-<!-- derived from tracked unit files (151 unit(s)) -->
+<!-- derived from tracked unit files (153 unit(s)) -->
 <!-- /MIOS-GEN:units -->

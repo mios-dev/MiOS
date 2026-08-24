@@ -759,7 +759,7 @@ LimitNOFILE = "65536"
 WantedBy = "multi-user.target"
 
 [units."mios-xdg-userdir-init.service".Unit]
-comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]\n\n"
+comment = "# AI-hint: systemd user unit to dynamically update XDG directories when a CephFS network home is mounted.\n# AI-related: ~/.config/systemd/user/mios-xdg-userdir-init.service, [storage.cephfs]\n"
 Description = "MiOS XDG User Directories Initialization"
 ConditionPathIsMountPoint = "%h"
 
@@ -10733,7 +10733,7 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 44780  # bash is glue only (Law 14)
+max_shell_lines   = 44498  # bash is glue only (Law 14)
 max_ps_lines      = 26987  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285
@@ -11047,4 +11047,3 @@ status  = "partial"
 # and none of those is as small as four mebibytes, so a file under this floor
 # is a truncated or empty write rather than a smaller build.
 min_bytes = 4194304
-

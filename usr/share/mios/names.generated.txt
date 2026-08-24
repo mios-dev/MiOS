@@ -624,6 +624,7 @@ agents.mios-daemon-agent.health_gate  MIOS_AGENTS_MIOS_DAEMON_AGENT_HEALTH_GATE
 agents.mios-daemon-agent.lane  MIOS_AGENTS_MIOS_DAEMON_AGENT_LANE
 agents.mios-daemon-agent.strengths  MIOS_AGENTS_MIOS_DAEMON_AGENT_STRENGTHS
 agents.mios-daemon-agent.failover_agents  MIOS_AGENTS_MIOS_DAEMON_AGENT_FAILOVER_AGENTS
+agents.ai-local.kind  MIOS_AGENTS_AI_LOCAL_KIND
 agents.ai-local.endpoint  MIOS_AGENTS_AI_LOCAL_ENDPOINT
 agents.ai-local.model  MIOS_AGENTS_AI_LOCAL_MODEL
 agents.ai-local.role  MIOS_AGENTS_AI_LOCAL_ROLE
@@ -632,6 +633,17 @@ agents.ai-local.default  MIOS_AGENTS_AI_LOCAL_DEFAULT
 agents.ai-local.lane  MIOS_AGENTS_AI_LOCAL_LANE
 agents.ai-local.health_gate  MIOS_AGENTS_AI_LOCAL_HEALTH_GATE
 agents.ai-local.strengths  MIOS_AGENTS_AI_LOCAL_STRENGTHS
+agents.mios-node.kind  MIOS_AGENTS_MIOS_NODE_KIND
+agents.mios-node.endpoint  MIOS_AGENTS_MIOS_NODE_ENDPOINT
+agents.mios-node.model  MIOS_AGENTS_MIOS_NODE_MODEL
+agents.mios-node.role  MIOS_AGENTS_MIOS_NODE_ROLE
+agents.mios-node.job  MIOS_AGENTS_MIOS_NODE_JOB
+agents.mios-node.default  MIOS_AGENTS_MIOS_NODE_DEFAULT
+agents.mios-node.fanout  MIOS_AGENTS_MIOS_NODE_FANOUT
+agents.mios-node.health_gate  MIOS_AGENTS_MIOS_NODE_HEALTH_GATE
+agents.mios-node.lane  MIOS_AGENTS_MIOS_NODE_LANE
+agents.mios-node.api  MIOS_AGENTS_MIOS_NODE_API
+agents.mios-node.strengths  MIOS_AGENTS_MIOS_NODE_STRENGTHS
 a2a.protocol_version  MIOS_A2A_PROTOCOL_VERSION
 a2a.discover_port  MIOS_A2A_DISCOVER_PORT
 a2a.public_domain  MIOS_A2A_PUBLIC_DOMAIN

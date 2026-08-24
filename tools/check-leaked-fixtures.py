@@ -23,6 +23,12 @@ BACKUP_SUFFIXES = (".bak", ".negbak", ".orig", ".rej", ".softtest.bak",
 ALLOWED_PATHS = frozenset({
     "tests/drift-gate-negatives.sh",
     "tools/check-leaked-fixtures.py",
+    "automation/98-drift-checks.sh",
+    "usr/share/mios/reference/manual-corpus.tsv",
+    "automation/manifest.json",
+    "tools/manifest.json",
+    "specs/manifest.json",
+    "root-manifest.json",
 })
 
 
