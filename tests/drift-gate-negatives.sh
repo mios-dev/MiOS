@@ -1193,6 +1193,25 @@ test_clevis_luks() {
     log "Test_clevis_luks negative test passed"
 }
 
+# The broken-generator case above is a TOOL-side probe, and a gate can pass one
+# of those while staying blind to the SSOT. These two cases edit mios.toml.
+test_clevis_luks_ssot() {
+    log "Testing check_clevis_luks against SSOT-side violations"
+    local toml="${ROOT}/usr/share/mios/mios.toml" bak="${ROOT}/usr/share/mios/mios.toml.clevisbak"
+    cp "$toml" "$bak"
+    sed -i '/^\[security\.luks\]$/,/^pcrs/ s/^enabled = false$/enabled = true/' "$toml"
+    cmp -s "$toml" "$bak" && die "fixture did not apply: [security.luks].enabled = false not found"
+    _neg_gate check_clevis_luks && die "check_clevis_luks passed with [security.luks].enabled flipped and etc/mios/clevis-luks.env not re-projected"
+    cp "$bak" "$toml"
+    _neg_gate check_clevis_luks || die "check_clevis_luks failed after restoring the flipped key"
+    sed -i '/^\[security\.luks\]$/,/^pcrs/d' "$toml"
+    cmp -s "$toml" "$bak" && die "fixture did not apply: the [security.luks] table was not deleted"
+    _neg_gate check_clevis_luks && die "check_clevis_luks passed with the [security.luks] table deleted from the SSOT"
+    cp "$bak" "$toml" && rm -f "$bak"
+    _neg_gate check_clevis_luks || die "check_clevis_luks failed after restoring the SSOT table"
+    log "Test_clevis_luks_ssot negative test passed"
+}
+
 test_metal_vfio() {
     log "Testing check_metal_vfio"
     local tmp_dir
@@ -3645,6 +3664,7 @@ _run_test test_leaked_fixtures
     _run_test test_deploy_plane
     _run_test test_sbom_metadata
     _run_test test_clevis_luks
+    _run_test test_clevis_luks_ssot
     _run_test test_metal_vfio
     _run_test test_hyprland_heredoc
     _run_test test_target_languages

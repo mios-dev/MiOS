@@ -3811,21 +3811,31 @@ PY
     done <<< "$gb_out"
 }
 
+# Regenerate-and-diff against the committed projection, the shape
+# check_ipa_enroll_projection uses: the generator's exit status is an assertion,
+# the match is anchored to line start, and the render is diffed against
+# etc/mios/clevis-luks.env, so an unprojected SSOT edit is drift. Run through
+# bash so a lost exec bit cannot decide whether the projection is checked.
 check_clevis_luks() {
     echo "[98-drift-checks]   clevis LUKS SSOT projection check"
-    local gen="$ROOT/usr/libexec/mios/mios-clevis-luks-gen"
-    if [[ ! -x "$gen" && -f "$gen" ]]; then
-        chmod +x "$gen" 2>/dev/null || true
+    local gen="$ROOT/usr/libexec/mios/mios-clevis-luks-gen" rc=0 out
+    local tgt="$ROOT/etc/mios/clevis-luks.env"
+    local repro="usr/libexec/mios/mios-clevis-luks-gen usr/share/mios/mios.toml > etc/mios/clevis-luks.env"
+    if [[ ! -f "$gen" ]]; then
+        _violation "(67) clevis LUKS generator missing: usr/libexec/mios/mios-clevis-luks-gen"
+        return 0
     fi
-    if [[ -f "$gen" ]]; then
-        local out; out="$("$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1 || true)"
-        if [[ "$out" == *"CLEVIS_LUKS_ENABLED="* ]]; then
-            return 0
-        else
-            _violation "(67) clevis LUKS generator failed to project SSOT configuration"
-        fi
+    out="$(bash "$gen" "${MIOS_TOML_ROOT:-$ROOT}/usr/share/mios/mios.toml" 2>&1)" || rc=$?
+    if [[ "$rc" -ne 0 ]] || ! grep -Eq '^CLEVIS_LUKS_ENABLED="' <<<"$out"; then
+        printf '[98-drift-checks][diff] generator rc=%s: %s\n' "$rc" "$out" >&2
+        _violation "(67) clevis LUKS generator did not project [security.luks] from usr/share/mios/mios.toml"
+    elif [[ ! -f "$tgt" ]]; then
+        _violation "(67) etc/mios/clevis-luks.env MISSING -- the projection is not committed; run ${repro}"
+    elif ! diff -u --label "a/etc/mios/clevis-luks.env" --label "b/mios.toml[security.luks]" \
+            "$tgt" <(printf '%s\n' "$out") >&2; then
+        _violation "(67) etc/mios/clevis-luks.env is out of sync with [security.luks] SSOT -- run ${repro}"
     else
-        _violation "(67) clevis LUKS generator script missing"
+        echo "[98-drift-checks]   etc/mios/clevis-luks.env matches [security.luks] SSOT"
     fi
 }
 
