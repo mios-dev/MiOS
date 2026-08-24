@@ -1,4 +1,4 @@
-# AI-hint: Generate k3s/k8s manifests from live MiOS Podman containers (pods-as-SSOT, WS-7)
+﻿# AI-hint: Generate k3s/k8s manifests from live MiOS Podman containers (pods-as-SSOT, WS-7)
 # AI-related: usr/share/mios/k3s, usr/share/containers/systemd, usr/share/mios/mios.toml
 
 [CmdletBinding()]
