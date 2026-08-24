@@ -75,21 +75,37 @@ fn test_every_shipped_unit_is_declared_in_ssot() {
     }
     let toml_content = ssot();
     let doc: toml::Table = toml::from_str(&toml_content).expect("SSOT parses as TOML");
-    let units_table = doc.get("units").and_then(|u| u.as_table()).cloned().unwrap_or_default();
+    let units_table = doc
+        .get("units")
+        .and_then(|u| u.as_table())
+        .cloned()
+        .unwrap_or_default();
 
     let mut declared_files = std::collections::HashSet::new();
     for (name, val) in &units_table {
         if let Some(tbl) = val.as_table() {
-            let fn_str = tbl.get("file").and_then(|f| f.as_str()).map(|s| s.to_string()).unwrap_or_else(|| {
-                if name.ends_with(".service") || name.ends_with(".timer") || name.ends_with(".path") || name.ends_with(".target") {
-                    name.clone()
-                } else {
-                    format!("{}.service", name)
-                }
-            });
+            let fn_str = tbl
+                .get("file")
+                .and_then(|f| f.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    if name.ends_with(".service")
+                        || name.ends_with(".timer")
+                        || name.ends_with(".path")
+                        || name.ends_with(".target")
+                    {
+                        name.clone()
+                    } else {
+                        format!("{}.service", name)
+                    }
+                });
             declared_files.insert(fn_str);
         } else {
-            let fn_str = if name.ends_with(".service") || name.ends_with(".timer") || name.ends_with(".path") || name.ends_with(".target") {
+            let fn_str = if name.ends_with(".service")
+                || name.ends_with(".timer")
+                || name.ends_with(".path")
+                || name.ends_with(".target")
+            {
                 name.clone()
             } else {
                 format!("{}.service", name)
@@ -104,10 +120,13 @@ fn test_every_shipped_unit_is_declared_in_ssot() {
             let path = entry.path();
             if path.is_file() {
                 if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                    if name.ends_with(".service") || name.ends_with(".timer") || name.ends_with(".path") || name.ends_with(".target") {
-                        if !declared_files.contains(name) {
-                            untracked.push(name.to_string());
-                        }
+                    if (name.ends_with(".service")
+                        || name.ends_with(".timer")
+                        || name.ends_with(".path")
+                        || name.ends_with(".target"))
+                        && !declared_files.contains(name)
+                    {
+                        untracked.push(name.to_string());
                     }
                 }
             }
@@ -119,4 +138,3 @@ fn test_every_shipped_unit_is_declared_in_ssot() {
         "un-tracked systemd unit files shipped under usr/share/mios/systemd/ not declared in [units.*]: {untracked:#?}"
     );
 }
-
