@@ -11997,7 +11997,7 @@ makes that table generated so the two cannot diverge again.
 **Verify:** after each batch, `--check` must show declared rising by the batch size and undeclared falling by it. Re-run `tools/sync-generated.sh` and confirm the tree is clean afterwards.
 **Do NOT:** rewrite a unit's content while declaring it. The projection must reproduce the unit, not edit it in passing -- transcribe the comment the file already carries rather than composing a better one.
 **Why:** the roadmap names unit projection the largest single gap in "one file defines the OS".
-**Dep:** none
+**Dep:** AGY-1935
 
 ## AGY-1831 -- 55 declared units are registered as drifting from their projection  (WS-UNITS | P1 | L)
 **Goal:** The drift register empties.
@@ -13038,3 +13038,13 @@ makes that table generated so the two cannot diverge again.
 **Do NOT:** link by workstream label. Workstreams are broad, and the plan needs the specific tasks that close each blocker.
 **Why:** a plan and a task register that do not reference each other diverge, and the recorded state is that both already describe the same work differently.
 **Dep:** AGY-1890
+
+## AGY-1935 -- Declaring a unit trips three shrink-only ratchets, so campaign 2 cannot proceed  (WS-UNITS | P1 | L)
+**Goal:** Declaring a unit in the SSOT is not scored as a regression.
+**What+How:** Declaring two units in `[units.*]` was attempted and reverted because it turned three gates red at once, all of them shrink-only so none may simply be raised. Measured, not inferred: the declarations added 17 `MIOS_UNITS_*` constants, which grew generated `globals.sh` by 34 lines and pushed `shell_lines` past its floor; raised `check_resolver_differential_parity` key divergence from 983 to 1002; and added duplicate-value groups absent from `value-dup-baseline.tsv`. That ledger already records 816 duplicate groups of which 433 are `MIOS_UNITS_*` rows, so past unit declarations were absorbed by bumping it -- meaning the ratchet does not constrain this class of change, it only records it after the fact. The cause is structural: units legitimately share values such as `WantedBy=multi-user.target` and `Type=oneshot`, so every declaration creates duplication by construction. Decide the policy before declaring the remaining 52, because each one hits all three.
+**Where:** `usr/share/mios/mios.toml`, `usr/share/mios/reference/value-dup-baseline.tsv`, `tools/drift-checks.py`, `automation/lib/globals.sh`
+**Done When:** declaring a unit moves only measures that should move, and the remaining 52 can be declared without a ratchet decision each time.
+**Verify:** declare one unit and show each of the three gates behaves as the policy says it should -- not merely that all three are green.
+**Do NOT:** resolve this by bumping `value-dup-baseline.tsv` per declaration. That is what produced 433 unit rows in an exemption ledger whose stated purpose is to shrink, and it makes the gate unable to catch the duplication it exists to catch.
+**Why:** the roadmap calls unit projection the largest single gap in "one file defines the OS", and its own gates currently score closing that gap as regression.
+**Dep:** AGY-1856
