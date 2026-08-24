@@ -278,6 +278,7 @@ is generated, its generator is here.
 | `tools/check-redact-coverage.py` | DURA-02 persist-redaction coverage gate: asserts every table in postgres/schema-init.sql is classified in exactly one of [security.redact]... |
 | `tools/check-resolver-twin.py` | Drift check helper to verify resolver twin equivalence between mios_toml.py and userenv.sh. |
 | `tools/check-role-ssot.py` | Drift gate for the blade ROLE axis -- Law 9 applied to the one value that decides what an image is. |
+| `tools/check-rust-test-coverage.py` | Fails when a Rust crate ships with no test at all, because cargo test reports ok for a crate that asserts nothing. |
 | `tools/check-schema-consumers.py` | Drift gate for dead schema. Every table in usr/share/mios/postgres/schema-init.sql must have at least one non-doc consumer in the tree --... |
 | `tools/check-service-urls.py` | Drift gate for service addressing. Every numeric [ports] key must resolve to exactly one canonical address -- either a [urls] entry that temp... |
 | `tools/check-ssot-consumer-keys.py` | Drift gate for the SSOT<->consumer contract. Shipped Python reads config as _toml_section("<table>").get("<key>"); this asserts that <t... |
@@ -346,6 +347,7 @@ is generated, its generator is here.
 | `tools/test_check-privileged-quadlets.py` | Sibling unit test for tools/check-privileged-quadlets.py (AGY-1646 / AGY-1651). |
 | `tools/test_check-redact-coverage.py` | Sibling unit test for tools/check-redact-coverage.py: builds throwaway schema/SSOT/pg.py trees and asserts the gate passes a fully cl... |
 | `tools/test_check-role-ssot.py` | Unit tests for tools/check-role-ssot.py. |
+| `tools/test_check-rust-test-coverage.py` | Unit tests for tools/check-rust-test-coverage.py. |
 | `tools/test_check-schema-consumers.py` | Sibling unit test for tools/check-schema-consumers.py. |
 | `tools/test_check-service-urls.py` | Unit tests for tools/check-service-urls.py. |
 | `tools/test_check-ssot-consumer-keys.py` | Unit tests for tools/check-ssot-consumer-keys.py. |
@@ -372,7 +374,7 @@ is generated, its generator is here.
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 | `tools/verify-images.py` | Verifies the built deployment artifacts against the SSOT format matrix; an empty or partial build tree is a failure that names the formats that produced nothing. |
 
-<!-- derived from the AI-hint headers of 120 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 122 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

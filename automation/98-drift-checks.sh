@@ -5913,6 +5913,7 @@ main() {
     check_globals_generated
     check_ci_suite_coverage
     check_manpages
+    check_rust_test_coverage
     check_header_comment_syntax
     check_variant_registry
     check_deploy_formats
@@ -6786,6 +6787,13 @@ check_header_comment_syntax() {
     _need_python || return 0
     local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>/dev/null)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
     echo "[98-drift-checks]   every AI header uses the comment character its format understands"
+}
+
+check_rust_test_coverage() {
+    echo "[98-drift-checks]   check_rust_test_coverage"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-rust-test-coverage.py 2>/dev/null)" || { _violations_from "check_rust_test_coverage: " "$out"; return; }
+    echo "[98-drift-checks]   every Rust crate has a test or is a registered exception"
 }
 
 check_manpages() {

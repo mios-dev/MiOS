@@ -11014,3 +11014,25 @@ status  = "partial"
 # and none of those is as small as four mebibytes, so a file under this floor
 # is a truncated or empty write rather than a smaller build.
 min_bytes = 4194304
+
+# [rust] -- what the Rust layer's green actually covers.
+#
+# `cargo test --workspace` prints "test result: ok. 0 passed" for a crate with no
+# tests, which reads exactly like a crate whose tests all passed. Every entry
+# below is in that state. The ceiling is shrink-only: write a test, remove the
+# entry, lower the number.
+[rust]
+max_untested_crates = 11
+
+[rust.untested_crates]
+"src/mios-rs/miosd" = "3550 lines, the largest crate in the repository, and the drift-check daemon -- AGY-1800"
+"tools/native/generate-names-registry" = "generates the names registry; a golden-output test is the obvious shape -- AGY-1801"
+"tools/native/mios-bake-plan" = "454 lines deciding what the bake pulls; wrong output costs a whole build -- AGY-1801"
+"tools/native/mios-comment-lex" = "the comment lexer the docs ratchets measure with -- AGY-1801"
+"tools/native/mios-drift-runner" = "runs the drift checks; untested, it can report a pass it did not observe -- AGY-1801"
+"tools/native/mios-ssot-lint" = "the Rust twin of 97-ssot-lint.sh, asserted byte-identical by a gate but not by its own test -- AGY-1801"
+"tools/native/mios-template-compile" = "compiles the templates other surfaces render from -- AGY-1801"
+"tools/native/mios-template-conform" = "asserts template conformance and asserts nothing about itself -- AGY-1801"
+"tools/native/mios-version-check" = "parses versions by hand; the hand-rolled TOML scan already needed hardening once -- AGY-1801"
+"tools/native/mios-wallpaperd" = "Windows-only, excluded from the CI workspace build -- AGY-1801"
+"tools/native/xtask" = "a 37-line cargo task helper; the smallest of these and the easiest to cover -- AGY-1801"

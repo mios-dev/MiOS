@@ -3103,6 +3103,26 @@ test_repo_partition_label_ssot() {
     log "check_repo_partition_label_ssot negative test passed"
 }
 
+test_rust_test_coverage() {
+    log "Testing check_rust_test_coverage"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+
+    # Unregister one untested crate. cargo prints "ok. 0 passed" for it either
+    # way, so the register is the only thing that knows it asserts nothing.
+    grep -v 'tools/native/xtask' "$bak" > "$toml"
+
+    _neg_gate check_rust_test_coverage && {
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_rust_test_coverage passed with an untested crate unregistered"
+    }
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_rust_test_coverage \
+        || die "check_rust_test_coverage failed after restoration"
+    log "check_rust_test_coverage negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3814,6 +3834,7 @@ _run_test test_leaked_fixtures
     _run_test test_verify_images
     _run_test test_header_comment_syntax
     _run_test test_repo_partition_label_ssot
+    _run_test test_rust_test_coverage
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s
