@@ -174,14 +174,14 @@ pub struct HeartbeatPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskOffloadPayload {
     pub task_id: u64,
-    pub tier: u8, // 1 = Wasm, 2 = Native
+    pub tier: u8,         // 1 = Wasm, 2 = Native
     pub target_arch: u16, // 0 = Agnostic, 1 = x86_64, 2 = AArch64, 3 = RISC-V 64
     pub memory_limit_bytes: u32,
     pub execution_timeout_ms: u32,
     pub code_bytes: Vec<u8>,
     pub input_data: Vec<u8>,
-    pub signature: Option<Vec<u8>>,   // Ed25519 signature for Tier 2 native binaries
-    pub public_key: Option<Vec<u8>>,  // Ed25519 public key
+    pub signature: Option<Vec<u8>>, // Ed25519 signature for Tier 2 native binaries
+    pub public_key: Option<Vec<u8>>, // Ed25519 public key
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

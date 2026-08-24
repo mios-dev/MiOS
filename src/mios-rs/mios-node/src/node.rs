@@ -92,7 +92,7 @@ impl MiOSNode {
                 interval.tick().await;
                 let (vc, elems) = {
                     let store = state_store_gossip.lock().unwrap();
-                    (store.vector_clock.clone(), store.active_elements())
+                    (store.vector_clock.clone(), store.replicable_elements())
                 };
 
                 if !elems.is_empty() {
@@ -103,7 +103,9 @@ impl MiOSNode {
                     if let Ok(payload_bytes) = serde_json::to_vec(&sync_payload) {
                         let frame = Frame::new(MessageType::StateSync, node_id, payload_bytes);
                         if let Ok(encoded) = frame.encode() {
-                            let _ = socket_gossip.send_to(&encoded, "255.255.255.255:8650").await;
+                            let _ = socket_gossip
+                                .send_to(&encoded, "255.255.255.255:8650")
+                                .await;
                         }
                     }
                 }

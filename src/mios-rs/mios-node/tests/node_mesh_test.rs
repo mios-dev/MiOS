@@ -67,10 +67,7 @@ fn test_tier1_wasm_sandbox_execution() -> Result<()> {
     assert_eq!(result.exit_code, 0);
 
     let store = state_store.lock().unwrap();
-    assert_eq!(
-        store.get("task.5001.status"),
-        Some(&b"COMPLETED".to_vec())
-    );
+    assert_eq!(store.get("task.5001.status"), Some(&b"COMPLETED".to_vec()));
 
     Ok(())
 }
@@ -119,7 +116,10 @@ fn test_tier2_native_ed25519_signature_verification() -> Result<()> {
 
     let invalid_result = engine.execute_task(&invalid_payload);
     assert!(!invalid_result.success);
-    assert!(invalid_result.error_msg.unwrap().contains("verification failed"));
+    assert!(invalid_result
+        .error_msg
+        .unwrap()
+        .contains("verification failed"));
 
     Ok(())
 }
@@ -130,7 +130,7 @@ fn test_crdt_tombstone_deletion_and_convergence() -> Result<()> {
     let mut node_2 = StateStore::new(102);
 
     node_1.set("network.domain".to_string(), b"mios.local".to_vec());
-    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.active_elements());
+    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.replicable_elements());
     assert_eq!(node_2.get("network.domain"), Some(&b"mios.local".to_vec()));
 
     // Node 1 deletes the key
@@ -138,7 +138,7 @@ fn test_crdt_tombstone_deletion_and_convergence() -> Result<()> {
     assert_eq!(node_1.get("network.domain"), None);
 
     // Merge deletion tombstone into Node 2
-    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.active_elements());
+    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.replicable_elements());
     assert_eq!(node_2.get("network.domain"), None);
 
     Ok(())
@@ -152,7 +152,7 @@ fn test_crdt_multi_node_state_convergence_and_persistence() -> Result<()> {
     node_1.set("network.domain".to_string(), b"mios.local".to_vec());
     node_2.set("network.domain".to_string(), b"mios.mesh".to_vec());
 
-    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.active_elements());
+    node_2.merge_remote_store(node_1.vector_clock.clone(), node_1.replicable_elements());
     assert!(node_2.get("network.domain").is_some());
 
     let tmp = NamedTempFile::new()?;

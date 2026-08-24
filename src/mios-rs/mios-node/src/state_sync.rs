@@ -17,6 +17,12 @@ pub struct VectorClock {
     pub clocks: HashMap<u32, u64>,
 }
 
+impl Default for VectorClock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VectorClock {
     pub fn new() -> Self {
         Self {
@@ -172,6 +178,17 @@ impl StateStore {
         updated_count
     }
 
+    /// Everything a peer needs to converge, tombstones included.
+    ///
+    /// An LWW-Element-Set converges only if the remove-set travels with the
+    /// add-set. Replicating `active_elements` instead means a delete is visible
+    /// on the node that made it and nowhere else: the peer never hears that the
+    /// key died, keeps its own live copy, and the two disagree forever.
+    pub fn replicable_elements(&self) -> Vec<StateElement> {
+        self.elements.values().cloned().collect()
+    }
+
+    /// The live view, for reading and display. NOT for replication.
     pub fn active_elements(&self) -> Vec<StateElement> {
         self.elements
             .values()
@@ -220,11 +237,11 @@ mod tests {
 
         node_a.set("config.timeout".to_string(), b"30s".to_vec());
 
-        node_b.merge_remote_store(node_a.vector_clock.clone(), node_a.active_elements());
+        node_b.merge_remote_store(node_a.vector_clock.clone(), node_a.replicable_elements());
         assert_eq!(node_b.get("config.timeout"), Some(&b"30s".to_vec()));
 
         node_b.set("config.timeout".to_string(), b"60s".to_vec());
-        node_a.merge_remote_store(node_b.vector_clock.clone(), node_b.active_elements());
+        node_a.merge_remote_store(node_b.vector_clock.clone(), node_b.replicable_elements());
         assert_eq!(node_a.get("config.timeout"), Some(&b"60s".to_vec()));
     }
 

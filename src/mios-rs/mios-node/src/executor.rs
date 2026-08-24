@@ -156,7 +156,9 @@ impl ExecutionEngine {
                 success: false,
                 exit_code: 6,
                 output_data: Vec::new(),
-                error_msg: Some("Tier 2 Native task rejected: missing cryptographic signature".to_string()),
+                error_msg: Some(
+                    "Tier 2 Native task rejected: missing cryptographic signature".to_string(),
+                ),
             };
         }
 
@@ -190,7 +192,7 @@ mod tests {
 
         let payload = TaskOffloadPayload {
             task_id: 100,
-            tier: 2, // Native
+            tier: 2,        // Native
             target_arch: 1, // x86_64
             memory_limit_bytes: 1024,
             execution_timeout_ms: 1000,

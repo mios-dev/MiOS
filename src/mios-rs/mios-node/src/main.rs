@@ -85,7 +85,10 @@ async fn main() -> Result<()> {
         }) => {
             println!("====================================================");
             println!("  MiOS ('My OS' / 'MyOS') Distributed Edge Runtime  ");
-            println!("  Node ID: {} | Port: {} | State: {}", node_id, port, db_path);
+            println!(
+                "  Node ID: {} | Port: {} | State: {}",
+                node_id, port, db_path
+            );
             println!("====================================================");
 
             let node = MiOSNode::new(node_id, port);
@@ -124,7 +127,9 @@ async fn main() -> Result<()> {
 
             println!(
                 "⚡ Offloaded Task ID {} to {} (Bytes: {})",
-                task_id, dest, encoded.len()
+                task_id,
+                dest,
+                encoded.len()
             );
         }
         Some(Commands::State { action }) => match action {
