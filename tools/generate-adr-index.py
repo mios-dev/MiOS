@@ -123,7 +123,7 @@ def main() -> int:
             return 1
         print(f"{OUT} matches the {len(rows)} baked ADR(s)")
         return 0
-    with open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(body)
     print(f"wrote {OUT} from {len(rows)} ADR(s)")
     return 0

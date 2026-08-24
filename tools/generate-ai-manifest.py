@@ -121,7 +121,7 @@ def generate_json_manifest(target_dir, output_file, recursive=True, ignore_dirs=
             except (FileNotFoundError, PermissionError, OSError):
                 continue
     
-    with open(output_file, 'w', encoding='utf-8') as f:
+    with open(output_file, 'w', encoding='utf-8', newline='\n') as f:
         json.dump(manifest, f, indent=2)
     print(f"Generated {output_file}")
 
@@ -190,7 +190,7 @@ def generate_gzipped_manifest(target_dir, output_file, recursive=True, ignore_di
             except (FileNotFoundError, PermissionError, OSError, UnicodeDecodeError):
                 continue
     
-    with gzip.open(output_file, 'wt', encoding='utf-8') as f:
+    with gzip.open(output_file, 'wt', encoding='utf-8', newline='\n') as f:
         json.dump(manifest, f, indent=2)
     print(f"Generated {output_file}")
 
