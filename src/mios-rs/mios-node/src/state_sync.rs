@@ -1,3 +1,5 @@
+// AI-hint: CRDT LWW-Element-Set state sync engine with append-log persistence for mios-node.
+// AI-related: src/mios-rs/mios-node/src/node.rs
 //! MiOS Distributed Lock-Free State Synchronization Engine
 //! Implements Last-Write-Wins Element-Set (LWW-Element-Set) CRDT, Vector Clock Causality,
 //! and Disk-Backed Persistence (Snapshot & Append-Only Log)

@@ -1,3 +1,5 @@
+// AI-hint: Dual-tier task execution engine (Wasm sandbox & signed native modules) for mios-node.
+// AI-related: src/mios-rs/mios-node/src/node.rs
 //! MiOS Dual-Tier Task Sandboxing & Execution Engine
 //! Tier 1: WebAssembly / Bytecode Sandboxed Execution Engine with mios_sys_* host API bindings
 //! Tier 2: Dynamic Native Module Loader with Ed25519 signature checks and architecture verification

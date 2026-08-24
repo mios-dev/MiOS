@@ -1,3 +1,5 @@
+// AI-hint: 16-byte fixed header binary wire protocol parser and generator for mios-node.
+// AI-related: src/mios-rs/mios-node/src/node.rs
 //! MiOS Binary Wire Protocol Specification & Framing Engine
 //! Header Format (16 Bytes Fixed, Big-Endian Network Byte Order):
 //!

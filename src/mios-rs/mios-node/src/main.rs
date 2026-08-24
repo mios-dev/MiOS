@@ -1,3 +1,5 @@
+// AI-hint: Main CLI and daemon binary entry point for the mios-node runtime.
+// AI-related: src/mios-rs/mios-node/src/node.rs, usr/bin/mios-node
 //! MiOS ("My OS" / "MyOS") Edge Micro-Node CLI & Daemon
 
 use anyhow::Result;

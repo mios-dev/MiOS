@@ -1,3 +1,6 @@
+# AI-hint: Cargo package specification for the mios-node edge micro-node daemon.
+# AI-related: src/mios-rs/mios-node/src/main.rs, usr/bin/mios-node
+
 [package]
 name = "mios-node"
 version.workspace = true

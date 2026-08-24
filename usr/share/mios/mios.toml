@@ -8817,6 +8817,35 @@ ConditionPathExists = [
 Description = "'MiOS' swarm worker %i (single-model llama-server, FOSS)"
 Wants = "network-online.target"
 
+[containers.mios-node.Container]
+ContainerName = "mios-node"
+Environment = [
+  "MIOS_NODE_ID=101",
+  "MIOS_PORT=8650",
+  "MIOS_AI_ENDPOINT=http://127.0.0.1:8640"
+]
+Group = "${MIOS_NODE_GID:-830}"
+Image = "ghcr.io/mios-dev/mios-node:latest"
+Label = "org.opencontainers.image.title=mios-node"
+Pod = "mios-ai.pod"
+PublishPort = ["8650:8650/udp", "8650:8650/tcp"]
+User = "${MIOS_NODE_UID:-830}"
+Volume = "/var/lib/mios:/var/lib/mios:Z"
+
+[containers.mios-node.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-node.Service]
+Delegate = "yes"
+Restart = "always"
+
+[containers.mios-node.Unit]
+After = "network-online.target"
+Description = "'MiOS' Distributed Edge Micro-Node Quadlet Service"
+Wants = "network-online.target"
+
+
+
 [containers.mios-open-webui.Container]
 AutoUpdate = "registry"
 ContainerName = "mios-open-webui"

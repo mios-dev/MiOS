@@ -1,3 +1,5 @@
+// AI-hint: Integration and unit tests for mios-node wire protocol, dual-tier executor, and CRDT state sync.
+// AI-related: src/mios-rs/mios-node/src/lib.rs, src/mios-rs/mios-node/src/node.rs
 use anyhow::Result;
 use ed25519_dalek::{Signer, SigningKey};
 use mios_node::executor::ExecutionEngine;

@@ -624,7 +624,6 @@ agents.mios-daemon-agent.health_gate  MIOS_AGENTS_MIOS_DAEMON_AGENT_HEALTH_GATE
 agents.mios-daemon-agent.lane  MIOS_AGENTS_MIOS_DAEMON_AGENT_LANE
 agents.mios-daemon-agent.strengths  MIOS_AGENTS_MIOS_DAEMON_AGENT_STRENGTHS
 agents.mios-daemon-agent.failover_agents  MIOS_AGENTS_MIOS_DAEMON_AGENT_FAILOVER_AGENTS
-agents.ai-local.kind  MIOS_AGENTS_AI_LOCAL_KIND
 agents.ai-local.endpoint  MIOS_AGENTS_AI_LOCAL_ENDPOINT
 agents.ai-local.model  MIOS_AGENTS_AI_LOCAL_MODEL
 agents.ai-local.role  MIOS_AGENTS_AI_LOCAL_ROLE
