@@ -2964,6 +2964,46 @@ test_variant_registry() {
     log "check_variant_registry negative test passed"
 }
 
+test_deploy_formats() {
+    log "Testing check_deploy_formats"
+    local toml="${ROOT}/usr/share/mios/mios.toml"
+    local bak; bak="$(mktemp)"; cp "$toml" "$bak"
+
+    # Point a format at a build target the Justfile does not define. A matrix
+    # that names an unbuildable format promises a deployment nobody can make.
+    sed 's|target  = "wsl2"|target  = "no-such-target"|' "$bak" > "$toml"
+
+    _neg_gate check_deploy_formats && {
+        cp "$bak" "$toml"; rm -f "$bak"
+        die "check_deploy_formats passed with a format naming a missing target"
+    }
+
+    cp "$bak" "$toml"; rm -f "$bak"
+    _neg_gate check_deploy_formats \
+        || die "check_deploy_formats failed after restoration"
+    log "check_deploy_formats negative test passed"
+}
+
+test_header_comment_syntax() {
+    log "Testing check_header_comment_syntax"
+    local unit="${ROOT}/usr/lib/systemd/system/mios-agent-pipe.service"
+    local bak; bak="$(mktemp)"; cp "$unit" "$bak"
+
+    # A C-style header in a systemd unit is not a comment: the line is rejected,
+    # and one such line in a WSL config failed a build twenty-nine minutes in.
+    printf '/%s AI-doc: probe %s/\n' '*' '*' >> "$unit"
+
+    _neg_gate check_header_comment_syntax && {
+        cp "$bak" "$unit"; rm -f "$bak"
+        die "check_header_comment_syntax passed with a C-style header in a unit"
+    }
+
+    cp "$bak" "$unit"; rm -f "$bak"
+    _neg_gate check_header_comment_syntax \
+        || die "check_header_comment_syntax failed after restoration"
+    log "check_header_comment_syntax negative test passed"
+}
+
 test_ci_suite_coverage() {
     log "Testing check_ci_suite_coverage"
     local toml="${ROOT}/usr/share/mios/mios.toml"
@@ -3670,6 +3710,8 @@ _run_test test_leaked_fixtures
     _run_test test_ports_category_schema
     _run_test test_globals_generated
     _run_test test_variant_registry
+    _run_test test_deploy_formats
+    _run_test test_header_comment_syntax
     if (( ${#_FAILED[@]} )); then
         echo -e "[1;31m[drift-gate-negatives][0m ${#_FAILED[@]} test(s) failed:" >&2
         printf '  %s

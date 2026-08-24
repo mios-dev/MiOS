@@ -1,6 +1,5 @@
 # AI-hint: Ordered-before oneshot that lets the pgvector image float across PostgreSQL majors -- it dumps an older cluster with the older image into the initdb restore slot and stashes the old data dir so the new major can initialise, and...
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' pgvector PostgreSQL-major migration guard
 Documentation=file:///usr/lib/systemd/system/mios-pgvector-major-upgrade.service

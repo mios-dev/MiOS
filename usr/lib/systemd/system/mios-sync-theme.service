@@ -1,6 +1,5 @@
 # AI-hint: Oneshot that regenerates /etc/mios/theme/{theme.json,mios-theme.css} from mios.toml via usr/libexec/mios/mios-sync-theme.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description=MiOS theme bridge -- regenerate /etc/mios/theme from mios.toml [colors]
 After=local-fs.target

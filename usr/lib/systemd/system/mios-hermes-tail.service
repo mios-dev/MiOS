@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit that tails the hermes-agent journal to extract in-flight task/tool events into /var/lib/mios/hermes-tail/latest.json, enabling the OWUI mios_sidecar to broadcast real-time agent status to the UI.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 # /usr/lib/systemd/system/mios-hermes-tail.service
 #

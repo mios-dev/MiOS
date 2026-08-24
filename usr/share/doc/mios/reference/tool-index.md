@@ -260,9 +260,11 @@ is generated, its generator is here.
 | `tools/check-container-names.py` | Drift gate for unmappable container names. |
 | `tools/check-credential-literals.py` | Law-11 extension gate: fails any NEW credential literal baked into a world-readable systemd unit or Quadlet (Environment=...PASSWORD/S... |
 | `tools/check-daemon-governor.py` | Structural governor-coverage gate for mios-daemon: asserts every autonomous *_loop consults the host-pressure gate, that the SSOT [daemon]... |
+| `tools/check-deploy-formats.py` | Fails when a declared deployment format has no build target, when a build target is undeclared, or when a variant ships a format the matrix does not define. |
 | `tools/check-doc-ratchet-monotone.py` | Drift check 156 check_doc_ratchet_monotone -- asserts ceiling values in mios.toml are <= recorded floor values. |
 | `tools/check-firstboot-provisioners.py` | Drift gate for the first-boot provisioner triples (FBM T-200/T-202). |
 | `tools/check-fleet-safety.py` | Drift gate for hazards that are SAFE on one node and dangerous above it. Detected from the tree, and every one must sit in the shrink-only [blades.hazards].accepted register under a ratchet. |
+| `tools/check-header-comment-syntax.py` | Fails when an AI header uses a comment syntax the file's own format does not understand. |
 | `tools/check-leaked-fixtures.py` | Fails when a negative test's injected fixture, or a backup file it made, is left behind in the tracked tree. |
 | `tools/check-manual-links.py` | Link-integrity gate for the shipped docs. |
 | `tools/check-mios-toml-integrity.py` | Drift gate for mios.toml SSOT integrity, truncation, and table preservation (AGY-1682). |
@@ -325,9 +327,11 @@ is generated, its generator is here.
 | `tools/test_check-container-names.py` | Sibling unit test for tools/check-container-names.py. |
 | `tools/test_check-credential-literals.py` | Sibling unit test for tools/check-credential-literals.py: builds throwaway unit trees and asserts the gate passes a grandfathered... |
 | `tools/test_check-daemon-governor.py` | Sibling unit test for tools/check-daemon-governor.py: builds throwaway daemon/SSOT/chat trees in a temp dir and asserts the gate pass... |
+| `tools/test_check-deploy-formats.py` | Sibling test for tools/check-deploy-formats.py; proves the format matrix covers every build target and every recipe. |
 | `tools/test_check-doc-ratchet-monotone.py` | Fixtures for check-doc-ratchet-monotone.py -- proves it runs clean on the shipped tree and that its exit code is meaningful rather than constant. |
 | `tools/test_check-firstboot-provisioners.py` | Sibling unit test for tools/check-firstboot-provisioners.py. |
 | `tools/test_check-fleet-safety.py` | Unit tests for tools/check-fleet-safety.py -- both detectors independently, plus every way the accepted register can stop measuring. |
+| `tools/test_check-header-comment-syntax.py` | Sibling test for tools/check-header-comment-syntax.py; proves it catches a C-style header in a hash-comment format. |
 | `tools/test_check-leaked-fixtures.py` | Sibling test for tools/check-leaked-fixtures.py; proves the scan catches an injected fixture and a backup file. |
 | `tools/test_check-manual-links.py` | Sibling unit test for tools/check-manual-links.py: builds throwaway manual trees in a temp dir and asserts the gate exits 0 on a clean T... |
 | `tools/test_check-mios-toml-integrity.py` | Sibling unit test for tools/check-mios-toml-integrity.py (AGY-1646 / AGY-1682). |
@@ -362,7 +366,7 @@ is generated, its generator is here.
 | `tools/test_templates_golden.py` | Golden fixture test runner for mios-new template generator across all 20 template types. |
 | `tools/verb-template-check.py` | Validates verb command templates against declared verb arguments and synonyms at build time. |
 
-<!-- derived from the AI-hint headers of 110 file(s) matching tools/*.py -->
+<!-- derived from the AI-hint headers of 114 file(s) matching tools/*.py -->
 <!-- /MIOS-GEN:index:tools/*.py -->
 
 ## Libraries (`usr/lib/mios`)

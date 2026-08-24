@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit for the Hermes gateway -- the ONLY unit in the tree running `hermes gateway run`.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 # /usr/lib/systemd/system/hermes-worker.service
 #

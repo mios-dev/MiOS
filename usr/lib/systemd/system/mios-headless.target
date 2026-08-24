@@ -1,5 +1,5 @@
 # AI-hint: Defines the headless systemd target for MiOS, enforcing a non-GUI environment by conflicting with desktop, k3s-master, and ha-node targets to ensure a dedicated server-mode state.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Headless Role
 Requires=multi-user.target

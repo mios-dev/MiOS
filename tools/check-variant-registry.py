@@ -31,12 +31,10 @@ def main() -> int:
 
     editions = ssot.get("editions") or {}
     archetypes = ((ssot.get("blade") or {}).get("archetypes") or {})
-    recipes = set()
-    art_dir = os.path.join(root, "config/artifacts")
-    if os.path.isdir(art_dir):
-        recipes = {f[:-5] for f in os.listdir(art_dir) if f.endswith(".toml")}
-    # raw is produced by the installer path rather than a recipe file.
-    recipes |= {"raw"}
+    # [deploy.formats] is the matrix; a format needs a build target, not
+    # necessarily a recipe file, so the recipe directory is the wrong authority.
+    recipes = {k for k, v in ((ssot.get("deploy") or {}).get("formats") or {}).items()
+               if isinstance(v, dict)}
 
     key_re = re.compile(r"^[%s]+$" % naming.get("key_charset", "a-z0-9-"))
     prefix = naming.get("prefix", "MiOS")
@@ -82,7 +80,7 @@ def main() -> int:
             viol.append("%s archetype %r is not in [blade.archetypes]" % (where, arch))
         for art in spec.get("artifacts") or []:
             if art not in recipes:
-                viol.append("%s artifact %r has no recipe in config/artifacts/"
+                viol.append("%s artifact %r is not a declared deployment format"
                             % (where, art))
         doc = spec.get("doc")
         if doc and not os.path.isfile(os.path.join(root, doc)):

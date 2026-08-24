@@ -1,6 +1,5 @@
 # AI-hint: Systemd timer that triggers mios-suggestion-refresh.service every 10 minutes to update OWUI starter chips based on current system state, kanban data, and recent user intents.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' starter-chip refresh cadence
 Documentation=file:///usr/libexec/mios/mios-suggestion-refresh

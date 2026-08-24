@@ -208,7 +208,50 @@ def check_legibility_ratchet() -> int:
     sys.exit(1 if viol else 0)
 
 
+def check_no_inert_ssot_tables() -> int:
+    import os, sys, re
+    import tomllib
+
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(toml_path):
+        sys.exit(0)
+
+    with open(toml_path, "rb") as fh:
+        data = tomllib.load(fh)
+
+    inert = []
+    for section in data.keys():
+        pattern = re.compile(r'(\b' + re.escape(section) + r'\b|\[' + re.escape(section) + r'\]|MIOS_' + re.escape(section.upper()) + r')')
+        found = False
+        for rpath, _, files in os.walk(root):
+            if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored']):
+                continue
+            for fn in files:
+                if fn == 'mios.toml' or not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
+                    continue
+                fpath = os.path.join(rpath, fn)
+                try:
+                    with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
+                        if pattern.search(sfh.read()):
+                            found = True
+                            break
+                except Exception:
+                    pass
+            if found:
+                break
+        if not found:
+            inert.append(section)
+
+    if inert:
+        sys.stdout.write(f"Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
+        sys.exit(1)
+
+    sys.exit(0)
+
+
 SUBCOMMANDS = {
+    "no-inert-ssot-tables": check_no_inert_ssot_tables,
     "doc-refs-resolve": check_doc_refs_resolve,
     "resolver-differential-parity": check_resolver_differential_parity,
     "legibility-ratchet": check_legibility_ratchet,

@@ -1,5 +1,5 @@
 # AI-hint: Ensures critical MiOS service ports (resolved from the `[ports]` SSOT: open_webui, hermes, searxng, cockpit and peers, plus DNS 53) are opened in firewalld at boot to prevent connectivity loss for Open WebUI, Hermes, Cockpit, and...
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 # Ensure MiOS service ports are open in firewalld at every boot.
 #

@@ -1,5 +1,5 @@
 # AI-hint: One-shot systemd service that executes the initial registration of the Forgejo runner using the local token if the runner is not yet configured, ensuring the runner is registered before the main service starts.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Forgejo Runner first-boot registration
 Documentation=https://forgejo.org/docs/latest/admin/actions/

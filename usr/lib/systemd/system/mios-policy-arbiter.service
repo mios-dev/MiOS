@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit for the WS-9 out-of-process HITL policy arbiter -- runs /usr/libexec/mios/mios-policy-arbiter (a stdlib loopback HTTP service) as the mios-ai user, answering the agent-pipe's HITL arbiter client with allow/deny...
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' out-of-process HITL policy arbiter (WS-9)
 After=network-online.target mios-agent-pipe.service

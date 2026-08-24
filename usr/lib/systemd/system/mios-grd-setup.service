@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit that executes /usr/libexec/mios-grd-setup to initialize GNOME Remote Desktop (GRD) configurations once network and GDM are ready, ensuring remote access is provisioned on first boot.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' GNOME Remote Desktop Setup
 ConditionVirtualization=!container

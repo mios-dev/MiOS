@@ -1,6 +1,5 @@
 # AI-hint: Day-N+1 documentation pass -- scrapes the source comments, sanitizes them and distils them into the manual, then re-renders every derived section; AI-hints are left in place and reach the docs through the index deriver instead.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' daily comment-to-manual distillation
 Documentation=file:///usr/share/doc/mios/reference/documentation-pipeline.md

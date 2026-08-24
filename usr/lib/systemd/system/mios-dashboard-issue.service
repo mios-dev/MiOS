@@ -1,6 +1,5 @@
 # AI-hint: Systemd unit that executes mios-dashboard-render_issue.sh to populate /etc/issue.d/30-mios.issue, ensuring the MiOS system status is rendered on all getty login prompts.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' dashboard -> /etc/issue.d (pre-login banner)
 Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh

@@ -1,5 +1,5 @@
 # AI-hint: Systemd unit that executes the mios-ai-firstboot script to provision the AI agent virtual environment and download llama.cpp GGUF models if the .ai-firstboot-done sentinel is missing.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' AI first-boot provisioning (agent venv + llama.cpp GGUFs)
 Documentation=https://github.com/mios-dev/mios

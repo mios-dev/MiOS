@@ -1,5 +1,5 @@
 # AI-hint: Systemd timer that triggers mios-dashboard-issue.service every 5 minutes to refresh the /etc/issue.d/ banner with real-time Quadlet status updates like service flapping and endpoint reachability.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' dashboard /etc/issue.d refresh timer
 Documentation=file:///usr/libexec/mios/mios-dashboard-render-issue.sh

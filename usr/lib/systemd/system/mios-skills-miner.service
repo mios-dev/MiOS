@@ -1,6 +1,5 @@
 # AI-hint: Systemd unit that executes `mios-skills mine` to process the pgvector tool_call history into a skill catalog, automatically updating the shared catalog and reaping low-performing skills via `export-catalog` and `reap`.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Phase C.2 Sequential Pattern Mining over tool_call history
 Documentation=file:///usr/libexec/mios/mios-skills

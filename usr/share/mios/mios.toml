@@ -10806,7 +10806,7 @@ target    = "bare metal or a virtual machine"
 config    = ["image", "blade", "editions"]
 edition   = "mios"
 archetype = "hybrid"
-artifacts = ["iso", "qcow2", "vhdx", "bib"]
+artifacts = ["oci", "iso", "qcow2", "vhdx", "raw"]
 doc       = "usr/share/doc/mios/manual.md"
 status    = "shipping"
 
@@ -10826,7 +10826,7 @@ summary   = "the metal-owning firmware: a small headless bootc hypervisor-router
 target    = "bare metal, headless"
 config    = ["metal"]
 archetype = "headless"
-artifacts = ["iso", "bib"]
+artifacts = ["iso", "raw"]
 doc       = "docs/agy/doc-mios-metal.md"
 status    = "design"
 
@@ -10858,6 +10858,88 @@ summary   = "the portable edition: a Ventoy USB or NVMe carrying the image, the 
 target    = "removable USB or NVMe"
 config    = ["cat"]
 archetype = "endpoint"
-artifacts = ["iso", "raw"]
+artifacts = ["usb-installer", "iso"]
 doc       = "usr/share/doc/mios/adr/0008-mios-cat-unified-entry-and-minification.md"
 status    = "partial"
+
+# Every way MiOS can be deployed, named once. The targets and recipes existed;
+# what did not exist was a statement of the matrix, so [deploy].artifacts listed
+# two of the seven formats the build system actually produces and nothing
+# noticed. A format is declared here or it is not supported.
+[deploy.formats]
+# The shared bootc-image-builder recipe the disk formats sit on. Not a format.
+shared_recipe = "config/artifacts/bib.toml"
+
+[deploy.formats.oci]
+title   = "OCI image"
+summary = "the image itself, pulled from a registry and switched into with bootc"
+target  = "build"
+recipe  = ""
+medium  = "container registry"
+gui     = "the desktop the host provides"
+status  = "shipping"
+
+[deploy.formats.oci-archive]
+title   = "OCI archive"
+summary = "the image as a single file, for installing where there is no network"
+target  = "oci-archive"
+recipe  = ""
+medium  = "file"
+gui     = "the desktop the host provides"
+status  = "shipping"
+
+[deploy.formats.raw]
+title   = "raw disk image"
+summary = "a whole-disk image written straight to bare metal or a block device"
+target  = "raw"
+recipe  = ""
+medium  = "disk"
+gui     = "full desktop session"
+status  = "shipping"
+
+[deploy.formats.iso]
+title   = "installer ISO"
+summary = "a bootable installer that lays MiOS onto the machine it boots"
+target  = "iso"
+recipe  = "config/artifacts/iso.toml"
+medium  = "optical or USB"
+gui     = "full desktop session"
+status  = "shipping"
+
+[deploy.formats.usb-installer]
+title   = "portable installer"
+summary = "a Ventoy USB or NVMe carrying the image, the repository and the models, installing with no network"
+target  = "usb-installer"
+recipe  = ""
+medium  = "removable USB or NVMe"
+gui     = "full desktop session"
+status  = "partial"
+
+[deploy.formats.qcow2]
+title   = "QEMU disk"
+summary = "a virtual machine disk for libvirt, QEMU and the cloud images built from it"
+target  = "qcow2"
+recipe  = "config/artifacts/qcow2.toml"
+medium  = "virtual machine"
+gui     = "full desktop session"
+status  = "shipping"
+
+[deploy.formats.vhdx]
+title   = "Hyper-V disk"
+summary = "a virtual machine disk for Hyper-V and Windows virtualisation"
+target  = "vhdx"
+recipe  = "config/artifacts/vhdx.toml"
+medium  = "virtual machine"
+gui     = "full desktop session"
+status  = "shipping"
+
+[deploy.formats.wsl2]
+title   = "WSL distribution"
+summary = "MiOS as a Windows Subsystem for Linux distribution, running its own systemd and its own containers"
+target  = "wsl2"
+recipe  = "config/artifacts/wsl2.toml"
+medium  = "WSL2 on Windows"
+# WSLg is not a separate artifact: it is this format with the graphical bridge
+# Windows already provides, which etc/profile.d/mios-wslg.sh wires up.
+gui     = "WSLg, via the graphical bridge Windows provides"
+status  = "partial"

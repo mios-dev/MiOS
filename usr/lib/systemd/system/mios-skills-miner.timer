@@ -1,5 +1,5 @@
 # AI-hint: Defines the systemd timer for the mios-skills-miner.service, controlling the periodic execution interval (default 60m) for background skill mining and pattern discovery.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Phase C.2 skill-miner cadence (sequential pattern mining)
 Documentation=file:///usr/libexec/mios/mios-skills

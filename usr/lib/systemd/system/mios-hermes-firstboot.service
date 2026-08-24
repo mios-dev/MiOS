@@ -1,5 +1,5 @@
 # AI-hint: Initializes the Hermes gateway by generating the api.env file and ensuring the config.yaml matches the current schema, acting as a self-healing pre-boot step to provide required credentials and configuration for...
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' Hermes-Agent first-boot config + key generation
 Documentation=https://github.com/MiOS-DEV/MiOS

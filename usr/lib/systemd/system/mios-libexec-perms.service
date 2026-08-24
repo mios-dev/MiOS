@@ -1,5 +1,5 @@
 # AI-hint: Enforces world exec+read (go+rX) perms on /usr/libexec/mios via a systemd oneshot at early boot, so MiOS services that run as a non-owner user (mios-ai, mios-skills, mios-hermes, ...) can execute their libexec scripts instead of...
-/* AI-doc: usr/share/doc/mios/manual/system.md */
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 # Enforce go+rX on /usr/libexec/mios so services running as a DIFFERENT user
 # than the file owner can exec their scripts.

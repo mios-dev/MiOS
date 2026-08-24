@@ -1,6 +1,5 @@
 # AI-hint: Systemd unit that triggers a one-shot script to refresh MiOS-aware starter chips in webui.db by querying pgvector and the refine endpoint, ensuring the UI prompt suggestions stay current.
-/* AI-doc: usr/share/doc/mios/manual/system.md */
-
+# AI-doc: usr/share/doc/mios/manual/system.md
 [Unit]
 Description='MiOS' starter-chip refresh (revolving suggestions)
 Documentation=file:///usr/libexec/mios/mios-suggestion-refresh

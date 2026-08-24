@@ -1,6 +1,5 @@
 # AI-hint: DEPRECATED: This config has been migrated to the [gateway] section of mios.toml Default configuration for the Hermes AI agent, defining Ollama backend endpoints, model lists, auxiliary processing models, and SearXNG web search...
-/* AI-doc: usr/share/doc/mios/manual/hermes.md */
-
+# AI-doc: usr/share/doc/mios/manual/hermes.md
 backend:
   provider: ollama
   # localhost: dev-VM with Network=host hits ollama in the same netns.

@@ -6070,7 +6070,9 @@ main() {
     check_globals_generated
     check_ci_suite_coverage
     check_manpages
+    check_header_comment_syntax
     check_variant_registry
+    check_deploy_formats
     check_temp_fixture_cleanup
     check_negatives_registered
     check_leaked_fixtures
@@ -6922,6 +6924,20 @@ check_variant_registry() {
     echo "[98-drift-checks]   every variant names a real table, edition, archetype, artifact and doc"
 }
 
+check_deploy_formats() {
+    echo "[98-drift-checks]   check_deploy_formats"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-deploy-formats.py 2>&1)" || { _violations_from "check_deploy_formats: " "$out"; return; }
+    echo "[98-drift-checks]   $out"
+}
+
+check_header_comment_syntax() {
+    echo "[98-drift-checks]   check_header_comment_syntax"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-header-comment-syntax.py 2>/dev/null)" || { _violations_from "check_header_comment_syntax: " "$out"; return; }
+    echo "[98-drift-checks]   every AI header uses the comment character its format understands"
+}
+
 check_manpages() {
     echo "[98-drift-checks]   check_manpages"
     _need_python || return 0
@@ -7001,47 +7017,7 @@ check_desktop_launchers() { _run_py_check check_desktop_launchers "tools/render-
 
 check_no_inert_ssot_tables() {
     echo "[98-drift-checks]   check_no_inert_ssot_tables"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
-import os, sys, re
-import tomllib
-
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-if not os.path.isfile(toml_path):
-    sys.exit(0)
-
-with open(toml_path, "rb") as fh:
-    data = tomllib.load(fh)
-
-inert = []
-for section in data.keys():
-    pattern = re.compile(r'(\b' + re.escape(section) + r'\b|\[' + re.escape(section) + r'\]|MIOS_' + re.escape(section.upper()) + r')')
-    found = False
-    for rpath, _, files in os.walk(root):
-        if any(skip in rpath for skip in ['.git', '.venv', '__pycache__', 'node_modules', 'vendored']):
-            continue
-        for fn in files:
-            if fn == 'mios.toml' or not (fn.endswith('.py') or fn.endswith('.sh') or fn.endswith('.ps1') or fn.endswith('.md')):
-                continue
-            fpath = os.path.join(rpath, fn)
-            try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as sfh:
-                    if pattern.search(sfh.read()):
-                        found = True
-                        break
-            except Exception:
-                pass
-        if found:
-            break
-    if not found:
-        inert.append(section)
-
-if inert:
-    sys.stdout.write(f"Inert SSOT top-level table(s) found with zero consumers: {', '.join(inert)}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PYEOF
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py no-inert-ssot-tables
     )" || {
         _violations_from "check_no_inert_ssot_tables: " "$out"; return; }
     echo "[98-drift-checks]   $out"
