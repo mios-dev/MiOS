@@ -21,7 +21,7 @@ __all__ = ["Block", "Verdict", "Policy", "RefIndex", "lex", "classify", "load_ai
 # disagree about what was counted.
 SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
             ".container", ".timer", ".socket", ".target", ".conf", ".yml", ".yaml")
-_SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv"}
+_SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv", ".rustup", ".cargo", "output"}
 
 
 def iter_source_files(root: str):
@@ -38,6 +38,9 @@ def iter_source_files(root: str):
                 rels.append(os.path.relpath(os.path.join(dp, fn), root)
                             .replace(os.sep, "/"))
     for rel in sorted(rels):
+        parts = set(rel.split("/"))
+        if parts & _SKIP_DIRS:
+            continue
         if not rel.endswith(SCAN_EXT):
             continue
         full = os.path.join(root, rel.replace("/", os.sep))
