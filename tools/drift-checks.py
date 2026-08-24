@@ -1632,7 +1632,113 @@ def check_drift_build_catalog() -> int:
     if __name__ == "__main__":
         check_roundtrip(os.environ["MIOS_DRIFT_ROOT"])
 
+def check_structured() -> int:
+    """A [nodes.local-*] lane with no server, or an ai/v1 manifest that does not resolve.
+
+    Lifted out of its shell heredoc so it can be imported, linted and tested;
+    inside one, a syntax error surfaces only when the check runs.
+    """
+    import os, sys, re, json
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    viol = []
+
+    import tomllib as _toml
+
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if _toml is None:
+        sys.stderr.write("[98-drift-checks]   WARNING: no tomllib/tomli -- skipping [nodes.*] check\n")
+    elif os.path.isfile(toml_path):
+        with open(toml_path, "rb") as fh:
+            data = _toml.load(fh)
+        nodes = data.get("nodes", {}) or {}
+        served = set()
+        for ud in ("usr/share/containers/systemd", "usr/lib/systemd/system",
+                   "etc/containers/systemd"):
+            base = os.path.join(root, ud)
+            if not os.path.isdir(base):
+                continue
+            for dirpath, _dn, files in os.walk(base):
+                for fn in files:
+                    if not fn.endswith((".container", ".service")):
+                        continue
+                    try:
+                        txt = open(os.path.join(dirpath, fn), encoding="utf-8",
+                                   errors="ignore").read()
+                    except OSError:
+                        continue
+                    for m in re.findall(r":(\d{4,5})\b", txt):
+                        served.add(m)
+                    for m in re.findall(r"(?:--port[= ]|PublishPort[= ])(\d{4,5})", txt):
+                        served.add(m)
+        for name, cfg in nodes.items():
+            if not isinstance(cfg, dict):
+                continue
+            ep = (cfg.get("endpoint") or "").strip()
+            if not ep:
+                continue  # empty endpoint = inert node, skipped by the loader
+            m = re.search(r"://(?:localhost|127\.0\.0\.1|host\.containers\.internal):(\d{4,5})", ep)
+            if not m:
+                continue  # remote / non-local endpoint -- operator overlay, unverifiable
+            port = m.group(1)
+            if port not in served:
+                viol.append(f"[nodes.{name}] endpoint {ep} -> localhost:{port} is served by NO shipped unit "
+                            f"(dangling lane; served ports: {sorted(served)})")
+
+        obs = data.get("observability", {}) or {}
+        if "surface_default" not in obs:
+            viol.append("[observability] surface_default is missing")
+        elif obs.get("surface_default") not in ("clean", "inline"):
+            viol.append(f"[observability] surface_default '{obs.get('surface_default')}' must be 'clean' or 'inline'")
+
+        channels = obs.get("channels", {}) or {}
+        req_channels = {"thinking", "plan", "tool_call", "tool_result", "source", "content"}
+        for rc in req_channels:
+            if rc not in channels:
+                viol.append(f"[observability.channels] key '{rc}' is missing")
+
+        lanes = data.get("lanes", {}) or {}
+        for lname in ("light", "sglang", "vllm"):
+            if lname not in lanes:
+                viol.append(f"[lanes.{lname}] section is missing")
+            else:
+                lcfg = lanes[lname] or {}
+                for k in ("stream_thinking", "tool_call_parser", "reasoning_parser", "constrained_tools"):
+                    if k not in lcfg:
+                        viol.append(f"[lanes.{lname}].{k} is missing")
+
+        ap = data.get("agent_pipe", {}) or {}
+        for k in ("tool_loop_limit", "reflexion_limit", "reflexion_enable"):
+            if k not in ap:
+                viol.append(f"[agent_pipe].{k} is missing")
+
+    v1 = os.path.join(root, "usr/share/mios/ai/v1")
+    if os.path.isdir(v1):
+        for fn in sorted(os.listdir(v1)):
+            if not fn.endswith(".json"):
+                continue
+            p = os.path.join(v1, fn)
+            try:
+                doc = json.load(open(p, encoding="utf-8"))
+            except (json.JSONDecodeError, OSError) as e:
+                viol.append(f"ai/v1/{fn} does not parse as JSON: {e}")
+                continue
+            if fn == "tools.json":
+                for e in doc.get("data", []):
+                    if not isinstance(e, dict):
+                        continue
+                    for key in ("chat_completions", "responses", "schema_output"):
+                        ref = e.get(key)
+                        if isinstance(ref, str) and ref.startswith("/usr/"):
+                            if not os.path.exists(os.path.join(root, ref.lstrip("/"))):
+                                viol.append(f"tools.json: {e.get('name')!r} {key} -> {ref} (missing on disk)")
+
+    for v in viol:
+        sys.stderr.write(f"    {v}\n")
+    sys.exit(1 if viol else 0)
+
+
 SUBCOMMANDS = {
+    "structured": check_structured,
     "drift-build-catalog": check_drift_build_catalog,
     "drift-projection": check_drift_projection,
     "drift-build-catalog": check_drift_build_catalog,

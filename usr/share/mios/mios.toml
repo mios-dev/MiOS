@@ -10732,7 +10732,7 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 44421  # bash is glue only (Law 14)
+max_shell_lines   = 44357  # bash is glue only (Law 14)
 max_ps_lines      = 26987  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285
