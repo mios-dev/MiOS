@@ -176,10 +176,50 @@ def pages(root, ssot):
     return out
 
 
+def validate_man_page(full_path: str) -> tuple[bool, str]:
+    """Validate that a rendered roff man page is structurally valid and readable by man/groff if available."""
+    import shutil, subprocess
+    try:
+        with open(full_path, "r", encoding="utf-8") as fh:
+            content = fh.read()
+    except OSError as err:
+        return False, f"cannot read {full_path}: {err}"
+
+    if not content.startswith(".TH "):
+        return False, f"{full_path} missing .TH header"
+    if ".SH NAME" not in content or (".SH SYNOPSIS" not in content and ".SH DESCRIPTION" not in content):
+        return False, f"{full_path} missing required .SH NAME / SYNOPSIS / DESCRIPTION section"
+
+    man_bin = shutil.which("man")
+    if man_bin:
+        try:
+            res = subprocess.run([man_bin, "-l", full_path], capture_output=True, text=True)
+            if res.returncode != 0:
+                return False, f"man -l {full_path} exited {res.returncode}: {res.stderr}"
+            if not res.stdout.strip():
+                return False, f"man -l {full_path} produced empty output"
+        except Exception:
+            pass
+
+    groff_bin = shutil.which("groff")
+    if groff_bin:
+        try:
+            res = subprocess.run([groff_bin, "-mandoc", "-Tutf8", full_path], capture_output=True, text=True)
+            if res.returncode != 0:
+                return False, f"groff -mandoc {full_path} exited {res.returncode}"
+            if not res.stdout.strip():
+                return False, f"groff -mandoc {full_path} produced empty output"
+        except Exception:
+            pass
+
+    return True, "OK"
+
+
 def main(argv) -> int:
     root = (os.environ.get("MIOS_DRIFT_ROOT") or os.environ.get("MIOS_ROOT")
             or os.getcwd())
     check = "--check" in argv
+    validate = "--validate" in argv
     with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
         ssot = tomllib.load(fh)
     rendered = pages(root, ssot)
@@ -216,6 +256,23 @@ def main(argv) -> int:
         return 1
     for o in orphans:
         os.remove(os.path.join(root, o))
+
+    if validate:
+        sample_pages = [os.path.join(root, MAN, "man1", "mios.1"),
+                        os.path.join(root, MAN, "man7", "mios-variants.7"),
+                        os.path.join(root, MAN, "man5", "mios.toml.5")]
+        valid_errors = []
+        for sp in sample_pages:
+            if os.path.exists(sp):
+                ok, msg = validate_man_page(sp)
+                if not ok:
+                    valid_errors.append(msg)
+        if valid_errors:
+            print("man page validation failed:")
+            for ve in valid_errors:
+                print("  " + ve)
+            return 1
+
     print("[render-manpages] %d page(s) %s" %
           (len(rendered), "verified" if check else "rendered"), file=sys.stderr)
     return 0

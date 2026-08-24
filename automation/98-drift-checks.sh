@@ -6064,7 +6064,7 @@ check_rust_test_coverage() {
 check_manpages() {
     echo "[98-drift-checks]   check_manpages"
     _need_python || return 0
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/render-manpages.py --check --validate 2>&1)" || { _violations_from "check_manpages: " "$out"; return; }
     echo "[98-drift-checks]   usr/share/man matches the SSOT; man(1) reads it directly"
 }
 
