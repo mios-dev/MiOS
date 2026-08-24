@@ -344,6 +344,7 @@ export MIOS_VERSION
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_LIGHT:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_LLM_WORKER_:=gpu-serving,service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_MCP:=service-plane}"
+: "${MIOS_BLADE_REQUIRES_MIOS_NODE:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_OPENCODE_GATEWAY:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_OPEN_WEBUI:=service-plane}"
 : "${MIOS_BLADE_REQUIRES_MIOS_OTELCOL:=service-plane}"

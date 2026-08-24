@@ -18,7 +18,7 @@ EOF
 SYS_USER="${MIOS_IDENTITY_USERNAME:-mios}"
 SYS_PASS="${MIOS_IDENTITY_DEFAULT_PASSWORD:-mios}"
 
-echo "Root:${SYS_PASS}" | chpasswd
+echo "root:${SYS_PASS}" | chpasswd
 if ! id "${SYS_USER}" &>/dev/null; then
     useradd -m -g wheel -s /bin/bash "${SYS_USER}" 2>/dev/null || true
 fi

@@ -28,6 +28,7 @@ pcs constraint location mios-llm-heavy-alt rule score=100 mios-cap-gpu-serving e
 pcs constraint location mios-llm-light rule score=100 mios-cap-service-plane eq true
 pcs constraint location mios-llm-worker@ rule score=100 mios-cap-gpu-serving eq true and mios-cap-service-plane eq true
 pcs constraint location mios-mcp rule score=100 mios-cap-service-plane eq true
+pcs constraint location mios-node rule score=100 mios-cap-service-plane eq true
 pcs constraint location mios-open-webui rule score=100 mios-cap-service-plane eq true
 pcs constraint location mios-opencode-gateway rule score=100 mios-cap-service-plane eq true
 pcs constraint location mios-otelcol rule score=100 mios-cap-service-plane eq true
