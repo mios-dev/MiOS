@@ -10877,6 +10877,7 @@ target  = "build"
 recipe  = ""
 medium  = "container registry"
 gui     = "the desktop the host provides"
+artifacts = []
 status  = "shipping"
 
 [deploy.formats.oci-archive]
@@ -10886,6 +10887,7 @@ target  = "oci-archive"
 recipe  = ""
 medium  = "file"
 gui     = "the desktop the host provides"
+artifacts = ["oci-archive/*.tar"]
 status  = "shipping"
 
 [deploy.formats.raw]
@@ -10895,6 +10897,7 @@ target  = "raw"
 recipe  = ""
 medium  = "disk"
 gui     = "full desktop session"
+artifacts = ["raw/image/*.raw", "raw/*.raw", "image/*.raw", "*.raw"]
 status  = "shipping"
 
 [deploy.formats.iso]
@@ -10904,6 +10907,7 @@ target  = "iso"
 recipe  = "config/artifacts/iso.toml"
 medium  = "optical or USB"
 gui     = "full desktop session"
+artifacts = ["iso/bootiso/*.iso", "iso/*.iso", "bootiso/*.iso", "*.iso"]
 status  = "shipping"
 
 [deploy.formats.usb-installer]
@@ -10913,6 +10917,7 @@ target  = "usb-installer"
 recipe  = ""
 medium  = "removable USB or NVMe"
 gui     = "full desktop session"
+artifacts = ["usb-installer/*.iso"]
 status  = "partial"
 
 [deploy.formats.qcow2]
@@ -10922,6 +10927,7 @@ target  = "qcow2"
 recipe  = "config/artifacts/qcow2.toml"
 medium  = "virtual machine"
 gui     = "full desktop session"
+artifacts = ["qcow2/qcow2/*.qcow2", "qcow2/*.qcow2"]
 status  = "shipping"
 
 [deploy.formats.vhdx]
@@ -10931,6 +10937,7 @@ target  = "vhdx"
 recipe  = "config/artifacts/vhdx.toml"
 medium  = "virtual machine"
 gui     = "full desktop session"
+artifacts = ["vhdx/*.vhdx", "vhdx/vpc/*.vhd", "vhdx/*.vhd"]
 status  = "shipping"
 
 [deploy.formats.wsl2]
@@ -10942,4 +10949,17 @@ medium  = "WSL2 on Windows"
 # WSLg is not a separate artifact: it is this format with the graphical bridge
 # Windows already provides, which etc/profile.d/mios-wslg.sh wires up.
 gui     = "WSLg, via the graphical bridge Windows provides"
+artifacts = ["wsl2/*.tar.gz", "wsl2/*.wsl2"]
 status  = "partial"
+
+# What it takes for a built artifact to count as real. The verifier walked the
+# tree, matched nothing and reported success, so a build that produced no file
+# at all satisfied the gate that guards the push. Every format above names the
+# glob its own target writes; a format whose globs match nothing is a missing
+# artifact, and no artifact at all is the loudest failure of the set.
+[deploy.verify]
+# The floor a file must clear to count as an artifact rather than a stub.
+# Every format above writes a whole disk, an installer or a root filesystem,
+# and none of those is as small as four mebibytes, so a file under this floor
+# is a truncated or empty write rather than a smaller build.
+min_bytes = 4194304

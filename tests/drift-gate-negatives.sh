@@ -3042,6 +3042,27 @@ test_deploy_formats() {
     log "check_deploy_formats negative test passed"
 }
 
+test_verify_images() {
+    log "Testing check_verify_images"
+    local just="${ROOT}/Justfile"
+    local bak; bak="$(mktemp)"; cp "$just" "$bak"
+
+    # Put the shipped shape back: a recipe that ends on a failure counter the
+    # glob loop never increments returns success over a build tree with nothing
+    # in it, and publish pushes on the strength of it.
+    sed 's|@python3 ./tools/verify-images.py|@true|' "$bak" > "$just"
+
+    _neg_gate check_verify_images && {
+        cp "$bak" "$just"; rm -f "$bak"
+        die "check_verify_images passed with a verify-images recipe that checks nothing"
+    }
+
+    cp "$bak" "$just"; rm -f "$bak"
+    _neg_gate check_verify_images \
+        || die "check_verify_images failed after restoration"
+    log "check_verify_images negative test passed"
+}
+
 test_header_comment_syntax() {
     log "Testing check_header_comment_syntax"
     local unit="${ROOT}/usr/lib/systemd/system/mios-agent-pipe.service"
@@ -3790,6 +3811,7 @@ _run_test test_leaked_fixtures
     _run_test test_globals_generated
     _run_test test_variant_registry
     _run_test test_deploy_formats
+    _run_test test_verify_images
     _run_test test_header_comment_syntax
     _run_test test_repo_partition_label_ssot
     if (( ${#_FAILED[@]} )); then

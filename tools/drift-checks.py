@@ -598,6 +598,53 @@ def check_unwired_modules() -> int:
                          "-- delete it from the allowlist (A1 register self-cleans)\n")
     sys.exit(1 if (new_dead or stale) else 0)
 
+
+def check_header_integrity() -> int:
+    """A header tagger must never consume line 1 (AGY-1607)."""
+    import os, re, subprocess, sys
+
+    root = os.environ.get("MIOS_DRIFT_ROOT", ".")
+    try:
+        rels = [p for p in subprocess.run(["git", "ls-files", "-z"], cwd=root,
+                capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if p]
+    except Exception:
+        sys.exit(0)
+
+    ABSORBED_SHEBANG = re.compile(r"AI-hint:\s*!")
+    ABSORBED_DIRECTIVE = re.compile(r"AI-hint:\s*(?:bash|sh|python3?|pwsh|zsh)?\s*MIOS_[A-Z_]+=")
+    NUL = b"\x00"
+    viol = []
+    for rel in rels:
+        p = os.path.join(root, rel.replace("/", os.sep))
+        if not os.path.isfile(p):
+            continue
+        try:
+            with open(p, "rb") as fh:
+                raw = fh.read(4096)
+        except OSError:
+            continue
+        if NUL in raw:
+            continue
+        try:
+            head = raw.decode("utf-8").splitlines()[:5]
+        except UnicodeDecodeError:
+            continue
+        for ln in head:
+            if ABSORBED_SHEBANG.search(ln):
+                viol.append("%s: the shebang was absorbed into the AI-hint -- the file "
+                            "has no interpreter line any more" % rel)
+                break
+            if ABSORBED_DIRECTIVE.search(ln):
+                viol.append("%s: a MIOS_* build directive was folded into the AI-hint "
+                            "instead of standing on its own line" % rel)
+                break
+    if viol:
+        viol.append("A header tagger must never consume line 1. Restore the shebang "
+                    "and the directive, then re-tag.")
+    print("\n".join(viol))
+    sys.exit(1 if viol else 0)
+
+
 SUBCOMMANDS = {
     "unwired-modules": check_unwired_modules,
     "no-duplicate-value-key": check_no_duplicate_value_key,
@@ -605,6 +652,7 @@ SUBCOMMANDS = {
     "doc-refs-resolve": check_doc_refs_resolve,
     "resolver-differential-parity": check_resolver_differential_parity,
     "legibility-ratchet": check_legibility_ratchet,
+    "header-integrity": check_header_integrity,
 }
 
 

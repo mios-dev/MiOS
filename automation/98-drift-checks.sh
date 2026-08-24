@@ -5947,6 +5947,7 @@ main() {
     check_header_comment_syntax
     check_variant_registry
     check_deploy_formats
+    check_verify_images
     check_temp_fixture_cleanup
     check_negatives_registered
     check_leaked_fixtures
@@ -6805,6 +6806,13 @@ check_deploy_formats() {
     echo "[98-drift-checks]   $out"
 }
 
+check_verify_images() {
+    echo "[98-drift-checks]   check_verify_images"
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/check-verify-images.py 2>&1)" || { _violations_from "check_verify_images: " "$out"; return; }
+    echo "[98-drift-checks]   $out"
+}
+
 check_header_comment_syntax() {
     echo "[98-drift-checks]   check_header_comment_syntax"
     _need_python || return 0
@@ -7069,51 +7077,8 @@ check_legibility_ratchet() {
 # Header integrity: a tagger must never absorb line 1. See AGY-1607.
 check_header_integrity() {
     echo "[98-drift-checks]   check_header_integrity"
-    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PYEOF'
-import os, re, subprocess, sys
-
-root = os.environ.get("MIOS_DRIFT_ROOT", ".")
-try:
-    rels = [p for p in subprocess.run(["git", "ls-files", "-z"], cwd=root,
-            capture_output=True, check=True).stdout.decode("utf-8", "replace").split("\0") if p]
-except Exception:
-    sys.exit(0)
-
-ABSORBED_SHEBANG = re.compile(r"AI-hint:\s*!")
-ABSORBED_DIRECTIVE = re.compile(r"AI-hint:\s*(?:bash|sh|python3?|pwsh|zsh)?\s*MIOS_[A-Z_]+=")
-NUL = b"\x00"
-viol = []
-for rel in rels:
-    p = os.path.join(root, rel.replace("/", os.sep))
-    if not os.path.isfile(p):
-        continue
-    try:
-        with open(p, "rb") as fh:
-            raw = fh.read(4096)
-    except OSError:
-        continue
-    if NUL in raw:
-        continue
-    try:
-        head = raw.decode("utf-8").splitlines()[:5]
-    except UnicodeDecodeError:
-        continue
-    for ln in head:
-        if ABSORBED_SHEBANG.search(ln):
-            viol.append("%s: the shebang was absorbed into the AI-hint -- the file "
-                        "has no interpreter line any more" % rel)
-            break
-        if ABSORBED_DIRECTIVE.search(ln):
-            viol.append("%s: a MIOS_* build directive was folded into the AI-hint "
-                        "instead of standing on its own line" % rel)
-            break
-if viol:
-    viol.append("A header tagger must never consume line 1. Restore the shebang "
-                "and the directive, then re-tag.")
-print("\n".join(viol))
-sys.exit(1 if viol else 0)
-PYEOF
-    )" || {
+    _need_python || return 0
+    local out; out="$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py header-integrity)" || {
         _violations_from "check_header_integrity: " "$out"; return; }
     echo "[98-drift-checks]   no absorbed shebangs or build directives in file headers"
 }
