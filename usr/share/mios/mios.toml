@@ -6989,7 +6989,8 @@ members     = [
   "mios-llm-heavy",
   "mios-llm-heavy-alt",
   "mios-pgvector",
-  "mios-open-webui"
+  "mios-open-webui",
+  "mios-node"
 ]
 doc = """Consolidated AI pod."""
 
@@ -8779,6 +8780,32 @@ After = "network-online.target mios-cdi-detect.service mios-webtools-firstboot.s
 ConditionPathExists = "/usr/share/mios/llamacpp/models/.ready"
 Description = "'MiOS' LLM-Light (llama.cpp multi-model + KV-paging lane, served via the upstream llama-swap proxy, FOSS)"
 Wants = "network-online.target"
+
+[containers.mios-node.Container]
+ContainerName = "mios-node"
+Environment = [
+  "MIOS_NODE_ID=101",
+  "MIOS_PORT=8650",
+  "MIOS_AI_ENDPOINT=http://127.0.0.1:8640"
+]
+Image = "ghcr.io/mios-dev/mios-node:latest"
+Label = "org.opencontainers.image.title=mios-node"
+Pod = "mios-ai.pod"
+PublishPort = ["8650:8650/udp", "8650:8650/tcp"]
+Volume = "/var/lib/mios:/var/lib/mios:Z"
+
+[containers.mios-node.Install]
+WantedBy = "multi-user.target default.target"
+
+[containers.mios-node.Service]
+Restart = "always"
+
+[containers.mios-node.Unit]
+After = "network-online.target"
+Description = "'MiOS' Distributed Edge Micro-Node Quadlet Service"
+Wants = "network-online.target"
+
+
 
 [containers."mios-llm-worker@".Container]
 AddDevice = "${MIOS_GPU_DEVICE:-nvidia.com/gpu=all}"
@@ -10670,7 +10697,7 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 45029  # bash is glue only (Law 14)
+max_shell_lines   = 44780  # bash is glue only (Law 14)
 max_ps_lines      = 26987  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285

@@ -1,22 +1,26 @@
-# AI-hint: Quadlet container unit for the MiOS mios-node distributed edge micro-node service (WS-7).
-# AI-related: usr/share/mios/k3s/generated/mios-node.yaml, usr/share/mios/systemd/mios-node.service
+# AI-hint: MiOS mios-node container. (WS-7 pods-as-SSOT).
+# DO NOT EDIT -- regenerate via tools/generate-pod-quadlets.py from [containers.mios-node] in mios.toml.
+# /usr/share/containers/systemd/mios-node.container
+
 [Unit]
-Description=MiOS Distributed Edge Micro-Node Quadlet Container
 After=network-online.target
+Description='MiOS' Distributed Edge Micro-Node Quadlet Service
+Wants=network-online.target
 
 [Container]
-Image=ghcr.io/mios-dev/mios-node:latest
 ContainerName=mios-node
-Network=mios.network
-PublishPort=8650:8650/udp
-PublishPort=8650:8650/tcp
-Volume=/var/lib/mios:/var/lib/mios
 Environment=MIOS_NODE_ID=101
 Environment=MIOS_PORT=8650
 Environment=MIOS_AI_ENDPOINT=http://127.0.0.1:8640
+Image=ghcr.io/mios-dev/mios-node:latest
+Label=org.opencontainers.image.title=mios-node
+Pod=mios-ai.pod
+PublishPort=8650:8650/udp
+PublishPort=8650:8650/tcp
+Volume=/var/lib/mios:/var/lib/mios:Z
+
+[Install]
+WantedBy=multi-user.target default.target
 
 [Service]
 Restart=always
-
-[Install]
-WantedBy=multi-user.target

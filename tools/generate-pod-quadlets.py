@@ -304,6 +304,7 @@ def main(argv: "list[str]") -> int:
     wrote = 0
     member_miss = 0
     active_units = 0
+    generated_files = set()
 
     for name in sorted(pods):
         spec = pods[name]
@@ -311,6 +312,7 @@ def main(argv: "list[str]") -> int:
             continue
         text = render_pod_quadlet(name, spec, ports)
         out = os.path.join(OUT_DIR, f"{name}.pod")
+        generated_files.add(os.path.basename(out))
         for m in [str(x).split("#", 1)[0].strip() for x in (spec.get("members") or [])]:
             if m and not os.path.exists(os.path.join(OUT_DIR, f"{m}.container")):
                 print(f"[pod-gen] WARN {name}: member {m}.container missing", file=sys.stderr)
@@ -321,7 +323,7 @@ def main(argv: "list[str]") -> int:
             if os.path.exists(out):
                 with open(out, encoding="utf-8") as f:
                     cur = f.read()
-            if cur != text:
+            if cur.replace("\r\n", "\n") != text.replace("\r\n", "\n"):
                 print(f"[pod-gen] DRIFT {out} (regenerate via tools/generate-pod-quadlets.py)",
                       file=sys.stderr)
                 drift += 1
@@ -358,12 +360,13 @@ def main(argv: "list[str]") -> int:
             text = render_nested_quadlet(name, spec, unit_type)
             out = os.path.join(OUT_DIR, f"{name}.{unit_type}")
             active_units += 1
+            generated_files.add(os.path.basename(out))
             if check:
                 cur = ""
                 if os.path.exists(out):
                     with open(out, encoding="utf-8") as f:
                         cur = f.read()
-                if cur != text:
+                if cur.replace("\r\n", "\n") != text.replace("\r\n", "\n"):
                     print(f"[pod-gen] DRIFT {out} (regenerate via tools/generate-pod-quadlets.py)",
                           file=sys.stderr)
                     drift += 1
@@ -374,6 +377,16 @@ def main(argv: "list[str]") -> int:
             print(f"[pod-gen]   wrote {out}")
 
     if check:
+        shipped = set()
+        for file in os.listdir(OUT_DIR):
+            if os.path.isfile(os.path.join(OUT_DIR, file)) and file.endswith((".container", ".pod", ".network", ".volume")):
+                shipped.add(file)
+        orphans = shipped - generated_files
+        if orphans:
+            for orphan in sorted(orphans):
+                print(f"[pod-gen] DRIFT: un-generated orphan Quadlet unit in SSOT dir: {orphan}", file=sys.stderr)
+            drift += len(orphans)
+
         if drift:
             print(f"[pod-gen] {drift} Quadlet unit(s) DRIFTED from SSOT", file=sys.stderr)
             return 1

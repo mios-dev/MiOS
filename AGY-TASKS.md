@@ -11707,7 +11707,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** rollback is the property that makes immutable updates safe to take automatically; untested it is a hope, and every deployed machine is one bad upgrade from being unreachable.
 **Dep:** none
 
-## AGY-1781 -- Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005]
+## AGY-1781 -- Prove every Quadlet is generated, including the ones carrying hand-edits  (WS-SYSTEMD | P1 | M) [from T-005]  DONE
 **Goal:** No container unit is hand-maintained, and the gate proves it.
 **What+How:** T-005 is marked done-by-code and `check_pod_quadlets` reports all 26 units matching the SSOT. Establish whether that covers every shipped `.container`/`.pod`/`.network`/`.volume` unit or only the 26 the generator knows: list every such file under `usr/share/containers/systemd/`, diff that set against what `tools/generate-pod-quadlets.py` emits, and account for every file in neither set. For any unit carrying a hand-edit that encodes real behaviour, move that behaviour into `[units]`/`[containers.*]` in the SSOT before the file is regenerated -- do not delete the edit.
 **Where:** `tools/generate-pod-quadlets.py, usr/share/containers/systemd/, usr/share/mios/mios.toml, automation/98-drift-checks.sh`
