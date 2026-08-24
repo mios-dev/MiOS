@@ -11746,3 +11746,33 @@ demonstrate. Nothing new starts until they do.
 **Do NOT:** match on the word TODO or FIXME. The installer stub contained neither -- it read as a working implementation, logged success, and returned 0. Match on a body that produces no effect.
 **Why:** a stub that reports success is indistinguishable from a working command to an operator and to every test, and this repository has shipped at least one in its install path.
 **Dep:** none
+
+## AGY-1800 -- Give miosd tests, starting with the check registry that decides every verdict  (WS-LANG | P0 | L)
+**Goal:** The daemon that runs the drift checks proves it runs them.
+**What+How:** miosd is 3550 source lines across 25 files and contains not one test, so `cargo test --workspace` prints "test result: ok. 0 passed" for it -- a line indistinguishable from a crate whose tests all passed. It is also the crate with the most authority in the repository: `drift/mod.rs:352 run_all` decides whether a check passed, `run_checks_cli` at :397 is what a caller invokes, and `drift/regen.rs:11 regen_and_diff` is the regenerate-and-compare primitive most projection checks are built on. Start there rather than at the leaves. Write tests that construct a `DriftCtx` over a temporary tree and assert: `run_all` returns false when one registered check fails; a `filter` that matches nothing is an error rather than a silent pass; `regen_and_diff` reports a difference when the target is hand-edited and none when it is not; and `soft` mode is distinguishable from a real pass in the return value, not only in the output. Then work outward through the twenty-three `drift/*.rs` modules.
+**Where:** `src/mios-rs/miosd/src/drift/mod.rs, src/mios-rs/miosd/src/drift/regen.rs, src/mios-rs/miosd/src/bake_plan.rs, src/mios-rs/miosd/src/main.rs`
+**Done When:** miosd has tests over the registry, the regenerate-and-diff primitive and the bake plan, and is removed from `[rust.untested_crates]`.
+**Verify:** `cargo test -p miosd` reports a non-zero test count; deleting the body of `run_all` so it always returns true makes at least one test fail; and `check_rust_test_coverage` fails if the entry is removed from the register while the crate still has no tests.
+**Do NOT:** add a test that only constructs a struct and asserts a field. The crate's risk is in the verdict path -- a check runner that cannot report a failure is the same defect as a gate that cannot fail, and this crate decides that for every check it runs. Also do not count `#[test]` alone when judging coverage: miosd is async throughout and its tests will be `#[tokio::test]`.
+**Why:** an untested check runner can report a pass it never observed, and every drift verdict in CI passes through it.
+**Dep:** none
+
+## AGY-1801 -- Cover the ten remaining untested native crates, hardest-consequence first  (WS-LANG | P1 | L)
+**Goal:** No crate ships asserting nothing.
+**What+How:** Ten crates besides miosd carry no test at all and are registered in `[rust.untested_crates]` with the reason each is exposed. Take them in the order their failure costs most, not by size: `mios-drift-runner` (runs checks; untested it can report an unobserved pass), `mios-ssot-lint` (asserted byte-identical to the bash twin by a gate, but asserts nothing about itself), `mios-bake-plan` (454 lines deciding what the bake pulls; a wrong plan costs a whole build), `mios-comment-lex` (the lexer the documentation ratchets measure with, so a bug there moves every doc number silently), `generate-names-registry` and the two template crates (golden-output tests are the natural shape), `mios-version-check` (its hand-rolled TOML scan has already needed hardening once), then `xtask` and `mios-wallpaperd`. Each crate leaves the register in the same commit as its tests, and `[rust].max_untested_crates` falls by one.
+**Where:** `tools/native/*/src, usr/share/mios/mios.toml ([rust])`
+**Done When:** `[rust].max_untested_crates` has reached zero, or every remaining entry states a reason that is structural rather than pending.
+**Verify:** for each crate, `cargo test -p <crate>` reports a non-zero count, and a deliberate mutation of that crate's main decision makes one of its tests fail; `check_rust_test_coverage` reports the entry as newly-tested if it is left in the register.
+**Do NOT:** satisfy this by adding an assert-true test per crate. The gate counts test attributes and would go green; the crates would still assert nothing, and the register would then be lying with a gate behind it.
+**Why:** eleven crates and roughly 5,600 lines currently pass `cargo test` unconditionally, which is most of what the Rust layer's green means today.
+**Dep:** AGY-1800
+
+## AGY-1802 -- Make a Rust toolchain part of the documented development environment  (WS-LANG | P2 | S)
+**Goal:** Anyone can build and test the Rust crates here.
+**What+How:** The Rust layer went unverified for the whole of this session because neither available toolchain worked: the podman machine had no cargo, and the Windows toolchain fails with `error calling dlltool 'dlltool.exe': program not found`. Installing `cargo rust rustfmt clippy` into the machine took one dnf command and immediately surfaced a failing CRDT test and eleven untested crates. Record that in the development setup so the next person does not conclude the crates are unverifiable, and state what the Windows toolchain needs (a MinGW binutils providing dlltool) or that it is unsupported here.
+**Where:** `usr/share/doc/mios/, Justfile, docs/`
+**Done When:** a documented command produces a toolchain that builds both workspaces, and the Windows situation is stated rather than left to be rediscovered.
+**Verify:** following the written steps from a machine without cargo ends with `cargo test --workspace` running in both `src/mios-rs` and `tools/native`.
+**Do NOT:** write the steps from memory of this session. Run them on a machine that does not already have the toolchain, because the failure being documented is precisely that the obvious path does not work.
+**Why:** a layer nobody can test is a layer whose tests nobody notices are failing -- which is what had happened.
+**Dep:** none
