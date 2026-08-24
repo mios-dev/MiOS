@@ -11737,7 +11737,7 @@ demonstrate. Nothing new starts until they do.
 **Why:** a task list where "done" is unverifiable is a list that reports progress it has not made, and every plan built on it inherits the error.
 **Dep:** AGY-1780
 
-## AGY-1784 -- Fail the build on any verb whose backend is a stub  (WS-CI | P0 | M)
+## AGY-1784 -- Fail the build on any verb whose backend is a stub  (WS-CI | P0 | M)  DONE
 **Goal:** A shipped command either works or the build stops.
 **What+How:** `resolve_install_core` was `CMD=(echo "MiOS installer core executed in ${mode} mode")` -- it printed a phase banner, logged preflight success, exited 0 and installed nothing, in the path that installs the operating system. `[verbs.update]` has no `cmd` at all. Add a gate that fails when a verb's backend is a stub: an entry point whose entire body is echoes, `true`, or a comment; a declared verb with no `cmd`; a `cmd` naming a path that does not exist. Run it over `usr/libexec/mios/`, `installation/` and `[verbs.*]`, and register the stubs that are deliberate with a reason and a shrink-only ceiling.
 **Where:** `automation/98-drift-checks.sh, tools/, usr/share/mios/mios.toml, usr/libexec/mios/, installation/`

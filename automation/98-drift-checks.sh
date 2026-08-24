@@ -1366,26 +1366,74 @@ with open(p, "rb") as fh:
     d = _toml.load(fh)
 libexec = os.path.join(root, "usr/libexec/mios")
 usrbin = os.path.join(root, "usr/bin")
+install_dir = os.path.join(root, "installation")
+tools_dir = os.path.join(root, "tools")
+
 def _exists(t):
-    return os.path.isfile(os.path.join(libexec, t)) or os.path.isfile(os.path.join(usrbin, t))
+    for base in (libexec, usrbin, install_dir, tools_dir):
+        if os.path.isfile(os.path.join(base, t)):
+            return True
+    return False
+
 missing = {}
-for name, cfg in (d.get("verbs", {}) or {}).items():
+verbs = d.get("verbs", {}) or {}
+def _check_verb(name, cfg):
     if not isinstance(cfg, dict):
-        continue
+        return
+    if name.startswith("_"):
+        return
     cmd = cfg.get("cmd", "")
-    if not isinstance(cmd, str) or not cmd:
+    if isinstance(cmd, str) and cmd:
+        for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
+            if not _exists(tok):
+                missing.setdefault(tok, []).append(name)
+    for subk, subv in cfg.items():
+        if isinstance(subv, dict) and not subk.startswith("_"):
+            _check_verb(f"{name}.{subk}", subv)
+
+for name, cfg in verbs.items():
+    _check_verb(name, cfg)
+
+ALLOW_STUBS = set()
+stub_failures = []
+for scan_dir in (libexec, install_dir):
+    if not os.path.isdir(scan_dir):
         continue
-    for tok in set(re.findall(r"\bmios-[a-z0-9-]+", cmd)):
-        if not _exists(tok):
-            missing.setdefault(tok, []).append(name)
+    for f in os.listdir(scan_dir):
+        path = os.path.join(scan_dir, f)
+        if not os.path.isfile(path) or f.endswith(('.pyc', '.xml', '.png', '.svg', '.json', '.tsv', '.txt', '.md', '.negtest.bak')):
+            continue
+        try:
+            with open(path, 'r', encoding='utf-8', errors='ignore') as fh:
+                lines = fh.readlines()
+        except Exception:
+            continue
+        exec_lines = []
+        for l in lines:
+            s = l.strip()
+            if not s or s.startswith('#') or s.startswith('//') or s.startswith('rem ') or s.startswith('REM '):
+                continue
+            if s.startswith('set -') or s.startswith('set +') or s == 'set -euo pipefail':
+                continue
+            exec_lines.append(s)
+        if not exec_lines and f not in ALLOW_STUBS:
+            stub_failures.append(f"{f} is an empty stub (0 executable lines)")
+            continue
+        stub_re = re.compile(r'^(echo\b|printf\b|true\b|exit\s+0|pass\b|return\s+0)', re.I)
+        if exec_lines and all(stub_re.match(l) for l in exec_lines) and f not in ALLOW_STUBS:
+            stub_failures.append(f"{f} is an echo/exit-only stub ({len(exec_lines)} lines)")
+
 for t, vs in sorted(missing.items()):
     sys.stderr.write(f"    {t} <- [verbs.*] {sorted(vs)} (backend not on disk)\n")
-sys.exit(1 if missing else 0)
+for sf in stub_failures:
+    sys.stderr.write(f"    {sf}\n")
+
+sys.exit(1 if (missing or stub_failures) else 0)
 PY
     then
-        echo "[98-drift-checks]   every [verbs.*].cmd mios-* backend resolves on disk"
+        echo "[98-drift-checks]   every [verbs.*].cmd mios-* backend resolves on disk and is non-stub"
     else
-        _violation "a [verbs.*].cmd dispatches to a mios-* backend that does not exist (dead dispatch) -- fix the cmd template or ship the backend (flatten check 26)"
+        _violation "a [verbs.*].cmd dispatches to a mios-* backend that does not exist or is a stub -- fix the cmd template or ship the backend"
     fi
 }
 
