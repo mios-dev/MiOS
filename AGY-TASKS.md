@@ -13060,3 +13060,204 @@ makes that table generated so the two cannot diverge again.
 **Do NOT:** fix this by deleting the check or by weakening its negative test until it passes. And do not simply switch `get_seeded_sections` to `sys_sections`: 11 sections are listed there against 150+ in the SSOT, so the gate would go red across the whole tree at once and be disabled rather than fixed. It needs a declared set plus a shrinking ratchet, the way the unit drift register works.
 **Why:** a gate that compares an input against a function returning that input is the tree's signature defect, and this one has a negative test that has been telling us so in every CI run.
 **Dep:** AGY-1812
+
+## AGY-1937 -- Pass per-request priority and enable priority scheduling on heavy inference lanes  (WS-SCHED | P1 | M)
+**Goal:** Foreground user requests take immediate precedence over background autonomous agent batches at the inference engine level.
+**What+How:** Pass `--enable-priority-scheduling` in the heavy inference lane configurations (`usr/share/containers/systemd/mios-llm-heavy.container`, `mios-llm-heavy-alt.container`, `usr/share/mios/llamacpp/mios-llm-light.yaml`). Update `server.py` and `mios_lanes.py` to forward the computed turn priority from `PriorityGate` as an HTTP header (`x-priority` or request body `priority`) in OpenAI-compatible payloads to vLLM and SGLang.
+**Where:** `usr/share/containers/systemd/mios-llm-heavy.container`, `usr/share/containers/systemd/mios-llm-heavy-alt.container`, `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_lanes.py`
+**Verify:** Send concurrent low-priority background prompts and an interactive high-priority prompt; verify the high-priority prompt is scheduled first and completes with lower latency.
+**Do NOT:** Hardcode priority thresholds in Python code; read the priority classification mapping from `[dispatch].lane_priority` in `mios.toml`.
+**Done When:** Both heavy lane containers boot with engine priority flags enabled, and per-request priority headers are propagated from `agent-pipe` without error.
+**Why:** Without engine-level priority, computed priority dies at the userspace semaphore gate and foreground turns get starved behind large background DAG batches.
+**Dep:** AGY-1936
+
+## AGY-1938 -- Compose turn-boundary preemption and context snapshot-suspend-resume  (WS-SCHED | P1 | L)
+**Goal:** Active long-running agent tasks can be gracefully suspended and resumed across turn boundaries using KV slot checkpoints.
+**What+How:** Wire `mios_kvfork.py`, `_CHAT_CANCEL` tokens, and the llama.cpp `/slots` save/restore API into `server.py` and `agent-pipe`. When a higher-priority task preempts an in-flight background turn, serialize the active conversation state and KV cache slot to `/var/lib/mios/llamacpp/slots/`, update the task status in the PostgreSQL `tasks` table to `suspended`, and free the semaphore permit.
+**Where:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_kvfork.py`, `usr/lib/mios/agent-pipe/mios_sched.py`
+**Verify:** Initiate a long multi-step background task, issue a critical interactive query, confirm the background task halts cleanly, slot is saved, and resumes after the interactive query completes.
+**Do NOT:** Attempt mid-decode GPU tensor preemption; preemption must execute safely at discrete turn and token-slice boundaries.
+**Done When:** Background tasks suspend upon high-priority arrival and resume from their saved KV slot without losing prior conversation state.
+**Why:** True preemptive scheduling is a foundational requirement of an agentic operating system to maintain low interactive latency under heavy autonomous load.
+**Dep:** AGY-1937
+
+## AGY-1939 -- Structured deliberation loop with typed epistemic grammar and Decision Packets  (WS-ORCH | P1 | M)
+**Goal:** Consequential system tasks trigger a 4-archetype deliberation council that converges on structured Decision Packets.
+**What+How:** Implement the Deliberative Collective Intelligence (DCI) deliberation workflow in `usr/lib/mios/agent-pipe/mios_deliberate.py`. Define four archetype system roles (Framer, Explorer, Challenger, Integrator) and a typed interaction grammar (`propose`, `challenge`, `evidence`, `reframe`, `synthesize`, `concede`). Gate invocation behind a model-driven consequentiality classifier (`[agents.orchestration].deliberation_enable`). Ensure debate converges into a final Decision Packet containing chosen actions, residual objections, and reopen conditions.
+**Where:** `usr/lib/mios/agent-pipe/mios_deliberate.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`
+**Verify:** Dispatch a task with `consequential=true`; verify all 4 archetypes emit typed grammar acts and produce a valid JSON Decision Packet.
+**Do NOT:** Route routine single-agent queries to the deliberation council; routine tasks must bypass the council to avoid token expansion.
+**Done When:** Consequential prompts execute structured deliberation and persist the resulting Decision Packet in `fact_ledger`.
+**Why:** High-impact system operations require rigorous multi-perspective challenge and consensus rather than unverified single-agent execution.
+**Dep:** AGY-1938
+
+## AGY-1940 -- Asynchronous document-mutation event bus over PostgreSQL LISTEN and NOTIFY  (WS-ORCH | P2 | M)
+**Goal:** Autonomous daemon agents coordinate via shared state mutations on PostgreSQL without HTTP point-to-point polling.
+**What+How:** Implement a PostgreSQL `LISTEN`/`NOTIFY` trigger mechanism on the `tasks`, `pending_action`, and `event` tables in `schema-init.sql`. Update `usr/libexec/mios/mios-daemon` and `server.py` to listen on the `mios_agent_events` channel and reactively dispatch worker tasks when relevant rows are inserted or updated.
+**Where:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/mios-daemon`, `usr/lib/mios/agent-pipe/server.py`
+**Verify:** Insert a new task row into `tasks`; confirm `mios-daemon` receives the NOTIFY event immediately without polling and triggers worker execution.
+**Do NOT:** Use busy-waiting polling loops against the database; all event-driven wakeups must use asynchronous channel notifications.
+**Done When:** Autonomous tasks trigger reliably via database mutations and log event timestamps with sub-50ms reaction latency.
+**Why:** Decoupled document mutation provides an auditable, persistent event trail while eliminating wasted CPU cycles from polling.
+**Dep:** AGY-1939
+
+## AGY-1941 -- Manifest-guided progressive-disclosure hierarchical retrieval engine  (WS-RAG | P2 | M)
+**Goal:** Deep codebase and memory tree searches navigate structured manifests to prevent cosine vector space collapse.
+**What+How:** Build `usr/lib/mios/agent-pipe/mios_manifest_rag.py`. Structure document collections into a hierarchical tree where each directory/node maintains a natural-language `manifest.json` summary. During retrieval, perform top-down LLM-select pruning on node summaries before executing vector embedding similarity on leaf documents.
+**Where:** `usr/lib/mios/agent-pipe/mios_manifest_rag.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`
+**Verify:** Run a retrieval query against a deeply nested repository tree; confirm search traverses the correct branch using manifest pruning without evaluating all leaf vectors.
+**Do NOT:** Replace standard vector RAG entirely; manifest-guided retrieval is a selectable strategy for large multi-layer hierarchies.
+**Done When:** Hierarchical tree queries return accurate context with reduced token overhead compared to flat exhaustive similarity searches.
+**Why:** Single-vector cosine distance across thousands of dissimilar files suffers from semantic crowding and loses structural hierarchy.
+**Dep:** AGY-1940
+
+## AGY-1942 -- IntrospecLOO marginal contribution scoring for swarm and council agents  (WS-ORCH | P2 | M)
+**Goal:** Dynamically evaluate each peer agent's contribution to council decisions and update peer reputation scores.
+**What+How:** Implement Introspective Leave-One-Out (IntrospecLOO) scoring in `usr/lib/mios/agent-pipe/mios_reputation.py`. After a multi-agent council session completes, compute each agent's marginal utility delta in O(N) evaluations and update the agent's reputation score in the `peer_reputation` PostgreSQL table.
+**Where:** `usr/lib/mios/agent-pipe/mios_reputation.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`
+**Verify:** Run a mock council session with one adversarial and two collaborative agents; verify the collaborative agents receive positive reputation adjustments while the adversarial agent's score decreases.
+**Do NOT:** Re-run the entire deliberation debate N times; use single-pass leave-one-out delta estimation to keep evaluation cost linear.
+**Done When:** Completed council sessions record individual agent contribution deltas into `peer_reputation` automatically.
+**Why:** Quantifying agent contribution enables the orchestrator to prune hallucinating or unhelpful models from future deliberation rounds.
+**Dep:** AGY-1941
+
+## AGY-1943 -- Identity-aware delegation and progressive payload mode negotiation on A2A  (WS-FED | P2 | M)
+**Goal:** A2A agent federation supports capability metadata routing and compact semantic-frame JSON payload negotiation.
+**What+How:** Extend `usr/lib/mios/agent-pipe/a2a.py` and the AgentCard schema to support `supportedInterfaces[]`, `reasoning_profile`, `cost_hint`, and payload mode negotiation (`text`, `semantic_frame`, `embedding_hints`). Enable agents to exchange typed JSON frames when mutually supported to reduce token consumption by ~35%.
+**Where:** `usr/lib/mios/agent-pipe/a2a.py`, `usr/share/mios/ai/v1/agent-card.schema.json`, `usr/lib/mios/agent-pipe/server.py`
+**Verify:** Send an A2A delegation request between two semantic-frame-capable agents; confirm the payload is serialized as compact typed JSON and decoded correctly.
+**Do NOT:** Drop text fallback support; all agents must retain plain text payload compatibility for auditability and heterogeneous peers.
+**Done When:** A2A negotiation selects semantic-frame format between capable peers and falls back gracefully to standard text on legacy endpoints.
+**Why:** Compact typed payloads drastically lower token serialization overhead in high-frequency inter-agent delegation loops.
+**Dep:** AGY-1942
+
+## AGY-1944 -- 16-byte fixed binary wire protocol framing in mios-node runtime  (WS-NODE | P1 | M)
+**Goal:** Distributed micro-nodes communicate over a strict, deterministic 16-byte binary wire header with CRC32 integrity.
+**What+How:** Implement the binary wire framing in `src/mios-rs/crates/mios-node/src/protocol.rs`. Define the 16-byte header: Magic (`0x4D 0x49`), Version (`0x01`), Opcode (Heartbeat `0x01`, Announce `0x02`, TaskOffload `0x03`, TaskResult `0x04`, StateSync `0x05`, Ack `0x06`, Error `0x07`), NodeID (`u32` Big Endian), PayloadLen (`u32` Big Endian), and CRC32 (`u32` Big Endian calculated over payload). Provide zero-copy parsing and serialization methods.
+**Where:** `src/mios-rs/crates/mios-node/src/protocol.rs`, `src/mios-rs/crates/mios-node/src/main.rs`, `src/mios-rs/Cargo.toml`
+**Verify:** Run `cargo test -p mios-node -- protocol` to verify header serialization, deserialization, big-endian byte ordering, and CRC32 mismatch detection.
+**Do NOT:** Use JSON or loose text framing for inter-node transport; the 16-byte binary header is the mandatory standard across all micro-nodes.
+**Done When:** The `mios-node` binary frame codec encodes and decodes all seven message opcodes with full CRC32 validation.
+**Why:** A lightweight, fixed-size binary header minimizes framing overhead and CPU latency on embedded edge nodes and microVMs.
+**Dep:** AGY-1943
+
+## AGY-1945 -- Tier-1 WebAssembly sandbox runtime with mios_sys_* host imports  (WS-NODE | P1 | M)
+**Goal:** Execute untrusted edge node tasks in a memory-isolated Wasm sandbox with strictly scoped system capabilities.
+**What+How:** Integrate `wasmtime` in `src/mios-rs/crates/mios-node/src/sandbox/wasm.rs`. Expose limited host imports: `mios_sys_read`, `mios_sys_write`, `mios_sys_log`, `mios_sys_time`, and `mios_sys_exit`. Enforce strict fuel limits (CPU instruction bounding) and memory ceiling (maximum 64MB per execution context).
+**Where:** `src/mios-rs/crates/mios-node/src/sandbox/wasm.rs`, `src/mios-rs/crates/mios-node/Cargo.toml`
+**Verify:** Execute a guest Wasm module that consumes fuel and allocates memory; confirm the sandbox terminates execution when limits are exceeded.
+**Do NOT:** Expose direct host filesystem paths or network sockets to Wasm guest instances; all operations must route through broker imports.
+**Done When:** Guest WebAssembly binaries run deterministically within fuel and memory constraints, returning structured results to the host.
+**Why:** Tier-1 Wasm sandboxing allows safe execution of offloaded compute tasks across heterogeneous edge architectures without root privileges.
+**Dep:** AGY-1944
+
+## AGY-1946 -- Conflict-free replicated data type (CRDT) engine for edge node state synchronization  (WS-NODE | P1 | M)
+**Goal:** Distributed edge nodes maintain convergent state across network partitions using LWW-Element-Set and Vector Clocks.
+**What+How:** Implement state synchronization in `src/mios-rs/crates/mios-node/src/crdt.rs`. Use a Last-Write-Wins Element-Set (LWW-Element-Set) with Vector Clocks for task assignment, node presence, and shared key-value registers. Implement merge functions that guarantee strong eventual consistency without centralized locks.
+**Where:** `src/mios-rs/crates/mios-node/src/crdt.rs`, `src/mios-rs/crates/mios-node/src/state.rs`
+**Verify:** Run concurrent state mutations across three simulated node instances, exchange StateSync frames (`Opcode 0x05`), and confirm all nodes converge to the identical state.
+**Do NOT:** Rely on two-phase commit or centralized database locks for edge mesh synchronization.
+**Done When:** Network partitions heal automatically with deterministic CRDT state convergence across all participating nodes.
+**Why:** Edge mesh topologies experience frequent intermittent disconnects and require lock-free, eventually consistent replication.
+**Dep:** AGY-1945
+
+## AGY-1947 -- Avahi and mDNS zero-configuration discovery and handshake for edge nodes  (WS-NODE | P2 | S)
+**Goal:** Edge nodes automatically discover local MiOS mesh clusters and perform mutual authentication handshakes.
+**What+How:** Implement mDNS service registration and browsing in `src/mios-rs/crates/mios-node/src/discovery.rs` advertising `_mios-node._tcp`. Upon discovery, initiate mutual TLS/Ed25519 challenge-response handshake using the node's local keypair and register the node with `agent-pipe`.
+**Where:** `src/mios-rs/crates/mios-node/src/discovery.rs`, `usr/share/mios/mios.toml`, `usr/lib/systemd/system/mios-node.service`
+**Verify:** Start `mios-node` on a secondary machine on the local LAN; verify it discovers the primary MiOS instance and establishes an active peer connection.
+**Do NOT:** Hardcode discovery ports or IPs; resolve discovery configuration from `[ports]` and `[blade.discovery]` in `mios.toml`.
+**Done When:** Newly booted edge nodes discover the host cluster via mDNS and appear in `/v1/cluster/nodes` automatically.
+**Why:** Zero-touch edge onboarding eliminates manual network configuration when adding worker blades to a MiOS mesh.
+**Dep:** AGY-1946
+
+## AGY-1948 -- Authority inversion: PostgreSQL+pgvector as live SSOT with atomic TOML materialization  (WS-VECTOR | P1 | L)
+**Goal:** Establish PostgreSQL+pgvector as the live runtime authority for system configuration while maintaining lossless TOML export.
+**What+How:** Finalize V5 of the everything-db-driven architecture. Complete `usr/libexec/mios/materialize-config-toml.py` to generate `usr/share/mios/mios.toml` from the database `config_kv` and `verbs` tables. Ensure atomic writes via temporary files, run `check_mios_toml_integrity.py` before replacing, and update the drift-gate to verify bi-directional parity.
+**Where:** `usr/libexec/mios/materialize-config-toml.py`, `usr/libexec/mios/seed-db-config.py`, `automation/98-drift-checks.sh`
+**Verify:** Modify a configuration setting via SQL in `config_kv`, run `materialize-config-toml.py`, and verify the generated `mios.toml` reflects the change cleanly and parses with `tomllib`.
+**Do NOT:** Write TOML files non-atomically; always write to a temporary file and rename over the target after validation.
+**Done When:** The database serves as the runtime authority and `materialize-config-toml.py` produces an identical, valid `mios.toml` artifact.
+**Why:** A database-backed SSOT allows fine-grained transactional updates and live agent edits while preserving human-readable TOML exports.
+**Dep:** AGY-1947
+
+## AGY-1949 -- Automated PostgreSQL+pgvector backup service with zstd snapshot rotation  (WS-DURA | P1 | S)
+**Goal:** Provide durable, automated, compressed backups of the entire PostgreSQL+pgvector datastore to prevent state loss across upgrades.
+**What+How:** Create `usr/lib/systemd/system/mios-backup-pgvector.service` and `mios-backup-pgvector.timer`. Implement `usr/libexec/mios/mios-backup-pgvector` to run `pg_dump` with custom format, compress snapshots with `zstd -T0`, and store them in `/var/lib/mios/backups/pgvector/` with a rolling 7-day retention policy.
+**Where:** `usr/lib/systemd/system/mios-backup-pgvector.service`, `usr/lib/systemd/system/mios-backup-pgvector.timer`, `usr/libexec/mios/mios-backup-pgvector`
+**Verify:** Trigger `systemctl start mios-backup-pgvector.service`; verify a valid `.sql.zst` snapshot is created and verify snapshot restoration into a test database.
+**Do NOT:** Store database dumps uncompressed or without strict 0600 file permissions.
+**Done When:** Daily automated database backups execute via systemd timer and older snapshots are rotated according to retention policy.
+**Why:** Immutable OS upgrades must never risk data loss in the mutable `/var` agent datastore; durable automated backups are essential for disaster recovery.
+**Dep:** AGY-1948
+
+## AGY-1950 -- Multi-tenant CephFS user directory mapping and CephX capability auto-provisioning  (WS-STRG | P2 | M)
+**Goal:** Provision user home directories on CephFS with isolated CephX auth tokens and PAM auto-mounting.
+**What+How:** Update `usr/libexec/mios/mios-cephfs-provision` to generate per-user CephX authentication keys scoped to `/home/<username>` subvolumes. Configure `pam_exec` in `/etc/pam.d/system-auth` to invoke provisioning on initial user login and mount the CephFS share via `systemd.automount`.
+**Where:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/pam.d/mios-cephfs-auth`, `usr/share/mios/mios.toml`
+**Verify:** Log in as a newly created user; confirm CephX key is minted, subvolume is mounted at `/var/home/<user>`, and file permissions are strictly isolated.
+**Do NOT:** Grant cluster-admin CephX capabilities to individual user accounts; scope tokens strictly to their respective subvolumes.
+**Done When:** User logins automatically provision and mount secure CephFS home volumes with dedicated cryptographic keys.
+**Why:** Multi-tenant cluster deployments require cryptographic tenant isolation on shared distributed storage pools.
+**Dep:** AGY-1949
+
+## AGY-1951 -- End-to-end UKI and fs-verity boot chain verification on target hardware  (WS-SEC | P1 | M)
+**Goal:** Ensure the Unified Kernel Image (UKI) and fs-verity composefs rootfs mount are cryptographically validated by UEFI firmware.
+**What+How:** Build the signed UKI containing embedded kernel command line arguments (kargs), initramfs, and kernel binary via `automation/40-composefs-verity.sh` and `automation/42-uki-build.sh`. Create a greenboot check script (`/etc/greenboot/check/required.d/52-mios-composefs.sh`) that verifies `ostree admin status` reports an active composefs mount with fs-verity.
+**Where:** `automation/40-composefs-verity.sh`, `automation/42-uki-build.sh`, `usr/lib/ostree/prepare-root.conf`, `/etc/greenboot/check/required.d/52-mios-composefs.sh`
+**Verify:** Boot a system with Secure Boot enabled; confirm UKI signature passes firmware validation and composefs mount is verified via `ostree admin status`.
+**Do NOT:** Conflate MOK module signing with UKI kernel signing; UKI secures the pre-boot chain while MOK governs out-of-tree runtime driver signature checks.
+**Done When:** The system boots with Secure Boot enforcing, composefs rootfs verified, and greenboot health checks report green.
+**Why:** Hardware-enforced cryptographic rootfs verification guarantees the immutable operating system has not been tampered with offline.
+**Dep:** AGY-1950
+
+## AGY-1952 -- Whole-device discrete GPU passthrough and Looking Glass B6 framebuffer automation  (WS-VFIO | P1 | M)
+**Goal:** Automate discrete GPU binding to `vfio-pci` and configure low-latency inter-VM Looking Glass display sharing.
+**What+How:** Implement `usr/libexec/mios/mios-vfio-setup` and systemd service `mios-vfio-setup.service`. Inspect PCIe topology via `lspci`, bind target discrete GPU and audio device IDs to `vfio-pci` (while preserving host iGPU for display), and allocate shared memory `/dev/kvmfr0` for Looking Glass B6 framebuffer transport.
+**Where:** `usr/libexec/mios/mios-vfio-setup`, `usr/lib/systemd/system/mios-vfio-setup.service`, `usr/share/mios/mios.toml [vfio]`
+**Verify:** Run `mios-vfio-setup --verify`; verify discrete GPU is bound to `vfio-pci`, `/dev/kvmfr0` exists with 0660 permissions, and guest VM starts with direct GPU access.
+**Do NOT:** Attempt mediated vGPU fractioning on driver-free hosts; whole-device passthrough is the required standard for unadulterated hardware isolation.
+**Done When:** Discrete GPU binds to VFIO cleanly on boot and Looking Glass connects with sub-frame display latency.
+**Why:** Running high-performance CUDA workloads and gaming guests inside virtual machines requires dedicated physical GPU hardware passthrough.
+**Dep:** AGY-1951
+
+## AGY-1953 -- Credential rotation service and 0600 secrets.env hardening  (WS-SEC | P1 | M)
+**Goal:** Purge hardcoded plaintext credentials from world-readable Quadlet definitions and manage them via 0600 secrets environment files.
+**What+How:** Implement `usr/libexec/mios/mios-secret-rotate` and systemd first-boot service `mios-secret-init.service`. Generate high-entropy random secrets for `POSTGRES_PASSWORD`, `WEBUI_SECRET_KEY`, and sidecar auth tokens, write them to `/etc/mios/secrets.env` (permissions `0600`), and inject them into container units via `EnvironmentFile=/etc/mios/secrets.env`.
+**Where:** `usr/libexec/mios/mios-secret-rotate`, `usr/lib/systemd/system/mios-secret-init.service`, `usr/share/containers/systemd/*.container`
+**Verify:** Inspect all Quadlet `.container` files; confirm zero hardcoded credential literals exist and verify containers start successfully with secrets loaded from `secrets.env`.
+**Do NOT:** Regenerate `POSTGRES_PASSWORD` on existing database clusters without performing `ALTER USER` migrations, as it will lock the system out of its datastore.
+**Done When:** All credentials are dynamically generated, stored in `0600` files, and `check_credential_literals` reports 0 grandfathered violations.
+**Why:** Hardcoded credentials in world-readable unit files represent a severe privilege escalation and lateral movement risk.
+**Dep:** AGY-1952
+
+## AGY-1954 -- MiOS-Cat tri-launcher single-owner consolidation and partition staging  (WS-CAT | P1 | M)
+**Goal:** Consolidate MiOS-Cat installer logic into a canonical tri-launcher with strict separation between Repo and Data partitions.
+**What+How:** Refactor `cat/MiOS-Cat.ps1`, `cat/MiOS-Cat.sh`, and `cat/MiOS-Cat.bat` in `mios-bootstrap`. Enforce that `cat stage` places source repositories and configuration solely on `MiOS-Repo` (small FAT32/NTFS partition) while large container images and model blobs land strictly on `MiOS-Data` (exFAT/NTFS bulk partition).
+**Where:** `cat/MiOS-Cat.ps1`, `cat/MiOS-Cat.sh`, `cat/MiOS-Cat.bat`, `cat/lib/`
+**Verify:** Run `cat stage` on a multi-partition USB drive; verify `MiOS-Repo` contains configuration and clone files, while `MiOS-Data` holds model weights and OCI tars.
+**Do NOT:** Stage bulk container layers or model weights onto the `MiOS-Repo` partition.
+**Done When:** MiOS-Cat stages files cleanly to their respective partition targets across PowerShell, bash, and Batch launchers with zero path drift.
+**Why:** Clean partition separation ensures the core system configuration remains compact and portable across various USB drive capacities.
+**Dep:** AGY-1953
+
+## AGY-1955 -- DISM-native Windows 11 driver slipstreaming and offline network driver pack  (WS-WISO | P1 | M)
+**Goal:** Build customized Windows 11 installation media with pre-slipstreamed wireless/wired network drivers and unattended setup.
+**What+How:** Enhance `src/autounattend/ConvertTo-MiOSPreset.ps1` and `installation/MiOS-Provision.lib.ps1` to execute offline `DISM /Add-Driver /Recurse` across curated Intel, Realtek, and MediaTek NIC/WLAN driver packs into `install.wim`. Generate `autounattend.xml` configuring `MiOS-Sudo` as Administrator and skipping OOBE network requirements.
+**Where:** `src/autounattend/ConvertTo-MiOSPreset.ps1`, `installation/MiOS-Provision.lib.ps1`, `tools/windows/Export-MiOSDrivers.ps1`
+**Verify:** Deploy the generated Windows 11 ISO to a bare-metal test machine; verify network adapters function immediately without internet connection during OOBE.
+**Do NOT:** Require active internet access during initial Windows setup; all critical network and storage drivers must be pre-baked.
+**Done When:** Windows 11 installs zero-touch with functional networking out-of-the-box on mainstream hardware.
+**Why:** Unattended offline provisioning fails completely if network adapters are unrecognized post-install.
+**Dep:** AGY-1954
+
+## AGY-1956 -- Unified Rust living wallpaper daemon with live SSOT color theme sync  (WS-LANG | P2 | M)
+**Goal:** Consolidate WebView2 background rendering and WSLg window watching into a single, native Rust service (`mios-wallpaperd`).
+**What+How:** Build `src/mios-rs/crates/mios-wallpaperd/src/main.rs` using `wry` and `windows-service` to host the canonical `living-wallpaper.html` directly onto the Windows desktop `WorkerW` canvas without visible console windows. Implement IPC receiver to dynamically update shader parameters when `mios-theme-render` updates SSOT color palettes.
+**Where:** `src/mios-rs/crates/mios-wallpaperd/src/main.rs`, `src/mios-rs/crates/mios-wallpaperd/Cargo.toml`, `usr/share/mios/branding/living-wallpaper.html`
+**Verify:** Start `mios-wallpaperd`; verify the animated ocean shader renders behind desktop icons with zero CPU spikes and updates palette upon theme change.
+**Do NOT:** Spawn visible console windows or external browser processes to host the wallpaper.
+**Done When:** The native Rust wallpaper daemon runs silently as a Windows service and dynamically reflects system theme changes.
+**Why:** Native compiled wallpaper rendering eliminates memory bloat, avoids console flashing, and ensures unified cross-platform branding.
+**Dep:** AGY-1955
+

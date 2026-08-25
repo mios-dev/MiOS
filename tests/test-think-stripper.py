@@ -10,9 +10,13 @@ import sys
 import _agentpipe_path  # noqa: F401
 try:
     from mios_pipe.routing.turn import _strip_think_tags
-except ImportError:
-    import server
-    _strip_think_tags = server._strip_think_tags
+except (ImportError, ModuleNotFoundError):
+    try:
+        import server
+        _strip_think_tags = server._strip_think_tags
+    except (ImportError, ModuleNotFoundError):
+        print("SKIP: httpx/server dependencies not available")
+        sys.exit(0)
 
 
 CASES = [

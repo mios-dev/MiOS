@@ -32,7 +32,7 @@ class TestReadSsotKey(unittest.TestCase):
         os.environ["MIOS_DRIFT_ROOT"] = _ROOT
 
     def test_a_present_scalar_is_printed_and_exits_zero(self):
-        self.assertEqual(0, MOD.main(["cat.repo_partition.label"]))
+        self.assertEqual(0, MOD.main(["field.repo_partition.label"]))
 
     def test_an_absent_key_exits_non_zero(self):
         """The whole contract: no value read, no value printed."""

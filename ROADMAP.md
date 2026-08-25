@@ -72,7 +72,7 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 <!-- ROADMAP_ROLLUP_START -->
 ### Workstream Status Rollup
 - **Done**: 25
-- **Active**: 2
+- **Active**: 7
 - **Proposed**: 2
 - **Blocked**: 0
 <!-- ROADMAP_ROLLUP_END -->
@@ -93,6 +93,8 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 
 **AI-Plane & Orchestration**
 - `WS-DEPRED` — AI-plane dependency reduction (Hermes→agent-pipe collapse + sidecar consolidations) ✅
+- `WS-SCHED` — Engine-level Priority Scheduling and Preemptive Context Switching (active)
+- `WS-ORCH` — Structured Deliberation (DCI), Event-Bus Coordination, and LOO Scoring (active)
 
 **Deployment & Sovereignty**
 - `WS-MDRIVE` — Sovereign "run off M:" deployment (Hyper-V Gen 2 .vhdx + Ceph OSD on M:) (proposed)
@@ -103,16 +105,18 @@ measured floor, so "finished" is a number reaching zero rather than a judgement.
 - `WS-DEPLOY` — Deployment surface consolidation and bare-metal bootc install ✅
 
 **Storage & Data**
-(no workstreams)
+- `WS-DURA` — Durable Brain Persistence, Database SSOT Inversion & Automated Snapshot Timers (active)
 
 **Security & Identity**
 - `WS-UPSTREAM` — Upstream watch — primary-source-verified CVE/version tracking for the AI-lane images (active)
+- `WS-VFIO` — Whole-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer (active)
 
 **Desktop & UX**
 - `WS-DOTFILES` — SSOT-as-system-dotfiles — one mios.toml projects every dotfile on every platform ✅
 
 **Fleet & Federation**
 - `WS-RELTOP` — Release topology: GitHub ≡ Forgejo equal publishers; PUBLISH capacity gate ✅
+- `WS-NODE` — Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing (active)
 - `WS-DOCGEN` — Generative documentation — AI-hints and comments harvested into the manual, wiki and machine-facing surfaces (active)
 
 **Testing & Conformance**
@@ -461,6 +465,87 @@ acceptance: |
 - **Deps:** Open browser/CDP + `hermes` CLI/Discord decisions per the study's OPEN QUESTIONS; OWUI removal release TBD. Pairs with WS-BLADE (OWUI gated to `edge-endpoint`) and WS-MIOSSYS (fewer images to consolidate).
 
 
+## WS-SCHED — Engine-level Priority Scheduling and Preemptive Context Switching
+<!--
+id: WS-SCHED
+title: Engine-level Priority Scheduling and Preemptive Context Switching
+theme: AI-Plane & Orchestration
+status: active
+priority: P1
+laws: [5, 6, 8]
+ssot_keys: ["ai", "dispatch"]
+adr: [6]
+deps: [WS-DEPRED]
+acceptance: |
+  Foreground interactive queries bypass background autonomous batches at the tensor engine level, and active turns suspend and resume cleanly via KV slot checkpoints.
+-->
+
+### SCHED-04 — Engine-level Priority Scheduling on Heavy Lanes  **[P1]**
+- **What:** Pass `--enable-priority-scheduling` in heavy inference lane configurations (`mios-llm-heavy.container`, `mios-llm-heavy-alt.container`, `mios-llm-light.yaml`) and propagate request priority from `PriorityGate` as an HTTP header to vLLM/SGLang.
+- **Why:** Prevents foreground interactive queries from being starved behind large background autonomous DAG runs.
+- **Files:** `usr/share/containers/systemd/mios-llm-heavy.container`, `usr/share/containers/systemd/mios-llm-heavy-alt.container`, `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_lanes.py`.
+- **Accept:** High-priority queries preempt background queue positions and execute with low interactive latency.
+- **Deps:** none.
+
+### SCHED-05 — Turn-boundary Preemption & Snapshot-Suspend-Resume  **[P1]**
+- **What:** Wire `mios_kvfork.py`, `_CHAT_CANCEL`, and llama.cpp `/slots` save/restore into `server.py` to suspend background tasks and resume from serialized KV caches.
+- **Why:** Enables true agentic operating system preemption under mixed foreground/background workloads.
+- **Files:** `usr/lib/mios/agent-pipe/server.py`, `usr/lib/mios/agent-pipe/mios_kvfork.py`, `usr/lib/mios/agent-pipe/mios_sched.py`.
+- **Accept:** Background tasks suspend upon high-priority arrival and resume from their saved KV slot without losing prior conversation state.
+- **Deps:** `SCHED-04`.
+
+
+## WS-ORCH — Structured Deliberation (DCI), Event-Bus Coordination, and LOO Scoring
+<!--
+id: WS-ORCH
+title: Structured Deliberation (DCI), Event-Bus Coordination, and LOO Scoring
+theme: AI-Plane & Orchestration
+status: active
+priority: P1
+laws: [5, 6, 8]
+ssot_keys: ["ai", "agents"]
+adr: [6]
+deps: [WS-DEPRED]
+acceptance: |
+  Consequential tasks trigger a 4-archetype deliberation council with typed epistemic grammar, event-bus coordination operates over PostgreSQL LISTEN/NOTIFY, and agent contribution is evaluated via IntrospecLOO.
+-->
+
+### ORCH-01 — Structured Deliberation with DCI Grammar & Decision Packets  **[P1]**
+- **What:** Implement 4-archetype deliberation (Framer, Explorer, Challenger, Integrator) with typed epistemic grammar acts and structured JSON Decision Packet output.
+- **Why:** High-consequence operations require structured multi-perspective challenge and consensus rather than unverified single-agent execution.
+- **Files:** `usr/lib/mios/agent-pipe/mios_deliberate.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/mios.toml`.
+- **Accept:** Consequential prompts execute structured deliberation and persist the resulting Decision Packet in `fact_ledger`.
+- **Deps:** none.
+
+### ORCH-02 — Document-Mutation Event-Bus Coordination via PostgreSQL LISTEN/NOTIFY  **[P2]**
+- **What:** Implement PostgreSQL `LISTEN`/`NOTIFY` on `tasks` and `pending_action` tables to wake background daemons reactively without HTTP polling loops.
+- **Why:** Eliminates polling CPU overhead and provides an immutable, auditable event trail in the database.
+- **Files:** `usr/share/mios/postgres/schema-init.sql`, `usr/libexec/mios/mios-daemon`, `usr/lib/mios/agent-pipe/server.py`.
+- **Accept:** Autonomous tasks trigger reliably via database mutations and log event timestamps with sub-50ms reaction latency.
+- **Deps:** none.
+
+### ORCH-03 — Manifest-Guided Progressive-Disclosure Tree Retrieval  **[P2]**
+- **What:** Build hierarchical tree retrieval with natural-language `manifest.json` node summaries for top-down pruning before leaf vector similarity search.
+- **Why:** Prevents cosine vector space collapse in massive codebases and deep memory hierarchies.
+- **Files:** `usr/lib/mios/agent-pipe/mios_manifest_rag.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`.
+- **Accept:** Hierarchical queries return accurate context with reduced token overhead compared to flat similarity searches.
+- **Deps:** none.
+
+### ORCH-04 — IntrospecLOO Marginal Contribution Evaluation for Swarm/Council  **[P2]**
+- **What:** Implement Introspective Leave-One-Out (IntrospecLOO) scoring to evaluate agent utility in O(N) single-pass passes and update `peer_reputation`.
+- **Why:** Quantifying agent contribution enables dynamic pruning of hallucinating models from future deliberation rounds.
+- **Files:** `usr/lib/mios/agent-pipe/mios_reputation.py`, `usr/lib/mios/agent-pipe/server.py`, `usr/share/mios/postgres/schema-init.sql`.
+- **Accept:** Completed council sessions record individual agent contribution deltas into `peer_reputation` automatically.
+- **Deps:** none.
+
+### ORCH-05 — Identity-Aware Delegation & Progressive Payload Negotiation  **[P2]**
+- **What:** Extend A2A protocol and AgentCard schema with reasoning profile metadata and compact semantic-frame JSON payload negotiation.
+- **Why:** Lowers token consumption by ~35% in high-frequency inter-agent delegation loops.
+- **Files:** `usr/lib/mios/agent-pipe/a2a.py`, `usr/share/mios/ai/v1/agent-card.schema.json`, `usr/lib/mios/agent-pipe/server.py`.
+- **Accept:** A2A negotiation selects semantic-frame format between capable peers and falls back gracefully to standard text on legacy endpoints.
+- **Deps:** none.
+
+
 # Deployment & Sovereignty
 
 ## WS-MDRIVE — Sovereign "run off M:" deployment (Hyper-V Gen 2 `.vhdx` + Ceph OSD on M:)
@@ -607,7 +692,42 @@ acceptance: |
 
 # Storage & Data
 
-*(no active workstreams)*
+## WS-DURA — Durable Brain Persistence, Database SSOT Inversion & Automated Snapshot Timers
+<!--
+id: WS-DURA
+title: Durable Brain Persistence, Database SSOT Inversion & Automated Snapshot Timers
+theme: Storage & Data
+status: active
+priority: P1
+laws: [1, 7, 8]
+ssot_keys: ["storage", "security"]
+adr: [9, 10]
+deps: []
+acceptance: |
+  PostgreSQL+pgvector acts as live SSOT with lossless TOML export, automated zstd-compressed backups execute daily via systemd timers, and CephFS provisions isolated user homes.
+-->
+
+### DURA-01 — Authority Inversion: PostgreSQL+pgvector as Live SSOT  **[P1]**
+- **What:** Complete `materialize-config-toml.py` to generate `mios.toml` from the database `config_kv` and `verbs` tables with atomic replace and drift gating.
+- **Why:** Enables transactional runtime updates by agents while maintaining human-readable TOML exports.
+- **Files:** `usr/libexec/mios/materialize-config-toml.py`, `usr/libexec/mios/seed-db-config.py`, `automation/98-drift-checks.sh`.
+- **Accept:** The database serves as the runtime authority and `materialize-config-toml.py` produces an identical, valid `mios.toml` artifact.
+- **Deps:** none.
+
+### DURA-02 — Automated PostgreSQL+pgvector Backup & zstd Snapshot Timer  **[P1]**
+- **What:** Create systemd backup service and timer running `pg_dump` with `zstd -T0` compression and 7-day retention in `/var/lib/mios/backups/pgvector/`.
+- **Why:** Protects mutable agent memory, knowledge graphs, and task ledgers against data loss during OS upgrades.
+- **Files:** `usr/lib/systemd/system/mios-backup-pgvector.service`, `usr/lib/systemd/system/mios-backup-pgvector.timer`, `usr/libexec/mios/mios-backup-pgvector`.
+- **Accept:** Daily automated database backups execute via systemd timer and older snapshots are rotated according to retention policy.
+- **Deps:** none.
+
+### DURA-03 — Multi-tenant CephFS User Directory & CephX Auto-Provisioning  **[P2]**
+- **What:** Update `mios-cephfs-provision` to generate per-user CephX authentication keys scoped to `/home/<username>` subvolumes with PAM auto-mounting.
+- **Why:** Guarantees cryptographic tenant isolation on shared distributed CephFS storage pools.
+- **Files:** `usr/libexec/mios/mios-cephfs-provision`, `usr/lib/pam.d/mios-cephfs-auth`, `usr/share/mios/mios.toml`.
+- **Accept:** User logins automatically provision and mount secure CephFS home volumes with dedicated cryptographic keys.
+- **Deps:** none.
+
 
 # Security & Identity
 
@@ -673,6 +793,44 @@ acceptance: |
 - **Accept:** one port scheme (the SSOT's) across every doc, guarded by a projection drift-check.
 - **Deps:** none.
 
+
+## WS-VFIO — Whole-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer
+<!--
+id: WS-VFIO
+title: Whole-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer
+theme: Security & Identity
+status: active
+priority: P1
+laws: [1, 3, 8]
+ssot_keys: ["security"]
+adr: [16]
+deps: []
+acceptance: |
+  Discrete GPU binds to vfio-pci cleanly on boot, Looking Glass connects with sub-frame display latency, UKI boot chain is verified, and credentials are encrypted in 0600 files.
+-->
+
+### VFIO-01 — UKI and fs-verity Boot Chain End-to-End Verification  **[P1]**
+- **What:** Build signed UKI with baked kargs and initramfs via `automation/40-composefs-verity.sh` and add greenboot validation for composefs rootfs.
+- **Why:** Guarantees hardware-enforced cryptographic validation of the immutable OS substrate.
+- **Files:** `automation/40-composefs-verity.sh`, `automation/42-uki-build.sh`, `usr/lib/ostree/prepare-root.conf`, `/etc/greenboot/check/required.d/52-mios-composefs.sh`.
+- **Accept:** The system boots with Secure Boot enforcing, composefs rootfs verified, and greenboot health checks report green.
+- **Deps:** none.
+
+### VFIO-02 — Full-Device Discrete GPU Passthrough & Looking Glass B6 Inter-VM Framebuffer  **[P1]**
+- **What:** Implement `mios-vfio-setup` to bind discrete GPU to `vfio-pci` and configure `/dev/kvmfr0` shared memory for Looking Glass B6.
+- **Why:** Enables native-speed CUDA compute and gaming inside isolated virtual machines.
+- **Files:** `usr/libexec/mios/mios-vfio-setup`, `usr/lib/systemd/system/mios-vfio-setup.service`, `usr/share/mios/mios.toml`.
+- **Accept:** Discrete GPU binds to VFIO cleanly on boot and Looking Glass connects with sub-frame display latency.
+- **Deps:** none.
+
+### VFIO-03 — Quadlet Credential Hardening & 0600 secrets.env Rotation Service  **[P1]**
+- **What:** Implement `mios-secret-rotate` to generate random passwords into `/etc/mios/secrets.env` (0600) and inject via `EnvironmentFile`.
+- **Why:** Purges hardcoded plaintext credentials from world-readable container unit definitions.
+- **Files:** `usr/libexec/mios/mios-secret-rotate`, `usr/lib/systemd/system/mios-secret-init.service`, `usr/share/containers/systemd/*.container`.
+- **Accept:** All credentials are dynamically generated, stored in `0600` files, and `check_credential_literals` reports 0 grandfathered violations.
+- **Deps:** none.
+
+
 # Desktop & UX
 
 ## WS-DOTFILES — SSOT-as-system-dotfiles (projection registry + engine + both-sides gate)
@@ -726,6 +884,50 @@ acceptance: |
 - **What:** Implement the registry-selection logic that both workflows currently hardcode as `ghcr`: default to GitHub/GHCR push+pull when credentials are present, else the local/Forgejo registry. Locate it in the build driver / `install.env` credential detection so both CI environments and the local build resolve the registry the same way.
 - **Why:** The topology directive says registry preference is credential-driven, but `mios-ci.yml`/`build-mios.yml` currently hardcode GHCR; the selection belongs in one shared place, not duplicated per workflow.
 - **Files:** `.github/workflows/mios-ci.yml`, `.forgejo/workflows/build-mios.yml`, the build driver (`automation/build.sh` / `install.env` credential detection).
+
+
+## WS-NODE — Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing
+<!--
+id: WS-NODE
+title: Edge Micro-Mesh mios-node 16-Byte Wire Protocol & Dual-Tier Sandboxing
+theme: Fleet & Federation
+status: active
+priority: P1
+laws: [1, 5, 8, 12]
+ssot_keys: ["nodes", "blade"]
+adr: [16, 17]
+deps: [WS-BLADE]
+acceptance: |
+  Distributed micro-nodes communicate over a deterministic 16-byte binary wire header with CRC32 integrity, execute tasks in Wasm sandboxes, and synchronize state via CRDTs.
+-->
+
+### NODE-01 — 16-Byte Fixed Binary Wire Protocol Implementation in mios-node  **[P1]**
+- **What:** Implement fixed 16-byte binary wire framing (Magic 0x4D49, Version 0x01, Opcode, NodeID, PayloadLen, CRC32) with zero-copy codec in `mios-node`.
+- **Why:** Provides ultra-compact, low-latency message framing for embedded nodes and microVMs.
+- **Files:** `src/mios-rs/crates/mios-node/src/protocol.rs`, `src/mios-rs/crates/mios-node/src/main.rs`, `src/mios-rs/Cargo.toml`.
+- **Accept:** Codec encodes and decodes all seven message opcodes with full CRC32 validation.
+- **Deps:** none.
+
+### NODE-02 — Tier-1 Wasm Sandbox Runtime with mios_sys_* Host Imports  **[P1]**
+- **What:** Integrate `wasmtime` runtime with strict fuel limits, 64MB memory caps, and scoped `mios_sys_*` host function imports.
+- **Why:** Allows safe execution of offloaded compute tasks on untrusted edge nodes without root privileges.
+- **Files:** `src/mios-rs/crates/mios-node/src/sandbox/wasm.rs`, `src/mios-rs/crates/mios-node/Cargo.toml`.
+- **Accept:** Guest WebAssembly binaries run deterministically within fuel and memory constraints, returning structured results to the host.
+- **Deps:** `NODE-01`.
+
+### NODE-03 — LWW-Element-Set and Vector Clock CRDT Engine for Edge Nodes  **[P1]**
+- **What:** Implement Last-Write-Wins Element-Set and Vector Clocks for task assignment, node presence, and shared key-value registers.
+- **Why:** Guarantees lock-free eventual consistency across intermittent network partitions.
+- **Files:** `src/mios-rs/crates/mios-node/src/crdt.rs`, `src/mios-rs/crates/mios-node/src/state.rs`.
+- **Accept:** Network partitions heal automatically with deterministic CRDT state convergence across all participating nodes.
+- **Deps:** `NODE-01`.
+
+### NODE-04 — Avahi/mDNS Zero-Conf Mesh Discovery and Handshake  **[P2]**
+- **What:** Implement mDNS service registration (`_mios-node._tcp`) and mutual TLS/Ed25519 challenge-response handshake.
+- **Why:** Enables zero-configuration onboarding of edge worker nodes into the MiOS mesh.
+- **Files:** `src/mios-rs/crates/mios-node/src/discovery.rs`, `usr/share/mios/mios.toml`, `usr/lib/systemd/system/mios-node.service`.
+- **Accept:** Newly booted edge nodes discover the host cluster via mDNS and appear in `/v1/cluster/nodes` automatically.
+- **Deps:** `NODE-01`.
 
 
 ## WS-DOCGEN — Generative documentation: one pipeline from AI-hints and comments to every doc surface

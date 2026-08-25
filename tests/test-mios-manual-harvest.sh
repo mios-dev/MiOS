@@ -54,7 +54,12 @@ fi
 grep -q "long and genuinely narrative" "$fix/automation/50-example.sh" \
     || die "case 2: refused prune still modified the source"
 
+narrative() {
+    run coverage --json | python3 -c 'import json,sys;print(json.load(sys.stdin)["unmigrated_narrative"])'
+}
+
 log "Case 3: harvest writes the passage, the anchor and the ledger columns"
+before="$(narrative)"
 run harvest --path automation/50-example.sh --to usr/share/doc/mios/harvested.md >/dev/null
 doc="$fix/usr/share/doc/mios/harvested.md"
 [ -f "$doc" ] || die "case 3: destination doc not created"
@@ -81,7 +86,6 @@ narrative() {
 log "Case 6: prune now accepts, and removes the comment from source"
 # The fixture copies the real mios.toml, whose own comments dominate the census,
 # so the meaningful assertion is the DELTA, not an absolute count.
-before="$(narrative)"
 run prune --path automation/50-example.sh >/dev/null
 grep -q "long and genuinely narrative" "$fix/automation/50-example.sh" \
     && die "case 6: comment still present after prune"

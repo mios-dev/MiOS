@@ -3373,7 +3373,7 @@ def check_router_intent_coverage() -> int:
             for match in pattern.finditer(content):
                 intent_val = match.group(1).lower()
                 if intent_val not in corpus_intents:
-                    unmapped.add((intent_val, os.path.relpath(filepath, root_dir)))
+                    unmapped.add((intent_val, os.path.relpath(filepath, root_dir).replace("\\", "/")))
         except Exception:
             pass
 
@@ -3471,7 +3471,7 @@ def check_test_hermeticity() -> int:
                     
                     if has_live_call:
                         if not guard_re.search(content):
-                            rel = os.path.relpath(path, root)
+                            rel = os.path.relpath(path, root).replace("\\", "/")
                             bad.append(f"{rel} calls live network/DB resource without a SkipTest/guard sentinel")
                 except OSError:
                     pass
@@ -3499,7 +3499,7 @@ def check_containerfile_pinned_clones() -> int:
                         for idx, line in enumerate(fh, 1):
                             if "git clone" in line and not line.strip().startswith("#"):
                                 if "--branch" not in line and "--tag" not in line and "-b " not in line and "@" not in line:
-                                    rel = os.path.relpath(path, root)
+                                    rel = os.path.relpath(path, root).replace("\\", "/")
                                     unpinned.append(f"{rel}:{idx} -> {line.strip()}")
                 except OSError:
                     pass
