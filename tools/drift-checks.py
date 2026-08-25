@@ -2582,7 +2582,74 @@ def check_agent_schema() -> int:
     sys.exit(1 if bad else 0)
 
 
+def check_bootstrap_ports_drift() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    import tomllib as _toml
+
+    main_toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+    if not os.path.isfile(main_toml_path):
+        sys.exit(0)
+
+    with open(main_toml_path, "rb") as fh:
+        main_data = _toml.load(fh)
+
+    bootstrap_repo_path = main_data.get("bootstrap", {}).get("bootstrap_repo", "C:/mios-bootstrap")
+
+    if sys.platform != "win32" and bootstrap_repo_path.startswith("C:/"):
+        bootstrap_repo_path = "/mnt/c/" + bootstrap_repo_path[3:]
+
+    # CI clones the bootstrap repo into RUNNER_TEMP, which is neither the SSOT path
+    # nor a sibling, and names it in MIOS_BOOTSTRAP_ROOT. An explicit override wins
+    # over both guesses; mios-sync-toml resolves it the same way.
+    _env_bs = (os.environ.get("MIOS_BOOTSTRAP_ROOT") or "").strip()
+    if _env_bs and os.path.isdir(_env_bs):
+        bootstrap_repo_path = _env_bs
+
+    if not os.path.isdir(bootstrap_repo_path):
+        bootstrap_repo_path = os.path.join(os.path.dirname(root), "mios-bootstrap")
+
+    if not os.path.isdir(bootstrap_repo_path):
+        sys.stderr.write(f"    ERROR: bootstrap repository mios-bootstrap missing at '{bootstrap_repo_path}'\n")
+        sys.exit(1)
+
+    bootstrap_toml_path = os.path.join(bootstrap_repo_path, "mios.toml")
+    if not os.path.isfile(bootstrap_toml_path):
+        sys.stderr.write(f"    ERROR: bootstrap mios.toml missing at '{bootstrap_toml_path}'\n")
+        sys.exit(1)
+
+    with open(bootstrap_toml_path, "rb") as fh:
+        boot_data = _toml.load(fh)
+
+    drift = []
+    shared_sections = ["ports", "colors", "debloat", "xbox_features"]
+    for sec in shared_sections:
+        main_sec = {k: v for k, v in main_data.get(sec, {}).items() if not isinstance(v, dict)}
+        boot_sec = {k: v for k, v in boot_data.get(sec, {}).items() if not isinstance(v, dict)}
+
+        for k, v in main_sec.items():
+            if k not in boot_sec:
+                drift.append(f"Section [{sec}] key '{k}' in main mios.toml is missing from bootstrap mios.toml")
+            elif boot_sec[k] != v:
+                drift.append(f"Section [{sec}] key '{k}' value differs: main={v}, bootstrap={boot_sec[k]}")
+
+        for k, v in boot_sec.items():
+            if k not in main_sec:
+                drift.append(f"Section [{sec}] key '{k}' in bootstrap mios.toml is missing from main mios.toml")
+
+    if drift:
+        for d in drift:
+            sys.stderr.write("    " + d + "\n")
+        sys.exit(1)
+    sys.exit(0)
+
+
 SUBCOMMANDS = {
+    "bootstrap-ports-drift": check_bootstrap_ports_drift,
     "agent-schema": check_agent_schema,
     "names-registry": check_names_registry,
     "gate-registry": check_gate_registry,

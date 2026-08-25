@@ -24,19 +24,28 @@ SCAN_EXT = (".py", ".sh", ".bash", ".toml", ".ps1", ".psm1", ".rs", ".service",
 _SKIP_DIRS = {".git", "target", "node_modules", "__pycache__", ".venv", ".rustup", ".cargo", "output"}
 
 
-def iter_source_files(root: str):
+def _get_tracked_files(root: str) -> list[str]:
     import subprocess
     try:
-        out = subprocess.run(["git", "ls-files", "-z"], cwd=root,
-                             capture_output=True, check=True)
-        rels = [p for p in out.stdout.decode("utf-8", "replace").split("\0") if p]
+        out = subprocess.run(
+            ["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
+            cwd=root, capture_output=True, check=True
+        )
+        files = [p for p in out.stdout.decode("utf-8", errors="replace").split("\0") if p]
+        if files:
+            return files
     except Exception:
-        rels = []
-        for dp, dn, fns in os.walk(root):
-            dn[:] = [d for d in dn if d not in _SKIP_DIRS]
-            for fn in fns:
-                rels.append(os.path.relpath(os.path.join(dp, fn), root)
-                            .replace(os.sep, "/"))
+        pass
+    rels = []
+    for dp, dn, fns in os.walk(root):
+        dn[:] = [d for d in dn if d not in _SKIP_DIRS and not d.startswith(".")]
+        for fn in fns:
+            rels.append(os.path.relpath(os.path.join(dp, fn), root).replace(os.sep, "/"))
+    return rels
+
+
+def iter_source_files(root: str):
+    rels = _get_tracked_files(root)
     for rel in sorted(rels):
         parts = set(rel.split("/"))
         if parts & _SKIP_DIRS:
@@ -199,28 +208,7 @@ class RefIndex:
         # clean checkout -- the count differed between here and CI by exactly
         # the debris lying around. The census reads the index for the same
         # reason; the reference index has to agree with it.
-        import subprocess
-        try:
-            listing = subprocess.run(
-                ["git", "-c", "core.ignorecase=false", "ls-files", "-z"],
-                cwd=root, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                check=True).stdout.decode("utf-8")
-            tracked = [r for r in listing.split(chr(0)) if r]
-        except Exception as exc:
-            sys.stderr.write("[mios_comments] git listing failed (%s); walking the filesystem instead\n" % exc)
-            tracked = []
-        if not tracked:
-            # An empty listing would index nothing, so EVERY reference would
-            # read as dangling -- the most wrong answer available from a silent
-            # failure. Walk instead; the count is then machine-dependent, which
-            # is worse than exact and far better than uniformly false.
-            for dp, dn, fns in os.walk(root):
-                dn[:] = [d for d in dn
-                         if d not in {".git", "target", "node_modules",
-                                      "__pycache__", ".venv"}]
-                for fn in fns:
-                    tracked.append(os.path.relpath(os.path.join(dp, fn),
-                                                   root).replace(os.sep, "/"))
+        tracked = _get_tracked_files(root)
         if tracked:
             for rel in tracked:
                 fn = rel.rsplit("/", 1)[-1]

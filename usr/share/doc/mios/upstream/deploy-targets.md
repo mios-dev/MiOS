@@ -108,6 +108,10 @@ installer, reboot. On first boot the deployed system runs `bootc upgrade` to
 align with the remote `:latest` tag, so the installed host immediately tracks
 the published image.
 
+> [!WARNING]
+> **Bare-Metal & USB Deployment Status Notice (AGY-1888)**:
+> Automated USB/Ventoy installer media generation is functional for WinPE live sessions and standard Fedora recovery, but automated bare-metal deployment of the MiOS bootc image is disconnected. The kickstart scripts currently deploy standard Fedora rather than invoking `tools/install.sh` (`bootc install to-disk`). Bare-metal bootc installation must be initiated manually via `tools/install.sh` from a live environment.
+
 > The `iso` recipe mounts **only** `config/artifacts/iso.toml`; mounting a
 > second BIB config crashes BIB with `found config.json and also config.toml`.
 > Details in `upstream/bib.md`.

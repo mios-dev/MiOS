@@ -84,6 +84,16 @@ ${PODMAN_CMD} run --rm "${IMAGE_REF}" bash -lc "
     [ \"\$n\" -eq ${N_UNITS} ] || { echo \"ASSERTION COUNT MISMATCH: units \$n != ${N_UNITS}\"; exit 1; }
     echo \"units: OK (\$n)\"
 
+    n=0
+    for mp in /usr/share/man/man1/mios.1 /usr/share/man/man7/mios-variants.7 /usr/share/man/man5/mios.toml.5; do
+        test -f \"\${mp}\" || { echo \"MISSING man page: \${mp}\"; exit 1; }
+        if command -v man >/dev/null 2>&1; then
+            man -l \"\${mp}\" >/dev/null 2>&1 || { echo \"MAN RENDERING FAIL: \${mp}\"; exit 1; }
+        fi
+        n=\$((n+1))
+    done
+    echo \"manpages: OK (\$n)\"
+
     echo \"SMOKE_RUN_PASS\"
 " 2> >(sed 's/^/[bake-smoke][podman-stderr] /' >&2) | tee /tmp/mios-bake-smoke.$$.log
 

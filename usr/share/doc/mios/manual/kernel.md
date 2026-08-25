@@ -51,7 +51,7 @@ Pure config constants + SSOT mios.toml readers (extracted from server.py).
 Moved verbatim from ``server.py`` (refactor R1); the module is pure (stdlib only
 -- ``os`` / ``logging`` / lazily-imported ``tomllib``) and ``server.py`` re-imports
 every name so its importable surface is unchanged. ``mios_config`` MUST NOT import
-``server`` (the one-way boundary enforced by ``98-drift-checks.sh`` check 6).
+``server`` (the one-way boundary enforced by ``98-drift-checks.sh`` check 6 ``check_module_boundary``).
 
 <!-- mios-src:bad8df8dfd78 from usr/lib/mios/agent-pipe/mios_pipe/kernel/config.py:4-10 -->
 

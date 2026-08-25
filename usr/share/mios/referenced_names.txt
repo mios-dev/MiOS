@@ -1196,7 +1196,6 @@ mios-ai-only
 mios-ai-owned
 mios-dashboard-render_issue
 mios-freeipa
-mios-hermes-firstboot
 mios-hermes-workspace.service
 mios-knowledge-graph
 mios-oci-install
@@ -1206,6 +1205,4 @@ mios-shell-verbs
 mios-tailscale-serve
 mios-virt
 mios-ws7-permissive
-user@.service
 usr/share/mios/quadlets
-

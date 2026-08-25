@@ -2430,7 +2430,7 @@ per-vector embedder ``_embed_one`` stays server-resident -- it drives the HTTP
 embed lane via the injected client -- and is injected via :func:`configure`,
 together with the HTTP client factory, the verb catalog, the MCP-client registry +
 lock, and the lenient JSON loader. This module never imports ``server`` (one-way
-boundary, 98-drift-checks check 6); ``server.py`` re-imports every moved name under
+boundary, 98-drift-checks check 6 ``check_module_boundary``); ``server.py`` re-imports every moved name under
 its original alias (and re-injects the cosine / verb-embed helpers into the other
 planes that depend on them) so the importable surface is byte-identical.
 

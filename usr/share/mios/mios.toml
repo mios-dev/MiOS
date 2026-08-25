@@ -10425,6 +10425,8 @@ max_duplicate_ids = 0
 max_stale_refs              = 0
 max_undocumented_components = 16
 manual_min_verbs            = 132
+manual_min_tables           = 156
+manual_min_units            = 135
 stay_max_lines              = 2
 stay_max_words         = 25
 migrate_min_lines      = 6      # ratchet: 6 -> 4 -> 3 as the mid-size band clears
@@ -10838,7 +10840,7 @@ not_mirrored = [
 [legibility]
 max_tracked_files = 3344
 max_tracked_mb    = 201
-max_shell_lines   = 39946  # bash is glue only (Law 14)
+max_shell_lines   = 39903  # bash is glue only (Law 14)
 max_ps_lines      = 22618  # no new PowerShell-as-program (Law 14)
 max_automation_phases = 72
 max_libexec_verbs     = 285

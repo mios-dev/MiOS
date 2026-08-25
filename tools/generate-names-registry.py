@@ -138,10 +138,21 @@ def generate_referenced_vars(root):
                     continue
     
     ref_file = os.path.join(root, "usr/share/mios/referenced_names.txt")
+    static_names = set()
+    if os.path.isfile(ref_file):
+        try:
+            with open(ref_file, encoding="utf-8", errors="ignore") as fh:
+                for line in fh:
+                    s = line.strip()
+                    if s and not s.startswith("MIOS_"):
+                        static_names.add(s)
+        except OSError:
+            pass
+
     os.makedirs(os.path.dirname(ref_file), exist_ok=True)
     tmp_ref = ref_file + ".tmp"
     with open(tmp_ref, "w", encoding="utf-8", newline="\n") as f:
-        for r in sorted(refs):
+        for r in sorted(refs | static_names):
             f.write(f"{r}\n")
     os.replace(tmp_ref, ref_file)
 

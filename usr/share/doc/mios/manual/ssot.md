@@ -68,3 +68,9 @@ below is in that state. The ceiling is shrink-only: write a test, remove the
 entry, lower the number.
 
 <!-- mios-src:3137ebd37e29 from usr/share/mios/mios.toml:11165-11170 -->
+
+### [fs_watcher], [ssot_consumers], and [unit_projection]
+
+The `fs_watcher` section configures filesystem watch paths and events for miosd.
+The `ssot_consumers` section lists all automation and tools that read mios.toml.
+The `unit_projection` section defines how quadlets and systemd units project from SSOT definitions.

@@ -6,6 +6,13 @@ All findings confirmed on disk. Synthesis below.
 
 # MiOS-Cat: Flash-Tonight Deliverables
 
+> [!WARNING]
+> **Deployment Plane Status & Real-World Reality (AGY-1888)**:
+> The USB and Ventoy staging machinery generates bootable media, but automated bare-metal installation of MiOS is broken/disconnected in practice.
+> - What runs under Ventoy kickstart installs standard Fedora rather than the MiOS bootc image.
+> - The offline bare-metal installer (`tools/install.sh` executing `bootc install to-disk --transport oci-archive`) is disconnected from automated kickstarts and must be run manually from a live shell.
+> - `MiOS-Xbox.iso` bootc installer integration remains disconnected and unbuilt in the live USB boot menu.
+
 Grounded against `C:\mios-bootstrap\cat\MiOS-Cat.bat` (1418 lines), `resources\ventoy\ventoy_grub.cfg` (5 entries, verified), and `resources\autorun.sh`. Research claims cited inline.
 
 ---

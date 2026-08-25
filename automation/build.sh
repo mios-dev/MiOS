@@ -553,6 +553,13 @@ rm -rf /var/cache/dnf /var/cache/libdnf5 /tmp/geist-font /tmp/*.tar* /tmp/*.rpm 
 rm -rf /usr/share/doc/* /usr/share/info/* 2>/dev/null || true
 find /usr/share/man/man[0-9]* -type f ! -name 'mios*' -delete 2>/dev/null || true
 find /usr/share/man/man[0-9]* -type d -empty -delete 2>/dev/null || true
+if command -v python3 >/dev/null 2>&1 && [[ -f "${_build_root}/tools/render-manpages.py" ]]; then
+    _row " MANPAGES: Validating man page formatting and readability with man(1)"
+    python3 "${_build_root}/tools/render-manpages.py" --validate || {
+        echo "[FATAL] man page validation failed during image bake" >&2
+        exit 1
+    }
+fi
 rm -rf /usr/share/gnome/help/* /usr/share/help/* 2>/dev/null || true
 rm -f /var/log/dnf5.log* /var/log/hawkey.log 2>/dev/null || true
 rm -rf /run/ceph /run/cockpit /run/k3s /tmp/mios-step-*.log 2>/dev/null || true

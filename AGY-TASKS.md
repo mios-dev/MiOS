@@ -12419,7 +12419,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** legibility is the stated deliverable, so this is the product, not tidying.
 **Dep:** none
 
-## AGY-1883 -- 150 stale references are counted but not enumerated  (WS-DOCS | P2 | M)
+## AGY-1883 -- 150 stale references are counted but not enumerated  (WS-DOCS | P2 | M) **[DONE]**
 **Goal:** The stale-reference count is a work-list.
 **What+How:** The roadmap states 150 stale references. Produce the enumerated list with file, line and target, classify each as renamed, deleted or never-existed, and fix them by class. The renamed ones are mechanical; the never-existed ones are the interesting finding.
 **Where:** `tools/drift-checks.py`, `docs/`, `usr/share/doc/mios/`
@@ -12429,7 +12429,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** a count with no list cannot be worked or verified.
 **Dep:** AGY-1881
 
-## AGY-1884 -- Man pages are generated but not verified to be readable by man  (WS-DOCS | P2 | M)
+## AGY-1884 -- Man pages are generated but not verified to be readable by man  (WS-DOCS | P2 | M) **[DONE]**
 **Goal:** `man mios` works in the built image.
 **What+How:** `tools/render-manpages.py` renders 136 pages as native roff and the bake keeps `mios*` pages while stripping the rest. Nothing asserts the installed pages are found and formatted by `man(1)` in the image. Add a bake-time check that runs `man` against a sample of pages and asserts non-empty, correctly-sectioned output.
 **Where:** `tools/render-manpages.py`, `automation/build.sh`, `tests/bake-smoke.sh`
@@ -12439,7 +12439,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the pages are the user-facing documentation surface and are currently verified only by the generator that wrote them.
 **Dep:** none
 
-## AGY-1885 -- The docs ratchet gives different verdicts under different invocations  (WS-DOCS | P1 | S)
+## AGY-1885 -- The docs ratchet gives different verdicts under different invocations  (WS-DOCS | P1 | S) **[DONE]**
 **Goal:** `check_docs_ratchet` is deterministic.
 **What+How:** The check read red in a sweep and exited 0 when run directly, twice in the same session. Until that is explained, no docs measurement can be believed. Reproduce both invocations, find the input that differs, and remove the dependence.
 **Where:** `tools/drift-checks.py`, `automation/98-drift-checks.sh`
@@ -12449,7 +12449,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the docs campaign is measured by this check, so a nondeterministic verdict makes the campaign unmeasurable.
 **Dep:** AGY-1861
 
-## AGY-1886 -- The generated documentation has no test that it is complete  (WS-DOCS | P2 | M)
+## AGY-1886 -- The generated documentation has no test that it is complete  (WS-DOCS | P2 | M) **[DONE]**
 **Goal:** A documented surface that loses its documentation fails.
 **What+How:** `generate-manual.py` builds the manual from sources. Nothing asserts every verb, unit and SSOT table has a corresponding entry. Add a coverage assertion with a declared floor, so removing a doc source is caught.
 **Where:** `tools/generate-manual.py`, `usr/share/doc/mios/`, `usr/share/mios/mios.toml`
@@ -12459,7 +12459,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** the fourth campaign requires every surface to be covered or explicitly declared uncovered.
 **Dep:** AGY-1882
 
-## AGY-1887 -- ADR index is generated but ADR content is not checked for consistency  (WS-DOCS | P3 | M)
+## AGY-1887 -- ADR index is generated but ADR content is not checked for consistency  (WS-DOCS | P3 | M) **[DONE]**
 **Goal:** An ADR that contradicts the SSOT is caught.
 **What+How:** `generate-adr-index.py` builds `ADR.md` from the ADR set. Several ADRs make claims the SSOT can confirm or refute -- ADR-0003 on SBOM-not-hardcode, ADR-0009 on the one config surface, ADR-0010 on the dotfiles registry. Add checks that the assertions each ADR makes still hold.
 **Where:** `usr/share/doc/mios/adr/`, `tools/generate-adr-index.py`, `automation/98-drift-checks.sh`
@@ -12469,7 +12469,7 @@ makes that table generated so the two cannot diverge again.
 **Why:** an architecture decision record that no longer describes the architecture is a false statement in the most authoritative document.
 **Dep:** none
 
-## AGY-1888 -- Documentation for the deploy plane overstates what works  (WS-DOCS | P1 | M)
+## AGY-1888 -- Documentation for the deploy plane overstates what works  (WS-DOCS | P1 | M) **[DONE]**
 **Goal:** The deploy docs say what actually happens.
 **What+How:** The USB and Ventoy machinery works but does not install MiOS: the bare-metal leg is broken, `tools/install.sh` is absent, and what runs installs plain Fedora rather than a bootc image. The correct installer is disconnected and unbuilt. Any document describing deployment must state that, so nobody plans against a capability that does not exist.
 **Where:** `docs/agy/impl-mios-cat-live-boot.md`, `docs/agy/doc-install-family.md`, `usr/share/doc/mios/`

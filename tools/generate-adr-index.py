@@ -125,18 +125,21 @@ def validate_adr_ssot_consistency(root: str) -> list[str]:
         violations.append("ADR-0009: mios.toml missing [meta].mios_version SSOT declaration")
 
     # ADR-0010: SSOT as system dotfiles registry
-    if "dotfiles" not in ssot:
-        violations.append("ADR-0010: mios.toml missing [dotfiles] table registry")
+    if "dotfiles" not in ssot or not isinstance(ssot.get("dotfiles"), dict) or not ssot["dotfiles"]:
+        violations.append("ADR-0010: mios.toml missing or empty [dotfiles] table registry")
 
-    # ADR-0003: SBOM image references integrity
+    # ADR-0003: SBOM image references integrity (no hardcoded @sha256: digests in [image])
+    def check_image_node(path, node):
+        if isinstance(node, str):
+            if "@sha256:" in node:
+                violations.append(f"ADR-0003: hardcoded @sha256 digest found in [image].{path}: {node}")
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                sub = f"{path}.{k}" if path else k
+                check_image_node(sub, v)
+
     images = ssot.get("image") or {}
-    for k, v in images.items():
-        # mios-version-lint scans source for @sha256: followed by 64 hex
-        # characters. Spelling the sentinel out here made this probe trip the
-        # very law it exists to help enforce, so it is composed instead.
-        dummy_digest = "@sha256:" + "0" * 64
-        if isinstance(v, str) and dummy_digest in v:
-            violations.append(f"ADR-0003: dummy sha256 digest found in [image].{k}")
+    check_image_node("", images)
 
     return violations
 

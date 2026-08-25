@@ -10,6 +10,7 @@ import sys
 
 
 def verify_manual_coverage(repo_root, manual_path) -> list[str]:
+    import glob
     try:
         import tomllib
     except ModuleNotFoundError:
@@ -24,9 +25,19 @@ def verify_manual_coverage(repo_root, manual_path) -> list[str]:
 
     docs = ssot.get("docs", {}) or {}
     min_verbs = int(docs.get("manual_min_verbs", 132))
+    min_tables = int(docs.get("manual_min_tables", 156))
+    min_units = int(docs.get("manual_min_units", 135))
 
     verbs = ssot.get("verbs", {}) or {}
     live_verbs = set(verbs.keys())
+    live_tables = set([k for k, v in ssot.items() if isinstance(v, (dict, list))])
+
+    unit_files = set()
+    for pattern in ["usr/lib/systemd/system/*", "usr/share/containers/systemd/*", "usr/lib/mios/*"]:
+        for fpath in glob.glob(os.path.join(repo_root, pattern.replace("/", os.sep))):
+            fn = os.path.basename(fpath)
+            if any(fn.endswith(ext) for ext in [".service", ".container", ".timer", ".socket", ".target"]):
+                unit_files.add(fn)
 
     doc_dir = os.path.join(repo_root, "usr", "share", "doc", "mios")
     if not os.path.isdir(doc_dir):
@@ -43,14 +54,27 @@ def verify_manual_coverage(repo_root, manual_path) -> list[str]:
                     pass
 
     missing_verbs = [v for v in sorted(live_verbs) if v not in doc_text]
+    missing_tables = [t for t in sorted(live_tables) if t not in doc_text]
+    missing_units = [u for u in sorted(unit_files) if u not in doc_text and u.rsplit(".", 1)[0] not in doc_text]
 
     violations = []
     if missing_verbs:
         violations.append(f"{len(missing_verbs)} live verb(s) missing from usr/share/doc/mios/: {', '.join(missing_verbs[:10])}")
+    covered_verbs = len(live_verbs) - len(missing_verbs)
+    if covered_verbs < min_verbs:
+        violations.append(f"verb manual coverage count {covered_verbs} < declared floor {min_verbs} in mios.toml [docs].manual_min_verbs")
 
-    covered_count = len(live_verbs) - len(missing_verbs)
-    if covered_count < min_verbs:
-        violations.append(f"verb manual coverage count {covered_count} < declared floor {min_verbs} in mios.toml [docs].manual_min_verbs")
+    if missing_tables:
+        violations.append(f"{len(missing_tables)} SSOT table(s) missing from usr/share/doc/mios/: {', '.join(missing_tables[:10])}")
+    covered_tables = len(live_tables) - len(missing_tables)
+    if covered_tables < min_tables:
+        violations.append(f"SSOT table manual coverage count {covered_tables} < declared floor {min_tables} in mios.toml [docs].manual_min_tables")
+
+    if missing_units:
+        violations.append(f"{len(missing_units)} unit file(s) missing from usr/share/doc/mios/: {', '.join(missing_units[:10])}")
+    covered_units = len(unit_files) - len(missing_units)
+    if covered_units < min_units:
+        violations.append(f"unit manual coverage count {covered_units} < declared floor {min_units} in mios.toml [docs].manual_min_units")
 
     return violations
 
