@@ -1,4 +1,3 @@
-ports.negtest_unbound_port  MIOS_PORTS_NEGTEST_UNBOUND_PORT
 ports.stack_id  MIOS_PORTS_STACK_ID
 ports.ssh  MIOS_PORTS_SSH
 ports.forge_http  MIOS_PORTS_FORGE_HTTP

@@ -151,3 +151,4 @@ ReadOnlyPaths=/var/lib/mios/agent-passports
 
 [Install]
 WantedBy=multi-user.target
+/* AI-doc: probe */

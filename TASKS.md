@@ -695,6 +695,10 @@
 | T-781 | P2 | open | AI/ASTDiffTest | Automated AST structural diff calculation and 2-peer review merge gating test suite |
 | T-782 | P1 | open | Security/LivepatchMOK | Cryptographic MOK livepatch signature gate and IMA measurement logger in mios-livepatch |
 | T-783 | P2 | open | Security/LivepatchTest | Automated livepatch signature verification, unsigned module rejection, and IMA test suite |
+| T-784 | P1 | open | AI/CPUGEMM | Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm |
+| T-785 | P2 | open | AI/CPUGEMMTest | Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite |
+| T-786 | P1 | open | Audio/AECFilter | PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter |
+| T-787 | P2 | open | Audio/AECTest | Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -8383,4 +8387,44 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2380
 **Status:** open | **Domain:** Security/LivepatchTest | **Who:** agent
 **Converted:** AGY-2381 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-784 -- Hardware-calibrated CPU vectorized GEMM auto-tuner in mios-cpu-gemm (WS-AI | P1 | M)
+**Goal:** Detect CPU SIMD extensions (AVX-512 VNNI, AMX TMUL, Neon) and configure tiled integer dot-product kernels.
+**What+How:** Implement `usr/libexec/mios/mios-cpu-gemm` and `llama-swap.yaml` CPU configuration. Query CPUID features on boot for AVX-512 VNNI, Intel AMX-TILE/AMX-INT8, and ARM Neon/SVE; calculate optimal L1/L2 matrix tiling geometry (e.g. 32x32 blocks); dynamically bind hardware-tuned `ggml_vec_dot_q4_K_q8_K` SIMD kernels for >30 tok/s quantized token generation on modern multicore CPUs.
+**Where:** usr/libexec/mios/mios-cpu-gemm, usr/share/mios/llamacpp/llama-swap.yaml
+**Done When:** CPU inference engine auto-tunes SIMD vector kernels and executes cache-tiled matrix dot products.
+**Why:** Hardware-tuned SIMD vectorization unlocks fast, responsive local AI inference on systems lacking discrete GPUs.
+**Dep:** AGY-2381
+**Status:** open | **Domain:** AI/CPUGEMM | **Who:** agent
+**Converted:** AGY-2382 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-785 -- Automated CPU quantized GEMM throughput (>30 tok/s) and SIMD dispatch test suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that CPU inference achieves >30 tok/s on AVX-512 systems and zero SIGILL crashes occur.
+**What+How:** Add `tests/test-cpu-gemm-vectorization.sh`. Benchmark token decoding on CPU; inspect hardware performance counters via `perf`; assert AVX-512 / SIMD instructions constitute > 90% of arithmetic instructions; assert generation throughput > 30 tok/s on capable cores; test CPU capability masking to ensure graceful fallback without crashes.
+**Where:** tests/test-cpu-gemm-vectorization.sh, tools/ci-suites.py
+**Done When:** Test suite validates high-throughput SIMD vector dispatch, cache tiling efficiency, and architecture compatibility.
+**Why:** Continuous testing ensures CPU kernel dispatchers maintain peak inference performance across diverse CPU architectures.
+**Dep:** AGY-2382
+**Status:** open | **Domain:** AI/CPUGEMMTest | **Who:** agent
+**Converted:** AGY-2383 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-786 -- PipeWire virtual loopback manager and WebRTC AEC echo cancellation filter (WS-NODE | P1 | M)
+**Goal:** Create virtual loopback sinks and filter mic/desktop audio via webrtc-aec to eliminate feedback loops.
+**What+How:** Implement `automation/25-pipewire.sh` and PipeWire module configurations. Write `/etc/pipewire/pipewire.conf.d/20-aec-loopback.conf`; instantiate `libpipewire-module-echo-cancel` with `library.name = aec/libspa-aec-webrtc`; route physical mic and playback reference through filter; expose clean `echo-cancel-source` to `mios-asr` and isolated `virtual-sink` to applications.
+**Where:** automation/25-pipewire.sh, /etc/pipewire/pipewire.conf.d/20-aec-loopback.conf
+**Done When:** PipeWire manages virtual loopbacks and suppresses speaker acoustic echo in microphone streams.
+**Why:** Acoustic echo cancellation allows seamless full-duplex conversational voice interaction while media plays.
+**Dep:** AGY-2383
+**Status:** open | **Domain:** Audio/AECFilter | **Who:** agent
+**Converted:** AGY-2384 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-787 -- Automated acoustic echo cancellation (>40dB suppression) and full-duplex test suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that WebRTC AEC achieves >40dB echo suppression and 0 acoustic feedback squeals.
+**What+How:** Add `tests/test-pipewire-aec-suppression.sh`. Play synthetic audio tone through speaker sink; simultaneously inject synthetic spoken voice into virtual mic stream; measure signal-to-echo ratio in `echo-cancel-source`; assert echo attenuation > 40 dB; assert speech clarity and transcription accuracy exceed 95.0%.
+**Where:** tests/test-pipewire-aec-suppression.sh, tools/ci-suites.py
+**Done When:** Test suite validates high-performance echo cancellation and clean duplex microphone stream filtering.
+**Why:** Continuous testing ensures audio driver and PipeWire updates preserve feedback-free duplex voice communications.
+**Dep:** AGY-2384
+**Status:** open | **Domain:** Audio/AECTest | **Who:** agent
+**Converted:** AGY-2385 carries this forward with a Verify line that fails when the behaviour is absent.
 
