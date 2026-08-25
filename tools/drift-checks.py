@@ -2305,12 +2305,12 @@ def check_firstboot_tier() -> int:
     if not firstboot_tokens:
         sys.exit(0)
 
+    bad = []
     fb_just = data.get("build", {}).get("bake", {}).get("firstboot_justifications", {})
     for tok in firstboot_tokens:
         if tok not in fb_just or not fb_just[tok]:
             bad.append(f"firstboot token '{tok}' has no justification in [build.bake.firstboot_justifications]")
 
-    bad = []
     with open(fb_list, "r", encoding="utf-8") as fh:
         for line in fh:
             img = line.strip()
