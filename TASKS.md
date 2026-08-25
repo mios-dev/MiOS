@@ -644,6 +644,12 @@
 | T-730 | P2 | open | Storage/CephHealTest | Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite |
 | T-731 | P1 | open | AI/ROCMPagedAttn | ROCm / HIP PagedAttention virtual block manager and async stream compaction engine |
 | T-732 | P2 | open | AI/ROCMTest | Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite |
+| T-733 | P1 | open | Virtualization/VirtioPMEM | Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm |
+| T-734 | P2 | open | Virtualization/PMEMTest | Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite |
+| T-735 | P1 | open | AI/SpeculativePruning | In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap |
+| T-736 | P2 | open | AI/PruningTest | Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite |
+| T-737 | P1 | open | AI/StreamingASR | Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr |
+| T-738 | P2 | open | AI/ASRTest | Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -7822,4 +7828,64 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2329
 **Status:** open | **Domain:** AI/ROCMTest | **Who:** agent
 **Converted:** AGY-2330 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-733 -- Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm (WS-VFIO | P1 | M)
+**Goal:** Expose host memfd buffers via virtio-pmem with guest -o dax for >20 GB/s ephemeral sandbox storage.
+**What+How:** Implement `usr/libexec/mios/mios-microvm` and Cloud-Hypervisor config. Allocate anonymous host `memfd` backing store populated with base rootfs image; attach to microVM via `--pmem file=<memfd>,dax=on`; boot guest kernel with `root=/dev/pmem0 rootflags=dax`; bypass guest page cache to read/write directly to host memory; destroy memfd on VM exit to reclaim RAM instantly.
+**Where:** usr/libexec/mios/mios-microvm, automation/42-microvm-runtime.sh
+**Done When:** MicroVM engine boots ephemeral sandboxes with virtio-pmem direct DAX memory storage.
+**Why:** Virtio-PMEM DAX storage delivers 20+ GB/s I/O bandwidth and eliminates SSD write wear during high-volume agent sandboxing.
+**Dep:** AGY-2330
+**Status:** open | **Domain:** Virtualization/VirtioPMEM | **Who:** agent
+**Converted:** AGY-2331 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-734 -- Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that virtio-pmem microVMs boot in <25ms and achieve >15 GB/s sequential read throughput.
+**What+How:** Add `tests/test-virtio-pmem-dax-io.sh`. Boot 10 sequential microVMs with virtio-pmem; measure boot-to-init latency (assert < 25ms across all runs); run in-guest `dd` / `fio` memory read benchmark; assert throughput > 15.0 GB/s; assert host physical NVMe write counters remain 0.
+**Where:** tests/test-virtio-pmem-dax-io.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-25ms microVM boot times and multi-gigabyte memory I/O throughput.
+**Why:** Continuous testing ensures microVM storage drivers maintain lightning-fast execution speed and zero disk overhead.
+**Dep:** AGY-2331
+**Status:** open | **Domain:** Virtualization/PMEMTest | **Who:** agent
+**Converted:** AGY-2332 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-735 -- In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap (WS-AI | P1 | M)
+**Goal:** Prune rejected speculative candidate token branches via in-place bitmasking and advance KV pointers in a single kernel.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and Tree-Attention CUDA kernels. Implement in-place branch pruning kernel; match longest accepted path from Medusa tree; apply 16-bit branch mask to reset unaccepted KV block pointers in the virtual page table; advance active sequence length counter in-place with zero host-GPU synchronization stalls.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Done When:** Inference kernel prunes unaccepted speculative tree branches in-place with zero memory leakage.
+**Why:** In-place branch pruning ensures speculative tree decoding maintains ultra-low latency and predictable VRAM bounds.
+**Dep:** AGY-2332
+**Status:** open | **Domain:** AI/SpeculativePruning | **Who:** agent
+**Converted:** AGY-2333 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-736 -- Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 10,000 speculative branch pruning cycles cause 0 bytes of memory leakage.
+**What+How:** Add `tests/test-speculative-branch-pruning.sh`. Execute 10,000 speculative generation cycles with synthetic branch misses; monitor GPU memory allocations via CUDA runtime APIs; assert VRAM delta after 10k cycles is exactly 0 bytes; assert per-step compaction overhead is < 20 microseconds.
+**Where:** tests/test-speculative-branch-pruning.sh, tools/ci-suites.py
+**Done When:** Test suite validates zero VRAM memory leakage and sub-20us branch compaction latency.
+**Why:** Continuous testing ensures speculative tree attention optimizations remain leak-free over long-running sessions.
+**Dep:** AGY-2333
+**Status:** open | **Domain:** AI/PruningTest | **Who:** agent
+**Converted:** AGY-2334 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-737 -- Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr (WS-AI | P1 | M)
+**Goal:** Stream 16kHz microphone audio through Silero VAD into quantized Conformer ONNX for sub-100ms word emission.
+**What+How:** Implement `usr/libexec/mios/mios-asr` and `automation/49-asr-runtime.sh`. Capture audio from PipeWire input stream; process 30ms audio windows through quantized Silero VAD; stream voiced PCM chunks into quantized CTC/Conformer ONNX encoder; emit streaming partial text tokens over Unix socket to agent orchestrator; finalize utterance upon 500ms acoustic pause.
+**Where:** usr/libexec/mios/mios-asr, usr/lib/systemd/system/mios-asr.service
+**Done When:** Streaming ASR engine emits partial transcribed words over socket with sub-100ms latency.
+**Why:** Streaming low-latency ASR enables fluid conversational voice interaction with local AI agents.
+**Dep:** AGY-2334
+**Status:** open | **Domain:** AI/StreamingASR | **Who:** agent
+**Converted:** AGY-2335 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-738 -- Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that streaming ASR emits words in <100ms with Word Error Rate (WER) < 8.0%.
+**What+How:** Add `tests/test-streaming-asr-latency.sh`. Stream 20 synthetic audio speech recordings through `mios-asr`; measure time delta from speech acoustic onset to partial token emission; assert emission latency < 100ms across all trials; compute Word Error Rate (WER); assert WER < 8.0% across test corpus.
+**Where:** tests/test-streaming-asr-latency.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-100ms streaming word emissions and low Word Error Rate accuracy.
+**Why:** Continuous testing ensures speech recognition optimizations preserve high accuracy and real-time responsiveness.
+**Dep:** AGY-2335
+**Status:** open | **Domain:** AI/ASRTest | **Who:** agent
+**Converted:** AGY-2336 carries this forward with a Verify line that fails when the behaviour is absent.
 

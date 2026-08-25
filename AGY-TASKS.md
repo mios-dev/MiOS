@@ -17000,3 +17000,63 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures AMD GPU inference updates maintain rock-solid stability and high batch density.
 **Dep:** AGY-2329
 
+## AGY-2331 -- Virtio-PMEM direct DAX memory storage manager and memfd sandbox enclave in mios-microvm  (WS-VFIO | P1 | M)
+**Goal:** Expose host memfd buffers via virtio-pmem with guest -o dax for >20 GB/s ephemeral sandbox storage.
+**What+How:** Implement `usr/libexec/mios/mios-microvm` and Cloud-Hypervisor config. Allocate anonymous host `memfd` backing store populated with base rootfs image; attach to microVM via `--pmem file=<memfd>,dax=on`; boot guest kernel with `root=/dev/pmem0 rootflags=dax`; bypass guest page cache to read/write directly to host memory; destroy memfd on VM exit to reclaim RAM instantly.
+**Where:** usr/libexec/mios/mios-microvm, automation/42-microvm-runtime.sh
+**Verify:** Launch microVM using virtio-pmem; verify guest boots in <25ms, mounts rootfs with DAX enabled, and executes file writes at raw memory speeds without physical disk writes.
+**Do NOT:** Write ephemeral sandbox root filesystems to physical NVMe partitions or emulate slow virtual SATA controllers.
+**Done When:** MicroVM engine boots ephemeral sandboxes with virtio-pmem direct DAX memory storage.
+**Why:** Virtio-PMEM DAX storage delivers 20+ GB/s I/O bandwidth and eliminates SSD write wear during high-volume agent sandboxing.
+**Dep:** AGY-2330
+
+## AGY-2332 -- Automated virtio-pmem DAX I/O throughput (>15 GB/s) and sub-25ms boot benchmark suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that virtio-pmem microVMs boot in <25ms and achieve >15 GB/s sequential read throughput.
+**What+How:** Add `tests/test-virtio-pmem-dax-io.sh`. Boot 10 sequential microVMs with virtio-pmem; measure boot-to-init latency (assert < 25ms across all runs); run in-guest `dd` / `fio` memory read benchmark; assert throughput > 15.0 GB/s; assert host physical NVMe write counters remain 0.
+**Where:** tests/test-virtio-pmem-dax-io.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-virtio-pmem-dax-io.sh`; verify boot time SLA and DAX memory throughput pass 100%.
+**Do NOT:** Skip PMEM DAX validation in CI test tier 2.
+**Done When:** Test suite validates sub-25ms microVM boot times and multi-gigabyte memory I/O throughput.
+**Why:** Continuous testing ensures microVM storage drivers maintain lightning-fast execution speed and zero disk overhead.
+**Dep:** AGY-2331
+
+## AGY-2333 -- In-place tree branch bitmask pruner and speculative KV compaction kernel in llama-swap  (WS-AI | P1 | M)
+**Goal:** Prune rejected speculative candidate token branches via in-place bitmasking and advance KV pointers in a single kernel.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and Tree-Attention CUDA kernels. Implement in-place branch pruning kernel; match longest accepted path from Medusa tree; apply 16-bit branch mask to reset unaccepted KV block pointers in the virtual page table; advance active sequence length counter in-place with zero host-GPU synchronization stalls.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 1,000-token speculative generation with Medusa 16-branch tree; verify VRAM allocation remains flat and verify per-step compaction latency is <15us.
+**Do NOT:** Re-evaluate full prompt sequences or leak rejected speculative branch tokens into persistent KV caches.
+**Done When:** Inference kernel prunes unaccepted speculative tree branches in-place with zero memory leakage.
+**Why:** In-place branch pruning ensures speculative tree decoding maintains ultra-low latency and predictable VRAM bounds.
+**Dep:** AGY-2332
+
+## AGY-2334 -- Automated 16-branch speculative tree pruning, zero VRAM leak, and compaction benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 10,000 speculative branch pruning cycles cause 0 bytes of memory leakage.
+**What+How:** Add `tests/test-speculative-branch-pruning.sh`. Execute 10,000 speculative generation cycles with synthetic branch misses; monitor GPU memory allocations via CUDA runtime APIs; assert VRAM delta after 10k cycles is exactly 0 bytes; assert per-step compaction overhead is < 20 microseconds.
+**Where:** tests/test-speculative-branch-pruning.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-speculative-branch-pruning.sh`; verify zero memory leak and microsecond latency SLA pass 100%.
+**Do NOT:** Skip branch pruning validation on GPU CI runners.
+**Done When:** Test suite validates zero VRAM memory leakage and sub-20us branch compaction latency.
+**Why:** Continuous testing ensures speculative tree attention optimizations remain leak-free over long-running sessions.
+**Dep:** AGY-2333
+
+## AGY-2335 -- Streaming CTC / Conformer ONNX speech recognition daemon and VAD chunker in mios-asr  (WS-AI | P1 | M)
+**Goal:** Stream 16kHz microphone audio through Silero VAD into quantized Conformer ONNX for sub-100ms word emission.
+**What+How:** Implement `usr/libexec/mios/mios-asr` and `automation/49-asr-runtime.sh`. Capture audio from PipeWire input stream; process 30ms audio windows through quantized Silero VAD; stream voiced PCM chunks into quantized CTC/Conformer ONNX encoder; emit streaming partial text tokens over Unix socket to agent orchestrator; finalize utterance upon 500ms acoustic pause.
+**Where:** usr/libexec/mios/mios-asr, usr/lib/systemd/system/mios-asr.service
+**Verify:** Speak into microphone; verify partial word tokens appear on terminal/socket in <100ms and transcribed sentence matches spoken words with >95% accuracy.
+**Do NOT:** Record full 30-second audio files to disk before initiating speech recognition inference.
+**Done When:** Streaming ASR engine emits partial transcribed words over socket with sub-100ms latency.
+**Why:** Streaming low-latency ASR enables fluid conversational voice interaction with local AI agents.
+**Dep:** AGY-2334
+
+## AGY-2336 -- Automated streaming ASR word emission latency (<100ms) and word error rate benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that streaming ASR emits words in <100ms with Word Error Rate (WER) < 8.0%.
+**What+How:** Add `tests/test-streaming-asr-latency.sh`. Stream 20 synthetic audio speech recordings through `mios-asr`; measure time delta from speech acoustic onset to partial token emission; assert emission latency < 100ms across all trials; compute Word Error Rate (WER); assert WER < 8.0% across test corpus.
+**Where:** tests/test-streaming-asr-latency.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-streaming-asr-latency.sh`; verify latency SLA and WER accuracy assertions pass 100%.
+**Do NOT:** Skip ASR accuracy and latency validation in CI test tier 2.
+**Done When:** Test suite validates sub-100ms streaming word emissions and low Word Error Rate accuracy.
+**Why:** Continuous testing ensures speech recognition optimizations preserve high accuracy and real-time responsiveness.
+**Dep:** AGY-2335
+
