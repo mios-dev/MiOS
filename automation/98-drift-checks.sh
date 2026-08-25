@@ -3872,30 +3872,8 @@ check_generator_host_parity() {
     echo "[98-drift-checks]   $out"
 }
 
-# --- port numbers in documentation reflect mios.toml [ports] SSOT ---
 check_doc_port_scheme() {
-    echo "[98-drift-checks] port numbers in documentation reflect mios.toml [ports] SSOT"
-    # Law 5/7: contract docs name [ports] keys; retired lane numbers must not return.
-    local lists pat f hits
-    lists="$(cd "$ROOT" && python3 tools/drift-checks.py doc-port-scheme)"
-    pat="${lists%%$'\n'*}"
-    if [[ -z "$pat" ]]; then
-        _violation "check_doc_port_scheme: [docs].retired_ports is empty or unreadable"
-        return
-    fi
-    while IFS= read -r f; do
-        [[ -z "$f" ]] && continue
-        if [[ ! -f "$ROOT/$f" ]]; then
-            _violation "[docs].port_clean names a missing file: $f"
-            continue
-        fi
-        hits="$(grep -nE "(^|[^0-9])(${pat})([^0-9]|$)" "$ROOT/$f" || true)"
-        if [[ -n "$hits" ]]; then
-            while IFS= read -r line; do
-                _violation "retired port literal in ${f}: ${line}"
-            done <<<"$hits"
-        fi
-    done <<<"${lists#*$'\n'}"
+    _run_py_check check_doc_port_scheme "tools/drift-checks.py doc-port-scheme"
 }
 
 

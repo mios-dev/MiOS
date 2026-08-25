@@ -2254,7 +2254,7 @@ test_service_urls() {
     local toml="${ROOT}/usr/share/mios/mios.toml"
     local backup="${toml}.negbak"
     local reg_tail='"sglang", "ssh", "ttyd_bash", "ttyd_powershell", "vllm",'
-    local reg_head='  "adguard_dns", "adguard_ui", "agent_pipe", "arbiter", "ceph_dashboard",'
+    local reg_head='  "adguard_dns", "adguard_ui", "agent_pipe", "ai_legacy", "arbiter", "ceph_dashboard",'
     cp "$toml" "$backup"
 
     # (1) A port in NEITHER [urls] nor the register must FAIL. Dropping an entry
@@ -3257,8 +3257,10 @@ test_install_uninstall_symmetry() {
     cp "$uninst" "$bak"
     # Delete the scheduled-task sweep while [windows.owned_artifacts].task_names
     # still declares tasks -- the asymmetry the gate exists to catch.
+    rm -f "$uninst" 2>/dev/null || true
     grep -v 'Unregister-ScheduledTask' "$bak" > "$uninst"
     _neg_gate check_install_uninstall_symmetry && die "check_install_uninstall_symmetry passed despite a missing task sweep"
+    rm -f "$uninst" 2>/dev/null || true
     cp "$bak" "$uninst" && rm -f "$bak"
     _neg_gate check_install_uninstall_symmetry \
         || die "check_install_uninstall_symmetry failed after restoration"
@@ -3271,8 +3273,10 @@ test_ps_port_fallback_ssot() {
     local bak="${f}.negbak"
     cp "$f" "$bak"
     # Drift one last-resort literal away from mios.toml [ports].cockpit.
+    rm -f "$f" 2>/dev/null || true
     sed "s/'cockpit' 8110/'cockpit' 9090/" "$bak" > "$f"
     _neg_gate check_ps_port_fallback_ssot && die "check_ps_port_fallback_ssot passed despite a drifted port fallback"
+    rm -f "$f" 2>/dev/null || true
     cp "$bak" "$f" && rm -f "$bak"
     _neg_gate check_ps_port_fallback_ssot \
         || die "check_ps_port_fallback_ssot failed after restoration"
@@ -3546,11 +3550,14 @@ test_doc_port_scheme() {
     local doc="${ROOT}/README.md"
     local backup; backup="$(mktemp)"
     cp "$doc" "$backup"
+    rm -f "$doc" 2>/dev/null || true
+    cp "$backup" "$doc"
     printf '\nA retired lane on `:11450` sneaks back in.\n' >> "$doc"
     _neg_gate check_doc_port_scheme && die "check_doc_port_scheme passed despite a retired port literal"
+    rm -f "$doc" 2>/dev/null || true
     cp "$backup" "$doc"
-    _neg_gate check_doc_port_scheme || { rm -f "$backup"; die "check_doc_port_scheme failed after restoration"; }
     rm -f "$backup"
+    _neg_gate check_doc_port_scheme || die "check_doc_port_scheme failed after restoration"
     log "check_doc_port_scheme negative test passed"
 }
 

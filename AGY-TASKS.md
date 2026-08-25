@@ -16561,3 +16561,442 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures audio synthesis optimizations preserve fluid real-time voice performance.
 **Dep:** AGY-2285
 
+## AGY-2287 -- Global MiOS-USB graduated hardware key runtime and virtual CCID PC/SC multiplexer  (WS-SEC | P1 | M)
+**Goal:** Provision MiOS-USB as graduated hardware key for cluster nodes and multiplex virtual CCID across containers/microVMs.
+**What+How:** Implement `usr/libexec/mios/mios-smartcard` and `automation/48-smartcard.sh`. Define 4-tier graduated USB trust model in `mios.toml` `[security.usb_keys]`; expose virtual PC/SC sockets over vsock and Unix domain sockets to microVMs and rootless containers; forward virtual CCID signing queries across WireGuard mesh to enrolled node keys; and enforce pinentry / physical touch verification on the host secure desktop.
+**Where:** usr/libexec/mios/mios-smartcard, automation/48-smartcard.sh
+**Verify:** Insert MiOS-USB hardware key; run git commit inside isolated microVM; verify virtual CCID prompts for touch on host UI and signs commit with hardware key signature.
+**Do NOT:** Pass raw physical USB controller exclusively to a single VM, locking out host and peer nodes.
+**Done When:** Smartcard multiplexer shares MiOS-USB hardware key capabilities across containers and mesh nodes.
+**Why:** Graduated MiOS-USB hardware keys provide unified cryptographic identity, secure commit signing, and node attestation.
+**Dep:** AGY-2286
+
+## AGY-2288 -- Automated virtual CCID multi-tenant multiplexing and MiOS-USB global authentication test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that virtual CCID handles 10 concurrent signing requests without key collisions.
+**What+How:** Add `tests/test-virtual-ccid-multiplexing.sh`. Emulate virtual smartcard device via `softhsm2` / `vsmartcard`; spawn 10 concurrent microVMs and containers requesting cryptographic signatures; assert all 10 operations complete with valid cryptographic signatures and 0 socket lockups.
+**Where:** tests/test-virtual-ccid-multiplexing.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-virtual-ccid-multiplexing.sh`; verify concurrency throughput and signature validity pass 100%.
+**Do NOT:** Skip smartcard multiplexing validation in CI test tier 2.
+**Done When:** Test suite validates concurrent virtual CCID forwarding, socket multiplexing, and cryptographic verification.
+**Why:** Continuous testing ensures virtual smartcard bridges maintain secure multi-tenant cryptographic isolation.
+**Dep:** AGY-2287
+
+## AGY-2289 -- Ephemeral OverlayFS workspace provisioner and bubblewrap sandbox in agent-pipe  (WS-BUILD | P1 | M)
+**Goal:** Provision subagent copy-on-write workspaces in <10ms using OverlayFS and isolate executions via bubblewrap.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_overlay_workspace.py`. Mount source workspace as read-only lowerdir; create ephemeral tmpfs upperdir at `/run/mios/workspaces/<agent_id>/`; execute subagent tool actions inside unprivileged bubblewrap sandbox; on task completion, extract git diff patch, validate syntax, and merge atomically into the main repository branch.
+**Where:** usr/lib/mios/agent-pipe/mios_overlay_workspace.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Launch 5 concurrent subagents modifying the same file in parallel; verify all 5 subagents execute in isolation and approved patches apply cleanly without race conditions.
+**Do NOT:** Allow concurrent subagents to write directly to shared non-isolated working tree paths.
+**Done When:** Workspace manager provisions isolated OverlayFS environments in <10ms and merges diffs atomically.
+**Why:** OverlayFS copy-on-write sandboxes allow hundreds of agents to edit code concurrently with zero disk duplication.
+**Dep:** AGY-2288
+
+## AGY-2290 -- Automated 20-subagent concurrent file mutation and atomic git diff promotion test suite  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that 20 concurrent subagent workspaces maintain 100% data isolation and merge safely.
+**What+How:** Add `tests/test-overlay-workspace-concurrency.sh`. Provision 20 concurrent subagent OverlayFS mounts; perform simultaneous file edits across different files; assert 0 file collision errors; promote all 20 patches via atomic git merge; assert master branch contains all 20 changes with 100% build validity.
+**Where:** tests/test-overlay-workspace-concurrency.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-overlay-workspace-concurrency.sh`; verify workspace creation speed and git merge assertions pass 100%.
+**Do NOT:** Skip concurrent workspace validation in CI test tier 2.
+**Done When:** Test suite validates high-concurrency subagent isolation and conflict-free patch promotion.
+**Why:** Continuous testing ensures agent workspace scaling maintains reliable concurrent software development.
+**Dep:** AGY-2289
+
+## AGY-2291 -- Hierarchical accelerator router with NPU priority and CPU vector fallback  (WS-AI | P1 | M)
+**Goal:** Route embeddings and wake-word to NPU (<2W) or quantized CPU vector threads, power-gating discrete GPUs.
+**What+How:** Implement `usr/libexec/mios/mios-accelerated` and `automation/22-accelerators.sh`. Discover `/dev/accel/*` (Intel VPU, AMD XDNA) and CPU vector extensions (AVX-512, AMX, Neon); configure ONNX Runtime / llama.cpp to route VAD, wake-word, and embeddings to NPU or optimized CPU threads; route 7B+ coding models to dGPU; keep dGPU in D3cold sleep until heavy tasks arrive.
+**Where:** usr/libexec/mios/mios-accelerated, automation/22-accelerators.sh
+**Verify:** Run wake-word detection on NPU or CPU fallback; verify discrete GPU remains in D3cold (<3W) and wake-word triggers in <20ms.
+**Do NOT:** Wake 400W discrete GPUs for background acoustic listening or small text embeddings.
+**Done When:** Accelerator router dispatches lightweight AI tasks to NPU/CPU and keeps discrete GPUs asleep.
+**Why:** Heterogeneous accelerator routing with CPU fallback maximizes battery endurance and eliminates unnecessary fan noise.
+**Dep:** AGY-2290
+
+## AGY-2292 -- Automated NPU offload, CPU vector fallback, and discrete GPU sleep power benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that embeddings run on NPU/CPU with <1% CPU load and zero discrete GPU wakeups.
+**What+How:** Add `tests/test-heterogeneous-accelerator-routing.sh`. Run continuous 100-batch embedding and wake-word pipeline; monitor GPU power state in NVML; assert discrete GPU stays in D3cold throughout; assert CPU fallback utilization < 1.0% on systems lacking hardware NPU.
+**Where:** tests/test-heterogeneous-accelerator-routing.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-heterogeneous-accelerator-routing.sh`; verify GPU sleep state and CPU fallback SLA pass 100%.
+**Do NOT:** Skip accelerator power routing validation in CI test tier 2.
+**Done When:** Test suite validates NPU/CPU embedding throughput and persistent discrete GPU sleep states.
+**Why:** Continuous testing ensures AI routing updates preserve power efficiency across diverse hardware architectures.
+**Dep:** AGY-2291
+
+## AGY-2293 -- Medusa / EAGLE multi-head token tree speculative engine and Tree-Attention kernels  (WS-AI | P1 | M)
+**Goal:** Generate candidate token trees via Medusa heads and verify paths in a single Tree-Attention forward pass.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml`. Configure `medusa_speculative: true` with 4 prediction heads; construct candidate token trees (up to 16 candidate paths); execute custom Tree-Attention CUDA/ROCm kernels to verify tree branches in a single base model forward pass; accept longest valid branch and update KV cache in place.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run inference on 14B coder model with Medusa heads; verify token generation speed increases from 22 tok/s to >68 tok/s with zero additional VRAM allocated for draft models.
+**Do NOT:** Require separate draft model GGUF weights when Medusa/EAGLE heads are embedded in the model.
+**Done When:** Medusa engine verifies token trees in single forward passes and achieves >2.5x generation speedup.
+**Why:** Medusa Tree-Attention provides speculative decoding speedups without requiring extra VRAM for a draft model.
+**Dep:** AGY-2292
+
+## AGY-2294 -- Automated Medusa Tree-Attention throughput (3x) and mathematical token parity benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that Medusa decoding achieves >2.5x speedup and outputs identical tokens to standard sampling.
+**What+How:** Add `tests/test-medusa-tree-attention.sh`. Benchmark 50 code synthesis queries with and without Medusa tree attention; assert generation throughput increases by >2.5x; assert generated tokens match baseline autoregressive output exactly.
+**Where:** tests/test-medusa-tree-attention.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-medusa-tree-attention.sh`; verify throughput speedup and mathematical token parity pass 100%.
+**Do NOT:** Skip Medusa tree benchmarks on GPU CI test runners.
+**Done When:** Test suite validates Medusa Tree-Attention acceleration and exact output token parity.
+**Why:** Continuous testing ensures tree attention kernel updates maintain deterministic, high-throughput token generation.
+**Dep:** AGY-2293
+
+## AGY-2295 -- Split-DNS systemd-resolved configurator for .mios mesh domains and strict DoT  (WS-NODE | P1 | M)
+**Goal:** Route .mios queries to local WireGuard resolver and encrypt public queries via strict DNS-over-TLS.
+**What+How:** Implement `automation/43-dns-split.sh`. Write `/etc/systemd/resolved.conf.d/10-mios-split.conf`; configure WireGuard interface with `Domains=~mios ~10.in-addr.arpa` pointing to local AdGuard/CoreDNS; configure uplink interfaces with `DNSOverTLS=yes` and `DNSSEC=yes` pointing to upstream DoT resolvers (`9.9.9.9#dns.quad9.net`, `1.1.1.1#cloudflare-dns.com`).
+**Where:** automation/43-dns-split.sh, /etc/systemd/resolved.conf.d/10-mios-split.conf
+**Verify:** Resolve `cluster-master.mios` (assert routed to local mesh IP in <5ms); resolve `kernel.org` (assert query is sent over encrypted TLS port 853 without cleartext port 53 leaks).
+**Do NOT:** Leak `.mios` local cluster domain queries to public external DNS resolvers.
+**Done When:** Systemd-resolved resolves `.mios` mesh queries locally and encrypts public traffic over DoT.
+**Why:** Split-DNS prevents internal hostname leakage and protects public DNS traffic from eavesdropping.
+**Dep:** AGY-2294
+
+## AGY-2296 -- Automated split-DNS query routing, .mios local resolution, and DoT leak prevention test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that .mios queries resolve internally and zero unencrypted DNS leaks occur.
+**What+How:** Add `tests/test-split-dns-dot-routing.sh`. Query 10 local `.mios` hostnames and 10 public domains while capturing packets with `tcpdump`; assert zero `.mios` queries appear on uplink interface; assert 100% of public queries use TLS port 853 with valid DNSSEC validation.
+**Where:** tests/test-split-dns-dot-routing.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-split-dns-dot-routing.sh`; verify zero packet leaks and strict DoT assertions pass 100%.
+**Do NOT:** Skip DNS leak testing in CI test tier 2.
+**Done When:** Test suite validates split-DNS domain isolation, zero hostname leakage, and strict DoT encryption.
+**Why:** Continuous testing ensures network resolver configurations prevent DNS leakage across cluster blades.
+**Dep:** AGY-2295
+
+## AGY-2297 -- Zero-timeout systemd-boot silent fastboot configurator and baked UKI kargs manager  (WS-BOOT | P1 | M)
+**Goal:** Configure systemd-boot for 0s timeout fastboot with signed UKI baked kargs and Space/Esc recovery override.
+**What+How:** Implement `automation/10-systemd-boot.sh`. Write `/boot/efi/loader/loader.conf` with `timeout 0`, `console-mode max`, and `auto-entries 1`; enforce UKI kargs embedding via `ukify` during image compilation (Invariant 2); configure systemd-boot to catch held Space/Esc keys on power-on to expose emergency rollback entry list.
+**Where:** automation/10-systemd-boot.sh, /boot/efi/loader/loader.conf
+**Verify:** Boot in QEMU UEFI mode; verify systemd-boot jumps directly to UKI without delay and boots to login in <1s; test holding Space key opens boot menu.
+**Do NOT:** Read mutable unauthenticated kernel command line strings from external ESP config files.
+**Done When:** Systemd-boot executes zero-timeout silent fastboot to signed UKI with emergency key fallback.
+**Why:** Zero-timeout direct UKI fastboot maximizes boot speed while guaranteeing immutable kernel argument security.
+**Dep:** AGY-2296
+
+## AGY-2298 -- Automated sub-1s UEFI boot time, baked UKI signature, and emergency key override test suite  (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that UEFI bootloader phase takes <300ms and emergency key opens boot menu.
+**What+How:** Add `tests/test-systemd-boot-fastboot.sh`. Boot QEMU with virtual firmware; measure firmware-to-kernel handoff latency via `systemd-analyze`; assert loader time < 300ms; simulate held Space key in QEMU console; assert emergency boot menu is presented.
+**Where:** tests/test-systemd-boot-fastboot.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-systemd-boot-fastboot.sh`; verify loader timing and emergency menu assertions pass 100%.
+**Do NOT:** Skip bootloader timing validation in CI test tier 3.
+**Done When:** Test suite validates sub-300ms bootloader handoff and reliable emergency menu triggering.
+**Why:** Continuous testing ensures bootloader configuration maintains instant boot speed and reliable rescue paths.
+**Dep:** AGY-2297
+
+## AGY-2299 -- Early EFI_RNG_PROTOCOL KASLR entropy collector and kernel memory randomizer  (WS-BOOT | P1 | M)
+**Goal:** Query UEFI EFI_RNG_PROTOCOL in early boot stub and randomize kernel physical/virtual base offsets.
+**What+How:** Implement `automation/10-systemd-boot.sh` and UKI build configuration. Enable kernel EFI boot stub RNG collection via `CONFIG_RANDOMIZE_BASE=y` and `CONFIG_EFI_RNG=y`; query `EFI_RNG_PROTOCOL` in early UEFI stub; combine with CPU `RDRAND`; randomize kernel text section, module allocations, and direct-mapped page table offsets.
+**Where:** automation/10-systemd-boot.sh, automation/05-kernel.sh
+**Verify:** Reboot 10 times; inspect `/proc/kallsyms` (as root); verify `_text` kernel physical base address changes non-deterministically across all 10 boots.
+**Do NOT:** Set `nokaslr` in UKI kernel command line or disable EFI RNG harvesting.
+**Done When:** Kernel boot stub collects EFI_RNG_PROTOCOL entropy and randomizes memory base offsets.
+**Why:** High-entropy KASLR prevents kernel memory layout prediction and neutralizes return-oriented programming exploits.
+**Dep:** AGY-2298
+
+## AGY-2300 -- Automated KASLR physical address space variance and entropy validation test suite  (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that kernel text base address exhibits high statistical variance across reboots.
+**What+How:** Add `tests/test-kaslr-entropy-variance.sh`. Boot virtual machine across 15 iterations; record `_stext` virtual/physical address; compute Shannon bit entropy of offset distribution; assert entropy variance > 28 bits and zero duplicate address bases.
+**Where:** tests/test-kaslr-entropy-variance.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-kaslr-entropy-variance.sh`; verify 28-bit KASLR variance assertions pass 100%.
+**Do NOT:** Skip KASLR variance testing in CI test tier 3.
+**Done When:** Test suite validates high-entropy kernel memory address randomization across boot cycles.
+**Why:** Continuous testing ensures kernel builds maintain robust anti-exploit address space layout randomization.
+**Dep:** AGY-2299
+
+## AGY-2301 -- Dynamic PipeWire bit-perfect sample rate adapter and hardware DAC pass-through manager  (WS-NODE | P1 | M)
+**Goal:** Dynamically adapt PipeWire daemon clock rate to source audio (44.1k-192k) for bit-perfect playback.
+**What+How:** Implement `automation/25-pipewire.sh`. Write `/etc/pipewire/pipewire.conf.d/10-rates.conf` with `default.clock.allowed-rates = [ 44100, 48000, 88200, 96000, 176400, 192000 ]` and `default.clock.quantum = 1024`; configure WirePlumber to switch DAC hardware clock seamlessly on track changes; mix background system notifications and agent voice prompts via high-precision sinc resamplers without interrupting primary stream.
+**Where:** automation/25-pipewire.sh, /etc/pipewire/pipewire.conf.d/10-rates.conf
+**Verify:** Play 192kHz/24-bit FLAC audio to USB DAC; verify `/proc/asound/card*/pcm*p/sub*/hw_params` confirms 192000Hz direct stream and agent voice notification overlays cleanly.
+**Do NOT:** Force software resampling to 48kHz for high-resolution audio sources when hardware DAC supports native rates.
+**Done When:** PipeWire adapts sample rates dynamically to deliver bit-perfect audio to capable DACs.
+**Why:** Dynamic sample rate switching provides bit-perfect audiophile fidelity while preserving system-wide audio multiplexing.
+**Dep:** AGY-2300
+
+## AGY-2302 -- Automated 192kHz/24-bit bit-perfect audio stream verification and concurrent mixing test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that 192kHz audio streams maintain exact sample rates and mixing never causes XRuns.
+**What+How:** Add `tests/test-pipewire-bitperfect-rates.sh`. Stream 44.1kHz, 96kHz, and 192kHz synthetic test files through PipeWire virtual sink; assert sink hardware rate switches within 50ms; trigger simultaneous agent voice synthesis; assert 0 buffer underruns and bit-perfect sample parity.
+**Where:** tests/test-pipewire-bitperfect-rates.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-pipewire-bitperfect-rates.sh`; verify dynamic rate switching and zero-XRun assertions pass 100%.
+**Do NOT:** Skip PipeWire sample rate validation in CI test tier 2.
+**Done When:** Test suite validates dynamic clock rate switching and glitch-free concurrent audio mixing.
+**Why:** Continuous testing ensures audio subsystem updates preserve bit-perfect fidelity and mixer stability.
+**Dep:** AGY-2301
+
+## AGY-2303 -- Native in-kernel ID-mapped OverlayFS storage configurator for rootless Podman  (WS-APP | P1 | M)
+**Goal:** Configure native kernel overlayfs with ID-mapped mounts and metacopy=on for 10x faster rootless container I/O.
+**What+How:** Implement `automation/35-podman-storage.sh`. Write `/etc/containers/storage.conf` configuring `driver = "overlay"`, `mount_program = ""` (native kernel), and `mountopt = "nodev,metacopy=on,userxattr"`; enable kernel unprivileged user namespace overlayfs support via sysctl; verify `podman info` confirms native kernel overlay driver without `fuse-overlayfs` fallback.
+**Where:** automation/35-podman-storage.sh, /etc/containers/storage.conf
+**Verify:** Run rootless `podman build` as user `mios`; verify build uses native in-kernel overlayfs without launching `fuse-overlayfs` helper daemons.
+**Do NOT:** Fall back to userspace FUSE drivers on kernels with native unprivileged overlayfs support.
+**Done When:** Podman storage configuration activates native kernel overlayfs with ID-mapped mounts for rootless containers.
+**Why:** Native kernel overlayfs eliminates context-switch overhead and provides 10x faster container build I/O.
+**Dep:** AGY-2302
+
+## AGY-2304 -- Automated rootless container I/O throughput (10x speedup) and UID mapping test suite  (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that native overlay achieves >10x I/O IOPS over FUSE and preserves POSIX UID permissions.
+**What+How:** Add `tests/test-podman-native-overlay-io.sh`. Run `fio` benchmark inside rootless container on native overlayfs; assert IOPS > 10x over FUSE baseline; verify nested user subuid file ownership matches container root (UID 0 mapped to host 100000).
+**Where:** tests/test-podman-native-overlay-io.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-podman-native-overlay-io.sh`; verify IOPS throughput and UID mapping assertions pass 100%.
+**Do NOT:** Skip container storage I/O validation in CI test tier 2.
+**Done When:** Test suite validates high-performance native kernel overlay I/O and POSIX UID permissions.
+**Why:** Continuous testing ensures container storage updates maintain high-speed native filesystem operations.
+**Dep:** AGY-2303
+
+## AGY-2305 -- Forward-Secure Sealed (FSS) journald logger and TPM key enrollment manager  (WS-SEC | P1 | M)
+**Goal:** Enable systemd-journald FSS with 15-minute key evolution and seal verification keys to TPM 2.0 / MiOS-USB.
+**What+How:** Implement `automation/46-journal-fss.sh`. Initialize journal FSS via `journalctl --setup-keys --interval=15m`; seal the generated verification key into TPM 2.0 NV index and write verification QR/string to `/var/lib/mios/fss-key.sealed`; configure `journald.conf` with `Seal=yes` and `Compress=zstd`; add periodic `journalctl --verify` check to Greenboot.
+**Where:** automation/46-journal-fss.sh, /etc/systemd/journald.conf.d/10-fss.conf
+**Verify:** Generate 1,000 log entries; run `journalctl --verify`; verify journal passes cryptographic FSS integrity verification 100%.
+**Do NOT:** Leave verification keys unsealed in world-readable unencrypted filesystem paths.
+**Done When:** Journald seals logs cryptographically with FSS and TPM key protection.
+**Why:** Forward-Secure Sealing prevents attackers from altering past logs even if root privileges are subsequently compromised.
+**Dep:** AGY-2304
+
+## AGY-2306 -- Automated journal tampering detection and journalctl --verify integrity test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that intentional byte modification in journal files is flagged by journalctl --verify.
+**What+How:** Add `tests/test-journal-fss-verification.sh`. Generate sealed journal archive; modify 1 byte of historical log payload via `dd`; run `journalctl --verify`; assert verification fails with exit code 1 and identifies exact tampered block sequence.
+**Where:** tests/test-journal-fss-verification.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-journal-fss-verification.sh`; verify 100% detection of tampered historical journal entries.
+**Do NOT:** Skip log integrity validation in CI test tier 2.
+**Done When:** Test suite validates cryptographic tampering detection and FSS key verification.
+**Why:** Continuous testing ensures log sealing mechanics reliably detect any forensic tampering attempts.
+**Dep:** AGY-2305
+
+## AGY-2307 -- Static CUDA Graph capture manager and multi-batch hardware replay buffer  (WS-AI | P1 | M)
+**Goal:** Capture decoding kernels into static CUDA Graphs for batch sizes 1..16 to eliminate CPU driver launch overhead.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Enable `cuda_graphs: true` for fixed batch sizes (1, 2, 4, 8, 16); capture model forward graphs into GPU static memory during initial warm-up; replay pre-allocated graphs directly from GPU command queues during generation; and fall back gracefully to eager execution on un-captured batch shapes.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run single-token inference benchmark; verify per-token forward latency drops by >40% and CPU driver overhead drops to <5us.
+**Do NOT:** Execute eager Python kernel dispatch loops for known fixed decoding batch sizes.
+**Done When:** Inference engine captures and executes CUDA Graphs for fixed decoding batches with zero CPU launch stalls.
+**Why:** CUDA Graphs eliminate CPU-to-GPU launch roundtrips and double single-batch token generation speeds.
+**Dep:** AGY-2306
+
+## AGY-2308 -- Automated CUDA Graph capture latency (<1ms) and token decoding speedup benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that CUDA Graphs achieve >1.5x token decoding speedup and bit-for-bit parity.
+**What+How:** Add `tests/test-cuda-graph-speedup.sh`. Benchmark token generation with and without CUDA Graph capture across batch sizes 1, 4, 16; assert decoding throughput increases by >1.5x on GPU hardware; assert generated output matches eager execution with 100% token parity.
+**Where:** tests/test-cuda-graph-speedup.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-cuda-graph-speedup.sh`; verify speedup SLA and token parity assertions pass 100%.
+**Do NOT:** Skip CUDA graph validation on GPU-equipped CI test runners.
+**Done When:** Test suite validates CUDA Graph acceleration and exact mathematical output parity.
+**Why:** Continuous testing ensures GPU driver and inference updates maintain CUDA Graph replay optimizations.
+**Dep:** AGY-2307
+
+## AGY-2309 -- Automated Syft CycloneDX/SPDX SBOM generator and Cosign attestation attacher  (WS-BUILD | P1 | M)
+**Goal:** Generate CycloneDX and SPDX SBOM JSON manifests during export and attach Cosign attestations to OCI image refs.
+**What+How:** Implement `automation/94-sbom.sh`. Invoke `syft` on target OCI rootfs; output `/usr/share/doc/mios/sbom.cdx.json` (CycloneDX 1.5) and `/usr/share/doc/mios/sbom.spdx.json` (SPDX 2.3); invoke `cosign attest --predicate /usr/share/doc/mios/sbom.cdx.json --type cyclonedx localhost:5000/mios:latest` to sign and attach SBOM attestations to the OCI registry.
+**Where:** automation/94-sbom.sh, automation/90-export.sh
+**Verify:** Build image; inspect `/usr/share/doc/mios/sbom.cdx.json`; verify all installed RPMs, Python packages, and Flatpaks are cataloged and Cosign attestation verifies cleanly.
+**Do NOT:** Publish release OCI images without embedded and cryptographically attested SBOM manifests.
+**Done When:** SBOM generator outputs validated CycloneDX/SPDX manifests and Cosign signs the image attestations.
+**Why:** Standardized, signed SBOMs provide complete supply-chain transparency and enable precise vulnerability matching.
+**Dep:** AGY-2308
+
+## AGY-2310 -- Automated in-image SBOM completeness, package inventory hash parity, and signature test suite  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that SBOM manifests match 100% of installed binaries and Cosign signatures pass verification.
+**What+How:** Add `tests/test-sbom-integrity.sh`. Query `rpm -qa` and `pip list` in test rootfs; compare package inventory against `/usr/share/doc/mios/sbom.cdx.json`; assert 100.0% package coverage match; run `cosign verify-attestation`; assert signature validity exits 0.
+**Where:** tests/test-sbom-integrity.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-sbom-integrity.sh`; verify 100% SBOM inventory coverage and Cosign verification pass.
+**Do NOT:** Skip SBOM validation in CI test tier 3.
+**Done When:** Test suite validates complete package inventory coverage and cryptographically valid Cosign attestations.
+**Why:** Continuous testing ensures SBOM pipelines never omit newly added dependencies or fail signature validation.
+**Dep:** AGY-2309
+
+## AGY-2311 -- Automated NCCL topology discovery and NVLink/PCIe parameter optimizer in mios-nccl-tune  (WS-VFIO | P1 | M)
+**Goal:** Auto-detect multi-GPU interconnect topology and calibrate NCCL environment variables for optimal AllReduce throughput.
+**What+How:** Implement `usr/libexec/mios/mios-nccl-tune`. Run `nvidia-smi topo -m` and ROCm topology probes on boot; detect NVLink bridges vs PCIe switch hierarchy; generate `/etc/mios/nccl.env` setting `NCCL_BUFFSIZE=8M`, `NCCL_P2P_LEVEL=NVL`, `NCCL_ALGO=Ring,Tree`, and `NCCL_NET_GDR_LEVEL=5`; bind environment into vLLM/SGLang heavy inference containers.
+**Where:** usr/libexec/mios/mios-nccl-tune, automation/20-drivers.sh
+**Verify:** Run multi-GPU AllReduce benchmark; verify `mios-nccl-tune` detects NVLink topology and achieves >180 GB/s bus bandwidth.
+**Do NOT:** Force unoptimized default NCCL settings that route NVLink peer-to-peer copies through host PCIe root complexes.
+**Done When:** NCCL tuning engine discovers hardware topologies and optimizes collective communication parameters on boot.
+**Why:** Optimal NCCL tuning unlocks near-linear multi-GPU Tensor Parallelism scaling for 70B+ model inference.
+**Dep:** AGY-2310
+
+## AGY-2312 -- Automated multi-GPU Tensor Parallelism (TP=2/4) throughput and AllReduce latency test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that NCCL AllReduce latency is <50us and TP=2 achieves >1.8x single-GPU throughput.
+**What+How:** Add `tests/test-nccl-tensor-parallelism.sh`. Execute `all_reduce_perf` across 2+ GPUs; assert collective communication latency < 50us; run distributed 70B LLM forward pass across TP=2; assert throughput scaling ratio > 1.80x over single-GPU theoretical throughput.
+**Where:** tests/test-nccl-tensor-parallelism.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-nccl-tensor-parallelism.sh`; verify latency and TP throughput scaling assertions pass 100%.
+**Do NOT:** Skip NCCL scaling validation on multi-GPU CI runners.
+**Done When:** Test suite validates low AllReduce latency and high multi-GPU Tensor Parallelism scaling efficiency.
+**Why:** Continuous testing ensures distributed GPU communication parameters remain tuned across library updates.
+**Dep:** AGY-2311
+
+## AGY-2313 -- Declarative Git LFS sparse fetcher and shared content-addressed blob cache manager  (WS-BUILD | P1 | M)
+**Goal:** Skip default LFS download on clone, fetch only requested quantization blobs, and cache in /var/cache/mios/lfs/.
+**What+How:** Implement `usr/bin/mios-lfs-pull` and `/etc/gitconfig` drop-in. Configure `filter.lfs.smudge = git-lfs smudge --skip`; implement targeted fetcher querying `mios.toml` `[models.<id>].quantization`; pull only matching `.gguf` blob; store in content-addressable `/var/cache/mios/lfs/objects/` and hardlink into workspace.
+**Where:** usr/bin/mios-lfs-pull, /etc/gitconfig.d/10-lfs-sparse.conf
+**Verify:** Clone multi-quantization model repo; verify clone completes in <2s with only pointer files; run `mios-lfs-pull`; verify only Q4_K_M blob is downloaded and cached.
+**Do NOT:** Download all multi-precision model files on standard git clone commands.
+**Done When:** Git LFS sparse fetcher downloads only targeted model files and caches blobs efficiently.
+**Why:** Sparse LFS fetching saves hundreds of gigabytes of disk and network bandwidth when managing large AI models.
+**Dep:** AGY-2312
+
+## AGY-2314 -- Automated targeted Git LFS partial pull, SHA-256 integrity, and deduplicated caching test suite  (WS-BUILD | P2 | S)
+**Goal:** Verify in automated CI that partial LFS pull fetches exact requested files and hardlink cache prevents redownloads.
+**What+How:** Add `tests/test-git-lfs-sparse-cache.sh`. Clone test repo containing 3 mock large files (FP16, Q8, Q4); invoke `mios-lfs-pull --include='*Q4*'`; assert only Q4 file is fetched; verify file SHA-256 matches pointer; clone a second time and assert instant hardlink from cache without network traffic.
+**Where:** tests/test-git-lfs-sparse-cache.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-git-lfs-sparse-cache.sh`; verify partial pull filtering and zero-network cache hit pass 100%.
+**Do NOT:** Skip Git LFS caching validation in CI test tier 2.
+**Done When:** Test suite validates targeted LFS fetching, hash verification, and shared blob deduplication.
+**Why:** Continuous testing ensures Git repository and model caching mechanics operate reliably across model upgrades.
+**Dep:** AGY-2313
+
+## AGY-2315 -- Storage integrity scrubber daemon with idle I/O priority and PSI pressure throttling  (WS-STRG | P1 | M)
+**Goal:** Execute background Btrfs/CephFS scrubs under ionice -c 3 and throttle dynamically on PSI I/O pressure.
+**What+How:** Implement `usr/libexec/mios/mios-scrubd` and `automation/38-storage-scrub.sh`. Trigger monthly background scrubs across all mounted Btrfs, ZFS, and CephFS pools; set process I/O class to `ionice -c 3` (idle) and apply cgroup `io.latency`; monitor `/proc/pressure/io`; pause scrub if 10s PSI I/O pressure exceeds 20%; log scrub progress and repaired checksums to PostgreSQL `storage_integrity`.
+**Where:** usr/libexec/mios/mios-scrubd, usr/lib/systemd/system/mios-scrubd.timer
+**Verify:** Run heavy disk benchmarking while `mios-scrubd` executes; verify interactive disk latency stays <5ms and scrub pauses automatically under heavy I/O pressure.
+**Do NOT:** Execute uncapped foreground scrubs that freeze active database queries or desktop responsiveness.
+**Done When:** Storage scrubber repairs bit rot in background with zero noticeable desktop latency degradation.
+**Why:** Idle-class background scrubbing eliminates silent bit rot while preserving fluid interactive desktop I/O.
+**Dep:** AGY-2314
+
+## AGY-2316 -- Automated filesystem bit rot repair, I/O latency throttle, and scrub reporting test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that scrub repairs corrupted mirror blocks and interactive I/O latency is unaffected.
+**What+How:** Add `tests/test-storage-scrub-pressure.sh`. Create redundant Btrfs/CephFS test volume; corrupt 1 block in mirror with `dd`; run `mios-scrubd` during concurrent `fio` benchmark; assert corrupted block is detected and repaired from mirror; assert `fio` 99th-percentile I/O latency degrades by <5%.
+**Where:** tests/test-storage-scrub-pressure.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-storage-scrub-pressure.sh`; verify bit rot repair and latency SLA assertions pass 100%.
+**Do NOT:** Skip filesystem scrub testing in CI test tier 2.
+**Done When:** Test suite validates bit rot error correction and pressure-adaptive background throttling.
+**Why:** Continuous testing ensures storage scrubbing daemons protect data integrity without causing I/O stutter.
+**Dep:** AGY-2315
+
+## AGY-2317 -- Declarative eBPF kernel tracing suite and bpftrace histogram recorder in mios-trace  (WS-DIAG | P1 | M)
+**Goal:** Provide low-overhead eBPF tracing probes (biosnoop, tcpretrans, execsnoop) and record traces in PostgreSQL.
+**What+How:** Implement `usr/bin/mios-trace` and `automation/45-ebpf-tools.sh`. Package pre-compiled eBPF tracing probes for disk block latency, network packet drop points, TCP retransmissions, and task execution scheduling; allow autonomous agents to attach dynamic `bpftrace` scripts over `/sys/kernel/debug/tracing`; stream JSON latency distributions into PostgreSQL `system_traces`.
+**Where:** usr/bin/mios-trace, automation/45-ebpf-tools.sh
+**Verify:** Run `mios-trace io --duration 5s`; verify command outputs latency histogram with microsecond resolution and inserts trace records into PostgreSQL.
+**Do NOT:** Use invasive GDB kernel breakpoints that halt CPU cores during live performance profiling.
+**Done When:** Tracing tool attaches eBPF kprobes dynamically and records structured latency histograms.
+**Why:** Non-invasive eBPF tracing enables autonomous agents to pinpoint kernel and hardware bottlenecks in real time.
+**Dep:** AGY-2316
+
+## AGY-2318 -- Automated eBPF probe attach latency (<10ms) and low-overhead tracing test suite  (WS-DIAG | P2 | S)
+**Goal:** Verify in automated CI that eBPF probes attach in <10ms and impose <0.2% CPU overhead during heavy load.
+**What+How:** Add `tests/test-ebpf-tracing-overhead.sh`. Run `stress-ng` CPU and disk workload; attach `mios-trace` disk and TCP probes; assert probe compilation and attachment time < 10ms; assert tracing overhead increases host CPU utilization by <0.2%.
+**Where:** tests/test-ebpf-tracing-overhead.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-ebpf-tracing-overhead.sh`; verify attach timing and low CPU overhead assertions pass 100%.
+**Do NOT:** Skip eBPF tracing performance validation in CI test tier 2.
+**Done When:** Test suite validates instant eBPF probe compilation, low tracing overhead, and database insertion.
+**Why:** Continuous testing ensures kernel tracing tools remain safe and lightweight for live production diagnostics.
+**Dep:** AGY-2317
+
+## AGY-2319 -- Proactive PID thermal frequency governor and dynamic EPP stepping daemon in mios-thermald  (WS-NODE | P1 | M)
+**Goal:** Monitor CPU/GPU temperatures and dynamically modulate EPP (performance -> balance_power) with 10°C hysteresis.
+**What+How:** Implement `usr/libexec/mios/mios-thermald`. Poll `/sys/devices/system/cpu/cpufreq/policy*/energy_performance_preference` and `/sys/class/hwmon/` sensors every 500ms; if core temperature > 85°C, step EPP to `balance_performance` or `balance_power`; when temperature cools below 75°C, restore `performance`; log thermal throttling transitions to PostgreSQL `hardware_telemetry`.
+**Where:** usr/libexec/mios/mios-thermald, usr/lib/systemd/system/mios-thermald.service
+**Verify:** Apply heavy synthetic thermal load; verify `mios-thermald` steps EPP down smoothly before 90°C is reached and restores boost clocks when load ceases.
+**Do NOT:** Disable turbo boost permanently or allow temperatures to reach 105°C hardware shutdown limits.
+**Done When:** Thermal governor modulates EPP dynamically with 10°C hysteresis to prevent thermal cliff drops.
+**Why:** Proactive frequency stepping prevents thermal throttling cliffs and emergency motherboard power cuts.
+**Dep:** AGY-2318
+
+## AGY-2320 -- Automated thermal load ramp, EPP frequency stepping, and hysteresis recovery test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that CPU temperatures stabilize <90°C under continuous 100% stress load.
+**What+How:** Add `tests/test-thermal-governor-epp.sh`. Run `stress-ng --cpu 0 --matrix 0` for 60s; assert `mios-thermald` steps EPP down dynamically; assert simulated/physical core temperatures remain <90°C throughout; assert boost clocks restore cleanly after load termination.
+**Where:** tests/test-thermal-governor-epp.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-thermal-governor-epp.sh`; verify temperature capping and hysteresis recovery pass 100%.
+**Do NOT:** Skip thermal governor validation in CI test tier 2.
+**Done When:** Test suite validates proactive EPP modulation, thermal stabilization, and hysteresis recovery.
+**Why:** Continuous testing ensures thermal management daemons protect hardware without causing abrupt performance degradation.
+**Dep:** AGY-2319
+
+## AGY-2321 -- Ephemeral HMAC Macaroon minter and attenuated caveat verifier in agent-pipe  (WS-SEC | P1 | M)
+**Goal:** Mint 60s single-use Macaroons with attenuated permission caveats and burn nonces upon tool execution.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_macaroon.py`. When subagents request tool execution requiring credentials, mint HMAC-SHA256 Macaroon with strict first-party caveats (`repo=<id>`, `op=pull`, `exp=<epoch+60s>`, `nonce=<uuid>`); verify caveats at API gateway; on tool execution, burn nonce in PostgreSQL `macaroon_nonces` table to prevent replay attacks.
+**Where:** usr/lib/mios/agent-pipe/mios_macaroon.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Issue Macaroon scoped to read-only repo pull; verify subagent can pull repo; attempt write push with same token (assert rejected 403); attempt token replay (assert rejected 401).
+**Do NOT:** Expose raw master API keys or long-lived static tokens to subagent execution environments.
+**Done When:** Macaroon minter issues time-bound attenuated tokens and gateway enforces single-use verification.
+**Why:** Attenuated Macaroons prevent compromised or hallucinated subagents from abusing elevated credentials.
+**Dep:** AGY-2320
+
+## AGY-2322 -- Automated subagent token attenuation, caveat enforcement, and replay prevention test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that attenuated Macaroons enforce caveats and burn nonces in <5ms.
+**What+How:** Add `tests/test-macaroon-attenuation-replay.sh`. Mint 50 test Macaroons with diverse caveats; test operations matching and violating caveats; assert 100% correct allow/deny classification; execute replay requests for used nonces; assert 100% of replay attempts return 401 Unauthorized.
+**Where:** tests/test-macaroon-attenuation-replay.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-macaroon-attenuation-replay.sh`; verify caveat enforcement and replay rejection pass 100%.
+**Do NOT:** Skip Macaroon security validation in CI test tier 2.
+**Done When:** Test suite validates strict caveat attenuation, expiration enforcement, and nonce burn integrity.
+**Why:** Continuous testing ensures subagent authorization tokens maintain airtight least-privilege security boundaries.
+**Dep:** AGY-2321
+
+## AGY-2323 -- Quantized halfvec HNSW vector indexer and workspace table partitioner in pgvector  (WS-AI | P1 | M)
+**Goal:** Implement halfvec (FP16) quantization and partitioned HNSW indices in PostgreSQL pgvector for sub-5ms recall.
+**What+How:** Implement `usr/lib/mios/ai/pgvector_schema.sql` and database migration scripts. Convert vector embedding columns to `halfvec(1536)`; partition `agent_memory` and `code_knowledge` tables by `workspace_id` and date ranges; build HNSW indices with `WITH (m = 16, ef_construction = 64)`; configure `hnsw.ef_search = 40` for query execution.
+**Where:** usr/lib/mios/ai/pgvector_schema.sql, usr/share/containers/systemd/mios-pgvector.container
+**Verify:** Insert 100k vectors into partitioned table; execute semantic nearest-neighbor search; verify query completes in <5ms and index RAM consumption drops by >70% compared to raw float32.
+**Do NOT:** Use unindexed sequential brute-force scans for vector similarity lookups in production databases.
+**Done When:** Pgvector schema applies halfvec HNSW indexing and partitions tables dynamically.
+**Why:** Quantized HNSW indexing enables fast vector memory recall at scale while keeping PostgreSQL memory footprints lightweight.
+**Dep:** AGY-2322
+
+## AGY-2324 -- Automated 1,000,000-vector quantized HNSW recall (<5ms) and RAM reduction benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that quantized HNSW maintains >98% recall accuracy and <5ms query latency.
+**What+How:** Add `tests/test-pgvector-hnsw-quantization.sh`. Ingest synthetic dataset of 100,000 vectors; execute 1,000 kNN search queries; assert 99th-percentile query latency < 5ms; assert recall accuracy > 98.0% against unquantized exact ground truth; verify memory footprint is reduced by >70%.
+**Where:** tests/test-pgvector-hnsw-quantization.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-pgvector-hnsw-quantization.sh`; verify latency SLA and recall accuracy assertions pass 100%.
+**Do NOT:** Skip pgvector benchmark validation in CI test tier 2.
+**Done When:** Test suite validates high-recall accuracy, sub-5ms search speed, and 70%+ memory savings.
+**Why:** Continuous testing ensures vector database optimizations maintain precision and throughput across database updates.
+**Dep:** AGY-2323
+## AGY-2325 -- GPU-accelerated terminal configuration and Wayland zero-copy DMA-BUF presentation manager  (WS-APP | P1 | M)
+**Goal:** Configure Alacritty/Ghostty with OpenGL/Vulkan glyph shaders and Wayland DMA-BUF for sub-5ms latency.
+**What+How:** Implement `automation/28-terminal.sh`. Deploy `/etc/alacritty/alacritty.toml` and Ghostty configs with `window.opacity = 0.95`, `font.normal.family = 'JetBrainsMono Nerd Font'`, and `renderer = 'vulkan'`; configure Wayland zero-copy DMA-BUF buffer presentation with adaptive display refresh rate synchronization (VSync).
+**Where:** automation/28-terminal.sh, /etc/alacritty/alacritty.toml
+**Verify:** Launch Alacritty under Wayland; stream 500 lines of fast token text; verify zero frame tearing and verify keystroke-to-screen response is <5ms.
+**Do NOT:** Fall back to unaccelerated software blitting when GPU/iGPU DRM render nodes are present.
+**Done When:** Terminal emulator uses GPU shader acceleration and locks rendering to display refresh VSync.
+**Why:** GPU shader acceleration provides instantaneous keystroke response during high-velocity AI token streaming.
+**Dep:** AGY-2324
+
+## AGY-2326 -- Automated terminal glyph rendering throughput and sub-5ms keystroke latency test suite  (WS-APP | P2 | S)
+**Goal:** Verify in automated CI that GPU terminal renders >1,000,000 characters/s with <5ms keystroke latency.
+**What+How:** Add `tests/test-gpu-terminal-throughput.sh`. Benchmark text scroll rendering speed using synthetic 10MB text stream; assert throughput > 1,000,000 characters/s; measure simulated input event to frame buffer draw call latency; assert 99th-percentile input latency < 5ms.
+**Where:** tests/test-gpu-terminal-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-gpu-terminal-throughput.sh`; verify rendering throughput and latency assertions pass 100%.
+**Do NOT:** Skip terminal rendering validation in CI test tier 2.
+**Done When:** Test suite validates high-throughput glyph rendering and sub-5ms keystroke latency.
+**Why:** Continuous testing ensures terminal configurations maintain ultra-low latency and smooth rendering performance.
+**Dep:** AGY-2325
+
+## AGY-2327 -- Bandwidth-throttled Ceph self-healing daemon and PG rebalance orchestrator  (WS-STRG | P1 | M)
+**Goal:** Detect failed OSDs, mark out after 5min grace, and throttle backfill to 30% link bandwidth.
+**What+How:** Implement `usr/libexec/mios/mios-ceph-heal`. Subscribe to Ceph cluster health events over mgr socket; if OSD reports down for >5min, mark OSD out; configure `osd_max_backfills = 1`, `osd_recovery_max_active = 2`, and `osd_recovery_op_priority = 2`; monitor live client I/O latency; throttle recovery rate dynamically to keep client p99 latency <10ms; log healing progress to PostgreSQL `storage_cluster_events`.
+**Where:** usr/libexec/mios/mios-ceph-heal, usr/lib/systemd/system/mios-ceph-heal.service
+**Verify:** Simulate OSD failure in multi-node cluster; verify `mios-ceph-heal` marks OSD out, backfills PGs automatically at throttled rate, and client I/O remains unaffected.
+**Do NOT:** Run uncapped recovery threads that saturate cluster network interconnects and cause client timeouts.
+**Done When:** Ceph self-healing daemon rebalances degraded PGs at throttled speeds without violating client SLAs.
+**Why:** Throttled automated self-healing restores cluster redundancy without degrading active agent workloads.
+**Dep:** AGY-2326
+
+## AGY-2328 -- Automated OSD failure injection, PG backfill recovery, and client I/O latency test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that failed OSD recovery restores HEALTH_OK and client p99 latency degrades <10%.
+**What+How:** Add `tests/test-ceph-osd-autoheal.sh`. Spawn 3-node Ceph virtual cluster; run continuous database benchmark; stop 1 OSD daemon; assert `mios-ceph-heal` marks OSD out after grace period; assert all degraded PGs backfill to healthy state (HEALTH_OK); assert client transaction p99 latency degrades by <10%.
+**Where:** tests/test-ceph-osd-autoheal.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-ceph-osd-autoheal.sh`; verify automated recovery and client latency SLA assertions pass 100%.
+**Do NOT:** Skip Ceph self-healing validation in CI test tier 2.
+**Done When:** Test suite validates automated PG rebalancing, healthy pool restoration, and bounded client I/O latency.
+**Why:** Continuous testing ensures distributed storage failover mechanisms operate autonomously without operator intervention.
+**Dep:** AGY-2327
+
+## AGY-2329 -- ROCm / HIP PagedAttention virtual block manager and async stream compaction engine  (WS-VFIO | P1 | M)
+**Goal:** Manage KV blocks in 16-token chunks on AMD GPUs and compact memory asynchronously in dedicated HIP streams.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and ROCm vLLM configuration. Configure `block_size: 16` and `gpu_memory_utilization: 0.95` for AMD ROCm/HIP devices; track physical VRAM blocks via virtual lookup table; dispatch asynchronous block compaction kernels on a dedicated background HIP stream during inter-token gaps to reclaim unreferenced prompt blocks without stalling active tensor execution.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 30 concurrent streaming requests on AMD Radeon/Instinct GPU; verify VRAM utilization reaches >92% without out-of-memory errors or GPU lockups.
+**Do NOT:** Pre-allocate static contiguous context buffers that fragment AMD GPU VRAM and limit concurrency.
+**Done When:** ROCm inference lane allocates KV caches in 16-token virtual blocks with async stream compaction.
+**Why:** HIP PagedAttention maximizes concurrent batch capacity on AMD GPUs and eliminates memory fragmentation.
+**Dep:** AGY-2328
+
+## AGY-2330 -- Automated AMD ROCm PagedAttention concurrency (50 streams) and 95% VRAM utilization test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated CI that ROCm PagedAttention sustains 50 concurrent requests with >92% VRAM efficiency.
+**What+How:** Add `tests/test-rocm-pagedattention-capacity.sh`. Spawn 50 parallel inference sessions on ROCm device; monitor VRAM allocation via `rocm-smi`; assert 0 OOM errors; assert VRAM utilization exceeds 92.0%; verify output tokens maintain exact parity with single-stream baseline.
+**Where:** tests/test-rocm-pagedattention-capacity.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-rocm-pagedattention-capacity.sh`; verify concurrency throughput and VRAM efficiency pass 100%.
+**Do NOT:** Skip ROCm capacity testing on AMD GPU CI test runners.
+**Done When:** Test suite validates high-concurrency ROCm batch capacity and memory fragmentation resilience.
+**Why:** Continuous testing ensures AMD GPU inference updates maintain rock-solid stability and high batch density.
+**Dep:** AGY-2329
+

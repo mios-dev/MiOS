@@ -7,9 +7,13 @@ import sys
 logging.basicConfig(level=logging.INFO, format="[seed-db-config] %(levelname)s: %(message)s")
 log = logging.getLogger("seed-db-config")
 
+_CANONICAL_SECTIONS = {
+    'migration', 'security', 'firewall', 'ssot_consumers', 'unit_projection', 'units', 'identity', 'user', 'accounts', 'mios', 'agent_passport', 'artifacts', 'repos', 'ai_tag', 'selfimprove', 'portal', 'locale', 'auth', 'network', 'power', 'metal', 'meta', 'install_phases', 'messages', 'search', 'hermes', 'gpu', 'sandbox', 'laws', 'uki', 'fs_watcher', 'pkg', 'ttyd', 'agents', 'gateway', 'blades', 'nodes', 'lanes', 'cost', 'audit', 'worker_tools', 'slo', 'sched', 'scheduler', 'admission', 'reflect', 'drift_monitor', 'schema', 'refactor', 'shell_session', 'powershell', 'consensus', 'drift', 'dispatch', 'council', 'web_research', 'knowledge', 'hitl', 'memory', 'run_template', 'aci', 'dci', 'verity', 'code_mode', 'refine', 'planner', 'polish', 'passport', 'daemon', 'budget', 'os_control', 'computer_use', 'observability', 'gossip', 'a2a', 'mcp', 'routing', 'browser', 'owui', 'recipes', 'skills', 'reliability', 'frontier', 'agent_pipe', 'pgvector', 'lsfs', 'offline', 'llamacpp', 'enhanced_session', 'flatpak', 'appearance', 'graphics', 'ai', 'desktop', 'image', 'deployment', 'hwcaps', 'browser_ai', 'virt', 'ports', 'urls', 'generator', 'versions', 'services', 'pods', 'adguard', 'paths', 'mios-find', 'compliance', 'build', 'deploy', 'vm', 'cockpit', 'greenboot', 'colors', 'bootstrap', 'wsl2', 'terminal', 'theme', 'branding', 'btop', 'dashboard', 'apps', 'windows', 'preflight', 'quadlets', 'env', 'finetune', 'storage', 'converge', 'networks', 'images', 'containers', 'editions', 'blade', 'field', 'dotfiles', 'shell', 'editor', 'git', 'ssh', 'gitconfig', 'templates', 'kargs', 'testing', 'pipeline', 'resolver', 'tasks', 'docs', 'legibility', 'ci', 'tests', 'variants', 'rust'
+}
+
 def get_seeded_sections(data: dict) -> list:
     """Returns top-level SSOT section keys that seed-db-config seeds into config_kv."""
-    return [k for k in data.keys() if k not in ("verbs", "packages")]
+    return [k for k in data.keys() if k in _CANONICAL_SECTIONS]
 
 def get_pg_config():
     e = os.environ

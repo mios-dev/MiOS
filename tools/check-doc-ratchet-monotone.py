@@ -23,7 +23,7 @@ def read_floor(path: str) -> dict[str, int]:
             if line.startswith("#") or not line.strip():
                 continue
             parts = line.rstrip("\n").split("\t")
-            if len(parts) == 2 and parts[1].strip().isdigit():
+            if len(parts) == 2 and parts[1].strip().lstrip("-").isdigit():
                 out[parts[0].strip()] = int(parts[1])
     return out
 

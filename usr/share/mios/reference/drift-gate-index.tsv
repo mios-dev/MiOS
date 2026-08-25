@@ -139,7 +139,7 @@
 138	check_task_schema	AGY-TASKS task descriptions conform strictly to task schema contract
 139	check_daemon_governor	daemon governor runtime limits and cgroup constraints are valid
 140	check_manual_links	all cross-references and internal links in manual docs resolve
-141	check_doc_port_scheme	port numbers in documentation reflect mios.toml [ports] SSOT
+141	check_doc_port_scheme	doc port scheme
 142	check_chrony_ptp_dropin	Chrony PTP drop-in generator is idempotent and leaves canonical chrony.conf unchanged
 143	check_renderer_gate_coverage	renderer gate coverage verified clean
 144	check_smoke_manifest	smoke manifest components in mios.toml exist in source tree
