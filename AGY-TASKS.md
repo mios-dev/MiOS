@@ -17891,3 +17891,443 @@ makes that table generated so the two cannot diverge again.
 **Why:** Continuous testing ensures memory protection policies reliably prevent system lockups during peak AI loads.
 **Dep:** AGY-2418
 
+## AGY-2420 -- Dynamic kernel sysctl/sysfs parameter synchronizer and udev reload daemon in mios-sys-sync  (WS-NODE | P1 | M)
+**Goal:** Apply sysctl --system and udev rules atomically in <50ms without requiring system reboots.
+**What+How:** Implement `usr/libexec/mios/mios-sys-sync` and `automation/02-sysctl.sh`. Watch `/etc/sysctl.d/`, `/etc/udev/rules.d/`, and `/etc/mios/` for file write events using inotify; execute `sysctl --system` in <50ms; reload udev daemon via `udevadm control --reload && udevadm trigger`; apply dynamic sysfs kernel tunables directly to `/sys/`; log applied parameter changes to PostgreSQL `system_events`.
+**Where:** usr/libexec/mios/mios-sys-sync, automation/02-sysctl.sh
+**Verify:** Modify `net.core.rmem_max` in `/etc/sysctl.d/`; verify `mios-sys-sync` applies new value to live `/proc/sys/net/core/rmem_max` in <50ms without dropping active network connections.
+**Do NOT:** Require a host reboot to apply non-kernel-boot parameter modifications.
+**Done When:** System synchronizer applies sysctl, sysfs, and udev rule updates on-the-fly in <50ms.
+**Why:** Zero-reboot kernel parameter synchronization enables instant tuning of network, storage, and CPU parameters on live hosts.
+**Dep:** AGY-2419
+
+## AGY-2421 -- Automated zero-reboot sysctl parameter application (<50ms) and live udev test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that modified sysctl parameters apply in <50ms and udev rules trigger live updates.
+**What+How:** Add `tests/test-sys-sync-live-reload.sh`. Write test sysctl file altering `fs.file-max`; measure application latency via `mios-sys-sync`; assert live `/proc/sys/fs/file-max` reflects new value in < 50ms; create test udev rule adding device symlink; trigger udev reload; assert symlink appears in `/dev/` in < 100ms; verify 0 connection resets.
+**Where:** tests/test-sys-sync-live-reload.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-sys-sync-live-reload.sh`; verify sub-50ms application latency SLA and udev triggers pass 100%.
+**Do NOT:** Skip live configuration synchronization testing in CI test tier 2.
+**Done When:** Test suite validates instant sysctl reload, live sysfs updates, and udev rule execution.
+**Why:** Continuous testing ensures system configuration daemons reliably update kernel state without service interruptions.
+**Dep:** AGY-2420
+
+## AGY-2422 -- Calibration-free HQQ quantization compiler and fused dequantization GEMM manager  (WS-AI | P1 | M)
+**Goal:** Quantize FP16 models to INT4/INT3/INT2 in <30s without calibration data via Half-Quadratic optimization.
+**What+How:** Implement `usr/bin/mios-quantize-hqq` and `llama-swap.yaml` HQQ integration. Formulate weight quantization as a Half-Quadratic optimization problem with group sizes 64/128; solve per-layer scale and zero-point parameters in <30 seconds for 7B models with zero calibration data; dispatch fused CUDA/HIP HQQ dequantize-matmul kernels; achieve near-FP16 perplexity across diverse LLM architectures.
+**Where:** usr/bin/mios-quantize-hqq, usr/share/mios/llamacpp/llama-swap.yaml
+**Verify:** Quantize new FP16 model with `mios-quantize-hqq`; verify compilation finishes in <30s with zero external datasets and inference executes fused HQQ kernels at >90 tok/s.
+**Do NOT:** Require multi-hour offline calibration runs or synthetic dataset generation for basic integer quantization.
+**Done When:** HQQ toolchain quantizes models in <30s and inference engine executes fused dequantization kernels.
+**Why:** Calibration-free HQQ allows newly published models to be quantized and served locally within seconds of release.
+**Dep:** AGY-2421
+
+## AGY-2423 -- Automated sub-30s HQQ model quantization, perplexity parity, and fused GEMM test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that HQQ quantizes 7B models in <30s with perplexity delta <0.03 and zero dataset deps.
+**What+How:** Add `tests/test-hqq-quantization-speed.sh`. Quantize synthetic 7B model via `mios-quantize-hqq`; measure compilation wall-clock time (assert < 30.0s); evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.030 compared to unquantized baseline; assert fused CUDA GEMM throughput exceeds 90.0 tok/s on GPU.
+**Where:** tests/test-hqq-quantization-speed.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-hqq-quantization-speed.sh`; verify sub-30s compilation SLA, perplexity parity, and throughput pass 100%.
+**Do NOT:** Skip HQQ validation in CI test tier 2.
+**Done When:** Test suite validates instant calibration-free quantization speed, low perplexity degradation, and fast GEMM execution.
+**Why:** Continuous testing ensures quantization algorithms provide immediate, high-fidelity compression without dataset friction.
+**Dep:** AGY-2422
+
+## AGY-2424 -- Heterogeneous NUMA weight buffer interleaver and local core affinity pinner  (WS-NODE | P1 | M)
+**Goal:** Interleave weight allocations across NUMA nodes via MPOL_INTERLEAVE and pin threads to local core sockets.
+**What+How:** Implement `usr/libexec/mios/mios-numa-alloc` and `automation/24-cpu-affinity.sh`. Query hardware topology via `numactl -H`; detect multi-socket, multi-CCD, or heterogeneous core layouts; wrap model loading processes with `numactl --interleave=all` to distribute memory pages evenly across memory controllers; assign compute worker threads to local CPU socket cgroups (`cpuset.cpus`); eliminate interconnect bottlenecks and maximize composite memory bandwidth to >400 GB/s.
+**Where:** usr/libexec/mios/mios-numa-alloc, automation/24-cpu-affinity.sh
+**Verify:** Launch 70B model inference on dual-socket AMD/Intel server; verify memory allocations are split 50/50 across nodes and thread execution stays pinned to local L3 cache domains.
+**Do NOT:** Allocate 100% of large model buffers to a single NUMA node on multi-socket architectures.
+**Done When:** NUMA allocator interleaves memory allocations and pins threads to local CPU core domains.
+**Why:** NUMA memory interleaving doubles aggregate memory throughput for memory-bandwidth-bound CPU inference.
+**Dep:** AGY-2423
+
+## AGY-2425 -- Automated multi-socket NUMA bandwidth scaling (>400 GB/s) and core pinning test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that NUMA interleaving achieves >1.8x memory bandwidth over single-node baseline.
+**What+How:** Add `tests/test-numa-interleave-bandwidth.sh`. Run multi-threaded memory bandwidth benchmark (`stream` / `fio-mem`) with and without NUMA interleaving; assert aggregate memory read throughput > 400.0 GB/s on capable multi-channel servers; assert thread migrations across NUMA nodes remain 0 throughout benchmark run.
+**Where:** tests/test-numa-interleave-bandwidth.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-numa-interleave-bandwidth.sh`; verify bandwidth scaling ratio and zero thread migration pass 100%.
+**Do NOT:** Skip NUMA topology testing on multi-node CI test runners.
+**Done When:** Test suite validates high aggregate NUMA memory bandwidth, even page distribution, and strict core pinning.
+**Why:** Continuous testing ensures NUMA tuning scripts maintain optimal memory distribution across complex server topologies.
+**Dep:** AGY-2424
+
+## AGY-2426 -- Duplex WebRTC audio gateway and PipeWire stream multiplexer in mios-webrtc-audio  (WS-NODE | P1 | M)
+**Goal:** Bridge browser WebRTC audio directly to PipeWire, ASR, and TTS to achieve <120ms conversational latency.
+**What+How:** Implement `usr/libexec/mios/mios-webrtc-audio` and `automation/25-pipewire.sh`. Ingest Opus audio stream from browser WebRTC connection; decode to 16kHz PCM; stream directly to PipeWire `virtual-mic` node; dispatch voiced chunks to `mios-asr`; feed generated agent text to `mios-tts`; stream 24kHz synthesized PCM directly back into WebRTC outgoing audio track with <120ms round-trip voice latency.
+**Where:** usr/libexec/mios/mios-webrtc-audio, automation/25-pipewire.sh
+**Verify:** Initiate voice call from browser; speak sentence; verify agent voice response begins streaming over WebRTC audio track in <120ms with crystal-clear audio quality.
+**Do NOT:** Record full audio files to disk or buffer audio packets across HTTP REST endpoints.
+**Done When:** WebRTC audio gateway streams full-duplex voice through PipeWire with <120ms turn-around latency.
+**Why:** Zero-latency WebRTC audio bridging delivers instantaneous, natural voice conversations with local AI models.
+**Dep:** AGY-2425
+
+## AGY-2427 -- Automated WebRTC full-duplex voice latency (<120ms) and PipeWire bridge test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that WebRTC voice turn-around latency is <120ms and packet loss is <0.1%.
+**What+How:** Add `tests/test-webrtc-duplex-voice.sh`. Establish virtual WebRTC audio call; inject synthetic spoken query; measure elapsed time until TTS response packet arrives at WebRTC receiver; assert composite round-trip latency < 120.0ms; assert PipeWire reports 0 buffer underruns; assert audio packet loss < 0.1%.
+**Where:** tests/test-webrtc-duplex-voice.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-webrtc-duplex-voice.sh`; verify round-trip voice latency SLA and audio fidelity pass 100%.
+**Do NOT:** Skip duplex voice latency testing in CI test tier 2.
+**Done When:** Test suite validates sub-120ms voice loop latency, PipeWire stream stability, and zero packet loss.
+**Why:** Continuous testing ensures conversational audio pipelines maintain real-time responsiveness and high audio quality.
+**Dep:** AGY-2426
+
+## AGY-2428 -- Fused VNNI vectorized dot-product kernel engine and L1 cache blocker in llama-swap  (WS-AI | P1 | M)
+**Goal:** Execute AVX-512/AVX2 VNNI dot-product intrinsics with 32KB L1 cache blocking for >35 tok/s CPU inference.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` CPU backend. Detect AVX-512 VNNI / AVX2 VNNI via CPUID; dispatch `_mm512_dpbusd_epi32` and `_mm256_dpbusd_epi32` instructions for INT8xINT4 K-Quant dot products; tile matrix blocks into 32KB L1 data cache chunks to eliminate cache evictions; assign OpenMP worker threads to isolated physical cores via `pthread_setaffinity_np`.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 8B Q4_K_M model on modern CPU; verify inference executes VNNI vector instructions and achieves >35 tok/s with zero L1 cache thrashing.
+**Do NOT:** Unpack integer weights to 32-bit floating point registers in CPU inference hot paths.
+**Done When:** Inference engine executes fused VNNI dot-product kernels with L1 cache blocking on CPU.
+**Why:** Fused VNNI integer dot-products deliver fast, responsive local AI reasoning on CPUs without discrete graphics.
+**Dep:** AGY-2427
+
+## AGY-2429 -- Automated CPU K-Quant VNNI throughput (>35 tok/s) and cache-blocked benchmark suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that VNNI kernels achieve >35 tok/s on capable cores and L1 cache miss rate is <5%.
+**What+How:** Add `tests/test-vnni-quantized-gemv.sh`. Benchmark token decoding on CPU using 8B Q4_K_M model; record hardware performance counters via `perf stat`; assert `vpdpbusd` instruction execution > 0; assert generation speed > 35.0 tok/s on capable cores; assert L1 data cache miss rate is < 5.0%.
+**Where:** tests/test-vnni-quantized-gemv.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-vnni-quantized-gemv.sh`; verify VNNI throughput SLA and low L1 cache miss rate pass 100%.
+**Do NOT:** Skip VNNI vectorization testing in CI test tier 2.
+**Done When:** Test suite validates high VNNI token decoding throughput, L1 cache locality, and multicore scaling.
+**Why:** Continuous testing ensures CPU kernel optimizations preserve peak vector performance across compiler updates.
+**Dep:** AGY-2428
+
+## AGY-2430 -- SmoothQuant W8A8 activation-weight smoothing engine and fused INT8 Tensor Core dispatcher  (WS-AI | P1 | M)
+**Goal:** Migrate activation outliers into weights via alpha=0.5 scaling and execute fused W8A8 INT8 Tensor Core GEMM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: smoothquant` with migration strength $\alpha = 0.5$; calculate per-channel activation scales $s = \text{max}(|X|)^{0.5} / \text{max}(|W|)^{0.5}$; fold $s$ into weight matrices $\hat{W} = \text{diag}(s) W$; quantize activations and weights to symmetric INT8; dispatch fused CUTLASS / Tensor Core INT8 GEMM kernels for 2.0x arithmetic speedup.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 70B model with SmoothQuant W8A8; verify matrix multiplication speed doubles and perplexity degrades by <0.02 compared to unquantized FP16.
+**Do NOT:** Quantize activations to INT8 naively without per-channel scaling that causes attention outlier overflow.
+**Done When:** Inference engine executes SmoothQuant W8A8 via fused INT8 Tensor Core kernels with <0.02 perplexity loss.
+**Why:** SmoothQuant enables true INT8 matrix computation on GPU Tensor Cores without outlier accuracy collapse.
+**Dep:** AGY-2429
+
+## AGY-2431 -- Automated 2.0x INT8 Tensor Core speedup, outlier activation smoothing, and test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that SmoothQuant W8A8 achieves >1.9x speedup and perplexity delta is <0.02.
+**What+How:** Add `tests/test-smoothquant-w8a8-gemm.sh`. Benchmark dense FP16 vs SmoothQuant W8A8 forward pass on GPU; assert GEMM execution speedup > 1.90x; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.020 compared to unquantized baseline; verify zero NaN or Inf activation exceptions across 1,000 forward passes.
+**Where:** tests/test-smoothquant-w8a8-gemm.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-smoothquant-w8a8-gemm.sh`; verify 2.0x speedup SLA, perplexity parity, and numerical stability pass 100%.
+**Do NOT:** Skip W8A8 quantization validation on supported GPU CI runners.
+**Done When:** Test suite validates >1.9x INT8 matrix speedup, low perplexity degradation, and zero numerical exceptions.
+**Why:** Continuous testing ensures activation smoothing algorithms preserve model accuracy while unlocking peak hardware speed.
+**Dep:** AGY-2430
+
+## AGY-2432 -- Asynchronous Ceph snapshot mirroring daemon and multi-node recovery manager in mios-ceph-mirror  (WS-STRG | P1 | M)
+**Goal:** Replicate CephFS/RBD snapshot deltas over WireGuard every 15min and enable 1-click remote failover promotion.
+**What+How:** Implement `usr/libexec/mios/mios-ceph-mirror` and `automation/38-storage-scrub.sh`. Deploy `rbd-mirror` and `cephfs-mirror` service daemons; connect peer cluster endpoints over WireGuard mesh IPs; replicate snapshot incremental journals every 15 minutes asynchronously; provide CLI verb `mios storage failover --peer=<node>` to promote standby mirror to primary in <5s; log replication health to PostgreSQL `storage_cluster_events`.
+**Where:** usr/libexec/mios/mios-ceph-mirror, usr/lib/systemd/system/mios-ceph-mirror.service
+**Verify:** Simulate primary node hardware outage; run `mios storage failover`; verify secondary node promotes mirrored storage pool in <5s with zero lost snapshot data.
+**Do NOT:** Block local storage write operations on synchronous WAN network acknowledgments.
+**Done When:** Mirroring daemon replicates incremental snapshot deltas and executes 1-click disaster recovery.
+**Why:** Asynchronous snapshot mirroring guarantees multi-site disaster recovery without slowing local client I/O.
+**Dep:** AGY-2431
+
+## AGY-2433 -- Automated 15-minute snapshot replication, delta sync, and 1-click failover test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that snapshot deltas replicate in <60s and 1-click failover promotes standby pool in <5s.
+**What+How:** Add `tests/test-ceph-snapshot-mirroring.sh`. Spawn 2 connected Ceph test clusters over virtual mesh; write 5GB data to primary pool; take snapshot; verify `mios-ceph-mirror` replicates delta to secondary cluster in < 60s; trigger failover promotion; assert secondary cluster promotes image in < 5.0s; verify SHA-256 data hash matches primary 100%.
+**Where:** tests/test-ceph-snapshot-mirroring.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-ceph-snapshot-mirroring.sh`; verify replication timing, failover speed, and SHA-256 parity pass 100%.
+**Do NOT:** Skip storage disaster recovery testing in CI test tier 2.
+**Done When:** Test suite validates incremental snapshot delta replication, sub-5s failover, and exact data parity.
+**Why:** Continuous testing ensures distributed storage mirroring daemons preserve data durability across site failures.
+**Dep:** AGY-2432
+
+## AGY-2434 -- Warm KV-cache ring pooler and dynamic session recycling manager in llama-swap  (WS-AI | P1 | M)
+**Goal:** Retain warm KV-cache blocks in an LRU session pool to bind incoming agent requests in <1ms without re-allocation.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and session state manager. Configure `session_cache_pool_size: 16` with LRU eviction; tag KV blocks with agent `session_id`; on subsequent agent turns, match session ID and bind warm KV slots in <1ms; compact stale turn tokens via sliding window; eliminate GPU `cudaMalloc` / `cudaFree` churn during collaborative agent handoffs.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Alternate turns across 4 collaborative subagents (planner, coder, reviewer, tester); verify session handoff time is <1ms and GPU memory allocation remains locked and unfragmented.
+**Do NOT:** Deallocate and reallocate GPU memory buffers on every message turn in multi-agent workflows.
+**Done When:** Inference engine maintains warm KV pool and recycles session memory across agent handoffs in <1ms.
+**Why:** Warm KV memory recycling eliminates GPU memory allocation stalls and accelerates multi-agent collaboration loops.
+**Dep:** AGY-2433
+
+## AGY-2435 -- Automated multi-agent session handoff latency (<1ms) and VRAM recycling test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that agent turn switching takes <1ms and GPU memory fragmentation is 0%.
+**What+How:** Add `tests/test-kv-session-recycling.sh`. Run 100 alternating turn requests across 4 distinct agent session IDs; measure session switch time; assert 99th-percentile handoff latency < 1.0ms; inspect GPU memory heap via NVML; assert memory fragmentation ratio remains 0.0%; assert zero GPU allocation errors.
+**Where:** tests/test-kv-session-recycling.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-kv-session-recycling.sh`; verify sub-1ms handoff SLA and zero memory fragmentation pass 100%.
+**Do NOT:** Skip session recycling testing on GPU CI test runners.
+**Done When:** Test suite validates microsecond session handoffs, zero memory churn, and stable VRAM residency.
+**Why:** Continuous testing ensures multi-agent memory pooling maintains maximum speed and memory efficiency.
+**Dep:** AGY-2434
+
+## AGY-2436 -- Native NVFP4 / MXFP4 Tensor Core execution engine and block-32 scale unpacker in llama-swap  (WS-AI | P1 | M)
+**Goal:** Execute 4-bit E2M1 weights via native mma.sync FP4 instructions with block-32 scales for >4x GEMM throughput.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: nvfp4_e2m1` for GPUs with native FP4 Tensor Cores (Blackwell `sm_100`, RDNA4); group weights into 32-element vectors with shared 8-bit scale factors (E8M0); dispatch native `mma.sync.aligned.m16n8k64` PTX instructions; fit 70B models into 17.6GB VRAM; quadruple matrix arithmetic throughput over FP16.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Load 70B NVFP4 model; verify model allocates <18GB VRAM and achieves >4x matrix compute throughput over FP16 baseline with >99.0% reasoning score parity.
+**Do NOT:** Expand FP4 weights to 32-bit floats in GPU global memory prior to GEMM execution.
+**Done When:** Inference engine executes native NVFP4 Tensor Core instructions with block-32 microscaling.
+**Why:** Native FP4 Tensor Core execution unlocks 4x matrix throughput and allows 70B parameter models to run within 20GB VRAM.
+**Dep:** AGY-2435
+
+## AGY-2437 -- Automated 4x matrix throughput speedup, 70B NVFP4 VRAM fitting, and accuracy test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that NVFP4 achieves >3.8x GEMM speedup and fits 70B models in <18GB VRAM.
+**What+How:** Add `tests/test-nvfp4-tensor-core-gemm.sh`. Benchmark FP16 vs NVFP4 matrix multiplications on supported GPU; assert GEMM execution speedup > 3.80x; measure peak VRAM allocation for 70B model (assert < 18.0 GB); evaluate GSM8k math reasoning; assert reasoning accuracy >= 99.0% of uncompressed ground truth.
+**Where:** tests/test-nvfp4-tensor-core-gemm.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-nvfp4-tensor-core-gemm.sh`; verify 4x speedup SLA, VRAM budget, and accuracy pass 100%.
+**Do NOT:** Skip NVFP4 validation on supported GPU CI test runners.
+**Done When:** Test suite validates >3.8x matrix acceleration, sub-18GB VRAM residency, and high mathematical reasoning accuracy.
+**Why:** Continuous testing ensures sub-byte microscaling hardware pipelines maintain extreme throughput and accuracy.
+**Dep:** AGY-2436
+
+## AGY-2438 -- Dedicated in-kernel io_uring SQPOLL thread manager and registered buffer allocator  (WS-STRG | P1 | M)
+**Goal:** Configure io_uring with IORING_SETUP_SQPOLL and fixed file descriptors for >1,000,000 IOPS zero-syscall I/O.
+**What+How:** Implement `automation/35-podman-storage.sh` and `/etc/sysctl.d/25-io-uring.conf`. Configure `kernel.io_uring_disabled = 0`; configure PostgreSQL and SQLite storage engines with `IORING_SETUP_SQPOLL`, `sq_thread_idle = 2000`, and `IORING_REGISTER_FILES`; pin kernel SQPOLL worker threads to designated background CPU cores via `sq_thread_cpu`; eliminate syscall entry/exit overhead; achieve >1,000,000 random read IOPS on NVMe drives.
+**Where:** automation/35-podman-storage.sh, /etc/sysctl.d/25-io-uring.conf
+**Verify:** Run 4K random read benchmark using `io_uring` with SQPOLL enabled; verify storage achieves >1,000,000 IOPS with sub-50us latency and zero system call interruptions.
+**Do NOT:** Execute synchronous blocking read/write syscalls for high-volume database transactions.
+**Done When:** Storage engines process I/O asynchronously via in-kernel io_uring SQPOLL threads.
+**Why:** Zero-syscall io_uring SQPOLL eliminates kernel context switch overhead, unlocking the full potential of NVMe SSDs.
+**Dep:** AGY-2437
+
+## AGY-2439 -- Automated 1,000,000 IOPS random I/O benchmark and zero-syscall SQPOLL test suite  (WS-STRG | P2 | S)
+**Goal:** Verify in automated CI that io_uring SQPOLL sustains >1,000,000 IOPS with latency <50us.
+**What+How:** Add `tests/test-io-uring-sqpoll-throughput.sh`. Execute `fio --ioengine=io_uring --sqthread_poll=1 --direct=1 --rw=randread --bs=4k`; assert IOPS throughput > 1,000,000; assert 99th-percentile completion latency < 50 microseconds; inspect hardware syscall counters via `perf stat -e raw_syscalls:sys_enter`; assert syscall count remains < 100 during sustained benchmark.
+**Where:** tests/test-io-uring-sqpoll-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-io-uring-sqpoll-throughput.sh`; verify 1M IOPS SLA, latency, and zero-syscall assertions pass 100%.
+**Do NOT:** Skip io_uring performance validation in CI test tier 2.
+**Done When:** Test suite validates microsecond storage latency, million-IOPS throughput, and syscall elimination.
+**Why:** Continuous testing ensures storage engine updates preserve peak asynchronous kernel I/O performance.
+**Dep:** AGY-2438
+
+## AGY-2440 -- Declarative BPF LSM security policy enforcer and hook monitor in mios-bpf-lsm  (WS-SEC | P1 | M)
+**Goal:** Attach eBPF programs to kernel LSM hooks (socket_bind, ptrace, file_open) for sub-microsecond policy enforcement.
+**What+How:** Implement `usr/libexec/mios/mios-bpf-lsm` and `automation/45-ebpf-tools.sh`. Enable `CONFIG_BPF_LSM=y` in UKI kernel; attach eBPF programs to `bpf_lsm_ptrace_access_check`, `bpf_lsm_socket_bind`, and `bpf_lsm_file_open`; inspect calling process cgroup and deny access to `/proc/kcore`, unprivileged `bpf()`, and ptrace attachments on host processes; stream structured security telemetry to PostgreSQL `security_events`.
+**Where:** usr/libexec/mios/mios-bpf-lsm, usr/lib/mios/ebpf/lsm_enforcer.c
+**Verify:** Attempt ptrace attach to host daemon from untrusted subagent container; verify BPF LSM rejects operation with -EPERM in <1us and logs security audit event to database.
+**Do NOT:** Disable BPF LSM kernel hooks or allow untrusted containers to attach debuggers to host processes.
+**Done When:** BPF LSM programs enforce programmable in-kernel security policies and prevent privilege escalation.
+**Why:** BPF LSM provides programmable, low-overhead in-kernel security enforcement that eliminates container escape vectors.
+**Dep:** AGY-2439
+
+## AGY-2441 -- Automated container escape blocking, ptrace denial (<1us), and BPF LSM test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that BPF LSM blocks 100% of unauthorized ptrace attempts and logs events in <1ms.
+**What+How:** Add `tests/test-bpf-lsm-enforcement.sh`. Launch test process inside sandboxed cgroup; attempt forbidden actions (ptrace host pid 1, open `/proc/kcore`, bind raw socket); assert 100% of operations return -EPERM in < 1.0 microsecond; query PostgreSQL `security_events`; assert all 3 violations are logged with exact UID, PID, and cgroup metadata.
+**Where:** tests/test-bpf-lsm-enforcement.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-bpf-lsm-enforcement.sh`; verify 100% denial rate and audit logging assertions pass.
+**Do NOT:** Skip BPF LSM security testing in CI test tier 2.
+**Done When:** Test suite validates in-kernel LSM denial, microsecond enforcement speed, and complete audit logging.
+**Why:** Continuous testing ensures kernel security module policies maintain airtight sandboxing across kernel updates.
+**Dep:** AGY-2440
+
+## AGY-2442 -- Activation-Aware Weight Quantization (AWQ) engine and fused W4A16 dispatcher in llama-swap  (WS-AI | P1 | M)
+**Goal:** Protect top 1% salient weight channels via optimal per-channel scales and execute fused W4A16 Tensor Core GEMM.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: awq` with group size 128; load AWQ models containing per-channel scale vectors $s$; dispatch fused W4A16 dequantize-matmul Tensor Core kernels; eliminate intermediate FP16 dequantization memory round-trips; achieve >3.5x matrix arithmetic throughput over FP16 while preserving >99.7% code generation accuracy.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 70B AWQ model on GPU; verify model generation achieves >3.5x speedup over FP16 baseline and coding evaluation passes with >99.7% score parity.
+**Do NOT:** Use naive Round-To-Nearest INT4 quantization that fails to protect salient activation channels.
+**Done When:** Inference engine loads AWQ models and executes fused W4A16 Tensor Core kernels with >3.5x speedup.
+**Why:** AWQ protects critical outlier channels to deliver 4-bit memory footprints with zero coding intelligence loss.
+**Dep:** AGY-2441
+
+## AGY-2443 -- Automated 3.5x AWQ matrix speedup, salient channel protection, and coding benchmark test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that AWQ achieves >3.5x GEMM speedup and retains >99.7% HumanEval code accuracy.
+**What+How:** Add `tests/test-awq-w4a16-gemm.sh`. Benchmark dense FP16 vs AWQ W4A16 forward passes on GPU; assert GEMM execution speedup > 3.50x; run HumanEval coding benchmark; assert pass@1 accuracy >= 99.7% of unquantized baseline; verify zero GPU memory allocation leaks across 10,000 iterations.
+**Where:** tests/test-awq-w4a16-gemm.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-awq-w4a16-gemm.sh`; verify 3.5x speedup SLA and code benchmark pass rates pass 100%.
+**Do NOT:** Skip AWQ quantization testing on supported GPU CI test runners.
+**Done When:** Test suite validates >3.5x matrix acceleration, salient channel preservation, and high coding accuracy.
+**Why:** Continuous testing ensures AWQ fused kernel execution delivers maximum speed without compromising reasoning fidelity.
+**Dep:** AGY-2442
+
+## AGY-2444 -- Zero-copy DRM DMA-BUF frame capture and hardware encoder pipeline in mios-dmabuf-stream  (WS-NODE | P1 | M)
+**Goal:** Capture Hyprland framebuffers via GPU DMA-BUF descriptors and feed NVENC/VA-API for 60fps WebRTC streaming in <16ms.
+**What+How:** Implement `usr/libexec/mios/mios-dmabuf-stream` and `automation/25-pipewire.sh`. Negotiate DMA-BUF buffer passing via `xdg-desktop-portal-hyprland` and PipeWire; map DRM framebuffer file descriptors directly into NVENC / VA-API GPU video encoder contexts; encode H.264 / AV1 video frames directly in VRAM; transmit RTP packets over WebRTC data tracks with <16ms glass-to-glass streaming latency.
+**Where:** usr/libexec/mios/mios-dmabuf-stream, automation/25-pipewire.sh
+**Verify:** Stream 4K Hyprland desktop to browser WebRTC client; verify video plays smoothly at 60fps, glass-to-glass latency is <16ms, and host CPU usage remains <1.5%.
+**Do NOT:** Read back raw 4K framebuffer bitmaps over PCIe into host CPU RAM prior to video encoding.
+**Done When:** Desktop streamer captures DMA-BUF frames and encodes 60fps video directly on GPU silicon.
+**Why:** Zero-copy DMA-BUF streaming delivers responsive, high-fps remote desktop interaction for human operators and AI agents.
+**Dep:** AGY-2443
+
+## AGY-2445 -- Automated 60fps 4K WebRTC streaming latency (<16ms) and zero-copy DMA-BUF test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that 4K WebRTC stream achieves 60fps with latency <16ms and CPU load <2%.
+**What+How:** Add `tests/test-dmabuf-webrtc-stream.sh`. Render synthetic 60fps rotating pattern in Hyprland; capture and stream via `mios-dmabuf-stream`; measure frame delivery timestamp delta at WebRTC receiver; assert 99th-percentile glass-to-glass latency < 16.0ms; assert frame drops = 0; assert host CPU utilization remains < 2.0%.
+**Where:** tests/test-dmabuf-webrtc-stream.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-dmabuf-webrtc-stream.sh`; verify 60fps framerate SLA, sub-16ms latency, and low CPU load pass 100%.
+**Do NOT:** Skip DMA-BUF video streaming validation in CI test tier 2.
+**Done When:** Test suite validates 60fps frame rates, sub-16ms streaming latency, and zero-copy GPU pipeline execution.
+**Why:** Continuous testing ensures video streaming components preserve ultra-low latency without CPU degradation.
+**Dep:** AGY-2444
+
+## AGY-2446 -- FlashAttention-3 warp-specialized kernel engine and FP8 TMA overlapping in llama-swap  (WS-AI | P1 | M)
+**Goal:** Execute FlashAttention-3 with FP8 TMA hardware overlapping and warp specialization for >1,200 TFLOPS throughput.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `flash_attention_version: 3` for Hopper (`sm_90`) and Blackwell (`sm_100`); utilize hardware Tensor Memory Accelerator (`cp.async.bulk.tensor`) to overlap global memory loads with tensor core GEMMs; dedicate producer warps to asynchronous data staging and consumer warps to WGMMA execution; achieve >1,200 TFLOPS attention throughput and sub-10ms TTFT on 128k sequence lengths.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 128k token context prompt on Hopper/Blackwell GPU; verify attention computes at >1,200 TFLOPS throughput and TTFT completes in <10ms with zero warp pipeline stalls.
+**Do NOT:** Materialize eager NxN attention matrices or use unpipelined FlashAttention-1 kernels on modern GPUs.
+**Done When:** Inference engine executes FlashAttention-3 with warp specialization and TMA hardware acceleration.
+**Why:** FlashAttention-3 unlocks peak hardware FLOPS on modern GPUs, enabling instantaneous multi-hundred-thousand token context prefill.
+**Dep:** AGY-2445
+
+## AGY-2447 -- Automated 1,200 TFLOPS attention benchmark, sub-10ms 128k TTFT, and TMA test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that FlashAttention-3 delivers >1,200 TFLOPS and 128k TTFT latency is <10ms.
+**What+How:** Add `tests/test-flashattention-3-throughput.sh`. Benchmark forward attention pass on 128,000 sequence length with FP8 keys/values; measure computational throughput; assert attention FLOPS > 1,200.0 TFLOPS; measure TTFT latency (assert < 10.0ms); assert numerical difference against FP16 baseline is < 0.001.
+**Where:** tests/test-flashattention-3-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-flashattention-3-throughput.sh`; verify 1,200 TFLOPS SLA, sub-10ms TTFT, and numerical accuracy pass 100%.
+**Do NOT:** Skip FlashAttention-3 validation on supported modern GPU CI test runners.
+**Done When:** Test suite validates >1,200 TFLOPS throughput, sub-10ms 128k prompt prefill, and TMA memory overlapping.
+**Why:** Continuous testing ensures cutting-edge attention kernels maintain peak hardware acceleration across model updates.
+**Dep:** AGY-2446
+
+## AGY-2448 -- Proactive hardware thermal regulator and dynamic PWM fan curve controller in mios-thermal-guard  (WS-NODE | P1 | M)
+**Goal:** Poll hwmon/NVML sensors every 500ms and modulate PWM fans and power caps to prevent thermal clock throttling.
+**What+How:** Implement `usr/libexec/mios/mios-thermal-guard` and `automation/24-cpu-affinity.sh`. Poll `/sys/class/hwmon/` and NVML sensor APIs every 500ms; compute moving temperature derivatives (dT/dt); proactively ramp PWM fan controls via `pwm1` sysfs nodes before reaching 80°C; modulate CPU RAPL power limits (`/sys/class/powercap/intel-rapl/`) and GPU power caps to prevent frequency throttling drops; log thermal events to PostgreSQL `node_telemetry`.
+**Where:** usr/libexec/mios/mios-thermal-guard, automation/24-cpu-affinity.sh
+**Verify:** Execute 100% continuous matrix multiplication stress test on CPU and GPU; verify fans ramp proactively and temperatures stabilize at <82°C with zero frequency throttling drops.
+**Do NOT:** Allow hardware to reach thermal junction max (100°C) and trigger catastrophic hardware throttling cliffs.
+**Done When:** Thermal guard regulates PWM fans and power caps in <500ms, sustaining peak computation.
+**Why:** Proactive thermal regulation prevents sudden performance degradation during heavy agent inference runs.
+**Dep:** AGY-2447
+
+## AGY-2449 -- Automated sustained thermal load, fan curve modulation (<500ms), and power cap test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that thermal daemon responds in <500ms and keeps sustained temperatures <85°C.
+**What+How:** Add `tests/test-thermal-guard-regulation.sh`. Simulate thermal step load; measure response latency of `mios-thermal-guard` (assert < 500ms); assert PWM fan duty cycle increases proportionally to dT/dt; verify CPU/GPU clock frequencies maintain > 95% of peak base frequency throughout 5-minute sustained test run.
+**Where:** tests/test-thermal-guard-regulation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-thermal-guard-regulation.sh`; verify response latency SLA and clock frequency stability pass 100%.
+**Do NOT:** Skip thermal management validation in CI test tier 2.
+**Done When:** Test suite validates sub-500ms thermal response, proactive PWM fan modulation, and sustained clock stability.
+**Why:** Continuous testing ensures thermal controllers prevent overheating and maintain reliable node operation under heavy loads.
+**Dep:** AGY-2448
+
+## AGY-2450 -- Consumer PC, Laptop, NAS, and modern smartphone edge target matrix in mios-hardware-profile  (WS-NODE | P1 | M)
+**Goal:** Classify target hardware across consumer PC, laptop, NAS, and mobile phone tiers for localized AI inference.
+**What+How:** Implement `usr/libexec/mios/mios-hardware-profile` and update `automation/24-cpu-affinity.sh`. Define target hardware tiers: Prosumer/Server (multi-GPU, NUMA), Consumer PC/Laptop (x86/ARM, dGPU/iGPU/NPU, Hyprland), NAS (storage-optimized, CPU inference), and Modern Smartphone (iOS/Android mobile edge with local Metal/NPU inference); detect device tier at startup; tune memory pools, inference backends, and networking parameters dynamically.
+**Where:** usr/libexec/mios/mios-hardware-profile, automation/24-cpu-affinity.sh
+**Verify:** Run `mios hardware profile` across Laptop, NAS, and Mobile client; verify system detects device capabilities and configures appropriate inference lanes and memory limits.
+**Do NOT:** Assume server-only hardware or neglect consumer laptop/NAS and smartphone mobile edge device profiles.
+**Done When:** Hardware profiler classifies device tiers and configures AI inference profiles across all supported hardware.
+**Why:** A comprehensive hardware target matrix ensures MiOS runs seamlessly from modern smartphones to multi-GPU servers.
+**Dep:** AGY-2449
+
+## AGY-2451 -- Automated mobile and NAS mesh node enrollment, local inference profiling, and discovery test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that mobile and NAS node profiles discover local AI capabilities and enroll in <200ms.
+**What+How:** Add `tests/test-hardware-target-profiling.sh`. Emulate consumer laptop, NAS, and modern smartphone device environments; run `mios-hardware-profile`; assert tier classification accuracy = 100%; verify mobile profile allocates <= 3GB memory limit while server profile allocates full VRAM; verify mDNS and WireGuard mesh enrollment completes in < 200ms.
+**Where:** tests/test-hardware-target-profiling.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-hardware-target-profiling.sh`; verify target classification, memory scaling, and mesh enrollment pass 100%.
+**Do NOT:** Skip edge hardware profiling validation in CI test tier 2.
+**Done When:** Test suite validates hardware profiling accuracy, dynamic memory bounds, and rapid mesh enrollment.
+**Why:** Continuous testing ensures hardware profile detection adapts correctly across diverse consumer and mobile tiers.
+**Dep:** AGY-2450
+
+## AGY-2452 -- Mobile edge node A2A proxy and adaptive task offloader in mios-mobile-sync  (WS-NODE | P1 | M)
+**Goal:** Orchestrate smartphone edge nodes running local models and adaptively offload heavy reasoning to cluster blades.
+**What+How:** Implement `usr/libexec/mios/mios-mobile-sync` and `automation/36-netavark.sh`. Enroll mobile devices (iOS / Android) into WireGuard mesh network; expose `/v1/mobile/status` and `/v1/mobile/offload` endpoints; evaluate prompt complexity at mobile gateway; execute low-latency simple tasks locally on-device (1.5B model); route complex reasoning, long contexts (>8k tokens), and heavy coding to home MiOS server; sync episodic memory vectors asynchronously to PostgreSQL `pgvector`.
+**Where:** usr/libexec/mios/mios-mobile-sync, usr/lib/systemd/system/mios-mobile-sync.service
+**Verify:** Simulate mobile smartphone query via WireGuard; verify simple conversational queries execute in <200ms locally while complex refactoring queries offload automatically to home server with zero user friction.
+**Do NOT:** Route mobile queries through external third-party proprietary cloud proxy networks.
+**Done When:** Mobile sync daemon coordinates smartphone nodes and offloads complex reasoning seamlessly.
+**Why:** Mobile edge coordination brings the full power of the MiOS multi-blade cluster to personal smartphones securely.
+**Dep:** AGY-2451
+
+## AGY-2453 -- Automated mobile peer discovery, adaptive prompt routing (<50ms), and memory sync test suite  (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that mobile offloading decisions resolve in <50ms and vector sync achieves 100% parity.
+**What+How:** Add `tests/test-mobile-mesh-offloading.sh`. Simulate mobile node connecting over WireGuard tunnel; send simple intent query; verify local execution routing; send 100-line code refactoring query; assert `mios-mobile-sync` routes prompt to home server in < 50ms; insert vector embedding on mobile client; verify PostgreSQL `pgvector` reflects synchronized vector in < 1.0s.
+**Where:** tests/test-mobile-mesh-offloading.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-mobile-mesh-offloading.sh`; verify routing latency SLA, delegation accuracy, and vector sync pass 100%.
+**Do NOT:** Skip mobile mesh offload testing in CI test tier 2.
+**Done When:** Test suite validates instant mobile offload routing, home cluster execution, and bidirectional vector synchronization.
+**Why:** Continuous testing ensures mobile device integration operates reliably across diverse network conditions.
+**Dep:** AGY-2452
+
+## AGY-2454 -- Medusa multi-head self-speculative decoding engine and tree attention verifier in llama-swap  (WS-AI | P1 | M)
+**Goal:** Attach 4 Medusa heads to base model to predict candidate trees and verify concurrently for 2.2x speedup.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `speculative_backend: medusa` with `num_heads: 4`; predict 4 future token branches from backbone hidden states in a single forward pass; construct candidate tree attention mask; verify all branches in parallel in the next forward pass; accept longest valid branch; achieve 2.2x generation speedup with zero extra draft model VRAM allocation.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run code generation on 70B model with 4 Medusa heads; verify throughput increases from 18 tok/s to >39 tok/s while VRAM consumption remains within 50MB of base model.
+**Do NOT:** Load bulky multi-gigabyte secondary draft models when lightweight Medusa heads are available.
+**Done When:** Inference engine executes Medusa self-speculative decoding with tree attention at >2.0x speedup.
+**Why:** Medusa self-speculation doubles generation throughput without requiring additional VRAM for separate draft models.
+**Dep:** AGY-2453
+
+## AGY-2455 -- Automated 2.2x self-speculative speedup, tree attention, and token parity test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that Medusa heads achieve >2.0x speedup and 100% token output distribution parity.
+**What+How:** Add `tests/test-medusa-self-speculation.sh`. Benchmark token decoding with and without Medusa heads on 70B model; assert throughput speedup > 2.00x; set greedy decoding; assert generated token sequence matches non-speculative base model output 100.0%; assert peak VRAM overhead of Medusa heads is < 100MB.
+**Where:** tests/test-medusa-self-speculation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-medusa-self-speculation.sh`; verify 2.2x speedup SLA, token parity, and minimal VRAM overhead pass 100%.
+**Do NOT:** Skip Medusa self-speculation testing on GPU CI test runners.
+**Done When:** Test suite validates >2x speedup, tree attention verification correctness, and exact output parity.
+**Why:** Continuous testing ensures self-speculative decoding algorithms maintain high speedups without changing model outputs.
+**Dep:** AGY-2454
+
+## AGY-2456 -- Linux Core Scheduling cookie tagger and SMT sibling isolator in mios-core-sched  (WS-SEC | P1 | M)
+**Goal:** Assign unique Core Scheduling cookies via PR_SET_CORE_SCHED to isolate untrusted subagent tasks on SMT siblings.
+**What+How:** Implement `usr/libexec/mios/mios-core-sched` and `automation/24-cpu-affinity.sh`. Enable `CONFIG_SCHED_CORE=y` in UKI kernel; intercept container and sandbox creation; invoke `prctl(PR_SET_CORE_SCHED, PR_SCHED_CORE_CREATE, ...)` to tag untrusted subagent worker cgroups with isolated cookies; ensure Linux scheduler never co-schedules untrusted threads with trusted system processes on the same physical SMT core siblings; preserve 100% of Hyper-Threading throughput for trusted tasks.
+**Where:** usr/libexec/mios/mios-core-sched, automation/24-cpu-affinity.sh
+**Verify:** Spawn untrusted worker process and trusted PostgreSQL transaction simultaneously; verify Linux kernel scheduler enforces separate physical cores for SMT siblings and cookies prevent cross-thread speculative snooping.
+**Do NOT:** Disable SMT globally in kernel kargs (nosmt) or allow untrusted subagents to share physical SMT siblings with key stores.
+**Done When:** Core scheduler tags untrusted processes and guarantees zero cross-SMT side-channel co-location.
+**Why:** Core Scheduling eliminates speculative execution side-channel risks while retaining full multithreading performance.
+**Dep:** AGY-2455
+
+## AGY-2457 -- Automated SMT sibling isolation verification (<1us tagging) and core scheduling test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that Core Scheduling tags apply in <1us and 0 untrusted tasks co-schedule on SMT siblings.
+**What+How:** Add `tests/test-core-scheduling-isolation.sh`. Tag test processes via `mios-core-sched`; measure tagging latency (assert < 1.0 microsecond); monitor scheduler trace events (`sched_switch` / `perf ftrace`); assert untrusted and trusted processes never execute concurrently on sibling SMT threads (assert 0 violations across 100,000 context switches).
+**Where:** tests/test-core-scheduling-isolation.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-core-scheduling-isolation.sh`; verify tagging speed SLA and 0 co-scheduling violations pass 100%.
+**Do NOT:** Skip Core Scheduling verification in CI test tier 2.
+**Done When:** Test suite validates microsecond cookie tagging, strict SMT sibling isolation, and scheduler security guarantees.
+**Why:** Continuous testing ensures kernel scheduling mitigations remain active and uncompromised across runtime updates.
+**Dep:** AGY-2456
+
+## AGY-2458 -- QServe W4A8KV4 mixed-precision execution engine and fused INT8 dispatcher in llama-swap  (WS-AI | P1 | M)
+**Goal:** Execute W4A8KV4 quantization via fused INT8 Tensor Core kernels for >3.2x speedup and sub-22GB 70B VRAM residency.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and vLLM configuration. Configure `quantization: qserve_w4a8kv4`; quantize model weights to 4-bit integers with per-channel scales; dynamically quantize activation tensors to 8-bit integers; quantize KV-cache blocks to 4-bit; dispatch fused CUTLASS INT8 Tensor Core kernels with on-the-fly INT4 weight dequantization; achieve >3.2x inference speedup over FP16 baseline while preserving >99.5% benchmark accuracy.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Run 70B model with QServe W4A8KV4 on GPU; verify peak VRAM is <22GB, token generation exceeds 60 tok/s, and benchmark scores match FP16 baseline with >99.5% parity.
+**Do NOT:** Expand quantized tensors to 32-bit floats in memory or quantize sensitive norm/embedding layers naively.
+**Done When:** Inference engine executes QServe W4A8KV4 via fused INT8 Tensor Core kernels with >3.0x speedup.
+**Why:** QServe W4A8KV4 aligns weights, activations, and KV cache to maximize hardware integer tensor core performance.
+**Dep:** AGY-2457
+
+## AGY-2459 -- Automated 3.2x QServe speedup, 70B VRAM fitting (<22GB), and accuracy test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that QServe achieves >3.0x speedup, fits 70B in <22GB VRAM, and retains >99.5% accuracy.
+**What+How:** Add `tests/test-qserve-w4a8kv4-gemm.sh`. Benchmark dense FP16 vs QServe forward passes on GPU; assert GEMM execution speedup > 3.00x; measure peak VRAM allocation for 70B model (assert < 22.0 GB); evaluate GSM8k math reasoning; assert pass rate >= 99.5% of unquantized baseline; verify zero CUDA kernel execution faults.
+**Where:** tests/test-qserve-w4a8kv4-gemm.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-qserve-w4a8kv4-gemm.sh`; verify 3.2x speedup SLA, VRAM residency, and reasoning accuracy pass 100%.
+**Do NOT:** Skip QServe mixed-precision testing on supported GPU CI test runners.
+**Done When:** Test suite validates >3x matrix acceleration, sub-22GB VRAM fitting, and high mathematical reasoning accuracy.
+**Why:** Continuous testing ensures mixed-precision integer pipelines deliver maximum speed without compromising model quality.
+**Dep:** AGY-2458
+
+## AGY-2460 -- Dynamic Speculative Store Bypass (SSB) process sandboxer and prctl controller in mios-ssb-guard  (WS-SEC | P1 | M)
+**Goal:** Enforce PR_SPEC_FORCE_DISABLE on untrusted subagent processes via prctl to block Spectre v4 memory bypasses.
+**What+How:** Implement `usr/libexec/mios/mios-ssb-guard` and `automation/24-cpu-affinity.sh`. Intercept untrusted subagent container executions; invoke `prctl(PR_SET_SPECULATION_CTRL, PR_SPEC_STORE_BYPASS, PR_SPEC_FORCE_DISABLE, 0, 0)` in <1us; disable hardware speculative store bypass predictors for the sandboxed process hierarchy; preserve full native memory pipelining for trusted system daemons; log SSB security enforcement events to PostgreSQL `security_events`.
+**Where:** usr/libexec/mios/mios-ssb-guard, automation/24-cpu-affinity.sh
+**Verify:** Execute Spectre v4 proof-of-concept exploit in untrusted subagent container; verify speculative store bypass reads return stale/safe values and exploit fails 100% of attempts.
+**Do NOT:** Disable speculative store bypassing globally in UKI kargs or allow untrusted scripts to run unmitigated.
+**Done When:** Security guard enforces per-process SSB mitigation and neutralizes Spectre v4 side-channel vectors.
+**Why:** Targeted dynamic SSB mitigation eliminates CPU side-channels without penalizing system-wide performance.
+**Dep:** AGY-2459
+
+## AGY-2461 -- Automated Spectre v4 SSB mitigation verification (<1us prctl) and memory test suite  (WS-SEC | P2 | S)
+**Goal:** Verify in automated CI that prctl applies in <1us and blocks 100% of speculative store bypass exploit reads.
+**What+How:** Add `tests/test-speculative-store-bypass.sh`. Execute `mios-ssb-guard` on test worker; measure prctl invocation latency (assert < 1.0 microsecond); query `/proc/<pid>/status` for `Speculation_Store_Bypass: force thread disabled`; run synthetic Spectre v4 memory disambiguation read test; assert 0 uncommitted memory bytes are leaked across 1,000,000 trials.
+**Where:** tests/test-speculative-store-bypass.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-speculative-store-bypass.sh`; verify prctl latency SLA, /proc status, and exploit neutralization pass 100%.
+**Do NOT:** Skip SSB speculation testing in CI test tier 2.
+**Done When:** Test suite validates microsecond SSB enforcement, thread-level speculation status, and 0 side-channel leakage.
+**Why:** Continuous testing ensures speculative side-channel mitigations remain airtight across CPU microcode updates.
+**Dep:** AGY-2460
+
+## AGY-2462 -- BiLLM 1-bit weight binarization engine and residual error compensation kernel in llama-swap  (WS-AI | P1 | M)
+**Goal:** Binarize weights to 1-bit signs with residual compensation to fit 70B models in 11GB RAM at >250 tok/s on CPU.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `llama.cpp` CPU backend. Implement BiLLM tensor loader; split weights into 1-bit binary signs $\alpha \text{sign}(W)$ plus 1-bit residual error matrix $\beta \text{sign}(W - \alpha \text{sign}(W))$; pack binary states at 1 bit per weight; dispatch fused dual-popcount integer addition SIMD instructions (`vpopcntq` / `popcnt`); fit 70B parameter models into 10.8GB system RAM; achieve >250 tok/s CPU decoding throughput.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/share/containers/systemd/mios-llm-light.container
+**Verify:** Load 70B BiLLM model on CPU; verify system allocates <11GB RAM, achieves >250 tok/s decoding throughput, and wikitext-2 perplexity delta is <0.04 compared to unquantized baseline.
+**Do NOT:** Discard residual quantization errors or expand 1-bit weights to 32-bit floats during CPU inference.
+**Done When:** Inference engine loads BiLLM 1-bit models and executes dual-popcount SIMD kernels on CPU.
+**Why:** BiLLM 1-bit compression with residual compensation enables massive 70B models to run on standard laptops and NAS machines.
+**Dep:** AGY-2461
+
+## AGY-2463 -- Automated 70B BiLLM RAM fitting (<11GB), 250 tok/s CPU throughput, and perplexity test suite  (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that 70B BiLLM fits in <11GB RAM, achieves >250 tok/s on CPU, and perplexity delta <0.04.
+**What+How:** Add `tests/test-billm-1bit-throughput.sh`. Benchmark 70B BiLLM model on CPU; assert peak process memory allocation < 11.0 GB; assert token decoding throughput > 250.0 tok/s; evaluate wikitext-2 perplexity; assert perplexity degradation is < 0.040 compared to uncompressed baseline; verify 0 memory corruption errors.
+**Where:** tests/test-billm-1bit-throughput.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-billm-1bit-throughput.sh`; verify RAM budget, 250 tok/s SLA, and perplexity assertions pass 100%.
+**Do NOT:** Skip BiLLM binarization testing in CI test tier 2.
+**Done When:** Test suite validates strict sub-11GB RAM fitting, >250 tok/s CPU throughput, and low perplexity degradation.
+**Why:** Continuous testing ensures 1-bit binarization algorithms maintain high reasoning fidelity and extreme speed on consumer hardware.
+**Dep:** AGY-2462
+

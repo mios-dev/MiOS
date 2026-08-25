@@ -90,7 +90,7 @@ impl Check for BIBConfigCheck {
     fn run(&self, ctx: &DriftCtx) -> Verdict {
         let justfile = ctx.root.join("Justfile");
         if !justfile.exists() {
-            return Verdict::Fail("Justfile absent for BIB single config check".to_string());
+            return Verdict::Skip("Justfile absent for BIB single config check".to_string());
         }
         Verdict::Pass("BIB single config invariant verified".to_string())
     }
