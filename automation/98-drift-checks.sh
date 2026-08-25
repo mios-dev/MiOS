@@ -5,14 +5,17 @@
 set -euo pipefail
 
 PYTHON="python3"
-if ! python3 -c "import sys" >/dev/null 2>&1; then
-    if python -c "import sys" >/dev/null 2>&1; then
-        PYTHON="python"
-        python3() {
-            python "$@"
-        }
-        export -f python3 2>/dev/null || true
+_real_py="$(command -v python 2>/dev/null || true)"
+if [[ -n "$_real_py" ]]; then
+    _shim_dir="${TEMP:-${TMP:-/tmp}}/mios-py-bin"
+    mkdir -p "$_shim_dir" 2>/dev/null || true
+    if [[ ! -f "$_shim_dir/python3.exe" && -f "$_real_py" ]]; then
+        cp "$_real_py" "$_shim_dir/python3.exe" 2>/dev/null || true
     fi
+    if [[ ! -f "$_shim_dir/python3" && -f "$_real_py" ]]; then
+        cp "$_real_py" "$_shim_dir/python3" 2>/dev/null || true
+    fi
+    export PATH="$_shim_dir:$PATH"
 fi
 
 _self="${BASH_SOURCE[0]}"
@@ -4206,81 +4209,7 @@ PY
 
 check_verb_stub_backends() {
     _need_python || return 0
-    if MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY'
-import os, sys, glob, re
-import tomllib
-
-root = os.environ["MIOS_DRIFT_ROOT"]
-toml_path = os.path.join(root, "usr/share/mios/mios.toml")
-
-if not os.path.isfile(toml_path):
-    sys.stderr.write("    SSOT mios.toml missing\n")
-    sys.exit(1)
-
-with open(toml_path, "rb") as f:
-    data = tomllib.load(f)
-
-verbs = data.get("verbs", {})
-violations = []
-
-def check_script_body(filepath):
-    try:
-        with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-    except Exception as e:
-        return f"Cannot read file {filepath}: {e}"
-
-    code_lines = []
-    for line in lines:
-        l = line.strip()
-        if not l or l.startswith("#"):
-            continue
-        if re.match(r'^(echo|printf|set\s+-|exit\s+[0-9]+|true|return\s+[0-9]+|export\s+[A-Z_]+=|usage\(\)\s*\{|:\s*;\s*|\}\s*;\s*)$', l):
-            continue
-        code_lines.append(l)
-
-    if len(code_lines) == 0:
-        return "Script body is a stub (produces no side effects)"
-    return None
-
-REGISTERED_STUBS = set()
-
-for sdir in [os.path.join(root, "usr/libexec/mios"), os.path.join(root, "installation")]:
-    if os.path.isdir(sdir):
-        for path in glob.glob(os.path.join(sdir, "**/*"), recursive=True):
-            if os.path.isfile(path) and (path.endswith(".sh") or path.endswith(".ps1") or "." not in os.path.basename(path)):
-                rel = os.path.relpath(path, root).replace("\\", "/")
-                res = check_script_body(path)
-                if res and rel not in REGISTERED_STUBS:
-                    violations.append(f"{rel}: {res}")
-
-def walk_verbs(prefix, d):
-    for k, v in d.items():
-        if k == "_defaults":
-            continue
-        full_name = f"{prefix}.{k}" if prefix else k
-        if isinstance(v, dict):
-            cmd = v.get("cmd") or v.get("exec")
-            if cmd:
-                tokens = cmd.strip().split()
-                first = tokens[0] if tokens else ""
-                if first.startswith("/usr/libexec/mios/") or first.startswith("/installation/"):
-                    rel_path = first.lstrip("/")
-                    full = os.path.join(root, rel_path)
-                    if not os.path.exists(full):
-                        violations.append(f"Verb {full_name} backend script missing: {rel_path}")
-            elif any(isinstance(val, dict) for val in v.values()):
-                walk_verbs(full_name, v)
-
-walk_verbs("", verbs)
-
-if violations:
-    for v in violations:
-        sys.stderr.write(f"    {v}\n")
-    sys.exit(1)
-
-sys.exit(0)
-PY
+    if MIOS_DRIFT_ROOT="$ROOT" python3 tools/drift-checks.py verb-stub-backends
     then
         echo "[98-drift-checks]   verb stub backends gate verified clean"
     else
@@ -5134,7 +5063,7 @@ check_resolver_shell_equivalence() {
     local out
     if ! out=$(cd "$ROOT" && MIOS_DRIFT_ROOT="$ROOT" MIOS_TOML_ROOT="$ROOT" \
                  MIOS_VENDOR_TOML="$ROOT/usr/share/mios/mios.toml" \
-                 python3 tools/check-resolver-twin.py 2>&1); then
+                 "$PYTHON" tools/check-resolver-twin.py 2>&1); then
         printf '%s\n' "$out" | tail -n 12 >&2
         _violation "resolver shell equivalence check failed"
     fi
@@ -5385,12 +5314,49 @@ PY
 
 check_os_update_timer_enabled() {
     echo "[98-drift-checks]   check_os_update_timer_enabled"
+    # uupd.timer ships from the uupd RPM and lands in the IMAGE at bake time; it
+    # is never a file in this source tree. Looking for it here could only ever
+    # fail, so this asserts what the repo actually owns: the SSOT declares an
+    # updater package, and a bake phase enables its timer.
     local unit_dir="$ROOT/usr/share/mios/systemd"
     local sys_dir="$ROOT/usr/lib/systemd/system"
-    if [[ -f "$unit_dir/uupd.timer" || -f "$sys_dir/uupd.timer" || -f "$unit_dir/bootc-fetch-apply-updates.timer" || -f "$sys_dir/bootc-fetch-apply-updates.timer" || -f "$unit_dir/bootc-fetch-apply-updates.service" || -f "$sys_dir/bootc-fetch-apply-updates.service" ]]; then
-        echo "[98-drift-checks]   OS update timer/service definition verified present"
+    local installer="$ROOT/automation/50-uupd-installer.sh"
+    local declared=0 wired=0
+
+    if [[ -f "$unit_dir/uupd.timer" || -f "$sys_dir/uupd.timer" \
+       || -f "$unit_dir/bootc-fetch-apply-updates.timer" \
+       || -f "$sys_dir/bootc-fetch-apply-updates.timer" ]]; then
+        declared=1 wired=1          # shipped in-tree: nothing further to prove
     else
-        _violation "No OS update timer or service definition found (uupd.timer or bootc-fetch-apply-updates.timer/service required)"
+        if _need_python; then
+            MIOS_DRIFT_ROOT="$ROOT" python3 - <<'PY' && declared=1
+import os, sys, tomllib
+root = os.environ["MIOS_DRIFT_ROOT"]
+with open(os.path.join(root, "usr/share/mios/mios.toml"), "rb") as fh:
+    ssot = tomllib.load(fh)
+pkgs = []
+def walk(o):
+    if isinstance(o, dict):
+        for v in o.values():
+            walk(v)
+    elif isinstance(o, list):
+        pkgs.extend(p for p in o if isinstance(p, str))
+walk(ssot.get("packages", {}))
+sys.exit(0 if any(p in ("uupd", "bootc") for p in pkgs) else 1)
+PY
+        else
+            declared=1              # cannot read the SSOT here; do not invent a verdict
+        fi
+        if [[ -f "$installer" ]] && grep -q 'uupd\.timer\|bootc-fetch-apply-updates\.timer' "$installer"; then
+            wired=1
+        fi
+    fi
+
+    if [[ $declared -eq 1 && $wired -eq 1 ]]; then
+        echo "[98-drift-checks]   OS update mechanism declared in the SSOT and wired by a bake phase"
+    else
+        [[ $declared -eq 1 ]] || _violation "no OS updater package (uupd or bootc) declared in mios.toml [packages]"
+        [[ $wired -eq 1 ]] || _violation "automation/50-uupd-installer.sh does not enable uupd.timer or bootc-fetch-apply-updates.timer"
     fi
 }
 

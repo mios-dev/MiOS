@@ -2111,7 +2111,88 @@ def check_no_bare_port_literals() -> int:
     sys.exit(0)
 
 
+def check_verb_stub_backends() -> int:
+    """Lifted from a shell heredoc so it can be imported, linted and tested.
+
+    Inside a heredoc a syntax error surfaces only when the check runs.
+    """
+    import os, sys, glob, re
+    import tomllib
+
+    root = os.environ["MIOS_DRIFT_ROOT"]
+    toml_path = os.path.join(root, "usr/share/mios/mios.toml")
+
+    if not os.path.isfile(toml_path):
+        sys.stderr.write("    SSOT mios.toml missing\n")
+        sys.exit(1)
+
+    with open(toml_path, "rb") as f:
+        data = tomllib.load(f)
+
+    verbs = data.get("verbs", {})
+    violations = []
+
+    def check_script_body(filepath):
+        try:
+            with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+        except Exception as e:
+            return f"Cannot read file {filepath}: {e}"
+
+        code_lines = []
+        for line in lines:
+            l = line.strip()
+            if not l or l.startswith("#"):
+                continue
+            if re.match(r'^(echo|printf|set\s+-|exit\s+[0-9]+|true|return\s+[0-9]+|export\s+[A-Z_]+=|usage\(\)\s*\{|:\s*;\s*|\}\s*;\s*)$', l):
+                continue
+            code_lines.append(l)
+
+        if len(code_lines) == 0:
+            return "Script body is a stub (produces no side effects)"
+        return None
+
+    REGISTERED_STUBS = set()
+
+    for sdir in [os.path.join(root, "usr/libexec/mios"), os.path.join(root, "installation")]:
+        if os.path.isdir(sdir):
+            for path in glob.glob(os.path.join(sdir, "**/*"), recursive=True):
+                if os.path.isfile(path) and (path.endswith(".sh") or path.endswith(".ps1") or "." not in os.path.basename(path)):
+                    rel = os.path.relpath(path, root).replace("\\", "/")
+                    res = check_script_body(path)
+                    if res and rel not in REGISTERED_STUBS:
+                        violations.append(f"{rel}: {res}")
+
+    def walk_verbs(prefix, d):
+        for k, v in d.items():
+            if k == "_defaults":
+                continue
+            full_name = f"{prefix}.{k}" if prefix else k
+            if isinstance(v, dict):
+                cmd = v.get("cmd") or v.get("exec")
+                if cmd:
+                    tokens = cmd.strip().split()
+                    first = tokens[0] if tokens else ""
+                    if first.startswith("/usr/libexec/mios/") or first.startswith("/installation/"):
+                        rel_path = first.lstrip("/")
+                        full = os.path.join(root, rel_path)
+                        if not os.path.exists(full):
+                            violations.append(f"Verb {full_name} backend script missing: {rel_path}")
+                elif any(isinstance(val, dict) for val in v.values()):
+                    walk_verbs(full_name, v)
+
+    walk_verbs("", verbs)
+
+    if violations:
+        for v in violations:
+            sys.stderr.write(f"    {v}\n")
+        sys.exit(1)
+
+    sys.exit(0)
+
+
 SUBCOMMANDS = {
+    "verb-stub-backends": check_verb_stub_backends,
     "no-bare-port-literals": check_no_bare_port_literals,
     "globals-image-parity": check_globals_image_parity,
     "bake-plan-integrity": check_bake_plan_integrity,

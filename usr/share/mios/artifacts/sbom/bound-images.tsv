@@ -1,25 +1,25 @@
-image	digest	group
-localhost/mios-sys:latest	local	sys
-localhost/mios-cuda:latest	local	cuda
-quay.io/centos-bootc/bootc-image-builder:latest	local	extra
-docker.io/adguard/adguardhome:latest	local	extra
-quay.io/ceph/ceph:v19	local	heavy
-ghcr.io/mostlygeek/llama-swap:cuda	local	cuda
-codeberg.org/forgejo/forgejo:12	local	extra
-code.forgejo.org/forgejo/runner:7	local	extra
-docker.io/guacamole/guacamole:latest	local	extra
-docker.io/guacamole/guacd:latest	local	extra
-docker.io/rancher/k3s:v1.36.3-k3s1	local	extra
-docker.io/lmsysorg/sglang:latest	local	sys
-docker.io/vllm/vllm-openai:latest	local	extra
-ghcr.io/mios-dev/mios-node:latest	local	extra
-ghcr.io/open-webui/open-webui:main	local	heavy
-docker.io/jaegertracing/all-in-one:1.76.0	local	extra
-docker.io/pgvector/pgvector:pg18	local	extra
-quay.io/poseidon/matchbox:latest	local	extra
-docker.io/searxng/searxng:latest	local	extra
-docker.io/valkey/valkey:latest	local	extra
-localhost/mios-crawl4ai-slim:latest	local	extra
-localhost/mios-cuda	local	cuda
-localhost/mios-firecrawl:v1.0.0	local	extra
-localhost/mios-sys	local	sys
+image	digest	group	size_gb
+localhost/mios-sys:latest	local	sys	2.5
+localhost/mios-cuda:latest	local	cuda	4.0
+quay.io/centos-bootc/bootc-image-builder:latest	local	extra	1.0
+docker.io/adguard/adguardhome:latest	local	extra	1.0
+quay.io/ceph/ceph:v19	local	heavy	1.0
+ghcr.io/mostlygeek/llama-swap:cuda	local	cuda	1.0
+codeberg.org/forgejo/forgejo:12	local	extra	1.0
+code.forgejo.org/forgejo/runner:7	local	extra	1.0
+docker.io/guacamole/guacamole:latest	local	extra	1.0
+docker.io/guacamole/guacd:latest	local	extra	1.0
+docker.io/rancher/k3s:v1.36.3-k3s1	local	extra	1.0
+docker.io/lmsysorg/sglang:latest	local	sys	1.0
+docker.io/vllm/vllm-openai:latest	local	extra	1.0
+ghcr.io/mios-dev/mios-node:latest	local	extra	1.0
+ghcr.io/open-webui/open-webui:main	local	heavy	1.0
+docker.io/jaegertracing/all-in-one:1.76.0	local	extra	1.0
+docker.io/pgvector/pgvector:pg18	local	extra	1.0
+quay.io/poseidon/matchbox:latest	local	extra	1.0
+docker.io/searxng/searxng:latest	local	extra	1.0
+docker.io/valkey/valkey:latest	local	extra	1.0
+localhost/mios-crawl4ai-slim:latest	local	extra	1.0
+localhost/mios-cuda	local	cuda	1.0
+localhost/mios-firecrawl:v1.0.0	local	extra	1.0
+localhost/mios-sys	local	sys	1.0
