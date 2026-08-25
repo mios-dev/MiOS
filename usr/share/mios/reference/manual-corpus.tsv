@@ -3855,7 +3855,12 @@ tools/test_drift-checks.py	35	37	3	30	623fe68c5cf7	DROP	generated-artifact		0			
 tools/test_drift-checks.py	60	74	15	143	7335fe978d9f	DROP	generated-artifact		0				0
 tools/test_generate-adr-index.py	1	3	3	11	a49b95db0484	DROP	generated-artifact		0				0
 tools/test_generate-adr-index.py	31	31	1	7	c8726ebb0f23	DROP	generated-artifact		0				0
-tools/test_generate-adr-index.py	48	48	1	12	345c2ce59d2d	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	38	42	5	49	4f4cf0a1c060	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	48	48	1	7	84cd8d0be711	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	69	69	1	12	345c2ce59d2d	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	147	153	7	54	97f4cda775a0	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	160	160	1	4	82807f852551	DROP	generated-artifact		0				0
+tools/test_generate-adr-index.py	167	167	1	12	93facae96d6f	DROP	generated-artifact		0				0
 tools/test_generate-blade-karg.py	1	3	3	9	d5643e7fb2bf	DROP	generated-artifact		0				0
 tools/test_generate-blade-karg.py	4	4	1	7	00166fa9ea08	DROP	generated-artifact		0				0
 tools/test_generate-blade-karg.py	17	17	1	3	c4eab4cecb60	DROP	generated-artifact		0				0
