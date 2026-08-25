@@ -14381,3 +14381,83 @@ makes that table generated so the two cannot diverge again.
 **Why:** Automated self-rebuilding must be paired with automated rollback to guarantee 100% system uptime and reliability.
 **Dep:** AGY-2067
 
+## AGY-2069 -- Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline  (WS-VFIO | P1 | M)
+**Goal:** Bake signed physical host GPU drivers (NVIDIA/AMD/Intel) into the base image across all deployment shapes.
+**What+How:** Update `automation/20-drivers.sh` to pre-compile and sign NVIDIA akmods, Intel Xe/i915, and AMD amdgpu kernel modules using local MOK keys during OCI image build time, ensuring host-level GPU inference and CDI are active on first boot.
+**Where:** automation/20-drivers.sh, usr/share/mios/mios.toml
+**Verify:** Boot deployed image on NVIDIA/AMD/Intel hardware; verify `nvidia-smi` or `rocminfo` executes successfully with host drivers loaded.
+**Do NOT:** Compile kernel modules at runtime on the host; always pre-bake and sign modules in the OCI build pipeline.
+**Done When:** Physical host GPU drivers load automatically on boot across all deployment shapes with verified MOK signatures.
+**Why:** Unconditionally loaded host drivers provide immediate hardware acceleration for local AI inference and CDI workloads.
+**Dep:** AGY-2068
+
+## AGY-2070 -- Automated SR-IOV and mdevctl mediated vGPU slice provisioner  (WS-VFIO | P1 | M)
+**Goal:** Provision mediated vGPU and SR-IOV virtual slices dynamically for guest virtual machines.
+**What+How:** Implement `usr/libexec/mios/mios-vgpu-provision`. Parse `[gpu.vgpu_slices]` in `mios.toml`, configure `mdevctl` definitions, and generate libvirt XML hostdev tags for guest attachment while preserving host driver operation.
+**Where:** usr/libexec/mios/mios-vgpu-provision, usr/share/mios/virt/template-win11.xml
+**Verify:** Configure 2 vGPU slices; launch guest VM; verify guest detects virtual GPU adapter while host GPU remains active for inference.
+**Do NOT:** Allocate more vGPU memory than physical VRAM capacity.
+**Done When:** Mediated vGPU slices provision and attach to virtual machines automatically based on SSOT configuration.
+**Why:** GPU fractioning enables concurrent guest OS graphics acceleration alongside host-side background AI inference.
+**Dep:** AGY-2069
+
+## AGY-2071 -- Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking  (WS-BUILD | P1 | M)
+**Goal:** Prevent git index.lock collisions by coordinating concurrent agent commits through PostgreSQL advisory locks.
+**What+How:** Implement `usr/libexec/mios/mios-git-tx`. Acquire transaction lock via `SELECT pg_advisory_xact_lock(1001)`, stage designated file modifications, sign semantic commit with host node key, and release lock upon completion.
+**Where:** usr/libexec/mios/mios-git-tx, usr/lib/mios/agent-pipe/server.py
+**Verify:** Spawn 10 concurrent agent workers attempting simultaneous git commits; verify all 10 commits serialize cleanly with zero `index.lock` failures.
+**Do NOT:** Invoke uncoordinated raw `git commit` commands from background agent threads.
+**Done When:** Agent git commit coordinator serializes concurrent commits deterministically without index collisions.
+**Why:** Concurrent agent commits without locking corrupt working tree states and abort transactions.
+**Dep:** AGY-2070
+
+## AGY-2072 -- Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS  (WS-BUILD | P1 | M)
+**Goal:** Automatically resolve and rebase non-overlapping concurrent agent modifications to the root filesystem.
+**What+How:** Implement semantic rebase logic in `usr/libexec/mios/mios-git-rebase`. When concurrent agent commits touch different sections of `mios.toml` or different files, execute automatic 3-way merge; if conflicts overlap, isolate conflicting branch and alert operator.
+**Where:** usr/libexec/mios/mios-git-rebase, usr/libexec/mios/mios-git-tx
+**Verify:** Trigger simultaneous edits to `[colors]` and `[packages]` in `mios.toml`; verify both commits merge automatically into main working tree.
+**Do NOT:** Auto-merge conflicting modifications to security-sensitive policies or root authentication files without human review.
+**Done When:** Semantic rebase engine resolves non-overlapping configuration commits automatically.
+**Why:** Parallel agent operations must merge cleanly to maintain continuous autonomous self-development.
+**Dep:** AGY-2071
+
+## AGY-2073 -- Pre-Search Query Sanitization & Secret Scrubbing Filter in agent-pipe  (WS-AI | P1 | S)
+**Goal:** Prevent leaking sensitive internal paths, private keys, and user tokens to external search engines.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_search_scrub.py`. Intercept outgoing `web_search` queries, strip regex patterns matching API keys, credentials, local IPs, and FHS file paths, and forward sanitized query strings to SearXNG.
+**Where:** usr/lib/mios/agent-pipe/mios_search_scrub.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Send a search query containing an API key and local file path; verify the dispatched query to SearXNG has both items redacted.
+**Do NOT:** Forward un-sanitized raw prompt text directly to external search engines.
+**Done When:** Pre-search filter scrubs sensitive tokens from outgoing search queries reliably.
+**Why:** Autonomous agents frequently reference code containing secrets; un-scrubbed web searches leak private credentials.
+**Dep:** AGY-2072
+
+## AGY-2074 -- Search Result Semantic Vector Cache & Deduplication in pgvector  (WS-RAG | P2 | M)
+**Goal:** Cache web search results locally in pgvector for instant zero-latency retrieval on repeated queries.
+**What+How:** Implement search cache manager in `usr/lib/mios/agent-pipe/mios_search_cache.py`. Store parsed markdown snippets with query vector embeddings in the `search_cache` table with a configurable TTL (default: 72h).
+**Where:** usr/lib/mios/agent-pipe/mios_search_cache.py, usr/share/mios/postgres/schema-init.sql
+**Verify:** Perform the same search twice; verify the second query returns results from the local PostgreSQL cache with zero outbound network calls.
+**Do NOT:** Cache stale web search results indefinitely without TTL expiration.
+**Done When:** Semantic search cache serves repeated queries locally with sub-10ms response times.
+**Why:** Local search caching saves network bandwidth, accelerates agent turn latency, and improves offline usability.
+**Dep:** AGY-2073
+
+## AGY-2075 -- Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation  (WS-USER | P1 | S)
+**Goal:** Allocate non-overlapping 65,536 subordinate UID/GID blocks per user account automatically.
+**What+How:** Implement `automation/31-subuid-alloc.sh`. Calculate subordinate ranges based on `base = 100000 + (UID - 1000) * 65536` and write persistent entries to `/etc/subuid` and `/etc/subgid` during user creation.
+**Where:** automation/31-subuid-alloc.sh, usr/lib/sysusers.d/50-mios-users.conf
+**Verify:** Create two test user accounts; verify `/etc/subuid` assigns non-overlapping ranges and rootless `podman run` succeeds for both.
+**Do NOT:** Assign overlapping subuid ranges to different user accounts.
+**Done When:** Subordinate UID/GID ranges are generated deterministically with zero collision across user accounts.
+**Why:** Non-overlapping user namespaces are essential for secure multi-tenant rootless container execution.
+**Dep:** AGY-2074
+
+## AGY-2076 -- POSIX ACL and user namespace validator in greenboot pre-flight checks  (WS-SEC | P2 | S)
+**Goal:** Verify container storage directories enforce strict POSIX ACL permissions preventing cross-user snooping.
+**What+How:** Add `/etc/greenboot/check/required.d/35-subuid-acl-check.sh`. Inspect `/var/lib/containers/storage/` and user home directories, verifying mode 0700 permissions and asserting no unauthorized subuid overlaps.
+**Where:** /etc/greenboot/check/required.d/35-subuid-acl-check.sh, usr/lib/greenboot/check/required.d/
+**Verify:** Simulate permission misconfiguration on a user container store; verify greenboot flags error and prevents boot promotion.
+**Do NOT:** Allow world-readable permissions on `/var/lib/containers/storage/users/` paths.
+**Done When:** Greenboot validates container storage ACLs and subordinate namespace isolation on every boot.
+**Why:** Broken filesystem ACLs compromise container isolation and expose private user data across tenant boundaries.
+**Dep:** AGY-2075
+

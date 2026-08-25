@@ -456,6 +456,14 @@
 | T-468 | P2 | open | UX/DiffAuditor | Quickshell and CLI interactive diff auditor enabling operator approval of accrued diffs |
 | T-469 | P1 | open | Build/ImageBake | Autonomous image rolling service staging approved diffs for background OCI image synthesis |
 | T-470 | P1 | open | Kernel/Greenboot | Greenboot post-bake health gate with automated fallback on diff-induced regressions |
+| T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
+| T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
+| T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
+| T-474 | P1 | open | Git/Rebase | Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS |
+| T-475 | P1 | open | Search/Scrubbing | Pre-Search Query Sanitization & Secret Scrubbing Filter in agent-pipe |
+| T-476 | P2 | open | Search/Cache | Search Result Semantic Vector Cache & Deduplication in pgvector |
+| T-477 | P1 | open | User/SubUID | Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation |
+| T-478 | P2 | open | Security/ACL | POSIX ACL and user namespace validator in greenboot pre-flight checks |
 
 ---
 
@@ -4940,4 +4948,84 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2067
 **Status:** open | **Domain:** Kernel/Greenboot | **Who:** agent
 **Converted:** AGY-2068 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-471 -- Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline (WS-VFIO | P1 | M)
+**Goal:** Bake signed physical host GPU drivers (NVIDIA/AMD/Intel) into the base image across all deployment shapes.
+**What+How:** Update `automation/20-drivers.sh` to pre-compile and sign NVIDIA akmods, Intel Xe/i915, and AMD amdgpu kernel modules using local MOK keys during OCI image build time, ensuring host-level GPU inference and CDI are active on first boot.
+**Where:** automation/20-drivers.sh, usr/share/mios/mios.toml
+**Done When:** Physical host GPU drivers load automatically on boot across all deployment shapes with verified MOK signatures.
+**Why:** Unconditionally loaded host drivers provide immediate hardware acceleration for local AI inference and CDI workloads.
+**Dep:** AGY-2068
+**Status:** open | **Domain:** Hardware/Drivers | **Who:** agent
+**Converted:** AGY-2069 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-472 -- Automated SR-IOV and mdevctl mediated vGPU slice provisioner (WS-VFIO | P1 | M)
+**Goal:** Provision mediated vGPU and SR-IOV virtual slices dynamically for guest virtual machines.
+**What+How:** Implement `usr/libexec/mios/mios-vgpu-provision`. Parse `[gpu.vgpu_slices]` in `mios.toml`, configure `mdevctl` definitions, and generate libvirt XML hostdev tags for guest attachment while preserving host driver operation.
+**Where:** usr/libexec/mios/mios-vgpu-provision, usr/share/mios/virt/template-win11.xml
+**Done When:** Mediated vGPU slices provision and attach to virtual machines automatically based on SSOT configuration.
+**Why:** GPU fractioning enables concurrent guest OS graphics acceleration alongside host-side background AI inference.
+**Dep:** AGY-2069
+**Status:** open | **Domain:** Virtualization/vGPU | **Who:** agent
+**Converted:** AGY-2070 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-473 -- Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking (WS-BUILD | P1 | M)
+**Goal:** Prevent git index.lock collisions by coordinating concurrent agent commits through PostgreSQL advisory locks.
+**What+How:** Implement `usr/libexec/mios/mios-git-tx`. Acquire transaction lock via `SELECT pg_advisory_xact_lock(1001)`, stage designated file modifications, sign semantic commit with host node key, and release lock upon completion.
+**Where:** usr/libexec/mios/mios-git-tx, usr/lib/mios/agent-pipe/server.py
+**Done When:** Agent git commit coordinator serializes concurrent commits deterministically without index collisions.
+**Why:** Concurrent agent commits without locking corrupt working tree states and abort transactions.
+**Dep:** AGY-2070
+**Status:** open | **Domain:** Git/Transaction | **Who:** agent
+**Converted:** AGY-2071 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-474 -- Automated Conflict Detection and Semantic 3-Way Rebase Engine for Root FS (WS-BUILD | P1 | M)
+**Goal:** Automatically resolve and rebase non-overlapping concurrent agent modifications to the root filesystem.
+**What+How:** Implement semantic rebase logic in `usr/libexec/mios/mios-git-rebase`. When concurrent agent commits touch different sections of `mios.toml` or different files, execute automatic 3-way merge; if conflicts overlap, isolate conflicting branch and alert operator.
+**Where:** usr/libexec/mios/mios-git-rebase, usr/libexec/mios/mios-git-tx
+**Done When:** Semantic rebase engine resolves non-overlapping configuration commits automatically.
+**Why:** Parallel agent operations must merge cleanly to maintain continuous autonomous self-development.
+**Dep:** AGY-2071
+**Status:** open | **Domain:** Git/Rebase | **Who:** agent
+**Converted:** AGY-2072 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-475 -- Pre-Search Query Sanitization & Secret Scrubbing Filter in agent-pipe (WS-AI | P1 | S)
+**Goal:** Prevent leaking sensitive internal paths, private keys, and user tokens to external search engines.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_search_scrub.py`. Intercept outgoing `web_search` queries, strip regex patterns matching API keys, credentials, local IPs, and FHS file paths, and forward sanitized query strings to SearXNG.
+**Where:** usr/lib/mios/agent-pipe/mios_search_scrub.py, usr/lib/mios/agent-pipe/server.py
+**Done When:** Pre-search filter scrubs sensitive tokens from outgoing search queries reliably.
+**Why:** Autonomous agents frequently reference code containing secrets; un-scrubbed web searches leak private credentials.
+**Dep:** AGY-2072
+**Status:** open | **Domain:** Search/Scrubbing | **Who:** agent
+**Converted:** AGY-2073 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-476 -- Search Result Semantic Vector Cache & Deduplication in pgvector (WS-RAG | P2 | M)
+**Goal:** Cache web search results locally in pgvector for instant zero-latency retrieval on repeated queries.
+**What+How:** Implement search cache manager in `usr/lib/mios/agent-pipe/mios_search_cache.py`. Store parsed markdown snippets with query vector embeddings in the `search_cache` table with a configurable TTL (default: 72h).
+**Where:** usr/lib/mios/agent-pipe/mios_search_cache.py, usr/share/mios/postgres/schema-init.sql
+**Done When:** Semantic search cache serves repeated queries locally with sub-10ms response times.
+**Why:** Local search caching saves network bandwidth, accelerates agent turn latency, and improves offline usability.
+**Dep:** AGY-2073
+**Status:** open | **Domain:** Search/Cache | **Who:** agent
+**Converted:** AGY-2074 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-477 -- Deterministic /etc/subuid and /etc/subgid range generator in sysusers automation (WS-USER | P1 | S)
+**Goal:** Allocate non-overlapping 65,536 subordinate UID/GID blocks per user account automatically.
+**What+How:** Implement `automation/31-subuid-alloc.sh`. Calculate subordinate ranges based on `base = 100000 + (UID - 1000) * 65536` and write persistent entries to `/etc/subuid` and `/etc/subgid` during user creation.
+**Where:** automation/31-subuid-alloc.sh, usr/lib/sysusers.d/50-mios-users.conf
+**Done When:** Subordinate UID/GID ranges are generated deterministically with zero collision across user accounts.
+**Why:** Non-overlapping user namespaces are essential for secure multi-tenant rootless container execution.
+**Dep:** AGY-2074
+**Status:** open | **Domain:** User/SubUID | **Who:** agent
+**Converted:** AGY-2075 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-478 -- POSIX ACL and user namespace validator in greenboot pre-flight checks (WS-SEC | P2 | S)
+**Goal:** Verify container storage directories enforce strict POSIX ACL permissions preventing cross-user snooping.
+**What+How:** Add `/etc/greenboot/check/required.d/35-subuid-acl-check.sh`. Inspect `/var/lib/containers/storage/` and user home directories, verifying mode 0700 permissions and asserting no unauthorized subuid overlaps.
+**Where:** /etc/greenboot/check/required.d/35-subuid-acl-check.sh, usr/lib/greenboot/check/required.d/
+**Done When:** Greenboot validates container storage ACLs and subordinate namespace isolation on every boot.
+**Why:** Broken filesystem ACLs compromise container isolation and expose private user data across tenant boundaries.
+**Dep:** AGY-2075
+**Status:** open | **Domain:** Security/ACL | **Who:** agent
+**Converted:** AGY-2076 carries this forward with a Verify line that fails when the behaviour is absent.
 
