@@ -15001,3 +15001,123 @@ makes that table generated so the two cannot diverge again.
 **Why:** Automated fallback ensures users retain system connectivity and diagnostics even when specific hardware lacks drivers.
 **Dep:** AGY-2129
 
+## AGY-2131 -- Low-latency WebRTC streaming audio ingress and streaming Whisper speech-to-text bridge  (WS-AI | P1 | M)
+**Goal:** Stream live microphone audio over WebRTC to local Whisper with real-time text token emission.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_audio_stream.py`. Accept Opus audio chunks over WebRTC / Unix socket, feed continuous audio buffer to `whisper.cpp` streaming engine, and stream recognized text tokens immediately to `agent-pipe`.
+**Where:** usr/lib/mios/agent-pipe/mios_audio_stream.py, usr/share/containers/systemd/mios-whisper.container
+**Verify:** Stream a 5-second voice audio test; verify recognized words stream to `agent-pipe` with <150ms chunk latency.
+**Do NOT:** Buffer entire audio phrases to temporary disk files before initiating transcription.
+**Done When:** Streaming STT engine transcribes microphone audio in real time with sub-150ms token latency.
+**Why:** Real-time streaming speech-to-text enables natural, interactive voice conversations with the OS brain.
+**Dep:** AGY-2130
+
+## AGY-2132 -- Concurrent streaming Piper/Kokoro TTS audio synthesis and PipeWire buffer feeder  (WS-AI | P1 | M)
+**Goal:** Synthesize and stream voice audio concurrently as LLM text tokens arrive with sub-300ms time-to-sound.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_audio_tts.py`. Buffer incoming LLM response sentences, stream text chunks to local Piper/Kokoro ONNX engine, and feed raw PCM audio frames immediately into PipeWire playback buffer.
+**Where:** usr/lib/mios/agent-pipe/mios_audio_tts.py, usr/share/containers/systemd/mios-piper.container
+**Verify:** Send a prompt via voice; assert the first synthesized audio word plays through PipeWire in <300ms from start of generation.
+**Do NOT:** Wait for the entire LLM response completion before synthesizing speech.
+**Done When:** Concurrent TTS engine streams synthesized voice audio concurrently with token generation.
+**Why:** Concurrent sentence-level TTS synthesis delivers human-fluid voice conversation with zero perceptible lag.
+**Dep:** AGY-2131
+
+## AGY-2133 -- Multi-vendor hardware video encoder discovery and DMA-BUF capture bridge  (WS-VFIO | P1 | M)
+**Goal:** Probe hardware video encoders (QuickSync/NVENC/AMF) and capture desktop frames via zero-copy DMA-BUF.
+**What+How:** Implement `usr/libexec/mios/mios-video-encoder-probe`. Probe `/dev/dri/` and `/dev/nvidia*`, prioritize AV1 > HEVC > H.264, configure Sunshine/Moonlight service to capture Wayland frames over PipeWire DMA-BUF with hardware ASIC acceleration.
+**Where:** usr/libexec/mios/mios-video-encoder-probe, usr/share/containers/systemd/mios-sunshine.container
+**Verify:** Launch display stream on Intel/NVIDIA hardware; verify hardware encoder engages with 0% CPU software encode overhead.
+**Do NOT:** Fall back to CPU software x264 encoding when hardware VA-API or NVENC encoders are available.
+**Done When:** Video encoder probe detects hardware ASICs and binds zero-copy DMA-BUF streaming automatically.
+**Why:** Hardware video encoding provides 4K60 desktop streaming with minimal CPU utilization and sub-10ms frame encoding latency.
+**Dep:** AGY-2132
+
+## AGY-2134 -- Adaptive bitrate and low-latency frame encoding streaming benchmark suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated benchmarks that remote display encoding maintains 60 FPS under varying network latency.
+**What+How:** Add `tests/test-video-encode-latency.sh`. Simulate packet loss and bandwidth constraints using `tc-netem`; assert video stream adapts bitrate and maintains encoding latency <12ms without frame drops.
+**Where:** tests/test-video-encode-latency.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-video-encode-latency.sh`; verify adaptive bitrate triggers and latency passes SLA.
+**Do NOT:** Skip video encoding latency validation in CI test tier 2.
+**Done When:** Benchmark suite confirms adaptive bitrate encoding maintains target frame rates under network jitter.
+**Why:** Continuous encoding testing ensures remote desktop streaming remains fluid across mobile connections.
+**Dep:** AGY-2133
+
+## AGY-2135 -- Multi-node dynamic AI workload partitioner and capability-aware task router  (WS-AI | P1 | M)
+**Goal:** Distribute AI inference and agent tasks dynamically across all available and relevant cluster nodes.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_mesh_distributor.py`. Track live node capabilities (embeddings, coder models, heavy reasoning, tool sandboxes) over mesh backhaul; partition composite agent workflows and fan out subtasks across relevant available nodes concurrently.
+**Where:** usr/lib/mios/agent-pipe/mios_mesh_distributor.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Trigger a composite coding + review prompt on a 3-node cluster; verify embeddings run on Node A, coder on Node B, and critic on Node C concurrently.
+**Do NOT:** Funnel all composite AI operations to a single node when idle peer nodes with matching capabilities are available.
+**Done When:** Mesh distributor partitions and routes subtasks across relevant cluster nodes dynamically.
+**Why:** Distributing AI workloads maximizes cluster throughput and parallelizes multi-agent workflows.
+**Dep:** AGY-2134
+
+## AGY-2136 -- Automated node failure detection and zero-loss dynamic task re-distribution engine  (WS-AI | P1 | M)
+**Goal:** Re-distribute in-flight AI tasks immediately when an assigned cluster node disconnects.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_task_failover.py`. Monitor node heartbeats; if an assigned node drops before returning task results, re-enqueue pending subtask and dispatch to the next available relevant node with zero prompt loss.
+**Where:** usr/lib/mios/agent-pipe/mios_task_failover.py, usr/share/mios/postgres/schema-init.sql
+**Verify:** Simulate node disconnection during active subagent execution; verify task re-dispatches to surviving node and user turn completes successfully.
+**Do NOT:** Drop user turns or corrupt session history when individual cluster nodes fail.
+**Done When:** Task failover engine detects node drops and completes in-flight AI tasks across surviving nodes.
+**Why:** Dynamic re-distribution guarantees system resiliency across unstable network links or power interruptions.
+**Dep:** AGY-2135
+
+## AGY-2137 -- ATSPI accessibility tree sensitive widget coordinate detector and Wayland frame blur filter  (WS-AI | P1 | M)
+**Goal:** Detect on-screen password/sensitive fields via ATSPI and blur matching screen coordinates on captured frames.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_vision_redact.py`. Query the ATSPI DBus bus for widgets with `ROLE_PASSWORD_TEXT` or `STATE_PROTECTED`; compute screen bounding boxes; and apply Gaussian blur to those coordinate regions on the captured Wayland frame buffer.
+**Where:** usr/lib/mios/agent-pipe/mios_vision_redact.py, usr/bin/mios-pc-control
+**Verify:** Open a login window with password box; capture screen via `mios-pc-control screenshot`; verify the password field area is completely blurred in output PNG.
+**Do NOT:** Forward unmasked frames containing visible password fields to vision LLMs.
+**Done When:** Vision redaction filter blurs all ATSPI-reported password fields on captured screen frames.
+**Why:** Visual privacy redaction prevents on-screen user credentials from leaking into agent prompt context or logs.
+**Dep:** AGY-2136
+
+## AGY-2138 -- Lightweight on-device OCR regex credential masking pipeline for vision frames  (WS-AI | P2 | M)
+**Goal:** Scan screenshot frames for visible credit card numbers, private keys, and API tokens and mask matching text regions.
+**What+How:** Implement `usr/lib/mios/agent-pipe/mios_ocr_mask.py`. Run lightweight on-device Tesseract/PaddleOCR on screen regions; scan detected text for API key and token regex patterns; and black-box redact matching coordinate rects before dispatching to the multi-modal LLM.
+**Where:** usr/lib/mios/agent-pipe/mios_ocr_mask.py, usr/lib/mios/agent-pipe/server.py
+**Verify:** Display a dummy API key string on screen; take screenshot; verify OCR masking blacks out the API key bounding box.
+**Do NOT:** Send screenshot frames to cloud OCR endpoints; process OCR strictly locally on CPU/iGPU.
+**Done When:** OCR masking pipeline detects and redacts credential text patterns from vision frames locally.
+**Why:** Local OCR pattern masking catches unmasked plaintext secrets displayed inside non-accessible terminal or web windows.
+**Dep:** AGY-2137
+
+## AGY-2139 -- Shadow dual-process candidate daemon validator and query mirroring harness  (WS-ORCH | P1 | M)
+**Goal:** Validate candidate daemon patches in a shadow container before promoting to production.
+**What+How:** Implement `usr/libexec/mios/mios-shadow-test`. Launch candidate daemon in rootless netns/cgroup; mirror live non-mutating `/v1` queries to both live and candidate backends; assert candidate produces identical schema and response quality without errors.
+**Where:** usr/libexec/mios/mios-shadow-test, usr/lib/mios/agent-pipe/server.py
+**Verify:** Run shadow validation with a candidate patch; verify 100 test queries mirror cleanly and validation report returns 100% pass.
+**Do NOT:** Mirror state-mutating tool requests (e.g. `rm`, `git commit`) to shadow processes.
+**Done When:** Shadow testing harness validates candidate daemon patches in isolated namespaces safely.
+**Why:** Shadow testing catches regressions and unhandled exceptions before candidate code handles production user traffic.
+**Dep:** AGY-2138
+
+## AGY-2140 -- Zero-downtime systemd socket handoff (sd_listen_fds) daemon swapper for agent-pipe  (WS-ORCH | P1 | M)
+**Goal:** Hot-swap running agent-pipe daemon instances using systemd file descriptor passing with zero dropped connections.
+**What+How:** Implement `usr/libexec/mios/mios-socket-swap`. Pass listening TCP/Unix sockets from old process to new process via `sd_listen_fds`; allow new process to accept connections; drain in-flight turns on old process; and terminate old process cleanly.
+**Where:** usr/libexec/mios/mios-socket-swap, usr/lib/systemd/system/mios-agent-pipe.socket
+**Verify:** Initiate continuous streaming chat turn; trigger `mios-socket-swap`; verify stream continues uninterrupted while daemon process PID changes.
+**Do NOT:** Drop active TCP connections or reset SSL handshakes during daemon socket migration.
+**Done When:** Socket swapper transitions active daemon instances with zero client connection drops.
+**Why:** Zero-downtime socket handoff allows continuous autonomous self-development without operator disruption.
+**Dep:** AGY-2139
+
+## AGY-2141 -- Proactive PID thermal daemon and dynamic CPU/GPU power cap modulator  (WS-VFIO | P1 | M)
+**Goal:** Poll temperatures and modulate CPU/GPU power caps proactively before thermal throttling occurs.
+**What+How:** Implement `usr/libexec/mios/mios-thermald`. Poll `/sys/class/hwmon` and NVML every 1s; adjust PID fan curves; if GPU temp > 80°C, throttle GPU power limit by 15% and set CPU EPP to `balance_power`; restore full performance profiles when temp falls < 70°C.
+**Where:** usr/libexec/mios/mios-thermald, usr/lib/systemd/system/mios-thermald.service
+**Verify:** Run sustained GPU stress test; verify `mios-thermald` engages smooth fan curve and caps power limits before GPU reaches 85°C.
+**Do NOT:** Set CPU frequency governors to lowest power state abruptly during interactive user turns.
+**Done When:** Thermal daemon proactively modulates power caps and prevents silicon thermal throttling.
+**Why:** Proactive thermal regulation maintains stable inference token throughput and prevents hardware degradation.
+**Dep:** AGY-2140
+
+## AGY-2142 -- Continuous thermal stress and governor modulation recovery test suite  (WS-VFIO | P2 | S)
+**Goal:** Verify in automated stress tests that thermal governor throttling recovers full clock speeds when load drops.
+**What+How:** Add `tests/test-thermal-governor-recovery.sh`. Generate thermal load; assert power limits cap at threshold; terminate load; assert GPU/CPU frequencies recover to maximum boost within 30s.
+**Where:** tests/test-thermal-governor-recovery.sh, tools/ci-suites.py
+**Verify:** Run `tests/test-thermal-governor-recovery.sh`; verify governor throttling and recovery meet SLA assertions.
+**Do NOT:** Skip thermal recovery verification in CI test tier 2.
+**Done When:** Test suite validates thermal power cap modulation and automated frequency recovery.
+**Why:** Continuous thermal testing ensures cooling algorithms operate reliably under sustained AI workloads.
+**Dep:** AGY-2141
+
