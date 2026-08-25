@@ -590,6 +590,16 @@
 | T-676 | P2 | open | AI/CompactorTest | Automated long-horizon (100k+ token) conversation compaction and intent retention test suite |
 | T-677 | P1 | open | Hardware/USBSurge | Udev USB over-current event handler and port power cycling daemon |
 | T-678 | P2 | open | Hardware/SurgeTest | Automated USB over-current fault simulation, port isolation, and power recovery test suite |
+| T-679 | P1 | open | Security/Entropy | Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation |
+| T-680 | P2 | open | Security/EntropyTest | Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite |
+| T-681 | P1 | open | Kernel/LivePatch | Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch |
+| T-682 | P2 | open | Kernel/LivePatchTest | Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite |
+| T-683 | P1 | open | Hardware/GPUPower | PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd |
+| T-684 | P2 | open | Hardware/GPUPowerTest | Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite |
+| T-685 | P1 | open | AI/GrammarDecode | Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap |
+| T-686 | P2 | open | AI/GrammarTest | Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite |
+| T-687 | P1 | open | AI/TTSStreaming | Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder |
+| T-688 | P2 | open | AI/TTSTest | Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite |
 | T-471 | P1 | open | Hardware/Drivers | Unified Host GPU Driver Ingestion & MOK Pre-Compilation Pipeline |
 | T-472 | P1 | open | Virtualization/vGPU | Automated SR-IOV and mdevctl mediated vGPU slice provisioner |
 | T-473 | P1 | open | Git/Transaction | Atomic Agent Git Transaction Coordinator with PostgreSQL Advisory Locking |
@@ -7228,4 +7238,104 @@ are the same sentence read two ways, and the tree cannot tell which one a schedu
 **Dep:** AGY-2275
 **Status:** open | **Domain:** Hardware/SurgeTest | **Who:** agent
 **Converted:** AGY-2276 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-679 -- Multi-source hardware TRNG conditioning daemon and early-boot entropy seeder in automation (WS-BOOT | P1 | M)
+**Goal:** Harvest and condition entropy from CPU RDSEED, TPM 2.0 TRNG, and JitterEntropy to seed /dev/urandom early.
+**What+How:** Implement `automation/15-entropy.sh` and `usr/libexec/mios/mios-entropy-seed`. In early boot before SSH/WireGuard keygen, sample 256 bits each from `tpm2_getrandom`, `rdrand`/`rdseed`, and `jitterentropy`; whiten and combine via ChaCha20/SHAKE256; inject 512 bits into `/dev/urandom` via `ioctl(RNDADDENTROPY)`; verify `/proc/sys/kernel/random/entropy_avail` reaches maximum 256/4096 threshold.
+**Where:** automation/15-entropy.sh, usr/libexec/mios/mios-entropy-seed
+**Done When:** Entropy daemon harvests multiple hardware TRNG sources and seeds kernel entropy pools in early boot.
+**Why:** Multi-source entropy conditioning prevents cryptographic key duplication and backdoor vulnerability in hardware RNGs.
+**Dep:** AGY-2276
+**Status:** open | **Domain:** Security/Entropy | **Who:** agent
+**Converted:** AGY-2277 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-680 -- Automated hardware entropy harvesting, statistical randomness (NIST SP 800-22), and seeding test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that seeded random bits pass NIST SP 800-22 statistical randomness tests.
+**What+How:** Add `tests/test-entropy-statistical-randomness.sh`. Harvest 10MB of seeded random output from `/dev/urandom`; execute `ent` / `rngtest` / `dieharder` statistical randomness suite; assert Shannon entropy > 7.9999 bits/byte and zero chi-square distribution anomalies.
+**Where:** tests/test-entropy-statistical-randomness.sh, tools/ci-suites.py
+**Done When:** Test suite validates cryptographic entropy density and statistical whitening quality.
+**Why:** Continuous testing ensures kernel entropy seeding maintains unimpeachable cryptographic randomness.
+**Dep:** AGY-2277
+**Status:** open | **Domain:** Security/EntropyTest | **Who:** agent
+**Converted:** AGY-2278 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-681 -- Declarative kernel kpatch/livepatch manager and MOK signature validator in mios-kpatch (WS-BOOT | P1 | M)
+**Goal:** Apply signed kernel livepatches in <100ms via ftrace to neutralize critical CVEs with zero reboot downtime.
+**What+How:** Implement `usr/libexec/mios/mios-kpatch`. On critical kernel CVE announcement, download signed `.ko` livepatch; verify module signature against enrolled MOK/IMA keyring; load via `kpatch load <module.ko>`; verify ftrace redirects faulting symbol in `/sys/kernel/livepatch/`; stage UKI update for next scheduled maintenance reboot.
+**Where:** usr/libexec/mios/mios-kpatch, usr/lib/systemd/system/mios-kpatch.service
+**Done When:** Livepatch manager verifies and loads kernel security hotfixes dynamically with zero reboot downtime.
+**Why:** Kernel live patching allows 24/7 AI and database servers to neutralize remote kernel exploits instantly.
+**Dep:** AGY-2278
+**Status:** open | **Domain:** Kernel/LivePatch | **Who:** agent
+**Converted:** AGY-2279 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-682 -- Automated kernel livepatch injection, zero-downtime CVE neutralization, and ftrace redirection test suite (WS-BOOT | P2 | S)
+**Goal:** Verify in automated CI that livepatch redirects kernel symbols in <100ms with zero dropped network packets.
+**What+How:** Add `tests/test-kernel-livepatch-hotfix.sh`. Run sustained TCP network throughput benchmark; inject mock kernel livepatch redirecting test netfilter hook; assert zero dropped packets; assert redirected function executes within 100ms of module load.
+**Where:** tests/test-kernel-livepatch-hotfix.sh, tools/ci-suites.py
+**Done When:** Test suite validates that kernel livepatching safely redirects functions under heavy I/O load.
+**Why:** Continuous testing ensures kernel livepatching infrastructure remains reliable across kernel minor updates.
+**Dep:** AGY-2279
+**Status:** open | **Domain:** Kernel/LivePatchTest | **Who:** agent
+**Converted:** AGY-2280 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-683 -- PCIe ASPM L1.2 and runtime D3cold GPU power manager in mios-gpu-powerd (WS-NODE | P1 | M)
+**Goal:** Configure PCIe ASPM L1.2 sub-states and runtime D3cold to reduce idle GPU power draw to <3W.
+**What+How:** Implement `usr/libexec/mios/mios-gpu-powerd` and `automation/21-gpu-power.sh`. Configure `/sys/bus/pci/devices/.../power/control` to `auto` and `runtime_idle_timeout` to 10s; configure kernel karg `pcie_aspm=force`; transition discrete GPU to D3cold (<3W) during idle periods; and wake GPU in <150ms on incoming CUDA/OpenAI inference requests.
+**Where:** usr/libexec/mios/mios-gpu-powerd, automation/21-gpu-power.sh
+**Done When:** GPU power manager enables ASPM L1.2 sub-states and transitions idle GPUs into sub-3W D3cold sleep.
+**Why:** PCIe ASPM and D3cold power transitions maximize laptop battery endurance and reduce thermal noise at idle.
+**Dep:** AGY-2280
+**Status:** open | **Domain:** Hardware/GPUPower | **Who:** agent
+**Converted:** AGY-2281 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-684 -- Automated idle GPU power measurement (<3W) and sub-150ms D3cold wakeup benchmark suite (WS-NODE | P2 | S)
+**Goal:** Verify in automated CI that idle GPU reaches <3W power draw and wakes in <150ms upon query arrival.
+**What+How:** Add `tests/test-gpu-aspm-d3cold-wakeup.sh`. Measure idle GPU wattage; assert wattage < 3W; issue inference request; measure wake-to-inference latency; assert GPU wake latency < 150ms and 100% token generation success.
+**Where:** tests/test-gpu-aspm-d3cold-wakeup.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-3W idle power consumption and sub-150ms D3cold wakeup transitions.
+**Why:** Continuous testing ensures power management optimizations remain functional across kernel and driver updates.
+**Dep:** AGY-2281
+**Status:** open | **Domain:** Hardware/GPUPowerTest | **Who:** agent
+**Converted:** AGY-2282 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-685 -- Logit-level GBNF grammar constrained decoder and JSON schema compiler in llama-swap (WS-AI | P1 | M)
+**Goal:** Enforce logit-level GBNF grammar constraints to guarantee 100% syntactically valid JSON in a single pass.
+**What+How:** Update `usr/share/mios/llamacpp/llama-swap.yaml` and `usr/lib/mios/agent-pipe/server.py`. Ingest OpenAI `response_format` and MCP tool schemas; compile schemas into GBNF state automata; mask illegal token logits dynamically before sampler softmax; and stream 100% conforming structured JSON payloads on the first forward pass.
+**Where:** usr/share/mios/llamacpp/llama-swap.yaml, usr/lib/mios/agent-pipe/server.py
+**Done When:** Inference engine enforces GBNF logit masking and outputs guaranteed valid JSON schemas.
+**Why:** Logit-level grammar masking eliminates JSON syntax errors and reduces agent tool-loop latency by eliminating retries.
+**Dep:** AGY-2282
+**Status:** open | **Domain:** AI/GrammarDecode | **Who:** agent
+**Converted:** AGY-2283 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-686 -- Automated 1,000-schema structured output generation and zero-syntax-error benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that constrained decoding achieves 100.0% schema validity across 1,000 complex schemas.
+**What+How:** Add `tests/test-gbnf-grammar-conformance.sh`. Generate 1,000 diverse JSON schemas (arrays, enums, recursive trees, regex string constraints); query model with GBNF constrained sampler; assert exactly 0 JSON parse errors and 100.0% schema compliance.
+**Where:** tests/test-gbnf-grammar-conformance.sh, tools/ci-suites.py
+**Done When:** Test suite validates zero syntax errors and deterministic grammar token masking.
+**Why:** Continuous testing ensures inference sampler updates maintain reliable structured output generation.
+**Dep:** AGY-2283
+**Status:** open | **Domain:** AI/GrammarTest | **Who:** agent
+**Converted:** AGY-2284 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-687 -- Streaming Kokoro / Piper ONNX speech synthesis engine and PipeWire ring buffer feeder (WS-AI | P1 | M)
+**Goal:** Synthesize 24kHz PCM audio chunks in parallel via Kokoro/Piper ONNX and achieve <50ms playback latency.
+**What+How:** Implement `usr/libexec/mios/mios-tts`. Stream incoming LLM text tokens into quantized Kokoro/Piper ONNX runtime; synthesize 24kHz PCM chunks chunk-by-chunk in async queue; write PCM directly to PipeWire low-latency playback stream over Unix domain socket; maintain adaptive ring buffer to prevent buffer underruns.
+**Where:** usr/libexec/mios/mios-tts, usr/share/containers/systemd/mios-tts.container
+**Done When:** TTS engine streams audio chunks into PipeWire with sub-50ms latency on local hardware.
+**Why:** Zero-latency streaming TTS makes voice conversations with the agent feel instantaneous and natural.
+**Dep:** AGY-2284
+**Status:** open | **Domain:** AI/TTSStreaming | **Who:** agent
+**Converted:** AGY-2285 carries this forward with a Verify line that fails when the behaviour is absent.
+
+## T-688 -- Automated speech synthesis first-packet latency (<50ms) and buffer underrun benchmark suite (WS-AI | P2 | S)
+**Goal:** Verify in automated CI that streaming TTS delivers first audio in <50ms with 0 underrun glitches.
+**What+How:** Add `tests/test-streaming-tts-latency.sh`. Stream 20 sentences of varying lengths; measure time-to-first-audio-chunk; assert latency < 50ms across all trials; assert PipeWire reports 0 buffer underruns (XRuns) during sustained playback.
+**Where:** tests/test-streaming-tts-latency.sh, tools/ci-suites.py
+**Done When:** Test suite validates sub-50ms first-packet audio streaming and glitch-free PipeWire buffer feeding.
+**Why:** Continuous testing ensures audio synthesis optimizations preserve fluid real-time voice performance.
+**Dep:** AGY-2285
+**Status:** open | **Domain:** AI/TTSTest | **Who:** agent
+**Converted:** AGY-2286 carries this forward with a Verify line that fails when the behaviour is absent.
 
